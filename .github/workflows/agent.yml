@@ -1,0 +1,52 @@
+name: agent
+
+on:
+  push:
+    paths:
+      - 'agent/**'
+      - 'proto/**'
+      - '.github/workflows/agent.yml'
+  pull_request:
+    paths:
+      - 'agent/**'
+      - 'proto/**'
+      - '.github/workflows/agent.yml'
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: agent
+    steps:
+      - uses: actions/checkout@v4
+
+      # rustfmt and clippy are requested explicitly: the toolchain the runner ships with
+      # does not always carry them, and a missing component would skip the two gates below
+      # rather than fail them.
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      # The agent compiles the proto contract at build time (rules/proto.md), and prost's
+      # code generator shells out to protoc.
+      - name: Install protoc
+        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
+
+      # Restores ~/.cargo and agent/target keyed by the lockfile, so an unchanged
+      # dependency graph is not rebuilt from source on every push.
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: agent
+
+      - name: Format
+        run: cargo fmt --all -- --check
+
+      # Warnings are failures here for the same reason they are in the backend: the agent is
+      # the only process running as root (rules/architecture.md), so its lint output is not
+      # advisory.
+      - name: Clippy
+        run: cargo clippy --all-targets --all-features -- -D warnings
+
+      - name: Test
+        run: cargo test --all-features
