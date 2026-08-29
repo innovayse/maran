@@ -1,6 +1,7 @@
 using System.Net;
 using Maran.Modules.Accounts.Domain;
 using Maran.Modules.Accounts.Persistence;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
@@ -40,7 +41,7 @@ namespace Maran.Host.IntegrationTests;
 /// that reaches <c>AccountsController</c> — the module's only controller — throws
 /// <c>InvalidOperationException</c> ("Unable to resolve service for type
 /// '…ICurrentUser' while attempting to activate 'AccountsController'") while ASP.NET Core
-/// activates it, which <c>ExceptionMiddleware</c> turns into a 500 <c>host.unexpected_error</c>.
+/// activates it, which <c>ExceptionMiddleware</c> turns into a 500 <c>HostUnexpectedError</c>.
 /// The Accounts HTTP surface cannot currently serve a single request.
 /// </item>
 /// <item>
@@ -78,10 +79,16 @@ public sealed class AccountsEndpointTests : IAsyncLifetime
     private readonly PostgreSqlContainer _pg = new PostgreSqlBuilder("postgres:16-alpine").Build();
 
     /// <inheritdoc />
-    public Task InitializeAsync() => _pg.StartAsync();
+    public Task InitializeAsync()
+    {
+        return _pg.StartAsync();
+    }
 
     /// <inheritdoc />
-    public Task DisposeAsync() => _pg.DisposeAsync().AsTask();
+    public Task DisposeAsync()
+    {
+        return _pg.DisposeAsync().AsTask();
+    }
 
     [Fact]
     public async Task Accounts_schema_is_created_and_an_account_round_trips_through_postgres()
@@ -144,7 +151,14 @@ public sealed class AccountsEndpointTests : IAsyncLifetime
     {
         await using var factory = new WebApplicationFactory<Program>().WithWebHostBuilder(b =>
         {
-            b.UseSetting("ConnectionStrings:Panel", _pg.GetConnectionString());
+            // Testing, not Development: appsettings.Development.json points at a developer's own
+            // PostgreSQL, and inheriting it made these tests pass locally by accident while
+            // connecting to the wrong database — and fail in CI, where nothing listens there.
+            b.UseEnvironment("Testing");
+            foreach (var setting in DatabaseSettings.From(_pg.GetConnectionString()))
+            {
+                b.UseSetting(setting.Key, setting.Value);
+            }
             b.UseSetting("Security:EncryptionKey", "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=");
         });
         using var client = factory.CreateClient();
@@ -171,7 +185,14 @@ public sealed class AccountsEndpointTests : IAsyncLifetime
     {
         await using var factory = new WebApplicationFactory<Program>().WithWebHostBuilder(b =>
         {
-            b.UseSetting("ConnectionStrings:Panel", _pg.GetConnectionString());
+            // Testing, not Development: appsettings.Development.json points at a developer's own
+            // PostgreSQL, and inheriting it made these tests pass locally by accident while
+            // connecting to the wrong database — and fail in CI, where nothing listens there.
+            b.UseEnvironment("Testing");
+            foreach (var setting in DatabaseSettings.From(_pg.GetConnectionString()))
+            {
+                b.UseSetting(setting.Key, setting.Value);
+            }
             b.UseSetting("Security:EncryptionKey", "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=");
         });
         using var client = factory.CreateClient();
