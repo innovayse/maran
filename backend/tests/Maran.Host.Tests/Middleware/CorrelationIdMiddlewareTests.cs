@@ -1,19 +1,17 @@
 using System.Net;
 using Maran.SharedKernel.Constants;
-using Microsoft.AspNetCore.Mvc.Testing;
 
 namespace Maran.Host.Tests.Middleware;
 
 /// <summary>Behavioral contract of <see cref="Host.Middleware.CorrelationIdMiddleware"/>.</summary>
-public sealed class CorrelationIdMiddlewareTests : IClassFixture<WebApplicationFactory<Program>>
+public sealed class CorrelationIdMiddlewareTests : IClassFixture<PanelTestFactory>
 {
-    private readonly WebApplicationFactory<Program> _factory;
+    private readonly PanelTestFactory _factory;
 
     /// <summary>Captures the shared in-memory host factory.</summary>
-    public CorrelationIdMiddlewareTests(WebApplicationFactory<Program> factory)
+    public CorrelationIdMiddlewareTests(PanelTestFactory factory)
     {
-        _factory = factory.WithWebHostBuilder(builder =>
-            builder.UseSetting(PanelTestSettings.EncryptionKeyPath, PanelTestSettings.EncryptionKey));
+        _factory = factory;
     }
 
     [Fact]

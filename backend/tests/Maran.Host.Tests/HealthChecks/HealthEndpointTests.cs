@@ -1,20 +1,16 @@
 using System.Net;
-using Microsoft.AspNetCore.Mvc.Testing;
 
 namespace Maran.Host.Tests.HealthChecks;
 
 /// <summary>Boot-level smoke tests of the host pipeline.</summary>
-public sealed class HealthEndpointTests : IClassFixture<WebApplicationFactory<Program>>
+public sealed class HealthEndpointTests : IClassFixture<PanelTestFactory>
 {
-    private readonly WebApplicationFactory<Program> _factory;
+    private readonly PanelTestFactory _factory;
 
     /// <summary>Captures the shared in-memory host factory.</summary>
-    public HealthEndpointTests(WebApplicationFactory<Program> factory)
+    public HealthEndpointTests(PanelTestFactory factory)
     {
-        // Startup validation refuses to boot without an encryption key, exactly as a real
-        // deployment would; the test host supplies a throwaway one.
-        _factory = factory.WithWebHostBuilder(builder =>
-            builder.UseSetting(PanelTestSettings.EncryptionKeyPath, PanelTestSettings.EncryptionKey));
+        _factory = factory;
     }
 
     [Fact]

@@ -18,8 +18,13 @@ public sealed class DatabaseOptions
     /// Host or unix-socket directory. Production uses the socket directory (<c>/var/run/postgresql</c>)
     /// so nothing listens on TCP; development points at the container on <c>localhost</c>.
     /// </summary>
-    [Required]
-    [MinLength(1)]
+    /// <remarks>
+    /// Deliberately NOT required. An empty host means "no database configured", which is a real
+    /// state the rest of the code already models: <see cref="BuildConnectionString"/> returns an
+    /// empty string, messaging stays in memory, and the readiness probe reports the database as
+    /// not configured. Marking it required would contradict that, and would force every test host
+    /// to own a database just to exercise middleware.
+    /// </remarks>
     public string Host { get; set; } = "/var/run/postgresql";
 
     /// <summary>TCP port. Ignored when <see cref="Host"/> is a unix-socket directory.</summary>

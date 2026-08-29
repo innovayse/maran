@@ -1,19 +1,17 @@
 using System.Net;
 using System.Text.Json;
-using Microsoft.AspNetCore.Mvc.Testing;
 
 namespace Maran.Host.Tests.Modules;
 
 /// <summary>Behavioral contract of <c>GET /api/v1/modules</c> (<see cref="Host.Modules.ModulesEndpoint"/>).</summary>
-public sealed class ModulesEndpointTests : IClassFixture<WebApplicationFactory<Program>>
+public sealed class ModulesEndpointTests : IClassFixture<PanelTestFactory>
 {
-    private readonly WebApplicationFactory<Program> _factory;
+    private readonly PanelTestFactory _factory;
 
     /// <summary>Captures the shared in-memory host factory.</summary>
-    public ModulesEndpointTests(WebApplicationFactory<Program> factory)
+    public ModulesEndpointTests(PanelTestFactory factory)
     {
-        _factory = factory.WithWebHostBuilder(builder =>
-            builder.UseSetting(PanelTestSettings.EncryptionKeyPath, PanelTestSettings.EncryptionKey));
+        _factory = factory;
     }
 
     [Fact]

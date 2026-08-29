@@ -41,11 +41,18 @@ export default defineConfig({
     },
   ],
   webServer: {
-    // The dev server is enough: golden-path specs stub the network
-    // themselves, so no backend needs to be reachable through the proxy.
-    command: 'npm run dev -- --port 5173 --strictPort',
+    // Golden-path specs stub the network themselves, so no backend needs to be reachable.
+    // In CI the built app is served with `preview`: the job has already run `npm run build`, and
+    // serving static output starts in a second, whereas the dev server has to boot Vite's
+    // pipeline and was timing out on a cold runner. Locally `dev` keeps hot reload.
+    command: isCi
+      ? 'npm run preview -- --port 5173 --strictPort --host 127.0.0.1'
+      : 'npm run dev -- --port 5173 --strictPort --host 127.0.0.1',
     url: baseURL,
     reuseExistingServer: !isCi,
-    timeout: 60_000,
+    // Generous on a cold CI runner: a slow start must not read as a broken app.
+    timeout: 120_000,
+    stdout: 'pipe',
+    stderr: 'pipe',
   },
 })

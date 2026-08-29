@@ -4,9 +4,16 @@
 # Values come from docker/.env when present (see docker/.env.example) and fall back to the
 # defaults below, so a fresh clone works with no setup. These credentials are development-only.
 
+# Project name: fixes the prefix docker gives containers, volumes and networks. Without it
+# they inherit the folder name ("docker") and a numeric suffix ("docker-postgres-1").
+name: maran
+
 services:
   postgres:
     image: postgres:16-alpine
+    # Explicit name: `maran-postgres`, not `maran-postgres-1` — the suffix only makes sense for
+    # scaled replicas, and this service is a single instance by definition.
+    container_name: maran-postgres
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-maran_dev}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-maran_dev}
