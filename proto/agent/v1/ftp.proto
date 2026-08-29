@@ -1,0 +1,87 @@
+// FTP/FTPS virtual users. Each FTP user maps onto an account's uid and is
+// chrooted to a directory inside that account's home; the agent never
+// creates a real system login for FTP access.
+syntax = "proto3";
+
+package maran.agent.v1;
+
+option csharp_namespace = "Maran.Agent.V1";
+
+import "agent/v1/common.proto";
+
+service FtpService {
+  // Creates a virtual FTP user mapped to the account's uid, chrooted to
+  // chroot_path (relative to the account home; containment enforced by
+  // the agent). Idempotent: creating with the same username and identical
+  // settings returns AlreadyExists.
+  rpc CreateFtpUser(CreateFtpUserRequest) returns (CreateFtpUserResponse);
+
+  // Updates a virtual FTP user's password and/or chroot path. Idempotent:
+  // applying the same settings twice is a no-op success.
+  rpc UpdateFtpUser(UpdateFtpUserRequest) returns (UpdateFtpUserResponse);
+
+  // Removes a virtual FTP user. Idempotent: deleting a non-existent user
+  // returns NotFound.
+  rpc DeleteFtpUser(DeleteFtpUserRequest) returns (DeleteFtpUserResponse);
+}
+
+message CreateFtpUserRequest {
+  // System username of the account this FTP user is mapped to; the FTP
+  // user inherits its uid so file ownership matches account files.
+  string account_username = 1;
+  // FTP login name, validated against the agent's identifier allow-list.
+  string ftp_username = 2;
+  // Plaintext password for the FTP login, supplied by the caller. Never
+  // logged; not echoed back in any response or error.
+  string password = 3;
+  // Chroot directory, relative to the account's home directory, e.g.
+  // "sites/example.com". Canonicalized and required to resolve inside the
+  // account home; ".." components are rejected.
+  string chroot_path = 4;
+}
+
+message CreateFtpUserResponse {
+  oneof result {
+    CreateFtpUserOk ok = 1;
+    AgentError error = 2;
+  }
+}
+
+message CreateFtpUserOk {}
+
+message UpdateFtpUserRequest {
+  // System username of the owning account.
+  string account_username = 1;
+  // FTP login name to update.
+  string ftp_username = 2;
+  // New plaintext password. Empty string means "leave unchanged".
+  string password = 3;
+  // New chroot directory, relative to the account home. Empty string
+  // means "leave unchanged".
+  string chroot_path = 4;
+}
+
+message UpdateFtpUserResponse {
+  oneof result {
+    UpdateFtpUserOk ok = 1;
+    AgentError error = 2;
+  }
+}
+
+message UpdateFtpUserOk {}
+
+message DeleteFtpUserRequest {
+  // System username of the owning account.
+  string account_username = 1;
+  // FTP login name to delete.
+  string ftp_username = 2;
+}
+
+message DeleteFtpUserResponse {
+  oneof result {
+    DeleteFtpUserOk ok = 1;
+    AgentError error = 2;
+  }
+}
+
+message DeleteFtpUserOk {}

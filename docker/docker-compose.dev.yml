@@ -1,0 +1,28 @@
+# Development-only compose stack. Production never uses Docker: the installer sets PostgreSQL up
+# natively, listening on a unix socket only.
+#
+# Values come from docker/.env when present (see docker/.env.example) and fall back to the
+# defaults below, so a fresh clone works with no setup. These credentials are development-only.
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-maran_dev}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-maran_dev}
+      POSTGRES_DB: ${POSTGRES_DB:-maran_dev}
+    ports:
+      # Only the host port is configurable: the container always listens on 5432.
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      # Uses the configured user so the check stays correct when credentials are overridden.
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-maran_dev}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+volumes:
+  pgdata:

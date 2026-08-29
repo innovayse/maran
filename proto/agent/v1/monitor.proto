@@ -1,0 +1,109 @@
+// Read-only host and service observability: resource metrics, managed
+// service statuses, and per-account disk usage. No rpc here mutates state.
+syntax = "proto3";
+
+package maran.agent.v1;
+
+option csharp_namespace = "Maran.Agent.V1";
+
+import "agent/v1/common.proto";
+
+service MonitorService {
+  // Reads a point-in-time snapshot of host resource metrics.
+  rpc GetHostMetrics(GetHostMetricsRequest) returns (GetHostMetricsResponse);
+
+  // Reads the running/stopped status of the services the agent manages
+  // (web server, PHP-FPM pools, database server, FTP, cron).
+  rpc GetServiceStatuses(GetServiceStatusesRequest) returns (GetServiceStatusesResponse);
+
+  // Reads current disk usage for every hosting account, for comparison
+  // against each account's quota.
+  rpc GetAccountsDiskUsage(GetAccountsDiskUsageRequest) returns (GetAccountsDiskUsageResponse);
+}
+
+message GetHostMetricsRequest {}
+
+message GetHostMetricsResponse {
+  oneof result {
+    HostMetrics ok = 1;
+    AgentError error = 2;
+  }
+}
+
+message HostMetrics {
+  // CPU utilization across all cores, 0.0-100.0 percent.
+  double cpu_percent = 1;
+  // Memory currently in use, in bytes.
+  uint64 memory_used_bytes = 2;
+  // Total installed memory, in bytes.
+  uint64 memory_total_bytes = 3;
+  // Disk space currently in use on the root filesystem, in bytes.
+  uint64 disk_used_bytes = 4;
+  // Total disk capacity of the root filesystem, in bytes.
+  uint64 disk_total_bytes = 5;
+  // Network bytes received since the last sample interval.
+  uint64 network_rx_bytes = 6;
+  // Network bytes sent since the last sample interval.
+  uint64 network_tx_bytes = 7;
+  // System load average over the last 1 minute.
+  double load_average_1m = 8;
+  // System load average over the last 5 minutes.
+  double load_average_5m = 9;
+  // System load average over the last 15 minutes.
+  double load_average_15m = 10;
+}
+
+message GetServiceStatusesRequest {}
+
+message GetServiceStatusesResponse {
+  oneof result {
+    GetServiceStatusesOk ok = 1;
+    AgentError error = 2;
+  }
+}
+
+message GetServiceStatusesOk {
+  repeated ServiceStatus services = 1;
+}
+
+// Well-known services the agent supervises. Closed set — status reporting
+// never accepts an arbitrary unit name from the caller.
+enum ManagedService {
+  MANAGED_SERVICE_UNSPECIFIED = 0;
+  MANAGED_SERVICE_WEB_SERVER = 1;
+  MANAGED_SERVICE_PHP_FPM = 2;
+  MANAGED_SERVICE_DATABASE = 3;
+  MANAGED_SERVICE_FTP = 4;
+  MANAGED_SERVICE_CRON = 5;
+}
+
+message ServiceStatus {
+  // Which service this status describes.
+  ManagedService service = 1;
+  // True if the service is currently running.
+  bool running = 2;
+  // Seconds since the service's last (re)start; 0 if not running.
+  uint64 uptime_seconds = 3;
+}
+
+message GetAccountsDiskUsageRequest {}
+
+message GetAccountsDiskUsageResponse {
+  oneof result {
+    GetAccountsDiskUsageOk ok = 1;
+    AgentError error = 2;
+  }
+}
+
+message GetAccountsDiskUsageOk {
+  repeated AccountDiskUsage accounts = 1;
+}
+
+message AccountDiskUsage {
+  // System username of the account.
+  string account_username = 1;
+  // Bytes currently used under the account's home directory.
+  uint64 used_bytes = 2;
+  // Quota currently in effect for the account, in bytes.
+  uint64 quota_bytes = 3;
+}

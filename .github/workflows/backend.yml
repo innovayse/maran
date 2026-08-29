@@ -1,0 +1,44 @@
+name: backend
+
+on:
+  push:
+    paths:
+      - 'backend/**'
+      - 'proto/**'
+      - 'scripts/check-structure.sh'
+      - '.github/workflows/backend.yml'
+  pull_request:
+    paths:
+      - 'backend/**'
+      - 'proto/**'
+      - 'scripts/check-structure.sh'
+      - '.github/workflows/backend.yml'
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+
+      - name: Install protoc
+        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
+
+      # Structural rules no compiler can express: one type per file, file name equals
+      # type name, *Extensions in Extensions/, interfaces in Interfaces/, no cross-module
+      # imports, no junk-drawer file names (rules/csharp.md, rules/architecture.md).
+      - name: Structure check
+        run: bash scripts/check-structure.sh
+
+      # Warnings are errors, unused usings are errors, banned APIs are errors — the build
+      # itself is the first quality gate (backend/Directory.Build.props).
+      - name: Build
+        run: dotnet build backend --configuration Release
+
+      # Includes the architecture tests (module isolation + the guard that stops them
+      # passing vacuously) and the Testcontainers-backed integration tests.
+      - name: Test
+        run: dotnet test backend --configuration Release --no-build

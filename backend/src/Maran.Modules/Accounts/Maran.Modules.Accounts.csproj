@@ -1,0 +1,56 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <!-- A module is a plain class library (not Microsoft.NET.Sdk.Web): it contributes
+         controllers and endpoints into the Host's ASP.NET Core pipeline but never hosts
+         its own web server (rules/architecture.md "Backend: modular monolith"). -->
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- A module references only the Sdk (module contract, BaseApiController, result
+         translation) and the SharedKernel (Result, IClock, error primitives) — never
+         another module, never the Host (rules/architecture.md "Backend: modular monolith"). -->
+    <ProjectReference Include="..\..\Maran.Sdk\Maran.Sdk.csproj" />
+    <ProjectReference Include="..\..\Maran.SharedKernel\Maran.SharedKernel.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Npgsql.EntityFrameworkCore.PostgreSQL: the module owns its PostgreSQL schema and
+         DbContext (rules/architecture.md). WolverineFx: command/query dispatch. FluentValidation:
+         command/query validators (rules/csharp.md "Operation naming is fixed"). -->
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" />
+    <PackageReference Include="WolverineFx" />
+    <PackageReference Include="FluentValidation" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Resx-backed user-facing message text (rules/csharp.md "The backend owns all
+         user-facing message text"), one file per purpose rather than one catch-all: ErrorMessages
+         for domain failures surfaced as error codes, DisplayNames for module/plan names.
+         Strongly-typed generation is not needed: each is looked up either by string key through
+         IErrorTextProvider (the two SDK-generic call sites) or through IStringLocalizer<T> keyed
+         by the matching marker class beside it (rules/csharp.md "Resources are reached through
+         IStringLocalizer<T>"), never by a designer-generated accessor. -->
+    <EmbeddedResource Update="Resources\ErrorMessages.resx">
+      <Generator></Generator>
+    </EmbeddedResource>
+    <EmbeddedResource Update="Resources\ErrorMessages.ru.resx">
+      <Generator></Generator>
+    </EmbeddedResource>
+    <EmbeddedResource Update="Resources\ErrorMessages.hy.resx">
+      <Generator></Generator>
+    </EmbeddedResource>
+    <EmbeddedResource Update="Resources\DisplayNames.resx">
+      <Generator></Generator>
+    </EmbeddedResource>
+    <EmbeddedResource Update="Resources\DisplayNames.ru.resx">
+      <Generator></Generator>
+    </EmbeddedResource>
+    <EmbeddedResource Update="Resources\DisplayNames.hy.resx">
+      <Generator></Generator>
+    </EmbeddedResource>
+  </ItemGroup>
+
+</Project>

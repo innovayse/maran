@@ -1,0 +1,67 @@
+# Build output
+# ------------
+# .NET
+**/bin/
+**/obj/
+*.user
+*.suo
+# Rust
+target/
+# Node / Vite
+node_modules/
+frontend/dist/
+frontend/.vite/
+# Playwright
+frontend/test-results/
+frontend/playwright-report/
+frontend/blob-report/
+frontend/.playwright/
+
+# Generated code
+# --------------
+# Protobuf and gRPC types are generated at build time on both sides and never committed
+# (rules/proto.md).
+**/*.g.cs
+**/generated/
+
+# Secrets and machine-local configuration
+# ---------------------------------------
+# Real values never enter the repository; the *.example files document every variable
+# (rules/security.md).
+.env
+.env.*
+docker/.env
+*.local.json
+appsettings.*.local.json
+!.env.example
+!docker/.env.example
+!installer/panel.env.example
+# Keys and certificates, wherever they land
+*.pem
+*.key
+*.pfx
+*.p12
+!**/*.pem.example
+
+# Logs, dumps and scratch
+# -----------------------
+*.log
+scripts/*.log
+*.sql.gz
+*.bak
+
+# Tooling working state
+# ---------------------
+# Local agent/session bookkeeping, not part of the source tree.
+.superpowers/
+
+# Editor and OS noise
+# -------------------
+.vs/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea/
+*.swp
+.DS_Store
+Thumbs.db

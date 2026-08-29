@@ -1,0 +1,6 @@
+# APIs banned by rules/csharp.md and rules/security.md. Format: symbol ; message.
+P:System.DateTime.Now; Inject IClock and use UtcNow (rules/csharp.md) — machine-local time is never correct on a customer server.
+P:System.DateTime.UtcNow; Inject IClock instead, so time is substitutable in tests (rules/csharp.md).
+P:System.DateTimeOffset.Now; Inject IClock and use its UtcNow (rules/csharp.md).
+P:System.DateTimeOffset.UtcNow; Inject IClock instead of reading the ambient clock (rules/csharp.md).
+M:System.Diagnostics.Process.Start; The API never spawns processes — privileged work goes through the agent's typed gRPC contract (rules/architecture.md, rules/security.md).

@@ -1,0 +1,91 @@
+// TLS certificate placement for sites. ACME (ordering/DNS-01/HTTP-01)
+// happens in the backend; the agent only writes certificate material to
+// disk, wires it into the site's vhost, and reloads the web server.
+syntax = "proto3";
+
+package maran.agent.v1;
+
+option csharp_namespace = "Maran.Agent.V1";
+
+import "agent/v1/common.proto";
+
+service SslService {
+  // Installs a certificate/key pair for a domain: writes both files under
+  // the agent's own cert store (never inside the account's home), updates
+  // the site's vhost to reference them, validates, and reloads. Idempotent:
+  // installing byte-identical material again is a no-op success;
+  // installing different material for the same domain replaces it.
+  rpc InstallCertificate(InstallCertificateRequest) returns (InstallCertificateResponse);
+
+  // Removes a domain's certificate files and reverts its vhost to the
+  // self-signed fallback, then reloads. Idempotent: removing when no
+  // certificate is installed returns NotFound.
+  rpc RemoveCertificate(RemoveCertificateRequest) returns (RemoveCertificateResponse);
+
+  // Generates and installs a self-signed certificate for a domain, for use
+  // before a real certificate is available. Idempotent: regenerating
+  // replaces the existing self-signed certificate; it never overwrites a
+  // real, caller-installed certificate (returns ALREADY_EXISTS instead).
+  rpc GenerateSelfSigned(GenerateSelfSignedRequest) returns (GenerateSelfSignedResponse);
+}
+
+message InstallCertificateRequest {
+  // System username of the owning account.
+  string account_username = 1;
+  // Domain the certificate is installed for; must match the site's domain
+  // or one of its aliases.
+  string domain = 2;
+  // PEM-encoded leaf certificate, optionally followed by the chain.
+  string certificate_pem = 3;
+  // PEM-encoded private key, matching certificate_pem. Never logged or
+  // echoed back in error output.
+  string private_key_pem = 4;
+}
+
+message InstallCertificateResponse {
+  oneof result {
+    InstallCertificateOk ok = 1;
+    AgentError error = 2;
+  }
+}
+
+message InstallCertificateOk {
+  // Certificate expiry as Unix seconds (UTC), parsed from the installed
+  // certificate, for the caller to schedule renewal reminders.
+  int64 expires_at_unix = 1;
+}
+
+message RemoveCertificateRequest {
+  // System username of the owning account.
+  string account_username = 1;
+  // Domain whose certificate is removed.
+  string domain = 2;
+}
+
+message RemoveCertificateResponse {
+  oneof result {
+    RemoveCertificateOk ok = 1;
+    AgentError error = 2;
+  }
+}
+
+message RemoveCertificateOk {}
+
+message GenerateSelfSignedRequest {
+  // System username of the owning account.
+  string account_username = 1;
+  // Domain the self-signed certificate is generated for.
+  string domain = 2;
+}
+
+message GenerateSelfSignedResponse {
+  oneof result {
+    GenerateSelfSignedOk ok = 1;
+    AgentError error = 2;
+  }
+}
+
+message GenerateSelfSignedOk {
+  // Certificate expiry as Unix seconds (UTC).
+  int64 expires_at_unix = 1;
+}

@@ -1,0 +1,159 @@
+// Host firewall (nftables) rules and IP bans. Admin-only surface: the
+// backend enforces the permission check, the agent enforces the rule
+// syntax and renders its own nftables ruleset — it never accepts a raw
+// rule string.
+syntax = "proto3";
+
+package maran.agent.v1;
+
+option csharp_namespace = "Maran.Agent.V1";
+
+import "agent/v1/common.proto";
+
+service FirewallService {
+  // Lists all currently installed port rules.
+  rpc ListRules(ListRulesRequest) returns (ListRulesResponse);
+
+  // Allows traffic to a port/protocol, optionally scoped to a source
+  // CIDR. Idempotent: allowing an identical rule again returns
+  // AlreadyExists.
+  rpc AllowPort(AllowPortRequest) returns (AllowPortResponse);
+
+  // Denies (removes any allow for) a port/protocol, optionally scoped to a
+  // source CIDR. Idempotent: denying an already-denied port is a no-op
+  // success.
+  rpc DenyPort(DenyPortRequest) returns (DenyPortResponse);
+
+  // Bans an address: all traffic from it is dropped until unbanned or the
+  // ban expires. Idempotent: banning an already-banned address extends its
+  // expiry to the new value.
+  rpc BanAddress(BanAddressRequest) returns (BanAddressResponse);
+
+  // Removes a ban. Idempotent: unbanning an address with no active ban
+  // returns NotFound.
+  rpc UnbanAddress(UnbanAddressRequest) returns (UnbanAddressResponse);
+
+  // Lists currently active bans.
+  rpc ListBans(ListBansRequest) returns (ListBansResponse);
+}
+
+// Transport protocol a port rule applies to.
+enum Protocol {
+  PROTOCOL_UNSPECIFIED = 0;
+  PROTOCOL_TCP = 1;
+  PROTOCOL_UDP = 2;
+}
+
+message FirewallRule {
+  // Port number, 1-65535.
+  uint32 port = 1;
+  // Protocol the rule applies to.
+  Protocol protocol = 2;
+  // Source CIDR the rule is scoped to, e.g. "0.0.0.0/0" for any source.
+  string source_cidr = 3;
+}
+
+message ListRulesRequest {}
+
+message ListRulesResponse {
+  oneof result {
+    ListRulesOk ok = 1;
+    AgentError error = 2;
+  }
+}
+
+message ListRulesOk {
+  repeated FirewallRule rules = 1;
+}
+
+message AllowPortRequest {
+  // Port number, 1-65535.
+  uint32 port = 1;
+  // Protocol the rule applies to.
+  Protocol protocol = 2;
+  // Source CIDR to scope the allow to; "0.0.0.0/0" allows any source.
+  string source_cidr = 3;
+}
+
+message AllowPortResponse {
+  oneof result {
+    AllowPortOk ok = 1;
+    AgentError error = 2;
+  }
+}
+
+message AllowPortOk {}
+
+message DenyPortRequest {
+  // Port number, 1-65535.
+  uint32 port = 1;
+  // Protocol the rule applies to.
+  Protocol protocol = 2;
+  // Source CIDR the original allow was scoped to.
+  string source_cidr = 3;
+}
+
+message DenyPortResponse {
+  oneof result {
+    DenyPortOk ok = 1;
+    AgentError error = 2;
+  }
+}
+
+message DenyPortOk {}
+
+message BanAddressRequest {
+  // IPv4 or IPv6 address to ban.
+  string address = 1;
+  // Ban duration in seconds from now; 0 means permanent until explicitly
+  // unbanned.
+  uint32 duration_seconds = 2;
+  // Operator-facing reason recorded alongside the ban (e.g. "brute force
+  // login attempts"), shown in the ban list.
+  string reason = 3;
+}
+
+message BanAddressResponse {
+  oneof result {
+    BanAddressOk ok = 1;
+    AgentError error = 2;
+  }
+}
+
+message BanAddressOk {}
+
+message UnbanAddressRequest {
+  // IPv4 or IPv6 address to unban.
+  string address = 1;
+}
+
+message UnbanAddressResponse {
+  oneof result {
+    UnbanAddressOk ok = 1;
+    AgentError error = 2;
+  }
+}
+
+message UnbanAddressOk {}
+
+message ListBansRequest {}
+
+message ListBansResponse {
+  oneof result {
+    ListBansOk ok = 1;
+    AgentError error = 2;
+  }
+}
+
+message ListBansOk {
+  repeated BanEntry bans = 1;
+}
+
+message BanEntry {
+  // Banned IPv4 or IPv6 address.
+  string address = 1;
+  // Reason recorded when the ban was created.
+  string reason = 2;
+  // Ban expiry as Unix seconds (UTC); 0 means permanent.
+  int64 expires_at_unix = 3;
+}

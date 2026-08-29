@@ -1,0 +1,152 @@
+// Scheduled tasks (crontab) owned by a hosting account. These entries are
+// written to the account's own user crontab and later executed by the
+// system cron daemon under that account's own uid — the same privilege
+// the account already has via SFTP/SSH. The agent itself never executes
+// the command; it only renders and installs the crontab file, so this is
+// not a bypass of the "no caller-supplied program execution" rule.
+syntax = "proto3";
+
+package maran.agent.v1;
+
+option csharp_namespace = "Maran.Agent.V1";
+
+import "agent/v1/common.proto";
+
+service CronService {
+  // Lists all cron entries currently installed for an account.
+  rpc ListCronEntries(ListCronEntriesRequest) returns (ListCronEntriesResponse);
+
+  // Appends a new cron entry to an account's crontab. Idempotent: creating
+  // an entry with identical schedule and command to an existing one
+  // returns AlreadyExists rather than duplicating it.
+  rpc CreateCronEntry(CreateCronEntryRequest) returns (CreateCronEntryResponse);
+
+  // Replaces the schedule and/or command of an existing cron entry,
+  // identified by entry_id. Idempotent: applying the same values twice is
+  // a no-op success.
+  rpc UpdateCronEntry(UpdateCronEntryRequest) returns (UpdateCronEntryResponse);
+
+  // Removes a cron entry from an account's crontab. Idempotent: deleting a
+  // non-existent entry_id returns NotFound.
+  rpc DeleteCronEntry(DeleteCronEntryRequest) returns (DeleteCronEntryResponse);
+}
+
+// Standard five-field cron schedule. Each field uses conventional cron
+// syntax (digits, "*", "*/n", ranges, lists) and is validated by the agent
+// against that syntax before being written to the crontab file.
+message CronSchedule {
+  // Minute field, 0-59 or "*".
+  string minute = 1;
+  // Hour field, 0-23 or "*".
+  string hour = 2;
+  // Day-of-month field, 1-31 or "*".
+  string day_of_month = 3;
+  // Month field, 1-12 or "*".
+  string month = 4;
+  // Day-of-week field, 0-6 (0=Sunday) or "*".
+  string day_of_week = 5;
+}
+
+message CronEntry {
+  // Agent-assigned stable identifier for this entry, stable across list
+  // calls, used to target update/delete.
+  string entry_id = 1;
+  // Schedule this entry runs on.
+  CronSchedule schedule = 2;
+  // Command line to execute, exactly as the account owner wrote it. Runs
+  // under the account's own uid via the system cron daemon — the agent
+  // does not parse or execute it, only stores it in the crontab file. This
+  // grants no privilege the account does not already have over SSH.
+  //
+  // The agent MUST reject a value containing a newline, carriage return or
+  // any other control character: a crontab is line-oriented, so an embedded
+  // newline would let one entry inject further entries, schedules or
+  // environment assignments (MAILTO=, PATH=) into the account's crontab.
+  // Rejection is ERROR_CODE_INVALID_INPUT.
+  string command = 3;
+  // True if the entry is installed and active; false entries are kept in
+  // the crontab commented out (enable/disable without losing history).
+  bool enabled = 4;
+  // Exit code of the entry's most recent run, if it has run at least once.
+  int32 last_exit_code = 5;
+  // Timestamp of the entry's most recent run, Unix seconds (UTC); 0 if it
+  // has never run.
+  int64 last_run_at_unix = 6;
+}
+
+message ListCronEntriesRequest {
+  // System username of the owning account.
+  string account_username = 1;
+}
+
+message ListCronEntriesResponse {
+  oneof result {
+    ListCronEntriesOk ok = 1;
+    AgentError error = 2;
+  }
+}
+
+message ListCronEntriesOk {
+  repeated CronEntry entries = 1;
+}
+
+message CreateCronEntryRequest {
+  // System username of the owning account.
+  string account_username = 1;
+  // Schedule for the new entry.
+  CronSchedule schedule = 2;
+  // Command line to install, verbatim. Same validation as
+  // CronEntry.command: no newlines or control characters, because a
+  // line-oriented crontab would otherwise accept injected extra lines.
+  string command = 3;
+}
+
+message CreateCronEntryResponse {
+  oneof result {
+    CreateCronEntryOk ok = 1;
+    AgentError error = 2;
+  }
+}
+
+message CreateCronEntryOk {
+  // Agent-assigned identifier of the created entry.
+  string entry_id = 1;
+}
+
+message UpdateCronEntryRequest {
+  // System username of the owning account.
+  string account_username = 1;
+  // Identifier of the entry to update.
+  string entry_id = 2;
+  // New schedule.
+  CronSchedule schedule = 3;
+  // New command line, verbatim.
+  string command = 4;
+  // New enabled state.
+  bool enabled = 5;
+}
+
+message UpdateCronEntryResponse {
+  oneof result {
+    UpdateCronEntryOk ok = 1;
+    AgentError error = 2;
+  }
+}
+
+message UpdateCronEntryOk {}
+
+message DeleteCronEntryRequest {
+  // System username of the owning account.
+  string account_username = 1;
+  // Identifier of the entry to delete.
+  string entry_id = 2;
+}
+
+message DeleteCronEntryResponse {
+  oneof result {
+    DeleteCronEntryOk ok = 1;
+    AgentError error = 2;
+  }
+}
+
+message DeleteCronEntryOk {}

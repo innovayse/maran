@@ -1,0 +1,48 @@
+// System-level agent operations: identity/handshake.
+syntax = "proto3";
+
+package maran.agent.v1;
+
+// Pins the generated C# namespace to Maran's PascalCase convention
+// (protoc's default title-casing would otherwise yield "Maran...").
+// Codegen-only: does not affect the wire format or the Rust side.
+option csharp_namespace = "Maran.Agent.V1";
+
+import "agent/v1/common.proto";
+
+// Agent identity and environment, exchanged on every API connect.
+service SystemService {
+  // Returns agent version and distro info. The API refuses to operate if
+  // proto_version is newer than it understands (upgrade window guard).
+  rpc GetAgentInfo(GetAgentInfoRequest) returns (GetAgentInfoResponse);
+}
+
+// Empty request — present for additive evolution.
+message GetAgentInfoRequest {}
+
+// Handshake result.
+message GetAgentInfoResponse {
+  oneof result {
+    AgentInfo ok = 1;
+    AgentError error = 2;
+  }
+}
+
+// Identity of a running agent.
+message AgentInfo {
+  // Semantic version of the agent binary, e.g. "0.1.0".
+  string version = 1;
+  // /etc/os-release ID, e.g. "ubuntu", "almalinux".
+  string distro_id = 2;
+  // Detected distro family driving the adapter choice.
+  DistroFamily family = 3;
+  // Highest contract revision this agent implements (starts at 1).
+  uint32 proto_version = 4;
+}
+
+// Supported distro families (spec §4).
+enum DistroFamily {
+  DISTRO_FAMILY_UNSPECIFIED = 0;
+  DISTRO_FAMILY_DEBIAN = 1;
+  DISTRO_FAMILY_RHEL = 2;
+}

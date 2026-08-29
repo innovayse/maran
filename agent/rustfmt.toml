@@ -1,0 +1,3 @@
+# rustfmt defaults only (rules/rust.md "Toolchain & lints"). This file
+# deliberately configures nothing: its presence pins the decision that no
+# project-specific formatting overrides exist. Never hand-format against it.

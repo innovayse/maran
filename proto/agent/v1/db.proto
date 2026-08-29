@@ -1,0 +1,117 @@
+// Database and database-user lifecycle (MySQL/MariaDB). Passwords are
+// always caller-supplied: the agent never generates or stores credentials
+// itself, so the backend remains the single place a password is minted
+// and persisted (encrypted) for one-time display to the customer.
+syntax = "proto3";
+
+package maran.agent.v1;
+
+option csharp_namespace = "Maran.Agent.V1";
+
+import "agent/v1/common.proto";
+
+service DbService {
+  // Creates a database and a user granted full privileges on it only,
+  // using the password supplied by the caller. Idempotent: if a database
+  // and user with the same names already exist, returns AlreadyExists
+  // without changing the existing password.
+  rpc CreateDatabase(CreateDatabaseRequest) returns (CreateDatabaseResponse);
+
+  // Drops a database and its dedicated user. Idempotent: dropping a
+  // non-existent database returns NotFound.
+  rpc DropDatabase(DropDatabaseRequest) returns (DropDatabaseResponse);
+
+  // Lists databases owned by an account.
+  rpc ListDatabases(ListDatabasesRequest) returns (ListDatabasesResponse);
+
+  // Reads the on-disk size of a database.
+  rpc GetDatabaseSize(GetDatabaseSizeRequest) returns (GetDatabaseSizeResponse);
+}
+
+message CreateDatabaseRequest {
+  // System username of the owning account; database and user names are
+  // namespaced under it by the agent (e.g. "acc12345_shop").
+  string account_username = 1;
+  // Database name suffix chosen by the customer, validated against the
+  // agent's identifier allow-list regex.
+  string database_name = 2;
+  // Username suffix for the dedicated database user.
+  string db_username = 3;
+  // Plaintext password for the new database user, supplied by the caller.
+  // Never logged; not echoed back in any response or error.
+  string password = 4;
+}
+
+message CreateDatabaseResponse {
+  oneof result {
+    CreateDatabaseOk ok = 1;
+    AgentError error = 2;
+  }
+}
+
+message CreateDatabaseOk {
+  // Fully-qualified database name as created, e.g. "acc12345_shop".
+  string database_name = 1;
+  // Fully-qualified database username as created.
+  string db_username = 2;
+}
+
+message DropDatabaseRequest {
+  // System username of the owning account.
+  string account_username = 1;
+  // Fully-qualified database name to drop.
+  string database_name = 2;
+}
+
+message DropDatabaseResponse {
+  oneof result {
+    DropDatabaseOk ok = 1;
+    AgentError error = 2;
+  }
+}
+
+message DropDatabaseOk {}
+
+message ListDatabasesRequest {
+  // System username of the owning account.
+  string account_username = 1;
+}
+
+message ListDatabasesResponse {
+  oneof result {
+    ListDatabasesOk ok = 1;
+    AgentError error = 2;
+  }
+}
+
+message ListDatabasesOk {
+  repeated DatabaseInfo databases = 1;
+}
+
+message DatabaseInfo {
+  // Fully-qualified database name.
+  string database_name = 1;
+  // Fully-qualified username of its dedicated user.
+  string db_username = 2;
+  // Current on-disk size in bytes.
+  uint64 size_bytes = 3;
+}
+
+message GetDatabaseSizeRequest {
+  // System username of the owning account.
+  string account_username = 1;
+  // Fully-qualified database name.
+  string database_name = 2;
+}
+
+message GetDatabaseSizeResponse {
+  oneof result {
+    GetDatabaseSizeOk ok = 1;
+    AgentError error = 2;
+  }
+}
+
+message GetDatabaseSizeOk {
+  // Current on-disk size in bytes.
+  uint64 size_bytes = 1;
+}

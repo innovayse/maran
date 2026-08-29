@@ -1,0 +1,66 @@
+[Unit]
+Description=Maran Agent (privileged system operations daemon)
+After=network.target
+StartLimitIntervalSec=60
+StartLimitBurst=5
+
+[Service]
+Type=simple
+# The agent is the ONE process in the system permitted to run as root
+# (rules/architecture.md: "maran-agent ... the ONLY root process"); it needs root
+# to create/modify OS users, write system service configs and manage services on the
+# api's behalf. Its own operations then drop to the target account's UID for any
+# customer file I/O (fork + setuid, done in-process, not by this unit).
+User=root
+ExecStart=/usr/local/maran/agent/maran-agent
+Restart=on-failure
+RestartSec=2
+
+# --- Hardening ------------------------------------------------------------------
+# A root daemon is the highest-value target on the box, so it gets the same sandbox
+# discipline as the api despite needing root: everything that is not strictly required
+# for "provision system state" is removed.
+NoNewPrivileges=true
+# The agent's whole job is writing system state (users, /etc configs, service units),
+# so it cannot use ProtectSystem=strict; "full" still makes most of the filesystem
+# read-only and only the paths in ReadWritePaths= are writable.
+ProtectSystem=full
+# Customer accounts live under /home/<account>/; the agent legitimately writes there
+# (under the account's UID via fork+setuid) so ProtectHome is left off, unlike the api.
+ProtectHome=false
+PrivateTmp=true
+# Its gRPC socket, created here with the exact ownership the API needs to connect
+# (root:panel 0660 + SO_PEERCRED check in-process — see rules §9): the directory itself
+# is systemd-managed so it is recreated with correct permissions on every start,
+# never relying on a stale directory from a previous boot.
+RuntimeDirectory=maran
+RuntimeDirectoryMode=0750
+ReadWritePaths=/home /etc/nginx /etc/maran /var/lib/maran /var/log/maran /run/maran
+# The agent is the ONLY process permitted to touch these system config trees per
+# rules/architecture.md; listing them explicitly (rather than leaving the filesystem
+# writable) is what makes that rule mechanically true, not just documented.
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelLogs=true
+ProtectClock=true
+ProtectHostname=true
+RestrictRealtime=true
+RestrictNamespaces=true
+LockPersonality=true
+RemoveIPC=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+# The agent needs real root capabilities to manage users/services/configs (chown,
+# service restarts, listening on the peer-credentialed unix socket) so, unlike the api,
+# its CapabilityBoundingSet is not emptied — but it is enumerated explicitly rather
+# than left as the unrestricted default root set.
+CapabilityBoundingSet=CAP_CHOWN CAP_DAC_OVERRIDE CAP_FOWNER CAP_SETGID CAP_SETUID CAP_KILL CAP_SYS_ADMIN CAP_NET_BIND_SERVICE
+# ProtectKernelModules/MemoryDenyWriteExecute are intentionally NOT set: the agent may
+# need to reload systemd units and (per rules/rust.md) never runs interpreted/JIT'd
+# code, but ProtectKernelModules would block the systemctl calls this daemon issues
+# on the api's behalf; kept off rather than guessed at without a verified test.
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM
+UMask=0027
+
+[Install]
+WantedBy=multi-user.target

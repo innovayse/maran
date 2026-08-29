@@ -1,0 +1,44 @@
+// Shared contract types for the Maran API <-> agent boundary.
+// Evolution rules: rules/proto.md (additive only inside v1).
+syntax = "proto3";
+
+package maran.agent.v1;
+
+// Pins the generated C# namespace to Maran's PascalCase convention
+// (protoc's default title-casing would otherwise yield "Maran...").
+// Codegen-only: does not affect the wire format or the Rust side.
+option csharp_namespace = "Maran.Agent.V1";
+
+// Typed failure of an agent operation. `code` drives API behavior; `message`
+// is operator-facing English and is never shown raw to hosting customers.
+message AgentError {
+  // Machine-readable category of the failure.
+  ErrorCode code = 1;
+  // Operator-facing description (English, no secrets, no customer data).
+  string message = 2;
+  // Excerpt of the failing tool's output (e.g. `nginx -t` stderr), max 4 KiB.
+  string tool_output = 3;
+}
+
+// Failure categories every operation maps into.
+enum ErrorCode {
+  ERROR_CODE_UNSPECIFIED = 0;
+  // Input failed the agent's own validation (regex/path containment).
+  ERROR_CODE_INVALID_INPUT = 1;
+  // Idempotency outcome: the requested entity already exists.
+  ERROR_CODE_ALREADY_EXISTS = 2;
+  // Idempotency outcome: the requested entity does not exist.
+  ERROR_CODE_NOT_FOUND = 3;
+  // A rendered config failed its validator; previous state was restored.
+  ERROR_CODE_VALIDATION_FAILED = 4;
+  // Unexpected system failure (tool crashed, IO error); see tool_output.
+  ERROR_CODE_SYSTEM_FAILURE = 5;
+}
+
+// Streamed progress of a long-running operation (backup, restore, install).
+message Progress {
+  // 0..100; monotonically non-decreasing per stream.
+  uint32 percent = 1;
+  // Short machine-stable stage id (e.g. "dumping_db"), i18n happens API-side.
+  string stage = 2;
+}

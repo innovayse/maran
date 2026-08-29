@@ -1,0 +1,95 @@
+# Backend-specific C# style, analyzer and naming rules.
+# Inherits repository-wide formatting from the root .editorconfig (no `root = true` here).
+
+[*]
+indent_style = space
+indent_size = 4
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+charset = utf-8
+
+[*.{json,yml,yaml,xml,csproj,props,targets}]
+indent_size = 2
+
+[*.md]
+trim_trailing_whitespace = false
+
+[*.cs]
+indent_size = 4
+max_line_length = 120
+
+# Language conventions
+csharp_style_var_when_type_is_apparent = true:suggestion
+csharp_style_var_for_built_in_types = false:suggestion
+csharp_style_var_elsewhere = false:suggestion
+csharp_prefer_braces = true:warning
+csharp_style_namespace_declarations = file_scoped:warning
+dotnet_sort_system_directives_first = true
+dotnet_separate_import_directive_groups = false
+
+# Naming rules
+
+# Interfaces must be IPascalCase
+dotnet_naming_rule.interfaces_should_be_ipascalcase.severity = warning
+dotnet_naming_rule.interfaces_should_be_ipascalcase.symbols = interface_symbol
+dotnet_naming_rule.interfaces_should_be_ipascalcase.style = ipascalcase_style
+
+dotnet_naming_symbols.interface_symbol.applicable_kinds = interface
+dotnet_naming_symbols.interface_symbol.applicable_accessibilities = *
+
+dotnet_naming_style.ipascalcase_style.required_prefix = I
+dotnet_naming_style.ipascalcase_style.capitalization = pascal_case
+
+# Constants, properties, methods must be PascalCase.
+# Declared BEFORE the private-fields rule below: naming rules are evaluated in
+# declaration order with first-match-wins, and this symbol group's
+# required_modifiers = const makes it match private const fields too (accessibility
+# list includes "private"), so a private const resolves to PascalCase instead of
+# falling through to the private-field _camelCase rule.
+dotnet_naming_rule.members_should_be_pascalcase.severity = warning
+dotnet_naming_rule.members_should_be_pascalcase.symbols = member_symbol
+dotnet_naming_rule.members_should_be_pascalcase.style = pascalcase_style
+
+dotnet_naming_symbols.member_symbol.applicable_kinds = property, method, field
+dotnet_naming_symbols.member_symbol.applicable_accessibilities = public, internal, protected, protected_internal, private_protected, private
+dotnet_naming_symbols.member_symbol.required_modifiers = const
+
+# Private fields must be _camelCase. Non-const only: private const fields are
+# already claimed by members_should_be_pascalcase above, which is declared first.
+dotnet_naming_rule.private_fields_should_be_camelcase.severity = warning
+dotnet_naming_rule.private_fields_should_be_camelcase.symbols = private_field_symbol
+dotnet_naming_rule.private_fields_should_be_camelcase.style = underscore_camelcase_style
+
+dotnet_naming_symbols.private_field_symbol.applicable_kinds = field
+dotnet_naming_symbols.private_field_symbol.applicable_accessibilities = private
+
+dotnet_naming_style.underscore_camelcase_style.required_prefix = _
+dotnet_naming_style.underscore_camelcase_style.capitalization = camel_case
+
+dotnet_naming_rule.properties_methods_should_be_pascalcase.severity = warning
+dotnet_naming_rule.properties_methods_should_be_pascalcase.symbols = property_method_symbol
+dotnet_naming_rule.properties_methods_should_be_pascalcase.style = pascalcase_style
+
+dotnet_naming_symbols.property_method_symbol.applicable_kinds = property, method
+dotnet_naming_symbols.property_method_symbol.applicable_accessibilities = *
+
+dotnet_naming_style.pascalcase_style.capitalization = pascal_case
+
+# Async methods must end with Async
+dotnet_naming_rule.async_methods_should_have_async_suffix.severity = warning
+dotnet_naming_rule.async_methods_should_have_async_suffix.symbols = async_method_symbol
+dotnet_naming_rule.async_methods_should_have_async_suffix.style = async_suffix_style
+
+dotnet_naming_symbols.async_method_symbol.applicable_kinds = method
+dotnet_naming_symbols.async_method_symbol.applicable_accessibilities = *
+dotnet_naming_symbols.async_method_symbol.required_modifiers = async
+
+dotnet_naming_style.async_suffix_style.required_suffix = Async
+dotnet_naming_style.async_suffix_style.capitalization = pascal_case
+
+# Code-style rules promoted to build errors (Directory.Build.props sets
+# EnforceCodeStyleInBuild). Unused usings are a real defect: they hide a file's
+# true dependencies and survive refactors nobody reviews.
+[*.cs]
+dotnet_diagnostic.IDE0005.severity = error

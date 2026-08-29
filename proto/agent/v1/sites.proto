@@ -1,0 +1,208 @@
+// Site (vhost) lifecycle: document root, backend type, PHP version, logs.
+syntax = "proto3";
+
+package maran.agent.v1;
+
+option csharp_namespace = "Maran.Agent.V1";
+
+import "agent/v1/common.proto";
+
+// Manages web-server sites owned by an account. A site is a domain served
+// from a document root under the account's home; the agent renders its
+// own vhost include, validates it, and reloads the web server — it never
+// accepts a config fragment or template from the caller.
+service SitesService {
+  // Creates a site: allocates the document root under the account's home
+  // (creating it if absent), renders and validates a vhost include for the
+  // requested backend, and reloads the web server. Idempotent: a site
+  // already existing for the same account+domain returns AlreadyExists.
+  rpc CreateSite(CreateSiteRequest) returns (CreateSiteResponse);
+
+  // Switches a PHP-backed site to a different installed PHP version and
+  // reloads its PHP-FPM pool. Idempotent: setting the same version twice
+  // is a no-op success. Fails VALIDATION_FAILED if the version is not
+  // installed on this host.
+  rpc UpdateSitePhpVersion(UpdateSitePhpVersionRequest) returns (UpdateSitePhpVersionResponse);
+
+  // Enables a previously disabled site (restores normal serving).
+  // Idempotent: enabling an already-enabled site is a no-op success.
+  rpc EnableSite(EnableSiteRequest) returns (EnableSiteResponse);
+
+  // Disables a site: the vhost is kept (so SSL renewal and SEO are not
+  // disrupted) but serves a suspension response instead of the site
+  // content. Idempotent: disabling an already-disabled site is a no-op
+  // success.
+  rpc DisableSite(DisableSiteRequest) returns (DisableSiteResponse);
+
+  // Removes a site's vhost include and reloads the web server. The
+  // document root and its files are NOT deleted by this call — file
+  // removal is a separate, explicitly audited FilesService operation.
+  // Idempotent: deleting a non-existent site returns NotFound.
+  rpc DeleteSite(DeleteSiteRequest) returns (DeleteSiteResponse);
+
+  // Streams the tail of a site's access or error log, most recent lines
+  // first batch, then follows new lines as they are written until the
+  // caller cancels the stream or line_limit historical lines plus live
+  // tailing have been sent. Read-only; safe to call repeatedly.
+  rpc TailSiteLog(TailSiteLogRequest) returns (stream TailSiteLogResponse);
+
+  // Validates the current web-server configuration and reloads it.
+  // Used after a batch of site changes to apply them in one reload instead
+  // of one per change. Idempotent: reloading with no pending changes is a
+  // no-op success. On validation failure, the previous running config is
+  // left untouched and the failing tool output is returned.
+  rpc ReloadWebServer(ReloadWebServerRequest) returns (ReloadWebServerResponse);
+}
+
+// Backend that serves the site's content.
+enum SiteBackendType {
+  SITE_BACKEND_TYPE_UNSPECIFIED = 0;
+  // Static files only, no application server.
+  SITE_BACKEND_TYPE_STATIC = 1;
+  // PHP-FPM pool bound to php_version.
+  SITE_BACKEND_TYPE_PHP = 2;
+  // Reverse-proxied to an upstream the caller names explicitly.
+  SITE_BACKEND_TYPE_REVERSE_PROXY = 3;
+}
+
+message CreateSiteRequest {
+  // System username of the owning account.
+  string account_username = 1;
+  // Primary domain served by the site, e.g. "example.com". Validated as a
+  // syntactically well-formed hostname.
+  string domain = 2;
+  // Additional hostnames (e.g. "www.example.com") served by the same site.
+  repeated string aliases = 3;
+  // Which backend serves this site's content.
+  SiteBackendType backend_type = 4;
+  // Required when backend_type is PHP: installed PHP version to bind to,
+  // e.g. "8.3".
+  string php_version = 5;
+  // Required when backend_type is REVERSE_PROXY: the upstream to forward
+  // to, e.g. "127.0.0.1:3000". Host must be loopback or a private address;
+  // validated by the agent, not passed through to the config verbatim.
+  string proxy_upstream = 6;
+}
+
+message CreateSiteResponse {
+  oneof result {
+    CreateSiteOk ok = 1;
+    AgentError error = 2;
+  }
+}
+
+message CreateSiteOk {
+  // Absolute document root, e.g. "/home/acc12345/sites/example.com".
+  string document_root = 1;
+}
+
+message UpdateSitePhpVersionRequest {
+  // System username of the owning account.
+  string account_username = 1;
+  // Primary domain of the site to update.
+  string domain = 2;
+  // Installed PHP version to switch to, e.g. "8.4".
+  string php_version = 3;
+}
+
+message UpdateSitePhpVersionResponse {
+  oneof result {
+    UpdateSitePhpVersionOk ok = 1;
+    AgentError error = 2;
+  }
+}
+
+message UpdateSitePhpVersionOk {}
+
+message EnableSiteRequest {
+  // System username of the owning account.
+  string account_username = 1;
+  // Primary domain of the site to enable.
+  string domain = 2;
+}
+
+message EnableSiteResponse {
+  oneof result {
+    EnableSiteOk ok = 1;
+    AgentError error = 2;
+  }
+}
+
+message EnableSiteOk {}
+
+message DisableSiteRequest {
+  // System username of the owning account.
+  string account_username = 1;
+  // Primary domain of the site to disable.
+  string domain = 2;
+}
+
+message DisableSiteResponse {
+  oneof result {
+    DisableSiteOk ok = 1;
+    AgentError error = 2;
+  }
+}
+
+message DisableSiteOk {}
+
+message DeleteSiteRequest {
+  // System username of the owning account.
+  string account_username = 1;
+  // Primary domain of the site to delete.
+  string domain = 2;
+}
+
+message DeleteSiteResponse {
+  oneof result {
+    DeleteSiteOk ok = 1;
+    AgentError error = 2;
+  }
+}
+
+message DeleteSiteOk {}
+
+// Which log stream to tail.
+enum SiteLogKind {
+  SITE_LOG_KIND_UNSPECIFIED = 0;
+  SITE_LOG_KIND_ACCESS = 1;
+  SITE_LOG_KIND_ERROR = 2;
+}
+
+message TailSiteLogRequest {
+  // System username of the owning account.
+  string account_username = 1;
+  // Primary domain of the site whose log is read.
+  string domain = 2;
+  // Which log to tail.
+  SiteLogKind kind = 3;
+  // Number of historical lines to send before switching to live tailing.
+  // Capped by the agent at 1000 regardless of the requested value.
+  uint32 history_lines = 4;
+}
+
+message TailSiteLogResponse {
+  oneof result {
+    TailSiteLogLine ok = 1;
+    AgentError error = 2;
+  }
+}
+
+message TailSiteLogLine {
+  // One raw log line, without trailing newline.
+  string line = 1;
+  // True for lines sent from the historical tail; false for lines streamed
+  // live as they are appended.
+  bool historical = 2;
+}
+
+message ReloadWebServerRequest {}
+
+message ReloadWebServerResponse {
+  oneof result {
+    ReloadWebServerOk ok = 1;
+    AgentError error = 2;
+  }
+}
+
+message ReloadWebServerOk {}

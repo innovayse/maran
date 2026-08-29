@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <PackageReference Include="Google.Protobuf" />
+    <!-- DI.Abstractions: only for the AddAgentClient registration entry point (DependencyInjection.cs). -->
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
+    <PackageReference Include="Grpc.Net.Client" />
+    <PackageReference Include="Grpc.Tools" PrivateAssets="all" />
+    <Protobuf Include="../../../proto/agent/v1/*.proto" ProtoRoot="../../../proto" GrpcServices="Client" />
+    <ProjectReference Include="../Maran.SharedKernel/Maran.SharedKernel.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Maran.Agent.Client.Tests" />
+  </ItemGroup>
+
+</Project>

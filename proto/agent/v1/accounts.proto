@@ -1,0 +1,145 @@
+// Hosting account lifecycle: system user, home directory, filesystem quota.
+syntax = "proto3";
+
+package maran.agent.v1;
+
+option csharp_namespace = "Maran.Agent.V1";
+
+import "agent/v1/common.proto";
+
+// Manages the OS-level identity that backs a hosting account: a system
+// user, its home directory tree, and a disk quota. Site/db/ftp/cron
+// entities are created separately and reference the account by name.
+service AccountsService {
+  // Creates the system user and home directory for an account, applying
+  // the initial quota. Idempotent: if the account already exists with the
+  // same uid/quota it returns AlreadyExists; a mismatched existing account
+  // is left untouched and reported as AlreadyExists (caller decides).
+  rpc CreateAccount(CreateAccountRequest) returns (CreateAccountResponse);
+
+  // Suspends an account: login shell disabled, all owned services (sites,
+  // cron) paused, data retained. Idempotent: suspending an already
+  // suspended account is a no-op success.
+  rpc SuspendAccount(SuspendAccountRequest) returns (SuspendAccountResponse);
+
+  // Reverses SuspendAccount: login shell restored, owned services resumed.
+  // Idempotent: unsuspending an already-active account is a no-op success.
+  rpc UnsuspendAccount(UnsuspendAccountRequest) returns (UnsuspendAccountResponse);
+
+  // Permanently removes the system user, its home directory and all data
+  // under it (files, mail spool if any). Databases and FTP users owned by
+  // the account are NOT removed by this call — the caller (backend) drops
+  // them explicitly first via DbService/FtpService so each deletion is
+  // independently audited. Idempotent: deleting a non-existent account
+  // returns NotFound, not an error the caller must special-case away.
+  rpc DeleteAccount(DeleteAccountRequest) returns (DeleteAccountResponse);
+
+  // Sets (replaces) the disk quota for an account. Idempotent: setting the
+  // same quota twice is a no-op success.
+  rpc SetAccountQuota(SetAccountQuotaRequest) returns (SetAccountQuotaResponse);
+
+  // Reads current disk usage and quota for an account.
+  rpc GetAccountUsage(GetAccountUsageRequest) returns (GetAccountUsageResponse);
+}
+
+message CreateAccountRequest {
+  // System username, e.g. "acc12345". Validated against the agent's
+  // username allow-list regex regardless of prior API-side validation.
+  string username = 1;
+  // Filesystem quota to apply at creation time, in bytes.
+  uint64 quota_bytes = 2;
+}
+
+message CreateAccountResponse {
+  oneof result {
+    CreateAccountOk ok = 1;
+    AgentError error = 2;
+  }
+}
+
+message CreateAccountOk {
+  // Absolute home directory path, e.g. "/home/acc12345".
+  string home_directory = 1;
+  // Numeric uid assigned to the new system user.
+  uint32 uid = 2;
+}
+
+message SuspendAccountRequest {
+  // System username of the account to suspend.
+  string username = 1;
+}
+
+message SuspendAccountResponse {
+  oneof result {
+    SuspendAccountOk ok = 1;
+    AgentError error = 2;
+  }
+}
+
+message SuspendAccountOk {}
+
+message UnsuspendAccountRequest {
+  // System username of the account to unsuspend.
+  string username = 1;
+}
+
+message UnsuspendAccountResponse {
+  oneof result {
+    UnsuspendAccountOk ok = 1;
+    AgentError error = 2;
+  }
+}
+
+message UnsuspendAccountOk {}
+
+message DeleteAccountRequest {
+  // System username of the account to delete.
+  string username = 1;
+}
+
+message DeleteAccountResponse {
+  oneof result {
+    DeleteAccountOk ok = 1;
+    AgentError error = 2;
+  }
+}
+
+message DeleteAccountOk {
+  // Number of bytes freed by removing the home directory tree.
+  uint64 bytes_freed = 1;
+}
+
+message SetAccountQuotaRequest {
+  // System username of the account.
+  string username = 1;
+  // New quota, in bytes.
+  uint64 quota_bytes = 2;
+}
+
+message SetAccountQuotaResponse {
+  oneof result {
+    SetAccountQuotaOk ok = 1;
+    AgentError error = 2;
+  }
+}
+
+message SetAccountQuotaOk {}
+
+message GetAccountUsageRequest {
+  // System username of the account.
+  string username = 1;
+}
+
+message GetAccountUsageResponse {
+  oneof result {
+    GetAccountUsageOk ok = 1;
+    AgentError error = 2;
+  }
+}
+
+message GetAccountUsageOk {
+  // Bytes currently used under the account's home directory.
+  uint64 used_bytes = 1;
+  // Quota currently in effect, in bytes.
+  uint64 quota_bytes = 2;
+}

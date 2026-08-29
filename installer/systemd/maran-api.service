@@ -1,0 +1,76 @@
+[Unit]
+# The api needs PostgreSQL's unix socket and, for the setup handshake, the agent's
+# socket; ordering after both avoids a noisy crash-loop on first boot while still
+# tolerating the agent restarting independently later (no Requires= on the agent,
+# since api must keep serving its own read paths / health check during a brief
+# agent restart per the design's "degradation banner" behaviour).
+Description=Maran API (panel web application)
+After=network-online.target postgresql.service maran-agent.service
+Wants=network-online.target
+StartLimitIntervalSec=60
+StartLimitBurst=5
+
+[Service]
+# Type=simple (conservative default): the host process is not known to call
+# sd_notify(READY=1), so Type=notify would leave systemd waiting past NotifyAccess
+# timeouts. Health is instead observed via /health, proxied through nginx.
+Type=simple
+User=panel
+Group=panel
+EnvironmentFile=/etc/maran/panel.env
+ExecStart=/usr/local/maran/api/Maran.Host
+Restart=on-failure
+RestartSec=2
+
+# --- Hardening ----------------------------------------------------------------------
+# rules/architecture.md: the API is never root and never shells out or writes system
+# config; the sandbox below is written to make violating that a runtime failure, not
+# just a code-review rule.
+NoNewPrivileges=true
+# ProtectSystem=strict makes the entire filesystem read-only to this unit except the
+# paths explicitly listed in ReadWritePaths= below; combined with ProtectHome this is
+# the tightest whole-system profile systemd offers short of a full mount namespace.
+ProtectSystem=strict
+ProtectHome=true
+# The api never needs to see customer home directories or other accounts' data; this
+# is enforced twice over — once by ProtectHome, once because /home is simply absent
+# from ReadWritePaths.
+PrivateTmp=true
+# Own runtime dir for any transient files (e.g. correlation-id scratch, health probes);
+# 0750 keeps it unreadable to other unprivileged users on the box.
+RuntimeDirectory=maran-api
+RuntimeDirectoryMode=0750
+# The api's only persistent state is under /var/lib/maran (its own subtree) and its
+# own logs; everything else it needs (the socket, the binaries) is read-only to it.
+ReadWritePaths=/var/lib/maran /var/log/maran
+NoExecPaths=/var/lib/maran /var/log/maran
+# No sockets/devices are opened directly by this unit beyond outbound network
+# (PostgreSQL over unix socket, the agent over unix socket, and the license lease
+# call) and the HTTPS listener nginx proxies to; PrivateDevices removes device node
+# access entirely since none is needed.
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectClock=true
+ProtectHostname=true
+RestrictSUIDSGID=true
+RestrictRealtime=true
+RestrictNamespaces=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+RemoveIPC=true
+# The managed monolith needs no raw sockets or exotic address families; AF_UNIX for
+# PostgreSQL/agent sockets and AF_INET/AF_INET6 for the HTTPS listener are sufficient.
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+# Capabilities: the api binds a high port behind nginx (nginx owns 8443), so it needs
+# no CAP_NET_BIND_SERVICE and no other capability at all.
+CapabilityBoundingSet=
+AmbientCapabilities=
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM
+UMask=0027
+
+[Install]
+WantedBy=multi-user.target

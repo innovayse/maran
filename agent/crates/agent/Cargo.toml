@@ -1,0 +1,11 @@
+# The binary crate: maran-agent, the only root process of the system.
+# Serves the typed gRPC contract from proto/agent/v1/ over a unix socket.
+
+[package]
+name = "maran-agent"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true

@@ -1,0 +1,72 @@
+{
+  "app": {
+    "title": "Maran",
+    "status": {
+      "heading": "System status",
+      "ok": "All systems operational ({status})",
+      "unreachable": "Could not reach the API"
+    },
+    "nav": {
+      "ariaLabel": "Main navigation",
+      "systemStatus": "System status",
+      "lockedBadge": "Locked"
+    },
+    "locale": {
+      "switcherLabel": "Interface language",
+      "names": {
+        "en": "EN",
+        "ru": "RU",
+        "hy": "HY"
+      }
+    },
+    "upgrade": {
+      "heading": "Upgrade required",
+      "module": "The \"{module}\" module is not included in your current licence.",
+      "tier": "It is available on the {tier} tier.",
+      "backHome": "Back to system status"
+    },
+    "notFound": {
+      "heading": "Page not found",
+      "description": "The page you requested does not exist.",
+      "backHome": "Back to system status"
+    }
+  },
+  "accounts": {
+    "status": {
+      "active": "Active",
+      "suspended": "Suspended"
+    },
+    "list": {
+      "heading": "Accounts",
+      "createAction": "New account",
+      "loading": "Loading accounts…",
+      "emptyTitle": "No accounts yet",
+      "emptyDescription": "Create the first hosting account to get started.",
+      "tableCaption": "Hosting accounts",
+      "columns": {
+        "name": "Name",
+        "primaryDomain": "Primary domain",
+        "status": "Status",
+        "createdAt": "Created"
+      }
+    },
+    "form": {
+      "heading": "New account",
+      "fields": {
+        "name": "Name",
+        "primaryDomain": "Primary domain",
+        "planId": "Plan ID"
+      },
+      "submit": "Create account",
+      "cancel": "Cancel",
+      "errors": {
+        "nameRequired": "Name is required.",
+        "nameInvalid": "Name must be a lowercase, Linux-username-safe identifier (letters, digits, hyphen, underscore, starting with a letter, 3-32 characters).",
+        "primaryDomainRequired": "Primary domain is required.",
+        "primaryDomainInvalid": "Primary domain must be a valid domain name.",
+        "planIdRequired": "Plan ID is required.",
+        "planIdInvalid": "Plan ID must be a valid UUID."
+      }
+    }
+  }
+}

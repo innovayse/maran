@@ -1,0 +1,275 @@
+// File management under an account's home directory. Every path in this
+// service is relative to the target account's home; the agent
+// canonicalizes it and rejects anything that would resolve outside
+// "/home/<account>/" (containment check), regardless of what the caller
+// already validated. All operations run under the account's UID, never
+// as root.
+syntax = "proto3";
+
+package maran.agent.v1;
+
+option csharp_namespace = "Maran.Agent.V1";
+
+import "agent/v1/common.proto";
+
+service FilesService {
+  // Lists the immediate contents of a directory (non-recursive).
+  rpc ListDirectory(ListDirectoryRequest) returns (ListDirectoryResponse);
+
+  // Streams a file's content in chunks. Refuses to start streaming a file
+  // larger than max_bytes and returns VALIDATION_FAILED instead — the cap
+  // protects both the transport and the caller's memory.
+  rpc ReadFile(ReadFileRequest) returns (stream ReadFileResponse);
+
+  // Streams a file's content from the caller in chunks and writes it
+  // atomically (temp file + rename) so a failed or cancelled upload never
+  // leaves a partial file at the destination path. Idempotent: writing
+  // identical content twice leaves the same end state; the response
+  // carries the final size for the caller to verify.
+  rpc WriteFile(stream WriteFileRequest) returns (WriteFileResponse);
+
+  // Deletes a file or, when recursive is set, a directory and its
+  // contents. Idempotent: deleting a non-existent path returns NotFound.
+  rpc DeleteEntry(DeleteEntryRequest) returns (DeleteEntryResponse);
+
+  // Moves or renames a file or directory within the same account home.
+  // Idempotent: if destination already holds byte-identical content at
+  // the same path as a prior successful move, returns AlreadyExists.
+  rpc MoveEntry(MoveEntryRequest) returns (MoveEntryResponse);
+
+  // Creates a directory, including missing parent directories. Idempotent:
+  // creating an already-existing directory returns AlreadyExists.
+  rpc CreateDirectory(CreateDirectoryRequest) returns (CreateDirectoryResponse);
+
+  // Changes the permission bits of a file or directory. Idempotent:
+  // setting the same mode twice is a no-op success.
+  rpc ChangePermissions(ChangePermissionsRequest) returns (ChangePermissionsResponse);
+
+  // Creates an archive of one or more paths. The archive format is a
+  // closed enum, never a caller-supplied command line. Idempotent:
+  // creating with the same destination and byte-identical inputs leaves
+  // the same end state.
+  rpc CreateArchive(CreateArchiveRequest) returns (CreateArchiveResponse);
+
+  // Extracts an archive into a destination directory. The agent rejects
+  // any archive entry whose path would resolve outside the destination
+  // (zip-slip protection) before writing anything. Idempotent: extracting
+  // the same archive to the same destination twice leaves the same end
+  // state.
+  rpc ExtractArchive(ExtractArchiveRequest) returns (ExtractArchiveResponse);
+}
+
+message ListDirectoryRequest {
+  // System username of the owning account.
+  string account_username = 1;
+  // Directory path, relative to the account home. Empty string means the
+  // home directory itself.
+  string path = 2;
+}
+
+message ListDirectoryResponse {
+  oneof result {
+    ListDirectoryOk ok = 1;
+    AgentError error = 2;
+  }
+}
+
+message ListDirectoryOk {
+  repeated DirectoryEntry entries = 1;
+}
+
+// One entry returned by ListDirectory.
+message DirectoryEntry {
+  // Entry name only (no path components).
+  string name = 1;
+  // True if the entry is a directory.
+  bool is_directory = 2;
+  // Size in bytes; 0 for directories.
+  uint64 size_bytes = 3;
+  // Unix permission bits, e.g. 0644.
+  uint32 mode = 4;
+  // Last modification time as Unix seconds (UTC).
+  int64 modified_at_unix = 5;
+}
+
+message ReadFileRequest {
+  // System username of the owning account.
+  string account_username = 1;
+  // File path, relative to the account home.
+  string path = 2;
+  // Maximum total bytes the agent will stream for this call; a file
+  // larger than this is refused rather than truncated.
+  uint64 max_bytes = 3;
+}
+
+message ReadFileResponse {
+  oneof result {
+    ReadFileChunk ok = 1;
+    AgentError error = 2;
+  }
+}
+
+message ReadFileChunk {
+  // Raw file bytes for this chunk, in stream order.
+  bytes data = 1;
+}
+
+message WriteFileRequest {
+  // Present only on the first message of the stream.
+  WriteFileHeader header = 1;
+  // Raw file bytes for this chunk, in stream order. Present on every
+  // message including the first if the header allows it; subsequent
+  // messages carry only chunk data.
+  bytes chunk = 2;
+}
+
+message WriteFileHeader {
+  // System username of the owning account.
+  string account_username = 1;
+  // Destination file path, relative to the account home.
+  string path = 2;
+  // Permission bits to apply to the created/overwritten file, e.g. 0644.
+  uint32 mode = 3;
+}
+
+message WriteFileResponse {
+  oneof result {
+    WriteFileOk ok = 1;
+    AgentError error = 2;
+  }
+}
+
+message WriteFileOk {
+  // Total bytes written, for the caller to verify against what it sent.
+  uint64 bytes_written = 1;
+}
+
+message DeleteEntryRequest {
+  // System username of the owning account.
+  string account_username = 1;
+  // Path to delete, relative to the account home.
+  string path = 2;
+  // If true and path is a directory, deletes it and all contents. A
+  // non-empty directory with recursive=false is refused with
+  // VALIDATION_FAILED.
+  bool recursive = 3;
+}
+
+message DeleteEntryResponse {
+  oneof result {
+    DeleteEntryOk ok = 1;
+    AgentError error = 2;
+  }
+}
+
+message DeleteEntryOk {}
+
+message MoveEntryRequest {
+  // System username of the owning account.
+  string account_username = 1;
+  // Source path, relative to the account home.
+  string source_path = 2;
+  // Destination path, relative to the same account home.
+  string destination_path = 3;
+}
+
+message MoveEntryResponse {
+  oneof result {
+    MoveEntryOk ok = 1;
+    AgentError error = 2;
+  }
+}
+
+message MoveEntryOk {}
+
+message CreateDirectoryRequest {
+  // System username of the owning account.
+  string account_username = 1;
+  // Directory path to create, relative to the account home.
+  string path = 2;
+  // Permission bits for the created directory, e.g. 0755.
+  uint32 mode = 3;
+}
+
+message CreateDirectoryResponse {
+  oneof result {
+    CreateDirectoryOk ok = 1;
+    AgentError error = 2;
+  }
+}
+
+message CreateDirectoryOk {}
+
+message ChangePermissionsRequest {
+  // System username of the owning account.
+  string account_username = 1;
+  // Path to modify, relative to the account home.
+  string path = 2;
+  // New permission bits, e.g. 0644.
+  uint32 mode = 3;
+  // If true and path is a directory, applies mode recursively.
+  bool recursive = 4;
+}
+
+message ChangePermissionsResponse {
+  oneof result {
+    ChangePermissionsOk ok = 1;
+    AgentError error = 2;
+  }
+}
+
+message ChangePermissionsOk {}
+
+// Supported archive container formats.
+enum ArchiveFormat {
+  ARCHIVE_FORMAT_UNSPECIFIED = 0;
+  ARCHIVE_FORMAT_ZIP = 1;
+  ARCHIVE_FORMAT_TAR_GZ = 2;
+}
+
+message CreateArchiveRequest {
+  // System username of the owning account.
+  string account_username = 1;
+  // Paths to include, each relative to the account home.
+  repeated string source_paths = 2;
+  // Destination archive path, relative to the account home.
+  string destination_path = 3;
+  // Container format to write.
+  ArchiveFormat format = 4;
+}
+
+message CreateArchiveResponse {
+  oneof result {
+    CreateArchiveOk ok = 1;
+    AgentError error = 2;
+  }
+}
+
+message CreateArchiveOk {
+  // Size of the created archive, in bytes.
+  uint64 size_bytes = 1;
+}
+
+message ExtractArchiveRequest {
+  // System username of the owning account.
+  string account_username = 1;
+  // Archive path to extract, relative to the account home.
+  string archive_path = 2;
+  // Destination directory, relative to the account home; created if
+  // absent.
+  string destination_path = 3;
+  // Container format of the archive; must match the file's actual format.
+  ArchiveFormat format = 4;
+}
+
+message ExtractArchiveResponse {
+  oneof result {
+    ExtractArchiveOk ok = 1;
+    AgentError error = 2;
+  }
+}
+
+message ExtractArchiveOk {
+  // Number of entries extracted.
+  uint32 entry_count = 1;
+}

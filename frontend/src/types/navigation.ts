@@ -1,0 +1,33 @@
+import type { RouteLocationRaw } from 'vue-router'
+
+/**
+ * One entry in the authenticated shell's sidebar navigation, as built by
+ * `useNavigation` from the module catalogue. Icon-free for now — the
+ * catalogue does not report icons yet, and rules/vue.md forbids
+ * speculative fields.
+ */
+export interface NavigationEntry {
+  /** Stable identifier for `:key` in `v-for`; the module name for module-backed entries. */
+  key: string
+  /**
+   * Fully-resolved destination for this entry, including any route params. Built by the navigation
+   * composable, which knows the module — the layout must not reconstruct it, or the two would
+   * disagree (a module whose page is not registered yet needs the upgrade route WITH its param).
+   */
+  target: RouteLocationRaw
+  /**
+   * i18n key for the entry's label — used only by the shell's own entries, whose text this bundle
+   * owns. Null for module entries, which carry a backend-localized {@link label} instead.
+   */
+  labelKey: string | null
+  /**
+   * Ready-to-render label supplied by the panel, already localized in the request's language. Set
+   * for module entries — the SPA cannot own translations for modules it learns about at runtime,
+   * including marketplace modules unknown when this bundle was built. Null for shell entries.
+   */
+  label: string | null
+  /** Machine name of the module this entry represents, or `null` for entries not backed by a module (e.g. system status). */
+  moduleName: string | null
+  /** Whether the licence does not currently permit this module — rendered as visibly locked, not hidden. */
+  locked: boolean
+}

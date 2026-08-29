@@ -1,0 +1,148 @@
+// Account backups: an archive of the account's files plus dumps of its
+// databases, written to a destination the caller names. Create and
+// restore are long-running and stream Progress; the agent performs the
+// dump/archive/transfer itself from a closed set of steps, never a
+// caller-supplied script.
+syntax = "proto3";
+
+package maran.agent.v1;
+
+option csharp_namespace = "Maran.Agent.V1";
+
+import "agent/v1/common.proto";
+
+service BackupService {
+  // Creates a backup of an account: archives its home directory and dumps
+  // each of its databases, then stores the result at destination. Streams
+  // Progress through stages ("archiving_files", "dumping_databases",
+  // "uploading"), ending with the terminal ok/error message. Idempotent:
+  // if a backup with the same backup_id already completed successfully,
+  // immediately emits a single terminal AlreadyExists response instead of
+  // redoing the work.
+  rpc CreateBackup(CreateBackupRequest) returns (stream CreateBackupResponse);
+
+  // Restores an account from a previously created backup, overwriting its
+  // current files and recreating its databases from the dumps. Streams
+  // Progress through stages ("downloading", "restoring_files",
+  // "restoring_databases"), ending with the terminal ok/error message.
+  // Idempotent: restoring the same backup_id twice converges to the same
+  // end state.
+  rpc RestoreBackup(RestoreBackupRequest) returns (stream RestoreBackupResponse);
+
+  // Lists backups known to the agent for an account.
+  rpc ListBackups(ListBackupsRequest) returns (ListBackupsResponse);
+
+  // Deletes a backup's stored artifact. Idempotent: deleting a
+  // non-existent backup_id returns NotFound.
+  rpc DeleteBackup(DeleteBackupRequest) returns (DeleteBackupResponse);
+}
+
+// Where a backup artifact is stored.
+enum BackupDestinationKind {
+  BACKUP_DESTINATION_KIND_UNSPECIFIED = 0;
+  // Local path under the agent's backup storage directory.
+  BACKUP_DESTINATION_KIND_LOCAL = 1;
+  // S3-compatible object storage.
+  BACKUP_DESTINATION_KIND_S3 = 2;
+}
+
+// Where and how a backup artifact is stored or retrieved. For S3, the
+// bucket/prefix/region are structured fields, not a connection string;
+// credentials are never placed in this message — they are provisioned to
+// the agent out of band (installer/config), never sent per-call.
+message BackupDestination {
+  // Storage kind this destination targets.
+  BackupDestinationKind kind = 1;
+  // Local: subdirectory under the agent's backup root. S3: object key
+  // prefix.
+  string path = 2;
+  // S3 only: bucket name. Empty for LOCAL.
+  string s3_bucket = 3;
+  // S3 only: region, e.g. "eu-central-1". Empty for LOCAL.
+  string s3_region = 4;
+}
+
+message CreateBackupRequest {
+  // System username of the account being backed up.
+  string account_username = 1;
+  // Caller-assigned unique identifier for this backup, used for
+  // idempotency and to target restore/delete.
+  string backup_id = 2;
+  // Where to store the resulting artifact.
+  BackupDestination destination = 3;
+}
+
+message CreateBackupResponse {
+  oneof result {
+    Progress progress = 1;
+    CreateBackupOk ok = 2;
+    AgentError error = 3;
+  }
+}
+
+message CreateBackupOk {
+  // Total size of the stored artifact, in bytes.
+  uint64 size_bytes = 1;
+}
+
+message RestoreBackupRequest {
+  // System username of the account being restored into.
+  string account_username = 1;
+  // Identifier of the backup to restore, as passed to CreateBackup.
+  string backup_id = 2;
+  // Where the backup artifact currently resides.
+  BackupDestination destination = 3;
+}
+
+message RestoreBackupResponse {
+  oneof result {
+    Progress progress = 1;
+    RestoreBackupOk ok = 2;
+    AgentError error = 3;
+  }
+}
+
+message RestoreBackupOk {}
+
+message ListBackupsRequest {
+  // System username of the account whose backups are listed.
+  string account_username = 1;
+}
+
+message ListBackupsResponse {
+  oneof result {
+    ListBackupsOk ok = 1;
+    AgentError error = 2;
+  }
+}
+
+message ListBackupsOk {
+  repeated BackupInfo backups = 1;
+}
+
+message BackupInfo {
+  // Identifier of the backup, as passed to CreateBackup.
+  string backup_id = 1;
+  // Size of the stored artifact, in bytes.
+  uint64 size_bytes = 2;
+  // Creation time as Unix seconds (UTC).
+  int64 created_at_unix = 3;
+}
+
+message DeleteBackupRequest {
+  // System username of the account owning the backup.
+  string account_username = 1;
+  // Identifier of the backup to delete.
+  string backup_id = 2;
+  // Where the backup artifact currently resides.
+  BackupDestination destination = 3;
+}
+
+message DeleteBackupResponse {
+  oneof result {
+    DeleteBackupOk ok = 1;
+    AgentError error = 2;
+  }
+}
+
+message DeleteBackupOk {}

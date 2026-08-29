@@ -1,0 +1,11 @@
+# Config rendering: askama render types in src/, template sources in
+# templates/, byte-exact golden renders in tests/golden/.
+
+[package]
+name = "maran-templates"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true

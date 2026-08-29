@@ -1,0 +1,23 @@
+# Workspace manifest of maran-agent (rules/rust.md "Canonical agent layout").
+# The clippy lints below are security controls, not taste: the agent runs as
+# root, and a root process must return typed errors, never panic on input.
+
+[workspace]
+resolver = "3"
+members = [
+    "crates/agent",
+    "crates/agent-core",
+    "crates/distro",
+    "crates/ops",
+    "crates/templates",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[workspace.lints.clippy]
+unwrap_used = "deny"
+expect_used = "deny"
+panic = "deny"
