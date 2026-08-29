@@ -7,5 +7,15 @@ version.workspace = true
 edition.workspace = true
 publish.workspace = true
 
+[dependencies]
+# thiserror: typed errors instead of panics — the agent runs as root.
+thiserror.workspace = true
+# regex: the single gate every system-facing name passes through.
+regex.workspace = true
+
+[dev-dependencies]
+# tempfile: path containment is only meaningfully tested against a real filesystem.
+tempfile.workspace = true
+
 [lints]
 workspace = true
