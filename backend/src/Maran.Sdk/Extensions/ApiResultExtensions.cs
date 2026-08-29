@@ -15,19 +15,35 @@ public static class ApiResultExtensions
     /// <summary>Translates a query/read result: 200 OK with the value, or a problem response.</summary>
     /// <param name="result">The outcome to translate.</param>
     /// <param name="httpContext">The current request, used to read the correlation id and resolve <see cref="IErrorTextProvider"/>.</param>
-    public static IActionResult ToActionResult<T>(this Result<T> result, HttpContext httpContext) =>
-        result.Match<IActionResult>(
-            onOk: value => new OkObjectResult(value),
-            onFail: error => ToProblemResult(error, httpContext));
+    public static IActionResult ToActionResult<T>(this Result<T> result, HttpContext httpContext)
+    {
+        return result.Match<IActionResult>(
+            onOk: value =>
+            {
+                return new OkObjectResult(value);
+            },
+            onFail: error =>
+            {
+                return ToProblemResult(error, httpContext);
+            });
+    }
 
     /// <summary>Translates a create result: 201 Created with the value, or a problem response.</summary>
     /// <param name="result">The outcome to translate.</param>
     /// <param name="httpContext">The current request, used to read the correlation id and resolve <see cref="IErrorTextProvider"/>.</param>
     /// <param name="location">The URI of the created resource, used as the 201 response's <c>Location</c> header.</param>
-    public static IActionResult ToCreatedActionResult<T>(this Result<T> result, HttpContext httpContext, string location) =>
-        result.Match<IActionResult>(
-            onOk: value => new CreatedResult(location, value),
-            onFail: error => ToProblemResult(error, httpContext));
+    public static IActionResult ToCreatedActionResult<T>(this Result<T> result, HttpContext httpContext, string location)
+    {
+        return result.Match<IActionResult>(
+            onOk: value =>
+            {
+                return new CreatedResult(location, value);
+            },
+            onFail: error =>
+            {
+                return ToProblemResult(error, httpContext);
+            });
+    }
 
     /// <summary>Builds the RFC 7807 problem response for a failed <see cref="Result{T}"/>.</summary>
     /// <param name="error">The typed domain failure.</param>
@@ -59,17 +75,26 @@ public static class ApiResultExtensions
 
     /// <summary>
     /// Infers an HTTP status from the machine error code's suffix convention (e.g.
-    /// <c>"sites.not_found"</c> → 404). Modules are free to use any suffix; unrecognized ones map
+    /// <c>"SitesNotFound"</c> → 404). Modules are free to use any suffix; unrecognized ones map
     /// to 400, so a new code never silently produces a wrong-but-plausible status.
     /// </summary>
+    /// <remarks>
+    /// The suffixes are PascalCase because the codes are (rules/csharp.md: resource names are flat
+    /// PascalCase, and a code is the name of its resource entry). They were once matched in a
+    /// dotted lower-case form, which stopped matching the moment the codes became PascalCase — and
+    /// silently answered 400 to every missing account and every duplicate domain.
+    /// </remarks>
     /// <param name="code">The machine-stable error code.</param>
-    private static int MapStatusCode(string code) => code switch
+    private static int MapStatusCode(string code)
     {
-        _ when code.EndsWith(".not_found", StringComparison.Ordinal) => StatusCodes.Status404NotFound,
-        _ when code.EndsWith(".already_exists", StringComparison.Ordinal) => StatusCodes.Status409Conflict,
-        _ when code.EndsWith(".taken", StringComparison.Ordinal) => StatusCodes.Status409Conflict,
-        _ when code.EndsWith(".forbidden", StringComparison.Ordinal) => StatusCodes.Status403Forbidden,
-        _ when code.EndsWith(".unauthorized", StringComparison.Ordinal) => StatusCodes.Status401Unauthorized,
-        _ => StatusCodes.Status400BadRequest,
-    };
+        return code switch
+        {
+            _ when code.EndsWith("NotFound", StringComparison.Ordinal) => StatusCodes.Status404NotFound,
+            _ when code.EndsWith("AlreadyExists", StringComparison.Ordinal) => StatusCodes.Status409Conflict,
+            _ when code.EndsWith("Taken", StringComparison.Ordinal) => StatusCodes.Status409Conflict,
+            _ when code.EndsWith("Forbidden", StringComparison.Ordinal) => StatusCodes.Status403Forbidden,
+            _ when code.EndsWith("Unauthorized", StringComparison.Ordinal) => StatusCodes.Status401Unauthorized,
+            _ => StatusCodes.Status400BadRequest,
+        };
+    }
 }

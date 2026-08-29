@@ -1,4 +1,7 @@
 using JasperFx.CodeGeneration;
+using JasperFx.CodeGeneration.Model;
+using JasperFx.RuntimeCompiler;
+using Maran.Host.Modules;
 using Wolverine;
 using Wolverine.Postgresql;
 
@@ -22,12 +25,41 @@ public static class MessagingExtensions
     /// still starts, but purely in memory — durability requires a database.
     /// </param>
     /// <returns>The same builder, for chaining.</returns>
-    public static IHostBuilder AddPanelMessaging(this IHostBuilder builder, string connectionString) =>
-        builder.UseWolverine(options =>
+    public static IHostBuilder AddPanelMessaging(this IHostBuilder builder, string connectionString)
+    {
+        return builder
+            .ConfigureServices(services =>
+            {
+                // Wolverine executes each message through a handler type it builds for that message.
+                // Something has to produce those types, and with no generator registered every
+                // module request failed at runtime with "No IAssemblyGenerator is registered".
+                services.AddSingleton<IAssemblyGenerator, AssemblyGenerator>();
+            })
+            .UseWolverine(options =>
         {
-            // No handlers ship yet, so there is nothing to compile at runtime. Static type-load
-            // mode keeps the Roslyn runtime-compilation dependency out of the deployed panel.
-            options.CodeGeneration.TypeLoadMode = TypeLoadMode.Static;
+            // Auto, not Static: Static expects handler types generated ahead of time, and with none
+            // present Wolverine silently falls back to a runtime scan — a fallback that logs a
+            // warning on every boot while doing exactly what Auto does openly.
+            options.CodeGeneration.TypeLoadMode = TypeLoadMode.Auto;
+
+            // Handlers resolve their module DbContext from the container. Wolverine prefers to inline
+            // dependencies into generated code and refuses container lookups by default, which made
+            // every handler fail to build: EF registers DbContext options through a factory lambda
+            // that cannot be inlined. Allowing the lookup costs one scoped resolve per message and
+            // keeps each module owning its own persistence registration.
+            options.ServiceLocationPolicy = ServiceLocationPolicy.AlwaysAllowed;
+
+            // Handlers live in the module assemblies, not in the host, and Wolverine scans only the
+            // entry assembly by default — which left every module message with no handler and every
+            // module request failing at runtime. The assemblies come from the explicit module
+            // registry, so this stays a list, not a scan (rules/architecture.md).
+            foreach (var assembly in ModuleRegistry.All.Select(module =>
+            {
+                return module.GetType().Assembly;
+            }).Distinct())
+            {
+                options.Discovery.IncludeAssembly(assembly);
+            }
 
             if (!string.IsNullOrWhiteSpace(connectionString))
             {
@@ -44,4 +76,5 @@ public static class MessagingExtensions
                 // take a database dump first — never as a side effect of a process start.
             }
         });
+    }
 }

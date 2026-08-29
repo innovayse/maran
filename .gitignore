@@ -23,6 +23,8 @@ frontend/.playwright/
 # (rules/proto.md).
 **/*.g.cs
 **/generated/
+# Wolverine writes a handler type per message under Internal/Generated at runtime.
+**/Internal/Generated/
 
 # Secrets and machine-local configuration
 # ---------------------------------------
@@ -65,3 +67,6 @@ scripts/*.log
 *.swp
 .DS_Store
 Thumbs.db
+
+# Local run logs written by scripts/run-dev.sh
+.dev-logs/

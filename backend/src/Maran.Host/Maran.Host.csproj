@@ -6,6 +6,9 @@
     <PackageReference Include="Serilog.AspNetCore" />
     <!-- Npgsql: the readiness probe opens a real connection to prove the database answers. -->
     <PackageReference Include="Npgsql" />
+    <!-- JasperFx.RuntimeCompiler: Wolverine builds a handler type per message, and without a
+         generator registered every module request fails at runtime. -->
+    <PackageReference Include="JasperFx.RuntimeCompiler" />
     <PackageReference Include="WolverineFx" />
     <PackageReference Include="WolverineFx.Postgresql" />
   </ItemGroup>

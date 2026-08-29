@@ -1,6 +1,10 @@
 <Project>
   <PropertyGroup>
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+    <!-- Lets the pins below reach packages we never reference directly. JasperFx.RuntimeCompiler
+         asks for a Roslyn three minor versions behind the one our analysers already pull in, and
+         the resulting split fails the build under warnings-as-errors. -->
+    <CentralPackageTransitivePinningEnabled>true</CentralPackageTransitivePinningEnabled>
   </PropertyGroup>
   <ItemGroup>
     <PackageVersion Include="Npgsql" Version="9.0.4" />
@@ -13,6 +17,13 @@
     <PackageVersion Include="Grpc.Net.Client" Version="2.83.0" />
     <PackageVersion Include="Grpc.Tools" Version="2.83.0" />
     <PackageVersion Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="9.0.4" />
+    <PackageVersion Include="JasperFx.RuntimeCompiler" Version="4.4.0" />
+    <!-- Transitive, pinned to one Roslyn version across the whole graph (see the property above). -->
+    <PackageVersion Include="Microsoft.CodeAnalysis.Common" Version="4.14.0" />
+    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="4.14.0" />
+    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="4.14.0" />
+    <PackageVersion Include="Microsoft.CodeAnalysis.Workspaces.Common" Version="4.14.0" />
+    <PackageVersion Include="Microsoft.CodeAnalysis.Workspaces.MSBuild" Version="4.14.0" />
     <PackageVersion Include="WolverineFx" Version="6.30.3" />
     <PackageVersion Include="WolverineFx.Postgresql" Version="6.30.3" />
     <PackageVersion Include="NetArchTest.Rules" Version="1.3.2" />
