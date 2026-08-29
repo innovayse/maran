@@ -38,10 +38,16 @@ public sealed class CreateAccountCommandValidatorTests : IDisposable
     }
 
     /// <inheritdoc />
-    public void Dispose() => _dbContext.Dispose();
+    public void Dispose()
+    {
+        _dbContext.Dispose();
+    }
 
     /// <summary>Builds a command that satisfies every rule, so a single field can be broken per test.</summary>
-    private static CreateAccountCommand ValidCommand() => new("acme", "acme.example.com", SeededPlanId);
+    private static CreateAccountCommand ValidCommand()
+    {
+        return new("acme", "acme.example.com", SeededPlanId);
+    }
 
     [Fact]
     public async Task Fully_valid_command_passes_every_rule()

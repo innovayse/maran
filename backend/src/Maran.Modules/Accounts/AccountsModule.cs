@@ -23,17 +23,32 @@ public sealed class AccountsModule : IPanelModule
     private const string DisplayNamesResourceBaseName = "Maran.Modules.Accounts.Resources.DisplayNames";
 
     /// <inheritdoc />
-    public string Name => Manifest.Id;
+    public string Name
+    {
+        get
+        {
+            return Manifest.Id;
+        }
+    }
 
     /// <inheritdoc />
-    public Manifest Manifest => AccountsManifest.Instance;
+    public Manifest Manifest
+    {
+        get
+        {
+            return AccountsManifest.Instance;
+        }
+    }
 
     /// <inheritdoc />
     public void ConfigureServices(IServiceCollection services, IConfiguration configuration)
     {
         var connectionString = configuration.GetConnectionString(ConnectionStringName) ?? string.Empty;
 
-        services.AddDbContext<AccountsDbContext>(options => options.UseNpgsql(connectionString));
+        services.AddDbContext<AccountsDbContext>(options =>
+        {
+            options.UseNpgsql(connectionString);
+        });
 
         // Registers this module's resource managers into the shared pool the panel-wide
         // ResxErrorTextProvider resolves error codes and Manifest.DisplayNameKey against

@@ -53,15 +53,26 @@ public sealed class RequestLocalizationMiddleware
         }
 
         var candidates = header
-            .SelectMany(value => value?.Split(',') ?? [])
+            .SelectMany(value =>
+            {
+                return value?.Split(',') ?? [];
+            })
             .Select(ParseLanguageTag)
-            .Where(candidate => candidate is not null)
-            .OrderByDescending(candidate => candidate!.Value.Quality);
+            .Where(candidate =>
+            {
+                return candidate is not null;
+            })
+            .OrderByDescending(candidate =>
+            {
+                return candidate!.Value.Quality;
+            });
 
         foreach (var candidate in candidates)
         {
             var match = SupportedCultures.FirstOrDefault(supported =>
-                string.Equals(supported, candidate!.Value.Language, StringComparison.OrdinalIgnoreCase));
+            {
+                return string.Equals(supported, candidate!.Value.Language, StringComparison.OrdinalIgnoreCase);
+            });
 
             if (match is not null)
             {

@@ -14,9 +14,14 @@ public sealed class SecurityOptionsTests
     public void Missing_encryption_key_fails_startup()
     {
         using var factory = new PanelTestFactory().WithWebHostBuilder(builder =>
-            builder.UseSetting("Security:EncryptionKey", string.Empty));
+        {
+            builder.UseSetting("Security:EncryptionKey", string.Empty);
+        });
 
-        var exception = Assert.Throws<OptionsValidationException>(() => _ = factory.Services);
+        var exception = Assert.Throws<OptionsValidationException>(() =>
+        {
+            return _ = factory.Services;
+        });
 
         Assert.Contains("EncryptionKey", exception.Message, StringComparison.Ordinal);
     }
@@ -27,9 +32,14 @@ public sealed class SecurityOptionsTests
         var tooShort = Convert.ToBase64String("not-32-bytes"u8.ToArray());
 
         using var factory = new PanelTestFactory().WithWebHostBuilder(builder =>
-            builder.UseSetting("Security:EncryptionKey", tooShort));
+        {
+            builder.UseSetting("Security:EncryptionKey", tooShort);
+        });
 
-        var exception = Assert.Throws<OptionsValidationException>(() => _ = factory.Services);
+        var exception = Assert.Throws<OptionsValidationException>(() =>
+        {
+            return _ = factory.Services;
+        });
 
         Assert.Contains("256-bit key", exception.Message, StringComparison.Ordinal);
     }
@@ -38,7 +48,9 @@ public sealed class SecurityOptionsTests
     public void Valid_encryption_key_boots_successfully()
     {
         using var factory = new PanelTestFactory().WithWebHostBuilder(builder =>
-            builder.UseSetting(PanelTestSettings.EncryptionKeyPath, PanelTestSettings.EncryptionKey));
+        {
+            builder.UseSetting(PanelTestSettings.EncryptionKeyPath, PanelTestSettings.EncryptionKey);
+        });
 
         // Forces the host to actually build and start; a validation failure here throws.
         using var client = factory.CreateClient();

@@ -12,6 +12,12 @@ public sealed class SystemClock : IClock
 {
     /// <inheritdoc />
 #pragma warning disable RS0030 // The clock implementation is the sanctioned exception to the ban.
-    public DateTimeOffset UtcNow => DateTimeOffset.UtcNow;
+    public DateTimeOffset UtcNow
+    {
+        get
+        {
+            return DateTimeOffset.UtcNow;
+        }
+    }
 #pragma warning restore RS0030
 }

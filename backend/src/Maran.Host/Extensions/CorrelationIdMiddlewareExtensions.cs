@@ -11,6 +11,8 @@ public static class CorrelationIdMiddlewareExtensions
     /// </summary>
     /// <param name="app">The application pipeline builder.</param>
     /// <returns>The same builder, for chaining.</returns>
-    public static IApplicationBuilder UseCorrelationId(this IApplicationBuilder app) =>
-        app.UseMiddleware<CorrelationIdMiddleware>();
+    public static IApplicationBuilder UseCorrelationId(this IApplicationBuilder app)
+    {
+        return app.UseMiddleware<CorrelationIdMiddleware>();
+    }
 }

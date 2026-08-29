@@ -54,10 +54,22 @@ public sealed class AccountsErrorsTests
     }
 
     /// <summary>The locale suffixes exercised by <see cref="Every_known_error_code_has_an_error_messages_resx_entry_in_this_locale"/>.</summary>
-    public static IEnumerable<object[]> ErrorMessagesLocales() => LocaleSuffixes.Select(suffix => new object[] { suffix });
+    public static IEnumerable<object[]> ErrorMessagesLocales()
+    {
+        return LocaleSuffixes.Select(suffix =>
+    {
+        return new object[] { suffix };
+    });
+    }
 
     /// <summary>The resource base names exercised by <see cref="Every_resource_triple_declares_exactly_the_same_key_set_across_all_three_locales"/>.</summary>
-    public static IEnumerable<object[]> ResourceTriples() => ResourceBaseNames.Select(name => new object[] { name });
+    public static IEnumerable<object[]> ResourceTriples()
+    {
+        return ResourceBaseNames.Select(name =>
+    {
+        return new object[] { name };
+    });
+    }
 
     /// <summary>Reads every <c>&lt;data name="..."&gt;</c> key out of one locale's resx file.</summary>
     /// <param name="baseName">The resource base name, e.g. <c>ErrorMessages</c>.</param>
@@ -69,7 +81,10 @@ public sealed class AccountsErrorsTests
 
         return document.Root!
             .Elements("data")
-            .Select(element => element.Attribute("name")!.Value)
+            .Select(element =>
+            {
+                return element.Attribute("name")!.Value;
+            })
             .ToHashSet(StringComparer.Ordinal);
     }
 

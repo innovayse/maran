@@ -12,7 +12,7 @@ namespace Maran.SharedKernel.Interfaces;
 public interface IErrorTextProvider
 {
     /// <summary>Returns the localized message for <paramref name="code"/> in the current request culture.</summary>
-    /// <param name="code">The machine-stable error code (e.g. <c>"sites.domain_taken"</c>).</param>
+    /// <param name="code">The machine-stable error code (e.g. <c>"SitesDomainTaken"</c>).</param>
     /// <param name="arguments">Optional format arguments substituted into the resolved message.</param>
     string Resolve(string code, params object[] arguments);
 }

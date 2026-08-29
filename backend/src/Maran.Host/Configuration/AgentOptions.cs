@@ -26,5 +26,11 @@ public sealed class AgentOptions
     public int ProbeTimeoutSeconds { get; set; } = 2;
 
     /// <summary><see cref="ProbeTimeoutSeconds"/> as a <see cref="TimeSpan"/>, for callers that need one.</summary>
-    public TimeSpan ProbeTimeout => TimeSpan.FromSeconds(ProbeTimeoutSeconds);
+    public TimeSpan ProbeTimeout
+    {
+        get
+        {
+            return TimeSpan.FromSeconds(ProbeTimeoutSeconds);
+        }
+    }
 }

@@ -46,12 +46,17 @@ public sealed class CreateAccountCommandValidator : AbstractValidator<CreateAcco
             .NotEmpty()
             .MustAsync(PlanExistsAsync)
             .WithErrorCode(PlanNotFoundErrorCode)
-            .WithMessage(command => $"Plan '{command.PlanId}' was not found.");
+            .WithMessage(command =>
+            {
+                return $"Plan '{command.PlanId}' was not found.";
+            });
     }
 
     /// <summary>Confirms <paramref name="planId"/> names a real, seeded plan — never a bare foreign-key violation reaching the customer.</summary>
     /// <param name="planId">The plan id submitted on the command.</param>
     /// <param name="cancellationToken">Cancels the lookup.</param>
-    private async Task<bool> PlanExistsAsync(Guid planId, CancellationToken cancellationToken) =>
-        await _dbContext.Plans.AsNoTracking().AnyAsync(p => p.Id == planId, cancellationToken);
+    private async Task<bool> PlanExistsAsync(Guid planId, CancellationToken cancellationToken)
+    {
+        return await _dbContext.Plans.AsNoTracking().AnyAsync(p => p.Id == planId, cancellationToken);
+    }
 }

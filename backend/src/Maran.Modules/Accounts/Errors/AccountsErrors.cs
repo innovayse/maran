@@ -10,21 +10,29 @@ public static class AccountsErrors
 {
     /// <summary>The requested account does not exist.</summary>
     /// <param name="accountId">The id that was looked up.</param>
-    public static Error NotFound(Guid accountId) =>
-        Error.Of("AccountNotFound", $"Account {accountId} was not found.");
+    public static Error NotFound(Guid accountId)
+    {
+        return Error.Of("AccountNotFound", $"Account {accountId} was not found.");
+    }
 
     /// <summary>An account with the requested name already exists.</summary>
     /// <param name="name">The name that collided.</param>
-    public static Error NameTaken(string name) =>
-        Error.Of("AccountNameTaken", $"Account name '{name}' is already taken.");
+    public static Error NameTaken(string name)
+    {
+        return Error.Of("AccountNameTaken", $"Account name '{name}' is already taken.");
+    }
 
     /// <summary>An account with the requested primary domain already exists.</summary>
     /// <param name="domain">The domain that collided.</param>
-    public static Error DomainTaken(string domain) =>
-        Error.Of("AccountDomainTaken", $"Domain '{domain}' is already taken by another account.");
+    public static Error DomainTaken(string domain)
+    {
+        return Error.Of("AccountDomainTaken", $"Domain '{domain}' is already taken by another account.");
+    }
 
     /// <summary>The requested plan does not exist.</summary>
     /// <param name="planId">The id that was looked up.</param>
-    public static Error PlanNotFound(Guid planId) =>
-        Error.Of("PlanNotFound", $"Plan {planId} was not found.");
+    public static Error PlanNotFound(Guid planId)
+    {
+        return Error.Of("PlanNotFound", $"Plan {planId} was not found.");
+    }
 }

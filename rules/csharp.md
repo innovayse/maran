@@ -6,7 +6,19 @@ Normative. Enforced by `.editorconfig`, `Directory.Build.props` (`<TreatWarnings
 
 - 4 spaces, 120 columns, LF, final newline. File-scoped namespaces only.
 - `var` when the type is apparent from the right-hand side; explicit type otherwise.
-- Braces always, even for single-line `if`.
+- Braces always — for a single-line `if`, and for every member body. No expression-bodied members: a method, property, constructor, operator, indexer, accessor, or local function is written as a braced block, however short, so that growing a one-line body to two lines never changes its shape. Enforced mechanically in `backend/.editorconfig` (`csharp_prefer_braces`, `csharp_style_expression_bodied_*` and their `IDE0011`/`IDE0021`–`IDE0027` severities set to `error`) — note that this file, not the repository-root `.editorconfig`, is the one that binds backend code. `scripts/format.sh` applies the fixes; `scripts/format.sh --check` verifies without writing.
+
+```csharp
+// WRONG — an expression-bodied member
+public string Name => _name;
+
+// RIGHT
+public string Name
+{
+    get { return _name; }
+}
+```
+
 - `_camelCase` private fields, `PascalCase` everything public, `IPascalCase` interfaces, `Async` suffix on async methods.
 - Types are `sealed` unless designed for inheritance. Commands, queries, and DTOs are `record`s.
 - Package versions only in `Directory.Packages.props`.
@@ -193,7 +205,7 @@ The frontend never translates server outcomes — it displays what we send. That
 - Every user-facing message lives in **`.resx` resource files inside its owning module** (`Resources/Messages.resx`, `Messages.ru.resx`, `Messages.hy.resx`). Invariant `.resx` is English.
 - **Hardcoded user-facing strings in C# are a review reject.** A message reaching a customer or an administrator through the API comes from a resource lookup, never from a string literal in a handler.
 - Requests carry the user's language (`Accept-Language`, falling back to the account's stored preference, then English). The localization middleware sets the culture; error responses are rendered in that culture.
-- `Error.Code` stays machine-stable and untranslated (`sites.domain_taken`) — it drives behavior. The resource entry keyed by that code supplies the human text placed in the RFC 7807 `title`/`detail`.
+- `Error.Code` stays machine-stable and untranslated (`SitesDomainTaken`) — it drives behavior. The resource entry keyed by that code supplies the human text placed in the RFC 7807 `title`/`detail`.
 - Role-aware detail still applies (rules/security.md): the resource string a customer receives carries no paths, versions, or tool output; administrators may receive the diagnostic variant.
 - Operator-facing log messages are English literals and are NOT localized — resources are for what users read.
 

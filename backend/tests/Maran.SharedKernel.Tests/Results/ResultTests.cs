@@ -17,18 +17,33 @@ public sealed class ResultTests
     [Fact]
     public void Failed_result_carries_error_and_guards_value()
     {
-        var result = Result<int>.Fail(Error.Of("sites.domain_taken", "Domain already exists"));
+        var result = Result<int>.Fail(Error.Of("SitesDomainTaken", "Domain already exists"));
 
         Assert.False(result.IsSuccess);
-        Assert.Equal("sites.domain_taken", result.Error!.Code);
-        Assert.Throws<InvalidOperationException>(() => _ = result.Value);
+        Assert.Equal("SitesDomainTaken", result.Error!.Code);
+        Assert.Throws<InvalidOperationException>(() =>
+        {
+            return _ = result.Value;
+        });
     }
 
     [Fact]
     public void Match_routes_to_the_correct_branch()
     {
-        var ok = Result<int>.Ok(1).Match(v => $"ok:{v}", e => $"err:{e.Code}");
-        var fail = Result<int>.Fail(Error.Of("x", "y")).Match(v => $"ok:{v}", e => $"err:{e.Code}");
+        var ok = Result<int>.Ok(1).Match(v =>
+        {
+            return $"ok:{v}";
+        }, e =>
+        {
+            return $"err:{e.Code}";
+        });
+        var fail = Result<int>.Fail(Error.Of("x", "y")).Match(v =>
+        {
+            return $"ok:{v}";
+        }, e =>
+        {
+            return $"err:{e.Code}";
+        });
 
         Assert.Equal("ok:1", ok);
         Assert.Equal("err:x", fail);
@@ -46,17 +61,29 @@ public sealed class ResultTests
     [Fact]
     public void Non_generic_fail_result_carries_the_error()
     {
-        var result = Result.Fail(Error.Of("sites.domain_taken", "Domain already exists"));
+        var result = Result.Fail(Error.Of("SitesDomainTaken", "Domain already exists"));
 
         Assert.False(result.IsSuccess);
-        Assert.Equal("sites.domain_taken", result.Error!.Code);
+        Assert.Equal("SitesDomainTaken", result.Error!.Code);
     }
 
     [Fact]
     public void Non_generic_match_routes_to_the_correct_branch()
     {
-        var ok = Result.Ok().Match(() => "ok", e => $"err:{e.Code}");
-        var fail = Result.Fail(Error.Of("x", "y")).Match(() => "ok", e => $"err:{e.Code}");
+        var ok = Result.Ok().Match(() =>
+        {
+            return "ok";
+        }, e =>
+        {
+            return $"err:{e.Code}";
+        });
+        var fail = Result.Fail(Error.Of("x", "y")).Match(() =>
+        {
+            return "ok";
+        }, e =>
+        {
+            return $"err:{e.Code}";
+        });
 
         Assert.Equal("ok", ok);
         Assert.Equal("err:x", fail);

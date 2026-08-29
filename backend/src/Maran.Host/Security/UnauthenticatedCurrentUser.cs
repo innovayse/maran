@@ -15,11 +15,29 @@ namespace Maran.Host.Security;
 public sealed class UnauthenticatedCurrentUser : ICurrentUser
 {
     /// <inheritdoc />
-    public Guid UserId => Guid.Empty;
+    public Guid UserId
+    {
+        get
+        {
+            return Guid.Empty;
+        }
+    }
 
     /// <inheritdoc />
-    public Guid? AccountId => null;
+    public Guid? AccountId
+    {
+        get
+        {
+            return null;
+        }
+    }
 
     /// <inheritdoc />
-    public bool IsAdmin => false;
+    public bool IsAdmin
+    {
+        get
+        {
+            return false;
+        }
+    }
 }

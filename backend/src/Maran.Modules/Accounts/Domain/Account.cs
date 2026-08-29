@@ -49,8 +49,14 @@ public sealed class Account
     public DateTimeOffset CreatedAt { get; private set; }
 
     /// <summary>Marks the account suspended. Idempotent: suspending an already-suspended account is a no-op.</summary>
-    public void Suspend() => Status = AccountStatus.Suspended;
+    public void Suspend()
+    {
+        Status = AccountStatus.Suspended;
+    }
 
     /// <summary>Marks the account active. Idempotent: reactivating an already-active account is a no-op.</summary>
-    public void Reactivate() => Status = AccountStatus.Active;
+    public void Reactivate()
+    {
+        Status = AccountStatus.Active;
+    }
 }

@@ -27,9 +27,15 @@ public static class DependencyInjection
         // The channel is its own singleton so the container owns its lifetime and disposes it on
         // shutdown; every future per-service client resolves this one channel rather than opening
         // a second connection to the same socket.
-        services.AddSingleton(_ => AgentChannel.CreateUnixSocket(socketPath));
+        services.AddSingleton(_ =>
+        {
+            return AgentChannel.CreateUnixSocket(socketPath);
+        });
         services.AddSingleton<IAgentSystemClient>(
-            provider => new AgentSystemClient(provider.GetRequiredService<GrpcChannel>()));
+            provider =>
+            {
+                return new AgentSystemClient(provider.GetRequiredService<GrpcChannel>());
+            });
         return services;
     }
 }

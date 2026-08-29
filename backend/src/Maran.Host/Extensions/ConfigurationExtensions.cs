@@ -44,7 +44,10 @@ public static class ConfigurationExtensions
             // Data annotations cannot measure the decoded key, so the decoded length is checked
             // here: a short or malformed key must stop the boot, never reach encryption at runtime.
             .Validate(
-                options => options.HasValidEncryptionKey(),
+                options =>
+                {
+                    return options.HasValidEncryptionKey();
+                },
                 $"{SecurityOptions.SectionName}:{nameof(SecurityOptions.EncryptionKey)} must be a base64-encoded 256-bit key.")
             .ValidateOnStart();
 

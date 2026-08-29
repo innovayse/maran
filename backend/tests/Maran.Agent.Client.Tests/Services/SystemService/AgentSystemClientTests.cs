@@ -33,7 +33,7 @@ public sealed class AgentSystemClientTests
         var result = await client.GetInfoAsync(CancellationToken.None);
 
         Assert.False(result.IsSuccess);
-        Assert.Equal("agent.system_failure", result.Error!.Code);
+        Assert.Equal("AgentSystemFailure", result.Error!.Code);
     }
 
     [Fact]
@@ -45,6 +45,6 @@ public sealed class AgentSystemClientTests
         var result = await client.GetInfoAsync(CancellationToken.None);
 
         Assert.False(result.IsSuccess);
-        Assert.Equal("agent.invalid_response", result.Error!.Code);
+        Assert.Equal("AgentInvalidResponse", result.Error!.Code);
     }
 }

@@ -20,7 +20,10 @@ public sealed class ExceptionMiddlewareTests
     {
         var context = CreateContext(correlationId: "abc-123");
         var middleware = new ExceptionMiddleware(
-            _ => throw new InvalidOperationException("some internal detail"),
+            _ =>
+            {
+                throw new InvalidOperationException("some internal detail");
+            },
             NullLogger<ExceptionMiddleware>.Instance);
 
         await middleware.InvokeAsync(context);
@@ -30,7 +33,7 @@ public sealed class ExceptionMiddlewareTests
 
         using var body = await ReadResponseBodyAsync(context);
         Assert.Equal("abc-123", body.RootElement.GetProperty(CorrelationIdKeys.PayloadField).GetString());
-        Assert.Equal("host.unexpected_error", body.RootElement.GetProperty("code").GetString());
+        Assert.Equal("HostUnexpectedError", body.RootElement.GetProperty("code").GetString());
     }
 
     [Fact]
@@ -38,7 +41,10 @@ public sealed class ExceptionMiddlewareTests
     {
         var context = CreateContext(correlationId: "abc-123");
         var middleware = new ExceptionMiddleware(
-            _ => throw new InvalidOperationException("SECRET_DETAIL: /etc/maran/panel.env leaked"),
+            _ =>
+            {
+                throw new InvalidOperationException("SECRET_DETAIL: /etc/maran/panel.env leaked");
+            },
             NullLogger<ExceptionMiddleware>.Instance);
 
         await middleware.InvokeAsync(context);
@@ -63,7 +69,10 @@ public sealed class ExceptionMiddlewareTests
         context.Response.StatusCode = StatusCodes.Status206PartialContent;
 
         var middleware = new ExceptionMiddleware(
-            _ => throw new InvalidOperationException("boom"),
+            _ =>
+            {
+                throw new InvalidOperationException("boom");
+            },
             NullLogger<ExceptionMiddleware>.Instance);
 
         await middleware.InvokeAsync(context);
@@ -110,7 +119,13 @@ public sealed class ExceptionMiddlewareTests
         public Stream Body { get; set; } = new MemoryStream();
 
         /// <inheritdoc/>
-        public bool HasStarted => true;
+        public bool HasStarted
+        {
+            get
+            {
+                return true;
+            }
+        }
 
         /// <inheritdoc/>
         public void OnStarting(Func<object, Task> callback, object state)

@@ -26,16 +26,24 @@ public sealed class Result
     }
 
     /// <summary>Returns the success outcome.</summary>
-    public static Result Ok() => SuccessInstance;
+    public static Result Ok()
+    {
+        return SuccessInstance;
+    }
 
     /// <summary>Wraps a typed failure.</summary>
     /// <param name="error">The failure to carry.</param>
-    public static Result Fail(Error error) => new(false, error);
+    public static Result Fail(Error error)
+    {
+        return new(false, error);
+    }
 
     /// <summary>Folds both branches into one value.</summary>
     /// <typeparam name="TOut">Type both branches produce.</typeparam>
     /// <param name="onOk">Invoked when the operation succeeded.</param>
     /// <param name="onFail">Invoked with the error when it failed.</param>
-    public TOut Match<TOut>(Func<TOut> onOk, Func<Error, TOut> onFail) =>
-        IsSuccess ? onOk() : onFail(Error!);
+    public TOut Match<TOut>(Func<TOut> onOk, Func<Error, TOut> onFail)
+    {
+        return IsSuccess ? onOk() : onFail(Error!);
+    }
 }

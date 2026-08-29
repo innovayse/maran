@@ -19,13 +19,19 @@ public static class ObservabilityExtensions
     /// </summary>
     /// <param name="builder">The host builder to attach logging to.</param>
     /// <returns>The same builder, for chaining.</returns>
-    public static IHostBuilder AddPanelObservability(this IHostBuilder builder) =>
-        builder.UseSerilog((context, configuration) => ConfigureLogger(context, configuration));
+    public static IHostBuilder AddPanelObservability(this IHostBuilder builder)
+    {
+        return builder.UseSerilog((context, configuration) =>
+        {
+            ConfigureLogger(context, configuration);
+        });
+    }
 
     /// <summary>Builds the logger configuration for a host context.</summary>
     /// <param name="context">The host context, source of configuration.</param>
     /// <param name="configuration">The logger configuration to populate.</param>
-    private static void ConfigureLogger(HostBuilderContext context, LoggerConfiguration configuration) =>
+    private static void ConfigureLogger(HostBuilderContext context, LoggerConfiguration configuration)
+    {
         configuration
             .ReadFrom.Configuration(context.Configuration)
             .MinimumLevel.Information()
@@ -36,6 +42,7 @@ public static class ObservabilityExtensions
             // Invariant culture: log lines are machine-parsed and compared across servers, so they
             // must not vary with the host's locale.
             .WriteTo.Console(formatProvider: CultureInfo.InvariantCulture);
+    }
 
     /// <summary>
     /// Adds one summary log line per request, enriched with the correlation id so a user-reported
@@ -43,8 +50,10 @@ public static class ObservabilityExtensions
     /// </summary>
     /// <param name="app">The application pipeline builder.</param>
     /// <returns>The same builder, for chaining.</returns>
-    public static IApplicationBuilder UsePanelRequestLogging(this IApplicationBuilder app) =>
-        app.UseSerilogRequestLogging(options =>
+    public static IApplicationBuilder UsePanelRequestLogging(this IApplicationBuilder app)
+    {
+        return app.UseSerilogRequestLogging(options =>
+        {
             options.EnrichDiagnosticContext = (diagnosticContext, httpContext) =>
             {
                 if (httpContext.Items.TryGetValue(CorrelationIdKeys.ItemsKey, out var correlationId)
@@ -52,5 +61,7 @@ public static class ObservabilityExtensions
                 {
                     diagnosticContext.Set(CorrelationIdKeys.PayloadField, id);
                 }
-            });
+            };
+        });
+    }
 }

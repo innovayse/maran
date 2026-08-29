@@ -27,12 +27,17 @@ public static class ModulesEndpoint
     /// </summary>
     /// <param name="errorTextProvider">Resolves each module's <c>Manifest.DisplayNameKey</c> in the current request culture.</param>
     /// <returns>One descriptor per compiled-in module, in registration order.</returns>
-    private static List<ModuleDto> DescribeModules(IErrorTextProvider errorTextProvider) =>
-        ModuleRegistry.All
-            .Select(module => new ModuleDto(
-                module.Name,
-                module.Manifest.Tier,
-                errorTextProvider.Resolve(module.Manifest.DisplayNameKey),
-                IsEnabled: true))
+    private static List<ModuleDto> DescribeModules(IErrorTextProvider errorTextProvider)
+    {
+        return ModuleRegistry.All
+            .Select(module =>
+            {
+                return new ModuleDto(
+                                module.Name,
+                                module.Manifest.Tier,
+                                errorTextProvider.Resolve(module.Manifest.DisplayNameKey),
+                                IsEnabled: true);
+            })
             .ToList();
+    }
 }

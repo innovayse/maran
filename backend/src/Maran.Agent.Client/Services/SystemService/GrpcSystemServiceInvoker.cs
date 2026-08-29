@@ -17,6 +17,8 @@ internal sealed class GrpcSystemServiceInvoker : ISystemServiceInvoker
     }
 
     /// <inheritdoc/>
-    public async Task<GetAgentInfoResponse> GetAgentInfoAsync(CancellationToken ct) =>
-        await _client.GetAgentInfoAsync(new GetAgentInfoRequest(), cancellationToken: ct);
+    public async Task<GetAgentInfoResponse> GetAgentInfoAsync(CancellationToken ct)
+    {
+        return await _client.GetAgentInfoAsync(new GetAgentInfoRequest(), cancellationToken: ct);
+    }
 }

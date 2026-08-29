@@ -72,6 +72,9 @@ public sealed class ListAccountsQueryHandlerTests
 
         var result = await handler.Handle(new ListAccountsQuery(), CancellationToken.None);
 
-        Assert.Equal(["first", "second", "third"], result.Value.Select(dto => dto.Name));
+        Assert.Equal(["first", "second", "third"], result.Value.Select(dto =>
+        {
+            return dto.Name;
+        }));
     }
 }

@@ -13,8 +13,13 @@ public sealed class Result<T>
     public Error? Error { get; }
 
     /// <summary>The success value. Accessing it on a failure is a programming bug.</summary>
-    public T Value =>
-        IsSuccess ? _value! : throw new InvalidOperationException($"Result is a failure: {Error!.Code}");
+    public T Value
+    {
+        get
+        {
+            return IsSuccess ? _value! : throw new InvalidOperationException($"Result is a failure: {Error!.Code}");
+        }
+    }
 
     /// <summary>Internal constructor; use <see cref="Ok"/> / <see cref="Fail"/>.</summary>
     /// <param name="success">Whether the operation succeeded.</param>
@@ -28,14 +33,22 @@ public sealed class Result<T>
     }
 
     /// <summary>Wraps a success value.</summary>
-    public static Result<T> Ok(T value) => new(true, value, null);
+    public static Result<T> Ok(T value)
+    {
+        return new(true, value, null);
+    }
 
     /// <summary>Wraps a typed failure.</summary>
-    public static Result<T> Fail(Error error) => new(false, default, error);
+    public static Result<T> Fail(Error error)
+    {
+        return new(false, default, error);
+    }
 
     /// <summary>Folds both branches into one value.</summary>
     /// <param name="onOk">Invoked with the value when the result is a success.</param>
     /// <param name="onFail">Invoked with the error when the result is a failure.</param>
-    public TOut Match<TOut>(Func<T, TOut> onOk, Func<Error, TOut> onFail) =>
-        IsSuccess ? onOk(_value!) : onFail(Error!);
+    public TOut Match<TOut>(Func<T, TOut> onOk, Func<Error, TOut> onFail)
+    {
+        return IsSuccess ? onOk(_value!) : onFail(Error!);
+    }
 }

@@ -13,6 +13,8 @@ public static class RequestLocalizationMiddlewareExtensions
     /// </summary>
     /// <param name="app">The application pipeline builder.</param>
     /// <returns>The same builder, for chaining.</returns>
-    public static IApplicationBuilder UsePanelLocalization(this IApplicationBuilder app) =>
-        app.UseMiddleware<RequestLocalizationMiddleware>();
+    public static IApplicationBuilder UsePanelLocalization(this IApplicationBuilder app)
+    {
+        return app.UseMiddleware<RequestLocalizationMiddleware>();
+    }
 }

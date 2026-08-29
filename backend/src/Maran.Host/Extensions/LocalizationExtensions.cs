@@ -13,6 +13,8 @@ public static class LocalizationExtensions
     /// <summary>Adds the localization services every module's typed resource lookup depends on.</summary>
     /// <param name="services">The application service collection.</param>
     /// <returns>The same collection, for chaining.</returns>
-    public static IServiceCollection AddPanelLocalization(this IServiceCollection services) =>
-        services.AddLocalization();
+    public static IServiceCollection AddPanelLocalization(this IServiceCollection services)
+    {
+        return services.AddLocalization();
+    }
 }

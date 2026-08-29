@@ -32,7 +32,10 @@ public sealed class AesGcmEncryptionServiceTests
         cipherBytes[^1] ^= 0xFF;
         var tampered = Convert.ToBase64String(cipherBytes);
 
-        Assert.Throws<AuthenticationTagMismatchException>(() => service.Decrypt(tampered));
+        Assert.Throws<AuthenticationTagMismatchException>(() =>
+        {
+            return service.Decrypt(tampered);
+        });
     }
 
     [Fact]
@@ -40,18 +43,27 @@ public sealed class AesGcmEncryptionServiceTests
     {
         var shortKey = Convert.ToBase64String(Encoding.UTF8.GetBytes("too-short"));
 
-        Assert.Throws<ArgumentException>(() => new AesGcmEncryptionService(shortKey));
+        Assert.Throws<ArgumentException>(() =>
+        {
+            return new AesGcmEncryptionService(shortKey);
+        });
     }
 
     [Fact]
     public void Construction_with_malformed_base64_is_rejected()
     {
-        Assert.Throws<ArgumentException>(() => new AesGcmEncryptionService("not-valid-base64!!!"));
+        Assert.Throws<ArgumentException>(() =>
+        {
+            return new AesGcmEncryptionService("not-valid-base64!!!");
+        });
     }
 
     [Fact]
     public void Construction_with_an_empty_key_is_rejected()
     {
-        Assert.Throws<ArgumentException>(() => new AesGcmEncryptionService(string.Empty));
+        Assert.Throws<ArgumentException>(() =>
+        {
+            return new AesGcmEncryptionService(string.Empty);
+        });
     }
 }

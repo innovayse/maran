@@ -33,12 +33,15 @@ public static class ApiRateLimitPolicy
         {
             var partitionKey = BuildPartitionKey(context);
 
-            return RateLimitPartition.GetFixedWindowLimiter(partitionKey, _ => new FixedWindowRateLimiterOptions
+            return RateLimitPartition.GetFixedWindowLimiter(partitionKey, _ =>
             {
-                PermitLimit = rateLimitOptions.ApiPermitLimit,
-                Window = TimeSpan.FromSeconds(rateLimitOptions.ApiWindowSeconds),
-                QueueLimit = 0,
-                AutoReplenishment = true,
+                return new FixedWindowRateLimiterOptions
+                {
+                    PermitLimit = rateLimitOptions.ApiPermitLimit,
+                    Window = TimeSpan.FromSeconds(rateLimitOptions.ApiWindowSeconds),
+                    QueueLimit = 0,
+                    AutoReplenishment = true,
+                };
             });
         });
     }

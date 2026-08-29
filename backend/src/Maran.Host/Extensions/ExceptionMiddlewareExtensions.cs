@@ -12,6 +12,8 @@ public static class ExceptionMiddlewareExtensions
     /// </summary>
     /// <param name="app">The application pipeline builder.</param>
     /// <returns>The same builder, for chaining.</returns>
-    public static IApplicationBuilder UseExceptionHandling(this IApplicationBuilder app) =>
-        app.UseMiddleware<ExceptionMiddleware>();
+    public static IApplicationBuilder UseExceptionHandling(this IApplicationBuilder app)
+    {
+        return app.UseMiddleware<ExceptionMiddleware>();
+    }
 }

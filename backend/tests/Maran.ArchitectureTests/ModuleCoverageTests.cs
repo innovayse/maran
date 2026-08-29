@@ -20,13 +20,25 @@ public sealed class ModuleCoverageTests
     {
         var solutionModules = ReadModuleProjectNamesFromSolution();
         var loadedAssemblies = LoadAllReferencedAssemblies()
-            .Select(assembly => assembly.GetName().Name)
-            .Where(name => name is not null)
+            .Select(assembly =>
+            {
+                return assembly.GetName().Name;
+            })
+            .Where(name =>
+            {
+                return name is not null;
+            })
             .ToHashSet(StringComparer.Ordinal);
 
         var missing = solutionModules
-            .Where(module => !module.EndsWith(".Tests", StringComparison.Ordinal))
-            .Where(module => !loadedAssemblies.Contains(module))
+            .Where(module =>
+            {
+                return !module.EndsWith(".Tests", StringComparison.Ordinal);
+            })
+            .Where(module =>
+            {
+                return !loadedAssemblies.Contains(module);
+            })
             .ToList();
 
         Assert.True(
@@ -40,7 +52,10 @@ public sealed class ModuleCoverageTests
     public void Isolation_rules_run_against_the_projects_they_claim_to_cover()
     {
         var loaded = LoadAllReferencedAssemblies()
-            .Select(assembly => assembly.GetName().Name)
+            .Select(assembly =>
+            {
+                return assembly.GetName().Name;
+            })
             .ToHashSet(StringComparer.Ordinal);
 
         // The always-present projects the isolation suite asserts about. If one of these is
@@ -56,7 +71,10 @@ public sealed class ModuleCoverageTests
         var solutionPath = FindSolutionPath();
         var text = File.ReadAllText(solutionPath);
         return ModuleProjectPattern.Matches(text)
-            .Select(match => match.Groups[1].Value)
+            .Select(match =>
+            {
+                return match.Groups[1].Value;
+            })
             .Distinct(StringComparer.Ordinal)
             .ToList();
     }
@@ -102,7 +120,10 @@ public sealed class ModuleCoverageTests
         }
 
         return AppDomain.CurrentDomain.GetAssemblies()
-            .Where(assembly => assembly.GetName().Name?.StartsWith("Maran", StringComparison.Ordinal) == true)
+            .Where(assembly =>
+            {
+                return assembly.GetName().Name?.StartsWith("Maran", StringComparison.Ordinal) == true;
+            })
             .ToList();
     }
 }

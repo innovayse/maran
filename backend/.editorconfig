@@ -93,3 +93,46 @@ dotnet_naming_style.async_suffix_style.capitalization = pascal_case
 # true dependencies and survive refactors nobody reviews.
 [*.cs]
 dotnet_diagnostic.IDE0005.severity = error
+
+# Braces are never optional. A body that grows from one statement to two is the moment a missing
+# brace turns into a bug, and a reviewer should never have to notice the difference.
+csharp_prefer_braces = true:error
+dotnet_diagnostic.IDE0011.severity = error
+
+# The same rule applied to member bodies: no `=>` shorthand for methods, properties, constructors
+# or operators — every body is a braced block.
+csharp_style_expression_bodied_methods = false:error
+csharp_style_expression_bodied_constructors = false:error
+csharp_style_expression_bodied_operators = false:error
+csharp_style_expression_bodied_properties = false:error
+csharp_style_expression_bodied_indexers = false:error
+csharp_style_expression_bodied_accessors = false:error
+csharp_style_expression_bodied_lambdas = false:error
+csharp_style_expression_bodied_local_functions = false:error
+dotnet_diagnostic.IDE0021.severity = error
+dotnet_diagnostic.IDE0022.severity = error
+dotnet_diagnostic.IDE0023.severity = error
+dotnet_diagnostic.IDE0024.severity = error
+dotnet_diagnostic.IDE0025.severity = error
+dotnet_diagnostic.IDE0026.severity = error
+dotnet_diagnostic.IDE0027.severity = error
+dotnet_diagnostic.IDE0053.severity = error
+dotnet_diagnostic.IDE0061.severity = error
+
+# EF Core writes these files and rewrites them on every schema change. Holding machine output to the
+# hand-written style rules only means reformatting it after each `scripts/migrations.sh add`, and
+# nobody reads a migration for its brace placement — the schema it produces is what matters.
+# Correctness rules (compiler warnings, nullable, banned APIs) still apply; only style is silenced.
+[**/Persistence/Migrations/*.cs]
+dotnet_diagnostic.IDE0005.severity = none
+dotnet_diagnostic.IDE0011.severity = none
+dotnet_diagnostic.IDE0021.severity = none
+dotnet_diagnostic.IDE0022.severity = none
+dotnet_diagnostic.IDE0023.severity = none
+dotnet_diagnostic.IDE0024.severity = none
+dotnet_diagnostic.IDE0025.severity = none
+dotnet_diagnostic.IDE0026.severity = none
+dotnet_diagnostic.IDE0027.severity = none
+dotnet_diagnostic.IDE0053.severity = none
+dotnet_diagnostic.IDE0061.severity = none
+dotnet_diagnostic.IDE0161.severity = none

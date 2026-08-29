@@ -41,13 +41,16 @@ public sealed class ListPlansQueryHandler
             .ToListAsync(cancellationToken);
 
         var dtos = plans
-            .Select(p => new PlanDto(
-                p.Id,
-                _displayNames[p.DisplayNameKey],
-                p.DiskQuotaMb,
-                p.MaxSites,
-                p.MaxDatabases,
-                p.MaxFtpUsers))
+            .Select(p =>
+            {
+                return new PlanDto(
+                                p.Id,
+                                _displayNames[p.DisplayNameKey],
+                                p.DiskQuotaMb,
+                                p.MaxSites,
+                                p.MaxDatabases,
+                                p.MaxFtpUsers);
+            })
             .ToList();
 
         return Result<IReadOnlyList<PlanDto>>.Ok(dtos);

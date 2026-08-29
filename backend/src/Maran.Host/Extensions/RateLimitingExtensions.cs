@@ -45,7 +45,7 @@ public static class RateLimitingExtensions
                     {
                         status = StatusCodes.Status429TooManyRequests,
                         title = "Too many requests.",
-                        code = "host.rate_limited",
+                        code = "HostRateLimited",
                     },
                     cancellationToken);
             };
@@ -61,8 +61,10 @@ public static class RateLimitingExtensions
     /// <param name="httpContext">The rejected request, used to tell the login path from the rest.</param>
     /// <param name="limits">Configured rate-limit windows.</param>
     /// <returns>Seconds to report in the <c>Retry-After</c> header.</returns>
-    private static int FallbackRetryAfterSeconds(HttpContext httpContext, RateLimitOptions limits) =>
-        httpContext.Request.Path.StartsWithSegments("/api/v1/auth", StringComparison.OrdinalIgnoreCase)
+    private static int FallbackRetryAfterSeconds(HttpContext httpContext, RateLimitOptions limits)
+    {
+        return httpContext.Request.Path.StartsWithSegments("/api/v1/auth", StringComparison.OrdinalIgnoreCase)
             ? limits.LoginLockoutSeconds
             : limits.ApiWindowSeconds;
+    }
 }

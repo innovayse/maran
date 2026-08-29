@@ -35,39 +35,50 @@ public sealed class AgentSystemClient : IAgentSystemClient
             GetAgentInfoResponse.ResultOneofCase.Ok => Result<AgentInfoDto>.Ok(ToDto(response.Ok)),
             GetAgentInfoResponse.ResultOneofCase.Error => Result<AgentInfoDto>.Fail(ToError(response.Error)),
             _ => Result<AgentInfoDto>.Fail(
-                Error.Of("agent.invalid_response", "Agent returned neither a result nor an error.")),
+                Error.Of("AgentInvalidResponse", "Agent returned neither a result nor an error.")),
         };
     }
 
     /// <summary>Converts the wire <see cref="AgentInfo"/> into the backend-facing DTO.</summary>
     /// <param name="info">The successful handshake payload.</param>
-    private static AgentInfoDto ToDto(AgentInfo info) =>
-        new(info.Version, info.DistroId, ToFamily(info.Family), info.ProtoVersion);
+    private static AgentInfoDto ToDto(AgentInfo info)
+    {
+        return new(info.Version, info.DistroId, ToFamily(info.Family), info.ProtoVersion);
+    }
 
     /// <summary>Renders a wire <see cref="DistroFamily"/> as the DTO's stable lowercase string.</summary>
     /// <param name="family">The distro family reported by the agent.</param>
-    private static string ToFamily(DistroFamily family) => family switch
+    private static string ToFamily(DistroFamily family)
     {
-        DistroFamily.Debian => "debian",
-        DistroFamily.Rhel => "rhel",
-        DistroFamily.Unspecified => "unspecified",
-        _ => "unspecified",
-    };
+        return family switch
+        {
+            DistroFamily.Debian => "debian",
+            DistroFamily.Rhel => "rhel",
+            DistroFamily.Unspecified => "unspecified",
+            _ => "unspecified",
+        };
+    }
 
     /// <summary>Converts a wire <see cref="AgentError"/> into a <see cref="SharedKernel.Results.Error"/>.</summary>
     /// <param name="error">The failure payload returned by the agent.</param>
-    private static Error ToError(AgentError error) => Error.Of(ToErrorCode(error.Code), error.Message);
+    private static Error ToError(AgentError error)
+    {
+        return Error.Of(ToErrorCode(error.Code), error.Message);
+    }
 
     /// <summary>Maps a wire <see cref="ErrorCode"/> to its stable "agent.*" error code string.</summary>
     /// <param name="code">The failure category reported by the agent.</param>
-    private static string ToErrorCode(ErrorCode code) => code switch
+    private static string ToErrorCode(ErrorCode code)
     {
-        ErrorCode.Unspecified => "agent.unspecified",
-        ErrorCode.InvalidInput => "agent.invalid_input",
-        ErrorCode.AlreadyExists => "agent.already_exists",
-        ErrorCode.NotFound => "agent.not_found",
-        ErrorCode.ValidationFailed => "agent.validation_failed",
-        ErrorCode.SystemFailure => "agent.system_failure",
-        _ => "agent.unspecified",
-    };
+        return code switch
+        {
+            ErrorCode.Unspecified => "AgentUnspecified",
+            ErrorCode.InvalidInput => "AgentInvalidInput",
+            ErrorCode.AlreadyExists => "AgentAlreadyExists",
+            ErrorCode.NotFound => "AgentNotFound",
+            ErrorCode.ValidationFailed => "AgentValidationFailed",
+            ErrorCode.SystemFailure => "AgentSystemFailure",
+            _ => "AgentUnspecified",
+        };
+    }
 }

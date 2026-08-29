@@ -17,5 +17,8 @@ internal sealed class StubSystemService : ISystemServiceInvoker
     }
 
     /// <inheritdoc/>
-    public Task<GetAgentInfoResponse> GetAgentInfoAsync(CancellationToken ct) => Task.FromResult(_response);
+    public Task<GetAgentInfoResponse> GetAgentInfoAsync(CancellationToken ct)
+    {
+        return Task.FromResult(_response);
+    }
 }

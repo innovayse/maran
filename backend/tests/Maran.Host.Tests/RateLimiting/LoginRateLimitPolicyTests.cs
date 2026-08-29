@@ -4,8 +4,8 @@ using Maran.Host.Configuration;
 using Maran.Host.Extensions;
 using Maran.Host.RateLimiting;
 using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -40,7 +40,7 @@ public sealed class LoginRateLimitPolicyTests
         Assert.Equal(HttpStatusCode.TooManyRequests, rejected.StatusCode);
 
         using var body = JsonDocument.Parse(await rejected.Content.ReadAsStringAsync());
-        Assert.Equal("host.rate_limited", body.RootElement.GetProperty("code").GetString());
+        Assert.Equal("HostRateLimited", body.RootElement.GetProperty("code").GetString());
     }
 
     /// <summary>
@@ -120,8 +120,10 @@ public sealed class LoginRateLimitPolicyTests
                 app.UseRouting();
                 app.UseRateLimiter();
                 app.UseEndpoints(endpoints =>
+                {
                     endpoints.MapGet("/login-probe", () => Results.Ok())
-                        .RequireRateLimiting(LoginRateLimitPolicy.Name));
+                        .RequireRateLimiting(LoginRateLimitPolicy.Name);
+                });
             });
         });
 

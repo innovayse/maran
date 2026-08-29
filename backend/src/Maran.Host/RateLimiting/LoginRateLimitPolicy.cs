@@ -32,13 +32,16 @@ public static class LoginRateLimitPolicy
         {
             var partitionKey = BuildPartitionKey(context);
 
-            return RateLimitPartition.GetSlidingWindowLimiter(partitionKey, _ => new SlidingWindowRateLimiterOptions
+            return RateLimitPartition.GetSlidingWindowLimiter(partitionKey, _ =>
             {
-                PermitLimit = rateLimitOptions.LoginMaxAttempts,
-                Window = TimeSpan.FromSeconds(rateLimitOptions.LoginLockoutSeconds),
-                SegmentsPerWindow = Math.Max(1, rateLimitOptions.LoginLockoutSeconds / Math.Max(1, rateLimitOptions.LoginWindowSeconds)),
-                QueueLimit = 0,
-                AutoReplenishment = true,
+                return new SlidingWindowRateLimiterOptions
+                {
+                    PermitLimit = rateLimitOptions.LoginMaxAttempts,
+                    Window = TimeSpan.FromSeconds(rateLimitOptions.LoginLockoutSeconds),
+                    SegmentsPerWindow = Math.Max(1, rateLimitOptions.LoginLockoutSeconds / Math.Max(1, rateLimitOptions.LoginWindowSeconds)),
+                    QueueLimit = 0,
+                    AutoReplenishment = true,
+                };
             });
         });
     }

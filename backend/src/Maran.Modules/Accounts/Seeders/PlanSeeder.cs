@@ -62,10 +62,12 @@ public sealed class PlanSeeder
     }
 
     /// <summary>Builds the standard plan set described in this type's own documentation.</summary>
-    private static IReadOnlyList<Plan> StandardPlans() =>
-    [
+    private static IReadOnlyList<Plan> StandardPlans()
+    {
+        return [
         new Plan(StarterPlanId, "PlanStarterName", diskQuotaMb: 5_120, maxSites: 5, maxDatabases: 2, maxFtpUsers: 3),
         new Plan(BusinessPlanId, "PlanBusinessName", diskQuotaMb: 25_600, maxSites: 25, maxDatabases: 10, maxFtpUsers: 10),
         new Plan(UnlimitedPlanId, "PlanUnlimitedName", diskQuotaMb: 1_048_576, maxSites: 500, maxDatabases: 500, maxFtpUsers: 100),
     ];
+    }
 }

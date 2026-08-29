@@ -21,8 +21,13 @@ public sealed class CorrelationIdAccessor : ICorrelationIdAccessor
     }
 
     /// <inheritdoc/>
-    public string? CorrelationId =>
-        _httpContextAccessor.HttpContext?.Items.TryGetValue(CorrelationIdKeys.ItemsKey, out var value) == true
+    public string? CorrelationId
+    {
+        get
+        {
+            return _httpContextAccessor.HttpContext?.Items.TryGetValue(CorrelationIdKeys.ItemsKey, out var value) == true
             ? value as string
             : null;
+        }
+    }
 }

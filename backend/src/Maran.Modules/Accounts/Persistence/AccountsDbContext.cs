@@ -21,10 +21,22 @@ public sealed class AccountsDbContext : DbContext
     }
 
     /// <summary>The hosting accounts owned by this module.</summary>
-    public DbSet<Account> Accounts => Set<Account>();
+    public DbSet<Account> Accounts
+    {
+        get
+        {
+            return Set<Account>();
+        }
+    }
 
     /// <summary>The plans accounts are created against.</summary>
-    public DbSet<Plan> Plans => Set<Plan>();
+    public DbSet<Plan> Plans
+    {
+        get
+        {
+            return Set<Plan>();
+        }
+    }
 
     /// <summary>Applies the schema and every entity configuration for this module.</summary>
     /// <param name="modelBuilder">The model builder supplied by EF Core.</param>

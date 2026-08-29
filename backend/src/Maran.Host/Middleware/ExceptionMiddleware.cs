@@ -19,7 +19,7 @@ public sealed class ExceptionMiddleware
     /// keeps the "no hardcoded user-facing strings" rule honest — this is the single named
     /// exception, documented here rather than left implicit.
     /// </summary>
-    private const string UnexpectedErrorCode = "host.unexpected_error";
+    private const string UnexpectedErrorCode = "HostUnexpectedError";
 
     /// <summary>Media type of an RFC 7807 payload; must be handed to the JSON writer, not set beforehand.</summary>
     private const string ProblemContentType = "application/problem+json";

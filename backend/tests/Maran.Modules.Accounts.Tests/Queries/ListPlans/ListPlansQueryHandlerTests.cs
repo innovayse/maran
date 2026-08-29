@@ -71,7 +71,10 @@ public sealed class ListPlansQueryHandlerTests
 
         var result = await handler.Handle(new ListPlansQuery(), CancellationToken.None);
 
-        Assert.Equal([small.Id, medium.Id, large.Id], result.Value.Select(dto => dto.Id));
+        Assert.Equal([small.Id, medium.Id, large.Id], result.Value.Select(dto =>
+        {
+            return dto.Id;
+        }));
     }
 
     /// <summary>
@@ -82,13 +85,27 @@ public sealed class ListPlansQueryHandlerTests
     private sealed class UppercasingDisplayNamesLocalizer : IStringLocalizer<DisplayNames>
     {
         /// <inheritdoc />
-        public LocalizedString this[string name] => new(name, name.ToUpperInvariant());
+        public LocalizedString this[string name]
+        {
+            get
+            {
+                return new(name, name.ToUpperInvariant());
+            }
+        }
 
         /// <inheritdoc />
-        public LocalizedString this[string name, params object[] arguments] =>
-            new(name, string.Format(System.Globalization.CultureInfo.InvariantCulture, name.ToUpperInvariant(), arguments));
+        public LocalizedString this[string name, params object[] arguments]
+        {
+            get
+            {
+                return new(name, string.Format(System.Globalization.CultureInfo.InvariantCulture, name.ToUpperInvariant(), arguments));
+            }
+        }
 
         /// <inheritdoc />
-        public IEnumerable<LocalizedString> GetAllStrings(bool includeParentCultures) => [];
+        public IEnumerable<LocalizedString> GetAllStrings(bool includeParentCultures)
+        {
+            return [];
+        }
     }
 }

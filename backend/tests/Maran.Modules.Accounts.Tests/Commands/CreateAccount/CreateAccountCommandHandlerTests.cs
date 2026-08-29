@@ -88,7 +88,10 @@ public sealed class CreateAccountCommandHandlerTests
         // public constructor shape (its only public surface for dependencies), so this test would
         // fail the moment an agent dependency is added without a corresponding spec change.
         var constructor = Assert.Single(typeof(CreateAccountCommandHandler).GetConstructors());
-        var parameterTypes = constructor.GetParameters().Select(p => p.ParameterType).ToArray();
+        var parameterTypes = constructor.GetParameters().Select(p =>
+        {
+            return p.ParameterType;
+        }).ToArray();
 
         Assert.Equal([typeof(AccountsDbContext), typeof(IClock)], parameterTypes);
     }

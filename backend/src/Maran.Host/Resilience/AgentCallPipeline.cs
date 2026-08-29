@@ -1,7 +1,7 @@
 using Maran.Host.Configuration;
+using Polly;
 using Polly.Retry;
 using Polly.Timeout;
-using Polly;
 
 namespace Maran.Host.Resilience;
 
