@@ -10,7 +10,10 @@
 // workspace-wide bans on unwrap/expect/panic are lifted here only.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use super::{DistroAdapter, DistroFamily, adapter_for};
+// `DistroAdapter` is deliberately not imported: `adapter_for` hands back a
+// `dyn DistroAdapter`, and calling a method on a trait object does not need the
+// trait in scope — importing it here was an unused import that failed the build.
+use super::{DistroFamily, adapter_for};
 
 #[test]
 fn every_family_gets_the_adapter_it_asked_for() {
