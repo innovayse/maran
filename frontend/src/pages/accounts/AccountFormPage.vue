@@ -12,13 +12,14 @@
  * a `<main>` — the single `<main>` landmark lives in the layout this page
  * is nested under.
  */
-import { computed, ref, type ComputedRef, type Ref } from 'vue'
+import { computed, onMounted, ref, type ComputedRef, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import UiAlert from '../../components/ui/UiAlert.vue'
 import UiButton from '../../components/ui/UiButton.vue'
 import UiForm from '../../components/ui/UiForm.vue'
 import UiInput from '../../components/ui/UiInput.vue'
+import UiSelect, { type SelectOption } from '../../components/ui/UiSelect.vue'
 import { useAccountsStore } from '../../stores/accounts'
 
 /**
@@ -33,15 +34,6 @@ const NAME_PATTERN = /^[a-z][a-z0-9_-]{2,31}$/
  * hyphen, at least two labels.
  */
 const DOMAIN_PATTERN = /^(?!-)[A-Za-z0-9-]{1,63}(?<!-)(\.(?!-)[A-Za-z0-9-]{1,63}(?<!-))+$/
-
-/**
- * Matches a well-formed GUID/UUID, the shape `PlanId` must take — the
- * server rejects an empty (all-zero) GUID via `NotEmpty()`.
- */
-const GUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-
-/** All-zero GUID, the one value the server's `NotEmpty()` rule rejects for `PlanId`. */
-const EMPTY_GUID = '00000000-0000-0000-0000-000000000000'
 
 const { t } = useI18n()
 const router = useRouter()
@@ -84,24 +76,47 @@ const primaryDomainError: ComputedRef<string | null> = computed(() => {
   return null
 })
 
-/** Client-side validation message for the plan id field, mirroring the server's rule. */
+/** Client-side validation message for the plan field. */
 const planIdError: ComputedRef<string | null> = computed(() => {
   if (!submitted.value) {
     return null
   }
-  if (planId.value.length === 0 || planId.value === EMPTY_GUID) {
-    return t('accounts.form.errors.planIdRequired')
-  }
-  if (!GUID_PATTERN.test(planId.value)) {
-    return t('accounts.form.errors.planIdInvalid')
-  }
-  return null
+  // Nothing chosen is the only way this field can be wrong now: the options come from
+  // the backend, so the value is always one the server issued. The shape checks this
+  // replaced existed only because the id used to be typed by hand.
+  return planId.value.length === 0 ? t('accounts.form.errors.planIdRequired') : null
+})
+
+/**
+ * The plans offered by the picker. Labels come from the backend already localized —
+ * plans are server-side reference data, and a limit shown beside the name is what
+ * makes the choice meaningful rather than a list of words.
+ */
+const planOptions: ComputedRef<SelectOption[]> = computed(() => {
+  return store.plans.map((plan) => {
+    return {
+      value: plan.id,
+      label: t('accounts.form.planOption', {
+        name: plan.displayName,
+        disk: plan.diskQuotaMb,
+        sites: plan.maxSites,
+      }),
+    }
+  })
 })
 
 /** Whether every field currently passes client-side validation. */
-const isValid: ComputedRef<boolean> = computed(
-  () => nameError.value === null && primaryDomainError.value === null && planIdError.value === null,
-)
+const isValid: ComputedRef<boolean> = computed(() => {
+  return nameError.value === null && primaryDomainError.value === null && planIdError.value === null
+})
+
+/**
+ * Loads the plans the picker offers, once, when the form opens.
+ * @returns Resolves once the request has settled.
+ */
+const loadPlans = async (): Promise<void> => {
+  await store.loadPlans()
+}
 
 /**
  * Validates the form and, when valid, submits it to the store. Navigates back to the list on
@@ -114,7 +129,11 @@ const submit = async (): Promise<void> => {
   if (!isValid.value) {
     return
   }
-  const created = await store.create({ name: name.value, primaryDomain: primaryDomain.value, planId: planId.value })
+  const created = await store.create({
+    name: name.value,
+    primaryDomain: primaryDomain.value,
+    planId: planId.value,
+  })
   if (created !== null) {
     await router.push({ name: 'accounts' })
   }
@@ -127,15 +146,16 @@ const submit = async (): Promise<void> => {
 const cancel = async (): Promise<void> => {
   await router.push({ name: 'accounts' })
 }
+onMounted(loadPlans)
 </script>
 
 <template>
   <section class="w-full max-w-2xl">
     <div class="mb-4">
-      <h1 class="text-xl font-semibold tracking-title text-text-primary">
+      <h1 class="text-3xl font-semibold tracking-title text-text-primary">
         {{ t('accounts.form.heading') }}
       </h1>
-      <p class="mt-1 text-xs text-text-secondary">{{ t('accounts.form.subtitle') }}</p>
+      <p class="mt-1 text-base text-text-secondary">{{ t('accounts.form.subtitle') }}</p>
     </div>
 
     <UiAlert v-if="store.createErrorMessage !== null" variant="error" class="mb-4">
@@ -162,9 +182,10 @@ const cancel = async (): Promise<void> => {
             required
             :placeholder="t('accounts.form.placeholders.primaryDomain')"
           />
-          <UiInput
+          <UiSelect
             v-model="planId"
             :label="t('accounts.form.fields.planId')"
+            :options="planOptions"
             :error="planIdError"
             required
             :placeholder="t('accounts.form.placeholders.planId')"

@@ -14,4 +14,13 @@ public static class PanelTestSettings
 
     /// <summary>Configuration key the encryption key binds from.</summary>
     public const string EncryptionKeyPath = "Security:EncryptionKey";
+
+    /// <summary>
+    /// A throwaway base64 signing key for access tokens. Token issuing has its own unit tests; a
+    /// host test only needs startup validation to accept the key.
+    /// </summary>
+    public const string JwtSigningKey = "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=";
+
+    /// <summary>Configuration key the signing key binds from.</summary>
+    public const string JwtSigningKeyPath = "Jwt:SigningKey";
 }

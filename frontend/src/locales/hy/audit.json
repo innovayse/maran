@@ -1,0 +1,20 @@
+{
+  "app": {
+    "audit": {
+      "subtitle": "Ամեն մուտք և ամեն փոփոխություն՝ այնպես, ինչպես գրանցել է վահանակը։",
+      "loading": "Բեռնվում է մատյանը…",
+      "emptyTitle": "Դեռ գրառումներ չկան",
+      "emptyDescription": "Գործողությունները կհայտնվեն այստեղ, երբ տեղի ունենան։",
+      "tableCaption": "Վերջին աուդիտի գրառումները",
+      "whenColumn": "Երբ",
+      "actorColumn": "Ով",
+      "actionColumn": "Գործողություն",
+      "subjectColumn": "Օբյեկտ",
+      "addressColumn": "Որտեղից",
+      "outcomeColumn": "Արդյունք",
+      "succeeded": "Հաջողվեց",
+      "failed": "Ձախողվեց",
+      "heading": "Աուդիտի մատյան"
+    }
+  }
+}

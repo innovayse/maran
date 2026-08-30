@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using System.Threading.RateLimiting;
 using Maran.Host.Configuration;
+using Maran.Sdk.Contracts;
 using Microsoft.AspNetCore.RateLimiting;
 
 namespace Maran.Host.RateLimiting;
@@ -14,7 +15,7 @@ namespace Maran.Host.RateLimiting;
 public static class ApiRateLimitPolicy
 {
     /// <summary>The policy name endpoints enable with <c>[EnableRateLimiting]</c>.</summary>
-    public const string Name = "api";
+    public const string Name = RateLimitPolicies.Api;
 
     /// <summary>Claim type the panel's authentication (once it ships) stores the user id under.</summary>
     private const string UserIdClaimType = ClaimTypes.NameIdentifier;

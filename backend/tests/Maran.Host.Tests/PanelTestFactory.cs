@@ -26,6 +26,7 @@ public sealed class PanelTestFactory : WebApplicationFactory<Program>
     {
         builder.UseEnvironment("Testing");
         builder.UseSetting(PanelTestSettings.EncryptionKeyPath, PanelTestSettings.EncryptionKey);
+        builder.UseSetting(PanelTestSettings.JwtSigningKeyPath, PanelTestSettings.JwtSigningKey);
         builder.UseSetting("Database:Host", string.Empty);
     }
 }

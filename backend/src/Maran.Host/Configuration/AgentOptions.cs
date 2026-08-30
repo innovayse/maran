@@ -25,6 +25,23 @@ public sealed class AgentOptions
     [Range(1, 30)]
     public int ProbeTimeoutSeconds { get; set; } = 2;
 
+    /// <summary>
+    /// How long an account OPERATION may take before it is abandoned. Far longer than
+    /// <see cref="ProbeTimeoutSeconds"/> on purpose: a probe asks a question and a slow answer is
+    /// itself the answer, while <c>useradd</c> on a busy host creating a home directory is simply
+    /// slow, and cutting it off leaves work half done for no benefit.
+    /// </summary>
+    public int OperationTimeoutSeconds { get; set; } = 30;
+
+    /// <summary><see cref="OperationTimeoutSeconds"/> as a <see cref="TimeSpan"/>.</summary>
+    public TimeSpan OperationTimeout
+    {
+        get
+        {
+            return TimeSpan.FromSeconds(OperationTimeoutSeconds);
+        }
+    }
+
     /// <summary><see cref="ProbeTimeoutSeconds"/> as a <see cref="TimeSpan"/>, for callers that need one.</summary>
     public TimeSpan ProbeTimeout
     {

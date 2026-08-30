@@ -1,4 +1,4 @@
-import { createPinia, type Pinia  } from 'pinia'
+import { createPinia, type Pinia } from 'pinia'
 
 /**
  * Creates the application's single Pinia instance. Feature modules define
@@ -6,4 +6,6 @@ import { createPinia, type Pinia  } from 'pinia'
  * via `useXStore()`; nothing here holds application state itself.
  * @returns A fresh {@link Pinia} instance to install with `app.use()`.
  */
-export const createAppPinia = (): Pinia => createPinia()
+export const createAppPinia = (): Pinia => {
+  return createPinia()
+}

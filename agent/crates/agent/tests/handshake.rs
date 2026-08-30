@@ -43,7 +43,7 @@ async fn handshake_over_a_unix_socket_reports_the_agent_and_the_host() {
     let directory = tempfile::tempdir().unwrap();
     let socket_path = directory.path().join("agent.sock");
 
-    let policy = PeerPolicy::new(maran_agent::config::current_uid::current_uid().unwrap());
+    let policy = PeerPolicy::new(maran_agent_core::utils::current_uid::current_uid().unwrap());
     let server_path = socket_path.clone();
     let mut server =
         tokio::spawn(async move { maran_agent::server::serve(&server_path, policy).await });

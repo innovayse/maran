@@ -5,4 +5,5 @@
 //! syscall/setuid wrappers in `privs/` (rules/rust.md "unsafe"). The `privs/`
 //! module lands with the task that first needs to drop privileges.
 
+pub mod utils;
 pub mod validation;

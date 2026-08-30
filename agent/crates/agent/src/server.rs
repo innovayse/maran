@@ -3,14 +3,17 @@
 use std::os::unix::fs::{DirBuilderExt, PermissionsExt};
 use std::path::Path;
 
+use maran_ops::accounts::{AccountOperations, ProcessSystemHost};
 use tokio::net::UnixListener;
 use tokio_stream::wrappers::UnixListenerStream;
 use tonic::transport::Server;
 
 use crate::error::StartupError;
 use crate::peercred::{PeerGuard, PeerPolicy};
+use crate::proto::accounts_service_server::AccountsServiceServer;
 use crate::proto::system_service_server::SystemServiceServer;
-use crate::services::system::SystemServiceImpl;
+use crate::services::accounts::accounts_service::AccountsServiceImpl;
+use crate::services::system::system_service::SystemServiceImpl;
 
 /// Permissions the socket is created with: owner and group only.
 ///
@@ -66,9 +69,19 @@ pub async fn serve(socket_path: &Path, policy: PeerPolicy) -> Result<(), Startup
         "agent listening"
     );
 
+    // Read before the DistroInfo is handed to the system service, which takes ownership of it.
+    let adapter = maran_distro::adapter_for(distro.family);
+
     Server::builder()
         .add_service(SystemServiceServer::with_interceptor(
             SystemServiceImpl::new(distro),
+            PeerGuard::new(policy),
+        ))
+        // Every service carries the same guard: the interceptor is per service, so a
+        // service registered without one would be reachable by any local process
+        // that can open the socket, whatever the others require.
+        .add_service(AccountsServiceServer::with_interceptor(
+            AccountsServiceImpl::new(AccountOperations::new(ProcessSystemHost::new(), adapter)),
             PeerGuard::new(policy),
         ))
         .serve_with_incoming(UnixListenerStream::new(listener))

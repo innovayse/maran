@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="InvalidCredentialsUnauthorized">
+    <value>Օգտանունը կամ գաղտնաբառը սխալ է։</value>
+  </data>
+  <data name="TwoFactorRequiredUnauthorized">
+    <value>Մուտքն ավարտելու համար մուտքագրեք կոդը վավերացնող հավելվածից։</value>
+  </data>
+  <data name="InvalidTwoFactorCodeUnauthorized">
+    <value>Կոդը սխալ է։ Ստուգեք վավերացնող հավելվածը և կրկին փորձեք։</value>
+  </data>
+  <data name="RefreshTokenInvalidUnauthorized">
+    <value>Աշխատաշրջանն ավարտվել է։ Խնդրում ենք նորից մուտք գործել։</value>
+  </data>
+  <data name="RefreshTokenReusedUnauthorized">
+    <value>Աշխատաշրջանն ավարտվել է անվտանգության նկատառումներով։ Խնդրում ենք նորից մուտք գործել։</value>
+  </data>
+  <data name="SessionNotFound">
+    <value>Աշխատաշրջանը չի գտնվել։</value>
+  </data>
+  <data name="UserNotFound">
+    <value>Օգտվողը չի գտնվել։</value>
+  </data>
+  <data name="UsernameTaken">
+    <value>Այս օգտանունն արդեն զբաղված է։</value>
+  </data>
+  <data name="EmailTaken">
+    <value>Այս էլ. հասցեն արդեն գրանցված է։</value>
+  </data>
+  <data name="SetupAlreadyCompletedForbidden">
+    <value>Վահանակն արդեն կարգավորված է։</value>
+  </data>
+  <data name="SetupTokenInvalidUnauthorized">
+    <value>Կարգավորման հղումն անվավեր է։</value>
+  </data>
+  <data name="TwoFactorAlreadyEnabledForbidden">
+    <value>Երկգործոն վավերացումն արդեն միացված է։</value>
+  </data>
+  <data name="TwoFactorNotEnabledForbidden">
+    <value>Երկգործոն վավերացումը միացված չէ։</value>
+  </data>
+  <data name="PasswordTooWeak">
+    <value>Ընտրեք առնվազն 12 նիշ գաղտնաբառ, որը տարբերվում է օգտանունից։</value>
+  </data>
+  <data name="UsernameInvalidFormat">
+    <value>Օգտանունը կարող է պարունակել միայն տառեր, թվեր, կետեր, գծիկներ և ընդգծումներ։</value>
+  </data>
+  <data name="EmailInvalidFormat">
+    <value>Մուտքագրեք վավեր էլ. հասցե։</value>
+  </data>
+</root>

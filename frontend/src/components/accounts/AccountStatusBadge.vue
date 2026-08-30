@@ -22,10 +22,14 @@ const props = defineProps<{
 const { t } = useI18n()
 
 /** Badge tone for the current status; the label below is what actually carries the meaning. */
-const variant: ComputedRef<BadgeVariant> = computed(() => (props.status === 'active' ? 'success' : 'neutral'))
+const variant: ComputedRef<BadgeVariant> = computed(() => {
+  return props.status === 'active' ? 'success' : 'neutral'
+})
 
 /** i18n-resolved label for the current status. */
-const label: ComputedRef<string> = computed(() => t(`accounts.status.${props.status}`))
+const label: ComputedRef<string> = computed(() => {
+  return t(`accounts.status.${props.status}`)
+})
 </script>
 
 <template>

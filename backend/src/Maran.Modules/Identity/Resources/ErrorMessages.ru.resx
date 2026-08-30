@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="InvalidCredentialsUnauthorized">
+    <value>Неверное имя пользователя или пароль.</value>
+  </data>
+  <data name="TwoFactorRequiredUnauthorized">
+    <value>Введите код из приложения-аутентификатора, чтобы завершить вход.</value>
+  </data>
+  <data name="InvalidTwoFactorCodeUnauthorized">
+    <value>Код неверен. Проверьте приложение-аутентификатор и попробуйте снова.</value>
+  </data>
+  <data name="RefreshTokenInvalidUnauthorized">
+    <value>Сеанс завершён. Войдите заново.</value>
+  </data>
+  <data name="RefreshTokenReusedUnauthorized">
+    <value>Сеанс завершён из соображений безопасности. Войдите заново.</value>
+  </data>
+  <data name="SessionNotFound">
+    <value>Сеанс не найден.</value>
+  </data>
+  <data name="UserNotFound">
+    <value>Пользователь не найден.</value>
+  </data>
+  <data name="UsernameTaken">
+    <value>Это имя пользователя уже занято.</value>
+  </data>
+  <data name="EmailTaken">
+    <value>Этот адрес электронной почты уже зарегистрирован.</value>
+  </data>
+  <data name="SetupAlreadyCompletedForbidden">
+    <value>Панель уже настроена.</value>
+  </data>
+  <data name="SetupTokenInvalidUnauthorized">
+    <value>Ссылка настройки недействительна.</value>
+  </data>
+  <data name="TwoFactorAlreadyEnabledForbidden">
+    <value>Двухфакторная аутентификация уже включена.</value>
+  </data>
+  <data name="TwoFactorNotEnabledForbidden">
+    <value>Двухфакторная аутентификация не включена.</value>
+  </data>
+  <data name="PasswordTooWeak">
+    <value>Выберите пароль не короче 12 символов, отличающийся от имени пользователя.</value>
+  </data>
+  <data name="UsernameInvalidFormat">
+    <value>Имя пользователя может содержать только буквы, цифры, точки, дефисы и подчёркивания.</value>
+  </data>
+  <data name="EmailInvalidFormat">
+    <value>Введите корректный адрес электронной почты.</value>
+  </data>
+</root>

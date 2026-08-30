@@ -49,6 +49,7 @@ public sealed class CreateAccountCommandValidatorTests : IDisposable
         return new("acme", "acme.example.com", SeededPlanId);
     }
 
+    /// <summary>Fully valid command passes every rule.</summary>
     [Fact]
     public async Task Fully_valid_command_passes_every_rule()
     {
@@ -57,6 +58,7 @@ public sealed class CreateAccountCommandValidatorTests : IDisposable
         result.ShouldNotHaveAnyValidationErrors();
     }
 
+    /// <summary>Empty name fails on the name property.</summary>
     [Fact]
     public async Task Empty_name_fails_on_the_name_property()
     {
@@ -67,6 +69,7 @@ public sealed class CreateAccountCommandValidatorTests : IDisposable
         result.ShouldHaveValidationErrorFor(c => c.Name);
     }
 
+    /// <summary>Name shorter than three characters fails on the name property.</summary>
     [Theory]
     [InlineData("a")]
     [InlineData("ab")]
@@ -79,6 +82,7 @@ public sealed class CreateAccountCommandValidatorTests : IDisposable
         result.ShouldHaveValidationErrorFor(c => c.Name);
     }
 
+    /// <summary>Name longer than thirty two characters fails on the name property.</summary>
     [Fact]
     public async Task Name_longer_than_thirty_two_characters_fails_on_the_name_property()
     {
@@ -90,6 +94,7 @@ public sealed class CreateAccountCommandValidatorTests : IDisposable
         result.ShouldHaveValidationErrorFor(c => c.Name);
     }
 
+    /// <summary>Name with an illegal character or shape fails on the name property.</summary>
     [Theory]
     [InlineData("Acme")] // uppercase is not part of the portable username set
     [InlineData("1acme")] // must start with a letter, not a digit
@@ -108,6 +113,7 @@ public sealed class CreateAccountCommandValidatorTests : IDisposable
         result.ShouldHaveValidationErrorFor(c => c.Name);
     }
 
+    /// <summary>Name matching the portable username pattern passes.</summary>
     [Theory]
     [InlineData("acme")]
     [InlineData("acme-01")]
@@ -122,6 +128,7 @@ public sealed class CreateAccountCommandValidatorTests : IDisposable
         result.ShouldNotHaveValidationErrorFor(c => c.Name);
     }
 
+    /// <summary>Empty primary domain fails on the primary domain property.</summary>
     [Fact]
     public async Task Empty_primary_domain_fails_on_the_primary_domain_property()
     {
@@ -132,6 +139,7 @@ public sealed class CreateAccountCommandValidatorTests : IDisposable
         result.ShouldHaveValidationErrorFor(c => c.PrimaryDomain);
     }
 
+    /// <summary>Malformed primary domain fails on the primary domain property.</summary>
     [Theory]
     [InlineData("not-a-domain")] // no dot, so no TLD
     [InlineData("-acme.example.com")] // leading hyphen on a label
@@ -147,6 +155,7 @@ public sealed class CreateAccountCommandValidatorTests : IDisposable
         result.ShouldHaveValidationErrorFor(c => c.PrimaryDomain);
     }
 
+    /// <summary>Too long primary domain fails on the primary domain property.</summary>
     [Fact]
     public async Task Too_long_primary_domain_fails_on_the_primary_domain_property()
     {
@@ -161,6 +170,7 @@ public sealed class CreateAccountCommandValidatorTests : IDisposable
         result.ShouldHaveValidationErrorFor(c => c.PrimaryDomain);
     }
 
+    /// <summary>Missing plan id fails on the plan id property.</summary>
     [Fact]
     public async Task Missing_plan_id_fails_on_the_plan_id_property()
     {
@@ -171,6 +181,7 @@ public sealed class CreateAccountCommandValidatorTests : IDisposable
         result.ShouldHaveValidationErrorFor(c => c.PlanId);
     }
 
+    /// <summary>Plan id that does not exist fails on the plan id property with the plan not found code.</summary>
     [Fact]
     public async Task Plan_id_that_does_not_exist_fails_on_the_plan_id_property_with_the_plan_not_found_code()
     {
@@ -182,6 +193,7 @@ public sealed class CreateAccountCommandValidatorTests : IDisposable
             .WithErrorCode("PlanNotFound");
     }
 
+    /// <summary>Plan id that exists passes the plan id rule.</summary>
     [Fact]
     public async Task Plan_id_that_exists_passes_the_plan_id_rule()
     {

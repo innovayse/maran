@@ -15,7 +15,11 @@ public static class ModulesEndpoint
     {
         endpoints.MapGet(
             "/api/v1/modules",
-            (IErrorTextProvider errorTextProvider) => Results.Ok(DescribeModules(errorTextProvider)));
+            (IErrorTextProvider errorTextProvider) => Results.Ok(DescribeModules(errorTextProvider)))
+            // Anonymous: the SPA reads the catalogue to build its navigation before anyone has
+            // signed in, and to know whether a login screen is even the right thing to show. The
+            // list names the modules installed on this server and nothing about its data.
+            .AllowAnonymous();
         return endpoints;
     }
 

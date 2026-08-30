@@ -5,3 +5,5 @@
 //! idempotent and re-validates its inputs via `maran-agent-core`
 //! (rules/rust.md "Validation first"). Modules land with their backend
 //! counterparts, starting with Plan 2.
+
+pub mod accounts;

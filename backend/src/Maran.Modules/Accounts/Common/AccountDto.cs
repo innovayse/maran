@@ -1,4 +1,5 @@
 using Maran.Modules.Accounts.Domain;
+using Maran.Modules.Accounts.Domain.Enums;
 
 namespace Maran.Modules.Accounts.Common;
 

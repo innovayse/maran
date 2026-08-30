@@ -26,6 +26,7 @@ public sealed class HealthEndpointTests : IAsyncLifetime
         return _pg.DisposeAsync().AsTask();
     }
 
+    /// <summary>Readiness endpoint returns 200 when the database is reachable.</summary>
     [Fact]
     public async Task Readiness_endpoint_returns_200_when_the_database_is_reachable()
     {
@@ -39,6 +40,7 @@ public sealed class HealthEndpointTests : IAsyncLifetime
                 builder.UseSetting(setting.Key, setting.Value);
             }
             builder.UseSetting("Security:EncryptionKey", "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=");
+            builder.UseSetting("Jwt:SigningKey", "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=");
         });
 
         using var client = factory.CreateClient();

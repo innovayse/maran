@@ -1,5 +1,6 @@
 using Maran.SharedKernel.Interfaces;
 using Maran.SharedKernel.Localization;
+using Maran.SharedKernel.Security;
 using Maran.SharedKernel.Time;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -13,9 +14,9 @@ namespace Maran.SharedKernel;
 public static class DependencyInjection
 {
     /// <summary>
-    /// Registers the kernel's primitives: the production clock, and the generic .resx-backed
-    /// <see cref="IErrorTextProvider"/> that resolves against every module's own resource manager
-    /// (each module registers its own via <c>ConfigureServices</c>).
+    /// Registers the kernel's primitives: the production clock, the Argon2id password hasher, and
+    /// the generic .resx-backed <see cref="IErrorTextProvider"/> that resolves against every
+    /// module's own resource manager (each module registers its own via <c>ConfigureServices</c>).
     /// </summary>
     /// <param name="services">The application service collection.</param>
     /// <returns>The same collection, for chaining.</returns>
@@ -23,6 +24,7 @@ public static class DependencyInjection
     {
         services.AddSingleton<IClock, SystemClock>();
         services.AddSingleton<IErrorTextProvider, ResxErrorTextProvider>();
+        services.AddSingleton<IPasswordHasher, Argon2idPasswordHasher>();
         return services;
     }
 }

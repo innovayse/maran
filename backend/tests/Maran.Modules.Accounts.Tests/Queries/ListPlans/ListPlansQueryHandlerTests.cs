@@ -25,18 +25,20 @@ public sealed class ListPlansQueryHandlerTests
         return new AccountsDbContext(options);
     }
 
+    /// <summary>Empty store returns an empty list.</summary>
     [Fact]
     public async Task Empty_store_returns_an_empty_list()
     {
         await using var dbContext = CreateDbContext();
         var handler = new ListPlansQueryHandler(dbContext, new UppercasingDisplayNamesLocalizer());
 
-        var result = await handler.Handle(new ListPlansQuery(), CancellationToken.None);
+        var result = await handler.HandleAsync(new ListPlansQuery(), CancellationToken.None);
 
         Assert.True(result.IsSuccess);
         Assert.Empty(result.Value);
     }
 
+    /// <summary>Returns every plan the store holds with its display name resolved.</summary>
     [Fact]
     public async Task Returns_every_plan_the_store_holds_with_its_display_name_resolved()
     {
@@ -46,7 +48,7 @@ public sealed class ListPlansQueryHandlerTests
         await dbContext.SaveChangesAsync();
         var handler = new ListPlansQueryHandler(dbContext, new UppercasingDisplayNamesLocalizer());
 
-        var result = await handler.Handle(new ListPlansQuery(), CancellationToken.None);
+        var result = await handler.HandleAsync(new ListPlansQuery(), CancellationToken.None);
 
         var dto = Assert.Single(result.Value);
         Assert.Equal(plan.Id, dto.Id);
@@ -57,6 +59,7 @@ public sealed class ListPlansQueryHandlerTests
         Assert.Equal(3, dto.MaxFtpUsers);
     }
 
+    /// <summary>Returns plans ordered by disk quota ascending.</summary>
     [Fact]
     public async Task Returns_plans_ordered_by_disk_quota_ascending()
     {
@@ -69,7 +72,7 @@ public sealed class ListPlansQueryHandlerTests
         await dbContext.SaveChangesAsync();
         var handler = new ListPlansQueryHandler(dbContext, new UppercasingDisplayNamesLocalizer());
 
-        var result = await handler.Handle(new ListPlansQuery(), CancellationToken.None);
+        var result = await handler.HandleAsync(new ListPlansQuery(), CancellationToken.None);
 
         Assert.Equal([small.Id, medium.Id, large.Id], result.Value.Select(dto =>
         {

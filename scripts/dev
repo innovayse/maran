@@ -1,0 +1,68 @@
+#!/usr/bin/env bash
+# Puts Maran's user-local developer toolchains (dotnet 9, rustup/cargo, protoc) on
+# PATH ahead of any system-wide versions (e.g. an older distro dotnet). Must be sourced,
+# not executed, so the exports reach the calling shell: `source scripts/dev`.
+# Sourcing is the whole point, and this directory is on PATH — so `dev` can be TYPED as a
+# command, where it would set variables in a subprocess that exits immediately and appear to
+# have done nothing. Refusing loudly is the difference between a puzzling half-hour and a line
+# of output.
+if [ "${BASH_SOURCE[0]:-}" = "${0}" ]; then
+  echo "dev must be sourced, not run: it sets variables in the calling shell." >&2
+  echo "  source scripts/dev" >&2
+  exit 1
+fi
+
+export PATH="$HOME/.dotnet:$HOME/.cargo/bin:$HOME/.local/bin:$PATH"
+export DOTNET_ROOT="$HOME/.dotnet"
+
+# This repository's own toolbox, so `maran <command>` works from any directory inside it rather
+# than only from the root as `./scripts/maran`. Resolved from this file's location and not from
+# the current directory: sourcing happens once, and the shell keeps the value long after the
+# developer has cd'd into backend/ or frontend/.
+#
+# BASH_SOURCE, not $0: when a file is SOURCED, $0 is still the shell's own name, so $0 would
+# resolve to the interactive shell instead of this script.
+MARAN_SCRIPTS="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
+export PATH="$MARAN_SCRIPTS:$PATH"
+unset MARAN_SCRIPTS
+
+# `.env` is where local configuration lives: the development encryption key, the JWT signing key,
+# the setup token, the database and the agent socket. `.env.example` had always said "copy this to
+# .env" while nothing read the result, so the copy changed nothing and the values that actually
+# applied came from appsettings.Development.json — two sources for one setting, and the tracked one
+# won. Now there is one source, it is git-ignored, and it is created here on first use.
+#
+# .NET maps `__` in a variable name to configuration nesting, so `Jwt__SigningKey` sets the
+# "Jwt:SigningKey" setting and overrides appsettings*.json.
+MARAN_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")/.." && pwd)"
+MARAN_ENV_FILE="$MARAN_ROOT/.env"
+if [ ! -e "$MARAN_ENV_FILE" ] && [ -r "$MARAN_ROOT/.env.example" ]; then
+  cp "$MARAN_ROOT/.env.example" "$MARAN_ENV_FILE"
+  echo "created .env from .env.example — development values, safe to edit, never committed" >&2
+fi
+unset MARAN_ROOT
+
+# Read line by line rather than sourced: a sourced file would execute whatever it contains, and a
+# config file must not be able to run commands in the developer's shell.
+if [ -r "$MARAN_ENV_FILE" ]; then
+  while IFS= read -r maran_env_line || [ -n "$maran_env_line" ]; do
+    case "$maran_env_line" in
+      ''|'#'*) continue ;;
+      *=*)
+        export "${maran_env_line%%=*}=${maran_env_line#*=}"
+        ;;
+    esac
+  done < "$MARAN_ENV_FILE"
+  unset maran_env_line
+fi
+unset MARAN_ENV_FILE
+
+# GitHub API token for reading CI runs and pushing, kept OUTSIDE the repository so it can never
+# be committed: ~/.config/maran/github-token, mode 0600. Create it with:
+#   mkdir -p ~/.config/maran && printf '%s\n' "<token>" > ~/.config/maran/github-token
+#   chmod 600 ~/.config/maran/github-token
+if [ -r "$HOME/.config/maran/github-token" ]; then
+  GH_TOKEN="$(cat "$HOME/.config/maran/github-token")"
+  export GH_TOKEN
+  export GITHUB_TOKEN="$GH_TOKEN"
+fi

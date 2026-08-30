@@ -1,5 +1,6 @@
 using System.Diagnostics.CodeAnalysis;
 using Maran.Host.Configuration;
+using Maran.Modules.Identity.Common.Options;
 
 namespace Maran.Host.Extensions;
 
@@ -50,6 +51,24 @@ public static class ConfigurationExtensions
                 },
                 $"{SecurityOptions.SectionName}:{nameof(SecurityOptions.EncryptionKey)} must be a base64-encoded 256-bit key.")
             .ValidateOnStart();
+
+        services.AddOptions<JwtOptions>()
+            .Bind(configuration.GetSection(JwtOptions.SectionName))
+            .ValidateDataAnnotations()
+            // Same reasoning as the encryption key above: an unusable signing key must stop the
+            // boot, not surface as every login failing with an unexplained 500.
+            .Validate(
+                options =>
+                {
+                    return options.HasValidSigningKey();
+                },
+                $"{JwtOptions.SectionName}:{nameof(JwtOptions.SigningKey)} must be a base64-encoded key of at least 32 bytes.")
+            .ValidateOnStart();
+
+        // No validation callback and no [Required]: an absent token is the normal state of a panel
+        // that has finished its setup, and it must not stop the boot.
+        services.AddOptions<SetupOptions>()
+            .Bind(configuration.GetSection(SetupOptions.SectionName));
 
         return services;
     }

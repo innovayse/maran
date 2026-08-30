@@ -12,12 +12,13 @@ namespace Maran.Modules.Accounts.Commands.CreateAccount;
 public sealed class CreateAccountCommandValidator : AbstractValidator<CreateAccountCommand>
 {
     /// <summary>
-    /// The <see cref="Errors.AccountsErrors.PlanNotFound"/> machine code, attached to the plan
-    /// existence rule below so a caller translating validation failures into the module's typed
-    /// errors (rather than letting an unknown plan id reach the database as a foreign-key
-    /// violation) has the same code <see cref="Errors.AccountsErrors.PlanNotFound"/> produces.
+    /// The <c>PlanNotFound</c> machine code, attached to the plan existence rule below so a caller
+    /// translating validation failures into typed errors (rather than letting an unknown plan id
+    /// reach the database as a foreign-key violation) uses the same code — and therefore the same
+    /// translated sentence — the rest of the module does. It names an entry in
+    /// <c>Resources/ErrorMessages.resx</c>, which is where that sentence lives.
     /// </summary>
-    private const string PlanNotFoundErrorCode = "PlanNotFound";
+    private const string PlanNotFoundErrorCode = nameof(Resources.ErrorMessages.PlanNotFound);
 
     /// <summary>The Accounts module's database context, used to confirm a submitted plan id exists.</summary>
     private readonly AccountsDbContext _dbContext;

@@ -1,0 +1,57 @@
+{
+  "app": {
+    "title": "Maran",
+    "brandInitial": "M",
+    "nav": {
+      "ariaLabel": "Հիմնական նավիգացիա",
+      "systemStatus": "Համակարգի կարգավիճակ",
+      "lockedBadge": "Արգելափակված",
+      "groups": {
+        "panel": "Վահանակ"
+      }
+    },
+    "shell": {
+      "search": "Որոնել կամ անցնել…",
+      "searchShortcut": "⌘K",
+      "collapseSidebar": "Ծալել կողային վահանակը",
+      "expandSidebar": "Բացել կողային վահանակը",
+      "openNavigation": "Բացել նավիգացիան",
+      "navigationLabel": "Նավիգացիա",
+      "toggleTheme": "Փոխարկել մուգ և բաց թեմաների միջև",
+      "breadcrumbLabel": "Նավիգացիոն շղթա",
+      "noServerSelected": "Սերվեր ընտրված չէ",
+      "paletteTitle": "Անցնել",
+      "paletteClose": "Փակել անցման պատուհանը",
+      "paletteFieldLabel": "Որոնում վահանակում",
+      "palettePlaceholder": "Որոնել բաժիններ…",
+      "paletteClear": "Մաքրել որոնումը",
+      "paletteResultsLabel": "Համապատասխան բաժիններ",
+      "paletteNoMatches": "Ոչինչ չի գտնվել։",
+      "paletteHintNavigate": "↑↓ — շարժվել ցանկով",
+      "paletteHintOpen": "↵ — բացել",
+      "themeSwitcherLabel": "Ինտերֆեյսի թեման",
+      "themes": {
+        "dark": "Մուգ",
+        "light": "Բաց"
+      },
+      "askAi": "Հարցնել ԱԲ-ին",
+      "notifications": "Ծանուցումներ",
+      "account": "Ձեր հաշիվը",
+      "signedOut": "Ոչ ոք մուտք չի գործել",
+      "accountMenu": "Հաշվի ընտրացանկ",
+      "menu": {
+        "sessions": "Սեսիաներ",
+        "twoFactor": "Երկքայլ ստուգում",
+        "audit": "Աուդիտի մատյան"
+      }
+    },
+    "locale": {
+      "switcherLabel": "Ինտերֆեյսի լեզուն",
+      "names": {
+        "en": "English",
+        "ru": "Русский",
+        "hy": "Հայերեն"
+      }
+    }
+  }
+}

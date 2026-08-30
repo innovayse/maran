@@ -129,11 +129,16 @@ command line tool, and reversible with an automatic database dump and a rollback
 ## Development
 
     source scripts/dev                 # sourced, not run: toolchains and `maran` on your PATH
+    maran                              # the toolbox: every command, with what it is for
     maran check                        # what this machine is missing, before anything else
     maran dev                          # the whole stack: database, API, application
 
-Everything runs through one CLI. Type `maran` on its own to see the toolbox; the help is
-generated from the command table, so a command that exists is a command that is documented.
+Everything runs through one CLI. `maran` is on PATH after sourcing `scripts/dev`, so it works
+from any directory in the repository; its help is generated from the command table, so a
+command that exists is a command that is documented. It dispatches to the scripts in
+`scripts/lib/`, which are implementations rather than the surface — call `maran`, not them.
+`scripts/dev` is the one file that must be sourced rather than run, because a subprocess cannot
+put toolchains on its parent's PATH.
 
 `maran dev` starts the PostgreSQL container, the API and the SPA, waits until each answers, and
 then streams only warnings and errors; Ctrl+C stops everything. Docker carries development
@@ -156,6 +161,9 @@ Verification, each runnable on its own:
 The application has no unit-test runner by design: it is verified end to end against a running
 API in `frontend/e2e/` (rules/testing.md).
 
+`maran agent` runs the Rust toolchain natively and falls back to a pinned container when the
+machine has no C linker, so a fresh clone can build the agent before installing anything.
+
 Requirements: .NET 9 SDK, Rust (stable), Node.js 20+, protoc, a C toolchain for Rust linking
 (`build-essential`), and Docker for development only.
 
@@ -172,8 +180,12 @@ Everyone taking part is expected to follow the [Code of Conduct](CODE_OF_CONDUCT
 
 ## Status
 
-In active development toward the first release. The foundation — contract, agent skeleton,
-backend host and application shell — is being built now; feature modules follow.
+In active development toward the first release. The foundation is in place — the agent contract,
+the Rust agent, the backend host and the application shell — and so is the first feature set:
+first-run setup, sign-in with two-factor authentication, sessions you can see and revoke, an
+append-only audit journal, and hosting accounts provisioned as real Linux users with disk quotas.
+
+Sites, databases, FTP, cron, backups and the firewall are the modules that follow.
 
 Mail and DNS management, reseller accounts and central management of multiple servers are
 planned after the first release.

@@ -16,6 +16,7 @@ public sealed class ResourceKeyParityTests
     /// <summary>The translated cultures every neutral resource file must have a sibling for.</summary>
     private static readonly string[] TranslatedCultures = ["ru", "hy"];
 
+    /// <summary>Every resx family carries the same keys in english russian and armenian.</summary>
     [Fact]
     public void Every_resx_family_carries_the_same_keys_in_english_russian_and_armenian()
     {
@@ -54,6 +55,7 @@ public sealed class ResourceKeyParityTests
             "Resource key sets have drifted apart:" + Environment.NewLine + string.Join(Environment.NewLine, problems));
     }
 
+    /// <summary>Resource parity runs against the resource files that actually exist.</summary>
     [Fact]
     public void Resource_parity_runs_against_the_resource_files_that_actually_exist()
     {
