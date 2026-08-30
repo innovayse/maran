@@ -1,10 +1,20 @@
 import type { RouteLocationRaw } from 'vue-router'
 
 /**
+ * Glyph a navigation entry is drawn with. Deliberately a closed union of the
+ * two icons the shell actually draws today: the module catalogue reports no
+ * icon of its own, so an entry's glyph is a presentation decision this bundle
+ * makes, not data the backend sent.
+ */
+export type NavigationIcon =
+  /** The shell's own always-present entries (system status). */
+  | 'pulse'
+  /** A module reported by the panel's catalogue. */
+  | 'grid'
+
+/**
  * One entry in the authenticated shell's sidebar navigation, as built by
- * `useNavigation` from the module catalogue. Icon-free for now — the
- * catalogue does not report icons yet, and rules/vue.md forbids
- * speculative fields.
+ * `useNavigation` from the module catalogue.
  */
 export interface NavigationEntry {
   /** Stable identifier for `:key` in `v-for`; the module name for module-backed entries. */
@@ -28,6 +38,11 @@ export interface NavigationEntry {
   label: string | null
   /** Machine name of the module this entry represents, or `null` for entries not backed by a module (e.g. system status). */
   moduleName: string | null
+  /**
+   * Glyph the entry is drawn with. Not catalogue data — the panel reports no
+   * icon — so the shell picks one from a closed set (see {@link NavigationIcon}).
+   */
+  icon: NavigationIcon
   /** Whether the licence does not currently permit this module — rendered as visibly locked, not hidden. */
   locked: boolean
 }

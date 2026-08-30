@@ -1,5 +1,4 @@
-import { createPinia } from 'pinia'
-import type { Pinia } from 'pinia'
+import { createPinia, type Pinia  } from 'pinia'
 
 /**
  * Creates the application's single Pinia instance. Feature modules define

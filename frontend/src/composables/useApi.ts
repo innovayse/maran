@@ -1,5 +1,5 @@
 import { useLocaleStore } from '../stores/locale'
-import type { ProblemDetails } from '../types/api'
+import type { ApiClient, ProblemDetails } from '../types/api'
 
 /**
  * Single low-level HTTP client composable for the panel API. Requests are
@@ -44,28 +44,6 @@ export class ApiError extends Error {
     this.code = code
     this.status = status
   }
-}
-
-/** Public surface of the low-level API client returned by {@link useApi}. */
-interface ApiClient {
-  /**
-   * Performs a GET request and returns the parsed JSON body of type `T`.
-   * @param path Request path, relative to the app origin (proxied in dev).
-   * @param signal Optional abort signal to cancel the request.
-   * @returns The parsed JSON response body.
-   * @throws {ApiError} When the response status is not in the 2xx range.
-   */
-  get: <T>(path: string, signal?: AbortSignal) => Promise<T>
-
-  /**
-   * Performs a POST request with a JSON body and returns the parsed JSON response body of type `T`.
-   * @param path Request path, relative to the app origin (proxied in dev).
-   * @param body The request payload, serialized as JSON.
-   * @param signal Optional abort signal to cancel the request.
-   * @returns The parsed JSON response body.
-   * @throws {ApiError} When the response status is not in the 2xx range.
-   */
-  post: <T>(path: string, body: unknown, signal?: AbortSignal) => Promise<T>
 }
 
 /**

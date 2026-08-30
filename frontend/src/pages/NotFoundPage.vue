@@ -12,8 +12,11 @@ const { t } = useI18n()
 </script>
 
 <template>
-  <section class="mx-auto max-w-xl">
-    <UiEmptyState :title="t('app.notFound.heading')" :description="t('app.notFound.description')">
+  <section class="w-full">
+    <UiEmptyState
+      :title="t('app.notFound.heading')"
+      :description="t('app.notFound.description')"
+    >
       <UiNavLink :to="{ name: 'system-status' }">{{ t('app.notFound.backHome') }}</UiNavLink>
     </UiEmptyState>
   </section>

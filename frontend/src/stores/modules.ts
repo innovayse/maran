@@ -1,6 +1,5 @@
 import { defineStore } from 'pinia'
-import { ref } from 'vue'
-import type { Ref } from 'vue'
+import { ref, type Ref  } from 'vue'
 import { useModulesApi } from '../composables/apis/useModulesApi'
 import { ApiError } from '../composables/useApi'
 import type { PanelModule } from '../types/module'

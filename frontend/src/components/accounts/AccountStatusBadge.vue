@@ -4,10 +4,13 @@
  * the accounts list so status is scannable without reading a text column
  * closely; the color carries no meaning on its own (text label is always
  * present) so it stays accessible without relying on color alone.
+ *
+ * The rendering itself belongs to `UiBadge` — this component's only job is
+ * mapping one domain state onto a badge tone and a label.
  */
-import { computed } from 'vue'
-import type { ComputedRef } from 'vue'
+import { computed, type ComputedRef } from 'vue'
 import { useI18n } from 'vue-i18n'
+import UiBadge, { type BadgeVariant } from '../ui/UiBadge.vue'
 import type { AccountStatus } from '../../types/account'
 
 /** Props accepted by {@link AccountStatusBadge}. */
@@ -18,17 +21,13 @@ const props = defineProps<{
 
 const { t } = useI18n()
 
-/** Tailwind utility classes for the badge's background/text color, by status. */
-const statusClasses: ComputedRef<string> = computed(() =>
-  props.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-slate-200 text-slate-700',
-)
+/** Badge tone for the current status; the label below is what actually carries the meaning. */
+const variant: ComputedRef<BadgeVariant> = computed(() => (props.status === 'active' ? 'success' : 'neutral'))
 
 /** i18n-resolved label for the current status. */
 const label: ComputedRef<string> = computed(() => t(`accounts.status.${props.status}`))
 </script>
 
 <template>
-  <span class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium" :class="statusClasses">
-    {{ label }}
-  </span>
+  <UiBadge :variant="variant">{{ label }}</UiBadge>
 </template>

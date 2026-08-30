@@ -17,19 +17,25 @@ defineProps<{
 </script>
 
 <template>
-  <div class="overflow-x-auto">
-    <table class="w-full border-collapse text-left text-sm">
-      <caption class="sr-only">
-        {{
-          caption
-        }}
-      </caption>
-      <thead class="border-b border-slate-200 text-slate-600">
-        <slot name="head" />
-      </thead>
-      <tbody class="divide-y divide-slate-100">
-        <slot />
-      </tbody>
-    </table>
+  <!-- The design frames every table in the same panel — raised surface, subtle
+       border, 10px radius — and clips the corners so the header band's fill
+       stops at the rounding. `overflow-hidden` is what does the clipping, so
+       the horizontal scroll lives on the inner element. -->
+  <div class="overflow-hidden rounded-xl border border-border-subtle bg-surface-1">
+    <div class="overflow-x-auto">
+      <table class="w-full border-collapse text-left text-xs">
+        <caption class="sr-only">
+          {{
+            caption
+          }}
+        </caption>
+        <thead class="bg-surface-2">
+          <slot name="head" />
+        </thead>
+        <tbody>
+          <slot />
+        </tbody>
+      </table>
+    </div>
   </div>
 </template>

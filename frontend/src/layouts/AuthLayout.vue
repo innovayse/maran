@@ -12,7 +12,7 @@ const { t } = useI18n()
 </script>
 
 <template>
-  <div class="flex min-h-screen items-center justify-center bg-slate-50 px-4 text-slate-900">
+  <div class="flex min-h-screen items-center justify-center bg-page px-4 text-text-primary">
     <div class="w-full max-w-sm">
       <h1 class="mb-6 text-center text-lg font-semibold">{{ t('app.title') }}</h1>
       <main>

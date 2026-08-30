@@ -1,5 +1,4 @@
-import { createRouter, createWebHistory } from 'vue-router'
-import type { Router } from 'vue-router'
+import { createRouter, createWebHistory, type Router  } from 'vue-router'
 import DefaultLayout from '../layouts/DefaultLayout.vue'
 import NotFoundPage from '../pages/NotFoundPage.vue'
 import SystemStatusPage from '../pages/SystemStatusPage.vue'

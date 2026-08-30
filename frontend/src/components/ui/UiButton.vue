@@ -4,15 +4,25 @@
  * keyboard activation and `disabled` semantics come for free; every other
  * screen composes this instead of a raw `<button>` (rules/vue.md: "UI comes
  * from components/ui").
+ *
+ * Every measurement below is the design's own button spec — 6px/12px padding,
+ * a 7px radius and a 12.5px face — rather than a rounded-off Tailwind default,
+ * so a button in the panel and a button in the canvas are the same object.
  */
-import { computed } from 'vue'
-import type { ComputedRef } from 'vue'
+import { computed, type ComputedRef } from 'vue'
+
+/**
+ * Visual weight of a {@link UiButton}, one per button the design draws.
+ * Declared here rather than in `src/types/` because it describes this
+ * component's props and means nothing without it (rules/vue.md).
+ */
+export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'destructive' | 'ai'
 
 /** Props accepted by {@link UiButton}. */
 const props = withDefaults(
   defineProps<{
-    /** Visual weight: `primary` for the main action, `secondary` for a bordered alternative, `ghost` for a low-emphasis action (e.g. a nav-adjacent control). */
-    variant?: 'primary' | 'secondary' | 'ghost'
+    /** Visual weight: `primary` for the main action, `secondary` for a bordered alternative, `ghost` for a low-emphasis action (e.g. a nav-adjacent control), `destructive` for an action that removes something, `ai` for an assistant-initiated action. */
+    variant?: ButtonVariant
     /** Native `type` attribute; defaults to `button` so it never submits a form by accident. */
     type?: 'button' | 'submit'
     /** Disables the button and marks it non-interactive for assistive tech. */
@@ -27,16 +37,25 @@ const emit = defineEmits<{
   (e: 'click', payload: MouseEvent): void
 }>()
 
-/** Tailwind utility classes for the selected {@link UiButton} variant. */
+/**
+ * Tailwind utility classes for the selected {@link UiButton} variant, taken
+ * from the design's button row. The hover colors that no token names (the
+ * pressed accent, the destructive wash) are written as `var(--token)`-based
+ * arbitrary values, which is the one case rules/vue.md allows.
+ */
 const variantClasses: ComputedRef<string> = computed(() => {
   switch (props.variant) {
     case 'secondary':
-      return 'border border-slate-300 bg-white text-slate-900 hover:bg-slate-50'
+      return 'border border-border-subtle bg-surface-2 font-medium text-text-primary enabled:hover:border-border-strong enabled:hover:bg-surface-3'
     case 'ghost':
-      return 'text-slate-700 hover:bg-slate-100'
+      return 'border border-transparent text-text-secondary enabled:hover:bg-surface-2 enabled:hover:text-text-primary'
+    case 'destructive':
+      return 'border border-[rgb(229_72_77/0.35)] bg-[rgb(229_72_77/0.12)] font-medium text-danger enabled:hover:bg-[rgb(229_72_77/0.2)]'
+    case 'ai':
+      return 'border border-transparent bg-violet font-semibold text-white enabled:hover:bg-[#7a5be8]'
     case 'primary':
     default:
-      return 'bg-blue-600 text-white hover:bg-blue-700'
+      return 'border border-transparent bg-accent font-semibold text-white shadow-[0_1px_2px_rgb(0_0_0/0.25)] enabled:hover:bg-[#1f6bee]'
   }
 })
 
@@ -54,10 +73,13 @@ const onClick = (event: MouseEvent): void => {
 </script>
 
 <template>
+  <!-- The focus ring is the design's field-focus treatment (accent border plus a
+       3px accent wash), applied on `focus-visible` only so it reaches keyboard
+       users without outlining every mouse click. -->
   <button
     :type="type"
     :disabled="disabled"
-    class="inline-flex items-center justify-center rounded-md px-3 py-2 text-sm font-medium transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 disabled:cursor-not-allowed disabled:opacity-50"
+    class="inline-flex items-center justify-center gap-1.5 rounded-lg px-3 py-1.5 text-xs transition-colors focus-visible:border-accent focus-visible:shadow-focus focus-visible:outline-none disabled:cursor-not-allowed disabled:border-border-subtle disabled:bg-surface-2 disabled:text-text-muted disabled:opacity-65 disabled:shadow-none"
     :class="variantClasses"
     @click="onClick"
   >

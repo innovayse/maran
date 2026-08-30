@@ -20,3 +20,43 @@ export interface PanelModule {
   /** Whether the running licence permits using it right now. */
   isEnabled: boolean
 }
+
+/**
+ * Typed access to the panel's module catalogue.
+ *
+ * Called from Pinia stores only — never from a component (rules/vue.md).
+ */
+export interface ModulesApi {
+  /**
+   * Fetches every module the panel composed, with its licence state.
+   * @param signal Optional abort signal to cancel the in-flight request.
+   * @returns The module catalogue.
+   */
+  list: (signal?: AbortSignal) => Promise<PanelModule[]>
+}
+
+/**
+ * Module availability checks for the interface: what to render, what to lock behind an upgrade
+ * prompt, and what the router guard should let through.
+ *
+ * These checks are cosmetic. The backend enforces the licence on every request, so this composable
+ * decides what a user *sees*, never what they *may do* (rules/architecture.md).
+ */
+export interface ModuleAccess {
+  /** Modules the licence permits, in the order the panel reported them. */
+  enabledModules: ComputedRef<PanelModule[]>
+  /** Modules the panel knows but the licence does not permit — candidates for an upgrade prompt. */
+  lockedModules: ComputedRef<PanelModule[]>
+  /**
+   * Whether a module may be used.
+   * @param name Machine name of the module.
+   * @returns True when the licence permits it.
+   */
+  canUse: (name: string) => boolean
+  /**
+   * Whether a module exists but is licence-locked.
+   * @param name Machine name of the module.
+   * @returns True when it should render as locked rather than absent.
+   */
+  isLocked: (name: string) => boolean
+}

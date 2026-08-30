@@ -8,10 +8,9 @@
  * Renders a `<section>`, not a `<main>` — the single `<main>` landmark
  * belongs to the layout this page is nested under.
  */
-import { computed } from 'vue'
-import type { ComputedRef } from 'vue'
+import { computed, type ComputedRef } from 'vue'
 import { useI18n } from 'vue-i18n'
-import UiCard from '../components/ui/UiCard.vue'
+import UiEmptyState from '../components/ui/UiEmptyState.vue'
 import UiNavLink from '../components/ui/UiNavLink.vue'
 import { useModulesStore } from '../stores/modules'
 import type { PanelModule } from '../types/module'
@@ -37,12 +36,19 @@ const catalogueEntry: ComputedRef<PanelModule | undefined> = computed(() =>
 </script>
 
 <template>
-  <section class="mx-auto max-w-xl">
-    <h1 class="mb-4 text-2xl font-semibold">{{ t('app.upgrade.heading') }}</h1>
-    <UiCard>
-      <p class="mb-2">{{ t('app.upgrade.module', { module }) }}</p>
-      <p v-if="catalogueEntry" class="mb-4">{{ t('app.upgrade.tier', { tier: catalogueEntry.tier }) }}</p>
+  <section class="w-full">
+    <div class="mb-4">
+      <h1 class="text-xl font-semibold tracking-title text-text-primary">
+        {{ t('app.upgrade.heading') }}
+      </h1>
+      <p class="mt-1 text-xs text-text-secondary">{{ t('app.upgrade.subtitle') }}</p>
+    </div>
+
+    <UiEmptyState
+      :title="t('app.upgrade.module', { module })"
+      :description="catalogueEntry ? t('app.upgrade.tier', { tier: catalogueEntry.tier }) : undefined"
+    >
       <UiNavLink :to="{ name: 'system-status' }">{{ t('app.upgrade.backHome') }}</UiNavLink>
-    </UiCard>
+    </UiEmptyState>
   </section>
 </template>

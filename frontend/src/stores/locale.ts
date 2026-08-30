@@ -1,8 +1,6 @@
 import { defineStore } from 'pinia'
-import { computed, ref } from 'vue'
-import type { ComputedRef, Ref } from 'vue'
-import type { AppLocale } from '../i18n'
-import { SUPPORTED_LOCALES } from '../i18n'
+import { computed, ref, type ComputedRef, type Ref  } from 'vue'
+import { type AppLocale, SUPPORTED_LOCALES  } from '../types/app'
 
 /**
  * Key the chosen locale is persisted under, so a reload keeps the user's language.

@@ -2,12 +2,7 @@ import { createI18n } from 'vue-i18n'
 import en from './locales/en/app.json'
 import ru from './locales/ru/app.json'
 import hy from './locales/hy/app.json'
-
-/** Locale codes supported by the Maran SPA, in menu order. */
-export const SUPPORTED_LOCALES = ['en', 'ru', 'hy'] as const
-
-/** Locale codes supported by the Maran SPA. */
-export type AppLocale = (typeof SUPPORTED_LOCALES)[number]
+import type { AppLocale } from './types/app'
 
 /**
  * Options passed to `createI18n`, extracted to a named constant so

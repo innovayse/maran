@@ -12,8 +12,7 @@
  * a `<main>` — the single `<main>` landmark lives in the layout this page
  * is nested under.
  */
-import { computed, ref } from 'vue'
-import type { ComputedRef, Ref } from 'vue'
+import { computed, ref, type ComputedRef, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import UiAlert from '../../components/ui/UiAlert.vue'
@@ -131,41 +130,53 @@ const cancel = async (): Promise<void> => {
 </script>
 
 <template>
-  <section class="mx-auto max-w-xl">
-    <h1 class="mb-4 text-2xl font-semibold">{{ t('accounts.form.heading') }}</h1>
+  <section class="w-full max-w-2xl">
+    <div class="mb-4">
+      <h1 class="text-xl font-semibold tracking-title text-text-primary">
+        {{ t('accounts.form.heading') }}
+      </h1>
+      <p class="mt-1 text-xs text-text-secondary">{{ t('accounts.form.subtitle') }}</p>
+    </div>
 
     <UiAlert v-if="store.createErrorMessage !== null" variant="error" class="mb-4">
       {{ store.createErrorMessage }}
     </UiAlert>
 
-    <UiForm class="flex flex-col gap-4" @submit="submit">
-      <UiInput
-        v-model="name"
-        :label="t('accounts.form.fields.name')"
-        :error="nameError"
-        required
-        placeholder="example"
-      />
-      <UiInput
-        v-model="primaryDomain"
-        :label="t('accounts.form.fields.primaryDomain')"
-        :error="primaryDomainError"
-        required
-        placeholder="example.com"
-      />
-      <UiInput
-        v-model="planId"
-        :label="t('accounts.form.fields.planId')"
-        :error="planIdError"
-        required
-        placeholder="00000000-0000-0000-0000-000000000000"
-      />
-      <div class="flex gap-2">
-        <UiButton type="submit" :disabled="store.creating">{{ t('accounts.form.submit') }}</UiButton>
-        <UiButton variant="secondary" type="button" @click="cancel">
-          {{ t('accounts.form.cancel') }}
-        </UiButton>
-      </div>
-    </UiForm>
+    <!-- The design's dialog body: the same panel every table sits in, with the
+         footer bar bleeding to its edges, which is why the padding lives on the
+         two inner blocks rather than on the panel. -->
+    <div class="overflow-hidden rounded-xl border border-border-subtle bg-surface-1">
+      <UiForm @submit="submit">
+        <div class="flex flex-col gap-3.5 p-4.5">
+          <UiInput
+            v-model="name"
+            :label="t('accounts.form.fields.name')"
+            :error="nameError"
+            required
+            :placeholder="t('accounts.form.placeholders.name')"
+          />
+          <UiInput
+            v-model="primaryDomain"
+            :label="t('accounts.form.fields.primaryDomain')"
+            :error="primaryDomainError"
+            required
+            :placeholder="t('accounts.form.placeholders.primaryDomain')"
+          />
+          <UiInput
+            v-model="planId"
+            :label="t('accounts.form.fields.planId')"
+            :error="planIdError"
+            required
+            :placeholder="t('accounts.form.placeholders.planId')"
+          />
+        </div>
+        <div class="flex justify-end gap-2 border-t border-border-subtle bg-surface-2 px-4.5 py-3">
+          <UiButton variant="secondary" type="button" @click="cancel">
+            {{ t('accounts.form.cancel') }}
+          </UiButton>
+          <UiButton type="submit" :disabled="store.creating">{{ t('accounts.form.submit') }}</UiButton>
+        </div>
+      </UiForm>
+    </div>
   </section>
 </template>

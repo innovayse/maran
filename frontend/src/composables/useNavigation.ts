@@ -1,5 +1,4 @@
-import { computed } from 'vue'
-import type { ComputedRef } from 'vue'
+import { computed, type ComputedRef  } from 'vue'
 import { useRouter } from 'vue-router'
 import { useModulesStore } from '../stores/modules'
 import type { NavigationEntry } from '../types/navigation'
@@ -43,6 +42,7 @@ export const useNavigation = (): ComputedRef<NavigationEntry[]> => {
       labelKey: 'app.nav.systemStatus',
       label: null,
       moduleName: null,
+      icon: 'pulse',
       locked: false,
     }
 
@@ -60,6 +60,9 @@ export const useNavigation = (): ComputedRef<NavigationEntry[]> => {
       labelKey: null,
       label: module.displayName ?? module.name,
       moduleName: module.name,
+      // The catalogue reports no icon, so every module gets the same neutral glyph rather than
+      // a guessed one: inventing a per-module icon would be inventing data the backend never sent.
+      icon: 'grid',
       locked: !module.isEnabled,
     }))
 

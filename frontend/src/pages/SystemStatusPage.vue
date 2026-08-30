@@ -10,7 +10,9 @@
  */
 import { onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
+import UiAlert from '../components/ui/UiAlert.vue'
 import UiCard from '../components/ui/UiCard.vue'
+import UiSpinner from '../components/ui/UiSpinner.vue'
 import { useSystemStore } from '../stores/system'
 
 const { t } = useI18n()
@@ -28,17 +30,29 @@ onMounted(refresh)
 </script>
 
 <template>
-  <section class="mx-auto max-w-xl">
-    <h1 class="mb-4 text-2xl font-semibold">{{ t('app.status.heading') }}</h1>
-    <UiCard>
-      <!-- Healthy: the backend answered; interpolate its reported status. -->
-      <p v-if="store.status !== null">{{ t('app.status.ok', { status: store.status }) }}</p>
-      <!-- Backend answered with an error: its text is already localized
-           server-side, render it verbatim (rules/vue.md). -->
-      <p v-else-if="store.errorMessage !== null">{{ store.errorMessage }}</p>
-      <!-- The request never reached the backend: the one case with no
-           server-provided message, covered by a frontend-owned string. -->
-      <p v-else-if="store.unreachable">{{ t('app.status.unreachable') }}</p>
+  <section class="w-full">
+    <h1 class="mb-4 text-xl font-semibold tracking-title text-text-primary">
+      {{ t('app.status.heading') }}
+    </h1>
+
+    <!-- Healthy: the backend answered; interpolate its reported status. -->
+    <UiCard v-if="store.status !== null">
+      <p>{{ t('app.status.ok', { status: store.status }) }}</p>
     </UiCard>
+
+    <!-- Backend answered with an error: its text is already localized
+         server-side, render it verbatim (rules/vue.md). A failure gets the
+         panel's error treatment here exactly as it does on every other
+         screen, rather than reading as ordinary card copy. -->
+    <UiAlert v-else-if="store.errorMessage !== null" variant="error">{{ store.errorMessage }}</UiAlert>
+
+    <!-- The request never reached the backend: the one case with no
+         server-provided message, covered by a frontend-owned string. -->
+    <UiAlert v-else-if="store.unreachable" variant="error">{{ t('app.status.unreachable') }}</UiAlert>
+
+    <!-- Nothing has settled yet. The store keeps no loading flag, so the
+         pending state is "no verdict of any kind" — without this branch the
+         first paint of the page is a blank panel. -->
+    <UiSpinner v-else :label="t('app.status.checking')" />
   </section>
 </template>

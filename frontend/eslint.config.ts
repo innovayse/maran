@@ -1,3 +1,5 @@
+import importX from 'eslint-plugin-import-x'
+import vueA11y from 'eslint-plugin-vuejs-accessibility'
 import jsdoc from 'eslint-plugin-jsdoc'
 import pluginVue from 'eslint-plugin-vue'
 import tseslint from 'typescript-eslint'
@@ -72,7 +74,7 @@ export default tseslint.config(
   {
     name: 'app/rules',
     files: ['**/*.{ts,mts,vue}'],
-    plugins: { jsdoc },
+    plugins: { jsdoc, 'import-x': importX, 'vuejs-accessibility': vueA11y },
     rules: {
       // --- Arrow-only style ---
       'func-style': ['error', 'expression'],
@@ -171,12 +173,49 @@ export default tseslint.config(
       // --- Types ---
       '@typescript-eslint/no-explicit-any': 'error',
       '@typescript-eslint/no-non-null-assertion': 'error',
-      '@typescript-eslint/consistent-type-imports': 'error',
+      // Types are imported inline, on the same line as the values from that module:
+      // `import { computed, type ComputedRef } from 'vue'`, never a second `import type`
+      // line for the same module. Two lines importing one module is noise a reader has to
+      // reconcile, and the pair drifts apart the moment someone edits only one of them.
+      '@typescript-eslint/consistent-type-imports': ['error', {
+        prefer: 'type-imports',
+        fixStyle: 'inline-type-imports',
+      }],
+      // The rule above chooses the STYLE; this one forbids the duplicate line itself, which
+      // the style rule alone does not catch when both imports already exist.
+      'import-x/no-duplicates': ['error', { 'prefer-inline': true }],
       '@typescript-eslint/explicit-function-return-type': ['error', { allowExpressions: false }],
       '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
 
       // --- i18n ---
-      'vue/no-bare-strings-in-template': 'error',
+      // Every user-visible string goes through i18n — INCLUDING the ones a sighted
+      // user never reads. An alt, aria-label, title or placeholder left in English is
+      // a screen-reader user being served a language they did not choose, and it is
+      // invisible in review precisely because nothing on screen looks wrong.
+      'vue/no-bare-strings-in-template': ['error', {
+        attributes: {
+          '/.+/': ['title', 'aria-label', 'aria-placeholder', 'aria-roledescription', 'aria-valuetext'],
+          input: ['placeholder'],
+          textarea: ['placeholder'],
+          img: ['alt'],
+        },
+        directives: ['v-text'],
+      }],
+
+      // The other half of the same rule: the attribute must EXIST. A translated label
+      // that is never written helps nobody, so these check presence, while the rule
+      // above checks that what is present came from a locale.
+      'vuejs-accessibility/alt-text': 'error',
+      'vuejs-accessibility/anchor-has-content': 'error',
+      'vuejs-accessibility/aria-props': 'error',
+      'vuejs-accessibility/aria-role': 'error',
+      'vuejs-accessibility/form-control-has-label': 'error',
+      'vuejs-accessibility/heading-has-content': 'error',
+      'vuejs-accessibility/iframe-has-title': 'error',
+      'vuejs-accessibility/label-has-for': ['error', { required: { every: ['id'] } }],
+      'vuejs-accessibility/mouse-events-have-key-events': 'error',
+      'vuejs-accessibility/no-autofocus': 'error',
+      'vuejs-accessibility/role-has-required-aria-props': 'error',
 
       // --- Cleanliness ---
       'no-console': 'error',

@@ -1,26 +1,32 @@
 {
   "app": {
     "title": "Maran",
+    "brandInitial": "M",
     "status": {
       "heading": "Համակարգի կարգավիճակ",
+      "checking": "Վահանակի API-ի ստուգում…",
       "ok": "Բոլոր համակարգերն աշխատում են բնականոն ({status})",
       "unreachable": "Չհաջողվեց կապվել API-ի հետ"
     },
     "nav": {
       "ariaLabel": "Հիմնական նավիգացիա",
       "systemStatus": "Համակարգի կարգավիճակ",
-      "lockedBadge": "Արգելափակված"
+      "lockedBadge": "Արգելափակված",
+      "groups": {
+        "panel": "Վահանակ"
+      }
     },
     "locale": {
       "switcherLabel": "Ինտերֆեյսի լեզուն",
       "names": {
-        "en": "EN",
-        "ru": "RU",
-        "hy": "HY"
+        "en": "English",
+        "ru": "Русский",
+        "hy": "Հայերեն"
       }
     },
     "upgrade": {
       "heading": "Անհրաժեշտ է թարմացնել լիցենզիան",
+      "subtitle": "Այս բաժինը պատկանում է մոդուլի, որը ներառված չէ ձեր ընթացիկ լիցենզիայում։",
       "module": "«{module}» մոդուլը ներառված չէ ձեր ընթացիկ լիցենզիայում։",
       "tier": "Այն հասանելի է {tier} փաթեթում։",
       "backHome": "Վերադառնալ համակարգի կարգավիճակին"
@@ -29,6 +35,35 @@
       "heading": "Էջը չի գտնվել",
       "description": "Հայցված էջը գոյություն չունի։",
       "backHome": "Վերադառնալ համակարգի կարգավիճակին"
+    },
+    "shell": {
+      "search": "Որոնել կամ անցնել…",
+      "searchShortcut": "⌘K",
+      "collapseSidebar": "Ծալել կողային վահանակը",
+      "expandSidebar": "Բացել կողային վահանակը",
+      "openNavigation": "Բացել նավիգացիան",
+      "navigationLabel": "Նավիգացիա",
+      "toggleTheme": "Փոխարկել մուգ և բաց թեմաների միջև",
+      "breadcrumbLabel": "Նավիգացիոն շղթա",
+      "noServerSelected": "Սերվեր ընտրված չէ",
+      "paletteTitle": "Անցնել",
+      "paletteClose": "Փակել անցման պատուհանը",
+      "paletteFieldLabel": "Որոնում վահանակում",
+      "palettePlaceholder": "Որոնել բաժիններ…",
+      "paletteClear": "Մաքրել որոնումը",
+      "paletteResultsLabel": "Համապատասխան բաժիններ",
+      "paletteNoMatches": "Ոչինչ չի գտնվել։",
+      "paletteHintNavigate": "↑↓ — շարժվել ցանկով",
+      "paletteHintOpen": "↵ — բացել",
+      "themeSwitcherLabel": "Ինտերֆեյսի թեման",
+      "themes": {
+        "dark": "Մուգ",
+        "light": "Բաց"
+      },
+      "askAi": "Հարցնել ԱԲ-ին",
+      "notifications": "Ծանուցումներ",
+      "account": "Ձեր հաշիվը",
+      "signedOut": "Ոչ ոք մուտք չի գործել"
     }
   },
   "accounts": {
@@ -38,10 +73,18 @@
     },
     "list": {
       "heading": "Հաշիվներ",
+      "subtitle": "Այս սերվերի հոսթինգային հաշիվները։",
       "createAction": "Նոր հաշիվ",
+      "searchLabel": "Հաշիվների զտիչ",
+      "searchPlaceholder": "Զտել ըստ անվան կամ դոմենի…",
+      "searchClear": "Մաքրել զտիչը",
+      "resultCount": "{total}-ից {shown} հաշիվ",
       "loading": "Հաշիվների բեռնում…",
       "emptyTitle": "Հաշիվներ դեռ չկան",
       "emptyDescription": "Ստեղծեք առաջին հոսթինգային հաշիվը՝ սկսելու համար։",
+      "noMatchesTitle": "«{query}»-ին համապատասխանող հաշիվներ չկան",
+      "noMatchesDescription": "Փորձեք այլ անուն կամ դոմեն, կամ մաքրեք զտիչը՝ բոլոր հաշիվները տեսնելու համար։",
+      "clearSearch": "Մաքրել զտիչը",
       "tableCaption": "Հոսթինգային հաշիվներ",
       "columns": {
         "name": "Անուն",
@@ -52,10 +95,16 @@
     },
     "form": {
       "heading": "Նոր հաշիվ",
+      "subtitle": "Վահանակը ստուգում է այս արժեքները ուղարկելուց առաջ, իսկ սերվերը ստուգում է դրանք կրկին։",
       "fields": {
         "name": "Անուն",
         "primaryDomain": "Հիմնական դոմեն",
         "planId": "Փաթեթի ID"
+      },
+      "placeholders": {
+        "name": "example",
+        "primaryDomain": "example.com",
+        "planId": "00000000-0000-0000-0000-000000000000"
       },
       "submit": "Ստեղծել հաշիվ",
       "cancel": "Չեղարկել",

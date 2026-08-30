@@ -7,8 +7,7 @@
  * assistive tech announces validation problems (rules/vue.md: "UI comes
  * from components/ui").
  */
-import { computed, useId } from 'vue'
-import type { ComputedRef } from 'vue'
+import { computed, useId, type ComputedRef } from 'vue'
 
 /** Props accepted by {@link UiInput}. */
 const props = withDefaults(
@@ -59,7 +58,14 @@ const onInput = (event: Event): void => {
 
 <template>
   <div class="flex flex-col gap-1">
-    <label :for="inputId" class="text-sm font-medium text-slate-900">{{ label }}</label>
+    <!-- The label turns red with the field: in the design an invalid field is
+         readable as invalid from the label down, not only from the border. -->
+    <label
+      :for="inputId"
+      class="text-xs font-medium"
+      :class="hasError ? 'text-danger' : 'text-text-secondary'"
+      >{{ label }}</label
+    >
     <input
       :id="inputId"
       :type="type"
@@ -68,10 +74,14 @@ const onInput = (event: Event): void => {
       :aria-required="required ? 'true' : undefined"
       :aria-invalid="hasError"
       :aria-describedby="hasError ? errorId : undefined"
-      class="rounded-md border px-3 py-2 text-sm text-slate-900 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
-      :class="hasError ? 'border-red-400' : 'border-slate-300'"
+      class="rounded-lg border bg-surface-2 px-2 py-1.5 text-xs text-text-primary placeholder:text-text-muted focus-visible:outline-none"
+      :class="
+        hasError
+          ? 'border-[rgb(229_72_77/0.5)] focus-visible:shadow-focus-danger'
+          : 'border-border-subtle focus-visible:border-accent focus-visible:shadow-focus'
+      "
       @input="onInput"
     />
-    <p v-if="hasError" :id="errorId" class="text-sm text-red-700">{{ error }}</p>
+    <p v-if="hasError" :id="errorId" class="text-xs text-danger">{{ error }}</p>
   </div>
 </template>

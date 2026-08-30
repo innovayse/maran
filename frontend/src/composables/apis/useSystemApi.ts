@@ -1,14 +1,5 @@
-import type { HealthResponse } from '../../types/health'
+import type { HealthResponse, SystemApi } from '../../types/system'
 import { useApi } from '../useApi'
-
-/** Public surface of the system API composable returned by {@link useSystemApi}. */
-interface SystemApi {
-  /**
-   * Calls `GET /health` and returns the parsed response.
-   * @returns The backend's reported health status.
-   */
-  getHealth: () => Promise<HealthResponse>
-}
 
 /**
  * Typed API composable for host-level system endpoints (currently just
