@@ -47,13 +47,29 @@ if [ "$command_name" = "check" ]; then
   for project_file in "$root"/backend/src/Maran.Modules/*/Maran.Modules.*.csproj; do
     name="$(basename "$(dirname "$project_file")")"
     printf '%-12s ' "$name"
-    if dotnet ef migrations has-pending-model-changes \
-      --project "$project_file" --context "${name}DbContext" >/dev/null 2>&1; then
-      echo "up to date"
-    else
-      echo "MODEL CHANGED WITHOUT A MIGRATION — run: maran migrate add $name <Name>"
-      pending=$((pending + 1))
-    fi
+
+    # The OUTPUT decides, not the exit code alone. `dotnet ef` exits non-zero both when the
+    # model has drifted and when it could not run at all — a missing tool, a build failure, a
+    # context it cannot find. Treating those the same made this check report "model changed"
+    # for a broken toolchain, which sends the reader to fix the wrong thing. A check whose
+    # failure mode lies is worse than no check.
+    output="$(dotnet ef migrations has-pending-model-changes \
+      --project "$project_file" --context "${name}DbContext" 2>&1 || true)"
+
+    case "$output" in
+      *"No changes have been made to the model"*)
+        echo "up to date"
+        ;;
+      *"Changes have been made to the model"*|*"pending model changes"*)
+        echo "MODEL CHANGED WITHOUT A MIGRATION — run: maran migrate add $name <Name>"
+        pending=$((pending + 1))
+        ;;
+      *)
+        echo "COULD NOT CHECK — this is a broken toolchain, not a model change:"
+        printf '%s\n' "$output" | sed 's/^/    /'
+        pending=$((pending + 1))
+        ;;
+    esac
   done
 
   [ "$pending" -gt 0 ] && exit 1
