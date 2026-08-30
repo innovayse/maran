@@ -12,6 +12,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="FluentValidation" />
+    <!-- Otp.NET: the tests compute the codes they feed TotpService, so the service is checked
+         against the algorithm rather than against itself. -->
+    <PackageReference Include="Otp.NET" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
     <PackageReference Include="xunit" />
     <PackageReference Include="xunit.runner.visualstudio">
@@ -21,7 +26,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\Maran.SharedKernel\Maran.SharedKernel.csproj" />
+    <ProjectReference Include="..\..\src\Maran.Modules\Identity\Maran.Modules.Identity.csproj" />
   </ItemGroup>
 
 </Project>

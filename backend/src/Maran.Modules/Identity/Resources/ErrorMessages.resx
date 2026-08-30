@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="InvalidCredentialsUnauthorized">
+    <value>The username or password is incorrect.</value>
+  </data>
+  <data name="TwoFactorRequiredUnauthorized">
+    <value>Enter the code from your authenticator app to finish signing in.</value>
+  </data>
+  <data name="InvalidTwoFactorCodeUnauthorized">
+    <value>That code is not valid. Check your authenticator app and try again.</value>
+  </data>
+  <data name="RefreshTokenInvalidUnauthorized">
+    <value>Your session has ended. Please sign in again.</value>
+  </data>
+  <data name="RefreshTokenReusedUnauthorized">
+    <value>Your session was ended for security reasons. Please sign in again.</value>
+  </data>
+  <data name="SessionNotFound">
+    <value>This session could not be found.</value>
+  </data>
+  <data name="UserNotFound">
+    <value>This user could not be found.</value>
+  </data>
+  <data name="UsernameTaken">
+    <value>This username is already taken.</value>
+  </data>
+  <data name="EmailTaken">
+    <value>This email address is already registered.</value>
+  </data>
+  <data name="SetupAlreadyCompletedForbidden">
+    <value>This panel has already been set up.</value>
+  </data>
+  <data name="SetupTokenInvalidUnauthorized">
+    <value>This setup link is not valid.</value>
+  </data>
+  <data name="TwoFactorAlreadyEnabledForbidden">
+    <value>Two-factor authentication is already enabled.</value>
+  </data>
+  <data name="TwoFactorNotEnabledForbidden">
+    <value>Two-factor authentication is not enabled.</value>
+  </data>
+  <data name="PasswordTooWeak">
+    <value>Choose a password of at least 12 characters that is different from your username.</value>
+  </data>
+  <data name="UsernameInvalidFormat">
+    <value>A username may contain only letters, digits, dots, dashes and underscores.</value>
+  </data>
+  <data name="EmailInvalidFormat">
+    <value>Enter a valid email address.</value>
+  </data>
+</root>
