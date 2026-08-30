@@ -278,7 +278,21 @@ two areas moves to `agent-core`, it does not get imported across `ops` areas.
 ## Distro adapter
 
 - Distro differences live only in the `distro` crate behind `DistroAdapter`.
-  `ops` code MUST NOT branch on distro names, package managers, or paths.
+  `ops` code MUST NOT branch on distro names, package managers, or paths — and MUST NOT
+  write a platform literal either, which is the same violation without an `if`:
+
+```rust
+// WRONG — ops/src/accounts/account_operations.rs
+const ACTIVE_SHELL: &str = "/usr/sbin/nologin";   // correct on Debian, absent on RHEL
+
+// RIGHT
+self.distro.nologin_shell()
+```
+
+  A literal is worse than a branch, because a branch at least names the thing it is
+  guessing about. `useradd` does not verify that the shell exists, so the wrong path
+  creates the account successfully and surfaces months later as "SFTP refuses me".
+  `scripts/lib/check-structure.sh` rejects platform literals under `ops/`.
 - The branch on family happens exactly once, in `adapter_for`.
 - The trait is grown additively, and when it passes roughly a dozen methods it is
   split by concern (paths, packages, services) into sub-traits returned from the
@@ -448,7 +462,7 @@ mod tests;
 
 ## Enforcement
 
-`scripts/maran structure` runs in CI as a merge gate and rejects:
+`maran structure` runs in CI as a merge gate and rejects:
 
 - more than one public unit in a file;
 - a definition in a crate root or `mod.rs`;

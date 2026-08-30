@@ -6,7 +6,7 @@ Normative. Enforced by `.editorconfig`, `Directory.Build.props` (`<TreatWarnings
 
 - 4 spaces, 120 columns, LF, final newline. File-scoped namespaces only.
 - `var` when the type is apparent from the right-hand side; explicit type otherwise.
-- Braces always — for a single-line `if`, and for every member body. No expression-bodied members: a method, property, constructor, operator, indexer, accessor, or local function is written as a braced block, however short, so that growing a one-line body to two lines never changes its shape. Enforced mechanically in `backend/.editorconfig` (`csharp_prefer_braces`, `csharp_style_expression_bodied_*` and their `IDE0011`/`IDE0021`–`IDE0027` severities set to `error`) — note that this file, not the repository-root `.editorconfig`, is the one that binds backend code. `scripts/maran format` applies the fixes; `scripts/maran format --check` verifies without writing.
+- Braces always — for a single-line `if`, and for every member body. No expression-bodied members: a method, property, constructor, operator, indexer, accessor, or local function is written as a braced block, however short, so that growing a one-line body to two lines never changes its shape. Enforced mechanically in `backend/.editorconfig` (`csharp_prefer_braces`, `csharp_style_expression_bodied_*` and their `IDE0011`/`IDE0021`–`IDE0027` severities set to `error`) — note that this file, not the repository-root `.editorconfig`, is the one that binds backend code. `maran format` applies the fixes; `maran format --check` verifies without writing.
 
 ```csharp
 // WRONG — an expression-bodied member
@@ -19,7 +19,9 @@ public string Name
 }
 ```
 
-- `_camelCase` private fields, `PascalCase` everything public, `IPascalCase` interfaces, `Async` suffix on async methods.
+- `_camelCase` private INSTANCE fields; `PascalCase` for `const` and for `static readonly` alike — a cached delegate or a fixed array is a constant the language will not let us declare `const`, and the member-order rule below groups it with the constants, not the fields.
+- `PascalCase` everything public, `IPascalCase` interfaces, `Async` suffix on async methods — including a Wolverine handler, which is `HandleAsync`, not `Handle`.
+- These are build errors, not suggestions. `dotnet_naming_rule.*.severity` is honoured by the IDE and by `dotnet format` but NOT by the compiler, so `backend/.editorconfig` also sets `dotnet_diagnostic.IDE1006.severity = warning`, which `TreatWarningsAsErrors` turns into a failure. Without that line the naming rules are advisory and the tree drifts; it had drifted to 418 violations before the line existed.
 - Types are `sealed` unless designed for inheritance. Commands, queries, and DTOs are `record`s.
 - Package versions only in `Directory.Packages.props`.
 - `using` directives: `System.*` first, then alphabetical, placed BEFORE the namespace declaration. No unused usings — `EnforceCodeStyleInBuild` plus `dotnet_diagnostic.IDE0005.severity = error` make an unused directive a build error, not an IDE hint. A file-level `using` duplicating a `GlobalUsings.cs` entry counts as unused.
@@ -326,7 +328,7 @@ public sealed class AuditLogsController : BaseApiController
 
 ## Doc comments — mandatory for ALL code
 
-XML docs are REQUIRED on **every type and every member — public, internal, protected, and private alike** — in all production code. Not just the SDK surface: handlers, validators, private helpers, fields with non-obvious meaning. Test code is exempt (the behavior-sentence test name is its documentation, see rules/testing.md). Say what the caller needs, not what the code does line by line.
+XML docs are REQUIRED on **every type and every member — public, internal, protected, and private alike** — in all code, tests included. Not just the SDK surface: handlers, validators, private helpers, fields with non-obvious meaning. A test's summary restates its behaviour sentence, so the generated documentation carries the contract too (rules/testing.md). Say what the caller needs, not what the code does line by line.
 
 ```csharp
 /// <summary>
@@ -337,6 +339,22 @@ XML docs are REQUIRED on **every type and every member — public, internal, pro
 /// <returns>The created account id, or a typed error.</returns>
 public Task<Result<AccountId>> HandleAsync(CreateAccount command, CancellationToken ct);
 ```
+
+## Analyser rules are switched off in the open, never with `<NoWarn>`
+
+No project file carries a `<NoWarn>`. It is invisible from the code it affects, it hides every future
+violation of the rule as well as today's, and it silences the rule for a whole project when the reason
+covers two files. A rule that genuinely must be off is turned off in `backend/.editorconfig`, in a
+section scoped to the narrowest path that needs it, above a comment saying which rule wins and why:
+
+```editorconfig
+# Test names are behaviour sentences, which rules/testing.md mandates and xUnit requires to be public.
+[tests/**/*.cs]
+dotnet_diagnostic.CA1707.severity = none
+```
+
+A suppression whose comment does not name the rule it defers to is a review reject. `CS1591` (missing
+XML comment) is never among them: see the doc-comment rule above.
 
 ## The backend owns all user-facing message text (.resx)
 

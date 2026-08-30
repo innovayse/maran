@@ -10,7 +10,7 @@ readonly MARAN_CONFIG_DIR="/etc/maran"
 readonly MARAN_CONFIG_FILE="${MARAN_CONFIG_DIR}/panel.env"
 
 # generate_encryption_key: 256 bits of randomness from the kernel CSPRNG, base64-encoded
-# (matches the shape DataProtection/appsettings already expect — see scripts/dev-env.sh's
+# (matches the shape DataProtection/appsettings already expect — see scripts/dev's
 # throwaway dev key for the same encoding). Never echoed to the log: this function's
 # stdout is captured directly into a variable by the caller, not printed.
 generate_encryption_key() {

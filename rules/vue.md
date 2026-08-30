@@ -159,7 +159,7 @@ behind when the components around them move, and sit a step off with nothing to 
 secondary lines. `text-xs` is for uppercase micro-labels, table headers, badges and key chips, never
 for a phrase. Titles start at `text-lg` and go up.
 
-`scripts/maran structure` rejects a literal `font-size` and the `text-[…]` form.
+`maran structure` rejects a literal `font-size` and the `text-[…]` form.
 
 ## Member order — functions come last
 
@@ -262,6 +262,7 @@ const remove = async (): Promise<void> => {
 - The interface language lives in `stores/locale.ts` and nowhere else. It feeds BOTH `i18n.global.locale` (the app's own chrome) and the `Accept-Language` header `useApi` sends (the server-produced text).
 - Never read `navigator.language` outside that store, and never hardcode a starting locale in the i18n factory: a Russian interface with English server errors — or the reverse — is a bug the user sees immediately.
 - The store resolves the initial language as: previously chosen (persisted) → browser preference when supported → `en`. Storage access is wrapped in try/catch; a language preference must never be able to break the shell.
+- **Every locale carries the same keys.** A key added to `locales/en/` and forgotten in `locales/hy/` is not an error anywhere: vue-i18n renders the key itself, so the Armenian user reads `app.audit.heading` where a heading belongs. `maran structure` compares the three trees key by key and fails on either direction — a key missing from a locale, or one that exists in only one. English is the reference, because the keys are written in it.
 
 ## Forms: the browser never validates
 

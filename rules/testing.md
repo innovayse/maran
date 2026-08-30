@@ -36,7 +36,7 @@ A PR missing any of these is incomplete, independent of code quality.
 
   Cargo's own `agent/crates/<crate>/tests/` directory holds integration tests only — things that exercise the crate exactly as a caller would, like the agent's handshake over a real unix socket. Fixtures live beside them; template golden files in `agent/crates/templates/tests/golden/`.
 
-  `scripts/maran structure` rejects an inline `mod tests {` and a `*_tests.rs` outside the `src/tests/` mirror.
+  `maran structure` rejects an inline `mod tests {` and a `*_tests.rs` outside the `src/tests/` mirror.
 - Frontend: **no colocated unit tests** — the SPA is verified end-to-end. Playwright specs live in `frontend/e2e/` with fixtures in `e2e/fixtures/`; the shell's own gates are `lint`, `typecheck` and `build`.
 
 ## Naming
@@ -55,7 +55,10 @@ fn path_with_symlink_escape_is_rejected() { ... }
 
 `Test1`, `TestCreateSite`, `ItWorks` are review rejects.
 
-Test code is exempt from the mandatory doc-comment rule — the behavior-sentence name *is* the documentation. Everything else about style (formatting, one concern per file) applies to tests too.
+Test code carries doc comments like every other file: `CS1591` is on for the test projects too.
+The summary restates the behavior sentence, so a reader of the generated documentation sees the
+contract without opening the file. Everything else about style (formatting, one concern per file)
+applies to tests too.
 
 ## What tests assert
 
@@ -85,7 +88,7 @@ Test code is exempt from the mandatory doc-comment rule — the behavior-sentenc
   system C linker, so without a C toolchain (`sudo apt install -y build-essential`) cargo stops at
   ``linker `cc` not found`` and NO agent test runs. `protoc` is required too — the agent's `build.rs`
   generates the proto contract at compile time.
-- `scripts/maran check` reports exactly which of these are missing. Run it before claiming any
+- `maran check` reports exactly which of these are missing. Run it before claiming any
   agent gate is green: a toolchain error is a failure to verify, never a pass, and reading it as
   "nothing to run" is the same defect as treating "no tests found" as success.
 
