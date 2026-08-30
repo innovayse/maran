@@ -1,5 +1,11 @@
 # Maran
 
+[![backend](https://github.com/innovayse/maran/actions/workflows/backend.yml/badge.svg?branch=dev)](https://github.com/innovayse/maran/actions/workflows/backend.yml)
+[![agent](https://github.com/innovayse/maran/actions/workflows/agent.yml/badge.svg?branch=dev)](https://github.com/innovayse/maran/actions/workflows/agent.yml)
+[![frontend](https://github.com/innovayse/maran/actions/workflows/frontend.yml/badge.svg?branch=dev)](https://github.com/innovayse/maran/actions/workflows/frontend.yml)
+[![cross](https://github.com/innovayse/maran/actions/workflows/cross.yml/badge.svg?branch=dev)](https://github.com/innovayse/maran/actions/workflows/cross.yml)
+[![licence: BSL 1.1](https://img.shields.io/badge/licence-BSL%201.1-blue)](LICENSE)
+
 A modern web hosting control panel for Linux servers. Install it on a server and manage
 websites, PHP versions, SSL certificates, databases, files, backups and the firewall from a
 browser, with a separate cabinet for every hosting customer and an API that billing systems
@@ -122,38 +128,55 @@ command line tool, and reversible with an automatic database dump and a rollback
 
 ## Development
 
-    source scripts/dev   # toolchains and the `maran` command on PATH
-    maran                       # the toolbox: every command, with what it is for
-    maran check                 # verify the toolchain before anything else
-    maran dev                   # the whole stack: database, API, application
+    source scripts/dev                 # sourced, not run: toolchains and `maran` on your PATH
+    maran                              # the toolbox: every command, with what it is for
+    maran check                        # what this machine is missing, before anything else
+    maran dev                          # the whole stack: database, API, application
 
-`maran dev` starts the PostgreSQL container, the API and the SPA, waits until each answers,
-and then streams only warnings and errors; Ctrl+C stops everything. Docker carries development
+Everything runs through one CLI. `maran` is on PATH after sourcing `scripts/dev`, so it works
+from any directory in the repository; its help is generated from the command table, so a
+command that exists is a command that is documented. It dispatches to the scripts in
+`scripts/lib/`, which are implementations rather than the surface — call `maran`, not them.
+`scripts/dev` is the one file that must be sourced rather than run, because a subprocess cannot
+put toolchains on its parent's PATH.
+
+`maran dev` starts the PostgreSQL container, the API and the SPA, waits until each answers, and
+then streams only warnings and errors; Ctrl+C stops everything. Docker carries development
 dependencies only — the API and the application run natively, exactly as they do on a server.
+
+`source scripts/dev` also creates `.env` from `.env.example` the first time. That file is
+git-ignored and is the only place local configuration lives.
 
 Verification, each runnable on its own:
 
+    maran structure                    # file and folder laws no compiler can express
+    maran format --check               # formatting and naming, every language
+    maran proto                        # the API-to-agent contract
+    maran migrate check                # a model edited without a migration
+    maran agent check                  # rustfmt, clippy -D warnings, cargo test
+    maran handshake                    # agent and API over a real unix socket
     cd backend  && dotnet test         # unit, architecture and integration tests
-    cd agent    && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test
-    cd frontend && npm ci && npm run lint && npm run typecheck && npm run build
-    cd frontend && npx playwright install --with-deps chromium && npm run test:e2e
-    maran handshake      # agent and API over a real unix socket
+    cd frontend && npm run lint && npm run typecheck && npm run build && npx playwright test
 
 The application has no unit-test runner by design: it is verified end to end against a running
 API in `frontend/e2e/` (rules/testing.md).
 
-`maran` is on PATH after sourcing `scripts/dev`, so it works from any directory in
-the repository. It dispatches to the scripts in `scripts/lib/` — `format`, `migrate`, `module`, `structure`,
-`proto`, `agent`, `handshake` — and printing it with no arguments lists them with what each is for.
-The scripts remain runnable directly; CI calls them by path. `scripts/dev` is the one that must be
-sourced rather than run, because a subprocess cannot put toolchains on its parent's PATH.
-
-`maran agent` runs the Rust toolchain and falls back to a pinned container when the machine
-has no C linker, so a fresh clone can build the agent before installing anything.
+`maran agent` runs the Rust toolchain natively and falls back to a pinned container when the
+machine has no C linker, so a fresh clone can build the agent before installing anything.
 
 Requirements: .NET 9 SDK, Rust (stable), Node.js 20+, protoc, a C toolchain for Rust linking
 (`build-essential`), and Docker for development only.
-Contributions must follow the rules in `rules/`; they are enforced in continuous integration.
+
+## Contributing
+
+Read [CONTRIBUTING.md](CONTRIBUTING.md) first — it covers the setup above, the gates a pull
+request has to pass, and the changes that need a second reviewer and a written threat note.
+
+The rules in [`rules/`](rules/) are binding and mostly enforced by a command rather than by a
+reviewer's memory. Work branches from `dev` and merges back into it; `main` is the release
+branch and takes nothing but a reviewed pull request from `dev`.
+
+Everyone taking part is expected to follow the [Code of Conduct](CODE_OF_CONDUCT.md).
 
 ## Status
 
@@ -174,8 +197,11 @@ with a conversion to an open source license on the date stated in `LICENSE`.
 
 ## Security
 
-Report vulnerabilities privately as described in `SECURITY.md`. Please do not open public
-issues for security problems.
+Report vulnerabilities privately as described in [SECURITY.md](SECURITY.md). Please do not open
+public issues for security problems.
+
+Probing your own installation is welcome. Probing somebody else's is not, and no finding
+excuses it.
 
 ---
 
