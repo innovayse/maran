@@ -4,7 +4,7 @@ use crate::DistroAdapter;
 use crate::family::DistroFamily;
 
 /// Implements the agent's operations the RHEL way: dnf, `conf.d`, `nginx` user,
-/// SELinux contexts. Stateless, so [`crate::adapter_for`] can hand out one shared
+/// SELinux contexts. Stateless, so [`crate::adapter_for()`] can hand out one shared
 /// reference.
 pub struct RhelAdapter;
 

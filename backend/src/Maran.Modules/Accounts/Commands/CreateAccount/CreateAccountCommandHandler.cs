@@ -1,6 +1,6 @@
 using Maran.Modules.Accounts.Common;
 using Maran.Modules.Accounts.Domain;
-using Maran.Modules.Accounts.Errors;
+using Maran.Modules.Accounts.Resources;
 using Maran.Modules.Accounts.Persistence;
 
 namespace Maran.Modules.Accounts.Commands.CreateAccount;
@@ -32,7 +32,7 @@ public sealed class CreateAccountCommandHandler
     /// </summary>
     /// <param name="command">The validated account parameters; see <see cref="CreateAccountCommandValidator"/>.</param>
     /// <param name="cancellationToken">Cancels the write.</param>
-    /// <returns>The created account, or <see cref="AccountsErrors.NameTaken"/>/<see cref="AccountsErrors.DomainTaken"/>.</returns>
+    /// <returns>The created account, or <c>AccountNameTaken</c>/<c>AccountDomainTaken</c>.</returns>
     public async Task<Result<AccountDto>> Handle(CreateAccountCommand command, CancellationToken cancellationToken)
     {
         var nameTaken = await _dbContext.Accounts
@@ -40,7 +40,7 @@ public sealed class CreateAccountCommandHandler
             .AnyAsync(a => a.Name == command.Name, cancellationToken);
         if (nameTaken)
         {
-            return Result<AccountDto>.Fail(AccountsErrors.NameTaken(command.Name));
+            return Result<AccountDto>.Fail(Error.Of(nameof(ErrorMessages.AccountNameTaken)));
         }
 
         var domainTaken = await _dbContext.Accounts
@@ -48,7 +48,7 @@ public sealed class CreateAccountCommandHandler
             .AnyAsync(a => a.PrimaryDomain == command.PrimaryDomain, cancellationToken);
         if (domainTaken)
         {
-            return Result<AccountDto>.Fail(AccountsErrors.DomainTaken(command.PrimaryDomain));
+            return Result<AccountDto>.Fail(Error.Of(nameof(ErrorMessages.AccountDomainTaken)));
         }
 
         var account = new Account(Guid.NewGuid(), command.Name, command.PrimaryDomain, command.PlanId, _clock.UtcNow);

@@ -136,3 +136,6 @@ dotnet_diagnostic.IDE0027.severity = none
 dotnet_diagnostic.IDE0053.severity = none
 dotnet_diagnostic.IDE0061.severity = none
 dotnet_diagnostic.IDE0161.severity = none
+# CA1825: EF writes `new bool[0]` for a single-column descending index. It is a performance
+# suggestion about an allocation that happens once, at migration time, in code we do not author.
+dotnet_diagnostic.CA1825.severity = none

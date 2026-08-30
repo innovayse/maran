@@ -5,15 +5,19 @@
  * `--s3` inside a `--b2` border with 10px/600 initials, the name at 12px/500
  * truncating beside it, and the role beneath at 10px in `--t3`.
  *
- * It renders a signed-out state today, and that is not a placeholder awaiting a
- * nicer design: this build has no authentication, no session and no `/me`
- * endpoint, so the panel genuinely does not know who is looking at it. The
- * canvas's "Dana Keller / Owner" is invented sample data; shipping it would put
- * a fictional person's name in front of every real customer (rules/vue.md: the
- * SPA never invents domain data).
+ * The person comes from the auth store, which holds what the backend reported at
+ * sign-in. The canvas's "Dana Keller / Owner" is invented sample data and is not
+ * used: a fictional name in front of a real customer is worse than no name
+ * (rules/vue.md: the SPA never invents domain data). When nobody is signed in the
+ * block says so, which on this shell only happens for the moment before the
+ * session is restored.
  */
+import { computed, type ComputedRef } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useRouter } from 'vue-router'
+import UiButton from '../ui/UiButton.vue'
 import UiIcon from '../ui/UiIcon.vue'
+import { useAuthStore } from '../../stores/auth'
 
 /**
  * The signed-in person, as the sidebar needs to show them.
@@ -33,20 +37,46 @@ export interface ShellUser {
   role: string
 }
 
-/** Props accepted by {@link ShellUserBlock}. */
-defineProps<{
-  /** The signed-in person, or `null` while the panel has no session to report. */
-  user: ShellUser | null
-}>()
-
 const { t } = useI18n()
+const router = useRouter()
+const authStore = useAuthStore()
+
+/**
+ * The signed-in person in the shape the footer draws, or `null` when there is none.
+ *
+ * The initials are taken from the username rather than a display name the panel does
+ * not have: a login name is chosen by its owner and its first characters are theirs,
+ * where splitting a full name into given and family parts guesses wrong in most of
+ * the world.
+ */
+const user: ComputedRef<ShellUser | null> = computed(() => {
+  const signedIn = authStore.user
+  if (signedIn === null) {
+    return null
+  }
+
+  return {
+    initials: signedIn.username.slice(0, 2).toUpperCase(),
+    name: signedIn.username,
+    role: t(`app.auth.role.${signedIn.role}`),
+  }
+})
+
+/**
+ * Signs out of this device and returns to the sign-in screen.
+ * @returns Resolves once the request has settled.
+ */
+const signOut = async (): Promise<void> => {
+  await authStore.logout()
+  await router.push({ name: 'login' })
+}
 </script>
 
 <template>
   <!-- The design's 24px avatar circle: raised surface, stronger border, and the
        initials only when there genuinely are initials to draw. -->
   <span
-    class="grid h-6 w-6 shrink-0 place-items-center rounded-full border border-border-strong bg-surface-3 text-2xs font-semibold text-text-secondary"
+    class="grid h-6 w-6 shrink-0 place-items-center rounded-full border border-border-strong bg-surface-3 text-sm font-semibold text-text-secondary"
     aria-hidden="true"
   >
     <template v-if="user !== null">{{ user.initials }}</template>
@@ -54,11 +84,21 @@ const { t } = useI18n()
   </span>
 
   <span v-if="user !== null" class="min-w-0 flex-1">
-    <span class="block truncate text-xs font-medium text-text-primary">{{ user.name }}</span>
-    <span class="block text-2xs text-text-muted">{{ user.role }}</span>
+    <span class="block truncate text-base font-medium text-text-primary">{{ user.name }}</span>
+    <span class="block text-base text-text-muted">{{ user.role }}</span>
   </span>
 
-  <span v-else class="min-w-0 flex-1 truncate text-2xs text-text-muted">
+  <span v-else class="min-w-0 flex-1 truncate text-base text-text-muted">
     {{ t('app.shell.signedOut') }}
   </span>
+
+  <UiButton
+    v-if="user !== null"
+    variant="ghost"
+    :aria-label="t('app.auth.signOut')"
+    :title="t('app.auth.signOut')"
+    @click="signOut"
+  >
+    <UiIcon name="logOut" :size="15" />
+  </UiButton>
 </template>

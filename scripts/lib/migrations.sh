@@ -8,17 +8,22 @@
 # equivalent of that deliberate step.
 #
 # Usage:
-#   scripts/migrations.sh add Accounts InitialAccountsSchema   create a migration
-#   scripts/migrations.sh apply Accounts                       apply pending migrations locally
-#   scripts/migrations.sh list Accounts                        show migrations and which are applied
+#   scripts/maran migrate add Accounts InitialAccountsSchema   create a migration
+#   scripts/maran migrate apply Accounts                       apply pending migrations locally
+#   scripts/maran migrate list Accounts                        show migrations and which are applied
+#   scripts/maran migrate check                                every module's model matches its migrations
+#
+# `check` is the one that runs in CI. An entity edited without a migration is not an error anywhere
+# until a real database is involved, and then it surfaces as a confusing query failure rather than
+# as the thing that actually happened: somebody changed the model and did not say so in a file.
 set -euo pipefail
 
-root="$(cd "$(dirname "$0")/.." && pwd)"
+root="$(cd "$(dirname "$0")/../.." && pwd)"
 
 # shellcheck disable=SC1091
-. "$root/scripts/dev-env.sh"
+. "$root/scripts/dev"
 
-# dotnet tool install --global puts executables here; dev-env.sh deliberately does not add it,
+# dotnet tool install --global puts executables here; scripts/dev deliberately does not add it,
 # because only this script needs them.
 export PATH="$HOME/.dotnet/tools:$PATH"
 
@@ -28,13 +33,34 @@ if ! command -v dotnet-ef >/dev/null 2>&1; then
 fi
 
 usage() {
-  echo "usage: scripts/migrations.sh {add <Module> <Name>|apply <Module>|list <Module>}" >&2
+  echo "usage: maran migrate {add <Module> <Name>|apply <Module>|list <Module>|check}" >&2
   exit 1
 }
 
 command_name="${1:-}"
 module="${2:-}"
 [ -z "$command_name" ] && usage
+
+# `check` walks every module itself, so it is the one command that takes no module name.
+if [ "$command_name" = "check" ]; then
+  pending=0
+  for project_file in "$root"/backend/src/Maran.Modules/*/Maran.Modules.*.csproj; do
+    name="$(basename "$(dirname "$project_file")")"
+    printf '%-12s ' "$name"
+    if dotnet ef migrations has-pending-model-changes \
+      --project "$project_file" --context "${name}DbContext" >/dev/null 2>&1; then
+      echo "up to date"
+    else
+      echo "MODEL CHANGED WITHOUT A MIGRATION — run: maran migrate add $name <Name>"
+      pending=$((pending + 1))
+    fi
+  done
+
+  [ "$pending" -gt 0 ] && exit 1
+  echo "MIGRATIONS-OK"
+  exit 0
+fi
+
 [ -z "$module" ] && usage
 
 project="$root/backend/src/Maran.Modules/$module/Maran.Modules.$module.csproj"

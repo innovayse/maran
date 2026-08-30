@@ -65,7 +65,9 @@ const errorId: string = `${groupName}-error`
 const legendId: string = `${groupName}-legend`
 
 /** Whether the group is currently in an error state. */
-const hasError: ComputedRef<boolean> = computed(() => props.error !== null && props.error !== undefined)
+const hasError: ComputedRef<boolean> = computed(() => {
+  return props.error !== null && props.error !== undefined
+})
 
 /**
  * Publishes the newly selected option's value.
@@ -92,7 +94,7 @@ const onSelect = (value: string): void => {
   >
     <legend
       :id="legendId"
-      class="mb-1 text-xs font-medium"
+      class="mb-1 text-base font-medium"
       :class="hasError ? 'text-danger' : 'text-text-secondary'"
     >
       {{ legend }}
@@ -107,6 +109,6 @@ const onSelect = (value: string): void => {
       :disabled="disabled || option.disabled === true"
       @select="onSelect"
     />
-    <p v-if="hasError" :id="errorId" class="text-xs text-danger">{{ error }}</p>
+    <p v-if="hasError" :id="errorId" class="text-base text-danger">{{ error }}</p>
   </fieldset>
 </template>

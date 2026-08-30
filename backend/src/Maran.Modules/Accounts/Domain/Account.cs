@@ -1,3 +1,4 @@
+using Maran.Modules.Accounts.Domain.Enums;
 namespace Maran.Modules.Accounts.Domain;
 
 /// <summary>
@@ -7,6 +8,24 @@ namespace Maran.Modules.Accounts.Domain;
 /// </summary>
 public sealed class Account
 {
+    /// <summary>The account's identity.</summary>
+    public Guid Id { get; private set; }
+
+    /// <summary>The account's unique, Linux-username-safe short name (the eventual system user name).</summary>
+    public string Name { get; private set; }
+
+    /// <summary>The account's primary domain.</summary>
+    public string PrimaryDomain { get; private set; }
+
+    /// <summary>The id of the plan bounding this account's resource limits.</summary>
+    public Guid PlanId { get; private set; }
+
+    /// <summary>The account's current lifecycle state.</summary>
+    public AccountStatus Status { get; private set; }
+
+    /// <summary>The instant the account was created.</summary>
+    public DateTimeOffset CreatedAt { get; private set; }
+
     /// <summary>Creates a new account in the <see cref="AccountStatus.Active"/> state.</summary>
     /// <param name="id">The account's identity.</param>
     /// <param name="name">The account's unique, Linux-username-safe short name.</param>
@@ -29,24 +48,6 @@ public sealed class Account
         Name = string.Empty;
         PrimaryDomain = string.Empty;
     }
-
-    /// <summary>The account's identity.</summary>
-    public Guid Id { get; private set; }
-
-    /// <summary>The account's unique, Linux-username-safe short name (the eventual system user name).</summary>
-    public string Name { get; private set; }
-
-    /// <summary>The account's primary domain.</summary>
-    public string PrimaryDomain { get; private set; }
-
-    /// <summary>The id of the plan bounding this account's resource limits.</summary>
-    public Guid PlanId { get; private set; }
-
-    /// <summary>The account's current lifecycle state.</summary>
-    public AccountStatus Status { get; private set; }
-
-    /// <summary>The instant the account was created.</summary>
-    public DateTimeOffset CreatedAt { get; private set; }
 
     /// <summary>Marks the account suspended. Idempotent: suspending an already-suspended account is a no-op.</summary>
     public void Suspend()

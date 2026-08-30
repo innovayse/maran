@@ -70,8 +70,13 @@ const menuElement: Ref<HTMLElement | null> = ref(null)
  * cannot know which of them a caller rendered with `v-if` at any moment.
  * @returns The focusable menu items, in the order the user meets them.
  */
-const items = (): HTMLElement[] =>
-  Array.from(menuElement.value?.querySelectorAll<HTMLElement>('[role="menuitem"]:not([disabled]),[role="menuitemradio"]:not([disabled])') ?? [])
+const items = (): HTMLElement[] => {
+  return Array.from(
+    menuElement.value?.querySelectorAll<HTMLElement>(
+      '[role="menuitem"]:not([disabled]),[role="menuitemradio"]:not([disabled])',
+    ) ?? [],
+  )
+}
 
 /**
  * Moves real focus to the item at a position, clamped to the ends of the list.
@@ -143,7 +148,9 @@ const onTriggerClick = async (): Promise<void> => {
  */
 const moveFocus = (step: number): void => {
   const menuItems = items()
-  const current = menuItems.findIndex((item: HTMLElement): boolean => item === document.activeElement)
+  const current = menuItems.findIndex((item: HTMLElement): boolean => {
+    return item === document.activeElement
+  })
   focusItemAt(current + step)
 }
 
@@ -208,7 +215,7 @@ onBeforeUnmount((): void => {
       :aria-expanded="isOpen"
       :aria-controls="isOpen ? menuId : undefined"
       :disabled="disabled"
-      class="inline-flex items-center gap-1.5 rounded-lg border border-border-subtle bg-surface-2 px-3 py-1.5 text-xs font-medium text-text-primary transition-colors enabled:hover:border-border-strong enabled:hover:bg-surface-3 focus-visible:border-accent focus-visible:shadow-focus focus-visible:outline-none disabled:cursor-not-allowed disabled:text-text-muted disabled:opacity-65"
+      class="inline-flex items-center gap-1.5 rounded-lg border border-border-subtle bg-surface-2 px-3 py-1.5 text-base font-medium text-text-primary transition-colors enabled:hover:border-border-strong enabled:hover:bg-surface-3 focus-visible:border-accent focus-visible:shadow-focus focus-visible:outline-none disabled:cursor-not-allowed disabled:text-text-muted disabled:opacity-65"
       @click="onTriggerClick"
       @keydown.enter.prevent="open('first')"
       @keydown.space.prevent="open('first')"

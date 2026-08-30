@@ -1,3 +1,4 @@
+using Maran.Sdk.Contracts;
 using System.Threading.RateLimiting;
 using Maran.Host.Configuration;
 using Microsoft.AspNetCore.RateLimiting;
@@ -15,7 +16,7 @@ namespace Maran.Host.RateLimiting;
 public static class LoginRateLimitPolicy
 {
     /// <summary>The policy name endpoints enable with <c>[EnableRateLimiting]</c>.</summary>
-    public const string Name = "login";
+    public const string Name = RateLimitPolicies.Login;
 
     /// <summary>
     /// Registers the policy on <paramref name="options"/>. Partition key is (IP, username): a

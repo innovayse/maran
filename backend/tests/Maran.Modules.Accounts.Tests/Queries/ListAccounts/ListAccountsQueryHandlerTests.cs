@@ -2,6 +2,7 @@ using Maran.Modules.Accounts.Domain;
 using Maran.Modules.Accounts.Persistence;
 using Maran.Modules.Accounts.Queries.ListAccounts;
 using Microsoft.EntityFrameworkCore;
+using Maran.Modules.Accounts.Domain.Enums;
 
 namespace Maran.Modules.Accounts.Tests.Queries.ListAccounts;
 

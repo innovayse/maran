@@ -39,9 +39,9 @@ const labelId: string = useId()
  * design only draws the "on" track (the accent); "off" is the sunken surface
  * inside a strong border, the same treatment its other empty wells get.
  */
-const trackClasses: ComputedRef<string> = computed(() =>
-  props.modelValue ? 'border-accent bg-accent' : 'border-border-strong bg-surface-3',
-)
+const trackClasses: ComputedRef<string> = computed(() => {
+  return props.modelValue ? 'border-accent bg-accent' : 'border-border-strong bg-surface-3'
+})
 
 /**
  * Tailwind utility classes positioning and colouring the knob.
@@ -51,9 +51,9 @@ const trackClasses: ComputedRef<string> = computed(() =>
  * light theme — a white knob there is invisible. Off therefore uses the
  * secondary text token, which clears its track in both themes.
  */
-const knobClasses: ComputedRef<string> = computed(() =>
-  props.modelValue ? 'translate-x-3.5 bg-white' : 'translate-x-0 bg-text-secondary',
-)
+const knobClasses: ComputedRef<string> = computed(() => {
+  return props.modelValue ? 'translate-x-3.5 bg-white' : 'translate-x-0 bg-text-secondary'
+})
 
 /**
  * Flips the switch, unless it is disabled.
@@ -85,7 +85,7 @@ const onToggle = (): void => {
         aria-hidden="true"
       />
     </button>
-    <span :id="labelId" class="text-xs text-text-primary">{{ label }}</span>
+    <span :id="labelId" class="text-base text-text-primary">{{ label }}</span>
   </div>
 </template>
 

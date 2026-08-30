@@ -10,10 +10,10 @@
 # to start without one, and this script starts the development container when Docker is available.
 set -euo pipefail
 
-root="$(cd "$(dirname "$0")/.." && pwd)"
+root="$(cd "$(dirname "$0")/../.." && pwd)"
 
 # shellcheck disable=SC1091
-. "$root/scripts/dev-env.sh"
+. "$root/scripts/dev"
 
 work="$(mktemp -d)"
 socket="$work/agent.sock"
@@ -42,7 +42,7 @@ fail() { # report why, with the logs that explain it, and stop
 }
 
 # A database the API can reach. In CI a service container already listens; locally the development
-# compose file is the same database `scripts/run-dev.sh` uses.
+# compose file is the same database `scripts/maran dev` uses.
 if ! (exec 3<>/dev/tcp/127.0.0.1/5432) 2>/dev/null; then
   if command -v docker >/dev/null 2>&1; then
     echo "starting the development database"

@@ -5,13 +5,13 @@ on:
     paths:
       - 'backend/**'
       - 'proto/**'
-      - 'scripts/check-structure.sh'
+      - 'scripts/lib/check-structure.sh'
       - '.github/workflows/backend.yml'
   pull_request:
     paths:
       - 'backend/**'
       - 'proto/**'
-      - 'scripts/check-structure.sh'
+      - 'scripts/lib/check-structure.sh'
       - '.github/workflows/backend.yml'
 
 jobs:
@@ -31,7 +31,7 @@ jobs:
       # type name, *Extensions in Extensions/, interfaces in Interfaces/, no cross-module
       # imports, no junk-drawer file names (rules/csharp.md, rules/architecture.md).
       - name: Structure check
-        run: bash scripts/check-structure.sh
+        run: bash scripts/lib/check-structure.sh
 
       # Warnings are errors, unused usings are errors, banned APIs are errors — the build
       # itself is the first quality gate (backend/Directory.Build.props).

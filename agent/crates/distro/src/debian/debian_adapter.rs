@@ -4,7 +4,7 @@ use crate::DistroAdapter;
 use crate::family::DistroFamily;
 
 /// Implements the agent's operations the Debian way: apt, `sites-available`,
-/// `www-data`. Stateless, so [`crate::adapter_for`] can hand out one shared
+/// `www-data`. Stateless, so [`crate::adapter_for()`] can hand out one shared
 /// reference.
 pub struct DebianAdapter;
 

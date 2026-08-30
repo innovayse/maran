@@ -4,16 +4,16 @@
 # natively against it — exactly as they do on a server, where no container is involved.
 #
 # Usage:
-#   scripts/run-dev.sh          start everything, stream logs, stop cleanly on Ctrl+C
-#   scripts/run-dev.sh --stop   stop the database container and leave nothing running
+#   scripts/maran dev          start everything, stream logs, stop cleanly on Ctrl+C
+#   scripts/maran dev --stop   stop the database container and leave nothing running
 set -euo pipefail
 
-root="$(cd "$(dirname "$0")/.." && pwd)"
+root="$(cd "$(dirname "$0")/../.." && pwd)"
 compose="$root/docker/docker-compose.dev.yml"
 logs="$root/.dev-logs"
 
 # shellcheck disable=SC1091
-. "$root/scripts/dev-env.sh"
+. "$root/scripts/dev"
 
 # The API listens where the nginx vhost proxies in production, so a developer meets the same
 # origin locally; the SPA dev server proxies to it.

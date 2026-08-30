@@ -1,0 +1,66 @@
+#!/usr/bin/env bash
+# The one entry point to this repository's tooling: `scripts/maran <command>`.
+#
+# It dispatches to the scripts in `lib/` rather than absorbing them. Merging ten scripts into one
+# file would produce a 778-line script whose name describes nothing — the same junk-drawer shape
+# rules/csharp.md and rules/rust.md ban for code, and for the same reason: a file called
+# "everything" has no rule for what belongs in it. What was actually missing is a way to see the
+# whole toolbox at once, which is this file and the list below. The tools moved into `lib/` so that
+# `ls scripts/` shows the two things a person types — this dispatcher and the file to source — and
+# not ten implementations.
+#
+# `scripts/dev` is deliberately NOT a command here — and note it is a different thing from the
+# `dev` COMMAND below, which starts the stack. It must be SOURCED to put the toolchains on the
+# caller's PATH — a subprocess cannot change its parent's environment, so a `maran env` command would
+# appear to work and change nothing.
+#
+# Usage, after `source scripts/dev` puts this directory on PATH:
+#   maran                 list the commands
+#   maran <command> [...] run one, passing the rest through
+set -euo pipefail
+
+root="$(cd "$(dirname "$0")/.." && pwd)"
+
+# Each row: command, the script it runs, and what it is for. The help text is generated from this
+# table, so a command that exists is a command that is documented.
+usage() {
+  cat >&2 <<'USAGE'
+usage: maran <command> [arguments]
+
+  dev        run the whole stack: database, API and application       (run-dev.sh)
+  check      toolchain preflight: is this machine able to build       (preflight.sh)
+  structure  file and folder laws that no compiler can express        (check-structure.sh)
+  proto      lint the API-to-agent contract                           (proto-lint.sh)
+  format     every language, or one; --check verifies without writing  (format.sh)
+  agent      the Rust toolchain: build|test|lint|fmt|check            (agent.sh)
+  migrate    module migrations: add|apply|list|check                  (migrations.sh)
+  module     scaffold a new backend module                            (new-module.sh)
+  handshake  agent and API over a real unix socket                    (e2e-handshake.sh)
+
+Put the toolchains on your PATH first — this must be sourced, not run:
+
+  source scripts/dev
+USAGE
+  exit 1
+}
+
+command_name="${1:-}"
+[ -z "$command_name" ] && usage
+shift
+
+case "$command_name" in
+  dev)       exec "$root/scripts/lib/run-dev.sh" "$@" ;;
+  check)     exec bash "$root/scripts/lib/preflight.sh" "$@" ;;
+  structure) exec bash "$root/scripts/lib/check-structure.sh" "$@" ;;
+  proto)     exec bash "$root/scripts/lib/proto-lint.sh" "$@" ;;
+  format)    exec bash "$root/scripts/lib/format.sh" "$@" ;;
+  agent)     exec bash "$root/scripts/lib/agent.sh" "$@" ;;
+  migrate)   exec bash "$root/scripts/lib/migrations.sh" "$@" ;;
+  module)    exec bash "$root/scripts/lib/new-module.sh" "$@" ;;
+  handshake) exec bash "$root/scripts/lib/e2e-handshake.sh" "$@" ;;
+  -h|--help|help) usage ;;
+  *)
+    echo "unknown command: $command_name" >&2
+    usage
+    ;;
+esac

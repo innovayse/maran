@@ -38,6 +38,11 @@ const fieldId: string = useId()
 /** The underlying input element, needed to restore focus after the clear button is used. */
 const inputElement: Ref<HTMLInputElement | null> = ref(null)
 
+/** Whether there is a query to clear; the clear button is meaningless on an empty field. */
+const hasValue: ComputedRef<boolean> = computed(() => {
+  return props.modelValue.length > 0
+})
+
 /**
  * Moves keyboard focus into the field.
  *
@@ -51,9 +56,6 @@ const focus = (): void => {
 }
 
 defineExpose({ focus })
-
-/** Whether there is a query to clear; the clear button is meaningless on an empty field. */
-const hasValue: ComputedRef<boolean> = computed(() => props.modelValue.length > 0)
 
 /**
  * Forwards the native input value to the `update:modelValue` emit.
@@ -89,7 +91,7 @@ const onClear = (): void => {
 
 <template>
   <div class="flex flex-col gap-1">
-    <label :for="fieldId" class="text-xs font-medium text-text-secondary">{{ label }}</label>
+    <label :for="fieldId" class="text-base font-medium text-text-secondary">{{ label }}</label>
     <div class="relative flex items-center">
       <!-- Decorative glyph: the field is already named by its label, so the
            magnifier repeats nothing to a screen reader. -->
@@ -111,7 +113,7 @@ const onClear = (): void => {
         role="searchbox"
         :value="modelValue"
         :placeholder="placeholder"
-        class="w-full rounded-lg border border-border-subtle bg-surface-2 py-1.5 pr-7.5 pl-7 text-xs text-text-primary transition-colors placeholder:text-text-muted hover:border-border-strong focus-visible:border-accent focus-visible:shadow-focus focus-visible:outline-none"
+        class="w-full rounded-lg border border-border-subtle bg-surface-2 py-1.5 pr-7.5 pl-7 text-base text-text-primary transition-colors placeholder:text-text-muted hover:border-border-strong focus-visible:border-accent focus-visible:shadow-focus focus-visible:outline-none"
         @input="onInput"
         @keydown.enter.prevent="onEnter"
       />

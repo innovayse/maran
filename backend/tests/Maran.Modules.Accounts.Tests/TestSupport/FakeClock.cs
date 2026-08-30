@@ -8,6 +8,8 @@ namespace Maran.Modules.Accounts.Tests.TestSupport;
 /// </summary>
 public sealed class FakeClock : IClock
 {
+    /// <inheritdoc />
+    public DateTimeOffset UtcNow { get; }
     /// <summary>Creates a clock that always reports <paramref name="utcNow"/>.</summary>
     /// <param name="utcNow">The fixed instant this clock reports.</param>
     public FakeClock(DateTimeOffset utcNow)
@@ -15,6 +17,4 @@ public sealed class FakeClock : IClock
         UtcNow = utcNow;
     }
 
-    /// <inheritdoc />
-    public DateTimeOffset UtcNow { get; }
 }

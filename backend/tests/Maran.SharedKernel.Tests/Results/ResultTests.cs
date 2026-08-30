@@ -17,7 +17,7 @@ public sealed class ResultTests
     [Fact]
     public void Failed_result_carries_error_and_guards_value()
     {
-        var result = Result<int>.Fail(Error.Of("SitesDomainTaken", "Domain already exists"));
+        var result = Result<int>.Fail(Error.Of("SitesDomainTaken"));
 
         Assert.False(result.IsSuccess);
         Assert.Equal("SitesDomainTaken", result.Error!.Code);
@@ -37,7 +37,7 @@ public sealed class ResultTests
         {
             return $"err:{e.Code}";
         });
-        var fail = Result<int>.Fail(Error.Of("x", "y")).Match(v =>
+        var fail = Result<int>.Fail(Error.Of("SitesDomainTaken")).Match(v =>
         {
             return $"ok:{v}";
         }, e =>
@@ -46,7 +46,7 @@ public sealed class ResultTests
         });
 
         Assert.Equal("ok:1", ok);
-        Assert.Equal("err:x", fail);
+        Assert.Equal("err:SitesDomainTaken", fail);
     }
 
     [Fact]
@@ -61,7 +61,7 @@ public sealed class ResultTests
     [Fact]
     public void Non_generic_fail_result_carries_the_error()
     {
-        var result = Result.Fail(Error.Of("SitesDomainTaken", "Domain already exists"));
+        var result = Result.Fail(Error.Of("SitesDomainTaken"));
 
         Assert.False(result.IsSuccess);
         Assert.Equal("SitesDomainTaken", result.Error!.Code);
@@ -77,7 +77,7 @@ public sealed class ResultTests
         {
             return $"err:{e.Code}";
         });
-        var fail = Result.Fail(Error.Of("x", "y")).Match(() =>
+        var fail = Result.Fail(Error.Of("SitesDomainTaken")).Match(() =>
         {
             return "ok";
         }, e =>
@@ -86,6 +86,6 @@ public sealed class ResultTests
         });
 
         Assert.Equal("ok", ok);
-        Assert.Equal("err:x", fail);
+        Assert.Equal("err:SitesDomainTaken", fail);
     }
 }

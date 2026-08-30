@@ -36,6 +36,7 @@ public sealed class Program
         builder.Services.AddPanelLocalization();
         builder.Services.AddSharedKernel();
         builder.Services.AddPanelSecurity();
+        builder.Services.AddPanelAuthentication(builder.Configuration);
         builder.Services.AddAgentClient(ResolveAgentSocketPath(builder.Configuration));
         builder.Services.AddPanelHealthChecks(connectionString);
         builder.Services.AddPanelResilience();
@@ -45,10 +46,13 @@ public sealed class Program
 
         var app = builder.Build();
 
+        app.UseSecurityHeaders();
         app.UseCorrelationId();
         app.UsePanelRequestLogging();
         app.UseExceptionHandling();
         app.UsePanelLocalization();
+        app.UseCsrfHeader();
+        app.UsePanelAuthentication();
         app.UseRateLimiter();
 
         app.MapPanelHealth();

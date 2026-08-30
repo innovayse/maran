@@ -79,5 +79,5 @@ docs/                  design specs and implementation plans
 
 - The full canonical folder skeleton exists in the repository from day one (owner's decision): all v1 module anatomies, Host/SharedKernel/Sdk sections, frontend feature folders, agent crate layout. The tree in the IDE always shows where everything will live.
 - An empty folder is held in git by a **zero-byte `.gitkeep`** — no content, ever. Delete the `.gitkeep` when the folder gains its first real file.
-- A NEW backend module's anatomy is never hand-made: run `scripts/new-module.sh <Name>` — it creates the canonical folder set exactly as documented, keeping every module identical in shape.
+- A NEW backend module's anatomy is never hand-made: run `scripts/maran module <Name>` — it creates the canonical folder set exactly as documented, keeping every module identical in shape.
 - The skeleton is not a license to file things loosely: a file goes into the folder the rules assign it, and a new KIND of file first gets its named place in the stack rules, then the code lands.

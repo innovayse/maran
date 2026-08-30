@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { ref, type Ref  } from 'vue'
+import { ref, type Ref } from 'vue'
 import { useSystemApi } from '../composables/apis/useSystemApi'
 import { ApiError } from '../composables/useApi'
 

@@ -37,6 +37,7 @@ public sealed class HostBootTests : IAsyncLifetime
             }
             // Startup validation refuses to boot without an encryption key (rules/security.md).
             b.UseSetting("Security:EncryptionKey", "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=");
+            b.UseSetting("Jwt:SigningKey", "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=");
         });
 
         using var client = factory.CreateClient();

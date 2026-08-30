@@ -30,7 +30,7 @@ generate_setup_token() {
 # step_config) instead of rotating it, since rotating silently would break existing
 # encrypted data in PostgreSQL.
 write_config() {
-  local encryption_key="$1" setup_token="$2" tmp
+  local encryption_key="$1" setup_token="$2" signing_key="$3" tmp
   # Staged inside /etc/maran (root:panel 0750), not /tmp: a rename is only atomic within
   # one filesystem — from /tmp it degrades to a copy, which is neither atomic nor a place
   # to park a file holding the encryption key even briefly.
@@ -51,6 +51,10 @@ write_config() {
     echo ""
     echo "# Preserved on re-run: rotating this key without re-encrypting makes stored secrets unreadable."
     echo "Security__EncryptionKey=${encryption_key}"
+    echo ""
+    echo "# Preserved on re-run: access tokens are signed with this key, so rotating it signs"
+    echo "# everyone out of the panel at the moment of an upgrade."
+    echo "Jwt__SigningKey=${signing_key}"
     echo ""
     echo "# One-time token authorizing first-administrator creation in the browser."
     echo "Setup__Token=${setup_token}"
@@ -98,7 +102,7 @@ step_config() {
   echo "Generating ${MARAN_CONFIG_FILE}..."
   install -d -o root -g panel -m 0750 "$MARAN_CONFIG_DIR"
 
-  local key token
+  local key token signing_key
   key="$(existing_value Security__EncryptionKey)"
   if [ -z "$key" ]; then
     key="$(generate_encryption_key)"
@@ -107,11 +111,19 @@ step_config() {
     echo "Preserving existing encryption key from a previous install run."
   fi
 
+  signing_key="$(existing_value Jwt__SigningKey)"
+  if [ -z "$signing_key" ]; then
+    signing_key="$(generate_encryption_key)"
+    echo "Generated a new token signing key."
+  else
+    echo "Preserving existing token signing key from a previous install run."
+  fi
+
   # The setup token IS rotated on every re-run before first admin creation completes,
   # so an interrupted install never leaves a stale, possibly-leaked token valid.
   token="$(generate_setup_token)"
 
-  write_config "$key" "$token"
+  write_config "$key" "$token" "$signing_key"
   write_agent_env
   echo "Config written with mode 0640, owner root:panel. Secret values were not logged."
 }

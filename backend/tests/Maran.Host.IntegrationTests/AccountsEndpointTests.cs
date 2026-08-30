@@ -160,6 +160,7 @@ public sealed class AccountsEndpointTests : IAsyncLifetime
                 b.UseSetting(setting.Key, setting.Value);
             }
             b.UseSetting("Security:EncryptionKey", "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=");
+            b.UseSetting("Jwt:SigningKey", "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=");
         });
         using var client = factory.CreateClient();
 
@@ -194,6 +195,7 @@ public sealed class AccountsEndpointTests : IAsyncLifetime
                 b.UseSetting(setting.Key, setting.Value);
             }
             b.UseSetting("Security:EncryptionKey", "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=");
+            b.UseSetting("Jwt:SigningKey", "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=");
         });
         using var client = factory.CreateClient();
 

@@ -30,6 +30,30 @@ export interface Account {
  * Request body for `POST /api/v1/accounts`, mirroring the backend's
  * `CreateAccountRequest` field-for-field.
  */
+/**
+ * A plan an account can be created against, as the panel reports it. The display
+ * name arrives already localized: plans are server-side reference data, and the
+ * SPA never translates or invents them (rules/vue.md).
+ */
+export interface Plan {
+  /** The plan's identity, submitted with a new account. */
+  id: string
+  /** The plan's name, already in the request's language. */
+  displayName: string
+  /** Disk the plan allows, in megabytes. */
+  diskQuotaMb: number
+  /** How many sites the plan allows. */
+  maxSites: number
+  /** How many databases the plan allows. */
+  maxDatabases: number
+  /** How many FTP users the plan allows. */
+  maxFtpUsers: number
+}
+
+/**
+ * Request body for `POST /api/v1/accounts`, mirroring the backend's
+ * `CreateAccountRequest` field-for-field.
+ */
 export interface CreateAccountRequest {
   /** The account's unique, Linux-username-safe short name. */
   name: string
@@ -45,6 +69,9 @@ export interface CreateAccountRequest {
  * Called from Pinia stores only — never from a component (rules/vue.md).
  */
 export interface AccountsApi {
+  /** Lists the plans an account can be created against. */
+  listPlans: (signal?: AbortSignal) => Promise<Plan[]>
+
   /**
    * Lists every hosting account.
    * @param signal Optional abort signal to cancel the in-flight request.

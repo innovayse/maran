@@ -116,7 +116,9 @@ const onTab = (event: KeyboardEvent): void => {
 // closes. Both directions are handled here so every caller gets the behaviour
 // without writing any of it.
 watch(
-  (): boolean => props.open,
+  (): boolean => {
+    return props.open
+  },
   async (isOpen: boolean): Promise<void> => {
     if (isOpen) {
       previouslyFocused.value = document.activeElement instanceof HTMLElement ? document.activeElement : null
@@ -165,7 +167,7 @@ onBeforeUnmount((): void => {
         class="ui-modal-panel w-full max-w-[460px] overflow-hidden rounded-xl border border-border-strong bg-surface-1 shadow-[0_24px_64px_rgb(0_0_0/0.5)] focus-visible:outline-none"
       >
         <div class="flex items-start justify-between gap-4 px-4.5 pt-4 pb-3.5">
-          <h2 :id="titleId" class="text-[15px] font-semibold text-text-primary">{{ title }}</h2>
+          <h2 :id="titleId" class="text-lg font-semibold text-text-primary">{{ title }}</h2>
           <button
             type="button"
             class="inline-flex size-6 shrink-0 items-center justify-center rounded-md text-text-muted transition-colors hover:bg-surface-3 hover:text-text-primary focus-visible:shadow-focus focus-visible:outline-none"
@@ -178,7 +180,7 @@ onBeforeUnmount((): void => {
             <span class="sr-only">{{ closeLabel }}</span>
           </button>
         </div>
-        <div class="px-4.5 pb-4 text-xs leading-normal text-text-secondary">
+        <div class="px-4.5 pb-4 text-base leading-normal text-text-secondary">
           <slot />
         </div>
         <!-- The design seats the actions on the raised surface, which is what

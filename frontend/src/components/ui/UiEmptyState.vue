@@ -43,8 +43,8 @@ defineSlots<{
     >
       <slot name="icon" />
     </div>
-    <p class="text-sm font-semibold text-text-primary">{{ title }}</p>
-    <p v-if="description" class="max-w-[400px] text-xs leading-normal text-text-secondary">
+    <p class="text-lg font-semibold text-text-primary">{{ title }}</p>
+    <p v-if="description" class="max-w-[400px] text-base leading-normal text-text-secondary">
       {{ description }}
     </p>
     <div v-if="$slots.default" class="mt-1 flex gap-2">

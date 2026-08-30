@@ -7,7 +7,7 @@
  * `--s1` with a `--b1` right border, a 28px/7px-radius accent brand square,
  * the product name at 13px/600 above an 11px muted line, and navigation rows
  * built to the design's `navBtn` helper — `padding:5px 8px`,
- * `border-radius:6px`, `font-size:12.5px`, active rows on `--acs` in `--ac`
+ * `border-radius:6px`, body copy on the shared `--text-base` step, active rows on `--acs` in `--ac`
  * at weight 600.
  *
  * The rows themselves are `UiNavLink`s, not the design's `<button>`s: an
@@ -110,14 +110,14 @@ const toggleTheme = (): void => {
       <UiButton variant="secondary" class="shell-search-trigger" @click="emit('openPalette')">
         <UiIcon name="search" :size="13" />
         <span class="flex-1 text-left">{{ t('app.shell.search') }}</span>
-        <span class="rounded border border-border-strong px-1 py-px font-mono text-2xs">
+        <span class="rounded border border-border-strong px-1 py-px font-mono text-sm">
           {{ t('app.shell.searchShortcut') }}
         </span>
       </UiButton>
     </div>
 
     <div class="shell-nav min-h-0 flex-1 overflow-y-auto px-2 pb-3">
-      <p class="shell-nav-group px-2 text-2xs font-semibold text-text-muted uppercase">
+      <p class="shell-nav-group px-2 text-sm font-semibold text-text-muted uppercase">
         {{ t('app.nav.groups.panel') }}
       </p>
       <UiNav :label="t('app.nav.ariaLabel')">
@@ -139,7 +139,7 @@ const toggleTheme = (): void => {
       <!-- The design's identity block. It is passed `null` because this build has
            no authentication and therefore no user to name; the day a session
            exists, a store supplies one here and nothing else changes. -->
-      <ShellUserBlock :user="null" />
+      <ShellUserBlock />
       <UiButton
         variant="secondary"
         class="shell-icon-button shell-icon-button--boxed"
@@ -245,7 +245,7 @@ const toggleTheme = (): void => {
   border: 1px solid var(--b1);
   border-radius: 7px;
   color: var(--t3);
-  font-size: 12px;
+  font-size: var(--text-base);
   font-weight: 400;
   text-align: left;
 }

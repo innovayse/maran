@@ -378,6 +378,7 @@ dependencies = [
  "hyper-util",
  "maran-agent-core",
  "maran-distro",
+ "maran-ops",
  "prost",
  "tempfile",
  "thiserror",
@@ -408,6 +409,10 @@ dependencies = [
 [[package]]
 name = "maran-ops"
 version = "0.1.0"
+dependencies = [
+ "maran-agent-core",
+ "thiserror",
+]
 
 [[package]]
 name = "maran-templates"

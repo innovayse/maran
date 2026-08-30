@@ -1,5 +1,6 @@
 using Maran.Agent.Client.Services.SystemService;
 using Maran.Agent.V1;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Maran.Agent.Client.Tests.Services.SystemService;
 
@@ -13,7 +14,7 @@ public sealed class AgentSystemClientTests
         {
             Ok = new AgentInfo { Version = "0.1.0", DistroId = "ubuntu", Family = DistroFamily.Debian, ProtoVersion = 1 },
         };
-        var client = new AgentSystemClient(new StubSystemService(response));
+        var client = new AgentSystemClient(new StubSystemService(response), NullLogger<AgentSystemClient>.Instance);
 
         var result = await client.GetInfoAsync(CancellationToken.None);
 
@@ -28,7 +29,7 @@ public sealed class AgentSystemClientTests
         {
             Error = new AgentError { Code = ErrorCode.SystemFailure, Message = "boom" },
         };
-        var client = new AgentSystemClient(new StubSystemService(response));
+        var client = new AgentSystemClient(new StubSystemService(response), NullLogger<AgentSystemClient>.Instance);
 
         var result = await client.GetInfoAsync(CancellationToken.None);
 
@@ -40,7 +41,7 @@ public sealed class AgentSystemClientTests
     public async Task Unset_oneof_maps_to_invalid_response_error()
     {
         var response = new GetAgentInfoResponse();
-        var client = new AgentSystemClient(new StubSystemService(response));
+        var client = new AgentSystemClient(new StubSystemService(response), NullLogger<AgentSystemClient>.Instance);
 
         var result = await client.GetInfoAsync(CancellationToken.None);
 

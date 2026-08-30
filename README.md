@@ -123,8 +123,9 @@ command line tool, and reversible with an automatic database dump and a rollback
 ## Development
 
     source scripts/dev-env.sh          # toolchains on PATH, development keys
-    bash scripts/preflight.sh          # verify the toolchain before anything else
-    scripts/run-dev.sh                 # the whole stack: database, API, application
+    scripts/maran                      # the toolbox: every command, with what it is for
+    scripts/maran check                # verify the toolchain before anything else
+    scripts/maran dev                  # the whole stack: database, API, application
 
 `run-dev.sh` starts the PostgreSQL container, the API and the SPA, waits until each answers,
 and then streams only warnings and errors; Ctrl+C stops everything. Docker carries development
@@ -136,14 +137,18 @@ Verification, each runnable on its own:
     cd agent    && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test
     cd frontend && npm ci && npm run lint && npm run typecheck && npm run build
     cd frontend && npx playwright install --with-deps chromium && npm run test:e2e
-    bash scripts/e2e-handshake.sh      # agent and API over a real unix socket
+    scripts/maran handshake      # agent and API over a real unix socket
 
 The application has no unit-test runner by design: it is verified end to end against a running
 API in `frontend/e2e/` (rules/testing.md).
 
-Other scripts: `scripts/format.sh` formats every language (`--check` verifies without writing),
-`scripts/migrations.sh` adds and applies a module's database migrations, and
-`scripts/new-module.sh` scaffolds a module.
+`scripts/maran` dispatches to the scripts beside it — `format`, `migrate`, `module`, `structure`,
+`proto`, `agent`, `handshake` — and printing it with no arguments lists them with what each is for.
+The scripts remain runnable directly; CI calls them by path. `dev-env.sh` is the one that must be
+sourced rather than run, because a subprocess cannot put toolchains on its parent's PATH.
+
+`scripts/maran agent` runs the Rust toolchain and falls back to a pinned container when the machine
+has no C linker, so a fresh clone can build the agent before installing anything.
 
 Requirements: .NET 9 SDK, Rust (stable), Node.js 20+, protoc, a C toolchain for Rust linking
 (`build-essential`), and Docker for development only.

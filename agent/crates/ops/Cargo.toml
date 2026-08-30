@@ -7,5 +7,11 @@ version.workspace = true
 edition.workspace = true
 publish.workspace = true
 
+[dependencies]
+# The validated AccountName: this crate turns one into a system user, so it takes the
+# proof of validation rather than a string (rules/rust.md "Validation first").
+maran-agent-core = { path = "../agent-core" }
+thiserror.workspace = true
+
 [lints]
 workspace = true

@@ -9,7 +9,7 @@
    Plans: docs/superpowers/plans/. Execute plans task-by-task; implementation first, tests in a dedicated pass after (rules/testing.md).
 3. Layout: proto/ (contract), backend/ (C# modular monolith), agent/ (Rust root daemon),
    frontend/ (Vue SPA), installer/, docker/ (dev only), rules/, docs/.
-4. Verification commands: `bash scripts/preflight.sh`, `dotnet test` (backend/),
+4. Verification commands: `scripts/maran check`, `dotnet test` (backend/),
    `cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test` (agent/),
    `npm run lint && npm run typecheck && npm run build` (frontend/ — no unit runner by design,
    rules/testing.md: the SPA is verified end-to-end via Playwright in `frontend/e2e/`).

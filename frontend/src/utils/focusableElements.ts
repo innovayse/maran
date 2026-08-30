@@ -19,5 +19,6 @@ const FOCUSABLE_SELECTOR =
  * @param root The container to search, or null before it is mounted.
  * @returns The focusable elements inside `root`, empty when it is not mounted.
  */
-export const focusableElements = (root: HTMLElement | null): HTMLElement[] =>
-  Array.from(root?.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR) ?? [])
+export const focusableElements = (root: HTMLElement | null): HTMLElement[] => {
+  return Array.from(root?.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR) ?? [])
+}

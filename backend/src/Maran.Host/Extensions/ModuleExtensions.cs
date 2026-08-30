@@ -1,3 +1,4 @@
+using FluentValidation;
 using Maran.Host.Modules;
 
 namespace Maran.Host.Extensions;
@@ -19,6 +20,11 @@ public static class ModuleExtensions
         foreach (var module in ModuleRegistry.All)
         {
             module.ConfigureServices(services, configuration);
+
+            // Discovered from the module's own assembly rather than registered by hand inside it:
+            // a validator that exists but is not registered silently never runs, and the module
+            // still compiles, still has passing validator tests, and still accepts bad input.
+            services.AddValidatorsFromAssembly(module.GetType().Assembly, includeInternalTypes: false);
         }
 
         return services;

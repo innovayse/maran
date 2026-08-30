@@ -1,7 +1,7 @@
 //! The adapter seam: behaviour that differs between distribution families.
 //!
 //! Operational code never branches on a distribution name; it asks the adapter
-//! (rules/architecture.md). [`super::adapter_selector::adapter_for`] is what chooses
+//! (rules/architecture.md). [`crate::adapter_for()`] is what chooses
 //! the implementation.
 
 use crate::family::DistroFamily;

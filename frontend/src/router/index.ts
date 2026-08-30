@@ -1,10 +1,17 @@
-import { createRouter, createWebHistory, type Router  } from 'vue-router'
+import { createRouter, createWebHistory, type Router } from 'vue-router'
 import DefaultLayout from '../layouts/DefaultLayout.vue'
 import NotFoundPage from '../pages/NotFoundPage.vue'
 import SystemStatusPage from '../pages/SystemStatusPage.vue'
 import UpgradePage from '../pages/UpgradePage.vue'
 import AccountsListPage from '../pages/accounts/AccountsListPage.vue'
 import AccountFormPage from '../pages/accounts/AccountFormPage.vue'
+import AuthLayout from '../layouts/AuthLayout.vue'
+import LoginPage from '../pages/auth/LoginPage.vue'
+import TwoFactorPage from '../pages/auth/TwoFactorPage.vue'
+import SetupPage from '../pages/auth/SetupPage.vue'
+import SessionsPage from '../pages/settings/SessionsPage.vue'
+import TwoFactorSettingsPage from '../pages/settings/TwoFactorSettingsPage.vue'
+import { createAuthGuard } from './authGuard'
 import { createModuleAccessGuard } from './moduleAccessGuard'
 
 /**
@@ -36,6 +43,33 @@ export const createAppRouter = (): Router => {
         ],
       },
       {
+        // The unauthenticated screens: their own bare layout, no navigation, and no
+        // dependency on the module catalogue — a visitor who cannot sign in must still
+        // be able to render the screen that lets them.
+        path: '/login',
+        component: AuthLayout,
+        children: [
+          { path: '', name: 'login', component: LoginPage },
+          { path: 'two-factor', name: 'login-two-factor', component: TwoFactorPage },
+        ],
+      },
+      {
+        path: '/setup',
+        component: AuthLayout,
+        children: [{ path: '', name: 'setup', component: SetupPage }],
+      },
+      {
+        // Account security, not a licensed module: these two screens belong to
+        // whoever is signed in, so they carry no `meta.module` and the licence
+        // guard has nothing to say about them.
+        path: '/settings',
+        component: DefaultLayout,
+        children: [
+          { path: 'sessions', name: 'sessions', component: SessionsPage },
+          { path: 'two-factor', name: 'two-factor', component: TwoFactorSettingsPage },
+        ],
+      },
+      {
         path: '/upgrade/:module',
         component: DefaultLayout,
         children: [{ path: '', name: 'upgrade', component: UpgradePage, props: true }],
@@ -48,6 +82,10 @@ export const createAppRouter = (): Router => {
     ],
   })
 
+  // Order matters: whether a module is licensed is a meaningless question about a
+  // visitor who has not signed in, and answering it would tell an anonymous caller
+  // which products this server has.
+  router.beforeEach(createAuthGuard())
   router.beforeEach(createModuleAccessGuard())
 
   return router

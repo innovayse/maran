@@ -21,6 +21,10 @@
          ours" (rules/architecture.md) — it is a third-party primitive, like Npgsql is for
          Agent.Client. -->
     <PackageReference Include="Microsoft.EntityFrameworkCore" />
+    <!-- Konscious.Security.Cryptography.Argon2: backs Security/Argon2idPasswordHasher.cs, the only
+         place a panel password is ever hashed. A third-party primitive, like the EF Core reference
+         above — SharedKernel still references nothing of ours. -->
+    <PackageReference Include="Konscious.Security.Cryptography.Argon2" />
     <!-- DI.Abstractions: only for the AddSharedKernel registration entry point (DependencyInjection.cs). -->
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
   </ItemGroup>

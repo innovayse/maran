@@ -50,6 +50,7 @@ public sealed class SecurityOptionsTests
         using var factory = new PanelTestFactory().WithWebHostBuilder(builder =>
         {
             builder.UseSetting(PanelTestSettings.EncryptionKeyPath, PanelTestSettings.EncryptionKey);
+        builder.UseSetting(PanelTestSettings.JwtSigningKeyPath, PanelTestSettings.JwtSigningKey);
         });
 
         // Forces the host to actually build and start; a validation failure here throws.

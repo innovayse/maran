@@ -1,8 +1,8 @@
 import { defineStore } from 'pinia'
-import { ref, type Ref  } from 'vue'
+import { ref, type Ref } from 'vue'
 import { useAccountsApi } from '../composables/apis/useAccountsApi'
 import { ApiError } from '../composables/useApi'
-import type { Account, CreateAccountRequest } from '../types/account'
+import type { Account, CreateAccountRequest, Plan } from '../types/account'
 
 /**
  * Owns the hosting accounts list and the create-account workflow. The list and form pages read
@@ -29,6 +29,9 @@ export const useAccountsStore = defineStore('accounts', () => {
 
   /** True once the list has been loaded at least once, successfully. */
   const isLoaded: Ref<boolean> = ref(false)
+
+  /** The plans an account can be created against, as last loaded. */
+  const plans: Ref<Plan[]> = ref([])
 
   /** True while a create request is in flight. */
   const creating: Ref<boolean> = ref(false)
@@ -57,6 +60,18 @@ export const useAccountsStore = defineStore('accounts', () => {
   }
 
   /**
+   * Loads the plans the create form offers.
+   * @returns Resolves once the request has settled.
+   */
+  const loadPlans = async (): Promise<void> => {
+    try {
+      plans.value = await api.listPlans()
+    } catch (error) {
+      errorMessage.value = error instanceof ApiError ? error.message : null
+    }
+  }
+
+  /**
    * Creates a new hosting account and, on success, adds it to the held list so the list page
    * reflects it without a full reload.
    * @param request The account's name, primary domain, and plan.
@@ -80,5 +95,16 @@ export const useAccountsStore = defineStore('accounts', () => {
     }
   }
 
-  return { accounts, loading, errorMessage, isLoaded, creating, createErrorMessage, load, create }
+  return {
+    accounts,
+    plans,
+    loading,
+    errorMessage,
+    isLoaded,
+    creating,
+    createErrorMessage,
+    load,
+    loadPlans,
+    create,
+  }
 })

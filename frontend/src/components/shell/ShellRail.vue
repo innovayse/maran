@@ -47,12 +47,14 @@ const expand = (): void => {
 
 <template>
   <!-- w-14 is exactly the design's 56px rail. -->
-  <aside class="shell-rail flex w-14 shrink-0 flex-col items-center gap-1 border-r border-border-subtle bg-surface-1 py-3">
+  <aside
+    class="shell-rail flex w-14 shrink-0 flex-col items-center gap-1 border-r border-border-subtle bg-surface-1 py-3"
+  >
     <!-- Collapsing must not cost the document its heading: the rail draws the
          brand square the design draws, and carries the product name inside it
          for assistive technology, so `Maran` is the h1 in both presentations. -->
     <h1
-      class="mb-2.5 grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-accent text-sm font-bold text-white"
+      class="mb-2.5 grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-accent text-lg font-bold text-white"
     >
       <span aria-hidden="true">{{ t('app.brandInitial') }}</span>
       <span class="sr-only">{{ t('app.title') }}</span>
@@ -60,7 +62,11 @@ const expand = (): void => {
 
     <UiNav :label="t('app.nav.ariaLabel')">
       <UiNavItem v-for="entry in entries" :key="entry.key">
-        <UiNavLink :to="entry.target" :locked="entry.locked" :title="entry.labelKey === null ? (entry.label ?? '') : t(entry.labelKey)">
+        <UiNavLink
+          :to="entry.target"
+          :locked="entry.locked"
+          :title="entry.labelKey === null ? (entry.label ?? '') : t(entry.labelKey)"
+        >
           <UiIcon :name="entry.icon" :size="16" />
           <span class="sr-only">
             {{ entry.labelKey === null ? entry.label : t(entry.labelKey) }}

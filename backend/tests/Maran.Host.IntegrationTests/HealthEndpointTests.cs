@@ -39,6 +39,7 @@ public sealed class HealthEndpointTests : IAsyncLifetime
                 builder.UseSetting(setting.Key, setting.Value);
             }
             builder.UseSetting("Security:EncryptionKey", "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=");
+            builder.UseSetting("Jwt:SigningKey", "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=");
         });
 
         using var client = factory.CreateClient();

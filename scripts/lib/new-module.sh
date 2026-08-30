@@ -3,7 +3,7 @@
 # "Canonical backend layout", rules/architecture.md "Skeleton policy"). Keeps every
 # module identical in shape; empty folders are held by zero-byte .gitkeep files.
 #
-# Usage: scripts/new-module.sh <Name>        (e.g. scripts/new-module.sh Accounts)
+# Usage: scripts/maran module <Name>        (e.g. scripts/maran module Accounts)
 # Creates backend/src/Maran.Modules/<Name>/ (short folder name;
 # the csproj inside carries the full name Maran.Modules.<Name>.csproj)
 # and the matching test project folder. Does NOT touch the solution file —
@@ -11,12 +11,12 @@
 set -euo pipefail
 
 if [ $# -ne 1 ] || ! [[ "$1" =~ ^[A-Z][A-Za-z0-9]+$ ]]; then
-  echo "usage: $0 <ModuleName>   (PascalCase, e.g. Accounts)" >&2
+  echo "usage: maran module <ModuleName>   (PascalCase, e.g. Accounts)" >&2
   exit 1
 fi
 
 name="$1"
-root="$(cd "$(dirname "$0")/.." && pwd)"
+root="$(cd "$(dirname "$0")/../.." && pwd)"
 mod="$root/backend/src/Maran.Modules/$name"
 tests="$root/backend/tests/Maran.Modules.$name.Tests"
 

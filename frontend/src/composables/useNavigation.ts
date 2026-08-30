@@ -1,4 +1,4 @@
-import { computed, type ComputedRef  } from 'vue'
+import { computed, type ComputedRef } from 'vue'
 import { useRouter } from 'vue-router'
 import { useModulesStore } from '../stores/modules'
 import type { NavigationEntry } from '../types/navigation'
@@ -46,25 +46,27 @@ export const useNavigation = (): ComputedRef<NavigationEntry[]> => {
       locked: false,
     }
 
-    const moduleEntries: NavigationEntry[] = modulesStore.modules.map((module) => ({
-      key: module.name,
-      // An enabled module links to its own page once that page exists; until then — and always for
-      // a locked one — the entry points at the upgrade page, which needs the module as a param.
-      // Linking to a route name the router does not know would throw while rendering the sidebar.
-      target:
-        module.isEnabled && router.hasRoute(module.name)
-          ? { name: module.name }
-          : { name: UPGRADE_ROUTE, params: { module: module.name } },
-      // The label comes from the panel, already localized: the SPA cannot own translations for
-      // modules it learns about at runtime. The machine name is the honest fallback.
-      labelKey: null,
-      label: module.displayName ?? module.name,
-      moduleName: module.name,
-      // The catalogue reports no icon, so every module gets the same neutral glyph rather than
-      // a guessed one: inventing a per-module icon would be inventing data the backend never sent.
-      icon: 'grid',
-      locked: !module.isEnabled,
-    }))
+    const moduleEntries: NavigationEntry[] = modulesStore.modules.map((module) => {
+      return {
+        key: module.name,
+        // An enabled module links to its own page once that page exists; until then — and always for
+        // a locked one — the entry points at the upgrade page, which needs the module as a param.
+        // Linking to a route name the router does not know would throw while rendering the sidebar.
+        target:
+          module.isEnabled && router.hasRoute(module.name)
+            ? { name: module.name }
+            : { name: UPGRADE_ROUTE, params: { module: module.name } },
+        // The label comes from the panel, already localized: the SPA cannot own translations for
+        // modules it learns about at runtime. The machine name is the honest fallback.
+        labelKey: null,
+        label: module.displayName ?? module.name,
+        moduleName: module.name,
+        // The catalogue reports no icon, so every module gets the same neutral glyph rather than
+        // a guessed one: inventing a per-module icon would be inventing data the backend never sent.
+        icon: 'grid',
+        locked: !module.isEnabled,
+      }
+    })
 
     return [systemStatusEntry, ...moduleEntries]
   })

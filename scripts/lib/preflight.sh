@@ -2,9 +2,9 @@
 # Verifies the developer toolchain for Maran. Exit 0 iff everything required is present.
 set -euo pipefail
 
-# Pick up user-local toolchains (dotnet 9, cargo, protoc) if installed; see dev-env.sh.
+# Pick up user-local toolchains (dotnet 9, cargo, protoc) if installed; see scripts/dev.
 # shellcheck disable=SC1091
-[ -f "$(dirname "$0")/dev-env.sh" ] && . "$(dirname "$0")/dev-env.sh"
+[ -f "$(dirname "$0")/../dev" ] && . "$(dirname "$0")/../dev"
 
 fail=0
 need() { # name, command, version-args, minimum-major

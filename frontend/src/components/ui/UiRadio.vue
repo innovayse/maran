@@ -69,7 +69,7 @@ const onChange = (): void => {
     </span>
     <label
       :for="fieldId"
-      class="text-xs text-text-primary"
+      class="text-base text-text-primary"
       :class="disabled ? 'cursor-not-allowed opacity-65' : 'cursor-pointer'"
       >{{ label }}</label
     >

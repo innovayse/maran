@@ -6,7 +6,7 @@ Normative. Enforced by `.editorconfig`, `Directory.Build.props` (`<TreatWarnings
 
 - 4 spaces, 120 columns, LF, final newline. File-scoped namespaces only.
 - `var` when the type is apparent from the right-hand side; explicit type otherwise.
-- Braces always — for a single-line `if`, and for every member body. No expression-bodied members: a method, property, constructor, operator, indexer, accessor, or local function is written as a braced block, however short, so that growing a one-line body to two lines never changes its shape. Enforced mechanically in `backend/.editorconfig` (`csharp_prefer_braces`, `csharp_style_expression_bodied_*` and their `IDE0011`/`IDE0021`–`IDE0027` severities set to `error`) — note that this file, not the repository-root `.editorconfig`, is the one that binds backend code. `scripts/format.sh` applies the fixes; `scripts/format.sh --check` verifies without writing.
+- Braces always — for a single-line `if`, and for every member body. No expression-bodied members: a method, property, constructor, operator, indexer, accessor, or local function is written as a braced block, however short, so that growing a one-line body to two lines never changes its shape. Enforced mechanically in `backend/.editorconfig` (`csharp_prefer_braces`, `csharp_style_expression_bodied_*` and their `IDE0011`/`IDE0021`–`IDE0027` severities set to `error`) — note that this file, not the repository-root `.editorconfig`, is the one that binds backend code. `scripts/maran format` applies the fixes; `scripts/maran format --check` verifies without writing.
 
 ```csharp
 // WRONG — an expression-bodied member
@@ -34,6 +34,120 @@ public string Name
 - **Generic and non-generic pairs**: `<Name>.cs` holds the non-generic type, `<Name>OfT.cs` holds the generic one (`Result.cs` → `Result`, `ResultOfT.cs` → `Result<T>`). They remain separate files, like any other two types.
 - Folder path mirrors the namespace exactly (`Features/CreateSite/` ⇔ `…Features.CreateSite`). A type in the wrong folder is a review reject even if it compiles.
 - No `Utils.cs`, `Helpers.cs`, `Extensions.cs` dumping grounds — every helper has a named home describing its single purpose.
+
+## Domain models are rich: every change of state is a method
+
+An entity is not a bag of settable fields. Every property has a `private set`, and every way the
+entity can change is a **method on the entity itself**. A handler orchestrates — load, call, save —
+and never assigns a property.
+
+Two kinds of method, and the name says which:
+
+- **CRUD-shaped**, for a plain edit the domain has no opinion about: `Rename`, `ChangePlan`,
+  `UpdateContact`. Named for the field group they replace.
+- **Domain-logic**, for a transition with rules or consequences: `Suspend`, `Reactivate`, `Revoke`,
+  `EnableTotp`, `Consume`. Named for what happens in the business, never for the field it touches —
+  `Suspend()` says why; `SetStatus(AccountStatus.Suspended)` says nothing and lets a caller pass
+  any value it likes.
+
+```csharp
+// RIGHT — the entity enforces its own rule, and the name states the intent
+public void Revoke(DateTimeOffset at, SessionRevocationReason reason)
+{
+    if (RevokedAt is not null)
+    {
+        return;      // first reason survives; that is the entity's rule, not the caller's
+    }
+
+    RevokedAt = at;
+    RevocationReason = reason;
+}
+
+// WRONG — anaemic model: the rule now lives in whichever handler remembers it
+public DateTimeOffset? RevokedAt { get; set; }      // rejected in review
+session.RevokedAt = clock.UtcNow;                   // and so is this
+```
+
+Creation is the same rule applied to the beginning: the public constructor (or a static factory
+when creation can fail) is the only way an entity comes into existence in a valid state, and EF
+Core's parameterless constructor is `private` so nothing else can reach it.
+
+Do not add a method no use case calls yet. A rich model means every *existing* mutation is a named
+method — not a speculative `Update…` for each property against the day something might need it
+(YAGNI, rules/architecture.md).
+
+## Domain enums live in `Domain/Enums/`
+
+A module's enums go in `Domain/Enums/`, one per file, never loose beside the entities in `Domain/`.
+The namespace follows the folder, as always: `Maran.Modules.Identity.Domain.Enums`.
+
+```
+Domain/
+├── Session.cs              # the entity
+├── User.cs
+└── Enums/
+    ├── SessionRevocationReason.cs
+    ├── UserRole.cs
+    └── AccountStatus.cs
+```
+
+Two reasons. An enum is a closed set of values, not a thing with behaviour and identity, so it does
+not belong in the same list a reader scans to learn what the module models — mixed together, a
+`Domain/` folder of fifteen files hides its four actual entities. And an enum is the member most
+likely to be shared: statuses, roles and reasons are read by handlers, DTOs and EF configurations
+alike, so having one predictable home spares every one of them a search.
+
+The same separation the `Interfaces/`-never-beside-models rule makes for contracts.
+
+## Member order — methods come last
+
+Inside a type, members appear in this order, and a file that mixes them is a review reject:
+
+1. Constants and `static readonly` fields
+2. Instance fields
+3. Properties
+4. Constructors (public ones before the private EF Core one)
+5. Methods (public before private)
+
+```csharp
+// RIGHT — an entity reads as "what it is", then "what it does"
+public sealed class Session
+{
+    private const int TokenHashLength = 44;
+
+    public Guid Id { get; private set; }
+
+    public string TokenHash { get; private set; }
+
+    public Session(Guid id, Guid userId, string tokenHash) { ... }
+
+    private Session() { ... }
+
+    public bool IsActive(DateTimeOffset now) { ... }
+
+    public void Revoke(DateTimeOffset at, SessionRevocationReason reason) { ... }
+}
+
+// WRONG — a method between two properties
+public sealed class Session
+{
+    public Guid Id { get; private set; }
+
+    public bool IsActive(DateTimeOffset now) { ... }   // rejected in review
+
+    public string TokenHash { get; private set; }
+}
+```
+
+The reason is that a reader opening a domain model wants its **shape** first — what the thing is
+made of — and its behaviour second. Interleaving the two means the shape can only be learned by
+reading the whole file, and a property added later lands wherever the writer's cursor happened to
+be. Applies to every type, not only entities: DTOs, options classes, services, controllers.
+
+A constructor sits **below** the properties, not above them, even though it runs first. It is the
+longest member of a typical entity — one assignment and one `<param>` line per property — so
+placing it first buries the field list under a screen of ceremony, and the ceremony only makes
+sense once the reader knows what is being assigned.
 
 ## Canonical backend layout — every file has one correct place
 
@@ -106,6 +220,7 @@ backend/
 │           ├── Jobs/                    # scheduled and recurring work (Wolverine)
 │           ├── Authorization/           # permission requirements and handlers
 │           ├── Domain/                  # entities and value objects, one per file
+│           │   ├── Enums/               # every domain enum (AccountStatus, UserRole, …)
 │           │   ├── Events/              # domain events raised by those entities
 │           │   └── Interfaces/          # domain-level contracts (e.g. repositories)
 │           ├── Persistence/
@@ -115,7 +230,8 @@ backend/
 │           │   └── Migrations/          # EF-generated, module-scoped
 │           ├── Seeders/                 # initial data owned by this module
 │           ├── Resources/               # Messages.resx, Messages.ru.resx, Messages.hy.resx
-│           └── Errors/                  # <Name>Errors.cs — the module's error codes
+│           └── Resources/               # the module's resx triples; ErrorMessages.resx also
+│                                        #   DEFINES the module's error codes (see below)
 └── tests/
     ├── Maran.<Project>.Tests/            # unit — mirrors src/ folder for folder
     ├── Maran.Modules.<Name>.Tests/       # one per module, mirrors the module
@@ -167,10 +283,34 @@ public sealed class AuditLogsController : BaseApiController
   code plus a separate resource key with a mapping table between them: a mapping is a place for the
   two to drift apart, and the first symptom of drift is an error rendering as its own code in front
   of a customer.
-- **Resources are reached through `IStringLocalizer<T>`**, where `T` is an empty marker class named
-  after the resource file (`ErrorMessages.cs` next to `ErrorMessages.resx`). Typed access beats
-  passing a `ResourceManager` around: the localizer resolves the request culture on its own and the
-  marker makes the dependency visible in a constructor signature.
+- **Resources are reached through `IStringLocalizer<T>`**, where `T` is the class named after the
+  resource file. Typed access beats passing a `ResourceManager` around: the localizer resolves the
+  request culture on its own and the type makes the dependency visible in a constructor signature.
+  For most files that class is an empty hand-written marker (`DisplayNames.cs` next to
+  `DisplayNames.resx`). For `ErrorMessages` it is **generated from the resx itself**, so there is no
+  hand-written `ErrorMessages.cs` — see the next rule.
+- **`ErrorMessages.resx` is where error codes are defined, and there is no `<Name>Errors.cs`.** The
+  project generates a strongly-typed class from it (`<Generator>MSBuild:Compile</Generator>` plus
+  `StronglyTyped*` metadata on the `EmbeddedResource`, and `<NeutralLanguage>en</NeutralLanguage>`
+  on the project), giving one member per key. Code raises a failure as
+  `Error.Of(nameof(ErrorMessages.AccountNameTaken))`.
+
+  ```csharp
+  // RIGHT — the key must exist in the resx or this does not compile
+  return Result<AccountDto>.Fail(Error.Of(nameof(ErrorMessages.AccountNameTaken)));
+
+  // WRONG — a hand-written factory duplicating the code, plus an English sentence nobody renders
+  return Result<AccountDto>.Fail(AccountsErrors.NameTaken(command.Name));   // rejected in review
+  ```
+
+  A hand-written errors class was a second declaration of every code, carrying a second, untranslated
+  description of the same failure; the pair could drift, and a reviewer could not tell which sentence
+  a customer would see. Generating from the resx removes the duplicate and makes a missing
+  translation a **build** error instead of a customer reading a machine code.
+- **`Error` carries a code and nothing else.** There is no message field: the sentence lives in the
+  resx, in three languages. Operator-facing diagnostic text that has no resx entry — the Rust
+  agent's own error string, for instance — is **logged** at the boundary that receives it, never
+  attached to the `Error` travelling outward.
 - **One resource file per purpose, named for it** — not one catch-all per module:
   `ErrorMessages` (domain failures surfaced as error codes), `ValidationMessages` (validator
   output), `DisplayNames` (module, plan and other user-facing names), `EmailTemplates`,

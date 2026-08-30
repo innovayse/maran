@@ -49,16 +49,15 @@ const visibleAccounts: ComputedRef<Account[]> = computed(() => {
   if (needle.length === 0) {
     return store.accounts
   }
-  return store.accounts.filter(
-    (account) =>
-      account.name.toLowerCase().includes(needle) || account.primaryDomain.toLowerCase().includes(needle),
-  )
+  return store.accounts.filter((account) => {
+    return account.name.toLowerCase().includes(needle) || account.primaryDomain.toLowerCase().includes(needle)
+  })
 })
 
 /** Whether the panel reported accounts but the current query matches none of them. */
-const hasNoMatches: ComputedRef<boolean> = computed(
-  () => store.accounts.length > 0 && visibleAccounts.value.length === 0,
-)
+const hasNoMatches: ComputedRef<boolean> = computed(() => {
+  return store.accounts.length > 0 && visibleAccounts.value.length === 0
+})
 
 /**
  * Kicks off the initial account list load once the page is mounted.
@@ -91,10 +90,10 @@ const clearQuery = (): void => {
   <section class="w-full">
     <div class="mb-4 flex flex-wrap items-end justify-between gap-4">
       <div>
-        <h1 class="text-xl font-semibold tracking-title text-text-primary">
+        <h1 class="text-3xl font-semibold tracking-title text-text-primary">
           {{ t('accounts.list.heading') }}
         </h1>
-        <p class="mt-1 text-xs text-text-secondary">{{ t('accounts.list.subtitle') }}</p>
+        <p class="mt-1 text-base text-text-secondary">{{ t('accounts.list.subtitle') }}</p>
       </div>
       <UiButton @click="goToCreate">{{ t('accounts.list.createAction') }}</UiButton>
     </div>
@@ -107,7 +106,7 @@ const clearQuery = (): void => {
         :placeholder="t('accounts.list.searchPlaceholder')"
         :clear-label="t('accounts.list.searchClear')"
       />
-      <span class="ml-auto font-mono text-xs text-text-muted">
+      <span class="ml-auto font-mono text-base text-text-muted">
         {{ t('accounts.list.resultCount', { shown: visibleAccounts.length, total: store.accounts.length }) }}
       </span>
     </div>
@@ -132,10 +131,7 @@ const clearQuery = (): void => {
       <UiButton variant="secondary" @click="clearQuery">{{ t('accounts.list.clearSearch') }}</UiButton>
     </UiEmptyState>
 
-    <UiTable
-      v-else-if="visibleAccounts.length > 0"
-      :caption="t('accounts.list.tableCaption')"
-    >
+    <UiTable v-else-if="visibleAccounts.length > 0" :caption="t('accounts.list.tableCaption')">
       <template #head>
         <UiTableRow>
           <UiTableHeaderCell>{{ t('accounts.list.columns.name') }}</UiTableHeaderCell>

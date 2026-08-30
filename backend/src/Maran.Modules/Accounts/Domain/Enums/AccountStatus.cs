@@ -1,4 +1,4 @@
-namespace Maran.Modules.Accounts.Domain;
+namespace Maran.Modules.Accounts.Domain.Enums;
 
 /// <summary>Lifecycle state of a hosting <see cref="Account"/>.</summary>
 public enum AccountStatus
