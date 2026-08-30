@@ -6,16 +6,14 @@ on:
       - 'agent/**'
       - 'backend/**'
       - 'proto/**'
-      - 'scripts/lib/e2e-handshake.sh'
-      - 'scripts/lib/proto-lint.sh'
+      - 'scripts/**'
       - '.github/workflows/cross.yml'
   pull_request:
     paths:
       - 'agent/**'
       - 'backend/**'
       - 'proto/**'
-      - 'scripts/lib/e2e-handshake.sh'
-      - 'scripts/lib/proto-lint.sh'
+      - 'scripts/**'
       - '.github/workflows/cross.yml'
 
 jobs:
@@ -59,13 +57,13 @@ jobs:
       # Contract rules no compiler enforces: reserved field numbers, no renumbering,
       # naming and the closed command set (rules/proto.md).
       - name: Proto lint
-        run: bash scripts/lib/proto-lint.sh
+        run: bash scripts/maran proto
 
       # The check neither side's own suite can make: the backend tests stub the agent and the
       # agent tests have no API, so a contract that compiles on both sides and disagrees on the
       # wire would pass both and fail only here.
       - name: Handshake over a unix socket
-        run: bash scripts/lib/e2e-handshake.sh
+        run: bash scripts/maran handshake
         env:
           # The panel refuses to boot without an encryption key (rules/security.md). This one is
           # a throwaway for a job whose database is destroyed with the runner.
