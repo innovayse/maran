@@ -122,32 +122,47 @@ command line tool, and reversible with an automatic database dump and a rollback
 
 ## Development
 
-    source scripts/dev-env.sh          # toolchains on PATH, development keys
-    bash scripts/preflight.sh          # verify the toolchain before anything else
-    scripts/run-dev.sh                 # the whole stack: database, API, application
+    source scripts/dev                 # sourced, not run: toolchains and `maran` on your PATH
+    maran check                        # what this machine is missing, before anything else
+    maran dev                          # the whole stack: database, API, application
 
-`run-dev.sh` starts the PostgreSQL container, the API and the SPA, waits until each answers,
-and then streams only warnings and errors; Ctrl+C stops everything. Docker carries development
+Everything runs through one CLI. Type `maran` on its own to see the toolbox; the help is
+generated from the command table, so a command that exists is a command that is documented.
+
+`maran dev` starts the PostgreSQL container, the API and the SPA, waits until each answers, and
+then streams only warnings and errors; Ctrl+C stops everything. Docker carries development
 dependencies only — the API and the application run natively, exactly as they do on a server.
+
+`source scripts/dev` also creates `.env` from `.env.example` the first time. That file is
+git-ignored and is the only place local configuration lives.
 
 Verification, each runnable on its own:
 
+    maran structure                    # file and folder laws no compiler can express
+    maran format --check               # formatting and naming, every language
+    maran proto                        # the API-to-agent contract
+    maran migrate check                # a model edited without a migration
+    maran agent check                  # rustfmt, clippy -D warnings, cargo test
+    maran handshake                    # agent and API over a real unix socket
     cd backend  && dotnet test         # unit, architecture and integration tests
-    cd agent    && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test
-    cd frontend && npm ci && npm run lint && npm run typecheck && npm run build
-    cd frontend && npx playwright install --with-deps chromium && npm run test:e2e
-    bash scripts/e2e-handshake.sh      # agent and API over a real unix socket
+    cd frontend && npm run lint && npm run typecheck && npm run build && npx playwright test
 
 The application has no unit-test runner by design: it is verified end to end against a running
 API in `frontend/e2e/` (rules/testing.md).
 
-Other scripts: `scripts/format.sh` formats every language (`--check` verifies without writing),
-`scripts/migrations.sh` adds and applies a module's database migrations, and
-`scripts/new-module.sh` scaffolds a module.
-
 Requirements: .NET 9 SDK, Rust (stable), Node.js 20+, protoc, a C toolchain for Rust linking
 (`build-essential`), and Docker for development only.
-Contributions must follow the rules in `rules/`; they are enforced in continuous integration.
+
+## Contributing
+
+Read [CONTRIBUTING.md](CONTRIBUTING.md) first — it covers the setup above, the gates a pull
+request has to pass, and the changes that need a second reviewer and a written threat note.
+
+The rules in [`rules/`](rules/) are binding and mostly enforced by a command rather than by a
+reviewer's memory. Work branches from `dev` and merges back into it; `main` is the release
+branch and takes nothing but a reviewed pull request from `dev`.
+
+Everyone taking part is expected to follow the [Code of Conduct](CODE_OF_CONDUCT.md).
 
 ## Status
 
@@ -164,8 +179,11 @@ with a conversion to an open source license on the date stated in `LICENSE`.
 
 ## Security
 
-Report vulnerabilities privately as described in `SECURITY.md`. Please do not open public
-issues for security problems.
+Report vulnerabilities privately as described in [SECURITY.md](SECURITY.md). Please do not open
+public issues for security problems.
+
+Probing your own installation is welcome. Probing somebody else's is not, and no finding
+excuses it.
 
 ---
 
