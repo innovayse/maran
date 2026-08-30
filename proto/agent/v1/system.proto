@@ -42,7 +42,11 @@ message AgentInfo {
 
 // Supported distro families (spec §4).
 enum DistroFamily {
+  // Never sent by an agent: proto3 requires a zero value, and receiving it
+  // means the sender is older than the field.
   DISTRO_FAMILY_UNSPECIFIED = 0;
+  // Ubuntu and Debian: apt, sites-available, the www-data account.
   DISTRO_FAMILY_DEBIAN = 1;
+  // AlmaLinux and Rocky: dnf, conf.d, the nginx account, SELinux contexts.
   DISTRO_FAMILY_RHEL = 2;
 }

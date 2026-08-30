@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="AgentUnspecified">
+    <value>Չհաջողվեց կատարել այս գործողությունը ձեր սերվերում։ Կրկնեք փորձը մի քանի րոպեից, իսկ եթե սխալը շարունակվում է՝ դիմեք աջակցման ծառայությանը։</value>
+  </data>
+  <data name="AgentInvalidInput">
+    <value>Ձեր նշած որոշ տվյալներ չեն ընդունվել։ Ստուգեք դրանք և կրկնեք փորձը։</value>
+  </data>
+  <data name="AgentAlreadyExists">
+    <value>Սա արդեն առկա է ձեր սերվերում, ուստի կրկին ոչինչ չի ստեղծվել։</value>
+  </data>
+  <data name="AgentNotFound">
+    <value>Սա այլևս չկա ձեր սերվերում։ Թարմացրեք էջը՝ ընթացիկ վիճակը տեսնելու համար։</value>
+  </data>
+  <data name="AgentValidationFailed">
+    <value>Ձեր սերվերը նշված տվյալները համարեց անվավեր։ Ուղղեք դրանք և կրկնեք փորձը։</value>
+  </data>
+  <data name="AgentSystemFailure">
+    <value>Այս գործողությունը չհաջողվեց կատարել ձեր սերվերում, և ոչինչ չի փոփոխվել։ Կրկնեք փորձը մի քանի րոպեից, իսկ եթե սխալը շարունակվում է՝ դիմեք աջակցման ծառայությանը։</value>
+  </data>
+  <data name="AgentInvalidResponse">
+    <value>Ձեր սերվերը հասկանալի պատասխան չվերադարձրեց։ Կրկնեք փորձը մի քանի րոպեից, իսկ եթե սխալը շարունակվում է՝ դիմեք աջակցման ծառայությանը։</value>
+  </data>
+</root>

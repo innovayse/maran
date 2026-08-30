@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="AgentUnspecified">
+    <value>Не удалось выполнить эту операцию на вашем сервере. Повторите попытку через несколько минут, а если ошибка повторяется — обратитесь в поддержку.</value>
+  </data>
+  <data name="AgentInvalidInput">
+    <value>Некоторые из указанных данных не приняты. Проверьте их и повторите попытку.</value>
+  </data>
+  <data name="AgentAlreadyExists">
+    <value>Это уже существует на вашем сервере, поэтому повторно ничего не создано.</value>
+  </data>
+  <data name="AgentNotFound">
+    <value>Этого больше нет на вашем сервере. Обновите страницу, чтобы увидеть текущее состояние.</value>
+  </data>
+  <data name="AgentValidationFailed">
+    <value>Ваш сервер счёл указанные данные некорректными. Исправьте их и повторите попытку.</value>
+  </data>
+  <data name="AgentSystemFailure">
+    <value>Эту операцию не удалось выполнить на вашем сервере, изменения не внесены. Повторите попытку через несколько минут, а если ошибка повторяется — обратитесь в поддержку.</value>
+  </data>
+  <data name="AgentInvalidResponse">
+    <value>Ваш сервер не вернул понятного ответа. Повторите попытку через несколько минут, а если ошибка повторяется — обратитесь в поддержку.</value>
+  </data>
+</root>

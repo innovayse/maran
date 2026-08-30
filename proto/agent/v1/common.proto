@@ -22,6 +22,8 @@ message AgentError {
 
 // Failure categories every operation maps into.
 enum ErrorCode {
+  // Never sent deliberately: proto3 requires a zero value, and receiving it
+  // means the agent failed without classifying the failure.
   ERROR_CODE_UNSPECIFIED = 0;
   // Input failed the agent's own validation (regex/path containment).
   ERROR_CODE_INVALID_INPUT = 1;

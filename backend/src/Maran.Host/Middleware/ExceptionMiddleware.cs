@@ -12,20 +12,16 @@ namespace Maran.Host.Middleware;
 public sealed class ExceptionMiddleware
 {
     /// <summary>
-    /// Machine-stable code for the generic fallback message. Not tied to any module, so it is
-    /// resolved through <see cref="IErrorTextProvider"/> when one is registered (a future
-    /// module may supply a localized "unexpected error" resource under this code); until then the
-    /// English literal below is the only text that ever reaches a customer for this path, which
-    /// keeps the "no hardcoded user-facing strings" rule honest — this is the single named
-    /// exception, documented here rather than left implicit.
+    /// Machine-stable code for the generic fallback message, and the key of the Host's own
+    /// <c>Resources/ErrorMessages*.resx</c> entry for it — one identifier, not a code plus a
+    /// separate resource key that can drift apart (rules/csharp.md "That same string is the machine
+    /// code"). <c>AddPanelLocalization</c> registers that resource family, so in the composed host
+    /// this always resolves to a localized sentence.
     /// </summary>
     private const string UnexpectedErrorCode = "HostUnexpectedError";
 
     /// <summary>Media type of an RFC 7807 payload; must be handed to the JSON writer, not set beforehand.</summary>
     private const string ProblemContentType = "application/problem+json";
-
-    /// <summary>The literal used when no <see cref="IErrorTextProvider"/> is registered to localize it.</summary>
-    private const string UnexpectedErrorFallbackText = "An unexpected error occurred.";
 
     /// <summary>
     /// Pre-compiled log delegate for the caught exception. A source-generated delegate avoids the
@@ -85,8 +81,14 @@ public sealed class ExceptionMiddleware
             return;
         }
 
+        // Resolved via DI rather than assumed present, exactly as ApiResultExtensions.ToProblemResult
+        // does: an isolated test host registers no IErrorTextProvider and must still degrade to the
+        // machine code rather than throw. The code is never a stack trace, a path or tool output,
+        // so it is safe to show (rules/security.md "Secrets"). There is deliberately no English
+        // literal here any more: with the Host's own resource family registered, a literal would be
+        // a hardcoded user-facing string that no code path in the composed host can reach.
         var errorTextProvider = context.RequestServices.GetService<IErrorTextProvider>();
-        var detail = errorTextProvider?.Resolve(UnexpectedErrorCode) ?? UnexpectedErrorFallbackText;
+        var detail = errorTextProvider?.Resolve(UnexpectedErrorCode) ?? UnexpectedErrorCode;
 
         var problem = new ProblemDetails
         {

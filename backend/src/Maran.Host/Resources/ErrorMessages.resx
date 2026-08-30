@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="HostUnexpectedError">
+    <value>Something went wrong and this request could not be completed. Please try again. If it keeps happening, contact support and give them the correlation id shown with this message — it is what they need to find your request.</value>
+  </data>
+  <data name="HostRateLimited">
+    <value>Too many requests were sent in a short time. Please wait until the time given in the Retry-After header has passed, then try again.</value>
+  </data>
+</root>

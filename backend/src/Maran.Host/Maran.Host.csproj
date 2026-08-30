@@ -20,4 +20,21 @@
     <ProjectReference Include="..\Maran.Modules\Accounts\Maran.Modules.Accounts.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- Resx-backed user-facing message text (rules/csharp.md "The backend owns all
+         user-facing message text"): ErrorMessages carries the two failures the composition root
+         itself produces (HostUnexpectedError, HostRateLimited), which belong to no module.
+         Strongly-typed generation is not needed — the keys are looked up by code through
+         IErrorTextProvider, never by a designer accessor. -->
+    <EmbeddedResource Update="Resources\ErrorMessages.resx">
+      <Generator></Generator>
+    </EmbeddedResource>
+    <EmbeddedResource Update="Resources\ErrorMessages.ru.resx">
+      <Generator></Generator>
+    </EmbeddedResource>
+    <EmbeddedResource Update="Resources\ErrorMessages.hy.resx">
+      <Generator></Generator>
+    </EmbeddedResource>
+  </ItemGroup>
+
 </Project>

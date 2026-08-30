@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="AgentUnspecified">
+    <value>This operation could not be completed on your server. Please try again in a few minutes, and contact support if it keeps happening.</value>
+  </data>
+  <data name="AgentInvalidInput">
+    <value>Some of the details you submitted were not accepted. Please check them and try again.</value>
+  </data>
+  <data name="AgentAlreadyExists">
+    <value>This already exists on your server, so nothing was created again.</value>
+  </data>
+  <data name="AgentNotFound">
+    <value>This no longer exists on your server. Refresh the page to see its current state.</value>
+  </data>
+  <data name="AgentValidationFailed">
+    <value>Your server rejected these details as invalid. Please correct them and try again.</value>
+  </data>
+  <data name="AgentSystemFailure">
+    <value>This operation could not be completed on your server and nothing was changed. Please try again in a few minutes, and contact support if it keeps happening.</value>
+  </data>
+  <data name="AgentInvalidResponse">
+    <value>Your server did not return a usable answer. Please try again in a few minutes, and contact support if it keeps happening.</value>
+  </data>
+</root>

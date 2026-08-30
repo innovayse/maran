@@ -1,3 +1,4 @@
+using System.Resources;
 using Grpc.Net.Client;
 using Maran.Agent.Client.Channels;
 using Maran.Agent.Client.Interfaces;
@@ -13,6 +14,9 @@ namespace Maran.Agent.Client;
 /// </summary>
 public static class DependencyInjection
 {
+    /// <summary>The embedded resource base name of <c>Resources/ErrorMessages*.resx</c>.</summary>
+    private const string ErrorMessagesResourceBaseName = "Maran.Agent.Client.Resources.ErrorMessages";
+
     /// <summary>
     /// Registers the typed agent clients over one shared unix-socket channel.
     /// </summary>
@@ -36,6 +40,15 @@ public static class DependencyInjection
             {
                 return new AgentSystemClient(provider.GetRequiredService<GrpcChannel>());
             });
+
+        // Registers this project's resource manager into the shared pool the panel-wide
+        // ResxErrorTextProvider resolves error codes against (rules/csharp.md "The backend owns all
+        // user-facing message text"). Without it the seven Agent* codes this project produces are
+        // claimed by no resource file, and the provider's last-resort fallback shows the customer
+        // the machine code itself instead of a sentence.
+        services.AddSingleton(
+            new ResourceManager(ErrorMessagesResourceBaseName, typeof(DependencyInjection).Assembly));
+
         return services;
     }
 }

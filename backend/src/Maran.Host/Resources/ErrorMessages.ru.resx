@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="HostUnexpectedError">
+    <value>Что-то пошло не так, и запрос не удалось выполнить. Повторите попытку. Если ошибка повторяется, обратитесь в поддержку и сообщите идентификатор запроса, показанный рядом с этим сообщением, — именно по нему поддержка найдёт ваш запрос.</value>
+  </data>
+  <data name="HostRateLimited">
+    <value>За короткое время отправлено слишком много запросов. Подождите время, указанное в заголовке Retry-After, и повторите попытку.</value>
+  </data>
+</root>
