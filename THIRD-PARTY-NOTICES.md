@@ -40,9 +40,9 @@ Resolved by cargo from `agent/Cargo.lock`.
 | `hashbrown` | 0.17.1 | MIT OR Apache-2.0 |
 | `heck` | 0.5.0 | MIT OR Apache-2.0 |
 | `http` | 1.5.0 | MIT OR Apache-2.0 |
-| `httparse` | 1.10.1 | MIT OR Apache-2.0 |
 | `http-body` | 1.1.0 | MIT |
 | `http-body-util` | 0.1.5 | MIT |
+| `httparse` | 1.10.1 | MIT OR Apache-2.0 |
 | `httpdate` | 1.0.3 | MIT OR Apache-2.0 |
 | `hyper` | 1.11.1 | MIT |
 | `hyper-timeout` | 0.5.2 | MIT OR Apache-2.0 |
@@ -113,15 +113,15 @@ Resolved by cargo from `agent/Cargo.lock`.
 | `valuable` | 0.1.1 | MIT |
 | `want` | 0.3.1 | MIT |
 | `wasi` | 0.11.1+wasi-snapshot-preview1 | Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT |
+| `windows-link` | 0.2.1 | MIT OR Apache-2.0 |
+| `windows-sys` | 0.52.0 | MIT OR Apache-2.0 |
+| `windows-sys` | 0.61.2 | MIT OR Apache-2.0 |
+| `windows-targets` | 0.52.6 | MIT OR Apache-2.0 |
 | `windows_aarch64_gnullvm` | 0.52.6 | MIT OR Apache-2.0 |
 | `windows_aarch64_msvc` | 0.52.6 | MIT OR Apache-2.0 |
 | `windows_i686_gnu` | 0.52.6 | MIT OR Apache-2.0 |
 | `windows_i686_gnullvm` | 0.52.6 | MIT OR Apache-2.0 |
 | `windows_i686_msvc` | 0.52.6 | MIT OR Apache-2.0 |
-| `windows-link` | 0.2.1 | MIT OR Apache-2.0 |
-| `windows-sys` | 0.52.0 | MIT OR Apache-2.0 |
-| `windows-sys` | 0.61.2 | MIT OR Apache-2.0 |
-| `windows-targets` | 0.52.6 | MIT OR Apache-2.0 |
 | `windows_x86_64_gnu` | 0.52.6 | MIT OR Apache-2.0 |
 | `windows_x86_64_gnullvm` | 0.52.6 | MIT OR Apache-2.0 |
 | `windows_x86_64_msvc` | 0.52.6 | MIT OR Apache-2.0 |
@@ -138,8 +138,8 @@ Resolved by restore; versions are pinned in `backend/Directory.Packages.props`.
 | `Docker.DotNet.Enhanced` | 4.3.3 | MIT |
 | `Docker.DotNet.Enhanced.Handler.Abstractions` | 4.3.3 | MIT |
 | `Docker.DotNet.Enhanced.LegacyHttp` | 4.3.3 | MIT |
-| `Docker.DotNet.Enhanced.NativeHttp` | 4.3.3 | MIT |
 | `Docker.DotNet.Enhanced.NPipe` | 4.3.3 | MIT |
+| `Docker.DotNet.Enhanced.NativeHttp` | 4.3.3 | MIT |
 | `Docker.DotNet.Enhanced.Unix` | 4.3.3 | MIT |
 | `Docker.DotNet.Enhanced.X509` | 4.3.3 | MIT |
 | `FastExpressionCompiler` | 5.4.1 | MIT |
@@ -166,19 +166,19 @@ Resolved by restore; versions are pinned in `backend/Directory.Packages.props`.
 | `Microsoft.Bcl.TimeProvider` | 9.0.11 | MIT |
 | `Microsoft.Build.Framework` | 17.11.48 | MIT |
 | `Microsoft.Build.Locator` | 1.7.8 | MIT |
+| `Microsoft.CSharp` | 4.7.0 | MIT |
 | `Microsoft.CodeAnalysis` | 5.3.0 | MIT |
 | `Microsoft.CodeAnalysis.Analyzers` | 5.3.0-2.25625.1 | MIT |
 | `Microsoft.CodeAnalysis.BannedApiAnalyzers` | 5.6.0 | MIT |
-| `Microsoft.CodeAnalysis.Common` | 5.3.0 | MIT |
 | `Microsoft.CodeAnalysis.CSharp` | 5.3.0 | MIT |
 | `Microsoft.CodeAnalysis.CSharp.Workspaces` | 5.3.0 | MIT |
+| `Microsoft.CodeAnalysis.Common` | 5.3.0 | MIT |
 | `Microsoft.CodeAnalysis.Scripting` | 4.14.0 | MIT |
 | `Microsoft.CodeAnalysis.VisualBasic` | 5.3.0 | MIT |
 | `Microsoft.CodeAnalysis.VisualBasic.Workspaces` | 5.3.0 | MIT |
 | `Microsoft.CodeAnalysis.Workspaces.Common` | 5.3.0 | MIT |
 | `Microsoft.CodeAnalysis.Workspaces.MSBuild` | 5.3.0 | MIT |
 | `Microsoft.CodeCoverage` | 18.9.0 | MIT |
-| `Microsoft.CSharp` | 4.7.0 | MIT |
 | `Microsoft.EntityFrameworkCore` | 9.0.19 | MIT |
 | `Microsoft.EntityFrameworkCore.Abstractions` | 9.0.19 | MIT |
 | `Microsoft.EntityFrameworkCore.Analyzers` | 9.0.19 | MIT |
@@ -265,6 +265,7 @@ Resolved by restore; versions are pinned in `backend/Directory.Packages.props`.
 | `Polly.Core` | 8.6.5 | BSD-3-Clause |
 | `Polly.Extensions` | 8.4.2 | BSD-3-Clause |
 | `Polly.RateLimiting` | 8.4.2 | BSD-3-Clause |
+| `SSH.NET` | 2026.0.0 | MIT |
 | `Serilog` | 4.2.0 | Apache-2.0 |
 | `Serilog.AspNetCore` | 9.0.0 | Apache-2.0 |
 | `Serilog.Extensions.Hosting` | 9.0.0 | Apache-2.0 |
@@ -277,7 +278,6 @@ Resolved by restore; versions are pinned in `backend/Directory.Packages.props`.
 | `SharpZipLib` | 1.4.2 | MIT |
 | `Spectre.Console` | 0.55.0 | MIT |
 | `Spectre.Console.Ansi` | 0.55.0 | MIT |
-| `SSH.NET` | 2026.0.0 | MIT |
 | `System.Buffers` | 4.6.0 | MIT |
 | `System.CodeDom` | 6.0.0 | MIT |
 | `System.Collections.Immutable` | 9.0.0 | MIT |
@@ -289,8 +289,8 @@ Resolved by restore; versions are pinned in `backend/Directory.Packages.props`.
 | `System.Composition.TypedParts` | 9.0.0 | MIT |
 | `System.Diagnostics.EventLog` | 9.0.0 | MIT |
 | `System.Diagnostics.EventLog` | 9.0.19 | MIT |
-| `System.IdentityModel.Tokens.Jwt` | 8.19.2 | MIT |
 | `System.IO.Pipelines` | 9.0.0 | MIT |
+| `System.IdentityModel.Tokens.Jwt` | 8.19.2 | MIT |
 | `System.Memory` | 4.5.4 | https://github.com/dotnet/corefx/blob/master/LICENSE.TXT |
 | `System.Memory` | 4.6.0 | MIT |
 | `System.Numerics.Vectors` | 4.6.0 | MIT |
@@ -324,37 +324,57 @@ Runtime dependencies only; build and test tooling is not distributed.
 
 | Package | Version | Licence |
 |---|---|---|
-| `acorn` | 8.18.0 | MIT |
-| `ast-kit` | 2.2.0 | MIT |
-| `ast-walker-scope` | 0.9.0 | MIT |
 | `@babel/helper-string-parser` | 7.29.7 | MIT |
 | `@babel/helper-validator-identifier` | 7.29.7 | MIT |
 | `@babel/parser` | 7.29.8 | MIT |
 | `@babel/types` | 7.29.8 | MIT |
+| `@emnapi/core` | 1.10.0 | MIT |
+| `@emnapi/runtime` | 1.10.0 | MIT |
+| `@emnapi/wasi-threads` | 1.2.1 | MIT |
+| `@intlify/core-base` | 11.4.10 | MIT |
+| `@intlify/devtools-types` | 11.4.10 | MIT |
+| `@intlify/message-compiler` | 11.4.10 | MIT |
+| `@intlify/shared` | 11.4.10 | MIT |
+| `@jridgewell/gen-mapping` | 0.3.13 | MIT |
+| `@jridgewell/remapping` | 2.3.5 | MIT |
+| `@jridgewell/resolve-uri` | 3.1.2 | MIT |
+| `@jridgewell/sourcemap-codec` | 1.6.0 | MIT |
+| `@jridgewell/trace-mapping` | 0.3.31 | MIT |
+| `@napi-rs/wasm-runtime` | 1.2.3 | MIT |
+| `@oxc-project/types` | 0.147.0 | MIT |
+| `@rolldown/binding-linux-x64-gnu` | 1.2.6 | MIT |
+| `@rolldown/binding-linux-x64-musl` | 1.2.6 | MIT |
+| `@rolldown/pluginutils` | 1.0.1 | MIT |
+| `@tybys/wasm-util` | 0.10.3 | MIT |
+| `@types/node` | 26.4.0 | MIT |
+| `@vue-macros/common` | 3.1.4 | MIT |
+| `@vue/compiler-core` | 3.5.42 | MIT |
+| `@vue/compiler-dom` | 3.5.42 | MIT |
+| `@vue/compiler-sfc` | 3.5.42 | MIT |
+| `@vue/compiler-ssr` | 3.5.42 | MIT |
+| `@vue/devtools-api` | 8.2.1 | MIT |
+| `@vue/devtools-kit` | 8.2.1 | MIT |
+| `@vue/devtools-shared` | 8.2.1 | MIT |
+| `@vue/reactivity` | 3.5.42 | MIT |
+| `@vue/runtime-core` | 3.5.42 | MIT |
+| `@vue/runtime-dom` | 3.5.42 | MIT |
+| `@vue/server-renderer` | 3.5.42 | MIT |
+| `@vue/shared` | 3.5.42 | MIT |
+| `acorn` | 8.18.0 | MIT |
+| `ast-kit` | 2.2.0 | MIT |
+| `ast-walker-scope` | 0.9.0 | MIT |
 | `birpc` | 2.9.0 | MIT |
 | `chokidar` | 5.0.0 | MIT |
 | `confbox` | 0.2.4 | MIT |
 | `csstype` | 3.2.3 | MIT |
 | `date-fns` | 4.4.0 | MIT |
 | `detect-libc` | 2.1.2 | Apache-2.0 |
-| `@emnapi/core` | 1.10.0 | MIT |
-| `@emnapi/runtime` | 1.10.0 | MIT |
-| `@emnapi/wasi-threads` | 1.2.1 | MIT |
 | `entities` | 7.0.1 | BSD-2-Clause |
 | `estree-walker` | 2.0.2 | MIT |
 | `exsolve` | 1.1.1 | MIT |
 | `fdir` | 6.5.0 | MIT |
 | `hookable` | 5.5.3 | MIT |
-| `@intlify/core-base` | 11.4.10 | MIT |
-| `@intlify/devtools-types` | 11.4.10 | MIT |
-| `@intlify/message-compiler` | 11.4.10 | MIT |
-| `@intlify/shared` | 11.4.10 | MIT |
 | `jiti` | 2.7.0 | MIT |
-| `@jridgewell/gen-mapping` | 0.3.13 | MIT |
-| `@jridgewell/remapping` | 2.3.5 | MIT |
-| `@jridgewell/resolve-uri` | 3.1.2 | MIT |
-| `@jridgewell/sourcemap-codec` | 1.6.0 | MIT |
-| `@jridgewell/trace-mapping` | 0.3.31 | MIT |
 | `lightningcss` | 1.32.0 | MPL-2.0 |
 | `lightningcss-linux-x64-gnu` | 1.32.0 | MPL-2.0 |
 | `lightningcss-linux-x64-musl` | 1.32.0 | MPL-2.0 |
@@ -364,9 +384,7 @@ Runtime dependencies only; build and test tooling is not distributed.
 | `mlly` | 1.8.2 | MIT |
 | `muggle-string` | 0.4.1 | MIT |
 | `nanoid` | 3.3.18 | MIT |
-| `@napi-rs/wasm-runtime` | 1.2.3 | MIT |
 | `nostics` | 1.2.0 | MIT |
-| `@oxc-project/types` | 0.147.0 | MIT |
 | `pathe` | 2.0.3 | MIT |
 | `perfect-debounce` | 2.1.0 | MIT |
 | `picocolors` | 1.1.1 | ISC |
@@ -377,36 +395,18 @@ Runtime dependencies only; build and test tooling is not distributed.
 | `quansync` | 0.2.11 | MIT |
 | `readdirp` | 5.1.1 | MIT |
 | `rolldown` | 1.2.6 | MIT |
-| `@rolldown/binding-linux-x64-gnu` | 1.2.6 | MIT |
-| `@rolldown/binding-linux-x64-musl` | 1.2.6 | MIT |
-| `@rolldown/pluginutils` | 1.0.1 | MIT |
 | `scule` | 1.3.0 | MIT |
 | `source-map-js` | 1.2.1 | BSD-3-Clause |
 | `tinyglobby` | 0.2.17 | MIT |
 | `tslib` | 2.8.1 | 0BSD |
-| `@tybys/wasm-util` | 0.10.3 | MIT |
 | `typescript` | 5.9.3 | Apache-2.0 |
-| `@types/node` | 26.4.0 | MIT |
 | `ufo` | 1.6.4 | MIT |
 | `undici-types` | 8.3.0 | MIT |
 | `unplugin` | 3.3.0 | MIT |
 | `unplugin-utils` | 0.3.2 | MIT |
 | `vite` | 8.2.2 | MIT |
 | `vue` | 3.5.42 | MIT |
-| `@vue/compiler-core` | 3.5.42 | MIT |
-| `@vue/compiler-dom` | 3.5.42 | MIT |
-| `@vue/compiler-sfc` | 3.5.42 | MIT |
-| `@vue/compiler-ssr` | 3.5.42 | MIT |
-| `@vue/devtools-api` | 8.2.1 | MIT |
-| `@vue/devtools-kit` | 8.2.1 | MIT |
-| `@vue/devtools-shared` | 8.2.1 | MIT |
 | `vue-i18n` | 11.4.10 | MIT |
-| `@vue-macros/common` | 3.1.4 | MIT |
-| `@vue/reactivity` | 3.5.42 | MIT |
 | `vue-router` | 5.3.0 | MIT |
-| `@vue/runtime-core` | 3.5.42 | MIT |
-| `@vue/runtime-dom` | 3.5.42 | MIT |
-| `@vue/server-renderer` | 3.5.42 | MIT |
-| `@vue/shared` | 3.5.42 | MIT |
 | `webpack-virtual-modules` | 0.6.2 | MIT |
 

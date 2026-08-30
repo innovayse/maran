@@ -23,6 +23,12 @@ root="$(cd "$(dirname "$0")/../.." && pwd)"
 # shellcheck disable=SC1091
 . "$root/scripts/dev"
 
+# Sorting is locale-dependent: a developer's locale puts `httparse` before `http-body` and the C
+# locale puts it after, so the same dependencies produced two different files and the check
+# comparing them failed on CI. The output must be byte-identical everywhere, so the collation is
+# pinned rather than inherited.
+export LC_ALL=C
+
 if ! command -v jq >/dev/null 2>&1; then
   echo "jq is required: apt-get install jq (or dnf install jq)" >&2
   exit 1
