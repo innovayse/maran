@@ -7,7 +7,7 @@ use super::os_release::parse;
 /// Absolute path of the file every supported distribution publishes.
 const OS_RELEASE_PATH: &str = "/etc/os-release";
 
-/// Detects the host distribution by reading [`OS_RELEASE_PATH`].
+/// Detects the host distribution by reading `/etc/os-release`.
 ///
 /// # Errors
 ///

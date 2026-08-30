@@ -22,5 +22,5 @@ pub fn adapter_for(family: DistroFamily) -> &'static dyn DistroAdapter {
 }
 
 #[cfg(test)]
-#[path = "tests/adapter_for_tests.rs"]
+#[path = "tests/adapter_selector_tests.rs"]
 mod tests;

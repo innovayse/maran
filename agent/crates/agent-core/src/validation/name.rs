@@ -20,8 +20,8 @@ impl AccountName {
     /// Validates `candidate` and wraps it.
     ///
     /// Accepts a lowercase ASCII letter followed by lowercase ASCII letters,
-    /// digits or underscores, between [`MIN_LENGTH`] and [`MAX_LENGTH`]
-    /// characters in total.
+    /// digits or underscores, between 3 and 30 characters in total — the bounds
+    /// `useradd` itself accepts.
     ///
     /// The alphabet is dictated by `useradd`, not by taste. A name reaching this
     /// crate goes on to become a system user, a home directory, a systemd unit
