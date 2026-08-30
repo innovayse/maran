@@ -47,5 +47,45 @@ export const useAccountsApi = (): AccountsApi => {
     return api.get<Plan[]>(`${ACCOUNTS_PATH}/plans`, signal)
   }
 
-  return { list, create, listPlans }
+  /**
+   * Reads one account.
+   * @param id The account's identity.
+   * @param signal Optional abort signal to cancel the in-flight request.
+   * @returns The account, as the panel currently has it.
+   */
+  const get = (id: string, signal?: AbortSignal): Promise<Account> => {
+    return api.get<Account>(`${ACCOUNTS_PATH}/${id}`, signal)
+  }
+
+  /**
+   * Suspends an account.
+   * @param id The account's identity.
+   * @param signal Optional abort signal to cancel the in-flight request.
+   * @returns The account in its new state.
+   */
+  const suspend = (id: string, signal?: AbortSignal): Promise<Account> => {
+    return api.post<Account>(`${ACCOUNTS_PATH}/${id}/suspend`, undefined, signal)
+  }
+
+  /**
+   * Lifts a suspension.
+   * @param id The account's identity.
+   * @param signal Optional abort signal to cancel the in-flight request.
+   * @returns The account in its new state.
+   */
+  const reactivate = (id: string, signal?: AbortSignal): Promise<Account> => {
+    return api.post<Account>(`${ACCOUNTS_PATH}/${id}/reactivate`, undefined, signal)
+  }
+
+  /**
+   * Deletes an account together with its system user and home directory.
+   * @param id The account's identity.
+   * @param signal Optional abort signal to cancel the in-flight request.
+   * @returns The bytes the deletion reclaimed.
+   */
+  const remove = (id: string, signal?: AbortSignal): Promise<number> => {
+    return api.delete<number>(`${ACCOUNTS_PATH}/${id}`, signal)
+  }
+
+  return { list, create, listPlans, get, suspend, reactivate, remove }
 }

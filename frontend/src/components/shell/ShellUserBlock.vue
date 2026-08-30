@@ -15,7 +15,8 @@
 import { computed, type ComputedRef } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
-import UiButton from '../ui/UiButton.vue'
+import UiDropdown from '../ui/UiDropdown.vue'
+import UiDropdownItem from '../ui/UiDropdownItem.vue'
 import UiIcon from '../ui/UiIcon.vue'
 import { useAuthStore } from '../../stores/auth'
 
@@ -62,6 +63,20 @@ const user: ComputedRef<ShellUser | null> = computed(() => {
   }
 })
 
+/** Whether the signed-in person is an administrator, used to decide what the menu offers. */
+const isAdmin: ComputedRef<boolean> = computed(() => {
+  return authStore.user?.role === 'admin'
+})
+
+/**
+ * Opens one of the account pages.
+ * @param name The route name to navigate to.
+ * @returns Resolves once the navigation has settled.
+ */
+const go = async (name: string): Promise<void> => {
+  await router.push({ name })
+}
+
 /**
  * Signs out of this device and returns to the sign-in screen.
  * @returns Resolves once the request has settled.
@@ -92,13 +107,21 @@ const signOut = async (): Promise<void> => {
     {{ t('app.shell.signedOut') }}
   </span>
 
-  <UiButton
+  <!-- The account menu. Sessions, two-factor and the audit journal are real pages with real
+       tests, and until this menu existed the only way to reach any of them was to type its URL:
+       a screen nothing links to is a screen nobody has. -->
+  <UiDropdown
     v-if="user !== null"
-    variant="ghost"
-    :aria-label="t('app.auth.signOut')"
-    :title="t('app.auth.signOut')"
-    @click="signOut"
+    align="end"
+    :label="user.name"
+    :aria-label="t('app.shell.accountMenu')"
   >
-    <UiIcon name="logOut" :size="15" />
-  </UiButton>
+    <UiDropdownItem @select="go('sessions')">{{ t('app.shell.menu.sessions') }}</UiDropdownItem>
+    <UiDropdownItem @select="go('two-factor')">{{ t('app.shell.menu.twoFactor') }}</UiDropdownItem>
+    <!-- Hidden from a customer because the journal is an administrator's page and a link that
+         only ever answers 403 is a worse answer than no link. This is presentation, not
+         authorization: the endpoint refuses a customer whatever this menu shows. -->
+    <UiDropdownItem v-if="isAdmin" @select="go('audit')">{{ t('app.shell.menu.audit') }}</UiDropdownItem>
+    <UiDropdownItem destructive @select="signOut">{{ t('app.auth.signOut') }}</UiDropdownItem>
+  </UiDropdown>
 </template>

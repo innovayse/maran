@@ -1,0 +1,75 @@
+{
+  "accounts": {
+    "status": {
+      "active": "Active",
+      "suspended": "Suspended"
+    },
+    "list": {
+      "heading": "Accounts",
+      "subtitle": "Hosting accounts on this server.",
+      "createAction": "New account",
+      "searchLabel": "Filter accounts",
+      "searchPlaceholder": "Filter by name or domain…",
+      "searchClear": "Clear the filter",
+      "resultCount": "{shown} of {total} accounts",
+      "loading": "Loading accounts…",
+      "emptyTitle": "No accounts yet",
+      "emptyDescription": "Create the first hosting account to get started.",
+      "noMatchesTitle": "No accounts match “{query}”",
+      "noMatchesDescription": "Try a different name or domain, or clear the filter to see every account.",
+      "clearSearch": "Clear filter",
+      "tableCaption": "Hosting accounts",
+      "columns": {
+        "name": "Name",
+        "primaryDomain": "Primary domain",
+        "status": "Status",
+        "createdAt": "Created"
+      }
+    },
+    "form": {
+      "heading": "New account",
+      "subtitle": "The panel checks these values before sending them, and the server checks them again.",
+      "fields": {
+        "name": "Name",
+        "primaryDomain": "Primary domain",
+        "planId": "Plan ID"
+      },
+      "placeholders": {
+        "name": "example",
+        "primaryDomain": "example.com",
+        "planId": "00000000-0000-0000-0000-000000000000"
+      },
+      "submit": "Create account",
+      "cancel": "Cancel",
+      "errors": {
+        "nameRequired": "Name is required.",
+        "nameInvalid": "Name must be a lowercase, Linux-username-safe identifier (letters, digits, hyphen, underscore, starting with a letter, 3-32 characters).",
+        "primaryDomainRequired": "Primary domain is required.",
+        "primaryDomainInvalid": "Primary domain must be a valid domain name.",
+        "planIdRequired": "Plan ID is required.",
+        "planIdInvalid": "Plan ID must be a valid UUID."
+      },
+      "planOption": "{name} — {disk} MB, {sites} sites"
+    },
+    "detail": {
+      "heading": "Account",
+      "loading": "Loading the account…",
+      "notFoundTitle": "Account not found",
+      "notFoundDescription": "It may have been deleted since this link was made.",
+      "nameLabel": "Name",
+      "primaryDomainLabel": "Primary domain",
+      "statusLabel": "Status",
+      "createdAtLabel": "Created",
+      "backToList": "Back to accounts",
+      "suspend": "Suspend",
+      "reactivate": "Reactivate",
+      "delete": "Delete",
+      "confirmSuspend": "Suspend this account? Its sites stop serving and its user can no longer sign in.",
+      "confirmReactivate": "Reactivate this account?",
+      "confirmDelete": "Delete this account, its system user and its home directory? This cannot be undone.",
+      "confirm": "Yes, do it",
+      "cancel": "Cancel",
+      "working": "Working…"
+    }
+  }
+}

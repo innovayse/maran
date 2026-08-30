@@ -1,0 +1,75 @@
+{
+  "accounts": {
+    "status": {
+      "active": "Ակտիվ",
+      "suspended": "Կասեցված"
+    },
+    "list": {
+      "heading": "Հաշիվներ",
+      "subtitle": "Այս սերվերի հոսթինգային հաշիվները։",
+      "createAction": "Նոր հաշիվ",
+      "searchLabel": "Հաշիվների զտիչ",
+      "searchPlaceholder": "Զտել ըստ անվան կամ դոմենի…",
+      "searchClear": "Մաքրել զտիչը",
+      "resultCount": "{total}-ից {shown} հաշիվ",
+      "loading": "Հաշիվների բեռնում…",
+      "emptyTitle": "Հաշիվներ դեռ չկան",
+      "emptyDescription": "Ստեղծեք առաջին հոսթինգային հաշիվը՝ սկսելու համար։",
+      "noMatchesTitle": "«{query}»-ին համապատասխանող հաշիվներ չկան",
+      "noMatchesDescription": "Փորձեք այլ անուն կամ դոմեն, կամ մաքրեք զտիչը՝ բոլոր հաշիվները տեսնելու համար։",
+      "clearSearch": "Մաքրել զտիչը",
+      "tableCaption": "Հոսթինգային հաշիվներ",
+      "columns": {
+        "name": "Անուն",
+        "primaryDomain": "Հիմնական դոմեն",
+        "status": "Կարգավիճակ",
+        "createdAt": "Ստեղծված է"
+      }
+    },
+    "form": {
+      "heading": "Նոր հաշիվ",
+      "subtitle": "Վահանակը ստուգում է այս արժեքները ուղարկելուց առաջ, իսկ սերվերը ստուգում է դրանք կրկին։",
+      "fields": {
+        "name": "Անուն",
+        "primaryDomain": "Հիմնական դոմեն",
+        "planId": "Փաթեթի ID"
+      },
+      "placeholders": {
+        "name": "example",
+        "primaryDomain": "example.com",
+        "planId": "00000000-0000-0000-0000-000000000000"
+      },
+      "submit": "Ստեղծել հաշիվ",
+      "cancel": "Չեղարկել",
+      "errors": {
+        "nameRequired": "Անունը պարտադիր է։",
+        "nameInvalid": "Անունը պետք է լինի փոքրատառ, Linux-օգտանվան համար անվտանգ նույնացուցիչ (տառեր, թվեր, գծիկ, ընդգծում, սկսվում է տառով, 3-32 նիշ)։",
+        "primaryDomainRequired": "Հիմնական դոմենը պարտադիր է։",
+        "primaryDomainInvalid": "Հիմնական դոմենը պետք է լինի վավեր դոմենային անուն։",
+        "planIdRequired": "Փաթեթի ID-ն պարտադիր է։",
+        "planIdInvalid": "Փաթեթի ID-ն պետք է լինի վավեր UUID։"
+      },
+      "planOption": "{name} — {disk} ՄԲ, կայքեր՝ {sites}"
+    },
+    "detail": {
+      "heading": "Հաշիվ",
+      "loading": "Բեռնվում է հաշիվը…",
+      "notFoundTitle": "Հաշիվը չգտնվեց",
+      "notFoundDescription": "Հնարավոր է՝ այն ջնջվել է այս հղումը ստեղծվելուց հետո։",
+      "nameLabel": "Անուն",
+      "primaryDomainLabel": "Հիմնական դոմեն",
+      "statusLabel": "Կարգավիճակ",
+      "createdAtLabel": "Ստեղծվել է",
+      "backToList": "Դեպի հաշիվների ցանկ",
+      "suspend": "Կասեցնել",
+      "reactivate": "Վերականգնել",
+      "delete": "Ջնջել",
+      "confirmSuspend": "Կասեցնե՞լ հաշիվը։ Կայքերը կդադարեն աշխատել, օգտատերը չի կարողանա մուտք գործել։",
+      "confirmReactivate": "Վերականգնե՞լ հաշիվը։",
+      "confirmDelete": "Ջնջե՞լ հաշիվը՝ համակարգային օգտատիրոջ և տնային պանակի հետ։ Սա անշրջելի է։",
+      "confirm": "Այո, կատարել",
+      "cancel": "Չեղարկել",
+      "working": "Կատարվում է…"
+    }
+  }
+}

@@ -28,7 +28,7 @@ import AccountStatusBadge from '../../components/accounts/AccountStatusBadge.vue
 import { useAccountsStore } from '../../stores/accounts'
 import { useLocaleStore } from '../../stores/locale'
 import { formatDate } from '../../utils/formatDate'
-import { useRouter } from 'vue-router'
+import { RouterLink, useRouter } from 'vue-router'
 import type { Account } from '../../types/account'
 
 const { t } = useI18n()
@@ -143,7 +143,15 @@ const clearQuery = (): void => {
       <UiTableRow v-for="account in visibleAccounts" :key="account.id">
         <!-- The identifier column: monospace and the strongest text tone, so a
              column of names reads as a column of handles rather than prose. -->
-        <UiTableCell class="font-mono font-medium">{{ account.name }}</UiTableCell>
+        <UiTableCell class="font-mono font-medium">
+          <!-- The name is the way in: a row that shows an account but cannot open it leaves the
+               suspend, reactivate and delete actions unreachable from the panel entirely. -->
+          <RouterLink
+            :to="{ name: 'account-detail', params: { id: account.id } }"
+            class="text-accent hover:underline focus-visible:outline-none focus-visible:underline"
+            >{{ account.name }}</RouterLink
+          >
+        </UiTableCell>
         <!-- Secondary identifier: same monospace, one tone back. -->
         <UiTableCell class="font-mono text-text-secondary">{{ account.primaryDomain }}</UiTableCell>
         <UiTableCell><AccountStatusBadge :status="account.status" /></UiTableCell>

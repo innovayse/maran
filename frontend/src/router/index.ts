@@ -3,12 +3,14 @@ import DefaultLayout from '../layouts/DefaultLayout.vue'
 import NotFoundPage from '../pages/NotFoundPage.vue'
 import SystemStatusPage from '../pages/SystemStatusPage.vue'
 import UpgradePage from '../pages/UpgradePage.vue'
+import AccountDetailPage from '../pages/accounts/AccountDetailPage.vue'
 import AccountsListPage from '../pages/accounts/AccountsListPage.vue'
 import AccountFormPage from '../pages/accounts/AccountFormPage.vue'
 import AuthLayout from '../layouts/AuthLayout.vue'
 import LoginPage from '../pages/auth/LoginPage.vue'
 import TwoFactorPage from '../pages/auth/TwoFactorPage.vue'
 import SetupPage from '../pages/auth/SetupPage.vue'
+import AuditPage from '../pages/settings/AuditPage.vue'
 import SessionsPage from '../pages/settings/SessionsPage.vue'
 import TwoFactorSettingsPage from '../pages/settings/TwoFactorSettingsPage.vue'
 import { createAuthGuard } from './authGuard'
@@ -40,6 +42,15 @@ export const createAppRouter = (): Router => {
         children: [
           { path: '', name: 'accounts', component: AccountsListPage, meta: { module: 'accounts' } },
           { path: 'new', name: 'accounts-new', component: AccountFormPage, meta: { module: 'accounts' } },
+          // Declared after 'new' so the literal segment wins: an :id route placed first would
+          // swallow /accounts/new and try to load an account called "new".
+          {
+            path: ':id',
+            name: 'account-detail',
+            component: AccountDetailPage,
+            props: true,
+            meta: { module: 'accounts' },
+          },
         ],
       },
       {
@@ -67,6 +78,11 @@ export const createAppRouter = (): Router => {
         children: [
           { path: 'sessions', name: 'sessions', component: SessionsPage },
           { path: 'two-factor', name: 'two-factor', component: TwoFactorSettingsPage },
+          // The journal is administrators-only, and the endpoint is what says so: a customer who
+          // types this URL gets the panel's own refusal rendered on the page. No route guard
+          // duplicates that rule here — a second copy of an authorization decision is a second
+          // place for it to be wrong, and the client's copy is the one that cannot be trusted.
+          { path: 'audit', name: 'audit', component: AuditPage },
         ],
       },
       {

@@ -86,4 +86,36 @@ export interface AccountsApi {
    * @returns The created account.
    */
   create: (request: CreateAccountRequest, signal?: AbortSignal) => Promise<Account>
+
+  /**
+   * Reads one account.
+   * @param id The account's identity.
+   * @param signal Optional abort signal to cancel the in-flight request.
+   * @returns The account, as the panel currently has it.
+   */
+  get: (id: string, signal?: AbortSignal) => Promise<Account>
+
+  /**
+   * Suspends an account: the panel asks the agent to stop it, then records the new state.
+   * @param id The account's identity.
+   * @param signal Optional abort signal to cancel the in-flight request.
+   * @returns The account in its new state.
+   */
+  suspend: (id: string, signal?: AbortSignal) => Promise<Account>
+
+  /**
+   * Lifts a suspension.
+   * @param id The account's identity.
+   * @param signal Optional abort signal to cancel the in-flight request.
+   * @returns The account in its new state.
+   */
+  reactivate: (id: string, signal?: AbortSignal) => Promise<Account>
+
+  /**
+   * Deletes an account, its system user and its home directory.
+   * @param id The account's identity.
+   * @param signal Optional abort signal to cancel the in-flight request.
+   * @returns The number of bytes the deletion reclaimed, as the agent reported it.
+   */
+  remove: (id: string, signal?: AbortSignal) => Promise<number>
 }

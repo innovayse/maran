@@ -5,7 +5,10 @@
  * caller forgets — a label is a required prop, not an optional slot — and
  * exposes an error state wired to `aria-invalid`/`aria-describedby` so
  * assistive tech announces validation problems (rules/vue.md: "UI comes
- * from components/ui").
+ * from components/ui"). A `trailing` slot places one control inside the
+ * field's right edge — the reveal toggle of {@link UiPasswordInput} is its
+ * only caller — so that control shares the field's box instead of sitting
+ * beside it, and the input reserves room for it rather than running underneath.
  */
 import { computed, useId, type ComputedRef } from 'vue'
 
@@ -75,23 +78,31 @@ const onInput = (event: Event): void => {
       :class="hasError ? 'text-danger' : 'text-text-secondary'"
       >{{ label }}</label
     >
-    <input
-      :id="inputId"
-      :type="type"
-      :value="modelValue"
-      :placeholder="placeholder"
-      :autocomplete="autocomplete"
-      :aria-required="required ? 'true' : undefined"
-      :aria-invalid="hasError"
-      :aria-describedby="hasError ? errorId : undefined"
-      class="rounded-lg border bg-surface-2 px-2 py-1.5 text-base text-text-primary placeholder:text-text-muted focus-visible:outline-none"
-      :class="
-        hasError
-          ? 'border-[rgb(229_72_77/0.5)] focus-visible:shadow-focus-danger'
-          : 'border-border-subtle focus-visible:border-accent focus-visible:shadow-focus'
-      "
-      @input="onInput"
-    />
+    <!-- `relative` only so a trailing control can be positioned over the field's
+         right edge; with no `trailing` slot the wrapper adds nothing. -->
+    <div class="relative">
+      <input
+        :id="inputId"
+        :type="type"
+        :value="modelValue"
+        :placeholder="placeholder"
+        :autocomplete="autocomplete"
+        :aria-required="required ? 'true' : undefined"
+        :aria-invalid="hasError"
+        :aria-describedby="hasError ? errorId : undefined"
+        class="w-full rounded-lg border bg-surface-2 py-1.5 pl-2 text-base text-text-primary placeholder:text-text-muted focus-visible:outline-none"
+        :class="[
+          hasError
+            ? 'border-[rgb(229_72_77/0.5)] focus-visible:shadow-focus-danger'
+            : 'border-border-subtle focus-visible:border-accent focus-visible:shadow-focus',
+          $slots.trailing ? 'pr-16' : 'pr-2',
+        ]"
+        @input="onInput"
+      />
+      <span v-if="$slots.trailing" class="absolute inset-y-0 right-1 flex items-center">
+        <slot name="trailing" :input-id="inputId" />
+      </span>
+    </div>
     <p v-if="hasError" :id="errorId" class="text-base text-danger">{{ error }}</p>
   </div>
 </template>

@@ -36,6 +36,12 @@ export const useAccountsStore = defineStore('accounts', () => {
   /** True while a create request is in flight. */
   const creating: Ref<boolean> = ref(false)
 
+  /** The account the detail page is showing, or `null` before one is loaded. */
+  const selected: Ref<Account | null> = ref(null)
+
+  /** True while a suspend, reactivate or delete request is in flight. */
+  const acting: Ref<boolean> = ref(false)
+
   /**
    * Backend-localized message from the most recent failed create attempt, or `null` when the
    * last attempt succeeded or has not been made yet. Rendered verbatim by the form page.
@@ -95,6 +101,95 @@ export const useAccountsStore = defineStore('accounts', () => {
     }
   }
 
+  /**
+   * Loads one account into {@link selected}, replacing whatever was held.
+   * @param id The account to read.
+   * @returns Resolves once the request has settled, successfully or not.
+   */
+  const loadOne = async (id: string): Promise<void> => {
+    loading.value = true
+    try {
+      selected.value = await api.get(id)
+      errorMessage.value = null
+    } catch (error) {
+      selected.value = null
+      errorMessage.value = error instanceof ApiError ? error.message : null
+    } finally {
+      loading.value = false
+    }
+  }
+
+  /**
+   * Suspends the account and stores the state the panel reports back.
+   * @param id The account to suspend.
+   * @returns True when the panel accepted the change.
+   */
+  const suspend = async (id: string): Promise<boolean> => {
+    return await changeState(() => {
+      return api.suspend(id)
+    })
+  }
+
+  /**
+   * Lifts a suspension and stores the state the panel reports back.
+   * @param id The account to reactivate.
+   * @returns True when the panel accepted the change.
+   */
+  const reactivate = async (id: string): Promise<boolean> => {
+    return await changeState(() => {
+      return api.reactivate(id)
+    })
+  }
+
+  /**
+   * Deletes the account, dropping it from the held list.
+   * @param id The account to delete.
+   * @returns True when the panel accepted the deletion.
+   */
+  const remove = async (id: string): Promise<boolean> => {
+    acting.value = true
+    try {
+      await api.remove(id)
+      accounts.value = accounts.value.filter((account) => {
+        return account.id !== id
+      })
+      selected.value = null
+      errorMessage.value = null
+      return true
+    } catch (error) {
+      errorMessage.value = error instanceof ApiError ? error.message : null
+      return false
+    } finally {
+      acting.value = false
+    }
+  }
+
+  /**
+   * Runs one lifecycle call and folds the account it returns back into both the held list and
+   * {@link selected}, so a list opened behind a detail page does not go stale.
+   * @param call The lifecycle call to make.
+   * @returns True when the panel accepted the change.
+   */
+  const changeState = async (call: () => Promise<Account>): Promise<boolean> => {
+    acting.value = true
+    try {
+      const changed = await call()
+      selected.value = changed
+      accounts.value = accounts.value.map((account) => {
+        return account.id === changed.id ? changed : account
+      })
+      errorMessage.value = null
+      return true
+    } catch (error) {
+      // The panel's message, verbatim: an agent that refused says why, and inventing frontend
+      // copy here would hide the reason the operator needs.
+      errorMessage.value = error instanceof ApiError ? error.message : null
+      return false
+    } finally {
+      acting.value = false
+    }
+  }
+
   return {
     accounts,
     plans,
@@ -103,8 +198,14 @@ export const useAccountsStore = defineStore('accounts', () => {
     isLoaded,
     creating,
     createErrorMessage,
+    selected,
+    acting,
     load,
     loadPlans,
     create,
+    loadOne,
+    suspend,
+    reactivate,
+    remove,
   }
 })

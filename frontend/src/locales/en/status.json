@@ -1,0 +1,10 @@
+{
+  "app": {
+    "status": {
+      "heading": "System status",
+      "checking": "Checking the panel API…",
+      "ok": "All systems operational ({status})",
+      "unreachable": "Could not reach the API"
+    }
+  }
+}
