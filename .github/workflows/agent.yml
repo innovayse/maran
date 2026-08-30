@@ -19,7 +19,7 @@ jobs:
       run:
         working-directory: agent
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # rustfmt and clippy are requested explicitly: the toolchain the runner ships with
       # does not always carry them, and a missing component would skip the two gates below
