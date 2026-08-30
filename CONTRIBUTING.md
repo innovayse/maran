@@ -108,6 +108,18 @@ a threat note — name what you found and what you left open.
 - One coherent change per commit. A 200-file commit called "updates" is a review reject.
 - No AI attribution trailers.
 
+## Licensing of what you send
+
+Maran is under the Business Source License 1.1, which becomes Apache 2.0 on the Change Date
+stated in `LICENSE`. By opening a pull request you agree that your contribution is licensed on
+those same terms — the licence going in is the licence coming out, Change Date included.
+
+You keep the copyright in what you wrote. There is no copyright assignment and no separate
+agreement to sign.
+
+If your employer owns your work, make sure you have their permission before you send it. That
+is between you and them, but it is your responsibility, not ours.
+
 ## Reporting a security problem
 
 Do not open an issue. See [`SECURITY.md`](SECURITY.md).
