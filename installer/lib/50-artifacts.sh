@@ -16,7 +16,11 @@ readonly MARAN_ARTIFACT_TMP="/var/lib/maran/artifact-staging"
 # serve the installer AND a fake manifest would otherwise control both halves of the
 # trust check). This is a placeholder key ID; the real key ships from Innovayse's
 # release signing infrastructure and is substituted into this file at release-build time.
-readonly MARAN_RELEASE_PUBLIC_KEY_PEM="/usr/local/maran/keys/release-signing.pub"
+# Resolved against the installer package (SCRIPT_DIR, exported by install.sh), NOT against
+# the install root: /usr/local/maran is created and populated by THIS step, so a key looked
+# up there could never exist on a first install and every install would abort on a missing
+# key. The key ships next to the installer, which is also what makes it "baked in".
+readonly MARAN_RELEASE_PUBLIC_KEY_PEM="${SCRIPT_DIR}/keys/release-signing.pub"
 
 # manifest_url / artifact_url: versioned by channel (stable|beta), set via
 # MARAN_CHANNEL exported by install.sh.

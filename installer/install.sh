@@ -1,8 +1,12 @@
 #!/usr/bin/env bash
 # Maran native production installer entry point.
 #
-# Usage: curl -sSL https://get.maran.com | bash
-#    or: sudo bash install.sh [--offline-tarball <path>] [--channel stable|beta]
+# Usage: sudo bash install.sh [--offline-tarball <path>] [--channel stable|beta]
+#
+# Run from an unpacked, verified installer package — never piped straight from the network
+# into a shell. Piping is not merely discouraged: it cannot work here, because the steps in
+# lib/, the systemd units, the nginx template and the release signing key are all resolved
+# relative to this file, and a pipe has no such directory.
 #
 # This script is deliberately thin: it detects the OS/arch, verifies it is one of
 # Maran's supported targets, sets up logging, then sources and runs the numbered
@@ -12,11 +16,13 @@
 # re-running simply resumes at whatever is not yet done.
 set -euo pipefail
 
-# Resolve the real directory of this script even if invoked via a symlink or a pipe
-# (curl | bash runs from a FIFO, so we fall back to downloading lib/ alongside it —
-# see install_from_pipe() below). BASH_SOURCE is empty when read from stdin.
+# Resolve the real directory of this script, following symlinks. There is no pipe fallback:
+# see the usage note above — everything the installer needs lives beside this file.
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]:-.}")" >/dev/null 2>&1 && pwd -P)"
 LIB_DIR="${SCRIPT_DIR}/lib"
+# Exported because step files resolve their own sibling assets (systemd/, nginx/, keys/)
+# relative to the installer package, not to whatever directory the operator ran it from.
+export SCRIPT_DIR LIB_DIR
 
 MARAN_LOG_DIR="/var/log/maran"
 MARAN_LOG_FILE="${MARAN_LOG_DIR}/install.log"

@@ -104,6 +104,11 @@ check_ports_free() {
     busy="$(ss -Htln "( sport = :${port} )" 2>/dev/null || true)"
     if [ -z "$busy" ]; then
       ok "port ${port} is free"
+    elif [ "$_MARAN_ALREADY_INSTALLED" -eq 1 ]; then
+      # On a re-run our own nginx vhost is already listening on this port. Treating that
+      # as a conflict would make the installer refuse to repair or resume any install
+      # that got as far as step 80, which contradicts the idempotency promise.
+      ok "port ${port} is held by this existing Maran install (re-run)"
     else
       fail "port ${port} is already in use" \
         "Stop whatever is listening on port ${port} (check 'ss -tlnp | grep :${port}'), or reconfigure it before installing Maran."
@@ -130,8 +135,12 @@ check_no_conflicting_panel() {
 # check_not_already_installed: an install that already completed is not a failure —
 # it makes this run a no-op resume, consistent with idempotency. We only warn here;
 # each later step decides for itself whether its own work is already done.
+# _MARAN_ALREADY_INSTALLED: set by check_existing_install_state, read by checks that must
+# judge "someone else is already using this" differently from "we are already here".
+_MARAN_ALREADY_INSTALLED=0
 check_existing_install_state() {
   if [ -f /etc/maran/panel.env ]; then
+    _MARAN_ALREADY_INSTALLED=1
     echo "PREFLIGHT NOTE: /etc/maran/panel.env already exists; this run will resume/repair an existing install rather than starting fresh."
   fi
 }
@@ -143,9 +152,11 @@ step_preflight() {
   check_arch_supported
   check_ram
   check_disk
+  # Before check_ports_free: it needs to know whether the port is held by a previous
+  # Maran install (a resume) or by an unrelated service (a real conflict).
+  check_existing_install_state
   check_ports_free
   check_no_conflicting_panel
-  check_existing_install_state
 
   if [ "$_PREFLIGHT_FAILED" -ne 0 ]; then
     echo "Preflight failed. Fix the items above and re-run the installer. No changes were made."

@@ -12,7 +12,17 @@ Type=simple
 # api's behalf. Its own operations then drop to the target account's UID for any
 # customer file I/O (fork + setuid, done in-process, not by this unit).
 User=root
-ExecStart=/usr/local/maran/agent/maran-agent
+# Group=panel, on a root process: the socket the agent creates inherits the process's
+# group, which is what actually grants maran-api (User=panel) access to it. Without
+# this the socket is root:root and the API cannot connect at all — the 0660 mode below
+# would be describing a group nobody is in.
+Group=panel
+# The uid allowed to use the agent, written by the installer once the panel user exists
+# (installer/lib/60-config.sh). systemd expands this without a shell. It is not optional:
+# with no value the agent falls back to its own uid, which is root, and every request
+# from the API is denied.
+EnvironmentFile=/etc/maran/agent.env
+ExecStart=/usr/local/maran/agent/maran-agent --allow-uid ${MARAN_AGENT_ALLOW_UID}
 Restart=on-failure
 RestartSec=2
 
@@ -21,10 +31,29 @@ RestartSec=2
 # discipline as the api despite needing root: everything that is not strictly required
 # for "provision system state" is removed.
 NoNewPrivileges=true
-# The agent's whole job is writing system state (users, /etc configs, service units),
-# so it cannot use ProtectSystem=strict; "full" still makes most of the filesystem
-# read-only and only the paths in ReadWritePaths= are writable.
-ProtectSystem=full
+# ProtectSystem: "true", NOT "full" or "strict", and the difference is load-bearing.
+#
+#   strict  = whole hierarchy read-only  -> impossible here, the agent provisions the box.
+#   full    = /usr + boot loader + /etc read-only.
+#   true    = /usr + boot loader (/boot, /efi) read-only, /etc writable.
+#
+# "full" was tried and removed. The agent's primary operation, CreateAccount, runs the
+# shadow-utils tools, and those do not write /etc/passwd in place: they take the lock
+# /etc/.pwd.lock, write /etc/passwd+ (and shadow+, group+, gshadow+, subuid+, subgid+),
+# rename them over the originals and leave the previous generation as /etc/passwd-.
+# Creating and renaming files means the /etc DIRECTORY itself must be writable — an
+# entry per file in ReadWritePaths= is not enough, and every account creation would
+# have failed with EROFS at runtime on a real server despite a clean install.
+#
+# What that trade costs, stated plainly: /etc is no longer protected by this unit.
+# What is still bought: /usr and the boot loader directories stay read-only, so a
+# compromised agent cannot overwrite the system's binaries or libraries, cannot replace
+# its own /usr/local/maran/agent binary, and cannot install a boot-time payload —
+# the persistence routes that survive a reinstall of the panel. Configuration-level
+# protection for /etc is not attempted by the sandbox; it is enforced upstream instead,
+# by the agent's closed typed command set (no "run this" rpc exists) and by every
+# config write going through render -> temp file -> validate -> atomic rename.
+ProtectSystem=true
 # Customer accounts live under /home/<account>/; the agent legitimately writes there
 # (under the account's UID via fork+setuid) so ProtectHome is left off, unlike the api.
 ProtectHome=false
@@ -35,10 +64,52 @@ PrivateTmp=true
 # never relying on a stale directory from a previous boot.
 RuntimeDirectory=maran
 RuntimeDirectoryMode=0750
-ReadWritePaths=/home /etc/nginx /etc/maran /var/lib/maran /var/log/maran /run/maran
-# The agent is the ONLY process permitted to touch these system config trees per
-# rules/architecture.md; listing them explicitly (rather than leaving the filesystem
-# writable) is what makes that rule mechanically true, not just documented.
+# /run/maran must be group-owned by panel so the API can traverse it to reach the
+# socket, and 0750 above keeps every other account out. There is no
+# RuntimeDirectoryGroup= directive — `systemd-analyze verify` rejects it as an unknown
+# key and ignores the line, so a unit relying on it would silently get root:root.
+# The group comes from Group=panel at the top of this section instead; that setting is
+# what makes both the directory and the socket group-owned by panel, and it is the
+# reason Group= is set on a root process at all.
+# Writable set, one entry per reason. /etc is covered by ProtectSystem=true above and
+# is deliberately absent here; the per-tree entries it used to carry (/etc/nginx,
+# /etc/maran) would now be redundant, so they are gone rather than left as decoration.
+# Every remaining entry is a path OUTSIDE /usr and the boot loader dirs that some rpc
+# in proto/agent/v1/ must write:
+#
+#   /home            accounts.CreateAccount/DeleteAccount (the account home itself and
+#                    its quota file), every files.* rpc, sites.CreateSite document
+#                    roots under /home/<acc>/sites/<domain>/, backups reading account
+#                    data, ftp chroot directories. Written under the account's UID via
+#                    fork+setuid, never as root. Both distro families.
+#   /var/spool/cron  cron.CreateCronEntry/UpdateCronEntry/DeleteCronEntry. One entry
+#                    covers both families on purpose: Debian/Ubuntu keep per-user
+#                    crontabs in /var/spool/cron/crontabs/<user>, AlmaLinux/Rocky in
+#                    /var/spool/cron/<user>, and both are under this directory. Leading
+#                    "-" because the spool only exists once a cron implementation is
+#                    installed, and a missing ReadWritePaths= entry is a start failure,
+#                    not a warning.
+#   /var/lib/maran   the agent's own state root, including the local backup destination
+#                    (backup.CreateBackup with BACKUP_DESTINATION_KIND_LOCAL writes
+#                    archives here; RestoreBackup and DeleteBackup read/unlink them).
+#   /var/log/maran   the panel's log tree; sites.TailSiteLog reads from it and site
+#                    teardown removes a deleted site's logs.
+#   /run/maran       the gRPC socket directory, created by RuntimeDirectory= below.
+#                    /run is a tmpfs and is not covered by ProtectSystem= at all, so
+#                    this entry is belt-and-braces rather than load-bearing.
+#
+# Paths deliberately NOT listed, so the omission reads as a decision and not an
+# oversight: /var/lib/mysql (db.* rpcs go through the MySQL client protocol, the agent
+# never touches the datadir), /var/www (document roots live under /home), and anything
+# under /usr (the agent installs packages through the distro package manager, which
+# runs as its own unprivileged-of-this-sandbox process, not inside ours).
+ReadWritePaths=/home -/var/spool/cron /var/lib/maran /var/log/maran /run/maran
+# What /etc still may not become: the agent has no rpc that grants sudo rights, so the
+# one tree it can be permanently denied without losing a capability is the sudoers
+# configuration. This is a small, honest restriction on an otherwise writable /etc, not
+# a substitute for the protection ProtectSystem=full would have given. "-" prefixes
+# because neither path is guaranteed to exist on a minimal install.
+ReadOnlyPaths=-/etc/sudoers -/etc/sudoers.d
 PrivateDevices=true
 ProtectKernelTunables=true
 ProtectKernelLogs=true
@@ -48,12 +119,24 @@ RestrictRealtime=true
 RestrictNamespaces=true
 LockPersonality=true
 RemoveIPC=true
-RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+# AF_NETLINK is not optional despite looking exotic: firewall.AllowPort/DenyPort/
+# BanAddress/ListRules drive nftables, and nftables has no interface other than a
+# netlink socket — this applies to the `nft` child process too, since the restriction
+# is a seccomp filter inherited across exec. monitor.GetHostMetrics reads interface
+# counters the same way. Without it every firewall rpc fails with EPERM/EAFNOSUPPORT.
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
 # The agent needs real root capabilities to manage users/services/configs (chown,
 # service restarts, listening on the peer-credentialed unix socket) so, unlike the api,
 # its CapabilityBoundingSet is not emptied — but it is enumerated explicitly rather
 # than left as the unrestricted default root set.
-CapabilityBoundingSet=CAP_CHOWN CAP_DAC_OVERRIDE CAP_FOWNER CAP_SETGID CAP_SETUID CAP_KILL CAP_SYS_ADMIN CAP_NET_BIND_SERVICE
+# Added alongside the original set, each with the rpc that needs it:
+#   CAP_NET_ADMIN    every firewall.* rpc — nftables ruleset changes are a privileged
+#                    netlink operation, and the bounding set caps the `nft` child too.
+#   CAP_AUDIT_WRITE  accounts.CreateAccount/DeleteAccount on AlmaLinux/Rocky, where
+#                    shadow-utils is built with audit support and emits an ADD_USER
+#                    record; without the capability useradd reports a failure rather
+#                    than silently skipping the record.
+CapabilityBoundingSet=CAP_CHOWN CAP_DAC_OVERRIDE CAP_FOWNER CAP_SETGID CAP_SETUID CAP_KILL CAP_SYS_ADMIN CAP_NET_ADMIN CAP_AUDIT_WRITE CAP_NET_BIND_SERVICE
 # ProtectKernelModules/MemoryDenyWriteExecute are intentionally NOT set: the agent may
 # need to reload systemd units and (per rules/rust.md) never runs interpreted/JIT'd
 # code, but ProtectKernelModules would block the systemctl calls this daemon issues
@@ -61,6 +144,26 @@ CapabilityBoundingSet=CAP_CHOWN CAP_DAC_OVERRIDE CAP_FOWNER CAP_SETGID CAP_SETUI
 SystemCallFilter=@system-service
 SystemCallErrorNumber=EPERM
 UMask=0027
+
+# --- Not yet confirmed on a real boot ---------------------------------------------
+# This sandbox was derived from the rpc set in proto/agent/v1/ and from the systemd.exec
+# semantics of ProtectSystem=/ReadWritePaths=, not from a running server. Nothing below
+# has been observed to work; each line is a claim to be checked once, on one host of
+# each family (Ubuntu/Debian and AlmaLinux/Rocky), and this comment shrinks as they are:
+#   1. accounts.CreateAccount then DeleteAccount — the EROFS this file exists to fix.
+#      Confirm /etc/passwd, /etc/shadow, /etc/group, /etc/gshadow, /etc/subuid and the
+#      "-" backup generation are all written.
+#   2. cron.CreateCronEntry — confirm the spool path really is under /var/spool/cron on
+#      BOTH families, and that the unit starts on a host where cron is not yet installed
+#      (the "-" prefix is what should make that a no-op rather than a start failure).
+#   3. firewall.AllowPort and BanAddress — the AF_NETLINK + CAP_NET_ADMIN pair.
+#   4. sites.CreateSite end to end, including the `nginx -t` validation step and the
+#      reload, on the RHEL family where SELinux may deny what this sandbox permits;
+#      an SELinux denial looks nothing like EROFS and must not be mistaken for one.
+#   5. accounts.SetAccountQuota — quota tooling touches the filesystem root of /home.
+#   6. ProtectKernelModules/MemoryDenyWriteExecute (left off above) and
+#      ProtectControlGroups (never set — per-account systemd slices may need it):
+#      turn each on one at a time and find out, rather than reasoning about it.
 
 [Install]
 WantedBy=multi-user.target

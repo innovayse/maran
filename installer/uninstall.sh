@@ -54,9 +54,35 @@ remove_binaries() {
   rm -rf /usr/local/maran
 }
 
+# remove_config_and_state: /etc/maran holds panel.env (the encryption key), agent.env and
+# the panel's TLS key/cert; /run/maran is the agent's socket directory.
+#
+# Runs AFTER drop_database on purpose: the encryption key in panel.env is the only thing
+# that can decrypt the secrets stored in the database, so an operator who chose to KEEP
+# the database must be told, before the choice is irreversible, that the key is about to
+# go with this directory.
 remove_config_and_state() {
+  if [ "$MARAN_DATABASE_KEPT" -eq 1 ]; then
+    echo "WARNING: you kept the Maran database, but /etc/maran/panel.env holds the encryption key"
+    echo "         for every secret stored in it. Back up /etc/maran/panel.env NOW if you intend to"
+    echo "         reattach that database to a future install; without the key its secrets are lost."
+    if ! confirm "Delete /etc/maran anyway (including the encryption key)?"; then
+      echo "Keeping /etc/maran. Remove it yourself once the key is backed up."
+      rm -rf /run/maran
+      return
+    fi
+  fi
   echo "Removing config and runtime state (/etc/maran, /run/maran)..."
   rm -rf /etc/maran /run/maran
+}
+
+# remove_var_lib: the api's own state directory, created by installer/lib/40-user.sh.
+# Everything under it is derivable and rebuildable (rules/architecture.md: "Truth lives in
+# PostgreSQL"), so it is removed unconditionally like the binaries — leaving it behind is
+# what made a previous uninstall incomplete.
+remove_var_lib() {
+  echo "Removing api state directory (/var/lib/maran)..."
+  rm -rf /var/lib/maran
 }
 
 remove_logs() {
@@ -71,6 +97,10 @@ remove_logs() {
 # drop_database: the panel's own PostgreSQL database and role. Asked separately from
 # everything else because it is the one thing that cannot be re-downloaded — it is the
 # customer's actual data (rules/architecture.md: "Truth lives in PostgreSQL").
+# MARAN_DATABASE_KEPT: 1 once the operator has declined to drop the database, so
+# remove_config_and_state knows the encryption key still has data to protect. Defaults to
+# "kept" because a psql-less host reaches neither branch below and never lost the data.
+MARAN_DATABASE_KEPT=1
 drop_database() {
   if ! command -v psql >/dev/null 2>&1; then
     return
@@ -78,6 +108,7 @@ drop_database() {
   if confirm "DROP the Maran PostgreSQL database and role? This deletes all panel data permanently."; then
     sudo -u postgres psql -c "DROP DATABASE IF EXISTS maran;" || true
     sudo -u postgres psql -c "DROP ROLE IF EXISTS panel;" || true
+    MARAN_DATABASE_KEPT=0
     echo "Database and role dropped."
   else
     echo "Keeping the Maran PostgreSQL database and role."
@@ -119,9 +150,13 @@ main() {
   remove_systemd_units
   remove_nginx_vhost
   remove_binaries
-  remove_config_and_state
-  remove_logs
+  # The database question comes before /etc/maran is deleted: keeping the data while
+  # silently destroying the key that decrypts it is the one unrecoverable mistake this
+  # script could make on its own.
   drop_database
+  remove_config_and_state
+  remove_var_lib
+  remove_logs
   remove_panel_user
   note_customer_data_untouched
   echo "Maran uninstall complete."
