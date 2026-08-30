@@ -30,7 +30,7 @@ Spec: `docs/superpowers/specs/2026-08-29-maran-design.md`.
 
 ## General
 
-- **One file = one type / one unit of logic.** File name and path always match what's inside (namespace ⇔ folder, type ⇔ file); language specifics in rules/csharp.md, rules/rust.md, rules/vue.md. Multi-class files and dumping grounds (`Utils`, `Helpers`, `misc`) are rejected.
+- **One file = exactly one public unit** — one type, trait or function, and its error type is a separate unit in its own file (`NameError` → `name_error.rs`). File name and path always match what's inside (namespace ⇔ folder, type ⇔ file); language specifics in rules/csharp.md, rules/rust.md, rules/vue.md. Multi-type files and dumping grounds (`Utils`, `Helpers`, `misc`) are rejected.
 - **Every file has one correct place, defined per stack:** backend in rules/csharp.md ("Canonical backend layout"), agent in rules/rust.md ("Canonical agent layout"), frontend in rules/vue.md ("Structure"). Filing a file "wherever it fits", inventing an ad-hoc folder, or leaving a workaround to be tidied later are all review rejects — extend the documented map instead, in the same PR.
 - **Doc comments are mandatory for all production code in every language** — every type, member, and function, private included (tests exempt; exact form per language rules).
 - Files stay small and single-purpose; target < 300 lines, hard review trigger at 400.

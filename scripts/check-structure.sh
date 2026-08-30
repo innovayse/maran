@@ -86,6 +86,46 @@ while IFS= read -r file; do
   report "$file: junk-drawer name — every file states its single purpose (rules/architecture.md)"
 done < <(sources | grep -iE '/(utils|helpers|misc|common|shared|manager|service)\.cs$')
 
+# 7. Rust obeys the same law as C#: exactly one public unit per file, and a crate root or
+#    mod.rs declares modules rather than defining anything (rules/rust.md). Until this check
+#    existed the Rust side of the rule rested on review alone, which is how a type and its
+#    error ended up sharing a file twice.
+while IFS= read -r file; do
+  units=$(grep -cE '^pub (struct|enum|trait|fn|async fn) ' "$file")
+  if [ "$units" -gt 1 ]; then
+    report "$file: $units public units — one per file, errors in their own *_error.rs (rules/rust.md)"
+  fi
+  case "$file" in
+    */mod.rs|*/lib.rs|*/main.rs)
+      if [ "$units" -gt 0 ]; then
+        report "$file: a crate root or mod.rs declares modules and re-exports, never defines (rules/rust.md)"
+      fi
+      ;;
+  esac
+done < <(find agent/crates -name '*.rs' -not -path '*/target/*' 2>/dev/null | sort)
+
+# 8. Tests live in their own file, never inline in the unit they test (rules/rust.md).
+#    `#[cfg(test)] #[path = "<unit>_tests.rs"] mod tests;` keeps the one-unit-per-file rule
+#    while still reaching private items, which a tests/ integration test cannot see.
+while IFS= read -r file; do
+  if grep -qE '^\s*mod tests \{' "$file"; then
+    report "$file: inline test module — move it to $(basename "${file%.rs}")_tests.rs (rules/rust.md)"
+  fi
+done < <(find agent/crates -name '*.rs' -not -path '*/target/*' 2>/dev/null | sort)
+
+# 9. Unit tests mirror the source tree under src/tests/, never beside the unit itself.
+while IFS= read -r file; do
+  case "$file" in
+    */src/tests/*) ;;
+    *) report "$file: tests live under the crate's src/tests/ mirror (rules/testing.md)" ;;
+  esac
+done < <(find agent/crates -name '*_tests.rs' -not -path '*/target/*' 2>/dev/null | sort)
+
+# 10. Junk-drawer names are no more acceptable in Rust than in C#.
+while IFS= read -r file; do
+  report "$file: junk-drawer name — every file states its single purpose (rules/rust.md)"
+done < <(find agent/crates -name '*.rs' -not -path '*/target/*' 2>/dev/null | grep -iE '/(utils|util|helpers|misc|common|shared)\.rs$')
+
 if [ "$violations" -gt 0 ]; then
   echo
   echo "$violations structural violation(s). See rules/ for the rule each one cites."

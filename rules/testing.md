@@ -21,7 +21,22 @@ A PR missing any of these is incomplete, independent of code quality.
 ## Where tests live
 
 - C#: `backend/tests/<Project>.Tests` mirrors `src/`; integration tests in `<Project>.IntegrationTests` on Testcontainers-PostgreSQL; `Maran.ArchitectureTests` holds NetArchTest module-isolation rules.
-- Rust: unit tests inline `#[cfg(test)]`; integration in `agent/tests/`; template golden files in `agent/crates/templates/tests/golden/`.
+- Rust: unit tests live under the crate's `src/tests/` **mirror** of its module tree, never beside or inside the unit they exercise — `src/validation/name.rs` is tested by `src/tests/validation/name_tests.rs`, the same separation the backend gets from `backend/tests/`. The unit declares them at the end of the file:
+
+  ```rust
+  // In src/validation/name.rs, after the code:
+  #[cfg(test)]
+  #[path = "../tests/validation/name_tests.rs"]
+  mod tests;
+  ```
+
+  This is deliberately not the Rust Book's convention, which puts an inline `#[cfg(test)] mod tests { … }` in the source file. That convention loses to this repository's one-unit-per-file rule: a file holding a type plus two hundred lines of tests is not one unit, and the tests are what it mostly becomes. `#[path]` is a stable, documented module attribute, and for a `mod` declared outside an inline module block it resolves relative to the declaring file's own directory.
+
+  The tests stay a **child module** rather than moving to the crate-level `tests/` directory, because a child module can reach its parent's private items and a crate-level test cannot. The parts most worth testing are private on purpose: `resolve_under` is a separate private function precisely so path containment can be tested against an injectable home root. `#[cfg(test)]` still keeps every line of it out of the shipped binary.
+
+  Cargo's own `agent/crates/<crate>/tests/` directory holds integration tests only — things that exercise the crate exactly as a caller would, like the agent's handshake over a real unix socket. Fixtures live beside them; template golden files in `agent/crates/templates/tests/golden/`.
+
+  `scripts/check-structure.sh` rejects an inline `mod tests {` and a `*_tests.rs` outside the `src/tests/` mirror.
 - Frontend: **no colocated unit tests** — the SPA is verified end-to-end. Playwright specs live in `frontend/e2e/` with fixtures in `e2e/fixtures/`; the shell's own gates are `lint`, `typecheck` and `build`.
 
 ## Naming
@@ -63,6 +78,16 @@ Test code is exempt from the mandatory doc-comment rule — the behavior-sentenc
 - Documentation must not describe code that does not exist. A comment referencing a test, a class,
   or a middleware that was never written is a defect in its own right — delete the sentence or
   write the code.
+
+## Toolchain prerequisites — a gate you cannot run is not a gate that passed
+
+- The Rust gates need more than `rustup`: `cargo test`/`clippy`/`build` link test binaries with the
+  system C linker, so without a C toolchain (`sudo apt install -y build-essential`) cargo stops at
+  ``linker `cc` not found`` and NO agent test runs. `protoc` is required too — the agent's `build.rs`
+  generates the proto contract at compile time.
+- `bash scripts/preflight.sh` reports exactly which of these are missing. Run it before claiming any
+  agent gate is green: a toolchain error is a failure to verify, never a pass, and reading it as
+  "nothing to run" is the same defect as treating "no tests found" as success.
 
 ## CI gates (all required for merge)
 

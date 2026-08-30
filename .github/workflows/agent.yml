@@ -50,3 +50,11 @@ jobs:
 
       - name: Test
         run: cargo test --all-features
+
+      # Doc comments are mandatory on every item (rules/rust.md), and a broken intra-doc link
+      # means the documentation points at something that no longer exists — cheap to catch here,
+      # invisible in review.
+      - name: Docs
+        run: cargo doc --no-deps --all-features
+        env:
+          RUSTDOCFLAGS: -D warnings

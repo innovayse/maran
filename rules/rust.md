@@ -46,18 +46,25 @@ pub enum SiteOpError {
 agent/
 ├── Cargo.toml                 workspace (+ rustfmt.toml)
 └── crates/
-    ├── agent/                 bin: maran-agent
+    ├── agent/                 bin: maran-agent (library + thin main, so integration
+    │   │                      tests can start a real server in-process)
+    │   ├── build.rs           compiles proto/agent/v1/ via tonic-build
     │   ├── src/
-    │   │   ├── main.rs · lib.rs · server.rs · peercred.rs · error.rs
-    │   │   ├── config/        flag/env parsing
-    │   │   └── services/      gRPC service impls, one file per proto service
+    │   │   ├── lib.rs · main.rs · server.rs · error.rs
+    │   │   ├── config/        agent_options.rs · current_uid.rs · options_error.rs
+    │   │   ├── peercred/      peer_policy.rs (who may connect) · peer_guard.rs (the check)
+    │   │   └── services/      gRPC service impls, one file per proto service (system.rs)
     │   └── tests/             integration tests (+ fixtures/)
     ├── agent-core/
     │   └── src/
-    │       ├── validation/    name regexes, path containment (resolve_in_home)
+    │       ├── validation/    name.rs · name_error.rs · path.rs · path_error.rs
     │       └── privs/         the ONLY home of unsafe syscall/setuid wrappers
     ├── distro/
-    │   └── src/               DistroAdapter trait (mod.rs) + one folder per family:
+    │   └── src/
+    │       ├── adapter.rs     the DistroAdapter trait, alone
+    │       ├── adapter_for.rs the selector: family → adapter
+    │       ├── family.rs      DistroFamily
+    │       ├── detection/     detect.rs · detect_error.rs · distro_info.rs · os_release.rs
     │       ├── debian/        Ubuntu/Debian: apt, service names, paths
     │       └── rhel/          AlmaLinux/Rocky: dnf, service names, paths
     ├── ops/
@@ -69,11 +76,33 @@ agent/
         └── tests/golden/      byte-exact expected config renders
 ```
 
-Crate names are kebab-case `maran-*`; module path mirrors the folder; `error.rs` is a flat crate-root file, not a folder.
+Crate names are kebab-case `maran-*`; module path mirrors the folder; `error.rs` is a flat crate-root file, not a folder. `agent-core/src/privs/` and the `ops`/`templates` module folders are skeleton (rules/architecture.md "Skeleton policy") — they land with the task that first needs them, in the place the map already assigns.
+
+A crate root is always `lib.rs` (or `main.rs`), never `mod.rs`: `mod.rs` exists only for a subfolder module. So the `DistroAdapter` trait lives in `distro/src/adapter.rs` and is re-exported from `distro/src/lib.rs` — not defined in any root or `mod.rs`.
 
 ## One unit per file
 
-One file = one logical unit: a type with its impls, or one cohesive group of free functions with a single purpose. File name says what it is (`paths.rs` = path containment, `peercred.rs` = socket peer checks). No `util.rs`/`misc.rs`/`helpers.rs`.
+**One file = exactly one public item**: one type with its impls, one trait, or one function. The file is named after that item in snake_case (`PathError` → `path_error.rs`, `resolve_in_home` → `path.rs`, `adapter_for` → `adapter_for.rs`), or after its subject when the module folder already carries the noun (`distro/src/adapter.rs` for `DistroAdapter`). An error enum is a type like any other, so it gets its OWN file next to the code that returns it — `NameError` → `name_error.rs`, never appended to `name.rs`.
+
+A `mod.rs` or crate root holds ONLY module declarations, re-exports and the module doc comment. A definition there is a review reject. No `util.rs`/`misc.rs`/`helpers.rs`.
+
+Reason: with one item per file the file tree IS the index of the crate — you find a type by its name without grepping, a diff names exactly what changed, and nothing accretes into a file whose name stopped describing it. Errors are the case that always erodes first, which is why they are called out.
+
+```rust
+// WRONG — validation/name.rs
+pub struct AccountName(String);
+pub enum NameError { TooShort, BadCharacter }   // second public type in the file
+
+// RIGHT — validation/name.rs
+pub struct AccountName(String);
+
+// RIGHT — validation/name_error.rs
+pub enum NameError { TooShort, BadCharacter }
+
+// RIGHT — validation/mod.rs
+pub mod name;
+pub mod name_error;
+```
 
 ## Validation first (defense in depth)
 

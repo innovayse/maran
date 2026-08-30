@@ -122,14 +122,31 @@ command line tool, and reversible with an automatic database dump and a rollback
 
 ## Development
 
-    source scripts/dev-env.sh                                # toolchains on PATH
-    bash scripts/preflight.sh                                # verify the toolchain
-    docker compose -f docker/docker-compose.dev.yml up -d     # PostgreSQL for development
-    cd backend  && dotnet test
-    cd agent    && cargo test
-    cd frontend && npm ci && npm test
+    source scripts/dev-env.sh          # toolchains on PATH, development keys
+    bash scripts/preflight.sh          # verify the toolchain before anything else
+    scripts/run-dev.sh                 # the whole stack: database, API, application
 
-Requirements: .NET 9 SDK, Rust (stable), Node.js 20+, protoc, Docker (development only).
+`run-dev.sh` starts the PostgreSQL container, the API and the SPA, waits until each answers,
+and then streams only warnings and errors; Ctrl+C stops everything. Docker carries development
+dependencies only — the API and the application run natively, exactly as they do on a server.
+
+Verification, each runnable on its own:
+
+    cd backend  && dotnet test         # unit, architecture and integration tests
+    cd agent    && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test
+    cd frontend && npm ci && npm run lint && npm run typecheck && npm run build
+    cd frontend && npx playwright install --with-deps chromium && npm run test:e2e
+    bash scripts/e2e-handshake.sh      # agent and API over a real unix socket
+
+The application has no unit-test runner by design: it is verified end to end against a running
+API in `frontend/e2e/` (rules/testing.md).
+
+Other scripts: `scripts/format.sh` formats every language (`--check` verifies without writing),
+`scripts/migrations.sh` adds and applies a module's database migrations, and
+`scripts/new-module.sh` scaffolds a module.
+
+Requirements: .NET 9 SDK, Rust (stable), Node.js 20+, protoc, a C toolchain for Rust linking
+(`build-essential`), and Docker for development only.
 Contributions must follow the rules in `rules/`; they are enforced in continuous integration.
 
 ## Status

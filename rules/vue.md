@@ -30,7 +30,7 @@ Required configuration, at minimum:
   - `layouts/<Name>Layout.vue` — page shells (`DefaultLayout`, `AuthLayout`).
   - `composables/useApi.ts`, `composables/apis/use<Feature>Api.ts`, other `composables/use<X>.ts` — flat, one per file.
   - `stores/<feature>.ts` — flat, camelCase (`auditLogs.ts`, `sites.ts`), one Pinia setup store per file.
-  - `types/<feature>.ts` — flat, camelCase, one domain per file + `common.ts`.
+  - `types/<domain>.ts` — flat, camelCase, one domain per file, named after it.
   - `utils/<purpose>.ts` — pure helpers, one purpose per file.
   - `assets/css/main.css` (+ tokens), `assets/icons/`, `locales/{en,ru,hy}/`, `router/index.ts`.
 - A feature's files MUST NOT import from another feature's folders — shared things move down (`components/ui`, `composables`, `utils`, `types/common.ts`), same rule as the backend.
@@ -66,8 +66,18 @@ bundle — decided so nobody reaches for federation later "just this once".
 
 ## Types
 
-- All types live in `src/types/`, one domain per file named after what it holds (`site.ts` holds `Site`, `SiteStatus`, `SitePhpVersion`). A type is never declared inline in a component, store or composable that isn't its home.
-- Types are imported with `import type { … }`. No barrel `index.ts` re-exporting a folder — import from the file that owns the type.
+- All types live in `src/types/`, **one domain per file**, the file named after the domain in camelCase: `account.ts` holds `Account`, `AccountStatus` and `CreateAccountRequest`, because they describe one thing from three angles — the entity, the state it can be in, and the shape that creates it. A type is never declared inline in a component, store or composable that isn't its home.
+- This is deliberately NOT the backend's one-type-per-file law (rules/csharp.md, rules/rust.md), and the difference is not an oversight. A C# class or a Rust type carries behaviour, so splitting the file splits a responsibility; a TypeScript type is a shape, and `AccountStatus` means nothing apart from `Account.status`. Splitting shapes buys a longer file tree and an import line per field, and costs the thing that matters: a reader who opens `account.ts` sees the whole contract with the backend at once.
+- A domain file gains a second domain only when a type genuinely belongs to both. Then the shared type moves to its own file — never duplicated into two.
+- **A component's own types live in the component file**, not in `src/types/`. A badge's `variant` union, a select's option shape, a modal's size — these describe that component's props and mean nothing without it, so they are declared in its `<script setup>` and exported from there if a parent needs them. `src/types/` is for the domain and the API contract: what the backend sends and what the panel sends back. Putting a component's prop union there splits one component across two files and invites a second component to reuse a type that was never meant to be shared.
+- Types are imported with `import type { … }` for a type-only module, and **inline** when the same module also provides values: `import { computed, type ComputedRef } from 'vue'`, never a second `import type` line for a module already imported. Two lines importing one module are noise a reader must reconcile, and they drift apart the moment someone edits only one. Enforced by `@typescript-eslint/consistent-type-imports` with `fixStyle: 'inline-type-imports'` plus `import-x/no-duplicates` with `prefer-inline` — `npm run lint:fix` rewrites most of them for you.
+- No barrel `index.ts` re-exporting a folder — import from the file that owns the type.
+- **Every accessible name exists, and every one of them is translated.** `alt`, `aria-label`, `title`, `placeholder`, a `<label>` for every control — these are user-visible strings that happen not to be visible, and both halves are enforced mechanically:
+  - `vue/no-bare-strings-in-template` is configured with an `attributes` map, so a literal in `alt`, `title`, `aria-label` or `placeholder` fails the build exactly as a literal in the markup does. An English `aria-label` in a Russian interface is a screen-reader user being handed a language they did not choose — and it passes review every time, because nothing on screen looks wrong.
+  - `eslint-plugin-vuejs-accessibility` checks the other half — that the attribute is there at all: `alt-text`, `form-control-has-label`, `label-has-for`, `anchor-has-content`, `heading-has-content`, `iframe-has-title`, `role-has-required-aria-props`, `aria-props`, `aria-role`, `mouse-events-have-key-events`, `no-autofocus`.
+  - A decorative image or icon is the one exception, and it is declared rather than omitted: `alt=""` plus `aria-hidden="true"` on an inline SVG says "skip me" on purpose. An icon that carries meaning is labelled instead.
+  - Kit components take the text as a **required prop** (`UiNav`'s `label`, `UiToast`'s `closeLabel`) rather than defaulting it: a default is how a label silently stays English forever.
+
 - Every type, interface and enum carries JSDoc, and so does every non-obvious field.
 - One component per file, `PascalCase.vue`, target < 250 lines. Views compose components; components stay dumb (props in, emits out).
 

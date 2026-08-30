@@ -16,6 +16,8 @@ frontend/test-results/
 frontend/playwright-report/
 frontend/blob-report/
 frontend/.playwright/
+# Scratch output from a browser-driven session (screenshots, snapshots, console logs).
+.playwright-mcp/
 
 # Generated code
 # --------------

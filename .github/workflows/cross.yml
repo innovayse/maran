@@ -1,0 +1,72 @@
+name: cross
+
+on:
+  push:
+    paths:
+      - 'agent/**'
+      - 'backend/**'
+      - 'proto/**'
+      - 'scripts/e2e-handshake.sh'
+      - 'scripts/proto-lint.sh'
+      - '.github/workflows/cross.yml'
+  pull_request:
+    paths:
+      - 'agent/**'
+      - 'backend/**'
+      - 'proto/**'
+      - 'scripts/e2e-handshake.sh'
+      - 'scripts/proto-lint.sh'
+      - '.github/workflows/cross.yml'
+
+jobs:
+  handshake:
+    runs-on: ubuntu-latest
+
+    # The API refuses to start without a database, so the handshake needs one. The credentials
+    # match docker/docker-compose.dev.yml because appsettings.Development.json — which the script
+    # runs the API with — expects exactly those.
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: maran_dev
+          POSTGRES_PASSWORD: maran_dev
+          POSTGRES_DB: maran_dev
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U maran_dev"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+
+      - name: Install protoc
+        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: agent
+
+      # Contract rules no compiler enforces: reserved field numbers, no renumbering,
+      # naming and the closed command set (rules/proto.md).
+      - name: Proto lint
+        run: bash scripts/proto-lint.sh
+
+      # The check neither side's own suite can make: the backend tests stub the agent and the
+      # agent tests have no API, so a contract that compiles on both sides and disagrees on the
+      # wire would pass both and fail only here.
+      - name: Handshake over a unix socket
+        run: bash scripts/e2e-handshake.sh
+        env:
+          # The panel refuses to boot without an encryption key (rules/security.md). This one is
+          # a throwaway for a job whose database is destroyed with the runner.
+          Security__EncryptionKey: MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=
