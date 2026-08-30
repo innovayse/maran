@@ -14,6 +14,7 @@ public sealed class ModulesEndpointTests : IClassFixture<PanelTestFactory>
         _factory = factory;
     }
 
+    /// <summary>Module catalogue returns 200 with a json array shape.</summary>
     [Fact]
     public async Task Module_catalogue_returns_200_with_a_json_array_shape()
     {
@@ -27,6 +28,7 @@ public sealed class ModulesEndpointTests : IClassFixture<PanelTestFactory>
         Assert.Equal(JsonValueKind.Array, body.RootElement.ValueKind);
     }
 
+    /// <summary>Module catalogue lists identity first then accounts.</summary>
     [Fact]
     public async Task Module_catalogue_lists_identity_first_then_accounts()
     {
@@ -44,6 +46,7 @@ public sealed class ModulesEndpointTests : IClassFixture<PanelTestFactory>
         Assert.Equal(["identity", "accounts"], names);
     }
 
+    /// <summary>Every compiled in module publishes a tier a state and a translated display name.</summary>
     [Theory]
     [InlineData("identity")]
     [InlineData("accounts")]

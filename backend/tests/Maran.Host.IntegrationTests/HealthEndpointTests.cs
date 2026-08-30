@@ -26,6 +26,7 @@ public sealed class HealthEndpointTests : IAsyncLifetime
         return _pg.DisposeAsync().AsTask();
     }
 
+    /// <summary>Readiness endpoint returns 200 when the database is reachable.</summary>
     [Fact]
     public async Task Readiness_endpoint_returns_200_when_the_database_is_reachable()
     {

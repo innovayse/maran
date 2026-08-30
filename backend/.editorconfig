@@ -55,8 +55,21 @@ dotnet_naming_symbols.member_symbol.applicable_kinds = property, method, field
 dotnet_naming_symbols.member_symbol.applicable_accessibilities = public, internal, protected, protected_internal, private_protected, private
 dotnet_naming_symbols.member_symbol.required_modifiers = const
 
-# Private fields must be _camelCase. Non-const only: private const fields are
-# already claimed by members_should_be_pascalcase above, which is declared first.
+# `static readonly` fields are PascalCase, for the same reason and by the same mechanism as the
+# const rule above: a cached delegate, a fixed array of method names, a probe timeout — they are
+# constants that the language will not let us declare `const`, they never change after type
+# initialisation, and rules/csharp.md groups them WITH the constants in its member order, not with
+# the instance fields. Declared before the private-field rule so first-match-wins claims them here.
+dotnet_naming_rule.static_readonly_fields_should_be_pascalcase.severity = warning
+dotnet_naming_rule.static_readonly_fields_should_be_pascalcase.symbols = static_readonly_field_symbol
+dotnet_naming_rule.static_readonly_fields_should_be_pascalcase.style = pascalcase_style
+
+dotnet_naming_symbols.static_readonly_field_symbol.applicable_kinds = field
+dotnet_naming_symbols.static_readonly_field_symbol.applicable_accessibilities = *
+dotnet_naming_symbols.static_readonly_field_symbol.required_modifiers = static, readonly
+
+# Private fields must be _camelCase. Non-const, non-static-readonly only: both are already claimed
+# by the PascalCase rules above, which are declared first.
 dotnet_naming_rule.private_fields_should_be_camelcase.severity = warning
 dotnet_naming_rule.private_fields_should_be_camelcase.symbols = private_field_symbol
 dotnet_naming_rule.private_fields_should_be_camelcase.style = underscore_camelcase_style
@@ -93,6 +106,12 @@ dotnet_naming_style.async_suffix_style.capitalization = pascal_case
 # true dependencies and survive refactors nobody reviews.
 [*.cs]
 dotnet_diagnostic.IDE0005.severity = error
+# The naming rules above (PascalCase members, `_` private fields, the Async suffix) are declared
+# with `dotnet_naming_rule.*.severity`, which the IDE and `dotnet format` honour and the COMPILER
+# does not. Without this line they were advisory: the build passed with 418 violations in the tree
+# and only `maran format --check` ever saw them. IDE1006 is the diagnostic those rules report
+# under, so setting it here is what turns them into build errors (TreatWarningsAsErrors).
+dotnet_diagnostic.IDE1006.severity = warning
 
 # Braces are never optional. A body that grows from one statement to two is the moment a missing
 # brace turns into a bug, and a reviewer should never have to notice the difference.
@@ -139,3 +158,26 @@ dotnet_diagnostic.IDE0161.severity = none
 # CA1825: EF writes `new bool[0]` for a single-column descending index. It is a performance
 # suggestion about an allocation that happens once, at migration time, in code we do not author.
 dotnet_diagnostic.CA1825.severity = none
+
+# Test names are behaviour sentences (`Creating_a_site_with_a_taken_domain_returns_conflict`),
+# which rules/testing.md mandates and which xUnit requires to be public — so CA1707 fires on every
+# one of them. The rule guards a public API surface that a test assembly does not have: nothing
+# outside the solution consumes these names, and renaming them to PascalCase would trade a sentence
+# a reviewer reads for a run of capitals they have to parse. The naming rule wins here; the analyser
+# is told so once, in the open, instead of being silenced behind a project-wide <NoWarn>.
+[tests/**/*.cs]
+dotnet_diagnostic.CA1707.severity = none
+# And for the same reason, the Async suffix. `Revoking_another_users_session_answers_404_rather
+# _than_403Async` is not a sentence, and the suffix carries no information here: a reader of a test
+# never awaits it, and xUnit does not care. In production the suffix earns its place by warning a
+# caller there is a Task to await — tests have no callers.
+dotnet_diagnostic.IDE1006.severity = none
+
+# `Error` is the project-wide name for a typed domain failure (rules/csharp.md, "Errors: Result, not
+# exceptions") and `Result<T>.Ok`/`Fail` are its mandated factories. CA1716 objects to `Error` only
+# because it is a keyword in Visual Basic, and CA1000 would have us host the factories on a separate
+# non-generic type. Both would rename the vocabulary every module and the agent client already speak,
+# to satisfy rules aimed at libraries shipped to unknown callers. These two files are that vocabulary.
+[src/Maran.SharedKernel/Results/*.cs]
+dotnet_diagnostic.CA1716.severity = none
+dotnet_diagnostic.CA1000.severity = none

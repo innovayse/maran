@@ -22,6 +22,7 @@ public sealed class HostBootTests : IAsyncLifetime
         return _pg.DisposeAsync().AsTask();
     }
 
+    /// <summary>Host boots with postgres and serves health.</summary>
     [Fact]
     public async Task Host_boots_with_postgres_and_serves_health()
     {

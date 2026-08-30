@@ -10,8 +10,9 @@ namespace Maran.Host.Resilience;
 /// stuck unix-socket call cannot hang the caller, plus a small number of retries on transient
 /// failures only (rules/csharp.md "Every outbound call goes through a named resilience
 /// pipeline"). Registered under <see cref="Name"/> and resolved via
-/// <c>ResiliencePipelineProvider&lt;string&gt;</c> wherever <c>IAgentSystemClient</c> is used —
-/// currently just the health probe (<c>HealthEndpoint</c>).
+/// <c>ResiliencePipelineProvider&lt;string&gt;</c>. This is the PROBE pipeline: its timeout is a
+/// second or two, which is right for a question whose slow answer is itself an answer, and wrong
+/// for work. Operations use <see cref="AgentOperationPipeline"/> instead.
 /// </summary>
 public static class AgentCallPipeline
 {

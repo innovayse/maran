@@ -1,7 +1,7 @@
-using Maran.Sdk.Contracts;
 using System.Security.Claims;
 using System.Threading.RateLimiting;
 using Maran.Host.Configuration;
+using Maran.Sdk.Contracts;
 using Microsoft.AspNetCore.RateLimiting;
 
 namespace Maran.Host.RateLimiting;

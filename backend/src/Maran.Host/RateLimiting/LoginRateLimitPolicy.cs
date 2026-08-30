@@ -1,17 +1,25 @@
-using Maran.Sdk.Contracts;
 using System.Threading.RateLimiting;
 using Maran.Host.Configuration;
+using Maran.Sdk.Contracts;
 using Microsoft.AspNetCore.RateLimiting;
 
 namespace Maran.Host.RateLimiting;
 
 /// <summary>
-/// Login rate limiting: partitioned per (client IP, attempted username), a tight sliding window,
-/// and a progressive lockout — once the window's attempt budget is exhausted the caller stays
-/// blocked until the (longer) lockout window elapses, rather than regaining permits on the next
-/// short window tick. No authentication endpoint exists yet; this policy is registered so the
-/// first one to ship (rules/security.md "Rate limiting is mandatory on authentication") only has
-/// to add <c>[EnableRateLimiting(LoginRateLimitPolicy.Name)]</c>.
+/// Login rate limiting: partitioned per client IP, over a sliding window
+/// (rules/security.md "Rate limiting is mandatory on authentication").
+///
+/// The partition is the IP and nothing else, deliberately. It used to be (IP, attempted username)
+/// with the username read from the <c>username</c> QUERY string — while the endpoint authenticates
+/// the username in the request BODY. Those are different values, and an attacker controls both:
+/// posting a body naming the real account with a random query value on every request landed each
+/// attempt in a fresh partition, which is unlimited guesses against one account from one address.
+/// A limiter that can be given a new bucket by the caller is not a limiter.
+///
+/// The resolver runs before model binding and must not read the body, so the attempted username
+/// is not available to it at all. Per-account protection therefore does not belong here; it
+/// belongs on the user row, as failed-attempt state the handler updates, and is named in the
+/// plan's residual risks until the settings module makes the policy configurable.
 /// </summary>
 public static class LoginRateLimitPolicy
 {
@@ -19,11 +27,12 @@ public static class LoginRateLimitPolicy
     public const string Name = RateLimitPolicies.Login;
 
     /// <summary>
-    /// Registers the policy on <paramref name="options"/>. Partition key is (IP, username): a
-    /// shared IP does not lock out other users, and a distributed attempt on one username from
-    /// many IPs is still bounded by <see cref="RateLimitOptions.LoginMaxAttempts"/> only within
-    /// that pair, matching how login abuse actually happens (credential stuffing on one account,
-    /// or brute force from one address).
+    /// Registers the policy on <paramref name="options"/>. Every attempt from one address shares
+    /// one budget of <see cref="RateLimitOptions.LoginMaxAttempts"/>, whatever account it names,
+    /// so trying many usernames from one address is bounded exactly as trying one is. The cost is
+    /// that callers behind a shared address share a budget; the production numbers (5 attempts per
+    /// 300 seconds) leave room for people who mistype, and the alternative — a key the caller can
+    /// change at will — bounds nothing.
     /// </summary>
     /// <param name="options">The rate limiter options to add this policy to.</param>
     /// <param name="rateLimitOptions">Configured attempt count, window, and lockout duration.</param>
@@ -48,19 +57,14 @@ public static class LoginRateLimitPolicy
     }
 
     /// <summary>
-    /// Builds the (IP, username) partition key. The username comes from a <c>username</c> query
-    /// or route value when present — the partition resolver runs synchronously and MUST NOT read
-    /// the request body, so the login endpoint (when it ships) is expected to surface the
-    /// attempted username that way, e.g. via a route-bound value or by reading the body itself
-    /// before the limiter short-circuits it. Requests without one still partition by IP alone, so
-    /// an attempt this policy cannot identify a username for is still bounded.
+    /// Builds the partition key: the caller's address, or <c>unknown</c> when there is none.
+    /// Nothing from the request is mixed in — see the type's remarks for why a caller-supplied
+    /// component made the limit unenforceable.
     /// </summary>
     /// <param name="context">The current HTTP request.</param>
+    /// <returns>The partition every attempt from this address shares.</returns>
     private static string BuildPartitionKey(HttpContext context)
     {
-        var ip = context.Connection.RemoteIpAddress?.ToString() ?? "unknown";
-        var username = context.Request.Query.TryGetValue("username", out var value) ? value.ToString() : "unknown";
-
-        return $"{ip}:{username}";
+        return context.Connection.RemoteIpAddress?.ToString() ?? "unknown";
     }
 }

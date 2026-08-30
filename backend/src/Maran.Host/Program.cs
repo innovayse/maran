@@ -32,6 +32,7 @@ public sealed class Program
         builder.Host.AddPanelObservability();
         builder.Host.AddPanelMessaging(connectionString);
 
+        builder.Services.AddPanelForwardedHeaders();
         builder.Services.AddPanelConfiguration(builder.Configuration);
         builder.Services.AddPanelLocalization();
         builder.Services.AddSharedKernel();
@@ -46,6 +47,9 @@ public sealed class Program
 
         var app = builder.Build();
 
+        // First in the pipeline, before anything reads an address: the rate limiter partitions on
+        // it, the audit journal records it, and both must see the caller rather than nginx.
+        app.UseForwardedHeaders();
         app.UseSecurityHeaders();
         app.UseCorrelationId();
         app.UsePanelRequestLogging();
