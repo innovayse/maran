@@ -411,6 +411,7 @@ name = "maran-ops"
 version = "0.1.0"
 dependencies = [
  "maran-agent-core",
+ "maran-distro",
  "thiserror",
 ]
 

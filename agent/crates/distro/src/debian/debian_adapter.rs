@@ -12,4 +12,8 @@ impl DistroAdapter for DebianAdapter {
     fn family(&self) -> DistroFamily {
         DistroFamily::Debian
     }
+
+    fn nologin_shell(&self) -> &'static str {
+        "/usr/sbin/nologin"
+    }
 }

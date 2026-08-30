@@ -8,6 +8,9 @@ edition.workspace = true
 publish.workspace = true
 
 [dependencies]
+# Platform facts — paths, package names, service names — come from the adapter, never from
+# a literal in an operation (rules/rust.md "Distro adapter").
+maran-distro = { path = "../distro" }
 # The validated AccountName: this crate turns one into a system user, so it takes the
 # proof of validation rather than a string (rules/rust.md "Validation first").
 maran-agent-core = { path = "../agent-core" }

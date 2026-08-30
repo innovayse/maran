@@ -69,6 +69,9 @@ pub async fn serve(socket_path: &Path, policy: PeerPolicy) -> Result<(), Startup
         "agent listening"
     );
 
+    // Read before the DistroInfo is handed to the system service, which takes ownership of it.
+    let adapter = maran_distro::adapter_for(distro.family);
+
     Server::builder()
         .add_service(SystemServiceServer::with_interceptor(
             SystemServiceImpl::new(distro),
@@ -78,7 +81,7 @@ pub async fn serve(socket_path: &Path, policy: PeerPolicy) -> Result<(), Startup
         // service registered without one would be reachable by any local process
         // that can open the socket, whatever the others require.
         .add_service(AccountsServiceServer::with_interceptor(
-            AccountsServiceImpl::new(AccountOperations::new(ProcessSystemHost::new())),
+            AccountsServiceImpl::new(AccountOperations::new(ProcessSystemHost::new(), adapter)),
             PeerGuard::new(policy),
         ))
         .serve_with_incoming(UnixListenerStream::new(listener))

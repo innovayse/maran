@@ -1,9 +1,9 @@
 //! Entry point: tracing setup, flag parsing, server start.
 
 use maran_agent::config::agent_options::AgentOptions;
-use maran_agent_core::utils::current_uid::current_uid;
 use maran_agent::peercred::PeerPolicy;
 use maran_agent::server;
+use maran_agent_core::utils::current_uid::current_uid;
 
 /// Environment variable controlling the tracing filter.
 const LOG_FILTER_VARIABLE: &str = "MARAN_AGENT_LOG";

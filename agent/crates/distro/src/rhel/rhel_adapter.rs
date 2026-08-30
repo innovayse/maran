@@ -12,4 +12,11 @@ impl DistroAdapter for RhelAdapter {
     fn family(&self) -> DistroFamily {
         DistroFamily::Rhel
     }
+
+    fn nologin_shell(&self) -> &'static str {
+        // The path RHEL documents. /usr/sbin/nologin also resolves on RHEL 8 and later
+        // through the merged-/usr symlink, but a symlink that happens to exist is not a
+        // contract — the documented path is.
+        "/sbin/nologin"
+    }
 }
