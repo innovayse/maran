@@ -7,5 +7,35 @@ version.workspace = true
 edition.workspace = true
 publish.workspace = true
 
+[dependencies]
+# The agent validates every name and path through the core primitives before it
+# touches the system, and asks maran-distro rather than branching on distro names.
+maran-agent-core = { path = "../agent-core" }
+maran-distro = { path = "../distro" }
+prost.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+tokio-stream.workspace = true
+tonic.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+
+[dev-dependencies]
+# The handshake integration test starts a real server on a temporary socket and
+# dials it with the generated client: hyper-util adapts the unix stream to the
+# hyper IO traits, tower::service_fn supplies the custom connector that lets
+# tonic's Endpoint dial a socket path, and tempfile owns the directory the
+# socket lives in so the test leaves nothing behind.
+hyper-util.workspace = true
+tempfile.workspace = true
+# The bind poll needs a timer, which the production feature set does not ask for.
+tokio = { workspace = true, features = ["time"] }
+tower.workspace = true
+
+[build-dependencies]
+# The contract is compiled from proto/ at build time and never committed
+# (rules/proto.md).
+tonic-build.workspace = true
+
 [lints]
 workspace = true

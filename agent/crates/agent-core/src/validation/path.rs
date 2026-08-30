@@ -3,21 +3,10 @@
 use std::path::{Path, PathBuf};
 
 use super::name::AccountName;
+use super::path_error::PathError;
 
 /// Base directory holding every account home.
 const HOME_ROOT: &str = "/home";
-
-/// Rejection reasons for [`resolve_in_home`].
-#[derive(Debug, thiserror::Error, PartialEq, Eq)]
-#[non_exhaustive]
-pub enum PathError {
-    /// The path, or one of its parents, does not exist.
-    #[error("path not found")]
-    NotFound,
-    /// The path leaves the account home once resolved.
-    #[error("path escapes account home")]
-    EscapesHome,
-}
 
 /// Resolves `relative` inside `account`'s home directory.
 ///
@@ -56,3 +45,7 @@ fn resolve_under(home: &Path, relative: &Path) -> Result<PathBuf, PathError> {
         Err(PathError::EscapesHome)
     }
 }
+
+#[cfg(test)]
+#[path = "../tests/validation/path_tests.rs"]
+mod tests;

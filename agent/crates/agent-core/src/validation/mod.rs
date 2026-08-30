@@ -4,4 +4,6 @@
 //! rather than one per call site (rules/security.md: defense in depth).
 
 pub mod name;
+pub mod name_error;
 pub mod path;
+pub mod path_error;

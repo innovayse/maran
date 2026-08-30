@@ -16,12 +16,32 @@ members = [
 version = "0.1.0"
 edition = "2024"
 publish = false
+license = "BUSL-1.1"
 
 # Dependency versions live here so every crate in the workspace agrees on one.
 [workspace.dependencies]
-regex = "1"
-thiserror = "2"
-tempfile = "3"
+# Held on the 0.13 line to match tonic: tonic 0.13.1 requires prost ^0.13, and
+# the 0.14 line moved prost codec support out of tonic into a separate crate.
+prost = "0.13.5"
+# Test-only: TokioIo adapts a tokio UnixStream to the hyper IO traits, which is
+# what a client needs to speak gRPC over a unix socket. Kept on the same ^0.1
+# line tonic itself depends on, so one copy is compiled.
+hyper-util = { version = "0.1.20", features = ["tokio"] }
+thiserror = "2.0.20"
+tempfile = "3.27"
+tokio = { version = "1.53", features = ["macros", "net", "rt-multi-thread", "signal"] }
+tokio-stream = { version = "0.1.19", features = ["net"] }
+# Held on the 0.13 line deliberately. tonic 0.14 extracted prost codegen into the
+# separate tonic-prost / tonic-prost-build crates, so moving requires new
+# dependencies and a rewritten build.rs — a change that must not land without a
+# real compile behind it.
+tonic = "0.13.1"
+tonic-build = "0.13.1"
+# Test-only: service_fn turns a closure into the connector tonic's Endpoint needs
+# in order to dial something other than TCP. Same 0.5 line tonic depends on.
+tower = { version = "0.5.3", features = ["util"] }
+tracing = "0.1.44"
+tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
 
 [workspace.lints.clippy]
 unwrap_used = "deny"

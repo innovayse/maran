@@ -1,4 +1,4 @@
-# Core primitives: input validation (name regexes, path containment) and the
+# Core primitives: input validation (account names, path containment) and the
 # workspace's ONLY home of unsafe syscall/setuid wrappers (src/privs/).
 
 [package]
@@ -10,8 +10,6 @@ publish.workspace = true
 [dependencies]
 # thiserror: typed errors instead of panics — the agent runs as root.
 thiserror.workspace = true
-# regex: the single gate every system-facing name passes through.
-regex.workspace = true
 
 [dev-dependencies]
 # tempfile: path containment is only meaningfully tested against a real filesystem.

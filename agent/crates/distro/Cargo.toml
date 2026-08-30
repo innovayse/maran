@@ -7,5 +7,9 @@ version.workspace = true
 edition.workspace = true
 publish.workspace = true
 
+[dependencies]
+# thiserror: detection refuses unsupported hosts with a typed error, never a panic.
+thiserror.workspace = true
+
 [lints]
 workspace = true
