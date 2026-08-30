@@ -31,7 +31,7 @@ onMounted(refresh)
 
 <template>
   <section class="w-full">
-    <h1 class="mb-4 text-xl font-semibold tracking-title text-text-primary">
+    <h1 class="mb-4 text-3xl font-semibold tracking-title text-text-primary">
       {{ t('app.status.heading') }}
     </h1>
 

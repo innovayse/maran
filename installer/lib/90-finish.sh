@@ -24,23 +24,31 @@ step_finish() {
   # terminal on fd 3 (opened by install.sh before logging was redirected) so it never lands
   # in /var/log/maran/install.log, which outlives the install and is readable by anyone in
   # the log directory's group.
+  # The link, not just the token: /setup reads ?token= and prefills the field, so the operator
+  # pastes one thing instead of transcribing a 48-character secret by hand. Printed to the
+  # terminal only — never to the install log, which is world-readable for support purposes.
+  local setup_url="https://${hostname}:8443/setup?token=${token}"
   if [ -w /dev/fd/3 ] 2>/dev/null; then
-    printf '\nOne-time setup token (needed to create the first administrator):\n\n  %s\n\n' "$token" >&3
+    printf '\nCreate the first administrator here (one time only):\n\n  %s\n\n' "$setup_url" >&3
   else
-    printf '\nOne-time setup token (needed to create the first administrator):\n\n  %s\n\n' "$token" > /dev/tty
+    printf '\nCreate the first administrator here (one time only):\n\n  %s\n\n' "$setup_url" > /dev/tty
   fi
 
   cat <<EOF
 
 Maran is installed and reachable at https://${hostname}:8443/
 
-The panel is running, but signing in is not possible yet: administrator accounts and
-authentication arrive in the next release. The setup token above is what will create the
-first administrator when they do — it was printed on this terminal only and is
-deliberately absent from the install log.
+Open the link above to create the first administrator. It carries a one-time token that
+stops working the moment the panel has a user, so it is worth nothing to anyone who finds
+it afterwards — but until then it grants the whole server, so do not paste it into a chat
+or a ticket. It was printed on this terminal only and is deliberately absent from the
+install log.
 
 If you lose it, read Setup__Token from /etc/maran/panel.env (root:panel 0640), or re-run
 the installer to issue a new one.
+
+The certificate is self-signed until you point a real hostname at this server, so your
+browser will warn once. That is expected on a fresh install.
 
 Next steps:
   - Confirm both services are healthy: systemctl status maran-api maran-agent

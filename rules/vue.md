@@ -127,6 +127,72 @@ const load = async (): Promise<void> => {
 export const useTaskProgress = (taskId: string): Promise<TaskView> => { ... }
 ```
 
+## Text sizes are Tailwind's own steps, and nothing else
+
+Every font size in the SPA is a stock Tailwind step — `text-xs`, `text-sm`, `text-base`, `text-lg`,
+`text-xl`, `text-2xl`. There is no custom scale, no size between two stock ones, and no size written
+in a component:
+
+```html
+<!-- WRONG — the arbitrary-value escape hatch -->
+<h2 class="text-[15px]">…</h2>
+
+<!-- RIGHT -->
+<h2 class="text-base">…</h2>
+```
+
+```css
+/* WRONG — a size in scoped CSS */
+.shell-header-picker { font-size: 12px; }
+
+/* RIGHT, when a scoped rule genuinely has to restate the size */
+.shell-header-picker { font-size: var(--text-sm); }
+```
+
+When the whole panel reads too small, the fix is to move components **up a stock step**, not to
+redefine what a step means. A redefined scale is a second vocabulary only this repository
+understands: `text-sm` would stop meaning what it means in every Tailwind project, in the docs, and
+to the next person who reads the class. Sizes written in scoped CSS are worse again — they stay
+behind when the components around them move, and sit a step off with nothing to say why.
+
+**Which step:** `text-sm` is the body step — anything a person reads as a sentence, including muted
+secondary lines. `text-xs` is for uppercase micro-labels, table headers, badges and key chips, never
+for a phrase. Titles start at `text-lg` and go up.
+
+`maran structure` rejects a literal `font-size` and the `text-[…]` form.
+
+## Member order — functions come last
+
+Inside a `<script setup>` block, a store, or a composable, declarations appear in this order, and a
+file that mixes them is a review reject:
+
+1. Imports
+2. `defineProps` / `defineEmits` / `defineModel`
+3. Module-level constants
+4. Injected dependencies (`useI18n`, `useRouter`, the API composable in a store)
+5. Reactive state (`ref`, `reactive`), then derived state (`computed`)
+6. Functions — every `const` arrow function, including handlers
+7. Lifecycle hooks and `watch`
+8. A store's `return { ... }`
+
+```ts
+// RIGHT — state, then what changes it
+const accounts: Ref<Account[]> = ref([])
+const loading: Ref<boolean> = ref(false)
+
+const load = async (): Promise<void> => { ... }
+
+// WRONG — a ref declared after the function that uses it
+const load = async (): Promise<void> => { ... }
+
+const loading: Ref<boolean> = ref(false)   // rejected in review
+```
+
+Same reason as the backend rule (rules/csharp.md "Member order"): a reader opening a component or a
+store wants to know what it holds before what it does. It also removes a real hazard —
+`const` declarations are not hoisted, so a function placed above the state it closes over reads as
+if the order were free when it is not.
+
 ## Every function is a `const` arrow function
 
 - **`function` declarations are forbidden in frontend code.** Every function — exported, local, handler, composable, store action — is declared as a `const` bound to an arrow function with an explicit return type.
@@ -196,6 +262,7 @@ const remove = async (): Promise<void> => {
 - The interface language lives in `stores/locale.ts` and nowhere else. It feeds BOTH `i18n.global.locale` (the app's own chrome) and the `Accept-Language` header `useApi` sends (the server-produced text).
 - Never read `navigator.language` outside that store, and never hardcode a starting locale in the i18n factory: a Russian interface with English server errors — or the reverse — is a bug the user sees immediately.
 - The store resolves the initial language as: previously chosen (persisted) → browser preference when supported → `en`. Storage access is wrapped in try/catch; a language preference must never be able to break the shell.
+- **Every locale carries the same keys.** A key added to `locales/en/` and forgotten in `locales/hy/` is not an error anywhere: vue-i18n renders the key itself, so the Armenian user reads `app.audit.heading` where a heading belongs. `maran structure` compares the three trees key by key and fails on either direction — a key missing from a locale, or one that exists in only one. English is the reference, because the keys are written in it.
 
 ## Forms: the browser never validates
 
@@ -259,3 +326,17 @@ error.value = t(`errors.${problem.code}`)
 - **Exactly one `<main>` per document.** The shell (or its layout) owns the landmark; pages render `<section>`. A nested `<main>` breaks screen-reader landmark navigation.
 - The UI kit carries accessibility, so views inherit it: `UiButton` renders a real `<button>`, `UiInput` binds a real label, `UiTable` renders a real `<table>`. Fixing a primitive fixes every screen at once.
 - Destructive actions get a confirmation dialog (`UiConfirm`). Keyboard path and focus order are checked in review for every new view.
+
+## TypeScript stays on 5.x until vue-tsc can read 7
+
+The repository pins `typescript` exactly, and deliberately not to the newest release.
+
+TypeScript 7 moves the compiler's entry points, and `vue-tsc` resolves `tsc` through the export map
+that changed: with 7 installed, `npm run typecheck` dies with `ERR_PACKAGE_PATH_NOT_EXPORTED` before
+it reads a single file. The type check is the frontend's only compiler-level gate — the SPA has no
+unit tests by design (rules/testing.md) — so losing it to a version bump costs more than the bump
+buys.
+
+Verified, not assumed: 7.0.2 was installed and the gate was run before this pin was written back.
+Revisit when `vue-tsc` ships support; the pin is an exact version so the day it changes is a day
+somebody chose.

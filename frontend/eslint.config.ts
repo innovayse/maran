@@ -78,6 +78,15 @@ export default tseslint.config(
     rules: {
       // --- Arrow-only style ---
       'func-style': ['error', 'expression'],
+
+      // Every body is a block, including a one-line arrow. A concise body reads fine
+      // until somebody adds a second statement to it, at which point the diff is the
+      // rewrite of the whole function rather than one added line — and the reviewer is
+      // reading a restructure where a change was meant. The backend has the same rule
+      // (rules/csharp.md: no expression-bodied members), and a repository whose two
+      // halves disagree about so basic a shape teaches nobody anything.
+      'arrow-body-style': ['error', 'always'],
+      curly: ['error', 'all'],
       'no-restricted-syntax': [
         'error',
         {

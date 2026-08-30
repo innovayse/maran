@@ -1,0 +1,23 @@
+{
+  "app": {
+    "sessions": {
+      "heading": "Signed-in devices",
+      "subtitle": "Every device currently signed in to your account.",
+      "loading": "Loading devices…",
+      "emptyTitle": "No other devices",
+      "emptyDescription": "Only this device is signed in.",
+      "tableCaption": "Devices signed in to your account",
+      "deviceColumn": "Device",
+      "addressColumn": "Address",
+      "signedInColumn": "Signed in",
+      "actionsColumn": "Actions",
+      "currentDevice": "This device",
+      "end": "Sign out",
+      "confirm": "End this session?",
+      "confirmCurrent": "This will sign you out here.",
+      "confirmEnd": "End",
+      "cancel": "Cancel",
+      "signOutEverywhere": "Sign out everywhere"
+    }
+  }
+}

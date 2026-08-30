@@ -14,6 +14,7 @@ public sealed class ModulesEndpointTests : IClassFixture<PanelTestFactory>
         _factory = factory;
     }
 
+    /// <summary>Module catalogue returns 200 with a json array shape.</summary>
     [Fact]
     public async Task Module_catalogue_returns_200_with_a_json_array_shape()
     {
@@ -27,20 +28,41 @@ public sealed class ModulesEndpointTests : IClassFixture<PanelTestFactory>
         Assert.Equal(JsonValueKind.Array, body.RootElement.ValueKind);
     }
 
+    /// <summary>Module catalogue lists identity first then accounts.</summary>
     [Fact]
-    public async Task Module_catalogue_lists_the_accounts_module_as_the_first_compiled_in_module()
+    public async Task Module_catalogue_lists_identity_first_then_accounts()
     {
         using var client = _factory.CreateClient();
 
         var response = await client.GetAsync("/api/v1/modules");
 
         using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
-        Assert.Equal(1, body.RootElement.GetArrayLength());
+        var names = body.RootElement.EnumerateArray().Select(m =>
+        {
+            return m.GetProperty("name").GetString();
+        }).ToList();
 
-        var accounts = body.RootElement[0];
-        Assert.Equal("accounts", accounts.GetProperty("name").GetString());
-        Assert.Equal("included", accounts.GetProperty("tier").GetString());
-        Assert.True(accounts.GetProperty("isEnabled").GetBoolean());
-        Assert.False(string.IsNullOrWhiteSpace(accounts.GetProperty("displayName").GetString()));
+        // Load order is what the registry promises, and Identity owning sign-in is why it leads.
+        Assert.Equal(["identity", "accounts"], names);
+    }
+
+    /// <summary>Every compiled in module publishes a tier a state and a translated display name.</summary>
+    [Theory]
+    [InlineData("identity")]
+    [InlineData("accounts")]
+    public async Task Every_compiled_in_module_publishes_a_tier_a_state_and_a_translated_display_name(string name)
+    {
+        using var client = _factory.CreateClient();
+
+        var response = await client.GetAsync("/api/v1/modules");
+
+        using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        var module = body.RootElement.EnumerateArray().Single(m =>
+        {
+            return m.GetProperty("name").GetString() == name;
+        });
+        Assert.Equal("included", module.GetProperty("tier").GetString());
+        Assert.True(module.GetProperty("isEnabled").GetBoolean());
+        Assert.False(string.IsNullOrWhiteSpace(module.GetProperty("displayName").GetString()));
     }
 }

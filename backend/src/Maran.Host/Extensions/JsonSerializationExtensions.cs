@@ -5,7 +5,7 @@ namespace Maran.Host.Extensions;
 
 /// <summary>
 /// Panel-wide JSON serialization settings. Enums (e.g. <c>Maran.Sdk.Contracts.LicenceTier</c>,
-/// <c>Maran.Modules.Accounts.Domain.AccountStatus</c>) serialize as their camelCase member name
+/// <c>Maran.Modules.Accounts.Domain.Enums.AccountStatus</c>) serialize as their camelCase member name
 /// (matching the panel's camelCase property naming) rather than their underlying number, so the
 /// wire contract the SPA depends on stays readable and stable across releases even as enum members
 /// are added (rules/csharp.md "Additive evolution"). Both API surfaces the panel exposes — MVC

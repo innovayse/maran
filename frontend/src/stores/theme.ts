@@ -25,7 +25,9 @@ export const useThemeStore = defineStore('theme', () => {
   applyTheme(current.value)
 
   /** Whether the dark palette is active — the shape a toggle control needs. */
-  const isDark: ComputedRef<boolean> = computed(() => current.value === 'dark')
+  const isDark: ComputedRef<boolean> = computed(() => {
+    return current.value === 'dark'
+  })
 
   /**
    * Switches the interface theme, applies it to the document and remembers it.

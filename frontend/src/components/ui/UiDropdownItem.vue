@@ -63,7 +63,7 @@ const onClick = (): void => {
       :aria-checked="checked === undefined ? undefined : String(checked)"
       tabindex="-1"
       :disabled="disabled"
-      class="flex w-full items-center justify-between gap-3 rounded-md px-2 py-1.5 text-left text-xs transition-colors enabled:hover:bg-surface-3 focus-visible:bg-surface-3 focus-visible:shadow-focus focus-visible:outline-none disabled:cursor-not-allowed disabled:text-text-muted disabled:opacity-65"
+      class="flex w-full items-center justify-between gap-3 rounded-md px-2 py-1.5 text-left text-base transition-colors enabled:hover:bg-surface-3 focus-visible:bg-surface-3 focus-visible:shadow-focus focus-visible:outline-none disabled:cursor-not-allowed disabled:text-text-muted disabled:opacity-65"
       :class="destructive ? 'text-danger' : 'text-text-primary'"
       @click="onClick"
     >

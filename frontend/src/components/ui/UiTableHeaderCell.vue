@@ -15,7 +15,7 @@
 
 <template>
   <th
-    class="px-3 py-2 text-2xs font-semibold tracking-caps whitespace-nowrap text-text-muted uppercase"
+    class="px-3 py-2 text-sm font-semibold tracking-caps whitespace-nowrap text-text-muted uppercase"
     scope="col"
   >
     <slot />

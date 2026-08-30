@@ -21,17 +21,17 @@ const props = withDefaults(
 )
 
 /** Tailwind utility classes for the selected {@link UiAlert} variant. */
-const variantClasses: ComputedRef<string> = computed(() =>
-  props.variant === 'error'
+const variantClasses: ComputedRef<string> = computed(() => {
+  return props.variant === 'error'
     ? 'border-[rgb(229_72_77/0.35)] bg-[rgb(229_72_77/0.12)] text-danger'
-    : 'border-[rgb(46_123_255/0.35)] bg-accent-soft text-text-primary',
-)
+    : 'border-[rgb(46_123_255/0.35)] bg-accent-soft text-text-primary'
+})
 </script>
 
 <template>
   <!-- assertive for errors so screen readers interrupt; polite otherwise. -->
   <div
-    class="rounded-lg border px-3 py-2 text-xs leading-normal"
+    class="rounded-lg border px-3 py-2 text-base leading-normal"
     :class="variantClasses"
     role="status"
     :aria-live="variant === 'error' ? 'assertive' : 'polite'"

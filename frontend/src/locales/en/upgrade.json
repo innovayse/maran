@@ -1,0 +1,11 @@
+{
+  "app": {
+    "upgrade": {
+      "heading": "Upgrade required",
+      "subtitle": "This area belongs to a module your current licence does not cover.",
+      "module": "The \"{module}\" module is not included in your current licence.",
+      "tier": "It is available on the {tier} tier.",
+      "backHome": "Back to system status"
+    }
+  }
+}

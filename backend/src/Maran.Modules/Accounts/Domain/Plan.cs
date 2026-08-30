@@ -8,6 +8,23 @@ namespace Maran.Modules.Accounts.Domain;
 /// </summary>
 public sealed class Plan
 {
+    /// <summary>The plan's identity.</summary>
+    public Guid Id { get; private set; }
+
+    /// <summary>The resx key for this plan's human-readable name.</summary>
+    public string DisplayNameKey { get; private set; }
+
+    /// <summary>The account's disk quota, in megabytes.</summary>
+    public int DiskQuotaMb { get; private set; }
+
+    /// <summary>The maximum number of sites the account may create.</summary>
+    public int MaxSites { get; private set; }
+
+    /// <summary>The maximum number of databases the account may create.</summary>
+    public int MaxDatabases { get; private set; }
+
+    /// <summary>The maximum number of FTP users the account may create.</summary>
+    public int MaxFtpUsers { get; private set; }
     /// <summary>Creates a plan.</summary>
     /// <param name="id">The plan's identity, stable across seeding runs so re-seeding is idempotent.</param>
     /// <param name="displayNameKey">
@@ -37,21 +54,4 @@ public sealed class Plan
         DisplayNameKey = string.Empty;
     }
 
-    /// <summary>The plan's identity.</summary>
-    public Guid Id { get; private set; }
-
-    /// <summary>The resx key for this plan's human-readable name.</summary>
-    public string DisplayNameKey { get; private set; }
-
-    /// <summary>The account's disk quota, in megabytes.</summary>
-    public int DiskQuotaMb { get; private set; }
-
-    /// <summary>The maximum number of sites the account may create.</summary>
-    public int MaxSites { get; private set; }
-
-    /// <summary>The maximum number of databases the account may create.</summary>
-    public int MaxDatabases { get; private set; }
-
-    /// <summary>The maximum number of FTP users the account may create.</summary>
-    public int MaxFtpUsers { get; private set; }
 }

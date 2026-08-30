@@ -3,6 +3,7 @@ using JasperFx.CodeGeneration.Model;
 using JasperFx.RuntimeCompiler;
 using Maran.Host.Modules;
 using Wolverine;
+using Wolverine.FluentValidation;
 using Wolverine.Postgresql;
 
 namespace Maran.Host.Extensions;
@@ -48,6 +49,12 @@ public static class MessagingExtensions
             // that cannot be inlined. Allowing the lookup costs one scoped resolve per message and
             // keeps each module owning its own persistence registration.
             options.ServiceLocationPolicy = ServiceLocationPolicy.AlwaysAllowed;
+
+            // Runs each command's validator before its handler. A validator that nothing invokes is
+            // worse than no validator: it is tested, it passes, and it gives everyone reading the
+            // module the impression the input is checked. This line is what makes
+            // CompleteSetupCommandValidator's password policy real.
+            options.UseFluentValidation();
 
             // Handlers live in the module assemblies, not in the host, and Wolverine scans only the
             // entry assembly by default — which left every module message with no handler and every

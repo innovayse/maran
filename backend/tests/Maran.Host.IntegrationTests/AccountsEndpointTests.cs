@@ -1,11 +1,16 @@
 using System.Net;
+using System.Net.Http.Headers;
+using System.Net.Http.Json;
+using System.Text.Json;
 using Maran.Modules.Accounts.Domain;
 using Maran.Modules.Accounts.Persistence;
+using Maran.Modules.Identity.Persistence;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Storage;
+using Microsoft.Extensions.DependencyInjection;
 using Testcontainers.PostgreSql;
 
 namespace Maran.Host.IntegrationTests;
@@ -21,60 +26,24 @@ namespace Maran.Host.IntegrationTests;
 /// per test class at most").
 /// </summary>
 /// <remarks>
-/// Four real, independent production defects surfaced while writing this class (reported here and
-/// in accounts-tests-report.md, not fixed — rules/testing.md "Do NOT modify production code to make
-/// a test pass"):
-/// <list type="number">
-/// <item>
-/// <c>AccountsController</c> is decorated <c>[Route("accounts")]</c>. A non-<c>AllowMultiple</c>
-/// attribute declared on a derived type hides the same attribute declared on its base — so
-/// <see cref="Sdk.Controllers.BaseApiController"/>'s <c>[Route("api/v1/[controller]")]</c> never
-/// applies here, and the account endpoints are actually reachable at <c>/accounts</c>, not the
-/// <c>/api/v1/accounts</c> the controller's own XML docs, the spec, and every other controller in
-/// the codebase assume. Confirmed empirically: <c>GET /api/v1/accounts</c> against the real host
-/// returns 404; <c>GET /accounts</c> is routed.
-/// </item>
-/// <item>
-/// Nothing registers <see cref="SharedKernel.Interfaces.ICurrentUser"/> in the Host's DI container
-/// (<see cref="Sdk.Controllers.BaseApiController"/>'s own constructor doc comment says as much: "No
-/// implementation is registered until authentication ships"). Confirmed empirically: every request
-/// that reaches <c>AccountsController</c> — the module's only controller — throws
-/// <c>InvalidOperationException</c> ("Unable to resolve service for type
-/// '…ICurrentUser' while attempting to activate 'AccountsController'") while ASP.NET Core
-/// activates it, which <c>ExceptionMiddleware</c> turns into a 500 <c>HostUnexpectedError</c>.
-/// The Accounts HTTP surface cannot currently serve a single request.
-/// </item>
-/// <item>
-/// No EF Core migration exists for the Accounts module (<c>Persistence/Migrations/</c> holds only a
-/// <c>.gitkeep</c>) and nothing in <c>Maran.Host</c>'s startup path applies one, so a real
-/// deployment against a fresh PostgreSQL never gets an <c>accounts."Accounts"</c> table at all.
-/// <see cref="Accounts_schema_is_created_and_an_account_round_trips_through_postgres"/> creates the
-/// schema itself, purely as test setup (via <c>IRelationalDatabaseCreator</c> directly, bypassing
-/// <c>EnsureCreatedAsync</c>'s no-op "database already exists" check against Testcontainers'
-/// pre-provisioned database) — production code is left untouched.
-/// </item>
-/// <item>
-/// <c>Maran.Host.Extensions.MessagingExtensions.AddPanelMessaging</c> sets
-/// <c>options.AutoBuildMessageStorageOnStartup = AutoCreate.None</c> whenever a connection string
-/// is configured, by explicit design ("Schema changes are applied deliberately by the installer and
-/// the update command … never as a side effect of a process start"). That is correct for
-/// production, but it also means <see cref="Microsoft.AspNetCore.Mvc.Testing.WebApplicationFactory{TEntryPoint}"/>
-/// can never boot <c>Program</c> against a genuinely fresh database — Wolverine's own
-/// <c>wolverine.wolverine_incoming_envelopes</c> table is never provisioned, and host startup fails
-/// with "The Wolverine message storage for database 'default' is missing". This reproduces for the
-/// pre-existing, unrelated <c>HostBootTests.Host_boots_with_postgres_and_serves_health</c> too — it
-/// is not specific to Accounts or to anything added in this pass — which means, in this
-/// environment, no <c>WebApplicationFactory&lt;Program&gt;</c>-based test can currently exercise a
-/// live HTTP endpoint end-to-end. Defects 1 and 2 above were confirmed by one successful earlier
-/// boot in this same session (captured in accounts-tests-report.md with full log output) before this
-/// fourth issue was isolated; the two tests that depended on a live HTTP round trip are
-/// <c>Skip</c>-documented below rather than left non-deterministically red, per rules/testing.md
-/// "Determinism" and "never retry-loop it".
-/// </item>
-/// </list>
+/// This class was written against four real production defects and kept them documented rather
+/// than worked around: the controller's route had drifted from <c>/api/v1/accounts</c> to
+/// <c>/accounts</c>; nothing registered <c>ICurrentUser</c>, so every request that reached the
+/// controller 500d during activation; the Accounts module had no EF Core migration; and
+/// <c>WebApplicationFactory&lt;Program&gt;</c> could not boot against a fresh PostgreSQL because
+/// Wolverine's message storage is never auto-provisioned. All four are now closed — the route is
+/// restored, <c>HttpContextCurrentUser</c> is registered, <c>InitialAccountsSchema</c> exists, and
+/// the host boots here and in <c>SetupEndpointTests</c> — so the two tests that were
+/// <c>Skip</c>-documented against the broken behaviour now assert the correct behaviour instead.
+/// They are kept because each one still fails if its defect returns: a route drift shows up as 404
+/// where 401 is expected, and a missing <c>ICurrentUser</c> as 500 where 200 is.
 /// </remarks>
 public sealed class AccountsEndpointTests : IAsyncLifetime
 {
+    private const string EncryptionKey = "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=";
+    private const string SetupToken = "a-one-time-token";
+    private const string AdminPassword = "correct horse battery staple";
+
     /// <summary>The disposable PostgreSQL instance shared by every test in this class.</summary>
     private readonly PostgreSqlContainer _pg = new PostgreSqlBuilder("postgres:16-alpine").Build();
 
@@ -90,6 +59,7 @@ public sealed class AccountsEndpointTests : IAsyncLifetime
         return _pg.DisposeAsync().AsTask();
     }
 
+    /// <summary>Accounts schema is created and an account round trips through postgres.</summary>
     [Fact]
     public async Task Accounts_schema_is_created_and_an_account_round_trips_through_postgres()
     {
@@ -137,53 +107,46 @@ public sealed class AccountsEndpointTests : IAsyncLifetime
     }
 
     /// <summary>
-    /// DEFECT 1 (see class remarks): the documented, mandated <c>GET /api/v1/accounts</c> does not
-    /// resolve to the Accounts controller at all.
+    /// The Accounts surface answers on the documented path, and answers closed. A 404 here would
+    /// mean the controller's route had drifted from the one the spec, its own XML docs and the SPA
+    /// all use — the defect this class was written to catch.
     /// </summary>
-    [Fact(Skip =
-        "Blocked by defect 4 (see class remarks): WebApplicationFactory<Program> cannot currently " +
-        "boot against a fresh PostgreSQL because Wolverine's own message storage is never " +
-        "auto-provisioned (AutoBuildMessageStorageOnStartup = AutoCreate.None by design), so no live " +
-        "HTTP round trip is possible in this environment right now — reproduces for the pre-existing " +
-        "HostBootTests too. Defect 1 itself (the route mismatch) was confirmed empirically earlier in " +
-        "this session: GET /api/v1/accounts returned 404 Not Found. See accounts-tests-report.md.")]
-    public async Task Get_on_the_documented_api_v1_accounts_path_currently_404s()
+    [Fact]
+    public async Task The_documented_accounts_path_exists_and_refuses_an_anonymous_caller()
     {
-        await using var factory = new WebApplicationFactory<Program>().WithWebHostBuilder(b =>
-        {
-            // Testing, not Development: appsettings.Development.json points at a developer's own
-            // PostgreSQL, and inheriting it made these tests pass locally by accident while
-            // connecting to the wrong database — and fail in CI, where nothing listens there.
-            b.UseEnvironment("Testing");
-            foreach (var setting in DatabaseSettings.From(_pg.GetConnectionString()))
-            {
-                b.UseSetting(setting.Key, setting.Value);
-            }
-            b.UseSetting("Security:EncryptionKey", "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=");
-        });
+        await using var factory = CreateFactory();
+        await MigrateAsync(factory);
         using var client = factory.CreateClient();
 
         var response = await client.GetAsync("/api/v1/accounts");
 
-        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
 
     /// <summary>
-    /// DEFECT 2 (see class remarks): the account endpoints are actually reachable at
-    /// <c>/accounts</c>, but every request there 500s for a missing <c>ICurrentUser</c> registration.
+    /// An authenticated administrator gets a list, not a 500. This is the end-to-end proof that
+    /// <c>ICurrentUser</c> resolves for a real request: the controller cannot be activated without
+    /// it, so a missing registration surfaces here as an unhandled activation failure.
     /// </summary>
-    [Fact(Skip =
-        "Blocked by defect 4 (see class remarks): WebApplicationFactory<Program> cannot currently " +
-        "boot against a fresh PostgreSQL because Wolverine's own message storage is never " +
-        "auto-provisioned (AutoBuildMessageStorageOnStartup = AutoCreate.None by design), so no live " +
-        "HTTP round trip is possible in this environment right now — reproduces for the pre-existing " +
-        "HostBootTests too. Defect 2 itself (missing ICurrentUser registration) was confirmed " +
-        "empirically earlier in this session: GET /accounts returned 500 with an unhandled " +
-        "InvalidOperationException resolving ICurrentUser for AccountsController. See " +
-        "accounts-tests-report.md.")]
-    public async Task Get_on_the_actual_accounts_path_currently_500s_for_missing_current_user_registration()
+    [Fact]
+    public async Task An_authenticated_administrator_can_list_accounts()
     {
-        await using var factory = new WebApplicationFactory<Program>().WithWebHostBuilder(b =>
+        await using var factory = CreateFactory();
+        await MigrateAsync(factory);
+        using var client = factory.CreateClient();
+        var token = await SignInAsync(client);
+
+        using var request = new HttpRequestMessage(HttpMethod.Get, "/api/v1/accounts");
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        var response = await client.SendAsync(request);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
+
+    /// <summary>Boots the host against this class's PostgreSQL, as the setup tests do.</summary>
+    private WebApplicationFactory<Program> CreateFactory()
+    {
+        return new WebApplicationFactory<Program>().WithWebHostBuilder(b =>
         {
             // Testing, not Development: appsettings.Development.json points at a developer's own
             // PostgreSQL, and inheriting it made these tests pass locally by accident while
@@ -193,12 +156,33 @@ public sealed class AccountsEndpointTests : IAsyncLifetime
             {
                 b.UseSetting(setting.Key, setting.Value);
             }
-            b.UseSetting("Security:EncryptionKey", "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=");
+
+            b.UseSetting("Security:EncryptionKey", EncryptionKey);
+            b.UseSetting("Jwt:SigningKey", EncryptionKey);
+            b.UseSetting("Setup:Token", SetupToken);
         });
-        using var client = factory.CreateClient();
+    }
 
-        var response = await client.GetAsync("/accounts");
+    /// <summary>Applies both modules' migrations, the way the installer does before first boot.</summary>
+    private static async Task MigrateAsync(WebApplicationFactory<Program> factory)
+    {
+        using var scope = factory.Services.CreateScope();
+        await scope.ServiceProvider.GetRequiredService<IdentityDbContext>().Database.MigrateAsync();
+        await scope.ServiceProvider.GetRequiredService<AccountsDbContext>().Database.MigrateAsync();
+    }
 
-        Assert.Equal(HttpStatusCode.InternalServerError, response.StatusCode);
+    /// <summary>Creates the first administrator and signs in, returning the access token.</summary>
+    private static async Task<string> SignInAsync(HttpClient client)
+    {
+        await client.PostAsJsonAsync(
+            "/api/v1/setup",
+            new { Token = SetupToken, Username = "admin", Email = "admin@example.com", Password = AdminPassword });
+
+        var login = await client.PostAsJsonAsync(
+            "/api/v1/auth/login",
+            new { Username = "admin", Password = AdminPassword });
+
+        using var body = JsonDocument.Parse(await login.Content.ReadAsStringAsync());
+        return body.RootElement.GetProperty("accessToken").GetString()!;
     }
 }

@@ -1,0 +1,23 @@
+{
+  "app": {
+    "sessions": {
+      "heading": "Մուտք գործած սարքեր",
+      "subtitle": "Բոլոր սարքերը, որոնցից ներկայում մուտք է գործված ձեր հաշիվ։",
+      "loading": "Սարքերը բեռնվում են…",
+      "emptyTitle": "Այլ սարքեր չկան",
+      "emptyDescription": "Մուտք է գործված միայն այս սարքից։",
+      "tableCaption": "Ձեր հաշիվ մուտք գործած սարքեր",
+      "deviceColumn": "Սարք",
+      "addressColumn": "Հասցե",
+      "signedInColumn": "Մուտք է գործվել",
+      "actionsColumn": "Գործողություններ",
+      "currentDevice": "Այս սարքը",
+      "end": "Ավարտել",
+      "confirm": "Ավարտե՞լ այս աշխատաշրջանը։",
+      "confirmCurrent": "Դուք դուրս կգաք վահանակից այս սարքում։",
+      "confirmEnd": "Ավարտել",
+      "cancel": "Չեղարկել",
+      "signOutEverywhere": "Դուրս գալ բոլոր սարքերից"
+    }
+  }
+}

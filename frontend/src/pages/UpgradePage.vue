@@ -30,18 +30,20 @@ const modulesStore = useModulesStore()
  * (e.g. a stale bookmark to a module that no longer exists) — the template
  * falls back to the raw module name in that case.
  */
-const catalogueEntry: ComputedRef<PanelModule | undefined> = computed(() =>
-  modulesStore.modules.find((module) => module.name === props.module),
-)
+const catalogueEntry: ComputedRef<PanelModule | undefined> = computed(() => {
+  return modulesStore.modules.find((module) => {
+    return module.name === props.module
+  })
+})
 </script>
 
 <template>
   <section class="w-full">
     <div class="mb-4">
-      <h1 class="text-xl font-semibold tracking-title text-text-primary">
+      <h1 class="text-3xl font-semibold tracking-title text-text-primary">
         {{ t('app.upgrade.heading') }}
       </h1>
-      <p class="mt-1 text-xs text-text-secondary">{{ t('app.upgrade.subtitle') }}</p>
+      <p class="mt-1 text-base text-text-secondary">{{ t('app.upgrade.subtitle') }}</p>
     </div>
 
     <UiEmptyState

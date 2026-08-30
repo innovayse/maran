@@ -1,9 +1,11 @@
 using Maran.Host.HealthChecks;
 
 namespace Maran.Host.Tests.HealthChecks;
+/// <summary>Behavioural contract of database health probe.</summary>
 
 public sealed class DatabaseHealthProbeTests
 {
+    /// <summary>Probe reports not configured when no connection string is set.</summary>
     [Fact]
     public async Task Probe_reports_not_configured_when_no_connection_string_is_set()
     {
@@ -12,6 +14,7 @@ public sealed class DatabaseHealthProbeTests
         Assert.Equal(DatabaseHealthProbe.NotConfigured, await probe.ProbeAsync());
     }
 
+    /// <summary>Probe reports unreachable instead of throwing when the database refuses.</summary>
     [Fact]
     public async Task Probe_reports_unreachable_instead_of_throwing_when_the_database_refuses()
     {

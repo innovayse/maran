@@ -5,13 +5,13 @@ on:
     paths:
       - 'backend/**'
       - 'proto/**'
-      - 'scripts/check-structure.sh'
+      - 'scripts/**'
       - '.github/workflows/backend.yml'
   pull_request:
     paths:
       - 'backend/**'
       - 'proto/**'
-      - 'scripts/check-structure.sh'
+      - 'scripts/**'
       - '.github/workflows/backend.yml'
 
 jobs:
@@ -31,12 +31,23 @@ jobs:
       # type name, *Extensions in Extensions/, interfaces in Interfaces/, no cross-module
       # imports, no junk-drawer file names (rules/csharp.md, rules/architecture.md).
       - name: Structure check
-        run: bash scripts/check-structure.sh
+        run: bash scripts/maran structure
+
+      # Formatting and naming: the .editorconfig style, applied rather than argued about in
+      # review. This ran nowhere for a long time, and the tree quietly reached 418 violations
+      # before anyone looked — a gate that is not in CI is not a gate.
+      - name: Format check
+        run: bash scripts/maran format --check backend
 
       # Warnings are errors, unused usings are errors, banned APIs are errors — the build
       # itself is the first quality gate (backend/Directory.Build.props).
       - name: Build
         run: dotnet build backend --configuration Release
+
+      # An entity edited without a migration is not an error until a real database is involved,
+      # and then it surfaces as a confusing query failure instead of as what actually happened.
+      - name: Migrations match the model
+        run: bash scripts/maran migrate check
 
       # Includes the architecture tests (module isolation + the guard that stops them
       # passing vacuously) and the Testcontainers-backed integration tests.

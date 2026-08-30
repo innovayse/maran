@@ -1,0 +1,23 @@
+{
+  "app": {
+    "twoFactor": {
+      "heading": "Two-step verification",
+      "subtitle": "A code from your phone, in addition to your password.",
+      "manageTitle": "Authenticator app",
+      "manageDescription": "Add this panel to an authenticator app to require a code at every sign-in.",
+      "enable": "Set up",
+      "enrolTitle": "Finish setting up",
+      "enrolInstructions": "Add the secret below to your authenticator app, then enter the code it shows.",
+      "secretLabel": "Secret",
+      "confirmCodeLabel": "Code from the app",
+      "confirmEnrolment": "Turn on",
+      "cancelEnrolment": "Cancel",
+      "recoveryTitle": "Recovery codes",
+      "recoveryWarning": "Save these now. Each works once, and they will not be shown again.",
+      "copyCodes": "Copy codes",
+      "disableDescription": "Enter a current code, or one of your recovery codes, to turn this off.",
+      "disableCodeLabel": "Code",
+      "disable": "Turn off"
+    }
+  }
+}

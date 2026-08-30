@@ -84,9 +84,9 @@ const variantClasses: ComputedRef<string> = computed(() => {
  * "saved" is worse than saying nothing.
  * @returns The `aria-live` politeness for the current variant.
  */
-const politeness: ComputedRef<'assertive' | 'polite'> = computed(() =>
-  props.variant === 'danger' ? 'assertive' : 'polite',
-)
+const politeness: ComputedRef<'assertive' | 'polite'> = computed(() => {
+  return props.variant === 'danger' ? 'assertive' : 'polite'
+})
 
 /**
  * Stops the auto-dismiss timer, if one is running.
@@ -131,7 +131,7 @@ onBeforeUnmount(stopTimer)
 
 <template>
   <div
-    class="pointer-events-auto flex max-w-[340px] items-center gap-2.5 rounded-lg border border-border-strong border-l-2 bg-surface-1 px-3 py-2.5 text-xs text-text-primary shadow-[0_12px_32px_rgb(0_0_0/0.35)]"
+    class="pointer-events-auto flex max-w-[340px] items-center gap-2.5 rounded-lg border border-border-strong border-l-2 bg-surface-1 px-3 py-2.5 text-base text-text-primary shadow-[0_12px_32px_rgb(0_0_0/0.35)]"
     :class="variantClasses"
     role="status"
     :aria-live="politeness"
@@ -147,7 +147,7 @@ onBeforeUnmount(stopTimer)
            size, duration), set in mono because that is what it always is. It is
            inside the labelled region on purpose, so the announcement carries the
            detail rather than the headline alone. -->
-      <div v-if="$slots.meta" class="font-mono text-2xs text-text-muted"><slot name="meta" /></div>
+      <div v-if="$slots.meta" class="font-mono text-sm text-text-muted"><slot name="meta" /></div>
     </div>
     <button
       type="button"

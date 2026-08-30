@@ -2,8 +2,10 @@ using System.Resources;
 using Grpc.Net.Client;
 using Maran.Agent.Client.Channels;
 using Maran.Agent.Client.Interfaces;
+using Maran.Agent.Client.Services.AccountsService;
 using Maran.Agent.Client.Services.SystemService;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace Maran.Agent.Client;
 
@@ -35,10 +37,19 @@ public static class DependencyInjection
         {
             return AgentChannel.CreateUnixSocket(socketPath);
         });
+        services.AddSingleton<IAgentAccountsClient>(
+            provider =>
+            {
+                return new AgentAccountsClient(
+                    provider.GetRequiredService<GrpcChannel>(),
+                    provider.GetRequiredService<ILogger<AgentAccountsClient>>());
+            });
         services.AddSingleton<IAgentSystemClient>(
             provider =>
             {
-                return new AgentSystemClient(provider.GetRequiredService<GrpcChannel>());
+                return new AgentSystemClient(
+                    provider.GetRequiredService<GrpcChannel>(),
+                    provider.GetRequiredService<ILogger<AgentSystemClient>>());
             });
 
         // Registers this project's resource manager into the shared pool the panel-wide

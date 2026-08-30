@@ -68,7 +68,7 @@ const onPointerEnter = (): void => {
     role="option"
     :aria-selected="selected"
     :aria-disabled="disabled ? 'true' : undefined"
-    class="flex cursor-pointer items-center justify-between gap-2.5 rounded-md px-2 py-1.5 text-xs text-text-primary"
+    class="flex cursor-pointer items-center justify-between gap-2.5 rounded-md px-2 py-1.5 text-base text-text-primary"
     :class="[
       active ? 'bg-surface-3' : '',
       selected ? 'font-medium' : '',

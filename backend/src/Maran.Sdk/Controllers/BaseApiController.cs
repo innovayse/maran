@@ -14,6 +14,9 @@ namespace Maran.Sdk.Controllers;
 [Route("api/v1/[controller]")]
 public abstract class BaseApiController : ControllerBase
 {
+    /// <summary>The authenticated principal of the current request.</summary>
+    protected ICurrentUser CurrentUser { get; }
+
     /// <summary>Creates the controller with the caller identity every derived controller needs.</summary>
     /// <param name="currentUser">
     /// The authenticated principal of the current request. No implementation is registered until
@@ -23,9 +26,6 @@ public abstract class BaseApiController : ControllerBase
     {
         CurrentUser = currentUser;
     }
-
-    /// <summary>The authenticated principal of the current request.</summary>
-    protected ICurrentUser CurrentUser { get; }
 
     /// <summary>The correlation id assigned to this request by <c>CorrelationIdMiddleware</c>, or <c>null</c> outside a request.</summary>
     protected string? CorrelationId

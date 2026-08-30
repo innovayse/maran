@@ -1,7 +1,7 @@
 //! The adapter seam: behaviour that differs between distribution families.
 //!
 //! Operational code never branches on a distribution name; it asks the adapter
-//! (rules/architecture.md). [`super::adapter_selector::adapter_for`] is what chooses
+//! (rules/architecture.md). [`crate::adapter_for()`] is what chooses
 //! the implementation.
 
 use crate::family::DistroFamily;
@@ -14,4 +14,13 @@ use crate::family::DistroFamily;
 pub trait DistroAdapter: Send + Sync {
     /// The family this adapter implements.
     fn family(&self) -> DistroFamily;
+
+    /// Absolute path of the shell given to an account that must not log in.
+    ///
+    /// A hosting account is not a person with a terminal: SFTP and cron work through
+    /// it, and an interactive login is exactly what must not. The path differs between
+    /// families — Debian ships it at `/usr/sbin/nologin`, RHEL documents `/sbin/nologin`
+    /// — which is why it is asked of the adapter rather than written into an operation
+    /// (rules/rust.md "Distro adapter": ops never hard-codes a platform path).
+    fn nologin_shell(&self) -> &'static str;
 }

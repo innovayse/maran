@@ -20,6 +20,7 @@ public sealed class PlanSeederTests
         return new AccountsDbContext(options);
     }
 
+    /// <summary>Seeding an empty store inserts the three standard plans.</summary>
     [Fact]
     public async Task Seeding_an_empty_store_inserts_the_three_standard_plans()
     {
@@ -35,6 +36,7 @@ public sealed class PlanSeederTests
         Assert.Contains(PlanSeeder.UnlimitedPlanId, planIds);
     }
 
+    /// <summary>Seeding twice does not duplicate rows.</summary>
     [Fact]
     public async Task Seeding_twice_does_not_duplicate_rows()
     {
@@ -48,6 +50,7 @@ public sealed class PlanSeederTests
         Assert.Equal(3, count);
     }
 
+    /// <summary>Seeding when one standard plan already exists only inserts the missing ones.</summary>
     [Fact]
     public async Task Seeding_when_one_standard_plan_already_exists_only_inserts_the_missing_ones()
     {
@@ -66,6 +69,7 @@ public sealed class PlanSeederTests
         Assert.Contains(PlanSeeder.UnlimitedPlanId, planIds);
     }
 
+    /// <summary>Seeded plans carry ascending limits from starter to unlimited.</summary>
     [Fact]
     public async Task Seeded_plans_carry_ascending_limits_from_starter_to_unlimited()
     {

@@ -14,10 +14,17 @@
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" />
+    <PackageReference Include="WolverineFx.FluentValidation" />
+    <PackageReference Include="FluentValidation.DependencyInjectionExtensions" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\Maran.Sdk\Maran.Sdk.csproj" />
     <ProjectReference Include="..\Maran.SharedKernel\Maran.SharedKernel.csproj" />
     <ProjectReference Include="..\Maran.Agent.Client\Maran.Agent.Client.csproj" />
     <ProjectReference Include="..\Maran.Modules\Accounts\Maran.Modules.Accounts.csproj" />
+    <ProjectReference Include="..\Maran.Modules\Identity\Maran.Modules.Identity.csproj" />
   </ItemGroup>
 
   <ItemGroup>

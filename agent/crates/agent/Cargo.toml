@@ -11,6 +11,8 @@ publish.workspace = true
 # The agent validates every name and path through the core primitives before it
 # touches the system, and asks maran-distro rather than branching on distro names.
 maran-agent-core = { path = "../agent-core" }
+# The account operations the AccountsService serves.
+maran-ops = { path = "../ops" }
 maran-distro = { path = "../distro" }
 prost.workspace = true
 thiserror.workspace = true

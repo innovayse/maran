@@ -1,4 +1,5 @@
 using Maran.Modules.Accounts.Domain;
+using Maran.Modules.Accounts.Domain.Enums;
 using Maran.Modules.Accounts.Tests.TestSupport;
 
 namespace Maran.Modules.Accounts.Tests.Domain;
@@ -9,6 +10,7 @@ public sealed class AccountTests
     /// <summary>A fixed instant used wherever a test needs "some" creation time.</summary>
     private static readonly DateTimeOffset SomeInstant = new(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
 
+    /// <summary>Creating account sets every field from the constructor arguments.</summary>
     [Fact]
     public void Creating_account_sets_every_field_from_the_constructor_arguments()
     {
@@ -24,6 +26,7 @@ public sealed class AccountTests
         Assert.Equal(planId, account.PlanId);
     }
 
+    /// <summary>Creating account starts it in the active status.</summary>
     [Fact]
     public void Creating_account_starts_it_in_the_active_status()
     {
@@ -32,6 +35,7 @@ public sealed class AccountTests
         Assert.Equal(AccountStatus.Active, account.Status);
     }
 
+    /// <summary>Creating account stamps created at from the injected clock not real time.</summary>
     [Fact]
     public void Creating_account_stamps_created_at_from_the_injected_clock_not_real_time()
     {
@@ -46,6 +50,7 @@ public sealed class AccountTests
         Assert.NotEqual(fixedInstant.AddYears(20).Date, account.CreatedAt.Date);
     }
 
+    /// <summary>Suspending an active account moves it to suspended.</summary>
     [Fact]
     public void Suspending_an_active_account_moves_it_to_suspended()
     {
@@ -56,6 +61,7 @@ public sealed class AccountTests
         Assert.Equal(AccountStatus.Suspended, account.Status);
     }
 
+    /// <summary>Suspending an already suspended account is a harmless no op.</summary>
     [Fact]
     public void Suspending_an_already_suspended_account_is_a_harmless_no_op()
     {
@@ -67,6 +73,7 @@ public sealed class AccountTests
         Assert.Equal(AccountStatus.Suspended, account.Status);
     }
 
+    /// <summary>Reactivating a suspended account moves it to active.</summary>
     [Fact]
     public void Reactivating_a_suspended_account_moves_it_to_active()
     {
@@ -78,6 +85,7 @@ public sealed class AccountTests
         Assert.Equal(AccountStatus.Active, account.Status);
     }
 
+    /// <summary>Reactivating an already active account is a harmless no op.</summary>
     [Fact]
     public void Reactivating_an_already_active_account_is_a_harmless_no_op()
     {

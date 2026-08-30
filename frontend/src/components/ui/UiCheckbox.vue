@@ -42,7 +42,9 @@ const fieldId: string = useId()
 const errorId: string = `${fieldId}-error`
 
 /** Whether the control is currently in an error state. */
-const hasError: ComputedRef<boolean> = computed(() => props.error !== null && props.error !== undefined)
+const hasError: ComputedRef<boolean> = computed(() => {
+  return props.error !== null && props.error !== undefined
+})
 
 /**
  * Forwards the native checked state to the `update:modelValue` emit.
@@ -85,11 +87,11 @@ const onChange = (event: Event): void => {
       </span>
       <label
         :for="fieldId"
-        class="text-xs text-text-primary"
+        class="text-base text-text-primary"
         :class="disabled ? 'cursor-not-allowed opacity-65' : 'cursor-pointer'"
         >{{ label }}</label
       >
     </div>
-    <p v-if="hasError" :id="errorId" class="text-xs text-danger">{{ error }}</p>
+    <p v-if="hasError" :id="errorId" class="text-base text-danger">{{ error }}</p>
   </div>
 </template>

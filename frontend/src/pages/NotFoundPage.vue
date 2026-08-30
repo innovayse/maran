@@ -13,10 +13,7 @@ const { t } = useI18n()
 
 <template>
   <section class="w-full">
-    <UiEmptyState
-      :title="t('app.notFound.heading')"
-      :description="t('app.notFound.description')"
-    >
+    <UiEmptyState :title="t('app.notFound.heading')" :description="t('app.notFound.description')">
       <UiNavLink :to="{ name: 'system-status' }">{{ t('app.notFound.backHome') }}</UiNavLink>
     </UiEmptyState>
   </section>

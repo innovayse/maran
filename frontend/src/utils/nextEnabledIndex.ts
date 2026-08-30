@@ -17,7 +17,11 @@ interface EnableableEntry {
  * @param step Direction: 1 forwards, -1 backwards.
  * @returns The index of the next choosable entry, or `from` when there is none.
  */
-export const nextEnabledIndex = <T extends EnableableEntry>(entries: readonly T[], from: number, step: number): number => {
+export const nextEnabledIndex = <T extends EnableableEntry>(
+  entries: readonly T[],
+  from: number,
+  step: number,
+): number => {
   for (let index = from + step; index >= 0 && index < entries.length; index += step) {
     if (entries[index]?.disabled !== true) {
       return index

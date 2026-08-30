@@ -15,6 +15,7 @@ public sealed class ModuleCoverageTests
     private static readonly Regex ModuleProjectPattern =
         new(@"""(Maran\.Modules\.[A-Za-z0-9.]+)""", RegexOptions.Compiled);
 
+    /// <summary>Every module project in the solution is referenced by the architecture tests.</summary>
     [Fact]
     public void Every_module_project_in_the_solution_is_referenced_by_the_architecture_tests()
     {
@@ -48,6 +49,7 @@ public sealed class ModuleCoverageTests
             + "Add a ProjectReference for each.");
     }
 
+    /// <summary>Isolation rules run against the projects they claim to cover.</summary>
     [Fact]
     public void Isolation_rules_run_against_the_projects_they_claim_to_cover()
     {
