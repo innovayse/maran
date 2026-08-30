@@ -1,1 +1,164 @@
 @import "tailwindcss";
+
+/*
+ * Design tokens, taken verbatim from the ServerPanel design canvas.
+ *
+ * Dark is the default and light is the override, in that order, because the
+ * design is authored dark-first: a panel is looked at for hours, often beside a
+ * terminal, and the light theme is the deviation rather than the baseline.
+ *
+ * The names are the design's own (--s1, --b1, --t1, --ac). They are terse to the
+ * point of being cryptic, and they are kept exactly so anyway: the moment they
+ * are renamed here, a value in the canvas can no longer be traced to a value in
+ * the code, and the two drift apart with nobody able to prove it.
+ */
+:root,
+html[data-theme='dark'] {
+  /* Surfaces, from the page floor upward. */
+  --bg: #0a0b0d;
+  --s1: #101216;
+  --s2: #16191e;
+  --s3: #1d2126;
+
+  /* Borders: b1 separates, b2 emphasises. */
+  --b1: #23262c;
+  --b2: #2e3339;
+
+  /* Text, in descending prominence. */
+  --t1: #e9ebee;
+  --t2: #98a0a8;
+  --t3: #6a7178;
+
+  /* Accent and its wash, used for selection and active navigation. */
+  --ac: #2e7bff;
+  --acs: rgb(46 123 255 / 0.14);
+
+  /* Status. Never the only carrier of meaning — text always accompanies them. */
+  --gr: #2fb574;
+  --am: #e0a030;
+  --rd: #e5484d;
+
+  /* Secondary accent, for series that must not read as "primary". */
+  --pu: #8b6df0;
+  --pus: rgb(139 109 240 / 0.13);
+
+  /* Loading shimmer. */
+  --sk: linear-gradient(90deg, #181b20 8%, #22262c 18%, #181b20 33%);
+}
+
+html[data-theme='light'] {
+  --bg: #f6f7f9;
+  --s1: #ffffff;
+  --s2: #f2f4f6;
+  --s3: #e9ecf0;
+  --b1: #e2e5ea;
+  --b2: #d2d6dd;
+  --t1: #14171b;
+  --t2: #5c646d;
+  --t3: #8b939b;
+  --acs: rgb(46 123 255 / 0.09);
+  --pus: rgb(139 109 240 / 0.09);
+  --sk: linear-gradient(90deg, #eff1f4 8%, #e4e7eb 18%, #eff1f4 33%);
+}
+
+/*
+ * Tailwind's theme, fed from the tokens above so `bg-surface-1` and
+ * `var(--s1)` can never disagree. Utilities are what components use; the raw
+ * variables stay available for the few places a utility cannot reach.
+ */
+@theme inline {
+  --color-page: var(--bg);
+  --color-surface-1: var(--s1);
+  --color-surface-2: var(--s2);
+  --color-surface-3: var(--s3);
+  --color-border-subtle: var(--b1);
+  --color-border-strong: var(--b2);
+  --color-text-primary: var(--t1);
+  --color-text-secondary: var(--t2);
+  --color-text-muted: var(--t3);
+  --color-accent: var(--ac);
+  --color-accent-soft: var(--acs);
+  --color-success: var(--gr);
+  --color-warning: var(--am);
+  --color-danger: var(--rd);
+  --color-violet: var(--pu);
+  --color-violet-soft: var(--pus);
+
+  --font-sans: 'Public Sans', system-ui, sans-serif;
+  --font-mono: 'Azeret Mono', ui-monospace, monospace;
+
+  /*
+   * Tailwind's own scale carries almost all of this design: 12.5px reads as
+   * `text-xs` (12), 21px as `text-xl` (20), radii 5-8px as `rounded-md`/`rounded-lg`.
+   * Half a pixel is not worth a parallel scale nobody else recognises, so stock
+   * classes are the default and only the genuinely missing steps are defined here.
+   *
+   * 10px has no stock equivalent — Tailwind's smallest is 12 — and the design uses
+   * it constantly for badges, table headers and sidebar group labels, so it earns
+   * a name. The design's 10.5 and 11 collapse into it.
+   */
+  --text-2xs: 10px;
+
+  /* Letter-spacing: caps need air, large text needs less. */
+  --tracking-caps: 0.06em;
+  --tracking-title: -0.02em;
+
+  /* The focus ring. One definition, so every focusable thing looks focused the
+     same way — and so a change to it cannot be half-applied. */
+  --shadow-focus: 0 0 0 3px var(--acs);
+  --shadow-focus-danger: 0 0 0 3px rgb(229 72 77 / 0.14);
+}
+
+/*
+ * Base element styling goes in @layer base, and that is not cosmetic bookkeeping:
+ * Tailwind's utilities live in a layer, and unlayered CSS beats every layer.
+ * Written outside a layer, `a { color: … }` silently overrode `text-text-secondary`
+ * on every link — the sidebar's inactive entries rendered accent-blue as if they
+ * were all the current page, and no utility could win against it.
+ */
+@layer base {
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--t1);
+    font-family: 'Public Sans', system-ui, sans-serif;
+    /* 13px, not 16px: a control panel is a dense instrument, and the design sets
+       its whole rhythm against this base. */
+    font-size: 13px;
+    letter-spacing: -0.005em;
+    -webkit-font-smoothing: antialiased;
+    text-wrap: pretty;
+  }
+
+  /* Only a link that has not been given a colour of its own: the sidebar's entries
+     and every kit component set theirs, and this must not fight them. */
+  a:not([class*='text-']) {
+    color: var(--ac);
+    text-decoration: none;
+  }
+
+  a:not([class*='text-']):hover {
+    color: #5c99ff;
+  }
+
+  input,
+  button,
+  select,
+  textarea {
+    font-family: inherit;
+  }
+
+  ::-webkit-scrollbar {
+    width: 9px;
+    height: 9px;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: var(--b2);
+    border-radius: 5px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+}

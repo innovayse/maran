@@ -1,0 +1,1738 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Azeret+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#0A0B0D;--s1:#101216;--s2:#16191E;--s3:#1D2126;--b1:#23262C;--b2:#2E3339;--t1:#E9EBEE;--t2:#98A0A8;--t3:#6A7178;--ac:#2E7BFF;--acs:rgba(46,123,255,.14);--gr:#2FB574;--am:#E0A030;--rd:#E5484D;--pu:#8B6DF0;--pus:rgba(139,109,240,.13);--sk:linear-gradient(90deg,#181B20 8%,#22262C 18%,#181B20 33%)}
+html[data-theme=light]{--bg:#F6F7F9;--s1:#FFFFFF;--s2:#F2F4F6;--s3:#E9ECF0;--b1:#E2E5EA;--b2:#D2D6DD;--t1:#14171B;--t2:#5C646D;--t3:#8B939B;--acs:rgba(46,123,255,.09);--pus:rgba(139,109,240,.09);--sk:linear-gradient(90deg,#EFF1F4 8%,#E4E7EB 18%,#EFF1F4 33%)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--t1);font-family:'Public Sans',system-ui,sans-serif;-webkit-font-smoothing:antialiased;text-wrap:pretty}
+a{color:var(--ac);text-decoration:none}
+a:hover{color:#5C99FF}
+input,button,select,textarea{font-family:inherit}
+::-webkit-scrollbar{width:9px;height:9px}
+::-webkit-scrollbar-thumb{background:var(--b2);border-radius:5px}
+::-webkit-scrollbar-track{background:transparent}
+@keyframes shim{0%{background-position:-420px 0}100%{background-position:420px 0}}
+@keyframes fup{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:none}}
+@keyframes blink{50%{opacity:0}}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+</style>
+</helmet>
+
+<div style="display:flex;height:100vh;overflow:hidden;font-size:13px;letter-spacing:-0.005em">
+
+<sc-if value="{{ railMode }}">
+<aside style="width:56px;flex:none;background:var(--s1);border-right:1px solid var(--b1);display:flex;flex-direction:column;align-items:center;padding:12px 0;gap:4px">
+<div style="width:28px;height:28px;border-radius:7px;background:var(--ac);display:grid;place-items:center;font-weight:700;font-size:13px;color:#fff;margin-bottom:10px">S</div>
+<sc-for list="{{ flatNav }}" as="n" hint-placeholder-count="8">
+<button onClick="{{ n.on }}" title="{{ n.label }}" style="width:34px;height:32px;display:grid;place-items:center;border:none;background:none;border-radius:7px;cursor:pointer;color:var(--t2)" style-hover="background:var(--s3);color:var(--t1)">
+<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="{{ n.icon }}"></path></svg>
+</button>
+</sc-for>
+<div style="flex:1"></div>
+<button onClick="{{ toggleRail }}" style="width:34px;height:32px;display:grid;place-items:center;border:none;background:none;border-radius:7px;cursor:pointer;color:var(--t3)" style-hover="background:var(--s3);color:var(--t1)">
+<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 6l6 6-6 6"></path></svg>
+</button>
+</aside>
+</sc-if>
+
+<sc-if value="{{ fullSidebar }}" hint-placeholder-val="{{ true }}">
+<aside style="width:246px;flex:none;background:var(--s1);border-right:1px solid var(--b1);display:flex;flex-direction:column;min-height:0">
+
+<div style="padding:12px 12px 10px;display:flex;align-items:center;gap:9px">
+<div style="width:28px;height:28px;border-radius:7px;background:var(--ac);display:grid;place-items:center;font-weight:700;font-size:13px;color:#fff;flex:none">S</div>
+<div style="min-width:0;flex:1">
+<div style="font-weight:600;font-size:13px;line-height:1.2">ServerPanel</div>
+<div style="font-size:11px;color:var(--t3);line-height:1.3">Northwind Digital</div>
+</div>
+<button onClick="{{ toggleRail }}" style="width:24px;height:24px;display:grid;place-items:center;border:none;background:none;border-radius:6px;cursor:pointer;color:var(--t3);flex:none" style-hover="background:var(--s3);color:var(--t1)">
+<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M15 6l-6 6 6 6"></path></svg>
+</button>
+</div>
+
+<div style="padding:0 12px 10px">
+<button onClick="{{ openPalette }}" style="width:100%;display:flex;align-items:center;gap:7px;padding:6px 8px;background:var(--s2);border:1px solid var(--b1);border-radius:7px;color:var(--t3);font-size:12px;cursor:pointer;text-align:left" style-hover="border-color:var(--b2);color:var(--t2)">
+<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-4-4"></path></svg>
+<span style="flex:1">Search or jump to…</span>
+<span style="font-family:'Azeret Mono',monospace;font-size:10px;padding:1px 4px;border:1px solid var(--b2);border-radius:4px">⌘K</span>
+</button>
+</div>
+
+<nav style="flex:1;overflow-y:auto;padding:0 8px 12px;display:flex;flex-direction:column;gap:14px">
+<sc-for list="{{ navGroups }}" as="g" hint-placeholder-count="6">
+<div style="display:flex;flex-direction:column;gap:1px">
+<div style="font-size:10px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--t3);padding:0 8px 5px">{{ g.label }}</div>
+<sc-for list="{{ g.items }}" as="n" hint-placeholder-count="4">
+<button onClick="{{ n.on }}" style="{{ n.style }}">
+<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="flex:none;opacity:.9"><path d="{{ n.icon }}"></path></svg>
+<span style="flex:1;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ n.label }}</span>
+<sc-if value="{{ n.count }}">
+<span style="font-family:'Azeret Mono',monospace;font-size:10px;color:var(--t3)">{{ n.count }}</span>
+</sc-if>
+<sc-if value="{{ n.dot }}">
+<span style="width:5px;height:5px;border-radius:50%;background:var(--am)"></span>
+</sc-if>
+</button>
+</sc-for>
+</div>
+</sc-for>
+</nav>
+
+<div style="border-top:1px solid var(--b1);padding:9px 12px;display:flex;align-items:center;gap:8px">
+<div style="width:24px;height:24px;border-radius:50%;background:var(--s3);border:1px solid var(--b2);display:grid;place-items:center;font-size:10px;font-weight:600;color:var(--t2);flex:none">DK</div>
+<div style="flex:1;min-width:0">
+<div style="font-size:12px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Dana Keller</div>
+<div style="font-size:10px;color:var(--t3)">Owner</div>
+</div>
+<button onClick="{{ toggleTheme }}" title="Toggle theme" style="width:24px;height:24px;display:grid;place-items:center;border:1px solid var(--b1);background:var(--s2);border-radius:6px;cursor:pointer;color:var(--t2);flex:none" style-hover="border-color:var(--b2);color:var(--t1)">
+<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 3a9 9 0 109 9 7 7 0 01-9-9z"></path></svg>
+</button>
+</div>
+</aside>
+</sc-if>
+
+<div style="flex:1;display:flex;flex-direction:column;min-width:0;min-height:0">
+
+<header style="height:46px;flex:none;border-bottom:1px solid var(--b1);background:var(--s1);display:flex;align-items:center;gap:10px;padding:0 14px">
+<div style="display:flex;align-items:center;gap:6px;font-size:12px;min-width:0">
+<sc-for list="{{ crumbs }}" as="c" hint-placeholder-count="2">
+<span style="{{ c.style }}">{{ c.label }}</span>
+</sc-for>
+</div>
+<div style="width:1px;height:18px;background:var(--b1);margin:0 2px"></div>
+<button onClick="{{ openPalette }}" style="display:flex;align-items:center;gap:6px;padding:4px 8px;background:var(--s2);border:1px solid var(--b1);border-radius:6px;color:var(--t2);font-size:12px;cursor:pointer" style-hover="border-color:var(--b2)">
+<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="3"></rect><path d="M8 12h8"></path></svg>
+<span>edge-fra-01</span>
+<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"></path></svg>
+</button>
+<div style="flex:1"></div>
+<div style="display:flex;background:var(--s2);border:1px solid var(--b1);border-radius:7px;padding:2px">
+<sc-for list="{{ themes }}" as="t" hint-placeholder-count="2">
+<button onClick="{{ t.on }}" style="{{ t.style }}">
+<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="{{ t.icon }}"></path></svg>
+{{ t.label }}
+</button>
+</sc-for>
+</div>
+<button onClick="{{ openAi }}" style="display:flex;align-items:center;gap:6px;padding:4px 9px;background:var(--pus);border:1px solid rgba(139,109,240,.35);border-radius:6px;color:var(--pu);font-size:12px;font-weight:500;cursor:pointer" style-hover="background:rgba(139,109,240,.2)">
+<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"></path></svg>
+Ask AI
+</button>
+<button onClick="{{ notify }}" style="position:relative;width:28px;height:28px;display:grid;place-items:center;border:1px solid var(--b1);background:var(--s2);border-radius:6px;cursor:pointer;color:var(--t2)" style-hover="border-color:var(--b2);color:var(--t1)">
+<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M18 15V10a6 6 0 10-12 0v5l-1.5 3h15z"></path><path d="M10 21h4"></path></svg>
+<span style="position:absolute;top:-3px;right:-3px;min-width:14px;height:14px;padding:0 3px;border-radius:7px;background:var(--rd);color:#fff;font-size:9px;font-weight:600;display:grid;place-items:center;border:2px solid var(--s1)">3</span>
+</button>
+<div style="width:26px;height:26px;border-radius:50%;background:var(--s3);border:1px solid var(--b2);display:grid;place-items:center;font-size:10px;font-weight:600;color:var(--t2)">DK</div>
+</header>
+
+<main style="flex:1;overflow-y:auto;min-height:0">
+
+<sc-if value="{{ isDash }}" hint-placeholder-val="{{ true }}">
+<div style="padding:20px 22px 40px;max-width:1560px;animation:fup .25s ease">
+<div style="display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin-bottom:18px;flex-wrap:wrap">
+<div>
+<h1 style="margin:0;font-size:21px;font-weight:600;letter-spacing:-0.02em">Overview</h1>
+<p style="margin:4px 0 0;font-size:12.5px;color:var(--t2)">8 servers · 23 websites · 14 databases · last sync 40s ago</p>
+</div>
+<div style="display:flex;gap:8px">
+<button style="display:flex;align-items:center;gap:6px;padding:6px 11px;background:var(--s2);border:1px solid var(--b1);border-radius:7px;color:var(--t1);font-size:12.5px;font-weight:500;cursor:pointer" style-hover="border-color:var(--b2);background:var(--s3)">
+<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 12a8 8 0 018-8 8 8 0 017 4"></path><path d="M20 4v5h-5"></path></svg>
+Sync all
+</button>
+<button onClick="{{ confirmDeploy }}" style="display:flex;align-items:center;gap:6px;padding:6px 12px;background:var(--ac);border:1px solid var(--ac);border-radius:7px;color:#fff;font-size:12.5px;font-weight:600;cursor:pointer;box-shadow:0 1px 2px rgba(0,0,0,.25)" style-hover="background:#1F6BEE">
+<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"></path></svg>
+Provision server
+</button>
+</div>
+</div>
+
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(228px,1fr));gap:12px;margin-bottom:12px">
+<sc-for list="{{ kpis }}" as="k" hint-placeholder-count="4">
+<div style="background:var(--s1);border:1px solid var(--b1);border-radius:10px;padding:13px 14px 10px;display:flex;flex-direction:column;gap:10px" style-hover="border-color:var(--b2)">
+<div style="display:flex;align-items:center;justify-content:space-between">
+<span style="font-size:11.5px;font-weight:500;color:var(--t2);text-transform:uppercase;letter-spacing:.05em">{{ k.label }}</span>
+<span style="{{ k.deltaStyle }}">{{ k.delta }}</span>
+</div>
+<div style="display:flex;align-items:flex-end;gap:6px">
+<span style="font-size:26px;font-weight:600;letter-spacing:-0.03em;line-height:1;font-variant-numeric:tabular-nums">{{ k.value }}</span>
+<span style="font-size:12px;color:var(--t3);margin-bottom:2px">{{ k.unit }}</span>
+</div>
+<svg viewBox="0 0 200 34" preserveAspectRatio="none" style="width:100%;height:34px;overflow:visible">
+<path d="{{ k.area }}" fill="{{ k.fill }}"></path>
+<polyline points="{{ k.line }}" fill="none" stroke="{{ k.stroke }}" stroke-width="1.6" vector-effect="non-scaling-stroke"></polyline>
+</svg>
+</div>
+</sc-for>
+</div>
+
+<div style="display:grid;grid-template-columns:minmax(0,2.1fr) minmax(0,1fr);gap:12px;margin-bottom:12px">
+<div style="background:var(--s1);border:1px solid var(--b1);border-radius:10px;overflow:hidden">
+<div style="display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-bottom:1px solid var(--b1);flex-wrap:wrap;gap:10px">
+<div style="display:flex;align-items:baseline;gap:10px">
+<h2 style="margin:0;font-size:13.5px;font-weight:600">Fleet load</h2>
+<span style="font-size:11.5px;color:var(--t3)">last 24 hours</span>
+</div>
+<div style="display:flex;gap:14px;align-items:center">
+<sc-for list="{{ legend }}" as="l" hint-placeholder-count="3">
+<span style="display:flex;align-items:center;gap:5px;font-size:11.5px;color:var(--t2)"><span style="width:8px;height:2px;border-radius:1px;background:{{ l.color }}"></span>{{ l.label }}</span>
+</sc-for>
+<div style="display:flex;background:var(--s2);border:1px solid var(--b1);border-radius:6px;padding:2px">
+<sc-for list="{{ ranges }}" as="r" hint-placeholder-count="4">
+<button onClick="{{ r.on }}" style="{{ r.style }}">{{ r.label }}</button>
+</sc-for>
+</div>
+</div>
+</div>
+<div style="padding:14px 14px 8px">
+<div style="display:flex;gap:8px">
+<div style="width:30px;flex:none;display:flex;flex-direction:column;justify-content:space-between;padding:5px 0 3px;font-family:'Azeret Mono',monospace;font-size:9.5px;color:var(--t3);text-align:right">
+<sc-for list="{{ axisY }}" as="y" hint-placeholder-count="5"><span>{{ y.label }}</span></sc-for>
+</div>
+<div style="flex:1;min-width:0">
+<svg viewBox="0 0 700 210" preserveAspectRatio="none" style="width:100%;height:210px;display:block">
+<sc-for list="{{ axisY }}" as="y" hint-placeholder-count="5">
+<line x1="0" y1="{{ y.v }}" x2="700" y2="{{ y.v }}" stroke="var(--b1)" stroke-width="1" vector-effect="non-scaling-stroke"></line>
+</sc-for>
+<path d="{{ chartCpuArea }}" fill="rgba(46,123,255,.13)"></path>
+<polyline points="{{ chartCpu }}" fill="none" stroke="var(--ac)" stroke-width="1.8" vector-effect="non-scaling-stroke"></polyline>
+<polyline points="{{ chartRam }}" fill="none" stroke="var(--pu)" stroke-width="1.6" vector-effect="non-scaling-stroke"></polyline>
+<polyline points="{{ chartNet }}" fill="none" stroke="var(--gr)" stroke-width="1.4" stroke-dasharray="3 3" vector-effect="non-scaling-stroke"></polyline>
+</svg>
+<div style="display:flex;justify-content:space-between;font-family:'Azeret Mono',monospace;font-size:10px;color:var(--t3);padding:2px 0 0">
+<sc-for list="{{ hours }}" as="h" hint-placeholder-count="7"><span>{{ h.label }}</span></sc-for>
+</div>
+</div>
+<div style="width:44px;flex:none;display:flex;flex-direction:column;justify-content:space-between;padding:5px 0 3px;font-family:'Azeret Mono',monospace;font-size:9.5px;color:var(--t3)">
+<sc-for list="{{ axisY }}" as="y" hint-placeholder-count="5"><span>{{ y.net }}Mb</span></sc-for>
+</div>
+</div>
+</div>
+</div>
+
+<div style="background:var(--s1);border:1px solid var(--b1);border-radius:10px;display:flex;flex-direction:column;overflow:hidden">
+<div style="display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-bottom:1px solid var(--b1)">
+<h2 style="margin:0;font-size:13.5px;font-weight:600">Alerts</h2>
+<span style="font-family:'Azeret Mono',monospace;font-size:10px;padding:2px 6px;border-radius:5px;background:rgba(229,72,77,.13);color:var(--rd);font-weight:500">3 open</span>
+</div>
+<div style="display:flex;flex-direction:column">
+<sc-for list="{{ alerts }}" as="a" hint-placeholder-count="4">
+<div onClick="{{ a.on }}" style="display:flex;gap:10px;padding:11px 14px;border-bottom:1px solid var(--b1);cursor:pointer" style-hover="background:var(--s2)">
+<span style="width:7px;height:7px;border-radius:50%;background:{{ a.color }};margin-top:4px;flex:none"></span>
+<div style="min-width:0">
+<div style="font-size:12.5px;font-weight:500;line-height:1.35">{{ a.title }}</div>
+<div style="font-size:11.5px;color:var(--t3);margin-top:2px;font-family:'Azeret Mono',monospace">{{ a.meta }}</div>
+</div>
+</div>
+</sc-for>
+</div>
+</div>
+</div>
+
+<div style="display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(0,1fr);gap:12px;margin-bottom:12px">
+<div style="background:var(--s1);border:1px solid var(--b1);border-radius:10px;overflow:hidden">
+<div style="padding:12px 14px;border-bottom:1px solid var(--b1);display:flex;align-items:center;justify-content:space-between">
+<h2 style="margin:0;font-size:13.5px;font-weight:600">Pinned servers</h2>
+<span style="font-size:11px;color:var(--t3)">3 of 8</span>
+</div>
+<sc-for list="{{ pinned }}" as="s" hint-placeholder-count="3">
+<div onClick="{{ s.on }}" style="padding:11px 14px;border-bottom:1px solid var(--b1);cursor:pointer;display:flex;flex-direction:column;gap:8px" style-hover="background:var(--s2)">
+<div style="display:flex;align-items:center;gap:8px">
+<span style="width:6px;height:6px;border-radius:50%;background:{{ s.color }};flex:none"></span>
+<span style="font-family:'Azeret Mono',monospace;font-size:12px;font-weight:500;flex:1">{{ s.name }}</span>
+<span style="font-size:11px;color:var(--t3)">{{ s.region }}</span>
+</div>
+<div style="display:flex;gap:12px">
+<sc-for list="{{ s.bars }}" as="b" hint-placeholder-count="3">
+<div style="flex:1;display:flex;flex-direction:column;gap:3px">
+<div style="display:flex;justify-content:space-between;font-size:10px;color:var(--t3);font-family:'Azeret Mono',monospace"><span>{{ b.label }}</span><span>{{ b.pct }}</span></div>
+<div style="height:3px;border-radius:2px;background:var(--s3);overflow:hidden"><div style="{{ b.fillStyle }}"></div></div>
+</div>
+</sc-for>
+</div>
+</div>
+</sc-for>
+</div>
+
+<div style="background:var(--s1);border:1px solid var(--b1);border-radius:10px;overflow:hidden">
+<div style="padding:12px 14px;border-bottom:1px solid var(--b1)"><h2 style="margin:0;font-size:13.5px;font-weight:600">Activity</h2></div>
+<div style="padding:12px 14px;display:flex;flex-direction:column;gap:0">
+<sc-for list="{{ activity }}" as="a" hint-placeholder-count="6">
+<div style="display:grid;grid-template-columns:16px 1fr;gap:10px">
+<div style="display:flex;flex-direction:column;align-items:center">
+<span style="width:7px;height:7px;border-radius:50%;background:{{ a.color }};margin-top:4px;flex:none"></span>
+<span style="width:1px;flex:1;background:var(--b1)"></span>
+</div>
+<div style="padding-bottom:13px;min-width:0">
+<div style="font-size:12.5px;line-height:1.4">{{ a.text }}</div>
+<div style="font-size:11px;color:var(--t3);margin-top:2px;font-family:'Azeret Mono',monospace">{{ a.meta }}</div>
+</div>
+</div>
+</sc-for>
+</div>
+</div>
+
+<div style="background:var(--s1);border:1px solid rgba(139,109,240,.3);border-radius:10px;overflow:hidden">
+<div style="padding:12px 14px;border-bottom:1px solid var(--b1);display:flex;align-items:center;gap:8px;background:var(--pus)">
+<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--pu)" stroke-width="1.8"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"></path></svg>
+<h2 style="margin:0;font-size:13.5px;font-weight:600;color:var(--pu)">AI recommendations</h2>
+</div>
+<sc-for list="{{ recs }}" as="r" hint-placeholder-count="3">
+<div style="padding:12px 14px;border-bottom:1px solid var(--b1);display:flex;flex-direction:column;gap:8px">
+<div style="display:flex;align-items:flex-start;gap:8px">
+<span style="font-family:'Azeret Mono',monospace;font-size:10px;padding:2px 5px;border-radius:4px;background:var(--s3);color:var(--t2);flex:none;margin-top:1px">{{ r.tag }}</span>
+<div style="min-width:0">
+<div style="font-size:12.5px;font-weight:500;line-height:1.35">{{ r.title }}</div>
+<div style="font-size:11.5px;color:var(--t2);margin-top:3px;line-height:1.45">{{ r.body }}</div>
+</div>
+</div>
+<div style="display:flex;gap:7px;padding-left:0">
+<button onClick="{{ r.on }}" style="padding:4px 9px;background:var(--pu);border:none;border-radius:6px;color:#fff;font-size:11.5px;font-weight:600;cursor:pointer" style-hover="background:#7A5BE8">Apply fix</button>
+<button onClick="{{ openAi }}" style="padding:4px 9px;background:none;border:1px solid var(--b2);border-radius:6px;color:var(--t2);font-size:11.5px;cursor:pointer" style-hover="color:var(--t1);border-color:var(--t3)">Explain</button>
+</div>
+</div>
+</sc-for>
+</div>
+</div>
+
+<div style="background:var(--s1);border:1px solid var(--b1);border-radius:10px;overflow:hidden">
+<div style="padding:12px 14px;border-bottom:1px solid var(--b1);display:flex;align-items:center;justify-content:space-between">
+<h2 style="margin:0;font-size:13.5px;font-weight:600">Recent deployments</h2>
+<button onClick="{{ goWebsites }}" style="background:none;border:none;color:var(--ac);font-size:12px;cursor:pointer;padding:0">View all →</button>
+</div>
+<table style="width:100%;border-collapse:collapse">
+<thead>
+<tr style="background:var(--s2)">
+<th style="text-align:left;font-size:10.5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--t3);padding:8px 14px">Site</th>
+<th style="text-align:left;font-size:10.5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--t3);padding:8px 14px">Commit</th>
+<th style="text-align:left;font-size:10.5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--t3);padding:8px 14px">Branch</th>
+<th style="text-align:left;font-size:10.5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--t3);padding:8px 14px">Duration</th>
+<th style="text-align:left;font-size:10.5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--t3);padding:8px 14px">Status</th>
+<th style="text-align:right;font-size:10.5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--t3);padding:8px 14px">When</th>
+</tr>
+</thead>
+<tbody>
+<sc-for list="{{ deploys }}" as="dep" hint-placeholder-count="5">
+<tr style="border-top:1px solid var(--b1);cursor:pointer" style-hover="background:var(--s2)">
+<td style="padding:10px 14px;font-size:12.5px;font-weight:500">{{ dep.site }}</td>
+<td style="padding:10px 14px;font-family:'Azeret Mono',monospace;font-size:11.5px;color:var(--t2)">{{ dep.sha }}</td>
+<td style="padding:10px 14px;font-family:'Azeret Mono',monospace;font-size:11.5px;color:var(--t2)">{{ dep.branch }}</td>
+<td style="padding:10px 14px;font-family:'Azeret Mono',monospace;font-size:11.5px;color:var(--t2)">{{ dep.dur }}</td>
+<td style="padding:10px 14px"><span style="{{ dep.badge }}">{{ dep.status }}</span></td>
+<td style="padding:10px 14px;text-align:right;font-size:11.5px;color:var(--t3)">{{ dep.when }}</td>
+</tr>
+</sc-for>
+</tbody>
+</table>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ isServers }}">
+<div style="padding:20px 22px 40px;animation:fup .25s ease">
+<div style="display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin-bottom:16px;flex-wrap:wrap">
+<div>
+<h1 style="margin:0;font-size:21px;font-weight:600;letter-spacing:-0.02em">Servers</h1>
+<p style="margin:4px 0 0;font-size:12.5px;color:var(--t2)">Bare metal and cloud instances across 5 regions</p>
+</div>
+<div style="display:flex;gap:8px">
+<button onClick="{{ toggleLoading }}" style="padding:6px 11px;background:var(--s2);border:1px solid var(--b1);border-radius:7px;color:var(--t2);font-size:12.5px;cursor:pointer" style-hover="border-color:var(--b2);color:var(--t1)">Preview loading state</button>
+<button onClick="{{ confirmDeploy }}" style="display:flex;align-items:center;gap:6px;padding:6px 12px;background:var(--ac);border:none;border-radius:7px;color:#fff;font-size:12.5px;font-weight:600;cursor:pointer" style-hover="background:#1F6BEE">
+<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"></path></svg>
+New server
+</button>
+</div>
+</div>
+
+<div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;flex-wrap:wrap">
+<div style="position:relative;flex:1;min-width:220px;max-width:340px">
+<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--t3)" stroke-width="2" style="position:absolute;left:9px;top:50%;transform:translateY(-50%)"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-4-4"></path></svg>
+<input value="{{ q }}" onChange="{{ setQ }}" placeholder="Filter servers, IPs, regions…" style="width:100%;padding:6px 9px 6px 27px;background:var(--s1);border:1px solid var(--b1);border-radius:7px;color:var(--t1);font-size:12.5px;outline:none" style-focus="border-color:var(--ac);box-shadow:0 0 0 3px var(--acs)">
+</div>
+<sc-for list="{{ filters }}" as="f" hint-placeholder-count="3">
+<button onClick="{{ f.on }}" style="{{ f.style }}">
+<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 6h16M7 12h10M10 18h4"></path></svg>
+{{ f.label }}
+</button>
+</sc-for>
+<div style="flex:1"></div>
+<span style="font-size:11.5px;color:var(--t3);font-family:'Azeret Mono',monospace">{{ resultCount }}</span>
+</div>
+
+<sc-if value="{{ selCount }}">
+<div style="display:flex;align-items:center;gap:10px;padding:8px 12px;margin-bottom:10px;background:var(--acs);border:1px solid rgba(46,123,255,.35);border-radius:8px;animation:fup .15s ease">
+<span style="font-size:12.5px;font-weight:600;color:var(--ac)">{{ selLabel }}</span>
+<div style="width:1px;height:16px;background:rgba(46,123,255,.3)"></div>
+<sc-for list="{{ bulkActions }}" as="b" hint-placeholder-count="4">
+<button onClick="{{ b.on }}" style="{{ b.style }}">{{ b.label }}</button>
+</sc-for>
+<div style="flex:1"></div>
+<button onClick="{{ clearSel }}" style="background:none;border:none;color:var(--t2);font-size:12px;cursor:pointer">Clear</button>
+</div>
+</sc-if>
+
+<sc-if value="{{ loading }}">
+<div style="background:var(--s1);border:1px solid var(--b1);border-radius:10px;overflow:hidden">
+<sc-for list="{{ skeletonRows }}" as="r" hint-placeholder-count="7">
+<div style="display:flex;align-items:center;gap:16px;padding:13px 14px;border-bottom:1px solid var(--b1)">
+<div style="width:14px;height:14px;border-radius:4px;background:var(--sk);background-size:800px 100%;animation:shim 1.3s linear infinite"></div>
+<div style="width:150px;height:11px;border-radius:5px;background:var(--sk);background-size:800px 100%;animation:shim 1.3s linear infinite"></div>
+<div style="width:70px;height:11px;border-radius:5px;background:var(--sk);background-size:800px 100%;animation:shim 1.3s linear infinite"></div>
+<div style="flex:1;height:11px;border-radius:5px;background:var(--sk);background-size:800px 100%;animation:shim 1.3s linear infinite"></div>
+<div style="width:90px;height:11px;border-radius:5px;background:var(--sk);background-size:800px 100%;animation:shim 1.3s linear infinite"></div>
+</div>
+</sc-for>
+</div>
+</sc-if>
+
+<sc-if value="{{ showTable }}">
+<div style="background:var(--s1);border:1px solid var(--b1);border-radius:10px;overflow:hidden">
+<table style="width:100%;border-collapse:collapse">
+<thead>
+<tr style="background:var(--s2)">
+<th style="width:34px;padding:8px 0 8px 14px"><input type="checkbox" checked="{{ allSel }}" onChange="{{ toggleAll }}" style="width:13px;height:13px;accent-color:#2E7BFF;cursor:pointer"></th>
+<sc-for list="{{ serverCols }}" as="c" hint-placeholder-count="7">
+<th onClick="{{ c.on }}" style="{{ c.style }}">{{ c.label }}{{ c.arrow }}</th>
+</sc-for>
+<th style="width:36px"></th>
+</tr>
+</thead>
+<tbody>
+<sc-for list="{{ rows }}" as="s" hint-placeholder-count="8">
+<tr onClick="{{ s.on }}" onContextMenu="{{ s.onMenu }}" style="{{ s.rowStyle }}" style-hover="background:var(--s2)">
+<td style="padding:0 0 0 14px"><input type="checkbox" checked="{{ s.checked }}" onChange="{{ s.onCheck }}" onClick="{{ stop }}" style="width:13px;height:13px;accent-color:#2E7BFF;cursor:pointer"></td>
+<td style="padding:11px 12px">
+<div style="display:flex;align-items:center;gap:8px">
+<span style="{{ s.dotStyle }}"></span>
+<div>
+<div style="font-family:'Azeret Mono',monospace;font-size:12.5px;font-weight:500">{{ s.name }}</div>
+<div style="font-family:'Azeret Mono',monospace;font-size:10.5px;color:var(--t3);margin-top:1px">{{ s.ip }}</div>
+</div>
+</div>
+</td>
+<td style="padding:11px 12px"><span style="{{ s.badge }}">{{ s.status }}</span></td>
+<td style="padding:11px 12px;font-size:12px;color:var(--t2)">{{ s.region }}</td>
+<td style="padding:11px 12px;font-size:12px;color:var(--t2)">{{ s.os }}</td>
+<td style="padding:11px 12px;width:220px">
+<div style="display:flex;gap:9px">
+<sc-for list="{{ s.bars }}" as="b" hint-placeholder-count="3">
+<div style="flex:1;display:flex;flex-direction:column;gap:3px">
+<div style="display:flex;justify-content:space-between;font-size:9.5px;color:var(--t3);font-family:'Azeret Mono',monospace"><span>{{ b.label }}</span><span>{{ b.pct }}</span></div>
+<div style="height:3px;border-radius:2px;background:var(--s3);overflow:hidden"><div style="{{ b.fillStyle }}"></div></div>
+</div>
+</sc-for>
+</div>
+</td>
+<td style="padding:11px 12px;font-family:'Azeret Mono',monospace;font-size:11.5px;color:var(--t2)">{{ s.uptime }}</td>
+<td style="padding:11px 12px;width:80px">
+<svg viewBox="0 0 90 22" preserveAspectRatio="none" style="width:80px;height:22px"><polyline points="{{ s.spark }}" fill="none" stroke="{{ s.sparkColor }}" stroke-width="1.4" vector-effect="non-scaling-stroke"></polyline></svg>
+</td>
+<td style="padding:11px 10px 11px 0;text-align:right">
+<button onClick="{{ s.onMenu }}" style="width:24px;height:24px;display:grid;place-items:center;border:none;background:none;border-radius:5px;color:var(--t3);cursor:pointer" style-hover="background:var(--s3);color:var(--t1)">
+<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="1.6"></circle><circle cx="12" cy="12" r="1.6"></circle><circle cx="12" cy="19" r="1.6"></circle></svg>
+</button>
+</td>
+</tr>
+</sc-for>
+</tbody>
+</table>
+<div style="display:flex;align-items:center;justify-content:space-between;padding:9px 14px;border-top:1px solid var(--b1);background:var(--s2)">
+<span style="font-size:11.5px;color:var(--t3)">Rows per page 25</span>
+<div style="display:flex;gap:4px;align-items:center">
+<sc-for list="{{ pages }}" as="p" hint-placeholder-count="5"><button style="{{ p.style }}">{{ p.label }}</button></sc-for>
+</div>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ emptyResults }}">
+<div style="background:var(--s1);border:1px dashed var(--b2);border-radius:10px;padding:56px 24px;display:flex;flex-direction:column;align-items:center;text-align:center;gap:10px">
+<div style="width:44px;height:44px;border-radius:11px;background:var(--s2);border:1px solid var(--b1);display:grid;place-items:center">
+<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--t3)" stroke-width="1.6"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-4-4"></path></svg>
+</div>
+<div style="font-size:14px;font-weight:600">No servers match “{{ q }}”</div>
+<div style="font-size:12.5px;color:var(--t2);max-width:340px">Try a different name, IP or region — or clear the filter to see all 8 servers.</div>
+<button onClick="{{ clearQ }}" style="margin-top:4px;padding:6px 12px;background:var(--s2);border:1px solid var(--b1);border-radius:7px;color:var(--t1);font-size:12.5px;font-weight:500;cursor:pointer" style-hover="border-color:var(--b2)">Clear filter</button>
+</div>
+</sc-if>
+</div>
+</sc-if>
+
+<sc-if value="{{ isServer }}">
+<div style="animation:fup .25s ease">
+<div style="padding:18px 22px 0">
+<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap">
+<div style="display:flex;gap:12px;align-items:flex-start">
+<div style="width:38px;height:38px;border-radius:10px;background:var(--s2);border:1px solid var(--b1);display:grid;place-items:center;flex:none">
+<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--t2)" stroke-width="1.6"><rect x="3" y="4" width="18" height="7" rx="2"></rect><rect x="3" y="13" width="18" height="7" rx="2"></rect><path d="M7 7.5h.01M7 16.5h.01"></path></svg>
+</div>
+<div>
+<div style="display:flex;align-items:center;gap:9px">
+<h1 style="margin:0;font-family:'Azeret Mono',monospace;font-size:19px;font-weight:500;letter-spacing:-0.01em">edge-fra-01</h1>
+<span style="display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;padding:2px 7px;border-radius:20px;background:rgba(47,181,116,.13);color:var(--gr)"><span style="width:5px;height:5px;border-radius:50%;background:var(--gr);animation:pulse 2s infinite"></span>ONLINE</span>
+</div>
+<div style="display:flex;gap:14px;margin-top:5px;font-family:'Azeret Mono',monospace;font-size:11.5px;color:var(--t3);flex-wrap:wrap">
+<span>45.32.11.8</span><span>Frankfurt · eu-central</span><span>Ubuntu 24.04 LTS</span><span>8 vCPU / 32 GB</span><span>up 128d 4h</span>
+</div>
+</div>
+</div>
+<div style="display:flex;gap:7px">
+<button onClick="{{ goTerminal }}" style="display:flex;align-items:center;gap:6px;padding:6px 11px;background:var(--s2);border:1px solid var(--b1);border-radius:7px;color:var(--t1);font-size:12.5px;font-weight:500;cursor:pointer;font-family:'Azeret Mono',monospace" style-hover="border-color:var(--b2)">
+<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 8l3 3-3 3M11 14h6"></path><rect x="2" y="4" width="20" height="16" rx="2"></rect></svg>
+SSH
+</button>
+<button onClick="{{ openAi }}" style="display:flex;align-items:center;gap:6px;padding:6px 11px;background:var(--pus);border:1px solid rgba(139,109,240,.35);border-radius:7px;color:var(--pu);font-size:12.5px;font-weight:500;cursor:pointer" style-hover="background:rgba(139,109,240,.2)">Diagnose</button>
+<button onClick="{{ confirmReboot }}" style="padding:6px 11px;background:var(--s2);border:1px solid var(--b1);border-radius:7px;color:var(--t1);font-size:12.5px;font-weight:500;cursor:pointer" style-hover="border-color:var(--rd);color:var(--rd)">Reboot</button>
+</div>
+</div>
+<div style="display:flex;gap:2px;margin-top:16px;border-bottom:1px solid var(--b1);overflow-x:auto">
+<sc-for list="{{ serverTabs }}" as="t" hint-placeholder-count="8">
+<button onClick="{{ t.on }}" style="{{ t.style }}">{{ t.label }}</button>
+</sc-for>
+</div>
+</div>
+
+<div style="padding:18px 22px 40px">
+<sc-if value="{{ svTabOverview }}" hint-placeholder-val="{{ true }}">
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;margin-bottom:12px">
+<sc-for list="{{ gauges }}" as="g" hint-placeholder-count="4">
+<div style="background:var(--s1);border:1px solid var(--b1);border-radius:10px;padding:14px;display:flex;align-items:center;gap:13px">
+<svg width="58" height="58" viewBox="0 0 58 58" style="flex:none;transform:rotate(-90deg)">
+<circle cx="29" cy="29" r="24" fill="none" stroke="var(--s3)" stroke-width="5"></circle>
+<circle cx="29" cy="29" r="24" fill="none" stroke="{{ g.color }}" stroke-width="5" stroke-linecap="round" stroke-dasharray="{{ g.dash }}"></circle>
+</svg>
+<div>
+<div style="font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--t3)">{{ g.label }}</div>
+<div style="font-size:21px;font-weight:600;letter-spacing:-0.02em;font-variant-numeric:tabular-nums;margin-top:2px">{{ g.pct }}</div>
+<div style="font-size:11px;color:var(--t3);font-family:'Azeret Mono',monospace">{{ g.detail }}</div>
+</div>
+</div>
+</sc-for>
+</div>
+
+<div style="display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);gap:12px">
+<div style="background:var(--s1);border:1px solid var(--b1);border-radius:10px;overflow:hidden">
+<div style="padding:12px 14px;border-bottom:1px solid var(--b1);display:flex;align-items:center;justify-content:space-between">
+<h2 style="margin:0;font-size:13.5px;font-weight:600">Services</h2>
+<span style="font-size:11.5px;color:var(--t3)">7 running · 1 stopped</span>
+</div>
+<sc-for list="{{ services }}" as="s" hint-placeholder-count="8">
+<div style="display:flex;align-items:center;gap:10px;padding:9px 14px;border-bottom:1px solid var(--b1)" style-hover="background:var(--s2)">
+<span style="{{ s.dotStyle }}"></span>
+<span style="font-family:'Azeret Mono',monospace;font-size:12px;flex:1">{{ s.name }}</span>
+<span style="font-size:11.5px;color:var(--t3);font-family:'Azeret Mono',monospace">{{ s.version }}</span>
+<span style="font-size:11.5px;color:var(--t3);font-family:'Azeret Mono',monospace;width:60px;text-align:right">{{ s.mem }}</span>
+<span style="{{ s.badge }}">{{ s.state }}</span>
+<button style="width:22px;height:22px;display:grid;place-items:center;border:none;background:none;border-radius:5px;color:var(--t3);cursor:pointer" style-hover="background:var(--s3);color:var(--t1)">
+<svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="1.6"></circle><circle cx="12" cy="12" r="1.6"></circle><circle cx="12" cy="19" r="1.6"></circle></svg>
+</button>
+</div>
+</sc-for>
+</div>
+
+<div style="display:flex;flex-direction:column;gap:12px">
+<div style="background:var(--s1);border:1px solid var(--b1);border-radius:10px;overflow:hidden">
+<div style="padding:12px 14px;border-bottom:1px solid var(--b1)"><h2 style="margin:0;font-size:13.5px;font-weight:600">System</h2></div>
+<div style="padding:4px 14px 10px">
+<sc-for list="{{ sysInfo }}" as="i" hint-placeholder-count="8">
+<div style="display:flex;justify-content:space-between;gap:12px;padding:6px 0;border-bottom:1px solid var(--b1)">
+<span style="font-size:12px;color:var(--t2)">{{ i.k }}</span>
+<span style="font-family:'Azeret Mono',monospace;font-size:11.5px;text-align:right">{{ i.v }}</span>
+</div>
+</sc-for>
+</div>
+</div>
+<div style="background:var(--s1);border:1px solid var(--b1);border-radius:10px;padding:14px;display:flex;flex-direction:column;gap:9px">
+<div style="display:flex;align-items:center;justify-content:space-between">
+<h2 style="margin:0;font-size:13.5px;font-weight:600">Pending updates</h2>
+<span style="font-family:'Azeret Mono',monospace;font-size:10px;padding:2px 6px;border-radius:5px;background:rgba(224,160,48,.14);color:var(--am);font-weight:500">14 packages</span>
+</div>
+<p style="margin:0;font-size:12px;color:var(--t2);line-height:1.5">3 security updates require a restart of nginx and php8.3-fpm. A snapshot will be taken automatically before applying.</p>
+<button style="align-self:flex-start;padding:6px 11px;background:var(--ac);border:none;border-radius:7px;color:#fff;font-size:12px;font-weight:600;cursor:pointer" style-hover="background:#1F6BEE">Review &amp; apply</button>
+</div>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ svTabProcesses }}">
+<div style="background:var(--s1);border:1px solid var(--b1);border-radius:10px;overflow:hidden">
+<div style="padding:11px 14px;border-bottom:1px solid var(--b1);display:flex;align-items:center;gap:10px">
+<h2 style="margin:0;font-size:13.5px;font-weight:600">Processes</h2>
+<span style="font-size:11.5px;color:var(--t3);font-family:'Azeret Mono',monospace">load 1.42 0.98 0.71</span>
+<div style="flex:1"></div>
+<span style="font-size:11.5px;color:var(--t3)">refreshing every 2s</span>
+</div>
+<table style="width:100%;border-collapse:collapse;font-family:'Azeret Mono',monospace">
+<thead><tr style="background:var(--s2)">
+<sc-for list="{{ procCols }}" as="c" hint-placeholder-count="6"><th style="{{ c.style }}">{{ c.label }}</th></sc-for>
+</tr></thead>
+<tbody>
+<sc-for list="{{ procs }}" as="p" hint-placeholder-count="10">
+<tr style="border-top:1px solid var(--b1)" style-hover="background:var(--s2)">
+<td style="padding:7px 14px;font-size:11.5px;color:var(--t3)">{{ p.pid }}</td>
+<td style="padding:7px 14px;font-size:11.5px">{{ p.user }}</td>
+<td style="padding:7px 14px;font-size:11.5px">{{ p.cmd }}</td>
+<td style="padding:7px 14px;font-size:11.5px;text-align:right;color:{{ p.cpuColor }}">{{ p.cpu }}</td>
+<td style="padding:7px 14px;font-size:11.5px;text-align:right;color:var(--t2)">{{ p.mem }}</td>
+<td style="padding:7px 14px;font-size:11.5px;text-align:right;color:var(--t3)">{{ p.time }}</td>
+</tr>
+</sc-for>
+</tbody>
+</table>
+</div>
+</sc-if>
+
+<sc-if value="{{ svTabLogs }}">
+<div style="background:#07080A;border:1px solid var(--b1);border-radius:10px;overflow:hidden">
+<div style="padding:9px 12px;border-bottom:1px solid var(--b1);display:flex;align-items:center;gap:8px;background:var(--s1)">
+<div style="display:flex;gap:5px"><span style="width:9px;height:9px;border-radius:50%;background:#E5484D"></span><span style="width:9px;height:9px;border-radius:50%;background:#E0A030"></span><span style="width:9px;height:9px;border-radius:50%;background:#2FB574"></span></div>
+<span style="font-family:'Azeret Mono',monospace;font-size:11.5px;color:var(--t2);margin-left:6px">journalctl -u nginx -f</span>
+<div style="flex:1"></div>
+<sc-for list="{{ logLevels }}" as="l" hint-placeholder-count="4"><button onClick="{{ l.on }}" style="{{ l.style }}">{{ l.label }}</button></sc-for>
+</div>
+<div style="padding:10px 0;max-height:520px;overflow:auto">
+<sc-for list="{{ logs }}" as="l" hint-placeholder-count="14">
+<div style="display:flex;gap:12px;padding:2px 14px;font-family:'Azeret Mono',monospace;font-size:11.5px;line-height:1.7" style-hover="background:rgba(255,255,255,.03)">
+<span style="color:#4A5158;flex:none">{{ l.ts }}</span>
+<span style="{{ l.lvlStyle }}">{{ l.lvl }}</span>
+<span style="color:#B9C0C7;min-width:0">{{ l.msg }}</span>
+</div>
+</sc-for>
+<div style="display:flex;gap:12px;padding:2px 14px;font-family:'Azeret Mono',monospace;font-size:11.5px">
+<span style="color:#2FB574">▌</span><span style="color:#4A5158;animation:blink 1.1s step-end infinite">streaming…</span>
+</div>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ svTabOther }}">
+<div style="background:var(--s1);border:1px dashed var(--b2);border-radius:10px;padding:60px 24px;display:flex;flex-direction:column;align-items:center;text-align:center;gap:10px">
+<div style="width:44px;height:44px;border-radius:11px;background:var(--s2);border:1px solid var(--b1);display:grid;place-items:center">
+<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--t3)" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="3"></rect><path d="M9 12h6"></path></svg>
+</div>
+<div style="font-size:14px;font-weight:600">{{ svTabLabel }} — not wired in this mockup</div>
+<div style="font-size:12.5px;color:var(--t2);max-width:380px">Overview, Processes and Logs are built out. This tab is a placeholder so the navigation shape is complete.</div>
+</div>
+</sc-if>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ isWebsites }}">
+<div style="padding:20px 22px 40px;animation:fup .25s ease">
+<div style="display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin-bottom:16px;flex-wrap:wrap">
+<div>
+<h1 style="margin:0;font-size:21px;font-weight:600;letter-spacing:-0.02em">Websites</h1>
+<p style="margin:4px 0 0;font-size:12.5px;color:var(--t2)">23 sites · 2 SSL certificates expiring within 14 days</p>
+</div>
+<button style="display:flex;align-items:center;gap:6px;padding:6px 12px;background:var(--ac);border:none;border-radius:7px;color:#fff;font-size:12.5px;font-weight:600;cursor:pointer" style-hover="background:#1F6BEE">
+<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"></path></svg>
+Add website
+</button>
+</div>
+<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:12px">
+<sc-for list="{{ sites }}" as="w" hint-placeholder-count="6">
+<div style="background:var(--s1);border:1px solid var(--b1);border-radius:10px;padding:14px;display:flex;flex-direction:column;gap:12px;cursor:pointer" style-hover="border-color:var(--b2)">
+<div style="display:flex;align-items:flex-start;gap:10px">
+<div style="width:30px;height:30px;border-radius:8px;background:var(--s2);border:1px solid var(--b1);display:grid;place-items:center;font-size:12px;font-weight:600;color:var(--t2);flex:none">{{ w.initial }}</div>
+<div style="flex:1;min-width:0">
+<div style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ w.domain }}</div>
+<div style="font-family:'Azeret Mono',monospace;font-size:10.5px;color:var(--t3);margin-top:2px">{{ w.stack }} · {{ w.server }}</div>
+</div>
+<span style="{{ w.badge }}">{{ w.status }}</span>
+</div>
+<div style="display:flex;gap:8px;flex-wrap:wrap">
+<sc-for list="{{ w.chips }}" as="c" hint-placeholder-count="3">
+<span style="display:inline-flex;align-items:center;gap:5px;font-size:11px;padding:3px 7px;border-radius:5px;background:var(--s2);border:1px solid var(--b1);color:var(--t2);font-family:'Azeret Mono',monospace"><span style="width:5px;height:5px;border-radius:50%;background:{{ c.color }}"></span>{{ c.label }}</span>
+</sc-for>
+</div>
+<div style="display:flex;align-items:flex-end;justify-content:space-between;gap:10px;border-top:1px solid var(--b1);padding-top:11px">
+<div>
+<div style="font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--t3);font-weight:600">Requests 24h</div>
+<div style="font-size:16px;font-weight:600;letter-spacing:-0.02em;font-variant-numeric:tabular-nums;margin-top:1px">{{ w.reqs }}</div>
+</div>
+<svg viewBox="0 0 120 30" preserveAspectRatio="none" style="width:120px;height:30px">
+<path d="{{ w.area }}" fill="rgba(46,123,255,.12)"></path>
+<polyline points="{{ w.spark }}" fill="none" stroke="var(--ac)" stroke-width="1.4" vector-effect="non-scaling-stroke"></polyline>
+</svg>
+</div>
+</div>
+</sc-for>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ isDatabases }}">
+<div style="padding:20px 22px 40px;animation:fup .25s ease">
+<div style="margin-bottom:16px">
+<h1 style="margin:0;font-size:21px;font-weight:600;letter-spacing:-0.02em">Databases</h1>
+<p style="margin:4px 0 0;font-size:12.5px;color:var(--t2)">MySQL · PostgreSQL · Redis · MongoDB across 4 servers</p>
+</div>
+<div style="display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:12px">
+<div style="background:var(--s1);border:1px solid var(--b1);border-radius:10px;overflow:hidden">
+<table style="width:100%;border-collapse:collapse">
+<thead><tr style="background:var(--s2)">
+<sc-for list="{{ dbCols }}" as="c" hint-placeholder-count="6"><th style="{{ c.style }}">{{ c.label }}</th></sc-for>
+</tr></thead>
+<tbody>
+<sc-for list="{{ dbs }}" as="d" hint-placeholder-count="7">
+<tr style="border-top:1px solid var(--b1);cursor:pointer" style-hover="background:var(--s2)">
+<td style="padding:10px 14px">
+<div style="display:flex;align-items:center;gap:9px">
+<span style="{{ d.engineStyle }}">{{ d.engineShort }}</span>
+<div><div style="font-family:'Azeret Mono',monospace;font-size:12px;font-weight:500">{{ d.name }}</div><div style="font-size:10.5px;color:var(--t3)">{{ d.engine }}</div></div>
+</div>
+</td>
+<td style="padding:10px 14px;font-family:'Azeret Mono',monospace;font-size:11.5px;color:var(--t2)">{{ d.size }}</td>
+<td style="padding:10px 14px;font-family:'Azeret Mono',monospace;font-size:11.5px;color:var(--t2)">{{ d.conns }}</td>
+<td style="padding:10px 14px;font-family:'Azeret Mono',monospace;font-size:11.5px;color:var(--t2)">{{ d.qps }}</td>
+<td style="padding:10px 14px;font-size:11.5px;color:var(--t3);font-family:'Azeret Mono',monospace">{{ d.backup }}</td>
+<td style="padding:10px 14px"><span style="{{ d.badge }}">{{ d.status }}</span></td>
+</tr>
+</sc-for>
+</tbody>
+</table>
+</div>
+<div style="display:flex;flex-direction:column;gap:12px">
+<div style="background:var(--s1);border:1px solid var(--b1);border-radius:10px;overflow:hidden">
+<div style="padding:12px 14px;border-bottom:1px solid var(--b1);display:flex;align-items:center;justify-content:space-between">
+<h2 style="margin:0;font-size:13.5px;font-weight:600">Slow query log</h2>
+<span style="font-size:11px;color:var(--t3)">shop_prod</span>
+</div>
+<sc-for list="{{ slowQueries }}" as="s" hint-placeholder-count="4">
+<div style="padding:10px 14px;border-bottom:1px solid var(--b1);display:flex;flex-direction:column;gap:5px">
+<div style="display:flex;align-items:center;gap:8px">
+<span style="font-family:'Azeret Mono',monospace;font-size:11.5px;font-weight:500;color:{{ s.color }}">{{ s.time }}</span>
+<span style="font-size:11px;color:var(--t3)">{{ s.calls }} calls</span>
+</div>
+<code style="font-family:'Azeret Mono',monospace;font-size:11px;color:var(--t2);line-height:1.55;word-break:break-word">{{ s.sql }}</code>
+</div>
+</sc-for>
+<div style="padding:11px 14px;display:flex;gap:8px;align-items:center;background:var(--pus)">
+<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--pu)" stroke-width="1.8" style="flex:none"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"></path></svg>
+<span style="font-size:11.5px;color:var(--t2);flex:1">AI suggests a composite index on <code style="font-family:'Azeret Mono',monospace;color:var(--pu)">orders(customer_id, created_at)</code></span>
+<button onClick="{{ applyFix }}" style="padding:4px 9px;background:var(--pu);border:none;border-radius:6px;color:#fff;font-size:11.5px;font-weight:600;cursor:pointer;flex:none">Apply</button>
+</div>
+</div>
+</div>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ isDocker }}">
+<div style="padding:20px 22px 40px;animation:fup .25s ease">
+<div style="display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin-bottom:14px;flex-wrap:wrap">
+<div>
+<h1 style="margin:0;font-size:21px;font-weight:600;letter-spacing:-0.02em">Docker</h1>
+<p style="margin:4px 0 0;font-size:12.5px;color:var(--t2)">12 containers · 4 stacks · 2.1 GB images on edge-fra-01</p>
+</div>
+<div style="display:flex;gap:7px">
+<button style="padding:6px 11px;background:var(--s2);border:1px solid var(--b1);border-radius:7px;color:var(--t1);font-size:12.5px;font-weight:500;cursor:pointer" style-hover="border-color:var(--b2)">Prune</button>
+<button style="padding:6px 12px;background:var(--ac);border:none;border-radius:7px;color:#fff;font-size:12.5px;font-weight:600;cursor:pointer" style-hover="background:#1F6BEE">Deploy stack</button>
+</div>
+</div>
+<div style="display:flex;gap:2px;border-bottom:1px solid var(--b1);margin-bottom:14px">
+<sc-for list="{{ dockerTabs }}" as="t" hint-placeholder-count="5"><button onClick="{{ t.on }}" style="{{ t.style }}">{{ t.label }}</button></sc-for>
+</div>
+<div style="display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr);gap:12px">
+<div style="background:var(--s1);border:1px solid var(--b1);border-radius:10px;overflow:hidden">
+<sc-for list="{{ containers }}" as="c" hint-placeholder-count="8">
+<div style="display:flex;align-items:center;gap:11px;padding:11px 14px;border-bottom:1px solid var(--b1);cursor:pointer" style-hover="background:var(--s2)">
+<span style="{{ c.dotStyle }}"></span>
+<div style="flex:1;min-width:0">
+<div style="font-family:'Azeret Mono',monospace;font-size:12px;font-weight:500">{{ c.name }}</div>
+<div style="font-family:'Azeret Mono',monospace;font-size:10.5px;color:var(--t3);margin-top:1px">{{ c.image }}</div>
+</div>
+<span style="font-family:'Azeret Mono',monospace;font-size:11px;color:var(--t3);width:82px;text-align:right">{{ c.ports }}</span>
+<span style="font-family:'Azeret Mono',monospace;font-size:11px;color:var(--t2);width:48px;text-align:right">{{ c.cpu }}</span>
+<span style="font-family:'Azeret Mono',monospace;font-size:11px;color:var(--t2);width:66px;text-align:right">{{ c.mem }}</span>
+<span style="{{ c.badge }}">{{ c.state }}</span>
+</div>
+</sc-for>
+</div>
+<div style="background:var(--s1);border:1px solid var(--b1);border-radius:10px;overflow:hidden;display:flex;flex-direction:column">
+<div style="padding:10px 14px;border-bottom:1px solid var(--b1);display:flex;align-items:center;gap:8px">
+<h2 style="margin:0;font-size:13px;font-weight:600;font-family:'Azeret Mono',monospace">docker-compose.yml</h2>
+<div style="flex:1"></div>
+<span style="font-size:11px;color:var(--t3)">edge-stack</span>
+</div>
+<pre style="margin:0;padding:12px 14px;font-family:'Azeret Mono',monospace;font-size:11.5px;line-height:1.7;color:var(--t2);overflow:auto;max-height:420px">{{ compose }}</pre>
+</div>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ isMonitoring }}">
+<div style="padding:20px 22px 40px;animation:fup .25s ease">
+<div style="margin-bottom:16px">
+<h1 style="margin:0;font-size:21px;font-weight:600;letter-spacing:-0.02em">Monitoring</h1>
+<p style="margin:4px 0 0;font-size:12.5px;color:var(--t2)">Real-time metrics across the fleet · 10s resolution</p>
+</div>
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px;margin-bottom:12px">
+<sc-for list="{{ monCharts }}" as="m" hint-placeholder-count="4">
+<div style="background:var(--s1);border:1px solid var(--b1);border-radius:10px;padding:13px 14px">
+<div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:10px">
+<h2 style="margin:0;font-size:13px;font-weight:600">{{ m.label }}</h2>
+<span style="font-family:'Azeret Mono',monospace;font-size:12px;color:{{ m.color }}">{{ m.now }}</span>
+</div>
+<svg viewBox="0 0 320 96" preserveAspectRatio="none" style="width:100%;height:96px">
+<path d="{{ m.area }}" fill="{{ m.fill }}"></path>
+<polyline points="{{ m.line }}" fill="none" stroke="{{ m.color }}" stroke-width="1.6" vector-effect="non-scaling-stroke"></polyline>
+</svg>
+</div>
+</sc-for>
+</div>
+<div style="background:var(--s1);border:1px solid var(--b1);border-radius:10px;padding:14px">
+<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+<h2 style="margin:0;font-size:13.5px;font-weight:600">CPU saturation heatmap</h2>
+<div style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--t3)">
+<span>low</span>
+<sc-for list="{{ heatLegend }}" as="h" hint-placeholder-count="5"><span style="width:13px;height:9px;border-radius:2px;background:{{ h.color }}"></span></sc-for>
+<span>high</span>
+</div>
+</div>
+<div style="display:flex;flex-direction:column;gap:3px">
+<sc-for list="{{ heatRows }}" as="r" hint-placeholder-count="8">
+<div style="display:flex;align-items:center;gap:10px">
+<span style="font-family:'Azeret Mono',monospace;font-size:11px;color:var(--t2);width:112px;flex:none">{{ r.name }}</span>
+<div style="display:flex;gap:2px;flex:1">
+<sc-for list="{{ r.cells }}" as="c" hint-placeholder-count="24"><span style="{{ c.style }}"></span></sc-for>
+</div>
+</div>
+</sc-for>
+<div style="display:flex;gap:10px;margin-top:4px">
+<span style="width:112px;flex:none"></span>
+<div style="display:flex;justify-content:space-between;flex:1;font-family:'Azeret Mono',monospace;font-size:10px;color:var(--t3)">
+<sc-for list="{{ hours }}" as="h" hint-placeholder-count="7"><span>{{ h.label }}</span></sc-for>
+</div>
+</div>
+</div>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ isAi }}">
+<div style="display:flex;height:100%;min-height:0;animation:fup .25s ease">
+<div style="width:230px;flex:none;border-right:1px solid var(--b1);background:var(--s1);display:flex;flex-direction:column;min-height:0">
+<div style="padding:12px 12px 10px">
+<button style="width:100%;padding:7px 10px;background:var(--pu);border:none;border-radius:7px;color:#fff;font-size:12.5px;font-weight:600;cursor:pointer" style-hover="background:#7A5BE8">New conversation</button>
+</div>
+<div style="padding:0 8px;flex:1;overflow-y:auto">
+<div style="font-size:10px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--t3);padding:6px 8px">History</div>
+<sc-for list="{{ convos }}" as="c" hint-placeholder-count="6">
+<button style="{{ c.style }}">
+<div style="font-size:12px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ c.title }}</div>
+<div style="font-size:10.5px;color:var(--t3);margin-top:2px">{{ c.when }}</div>
+</button>
+</sc-for>
+</div>
+</div>
+
+<div style="flex:1;display:flex;flex-direction:column;min-width:0;min-height:0">
+<div style="padding:12px 18px;border-bottom:1px solid var(--b1);display:flex;align-items:center;gap:9px">
+<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--pu)" stroke-width="1.8"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"></path></svg>
+<h1 style="margin:0;font-size:14px;font-weight:600">502 errors on shop.northwind.io</h1>
+<span style="font-family:'Azeret Mono',monospace;font-size:10px;padding:2px 6px;border-radius:5px;background:var(--s3);color:var(--t2)">edge-fra-01</span>
+</div>
+<div style="flex:1;overflow-y:auto;padding:18px;display:flex;flex-direction:column;gap:16px;min-height:0">
+<sc-for list="{{ messages }}" as="m" hint-placeholder-count="4">
+<div style="{{ m.wrapStyle }}">
+<sc-if value="{{ m.isUser }}">
+<div style="max-width:620px;padding:9px 13px;background:var(--s3);border:1px solid var(--b1);border-radius:11px 11px 3px 11px;font-size:13px;line-height:1.55">{{ m.text }}</div>
+</sc-if>
+<sc-if value="{{ m.isAi }}">
+<div style="display:flex;gap:11px;max-width:760px">
+<div style="width:24px;height:24px;border-radius:7px;background:var(--pus);border:1px solid rgba(139,109,240,.3);display:grid;place-items:center;flex:none">
+<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--pu)" stroke-width="1.9"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"></path></svg>
+</div>
+<div style="min-width:0;display:flex;flex-direction:column;gap:10px">
+<div style="font-size:13px;line-height:1.6;color:var(--t1)">{{ m.text }}</div>
+<sc-if value="{{ m.hasCode }}">
+<div style="background:#07080A;border:1px solid var(--b1);border-radius:9px;overflow:hidden">
+<div style="padding:6px 11px;border-bottom:1px solid var(--b1);display:flex;align-items:center;gap:8px;background:var(--s1)">
+<span style="font-family:'Azeret Mono',monospace;font-size:10.5px;color:var(--t3)">{{ m.codeLabel }}</span>
+<div style="flex:1"></div>
+<button style="background:none;border:none;color:var(--t3);font-size:11px;cursor:pointer">Copy</button>
+</div>
+<pre style="margin:0;padding:11px;font-family:'Azeret Mono',monospace;font-size:11.5px;line-height:1.7;color:#B9C0C7;overflow:auto">{{ m.code }}</pre>
+</div>
+</sc-if>
+<sc-if value="{{ m.hasFix }}">
+<div style="border:1px solid rgba(139,109,240,.35);border-radius:9px;overflow:hidden">
+<div style="padding:10px 12px;background:var(--pus);display:flex;align-items:center;gap:9px">
+<span style="font-size:12px;font-weight:600;color:var(--pu);flex:1">Suggested fix · raises php-fpm pm.max_children to 48</span>
+<button style="padding:4px 9px;background:none;border:1px solid rgba(139,109,240,.4);border-radius:6px;color:var(--pu);font-size:11.5px;cursor:pointer">Preview diff</button>
+<button onClick="{{ applyFix }}" style="padding:4px 10px;background:var(--pu);border:none;border-radius:6px;color:#fff;font-size:11.5px;font-weight:600;cursor:pointer">Apply on edge-fra-01</button>
+</div>
+<div style="padding:9px 12px;font-size:11.5px;color:var(--t2);line-height:1.55;background:var(--s1)">Runs on the server, takes a config snapshot first, reloads php8.3-fpm gracefully. Estimated downtime: none.</div>
+</div>
+</sc-if>
+</div>
+</div>
+</sc-if>
+</div>
+</sc-for>
+</div>
+<div style="padding:12px 18px 16px;border-top:1px solid var(--b1)">
+<div style="display:flex;gap:7px;margin-bottom:9px;flex-wrap:wrap">
+<sc-for list="{{ prompts }}" as="p" hint-placeholder-count="4">
+<button style="padding:4px 9px;background:var(--s2);border:1px solid var(--b1);border-radius:16px;color:var(--t2);font-size:11.5px;cursor:pointer" style-hover="border-color:var(--pu);color:var(--pu)">{{ p.label }}</button>
+</sc-for>
+</div>
+<div style="display:flex;gap:9px;align-items:flex-end;padding:9px 11px;background:var(--s1);border:1px solid var(--b1);border-radius:10px" style-focus="border-color:var(--pu)">
+<textarea placeholder="Ask about logs, config, performance, security…" rows="2" style="flex:1;background:none;border:none;outline:none;color:var(--t1);font-size:13px;resize:none;line-height:1.5"></textarea>
+<button style="width:30px;height:30px;display:grid;place-items:center;background:var(--pu);border:none;border-radius:8px;color:#fff;cursor:pointer;flex:none" style-hover="background:#7A5BE8">
+<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 19V5M5 12l7-7 7 7"></path></svg>
+</button>
+</div>
+</div>
+</div>
+
+<div style="width:262px;flex:none;border-left:1px solid var(--b1);background:var(--s1);padding:14px;display:flex;flex-direction:column;gap:14px;overflow-y:auto">
+<div>
+<div style="font-size:10px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--t3);margin-bottom:8px">Context</div>
+<div style="display:flex;flex-direction:column;gap:6px">
+<sc-for list="{{ aiContext }}" as="c" hint-placeholder-count="4">
+<div style="display:flex;align-items:center;gap:8px;padding:7px 9px;background:var(--s2);border:1px solid var(--b1);border-radius:7px">
+<span style="width:6px;height:6px;border-radius:50%;background:{{ c.color }};flex:none"></span>
+<span style="font-family:'Azeret Mono',monospace;font-size:11px;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ c.label }}</span>
+<span style="font-size:10px;color:var(--t3);flex:none">{{ c.meta }}</span>
+</div>
+</sc-for>
+</div>
+</div>
+<div>
+<div style="font-size:10px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--t3);margin-bottom:8px">Diagnostics run</div>
+<div style="display:flex;flex-direction:column;gap:7px">
+<sc-for list="{{ diagnostics }}" as="d" hint-placeholder-count="5">
+<div style="display:flex;align-items:flex-start;gap:8px">
+<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="{{ d.color }}" stroke-width="2.2" style="flex:none;margin-top:2px"><path d="{{ d.icon }}"></path></svg>
+<span style="font-size:11.5px;color:var(--t2);line-height:1.45">{{ d.label }}</span>
+</div>
+</sc-for>
+</div>
+</div>
+<div style="padding:11px;background:var(--s2);border:1px solid var(--b1);border-radius:9px">
+<div style="font-size:11.5px;font-weight:600;margin-bottom:5px">Memory</div>
+<p style="margin:0;font-size:11.5px;color:var(--t2);line-height:1.5">Remembers your stack (nginx + php8.3-fpm + MariaDB), maintenance window (Sun 02:00 UTC) and that you prefer config diffs before applying.</p>
+</div>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ isDs }}">
+<div style="padding:20px 22px 40px;max-width:1240px;animation:fup .25s ease">
+<div style="margin-bottom:18px">
+<h1 style="margin:0;font-size:21px;font-weight:600;letter-spacing:-0.02em">Design system</h1>
+<p style="margin:4px 0 0;font-size:12.5px;color:var(--t2)">Public Sans for interface, Azeret Mono for identifiers and machine output. 4px spacing grid, 6–10px radii, one accent.</p>
+</div>
+
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px;margin-bottom:12px">
+<div style="background:var(--s1);border:1px solid var(--b1);border-radius:10px;padding:14px">
+<div style="font-size:10px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--t3);margin-bottom:12px">Type scale</div>
+<div style="display:flex;flex-direction:column;gap:9px">
+<div style="font-size:21px;font-weight:600;letter-spacing:-0.02em">Page title · 21/600</div>
+<div style="font-size:16px;font-weight:600">Section · 16/600</div>
+<div style="font-size:13.5px;font-weight:600">Card heading · 13.5/600</div>
+<div style="font-size:13px">Body copy · 13/400</div>
+<div style="font-size:12px;color:var(--t2)">Secondary · 12/400</div>
+<div style="font-size:10.5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--t3)">Label · 10.5/600 caps</div>
+<div style="font-family:'Azeret Mono',monospace;font-size:11.5px;color:var(--t2)">mono · 11.5 — 45.32.11.8</div>
+</div>
+</div>
+<div style="background:var(--s1);border:1px solid var(--b1);border-radius:10px;padding:14px">
+<div style="font-size:10px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--t3);margin-bottom:12px">Palette</div>
+<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(64px,1fr));gap:8px">
+<sc-for list="{{ swatches }}" as="s" hint-placeholder-count="10">
+<div style="display:flex;flex-direction:column;gap:5px">
+<div style="height:34px;border-radius:7px;background:{{ s.color }};border:1px solid var(--b1)"></div>
+<div style="font-size:10px;color:var(--t2)">{{ s.label }}</div>
+</div>
+</sc-for>
+</div>
+</div>
+<div style="background:var(--s1);border:1px solid var(--b1);border-radius:10px;padding:14px">
+<div style="font-size:10px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--t3);margin-bottom:12px">Spacing &amp; radius</div>
+<div style="display:flex;flex-direction:column;gap:8px">
+<sc-for list="{{ spacers }}" as="s" hint-placeholder-count="6">
+<div style="display:flex;align-items:center;gap:10px">
+<span style="font-family:'Azeret Mono',monospace;font-size:11px;color:var(--t3);width:38px">{{ s.label }}</span>
+<span style="{{ s.barStyle }}"></span>
+</div>
+</sc-for>
+</div>
+</div>
+</div>
+
+<div style="background:var(--s1);border:1px solid var(--b1);border-radius:10px;padding:16px;margin-bottom:12px">
+<div style="font-size:10px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--t3);margin-bottom:13px">Buttons</div>
+<div style="display:flex;flex-wrap:wrap;gap:9px;align-items:center;margin-bottom:16px">
+<button style="padding:6px 12px;background:var(--ac);border:none;border-radius:7px;color:#fff;font-size:12.5px;font-weight:600;cursor:pointer" style-hover="background:#1F6BEE">Primary</button>
+<button style="padding:6px 12px;background:var(--s2);border:1px solid var(--b1);border-radius:7px;color:var(--t1);font-size:12.5px;font-weight:500;cursor:pointer" style-hover="border-color:var(--b2)">Secondary</button>
+<button style="padding:6px 12px;background:none;border:none;border-radius:7px;color:var(--t2);font-size:12.5px;cursor:pointer" style-hover="background:var(--s2);color:var(--t1)">Ghost</button>
+<button style="padding:6px 12px;background:rgba(229,72,77,.12);border:1px solid rgba(229,72,77,.35);border-radius:7px;color:var(--rd);font-size:12.5px;font-weight:500;cursor:pointer" style-hover="background:rgba(229,72,77,.2)">Destructive</button>
+<button style="padding:6px 12px;background:var(--pu);border:none;border-radius:7px;color:#fff;font-size:12.5px;font-weight:600;cursor:pointer">AI action</button>
+<button disabled="true" style="padding:6px 12px;background:var(--s2);border:1px solid var(--b1);border-radius:7px;color:var(--t3);font-size:12.5px;cursor:not-allowed;opacity:.65">Disabled</button>
+<button style="display:flex;align-items:center;gap:7px;padding:6px 12px;background:var(--s2);border:1px solid var(--b1);border-radius:7px;color:var(--t2);font-size:12.5px;cursor:wait">
+<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" style="animation:spin .8s linear infinite"><path d="M12 3a9 9 0 019 9" stroke-linecap="round"></path></svg>
+Working
+</button>
+</div>
+<div style="font-size:10px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--t3);margin-bottom:13px">Badges &amp; status</div>
+<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px">
+<sc-for list="{{ dsBadges }}" as="b" hint-placeholder-count="6"><span style="{{ b.style }}">{{ b.label }}</span></sc-for>
+</div>
+<div style="font-size:10px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--t3);margin-bottom:13px">Inputs &amp; controls</div>
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:14px">
+<div style="display:flex;flex-direction:column;gap:5px">
+<label style="font-size:11.5px;font-weight:500;color:var(--t2)">Hostname</label>
+<input value="edge-fra-01" style="padding:6px 9px;background:var(--s2);border:1px solid var(--b1);border-radius:7px;color:var(--t1);font-size:12.5px;outline:none;font-family:'Azeret Mono',monospace" style-focus="border-color:var(--ac);box-shadow:0 0 0 3px var(--acs)">
+</div>
+<div style="display:flex;flex-direction:column;gap:5px">
+<label style="font-size:11.5px;font-weight:500;color:var(--t2)">Region</label>
+<select style="padding:6px 9px;background:var(--s2);border:1px solid var(--b1);border-radius:7px;color:var(--t1);font-size:12.5px;outline:none"><option>eu-central · Frankfurt</option><option>us-east · New York</option></select>
+</div>
+<div style="display:flex;flex-direction:column;gap:5px">
+<label style="font-size:11.5px;font-weight:500;color:var(--rd)">Root password</label>
+<input value="hunter2" type="password" style="padding:6px 9px;background:var(--s2);border:1px solid rgba(229,72,77,.5);border-radius:7px;color:var(--t1);font-size:12.5px;outline:none">
+<span style="font-size:11px;color:var(--rd)">Too weak — 12 characters minimum.</span>
+</div>
+<div style="display:flex;flex-direction:column;gap:9px;padding-top:18px">
+<label style="display:flex;align-items:center;gap:8px;font-size:12.5px;cursor:pointer"><input type="checkbox" checked="{{ true }}" style="width:13px;height:13px;accent-color:#2E7BFF">Enable automatic snapshots</label>
+<label style="display:flex;align-items:center;gap:8px;font-size:12.5px;cursor:pointer"><input type="radio" checked="{{ true }}" style="width:13px;height:13px;accent-color:#2E7BFF">nginx</label>
+<div style="display:flex;align-items:center;gap:9px;font-size:12.5px">
+<span onClick="{{ toggleTheme }}" style="width:32px;height:18px;border-radius:10px;background:var(--ac);padding:2px;display:flex;cursor:pointer"><span style="width:14px;height:14px;border-radius:50%;background:#fff;margin-left:14px;transition:margin .16s ease"></span></span>
+HTTP/3 enabled
+</div>
+</div>
+</div>
+</div>
+
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px">
+<div style="background:var(--s1);border:1px solid var(--b1);border-radius:10px;padding:14px">
+<div style="font-size:10px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--t3);margin-bottom:12px">Skeleton</div>
+<div style="display:flex;flex-direction:column;gap:8px">
+<div style="width:60%;height:11px;border-radius:5px;background:var(--sk);background-size:800px 100%;animation:shim 1.3s linear infinite"></div>
+<div style="width:100%;height:11px;border-radius:5px;background:var(--sk);background-size:800px 100%;animation:shim 1.3s linear infinite"></div>
+<div style="width:82%;height:11px;border-radius:5px;background:var(--sk);background-size:800px 100%;animation:shim 1.3s linear infinite"></div>
+</div>
+</div>
+<div style="background:var(--s1);border:1px solid var(--b1);border-radius:10px;padding:14px">
+<div style="font-size:10px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--t3);margin-bottom:12px">Toast</div>
+<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--s2);border:1px solid var(--b1);border-left:2px solid var(--gr);border-radius:8px">
+<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--gr)" stroke-width="2.2"><path d="M20 6L9 17l-5-5"></path></svg>
+<div style="flex:1"><div style="font-size:12.5px;font-weight:500">Snapshot created</div><div style="font-size:11px;color:var(--t3);font-family:'Azeret Mono',monospace">edge-fra-01 · 2.4 GB · 18s</div></div>
+</div>
+</div>
+<div style="background:var(--s1);border:1px solid var(--b1);border-radius:10px;padding:14px">
+<div style="font-size:10px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--t3);margin-bottom:12px">Context menu</div>
+<div style="width:180px;background:var(--s2);border:1px solid var(--b2);border-radius:8px;padding:4px;box-shadow:0 8px 24px rgba(0,0,0,.35)">
+<sc-for list="{{ menuItems }}" as="m" hint-placeholder-count="5"><div style="{{ m.style }}">{{ m.label }}<span style="font-family:'Azeret Mono',monospace;font-size:10px;color:var(--t3)">{{ m.key }}</span></div></sc-for>
+</div>
+</div>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ isPlaceholder }}">
+<div style="padding:20px 22px 40px;animation:fup .25s ease">
+<div style="margin-bottom:18px">
+<h1 style="margin:0;font-size:21px;font-weight:600;letter-spacing:-0.02em">{{ phTitle }}</h1>
+<p style="margin:4px 0 0;font-size:12.5px;color:var(--t2)">{{ phSub }}</p>
+</div>
+<div style="background:var(--s1);border:1px dashed var(--b2);border-radius:10px;padding:76px 24px;display:flex;flex-direction:column;align-items:center;text-align:center;gap:11px">
+<div style="width:46px;height:46px;border-radius:12px;background:var(--s2);border:1px solid var(--b1);display:grid;place-items:center">
+<svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="var(--t3)" stroke-width="1.5" stroke-linecap="round"><path d="{{ phIcon }}"></path></svg>
+</div>
+<div style="font-size:15px;font-weight:600">Nothing here yet</div>
+<div style="font-size:12.5px;color:var(--t2);max-width:400px;line-height:1.55">{{ phEmpty }}</div>
+<div style="display:flex;gap:8px;margin-top:5px">
+<button style="padding:6px 12px;background:var(--ac);border:none;border-radius:7px;color:#fff;font-size:12.5px;font-weight:600;cursor:pointer" style-hover="background:#1F6BEE">{{ phCta }}</button>
+<button onClick="{{ openAi }}" style="padding:6px 12px;background:var(--s2);border:1px solid var(--b1);border-radius:7px;color:var(--t2);font-size:12.5px;cursor:pointer" style-hover="border-color:var(--b2);color:var(--t1)">Ask AI to set it up</button>
+</div>
+</div>
+</div>
+</sc-if>
+
+</main>
+</div>
+
+<sc-if value="{{ palette }}">
+<div onClick="{{ closePalette }}" style="position:fixed;inset:0;background:rgba(0,0,0,.55);backdrop-filter:blur(2px);display:flex;align-items:flex-start;justify-content:center;padding-top:12vh;z-index:60">
+<div onClick="{{ stop }}" style="width:min(620px,92vw);background:var(--s1);border:1px solid var(--b2);border-radius:12px;box-shadow:0 24px 64px rgba(0,0,0,.5);overflow:hidden;animation:fup .16s ease">
+<div style="display:flex;align-items:center;gap:9px;padding:12px 14px;border-bottom:1px solid var(--b1)">
+<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--t3)" stroke-width="2"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-4-4"></path></svg>
+<input autofocus="true" placeholder="Search servers, sites, commands…" style="flex:1;background:none;border:none;outline:none;color:var(--t1);font-size:14px"></input>
+<span style="font-family:'Azeret Mono',monospace;font-size:10px;padding:2px 5px;border:1px solid var(--b2);border-radius:4px;color:var(--t3)">ESC</span>
+</div>
+<div style="max-height:56vh;overflow-y:auto;padding:6px">
+<sc-for list="{{ paletteGroups }}" as="g" hint-placeholder-count="3">
+<div style="padding:4px 0">
+<div style="font-size:10px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--t3);padding:6px 9px">{{ g.label }}</div>
+<sc-for list="{{ g.items }}" as="i" hint-placeholder-count="4">
+<button onClick="{{ i.on }}" style="{{ i.style }}">
+<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" style="flex:none;opacity:.85"><path d="{{ i.icon }}"></path></svg>
+<span style="flex:1;text-align:left">{{ i.label }}</span>
+<span style="font-size:11px;color:var(--t3)">{{ i.hint }}</span>
+</button>
+</sc-for>
+</div>
+</sc-for>
+</div>
+<div style="display:flex;align-items:center;gap:14px;padding:8px 14px;border-top:1px solid var(--b1);background:var(--s2);font-size:11px;color:var(--t3)">
+<span>↑↓ navigate</span><span>↵ open</span><span>⌘⇧P run command</span>
+</div>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ menu }}">
+<div onClick="{{ closeMenu }}" style="position:fixed;inset:0;z-index:70">
+<div onClick="{{ stop }}" style="{{ menuStyle }}">
+<sc-for list="{{ rowMenu }}" as="m" hint-placeholder-count="6"><div onClick="{{ m.on }}" style="{{ m.style }}">{{ m.label }}<span style="font-family:'Azeret Mono',monospace;font-size:10px;color:var(--t3)">{{ m.key }}</span></div></sc-for>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ dialog }}">
+<div onClick="{{ closeDialog }}" style="position:fixed;inset:0;background:rgba(0,0,0,.55);backdrop-filter:blur(2px);display:grid;place-items:center;z-index:80;padding:20px">
+<div onClick="{{ stop }}" style="width:min(460px,94vw);background:var(--s1);border:1px solid var(--b2);border-radius:12px;box-shadow:0 24px 64px rgba(0,0,0,.5);overflow:hidden;animation:fup .16s ease">
+<div style="padding:16px 18px 14px">
+<div style="display:flex;gap:11px">
+<div style="{{ dialogIconStyle }}">
+<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M12 9v4M12 17h.01"></path><path d="M10.3 3.9L2.6 17a2 2 0 001.7 3h15.4a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z"></path></svg>
+</div>
+<div>
+<h2 style="margin:0;font-size:15px;font-weight:600">{{ dialogTitle }}</h2>
+<p style="margin:6px 0 0;font-size:12.5px;color:var(--t2);line-height:1.55">{{ dialogBody }}</p>
+</div>
+</div>
+<sc-if value="{{ dialogConfirmField }}">
+<div style="margin-top:14px;display:flex;flex-direction:column;gap:5px">
+<label style="font-size:11.5px;color:var(--t2)">Type the hostname to confirm</label>
+<input placeholder="edge-fra-01" style="padding:6px 9px;background:var(--s2);border:1px solid var(--b1);border-radius:7px;color:var(--t1);font-size:12.5px;outline:none;font-family:'Azeret Mono',monospace" style-focus="border-color:var(--rd)">
+</div>
+</sc-if>
+</div>
+<div style="display:flex;justify-content:flex-end;gap:8px;padding:11px 18px;background:var(--s2);border-top:1px solid var(--b1)">
+<button onClick="{{ closeDialog }}" style="padding:6px 12px;background:none;border:1px solid var(--b2);border-radius:7px;color:var(--t2);font-size:12.5px;cursor:pointer" style-hover="color:var(--t1)">Cancel</button>
+<button onClick="{{ confirmDialog }}" style="{{ dialogCtaStyle }}">{{ dialogCta }}</button>
+</div>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ aiDrawer }}">
+<div onClick="{{ closeAi }}" style="position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:75;display:flex;justify-content:flex-end">
+<div onClick="{{ stop }}" style="width:min(420px,94vw);height:100%;background:var(--s1);border-left:1px solid var(--b2);box-shadow:-16px 0 48px rgba(0,0,0,.4);display:flex;flex-direction:column;animation:fup .18s ease">
+<div style="padding:13px 15px;border-bottom:1px solid var(--b1);display:flex;align-items:center;gap:9px">
+<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--pu)" stroke-width="1.8"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"></path></svg>
+<span style="font-size:13.5px;font-weight:600;flex:1">AI assistant</span>
+<button onClick="{{ goAi }}" style="background:none;border:none;color:var(--ac);font-size:12px;cursor:pointer">Open workspace</button>
+<button onClick="{{ closeAi }}" style="width:24px;height:24px;display:grid;place-items:center;border:none;background:none;border-radius:6px;color:var(--t3);cursor:pointer" style-hover="background:var(--s3);color:var(--t1)">
+<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6L6 18"></path></svg>
+</button>
+</div>
+<div style="padding:15px;display:flex;flex-direction:column;gap:12px;flex:1;overflow-y:auto">
+<div style="padding:10px 12px;background:var(--s2);border:1px solid var(--b1);border-radius:9px;font-size:12.5px;color:var(--t2);line-height:1.55">Context: <span style="font-family:'Azeret Mono',monospace;color:var(--t1)">edge-fra-01</span> · nginx error log · last 15 min</div>
+<sc-for list="{{ drawerFindings }}" as="f" hint-placeholder-count="3">
+<div style="padding:11px 12px;background:var(--s2);border:1px solid var(--b1);border-radius:9px;display:flex;flex-direction:column;gap:7px">
+<div style="display:flex;align-items:center;gap:8px">
+<span style="width:6px;height:6px;border-radius:50%;background:{{ f.color }}"></span>
+<span style="font-size:12.5px;font-weight:600;flex:1">{{ f.title }}</span>
+</div>
+<p style="margin:0;font-size:12px;color:var(--t2);line-height:1.5">{{ f.body }}</p>
+<button onClick="{{ applyFix }}" style="align-self:flex-start;padding:4px 9px;background:var(--pu);border:none;border-radius:6px;color:#fff;font-size:11.5px;font-weight:600;cursor:pointer">{{ f.cta }}</button>
+</div>
+</sc-for>
+</div>
+<div style="padding:12px 15px;border-top:1px solid var(--b1);display:flex;gap:8px;align-items:center">
+<input placeholder="Ask a follow-up…" style="flex:1;padding:7px 10px;background:var(--s2);border:1px solid var(--b1);border-radius:8px;color:var(--t1);font-size:12.5px;outline:none" style-focus="border-color:var(--pu)">
+<button style="width:30px;height:30px;display:grid;place-items:center;background:var(--pu);border:none;border-radius:8px;color:#fff;cursor:pointer;flex:none">
+<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 19V5M5 12l7-7 7 7"></path></svg>
+</button>
+</div>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ toast }}">
+<div style="position:fixed;bottom:18px;right:18px;z-index:90;display:flex;align-items:center;gap:10px;padding:11px 13px;background:var(--s1);border:1px solid var(--b2);border-left:2px solid var(--gr);border-radius:9px;box-shadow:0 12px 32px rgba(0,0,0,.35);animation:fup .18s ease;max-width:340px">
+<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--gr)" stroke-width="2.2" style="flex:none"><path d="M20 6L9 17l-5-5"></path></svg>
+<div style="flex:1;min-width:0">
+<div style="font-size:12.5px;font-weight:500">{{ toastTitle }}</div>
+<div style="font-size:11px;color:var(--t3);font-family:'Azeret Mono',monospace">{{ toastMeta }}</div>
+</div>
+<button onClick="{{ closeToast }}" style="width:20px;height:20px;display:grid;place-items:center;border:none;background:none;color:var(--t3);cursor:pointer;flex:none">
+<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6L6 18"></path></svg>
+</button>
+</div>
+</sc-if>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1440,&quot;height&quot;:900}}">
+class Component extends DCLogic {
+  state = {
+    screen: 'dashboard', rail: false, dark: true, palette: false, aiDrawer: false,
+    q: '', sel: [], loading: false, menu: null, dialog: null, toast: null,
+    svTab: 'overview', dockTab: 'containers', range: '24h', filter: 'all', logLvl: 'all', sort: 'name'
+  };
+
+  ICON = {
+    grid: 'M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z',
+    pulse: 'M3 12h4l2-6 3 12 2-6h5',
+    server: 'M4 5h16v5H4zM4 14h16v5H4zM7 7.5h.01M7 16.5h.01',
+    cluster: 'M12 4v4M6 20v-4M18 20v-4M6 16h12M12 8v8M9 20H3M21 20h-6',
+    net: 'M12 3v18M3 12h18M6 6l12 12M18 6L6 18',
+    shield: 'M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z',
+    globe: 'M12 3a9 9 0 100 18 9 9 0 000-18zM3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18',
+    lock: 'M6 11h12v9H6zM9 11V8a3 3 0 016 0v3',
+    code: 'M8 8l-4 4 4 4M16 8l4 4-4 4',
+    docker: 'M4 12h16v5a3 3 0 01-3 3H7a3 3 0 01-3-3zM7 12V9h3v3M11 12V6h3v6',
+    db: 'M12 3c4.4 0 8 1.3 8 3s-3.6 3-8 3-8-1.3-8-3 3.6-3 8-3zM4 6v12c0 1.7 3.6 3 8 3s8-1.3 8-3V6',
+    archive: 'M3 6h18v4H3zM5 10v10h14V10M10 14h4',
+    mail: 'M3 6h18v12H3zM3 7l9 6 9-6',
+    chart: 'M4 20V9M10 20V4M16 20v-7M22 20H2',
+    logs: 'M5 4h14v16H5zM8 8h8M8 12h8M8 16h5',
+    users: 'M9 11a3.5 3.5 0 100-7 3.5 3.5 0 000 7zM3 20c0-3.3 2.7-5 6-5s6 1.7 6 5M17 9h4M19 7v4',
+    plug: 'M6 4h4v6H6zM14 4h4v6h-4zM8 10v4a4 4 0 008 0v-4M12 18v3',
+    sparkle: 'M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z',
+    gear: 'M12 9a3 3 0 100 6 3 3 0 000-6zM12 3v3M12 18v3M4.2 7.5l2.6 1.5M17.2 15l2.6 1.5M4.2 16.5l2.6-1.5M17.2 9l2.6-1.5',
+    swatch: 'M4 4h16v16H4zM4 10h16M10 4v16',
+    term: 'M3 4h18v16H3zM6 9l3 3-3 3M12 15h6'
+  };
+
+  NAV = [
+    ['Overview', [['dashboard', 'Dashboard', 'grid'], ['activity', 'Activity', 'pulse']]],
+    ['Infrastructure', [['servers', 'Servers', 'server', '8'], ['clusters', 'Clusters', 'cluster'], ['networking', 'Networking', 'net'], ['firewall', 'Firewall', 'shield', null, true]]],
+    ['Sites', [['websites', 'Websites', 'globe', '23'], ['domains', 'Domains', 'globe'], ['ssl', 'SSL', 'lock', null, true]]],
+    ['Applications', [['apps', 'Runtimes', 'code'], ['docker', 'Docker', 'docker', '12']]],
+    ['Data', [['databases', 'Databases', 'db', '14'], ['backup', 'Backups', 'archive']]],
+    ['Services', [['email', 'Email', 'mail'], ['dns', 'DNS', 'net']]],
+    ['Operations', [['monitoring', 'Monitoring', 'chart'], ['logs', 'Logs', 'logs'], ['security', 'Security', 'users']]],
+    ['Platform', [['ai', 'AI assistant', 'sparkle'], ['marketplace', 'Marketplace', 'plug'], ['ds', 'Design system', 'swatch'], ['settings', 'Settings', 'gear']]]
+  ];
+
+  SERVERS = [
+    ['edge-fra-01', '45.32.11.8', 'Frankfurt', 'Ubuntu 24.04', 34, 61, 48, 'Online', '128d 4h'],
+    ['web-nyc-02', '66.42.90.114', 'New York', 'Debian 12', 72, 84, 66, 'Online', '94d 11h'],
+    ['db-ams-01', '51.15.22.7', 'Amsterdam', 'Ubuntu 22.04', 51, 77, 81, 'Degraded', '210d 2h'],
+    ['app-sgp-03', '139.180.4.62', 'Singapore', 'Ubuntu 24.04', 18, 42, 29, 'Online', '41d 7h'],
+    ['cache-lon-01', '178.62.9.44', 'London', 'Alpine 3.20', 9, 23, 12, 'Online', '302d 1h'],
+    ['build-fra-04', '45.32.98.31', 'Frankfurt', 'Ubuntu 24.04', 88, 91, 94, 'Critical', '12d 3h'],
+    ['mail-nyc-01', '66.42.11.90', 'New York', 'Debian 12', 12, 38, 44, 'Online', '176d 9h'],
+    ['legacy-sfo-01', '104.207.2.19', 'San Jose', 'CentOS 7', 0, 0, 0, 'Offline', '—']
+  ];
+
+  componentDidMount() {
+    this.applyTheme();
+    this.onKey = (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); this.setState(s => ({ palette: !s.palette })); }
+      if (e.key === 'Escape') this.setState({ palette: false, menu: null, dialog: null, aiDrawer: false });
+    };
+    window.addEventListener('keydown', this.onKey);
+  }
+  componentWillUnmount() { window.removeEventListener('keydown', this.onKey); }
+  applyTheme() { document.documentElement.setAttribute('data-theme', this.state.dark ? 'dark' : 'light'); }
+  setTheme(dark) {
+    document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
+    this.setState({ dark });
+  }
+
+  rnd(seed, n, lo, hi) {
+    let x = seed * 9301 + 49297;
+    const r = () => { x = (x * 9301 + 49297) % 233280; return x / 233280; };
+    const mean = (lo + hi) / 2, amp = (hi - lo) * 0.34, jit = (hi - lo) * 0.07;
+    let v = mean, out = [];
+    for (let i = 0; i < n; i++) {
+      const target = mean + amp * Math.sin((i / n) * Math.PI * 2 - 1.3) + amp * 0.22 * Math.sin(i / 5 + seed);
+      v = v + (target - v) * 0.3 + (r() - 0.5) * jit;
+      out.push(Math.max(lo, Math.min(hi, v)));
+    }
+    return out;
+  }
+  ptsFix(vals, w, h, lo, hi, pad) {
+    const p = pad || 2, n = vals.length, r = (hi - lo) || 1;
+    return vals.map((v, i) => `${(i / (n - 1) * w).toFixed(1)},${(h - p - Math.max(0, Math.min(1, (v - lo) / r)) * (h - p * 2)).toFixed(2)}`).join(' ');
+  }
+  areaFix(vals, w, h, lo, hi, pad) { return `M0,${h} L` + this.ptsFix(vals, w, h, lo, hi, pad).split(' ').join(' L') + ` L${w},${h} Z`; }
+  pts(vals, w, h, pad) {
+    const mx = Math.max(...vals), mn = Math.min(...vals), r = (mx - mn) || 1, n = vals.length;
+    const p = pad || 2;
+    return vals.map((v, i) => `${(i / (n - 1) * w).toFixed(1)},${(h - p - ((v - mn) / r) * (h - p * 2)).toFixed(1)}`).join(' ');
+  }
+  areaOf(vals, w, h, pad) { const s = this.pts(vals, w, h, pad); return `M0,${h} L` + s.split(' ').join(' L') + ` L${w},${h} Z`; }
+  statusColor(s) { return { Online: 'var(--gr)', Degraded: 'var(--am)', Critical: 'var(--rd)', Offline: 'var(--t3)' }[s] || 'var(--t3)'; }
+  badge(text, color, bg) {
+    return `display:inline-flex;align-items:center;font-size:10.5px;font-weight:600;letter-spacing:.03em;padding:2px 7px;border-radius:5px;background:${bg};color:${color};text-transform:uppercase`;
+  }
+  sBadge(s) {
+    const m = { Online: ['var(--gr)', 'rgba(47,181,116,.13)'], Degraded: ['var(--am)', 'rgba(224,160,48,.14)'], Critical: ['var(--rd)', 'rgba(229,72,77,.13)'], Offline: ['var(--t3)', 'var(--s3)'] }[s];
+    return this.badge(s, m[0], m[1]);
+  }
+  dot(color) { return `width:7px;height:7px;border-radius:50%;background:${color};flex:none`; }
+  bar(label, pct) {
+    const c = pct > 85 ? 'var(--rd)' : pct > 65 ? 'var(--am)' : 'var(--ac)';
+    return { label, pct: pct + '%', fillStyle: `width:${pct}%;height:100%;background:${c};border-radius:2px` };
+  }
+  th(label, extra) { return `text-align:${extra || 'left'};font-size:10.5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--t3);padding:8px 12px;white-space:nowrap`; }
+  navBtn(active) {
+    return `display:flex;align-items:center;gap:9px;width:100%;padding:5px 8px;border:none;border-radius:6px;cursor:pointer;font-size:12.5px;font-weight:${active ? 600 : 400};background:${active ? 'var(--acs)' : 'none'};color:${active ? 'var(--ac)' : 'var(--t2)'}`;
+  }
+  tabBtn(active) {
+    return `padding:8px 12px;background:none;border:none;border-bottom:2px solid ${active ? 'var(--ac)' : 'transparent'};color:${active ? 'var(--t1)' : 'var(--t2)'};font-size:12.5px;font-weight:${active ? 600 : 400};cursor:pointer;white-space:nowrap;margin-bottom:-1px`;
+  }
+  segBtn(active) { return `padding:3px 8px;background:${active ? 'var(--s1)' : 'none'};border:none;border-radius:4px;color:${active ? 'var(--t1)' : 'var(--t3)'};font-size:11px;font-weight:${active ? 600 : 400};cursor:pointer;font-family:'Azeret Mono',monospace`; }
+  chipBtn(active) { return `display:flex;align-items:center;gap:6px;padding:6px 10px;background:${active ? 'var(--acs)' : 'var(--s1)'};border:1px solid ${active ? 'rgba(46,123,255,.35)' : 'var(--b1)'};border-radius:7px;color:${active ? 'var(--ac)' : 'var(--t2)'};font-size:12px;cursor:pointer;white-space:nowrap`; }
+  menuRow(danger) { return `display:flex;align-items:center;justify-content:space-between;gap:12px;padding:6px 9px;border-radius:6px;font-size:12.5px;color:${danger ? 'var(--rd)' : 'var(--t1)'};cursor:pointer`; }
+  go(screen) { return () => this.setState({ screen, palette: false, menu: null, sel: [] }); }
+  fireToast(title, meta) {
+    this.setState({ toast: { title, meta }, dialog: null, menu: null });
+    clearTimeout(this._t); this._t = setTimeout(() => this.setState({ toast: null }), 3600);
+  }
+
+  renderVals() {
+    const st = this.state, S = this;
+    const flat = [];
+    const navGroups = this.NAV.map(([label, items]) => ({
+      label,
+      items: items.map(([id, lbl, icon, count, dot]) => {
+        const n = { id, label: lbl, icon: this.ICON[icon], count: count || '', dot: !!dot, on: this.go(id), style: this.navBtn(st.screen === id) };
+        flat.push(n); return n;
+      })
+    }));
+
+    const screenMeta = {
+      dashboard: ['Overview'], servers: ['Infrastructure', 'Servers'], server: ['Infrastructure', 'Servers', 'edge-fra-01'],
+      websites: ['Sites', 'Websites'], databases: ['Data', 'Databases'], docker: ['Applications', 'Docker'],
+      monitoring: ['Operations', 'Monitoring'], ai: ['Platform', 'AI assistant'], ds: ['Platform', 'Design system']
+    };
+    const crumbPath = screenMeta[st.screen] || ['ServerPanel', (flat.find(f => f.id === st.screen) || {}).label || 'Section'];
+    const crumbs = [];
+    crumbPath.forEach((c, i) => {
+      if (i) crumbs.push({ label: '/', style: 'color:var(--t3)' });
+      crumbs.push({ label: c, style: i === crumbPath.length - 1 ? 'font-weight:600;color:var(--t1)' : 'color:var(--t2)' });
+    });
+
+    const kpiDefs = [
+      ['CPU across fleet', '38', '%', '-4.2%', 'var(--gr)', 3, 20, 60, 'var(--ac)', 'rgba(46,123,255,.13)'],
+      ['Memory', '64', '%', '+2.8%', 'var(--am)', 7, 45, 78, 'var(--pu)', 'rgba(139,109,240,.13)'],
+      ['Egress', '1.24', 'TB / 24h', '+11%', 'var(--t2)', 11, 30, 90, 'var(--gr)', 'rgba(47,181,116,.13)'],
+      ['Requests', '4.7', 'M / 24h', '+0.9%', 'var(--t2)', 5, 40, 95, 'var(--ac)', 'rgba(46,123,255,.13)']
+    ];
+    const kpis = kpiDefs.map(d => {
+      const v = this.rnd(d[5], 26, d[6], d[7]);
+      return {
+        label: d[0], value: d[1], unit: d[2], delta: d[3],
+        deltaStyle: `font-family:'Azeret Mono',monospace;font-size:11px;color:${d[4]}`,
+        line: this.pts(v, 200, 34, 3), area: this.areaOf(v, 200, 34, 3), stroke: d[8], fill: d[9]
+      };
+    });
+
+    const cpuS = this.rnd(2, 48, 12, 64), ramS = this.rnd(9, 48, 50, 78), netS = this.rnd(14, 48, 140, 680);
+    const axisY = [100, 75, 50, 25, 0].map(pc => ({ v: (202 - pc / 100 * 194).toFixed(1), label: pc + '%', net: Math.round(pc * 10) }));
+    const hours = ['00:00', '04:00', '08:00', '12:00', '16:00', '20:00', 'now'].map(l => ({ label: l }));
+    const ranges = ['1h', '6h', '24h', '7d'].map(l => ({ label: l, on: () => this.setState({ range: l }), style: this.segBtn(st.range === l) }));
+
+    const alerts = [
+      ['build-fra-04 disk at 94%', 'critical · 6 min ago · /var/lib/docker', 'var(--rd)'],
+      ['SSL for shop.northwind.io expires in 6 days', 'warning · 22 min ago · Let\u2019s Encrypt', 'var(--am)'],
+      ['db-ams-01 replication lag 42s', 'warning · 1h ago · MariaDB 11.4', 'var(--am)'],
+      ['12 failed SSH attempts blocked', 'info · 3h ago · fail2ban', 'var(--t3)']
+    ].map(a => ({ title: a[0], meta: a[1], color: a[2], on: this.go('servers') }));
+
+    const pinned = ['edge-fra-01', 'web-nyc-02', 'build-fra-04'].map(name => {
+      const s = this.SERVERS.find(x => x[0] === name);
+      return { name, region: s[2], color: this.statusColor(s[7]), on: this.go('server'), bars: [this.bar('CPU', s[4]), this.bar('MEM', s[5]), this.bar('DSK', s[6])] };
+    });
+
+    const activity = [
+      ['Deployed <b>shop.northwind.io</b> to edge-fra-01', 'dana · 4 min ago', 'var(--gr)'],
+      ['Snapshot completed for db-ams-01', 'system · 26 min ago · 18.4 GB', 'var(--ac)'],
+      ['Firewall rule 443/tcp added on web-nyc-02', 'marek · 1h ago', 'var(--am)'],
+      ['Container redis-cache restarted', 'system · 2h ago · OOM', 'var(--rd)'],
+      ['Invited priya@northwind.io as Developer', 'dana · 5h ago', 'var(--t3)'],
+      ['MariaDB upgraded 11.3 → 11.4', 'marek · yesterday', 'var(--t3)']
+    ].map(a => ({ text: a[0].replace(/<\/?b>/g, ''), meta: a[1], color: a[2] }));
+
+    const recs = [
+      ['PERF', 'php-fpm is queueing on edge-fra-01', 'pm.max_children is 24 while peak concurrency hits 41. Raising it to 48 should clear the 502s seen at 14:20.'],
+      ['COST', 'legacy-sfo-01 has been idle 19 days', 'No traffic, 3 parked domains. Snapshot and destroy to save $84/mo.'],
+      ['SEC', 'Password SSH auth still enabled on 2 servers', 'Keys are already deployed for all 4 users. Disabling passwords is safe.']
+    ].map(r => ({ tag: r[0], title: r[1], body: r[2], on: () => this.fireToast('Fix applied', r[1].split(' ')[0] + ' · rolled out in 4s') }));
+
+    const deploys = [
+      ['shop.northwind.io', 'a3f19c2', 'main', '48s', 'Ready', '4 min ago'],
+      ['api.northwind.io', '7b2e881', 'main', '1m 12s', 'Ready', '38 min ago'],
+      ['docs.northwind.io', 'c91d40a', 'release/2.4', '2m 04s', 'Building', '41 min ago'],
+      ['admin.northwind.io', 'ff0a173', 'hotfix/session', '31s', 'Failed', '2h ago'],
+      ['status.northwind.io', '10bc55e', 'main', '22s', 'Ready', '6h ago']
+    ].map(d => {
+      const m = { Ready: ['var(--gr)', 'rgba(47,181,116,.13)'], Building: ['var(--ac)', 'var(--acs)'], Failed: ['var(--rd)', 'rgba(229,72,77,.13)'] }[d[4]];
+      return { site: d[0], sha: d[1], branch: d[2], dur: d[3], status: d[4], when: d[5], badge: this.badge(d[4], m[0], m[1]) };
+    });
+
+    const filters = [['all', 'All statuses'], ['online', 'Online'], ['issues', 'Needs attention']].map(f => ({
+      label: f[1], on: () => this.setState({ filter: f[0] }), style: this.chipBtn(st.filter === f[0])
+    }));
+
+    const q = st.q.toLowerCase();
+    let list = this.SERVERS.filter(s => (s[0] + s[1] + s[2] + s[3]).toLowerCase().includes(q));
+    if (st.filter === 'online') list = list.filter(s => s[7] === 'Online');
+    if (st.filter === 'issues') list = list.filter(s => s[7] !== 'Online');
+
+    const rows = list.map((s, i) => {
+      const checked = st.sel.includes(s[0]);
+      return {
+        name: s[0], ip: s[1], region: s[2], os: s[3], status: s[7], uptime: s[8],
+        checked, badge: this.sBadge(s[7]), dotStyle: this.dot(this.statusColor(s[7])),
+        bars: [this.bar('CPU', s[4]), this.bar('MEM', s[5]), this.bar('DSK', s[6])],
+        spark: this.pts(this.rnd(i + 3, 20, 10, 10 + s[4]), 90, 22, 2),
+        sparkColor: s[7] === 'Online' ? 'var(--gr)' : s[7] === 'Offline' ? 'var(--t3)' : 'var(--am)',
+        rowStyle: `border-top:1px solid var(--b1);cursor:pointer;background:${checked ? 'var(--acs)' : 'transparent'}`,
+        on: this.go('server'),
+        onCheck: (e) => { e.stopPropagation(); this.setState(p => ({ sel: p.sel.includes(s[0]) ? p.sel.filter(x => x !== s[0]) : p.sel.concat(s[0]) })); },
+        onMenu: (e) => { e.preventDefault(); e.stopPropagation(); this.setState({ menu: { x: Math.min(e.clientX, window.innerWidth - 200), y: Math.min(e.clientY, window.innerHeight - 240), name: s[0] } }); }
+      };
+    });
+
+    const serverCols = [['name', 'Server'], ['status', 'Status'], ['region', 'Region'], ['os', 'OS'], ['load', 'Load'], ['uptime', 'Uptime'], ['24h', '24h']].map(c => ({
+      label: c[1], arrow: st.sort === c[0] ? ' ↓' : '', on: () => this.setState({ sort: c[0] }),
+      style: this.th() + ';cursor:pointer;user-select:none' + (st.sort === c[0] ? ';color:var(--t1)' : '')
+    }));
+
+    const bulkActions = [['Restart', 0], ['Snapshot', 0], ['Update packages', 0], ['Destroy', 1]].map(b => ({
+      label: b[0], on: () => b[1] ? this.setState({ dialog: 'destroy' }) : this.fireToast(b[0] + ' queued', st.sel.length + ' servers · job #4821'),
+      style: `padding:4px 9px;background:${b[1] ? 'rgba(229,72,77,.14)' : 'var(--s1)'};border:1px solid ${b[1] ? 'rgba(229,72,77,.35)' : 'var(--b1)'};border-radius:6px;color:${b[1] ? 'var(--rd)' : 'var(--t1)'};font-size:12px;font-weight:500;cursor:pointer`
+    }));
+
+    const pages = [['‹', 0], ['1', 1], ['2', 0], ['3', 0], ['›', 0]].map(p => ({
+      label: p[0], style: `min-width:24px;height:24px;padding:0 6px;background:${p[1] ? 'var(--acs)' : 'none'};border:1px solid ${p[1] ? 'rgba(46,123,255,.35)' : 'var(--b1)'};border-radius:5px;color:${p[1] ? 'var(--ac)' : 'var(--t2)'};font-size:11.5px;cursor:pointer;font-family:'Azeret Mono',monospace`
+    }));
+
+    const rowMenu = [['Open overview', '↵', 0], ['Open SSH terminal', '⌘T', 0], ['Create snapshot', '⌘S', 0], ['Run AI diagnostics', '⌘D', 0], ['Reboot', '', 0], ['Destroy server', '⌫', 1]].map(m => ({
+      label: m[0], key: m[2] ? m[1] : m[1], style: this.menuRow(m[2]),
+      on: () => m[2] ? this.setState({ dialog: 'destroy', menu: null }) : m[0] === 'Open overview' ? this.setState({ screen: 'server', menu: null }) : this.fireToast(m[0], (st.menu || {}).name || '')
+    }));
+
+    const gauges = [['CPU', 34, '2.7 of 8 vCPU', 'var(--ac)'], ['Memory', 61, '19.5 / 32 GB', 'var(--pu)'], ['Disk', 48, '184 / 384 GB', 'var(--gr)'], ['Inodes', 22, '1.2M / 5.6M', 'var(--t2)']]
+      .map(g => ({ label: g[0], pct: g[1] + '%', detail: g[2], color: g[3], dash: `${(g[1] / 100 * 150.8).toFixed(1)} 150.8` }));
+
+    const services = [
+      ['nginx', '1.27.0', '84 MB', 'Running'], ['php8.3-fpm', '8.3.9', '612 MB', 'Running'],
+      ['mariadb', '11.4.2', '2.1 GB', 'Running'], ['redis-server', '7.4.0', '288 MB', 'Running'],
+      ['docker', '27.1.1', '1.4 GB', 'Running'], ['fail2ban', '1.1.0', '22 MB', 'Running'],
+      ['node_exporter', '1.8.2', '18 MB', 'Running'], ['postfix', '3.9.0', '—', 'Stopped']
+    ].map(s => ({
+      name: s[0], version: s[1], mem: s[2], state: s[3],
+      dotStyle: this.dot(s[3] === 'Running' ? 'var(--gr)' : 'var(--t3)'),
+      badge: this.badge(s[3], s[3] === 'Running' ? 'var(--gr)' : 'var(--t3)', s[3] === 'Running' ? 'rgba(47,181,116,.13)' : 'var(--s3)')
+    }));
+
+    const sysInfo = [['Kernel', '6.8.0-40-generic'], ['Architecture', 'x86_64'], ['Provider', 'Hetzner CX51'], ['Datacenter', 'fsn1-dc14'], ['Public IPv4', '45.32.11.8'], ['IPv6', '2a01:4f8:1c17::2'], ['Panel agent', 'v3.8.2'], ['Timezone', 'UTC']].map(i => ({ k: i[0], v: i[1] }));
+
+    const procs = [
+      ['1284', 'www-data', 'php-fpm: pool www', 18.4, '412 MB', '04:12:08'],
+      ['1102', 'mysql', '/usr/sbin/mariadbd', 12.1, '2.1 GB', '96:22:41'],
+      ['882', 'root', 'nginx: worker process', 6.8, '84 MB', '12:04:19'],
+      ['1290', 'www-data', 'php-fpm: pool www', 5.2, '388 MB', '03:58:22'],
+      ['1451', 'redis', 'redis-server *:6379', 3.1, '288 MB', '41:19:02'],
+      ['2201', 'root', 'containerd', 2.4, '196 MB', '128:04:11'],
+      ['9912', 'root', 'node_exporter', 1.1, '18 MB', '128:04:09'],
+      ['3310', 'root', 'fail2ban-server', 0.6, '22 MB', '128:03:58'],
+      ['4102', 'dana', 'sshd: dana@pts/0', 0.2, '9 MB', '00:04:12'],
+      ['1', 'root', '/sbin/init', 0.0, '12 MB', '128:04:20']
+    ].map(p => ({ pid: p[0], user: p[1], cmd: p[2], cpu: p[3].toFixed(1) + '%', mem: p[4], time: p[5], cpuColor: p[3] > 15 ? 'var(--am)' : 'var(--t1)' }));
+
+    const procCols = [['PID', 'left'], ['USER', 'left'], ['COMMAND', 'left'], ['CPU', 'right'], ['MEM', 'right'], ['TIME', 'right']].map(c => ({ label: c[0], style: this.th(c[1]) }));
+
+    const logLevels = ['all', 'info', 'warn', 'error'].map(l => ({ label: l.toUpperCase(), on: () => this.setState({ logLvl: l }), style: `padding:2px 7px;background:${st.logLvl === l ? 'var(--s3)' : 'none'};border:1px solid ${st.logLvl === l ? 'var(--b2)' : 'transparent'};border-radius:5px;color:${st.logLvl === l ? 'var(--t1)' : 'var(--t3)'};font-size:10px;font-family:'Azeret Mono',monospace;cursor:pointer` }));
+
+    const rawLogs = [
+      ['14:20:01', 'ERROR', 'upstream timed out (110: Connection timed out) while reading response header from upstream, client: 91.44.12.8, server: shop.northwind.io'],
+      ['14:20:01', 'WARN', 'php-fpm pool www: server reached pm.max_children setting (24), consider raising it'],
+      ['14:20:02', 'ERROR', '*10432 recv() failed (104: Connection reset by peer) while proxying upstream'],
+      ['14:20:04', 'INFO', 'POST /checkout/confirm HTTP/2.0 502 4288 "Mozilla/5.0"'],
+      ['14:20:09', 'WARN', 'slow request: 8.42s GET /cart upstream fastcgi://unix:/run/php/php8.3-fpm.sock'],
+      ['14:20:11', 'INFO', 'GET /assets/app.a3f19c2.js HTTP/2.0 200 118422'],
+      ['14:21:00', 'INFO', 'reloading configuration after certbot renewal hook'],
+      ['14:21:00', 'INFO', 'signal process started'],
+      ['14:21:02', 'INFO', 'GET /health HTTP/1.1 200 2'],
+      ['14:21:18', 'WARN', 'client 203.0.113.55 closed keepalive connection'],
+      ['14:22:04', 'INFO', 'POST /api/v2/orders HTTP/2.0 201 812'],
+      ['14:22:31', 'ERROR', 'FastCGI sent in stderr: "PHP message: PHP Fatal error: Allowed memory size of 268435456 bytes exhausted"'],
+      ['14:22:31', 'INFO', 'GET /orders/9124 HTTP/2.0 500 1204'],
+      ['14:23:00', 'INFO', 'gzip static ratio 3.8 for /assets/vendor.css']
+    ];
+    const logs = rawLogs.filter(l => st.logLvl === 'all' || l[1].toLowerCase() === st.logLvl).map(l => ({
+      ts: l[0], lvl: l[1].padEnd(5, ' '), msg: l[2],
+      lvlStyle: `flex:none;width:44px;color:${l[1] === 'ERROR' ? '#E5484D' : l[1] === 'WARN' ? '#E0A030' : '#4A90D9'}`
+    }));
+
+    const serverTabs = ['overview', 'processes', 'services', 'resources', 'storage', 'network', 'logs', 'firewall', 'ssh', 'cron']
+      .map(t => ({ label: t[0].toUpperCase() + t.slice(1), on: () => this.setState({ svTab: t }), style: this.tabBtn(st.svTab === t) }));
+
+    const sites = [
+      ['shop.northwind.io', 'PHP 8.3 · nginx', 'edge-fra-01', 'Ready', '1.9M', 12],
+      ['api.northwind.io', 'Node 22 · pm2', 'app-sgp-03', 'Ready', '2.2M', 4],
+      ['docs.northwind.io', 'Astro static', 'edge-fra-01', 'Building', '184K', 8],
+      ['admin.northwind.io', 'PHP 8.3 · nginx', 'web-nyc-02', 'Error', '42K', 15],
+      ['status.northwind.io', 'Go 1.23', 'cache-lon-01', 'Ready', '96K', 2],
+      ['legacy.northwind.io', 'PHP 7.4 · apache', 'legacy-sfo-01', 'Paused', '1.2K', 21]
+    ].map((w, i) => {
+      const m = { Ready: ['var(--gr)', 'rgba(47,181,116,.13)'], Building: ['var(--ac)', 'var(--acs)'], Error: ['var(--rd)', 'rgba(229,72,77,.13)'], Paused: ['var(--t3)', 'var(--s3)'] }[w[3]];
+      const v = this.rnd(i + 5, 22, 20, 90);
+      const sslDays = w[5];
+      return {
+        domain: w[0], stack: w[1], server: w[2], status: w[3], reqs: w[4], initial: w[0][0].toUpperCase(),
+        badge: this.badge(w[3], m[0], m[1]),
+        chips: [
+          { label: 'SSL ' + sslDays + 'd', color: sslDays < 10 ? 'var(--am)' : 'var(--gr)' },
+          { label: 'main', color: 'var(--ac)' },
+          { label: w[1].split(' ')[0].toLowerCase(), color: 'var(--t3)' }
+        ],
+        spark: this.pts(v, 120, 30, 2), area: this.areaOf(v, 120, 30, 2)
+      };
+    });
+
+    const dbs = [
+      ['shop_prod', 'MariaDB 11.4', 'MY', '18.4 GB', '142 / 300', '1.2K', '2h ago', 'Healthy'],
+      ['shop_sessions', 'Redis 7.4', 'RD', '412 MB', '88 / 512', '9.4K', 'n/a', 'Healthy'],
+      ['api_prod', 'PostgreSQL 16', 'PG', '6.1 GB', '54 / 200', '620', '2h ago', 'Healthy'],
+      ['analytics', 'PostgreSQL 16', 'PG', '92.7 GB', '31 / 200', '210', '14h ago', 'Slow'],
+      ['events', 'MongoDB 7', 'MG', '24.9 GB', '76 / 400', '3.1K', '2h ago', 'Healthy'],
+      ['legacy_crm', 'MySQL 5.7', 'MY', '3.2 GB', '4 / 100', '12', '9d ago', 'At risk'],
+      ['docs_search', 'SQLite', 'SQ', '184 MB', '1', '40', '2h ago', 'Healthy']
+    ].map(d => {
+      const m = { Healthy: ['var(--gr)', 'rgba(47,181,116,.13)'], Slow: ['var(--am)', 'rgba(224,160,48,.14)'], 'At risk': ['var(--rd)', 'rgba(229,72,77,.13)'] }[d[7]];
+      const ec = { MY: 'var(--ac)', PG: 'var(--pu)', RD: 'var(--rd)', MG: 'var(--gr)', SQ: 'var(--t3)' }[d[2]];
+      return {
+        name: d[0], engine: d[1], engineShort: d[2], size: d[3], conns: d[4], qps: d[5], backup: d[6], status: d[7],
+        badge: this.badge(d[7], m[0], m[1]),
+        engineStyle: `width:26px;height:26px;border-radius:7px;display:grid;place-items:center;font-family:'Azeret Mono',monospace;font-size:10px;font-weight:600;color:${ec};background:var(--s2);border:1px solid var(--b1);flex:none`
+      };
+    });
+    const dbCols = ['Database', 'Size', 'Connections', 'Queries/s', 'Last backup', 'Status'].map(c => ({ label: c, style: this.th() }));
+
+    const slowQueries = [
+      ['8.42s', '1,204', 'SELECT * FROM orders o JOIN customers c ON c.id = o.customer_id WHERE o.created_at > ? ORDER BY o.created_at DESC LIMIT 50', 'var(--rd)'],
+      ['3.10s', '842', 'SELECT COUNT(*) FROM order_items WHERE product_id IN (SELECT id FROM products WHERE category_id = ?)', 'var(--am)'],
+      ['1.88s', '3,190', 'UPDATE carts SET updated_at = NOW() WHERE session_id = ?', 'var(--am)'],
+      ['0.94s', '11,402', 'SELECT id, name, price FROM products WHERE slug = ?', 'var(--t2)']
+    ].map(s => ({ time: s[0], calls: s[1], sql: s[2], color: s[3] }));
+
+    const dockerTabs = ['containers', 'images', 'volumes', 'networks', 'compose'].map(t => ({ label: t[0].toUpperCase() + t.slice(1), on: () => this.setState({ dockTab: t }), style: this.tabBtn(st.dockTab === t) }));
+
+    const containers = [
+      ['edge-nginx', 'nginx:1.27-alpine', '80,443', '2.1%', '84 MB', 'Running'],
+      ['shop-php', 'northwind/php:8.3', '9000', '18.4%', '612 MB', 'Running'],
+      ['shop-db', 'mariadb:11.4', '3306', '12.0%', '2.1 GB', 'Running'],
+      ['redis-cache', 'redis:7.4-alpine', '6379', '0.8%', '288 MB', 'Running'],
+      ['meili-search', 'getmeili/meilisearch:1.9', '7700', '1.4%', '412 MB', 'Running'],
+      ['queue-worker', 'northwind/php:8.3', '—', '6.2%', '188 MB', 'Running'],
+      ['pdf-render', 'gotenberg/gotenberg:8', '3000', '0.0%', '—', 'Exited'],
+      ['backup-agent', 'restic/restic:0.17', '—', '0.0%', '—', 'Paused']
+    ].map(c => {
+      const m = { Running: ['var(--gr)', 'rgba(47,181,116,.13)'], Exited: ['var(--rd)', 'rgba(229,72,77,.13)'], Paused: ['var(--am)', 'rgba(224,160,48,.14)'] }[c[5]];
+      return { name: c[0], image: c[1], ports: c[2], cpu: c[3], mem: c[4], state: c[5], badge: this.badge(c[5], m[0], m[1]), dotStyle: this.dot(m[0]) };
+    });
+
+    const compose = ['services:', '  nginx:', '    image: nginx:1.27-alpine', '    ports:', '      - "80:80"', '      - "443:443"', '    volumes:', '      - ./conf.d:/etc/nginx/conf.d:ro', '      - certs:/etc/letsencrypt', '    depends_on: [php]', '', '  php:', '    image: northwind/php:8.3', '    env_file: .env.production', '    deploy:', '      replicas: 3', '      resources:', '        limits: { cpus: "2.0", memory: 1G }', '', '  db:', '    image: mariadb:11.4', '    volumes: [dbdata:/var/lib/mysql]', '', 'volumes:', '  certs: {}', '  dbdata: {}'].join('\n');
+
+    const monCharts = [
+      ['CPU utilisation', '38%', 'var(--ac)', 'rgba(46,123,255,.13)', 2, 14, 62, 100],
+      ['Memory pressure', '64%', 'var(--pu)', 'rgba(139,109,240,.13)', 8, 50, 78, 100],
+      ['Network throughput', '412 Mb/s', 'var(--gr)', 'rgba(47,181,116,.13)', 13, 140, 680, 1000],
+      ['Disk I/O wait', '2.1%', 'var(--am)', 'rgba(224,160,48,.13)', 21, 0.4, 4.2, 10]
+    ].map(m => {
+      const v = this.rnd(m[4], 48, m[5], m[6]), hi = m[7];
+      return { label: m[0], now: m[1], color: m[2], fill: m[3], line: this.ptsFix(v, 320, 96, 0, hi, 4), area: this.areaFix(v, 320, 96, 0, hi, 4) };
+    });
+
+    const heatScale = ['rgba(46,123,255,.14)', 'rgba(46,123,255,.34)', 'rgba(46,123,255,.62)', 'rgba(224,160,48,.75)', 'rgba(229,72,77,.85)'];
+    const heatLegend = heatScale.map(c => ({ color: c }));
+    const heatRows = this.SERVERS.map((s, i) => ({
+      name: s[0],
+      cells: this.rnd(i + 31, 24, 0, s[4] + 12).map(v => ({
+        style: `flex:1;height:15px;border-radius:2px;background:${heatScale[Math.min(4, Math.floor(v / 22))]}`
+      }))
+    }));
+
+    const convos = [
+      ['502 errors on shop.northwind.io', '4 min ago', 1], ['Why is analytics DB slow?', 'yesterday', 0],
+      ['Generate nginx config for SPA', '2 days ago', 0], ['Explain fail2ban ban spike', '4 days ago', 0],
+      ['Harden SSH on all servers', 'last week', 0], ['Dockerise legacy PHP 7.4 app', 'last week', 0]
+    ].map(c => ({
+      title: c[0], when: c[1],
+      style: `display:block;width:100%;text-align:left;padding:7px 9px;border:none;border-radius:7px;cursor:pointer;background:${c[2] ? 'var(--pus)' : 'none'};color:${c[2] ? 'var(--pu)' : 'var(--t1)'}`
+    }));
+
+    const messages = [
+      { isUser: 1, isAi: 0, text: 'shop.northwind.io started throwing 502s around 14:20. What happened?', wrapStyle: 'display:flex;justify-content:flex-end' },
+      {
+        isUser: 0, isAi: 1, wrapStyle: 'display:flex', hasCode: 0, hasFix: 0,
+        text: 'Between 14:20:01 and 14:22:31 nginx logged 41 upstream timeouts against the php8.3-fpm socket on edge-fra-01. php-fpm hit its pm.max_children ceiling of 24 while concurrency peaked at 41, so requests queued past the 60s upstream timeout. MariaDB was healthy throughout — slowest query was 8.4s on the orders join, which made each worker hold longer and amplified the queue.'
+      },
+      {
+        isUser: 0, isAi: 1, wrapStyle: 'display:flex', hasCode: 1, hasFix: 1,
+        codeLabel: '/etc/php/8.3/fpm/pool.d/www.conf',
+        code: '-pm.max_children = 24\n+pm.max_children = 48\n pm.start_servers = 8\n-pm.max_spare_servers = 12\n+pm.max_spare_servers = 20\n+; sized from 32GB RAM / 380MB avg worker',
+        text: 'The server has 32 GB of RAM and workers average 380 MB, so 48 children is comfortably within budget. Here is the change I would make:'
+      }
+    ];
+
+    const prompts = ['Explain this error', 'Optimise MariaDB', 'Generate nginx config', 'Audit SSH security'].map(p => ({ label: p }));
+    const aiContext = [
+      ['edge-fra-01', 'server', 'var(--gr)'], ['nginx error.log', '2.4K lines', 'var(--am)'],
+      ['www.conf', 'php-fpm', 'var(--ac)'], ['shop_prod', 'slow log', 'var(--pu)']
+    ].map(c => ({ label: c[0], meta: c[1], color: c[2] }));
+
+    const check = 'M20 6L9 17l-5-5', warn = 'M12 9v4M12 17h.01';
+    const diagnostics = [
+      ['Disk headroom OK — 184/384 GB', check, 'var(--gr)'],
+      ['MariaDB healthy, no lock waits', check, 'var(--gr)'],
+      ['php-fpm worker pool saturated', warn, 'var(--am)'],
+      ['One query above 5s threshold', warn, 'var(--am)'],
+      ['No OOM kills in dmesg', check, 'var(--gr)']
+    ].map(d => ({ label: d[0], icon: d[1], color: d[2] }));
+
+    const drawerFindings = [
+      ['php-fpm pool saturated', 'pm.max_children = 24, peak concurrency 41. Raising to 48 fits in 32 GB RAM.', 'Apply config change', 'var(--am)'],
+      ['Slow query amplifying the queue', 'orders ⋈ customers scan takes 8.4s. A composite index on (customer_id, created_at) cuts it to ~40ms.', 'Create index', 'var(--am)'],
+      ['No caching on /cart', 'Every request hits PHP. A 5s micro-cache would absorb the spike.', 'Show nginx snippet', 'var(--ac)']
+    ].map(f => ({ title: f[0], body: f[1], cta: f[2], color: f[3] }));
+
+    const swatches = [
+      ['bg', 'var(--bg)'], ['surface', 'var(--s1)'], ['raised', 'var(--s2)'], ['sunken', 'var(--s3)'], ['border', 'var(--b1)'],
+      ['accent', 'var(--ac)'], ['success', 'var(--gr)'], ['warning', 'var(--am)'], ['danger', 'var(--rd)'], ['AI', 'var(--pu)']
+    ].map(s => ({ label: s[0], color: s[1] }));
+
+    const spacers = [4, 8, 12, 16, 22, 32].map(n => ({ label: n + 'px', barStyle: `width:${n * 4}px;height:12px;border-radius:${n > 12 ? 10 : n > 8 ? 7 : 4}px;background:var(--acs);border:1px solid rgba(46,123,255,.35);display:block` }));
+
+    const dsBadges = [
+      ['Online', 'var(--gr)', 'rgba(47,181,116,.13)'], ['Building', 'var(--ac)', 'var(--acs)'],
+      ['Degraded', 'var(--am)', 'rgba(224,160,48,.14)'], ['Failed', 'var(--rd)', 'rgba(229,72,77,.13)'],
+      ['Offline', 'var(--t3)', 'var(--s3)'], ['AI managed', 'var(--pu)', 'var(--pus)']
+    ].map(b => ({ label: b[0], style: this.badge(b[0], b[1], b[2]) }));
+
+    const menuItems = [['Open overview', '↵', 0], ['SSH terminal', '⌘T', 0], ['Create snapshot', '⌘S', 0], ['AI diagnostics', '⌘D', 0], ['Destroy', '⌫', 1]]
+      .map(m => ({ label: m[0], key: m[1], style: this.menuRow(m[2]) }));
+
+    const pgStyle = `display:flex;align-items:center;gap:10px;width:100%;padding:7px 9px;background:none;border:none;border-radius:7px;color:var(--t1);font-size:12.5px;cursor:pointer`;
+    const paletteGroups = [
+      { label: 'Jump to', items: [['Dashboard', 'grid', '⌘1', 'dashboard'], ['Servers', 'server', '⌘2', 'servers'], ['edge-fra-01', 'server', 'server', 'server'], ['Websites', 'globe', '⌘3', 'websites'], ['AI assistant', 'sparkle', '⌘J', 'ai']] },
+      { label: 'Commands', items: [['Provision new server', 'server', '', 'servers'], ['Deploy from Git', 'code', '', 'websites'], ['Create database', 'db', '', 'databases'], ['Open SSH terminal', 'term', '⌘T', 'server']] },
+      { label: 'Recent', items: [['shop.northwind.io — deployments', 'globe', '', 'websites'], ['shop_prod — slow queries', 'db', '', 'databases'], ['Design system', 'swatch', '', 'ds']] }
+    ].map(g => ({ label: g.label, items: g.items.map(i => ({ label: i[0], icon: this.ICON[i[1]] || this.ICON.grid, hint: i[2], on: this.go(i[3]), style: pgStyle })) }));
+
+    const phLabels = {
+      activity: ['Activity', 'Every change across the organisation, filterable by actor and resource.', 'No events in the selected window. Activity appears here as soon as someone deploys, edits or provisions.', 'Change filter'],
+      clusters: ['Clusters', 'Group servers into load-balanced clusters with shared config.', 'You have no clusters yet. Group two or more servers to balance traffic and share a single deployment target.', 'Create cluster'],
+      networking: ['Networking', 'Private networks, floating IPs and load balancers.', 'No private networks configured. Create one to let servers talk over internal addresses.', 'Create network'],
+      firewall: ['Firewall', 'Rule sets applied per server or per cluster.', 'No custom rule sets. The default profile allows 22, 80 and 443 only.', 'New rule set'],
+      domains: ['Domains', 'Registrar records, nameservers and verification status.', 'No domains connected. Point a domain at ServerPanel to attach it to a website.', 'Connect domain'],
+      ssl: ['SSL certificates', 'Let\u2019s Encrypt, custom and wildcard certificates.', 'No certificates issued yet. Certificates are requested automatically when a domain is verified.', 'Request certificate'],
+      apps: ['Runtimes', 'PHP, Node.js, Python, .NET, Java and Go versions per server.', 'No additional runtimes installed. Install one to deploy applications that need it.', 'Install runtime'],
+      backup: ['Backups', 'Snapshots, remote storage targets and schedules.', 'No backup schedule yet. Nightly snapshots with 14-day retention is the recommended starting point.', 'Create schedule'],
+      email: ['Email', 'Mailboxes, aliases, forwarders and deliverability records.', 'No mail domains configured. Add one to create mailboxes and set up DKIM, SPF and DMARC.', 'Add mail domain'],
+      dns: ['DNS', 'Zones, records and reusable templates.', 'No zones hosted here. Import a zone file or let ServerPanel manage records for a connected domain.', 'Add zone'],
+      logs: ['Logs', 'Aggregated logs across servers, sites and containers.', 'No log streams attached. Attach a source to search and tail logs across the fleet.', 'Attach source'],
+      security: ['Security', 'Users, roles, permissions, SSH keys and audit trail.', 'Only you have access. Invite teammates and assign roles to collaborate safely.', 'Invite teammate'],
+      marketplace: ['Marketplace', 'Plugins, themes and extensions.', 'Nothing installed. Browse the marketplace to extend ServerPanel with one-click apps.', 'Browse marketplace'],
+      settings: ['Settings', 'Organisation, billing, API tokens and updates.', 'Your organisation is on defaults. Review billing, tokens and the update channel when you are ready.', 'Review settings']
+    };
+    const ph = phLabels[st.screen] || ['Section', '', 'Nothing here yet.', 'Get started'];
+
+    const built = ['dashboard', 'servers', 'server', 'websites', 'databases', 'docker', 'monitoring', 'ai', 'ds'];
+
+    return {
+      navGroups, flatNav: flat, crumbs,
+      railMode: st.rail, fullSidebar: !st.rail,
+      toggleRail: () => this.setState(s => ({ rail: !s.rail })),
+      toggleTheme: () => this.setTheme(!st.dark),
+      themes: [
+        { label: 'Dark', dark: true, icon: 'M12 3a9 9 0 109 9 7 7 0 01-9-9z' },
+        { label: 'Light', dark: false, icon: 'M12 8a4 4 0 100 8 4 4 0 000-8zM12 2v2M12 20v2M4 12H2M22 12h-2M5.6 5.6L4.2 4.2M19.8 19.8l-1.4-1.4M5.6 18.4L4.2 19.8M19.8 4.2l-1.4 1.4' }
+      ].map(t => ({
+        label: t.label, icon: t.icon, on: () => this.setTheme(t.dark),
+        style: `display:flex;align-items:center;gap:5px;padding:3px 8px;background:${st.dark === t.dark ? 'var(--s1)' : 'none'};border:none;border-radius:5px;color:${st.dark === t.dark ? 'var(--t1)' : 'var(--t3)'};font-size:11.5px;font-weight:${st.dark === t.dark ? 600 : 400};cursor:pointer`
+      })),
+      openPalette: () => this.setState({ palette: true }), closePalette: () => this.setState({ palette: false }),
+      palette: st.palette, paletteGroups,
+      openAi: () => this.setState({ aiDrawer: true }), closeAi: () => this.setState({ aiDrawer: false }),
+      aiDrawer: st.aiDrawer, goAi: () => this.setState({ screen: 'ai', aiDrawer: false }),
+      goWebsites: this.go('websites'), goTerminal: () => { this.setState({ svTab: 'logs' }); },
+      notify: () => this.fireToast('3 unread notifications', 'build-fra-04 disk · SSL expiry · replication lag'),
+      stop: (e) => e.stopPropagation(),
+
+      isDash: st.screen === 'dashboard', isServers: st.screen === 'servers', isServer: st.screen === 'server',
+      isWebsites: st.screen === 'websites', isDatabases: st.screen === 'databases', isDocker: st.screen === 'docker',
+      isMonitoring: st.screen === 'monitoring', isAi: st.screen === 'ai', isDs: st.screen === 'ds',
+      isPlaceholder: built.indexOf(st.screen) === -1,
+      phTitle: ph[0], phSub: ph[1], phEmpty: ph[2], phCta: ph[3], phIcon: this.ICON.plug,
+
+      kpis, legend: [{ label: 'CPU %', color: 'var(--ac)' }, { label: 'Memory %', color: 'var(--pu)' }, { label: 'Network Mb/s', color: 'var(--gr)' }],
+      ranges, hours, axisY,
+      chartCpu: this.ptsFix(cpuS, 700, 210, 0, 100, 8), chartCpuArea: this.areaFix(cpuS, 700, 210, 0, 100, 8),
+      chartRam: this.ptsFix(ramS, 700, 210, 0, 100, 8), chartNet: this.ptsFix(netS, 700, 210, 0, 1000, 8),
+      alerts, pinned, activity, recs, deploys,
+
+      q: st.q, setQ: (e) => this.setState({ q: e.target.value }), clearQ: () => this.setState({ q: '', filter: 'all' }),
+      filters, rows, serverCols, pages, bulkActions,
+      resultCount: list.length + ' of 8 servers',
+      loading: st.loading, toggleLoading: () => { this.setState({ loading: true }); setTimeout(() => this.setState({ loading: false }), 2200); },
+      showTable: !st.loading && list.length > 0, emptyResults: !st.loading && list.length === 0,
+      selCount: st.sel.length > 0, selLabel: st.sel.length + ' selected',
+      clearSel: () => this.setState({ sel: [] }),
+      allSel: st.sel.length === list.length && list.length > 0,
+      toggleAll: () => this.setState(p => ({ sel: p.sel.length === list.length ? [] : list.map(s => s[0]) })),
+      skeletonRows: [1, 2, 3, 4, 5, 6, 7].map(i => ({ i })),
+
+      menu: !!st.menu, closeMenu: () => this.setState({ menu: null }), rowMenu,
+      menuStyle: st.menu ? `position:fixed;left:${st.menu.x}px;top:${st.menu.y}px;width:190px;background:var(--s2);border:1px solid var(--b2);border-radius:8px;padding:4px;box-shadow:0 12px 32px rgba(0,0,0,.4);animation:fup .1s ease` : '',
+
+      serverTabs, gauges, services, sysInfo, procs, procCols, logs, logLevels,
+      svTabOverview: st.svTab === 'overview', svTabProcesses: st.svTab === 'processes', svTabLogs: st.svTab === 'logs',
+      svTabOther: ['overview', 'processes', 'logs'].indexOf(st.svTab) === -1,
+      svTabLabel: st.svTab[0].toUpperCase() + st.svTab.slice(1),
+
+      sites, dbs, dbCols, slowQueries, dockerTabs, containers, compose, monCharts, heatRows, heatLegend,
+      convos, messages, prompts, aiContext, diagnostics, drawerFindings,
+      swatches, spacers, dsBadges, menuItems,
+
+      dialog: !!st.dialog,
+      dialogTitle: st.dialog === 'destroy' ? 'Destroy server?' : st.dialog === 'reboot' ? 'Reboot edge-fra-01?' : 'Provision a new server',
+      dialogBody: st.dialog === 'destroy'
+        ? 'This permanently deletes the instance, its volumes and all 12 websites hosted on it. Snapshots are kept for 14 days.'
+        : st.dialog === 'reboot'
+          ? '12 websites will be unavailable for roughly 40 seconds. Services are configured to start on boot.'
+          : 'ServerPanel will create the instance, install the agent and apply your baseline hardening profile. Takes about 90 seconds.',
+      dialogCta: st.dialog === 'destroy' ? 'Destroy permanently' : st.dialog === 'reboot' ? 'Reboot now' : 'Provision',
+      dialogConfirmField: st.dialog === 'destroy',
+      dialogIconStyle: `width:32px;height:32px;border-radius:9px;display:grid;place-items:center;flex:none;color:${st.dialog === 'destroy' ? 'var(--rd)' : st.dialog === 'reboot' ? 'var(--am)' : 'var(--ac)'};background:${st.dialog === 'destroy' ? 'rgba(229,72,77,.12)' : st.dialog === 'reboot' ? 'rgba(224,160,48,.13)' : 'var(--acs)'}`,
+      dialogCtaStyle: `padding:6px 12px;border:none;border-radius:7px;color:#fff;font-size:12.5px;font-weight:600;cursor:pointer;background:${st.dialog === 'destroy' ? 'var(--rd)' : st.dialog === 'reboot' ? 'var(--am)' : 'var(--ac)'}`,
+      closeDialog: () => this.setState({ dialog: null }),
+      confirmDialog: () => this.fireToast(st.dialog === 'destroy' ? 'Server destroyed' : st.dialog === 'reboot' ? 'Reboot initiated' : 'Provisioning started', 'job #4821 · streaming logs'),
+      confirmDeploy: () => this.setState({ dialog: 'provision' }),
+      confirmReboot: () => this.setState({ dialog: 'reboot' }),
+      applyFix: () => this.fireToast('Fix applied', 'edge-fra-01 · php8.3-fpm reloaded · 0s downtime'),
+
+      toast: !!st.toast, toastTitle: (st.toast || {}).title, toastMeta: (st.toast || {}).meta,
+      closeToast: () => this.setState({ toast: null })
+    };
+  }
+}
+</script>
+</body>
+</html>

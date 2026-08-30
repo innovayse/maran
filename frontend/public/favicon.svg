@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="Maran">
+  <!-- The brand mark from the design: a rounded accent square carrying the
+       product's initial. #2E7BFF is the design's --ac token; it is written
+       literally here because an SVG served as a static file cannot read the
+       application's CSS variables. -->
+  <rect width="32" height="32" rx="8" fill="#2E7BFF"/>
+  <text x="16" y="22" text-anchor="middle"
+        font-family="'Public Sans', system-ui, sans-serif" font-size="18" font-weight="700"
+        fill="#FFFFFF">M</text>
+</svg>
