@@ -1,5 +1,11 @@
 # Maran
 
+[![backend](https://github.com/innovayse/maran/actions/workflows/backend.yml/badge.svg?branch=dev)](https://github.com/innovayse/maran/actions/workflows/backend.yml)
+[![agent](https://github.com/innovayse/maran/actions/workflows/agent.yml/badge.svg?branch=dev)](https://github.com/innovayse/maran/actions/workflows/agent.yml)
+[![frontend](https://github.com/innovayse/maran/actions/workflows/frontend.yml/badge.svg?branch=dev)](https://github.com/innovayse/maran/actions/workflows/frontend.yml)
+[![cross](https://github.com/innovayse/maran/actions/workflows/cross.yml/badge.svg?branch=dev)](https://github.com/innovayse/maran/actions/workflows/cross.yml)
+[![licence: BSL 1.1](https://img.shields.io/badge/licence-BSL%201.1-blue)](LICENSE)
+
 A modern web hosting control panel for Linux servers. Install it on a server and manage
 websites, PHP versions, SSL certificates, databases, files, backups and the firewall from a
 browser, with a separate cabinet for every hosting customer and an API that billing systems

@@ -38,8 +38,12 @@ private communication that starts here.
 
 ## Enforcement
 
-Report to conduct@innovayse.com. Reports are read by the maintainers at Innovayse LLC and are
-not shared further without your agreement, except where the law requires it.
+Report to **security@innovayse.com**, marking the subject "conduct". That is the address this
+project already monitors; a separate one will be published here when there is somebody separate
+reading it, rather than published now and read by nobody.
+
+Reports go to the maintainers at Innovayse LLC and are not shared further without your
+agreement, except where the law requires it.
 
 The response is proportionate and stated plainly: usually a private word, sometimes a public
 correction, and for repeated or serious behaviour a block from the project. A maintainer who
