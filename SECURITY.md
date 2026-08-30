@@ -52,6 +52,9 @@ without touching a real host at all.
 - Changes to authentication, sessions and tokens, the agent's privilege dropping, licence
   verification, or the installer's privileged steps require a second reviewer and a written
   threat note in the pull request. `rules/security.md` is the checklist that review uses.
-- Dependencies are updated weekly by Dependabot across all four ecosystems.
+- Dependency versions are pinned and updated deliberately: `backend/Directory.Packages.props`
+  for .NET, `agent/Cargo.lock` for Rust, `frontend/package-lock.json` for npm. There is no
+  automatic update bot — an update to a panel that runs as root is a change somebody reads.
+  `THIRD-PARTY-NOTICES.md` lists every distributed dependency and its licence.
 - Secrets never enter the repository. `/etc/maran/panel.env` is `root:panel 0640` on a server,
   and the development values in `.env.example` are throwaways that must never reach one.

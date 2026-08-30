@@ -1,0 +1,58 @@
+name: notices
+
+# THIRD-PARTY-NOTICES.md is generated from all three ecosystems, so this job needs all three
+# toolchains — it does not belong in the backend job, which has only the .NET SDK and would
+# fail on a missing cargo rather than on stale notices.
+on:
+  push:
+    branches: [main, dev]
+    paths:
+      - 'agent/Cargo.lock'
+      - 'backend/Directory.Packages.props'
+      - 'frontend/package-lock.json'
+      - 'THIRD-PARTY-NOTICES.md'
+      - 'scripts/**'
+      - '.github/workflows/notices.yml'
+  pull_request:
+    paths:
+      - 'agent/Cargo.lock'
+      - 'backend/Directory.Packages.props'
+      - 'frontend/package-lock.json'
+      - 'THIRD-PARTY-NOTICES.md'
+      - 'scripts/**'
+      - '.github/workflows/notices.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  current:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install protoc
+        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
+
+      # The licences are read from what is actually resolved, so the packages have to be there:
+      # cargo's metadata needs the registry, and the npm walk needs node_modules.
+      - name: Restore dependencies
+        run: |
+          dotnet restore backend/Maran.sln
+          (cd agent && cargo fetch)
+          (cd frontend && npm ci)
+
+      - name: Notices match the dependencies
+        run: bash scripts/maran licenses --check

@@ -1,0 +1,144 @@
+#!/usr/bin/env bash
+# Generates THIRD-PARTY-NOTICES.md from the dependencies this repository actually builds with.
+#
+# The installer distributes BINARIES built from those dependencies, and the MIT, Apache-2.0 and
+# BSD licences they carry all require their notices to travel with the distribution. Shipping
+# without this file is a licence violation, quietly, in every release.
+#
+# Read from metadata already on disk rather than from a network service, so the file can be
+# regenerated on a machine with no internet and the answer is the same one the build used:
+# cargo's own metadata, the .nuspec inside each restored NuGet package, and the package.json of
+# each installed npm module. Dev-only dependencies are excluded — they are not distributed.
+#
+# Usage:
+#   scripts/maran licenses           write THIRD-PARTY-NOTICES.md
+#   scripts/maran licenses --check   fail if the file is out of date, changing nothing
+set -euo pipefail
+
+root="$(cd "$(dirname "$0")/../.." && pwd)"
+
+# shellcheck disable=SC1091
+. "$root/scripts/dev"
+
+check_only=0
+if [ "${1:-}" = "--check" ]; then
+  check_only=1
+fi
+
+output="$root/THIRD-PARTY-NOTICES.md"
+generated="$(mktemp)"
+
+# The agent's crates, straight from cargo — every crate carries a `license` field, and cargo
+# resolves exactly the versions Cargo.lock pins.
+agent_json="$(mktemp)"
+trap 'rm -f "$generated" "$agent_json" "$npm_json"' EXIT
+(cd "$root/agent" && cargo metadata --format-version 1 --all-features --offline) > "$agent_json"
+
+# The SPA's runtime dependencies. `npm ls --omit=dev` walks what actually ships; the licence
+# text lives in each installed package's package.json.
+npm_json="$(mktemp)"
+(cd "$root/frontend" && npm ls --omit=dev --all --json 2>/dev/null || echo '{}') > "$npm_json"
+
+# The backend's packages, from the versions Directory.Packages.props pins, with the licence read
+# out of the .nuspec in the local NuGet cache.
+python3 - "$root" "$agent_json" "$npm_json" > "$generated" <<'PYEOF'
+import json, pathlib, re, sys, xml.etree.ElementTree as ET
+
+root = pathlib.Path(sys.argv[1])
+agent = json.loads(pathlib.Path(sys.argv[2]).read_text())
+npm_text = pathlib.Path(sys.argv[3]).read_text().strip()
+npm = json.loads(npm_text) if npm_text else {}
+
+OWN_CRATES = {'maran-agent', 'maran-agent-core', 'maran-distro', 'maran-ops', 'maran-templates'}
+
+
+def crates():
+    rows = set()
+    for package in agent['packages']:
+        if package['name'] in OWN_CRATES:
+            continue
+        rows.add((package['name'], package['version'], package.get('license') or 'see package'))
+    return sorted(rows)
+
+
+def npm_packages():
+    rows = set()
+
+    def walk(node):
+        for name, child in (node.get('dependencies') or {}).items():
+            version = child.get('version', '')
+            manifest = root / 'frontend' / 'node_modules' / name / 'package.json'
+            licence = 'see package'
+            if manifest.is_file():
+                try:
+                    licence = json.loads(manifest.read_text()).get('license') or licence
+                except json.JSONDecodeError:
+                    pass
+            if version:
+                rows.add((name, version, licence if isinstance(licence, str) else 'see package'))
+            walk(child)
+
+    walk(npm)
+    return sorted(rows)
+
+
+def nuget_packages():
+    props = (root / 'backend' / 'Directory.Packages.props').read_text()
+    cache = pathlib.Path.home() / '.nuget' / 'packages'
+    rows = set()
+    for name, version in re.findall(r'PackageVersion Include="([^"]+)" Version="([^"]+)"', props):
+        licence = 'see package'
+        nuspec = cache / name.lower() / version / f'{name.lower()}.nuspec'
+        if nuspec.is_file():
+            try:
+                tree = ET.parse(nuspec).getroot()
+                ns = {'n': tree.tag.split('}')[0].strip('{')} if '}' in tree.tag else {}
+                node = tree.find('.//n:license', ns) if ns else tree.find('.//license')
+                url = tree.find('.//n:licenseUrl', ns) if ns else tree.find('.//licenseUrl')
+                if node is not None and node.text:
+                    licence = node.text
+                elif url is not None and url.text:
+                    licence = url.text
+            except ET.ParseError:
+                pass
+        rows.add((name, version, licence))
+    return sorted(rows)
+
+
+def table(title, note, rows):
+    print(f'## {title}\n')
+    print(f'{note}\n')
+    print('| Package | Version | Licence |')
+    print('|---|---|---|')
+    for name, version, licence in rows:
+        print(f'| `{name}` | {version} | {licence} |')
+    print()
+
+
+print('# Third-party notices\n')
+print('Maran is distributed as binaries built from the packages below. Each is the property of')
+print('its own authors and is used under its own licence; this file is the attribution those')
+print('licences require, and it says nothing about the licence of Maran itself, which is')
+print('`LICENSE`.\n')
+print('Generated by `maran licenses` from the metadata on disk — cargo\'s own resolution, the')
+print('`.nuspec` of each restored NuGet package, and the manifest of each installed npm module.')
+print('Do not edit it by hand; run the command.\n')
+
+table('Rust — the agent', 'Resolved by cargo from `agent/Cargo.lock`.', crates())
+table('.NET — the panel', 'Pinned centrally in `backend/Directory.Packages.props`.', nuget_packages())
+table('npm — the application',
+      'Runtime dependencies only; build and test tooling is not distributed.', npm_packages())
+PYEOF
+
+if [ "$check_only" -eq 1 ]; then
+  if [ ! -f "$output" ] || ! diff -q "$output" "$generated" >/dev/null; then
+    echo "THIRD-PARTY-NOTICES.md is out of date. Run: maran licenses" >&2
+    [ -f "$output" ] && diff -u "$output" "$generated" | head -40
+    exit 1
+  fi
+  echo "NOTICES-OK"
+  exit 0
+fi
+
+cp "$generated" "$output"
+echo "wrote $(basename "$output")"

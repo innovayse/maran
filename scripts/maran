@@ -36,6 +36,7 @@ usage: maran <command> [arguments]
   migrate    module migrations: add|apply|list|check                  (migrations.sh)
   module     scaffold a new backend module                            (new-module.sh)
   handshake  agent and API over a real unix socket                    (e2e-handshake.sh)
+  licenses   third-party notices; --check verifies without writing    (licenses.sh)
 
 Put the toolchains on your PATH first — this must be sourced, not run:
 
@@ -58,6 +59,7 @@ case "$command_name" in
   migrate)   exec bash "$root/scripts/lib/migrations.sh" "$@" ;;
   module)    exec bash "$root/scripts/lib/new-module.sh" "$@" ;;
   handshake) exec bash "$root/scripts/lib/e2e-handshake.sh" "$@" ;;
+  licenses)  exec bash "$root/scripts/lib/licenses.sh" "$@" ;;
   -h|--help|help) usage ;;
   *)
     echo "unknown command: $command_name" >&2

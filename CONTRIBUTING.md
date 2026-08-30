@@ -63,6 +63,7 @@ maran structure                               # file and folder laws no compiler
 maran format --check                          # formatting and naming
 maran proto                                   # the API-to-agent contract
 maran migrate check                           # a model edited without a migration
+maran licenses --check                        # third-party notices match the dependencies
 cd backend  && dotnet test
 cd frontend && npm run lint && npm run typecheck && npm run build && npx playwright test
 maran agent check                             # fmt, clippy -D warnings, cargo test
