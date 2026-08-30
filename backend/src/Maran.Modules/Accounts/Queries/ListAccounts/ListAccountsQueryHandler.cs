@@ -20,7 +20,7 @@ public sealed class ListAccountsQueryHandler
     /// <param name="query">The (parameterless) list request.</param>
     /// <param name="cancellationToken">Cancels the read.</param>
     /// <returns>A successful result carrying the accounts; this operation never fails.</returns>
-    public async Task<Result<IReadOnlyList<AccountDto>>> Handle(
+    public async Task<Result<IReadOnlyList<AccountDto>>> HandleAsync(
         ListAccountsQuery query,
         CancellationToken cancellationToken)
     {

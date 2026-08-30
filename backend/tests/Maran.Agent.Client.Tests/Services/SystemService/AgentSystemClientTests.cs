@@ -7,6 +7,7 @@ namespace Maran.Agent.Client.Tests.Services.SystemService;
 /// <summary>Mapping contract of AgentSystemClient (proto oneof → Result).</summary>
 public sealed class AgentSystemClientTests
 {
+    /// <summary>Ok payload maps to success result.</summary>
     [Fact]
     public async Task Ok_payload_maps_to_success_result()
     {
@@ -22,6 +23,7 @@ public sealed class AgentSystemClientTests
         Assert.Equal("ubuntu", result.Value.DistroId);
     }
 
+    /// <summary>Error payload maps to failed result with agent code.</summary>
     [Fact]
     public async Task Error_payload_maps_to_failed_result_with_agent_code()
     {
@@ -37,6 +39,7 @@ public sealed class AgentSystemClientTests
         Assert.Equal("AgentSystemFailure", result.Error!.Code);
     }
 
+    /// <summary>Unset oneof maps to invalid response error.</summary>
     [Fact]
     public async Task Unset_oneof_maps_to_invalid_response_error()
     {

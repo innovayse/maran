@@ -33,7 +33,7 @@ public sealed class ListPlansQueryHandler
     /// <param name="query">The (parameterless) list request.</param>
     /// <param name="cancellationToken">Cancels the read.</param>
     /// <returns>A successful result carrying the plans; this operation never fails.</returns>
-    public async Task<Result<IReadOnlyList<PlanDto>>> Handle(ListPlansQuery query, CancellationToken cancellationToken)
+    public async Task<Result<IReadOnlyList<PlanDto>>> HandleAsync(ListPlansQuery query, CancellationToken cancellationToken)
     {
         var plans = await _dbContext.Plans
             .AsNoTracking()

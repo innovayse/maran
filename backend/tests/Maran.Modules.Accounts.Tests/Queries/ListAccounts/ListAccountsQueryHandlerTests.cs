@@ -1,8 +1,8 @@
 using Maran.Modules.Accounts.Domain;
+using Maran.Modules.Accounts.Domain.Enums;
 using Maran.Modules.Accounts.Persistence;
 using Maran.Modules.Accounts.Queries.ListAccounts;
 using Microsoft.EntityFrameworkCore;
-using Maran.Modules.Accounts.Domain.Enums;
 
 namespace Maran.Modules.Accounts.Tests.Queries.ListAccounts;
 
@@ -22,18 +22,20 @@ public sealed class ListAccountsQueryHandlerTests
         return new AccountsDbContext(options);
     }
 
+    /// <summary>Empty store returns an empty list.</summary>
     [Fact]
     public async Task Empty_store_returns_an_empty_list()
     {
         await using var dbContext = CreateDbContext();
         var handler = new ListAccountsQueryHandler(dbContext);
 
-        var result = await handler.Handle(new ListAccountsQuery(), CancellationToken.None);
+        var result = await handler.HandleAsync(new ListAccountsQuery(), CancellationToken.None);
 
         Assert.True(result.IsSuccess);
         Assert.Empty(result.Value);
     }
 
+    /// <summary>Returns every account the store holds mapped to account dto.</summary>
     [Fact]
     public async Task Returns_every_account_the_store_holds_mapped_to_account_dto()
     {
@@ -45,7 +47,7 @@ public sealed class ListAccountsQueryHandlerTests
         await dbContext.SaveChangesAsync();
         var handler = new ListAccountsQueryHandler(dbContext);
 
-        var result = await handler.Handle(new ListAccountsQuery(), CancellationToken.None);
+        var result = await handler.HandleAsync(new ListAccountsQuery(), CancellationToken.None);
 
         var dto = Assert.Single(result.Value);
         Assert.Equal(account.Id, dto.Id);
@@ -56,6 +58,7 @@ public sealed class ListAccountsQueryHandlerTests
         Assert.Equal(createdAt, dto.CreatedAt);
     }
 
+    /// <summary>Returns accounts ordered by creation time ascending.</summary>
     [Fact]
     public async Task Returns_accounts_ordered_by_creation_time_ascending()
     {
@@ -71,7 +74,7 @@ public sealed class ListAccountsQueryHandlerTests
         await dbContext.SaveChangesAsync();
         var handler = new ListAccountsQueryHandler(dbContext);
 
-        var result = await handler.Handle(new ListAccountsQuery(), CancellationToken.None);
+        var result = await handler.HandleAsync(new ListAccountsQuery(), CancellationToken.None);
 
         Assert.Equal(["first", "second", "third"], result.Value.Select(dto =>
         {
