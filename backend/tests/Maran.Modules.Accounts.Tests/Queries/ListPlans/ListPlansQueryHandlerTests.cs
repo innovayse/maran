@@ -43,7 +43,7 @@ public sealed class ListPlansQueryHandlerTests
     public async Task Returns_every_plan_the_store_holds_with_its_display_name_resolved()
     {
         await using var dbContext = CreateDbContext();
-        var plan = new Plan(Guid.NewGuid(), "PlanStarterName", 5_120, 5, 2, 3);
+        var plan = new Plan(Guid.NewGuid(), "PlanStarterName", 5_120, 5, 2, 3, 5);
         dbContext.Plans.Add(plan);
         await dbContext.SaveChangesAsync();
         var handler = new ListPlansQueryHandler(dbContext, new UppercasingDisplayNamesLocalizer());
@@ -64,9 +64,9 @@ public sealed class ListPlansQueryHandlerTests
     public async Task Returns_plans_ordered_by_disk_quota_ascending()
     {
         await using var dbContext = CreateDbContext();
-        var large = new Plan(Guid.NewGuid(), "large", 1_048_576, 500, 500, 100);
-        var small = new Plan(Guid.NewGuid(), "small", 5_120, 5, 2, 3);
-        var medium = new Plan(Guid.NewGuid(), "medium", 25_600, 25, 10, 10);
+        var large = new Plan(Guid.NewGuid(), "large", 1_048_576, 500, 500, 100, 100);
+        var small = new Plan(Guid.NewGuid(), "small", 5_120, 5, 2, 3, 5);
+        var medium = new Plan(Guid.NewGuid(), "medium", 25_600, 25, 10, 10, 20);
         // Inserted out of size order so the assertion cannot pass by insertion-order accident.
         dbContext.Plans.AddRange(large, small, medium);
         await dbContext.SaveChangesAsync();

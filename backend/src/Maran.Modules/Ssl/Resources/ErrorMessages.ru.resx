@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="CertificateNotFound">
+    <value>Сертификат не найден.</value>
+  </data>
+  <data name="CertificateAlreadyIssued">
+    <value>Для этого домена уже выпущен сертификат.</value>
+  </data>
+  <data name="CertificateDomainInvalidFormat">
+    <value>Это некорректное доменное имя.</value>
+  </data>
+  <data name="CertificateMaterialInvalid">
+    <value>Не удалось прочитать сертификат или ключ.</value>
+  </data>
+  <data name="SiteNotFound">
+    <value>Сайт не найден.</value>
+  </data>
+  <data name="AccountNotFound">
+    <value>Аккаунт не найден.</value>
+  </data>
+  <data name="AcmeAuthorityUnreachable">
+    <value>Не удалось связаться с центром сертификации. Попробуйте позже.</value>
+  </data>
+  <data name="AcmeAccountRejected">
+    <value>Центр сертификации отклонил регистрацию этого сервера.</value>
+  </data>
+  <data name="AcmeOrderRejected">
+    <value>Центр сертификации отклонил заказ сертификата для этого домена.</value>
+  </data>
+  <data name="AcmeChallengeUnavailable">
+    <value>Центр сертификации не предложил проверки, которую этот сервер может пройти.</value>
+  </data>
+  <data name="AcmeChallengeWriteFailed">
+    <value>Не удалось поместить проверочный файл в корневую папку сайта.</value>
+  </data>
+  <data name="AcmeValidationFailed">
+    <value>Центру сертификации не удалось проверить домен. Убедитесь, что он указывает на этот сервер.</value>
+  </data>
+  <data name="AcmeValidationTimedOut">
+    <value>Центр сертификации не завершил проверку домена вовремя.</value>
+  </data>
+  <data name="AcmeCertificateUnreadable">
+    <value>Не удалось прочитать сертификат, выпущенный центром сертификации.</value>
+  </data>
+  <data name="AcmeChallengeTokenInvalid">
+    <value>Центр сертификации прислал проверочный токен, который сервер не принимает.</value>
+  </data>
+</root>

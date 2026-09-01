@@ -31,7 +31,7 @@ public sealed class CreateAccountCommandValidatorTests : IDisposable
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
             .Options;
         _dbContext = new AccountsDbContext(options);
-        _dbContext.Plans.Add(new Plan(SeededPlanId, "PlanStarterName", 5_120, 5, 2, 3));
+        _dbContext.Plans.Add(new Plan(SeededPlanId, "PlanStarterName", 5_120, 5, 2, 3, 5));
         _dbContext.SaveChanges();
 
         _validator = new CreateAccountCommandValidator(_dbContext);

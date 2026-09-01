@@ -44,6 +44,8 @@ public sealed class Program
         builder.Services.AddPanelRateLimiting();
         builder.Services.AddPanelJsonSerialization();
         builder.Services.AddPanelModules(builder.Configuration);
+        builder.Services.AddPanelBackgroundWork();
+        builder.Services.AddPanelSeeding();
 
         var app = builder.Build();
 

@@ -151,7 +151,7 @@ public sealed class CreateAccountCommandHandlerTests
     /// <returns>The seeded plan's id.</returns>
     private static async Task<Guid> SeedPlanAsync(AccountsDbContext dbContext, int diskQuotaMb = 1_024)
     {
-        var plan = new Plan(Guid.NewGuid(), "PlanStarterName", diskQuotaMb, 5, 2, 3);
+        var plan = new Plan(Guid.NewGuid(), "PlanStarterName", diskQuotaMb, 5, 2, 3, 5);
         dbContext.Plans.Add(plan);
         await dbContext.SaveChangesAsync();
         return plan.Id;

@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
+using Maran.Host.IntegrationTests.Fixtures;
 using Maran.Modules.Accounts.Domain;
 using Maran.Modules.Accounts.Persistence;
 using Maran.Modules.Identity.Domain;
@@ -12,7 +13,6 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-using Testcontainers.PostgreSql;
 
 namespace Maran.Host.IntegrationTests;
 
@@ -30,6 +30,7 @@ namespace Maran.Host.IntegrationTests;
 /// tenant's identifier" means two distinct things, and both are asked: a customer reaching for any
 /// account at all, and an administrator reaching for an account that is not there.
 /// </remarks>
+[Collection(SharedDatabase.Name)]
 public sealed class AccountsAuthorizationTests : IAsyncLifetime
 {
     private const string Password = "correct horse battery staple";
@@ -53,18 +54,25 @@ public sealed class AccountsAuthorizationTests : IAsyncLifetime
         };
     }
 
-    private readonly PostgreSqlContainer _pg = new PostgreSqlBuilder("postgres:16-alpine").Build();
+    private readonly TestDatabase _pg;
+
+    /// <summary>Binds this test to the PostgreSQL server the assembly shares.</summary>
+    /// <param name="postgres">The shared server, injected by the collection fixture.</param>
+    public AccountsAuthorizationTests(PostgresFixture postgres)
+    {
+        _pg = new TestDatabase(postgres);
+    }
 
     /// <summary>Prepares the fixture before the tests run.</summary>
     public Task InitializeAsync()
     {
-        return _pg.StartAsync();
+        return _pg.CreateAsync();
     }
 
     /// <summary>Releases what the fixture allocated, asynchronously.</summary>
     public Task DisposeAsync()
     {
-        return _pg.DisposeAsync().AsTask();
+        return Task.CompletedTask;
     }
 
     /// <summary>An anonymous caller is refused by every account endpoint, and told nothing else.</summary>
@@ -153,7 +161,7 @@ public sealed class AccountsAuthorizationTests : IAsyncLifetime
         var now = scope.ServiceProvider.GetRequiredService<IClock>().UtcNow;
 
         var planId = Guid.NewGuid();
-        context.Plans.Add(new Plan(planId, "PlanStarterName", 5_120, 5, 2, 3));
+        context.Plans.Add(new Plan(planId, "PlanStarterName", 5_120, 5, 2, 3, 5));
 
         var own = new Account(Guid.NewGuid(), "own", "own.example.com", planId, now);
         var stranger = new Account(Guid.NewGuid(), "stranger", "stranger.example.com", planId, now);

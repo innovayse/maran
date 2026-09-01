@@ -8,7 +8,12 @@ namespace Maran.Modules.Accounts.Seeders;
 /// account against before an operator has defined any plan of their own. Three tiers — a starter, a
 /// business, and a top tier with a generous-but-finite ceiling rather than a literal "unlimited"
 /// (this pass keeps every limit a plain, comparable integer; an explicit unlimited flag is a
-/// speculative addition YAGNI rules out until a real need for one shows up):
+/// speculative addition YAGNI rules out until a real need for one shows up).
+///
+/// The worker figure on each tier is per POOL (see <see cref="Plan.MaxPhpWorkersPerPool"/>), not a
+/// per-account total: an account owns one pool per PHP version it uses, so the tier ceiling is the
+/// number below multiplied by the versions in use, not by the site count. At a conservative 50 MB
+/// per worker, 5/10/20 is 250&#160;MB, 500&#160;MB and 1&#160;GB of resident memory per pool.
 /// <list type="bullet">
 /// <item><b>Starter</b> — 5&#160;120&#160;MB (5&#160;GB) disk, 5 sites, 2 databases, 3 FTP users. A
 /// single small site or two, the smallest useful account.</item>
@@ -65,9 +70,15 @@ public sealed class PlanSeeder
     private static IReadOnlyList<Plan> StandardPlans()
     {
         return [
-        new Plan(StarterPlanId, "PlanStarterName", diskQuotaMb: 5_120, maxSites: 5, maxDatabases: 2, maxFtpUsers: 3),
-        new Plan(BusinessPlanId, "PlanBusinessName", diskQuotaMb: 25_600, maxSites: 25, maxDatabases: 10, maxFtpUsers: 10),
-        new Plan(UnlimitedPlanId, "PlanUnlimitedName", diskQuotaMb: 1_048_576, maxSites: 500, maxDatabases: 500, maxFtpUsers: 100),
-    ];
+            new Plan(
+                StarterPlanId, "PlanStarterName",
+                diskQuotaMb: 5_120, maxSites: 5, maxDatabases: 2, maxFtpUsers: 3, maxPhpWorkersPerPool: 5),
+            new Plan(
+                BusinessPlanId, "PlanBusinessName",
+                diskQuotaMb: 25_600, maxSites: 25, maxDatabases: 10, maxFtpUsers: 10, maxPhpWorkersPerPool: 10),
+            new Plan(
+                UnlimitedPlanId, "PlanUnlimitedName",
+                diskQuotaMb: 1_048_576, maxSites: 500, maxDatabases: 500, maxFtpUsers: 100, maxPhpWorkersPerPool: 20),
+        ];
     }
 }

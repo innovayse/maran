@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
+using Maran.Host.IntegrationTests.Fixtures;
 using Maran.Modules.Identity.Domain;
 using Maran.Modules.Identity.Domain.Enums;
 using Maran.Modules.Identity.Persistence;
@@ -10,7 +11,6 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-using Testcontainers.PostgreSql;
 
 namespace Maran.Host.IntegrationTests;
 
@@ -24,23 +24,31 @@ namespace Maran.Host.IntegrationTests;
 /// that is append-only by construction — nothing writes to it over HTTP — so the test that matters
 /// most is that a real action performed through the API turns up in it afterwards.
 /// </remarks>
+[Collection(SharedDatabase.Name)]
 public sealed class AuditEndpointTests : IAsyncLifetime
 {
     private const string Password = "correct horse battery staple";
     private const string Key = "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=";
 
-    private readonly PostgreSqlContainer _pg = new PostgreSqlBuilder("postgres:16-alpine").Build();
+    private readonly TestDatabase _pg;
+
+    /// <summary>Binds this test to the PostgreSQL server the assembly shares.</summary>
+    /// <param name="postgres">The shared server, injected by the collection fixture.</param>
+    public AuditEndpointTests(PostgresFixture postgres)
+    {
+        _pg = new TestDatabase(postgres);
+    }
 
     /// <summary>Prepares the fixture before the tests run.</summary>
     public Task InitializeAsync()
     {
-        return _pg.StartAsync();
+        return _pg.CreateAsync();
     }
 
     /// <summary>Releases what the fixture allocated, asynchronously.</summary>
     public Task DisposeAsync()
     {
-        return _pg.DisposeAsync().AsTask();
+        return Task.CompletedTask;
     }
 
     /// <summary>A sign-in through the API turns up in the journal an administrator reads.</summary>

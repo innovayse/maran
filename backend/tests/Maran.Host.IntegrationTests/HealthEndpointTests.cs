@@ -1,7 +1,7 @@
 using System.Net;
+using Maran.Host.IntegrationTests.Fixtures;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
-using Testcontainers.PostgreSql;
 
 namespace Maran.Host.IntegrationTests;
 
@@ -10,20 +10,28 @@ namespace Maran.Host.IntegrationTests;
 /// <c>Maran.Host.Tests</c> project covers the unreachable/not-configured cases without the
 /// cost of a container.
 /// </summary>
+[Collection(SharedDatabase.Name)]
 public sealed class HealthEndpointTests : IAsyncLifetime
 {
-    private readonly PostgreSqlContainer _pg = new PostgreSqlBuilder("postgres:16-alpine").Build();
+    private readonly TestDatabase _pg;
+
+    /// <summary>Binds this test to the PostgreSQL server the assembly shares.</summary>
+    /// <param name="postgres">The shared server, injected by the collection fixture.</param>
+    public HealthEndpointTests(PostgresFixture postgres)
+    {
+        _pg = new TestDatabase(postgres);
+    }
 
     /// <inheritdoc />
     public Task InitializeAsync()
     {
-        return _pg.StartAsync();
+        return _pg.CreateAsync();
     }
 
     /// <inheritdoc />
     public Task DisposeAsync()
     {
-        return _pg.DisposeAsync().AsTask();
+        return Task.CompletedTask;
     }
 
     /// <summary>Readiness endpoint returns 200 when the database is reachable.</summary>

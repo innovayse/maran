@@ -3,6 +3,10 @@ using Grpc.Net.Client;
 using Maran.Agent.Client.Channels;
 using Maran.Agent.Client.Interfaces;
 using Maran.Agent.Client.Services.AccountsService;
+using Maran.Agent.Client.Services.FilesService;
+using Maran.Agent.Client.Services.PhpService;
+using Maran.Agent.Client.Services.SitesService;
+using Maran.Agent.Client.Services.SslService;
 using Maran.Agent.Client.Services.SystemService;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -43,6 +47,34 @@ public static class DependencyInjection
                 return new AgentAccountsClient(
                     provider.GetRequiredService<GrpcChannel>(),
                     provider.GetRequiredService<ILogger<AgentAccountsClient>>());
+            });
+        services.AddSingleton<IAgentSitesClient>(
+            provider =>
+            {
+                return new AgentSitesClient(
+                    provider.GetRequiredService<GrpcChannel>(),
+                    provider.GetRequiredService<ILogger<AgentSitesClient>>());
+            });
+        services.AddSingleton<IAgentSslClient>(
+            provider =>
+            {
+                return new AgentSslClient(
+                    provider.GetRequiredService<GrpcChannel>(),
+                    provider.GetRequiredService<ILogger<AgentSslClient>>());
+            });
+        services.AddSingleton<IAgentPhpClient>(
+            provider =>
+            {
+                return new AgentPhpClient(
+                    provider.GetRequiredService<GrpcChannel>(),
+                    provider.GetRequiredService<ILogger<AgentPhpClient>>());
+            });
+        services.AddSingleton<IAgentFilesClient>(
+            provider =>
+            {
+                return new AgentFilesClient(
+                    provider.GetRequiredService<GrpcChannel>(),
+                    provider.GetRequiredService<ILogger<AgentFilesClient>>());
             });
         services.AddSingleton<IAgentSystemClient>(
             provider =>

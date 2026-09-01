@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="CertificateNotFound">
+    <value>This certificate could not be found.</value>
+  </data>
+  <data name="CertificateAlreadyIssued">
+    <value>This domain already has a certificate.</value>
+  </data>
+  <data name="CertificateDomainInvalidFormat">
+    <value>This is not a valid domain name.</value>
+  </data>
+  <data name="CertificateMaterialInvalid">
+    <value>This certificate or key could not be read.</value>
+  </data>
+  <data name="SiteNotFound">
+    <value>This site could not be found.</value>
+  </data>
+  <data name="AccountNotFound">
+    <value>This account could not be found.</value>
+  </data>
+  <data name="AcmeAuthorityUnreachable">
+    <value>The certificate authority could not be reached. Please try again later.</value>
+  </data>
+  <data name="AcmeAccountRejected">
+    <value>The certificate authority refused this server's registration.</value>
+  </data>
+  <data name="AcmeOrderRejected">
+    <value>The certificate authority refused the order for this domain.</value>
+  </data>
+  <data name="AcmeChallengeUnavailable">
+    <value>The certificate authority offered no challenge this server can answer.</value>
+  </data>
+  <data name="AcmeChallengeWriteFailed">
+    <value>The verification file could not be placed in this site's document root.</value>
+  </data>
+  <data name="AcmeValidationFailed">
+    <value>The certificate authority could not verify this domain. Check that it points to this server.</value>
+  </data>
+  <data name="AcmeValidationTimedOut">
+    <value>The certificate authority did not finish verifying this domain in time.</value>
+  </data>
+  <data name="AcmeCertificateUnreadable">
+    <value>The certificate the authority issued could not be read.</value>
+  </data>
+  <data name="AcmeChallengeTokenInvalid">
+    <value>The certificate authority sent a verification token this server will not accept.</value>
+  </data>
+</root>

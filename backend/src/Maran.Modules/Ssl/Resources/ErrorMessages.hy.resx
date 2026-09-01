@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="CertificateNotFound">
+    <value>Վկայագիրը չի գտնվել։</value>
+  </data>
+  <data name="CertificateAlreadyIssued">
+    <value>Այս տիրույթի համար վկայագիր արդեն թողարկված է։</value>
+  </data>
+  <data name="CertificateDomainInvalidFormat">
+    <value>Սա վավեր տիրույթի անուն չէ։</value>
+  </data>
+  <data name="CertificateMaterialInvalid">
+    <value>Չհաջողվեց կարդալ վկայագիրը կամ բանալին։</value>
+  </data>
+  <data name="SiteNotFound">
+    <value>Կայքը չի գտնվել։</value>
+  </data>
+  <data name="AccountNotFound">
+    <value>Հաշիվը չի գտնվել։</value>
+  </data>
+  <data name="AcmeAuthorityUnreachable">
+    <value>Չհաջողվեց կապվել վկայագրման կենտրոնի հետ։ Փորձեք ավելի ուշ։</value>
+  </data>
+  <data name="AcmeAccountRejected">
+    <value>Վկայագրման կենտրոնը մերժեց այս սերվերի գրանցումը։</value>
+  </data>
+  <data name="AcmeOrderRejected">
+    <value>Վկայագրման կենտրոնը մերժեց այս տիրույթի պատվերը։</value>
+  </data>
+  <data name="AcmeChallengeUnavailable">
+    <value>Վկայագրման կենտրոնը չառաջարկեց ստուգում, որին այս սերվերը կարող է պատասխանել։</value>
+  </data>
+  <data name="AcmeChallengeWriteFailed">
+    <value>Ստուգման ֆայլը չհաջողվեց տեղադրել կայքի արմատային պանակում։</value>
+  </data>
+  <data name="AcmeValidationFailed">
+    <value>Վկայագրման կենտրոնը չկարողացավ ստուգել տիրույթը։ Ստուգեք, որ այն ուղղված է այս սերվերին։</value>
+  </data>
+  <data name="AcmeValidationTimedOut">
+    <value>Վկայագրման կենտրոնը ժամանակին չավարտեց տիրույթի ստուգումը։</value>
+  </data>
+  <data name="AcmeCertificateUnreadable">
+    <value>Չհաջողվեց կարդալ կենտրոնի թողարկած վկայագիրը։</value>
+  </data>
+  <data name="AcmeChallengeTokenInvalid">
+    <value>Վկայագրման կենտրոնը ուղարկեց ստուգման նշույթ, որը սերվերը չի ընդունում։</value>
+  </data>
+</root>

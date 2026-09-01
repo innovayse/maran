@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="SiteNotFound">
+    <value>This site could not be found.</value>
+  </data>
+  <data name="SiteDomainTaken">
+    <value>This domain is already used by another site.</value>
+  </data>
+  <data name="SiteLimitReached">
+    <value>Your plan does not allow any more sites.</value>
+  </data>
+  <data name="PhpVersionNotInstalled">
+    <value>This PHP version is not installed on the server.</value>
+  </data>
+  <data name="AccountNotFound">
+    <value>This account could not be found.</value>
+  </data>
+  <data name="SiteBackendNotPhp">
+    <value>This site does not run PHP, so it has no PHP version to change.</value>
+  </data>
+  <data name="SiteDomainInvalidFormat">
+    <value>This is not a valid domain name.</value>
+  </data>
+  <data name="SiteAliasInvalidFormat">
+    <value>One of the additional hostnames is not a valid domain name.</value>
+  </data>
+  <data name="PhpVersionInvalidFormat">
+    <value>This is not a valid PHP version.</value>
+  </data>
+  <data name="SiteProxyUpstreamInvalidFormat">
+    <value>This is not a valid upstream address.</value>
+  </data>
+  <data name="SiteLogSourceInvalid">
+    <value>This is not a log this site keeps.</value>
+  </data>
+  <data name="SiteLogHistoryLinesInvalid">
+    <value>That is more history than a log request may replay.</value>
+  </data>
+  <data name="SiteLogTailFailed">
+    <value>This log could not be read.</value>
+  </data>
+</root>

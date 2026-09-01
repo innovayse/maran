@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
+using Maran.Host.IntegrationTests.Fixtures;
 using Maran.Modules.Accounts.Domain;
 using Maran.Modules.Accounts.Persistence;
 using Maran.Modules.Identity.Persistence;
@@ -11,7 +12,6 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.DependencyInjection;
-using Testcontainers.PostgreSql;
 
 namespace Maran.Host.IntegrationTests;
 
@@ -38,6 +38,7 @@ namespace Maran.Host.IntegrationTests;
 /// They are kept because each one still fails if its defect returns: a route drift shows up as 404
 /// where 401 is expected, and a missing <c>ICurrentUser</c> as 500 where 200 is.
 /// </remarks>
+[Collection(SharedDatabase.Name)]
 public sealed class AccountsEndpointTests : IAsyncLifetime
 {
     private const string EncryptionKey = "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=";
@@ -45,18 +46,25 @@ public sealed class AccountsEndpointTests : IAsyncLifetime
     private const string AdminPassword = "correct horse battery staple";
 
     /// <summary>The disposable PostgreSQL instance shared by every test in this class.</summary>
-    private readonly PostgreSqlContainer _pg = new PostgreSqlBuilder("postgres:16-alpine").Build();
+    private readonly TestDatabase _pg;
+
+    /// <summary>Binds this test to the PostgreSQL server the assembly shares.</summary>
+    /// <param name="postgres">The shared server, injected by the collection fixture.</param>
+    public AccountsEndpointTests(PostgresFixture postgres)
+    {
+        _pg = new TestDatabase(postgres);
+    }
 
     /// <inheritdoc />
     public Task InitializeAsync()
     {
-        return _pg.StartAsync();
+        return _pg.CreateAsync();
     }
 
     /// <inheritdoc />
     public Task DisposeAsync()
     {
-        return _pg.DisposeAsync().AsTask();
+        return Task.CompletedTask;
     }
 
     /// <summary>Accounts schema is created and an account round trips through postgres.</summary>
@@ -79,7 +87,7 @@ public sealed class AccountsEndpointTests : IAsyncLifetime
 
             // Account.PlanId carries a real foreign key to Plans (rules/csharp.md "Database
             // naming" — FK_Accounts_Plans_PlanId), so a plan row must exist first.
-            setupContext.Plans.Add(new Plan(planId, "PlanStarterName", 5_120, 5, 2, 3));
+            setupContext.Plans.Add(new Plan(planId, "PlanStarterName", 5_120, 5, 2, 3, 5));
             await setupContext.SaveChangesAsync();
         }
 

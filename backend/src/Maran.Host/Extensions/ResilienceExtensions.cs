@@ -1,6 +1,7 @@
 using Maran.Agent.Client.Interfaces;
 using Maran.Host.Configuration;
 using Maran.Host.Resilience;
+using Maran.Modules.Ssl.Common.Options;
 using Microsoft.Extensions.Options;
 using Polly;
 using Polly.Registry;
@@ -30,34 +31,72 @@ public static class ResilienceExtensions
             AgentOperationPipeline.Configure(builder, agentOptions);
         });
 
-        DecorateAgentAccountsClient(services);
+        // The outbound pipeline for certificate authorities, attached to the named ACME HttpClient
+        // rather than resolved by hand. A named client that carries its own pipeline cannot be
+        // obtained ungoverned: the module asks the factory for "acme" and gets the policy with it.
+        services.AddHttpClient(AcmeOptions.HttpClientName)
+            .AddResilienceHandler(AcmePipeline.Name, (builder, context) =>
+            {
+                var acmeOptions = context.ServiceProvider.GetRequiredService<IOptions<AcmeOptions>>().Value;
+                AcmePipeline.Configure(builder, acmeOptions.RequestTimeout);
+            });
+
+        // Every agent client is decorated here, and each one is listed once. A client registered
+        // without its decorator has no timeout at all — the defect this repository already found
+        // when the pipeline was registered and resolved by nobody — so the five calls sit together
+        // where a sixth client's missing line is visible.
+        Decorate<IAgentAccountsClient>(services, (inner, pipelines) =>
+        {
+            return new ResilientAgentAccountsClient(inner, pipelines);
+        });
+        Decorate<IAgentSitesClient>(services, (inner, pipelines) =>
+        {
+            return new ResilientAgentSitesClient(inner, pipelines);
+        });
+        Decorate<IAgentSslClient>(services, (inner, pipelines) =>
+        {
+            return new ResilientAgentSslClient(inner, pipelines);
+        });
+        Decorate<IAgentPhpClient>(services, (inner, pipelines) =>
+        {
+            return new ResilientAgentPhpClient(inner, pipelines);
+        });
+        Decorate<IAgentFilesClient>(services, (inner, pipelines) =>
+        {
+            return new ResilientAgentFilesClient(inner, pipelines);
+        });
 
         return services;
     }
 
     /// <summary>
-    /// Replaces the registered <see cref="IAgentAccountsClient"/> with one wrapped in
+    /// Replaces the registered <typeparamref name="TClient"/> with one wrapped in
     /// <see cref="AgentOperationPipeline"/>. Must run after <c>AddAgentClient</c>, which is where
     /// the inner registration comes from; <c>Program</c> calls them in that order.
     /// </summary>
+    /// <typeparam name="TClient">The agent client contract being decorated.</typeparam>
     /// <param name="services">The application service collection.</param>
+    /// <param name="wrap">Builds the decorator around the inner client and the pipeline registry.</param>
     /// <remarks>
-    /// Written by hand rather than with a decoration package: one decorator does not earn a
-    /// dependency. The inner descriptor's own factory is kept and invoked, so the transport is
-    /// still constructed by the project that owns the channel.
+    /// Written by hand rather than with a decoration package: five decorators of one shape do not
+    /// earn a dependency. The inner descriptor's own factory is kept and invoked, so the transport
+    /// is still constructed by the project that owns the channel.
     /// </remarks>
-    private static void DecorateAgentAccountsClient(IServiceCollection services)
+    private static void Decorate<TClient>(
+        IServiceCollection services,
+        Func<TClient, ResiliencePipelineProvider<string>, TClient> wrap)
+        where TClient : class
     {
         var inner = services.Single(descriptor =>
         {
-            return descriptor.ServiceType == typeof(IAgentAccountsClient);
+            return descriptor.ServiceType == typeof(TClient);
         });
 
         services.Remove(inner);
-        services.AddSingleton<IAgentAccountsClient>(provider =>
+        services.AddSingleton(provider =>
         {
-            return new ResilientAgentAccountsClient(
-                (IAgentAccountsClient)inner.ImplementationFactory!(provider),
+            return wrap(
+                (TClient)inner.ImplementationFactory!(provider),
                 provider.GetRequiredService<ResiliencePipelineProvider<string>>());
         });
     }

@@ -31,6 +31,9 @@ public sealed class PlanConfiguration : IEntityTypeConfiguration<Plan>
         builder.Property(p => p.MaxFtpUsers)
             .IsRequired();
 
+        builder.Property(p => p.MaxPhpWorkersPerPool)
+            .IsRequired();
+
         // A plan's display-name key is its human-visible identity; two plans sharing one would be
         // indistinguishable to a customer choosing between them.
         builder.HasIndex(p => p.DisplayNameKey).IsUnique().HasDatabaseName("IX_Plans_DisplayNameKey");

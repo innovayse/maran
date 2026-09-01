@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="SiteNotFound">
+    <value>Сайт не найден.</value>
+  </data>
+  <data name="SiteDomainTaken">
+    <value>Этот домен уже используется другим сайтом.</value>
+  </data>
+  <data name="SiteLimitReached">
+    <value>Ваш тариф не позволяет создать больше сайтов.</value>
+  </data>
+  <data name="PhpVersionNotInstalled">
+    <value>Эта версия PHP не установлена на сервере.</value>
+  </data>
+  <data name="AccountNotFound">
+    <value>Аккаунт не найден.</value>
+  </data>
+  <data name="SiteBackendNotPhp">
+    <value>Этот сайт не использует PHP, поэтому у него нет версии PHP для изменения.</value>
+  </data>
+  <data name="SiteDomainInvalidFormat">
+    <value>Это не корректное доменное имя.</value>
+  </data>
+  <data name="SiteAliasInvalidFormat">
+    <value>Одно из дополнительных имён не является корректным доменным именем.</value>
+  </data>
+  <data name="PhpVersionInvalidFormat">
+    <value>Это не корректная версия PHP.</value>
+  </data>
+  <data name="SiteProxyUpstreamInvalidFormat">
+    <value>Это не корректный адрес upstream.</value>
+  </data>
+  <data name="SiteLogSourceInvalid">
+    <value>Такого журнала у этого сайта нет.</value>
+  </data>
+  <data name="SiteLogHistoryLinesInvalid">
+    <value>Запрошено больше строк истории, чем допустимо.</value>
+  </data>
+  <data name="SiteLogTailFailed">
+    <value>Не удалось прочитать журнал.</value>
+  </data>
+</root>
