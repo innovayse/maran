@@ -17,6 +17,7 @@
  */
 import { nextTick, onBeforeUnmount, ref, watch, useId, type Ref } from 'vue'
 import { focusableElements as focusableIn } from '../../utils/focusableElements'
+import UiIcon from './UiIcon.vue'
 
 /** Props accepted by {@link UiModal}. */
 const props = withDefaults(
@@ -174,9 +175,7 @@ onBeforeUnmount((): void => {
             @click="requestClose"
           >
             <!-- Decorative glyph: the button's accessible name comes from the caller-translated label. -->
-            <svg class="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
-              <path d="M6 6l12 12M18 6L6 18" stroke-width="2" stroke-linecap="round" />
-            </svg>
+            <UiIcon name="x" :size="14" :stroke-width="2" />
             <span class="sr-only">{{ closeLabel }}</span>
           </button>
         </div>

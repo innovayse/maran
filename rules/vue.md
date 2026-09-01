@@ -213,6 +213,31 @@ async function remove(): Promise<void> { ... }
 - A missing primitive is not a licence to inline markup: add the primitive to `components/ui/`, then use it.
 - **No raw HTML strings, ever**: `v-html`, `innerHTML`, and building markup from strings are forbidden — they are an XSS hole in a panel that renders customer-supplied names, domains and log lines.
 
+## Icons come from `lucide-vue-next`, and nothing hand-draws one
+
+- **The panel has exactly ONE icon source: the `lucide-vue-next` package**, reached through `UiIcon`
+  in `src/components/ui/`. A hand-written `<svg>` in a component is forbidden — including a
+  "just this once" three-line path for a chevron or a close cross.
+- This replaced the previous arrangement, in which `UiIcon` held ten glyphs copied from the design
+  canvas as inline `<path>` data and nine more were written inline in the components that needed
+  them. Those nineteen are gone: each was remapped to its lucide equivalent. Two glyphs had no exact
+  counterpart and were mapped by judgement — `pulse` to lucide's `Activity`, `sparkle` to its
+  `Sparkle`. The reason for the change is that a hand-drawn set has no next icon: every new one was
+  a small drawing exercise decided by whoever needed it, at whatever stroke weight they typed, and
+  the set drifted the moment two people added to it. A named import from a maintained set has none
+  of those failure modes and costs about 1 kB gzipped for the icons actually used, because the
+  package tree-shakes per icon.
+- **`UiIcon` stays the only place lucide is imported.** Screens pass a `name` string; the size, the
+  stroke weight and the decorative-by-default treatment are decided in that one file, so changing
+  the icon set again is one file's work rather than the whole SPA's. Adding a glyph means adding a
+  name to `UiIconName` and its lucide component to the map — never an import of a lucide component
+  into a screen.
+- What is unchanged: UI still comes from `components/ui/` and nothing outside it writes raw
+  interactive markup; `v-html` and string-built markup are still forbidden; and an icon is still
+  decorative by default (`aria-hidden`), so **a control whose only content is an icon must carry its
+  own translated `aria-label`** — an icon-only button with no accessible name is a regression, not a
+  simplification.
+
 ## Composables and the API layer
 
 - **All HTTP lives in composables, split in two layers:**

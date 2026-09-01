@@ -13,6 +13,7 @@
  * 12.5px face, and the label pushed apart from whatever trails it (a shortcut,
  * a count) by 12px. A destructive command is the only one that changes colour.
  */
+import UiIcon from './UiIcon.vue'
 
 /** Props accepted by {@link UiDropdownItem}. */
 const props = withDefaults(
@@ -60,7 +61,7 @@ const onClick = (): void => {
     <button
       type="button"
       :role="checked === undefined ? 'menuitem' : 'menuitemradio'"
-      :aria-checked="checked === undefined ? undefined : String(checked)"
+      :aria-checked="checked"
       tabindex="-1"
       :disabled="disabled"
       class="flex w-full items-center justify-between gap-3 rounded-md px-2 py-1.5 text-left text-base transition-colors enabled:hover:bg-surface-3 focus-visible:bg-surface-3 focus-visible:shadow-focus focus-visible:outline-none disabled:cursor-not-allowed disabled:text-text-muted disabled:opacity-65"
@@ -70,19 +71,7 @@ const onClick = (): void => {
       <slot />
       <!-- The tick repeats what `aria-checked` already says, for everyone who
            reads the screen rather than hears it. -->
-      <svg
-        v-if="checked === true"
-        class="size-3 shrink-0 text-accent"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="2.4"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-        aria-hidden="true"
-      >
-        <path d="M5 13l4 4 10-10" />
-      </svg>
+      <UiIcon v-if="checked === true" name="check" :size="12" :stroke-width="2.4" class="text-accent" />
     </button>
   </li>
 </template>

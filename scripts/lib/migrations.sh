@@ -12,10 +12,20 @@
 #   scripts/maran migrate apply Accounts                       apply pending migrations locally
 #   scripts/maran migrate list Accounts                        show migrations and which are applied
 #   scripts/maran migrate check                                every module's model matches its migrations
+#   scripts/maran migrate status                               every migration on disk is applied to this database
 #
 # `check` is the one that runs in CI. An entity edited without a migration is not an error anywhere
 # until a real database is involved, and then it surfaces as a confusing query failure rather than
 # as the thing that actually happened: somebody changed the model and did not say so in a file.
+#
+# `check` compares the MODEL to the migration FILES and never opens a database, so it cannot know
+# whether those migrations were ever applied. That gap had a cost: a developer database four
+# migrations behind — missing the whole Sites and Ssl schemas — sat behind a green MIGRATIONS-OK,
+# and surfaced as HTTP 500 on the sign-in screen, `column u.FailedLoginAttempts does not exist`,
+# three layers from the cause. `status` is the half `check` structurally cannot do. It is separate
+# because it needs a reachable database and `check` must keep running in CI where there is none;
+# a check that silently passes when it could not run is the failure this file already warns about
+# twice.
 set -euo pipefail
 
 root="$(cd "$(dirname "$0")/../.." && pwd)"
@@ -39,7 +49,7 @@ ef() {
 }
 
 usage() {
-  echo "usage: maran migrate {add <Module> <Name>|apply <Module>|list <Module>|check}" >&2
+  echo "usage: maran migrate {add <Module> <Name>|apply <Module>|list <Module>|check|status}" >&2
   exit 1
 }
 
@@ -80,6 +90,58 @@ if [ "$command_name" = "check" ]; then
 
   [ "$pending" -gt 0 ] && exit 1
   echo "MIGRATIONS-OK"
+  exit 0
+fi
+
+# `status` answers the question `check` cannot: is every migration ON DISK actually APPLIED to the
+# database this developer is pointed at.
+#
+# It demands POSITIVE EVIDENCE that a database was reached, and the first version of this command
+# did not — which is why the rule is written here rather than assumed. `dotnet ef migrations list`
+# tries to connect, and when it cannot it logs the failure and then prints the migration list from
+# the files anyway, with no "(Pending)" marker and no error on stdout. So the obvious reading —
+# "no (Pending) means everything is applied" — reports success from a run that never asked
+# anything. Verified: with the database container stopped, the first version printed every module
+# as "applied" and exited 0.
+#
+# `-v` is therefore not optional. Only the verbose log distinguishes "connected, nothing pending"
+# from "could not connect, here are the filenames", and this command exists precisely because the
+# second must never read as the first.
+if [ "$command_name" = "status" ]; then
+  behind=0
+  for project_file in "$root"/backend/src/Maran.Modules/*/Maran.Modules.*.csproj; do
+    name="$(basename "$(dirname "$project_file")")"
+    printf '%-12s ' "$name"
+
+    output="$(ef migrations list --project "$project_file" --context "${name}DbContext" -v 2>&1 || true)"
+
+    if printf '%s' "$output" | grep -qE "An error occurred using the connection|Failed to connect|password authentication failed|database \"[^\"]*\" does not exist"; then
+      echo "UNKNOWN — the database could not be reached, so nothing was checked:"
+      printf '%s' "$output" | grep -E "Failed to connect|password authentication failed|does not exist" | head -2 | sed 's/^/    /'
+      behind=$((behind + 1))
+      continue
+    fi
+
+    if ! printf '%s' "$output" | grep -q "Opening connection to database"; then
+      echo "UNKNOWN — no evidence this run opened a connection at all:"
+      printf '%s' "$output" | tail -2 | sed 's/^/    /'
+      behind=$((behind + 1))
+      continue
+    fi
+
+    if printf '%s' "$output" | grep -q "(Pending)"; then
+      echo "BEHIND — migrations exist that this database has never had:"
+      printf '%s' "$output" | grep "(Pending)" | sed 's/^/    /'
+      echo "    run: maran migrate apply $name"
+      behind=$((behind + 1))
+      continue
+    fi
+
+    echo "applied"
+  done
+
+  [ "$behind" -gt 0 ] && exit 1
+  echo "MIGRATIONS-APPLIED"
   exit 0
 fi
 

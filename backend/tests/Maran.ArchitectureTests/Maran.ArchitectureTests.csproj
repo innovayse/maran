@@ -28,6 +28,8 @@
     <ProjectReference Include="..\..\src\Maran.Agent.Client\Maran.Agent.Client.csproj" />
     <ProjectReference Include="..\..\src\Maran.Modules\Accounts\Maran.Modules.Accounts.csproj" />
     <ProjectReference Include="..\..\src\Maran.Modules\Identity\Maran.Modules.Identity.csproj" />
+    <ProjectReference Include="..\..\src\Maran.Modules\Sites\Maran.Modules.Sites.csproj" />
+    <ProjectReference Include="..\..\src\Maran.Modules\Ssl\Maran.Modules.Ssl.csproj" />
   </ItemGroup>
 
 </Project>

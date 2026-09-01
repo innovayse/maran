@@ -9,6 +9,7 @@
  * `UiRadioGroup`.
  */
 import { computed, useId, type ComputedRef } from 'vue'
+import UiIcon from './UiIcon.vue'
 
 /** Props accepted by {@link UiCheckbox}. */
 const props = withDefaults(
@@ -81,9 +82,7 @@ const onChange = (event: Event): void => {
         ]"
         aria-hidden="true"
       >
-        <svg v-if="modelValue" class="size-2.5" viewBox="0 0 20 20" fill="none" stroke="currentColor">
-          <path d="M5 10l4 4 6-8" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" />
-        </svg>
+        <UiIcon v-if="modelValue" name="check" :size="10" :stroke-width="2.8" />
       </span>
       <label
         :for="fieldId"

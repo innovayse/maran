@@ -34,6 +34,15 @@ public sealed class HttpContextCurrentUser : ICurrentUser
     }
 
     /// <inheritdoc />
+    public string Username
+    {
+        get
+        {
+            return Claim(PanelClaimTypes.Username) ?? string.Empty;
+        }
+    }
+
+    /// <inheritdoc />
     public Guid? AccountId
     {
         get

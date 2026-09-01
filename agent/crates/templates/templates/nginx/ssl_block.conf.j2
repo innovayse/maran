@@ -1,0 +1,12 @@
+server {
+    listen 443 ssl;
+    listen [::]:443 ssl;
+    server_name {{ domain }}{% for alias in aliases %} {{ alias }}{% endfor %};
+
+    ssl_certificate {{ certificate_path }};
+    ssl_certificate_key {{ certificate_key_path }};
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_prefer_server_ciphers off;
+
+{{ server_body }}
+}

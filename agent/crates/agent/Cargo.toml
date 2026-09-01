@@ -29,6 +29,10 @@ tracing-subscriber.workspace = true
 # tonic's Endpoint dial a socket path, and tempfile owns the directory the
 # socket lives in so the test leaves nothing behind.
 hyper-util.workspace = true
+# The polygon suites read the credentials of a child that has dropped privileges
+# and give a file away to a second account; both are syscalls, and this is how a
+# test performs one without writing `unsafe`.
+rustix.workspace = true
 tempfile.workspace = true
 # The bind poll needs a timer, which the production feature set does not ask for.
 tokio = { workspace = true, features = ["time"] }

@@ -2,6 +2,10 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.Resilience" />
+    <!-- The HTTP arm of the same library: it is what attaches a named resilience pipeline to a
+         named HttpClient, which is how the ACME client is governed without the Ssl module having to
+         know about Polly at all. -->
+    <PackageReference Include="Microsoft.Extensions.Http.Resilience" />
     <!-- Serilog: structured logs to stdout, which systemd captures into the journal. -->
     <PackageReference Include="Serilog.AspNetCore" />
     <!-- Npgsql: the readiness probe opens a real connection to prove the database answers. -->
@@ -25,6 +29,8 @@
     <ProjectReference Include="..\Maran.Agent.Client\Maran.Agent.Client.csproj" />
     <ProjectReference Include="..\Maran.Modules\Accounts\Maran.Modules.Accounts.csproj" />
     <ProjectReference Include="..\Maran.Modules\Identity\Maran.Modules.Identity.csproj" />
+    <ProjectReference Include="..\Maran.Modules\Sites\Maran.Modules.Sites.csproj" />
+    <ProjectReference Include="..\Maran.Modules\Ssl\Maran.Modules.Ssl.csproj" />
   </ItemGroup>
 
   <ItemGroup>

@@ -24,7 +24,10 @@ namespace Maran.Host.Resilience;
 /// </remarks>
 public sealed class ResilientAgentAccountsClient : IAgentAccountsClient
 {
+    /// <summary>The client that actually talks to the agent; this type only adds the policy.</summary>
     private readonly IAgentAccountsClient _inner;
+
+    /// <summary>The named operation pipeline every call below is executed through.</summary>
     private readonly ResiliencePipeline _pipeline;
 
     /// <summary>Wraps the real client with the named operation pipeline.</summary>

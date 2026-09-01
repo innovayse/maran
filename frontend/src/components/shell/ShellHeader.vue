@@ -112,18 +112,7 @@ const crumbs: ComputedRef<string[]> = computed(() => {
       :aria-expanded="navigationOpen"
       @click="emit('openNavigation')"
     >
-      <svg
-        width="15"
-        height="15"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="1.8"
-        stroke-linecap="round"
-        aria-hidden="true"
-      >
-        <path d="M4 7h16M4 12h16M4 17h16" />
-      </svg>
+      <UiIcon name="menu" :size="15" :stroke-width="1.8" />
     </UiButton>
 
     <nav class="min-w-0" :aria-label="t('app.shell.breadcrumbLabel')">

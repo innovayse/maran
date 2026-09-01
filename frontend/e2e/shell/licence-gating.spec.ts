@@ -107,3 +107,66 @@ test('navigating from the sidebar into an enabled module reaches its page rather
   await expect(page).toHaveURL('/accounts')
   await expect(page.getByRole('heading', { level: 1, name: 'Accounts' })).toBeVisible()
 })
+
+test('a licensed module whose screen exists is not sent to the upgrade wall', async ({ page }) => {
+  // `GET /api/v1/modules` reports identity and ssl as included and enabled, and the sidebar linked
+  // both to `/upgrade/<name>` — an operator being told to buy something the licence already
+  // includes. The cause was the sidebar guessing that a module named `x` has a route named `x`;
+  // where a module's screen lives is now stated in the SPA's own router map.
+  await stubSignedIn(page)
+  await stubHealthy(page)
+  await stubModules(page, [
+    { name: 'identity', displayName: 'Users and access', tier: 'included', isEnabled: true },
+    { name: 'accounts', displayName: 'Accounts', tier: 'included', isEnabled: true },
+  ])
+
+  await page.goto('/')
+
+  const identity = page.getByRole('link', { name: 'Users and access' })
+  await expect(identity).toBeVisible()
+  await expect(identity).not.toHaveAttribute('href', /\/upgrade\//)
+  await expect(identity).not.toHaveAttribute('aria-disabled', 'true')
+
+  // Reachability, not presence: the link is followed and the screen it names is the one that
+  // arrives. An href that merely is not `/upgrade/...` could still be a route nothing serves.
+  await identity.click()
+  await expect(page).toHaveURL('/settings/sessions')
+})
+
+test('a licensed module whose interface lives inside another screen gets no sidebar entry', async ({
+  page,
+}) => {
+  // SSL is that module: a certificate belongs to a site, so its interface is a tab on the site it
+  // protects. There is nowhere for a sidebar entry to lead, and the entry it used to have led to
+  // an upgrade wall for a feature that exists, works, and was serving the operator's traffic.
+  await stubSignedIn(page)
+  await stubHealthy(page)
+  await stubModules(page, [
+    { name: 'sites', displayName: 'Sites', tier: 'included', isEnabled: true },
+    { name: 'ssl', displayName: 'SSL certificates', tier: 'included', isEnabled: true },
+  ])
+
+  await page.goto('/')
+
+  await expect(page.getByRole('link', { name: 'Sites' })).toBeVisible()
+  await expect(page.getByRole('link', { name: 'SSL certificates' })).toHaveCount(0)
+})
+
+test('a module the licence does not permit still shows and still leads to the upgrade page', async ({
+  page,
+}) => {
+  // The upgrade page keeps the two jobs it is honest for. A module whose interface lives inside
+  // another screen is hidden only when it is ENABLED: locked, its existence is still worth
+  // showing, which is what the licence-gating rule asks for.
+  await stubSignedIn(page)
+  await stubHealthy(page)
+  await stubModules(page, [
+    { name: 'ssl', displayName: 'SSL certificates', tier: 'business', isEnabled: false },
+  ])
+
+  await page.goto('/')
+
+  const locked = page.getByRole('link', { name: /SSL certificates/ })
+  await expect(locked).toBeVisible()
+  await expect(locked).toHaveAttribute('href', '/upgrade/ssl')
+})

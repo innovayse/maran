@@ -39,4 +39,41 @@ public static class AuditActions
 
     /// <summary>The panel's first administrator was created from the installer's one-time token.</summary>
     public const string AdministratorCreated = "AdministratorCreated";
+
+    /// <summary>A site was created: its document root, vhost and pool now exist on the host.</summary>
+    public const string SiteCreated = "SiteCreated";
+
+    /// <summary>A site was rebound to a different installed PHP version.</summary>
+    public const string SitePhpVersionChanged = "SitePhpVersionChanged";
+
+    /// <summary>A site was returned to normal serving.</summary>
+    public const string SiteEnabled = "SiteEnabled";
+
+    /// <summary>A site was made to serve a suspension response instead of its content.</summary>
+    public const string SiteDisabled = "SiteDisabled";
+
+    /// <summary>A site was removed: its vhost is gone, its files are left alone.</summary>
+    public const string SiteDeleted = "SiteDeleted";
+
+    /// <summary>
+    /// A site's log was opened for tailing. Recorded on the refusals too: a request for a log the
+    /// caller may not read is a probe, and the journal is where a pattern of them becomes visible.
+    /// </summary>
+    public const string SiteLogTailed = "SiteLogTailed";
+
+    /// <summary>A certificate was ordered from a certificate authority and installed.</summary>
+    public const string CertificateIssued = "CertificateIssued";
+
+    /// <summary>A certificate the customer supplied was installed.</summary>
+    public const string CertificateInstalled = "CertificateInstalled";
+
+    /// <summary>A certificate was removed and its site returned to plain HTTP.</summary>
+    public const string CertificateRemoved = "CertificateRemoved";
+
+    /// <summary>
+    /// An unattended renewal ran for one certificate. Recorded on success and on failure alike:
+    /// renewal has no operator watching it, so the journal is where a certificate that has quietly
+    /// stopped renewing becomes visible before the site goes dark.
+    /// </summary>
+    public const string CertificateRenewed = "CertificateRenewed";
 }

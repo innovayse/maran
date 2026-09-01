@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="SiteNotFound">
+    <value>Կայքը չի գտնվել։</value>
+  </data>
+  <data name="SiteDomainTaken">
+    <value>Այս դոմենն արդեն օգտագործվում է մեկ այլ կայքի կողմից։</value>
+  </data>
+  <data name="SiteLimitReached">
+    <value>Ձեր սակագինը թույլ չի տալիս ավելի շատ կայքեր ստեղծել։</value>
+  </data>
+  <data name="PhpVersionNotInstalled">
+    <value>PHP-ի այս տարբերակը տեղադրված չէ սերվերում։</value>
+  </data>
+  <data name="AccountNotFound">
+    <value>Հաշիվը չի գտնվել։</value>
+  </data>
+  <data name="SiteBackendNotPhp">
+    <value>Այս կայքը PHP չի օգտագործում, ուստի փոխելու PHP տարբերակ չունի։</value>
+  </data>
+  <data name="SiteDomainInvalidFormat">
+    <value>Սա վավեր դոմենային անուն չէ։</value>
+  </data>
+  <data name="SiteAliasInvalidFormat">
+    <value>Լրացուցիչ անուններից մեկը վավեր դոմենային անուն չէ։</value>
+  </data>
+  <data name="SiteAliasDuplicated">
+    <value>Նույն անունը նշված է մեկից ավելի անգամ։</value>
+  </data>
+  <data name="PhpVersionInvalidFormat">
+    <value>Սա PHP-ի վավեր տարբերակ չէ։</value>
+  </data>
+  <data name="SiteProxyUpstreamInvalidFormat">
+    <value>Սա վավեր upstream հասցե չէ։</value>
+  </data>
+  <data name="SiteLogSourceInvalid">
+    <value>Այս կայքը նման մատյան չի պահում։</value>
+  </data>
+  <data name="SiteLogHistoryLinesInvalid">
+    <value>Պատմության տողերի քանակը գերազանցում է թույլատրելին։</value>
+  </data>
+  <data name="SiteLogTailFailed">
+    <value>Մատյանը հնարավոր չեղավ կարդալ։</value>
+  </data>
+</root>

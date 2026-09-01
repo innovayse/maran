@@ -1,4 +1,5 @@
 //! Entry point: tracing setup, flag parsing, server start.
+#![forbid(unsafe_code)]
 
 use maran_agent::config::agent_options::AgentOptions;
 use maran_agent::peercred::PeerPolicy;

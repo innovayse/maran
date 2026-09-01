@@ -1,5 +1,6 @@
 using System.Resources;
 using Maran.Modules.Accounts.Persistence;
+using Maran.Modules.Accounts.Services;
 using Maran.Sdk.Contracts;
 using Maran.Sdk.Interfaces;
 
@@ -49,6 +50,11 @@ public sealed class AccountsModule : IPanelModule
         {
             options.UseNpgsql(connectionString);
         });
+
+        // The one window other modules have onto this module's data (rules/architecture.md
+        // "Cross-module needs go through Wolverine messages or Sdk abstractions"). Scoped, because
+        // it reads the request's own DbContext and applies the request's own tenant scope.
+        services.AddScoped<IAccountDirectory, AccountDirectory>();
 
         // Registers this module's resource managers into the shared pool the panel-wide
         // ResxErrorTextProvider resolves error codes and Manifest.DisplayNameKey against

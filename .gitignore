@@ -47,6 +47,16 @@ appsettings.*.local.json
 *.p12
 !**/*.pem.example
 
+# One exception, and it is narrow on purpose: the agent's SSL tests read fixture certificates at
+# COMPILE time via include_str!, so without them in the repository `cargo test` does not fail — it
+# does not build at all, and only on a clean checkout. That is what happened: the suite was green on
+# every developer machine and CI could not compile it.
+#
+# These are self-signed certificates for example.com, the domain RFC 2606 reserves for exactly this,
+# minted for the suite and belonging to no host and no authority. The rule above still catches every
+# real key, including anything an operator or a test run drops elsewhere in the tree.
+!agent/crates/ops/tests/fixtures/*.pem
+
 # Logs, dumps and scratch
 # -----------------------
 *.log

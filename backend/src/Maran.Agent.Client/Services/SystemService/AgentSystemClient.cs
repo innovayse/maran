@@ -1,4 +1,5 @@
 using Grpc.Net.Client;
+using Maran.Agent.Client.Errors;
 using Maran.Agent.Client.Interfaces;
 using Maran.Agent.Client.Resources;
 using Maran.Agent.V1;
@@ -10,17 +11,6 @@ namespace Maran.Agent.Client.Services.SystemService;
 /// <summary>Maps the agent's SystemService handshake onto <see cref="Result{T}"/>.</summary>
 public sealed class AgentSystemClient : IAgentSystemClient
 {
-    /// <summary>
-    /// Pre-compiled log delegate for a failure the agent reported. Source-generated for the same
-    /// reason <c>ExceptionMiddleware</c>'s is: an agent that is down fails every call, and this is
-    /// then the hottest line in the process.
-    /// </summary>
-    private static readonly Action<ILogger, string, string, Exception?> LogAgentError =
-        LoggerMessage.Define<string, string>(
-            LogLevel.Warning,
-            new EventId(1, nameof(AgentSystemClient)),
-            "Agent returned {AgentErrorCode}: {AgentErrorMessage}");
-
     /// <summary>The transport seam this client drives; a stub in tests, a real gRPC call in production.</summary>
     private readonly ISystemServiceInvoker _invoker;
 
@@ -52,7 +42,8 @@ public sealed class AgentSystemClient : IAgentSystemClient
         return response.ResultCase switch
         {
             GetAgentInfoResponse.ResultOneofCase.Ok => Result<AgentInfoDto>.Ok(ToDto(response.Ok)),
-            GetAgentInfoResponse.ResultOneofCase.Error => Result<AgentInfoDto>.Fail(ToError(response.Error)),
+            GetAgentInfoResponse.ResultOneofCase.Error => Result<AgentInfoDto>.Fail(
+                AgentErrorTranslator.ToError(_logger, response.Error, nameof(GetInfoAsync))),
             _ => Result<AgentInfoDto>.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse))),
         };
     }
@@ -77,38 +68,4 @@ public sealed class AgentSystemClient : IAgentSystemClient
         };
     }
 
-    /// <summary>
-    /// Converts a wire <see cref="AgentError"/> into a <see cref="SharedKernel.Results.Error"/>,
-    /// logging the agent's own sentence on the way.
-    /// </summary>
-    /// <remarks>
-    /// The agent's message is diagnostic text written for an operator, and it is the only place it
-    /// can be preserved: <see cref="SharedKernel.Results.Error"/> carries a code alone, and this
-    /// text must never reach a customer, who would receive an untranslated sentence about the
-    /// server's internals. Logged with the code and read beside the correlation id.
-    /// </remarks>
-    /// <param name="error">The failure payload returned by the agent.</param>
-    private Error ToError(AgentError error)
-    {
-        var code = ToErrorCode(error.Code);
-        LogAgentError(_logger, code, error.Message, null);
-
-        return Error.Of(code);
-    }
-
-    /// <summary>Maps a wire <see cref="ErrorCode"/> to its stable "agent.*" error code string.</summary>
-    /// <param name="code">The failure category reported by the agent.</param>
-    private static string ToErrorCode(ErrorCode code)
-    {
-        return code switch
-        {
-            ErrorCode.Unspecified => nameof(ErrorMessages.AgentUnspecified),
-            ErrorCode.InvalidInput => nameof(ErrorMessages.AgentInvalidInput),
-            ErrorCode.AlreadyExists => nameof(ErrorMessages.AgentAlreadyExists),
-            ErrorCode.NotFound => nameof(ErrorMessages.AgentNotFound),
-            ErrorCode.ValidationFailed => nameof(ErrorMessages.AgentValidationFailed),
-            ErrorCode.SystemFailure => nameof(ErrorMessages.AgentSystemFailure),
-            _ => nameof(ErrorMessages.AgentUnspecified),
-        };
-    }
 }

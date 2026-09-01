@@ -6,15 +6,16 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vue-tsc --noEmit && vite build",
+    "build": "vue-tsc --build && vite build",
     "preview": "vite preview",
-    "typecheck": "vue-tsc --noEmit",
+    "typecheck": "vue-tsc --build",
     "lint": "oxlint . && eslint .",
     "lint:fix": "oxlint . --fix && eslint . --fix",
     "test:e2e": "playwright test"
   },
   "dependencies": {
     "date-fns": "^4.4.0",
+    "lucide-vue-next": "1.0.0",
     "pinia": "4.0.3",
     "vue": "3.5.42",
     "vue-i18n": "11.4.10",

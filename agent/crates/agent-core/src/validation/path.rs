@@ -4,9 +4,7 @@ use std::path::{Path, PathBuf};
 
 use super::name::AccountName;
 use super::path_error::PathError;
-
-/// Base directory holding every account home.
-const HOME_ROOT: &str = "/home";
+use crate::agent_paths::AgentPaths;
 
 /// Resolves `relative` inside `account`'s home directory.
 ///
@@ -19,7 +17,10 @@ const HOME_ROOT: &str = "/home";
 /// Returns [`PathError::NotFound`] when the path does not exist, and
 /// [`PathError::EscapesHome`] when it resolves outside the account's home.
 pub fn resolve_in_home(account: &AccountName, relative: &Path) -> Result<PathBuf, PathError> {
-    resolve_under(&PathBuf::from(HOME_ROOT).join(account.as_str()), relative)
+    resolve_under(
+        &PathBuf::from(AgentPaths::ACCOUNT_HOME_ROOT).join(account.as_str()),
+        relative,
+    )
 }
 
 /// Core of [`resolve_in_home`] with the home root injected.

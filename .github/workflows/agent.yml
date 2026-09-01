@@ -5,21 +5,28 @@ on:
     paths:
       - 'agent/**'
       - 'proto/**'
+      - 'docker/polygon/**'
       - '.github/workflows/agent.yml'
   pull_request:
     paths:
       - 'agent/**'
       - 'proto/**'
+      - 'docker/polygon/**'
       - '.github/workflows/agent.yml'
 
 jobs:
   ci:
-    runs-on: ubuntu-latest
+    # Pinned rather than `ubuntu-latest`, which moves between major versions with
+    # no diff in this file.
+    runs-on: ubuntu-24.04
     defaults:
       run:
         working-directory: agent
     steps:
-      - uses: actions/checkout@v4
+      # Pinned to the commit v4.2.2 resolves to: a tag is mutable, and an action
+      # that checks out this repository runs before any gate could notice it had
+      # changed.
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       # rustfmt and clippy are requested explicitly: the toolchain the runner ships with
       # does not always carry them, and a missing component would skip the two gates below
@@ -58,3 +65,50 @@ jobs:
         run: cargo doc --no-deps --all-features
         env:
           RUSTDOCFLAGS: -D warnings
+
+  # The polygon: the agent's own validation, run against a real nginx and a real
+  # php-fpm on each supported family. Everything above this job runs on the
+  # runner's Ubuntu with a fake ConfigHost, so until this job existed `nginx -t`
+  # had never parsed a file the agent wrote and the rollback in `safe_write` had
+  # never rolled anything back.
+  #
+  # Two images on a pull request, which is what the spec asks for (§16: Ubuntu 24
+  # and Alma 9 on PR, the full six-OS matrix nightly).
+  polygon:
+    # Pinned rather than `ubuntu-latest`: the runner only builds and runs the
+    # polygon images, but "latest" moves under a suite whose whole claim is that
+    # it ran on a named platform.
+    runs-on: ubuntu-24.04
+    strategy:
+      # Both families are reported, always. Cancelling the second the moment the
+      # first fails is how a family-specific break gets attributed to the family
+      # that happened to fail first.
+      fail-fast: false
+      matrix:
+        image: [ubuntu24, alma9]
+    steps:
+      # Pinned to the commit v4.2.2 resolves to: a tag is mutable, and an action
+      # that checks out this repository runs before any gate could notice it had
+      # changed.
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      # The image carries its family's nginx, php-fpm and a Rust toolchain: a
+      # test binary built on the runner links against the runner's glibc and
+      # will not start on AlmaLinux 9, so each polygon compiles its own.
+      - name: Build the polygon image
+        run: docker build -f docker/polygon/${{ matrix.image }}.Dockerfile -t maran-polygon-${{ matrix.image }} .
+
+      # Run as root, one test at a time, and only the two ignored suites. Root
+      # because the whole point is the privilege drop; serially because the
+      # suites create real system accounts and write into one shared nginx
+      # configuration tree, which is not a fixture two tests may share
+      # (rules/testing.md "no shared mutable fixtures").
+      - name: Sites, PHP pools and privileges on a real host
+        run: |
+          docker run --rm \
+            -v "$PWD:/maran" \
+            -w /maran/agent \
+            -e CARGO_TARGET_DIR=/tmp/target \
+            maran-polygon-${{ matrix.image }} \
+            cargo test --test sites_on_a_real_host --test php_pools_on_a_real_host \
+              --test privileges_on_a_real_host -- --ignored --test-threads=1

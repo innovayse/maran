@@ -90,8 +90,20 @@ done < <(sources | grep -iE '/(utils|helpers|misc|common|shared|manager|service)
 #    mod.rs declares modules rather than defining anything (rules/rust.md). Until this check
 #    existed the Rust side of the rule rested on review alone, which is how a type and its
 #    error ended up sharing a file twice.
+#
+#    `distro`'s per-family concern files (`debian_paths.rs`, `debian_packages.rs`,
+#    `debian_services.rs` and their `rhel_*` counterparts) are the documented exception:
+#    rules/rust.md's canonical layout names exactly these three files per family as the
+#    home for every path/package/service fact of their concern, so each answers several
+#    related platform-fact functions rather than growing a file per function. Listed here
+#    rather than inferred, same as the subject-named single-item exceptions below.
+concern_files='debian_paths|debian_packages|debian_services|rhel_paths|rhel_packages|rhel_services'
 while IFS= read -r file; do
   units=$(grep -cE '^pub (struct|enum|trait|fn|async fn) ' "$file")
+  base="$(basename "$file" .rs)"
+  if printf '%s' "$base" | grep -qE "^($concern_files)$"; then
+    continue
+  fi
   if [ "$units" -gt 1 ]; then
     report "$file: $units public units — one per file, errors in their own *_error.rs (rules/rust.md)"
   fi
@@ -120,6 +132,32 @@ while IFS= read -r file; do
     *) report "$file: tests live under the crate's src/tests/ mirror (rules/testing.md)" ;;
   esac
 done < <(find agent/crates -name '*_tests.rs' -not -path '*/target/*' 2>/dev/null | sort)
+
+# 9b. The forked child leaves through `_exit` and never through `exit`. `exit` runs atexit
+#     handlers and flushes stdio the child shares with its parent, so the parent's buffered
+#     bytes are written a second time by a process it does not know about — and any handler
+#     the runtime registered runs in a process that holds none of the state it expects. The
+#     invariant is argued at length in three comments in fork_as_account.rs and was, until
+#     this check, enforced by none of them: swapping `_exit` for `exit` left every test in
+#     the workspace green. It is mechanical, so it is a gate (rules/README.md "Mechanical
+#     enforcement").
+#     Matched as a token rather than as a substring, and on code rather than on prose, because
+#     the first version of this check was three edits away from useless: `libc::exit (status)`
+#     with one space and `use libc::exit as leave;` both passed it while compiling, and a doc
+#     comment that merely CONTAINED the text failed the build. So comments are stripped first,
+#     the call is matched as an `exit(` not preceded by `_` or an identifier character (which
+#     keeps `libc::_exit(` legal and catches the bare, spaced and qualified forms alike), and
+#     any `use` that imports `exit` under any name is rejected on its own — an alias is the one
+#     evasion a call-site pattern cannot see.
+while IFS= read -r file; do
+  code="$(sed -e 's://.*$::' "$file")"
+  if printf '%s\n' "$code" | grep -qE '(^|[^_[:alnum:]])exit[[:space:]]*\('; then
+    report "$file: a forked child leaves through libc::_exit, never exit — exit flushes the parent's stdio and runs its atexit handlers (rules/rust.md \"Privileges\")"
+  fi
+  if printf '%s\n' "$code" | grep -qE '^[[:space:]]*(pub[[:space:]]+)?use[[:space:]].*(^|[^_[:alnum:]])exit([^_[:alnum:]]|$)'; then
+    report "$file: importing exit — under any alias — is the same violation as calling it; the child leaves through libc::_exit (rules/rust.md \"Privileges\")"
+  fi
+done < <(find agent/crates/agent-core/src/privs -name '*.rs' 2>/dev/null | sort)
 
 # 10. Junk-drawer names are no more acceptable in Rust than in C#.
 while IFS= read -r file; do
@@ -216,6 +254,7 @@ done < <(find frontend/src \( -name '*.vue' -o -name '*.ts' \) 2>/dev/null | sor
 subject_named='adapter|adapter_for|detect|distro_info|os_release|family|path|name|domain|port|ip_address'
 subject_named="$subject_named|cron_expression|directory|current_uid|unit|pool|user_config|error|server"
 subject_named="$subject_named|agent_options|options_error|peer_policy|peer_guard|render_validate_swap|rollback_guard"
+subject_named="$subject_named|debian_paths|debian_packages|debian_services|rhel_paths|rhel_packages|rhel_services"
 while IFS= read -r file; do
   base="$(basename "$file" .rs)"
   case "$base" in

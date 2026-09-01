@@ -1,0 +1,122 @@
+{
+  "sites": {
+    "status": {
+      "enabled": "Enabled",
+      "disabled": "Disabled"
+    },
+    "backendType": {
+      "static": "Static",
+      "php": "PHP",
+      "reverseProxy": "Reverse proxy"
+    },
+    "list": {
+      "heading": "Sites",
+      "subtitle": "Websites served from this server.",
+      "createAction": "New site",
+      "loading": "Loading sites…",
+      "emptyTitle": "No sites yet",
+      "emptyDescription": "Create the first site to start serving a domain.",
+      "tableCaption": "Websites",
+      "columns": {
+        "domain": "Domain",
+        "backendType": "Backend",
+        "phpVersion": "PHP",
+        "status": "Status",
+        "createdAt": "Created"
+      },
+      "noPhpVersion": "—"
+    },
+    "form": {
+      "heading": "New site",
+      "subtitle": "The panel checks these values before sending them, and the server checks them again.",
+      "fields": {
+        "accountId": "Account",
+        "domain": "Domain",
+        "aliases": "Aliases",
+        "backendType": "Backend",
+        "phpVersion": "PHP version",
+        "proxyUpstream": "Upstream"
+      },
+      "hints": {
+        "aliases": "One hostname per line. The same vhost answers all of them.",
+        "phpVersion": "Only versions installed on this server can be selected.",
+        "proxyUpstream": "Host or host:port requests are forwarded to, for example 127.0.0.1:3000. No scheme, path or query."
+      },
+      "placeholders": {
+        "domain": "example.com",
+        "proxyUpstream": "127.0.0.1:3000"
+      },
+      "phpVersionOption": "PHP {version}",
+      "phpVersionDefaultOption": "PHP {version} (server default)",
+      "noPhpVersions": "No PHP versions are installed on this server.",
+      "submit": "Create site",
+      "cancel": "Cancel",
+      "errors": {
+        "accountRequired": "Choose the account that will own the site.",
+        "domainRequired": "Domain is required.",
+        "domainInvalid": "Domain must be a valid hostname.",
+        "phpVersionRequired": "Choose an installed PHP version.",
+        "proxyUpstreamRequired": "Upstream is required for a reverse-proxied site.",
+        "proxyUpstreamInvalid": "Upstream must be a host or host:port, with no scheme or path."
+      }
+    },
+    "detail": {
+      "heading": "Site",
+      "loading": "Loading the site…",
+      "notFoundTitle": "Site not found",
+      "notFoundDescription": "It may have been deleted since this link was made.",
+      "backToList": "Back to sites",
+      "tabs": {
+        "overview": "Overview",
+        "logs": "Logs",
+        "ssl": "SSL"
+      },
+      "domainLabel": "Domain",
+      "aliasesLabel": "Aliases",
+      "noAliases": "None",
+      "backendTypeLabel": "Backend",
+      "phpVersionLabel": "PHP version",
+      "proxyUpstreamLabel": "Upstream",
+      "documentRootLabel": "Document root",
+      "statusLabel": "Status",
+      "certificateLabel": "Certificate",
+      "certificateInstalled": "Installed",
+      "certificateMissing": "Not installed",
+      "createdAtLabel": "Created",
+      "changePhpVersion": "Change PHP version",
+      "enable": "Enable",
+      "disable": "Disable",
+      "delete": "Delete",
+      "confirmEnable": "Enable this site? It starts serving its own content again.",
+      "confirmDisable": "Disable this site? It keeps its vhost and answers with a suspension response.",
+      "confirmDelete": "Delete this site? Its vhost is removed and the domain stops being served. The files in the document root are left on disk.",
+      "confirm": "Yes, do it",
+      "cancel": "Cancel",
+      "working": "Working…",
+      "logs": {
+        "sourceLabel": "Log",
+        "source": {
+          "access": "Access log",
+          "error": "Error log"
+        },
+        "start": "Start tailing",
+        "stop": "Stop tailing",
+        "streaming": "Streaming…",
+        "waiting": "Waiting for the first line…",
+        "emptyTitle": "Nothing to show yet",
+        "emptyDescription": "Start tailing to read this site's log as it is written.",
+        "lineCount": "{count} lines held",
+        "historical": "History",
+        "truncatedNotice": "The oldest lines have scrolled out of this view.",
+        "endReason": {
+          "completed": "The log ended: the server had nothing further to send.",
+          "dropped": "The stream was dropped because this view fell behind. Start tailing again to continue.",
+          "idle": "The stream closed after a period with nothing logged.",
+          "failed": "The stream failed.",
+          "truncated": "The stream ended without saying why — lines may be missing.",
+          "cancelled": "Tailing stopped."
+        }
+      }
+    }
+  }
+}

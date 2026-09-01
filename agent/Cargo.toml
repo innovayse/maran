@@ -20,13 +20,30 @@ license = "BUSL-1.1"
 
 # Dependency versions live here so every crate in the workspace agrees on one.
 [workspace.dependencies]
+# The templates crate's render types derive `askama::Template`; the version is
+# pinned here like every other workspace dependency.
+askama = "0.12"
 # Held on the 0.13 line to match tonic: tonic 0.13.1 requires prost ^0.13, and
 # the 0.14 line moved prost codec support out of tonic into a separate crate.
 prost = "0.13.5"
+# Test-only, and only for the polygon suites: safe wrappers over the credential
+# and ownership syscalls a root-only test has to READ (getuid, getgroups,
+# fchown, kill). The tests must be able to observe a privilege drop without
+# writing `unsafe` of their own — `unsafe` in this workspace lives in
+# agent-core::privs and nowhere else (rules/rust.md "unsafe"), and a test file
+# carrying an #[allow] would be the exception growing a second home. Already in
+# the lockfile as tempfile depends on it, so no new code enters the tree.
+rustix = { version = "1.1.4", features = ["process", "thread", "fs"] }
 # Test-only: TokioIo adapts a tokio UnixStream to the hyper IO traits, which is
 # what a client needs to speak gRPC over a unix socket. Kept on the same ^0.1
 # line tonic itself depends on, so one copy is compiled.
 hyper-util = { version = "0.1.20", features = ["tokio"] }
+# libc: the raw syscall bindings agent-core's privs module needs. Deliberately the
+# raw bindings and not a friendlier wrapper (nix, users, caps): the whole point of
+# privs/ is that a reviewer reads the setgroups/setgid/setuid sequence in the order
+# the kernel sees it, which a crate that hides the calls behind an RAII type takes
+# away. It is used in exactly one module and nowhere else.
+libc = "0.2.189"
 thiserror = "2.0.20"
 tempfile = "3.27"
 tokio = { version = "1.53", features = ["macros", "net", "rt-multi-thread", "signal"] }
@@ -42,6 +59,13 @@ tonic-build = "0.13.1"
 tower = { version = "0.5.3", features = ["util"] }
 tracing = "0.1.44"
 tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
+
+[workspace.lints.rust]
+missing_docs = "warn"
+# deny, not forbid: forbid cannot be lowered by a crate, and agent-core::privs is
+# the one documented exception (rules/rust.md "unsafe"). Every other crate root
+# carries #![forbid(unsafe_code)], so the compiler — not a grep — is the gate.
+unsafe_code = "deny"
 
 [workspace.lints.clippy]
 unwrap_used = "deny"

@@ -17,6 +17,7 @@
  */
 import { computed, onBeforeUnmount, onMounted, ref, useId, watch, type ComputedRef, type Ref } from 'vue'
 import { nextEnabledIndex } from '../../utils/nextEnabledIndex'
+import UiIcon from './UiIcon.vue'
 import UiOption from './UiOption.vue'
 
 /**
@@ -348,15 +349,7 @@ watch(
         @keydown.esc.prevent="close"
       >
         <span :class="selectedOption === null ? 'text-text-muted' : ''">{{ triggerText }}</span>
-        <svg
-          class="size-3 shrink-0 text-text-muted"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          aria-hidden="true"
-        >
-          <path d="M6 9l6 6 6-6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
-        </svg>
+        <UiIcon name="chevronDown" :size="12" :stroke-width="2" class="text-text-muted" />
       </button>
       <!-- The rows are not focusable, so a plain mousedown on one would move focus
            to the body, fire `focusout` on the trigger and dismiss the list before

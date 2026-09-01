@@ -1,6 +1,6 @@
 import { useAuthStore } from '../stores/auth'
 import { useLocaleStore } from '../stores/locale'
-import type { ApiClient, ProblemDetails, RequestOptions } from '../types/api'
+import type { ApiClient, ProblemDetails, RequestOptions, ServerSentEvent } from '../types/api'
 
 /**
  * Single low-level HTTP client composable for the panel API. Requests are
@@ -241,5 +241,103 @@ export const useApi = (): ApiClient => {
     return readJson<T>(await request(path, { method: 'DELETE', signal }))
   }
 
-  return { get, post, put, patch, delete: deleteResource }
+  /**
+   * Decodes one SSE frame — the text between two blank lines — into an event.
+   * @param frame The raw frame, without its terminating blank line.
+   * @returns The decoded event, or `null` for a frame carrying no data (a comment or a
+   * keep-alive, which the server sends purely to hold the connection open).
+   */
+  const decodeFrame = (frame: string): ServerSentEvent | null => {
+    let name = 'message'
+    const dataLines: string[] = []
+
+    for (const line of frame.split('\n')) {
+      // A line starting with ':' is a comment (the keep-alive form), and carries nothing.
+      if (line.startsWith(':')) {
+        continue
+      }
+
+      const separator = line.indexOf(':')
+      const field = separator === -1 ? line : line.slice(0, separator)
+      // The SSE spec strips exactly one leading space from the value, and only one.
+      const rawValue = separator === -1 ? '' : line.slice(separator + 1)
+      const value = rawValue.startsWith(' ') ? rawValue.slice(1) : rawValue
+
+      if (field === 'event') {
+        name = value
+      } else if (field === 'data') {
+        dataLines.push(value)
+      }
+    }
+
+    if (dataLines.length === 0) {
+      return null
+    }
+
+    return { name, data: dataLines.join('\n') }
+  }
+
+  /**
+   * Opens a Server-Sent Events stream and delivers each decoded frame to `onEvent`.
+   *
+   * `EventSource` is not used here on purpose: it sends neither the bearer token nor the CSRF
+   * header, so it cannot talk to this panel's API at all. The stream therefore goes through the
+   * same `request` helper as every other call, which means it also gets the same one-shot token
+   * renewal and the same RFC 7807 error decoding.
+   * @param path Request path, relative to the app origin.
+   * @param onEvent Called once per decoded frame, in the order the server sent them.
+   * @param signal Abort signal that closes the stream and releases its connection.
+   * @returns Resolves once the stream has closed, whether by the server or by the abort.
+   * @throws {ApiError} When the stream could not be opened.
+   */
+  const stream = async (
+    path: string,
+    onEvent: (event: ServerSentEvent) => void,
+    signal: AbortSignal,
+  ): Promise<void> => {
+    const response = await request(path, { method: 'GET', signal })
+    const body = response.body
+    if (body === null) {
+      // A 2xx with no body is not a stream; treating it as an empty one would look to the caller
+      // like a log that simply ended, which is the silent truncation this design exists to avoid.
+      throw new ApiError(response.status, 'unknown', response.statusText)
+    }
+
+    const reader = body.getReader()
+    const decoder = new TextDecoder()
+    let buffer = ''
+
+    try {
+      for (;;) {
+        const chunk = await reader.read()
+        if (chunk.done) {
+          break
+        }
+
+        buffer += decoder.decode(chunk.value, { stream: true })
+
+        // Frames are separated by a blank line. Everything after the last separator is a partial
+        // frame and stays in the buffer: a chunk boundary falls wherever TCP put it, not where
+        // the protocol did, and emitting half a frame would hand the caller half a log line.
+        let separator = buffer.indexOf('\n\n')
+        while (separator !== -1) {
+          const decoded = decodeFrame(buffer.slice(0, separator))
+          buffer = buffer.slice(separator + 2)
+          if (decoded !== null) {
+            onEvent(decoded)
+          }
+
+          separator = buffer.indexOf('\n\n')
+        }
+      }
+    } finally {
+      // Always, including on an abort: an unreleased reader holds the connection open, and a
+      // panel that opens a log tab per navigation would exhaust the browser's connection pool.
+      reader.cancel().catch(() => {
+        // The stream is already gone; there is nothing left to release and nothing to report.
+      })
+    }
+  }
+
+  return { get, post, put, patch, delete: deleteResource, stream }
 }

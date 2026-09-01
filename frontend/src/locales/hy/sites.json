@@ -1,0 +1,122 @@
+{
+  "sites": {
+    "status": {
+      "enabled": "Միացված",
+      "disabled": "Անջատված"
+    },
+    "backendType": {
+      "static": "Ստատիկ",
+      "php": "PHP",
+      "reverseProxy": "Հակադարձ պրոքսի"
+    },
+    "list": {
+      "heading": "Կայքեր",
+      "subtitle": "Այս սերվերի սպասարկած կայքերը։",
+      "createAction": "Նոր կայք",
+      "loading": "Կայքերը բեռնվում են…",
+      "emptyTitle": "Կայքեր դեռ չկան",
+      "emptyDescription": "Ստեղծեք առաջին կայքը՝ դոմեյնը սպասարկելու համար։",
+      "tableCaption": "Կայքեր",
+      "columns": {
+        "domain": "Դոմեյն",
+        "backendType": "Բեքենդ",
+        "phpVersion": "PHP",
+        "status": "Կարգավիճակ",
+        "createdAt": "Ստեղծված"
+      },
+      "noPhpVersion": "—"
+    },
+    "form": {
+      "heading": "Նոր կայք",
+      "subtitle": "Վահանակը ստուգում է այս արժեքները ուղարկելուց առաջ, իսկ սերվերը ստուգում է դրանք կրկին։",
+      "fields": {
+        "accountId": "Հաշիվ",
+        "domain": "Դոմեյն",
+        "aliases": "Այլանուններ",
+        "backendType": "Բեքենդ",
+        "phpVersion": "PHP-ի տարբերակ",
+        "proxyUpstream": "Ապսթրիմ"
+      },
+      "hints": {
+        "aliases": "Յուրաքանչյուր տողում մեկ հոսթանուն։ Բոլորը սպասարկվում են նույն vhost-ով։",
+        "phpVersion": "Ընտրելի են միայն այս սերվերում տեղադրված տարբերակները։",
+        "proxyUpstream": "Հոսթ կամ հոսթ:պորտ, ուր վերահասցեավորվում են հարցումները, օրինակ՝ 127.0.0.1:3000։ Առանց սխեմայի և ուղու։"
+      },
+      "placeholders": {
+        "domain": "example.com",
+        "proxyUpstream": "127.0.0.1:3000"
+      },
+      "phpVersionOption": "PHP {version}",
+      "phpVersionDefaultOption": "PHP {version} (սերվերի կանխադրված)",
+      "noPhpVersions": "Այս սերվերում PHP-ի ոչ մի տարբերակ տեղադրված չէ։",
+      "submit": "Ստեղծել կայք",
+      "cancel": "Չեղարկել",
+      "errors": {
+        "accountRequired": "Ընտրեք հաշիվը, որին պատկանելու է կայքը։",
+        "domainRequired": "Դոմեյնը պարտադիր է։",
+        "domainInvalid": "Դոմեյնը պետք է լինի վավեր հոսթանուն։",
+        "phpVersionRequired": "Ընտրեք տեղադրված PHP-ի տարբերակ։",
+        "proxyUpstreamRequired": "Հակադարձ պրոքսիով կայքի համար ապսթրիմը պարտադիր է։",
+        "proxyUpstreamInvalid": "Ապսթրիմը պետք է լինի հոսթ կամ հոսթ:պորտ՝ առանց սխեմայի և ուղու։"
+      }
+    },
+    "detail": {
+      "heading": "Կայք",
+      "loading": "Կայքը բեռնվում է…",
+      "notFoundTitle": "Կայքը չգտնվեց",
+      "notFoundDescription": "Հնարավոր է՝ այն ջնջվել է այս հղումը ստեղծվելուց հետո։",
+      "backToList": "Դեպի կայքերի ցանկ",
+      "tabs": {
+        "overview": "Ընդհանուր",
+        "logs": "Լոգեր",
+        "ssl": "SSL"
+      },
+      "domainLabel": "Դոմեյն",
+      "aliasesLabel": "Այլանուններ",
+      "noAliases": "Չկան",
+      "backendTypeLabel": "Բեքենդ",
+      "phpVersionLabel": "PHP-ի տարբերակ",
+      "proxyUpstreamLabel": "Ապսթրիմ",
+      "documentRootLabel": "Փաստաթղթերի արմատ",
+      "statusLabel": "Կարգավիճակ",
+      "certificateLabel": "Վկայագիր",
+      "certificateInstalled": "Տեղադրված է",
+      "certificateMissing": "Տեղադրված չէ",
+      "createdAtLabel": "Ստեղծված",
+      "changePhpVersion": "Փոխել PHP-ի տարբերակը",
+      "enable": "Միացնել",
+      "disable": "Անջատել",
+      "delete": "Ջնջել",
+      "confirmEnable": "Միացնե՞լ այս կայքը։ Այն կրկին կսկսի հանձնել իր բովանդակությունը։",
+      "confirmDisable": "Անջատե՞լ այս կայքը։ Նրա vhost-ը կմնա, բայց կպատասխանի կասեցման էջով։",
+      "confirmDelete": "Ջնջե՞լ այս կայքը։ Նրա vhost-ը կհեռացվի, և դոմեյնը կդադարի սպասարկվել։ Փաստաթղթերի արմատի ֆայլերը կմնան սկավառակի վրա։",
+      "confirm": "Այո, կատարել",
+      "cancel": "Չեղարկել",
+      "working": "Կատարվում է…",
+      "logs": {
+        "sourceLabel": "Լոգ",
+        "source": {
+          "access": "Մուտքերի լոգ",
+          "error": "Սխալների լոգ"
+        },
+        "start": "Սկսել ընթերցումը",
+        "stop": "Դադարեցնել ընթերցումը",
+        "streaming": "Հոսքն ընթանում է…",
+        "waiting": "Առաջին տողի սպասում…",
+        "emptyTitle": "Դեռ ցուցադրելու բան չկա",
+        "emptyDescription": "Սկսեք ընթերցումը՝ այս կայքի լոգը գրվելուն զուգահեռ կարդալու համար։",
+        "lineCount": "Պահվում է {count} տող",
+        "historical": "Պատմություն",
+        "truncatedNotice": "Ամենահին տողերը դուրս են եկել այս պատուհանից։",
+        "endReason": {
+          "completed": "Լոգն ավարտվեց․ սերվերն այլ ուղարկելու բան չուներ։",
+          "dropped": "Հոսքը ընդհատվեց, քանի որ այս պատուհանը հետ էր ընկնում։ Սկսեք ընթերցումը կրկին։",
+          "idle": "Հոսքը փակվեց այն բանից հետո, երբ որոշ ժամանակ ոչինչ չգրանցվեց։",
+          "failed": "Հոսքն ավարտվեց սխալով։",
+          "truncated": "Հոսքն ավարտվեց առանց պատճառ նշելու․ տողեր կարող են բացակայել։",
+          "cancelled": "Ընթերցումը դադարեցվեց։"
+        }
+      }
+    }
+  }
+}

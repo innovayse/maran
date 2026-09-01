@@ -16,11 +16,17 @@ Resolved by cargo from `agent/Cargo.lock`.
 |---|---|---|
 | `aho-corasick` | 1.1.5 | Unlicense OR MIT |
 | `anyhow` | 1.0.104 | MIT OR Apache-2.0 |
+| `askama` | 0.12.1 | MIT OR Apache-2.0 |
+| `askama_derive` | 0.12.5 | MIT/Apache-2.0 |
+| `askama_escape` | 0.10.3 | MIT OR Apache-2.0 |
+| `askama_parser` | 0.2.1 | MIT OR Apache-2.0 |
 | `async-trait` | 0.1.92 | MIT OR Apache-2.0 |
 | `atomic-waker` | 1.1.2 | Apache-2.0 OR MIT |
+| `autocfg` | 1.5.1 | Apache-2.0 OR MIT |
 | `axum` | 0.8.9 | MIT |
 | `axum-core` | 0.5.6 | MIT |
 | `base64` | 0.22.1 | MIT OR Apache-2.0 |
+| `basic-toml` | 0.1.10 | MIT OR Apache-2.0 |
 | `bitflags` | 2.13.1 | MIT OR Apache-2.0 |
 | `bytes` | 1.12.1 | MIT |
 | `cfg-if` | 1.0.4 | MIT OR Apache-2.0 |
@@ -44,6 +50,7 @@ Resolved by cargo from `agent/Cargo.lock`.
 | `http-body-util` | 0.1.5 | MIT |
 | `httparse` | 1.10.1 | MIT OR Apache-2.0 |
 | `httpdate` | 1.0.3 | MIT OR Apache-2.0 |
+| `humansize` | 2.1.3 | MIT/Apache-2.0 |
 | `hyper` | 1.11.1 | MIT |
 | `hyper-timeout` | 0.5.2 | MIT OR Apache-2.0 |
 | `hyper-util` | 0.1.20 | MIT |
@@ -52,15 +59,20 @@ Resolved by cargo from `agent/Cargo.lock`.
 | `itoa` | 1.0.18 | MIT OR Apache-2.0 |
 | `lazy_static` | 1.5.0 | MIT OR Apache-2.0 |
 | `libc` | 0.2.189 | MIT OR Apache-2.0 |
+| `libm` | 0.2.16 | MIT |
 | `linux-raw-sys` | 0.12.1 | Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT |
 | `log` | 0.4.34 | MIT OR Apache-2.0 |
 | `matchers` | 0.2.0 | MIT |
 | `matchit` | 0.8.4 | MIT AND BSD-3-Clause |
 | `memchr` | 2.8.3 | Unlicense OR MIT |
 | `mime` | 0.3.17 | MIT OR Apache-2.0 |
+| `mime_guess` | 2.0.5 | MIT |
+| `minimal-lexical` | 0.2.1 | MIT/Apache-2.0 |
 | `mio` | 1.2.2 | MIT |
 | `multimap` | 0.10.1 | MIT OR Apache-2.0 |
+| `nom` | 7.1.3 | MIT |
 | `nu-ansi-term` | 0.50.3 | MIT |
+| `num-traits` | 0.2.19 | MIT OR Apache-2.0 |
 | `once_cell` | 1.21.4 | MIT OR Apache-2.0 |
 | `percent-encoding` | 2.3.2 | MIT OR Apache-2.0 |
 | `petgraph` | 0.7.1 | MIT OR Apache-2.0 |
@@ -79,6 +91,7 @@ Resolved by cargo from `agent/Cargo.lock`.
 | `regex-automata` | 0.4.18 | MIT OR Apache-2.0 |
 | `regex-syntax` | 0.8.11 | MIT OR Apache-2.0 |
 | `rustix` | 1.1.4 | Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT |
+| `serde` | 1.0.229 | MIT OR Apache-2.0 |
 | `serde_core` | 1.0.229 | MIT OR Apache-2.0 |
 | `serde_derive` | 1.0.229 | MIT OR Apache-2.0 |
 | `sharded-slab` | 0.1.7 | MIT |
@@ -109,6 +122,7 @@ Resolved by cargo from `agent/Cargo.lock`.
 | `tracing-log` | 0.2.0 | MIT |
 | `tracing-subscriber` | 0.3.23 | MIT |
 | `try-lock` | 0.2.5 | MIT |
+| `unicase` | 2.9.0 | MIT OR Apache-2.0 |
 | `unicode-ident` | 1.0.24 | (MIT OR Apache-2.0) AND Unicode-3.0 |
 | `valuable` | 0.1.1 | MIT |
 | `want` | 0.3.1 | MIT |
@@ -185,6 +199,7 @@ Resolved by restore; versions are pinned in `backend/Directory.Packages.props`.
 | `Microsoft.EntityFrameworkCore.Design` | 9.0.19 | MIT |
 | `Microsoft.EntityFrameworkCore.InMemory` | 9.0.19 | MIT |
 | `Microsoft.EntityFrameworkCore.Relational` | 9.0.19 | MIT |
+| `Microsoft.Extensions.AmbientMetadata.Application` | 10.9.0 | MIT |
 | `Microsoft.Extensions.Caching.Abstractions` | 9.0.19 | MIT |
 | `Microsoft.Extensions.Caching.Memory` | 9.0.19 | MIT |
 | `Microsoft.Extensions.Compliance.Abstractions` | 10.9.0 | MIT |
@@ -205,6 +220,7 @@ Resolved by restore; versions are pinned in `backend/Directory.Packages.props`.
 | `Microsoft.Extensions.Configuration.UserSecrets` | 9.0.19 | MIT |
 | `Microsoft.Extensions.DependencyInjection` | 9.0.19 | MIT |
 | `Microsoft.Extensions.DependencyInjection.Abstractions` | 9.0.19 | MIT |
+| `Microsoft.Extensions.DependencyInjection.AutoActivation` | 10.9.0 | MIT |
 | `Microsoft.Extensions.DependencyModel` | 9.0.19 | MIT |
 | `Microsoft.Extensions.Diagnostics` | 9.0.0 | MIT |
 | `Microsoft.Extensions.Diagnostics` | 9.0.19 | MIT |
@@ -222,6 +238,9 @@ Resolved by restore; versions are pinned in `backend/Directory.Packages.props`.
 | `Microsoft.Extensions.Hosting` | 9.0.19 | MIT |
 | `Microsoft.Extensions.Hosting.Abstractions` | 9.0.0 | MIT |
 | `Microsoft.Extensions.Hosting.Abstractions` | 9.0.19 | MIT |
+| `Microsoft.Extensions.Http` | 9.0.19 | MIT |
+| `Microsoft.Extensions.Http.Diagnostics` | 10.9.0 | MIT |
+| `Microsoft.Extensions.Http.Resilience` | 10.9.0 | MIT |
 | `Microsoft.Extensions.Logging` | 9.0.19 | MIT |
 | `Microsoft.Extensions.Logging.Abstractions` | 9.0.19 | MIT |
 | `Microsoft.Extensions.Logging.Configuration` | 9.0.0 | MIT |
@@ -239,8 +258,10 @@ Resolved by restore; versions are pinned in `backend/Directory.Packages.props`.
 | `Microsoft.Extensions.Options` | 9.0.19 | MIT |
 | `Microsoft.Extensions.Options.ConfigurationExtensions` | 9.0.0 | MIT |
 | `Microsoft.Extensions.Options.ConfigurationExtensions` | 9.0.19 | MIT |
+| `Microsoft.Extensions.Options.DataAnnotations` | 9.0.19 | MIT |
 | `Microsoft.Extensions.Primitives` | 9.0.19 | MIT |
 | `Microsoft.Extensions.Resilience` | 10.9.0 | MIT |
+| `Microsoft.Extensions.Telemetry` | 10.9.0 | MIT |
 | `Microsoft.Extensions.Telemetry.Abstractions` | 10.9.0 | MIT |
 | `Microsoft.IdentityModel.Abstractions` | 8.22.0 | MIT |
 | `Microsoft.IdentityModel.JsonWebTokens` | 8.22.0 | MIT |
@@ -379,6 +400,7 @@ Runtime dependencies only; build and test tooling is not distributed.
 | `lightningcss-linux-x64-gnu` | 1.32.0 | MPL-2.0 |
 | `lightningcss-linux-x64-musl` | 1.32.0 | MPL-2.0 |
 | `local-pkg` | 1.2.1 | MIT |
+| `lucide-vue-next` | 1.0.0 | ISC |
 | `magic-string` | 0.30.21 | MIT |
 | `magic-string-ast` | 1.0.3 | MIT |
 | `mlly` | 1.8.2 | MIT |

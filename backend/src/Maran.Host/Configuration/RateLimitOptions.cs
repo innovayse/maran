@@ -35,4 +35,15 @@ public sealed class RateLimitOptions
     /// <summary>Length of the fixed window the API request count is measured over, in seconds.</summary>
     [Range(1, 3600)]
     public int ApiWindowSeconds { get; set; } = 60;
+
+    /// <summary>
+    /// How many site-log tails ONE account may hold open at the same time.
+    /// </summary>
+    /// <remarks>
+    /// A concurrency budget, not a rate: see <c>SiteLogStreamRateLimitPolicy</c>. Six is a generous
+    /// number of log panes for one customer to have open and a small fraction of the root daemon's
+    /// blocking-thread pool, which is what an open tail actually consumes.
+    /// </remarks>
+    [Range(1, 1_000)]
+    public int SiteLogConcurrentStreamLimit { get; set; } = 6;
 }

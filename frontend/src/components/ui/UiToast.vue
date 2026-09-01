@@ -12,6 +12,7 @@
  * a message the backend localized (rules/vue.md); the primitive holds no copy.
  */
 import { onBeforeUnmount, onMounted, ref, useId, type ComputedRef, type Ref, computed } from 'vue'
+import UiIcon from './UiIcon.vue'
 
 /** Tone of a {@link UiToast}, controlling its colour and how urgently it is announced. */
 export type ToastVariant = 'success' | 'info' | 'warning' | 'danger'
@@ -156,20 +157,9 @@ onBeforeUnmount(stopTimer)
       :aria-describedby="messageId"
       @click="dismiss"
     >
-      <!-- An SVG, not a text glyph: a character would render differently per font and
+      <!-- An icon, not a text glyph: a character would render differently per font and
            counts as untranslated copy. The accessible name comes from aria-label. -->
-      <svg
-        class="size-3"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="2"
-        stroke-linecap="round"
-        aria-hidden="true"
-        focusable="false"
-      >
-        <path d="M6 6l12 12M18 6L6 18" />
-      </svg>
+      <UiIcon name="x" :size="12" :stroke-width="2" />
     </button>
   </div>
 </template>

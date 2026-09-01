@@ -58,4 +58,35 @@ pub enum AccountError {
         /// The program whose output could not be parsed.
         program: String,
     },
+
+    /// One of the account's php-fpm pools could not be taken away, so the
+    /// account has NOT been deleted.
+    ///
+    /// Its own variant rather than a `CommandFailed`, because the two mean
+    /// opposite things to whoever reads them. A refused `userdel` is an account
+    /// that is still there and still works. A refused pool removal is an
+    /// account that is still there ON PURPOSE — the deletion stopped rather
+    /// than leave behind a pool naming a user about to vanish, which is what
+    /// makes the next reload take PHP down for every tenant on the server.
+    #[error("the account's php-fpm pools could not be removed: {reason}")]
+    PoolRemoval {
+        /// What the PHP area refused with.
+        reason: String,
+    },
+}
+
+impl From<crate::php::PhpOpError> for AccountError {
+    /// Reports a pool the account still owns as a refusal to delete the account.
+    ///
+    /// Deliberately flattens the PHP area's variants into one sentence rather
+    /// than re-exporting them: what an operator has to act on here is that the
+    /// deletion did not happen and why, not which of six PHP failure modes it
+    /// was — and a caller matching on the PHP area's variants through the
+    /// account area's error would be reaching across an area boundary
+    /// (rules/rust.md "one error enum per area").
+    fn from(error: crate::php::PhpOpError) -> Self {
+        Self::PoolRemoval {
+            reason: error.to_string(),
+        }
+    }
 }

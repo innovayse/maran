@@ -10,6 +10,9 @@ publish.workspace = true
 [dependencies]
 # thiserror: typed errors instead of panics — the agent runs as root.
 thiserror.workspace = true
+# libc: raw syscall bindings for src/privs/ — fork, setgroups/setgid/setuid,
+# getpwnam_r, waitpid, _exit. Raw on purpose; see the workspace manifest.
+libc.workspace = true
 
 [dev-dependencies]
 # tempfile: path containment is only meaningfully tested against a real filesystem.

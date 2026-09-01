@@ -1,4 +1,8 @@
 #![warn(missing_docs)]
+// The compiler, not a grep, is the gate: `unsafe` exists in this workspace only
+// in maran-agent-core::privs (rules/rust.md "unsafe"). `forbid` cannot be lowered
+// by an `#[allow]` further down, so adding unsafe here does not compile at all.
+#![forbid(unsafe_code)]
 //! maran-distro — the only crate that may know a distribution's name.
 //!
 //! `detection/` answers what the host is; `adapter` turns that answer into

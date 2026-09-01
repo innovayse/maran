@@ -10,6 +10,23 @@ readonly MARAN_TLS_DIR="/etc/maran/tls"
 readonly MARAN_CERT_PATH="${MARAN_TLS_DIR}/panel.crt"
 readonly MARAN_KEY_PATH="${MARAN_TLS_DIR}/panel.key"
 
+# The two directories the AGENT writes into and never creates: the customer vhosts it
+# renders (AgentPaths::NGINX_INCLUDE_DIRECTORY) and the certificate material it installs
+# (AgentPaths::CERTIFICATE_DIRECTORY). They are made here because they are host layout,
+# like /var/lib/maran and /run/maran, and because the agent stages a vhost into the
+# directory's own parent before renaming it into place — a missing directory is not an
+# empty list of sites, it is the first CreateSite on the server failing with ConfigWrite.
+readonly MARAN_NGINX_SITES_DIR="/etc/maran/nginx/sites"
+readonly MARAN_CERTIFICATES_DIR="/etc/maran/certificates"
+
+# The snippet carrying the one include line without which every vhost the agent writes is
+# a file nginx never parses — and, worse, `nginx -t` still passes, because it validates a
+# tree the file is not in. A file of our own under conf.d rather than an edit to the
+# distribution's nginx.conf: it is idempotent by identity (writing it twice leaves one
+# line, where appending twice leaves two), it is removable by deleting one file, and the
+# agent's rule of never touching files it does not own applies to the installer too.
+readonly MARAN_NGINX_INCLUDE_CONF="/etc/nginx/conf.d/maran-sites.conf"
+
 nginx_conf_dest() {
   case "$MARAN_OS_FAMILY" in
     debian) echo "/etc/nginx/conf.d/maran.conf" ;;
@@ -51,8 +68,36 @@ render_vhost() {
     "${LIB_DIR}/../nginx/maran.conf" > "$out"
 }
 
+# install_agent_config_include: creates the agent's own configuration directories and
+# points nginx at the vhost one. Idempotent — `install -d` on an existing directory
+# succeeds, and the include is one whole file that is rewritten rather than a line
+# appended to somebody else's, so a re-run cannot produce a duplicate include.
+#
+# Public on purpose: the polygon images call THIS function to obtain the precondition
+# their site tests need, instead of performing the same edit themselves. An image that
+# manufactures the precondition it then asserts is how the missing include survived the
+# whole suite once already (rules/testing.md — a test proving the wrong proposition).
+install_agent_config_include() {
+  install -d -o root -g root -m 0755 "$MARAN_NGINX_SITES_DIR"
+  install -d -o root -g root -m 0755 "$MARAN_CERTIFICATES_DIR"
+
+  local tmp
+  tmp="$(mktemp)"
+  cat > "$tmp" <<EOF
+# Maran: nginx serves the vhosts the agent renders, and only those. Written by
+# installer/lib/80-nginx.sh; the directory belongs to the agent (spec §9).
+include ${MARAN_NGINX_SITES_DIR}/*.conf;
+EOF
+  install -m 0644 "$tmp" "$MARAN_NGINX_INCLUDE_CONF"
+  rm -f "$tmp"
+}
+
 step_nginx() {
   echo "Installing nginx vhost on port 8443..."
+  # First, so that the `nginx -t` below validates a tree that already includes the
+  # agent's directory: a validation that passes without it has proved nothing about the
+  # configuration nginx will actually run.
+  install_agent_config_include
   generate_self_signed_cert
 
   local dest tmp

@@ -185,7 +185,32 @@ the Rust agent, the backend host and the application shell — and so is the fir
 first-run setup, sign-in with two-factor authentication, sessions you can see and revoke, an
 append-only audit journal, and hosting accounts provisioned as real Linux users with disk quotas.
 
-Sites, databases, FTP, cron, backups and the firewall are the modules that follow.
+Sites have joined them: static, PHP and reverse-proxy vhosts rendered by the agent and validated
+by the server's own `nginx -t` before anything is reloaded, domain aliases, enable and disable,
+and live access and error logs in the interface. So has multi-PHP — one php-fpm pool per account
+per version, running under the account's own user, with the worker budget taken from the plan and
+a whitelisted subset of settings customers may change. And so has SSL: certificate material
+installed into a root-only store outside every account's home, an HTTP-01 ACME client, and
+renewal thirty days before expiry.
+
+What ships with those, said here rather than left to be discovered:
+
+- **SSL is HTTP-01 only.** No wildcards and no DNS-01 — those belong with the DNS module, which
+  is not in the first release. The domain must already resolve to the server.
+- **The ACME client has never completed an issuance against a real authority.** It reaches
+  Let's Encrypt's staging directory and its nonce endpoint, and is refused at account
+  registration when the operator has not set a contact address. Everything past that point —
+  ordering, challenge validation, finalising and downloading — has been exercised only against a
+  fake authority in tests. Treat automatic issuance as unproven until a staging run says
+  otherwise.
+- **An account created by an earlier build cannot serve a site.** Creating an account now
+  group-owns its home by the web server's group so the server can reach the document root; homes
+  created before that do not have it, and there is no repair command yet. Run
+  `chgrp www-data /home/<account>` (`nginx` on the RHEL family) by hand for those.
+- **`open_basedir` is not a security boundary.** Isolation between accounts comes from the pool's
+  uid; the `open_basedir` line is there against accidents, not attackers.
+
+Databases, FTP, cron, backups and the firewall are the modules that follow.
 
 Mail and DNS management, reseller accounts and central management of multiple servers are
 planned after the first release.

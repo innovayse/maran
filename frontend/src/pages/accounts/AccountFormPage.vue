@@ -165,7 +165,13 @@ onMounted(loadPlans)
     <!-- The design's dialog body: the same panel every table sits in, with the
          footer bar bleeding to its edges, which is why the padding lives on the
          two inner blocks rather than on the panel. -->
-    <div class="overflow-hidden rounded-xl border border-border-subtle bg-surface-1">
+    <!-- NOT `overflow-hidden`. The footer bar below bleeds to the card's edges and needs its
+         bottom corners rounded, and clipping the card was the way that was done — which also
+         clipped the select's option list, because that list is positioned inside this box. The
+         third plan on this form was rendered, present in the DOM, and unreachable: a hit test at
+         its centre returned the card, so an assertion that the option exists passed while an
+         operator could not choose it. The footer rounds its own corners instead. -->
+    <div class="rounded-xl border border-border-subtle bg-surface-1">
       <UiForm @submit="submit">
         <div class="flex flex-col gap-3.5 p-4.5">
           <UiInput
@@ -191,7 +197,7 @@ onMounted(loadPlans)
             :placeholder="t('accounts.form.placeholders.planId')"
           />
         </div>
-        <div class="flex justify-end gap-2 border-t border-border-subtle bg-surface-2 px-4.5 py-3">
+        <div class="flex justify-end gap-2 rounded-b-xl border-t border-border-subtle bg-surface-2 px-4.5 py-3">
           <UiButton variant="secondary" type="button" @click="cancel">
             {{ t('accounts.form.cancel') }}
           </UiButton>

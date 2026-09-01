@@ -66,7 +66,7 @@ maran migrate check                           # a model edited without a migrati
 maran licenses --check                        # third-party notices match the dependencies
 cd backend  && dotnet test
 cd frontend && npm run lint && npm run typecheck && npm run build && npx playwright test
-maran agent check                             # fmt, clippy -D warnings, cargo test
+maran agent check                             # fmt, clippy -D warnings, cargo test, cargo doc
 maran handshake                               # agent and API over a real unix socket
 ```
 

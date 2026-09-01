@@ -95,25 +95,60 @@ agent/
     │   │   └── services/      one FOLDER per proto service:
     │   │       ├── system/    system_service.rs
     │   │       ├── accounts/  accounts_service.rs · account_status.rs
-    │   │       ├── sites/     sites_service.rs · site_status.rs
+    │   │       ├── sites/     sites_service.rs · site_status.rs · invalid_input.rs ·
+    │   │       │              validated_{site,identity,overrides}.rs — proto → validated
+    │   │       │              input, one bundle per request shape, so the service file
+    │   │       │              stays the three steps and nothing else ·
+    │   │       │              stream_log_sink.rs · tail_terminal.rs (log-follow glue)
+    │   │       ├── ssl/       ssl_service.rs · ssl_status.rs
+    │   │       ├── php/       php_service.rs · php_status.rs
     │   │       ├── db/        db_service.rs · db_status.rs
-    │   │       ├── files/     files_service.rs · file_status.rs
+    │   │       ├── files/     files_service.rs · file_status.rs ·
+    │   │       │              validated_write.rs (the thin transport half:
+    │   │       │              drains the stream) · write_collector.rs (the state machine that
+    │   │       │              holds the header rules and the byte cap, so a unit test can drive
+    │   │       │              them — a tonic Streaming cannot be constructed by one) ·
+    │   │       │              validated_delete.rs
     │   │       ├── ftp/       ftp_service.rs · ftp_status.rs
     │   │       ├── cron/      cron_service.rs · cron_status.rs
     │   │       ├── firewall/  firewall_service.rs · firewall_status.rs
-    │   │       ├── ssl/       ssl_service.rs · ssl_status.rs
     │   │       ├── backup/    backup_service.rs · backup_status.rs
     │   │       └── monitor/   monitor_service.rs · monitor_status.rs
     │   ├── src/tests/         unit tests, mirroring src/ (rules/testing.md)
     │   └── tests/             integration tests (+ fixtures/)
     ├── agent-core/
     │   └── src/
+    │       ├── agent_paths.rs AgentPaths — locations the agent owns and that are the SAME
+    │       │                  on every family (nginx include dir, certificate dir). A path
+    │       │                  that differs between families is a distro fact and lives in
+    │       │                  distro/, never here; one that does not differ lives here, never
+    │       │                  as an adapter method repeated with the same literal.
+    │       ├── command_outcome.rs CommandOutcome — the {status, stdout, stderr} shape of
+    │       │                  having run one program. Started in one `ops` area and needed
+    │       │                  by a second, which is the rule below firing: it lives here so
+    │       │                  both import it instead of each keeping its own copy.
     │       ├── validation/    name.rs · name_error.rs · path.rs · path_error.rs ·
-    │       │                  domain.rs · domain_error.rs · port.rs · port_error.rs ·
+    │       │                  domain.rs · domain_error.rs · upstream.rs · upstream_error.rs ·
+    │       │                  php_version.rs · php_version_error.rs ·
+    │       │                  port.rs · port_error.rs ·
     │       │                  ip_address.rs · ip_address_error.rs ·
-    │       │                  cron_expression.rs · cron_expression_error.rs
+    │       │                  cron_expression.rs · cron_expression_error.rs ·
+    │       │                  file_mode.rs · file_mode_error.rs ·
+    │       │                  relative_path.rs · relative_path_error.rs — RelativePath is a
+    │       │                  path inside an account's home stored as VALIDATED COMPONENTS
+    │       │                  rather than as text, which is what lets a caller hand each one
+    │       │                  to an `*at` syscall without re-parsing anything.
     │       ├── privs/         the ONLY home of unsafe syscall/setuid wrappers:
-    │       │                  fork_as_account.rs · account_ids.rs · priv_error.rs
+    │       │                  fork_as_account.rs · account_ids.rs · priv_error.rs ·
+    │       │                  directory_entry_name.rs (the shared name check, no syscall) ·
+    │       │                  and one wrapper per `*at` syscall, each taking a directory the
+    │       │                  caller already holds open plus a single entry name:
+    │       │                  open_in_directory.rs · create_file_in_directory.rs ·
+    │       │                  make_directory_in_directory.rs · rename_in_directory.rs ·
+    │       │                  remove_file_in_directory.rs. One file per syscall and not one
+    │       │                  "at_syscalls.rs": each carries its own SAFETY argument and its
+    │       │                  own reason for the flags it forces, and a reviewer reads the
+    │       │                  one that changed.
     │       └── utils/         helpers that carry no domain knowledge, one file per
     │                          subject: directory.rs · current_uid.rs. A helper earns a
     │                          place here when a SECOND crate needs it; until then it
@@ -130,19 +165,47 @@ agent/
     │       └── rhel/          rhel_adapter.rs · rhel_paths.rs · rhel_packages.rs ·
     │                          rhel_services.rs
     ├── ops/
-    │   └── src/
+    │   ├── src/
     │       ├── {accounts,sites,php,db,ftp,files,cron,firewall,ssl,backup,monitor}/
     │       │                  one folder per area; anatomy below.
     │       │                  accounts = system users: useradd/userdel, homes, quotas
-    │       │                  php has no proto service of its own — it is driven by
-    │       │                  sites and accounts, and still gets its own area
-    │       └── safe_write/    render_validate_swap.rs · rollback_guard.rs ·
-    │                          safe_write_error.rs — the ONE implementation of the
-    │                          config-write protocol every area calls
+    │       │                  php/ has both a service and an ops area. Installing a
+    │       │                  PHP version is a host operation with no site to drive
+    │       │                  it — it is done once and then bound by many sites — so
+    │       │                  it gets `services/php/php_service.rs`. Everything about
+    │       │                  a single site's PHP binding stays in `services/sites/`.
+    │       │                  files/ holds, besides the two operations, the three
+    │       │                  private units the privileged walk needs — they are named
+    │       │                  here because they are not "one file per rpc" and would
+    │       │                  otherwise have no assigned place:
+    │       │                  open_parent_directory.rs (the O_NOFOLLOW descent) ·
+    │       │                  write_in_home.rs · remove_in_home.rs. Each is what the
+    │       │                  forked child actually runs, split from its host method so
+    │       │                  a test can drive it against a temporary directory with an
+    │       │                  injected uid instead of needing root — the same split
+    │       │                  `sites/follow_log.rs` uses, for the same reason.
+    │       ├── safe_write/    render_validate_swap.rs · remove_config.rs ·
+    │       │                  rollback_guard.rs · safe_write_error.rs ·
+    │       │                  config_host.rs (the injectable filesystem/reload seam) ·
+    │       │                  write_config_set.rs (several files as one all-or-nothing set) ·
+    │       │                  model/ (config_file.rs · reload.rs · validator.rs) — the ONE
+    │                          implementation of the config-write protocol every
+    │                          area calls. remove_config.rs is that same protocol
+    │                          for taking a config AWAY: unlink, validate, reload,
+    │                          and put the file back if either refuses. Removing a
+    │                          vhost can leave the tree invalid, so removal extends
+    │                          the protocol here rather than becoming an
+    │                          `fs::remove_file` in the area that wanted it.
+    │   └── tests/fixtures/    inert certificate/key PEMs the ssl unit tests
+    │                          `include_str!`; generated for tests, never real material.
     └── templates/
         ├── src/               askama render types, one per config artifact:
-        │                      nginx/{php_site,static_site,proxy_site,ssl_block}.rs ·
-        │                      php_fpm/pool.rs · vsftpd/user_config.rs ·
+        │                      nginx/{php_site,static_site,proxy_site,suspended_site,ssl_block,site_body}.rs ·
+        │                      site_body.rs renders what a site SERVES — its root,
+        │                      index and locations — once, so the port-80 block and
+        │                      the TLS block embed the same string instead of two
+        │                      hand-kept copies that drift on the half a browser reaches. ·
+        │                      php_fpm/{pool,pool_override}.rs · vsftpd/user_config.rs ·
         │                      systemd/unit.rs · render_error.rs
         ├── templates/{nginx,php-fpm,vsftpd,systemd}/
         └── tests/golden/      byte-exact expected config renders
@@ -184,6 +247,21 @@ Two naming forms are allowed and nothing else:
    this document names the file explicitly in the canonical layout. Inventing a
    new subject-named file is a review reject; extend the map first.
 
+A subject-named **concern file** is allowed to hold more than one public function,
+where the concern named by the file is itself the unit — not any one function
+inside it. The canonical layout names exactly this shape for `distro/src/debian/`
+and `distro/src/rhel/`: `debian_paths.rs` / `rhel_paths.rs`,
+`debian_packages.rs` / `rhel_packages.rs` and `debian_services.rs` /
+`rhel_services.rs` each answer every path, package or service question their
+family's `DistroAdapter` methods ask. `validation/path.rs` is the same pattern
+already, one file short of needing to be said out loud. Splitting these into one
+file per function would produce `debian_nginx_include_directory.rs` next to
+`debian_certificate_directory.rs` — a file per fact instead of a file per concern,
+which does not make the tree easier to read, only longer. The exception is this
+short, named list, not a licence to group functions by convenience elsewhere:
+a new concern file earns a place here the same way a new subject-named file does,
+by being added to the map first.
+
 An error enum is a type like any other, so it gets its OWN file next to the code
 that returns it — `NameError` → `name_error.rs`, never appended to `name.rs`.
 
@@ -216,7 +294,7 @@ Files stay small and single-purpose; target < 300 lines, hard review trigger at 
 
 ## Service anatomy (`crates/agent/src/services/<service>/`)
 
-One folder per proto service, two kinds of file inside:
+One folder per proto service, three kinds of file inside:
 
 - `<service>_service.rs` — the `#[tonic::async_trait]` impl. Each rpc method does
   exactly three things: turn the proto request into a validated input type, call
@@ -226,6 +304,14 @@ One folder per proto service, two kinds of file inside:
 - `<area>_status.rs` — the single `From<XOpError> for tonic::Status` mapping for
   the area. It exists so the match never grows inside the service file, and so
   one error variant maps to one gRPC code in one place.
+- one item-named file per decision the handler would otherwise inline — the
+  request-to-input checks (`validated_site.rs`, `validated_identity.rs`,
+  `validated_overrides.rs`, `invalid_input.rs`), a sink or adapter the rpc needs
+  (`stream_log_sink.rs`), and the terminal-outcome choices of a streaming rpc
+  (`tail_terminal.rs`). A handler is a translation layer, so anything with more
+  than one case gets a name, and it gets one for a reason a reviewer can check:
+  a decision inlined in a handler can be deleted without a single test going
+  red. Same rule as everywhere else — one unit per file, named after the unit.
 
 Streaming rpcs (`TailSiteLog`, `CreateBackup`, `ReadFile`, `WriteFile`) still
 follow this: the stream is produced by `ops` and the service only wraps it.
@@ -368,7 +454,7 @@ under deadline.
 - stdout/stderr of a spawned tool are captured into a typed error variant for the
   operator log — never returned verbatim to a hosting customer.
 
-## Config writes: render → validate → swap
+## Config writes: render → swap → validate
 
 Every system config the agent writes goes through `ops::safe_write`, which is the
 one implementation of this protocol:
@@ -378,10 +464,23 @@ one implementation of this protocol:
    rename is atomic on the same filesystem.
 3. `fsync` the temporary file **and** its containing directory, so a crash cannot
    leave a rename pointing at unflushed bytes.
-4. Validate (`nginx -t`, `php-fpm -t`, `crontab -T`, as the area requires).
-5. Atomically `rename` over the target.
+4. Atomically `rename` over the target.
+5. Validate (`nginx -t`, `php-fpm -t`, `crontab -T`, as the area requires).
 6. Reload the service.
-7. On any failure at 4–6: restore the previous content and return a typed error.
+7. On any failure at 5–6: restore the previous content and return a typed error.
+
+The rename precedes validation, not the other way round, because the validating
+tool reads the real config tree by path — `nginx -t` parses `nginx.conf` and
+everything its includes glob in, and a temporary file named `.tmpXXXXXX` matches
+no glob and is invisible to it. Validating before the rename would parse the OLD
+tree and tell us nothing about the new content. Renaming first is safe because
+nginx does not read a file until it is asked to: between the rename and the
+reload the file on disk has changed and the running server has not, so a failed
+validation is still fully recoverable by restoring the previous content — nothing
+in the running process needs to be undone. It is also strictly more useful this
+way: validating against the real tree catches conflicts with OTHER files, such as
+a duplicate `server_name` in a different site's config, which validating one file
+in isolation never could.
 
 Partial writes are forbidden. An area that needs a variation on this protocol
 extends `safe_write` — it does not write its own copy. Two implementations of a
@@ -464,7 +563,10 @@ mod tests;
 
 `maran structure` runs in CI as a merge gate and rejects:
 
-- more than one public unit in a file;
+- more than one public unit in a file, except the named concern files
+  (`debian_paths.rs`, `debian_packages.rs`, `debian_services.rs`,
+  `rhel_paths.rs`, `rhel_packages.rs`, `rhel_services.rs` — see "One unit per
+  file"), where the concern is the unit and several functions are expected;
 - a definition in a crate root or `mod.rs`;
 - a file whose name does not match its single public item, in snake_case. The
   subject-named exceptions are LISTED in the script rather than inferred — an inferred

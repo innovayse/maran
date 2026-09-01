@@ -90,4 +90,37 @@ export interface ApiClient {
    * @throws {ApiError} When the response status is not in the 2xx range.
    */
   delete: <T>(path: string, signal?: AbortSignal) => Promise<T>
+
+  /**
+   * Opens a Server-Sent Events stream and delivers each decoded frame to `onEvent`.
+   *
+   * Resolves when the server closes the stream or when `signal` is aborted, and releases the
+   * connection either way — an abandoned stream that keeps a reader open is a leaked socket the
+   * browser will not reclaim. `EventSource` is deliberately not used: it cannot carry the
+   * `Authorization` header or the CSRF header every panel request needs.
+   * @param path Request path, relative to the app origin (proxied in dev).
+   * @param onEvent Called once per decoded frame, in the order the server sent them.
+   * @param signal Abort signal that closes the stream; required, because a stream nobody can
+   * stop is a stream that outlives the screen that opened it.
+   * @returns Resolves once the stream has closed.
+   * @throws {ApiError} When the stream could not be opened.
+   */
+  stream: (
+    path: string,
+    onEvent: (event: ServerSentEvent) => void,
+    signal: AbortSignal,
+  ) => Promise<void>
+}
+
+/**
+ * One decoded Server-Sent Event, as the low-level client hands it to a caller.
+ *
+ * The panel streams live data over SSE (spec §17). The two fields are the only parts of the
+ * wire format anything in the SPA needs: which kind of event this is, and its payload as sent.
+ */
+export interface ServerSentEvent {
+  /** The event's name, or `'message'` when the frame carried no `event:` field, per the SSE spec. */
+  name: string
+  /** The frame's `data:` payload, with multiple data lines joined by newlines as the SSE spec requires. */
+  data: string
 }
