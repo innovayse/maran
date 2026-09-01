@@ -13,10 +13,16 @@ use std::collections::HashSet;
 use std::sync::Mutex;
 
 use maran_agent_core::validation::name::AccountName;
+use maran_agent_core::validation::php_version::PhpVersion;
 
 use maran_distro::{DistroFamily, adapter_for};
 
 use crate::accounts::{AccountError, AccountOperations, CommandOutcome, SystemHost};
+use std::path::Path;
+
+use crate::php::fake_php_host::FakePhpHost;
+use crate::php::model::pool_input::PoolInput;
+use crate::php::write_pool;
 
 /// A machine that records what it was asked to do instead of doing it.
 ///
@@ -266,7 +272,9 @@ fn suspending_an_account_that_does_not_exist_is_not_found() {
 fn deleting_removes_the_home_tree_and_reports_what_it_freed() {
     let operations = debian(RecordingHost::new().with_user("acme").with_size(4096));
 
-    let freed = operations.delete(&name()).expect("deletion succeeds");
+    let freed = operations
+        .delete(&FakePhpHost::empty(), &name())
+        .expect("deletion succeeds");
 
     assert_eq!(freed, 4096);
     assert_eq!(
@@ -340,4 +348,153 @@ fn the_nologin_shell_comes_from_the_distribution_and_not_from_a_literal() {
 
     assert!(operations_calls(&on_debian, "useradd")[0].contains(&"/usr/sbin/nologin".to_owned()));
     assert!(operations_calls(&on_rhel, "useradd")[0].contains(&"/sbin/nologin".to_owned()));
+}
+
+#[test]
+fn a_new_accounts_home_is_group_owned_by_the_web_server_so_a_site_can_be_served() {
+    // The defect: `useradd --create-home` leaves the home 0750 acme:acme, and the web
+    // server is in no group that can enter it — so a real nginx logs
+    // `stat() ... failed (13: Permission denied)` for every document root the agent
+    // creates, and no site this panel makes can be served at all.
+    let operations = debian(RecordingHost::new());
+
+    operations.create(&name(), 0).expect("creation succeeds");
+
+    let chgrp = operations_calls(&operations, "chgrp");
+    assert_eq!(
+        chgrp[0],
+        vec!["chgrp", "--no-dereference", "www-data", "/home/acme"],
+        "the home must be group-owned by the web server's group, by name from the adapter"
+    );
+}
+
+#[test]
+fn a_new_accounts_home_is_not_opened_to_every_other_local_user() {
+    // A traversal bit would fix serving too, and would open the home to every other
+    // customer's PHP worker, every FTP session and every cron job on the machine.
+    // "Other" is not a principal; it is everyone. So the mode stays 0750 and the
+    // traversal is granted to the web server's group alone.
+    let operations = debian(RecordingHost::new());
+
+    operations.create(&name(), 0).expect("creation succeeds");
+
+    let chmod = operations_calls(&operations, "chmod");
+    assert_eq!(chmod[0], vec!["chmod", "0750", "/home/acme"]);
+    for call in operations.host().calls() {
+        assert!(
+            !call.iter().any(|argument| argument.contains("o+")
+                || argument == "0751"
+                || argument == "0755"),
+            "no step of creation may grant anything to other: {call:?}"
+        );
+    }
+}
+
+#[test]
+fn the_web_server_group_is_the_familys_own_never_a_literal() {
+    // The RHEL family's web server is `nginx`, not `www-data`. An account created on
+    // AlmaLinux with a Debian group name is created successfully — `chgrp` is the only
+    // thing that would refuse — and the customer finds out when their site 403s.
+    let on_rhel = AccountOperations::new(RecordingHost::new(), adapter_for(DistroFamily::Rhel));
+
+    on_rhel.create(&name(), 0).expect("creation succeeds");
+
+    let chgrp = operations_calls(&on_rhel, "chgrp");
+    assert_eq!(
+        chgrp[0],
+        vec!["chgrp", "--no-dereference", "nginx", "/home/acme"]
+    );
+}
+
+#[test]
+fn deleting_an_account_takes_its_php_pools_with_it() {
+    // The trap this closes: a pool file names the account it runs as, php-fpm
+    // resolves that name at startup, and once the account is gone `php-fpm -t`
+    // answers `cannot get uid for user '<account>'` and the master refuses to
+    // start or reload AT ALL. One deleted customer therefore left a file that
+    // took PHP down for every tenant on the server at the next unrelated
+    // reload, hours or days later.
+    let php_host = FakePhpHost::with_installed(&["8.3"]);
+    write_pool(
+        &php_host,
+        adapter_for(DistroFamily::Debian),
+        &PoolInput {
+            account: name(),
+            version: PhpVersion::parse("8.3").expect("a supported version"),
+            max_children: 5,
+            overrides: Vec::new(),
+        },
+    )
+    .expect("the fixture pool is written");
+    let operations = debian(RecordingHost::new().with_user("acme"));
+
+    operations
+        .delete(&php_host, &name())
+        .expect("deletion succeeds");
+
+    assert!(
+        php_host
+            .config(Path::new("/etc/php/8.3/fpm/pool.d/acme.conf"))
+            .is_none(),
+        "the account's pool must be gone once the account is"
+    );
+}
+
+#[test]
+fn a_pool_that_cannot_be_removed_stops_the_deletion_rather_than_orphaning_the_pool() {
+    // This is also where the ORDER is pinned, and the order is the whole of the
+    // risk. A refused pool removal can only stop `userdel` if the removal comes
+    // FIRST; were `userdel` to run first, this assertion could not hold. And
+    // first is the only safe order: while the account still exists every pool
+    // file is valid, so `php-fpm -t` passes and each master reloads cleanly,
+    // whereas after `userdel` every remaining pool names a user that no longer
+    // resolves — the removal protocol validates AFTER unlinking, so it would put
+    // the file back and the pool would become unremovable by the very operation
+    // meant to remove it.
+    //
+    // The recoverable half is chosen deliberately: an account that is still
+    // there can be deleted again once whatever refused is fixed, whereas an
+    // account that is gone with its pool left behind cannot be repaired by any
+    // operation this agent has.
+    let php_host = FakePhpHost::with_installed(&["8.3"]);
+    write_pool(
+        &php_host,
+        adapter_for(DistroFamily::Debian),
+        &PoolInput {
+            account: name(),
+            version: PhpVersion::parse("8.3").expect("a supported version"),
+            max_children: 5,
+            overrides: Vec::new(),
+        },
+    )
+    .expect("the fixture pool is written");
+    php_host.reject_validation("php-fpm will not have it");
+    let operations = debian(RecordingHost::new().with_user("acme"));
+
+    let refusal = operations.delete(&php_host, &name());
+
+    assert!(
+        matches!(refusal, Err(AccountError::PoolRemoval { .. })),
+        "expected PoolRemoval, got {refusal:?}"
+    );
+    assert!(
+        operations_calls(&operations, "userdel").is_empty(),
+        "userdel must NOT have run: the account stays, which is the state that can be retried"
+    );
+}
+
+#[test]
+fn deleting_an_account_that_never_ran_php_reloads_nothing() {
+    // A static-only customer is the common case, and a deletion that restarted
+    // six php-fpm masters to remove nothing would make every such deletion a
+    // small outage for every other tenant on the box.
+    let php_host = FakePhpHost::with_installed(&["8.3"]);
+    let operations = debian(RecordingHost::new().with_user("acme"));
+
+    operations
+        .delete(&php_host, &name())
+        .expect("deletion succeeds");
+
+    assert_eq!(php_host.removals(), 0);
+    assert_eq!(php_host.commands(), Vec::<Vec<String>>::new());
 }

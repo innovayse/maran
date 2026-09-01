@@ -60,9 +60,10 @@ knowledge, no system mutation.
 
 | Path | Purpose |
 |---|---|
+| `src/agent_paths.rs` | `AgentPaths`: directories the agent owns that are identical on every family (nginx include dir, certificate dir). A path that differs per family is a `distro` fact instead. |
 | `src/validation/` | one type per input kind, each with its own `*_error.rs`. Today: `name.rs`, `path.rs` (`resolve_in_home`). Planned, same shape: `domain`, `port`, `ip_address`, `cron_expression`. A constructed value is a valid value. |
 | `src/utils/` | helpers that belong to no single area and answer a question about the host, not about a feature: `directory.rs` (recursive size), `current_uid.rs`. A helper only one area calls belongs to that area, not here. |
-| `src/privs/` *(planned)* | the ONLY place `unsafe` is allowed. `fork_as_account.rs` is the single entry point for doing work as a customer; `account_ids.rs` resolves uid/gid; `priv_error.rs` types the failures. |
+| `src/privs/` | the ONLY place `unsafe` is allowed. `fork_as_account.rs` is the single entry point for doing work as a customer; `account_ids.rs` resolves uid/gid via `getpwnam_r`; `priv_error.rs` types the failures. Threat note: `docs/superpowers/notes/2026-08-30-privs-threat-note.md`. |
 
 `privs` rules that are easy to get wrong: fork first, then drop (setuid is
 process-wide, not thread-scoped, so it must not be called inside the tokio

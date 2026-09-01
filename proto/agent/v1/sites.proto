@@ -6,6 +6,7 @@ package maran.agent.v1;
 option csharp_namespace = "Maran.Agent.V1";
 
 import "agent/v1/common.proto";
+import "agent/v1/php.proto";
 
 // Manages web-server sites owned by an account. A site is a domain served
 // from a document root under the account's home; the agent renders its
@@ -65,6 +66,42 @@ enum SiteBackendType {
   SITE_BACKEND_TYPE_REVERSE_PROXY = 3;
 }
 
+// The panel's record of what a site IS, as opposed to which site it is.
+//
+// Added 2026-08-31. **Additive by the letter of rules/proto.md, and a
+// SEMANTIC break by its spirit, taken deliberately.** The field is new and no
+// number is reused, so an old caller still compiles and still sends valid
+// messages — but the rpcs below now REFUSE a message that omits it, so an old
+// caller stops working. That was judged acceptable exactly once, here, because
+// these rpcs have no caller yet: nothing has shipped that could be broken. It
+// is recorded rather than left to be inferred, and a later change of this shape
+// on a live rpc is a v2, not a field. Every operation that re-renders a vhost —
+// enabling, disabling, switching PHP version, installing or removing a
+// certificate — must produce the SAME text CreateSite produced, and that text
+// is a function of the backend, the aliases and whether a certificate is
+// installed. Those facts live in the panel's database, which is where a site
+// is created, renamed and re-planned; the vhost on disk is a rendering of
+// them, not a second copy to be read back. A caller that omits this message
+// gets INVALID_INPUT rather than a static-backend vhost silently replacing a
+// PHP one: proto3 cannot distinguish "absent" from "static", so the agent
+// refuses the default instead of acting on it.
+message SiteSpec {
+  // Additional hostnames served by the same site, as in CreateSiteRequest.
+  repeated string aliases = 1;
+  // Which backend serves this site's content. SITE_BACKEND_TYPE_UNSPECIFIED
+  // is refused.
+  SiteBackendType backend_type = 2;
+  // Required when backend_type is PHP: the version the site is bound to.
+  string php_version = 3;
+  // Required when backend_type is REVERSE_PROXY: the upstream to forward to.
+  string proxy_upstream = 4;
+  // True when a TLS certificate is currently installed for the domain, so the
+  // re-rendered vhost keeps its redirect and its TLS block. False renders
+  // plain HTTP. The caller knows this and the renderer must not guess: a
+  // guess drops a live site back to port 80 on the next unrelated edit.
+  bool has_certificate = 5;
+}
+
 message CreateSiteRequest {
   // System username of the owning account.
   string account_username = 1;
@@ -82,6 +119,20 @@ message CreateSiteRequest {
   // to, e.g. "127.0.0.1:3000". Host must be loopback or a private address;
   // validated by the agent, not passed through to the config verbatim.
   string proxy_upstream = 6;
+  // The account plan's worker budget, materialised into the pm.max_children
+  // of the pool this site's vhost points at (spec §8). Panel-owned: it comes
+  // from the plan, not from anything the agent can read back off this host.
+  // Ignored for a site that is not PHP-backed, which owns no pool.
+  // Added 2026-09-01.
+  uint32 max_children = 7;
+  // The customer's php.ini overrides, re-validated by the agent against its
+  // own whitelist. Panel-owned for the same reason as max_children, and
+  // carried here for the same reason UpdateSitePhpVersion carries it: a pool
+  // belongs to an ACCOUNT and a version, not to one site, so creating a second
+  // site on a version the account already uses rewrites that pool — and a
+  // rewrite that omitted the settings would silently drop them.
+  // Added 2026-09-01.
+  repeated PhpSetting overrides = 8;
 }
 
 message CreateSiteResponse {
@@ -103,6 +154,27 @@ message UpdateSitePhpVersionRequest {
   string domain = 2;
   // Installed PHP version to switch to, e.g. "8.4".
   string php_version = 3;
+  // What the site is, so its vhost re-renders to the same text CreateSite
+  // wrote. Added 2026-08-31; required.
+  SiteSpec site = 4;
+  // The account plan's worker budget, materialised into the pool's
+  // pm.max_children (spec §8). Panel-owned: it comes from the plan, not from
+  // anything the agent can read back off this host.
+  uint32 max_children = 5;
+  // The customer's php.ini overrides, re-validated by the agent against its
+  // own whitelist. Panel-owned for the same reason as max_children.
+  repeated PhpSetting overrides = 6;
+  // True when the panel has established that NO OTHER site of this account
+  // still uses the version being left behind, in which case the agent removes
+  // that version's pool once the site is serving from the new one.
+  //
+  // Panel-owned for the same reason retired_php_version is on DeleteSite: a
+  // pool is shared per account x version, so removing it because THIS site
+  // moved would take the account's other sites off the air. False leaves the
+  // old pool in place, which is safe and merely wasteful.
+  //
+  // Added 2026-09-01.
+  bool remove_previous_pool = 7;
 }
 
 message UpdateSitePhpVersionResponse {
@@ -119,6 +191,9 @@ message EnableSiteRequest {
   string account_username = 1;
   // Primary domain of the site to enable.
   string domain = 2;
+  // What the site is, so the restored vhost is the site's own again. Added
+  // 2026-08-31; required.
+  SiteSpec site = 3;
 }
 
 message EnableSiteResponse {
@@ -135,6 +210,10 @@ message DisableSiteRequest {
   string account_username = 1;
   // Primary domain of the site to disable.
   string domain = 2;
+  // What the site is. The suspended vhost keeps the site's own aliases and
+  // log paths, so it is rendered from the same facts. Added 2026-08-31;
+  // required.
+  SiteSpec site = 3;
 }
 
 message DisableSiteResponse {
@@ -151,6 +230,20 @@ message DeleteSiteRequest {
   string account_username = 1;
   // Primary domain of the site to delete.
   string domain = 2;
+  // The PHP version whose pool this site was served by, when the panel has
+  // established that NO OTHER site of this account still uses that version --
+  // in which case the agent removes the pool along with the vhost. Empty for a
+  // static or reverse-proxied site, and empty when the account keeps other
+  // sites on the same version.
+  //
+  // The decision is the panel's and cannot be the agent's: a php-fpm pool
+  // belongs to an ACCOUNT and a version, and two sites on the same version
+  // share one pool and one worker budget. Only the panel holds the rows that
+  // say whether another site still needs it; the vhosts on disk are a
+  // rendering of those rows, not a second copy to count.
+  //
+  // Added 2026-09-01.
+  string retired_php_version = 3;
 }
 
 message DeleteSiteResponse {

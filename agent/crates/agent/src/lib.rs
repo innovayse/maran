@@ -1,4 +1,8 @@
 #![warn(missing_docs)]
+// The compiler, not a grep, is the gate: `unsafe` exists in this workspace only
+// in maran-agent-core::privs (rules/rust.md "unsafe"). `forbid` cannot be lowered
+// by an `#[allow]` further down, so adding unsafe here does not compile at all.
+#![forbid(unsafe_code)]
 //! maran-agent — the root daemon.
 //!
 //! Serves the typed gRPC contract from `proto/agent/v1/` over a unix domain

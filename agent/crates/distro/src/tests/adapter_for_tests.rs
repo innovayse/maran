@@ -21,3 +21,49 @@ fn every_family_gets_the_adapter_it_asked_for() {
         assert_eq!(adapter_for(family).family(), family);
     }
 }
+
+#[test]
+fn the_families_disagree_about_where_a_php_pool_lives() {
+    let debian = adapter_for(DistroFamily::Debian);
+    let rhel = adapter_for(DistroFamily::Rhel);
+
+    assert_eq!(
+        debian.php_fpm_pool_directory("8.3"),
+        "/etc/php/8.3/fpm/pool.d"
+    );
+    assert_eq!(
+        rhel.php_fpm_pool_directory("8.3"),
+        "/etc/opt/remi/php83/php-fpm.d"
+    );
+}
+
+#[test]
+fn the_rhel_family_drops_the_dot_from_a_php_version() {
+    // The one difference a reader is most likely to get wrong, because the
+    // package name and the path disagree with the version the caller passes.
+    let rhel = adapter_for(DistroFamily::Rhel);
+
+    assert_eq!(rhel.php_package("8.4"), "php84-php-fpm");
+    assert_eq!(rhel.php_fpm_service("8.4"), "php84-php-fpm");
+}
+
+#[test]
+fn the_web_server_runs_as_a_different_user_on_each_family() {
+    assert_eq!(
+        adapter_for(DistroFamily::Debian).web_server_user(),
+        "www-data"
+    );
+    assert_eq!(adapter_for(DistroFamily::Rhel).web_server_user(), "nginx");
+}
+
+#[test]
+fn the_web_server_belongs_to_a_different_group_on_each_family() {
+    // Asked separately from the user, because an account's home is group-owned by
+    // this name so a site under it can be served. The two names agreeing on both
+    // families today is a fact about these distributions, not a rule.
+    assert_eq!(
+        adapter_for(DistroFamily::Debian).web_server_group(),
+        "www-data"
+    );
+    assert_eq!(adapter_for(DistroFamily::Rhel).web_server_group(), "nginx");
+}

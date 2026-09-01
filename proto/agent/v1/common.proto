@@ -35,6 +35,18 @@ enum ErrorCode {
   ERROR_CODE_VALIDATION_FAILED = 4;
   // Unexpected system failure (tool crashed, IO error); see tool_output.
   ERROR_CODE_SYSTEM_FAILURE = 5;
+  // Added 2026-08-31, additively. A server-streaming rpc the AGENT ended
+  // because the client stopped reading it: the send buffer stayed full past
+  // the agent's patience, so the stream was dropped to free the worker behind
+  // it. Not a fault of the operation, and retryable immediately by reopening
+  // the stream.
+  ERROR_CODE_STREAM_DROPPED = 6;
+  // Added 2026-08-31, additively. A server-streaming rpc the agent closed
+  // because nothing happened on it for the agent's maximum idle time. Benign
+  // and expected — a log nobody wrote to, not a failure — and given its own
+  // code so a panel can say "nothing more was logged" instead of raising a
+  // fault. Reopen the stream to keep watching.
+  ERROR_CODE_STREAM_IDLE = 7;
 }
 
 // Streamed progress of a long-running operation (backup, restore, install).

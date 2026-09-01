@@ -1,0 +1,21 @@
+# Rendered by Maran. Do not edit: this file is replaced whenever the site changes.
+server {
+    listen 80;
+    listen [::]:80;
+    server_name {{ domain }}{% for alias in aliases %} {{ alias }}{% endfor %};
+
+    # The ACME challenge is served over plain HTTP before a certificate exists,
+    # so this location stays reachable even when everything else redirects.
+    location ^~ /.well-known/acme-challenge/ {
+        root {{ document_root }};
+        default_type "text/plain";
+    }
+
+{% if ssl.is_some() %}    location / {
+        return 301 https://$host$request_uri;
+    }
+}
+{{ ssl.as_ref().unwrap().render_into_server()? }}
+{% else %}{{ body }}
+}
+{% endif %}
