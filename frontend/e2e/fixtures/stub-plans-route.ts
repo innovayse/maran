@@ -33,3 +33,30 @@ export const stubPlans = async (page: Page, plans: Plan[] = [THE_PLAN]): Promise
     })
   })
 }
+
+/**
+ * The three standard plans a fresh panel seeds, so a spec can drive a picker with more than one
+ * choice in it.
+ *
+ * Three and not two: the option that could not be clicked was the LAST one, clipped by the card
+ * the form is drawn in, and a two-option list is short enough to fit inside the clip.
+ */
+export const THREE_PLANS: Plan[] = [
+  THE_PLAN,
+  {
+    id: '33333333-3333-3333-3333-333333333333',
+    displayName: 'Business',
+    diskQuotaMb: 25600,
+    maxSites: 25,
+    maxDatabases: 10,
+    maxFtpUsers: 10,
+  },
+  {
+    id: '44444444-4444-4444-4444-444444444444',
+    displayName: 'Unlimited',
+    diskQuotaMb: 1048576,
+    maxSites: 500,
+    maxDatabases: 500,
+    maxFtpUsers: 100,
+  },
+]

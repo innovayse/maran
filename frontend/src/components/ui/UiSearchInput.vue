@@ -8,6 +8,7 @@
  * Pressing Enter emits `search`; callers may also debounce on `update:modelValue`.
  */
 import { computed, ref, useId, type ComputedRef, type Ref } from 'vue'
+import UiIcon from './UiIcon.vue'
 
 /** Props accepted by {@link UiSearchInput}. */
 const props = withDefaults(
@@ -95,17 +96,12 @@ const onClear = (): void => {
     <div class="relative flex items-center">
       <!-- Decorative glyph: the field is already named by its label, so the
            magnifier repeats nothing to a screen reader. -->
-      <svg
-        class="pointer-events-none absolute left-2 size-3.5 text-text-muted"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="2"
-        aria-hidden="true"
-      >
-        <circle cx="11" cy="11" r="7" />
-        <path d="M20 20l-4-4" />
-      </svg>
+      <UiIcon
+        name="search"
+        :size="14"
+        :stroke-width="2"
+        class="pointer-events-none absolute left-2 text-text-muted"
+      />
       <input
         :id="fieldId"
         ref="inputElement"
@@ -124,9 +120,7 @@ const onClear = (): void => {
         @click="onClear"
       >
         <!-- Decorative glyph: the button's accessible name comes from the caller-translated label. -->
-        <svg class="size-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
-          <path d="M6 6l12 12M18 6L6 18" stroke-width="2" stroke-linecap="round" />
-        </svg>
+        <UiIcon name="x" :size="12" :stroke-width="2" />
         <span class="sr-only">{{ clearLabel }}</span>
       </button>
     </div>

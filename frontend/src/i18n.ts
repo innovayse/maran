@@ -1,4 +1,9 @@
-import { createI18n } from 'vue-i18n'
+import {
+  createI18n,
+  type I18n,
+  type LocaleMessageValue,
+  type VueMessageType,
+} from 'vue-i18n'
 import type { AppLocale } from './types/app'
 
 /**
@@ -16,7 +21,7 @@ import type { AppLocale } from './types/app'
  * @param locale The locale directory to read.
  * @returns That locale's complete message bundle.
  */
-const loadMessages = (locale: AppLocale): Record<string, unknown> => {
+const loadMessages = (locale: AppLocale): Record<string, LocaleMessageValue<VueMessageType>> => {
   // Eager, not lazy: the whole panel is one bundle and the entire set of messages is
   // a few kilobytes, so splitting them across network requests would buy nothing and
   // cost a flash of untranslated interface on the first render of every screen.
@@ -24,7 +29,7 @@ const loadMessages = (locale: AppLocale): Record<string, unknown> => {
     eager: true,
   })
 
-  const messages: Record<string, unknown> = {}
+  const messages: Record<string, LocaleMessageValue<VueMessageType>> = {}
   for (const [path, module] of Object.entries(modules)) {
     if (!path.startsWith(`./locales/${locale}/`)) {
       continue
@@ -35,8 +40,8 @@ const loadMessages = (locale: AppLocale): Record<string, unknown> => {
     // the last one read win and silently discard the other's keys. That is exactly how
     // the `accounts` namespace was lost the first time this split was attempted.
     for (const [namespace, bundle] of Object.entries(module.default)) {
-      const existing = (messages[namespace] ?? {}) as Record<string, unknown>
-      messages[namespace] = { ...existing, ...(bundle as Record<string, unknown>) }
+      const existing = (messages[namespace] ?? {}) as Record<string, LocaleMessageValue<VueMessageType>>
+      messages[namespace] = { ...existing, ...(bundle as Record<string, LocaleMessageValue<VueMessageType>>) }
     }
   }
 
@@ -72,6 +77,12 @@ const i18nOptions = {
  * already localized, so the two must never diverge).
  * @returns A configured vue-i18n instance to install with `app.use()`.
  */
-export const createAppI18n = (): ReturnType<typeof createI18n<typeof i18nOptions>> => {
+export const createAppI18n = (): I18n<
+  (typeof i18nOptions)['messages'],
+  Record<string, never>,
+  Record<string, never>,
+  AppLocale,
+  false
+> => {
   return createI18n(i18nOptions)
 }

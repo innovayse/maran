@@ -4,7 +4,7 @@ import { stubModules } from '../fixtures/stub-modules-route'
 import { stubAccounts, stubCreateAccountProblem } from '../fixtures/stub-accounts-route'
 import type { PanelModule } from '../../src/types/module'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
-import { stubPlans, THE_PLAN } from '../fixtures/stub-plans-route'
+import { stubPlans, THE_PLAN, THREE_PLANS } from '../fixtures/stub-plans-route'
 
 /** Catalogue every spec here starts from: the accounts module licensed, so the form is reachable. */
 const LICENSED_ACCOUNTS: PanelModule[] = [
@@ -167,4 +167,40 @@ test('cancelling the form returns to the list without creating anything', async 
   await expect(page).toHaveURL('/accounts')
   await expect(page.getByText('No accounts yet')).toBeVisible()
   expect(createRequests).toEqual([])
+})
+
+test('every plan the panel offers can actually be clicked, not merely rendered', async ({
+  page,
+}) => {
+  // A hit test, not a presence assertion. The three options were all in the DOM and the third was
+  // clipped by the card that contains the form: `document.elementFromPoint` at its centre returned
+  // the card, so a test asserting the option EXISTS passed while an operator could not choose the
+  // plan. Presence is not reachability, and an assertion that passes while somebody is stuck is
+  // the failure mode this suite keeps hitting.
+  await stubSignedIn(page)
+  await stubHealthy(page)
+  await stubModules(page, LICENSED_ACCOUNTS)
+  await stubAccounts(page, [])
+  await stubPlans(page, THREE_PLANS)
+
+  await page.goto('/accounts/new')
+  await page.getByRole('combobox', { name: 'Plan ID' }).click()
+
+  for (const plan of THREE_PLANS) {
+    const option = page.getByRole('option', { name: plan.displayName, exact: false })
+    await expect(option).toBeVisible()
+
+    const topmostAtItsCentre = await option.evaluate((element) => {
+      const box = element.getBoundingClientRect()
+      const hit = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2)
+      return hit === null ? false : element.contains(hit) || hit === element
+    })
+    expect(topmostAtItsCentre, `${plan.displayName} is covered by something else`).toBe(true)
+  }
+
+  // And the one that used to be unreachable is chosen, which is the operator's actual goal.
+  const last = THREE_PLANS[THREE_PLANS.length - 1]
+  await page.getByRole('option', { name: last.displayName, exact: false }).click()
+
+  await expect(page.getByRole('combobox', { name: 'Plan ID' })).toContainText(last.displayName)
 })

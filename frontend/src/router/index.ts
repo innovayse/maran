@@ -6,6 +6,9 @@ import UpgradePage from '../pages/UpgradePage.vue'
 import AccountDetailPage from '../pages/accounts/AccountDetailPage.vue'
 import AccountsListPage from '../pages/accounts/AccountsListPage.vue'
 import AccountFormPage from '../pages/accounts/AccountFormPage.vue'
+import SitesListPage from '../pages/sites/SitesListPage.vue'
+import SiteFormPage from '../pages/sites/SiteFormPage.vue'
+import SiteDetailPage from '../pages/sites/SiteDetailPage.vue'
 import AuthLayout from '../layouts/AuthLayout.vue'
 import LoginPage from '../pages/auth/LoginPage.vue'
 import TwoFactorPage from '../pages/auth/TwoFactorPage.vue'
@@ -50,6 +53,23 @@ export const createAppRouter = (): Router => {
             component: AccountDetailPage,
             props: true,
             meta: { module: 'accounts' },
+          },
+        ],
+      },
+      {
+        path: '/sites',
+        component: DefaultLayout,
+        children: [
+          { path: '', name: 'sites', component: SitesListPage, meta: { module: 'sites' } },
+          { path: 'new', name: 'sites-new', component: SiteFormPage, meta: { module: 'sites' } },
+          // Declared after 'new' so the literal segment wins: an :id route placed first would
+          // swallow /sites/new and try to load a site called "new".
+          {
+            path: ':id',
+            name: 'site-detail',
+            component: SiteDetailPage,
+            props: true,
+            meta: { module: 'sites' },
           },
         ],
       },

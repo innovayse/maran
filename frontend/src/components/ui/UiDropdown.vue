@@ -16,6 +16,7 @@
  * choosing one closes the menu.
  */
 import { nextTick, onBeforeUnmount, onMounted, ref, useId, type Ref } from 'vue'
+import UiIcon from './UiIcon.vue'
 
 /** Props accepted by {@link UiDropdown}. */
 const props = withDefaults(
@@ -226,16 +227,7 @@ onBeforeUnmount((): void => {
            icon set. -->
       <slot name="leading"></slot>
       <span>{{ label }}</span>
-      <svg
-        v-if="chevron"
-        class="size-3 text-text-muted"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        aria-hidden="true"
-      >
-        <path d="M6 9l6 6 6-6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
-      </svg>
+      <UiIcon v-if="chevron" name="chevronDown" :size="12" :stroke-width="2" class="text-text-muted" />
     </button>
     <ul
       v-if="isOpen"

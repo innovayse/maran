@@ -104,9 +104,46 @@ test('the password field starts masked and the reveal toggle shows it', async ({
   // password on screen for whoever is standing behind the person typing.
   await expect(password).toHaveAttribute('type', 'password')
 
-  await page.getByRole('button', { name: 'Show' }).click()
+  // The toggle draws an icon, so its accessible name is the only thing naming
+  // it. Resolving it BY that name is the assertion: a control found by role and
+  // name is a control a screen-reader user can find and operate.
+  const reveal = page.getByRole('button', { name: 'Show' })
+  await expect(reveal).toBeVisible()
+  await expect(reveal).toHaveAttribute('aria-pressed', 'false')
+
+  // Masked: the struck-through eye, and not the open one.
+  await expect(reveal.locator('svg.lucide-eye-off-icon')).toBeVisible()
+  await expect(reveal.locator('svg.lucide-eye-icon')).toHaveCount(0)
+
+  await reveal.click()
   await expect(password).toHaveAttribute('type', 'text')
 
-  await page.getByRole('button', { name: 'Hide' }).click()
+  // Revealed: the glyph flips, the name flips to the next action, and the
+  // pressed state flips with them.
+  const hide = page.getByRole('button', { name: 'Hide' })
+  await expect(hide).toHaveAttribute('aria-pressed', 'true')
+  await expect(hide.locator('svg.lucide-eye-icon')).toBeVisible()
+  await expect(hide.locator('svg.lucide-eye-off-icon')).toHaveCount(0)
+
+  await hide.click()
   await expect(password).toHaveAttribute('type', 'password')
+})
+
+test('the reveal toggle is reachable and operable from the keyboard alone', async ({ page }) => {
+  await stubSignedOut(page)
+  await stubHealthy(page)
+  await stubEmptyModules(page)
+
+  await page.goto('/login')
+  const password = page.getByRole('textbox', { name: 'Password' })
+  await password.fill('correct horse battery staple')
+
+  // Tab from the field lands on the toggle: an icon-only control that mouse
+  // users can reach and keyboard users cannot is the failure this guards.
+  await password.press('Tab')
+  await expect(page.getByRole('button', { name: 'Show' })).toBeFocused()
+
+  await page.keyboard.press('Enter')
+  await expect(password).toHaveAttribute('type', 'text')
+  await expect(page.getByRole('button', { name: 'Hide' })).toBeFocused()
 })

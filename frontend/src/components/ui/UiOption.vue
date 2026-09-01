@@ -10,6 +10,7 @@
  * break the very keyboard model it exists to implement. Only `UiSelect`
  * renders it.
  */
+import UiIcon from './UiIcon.vue'
 
 /** Props accepted by {@link UiOption}. */
 const props = withDefaults(
@@ -78,15 +79,6 @@ const onPointerEnter = (): void => {
     @pointerenter="onPointerEnter"
   >
     <span>{{ label }}</span>
-    <svg
-      v-if="selected"
-      class="size-3 shrink-0 text-accent"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      aria-hidden="true"
-    >
-      <path d="M20 6L9 17l-5-5" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" />
-    </svg>
+    <UiIcon v-if="selected" name="check" :size="12" :stroke-width="2.2" class="text-accent" />
   </li>
 </template>

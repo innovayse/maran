@@ -5,14 +5,22 @@
  * treatment stay defined in exactly one place (rules/vue.md: "UI comes from
  * components/ui").
  *
- * The toggle is a word, not an eye glyph: `UiIcon` draws only the glyphs the
- * design canvas defines, and inventing one here would put a shape in the panel
- * that the design never approved. A word also states what will happen, which an
- * eye — ambiguous between "is hidden" and "will hide" — does not.
+ * The toggle draws an eye rather than the words "Show"/"Hide": the panel's
+ * icons now come from `lucide-vue-next` through {@link UiIcon}, so the glyph is
+ * one the icon set already defines rather than a shape hand-drawn here.
+ *
+ * The eye alone would not say WHICH of "is hidden" and "will hide" it means, so
+ * the words did not simply go away — they moved into the button's `aria-label`,
+ * where they still name the ACTION the control performs. The icon reports the
+ * state (an open eye while the value is revealed, a struck-through one while it
+ * is masked), `aria-pressed` reports the same state to assistive technology,
+ * and `aria-controls` ties the toggle to the field it changes. An icon-only
+ * control with no accessible name would be a regression, not a simplification.
  */
 import { computed, ref, type ComputedRef, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import UiButton from './UiButton.vue'
+import UiIcon, { type UiIconName } from './UiIcon.vue'
 import UiInput from './UiInput.vue'
 
 /** Props accepted by {@link UiPasswordInput}. */
@@ -49,9 +57,24 @@ const { t } = useI18n()
  */
 const isRevealed: Ref<boolean> = ref(false)
 
-/** The label of the toggle, which names the action it performs, not the current state. */
+/**
+ * The accessible name of the toggle, which names the action it performs, not
+ * the current state. It is no longer rendered as visible text — the icon holds
+ * that space now — but it is still the control's only name, so it stays
+ * translated and stays required reading for a screen-reader user.
+ */
 const toggleLabel: ComputedRef<string> = computed(() => {
   return isRevealed.value ? t('app.auth.hidePassword') : t('app.auth.showPassword')
+})
+
+/**
+ * The glyph the toggle shows, which reports the CURRENT state rather than the
+ * action: an open eye while the value is on screen, a struck-through eye while
+ * it is masked. The name beside it says what pressing will do, so the two
+ * together are unambiguous where either alone would not be.
+ */
+const toggleIcon: ComputedRef<UiIconName> = computed(() => {
+  return isRevealed.value ? 'eye' : 'eyeOff'
 })
 
 /**
@@ -84,16 +107,20 @@ const onToggle = (): void => {
     @update:model-value="onUpdate"
   >
     <template #trailing="{ inputId }">
-      <!-- `aria-controls` ties the toggle to the field it changes, and `aria-pressed`
-           reports the current state — the two things the label deliberately does not say. -->
+      <!-- `aria-label` is the control's ONLY name now that the words are not
+           rendered: the icon is decorative and announces nothing. `aria-controls`
+           ties the toggle to the field it changes, and `aria-pressed` reports the
+           current state — the two things the name deliberately does not say. -->
       <UiButton
         variant="ghost"
+        :aria-label="toggleLabel"
         :aria-controls="inputId"
         :aria-pressed="isRevealed"
         class="px-2 py-0.5"
         @click="onToggle"
-        >{{ toggleLabel }}</UiButton
       >
+        <UiIcon :name="toggleIcon" :size="15" />
+      </UiButton>
     </template>
   </UiInput>
 </template>
