@@ -69,7 +69,7 @@ const onPointerEnter = (): void => {
     role="option"
     :aria-selected="selected"
     :aria-disabled="disabled ? 'true' : undefined"
-    class="flex cursor-pointer items-center justify-between gap-2.5 rounded-md px-2 py-1.5 text-base text-text-primary"
+    class="flex cursor-pointer items-center justify-between gap-2.5 rounded-md px-3 py-2 text-base text-text-primary"
     :class="[
       active ? 'bg-surface-3' : '',
       selected ? 'font-medium' : '',
@@ -79,6 +79,6 @@ const onPointerEnter = (): void => {
     @pointerenter="onPointerEnter"
   >
     <span>{{ label }}</span>
-    <UiIcon v-if="selected" name="check" :size="12" :stroke-width="2.2" class="text-accent" />
+    <UiIcon v-if="selected" name="check" size="sm" class="text-accent" />
   </li>
 </template>

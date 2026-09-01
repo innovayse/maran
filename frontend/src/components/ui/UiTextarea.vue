@@ -73,7 +73,7 @@ const onInput = (event: Event): void => {
       :aria-required="required ? 'true' : undefined"
       :aria-invalid="hasError"
       :aria-describedby="hasError ? errorId : undefined"
-      class="resize-y rounded-lg border bg-surface-2 px-2 py-1.5 text-base leading-normal text-text-primary placeholder:text-text-muted focus-visible:outline-none"
+      class="resize-y rounded-lg border bg-surface-2 px-3 py-2 text-base leading-normal text-text-primary placeholder:text-text-muted focus-visible:outline-none"
       :class="
         hasError
           ? 'border-[rgb(229_72_77/0.5)] focus-visible:shadow-focus-danger'

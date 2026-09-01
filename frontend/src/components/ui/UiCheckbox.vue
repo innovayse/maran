@@ -74,7 +74,7 @@ const onChange = (event: Event): void => {
         @change="onChange"
       />
       <span
-        class="inline-flex size-3.5 shrink-0 items-center justify-center rounded-sm border text-white transition-colors peer-focus-visible:border-accent peer-focus-visible:shadow-focus peer-disabled:opacity-65"
+        class="inline-flex size-4.5 shrink-0 items-center justify-center rounded-sm border text-white transition-colors peer-focus-visible:border-accent peer-focus-visible:shadow-focus peer-disabled:opacity-65"
         :class="[
           modelValue ? 'border-accent bg-accent' : 'bg-surface-2',
           hasError && !modelValue ? 'border-[rgb(229_72_77/0.5)]' : '',
@@ -82,7 +82,7 @@ const onChange = (event: Event): void => {
         ]"
         aria-hidden="true"
       >
-        <UiIcon v-if="modelValue" name="check" :size="10" :stroke-width="2.8" />
+        <UiIcon v-if="modelValue" name="check" size="sm" />
       </span>
       <label
         :for="fieldId"

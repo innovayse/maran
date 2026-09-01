@@ -53,7 +53,7 @@ const iconFor = (value: string): 'moon' | 'sun' => {
     @update:model-value="select"
   >
     <template #icon="{ option }">
-      <UiIcon :name="iconFor(option.value)" :size="12" />
+      <UiIcon :name="iconFor(option.value)" size="md" />
     </template>
   </UiSegmentedControl>
 </template>

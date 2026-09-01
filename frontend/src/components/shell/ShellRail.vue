@@ -67,7 +67,7 @@ const expand = (): void => {
           :locked="entry.locked"
           :title="entry.labelKey === null ? (entry.label ?? '') : t(entry.labelKey)"
         >
-          <UiIcon :name="entry.icon" :size="16" />
+          <UiIcon :name="entry.icon" size="md" />
           <span class="sr-only">
             {{ entry.labelKey === null ? entry.label : t(entry.labelKey) }}
             <template v-if="entry.locked">{{ t('app.nav.lockedBadge') }}</template>
@@ -89,7 +89,7 @@ const expand = (): void => {
       :title="t('app.shell.expandSidebar')"
       @click="expand"
     >
-      <UiIcon name="chevronRight" :size="15" />
+      <UiIcon name="chevronRight" size="md" />
     </UiButton>
   </aside>
 </template>

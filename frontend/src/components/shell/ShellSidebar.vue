@@ -108,7 +108,7 @@ const toggleTheme = (): void => {
            holds, not the server: there is no search endpoint, and the palette's
            scope is stated in its own placeholder rather than implied. -->
       <UiButton variant="secondary" class="shell-search-trigger" @click="emit('openPalette')">
-        <UiIcon name="search" :size="13" />
+        <UiIcon name="search" size="md" />
         <span class="flex-1 text-left">{{ t('app.shell.search') }}</span>
         <span class="rounded border border-border-strong px-1 py-px font-mono text-sm">
           {{ t('app.shell.searchShortcut') }}
@@ -136,9 +136,8 @@ const toggleTheme = (): void => {
     </div>
 
     <div class="shell-footer flex items-center gap-2 border-t border-border-subtle px-3">
-      <!-- The design's identity block. It is passed `null` because this build has
-           no authentication and therefore no user to name; the day a session
-           exists, a store supplies one here and nothing else changes. -->
+      <!-- The design's identity block, which is also the account menu's trigger:
+           it names the signed-in person once and takes the width that leaves. -->
       <ShellUserBlock />
       <UiButton
         variant="secondary"
@@ -147,7 +146,7 @@ const toggleTheme = (): void => {
         :title="t('app.shell.toggleTheme')"
         @click="toggleTheme"
       >
-        <UiIcon name="moon" :size="13" />
+        <UiIcon name="moon" size="md" />
       </UiButton>
     </div>
   </aside>

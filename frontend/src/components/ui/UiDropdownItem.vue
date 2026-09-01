@@ -64,14 +64,14 @@ const onClick = (): void => {
       :aria-checked="checked"
       tabindex="-1"
       :disabled="disabled"
-      class="flex w-full items-center justify-between gap-3 rounded-md px-2 py-1.5 text-left text-base transition-colors enabled:hover:bg-surface-3 focus-visible:bg-surface-3 focus-visible:shadow-focus focus-visible:outline-none disabled:cursor-not-allowed disabled:text-text-muted disabled:opacity-65"
+      class="flex w-full items-center justify-between gap-3 rounded-md px-3 py-2 text-left text-base transition-colors enabled:hover:bg-surface-3 focus-visible:bg-surface-3 focus-visible:shadow-focus focus-visible:outline-none disabled:cursor-not-allowed disabled:text-text-muted disabled:opacity-65"
       :class="destructive ? 'text-danger' : 'text-text-primary'"
       @click="onClick"
     >
       <slot />
       <!-- The tick repeats what `aria-checked` already says, for everyone who
            reads the screen rather than hears it. -->
-      <UiIcon v-if="checked === true" name="check" :size="12" :stroke-width="2.4" class="text-accent" />
+      <UiIcon v-if="checked === true" name="check" size="sm" class="text-accent" />
     </button>
   </li>
 </template>

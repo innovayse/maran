@@ -90,12 +90,12 @@ const onInput = (event: Event): void => {
         :aria-required="required ? 'true' : undefined"
         :aria-invalid="hasError"
         :aria-describedby="hasError ? errorId : undefined"
-        class="w-full rounded-lg border bg-surface-2 py-1.5 pl-2 text-base text-text-primary placeholder:text-text-muted focus-visible:outline-none"
+        class="w-full rounded-lg border bg-surface-2 py-2 pl-3 text-base text-text-primary placeholder:text-text-muted focus-visible:outline-none"
         :class="[
           hasError
             ? 'border-[rgb(229_72_77/0.5)] focus-visible:shadow-focus-danger'
             : 'border-border-subtle focus-visible:border-accent focus-visible:shadow-focus',
-          $slots.trailing ? 'pr-16' : 'pr-2',
+          $slots.trailing ? 'pr-16' : 'pr-3',
         ]"
         @input="onInput"
       />

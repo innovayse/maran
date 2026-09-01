@@ -31,7 +31,7 @@ const variantClasses: ComputedRef<string> = computed(() => {
 <template>
   <!-- assertive for errors so screen readers interrupt; polite otherwise. -->
   <div
-    class="rounded-lg border px-3 py-2 text-base leading-normal"
+    class="rounded-lg border px-4 py-3 text-base leading-normal"
     :class="variantClasses"
     role="status"
     :aria-live="variant === 'error' ? 'assertive' : 'polite'"

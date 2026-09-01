@@ -67,8 +67,8 @@ const { t } = useI18n()
 
       <ul class="relative flex flex-col gap-3">
         <li v-for="highlight in highlights" :key="highlight.key" class="flex items-start gap-3">
-          <span class="mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-accent-soft text-accent">
-            <UiIcon :name="highlight.icon" :size="15" />
+          <span class="mt-0.5 grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-accent-soft text-accent">
+            <UiIcon :name="highlight.icon" size="lg" />
           </span>
           <span class="text-base text-text-secondary">{{ t(`app.auth.highlights.${highlight.key}`) }}</span>
         </li>

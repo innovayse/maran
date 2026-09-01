@@ -320,6 +320,10 @@ watch(
       >{{ label }}</span
     >
     <div class="relative">
+      <!-- `min-h-10.5` is the height an input renders at (24px of text, 8px of
+           padding each side, 1px of border). Without it a select with no chosen
+           value collapses to its empty line box and sits shorter than the
+           inputs beside it. -->
       <button
         ref="triggerElement"
         type="button"
@@ -333,7 +337,7 @@ watch(
         :aria-invalid="hasError"
         :aria-describedby="hasError ? errorId : undefined"
         :disabled="disabled"
-        class="flex w-full items-center justify-between gap-2 rounded-lg border bg-surface-2 px-2 py-1.5 text-left text-base text-text-primary transition-colors focus-visible:outline-none disabled:cursor-not-allowed disabled:text-text-muted disabled:opacity-65"
+        class="flex min-h-10.5 w-full items-center justify-between gap-2 rounded-lg border bg-surface-2 px-3 py-2 text-left text-base text-text-primary transition-colors focus-visible:outline-none disabled:cursor-not-allowed disabled:text-text-muted disabled:opacity-65"
         :class="
           hasError
             ? 'border-[rgb(229_72_77/0.5)] focus-visible:shadow-focus-danger'
@@ -349,7 +353,7 @@ watch(
         @keydown.esc.prevent="close"
       >
         <span :class="selectedOption === null ? 'text-text-muted' : ''">{{ triggerText }}</span>
-        <UiIcon name="chevronDown" :size="12" :stroke-width="2" class="text-text-muted" />
+        <UiIcon name="chevronDown" size="sm" class="text-text-muted" />
       </button>
       <!-- The rows are not focusable, so a plain mousedown on one would move focus
            to the body, fire `focusout` on the trigger and dismiss the list before
@@ -360,7 +364,7 @@ watch(
         :id="listboxId"
         role="listbox"
         :aria-labelledby="labelId"
-        class="absolute z-10 mt-1 max-h-60 w-full overflow-y-auto rounded-lg border border-border-strong bg-surface-2 p-1 shadow-[0_12px_32px_rgb(0_0_0/0.4)]"
+        class="absolute z-10 mt-1 max-h-60 w-full overflow-y-auto rounded-lg border border-border-strong bg-surface-2 p-1.5 shadow-[0_12px_32px_rgb(0_0_0/0.4)]"
         @mousedown.prevent
       >
         <UiOption

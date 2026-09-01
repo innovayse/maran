@@ -112,7 +112,7 @@ const crumbs: ComputedRef<string[]> = computed(() => {
       :aria-expanded="navigationOpen"
       @click="emit('openNavigation')"
     >
-      <UiIcon name="menu" :size="15" :stroke-width="1.8" />
+      <UiIcon name="menu" size="md" />
     </UiButton>
 
     <nav class="min-w-0" :aria-label="t('app.shell.breadcrumbLabel')">
@@ -133,9 +133,9 @@ const crumbs: ComputedRef<string[]> = computed(() => {
     <!-- The panel exposes no server inventory yet, so the picker states that
          plainly and stays disabled rather than showing an invented server. -->
     <UiButton variant="secondary" class="shell-header-picker max-lg:hidden" disabled>
-      <UiIcon name="server" :size="12" />
+      <UiIcon name="server" size="md" />
       <span>{{ t('app.shell.noServerSelected') }}</span>
-      <UiIcon name="chevronDown" :size="11" />
+      <UiIcon name="chevronDown" size="sm" />
     </UiButton>
 
     <span class="flex-1"></span>
@@ -154,16 +154,16 @@ const crumbs: ComputedRef<string[]> = computed(() => {
          every time the page loads. Disabled says "not yet"; populated would say
          something false. -->
     <UiButton class="shell-header-ai max-lg:hidden" disabled>
-      <UiIcon name="sparkle" :size="13" />
+      <UiIcon name="sparkle" size="md" />
       {{ t('app.shell.askAi') }}
     </UiButton>
 
     <UiButton class="shell-header-icon max-lg:hidden" :aria-label="t('app.shell.notifications')" disabled>
-      <UiIcon name="bell" :size="14" />
+      <UiIcon name="bell" size="md" />
     </UiButton>
 
     <UiButton class="shell-header-avatar max-lg:hidden" :aria-label="t('app.shell.account')" disabled>
-      <UiIcon name="user" :size="14" />
+      <UiIcon name="user" size="md" />
     </UiButton>
   </header>
 </template>

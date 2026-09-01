@@ -52,3 +52,55 @@ test('a customer is not offered the audit journal', async ({ page }) => {
   await expect(page.getByRole('menuitem', { name: 'Sessions' })).toBeVisible()
   await expect(page.getByRole('menuitem', { name: 'Audit journal' })).toHaveCount(0)
 })
+
+test('the identity block is the only place the signed-in name appears, and it gets the footer width', async ({
+  page,
+}) => {
+  // The 390px drawer is where the duplicate was fatal: a second control naming the same person
+  // took half the footer and left the identity block 26px, enough for "r…" and "Adm".
+  await page.setViewportSize({ width: 390, height: 844 })
+  await stubPanel(page, 'admin')
+
+  await page.goto('/')
+  await page.getByRole('button', { name: 'Open the navigation' }).click()
+
+  const trigger = page.getByRole('button', { name: 'Account menu' })
+  await expect(trigger).toBeVisible()
+  // One control, not two: the name is inside the trigger and nowhere else in the footer.
+  await expect(page.locator('.shell-footer').getByText(stubbedAdministrator.username, { exact: true })).toHaveCount(1)
+
+  const name = trigger.locator('span.truncate').first()
+  const width = await name.evaluate((element: HTMLElement): number => {
+    return element.clientWidth
+  })
+  expect(width).toBeGreaterThan(100)
+})
+
+test('the account menu opens upwards when the sidebar footer leaves no room below', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 })
+  await stubPanel(page, 'admin')
+
+  await page.goto('/')
+  await page.getByRole('button', { name: 'Open the navigation' }).click()
+  await page.getByRole('button', { name: 'Account menu' }).click()
+
+  const menu = page.getByRole('menu')
+  const box = await menu.boundingBox()
+  const height = page.viewportSize()?.height ?? 0
+  expect(box).not.toBeNull()
+  expect(box?.y ?? -1).toBeGreaterThanOrEqual(0)
+  expect((box?.y ?? 0) + (box?.height ?? 0)).toBeLessThanOrEqual(height)
+
+  // Visible is not the same as usable: the point a user taps must land on the item itself.
+  for (const label of ['Sessions', 'Two-step verification', 'Audit journal', 'Sign out']) {
+    const item = page.getByRole('menuitem', { name: label })
+    const reachable = await item.evaluate((element: HTMLElement): boolean => {
+      const rect = element.getBoundingClientRect()
+      const hit = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2)
+      return hit !== null && element.contains(hit)
+    })
+    expect(reachable).toBe(true)
+  }
+})

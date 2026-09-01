@@ -33,7 +33,7 @@ defineSlots<{
 
 <template>
   <div
-    class="flex flex-col items-center gap-2.5 rounded-xl border border-dashed border-border-strong bg-surface-1 px-6 py-19 text-center"
+    class="flex flex-col items-center gap-2.5 rounded-xl border border-dashed border-border-strong bg-surface-1 px-6 py-20 text-center"
   >
     <!-- The tile is drawn only when a caller supplies a glyph: an empty bordered
          square would read as a missing image rather than as decoration. -->
@@ -47,7 +47,7 @@ defineSlots<{
     <p v-if="description" class="max-w-[400px] text-base leading-normal text-text-secondary">
       {{ description }}
     </p>
-    <div v-if="$slots.default" class="mt-1 flex gap-2">
+    <div v-if="$slots.default" class="mt-2 flex gap-2">
       <slot />
     </div>
   </div>

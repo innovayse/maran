@@ -98,10 +98,12 @@ const onClear = (): void => {
            magnifier repeats nothing to a screen reader. -->
       <UiIcon
         name="search"
-        :size="14"
-        :stroke-width="2"
-        class="pointer-events-none absolute left-2 text-text-muted"
+        size="sm"
+        class="pointer-events-none absolute left-3 text-text-muted"
       />
+      <!-- The side paddings are geometry, not taste: `pl-9` clears the magnifier
+           at `left-3`, `pr-10` clears the clear button at `right-2`. Move either
+           inset and the text runs under the glyph. -->
       <input
         :id="fieldId"
         ref="inputElement"
@@ -109,18 +111,18 @@ const onClear = (): void => {
         role="searchbox"
         :value="modelValue"
         :placeholder="placeholder"
-        class="w-full rounded-lg border border-border-subtle bg-surface-2 py-1.5 pr-7.5 pl-7 text-base text-text-primary transition-colors placeholder:text-text-muted hover:border-border-strong focus-visible:border-accent focus-visible:shadow-focus focus-visible:outline-none"
+        class="w-full rounded-lg border border-border-subtle bg-surface-2 py-2 pr-10 pl-9 text-base text-text-primary transition-colors placeholder:text-text-muted hover:border-border-strong focus-visible:border-accent focus-visible:shadow-focus focus-visible:outline-none"
         @input="onInput"
         @keydown.enter.prevent="onEnter"
       />
       <button
         v-if="hasValue"
         type="button"
-        class="absolute right-1 inline-flex size-6 items-center justify-center rounded-md text-text-muted transition-colors hover:bg-surface-3 hover:text-text-primary focus-visible:shadow-focus focus-visible:outline-none"
+        class="absolute right-2 inline-flex size-6 items-center justify-center rounded-md text-text-muted transition-colors hover:bg-surface-3 hover:text-text-primary focus-visible:shadow-focus focus-visible:outline-none"
         @click="onClear"
       >
         <!-- Decorative glyph: the button's accessible name comes from the caller-translated label. -->
-        <UiIcon name="x" :size="12" :stroke-width="2" />
+        <UiIcon name="x" size="sm" />
         <span class="sr-only">{{ clearLabel }}</span>
       </button>
     </div>

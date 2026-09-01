@@ -175,7 +175,7 @@ watch(matches, (): void => {
           "
           @click="choose(entry)"
         >
-          <UiIcon :name="entry.icon" :size="14" />
+          <UiIcon :name="entry.icon" size="md" />
           <span class="flex-1 truncate">{{ entryLabel(entry) }}</span>
           <span v-if="entry.locked" class="text-sm tracking-caps text-text-muted uppercase">
             {{ t('app.nav.lockedBadge') }}

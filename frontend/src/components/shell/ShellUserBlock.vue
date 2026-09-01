@@ -1,16 +1,23 @@
 <script setup lang="ts">
 /**
- * The sidebar footer's identity block: an avatar, the signed-in person's name
- * and their role, laid out as the design canvas draws it — a 24px circle on
- * `--s3` inside a `--b2` border with 10px/600 initials, the name at 12px/500
- * truncating beside it, and the role beneath at 10px in `--t3`.
+ * The sidebar footer's identity block: the signed-in person's avatar, name and
+ * role, drawn as the design canvas draws them — a 24px circle on `--s3` inside
+ * a `--b2` border with the initials, the name truncating beside it and the role
+ * beneath it in `--t3`.
+ *
+ * The whole block is ONE control: it is the account menu's trigger, so the
+ * person is named exactly once. It used to be an identity block plus a separate
+ * dropdown that repeated the same name, and in the 390px drawer that duplicate
+ * was fatal — the dropdown took 123px of a 245px footer and left the `flex-1`
+ * identity block 26px, enough for "r…" and "Adm". Naming someone twice was the
+ * mistake; shrinking the type would only have hidden it.
  *
  * The person comes from the auth store, which holds what the backend reported at
  * sign-in. The canvas's "Dana Keller / Owner" is invented sample data and is not
  * used: a fictional name in front of a real customer is worse than no name
  * (rules/vue.md: the SPA never invents domain data). When nobody is signed in the
- * block says so, which on this shell only happens for the moment before the
- * session is restored.
+ * block says so and offers no menu, which on this shell only happens for the
+ * moment before the session is restored.
  */
 import { computed, type ComputedRef } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -88,34 +95,34 @@ const signOut = async (): Promise<void> => {
 </script>
 
 <template>
-  <!-- The design's 24px avatar circle: raised surface, stronger border, and the
-       initials only when there genuinely are initials to draw. -->
-  <span
-    class="grid h-6 w-6 shrink-0 place-items-center rounded-full border border-border-strong bg-surface-3 text-sm font-semibold text-text-secondary"
-    aria-hidden="true"
-  >
-    <template v-if="user !== null">{{ user.initials }}</template>
-    <UiIcon v-else name="user" :size="13" />
-  </span>
-
-  <span v-if="user !== null" class="min-w-0 flex-1">
-    <span class="block truncate text-base font-medium text-text-primary">{{ user.name }}</span>
-    <span class="block text-base text-text-muted">{{ user.role }}</span>
-  </span>
-
-  <span v-else class="min-w-0 flex-1 truncate text-base text-text-muted">
-    {{ t('app.shell.signedOut') }}
-  </span>
-
-  <!-- The account menu. Sessions, two-factor and the audit journal are real pages with real
-       tests, and until this menu existed the only way to reach any of them was to type its URL:
-       a screen nothing links to is a screen nobody has. -->
+  <!-- Signed in: avatar, name and role are the account menu's trigger, so the
+       footer names the person once and the menu opens from where a user
+       expects — the block showing who they are. -->
   <UiDropdown
     v-if="user !== null"
-    align="end"
+    class="min-w-0 flex-1"
+    align="start"
+    variant="bare"
     :label="user.name"
     :aria-label="t('app.shell.accountMenu')"
   >
+    <template #trigger>
+      <!-- The design's 24px avatar circle: raised surface, stronger border. -->
+      <span
+        class="grid h-6 w-6 shrink-0 place-items-center rounded-full border border-border-strong bg-surface-3 text-sm font-semibold text-text-secondary"
+        aria-hidden="true"
+      >
+        {{ user.initials }}
+      </span>
+      <span class="min-w-0 flex-1 text-left">
+        <span class="block truncate text-base font-medium text-text-primary">{{ user.name }}</span>
+        <span class="block truncate text-base text-text-muted">{{ user.role }}</span>
+      </span>
+    </template>
+
+    <!-- Sessions, two-factor and the audit journal are real pages with real tests, and until
+         this menu existed the only way to reach any of them was to type its URL: a screen
+         nothing links to is a screen nobody has. -->
     <UiDropdownItem @select="go('sessions')">{{ t('app.shell.menu.sessions') }}</UiDropdownItem>
     <UiDropdownItem @select="go('two-factor')">{{ t('app.shell.menu.twoFactor') }}</UiDropdownItem>
     <!-- Hidden from a customer because the journal is an administrator's page and a link that
@@ -124,4 +131,18 @@ const signOut = async (): Promise<void> => {
     <UiDropdownItem v-if="isAdmin" @select="go('audit')">{{ t('app.shell.menu.audit') }}</UiDropdownItem>
     <UiDropdownItem destructive @select="signOut">{{ t('app.auth.signOut') }}</UiDropdownItem>
   </UiDropdown>
+
+  <!-- Nobody signed in: there is no account to offer a menu for, so the block is
+       plain text beside a generic mark. -->
+  <template v-else>
+    <span
+      class="grid h-6 w-6 shrink-0 place-items-center rounded-full border border-border-strong bg-surface-3 text-text-secondary"
+      aria-hidden="true"
+    >
+      <UiIcon name="user" size="md" />
+    </span>
+    <span class="min-w-0 flex-1 truncate text-base text-text-muted">
+      {{ t('app.shell.signedOut') }}
+    </span>
+  </template>
 </template>

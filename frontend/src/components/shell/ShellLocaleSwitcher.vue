@@ -49,7 +49,7 @@ const select = (locale: AppLocale): void => {
     :chevron="false"
   >
     <template #leading>
-      <UiIcon name="globe" :size="13" />
+      <UiIcon name="globe" size="md" />
     </template>
 
     <UiDropdownItem
