@@ -2,6 +2,7 @@ import { computed, type ComputedRef } from 'vue'
 import { useRouter } from 'vue-router'
 import { useModulesStore } from '../stores/modules'
 import { NO_LANDING_ROUTE, moduleLandingRoute } from '../router/moduleLandingRoute'
+import { moduleNavigationIcon } from '../utils/moduleNavigationIcon'
 import type { NavigationEntry } from '../types/navigation'
 
 /**
@@ -75,9 +76,10 @@ export const useNavigation = (): ComputedRef<NavigationEntry[]> => {
           labelKey: null,
           label: module.displayName ?? module.name,
           moduleName: module.name,
-          // The catalogue reports no icon, so every module gets the same neutral glyph rather than
-          // a guessed one: inventing a per-module icon would be inventing data the backend never sent.
-          icon: 'grid',
+          // The catalogue reports no icon, so this SPA states which glyph each module it knows is
+          // drawn with, the same way it states where the module's entry leads. A module it does
+          // not know keeps the neutral glyph rather than a guess made from its name.
+          icon: moduleNavigationIcon(module.name),
           locked: !module.isEnabled,
         },
       ]

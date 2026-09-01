@@ -12,7 +12,7 @@
 </script>
 
 <template>
-  <td class="px-3 py-3 align-middle text-text-primary">
+  <td class="px-4 py-3.5 align-middle text-text-primary">
     <slot />
   </td>
 </template>

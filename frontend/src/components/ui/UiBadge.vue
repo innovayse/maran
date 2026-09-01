@@ -57,7 +57,7 @@ const variantClasses: ComputedRef<string> = computed(() => {
 
 <template>
   <span
-    class="inline-flex items-center rounded-md px-2 py-0.5 text-sm font-semibold tracking-wide uppercase"
+    class="inline-flex items-center rounded-md px-2.5 py-1 text-sm font-semibold tracking-wide uppercase"
     :class="variantClasses"
   >
     <slot />

@@ -22,6 +22,7 @@ import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
+  Earth,
   Eye,
   EyeOff,
   Globe,
@@ -31,9 +32,11 @@ import {
   Moon,
   Search,
   Server,
+  ShieldCheck,
   Sparkle,
   Sun,
   User,
+  Users,
   X,
   type LucideIcon,
 } from 'lucide-vue-next'
@@ -43,8 +46,14 @@ import { computed, type ComputedRef } from 'vue'
 export type UiIconName =
   /** Activity trace — the shell's own system status entry. */
   | 'pulse'
-  /** Four tiles — a module reported by the panel's catalogue. */
+  /** Four tiles — a module the panel reported that this bundle has no glyph for. */
   | 'grid'
+  /** People — the accounts module. */
+  | 'users'
+  /** Shield with a tick — the identity module's security screens. */
+  | 'shieldCheck'
+  /** Meridian sphere — the sites module. */
+  | 'earth'
   /** Stacked racks — the server picker. */
   | 'server'
   /** Magnifier — the command/search trigger and the search field. */
@@ -88,6 +97,9 @@ export type UiIconName =
 const ICONS: Record<UiIconName, LucideIcon> = {
   pulse: Activity,
   grid: LayoutGrid,
+  users: Users,
+  shieldCheck: ShieldCheck,
+  earth: Earth,
   server: Server,
   search: Search,
   moon: Moon,
@@ -107,18 +119,46 @@ const ICONS: Record<UiIconName, LucideIcon> = {
   eyeOff: EyeOff,
 }
 
+/**
+ * The named size steps an icon may be drawn at. A glyph is chosen by role, not
+ * by pixel count: `sm` for a mark inside a dense control, `md` beside body
+ * text, `lg` for a glyph that stands on its own.
+ */
+export type UiIconSize = 'sm' | 'md' | 'lg'
+
+/**
+ * Edge length in CSS pixels for each step, paired with the stroke weight that
+ * reads correctly at it. The weight is NOT constant across the steps: one
+ * absolute stroke looks heavy on a small glyph and spidery on a large one, so
+ * it eases down as the glyph grows.
+ */
+const SIZES: Record<UiIconSize, { edge: number; strokeWidth: number }> = {
+  sm: { edge: 14, strokeWidth: 2 },
+  md: { edge: 18, strokeWidth: 1.8 },
+  lg: { edge: 22, strokeWidth: 1.6 },
+}
+
 /** Props accepted by {@link UiIcon}. */
 const props = withDefaults(
   defineProps<{
     /** Which glyph to draw. */
     name: UiIconName
-    /** Edge length in CSS pixels; the design draws shell icons at 15 or 16. */
-    size?: number
-    /** Stroke weight; the shell's own line weight, lighter than lucide's default of 2. */
-    strokeWidth?: number
+    /**
+     * Which step of the icon scale to draw at. There is deliberately no
+     * numeric escape hatch: a free pixel prop is what let six different sizes
+     * accumulate across the panel, each chosen by whoever wrote the call site.
+     * A glyph that genuinely does not fit any step is a reason to change a
+     * step here, for every screen at once.
+     */
+    size?: UiIconSize
   }>(),
-  { size: 15, strokeWidth: 1.7 },
+  { size: 'md' },
 )
+
+/** The pixel edge and stroke weight of the requested step. */
+const step: ComputedRef<{ edge: number; strokeWidth: number }> = computed(() => {
+  return SIZES[props.size]
+})
 
 /** The lucide component for the requested {@link UiIconName}. */
 const glyph: ComputedRef<LucideIcon> = computed(() => {
@@ -129,8 +169,8 @@ const glyph: ComputedRef<LucideIcon> = computed(() => {
 <template>
   <component
     :is="glyph"
-    :size="props.size"
-    :stroke-width="props.strokeWidth"
+    :size="step.edge"
+    :stroke-width="step.strokeWidth"
     aria-hidden="true"
     focusable="false"
     class="shrink-0"

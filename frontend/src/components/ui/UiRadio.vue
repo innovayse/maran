@@ -61,11 +61,11 @@ const onChange = (): void => {
       @change="onChange"
     />
     <span
-      class="inline-flex size-3.5 shrink-0 items-center justify-center rounded-full border bg-surface-2 transition-colors peer-focus-visible:border-accent peer-focus-visible:shadow-focus peer-disabled:opacity-65"
+      class="inline-flex size-4.5 shrink-0 items-center justify-center rounded-full border bg-surface-2 transition-colors peer-focus-visible:border-accent peer-focus-visible:shadow-focus peer-disabled:opacity-65"
       :class="checked ? 'border-accent' : 'border-border-strong'"
       aria-hidden="true"
     >
-      <span v-if="checked" class="size-2 rounded-full bg-accent" />
+      <span v-if="checked" class="size-2.5 rounded-full bg-accent" />
     </span>
     <label
       :for="fieldId"

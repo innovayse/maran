@@ -22,7 +22,7 @@ defineProps<{
 <template>
   <RouterLink
     :to="to"
-    class="flex w-full items-center justify-between gap-2 rounded-md px-2 py-1 text-base font-normal text-text-secondary transition-colors hover:bg-surface-3 hover:text-text-primary focus-visible:shadow-focus focus-visible:outline-none aria-[current=page]:bg-accent-soft aria-[current=page]:font-semibold aria-[current=page]:text-accent"
+    class="flex w-full items-center justify-between gap-2 rounded-md px-3 py-2 text-base font-normal text-text-secondary transition-colors hover:bg-surface-3 hover:text-text-primary focus-visible:shadow-focus focus-visible:outline-none aria-[current=page]:bg-accent-soft aria-[current=page]:font-semibold aria-[current=page]:text-accent"
     :aria-disabled="locked ? 'true' : undefined"
   >
     <span><slot /></span>

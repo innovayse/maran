@@ -132,7 +132,7 @@ onBeforeUnmount(stopTimer)
 
 <template>
   <div
-    class="pointer-events-auto flex max-w-[340px] items-center gap-2.5 rounded-lg border border-border-strong border-l-2 bg-surface-1 px-3 py-2.5 text-base text-text-primary shadow-[0_12px_32px_rgb(0_0_0/0.35)]"
+    class="pointer-events-auto flex max-w-[340px] items-center gap-2.5 rounded-lg border border-border-strong border-l-2 bg-surface-1 px-4 py-3 text-base text-text-primary shadow-[0_12px_32px_rgb(0_0_0/0.35)]"
     :class="variantClasses"
     role="status"
     :aria-live="politeness"
@@ -159,7 +159,7 @@ onBeforeUnmount(stopTimer)
     >
       <!-- An icon, not a text glyph: a character would render differently per font and
            counts as untranslated copy. The accessible name comes from aria-label. -->
-      <UiIcon name="x" :size="12" :stroke-width="2" />
+      <UiIcon name="x" size="sm" />
     </button>
   </div>
 </template>

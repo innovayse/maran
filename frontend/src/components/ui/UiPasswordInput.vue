@@ -116,10 +116,10 @@ const onToggle = (): void => {
         :aria-label="toggleLabel"
         :aria-controls="inputId"
         :aria-pressed="isRevealed"
-        class="px-2 py-0.5"
+        class="px-2.5 py-1"
         @click="onToggle"
       >
-        <UiIcon :name="toggleIcon" :size="15" />
+        <UiIcon :name="toggleIcon" size="md" />
       </UiButton>
     </template>
   </UiInput>
