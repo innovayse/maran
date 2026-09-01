@@ -58,8 +58,13 @@ impl<H: SystemHost> AccountOperations<H> {
     /// # Errors
     ///
     /// Returns [`AccountError::AlreadyExists`] when the user is already present,
-    /// and [`AccountError::CommandFailed`] when `useradd`, the home permission step
-    /// (see [`AccountOperations::open_home_to_the_web_server`]) or `setquota` refuses.
+    /// and [`AccountError::CommandFailed`] when `useradd`, the step that gives the
+    /// home directory to the web server's group, or `setquota` refuses.
+    ///
+    /// That step is named in prose rather than linked: it is private, and a public
+    /// doc comment linking a private item is an error under `-D warnings`, which is
+    /// how CI runs rustdoc. Widening the method to satisfy a link would put a
+    /// method in the public API for the sake of a cross-reference.
     pub fn create(
         &self,
         name: &AccountName,

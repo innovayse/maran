@@ -160,7 +160,7 @@ Then, for this tree:
 
 ```bash
 maran check                   # toolchain preflight: can this machine build at all
-maran agent check             # fmt --check, clippy -D warnings, and cargo test
+maran agent check             # fmt --check, clippy -D warnings, cargo test, and cargo doc
 maran structure               # the file and folder laws above, as a merge gate
 maran proto                   # lint the API-to-agent contract
 maran handshake               # agent and API over a real unix socket

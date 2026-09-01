@@ -16,7 +16,7 @@
 #   scripts/maran agent test       run the unit and integration tests
 #   scripts/maran agent lint       clippy with warnings denied
 #   scripts/maran agent fmt        apply rustfmt
-#   scripts/maran agent check      fmt --check, clippy and test — what CI runs
+#   scripts/maran agent check      fmt --check, clippy, test and doc — what CI runs
 set -euo pipefail
 
 root="$(cd "$(dirname "$0")/../.." && pwd)"
@@ -84,6 +84,11 @@ case "$command_name" in
     run_cargo fmt --all -- --check
     run_cargo clippy --all-targets -- -D warnings
     run_cargo test
+    # The documentation build, with warnings denied, is a gate CI has always enforced and this
+    # command did not run — so a public doc comment linking a private item passed every local
+    # check and failed the pull request. A gate a developer cannot reproduce is a gate that
+    # reports its findings in the most expensive place available.
+    RUSTDOCFLAGS="-D warnings" run_cargo doc --no-deps --workspace
     ;;
   *)
     usage
