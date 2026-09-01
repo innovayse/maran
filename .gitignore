@@ -19,6 +19,14 @@ frontend/.playwright/
 # Scratch output from a browser-driven session (screenshots, snapshots, console logs).
 .playwright-mcp/
 
+# The same scratch, when the browser tool writes it beside the working directory instead of
+# into its own folder. One such screenshot reached `dev` in #18: it was swept up by a `git add
+# -A` because nothing here matched it, and 95 KB of a login screen is now in the history for
+# good. An image belongs in this repository only when something renders it, and nothing does.
+/*.png
+/*.jpeg
+/*.webp
+
 # Generated code
 # --------------
 # Protobuf and gRPC types are generated at build time on both sides and never committed
