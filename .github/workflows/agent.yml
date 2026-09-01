@@ -96,7 +96,7 @@ jobs:
       # test binary built on the runner links against the runner's glibc and
       # will not start on AlmaLinux 9, so each polygon compiles its own.
       - name: Build the polygon image
-        run: docker build -f docker/polygon/${{ matrix.image }}.Dockerfile -t maran-polygon-${{ matrix.image }} docker/polygon
+        run: docker build -f docker/polygon/${{ matrix.image }}.Dockerfile -t maran-polygon-${{ matrix.image }} .
 
       # Run as root, one test at a time, and only the two ignored suites. Root
       # because the whole point is the privilege drop; serially because the

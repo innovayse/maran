@@ -116,8 +116,11 @@ message CreateSiteRequest {
   // e.g. "8.3".
   string php_version = 5;
   // Required when backend_type is REVERSE_PROXY: the upstream to forward
-  // to, e.g. "127.0.0.1:3000". Host must be loopback or a private address;
-  // validated by the agent, not passed through to the config verbatim.
+  // to, e.g. "127.0.0.1:3000". Host must be an IPv4 loopback or IPv4 private
+  // address, or an IPv6 loopback; IPv6 unique-local (fc00::/7) is NOT accepted,
+  // because a customer-supplied upstream fails closed and nothing on a supported
+  // host needs it. Validated by the agent, not passed through to the config
+  // verbatim.
   string proxy_upstream = 6;
   // The account plan's worker budget, materialised into the pm.max_children
   // of the pool this site's vhost points at (spec §8). Panel-owned: it comes

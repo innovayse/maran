@@ -91,8 +91,9 @@ impl<H: PhpHost + 'static> PhpServiceImpl<H> {
     ///
     /// The API validated it already. This is the agent's own check, and it
     /// exists because the agent runs as root and the API does not
-    /// (rules/security.md "Undistrust of the caller"): the version becomes
-    /// half a package name and a socket path.
+    /// (rules/security.md item 1, which requires revalidation in the agent and
+    /// not only at the API boundary): the version becomes half a package name
+    /// and a socket path.
     ///
     /// # Errors
     ///

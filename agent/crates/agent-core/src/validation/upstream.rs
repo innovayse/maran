@@ -72,6 +72,12 @@ impl Upstream {
             host: host.to_owned(),
         })?;
 
+        // IPv6 unique-local (`fc00::/7`) is deliberately NOT allowed, and the
+        // contract says so (`proto/agent/v1/sites.proto`, `proxy_upstream`)
+        // rather than promising a "private address" this refuses. A
+        // customer-supplied upstream fails closed; nothing on a supported host
+        // needs a ULA target, and widening this later is a contract change, not
+        // a quiet edit here.
         let is_allowed = match address {
             IpAddr::V4(v4) => v4.is_loopback() || v4.is_private(),
             IpAddr::V6(v6) => v6.is_loopback(),

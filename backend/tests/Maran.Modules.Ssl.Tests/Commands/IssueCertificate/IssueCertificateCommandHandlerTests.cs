@@ -3,6 +3,7 @@ using Maran.Modules.Ssl.Domain.Enums;
 using Maran.Modules.Ssl.Tests.TestSupport;
 using Maran.SharedKernel.Results;
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
 
 namespace Maran.Modules.Ssl.Tests.Commands.IssueCertificate;
 
@@ -251,5 +252,23 @@ public sealed class IssueCertificateCommandHandlerTests
         var entry = Assert.Single(fixture.Audit.Entries);
         Assert.False(entry.Succeeded);
         Assert.Equal(Domain, entry.Subject);
+    }
+
+    /// <summary>A database failure that is not a duplicate is not reported as an already issued certificate.</summary>
+    [Fact]
+    public async Task A_database_failure_that_is_not_a_duplicate_is_not_reported_as_an_already_issued_certificate()
+    {
+        // Only a UNIQUE VIOLATION has a winner whose row renewal will use. On any other failure —
+        // here a serialization failure — the material is on disk, the site says it carries a
+        // certificate, and no row exists at all, so renewal would never run and TLS would expire
+        // silently in ~90 days. Swallowing it as CertificateAlreadyIssued would also tell the
+        // customer the very thing that stops them retrying, which is the one action that repairs it.
+        using var fixture = new SslHandlerFixture(
+            [Domain], saveFailures: 1, saveFailureSqlState: PostgresErrorCodes.SerializationFailure);
+
+        await Assert.ThrowsAsync<DbUpdateException>(async () =>
+        {
+            await HandlerFor(fixture).HandleAsync(Command(), CancellationToken.None);
+        });
     }
 }

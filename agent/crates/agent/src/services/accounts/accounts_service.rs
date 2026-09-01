@@ -54,8 +54,9 @@ impl<H: SystemHost, P: PhpHost> AccountsServiceImpl<H, P> {
     ///
     /// The API validated it already. This is the agent's own check, and it exists
     /// because the agent runs as root and the API does not (rules/security.md
-    /// "Undistrust of the caller"): a name reaching here becomes a system user, a
-    /// home directory and a path segment, so it is checked where it is used.
+    /// item 1, which requires revalidation in the agent and not only at the API
+    /// boundary): a name reaching here becomes a system user, a home directory
+    /// and a path segment, so it is checked where it is used.
     ///
     /// # Errors
     ///

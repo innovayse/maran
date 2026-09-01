@@ -13,13 +13,14 @@
 - **`polygon/ubuntu24.Dockerfile`**: Ubuntu 24.04 test container for the Rust agent.
   - nginx from Ubuntu, php-fpm 8.3 from Sury — the repository the Debian adapter's package and service names are written against.
   - A pinned Rust toolchain, `protoc` and a C linker, so the agent's tests compile *inside* the image.
-  - `/etc/nginx/nginx.conf` includes `/etc/maran/nginx/sites`, the one line an installer adds on a real server.
-  - Creates `/run/maran`, `/run/maran/php` and `/etc/maran/certificates`.
+  - nginx includes `/etc/maran/nginx/sites` because the image RUNS `installer/lib/80-nginx.sh`'s `install_agent_config_include` — the installer's own code, not a copy of it. That is deliberate: the image used to make the edit itself, so every site test asserted a precondition the image had manufactured, and the fact that the installer did neither the directory nor the include went unseen by the whole suite. A build of these images is now the check that the installer still does it.
+  - Creates `/run/maran` and `/run/maran/php`; `/etc/maran/nginx/sites` and `/etc/maran/certificates` come from the installer step above.
+  - **The build context is the repository root**, not `docker/polygon`, because the image copies a file out of `installer/`. See the build commands below.
 
 - **`polygon/alma9.Dockerfile`**: AlmaLinux 9 test container for the Rust agent.
   - nginx from AlmaLinux, php-fpm 8.3 from Remi (`php83`), with EPEL enabled because Remi requires it and CRB enabled for `gcc`, `make` and `unzip`.
   - **`protoc` is downloaded from GitHub, not installed from a repository** — this is the build's only outbound binary fetch. AlmaLinux 9 ships protobuf 3.14, which predates proto3 `optional` and refuses `php.proto` outright. The zip is pinned by version *and* checked against its sha256.
-  - Otherwise identical in shape to the Ubuntu image, including the nginx include line.
+  - Otherwise identical in shape to the Ubuntu image, including running the installer step for the nginx include.
 
 - **`polygon/systemctl-stand-in.sh`**: installed at `/usr/bin/systemctl` in both images.
   - A container has no init system, so the `systemctl reload nginx` the agent runs has nothing to talk to and every config write would roll back before `nginx -t` was ever reached.
@@ -95,13 +96,13 @@ docker compose -f docker/docker-compose.dev.yml down
 **Ubuntu 24.04:**
 
 ```bash
-docker build -f docker/polygon/ubuntu24.Dockerfile -t maran-polygon-ubuntu24 docker/polygon
+docker build -f docker/polygon/ubuntu24.Dockerfile -t maran-polygon-ubuntu24 .
 ```
 
 **AlmaLinux 9:**
 
 ```bash
-docker build -f docker/polygon/alma9.Dockerfile -t maran-polygon-alma9 docker/polygon
+docker build -f docker/polygon/alma9.Dockerfile -t maran-polygon-alma9 .
 ```
 
 ## Running the Agent in a Polygon

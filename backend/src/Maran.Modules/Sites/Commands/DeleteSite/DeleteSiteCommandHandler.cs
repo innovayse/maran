@@ -60,7 +60,12 @@ public sealed class DeleteSiteCommandHandler
     /// <returns>Success, or <c>SiteNotFound</c>, <c>AccountNotFound</c>, or the agent's own typed failure.</returns>
     public async Task<Result<bool>> HandleAsync(DeleteSiteCommand command, CancellationToken cancellationToken)
     {
-        var site = await _dbContext.Sites.SingleOrDefaultAsync(s => s.Id == command.SiteId, cancellationToken);
+        // The hostname claims are loaded with the site so that removing it frees the names it held
+        // through the tracked graph, rather than relying on the database's cascade alone: a name
+        // still claimed by a deleted site is a name its owner can never use again.
+        var site = await _dbContext.Sites
+            .Include(s => s.Hostnames)
+            .SingleOrDefaultAsync(s => s.Id == command.SiteId, cancellationToken);
         if (site is null)
         {
             // The subject is the identifier the caller supplied, because no domain is known — a

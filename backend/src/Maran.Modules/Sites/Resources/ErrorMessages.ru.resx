@@ -36,6 +36,9 @@
   <data name="SiteAliasInvalidFormat">
     <value>Одно из дополнительных имён не является корректным доменным именем.</value>
   </data>
+  <data name="SiteAliasDuplicated">
+    <value>Одно и то же имя указано несколько раз.</value>
+  </data>
   <data name="PhpVersionInvalidFormat">
     <value>Это не корректная версия PHP.</value>
   </data>

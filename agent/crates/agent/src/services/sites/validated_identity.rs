@@ -10,8 +10,9 @@ use crate::services::sites::invalid_input::invalid_input;
 ///
 /// The API validated them already. This is the agent's own check, and it
 /// exists because the agent runs as root and the API does not
-/// (rules/security.md "Undistrust of the caller"): the account becomes a uid
-/// to drop to and the domain becomes a path segment, a `server_name` and a
+/// (rules/security.md item 1, which requires revalidation in the agent and
+/// not only at the API boundary): the account becomes a uid to drop to and
+/// the domain becomes a path segment, a `server_name` and a
 /// certificate directory, so both are checked where they are used.
 ///
 /// # Errors

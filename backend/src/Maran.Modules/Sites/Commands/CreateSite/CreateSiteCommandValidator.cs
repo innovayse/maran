@@ -55,6 +55,28 @@ public sealed class CreateSiteCommandValidator : AbstractValidator<CreateSiteCom
             .Matches(HostnamePattern)
             .WithMessage(nameof(ErrorMessages.SiteAliasInvalidFormat));
 
+        // A request that names the same hostname twice — an alias repeating the domain, or two
+        // identical aliases — is refused here rather than at the database, where the exclusive key
+        // on the claimed name would turn it into a fault instead of an answer. Case-insensitive,
+        // because Host matching is: "Example.com" and "example.com" are one name.
+        RuleFor(command => command.Aliases)
+            .Must((command, aliases) =>
+            {
+                var names = aliases
+                    .Select(alias =>
+                    {
+                        return alias.ToLowerInvariant();
+                    })
+                    .Append(command.Domain.ToLowerInvariant())
+                    .ToList();
+                return names.Distinct(StringComparer.Ordinal).Count() == names.Count;
+            })
+            .WithMessage(nameof(ErrorMessages.SiteAliasDuplicated))
+            .When(command =>
+            {
+                return command.Aliases is not null && command.Domain is not null;
+            });
+
         RuleFor(command => command.BackendType)
             .IsInEnum();
 

@@ -36,6 +36,9 @@
   <data name="SiteAliasInvalidFormat">
     <value>One of the additional hostnames is not a valid domain name.</value>
   </data>
+  <data name="SiteAliasDuplicated">
+    <value>The same hostname is listed more than once.</value>
+  </data>
   <data name="PhpVersionInvalidFormat">
     <value>This is not a valid PHP version.</value>
   </data>

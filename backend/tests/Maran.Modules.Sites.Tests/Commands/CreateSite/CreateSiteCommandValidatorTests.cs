@@ -74,6 +74,22 @@ public sealed class CreateSiteCommandValidatorTests
         Assert.NotEmpty(result.Errors);
     }
 
+    /// <summary>A hostname listed twice in one request is rejected.</summary>
+    [Theory]
+    [InlineData("example.com")]
+    [InlineData("Example.COM")]
+    [InlineData("www.example.com")]
+    public void A_hostname_listed_twice_in_one_request_is_rejected(string alias)
+    {
+        // Each of these repeats a name the same request already claims — the domain, the domain in
+        // another case, or the first alias. The claim is one row per name, so a request naming one
+        // twice would reach the database as a duplicate key and surface as a fault instead of an
+        // answer.
+        var result = _validator.TestValidate(Command() with { Aliases = ["www.example.com", alias] });
+
+        Assert.NotEmpty(result.Errors);
+    }
+
     /// <summary>A php site without a well formed version is rejected.</summary>
     [Theory]
     [InlineData("")]

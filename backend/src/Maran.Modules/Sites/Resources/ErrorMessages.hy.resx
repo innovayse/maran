@@ -36,6 +36,9 @@
   <data name="SiteAliasInvalidFormat">
     <value>Լրացուցիչ անուններից մեկը վավեր դոմենային անուն չէ։</value>
   </data>
+  <data name="SiteAliasDuplicated">
+    <value>Նույն անունը նշված է մեկից ավելի անգամ։</value>
+  </data>
   <data name="PhpVersionInvalidFormat">
     <value>Սա PHP-ի վավեր տարբերակ չէ։</value>
   </data>

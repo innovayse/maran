@@ -6,6 +6,7 @@ using Maran.Modules.Ssl.Persistence;
 using Maran.Modules.Ssl.Resources;
 using Maran.Sdk.Contracts;
 using Maran.Sdk.Interfaces;
+using Npgsql;
 
 namespace Maran.Modules.Ssl.Commands.IssueCertificate;
 
@@ -145,7 +146,8 @@ public sealed class IssueCertificateCommandHandler
         {
             await _dbContext.SaveChangesAsync(cancellationToken);
         }
-        catch (DbUpdateException)
+        catch (DbUpdateException exception)
+            when (exception.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation })
         {
             // The check above and this insert are not one atomic step, so two simultaneous requests
             // for the same domain can both pass the check; the unique index on Domain is what stops
@@ -157,6 +159,14 @@ public sealed class IssueCertificateCommandHandler
             // the winner installed for the same domain into the same slot. So the flag is correct and
             // is deliberately NOT cleared; what is missing is only this caller's duplicate row, and
             // the winner's row is the one renewal will use. The caller is told the domain is taken.
+            //
+            // Narrowed to the UNIQUE VIOLATION and to nothing else. Every word of the reasoning
+            // above depends on there being a winner. For any other database failure — a dropped
+            // connection, a timeout, a constraint added later — there is no winner: the material is
+            // on disk, the site says it carries a certificate, and NO row exists, so renewal never
+            // runs and the site's TLS expires silently ~90 days later while the customer has been
+            // told the certificate already exists, which is exactly the message that discourages
+            // the retry that would repair it. Those surface as a fault instead.
             _dbContext.Certificates.Remove(certificate);
             return await FailAsync(command, nameof(ErrorMessages.CertificateAlreadyIssued), cancellationToken);
         }

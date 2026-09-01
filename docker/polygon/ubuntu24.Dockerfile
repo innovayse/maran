@@ -106,22 +106,29 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && chown -R root:root "${CARGO_HOME}" "${RUSTUP_HOME}" \
     && chmod -R go-w "${CARGO_HOME}" "${RUSTUP_HOME}"
 
-# The agent's own directories, and the one line of host configuration the
-# installer performs on a real server: nginx includes the directory the agent
-# owns, and never the distribution's sites-enabled (spec §9). Without it
-# `nginx -t` parses a tree the agent's vhosts are not in and passes whatever
-# they say.
-RUN mkdir -p /run/maran /run/maran/php /etc/maran/nginx/sites /etc/maran/certificates \
+# The agent's own runtime directories, and — this is the point — the nginx include
+# obtained by RUNNING THE INSTALLER'S OWN STEP FILE rather than by repeating its edit
+# here. The image used to `sed` the include into nginx.conf itself, which made every
+# site test assert a precondition the image had manufactured: the installer never
+# created /etc/maran/nginx/sites and never added the include, so the first CreateSite
+# on a real server failed, and 1381 tests could not see it because the only ones that
+# touch nginx ran in here. Now, if installer/lib/80-nginx.sh stops doing it, this build
+# fails and no polygon suite runs at all (rules/testing.md).
+COPY installer/lib/80-nginx.sh /tmp/maran-installer/lib/80-nginx.sh
+RUN mkdir -p /run/maran /run/maran/php \
     && chmod 755 /run/maran \
-    && sed -i '0,/^http {/s//http {\n    include \/etc\/maran\/nginx\/sites\/*.conf;/' /etc/nginx/nginx.conf \
-    && grep -q '/etc/maran/nginx/sites' /etc/nginx/nginx.conf \
-    && nginx -t
+    && bash -c 'set -euo pipefail; . /tmp/maran-installer/lib/80-nginx.sh; install_agent_config_include' \
+    && test -d /etc/maran/nginx/sites \
+    && test -d /etc/maran/certificates \
+    && grep -q '/etc/maran/nginx/sites' /etc/nginx/conf.d/maran-sites.conf \
+    && nginx -t \
+    && rm -rf /tmp/maran-installer
 
 # A container has no init system, so the reload half of the config-write protocol
 # needs something to talk to. The stand-in explains itself and its limits.
-COPY systemctl-stand-in.sh /usr/bin/systemctl
+COPY docker/polygon/systemctl-stand-in.sh /usr/bin/systemctl
 # And a container has no filesystem quotas, which account creation applies.
-COPY setquota-stand-in.sh /usr/local/bin/setquota
+COPY docker/polygon/setquota-stand-in.sh /usr/local/bin/setquota
 RUN chmod 755 /usr/bin/systemctl /usr/local/bin/setquota
 
 # Expected docker run invocation for the polygon suites, from the repository root:

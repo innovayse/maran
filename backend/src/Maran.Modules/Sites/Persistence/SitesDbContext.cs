@@ -40,12 +40,29 @@ public sealed class SitesDbContext : DbContext
         }
     }
 
+    /// <summary>
+    /// The hostnames claimed by this account's sites — one row per domain and per alias.
+    /// </summary>
+    /// <remarks>
+    /// Tenant-scoped like <see cref="Sites"/>, so a customer cannot enumerate the names another
+    /// customer serves. The one read that must see every account's rows — "is this name already
+    /// claimed anywhere on the server" — says <c>IgnoreQueryFilters</c> out loud where it is made.
+    /// </remarks>
+    public DbSet<SiteHostname> SiteHostnames
+    {
+        get
+        {
+            return Set<SiteHostname>();
+        }
+    }
+
     /// <summary>Applies the schema, the entity configurations, and the tenant query filter.</summary>
     /// <param name="modelBuilder">The model builder supplied by EF Core.</param>
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.HasDefaultSchema(SchemaName);
         modelBuilder.ApplyConfiguration(new SiteConfiguration());
+        modelBuilder.ApplyConfiguration(new SiteHostnameConfiguration());
 
         // Spec §8: a tenant row is not returned to another tenant PHYSICALLY, not by a handler
         // remembering to filter. An administrator sees everything; a customer's context carries
@@ -54,6 +71,12 @@ public sealed class SitesDbContext : DbContext
         // the row is not found, so there is nothing whose existence a probe could confirm.
         modelBuilder.Entity<Site>().HasQueryFilter(site =>
             _currentUser.IsAdmin || site.AccountId == _currentUser.AccountId);
+
+        // A claim belongs to whoever owns the site making it, so its scope is read through the
+        // required relationship rather than from a second copy of the account id that could
+        // disagree with the site's own (rules/security.md item 6: every tenant entity is filtered).
+        modelBuilder.Entity<SiteHostname>().HasQueryFilter(hostname =>
+            _currentUser.IsAdmin || hostname.Site.AccountId == _currentUser.AccountId);
 
         base.OnModelCreating(modelBuilder);
     }

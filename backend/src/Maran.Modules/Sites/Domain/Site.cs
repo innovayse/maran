@@ -14,6 +14,14 @@ namespace Maran.Modules.Sites.Domain;
 /// </remarks>
 public sealed class Site
 {
+    /// <summary>The hostnames this site claims across the server: its domain and every alias.</summary>
+    /// <remarks>
+    /// The backing field EF Core reads and writes, and the only place the claims are built. Kept
+    /// private so that no caller can claim a name without a site or leave a site without its
+    /// claims: <see cref="SiteHostname"/> explains why an unclaimed alias is a domain takeover.
+    /// </remarks>
+    private readonly List<SiteHostname> _hostnames = [];
+
     /// <summary>The site's identity.</summary>
     public Guid Id { get; private set; }
 
@@ -25,6 +33,24 @@ public sealed class Site
 
     /// <summary>Additional hostnames answered by the same vhost.</summary>
     public IReadOnlyList<string> Aliases { get; private set; }
+
+    /// <summary>
+    /// Every hostname this site claims — <see cref="Domain"/> and each of <see cref="Aliases"/> —
+    /// as rows a unique key makes exclusive across the whole server.
+    /// </summary>
+    /// <remarks>
+    /// Not a second copy of the two properties above for a reader's convenience: those are what the
+    /// vhost is RENDERED from, and this is what a name being taken is DECIDED from, which has to be
+    /// a key in the database because a check in a handler cannot be atomic with the insert that
+    /// follows it (<see cref="SiteHostname"/>).
+    /// </remarks>
+    public IReadOnlyCollection<SiteHostname> Hostnames
+    {
+        get
+        {
+            return _hostnames;
+        }
+    }
 
     /// <summary>Which backend serves this site's content.</summary>
     public SiteBackendType BackendType { get; private set; }
@@ -88,6 +114,14 @@ public sealed class Site
         HasCertificate = false;
         Status = SiteStatus.Enabled;
         CreatedAt = createdAt;
+
+        // Built here and nowhere else: a site that exists has claimed every name it answers for,
+        // by construction rather than by a handler remembering to write a second row.
+        _hostnames.Add(new SiteHostname(domain, this));
+        foreach (var alias in Aliases)
+        {
+            _hostnames.Add(new SiteHostname(alias, this));
+        }
     }
 
     /// <summary>Parameterless constructor required by EF Core materialization.</summary>

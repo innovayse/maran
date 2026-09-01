@@ -2,6 +2,7 @@ using Maran.Modules.Ssl.Common;
 using Maran.Modules.Ssl.Persistence;
 using Maran.Sdk.Contracts;
 using Maran.SharedKernel.Results;
+using Npgsql;
 
 namespace Maran.Modules.Ssl.Tests.TestSupport;
 
@@ -65,20 +66,22 @@ public sealed class SslHandlerFixture : IDisposable
     /// <param name="agentFailure">A refusal for every agent TLS call, or null to succeed.</param>
     /// <param name="reloadFailure">A refusal for the batch reload, or null to succeed.</param>
     /// <param name="knowsAccount">Whether the account directory can answer for this account.</param>
-    /// <param name="saveFailures">How many database writes should be refused, simulating a unique violation.</param>
+    /// <param name="saveFailures">How many database writes should be refused, simulating a database failure.</param>
+    /// <param name="saveFailureSqlState">The SQLSTATE those refusals carry; a unique violation by default.</param>
     public SslHandlerFixture(
         string[] domains,
         Error? acmeFailure = null,
         Error? agentFailure = null,
         Error? reloadFailure = null,
         bool knowsAccount = true,
-        int saveFailures = 0)
+        int saveFailures = 0,
+        string saveFailureSqlState = PostgresErrorCodes.UniqueViolation)
     {
         var currentUser = FakeCurrentUser.Customer(AccountId);
         DbContext = SslTestContext.Create(
             currentUser,
             databaseName: null,
-            saveFailures > 0 ? new UniqueViolationInterceptor(saveFailures) : null);
+            saveFailures > 0 ? new UniqueViolationInterceptor(saveFailures, saveFailureSqlState) : null);
         Snapshots = domains.Select(domain =>
         {
             return new SiteSnapshot(

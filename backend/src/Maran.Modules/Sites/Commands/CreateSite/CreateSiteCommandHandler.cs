@@ -124,14 +124,27 @@ public sealed class CreateSiteCommandHandler
             return await FailAsync(command, nameof(ErrorMessages.SiteLimitReached), cancellationToken);
         }
 
-        // Deliberately ignores the tenant filter: a domain is claimed once across the whole server,
-        // so a domain already served for ANOTHER account is still taken. Without this, the filter
-        // would hide the conflicting row, the check would pass, and the insert would fail on the
-        // unique index as an unhandled exception instead of a typed 409.
-        var domainTaken = await _dbContext.Sites
+        // Deliberately ignores the tenant filter: a hostname is claimed once across the whole
+        // server, so a name already served for ANOTHER account is still taken. Without this, the
+        // filter would hide the conflicting row, the check would pass, and the insert would fail on
+        // the key as an unhandled exception instead of a typed 409.
+        //
+        // The check covers the ALIASES as well as the domain, and covers them against other sites'
+        // aliases as well as their domains, because nginx answers a request by Host alone: an alias
+        // naming another tenant's domain takes that domain over, ACME challenge location included
+        // (SiteHostname). The database key is what actually decides it — this check exists to turn
+        // the collision into a typed 409 rather than a fault.
+        var claimed = command.Aliases
+            .Select(alias =>
+            {
+                return alias.ToLowerInvariant();
+            })
+            .Append(command.Domain.ToLowerInvariant())
+            .ToList();
+        var domainTaken = await _dbContext.SiteHostnames
             .IgnoreQueryFilters()
             .AsNoTracking()
-            .AnyAsync(site => site.Domain == command.Domain, cancellationToken);
+            .AnyAsync(hostname => claimed.Contains(hostname.Name), cancellationToken);
         if (domainTaken)
         {
             return await FailAsync(command, nameof(ErrorMessages.SiteDomainTaken), cancellationToken);

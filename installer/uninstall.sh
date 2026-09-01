@@ -46,6 +46,11 @@ remove_systemd_units() {
 remove_nginx_vhost() {
   echo "Removing nginx vhost..."
   rm -f /etc/nginx/conf.d/maran.conf
+  # And the include pointing at the agent's vhost directory. It goes with the panel's own
+  # vhost rather than being left behind: /etc/maran is removed further down, and an
+  # include naming a directory that no longer exists makes every later `nginx -t` on this
+  # host fail — including ones that have nothing to do with Maran.
+  rm -f /etc/nginx/conf.d/maran-sites.conf
   systemctl reload nginx 2>/dev/null || true
 }
 

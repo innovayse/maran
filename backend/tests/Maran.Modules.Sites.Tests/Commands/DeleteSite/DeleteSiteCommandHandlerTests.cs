@@ -35,6 +35,33 @@ public sealed class DeleteSiteCommandHandlerTests
         Assert.Empty(await context.Sites.ToListAsync());
     }
 
+    /// <summary>Deleting a site frees every hostname it claimed.</summary>
+    [Fact]
+    public async Task Deleting_a_site_frees_every_hostname_it_claimed()
+    {
+        // A claim that outlives its site is a name nobody on this server can ever use again — not
+        // even the customer who just deleted it and wants it back.
+        var account = Guid.NewGuid();
+        var database = Guid.NewGuid().ToString();
+        Guid siteId;
+        await using (var seed = SitesTestContext.Create(FakeCurrentUser.Admin(), database))
+        {
+            var site = SitesTestContext.PhpSite(account, "example.com", "8.3", "www.example.com");
+            seed.Sites.Add(site);
+            await seed.SaveChangesAsync();
+            siteId = site.Id;
+        }
+
+        var agent = new RecordingAgentSitesClient();
+        await using var context = SitesTestContext.Create(FakeCurrentUser.Customer(account), database);
+
+        await Handler(context, account, agent).HandleAsync(
+            new DeleteSiteCommand(siteId, "198.51.100.7", "tests"),
+            CancellationToken.None);
+
+        Assert.Empty(await context.SiteHostnames.IgnoreQueryFilters().ToListAsync());
+    }
+
     /// <summary>A refused removal leaves the row in place.</summary>
     [Fact]
     public async Task A_refused_removal_leaves_the_row_in_place()
