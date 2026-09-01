@@ -21,9 +21,76 @@ than a strict category list: what changed and why it matters to somebody running
 - **An append-only audit journal** of every sign-in and every mutation, with an
   administrators-only screen.
 - **The `maran` CLI** — one entry point to the whole toolbox (`maran` lists it).
+- **Websites.** Static, PHP and reverse-proxy sites, with domain aliases, a document root inside
+  the account's home, and enable/disable. The agent renders the vhost, writes it beside the
+  running configuration, makes the server's own `nginx -t` validate the result, and rolls the
+  file back if either the validation or the reload refuses — so a bad render cannot take a
+  server's other sites down with it. Every value written into a configuration file is validated
+  rather than escaped: a domain that is not letters, digits, hyphens and dots is not a domain, so
+  there is no newline to end a directive and start one of the caller's choosing.
+- **Several PHP versions side by side.** Each account gets its own php-fpm pool per version,
+  running as that account's Linux user, with the worker budget taken from its plan. Customers may
+  change a whitelisted subset of settings; a name outside the list is refused rather than quietly
+  dropped, and the hardening lines above them are written as `php_admin_value`, which a customer
+  setting cannot countermand.
+- **SSL.** Certificates ordered over ACME with an HTTP-01 challenge served from the site's own
+  document root, custom material an operator can upload, and a renewal pass thirty days before
+  expiry. Key material is written to a root-only store outside every account's home, because a
+  site's PHP runs as that customer and a key inside the home is a key the site could read.
+- **Live log tailing.** A site's access and error logs stream into the interface. The stream
+  names a site and a log kind, never a path, and is bounded: a per-account limit on how many may
+  be open at once, a heartbeat so a quiet log is not mistaken for a dead connection, and the
+  reverse-proxy timeouts the installer writes to match.
+- **Container polygons for the agent.** Ubuntu 24.04 and AlmaLinux 9 images that run the agent's
+  privileged suites against real `nginx -t`, real `php-fpm -t` and real system accounts, so the
+  validation the whole design rests on is exercised against the software it will meet on a
+  customer's server rather than against a fake that always agrees.
+
+### Known limitations shipping with this
+
+Named here rather than in a footnote, because each of them is something an operator would
+otherwise find out the hard way.
+
+- **The ACME client has never spoken to a real certificate authority through to an issued
+  certificate.** It reaches Let's Encrypt staging's directory and nonce endpoints and is refused
+  at account registration until a contact address is configured; ordering, challenge validation,
+  finalising and downloading have been exercised only against a fake authority in tests.
+- **HTTP-01 only.** No wildcard certificates and no DNS-01; those arrive with DNS management.
+- **A reverse-proxy upstream is checked for shape and not for destination**, so a site can be
+  pointed at a loopback service on the same machine.
+- **`Acme:CertificateStorePath` is read by nothing**; the store path is fixed in the agent.
+- **An account created before this release cannot serve a site.** Creating an account now
+  group-owns its home by the web server's group, at mode `0750`, so nginx can traverse into the
+  document root without the home being opened to every other local user. Homes created earlier do
+  not have it and there is no repair command; `chgrp www-data /home/<account>` (`nginx` on the
+  RHEL family) fixes one by hand.
 
 ### Fixed
 
+- **Deleting a customer armed a trap for every other customer.** A php-fpm pool names the account
+  it runs as and php-fpm resolves that name at startup, so a pool left behind by a deleted account
+  made the next reload — for any reason, days later — fail with `cannot get uid for user` and take
+  PHP down for every tenant on the server. Nothing in the agent removed a pool at all. Deleting an
+  account now removes every pool it owns, before `userdel` makes their user unresolvable; deleting
+  a site or switching its PHP version removes the pool left behind when, and only when, no other
+  site of that account still uses it.
+- **Certificate renewal never ran.** The handler was named `…Job`, which Wolverine does not
+  discover, so every daily trigger was dropped with "No routes can be determined" and every
+  certificate the panel issued would have expired unwatched. Renamed to the convention, and a test
+  now asks the running panel whether the message has a handler rather than reading a registration.
+- **A fresh installation had no plans, so no account could be created at all.** The plan seeder
+  existed, was unit-tested and had no caller anywhere in the product; it now runs at startup,
+  inserting only what is absent so an operator's edited plan survives a restart.
+- **A newly created PHP site had no php-fpm pool**, so its vhost pointed at a socket nothing had
+  bound and the site answered 502 until somebody changed its PHP version — the only operation that
+  wrote a pool. Creation and the version switch now write it through one shared function.
+- **No web server could read any document root.** Every account home was `0750` owned by the
+  account, and nginx refused every request with `stat() … (13: Permission denied)`.
+- **The SSL tab could not be used.** Its API composable was still a seam that rejected every call,
+  so a site whose certificate nginx was serving was shown "Certificates are not available on this
+  server yet". The four endpoints are wired.
+- **The third plan on the create-account form could not be clicked**, clipped by the card the form
+  is drawn in, and two sidebar entries linked to an upgrade wall for modules the licence includes.
 - The login rate limiter partitioned on a `username` **query** value while the endpoint
   authenticates the request **body**, so an attacker could get a fresh partition per request and
   guess passwords without limit. It now keys on the caller's address alone.

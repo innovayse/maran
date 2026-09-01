@@ -82,6 +82,72 @@ applies to tests too.
   or a middleware that was never written is a defect in its own right — delete the sentence or
   write the code.
 
+### Mutation harnesses — every defect in one manufactures false confidence
+
+A mutation run is how we check that a protection is actually held up by a test:
+break the protection on purpose, confirm a **named** test goes red, restore, move
+on. It is the strongest evidence this repository produces about security code, and
+it is worth exactly as much as the harness that produced it.
+
+Four harnesses in one plan produced wrong answers, and every one of them failed in
+the same direction — reporting a protection as tested when it was not, or a kill as
+a miss. None produced a false alarm. That asymmetry is the reason this is a rule
+rather than advice: a harness bug does not announce itself, it just makes the table
+look finished.
+
+A harness MUST:
+
+- **Restore with a fresh mtime.** `cp -p` and `git checkout` of a single file put the
+  ORIGINAL timestamp back, and both cargo and MSBuild key their caches on mtime — so
+  the source is restored while the MUTATED binary stays in the build directory and the
+  next run measures the previous experiment. `touch` the file after the mutation and
+  again after the restore, and verify the restore with `cmp`.
+- **Run every test target.** `cargo test` stops running later targets once one fails, so a
+  mutant that kills a test in an early crate hides whether the named test in a later one
+  died at all. Pass `--no-fail-fast`. Without it a clean kill reports as the wrong test
+  dying.
+
+  `dotnet test <solution>` needs no such switch — it already continues across projects, and
+  **`--no-fail-fast` is not a VSTest option**: it is rejected as `MSB1001: Unknown switch`,
+  which produces a run with no test-result line at all. That is the very failure this
+  section forbids, so an earlier version of this rule, which told authors to pass it "(`--`
+  for dotnet)", would have caused it. What `dotnet test` requires instead is the check
+  below: a crashed run prints `Passed!` with a smaller total, so the per-project totals must
+  be summed and compared against the baseline.
+- **Score against the WHOLE suite, never a subset.** `--filter` (and `cargo test -p`) is the
+  same defect wearing a different hat: a mutant scored against one project's tests is scored
+  blind to every other project's, and the answer it produces is "SURVIVED" — the direction
+  that manufactures confidence. This has already happened here: a tenant check was reported
+  as untested off a filtered run showing 24 passed, while the whole solution had three named
+  tests failing on it, and the false result was then written up as a "masking pair" that did
+  not exist. Narrow the run to save time only after the verdict is in, and never in the run
+  the table quotes.
+- **Abort when the output carries no test-result line.** A mutant that does not compile
+  has measured nothing. Treating a build failure as "the test went red" is the purest
+  form of the defect this section exists for.
+- **Confirm the NAMED test died, not merely that something did.** "The suite went red"
+  is compatible with the protection being untested and an unrelated test being brittle.
+  Grep for the specific test name, and print anything else that went red beside it.
+- **Verify the mutation landed.** Refuse a multi-line pattern (it silently matches and
+  replaces nothing), refuse an ambiguous pattern unless the occurrence is named, and
+  fail if the file did not change.
+- **Not live in a shared scratchpad two agents can write.** One harness in this plan was
+  overwritten mid-run by another agent's script of the same name.
+
+And two rules about reading the results, which cost as much as the harness bugs did:
+
+- **A protection with no possible mutant is a claim that needs proving, not asserting.**
+  "There is no way to break this" has been wrong every time it has been said here —
+  `renameat`'s replace-not-follow was declared unmutatable and dies to a one-identifier
+  `renameat2(…, RENAME_NOREPLACE)`. Look harder before writing it down; if it is
+  genuinely true, say why in the code, next to the thing.
+- **Two checks that mask each other are one check and one piece of decoration.** Mutate
+  each independently and say which died alone. When neither dies alone, mutate both
+  together: if that survives too, the guarantee is coming from somewhere else entirely
+  (a downstream `ENOTDIR`, a permission bit) and the comments claiming otherwise are
+  wrong. A defensive call that cannot fail is deleted, not labelled — a label ages into
+  staleness while the next reader still reasons about the call as protection.
+
 ## Toolchain prerequisites — a gate you cannot run is not a gate that passed
 
 - The Rust gates need more than `rustup`: `cargo test`/`clippy`/`build` link test binaries with the

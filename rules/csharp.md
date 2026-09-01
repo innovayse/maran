@@ -198,8 +198,13 @@ backend/
 │   ├── Maran.Agent.Client/          # the ONLY project generating agent gRPC code
 │   │   ├── DependencyInjection.cs       # AddAgentClient — the project's registrations
 │   │   ├── Channels/                    # AgentChannel.cs — unix-socket channel construction
+│   │   ├── Errors/                      # AgentErrorTranslator.cs — the ONE place a wire AgentError
+│   │   │                                #   becomes a code, and the ONE place the agent's own text
+│   │   │                                #   is logged (and redacted). Shared by every service
+│   │   │                                #   client, so a redaction is written and kept in one file
 │   │   └── Services/<Proto>Service/      # one folder per proto service: client, seam, DTOs
-│   │                                    # (SystemService/, SitesService/, SslService/, …)
+│   │                                    # (SystemService/, AccountsService/, SitesService/,
+│   │                                    #  SslService/, PhpService/, …)
 │   └── Maran.Modules/               # grouping folder for all module projects
 │       └── <Name>/                      # short folder (Sites/, Accounts/…); the project inside
 │                                        #   is the full Maran.Modules.<Name>.csproj
@@ -313,6 +318,12 @@ public sealed class AuditLogsController : BaseApiController
   resx, in three languages. Operator-facing diagnostic text that has no resx entry — the Rust
   agent's own error string, for instance — is **logged** at the boundary that receives it, never
   attached to the `Error` travelling outward.
+- **That boundary is one type, not one per caller.** In `Maran.Agent.Client` it is
+  `Errors/AgentErrorTranslator.cs`: every service client calls it, and no client writes its own
+  wire-error-to-code mapping or its own log line. The rule exists because the mapping was once
+  copied into five clients; they agreed on the day they were written, and a security control that
+  lives in five files has to be fixed five times and stay fixed. Redaction of secret material
+  (PEM blocks, and whatever follows) belongs there for the same reason.
 - **One resource file per purpose, named for it** — not one catch-all per module:
   `ErrorMessages` (domain failures surfaced as error codes), `ValidationMessages` (validator
   output), `DisplayNames` (module, plan and other user-facing names), `EmailTemplates`,
