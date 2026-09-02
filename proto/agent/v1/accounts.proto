@@ -26,12 +26,37 @@ service AccountsService {
   // Idempotent: unsuspending an already-active account is a no-op success.
   rpc UnsuspendAccount(UnsuspendAccountRequest) returns (UnsuspendAccountResponse);
 
-  // Permanently removes the system user, its home directory and all data
-  // under it (files, mail spool if any). Databases and FTP users owned by
-  // the account are NOT removed by this call — the caller (backend) drops
-  // them explicitly first via DbService/FtpService so each deletion is
-  // independently audited. Idempotent: deleting a non-existent account
-  // returns NotFound, not an error the caller must special-case away.
+  // Permanently removes EVERYTHING on this host that belongs to the account:
+  // its databases and their dedicated users, its SFTP logins together with the
+  // account's jail and the bind mount that filled it, its php-fpm pools, and
+  // finally the system user with its home directory and all data under it.
+  //
+  // Corrected 2026-09-02, comment and behaviour. This used to say databases and
+  // FTP users were NOT removed here and that the caller dropped them first. That
+  // was the contract and it was not safe: `userdel` touches neither MySQL nor
+  // sshd, so anything the panel had forgotten — or never recorded — stayed on the
+  // host, and system user names are RECYCLED. An account created again under the
+  // same name inherited the previous tenant's live databases and a working
+  // credential into them. The agent now asks the machine what is there instead of
+  // being handed the panel's list, because a list can only describe what the
+  // panel remembers creating.
+  //
+  // The panel still removes its OWN rows first, and each of its own deletions is
+  // still independently audited; this call is the host-side cleanup, not a
+  // replacement for that.
+  //
+  // Ordering is part of the contract: everything above precedes `userdel`. A pool
+  // outliving its account cannot be removed at all (php-fpm refuses to validate a
+  // pool naming a user that no longer resolves), and a bind mount outliving its
+  // account points at a home that has just been deleted.
+  //
+  // NOT best-effort: the first refusal aborts the deletion with the account still
+  // present, reported as SYSTEM_FAILURE. That is the recoverable half — an account
+  // that is still there can be deleted again, while an orphaned database or a live
+  // credential cannot be found by any later operation.
+  //
+  // Idempotent: deleting a non-existent account returns NotFound, not an error the
+  // caller must special-case away.
   rpc DeleteAccount(DeleteAccountRequest) returns (DeleteAccountResponse);
 
   // Sets (replaces) the disk quota for an account. Idempotent: setting the
