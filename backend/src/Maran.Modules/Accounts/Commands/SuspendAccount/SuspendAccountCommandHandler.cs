@@ -2,6 +2,7 @@ using Maran.Agent.Client.Interfaces;
 using Maran.Modules.Accounts.Common;
 using Maran.Modules.Accounts.Persistence;
 using Maran.Modules.Accounts.Resources;
+using Maran.Sdk.Contracts;
 
 namespace Maran.Modules.Accounts.Commands.SuspendAccount;
 
@@ -14,13 +15,21 @@ public sealed class SuspendAccountCommandHandler
     /// <summary>The agent, which owns everything outside the database.</summary>
     private readonly IAgentAccountsClient _agent;
 
+    /// <summary>This module's audit journal.</summary>
+    private readonly AccountAuditJournal _journal;
+
     /// <summary>Creates the handler.</summary>
     /// <param name="dbContext">The Accounts module's database context.</param>
     /// <param name="agent">The agent client that performs the privileged half.</param>
-    public SuspendAccountCommandHandler(AccountsDbContext dbContext, IAgentAccountsClient agent)
+    /// <param name="journal">This module's audit journal.</param>
+    public SuspendAccountCommandHandler(
+        AccountsDbContext dbContext,
+        IAgentAccountsClient agent,
+        AccountAuditJournal journal)
     {
         _dbContext = dbContext;
         _agent = agent;
+        _journal = journal;
     }
 
     /// <summary>Suspends the account. Idempotent: suspending a suspended account changes nothing.</summary>
@@ -39,19 +48,46 @@ public sealed class SuspendAccountCommandHandler
         var account = await _dbContext.Accounts.SingleOrDefaultAsync(a => a.Id == command.AccountId, cancellationToken);
         if (account is null)
         {
-            return Result<AccountDto>.Fail(Error.Of(nameof(ErrorMessages.AccountNotFound)));
+            // The subject is the identifier the caller supplied, because no name is known — a probe
+            // for an account the caller may not see still leaves a trace naming what was probed for.
+            return await FailAsync(
+                command,
+                command.AccountId.ToString(),
+                nameof(ErrorMessages.AccountNotFound),
+                cancellationToken);
         }
 
         var stopped = await _agent.SuspendAsync(account.Name, cancellationToken);
         if (!stopped.IsSuccess)
         {
-            return Result<AccountDto>.Fail(stopped.Error!);
+            return await FailAsync(command, account.Name, stopped.Error!.Code, cancellationToken);
         }
 
         account.Suspend();
         await _dbContext.SaveChangesAsync(cancellationToken);
 
+        await _journal.RecordSuccessAsync(
+            AuditActions.AccountSuspended, account.Name, command.IpAddress, command.UserAgent, cancellationToken);
+
         return Result<AccountDto>.Ok(new AccountDto(
             account.Id, account.Name, account.PrimaryDomain, account.PlanId, account.Status, account.CreatedAt));
+    }
+
+    /// <summary>Journals a refused suspend and returns it as the typed failure.</summary>
+    /// <param name="command">The suspend that was refused.</param>
+    /// <param name="subject">The account's name, or the supplied identifier when no row was found.</param>
+    /// <param name="code">The machine-stable code to answer with.</param>
+    /// <param name="cancellationToken">Cancels the journal write.</param>
+    /// <returns>The failed result carrying <paramref name="code"/>.</returns>
+    private async Task<Result<AccountDto>> FailAsync(
+        SuspendAccountCommand command,
+        string subject,
+        string code,
+        CancellationToken cancellationToken)
+    {
+        await _journal.RecordFailureAsync(
+            AuditActions.AccountSuspended, subject, command.IpAddress, command.UserAgent, cancellationToken);
+
+        return Result<AccountDto>.Fail(Error.Of(code));
     }
 }

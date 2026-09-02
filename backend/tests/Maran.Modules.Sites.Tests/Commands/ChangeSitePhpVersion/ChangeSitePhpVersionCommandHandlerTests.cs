@@ -301,7 +301,13 @@ public sealed class ChangeSitePhpVersionCommandHandlerTests
         int maxPhpWorkersPerPool = 10,
         RecordingAuditWriter? audit = null)
     {
-        var accounts = new StubAccountDirectory(new AccountSnapshot(accountId, "acme", MaxSites: 5, maxPhpWorkersPerPool));
+        var accounts = new StubAccountDirectory(new AccountSnapshot(
+            accountId,
+            "acme",
+            MaxSites: 5,
+            MaxDatabases: 2,
+            MaxSftpUsers: 3,
+            MaxPhpWorkersPerPool: maxPhpWorkersPerPool));
         return new ChangeSitePhpVersionCommandHandler(
             context,
             accounts,

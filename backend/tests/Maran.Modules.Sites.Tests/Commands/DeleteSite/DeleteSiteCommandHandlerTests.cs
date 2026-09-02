@@ -143,7 +143,13 @@ public sealed class DeleteSiteCommandHandlerTests
         RecordingAuditWriter? audit = null)
     {
         var accounts = new StubAccountDirectory(
-            new AccountSnapshot(accountId, "acme", MaxSites: 5, MaxPhpWorkersPerPool: 10));
+            new AccountSnapshot(
+                accountId,
+                "acme",
+                MaxSites: 5,
+                MaxDatabases: 2,
+                MaxSftpUsers: 3,
+                MaxPhpWorkersPerPool: 10));
         return new DeleteSiteCommandHandler(
             context,
             accounts,

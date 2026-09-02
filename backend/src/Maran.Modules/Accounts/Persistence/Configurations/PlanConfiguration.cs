@@ -28,7 +28,7 @@ public sealed class PlanConfiguration : IEntityTypeConfiguration<Plan>
         builder.Property(p => p.MaxDatabases)
             .IsRequired();
 
-        builder.Property(p => p.MaxFtpUsers)
+        builder.Property(p => p.MaxSftpUsers)
             .IsRequired();
 
         builder.Property(p => p.MaxPhpWorkersPerPool)

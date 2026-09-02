@@ -49,7 +49,7 @@ public sealed class ListPlansQueryHandler
                                 p.DiskQuotaMb,
                                 p.MaxSites,
                                 p.MaxDatabases,
-                                p.MaxFtpUsers);
+                                p.MaxSftpUsers);
             })
             .ToList();
 

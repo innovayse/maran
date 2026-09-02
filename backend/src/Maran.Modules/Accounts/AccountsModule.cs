@@ -1,4 +1,5 @@
 using System.Resources;
+using Maran.Modules.Accounts.Common;
 using Maran.Modules.Accounts.Persistence;
 using Maran.Modules.Accounts.Services;
 using Maran.Sdk.Contracts;
@@ -50,6 +51,9 @@ public sealed class AccountsModule : IPanelModule
         {
             options.UseNpgsql(connectionString);
         });
+
+        // Scoped, because it reads the request's own ICurrentUser for the journal's actor.
+        services.AddScoped<AccountAuditJournal>();
 
         // The one window other modules have onto this module's data (rules/architecture.md
         // "Cross-module needs go through Wolverine messages or Sdk abstractions"). Scoped, because

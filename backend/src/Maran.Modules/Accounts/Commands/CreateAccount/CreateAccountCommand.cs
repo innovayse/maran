@@ -8,4 +8,11 @@ namespace Maran.Modules.Accounts.Commands.CreateAccount;
 /// <param name="Name">The account's unique, Linux-username-safe short name.</param>
 /// <param name="PrimaryDomain">The account's primary domain.</param>
 /// <param name="PlanId">The id of the plan bounding this account's resource limits.</param>
-public sealed record CreateAccountCommand(string Name, string PrimaryDomain, Guid PlanId);
+/// <param name="IpAddress">The caller's address, recorded in the audit journal.</param>
+/// <param name="UserAgent">The caller's user agent, recorded in the audit journal.</param>
+public sealed record CreateAccountCommand(
+    string Name,
+    string PrimaryDomain,
+    Guid PlanId,
+    string IpAddress,
+    string UserAgent);

@@ -145,7 +145,7 @@ public sealed class AccountDirectoryTests
         if (!await dbContext.Plans.AnyAsync(plan => plan.Id == PlanId))
         {
             dbContext.Plans.Add(new Plan(
-                PlanId, "PlanStarterName", diskQuotaMb: 5_120, maxSites: 7, maxDatabases: 2, maxFtpUsers: 3,
+                PlanId, "PlanStarterName", diskQuotaMb: 5_120, maxSites: 7, maxDatabases: 2, maxSftpUsers: 3,
                 maxPhpWorkersPerPool: 11));
         }
 

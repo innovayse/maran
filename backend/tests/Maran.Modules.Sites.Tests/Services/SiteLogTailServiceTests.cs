@@ -360,7 +360,7 @@ public sealed class SiteLogTailServiceTests
         var currentUser = FakeCurrentUser.Customer(knownAccountId);
         return new SiteLogTailService(
             context,
-            new StubAccountDirectory(new AccountSnapshot(knownAccountId, "owner", 5, 5)),
+            new StubAccountDirectory(new AccountSnapshot(knownAccountId, "owner", 5, 2, 3, 5)),
             agent ?? new RecordingAgentSitesClient(),
             errorText ?? new StubErrorTextProvider(),
             new SiteAuditJournal(audit ?? new RecordingAuditWriter(), currentUser));

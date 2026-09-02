@@ -56,7 +56,7 @@ public sealed class ListPlansQueryHandlerTests
         Assert.Equal(5_120, dto.DiskQuotaMb);
         Assert.Equal(5, dto.MaxSites);
         Assert.Equal(2, dto.MaxDatabases);
-        Assert.Equal(3, dto.MaxFtpUsers);
+        Assert.Equal(3, dto.MaxSftpUsers);
     }
 
     /// <summary>Returns plans ordered by disk quota ascending.</summary>

@@ -3,6 +3,7 @@ using Maran.Modules.Accounts.Common;
 using Maran.Modules.Accounts.Domain;
 using Maran.Modules.Accounts.Persistence;
 using Maran.Modules.Accounts.Resources;
+using Maran.Sdk.Contracts;
 
 namespace Maran.Modules.Accounts.Commands.CreateAccount;
 
@@ -35,15 +36,24 @@ public sealed class CreateAccountCommandHandler
     /// <summary>The injected time source; never the ambient clock (rules/csharp.md).</summary>
     private readonly IClock _clock;
 
+    /// <summary>This module's audit journal.</summary>
+    private readonly AccountAuditJournal _journal;
+
     /// <summary>Creates the handler with the module's own database context, the agent and the clock.</summary>
     /// <param name="dbContext">The Accounts module's database context.</param>
     /// <param name="agent">The agent client that provisions the system user.</param>
     /// <param name="clock">The injected time source used to stamp the new account's creation time.</param>
-    public CreateAccountCommandHandler(AccountsDbContext dbContext, IAgentAccountsClient agent, IClock clock)
+    /// <param name="journal">This module's audit journal.</param>
+    public CreateAccountCommandHandler(
+        AccountsDbContext dbContext,
+        IAgentAccountsClient agent,
+        IClock clock,
+        AccountAuditJournal journal)
     {
         _dbContext = dbContext;
         _agent = agent;
         _clock = clock;
+        _journal = journal;
     }
 
     /// <summary>
@@ -62,7 +72,7 @@ public sealed class CreateAccountCommandHandler
             .AnyAsync(a => a.Name == command.Name, cancellationToken);
         if (nameTaken)
         {
-            return Result<AccountDto>.Fail(Error.Of(nameof(ErrorMessages.AccountNameTaken)));
+            return await FailAsync(command, nameof(ErrorMessages.AccountNameTaken), cancellationToken);
         }
 
         var domainTaken = await _dbContext.Accounts
@@ -70,7 +80,7 @@ public sealed class CreateAccountCommandHandler
             .AnyAsync(a => a.PrimaryDomain == command.PrimaryDomain, cancellationToken);
         if (domainTaken)
         {
-            return Result<AccountDto>.Fail(Error.Of(nameof(ErrorMessages.AccountDomainTaken)));
+            return await FailAsync(command, nameof(ErrorMessages.AccountDomainTaken), cancellationToken);
         }
 
         var plan = await _dbContext.Plans
@@ -78,13 +88,13 @@ public sealed class CreateAccountCommandHandler
             .SingleOrDefaultAsync(p => p.Id == command.PlanId, cancellationToken);
         if (plan is null)
         {
-            return Result<AccountDto>.Fail(Error.Of(nameof(ErrorMessages.PlanNotFound)));
+            return await FailAsync(command, nameof(ErrorMessages.PlanNotFound), cancellationToken);
         }
 
         var provisioned = await _agent.CreateAsync(command.Name, QuotaBytes(plan), cancellationToken);
         if (!provisioned.IsSuccess)
         {
-            return Result<AccountDto>.Fail(provisioned.Error!);
+            return await FailAsync(command, provisioned.Error!.Code, cancellationToken);
         }
 
         var account = new Account(Guid.NewGuid(), command.Name, command.PrimaryDomain, command.PlanId, _clock.UtcNow);
@@ -92,8 +102,33 @@ public sealed class CreateAccountCommandHandler
         _dbContext.Accounts.Add(account);
         await _dbContext.SaveChangesAsync(cancellationToken);
 
+        await _journal.RecordSuccessAsync(
+            AuditActions.AccountCreated, account.Name, command.IpAddress, command.UserAgent, cancellationToken);
+
         return Result<AccountDto>.Ok(
             new AccountDto(account.Id, account.Name, account.PrimaryDomain, account.PlanId, account.Status, account.CreatedAt));
+    }
+
+    /// <summary>Journals a refused creation and returns it as the typed failure.</summary>
+    /// <remarks>
+    /// The subject is the name the caller asked for, which is the only thing that exists to name:
+    /// no account was created. A refusal is worth journalling here because "that name is taken" and
+    /// "that domain is taken" are how one caller learns what another customer holds, so a run of
+    /// them from one address is exactly the pattern the journal exists to make visible.
+    /// </remarks>
+    /// <param name="command">The creation that was refused.</param>
+    /// <param name="code">The machine-stable code to answer with.</param>
+    /// <param name="cancellationToken">Cancels the journal write.</param>
+    /// <returns>The failed result carrying <paramref name="code"/>.</returns>
+    private async Task<Result<AccountDto>> FailAsync(
+        CreateAccountCommand command,
+        string code,
+        CancellationToken cancellationToken)
+    {
+        await _journal.RecordFailureAsync(
+            AuditActions.AccountCreated, command.Name, command.IpAddress, command.UserAgent, cancellationToken);
+
+        return Result<AccountDto>.Fail(Error.Of(code));
     }
 
     /// <summary>Converts a plan's disk allowance to the bytes the agent's quota call expects.</summary>
