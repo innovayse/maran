@@ -44,8 +44,8 @@ self-signed fallback.
 **Databases** — MySQL/MariaDB databases and users with per-plan limits, with a web database
 manager available as an optional isolated module rather than bundled into the panel.
 
-**File access** — SFTP with chroot by default, FTPS for compatibility, plus a browser file
-manager with uploads, an editor, archives, permissions and search.
+**File access** — SFTP with chroot by default (shipped), FTPS for compatibility and a browser file
+manager with uploads, an editor, archives, permissions and search (planned).
 
 **Scheduled tasks** — per-account cron with a schedule builder, environment variables and
 last-run output.
@@ -209,8 +209,21 @@ What ships with those, said here rather than left to be discovered:
   `chgrp www-data /home/<account>` (`nginx` on the RHEL family) by hand for those.
 - **`open_basedir` is not a security boundary.** Isolation between accounts comes from the pool's
   uid; the `open_basedir` line is there against accidents, not attackers.
+- **File access is SFTP only.** No FTP daemon is installed and no second port is opened. FTPS is
+  a separate provisioning path with its own certificate story and is tracked as issue #20.
+- **There is no web database manager yet.** The phpMyAdmin-style module described above is a
+  separate deployable with its own vhost and authentication, and it is not in this release.
+- **A database password is shown once and never stored.** Losing it means resetting it, not
+  looking it up; the same is true of an SFTP login's password.
+- **Dropping a database is final.** Nothing is backed up first.
+- **What bounds an SFTP login after it authenticates is the account, not this feature.** The
+  session is chrooted, shell-less and cannot forward ports, but it runs as the account's uid, so
+  its CPU, memory and process limits are the account's — nothing here sets them.
+- **The `Match Group` block sshd needs is written by the installer and never re-checked.** If it
+  is removed by hand or by a package upgrade, SFTP logins become full shell sessions and nothing
+  in the panel would notice.
 
-Databases, FTP, cron, backups and the firewall are the modules that follow.
+Cron, backups and the firewall are the modules that follow.
 
 Mail and DNS management, reseller accounts and central management of multiple servers are
 planned after the first release.
