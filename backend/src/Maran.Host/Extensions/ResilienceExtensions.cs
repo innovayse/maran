@@ -43,8 +43,8 @@ public static class ResilienceExtensions
 
         // Every agent client is decorated here, and each one is listed once. A client registered
         // without its decorator has no timeout at all — the defect this repository already found
-        // when the pipeline was registered and resolved by nobody — so the five calls sit together
-        // where a sixth client's missing line is visible.
+        // when the pipeline was registered and resolved by nobody — so the calls sit together
+        // where the next client's missing line is visible.
         Decorate<IAgentAccountsClient>(services, (inner, pipelines) =>
         {
             return new ResilientAgentAccountsClient(inner, pipelines);
@@ -64,6 +64,14 @@ public static class ResilienceExtensions
         Decorate<IAgentFilesClient>(services, (inner, pipelines) =>
         {
             return new ResilientAgentFilesClient(inner, pipelines);
+        });
+        Decorate<IAgentDbClient>(services, (inner, pipelines) =>
+        {
+            return new ResilientAgentDbClient(inner, pipelines);
+        });
+        Decorate<IAgentSftpClient>(services, (inner, pipelines) =>
+        {
+            return new ResilientAgentSftpClient(inner, pipelines);
         });
 
         return services;

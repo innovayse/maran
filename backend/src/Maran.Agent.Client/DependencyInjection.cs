@@ -3,8 +3,10 @@ using Grpc.Net.Client;
 using Maran.Agent.Client.Channels;
 using Maran.Agent.Client.Interfaces;
 using Maran.Agent.Client.Services.AccountsService;
+using Maran.Agent.Client.Services.DbService;
 using Maran.Agent.Client.Services.FilesService;
 using Maran.Agent.Client.Services.PhpService;
+using Maran.Agent.Client.Services.SftpService;
 using Maran.Agent.Client.Services.SitesService;
 using Maran.Agent.Client.Services.SslService;
 using Maran.Agent.Client.Services.SystemService;
@@ -75,6 +77,20 @@ public static class DependencyInjection
                 return new AgentFilesClient(
                     provider.GetRequiredService<GrpcChannel>(),
                     provider.GetRequiredService<ILogger<AgentFilesClient>>());
+            });
+        services.AddSingleton<IAgentDbClient>(
+            provider =>
+            {
+                return new AgentDbClient(
+                    provider.GetRequiredService<GrpcChannel>(),
+                    provider.GetRequiredService<ILogger<AgentDbClient>>());
+            });
+        services.AddSingleton<IAgentSftpClient>(
+            provider =>
+            {
+                return new AgentSftpClient(
+                    provider.GetRequiredService<GrpcChannel>(),
+                    provider.GetRequiredService<ILogger<AgentSftpClient>>());
             });
         services.AddSingleton<IAgentSystemClient>(
             provider =>

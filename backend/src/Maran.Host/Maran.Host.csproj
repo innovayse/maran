@@ -31,6 +31,8 @@
     <ProjectReference Include="..\Maran.Modules\Identity\Maran.Modules.Identity.csproj" />
     <ProjectReference Include="..\Maran.Modules\Sites\Maran.Modules.Sites.csproj" />
     <ProjectReference Include="..\Maran.Modules\Ssl\Maran.Modules.Ssl.csproj" />
+    <ProjectReference Include="..\Maran.Modules\Databases\Maran.Modules.Databases.csproj" />
+    <ProjectReference Include="..\Maran.Modules\Sftp\Maran.Modules.Sftp.csproj" />
   </ItemGroup>
 
   <ItemGroup>

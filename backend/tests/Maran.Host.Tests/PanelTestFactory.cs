@@ -28,5 +28,20 @@ public sealed class PanelTestFactory : WebApplicationFactory<Program>
         builder.UseSetting(PanelTestSettings.EncryptionKeyPath, PanelTestSettings.EncryptionKey);
         builder.UseSetting(PanelTestSettings.JwtSigningKeyPath, PanelTestSettings.JwtSigningKey);
         builder.UseSetting("Database:Host", string.Empty);
+
+        // The agent socket is pinned to a path that cannot exist, for the same reason the
+        // environment is pinned to Testing: left at its default, this host addresses
+        // /run/maran/agent.sock — the path a real agent listens on. On a workstation where one is
+        // running, the probe CONNECTS, and the readiness test asserting that an unreachable agent
+        // never blocks readiness fails with "connected" where it expected "unavailable". The test
+        // was not wrong about the product; it was inheriting a machine it never configured.
+        builder.UseSetting("Agent:SocketPath", "/nonexistent/maran-tests/agent.sock");
+
+        // One second rather than the production default of thirty, because a test that proves the
+        // agent-operation pipeline abandons a stuck call has to WAIT for it — three attempts at the
+        // default would spend a minute and a half asserting a single timeout. Stated here rather
+        // than in the test so the whole composed host runs on one agreed configuration, in the
+        // spirit of the remarks above: a test states its own configuration.
+        builder.UseSetting("Agent:OperationTimeoutSeconds", "1");
     }
 }

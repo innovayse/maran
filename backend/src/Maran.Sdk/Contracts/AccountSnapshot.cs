@@ -20,6 +20,18 @@ namespace Maran.Sdk.Contracts;
 /// The plan's site allowance. Countable limits are enforced in the application at creation time
 /// (spec §8), so the module creating the row is the module that must be able to read this.
 /// </param>
+/// <param name="MaxDatabases">
+/// The plan's database allowance, enforced by the Databases module at creation time and before the
+/// agent is called (spec §8). Here for the same reason <paramref name="MaxSites"/> is: the module
+/// that creates the row is the module that must be able to read the limit, and it may not reach into
+/// the Accounts schema to find it.
+/// </param>
+/// <param name="MaxSftpUsers">
+/// The plan's SFTP-login allowance, enforced by the Sftp module at creation time and before the
+/// agent is called (spec §8). Here for the same reason <paramref name="MaxDatabases"/> is: the
+/// module that creates the row is the module that must be able to read the limit, and it may not
+/// reach into the Accounts schema to find it.
+/// </param>
 /// <param name="MaxPhpWorkersPerPool">
 /// The plan's php-fpm worker budget for ONE pool, written into each rendered pool as
 /// <c>pm.max_children</c> (spec §8, §11). Per pool and not per account, matching
@@ -28,4 +40,10 @@ namespace Maran.Sdk.Contracts;
 /// because the module that re-renders a pool is the module that must supply it, and a fabricated
 /// default here would be a customer silently given the wrong CPU ceiling.
 /// </param>
-public sealed record AccountSnapshot(Guid Id, string Username, int MaxSites, int MaxPhpWorkersPerPool);
+public sealed record AccountSnapshot(
+    Guid Id,
+    string Username,
+    int MaxSites,
+    int MaxDatabases,
+    int MaxSftpUsers,
+    int MaxPhpWorkersPerPool);

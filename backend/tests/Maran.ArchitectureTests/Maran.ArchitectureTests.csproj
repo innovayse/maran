@@ -30,6 +30,8 @@
     <ProjectReference Include="..\..\src\Maran.Modules\Identity\Maran.Modules.Identity.csproj" />
     <ProjectReference Include="..\..\src\Maran.Modules\Sites\Maran.Modules.Sites.csproj" />
     <ProjectReference Include="..\..\src\Maran.Modules\Ssl\Maran.Modules.Ssl.csproj" />
+    <ProjectReference Include="..\..\src\Maran.Modules\Databases\Maran.Modules.Databases.csproj" />
+    <ProjectReference Include="..\..\src\Maran.Modules\Sftp\Maran.Modules.Sftp.csproj" />
   </ItemGroup>
 
 </Project>

@@ -2,6 +2,7 @@ using System.Text.RegularExpressions;
 using Maran.Agent.Client.Resources;
 using Maran.Agent.V1;
 using Maran.SharedKernel.Results;
+using Maran.SharedKernel.Security;
 using Microsoft.Extensions.Logging;
 
 namespace Maran.Agent.Client.Errors;
@@ -53,10 +54,42 @@ internal static partial class AgentErrorTranslator
     /// <returns>The error carrying only a machine-stable code.</returns>
     public static Error ToError(ILogger logger, AgentError error, string operation)
     {
+        return ToError(logger, error, operation, null);
+    }
+
+    /// <summary>
+    /// Converts a wire failure into a typed error, logging the agent's own sentence and any tool
+    /// output — with key material and the secret this call itself sent stripped — on the way.
+    /// </summary>
+    /// <param name="logger">Where the agent's operator-facing text goes.</param>
+    /// <param name="error">The failure payload returned by the agent.</param>
+    /// <param name="operation">Which call refused, so the log line names it.</param>
+    /// <param name="sentSecret">
+    /// The secret this call carried to the agent, when it carried one. Supplied so that the agent
+    /// quoting it back cannot put it in the panel's log.
+    /// </param>
+    /// <returns>The error carrying only a machine-stable code.</returns>
+    /// <remarks>
+    /// The pattern rules below catch key material because key material has a shape. A database or
+    /// SFTP password has no shape at all — it is a short run of mixed characters, indistinguishable
+    /// from a hostname or a table name — so no regex can find it, and the agent's most natural way
+    /// of reporting a refused credential is to quote it (<c>Access denied for 'acc1_shop'@'localhost'
+    /// (using password: 'Xk7…')</c>). What makes it findable is the one thing the panel does know:
+    /// it minted the value seconds ago, so it can look for that exact string rather than for a
+    /// pattern. Recognising what we sent is strictly stronger than guessing what a secret looks
+    /// like, and it is the only rule that would have caught this one.
+    /// </remarks>
+    public static Error ToError(ILogger logger, AgentError error, string operation, SensitiveString? sentSecret)
+    {
         var code = ToErrorCode(error.Code);
 
         // Logged and never returned, so no path and no tool excerpt can render to a customer.
-        LogAgentError(logger, operation, code, Redact($"{error.Message} {error.ToolOutput}".Trim()), null);
+        LogAgentError(
+            logger,
+            operation,
+            code,
+            Redact($"{error.Message} {error.ToolOutput}".Trim(), sentSecret),
+            null);
 
         return Error.Of(code);
     }
@@ -84,9 +117,13 @@ internal static partial class AgentErrorTranslator
         };
     }
 
-    /// <summary>Removes key material from text that is about to be logged.</summary>
+    /// <summary>Removes key material and any secret this call sent from text that is about to be logged.</summary>
     /// <param name="text">The agent's message and its tool output, joined by a space.</param>
-    /// <returns>The same text with every PEM block and every bare run of key-shaped bytes replaced.</returns>
+    /// <param name="sentSecret">The secret this call carried to the agent, or null when it carried none.</param>
+    /// <returns>
+    /// The same text with the sent secret, every PEM block and every bare run of key-shaped bytes
+    /// replaced.
+    /// </returns>
     /// <remarks>
     /// A certificate install hands the agent a private key, and the natural way to report that it
     /// could not be parsed is to quote what could not be parsed. That quotation has two shapes and
@@ -107,12 +144,47 @@ internal static partial class AgentErrorTranslator
     /// error code and the operation name. The two inputs are joined by a space before this runs, so
     /// a run spanning the join redacts as two runs rather than escaping as one — two redactions is
     /// an acceptable outcome, a missed one is not.
+    ///
+    /// The sent secret goes FIRST, before either pattern, for two reasons: it is knowledge rather
+    /// than a guess, and running it first means a password that happens to be forty base64-shaped
+    /// characters is removed as a secret we recognise rather than left to a pattern that might not
+    /// span it. It is matched literally and case-sensitively, because it is compared against the
+    /// same bytes that went out.
     /// </remarks>
-    private static string Redact(string text)
+    private static string Redact(string text, SensitiveString? sentSecret)
     {
-        var withoutPemBlocks = PemBlock().Replace(text, RedactedPem);
+        var withoutSentSecret = RemoveSentSecret(text, sentSecret);
+        var withoutPemBlocks = PemBlock().Replace(withoutSentSecret, RedactedPem);
 
         return Base64Run().Replace(withoutPemBlocks, RedactedSecret);
+    }
+
+    /// <summary>Replaces every occurrence of the secret this call sent, when there was one.</summary>
+    /// <param name="text">The agent's text.</param>
+    /// <param name="sentSecret">The secret this call carried to the agent, or null.</param>
+    /// <returns>The text with the secret masked, or the text unchanged when there is nothing to look for.</returns>
+    /// <remarks>
+    /// The length floor is <see cref="SecretRedactionPolicy"/>'s rather than this file's, because it
+    /// binds the code that MINTS secrets as much as this: a shorter value silently gets no literal
+    /// redaction at all, and the caller — not this file — is where a generator that produced one
+    /// would have to be fixed. Stating it in a shared, public place is what lets a generator's own
+    /// test hold itself to it.
+    /// </remarks>
+    private static string RemoveSentSecret(string text, SensitiveString? sentSecret)
+    {
+        if (sentSecret is null)
+        {
+            return text;
+        }
+
+        var value = sentSecret.Reveal();
+
+        if (value.Length < SecretRedactionPolicy.ShortestRecognisableSecret)
+        {
+            return text;
+        }
+
+        return text.Replace(value, RedactedSecret, StringComparison.Ordinal);
     }
 
     /// <summary>The PEM block pattern: a BEGIN marker through its END marker, or through the end.</summary>
