@@ -9,6 +9,8 @@ import AccountFormPage from '../pages/accounts/AccountFormPage.vue'
 import SitesListPage from '../pages/sites/SitesListPage.vue'
 import SiteFormPage from '../pages/sites/SiteFormPage.vue'
 import SiteDetailPage from '../pages/sites/SiteDetailPage.vue'
+import DatabasesPage from '../pages/databases/DatabasesPage.vue'
+import SftpUsersPage from '../pages/sftp/SftpUsersPage.vue'
 import AuthLayout from '../layouts/AuthLayout.vue'
 import LoginPage from '../pages/auth/LoginPage.vue'
 import TwoFactorPage from '../pages/auth/TwoFactorPage.vue'
@@ -71,6 +73,24 @@ export const createAppRouter = (): Router => {
             props: true,
             meta: { module: 'sites' },
           },
+        ],
+      },
+      {
+        // One route, no `:id` child: a database has no detail to open — the row is the database,
+        // and both of its actions live on it. A deep link to a single one would lead to a page
+        // that could only repeat the row it came from.
+        path: '/databases',
+        component: DefaultLayout,
+        children: [
+          { path: '', name: 'databases', component: DatabasesPage, meta: { module: 'databases' } },
+        ],
+      },
+      {
+        // One route, for the same reason as `/databases`.
+        path: '/sftp-users',
+        component: DefaultLayout,
+        children: [
+          { path: '', name: 'sftp-users', component: SftpUsersPage, meta: { module: 'sftp' } },
         ],
       },
       {

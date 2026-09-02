@@ -46,8 +46,8 @@ export interface Plan {
   maxSites: number
   /** How many databases the plan allows. */
   maxDatabases: number
-  /** How many FTP users the plan allows. */
-  maxFtpUsers: number
+  /** How many SFTP logins the plan allows. */
+  maxSftpUsers: number
 }
 
 /**
