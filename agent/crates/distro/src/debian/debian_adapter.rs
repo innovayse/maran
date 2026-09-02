@@ -61,4 +61,64 @@ impl DistroAdapter for DebianAdapter {
     fn package_manager(&self) -> &'static str {
         debian_packages::package_manager()
     }
+
+    fn mysql_client_binary(&self) -> &'static str {
+        debian_services::mysql_client_binary()
+    }
+
+    fn mysql_service(&self) -> &'static str {
+        debian_services::mysql_service()
+    }
+
+    fn sftp_group(&self) -> &'static str {
+        debian_services::sftp_group()
+    }
+
+    fn useradd_binary(&self) -> &'static str {
+        debian_services::useradd_binary()
+    }
+
+    fn userdel_binary(&self) -> &'static str {
+        debian_services::userdel_binary()
+    }
+
+    fn usermod_binary(&self) -> &'static str {
+        debian_services::usermod_binary()
+    }
+
+    fn setquota_binary(&self) -> &'static str {
+        debian_services::setquota_binary()
+    }
+
+    fn quota_binary(&self) -> &'static str {
+        debian_services::quota_binary()
+    }
+
+    fn id_binary(&self) -> &'static str {
+        debian_services::id_binary()
+    }
+
+    fn chmod_binary(&self) -> &'static str {
+        debian_services::chmod_binary()
+    }
+
+    fn chgrp_binary(&self) -> &'static str {
+        debian_services::chgrp_binary()
+    }
+
+    fn chpasswd_binary(&self) -> &'static str {
+        debian_services::chpasswd_binary()
+    }
+
+    fn systemd_unit_directory(&self) -> &'static str {
+        debian_services::systemd_unit_directory()
+    }
+
+    fn passwd_database(&self) -> &'static str {
+        debian_services::passwd_database()
+    }
 }
+
+#[cfg(test)]
+#[path = "../tests/debian/debian_adapter_tests.rs"]
+mod tests;
