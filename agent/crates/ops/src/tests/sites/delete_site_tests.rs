@@ -98,7 +98,8 @@ fn deleting_the_accounts_last_site_on_a_version_takes_that_pool_with_it() {
         distro(),
         &crate::php::model::pool_input::PoolInput {
             account: php_input().account,
-            version: maran_agent_core::validation::php_version::PhpVersion::parse("8.3").unwrap(),
+            version: maran_agent_core::validation::web::php_version::PhpVersion::parse("8.3")
+                .unwrap(),
             max_children: 10,
             overrides: Vec::new(),
         },
@@ -110,7 +111,7 @@ fn deleting_the_accounts_last_site_on_a_version_takes_that_pool_with_it() {
         &php_host,
         distro(),
         &php_identity(),
-        Some(&maran_agent_core::validation::php_version::PhpVersion::parse("8.3").unwrap()),
+        Some(&maran_agent_core::validation::web::php_version::PhpVersion::parse("8.3").unwrap()),
     )
     .unwrap();
 

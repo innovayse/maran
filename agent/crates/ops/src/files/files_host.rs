@@ -2,9 +2,9 @@
 
 use std::path::{Path, PathBuf};
 
-use maran_agent_core::validation::file_mode::FileMode;
-use maran_agent_core::validation::name::AccountName;
-use maran_agent_core::validation::relative_path::RelativePath;
+use maran_agent_core::validation::fs::file_mode::FileMode;
+use maran_agent_core::validation::fs::relative_path::RelativePath;
+use maran_agent_core::validation::system::name::AccountName;
 
 use crate::files::FilesOpError;
 

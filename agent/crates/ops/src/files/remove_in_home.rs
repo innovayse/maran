@@ -7,7 +7,7 @@ use std::path::Path;
 
 use maran_agent_core::privs::open_in_directory::open_in_directory;
 use maran_agent_core::privs::remove_file_in_directory::remove_file_in_directory;
-use maran_agent_core::validation::relative_path::RelativePath;
+use maran_agent_core::validation::fs::relative_path::RelativePath;
 
 use crate::files::FilesOpError;
 use crate::files::model::missing_parents::MissingParents;

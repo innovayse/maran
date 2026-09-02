@@ -1,12 +1,14 @@
 //! The account operations themselves, over whatever [`SystemHost`] they are given.
 
-use maran_agent_core::validation::name::AccountName;
+use maran_agent_core::validation::system::name::AccountName;
 
 use maran_distro::DistroAdapter;
 
 use crate::accounts::quota_blocks::QuotaBlocks;
 use crate::accounts::{AccountError, AccountUsage, CreatedAccount, SystemHost};
+use crate::db::{DbHost, drop_account_databases};
 use crate::php::{PhpHost, remove_account_pools};
+use crate::sftp::{SftpHost, remove_account_sftp};
 
 /// Where every account's home directory lives.
 const HOME_ROOT: &str = "/home";
@@ -39,6 +41,17 @@ impl<H: SystemHost> AccountOperations<H> {
     #[must_use]
     pub fn host(&self) -> &H {
         &self.host
+    }
+
+    /// The distribution adapter these operations ask for platform facts.
+    ///
+    /// Exposed for the same reason [`AccountOperations::host`] is: a test that
+    /// wants to prove a tool was run at the path the adapter names has to be
+    /// able to ask the adapter for that path, rather than repeating the literal
+    /// and passing whatever the operation happens to do.
+    #[must_use]
+    pub fn distro(&self) -> &'static dyn DistroAdapter {
+        self.distro
     }
 
     /// The absolute home directory of an account.
@@ -83,7 +96,7 @@ impl<H: SystemHost> AccountOperations<H> {
         // the account a group of its own, which is what makes per-account file modes
         // meaningful. Arguments are passed as an array — never a shell string.
         self.expect_success(
-            "useradd",
+            self.distro.useradd_binary(),
             &[
                 "--create-home",
                 "--home-dir",
@@ -126,9 +139,9 @@ impl<H: SystemHost> AccountOperations<H> {
         //
         // The account already has the nologin shell from creation; setting it again is
         // what makes suspension correct for an account whose shell was changed by hand.
-        self.expect_success("usermod", &["--lock", &username])?;
+        self.expect_success(self.distro.usermod_binary(), &["--lock", &username])?;
         self.expect_success(
-            "usermod",
+            self.distro.usermod_binary(),
             &["--shell", self.distro.nologin_shell(), &username],
         )?;
 
@@ -145,61 +158,96 @@ impl<H: SystemHost> AccountOperations<H> {
     pub fn unsuspend(&self, name: &AccountName) -> Result<(), AccountError> {
         let username = self.require_existing(name)?;
 
-        self.expect_success("usermod", &["--unlock", &username])?;
+        self.expect_success(self.distro.usermod_binary(), &["--unlock", &username])?;
         self.expect_success(
-            "usermod",
+            self.distro.usermod_binary(),
             &["--shell", self.distro.nologin_shell(), &username],
         )?;
 
         Ok(())
     }
 
-    /// Removes the system user, every php-fpm pool it owns, and everything under
-    /// its home directory.
+    /// Removes everything on this host that belongs to the account, then the
+    /// account itself.
     ///
-    /// Measures the tree before removing it, so the caller can report what was
-    /// freed. Databases and FTP users are NOT removed here: the backend drops those
-    /// through their own services first, so that each deletion is separately audited
-    /// (see `proto/agent/v1/accounts.proto`).
+    /// The databases and their users, the SFTP logins with the account's jail
+    /// and the bind mount that filled it, every php-fpm pool, and finally the
+    /// system user with everything under its home directory. Measures the tree
+    /// before removing it, so the caller can report what was freed.
     ///
-    /// **The pools go first, and the order is the whole of the risk.** A pool file
-    /// names the account it runs as, and php-fpm resolves that name at startup, so
-    /// the two orders are not two ways of arriving at the same place:
+    /// # Why all of it happens here, and not in the panel one call at a time
     ///
-    /// - Pools first: while the account still exists every pool file is valid, so
-    ///   `php-fpm -t` passes after each removal and each master reloads cleanly. At
-    ///   every intermediate moment the host is in a state php-fpm will start from.
-    /// - `userdel` first: every remaining pool instantly names a user that no longer
-    ///   resolves. `php-fpm -t` then answers `cannot get uid for user '<account>'`
-    ///   and the removal protocol — which validates AFTER unlinking and restores the
-    ///   file when validation refuses — puts the pool back and reports failure. The
-    ///   file becomes unremovable by the very operation meant to remove it, and the
-    ///   host is left one reload away from having no PHP for any tenant.
+    /// `userdel` touches neither MySQL nor sshd. An account deletion that
+    /// removed only the system user therefore left every `<account>_*` database
+    /// on the server and every `<account>_*` login in the password database —
+    /// and system user names are RECYCLED, so an account created again under
+    /// the same name inherited the previous tenant's live data and a working
+    /// credential into it. That is not a leak that can be repaired afterwards:
+    /// nothing in the panel points at the orphans any more, and the second
+    /// tenant is already inside them.
     ///
-    /// That second ordering is not hypothetical: it is the state the agent shipped
-    /// in, because nothing removed a pool at all.
+    /// Each area is asked what the HOST holds rather than being handed a list,
+    /// because a list can only ever describe what the panel remembers creating.
     ///
-    /// The pool removal is NOT best-effort. A refusal aborts the deletion with the
-    /// account still present, which is the recoverable half: an account that is
-    /// still there can be deleted again once whatever refused is fixed, whereas an
-    /// account that is gone with its pool left behind cannot be repaired by any
-    /// operation this agent has.
+    /// **Everything precedes `userdel`, and the order is the whole of the
+    /// risk.**
+    ///
+    /// - A pool file names the account it runs as, and php-fpm resolves that
+    ///   name at startup. Removed while the account still exists, every pool
+    ///   file is valid, so `php-fpm -t` passes after each removal and each
+    ///   master reloads cleanly. Removed after `userdel`, every remaining pool
+    ///   instantly names a user that no longer resolves; `php-fpm -t` answers
+    ///   `cannot get uid for user '<account>'`, and the removal protocol — which
+    ///   validates AFTER unlinking and restores the file when validation refuses
+    ///   — puts the pool back and reports failure. The file becomes unremovable
+    ///   by the very operation meant to remove it, and the host is left one
+    ///   reload away from having no PHP for any tenant.
+    /// - An SFTP login shares the account's uid, and `userdel` refuses to remove
+    ///   a home another passwd entry still claims.
+    /// - The account's home is BIND-MOUNTED inside its jail. Unmounting after
+    ///   `userdel --remove` would mean `userdel` walking into a mount and
+    ///   deleting the customer's files from inside the jail, and a mount left
+    ///   behind afterwards points at a home that no longer exists — a state the
+    ///   uninstaller refuses to clean up and a re-created account would inherit.
+    ///
+    /// That second ordering is not hypothetical for the pools: it is the state
+    /// the agent shipped in, because nothing removed a pool at all.
+    ///
+    /// **No step is best-effort.** The first refusal aborts the deletion with
+    /// the account still present, which is the recoverable half: an account that
+    /// is still there can be deleted again once whatever refused is fixed,
+    /// whereas an account that is gone with its database, its login or its mount
+    /// left behind cannot be repaired by any operation this agent has.
     ///
     /// # Errors
     ///
-    /// Returns [`AccountError::NotFound`] when the account does not exist, and
-    /// [`AccountError::PoolRemoval`] when one of its pools could not be taken away —
-    /// in which case `userdel` has not been run.
-    pub fn delete(&self, php_host: &dyn PhpHost, name: &AccountName) -> Result<u64, AccountError> {
+    /// - [`AccountError::NotFound`] when the account does not exist.
+    /// - [`AccountError::DatabaseRemoval`] when a database or a database user
+    ///   could not be dropped.
+    /// - [`AccountError::SftpRemoval`] when a login, the bind mount, the jail or
+    ///   its unit could not be taken away.
+    /// - [`AccountError::PoolRemoval`] when one of its pools could not be taken
+    ///   away.
+    ///
+    /// In every one of those cases `userdel` has NOT been run.
+    pub fn delete(
+        &self,
+        php_host: &dyn PhpHost,
+        db_host: &dyn DbHost,
+        sftp_host: &dyn SftpHost,
+        name: &AccountName,
+    ) -> Result<u64, AccountError> {
         let username = self.require_existing(name)?;
         let bytes_freed = self
             .host
             .directory_size(&Self::home_directory(name))
             .unwrap_or(0);
 
+        drop_account_databases(db_host, name)?;
+        remove_account_sftp(sftp_host, self.distro, name)?;
         remove_account_pools(php_host, self.distro, name)?;
 
-        self.expect_success("userdel", &["--remove", &username])?;
+        self.expect_success(self.distro.userdel_binary(), &["--remove", &username])?;
 
         Ok(bytes_freed)
     }
@@ -228,7 +276,9 @@ impl<H: SystemHost> AccountOperations<H> {
         let username = self.require_existing(name)?;
         let used_bytes = self.host.directory_size(&Self::home_directory(name))?;
 
-        let outcome = self.host.run("quota", &["-u", "-w", &username])?;
+        let outcome = self
+            .host
+            .run(self.distro.quota_binary(), &["-u", "-w", &username])?;
         let quota_bytes = QuotaBlocks::parse_hard_limit(&outcome.stdout)
             .map(QuotaBlocks::to_bytes)
             .unwrap_or(0);
@@ -251,7 +301,7 @@ impl<H: SystemHost> AccountOperations<H> {
         // (unlimited). A soft limit below the hard one only buys a grace period the
         // panel has no way to explain to the customer.
         self.expect_success(
-            "setquota",
+            self.distro.setquota_binary(),
             &["-u", username, &blocks, &blocks, "0", "0", HOME_ROOT],
         )
     }
@@ -277,13 +327,13 @@ impl<H: SystemHost> AccountOperations<H> {
     /// Returns [`AccountError::UnreadableOutput`] when `id` prints something other
     /// than a number.
     fn read_uid(&self, username: &str) -> Result<u32, AccountError> {
-        let outcome = self.host.run("id", &["-u", username])?;
+        let outcome = self.host.run(self.distro.id_binary(), &["-u", username])?;
         outcome
             .stdout
             .trim()
             .parse::<u32>()
             .map_err(|_| AccountError::UnreadableOutput {
-                program: "id".to_owned(),
+                program: self.distro.id_binary().to_owned(),
             })
     }
 
@@ -353,7 +403,7 @@ impl<H: SystemHost> AccountOperations<H> {
         // the account has no shell — but the flag costs nothing, and the alternative is a
         // root process following a link it did not verify.
         self.expect_success(
-            "chgrp",
+            self.distro.chgrp_binary(),
             &["--no-dereference", self.distro.web_server_group(), home],
         )?;
 
@@ -363,7 +413,7 @@ impl<H: SystemHost> AccountOperations<H> {
         // point of the group above, and this is the line that says what the panel
         // requires. Ownership of the home itself is `useradd`'s and is untouched — the
         // account owns its own home; only the group changed.
-        self.expect_success("chmod", &["0750", home])
+        self.expect_success(self.distro.chmod_binary(), &["0750", home])
     }
 }
 

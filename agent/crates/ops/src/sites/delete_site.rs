@@ -1,6 +1,6 @@
 //! DeleteSite: taking a site's vhost away.
 
-use maran_agent_core::validation::php_version::PhpVersion;
+use maran_agent_core::validation::web::php_version::PhpVersion;
 use maran_distro::DistroAdapter;
 
 use crate::php::PhpHost;

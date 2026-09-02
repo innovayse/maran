@@ -10,8 +10,8 @@
 use std::path::{Path, PathBuf};
 
 use maran_agent_core::agent_paths::AgentPaths;
-use maran_agent_core::validation::name::AccountName;
-use maran_agent_core::validation::php_version::PhpVersion;
+use maran_agent_core::validation::system::name::AccountName;
+use maran_agent_core::validation::web::php_version::PhpVersion;
 
 use crate::php::fake_php_host::{FakePhpHost, distro, pool_input};
 use crate::php::model::php_override::PhpOverride;

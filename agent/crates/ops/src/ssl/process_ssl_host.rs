@@ -7,7 +7,7 @@ use std::process::{Command, Stdio};
 
 use maran_agent_core::agent_paths::AgentPaths;
 use maran_agent_core::command_outcome::CommandOutcome;
-use maran_agent_core::validation::name::AccountName;
+use maran_agent_core::validation::system::name::AccountName;
 
 use crate::safe_write::model::{ConfigFile, Reload, Validator};
 use crate::safe_write::{ConfigHost, SafeWriteError, remove_config, write_config_set};

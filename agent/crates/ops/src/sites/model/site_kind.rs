@@ -1,7 +1,7 @@
 //! What serves a site's content.
 
-use maran_agent_core::validation::php_version::PhpVersion;
-use maran_agent_core::validation::upstream::Upstream;
+use maran_agent_core::validation::web::php_version::PhpVersion;
+use maran_agent_core::validation::web::upstream::Upstream;
 
 /// What serves a site's content, with the data each shape needs.
 ///

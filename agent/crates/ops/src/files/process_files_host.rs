@@ -7,10 +7,10 @@ use maran_agent_core::agent_paths::AgentPaths;
 use maran_agent_core::privs::account_ids::AccountIds;
 use maran_agent_core::privs::fork_as_account::fork_as_account;
 use maran_agent_core::privs::priv_error::PrivError;
-use maran_agent_core::validation::file_mode::FileMode;
-use maran_agent_core::validation::name::AccountName;
-use maran_agent_core::validation::path::resolve_in_home;
-use maran_agent_core::validation::relative_path::RelativePath;
+use maran_agent_core::validation::fs::file_mode::FileMode;
+use maran_agent_core::validation::fs::path::resolve_in_home;
+use maran_agent_core::validation::fs::relative_path::RelativePath;
+use maran_agent_core::validation::system::name::AccountName;
 
 use crate::files::FilesOpError;
 use crate::files::model::missing_parents::MissingParents;

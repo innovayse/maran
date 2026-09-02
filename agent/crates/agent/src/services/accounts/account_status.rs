@@ -23,6 +23,15 @@ pub fn to_agent_error(error: &AccountError) -> AgentError {
         AccountError::CommandUnavailable { .. } | AccountError::UnreadableOutput { .. } => {
             (ErrorCode::SystemFailure, String::new())
         }
+        // The three refusals that stop a deletion before `userdel`. They carry
+        // the refusing area's own sentence in `message` and nothing in
+        // `tool_output`: the sentence is this agent's, not a tool's, so there is
+        // no client or daemon output in it to redact. A system failure and not a
+        // `NotFound`, because the account IS still there — deliberately, and the
+        // panel must report a fault rather than treat the deletion as done.
+        AccountError::PoolRemoval { .. }
+        | AccountError::DatabaseRemoval { .. }
+        | AccountError::SftpRemoval { .. } => (ErrorCode::SystemFailure, String::new()),
         // AccountError is #[non_exhaustive] (rules/rust.md), so a variant added in the
         // ops crate lands here rather than failing this build. It maps to a system
         // failure: the panel then reports a fault instead of silently treating an

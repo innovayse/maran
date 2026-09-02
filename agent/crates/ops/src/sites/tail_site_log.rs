@@ -1,7 +1,7 @@
 //! Following one site's log, bounded at every end.
 
-use maran_agent_core::validation::domain::Domain;
-use maran_agent_core::validation::name::AccountName;
+use maran_agent_core::validation::system::name::AccountName;
+use maran_agent_core::validation::web::domain::Domain;
 
 use crate::sites::log_sink::LogSink;
 use crate::sites::model::log_tail_request::LogTailRequest;

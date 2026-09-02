@@ -1,8 +1,10 @@
 //! `AccountsService`: the operating-system identity behind a hosting account.
 
-use maran_agent_core::validation::name::AccountName;
+use maran_agent_core::validation::system::name::AccountName;
 use maran_ops::accounts::{AccountError, AccountOperations, SystemHost};
+use maran_ops::db::DbHost;
 use maran_ops::php::PhpHost;
+use maran_ops::sftp::SftpHost;
 use tonic::{Request, Response, Status};
 
 use crate::proto::accounts_service_server::AccountsService;
@@ -26,27 +28,40 @@ use crate::services::accounts::account_status::to_agent_error;
 /// Failures travel in the payload rather than as a gRPC status, because they are
 /// answers the panel acts on — an account that already exists is information, not
 /// a transport error.
-pub struct AccountsServiceImpl<H: SystemHost, P: PhpHost> {
+pub struct AccountsServiceImpl<H: SystemHost, P: PhpHost, D: DbHost, S: SftpHost> {
     /// The operations, bound to whatever machine they were built against.
     operations: AccountOperations<H>,
 
     /// The PHP area's machine, because deleting an account must take its
     /// php-fpm pools with it.
     ///
-    /// A second host on this service rather than a second field on
-    /// `AccountOperations`, because it is needed by exactly one operation and a
-    /// constructor argument every caller must supply for the sake of one method
-    /// is a dependency the other five carry for nothing.
+    /// A host on this service rather than a field on `AccountOperations`,
+    /// because it is needed by exactly one operation and a constructor argument
+    /// every caller must supply for the sake of one method is a dependency the
+    /// other five carry for nothing. The two below are here for the same reason.
     php_host: P,
+
+    /// The database area's machine, because `userdel` does not touch MySQL: an
+    /// account deleted without dropping its databases leaves them for whoever
+    /// is given that account name next.
+    db_host: D,
+
+    /// The SFTP area's machine, because `userdel` does not touch sshd either —
+    /// and because the account's home is bind-mounted into a jail that has to
+    /// come down before the home does.
+    sftp_host: S,
 }
 
-impl<H: SystemHost, P: PhpHost> AccountsServiceImpl<H, P> {
-    /// Creates the service around `operations` and the PHP host its deletions need.
+impl<H: SystemHost, P: PhpHost, D: DbHost, S: SftpHost> AccountsServiceImpl<H, P, D, S> {
+    /// Creates the service around `operations` and the three hosts its
+    /// deletions need.
     #[must_use]
-    pub fn new(operations: AccountOperations<H>, php_host: P) -> Self {
+    pub fn new(operations: AccountOperations<H>, php_host: P, db_host: D, sftp_host: S) -> Self {
         Self {
             operations,
             php_host,
+            db_host,
+            sftp_host,
         }
     }
 
@@ -90,7 +105,9 @@ impl<H: SystemHost, P: PhpHost> AccountsServiceImpl<H, P> {
 }
 
 #[tonic::async_trait]
-impl<H: SystemHost + 'static, P: PhpHost + 'static> AccountsService for AccountsServiceImpl<H, P> {
+impl<H: SystemHost + 'static, P: PhpHost + 'static, D: DbHost + 'static, S: SftpHost + 'static>
+    AccountsService for AccountsServiceImpl<H, P, D, S>
+{
     /// Creates the system user, its home directory and its initial quota.
     async fn create_account(
         &self,
@@ -144,18 +161,22 @@ impl<H: SystemHost + 'static, P: PhpHost + 'static> AccountsService for Accounts
         }))
     }
 
-    /// Removes the system user and everything under its home directory.
+    /// Removes the account's databases, SFTP logins, jail, pools, system user
+    /// and everything under its home directory.
     async fn delete_account(
         &self,
         request: Request<DeleteAccountRequest>,
     ) -> Result<Response<DeleteAccountResponse>, Status> {
         let request = request.into_inner();
         let result = match Self::run(&request.username, |name| {
-            // The PHP host travels in here so the deletion can take the
-            // account's pools with it, BEFORE `userdel` makes their user
-            // unresolvable; see `AccountOperations::delete` for why that order
-            // is the only safe one.
-            self.operations.delete(&self.php_host, name)
+            // All three hosts travel in here so the deletion can take the
+            // account's databases, its SFTP logins and jail, and its php-fpm
+            // pools with it, BEFORE `userdel` removes the user those things
+            // name; see `AccountOperations::delete` for why that order is the
+            // only safe one, and why leaving any of them behind is the defect
+            // that cannot be repaired afterwards.
+            self.operations
+                .delete(&self.php_host, &self.db_host, &self.sftp_host, name)
         }) {
             Ok(bytes_freed) => delete_account_response::Result::Ok(DeleteAccountOk { bytes_freed }),
             Err(error) => delete_account_response::Result::Error(error),

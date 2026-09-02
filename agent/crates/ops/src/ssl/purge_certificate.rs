@@ -1,6 +1,6 @@
 //! Taking a deleted site's certificate material away with it.
 
-use maran_agent_core::validation::domain::Domain;
+use maran_agent_core::validation::web::domain::Domain;
 use maran_distro::DistroAdapter;
 
 use crate::sites::SiteCertificate;

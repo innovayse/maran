@@ -2,7 +2,7 @@
 
 use std::path::{Path, PathBuf};
 
-use maran_agent_core::validation::name::AccountName;
+use maran_agent_core::validation::system::name::AccountName;
 
 use crate::safe_write::model::{Reload, Validator};
 use crate::sites::SitesOpError;

@@ -3,8 +3,8 @@
 use std::path::PathBuf;
 
 use maran_agent_core::agent_paths::AgentPaths;
-use maran_agent_core::validation::domain::Domain;
-use maran_agent_core::validation::name::AccountName;
+use maran_agent_core::validation::system::name::AccountName;
+use maran_agent_core::validation::web::domain::Domain;
 
 /// Directory, inside the account's home, holding one directory per site.
 const SITES_DIRECTORY: &str = "sites";

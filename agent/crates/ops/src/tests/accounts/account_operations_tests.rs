@@ -12,17 +12,25 @@
 use std::collections::HashSet;
 use std::sync::Mutex;
 
-use maran_agent_core::validation::name::AccountName;
-use maran_agent_core::validation::php_version::PhpVersion;
+use maran_agent_core::validation::db::database_name::DatabaseName;
+use maran_agent_core::validation::db::db_user_name::DbUserName;
+use maran_agent_core::validation::secrets::password::Password;
+use maran_agent_core::validation::system::name::AccountName;
+use maran_agent_core::validation::web::php_version::PhpVersion;
 
 use maran_distro::{DistroFamily, adapter_for};
 
 use crate::accounts::{AccountError, AccountOperations, CommandOutcome, SystemHost};
 use std::path::Path;
 
+use crate::db::create_database;
+use crate::db::fake_db_host::FakeDbHost;
+use crate::db::model::create_database_request::CreateDatabaseRequest;
 use crate::php::fake_php_host::FakePhpHost;
 use crate::php::model::pool_input::PoolInput;
 use crate::php::write_pool;
+use crate::sftp::fake_sftp_host::FakeSftpHost;
+use crate::sftp::model::account_jail::AccountJail;
 
 /// A machine that records what it was asked to do instead of doing it.
 ///
@@ -145,6 +153,20 @@ fn name() -> AccountName {
     AccountName::parse("acme").expect("the fixture name is valid")
 }
 
+/// A database server this account has nothing on.
+///
+/// The account cascade's database half is exercised in the `db` area's own
+/// tests; what these tests are about is the ORDER and the abort, so the hosts
+/// they do not vary are empty.
+fn no_databases() -> FakeDbHost {
+    FakeDbHost::new()
+}
+
+/// A host this account has no SFTP login, jail or mount unit on.
+fn no_sftp() -> FakeSftpHost {
+    FakeSftpHost::new()
+}
+
 #[test]
 fn creating_an_account_makes_the_user_its_home_and_its_own_group() {
     let operations = debian(RecordingHost::new());
@@ -157,7 +179,7 @@ fn creating_an_account_makes_the_user_its_home_and_its_own_group() {
     assert_eq!(
         useradd[0],
         vec![
-            "useradd",
+            tool_path(&operations, "useradd").as_str(),
             "--create-home",
             "--home-dir",
             "/home/acme",
@@ -212,7 +234,7 @@ fn a_useradd_that_refuses_is_reported_with_its_own_stderr() {
             status,
             stderr,
         } => {
-            assert_eq!(program, "useradd");
+            assert_eq!(program, tool_path(&operations, "useradd"));
             assert_eq!(status, 9);
             assert_eq!(stderr, "refused");
         }
@@ -273,13 +295,17 @@ fn deleting_removes_the_home_tree_and_reports_what_it_freed() {
     let operations = debian(RecordingHost::new().with_user("acme").with_size(4096));
 
     let freed = operations
-        .delete(&FakePhpHost::empty(), &name())
+        .delete(&FakePhpHost::empty(), &no_databases(), &no_sftp(), &name())
         .expect("deletion succeeds");
 
     assert_eq!(freed, 4096);
     assert_eq!(
         operations_calls(&operations, "userdel")[0],
-        vec!["userdel", "--remove", "acme"]
+        vec![
+            tool_path(&operations, "userdel").as_str(),
+            "--remove",
+            "acme"
+        ]
     );
 }
 
@@ -296,7 +322,16 @@ fn a_quota_is_set_in_kibibyte_blocks_rounded_up() {
     let setquota = operations_calls(&operations, "setquota");
     assert_eq!(
         setquota[0],
-        vec!["setquota", "-u", "acme", "2", "2", "0", "0", "/home"]
+        vec![
+            tool_path(&operations, "setquota").as_str(),
+            "-u",
+            "acme",
+            "2",
+            "2",
+            "0",
+            "0",
+            "/home"
+        ]
     );
 }
 
@@ -332,7 +367,37 @@ fn operations_calls(
     operations: &AccountOperations<RecordingHost>,
     program: &str,
 ) -> Vec<Vec<String>> {
-    operations.host().called(program)
+    operations.host().called(&tool_path(operations, program))
+}
+
+/// The absolute path the operations' own adapter names for a tool.
+///
+/// The tests address tools by their short names, which is how a reader thinks
+/// of them, while the operations spawn them by absolute path — a root daemon
+/// resolving `useradd` through `PATH` would run whichever one a writable
+/// directory earlier in that variable happened to hold. Translating here rather
+/// than repeating the literal in each assertion means the tests keep failing if
+/// an operation ever goes back to a bare name: the recorded program would be
+/// `useradd`, and nothing would be found at the adapter's path.
+///
+/// # Panics
+///
+/// Panics on a tool this mapping does not know, which is a test asking about
+/// something the accounts area never runs.
+fn tool_path(operations: &AccountOperations<RecordingHost>, program: &str) -> String {
+    let distro = operations.distro();
+    match program {
+        "useradd" => distro.useradd_binary(),
+        "usermod" => distro.usermod_binary(),
+        "userdel" => distro.userdel_binary(),
+        "setquota" => distro.setquota_binary(),
+        "quota" => distro.quota_binary(),
+        "id" => distro.id_binary(),
+        "chmod" => distro.chmod_binary(),
+        "chgrp" => distro.chgrp_binary(),
+        other => panic!("the accounts area never runs {other}"),
+    }
+    .to_owned()
 }
 
 #[test]
@@ -363,7 +428,12 @@ fn a_new_accounts_home_is_group_owned_by_the_web_server_so_a_site_can_be_served(
     let chgrp = operations_calls(&operations, "chgrp");
     assert_eq!(
         chgrp[0],
-        vec!["chgrp", "--no-dereference", "www-data", "/home/acme"],
+        vec![
+            tool_path(&operations, "chgrp").as_str(),
+            "--no-dereference",
+            "www-data",
+            "/home/acme"
+        ],
         "the home must be group-owned by the web server's group, by name from the adapter"
     );
 }
@@ -379,7 +449,14 @@ fn a_new_accounts_home_is_not_opened_to_every_other_local_user() {
     operations.create(&name(), 0).expect("creation succeeds");
 
     let chmod = operations_calls(&operations, "chmod");
-    assert_eq!(chmod[0], vec!["chmod", "0750", "/home/acme"]);
+    assert_eq!(
+        chmod[0],
+        vec![
+            tool_path(&operations, "chmod").as_str(),
+            "0750",
+            "/home/acme"
+        ]
+    );
     for call in operations.host().calls() {
         assert!(
             !call.iter().any(|argument| argument.contains("o+")
@@ -402,7 +479,12 @@ fn the_web_server_group_is_the_familys_own_never_a_literal() {
     let chgrp = operations_calls(&on_rhel, "chgrp");
     assert_eq!(
         chgrp[0],
-        vec!["chgrp", "--no-dereference", "nginx", "/home/acme"]
+        vec![
+            tool_path(&on_rhel, "chgrp").as_str(),
+            "--no-dereference",
+            "nginx",
+            "/home/acme"
+        ]
     );
 }
 
@@ -429,7 +511,7 @@ fn deleting_an_account_takes_its_php_pools_with_it() {
     let operations = debian(RecordingHost::new().with_user("acme"));
 
     operations
-        .delete(&php_host, &name())
+        .delete(&php_host, &no_databases(), &no_sftp(), &name())
         .expect("deletion succeeds");
 
     assert!(
@@ -471,7 +553,7 @@ fn a_pool_that_cannot_be_removed_stops_the_deletion_rather_than_orphaning_the_po
     php_host.reject_validation("php-fpm will not have it");
     let operations = debian(RecordingHost::new().with_user("acme"));
 
-    let refusal = operations.delete(&php_host, &name());
+    let refusal = operations.delete(&php_host, &no_databases(), &no_sftp(), &name());
 
     assert!(
         matches!(refusal, Err(AccountError::PoolRemoval { .. })),
@@ -492,9 +574,170 @@ fn deleting_an_account_that_never_ran_php_reloads_nothing() {
     let operations = debian(RecordingHost::new().with_user("acme"));
 
     operations
-        .delete(&php_host, &name())
+        .delete(&php_host, &no_databases(), &no_sftp(), &name())
         .expect("deletion succeeds");
 
     assert_eq!(php_host.removals(), 0);
     assert_eq!(php_host.commands(), Vec::<Vec<String>>::new());
+}
+
+/// `acme`'s jail, derived exactly as the deletion derives it.
+fn acme_jail() -> AccountJail {
+    AccountJail::for_account(
+        &name(),
+        adapter_for(DistroFamily::Debian).systemd_unit_directory(),
+    )
+}
+
+/// A database server holding `acme`'s `shop` database and its user.
+fn databases_of_acme() -> FakeDbHost {
+    let host = FakeDbHost::new();
+    create_database(
+        &host,
+        &CreateDatabaseRequest {
+            database: DatabaseName::for_account(&name(), "shop").expect("a valid database name"),
+            user: DbUserName::for_account(&name(), "shopuser").expect("a valid user name"),
+            password: Password::parse("Gen3rated-pw").expect("a valid password"),
+        },
+    )
+    .expect("the fixture database is created");
+
+    host
+}
+
+/// A host holding `acme`'s login, her jail and her mount unit.
+fn sftp_of_acme() -> FakeSftpHost {
+    let jail = acme_jail();
+
+    FakeSftpHost::new()
+        .with_login("acme_web")
+        .with_path(jail.mount_point())
+        .with_path(jail.directory())
+        .with_path(jail.unit_path())
+}
+
+#[test]
+fn deleting_an_account_takes_its_databases_with_it() {
+    // `userdel` touches neither MySQL nor sshd. Before this, deleting `acme`
+    // left `acme_shop` on the server with the customer's rows in it AND
+    // `acme_shopuser` able to reach them — and system user names are recycled,
+    // so the next account created as `acme` inherited both.
+    let db_host = databases_of_acme();
+    let operations = debian(RecordingHost::new().with_user("acme"));
+
+    operations
+        .delete(&FakePhpHost::empty(), &db_host, &no_sftp(), &name())
+        .expect("deletion succeeds");
+
+    assert!(db_host.databases().is_empty());
+    assert!(db_host.users().is_empty());
+}
+
+#[test]
+fn a_database_that_cannot_be_dropped_stops_the_deletion_rather_than_orphaning_it() {
+    // The order is pinned here as much as the abort is: a refused drop can only
+    // stop `userdel` if the drop comes FIRST. The recoverable half is chosen
+    // deliberately — an account that is still there can be deleted again, while
+    // an orphaned database handed to the next tenant of that name cannot be
+    // repaired by any operation this agent has.
+    let db_host = FakeDbHost::failing_with(2013, "Lost connection to server");
+    let operations = debian(RecordingHost::new().with_user("acme"));
+
+    let refusal = operations.delete(&FakePhpHost::empty(), &db_host, &no_sftp(), &name());
+
+    assert!(
+        matches!(refusal, Err(AccountError::DatabaseRemoval { .. })),
+        "expected DatabaseRemoval, got {refusal:?}"
+    );
+    assert!(
+        operations_calls(&operations, "userdel").is_empty(),
+        "userdel must NOT have run: the account stays, which is the state that can be retried"
+    );
+}
+
+#[test]
+fn deleting_an_account_takes_its_sftp_logins_and_its_jail_with_it() {
+    // The login is a working credential into the account's home, and the jail
+    // holds a bind mount of that home. Left behind, both are inherited by a
+    // re-created account of the same name.
+    let sftp_host = sftp_of_acme();
+    let operations = debian(RecordingHost::new().with_user("acme"));
+
+    operations
+        .delete(&FakePhpHost::empty(), &no_databases(), &sftp_host, &name())
+        .expect("deletion succeeds");
+
+    assert!(sftp_host.users().is_empty());
+    assert!(
+        sftp_host.paths().is_empty(),
+        "the jail and its unit must be gone: {:?}",
+        sftp_host.paths()
+    );
+}
+
+#[test]
+fn a_jail_that_cannot_be_taken_down_stops_the_deletion_before_userdel_removes_the_home() {
+    // The sharpest ordering claim in the cascade. `userdel --remove` on an
+    // account whose home is still bind-mounted into its jail would delete the
+    // customer's files from inside the mount, and a mount that outlived the
+    // account points at a home that no longer exists — which the uninstaller
+    // refuses to clean up and a re-created account would inherit.
+    let sftp_host = sftp_of_acme().refuse_removal_of(acme_jail().mount_point());
+    let operations = debian(RecordingHost::new().with_user("acme"));
+
+    let refusal = operations.delete(&FakePhpHost::empty(), &no_databases(), &sftp_host, &name());
+
+    assert!(
+        matches!(refusal, Err(AccountError::SftpRemoval { .. })),
+        "expected SftpRemoval, got {refusal:?}"
+    );
+    assert!(
+        operations_calls(&operations, "userdel").is_empty(),
+        "userdel must NOT have run while the account's home is still mounted into its jail"
+    );
+}
+
+#[test]
+fn every_program_the_accounts_area_runs_is_named_by_an_absolute_path() {
+    // The rule this asserts is not "useradd lives in /usr/sbin" — the tests above
+    // already pin each argv. It is the property those tests share and none of them
+    // states: a root daemon that spawns a program by a BARE name resolves it
+    // through PATH, and runs whichever binary the first writable directory in that
+    // variable happens to hold. Every one of these tools is run as uid 0, so the
+    // first such name is a local root escalation, and it would be added by someone
+    // doing the obvious thing — copying the line above it.
+    //
+    // Written against a single sweep of every operation rather than per call site,
+    // because a per-site assertion is exactly what a new call site does not have.
+    // Two hosts, because creation refuses an account that is already there while
+    // every other operation refuses one that is not: a single fixture could only
+    // ever sweep half of them.
+    let creating = debian(RecordingHost::new());
+    creating.create(&name(), 1024).expect("creation succeeds");
+
+    let existing = debian(RecordingHost::new().with_user("acme").with_size(4096));
+    existing.suspend(&name()).expect("suspension succeeds");
+    existing.unsuspend(&name()).expect("unsuspension succeeds");
+    existing.set_quota(&name(), 2048).expect("the quota is set");
+    let _ = existing.usage(&name());
+    existing
+        .delete(&FakePhpHost::empty(), &no_databases(), &no_sftp(), &name())
+        .expect("deletion succeeds");
+
+    let mut calls = creating.host().calls();
+    calls.extend(existing.host().calls());
+    assert!(
+        !calls.is_empty(),
+        "the sweep ran no programs at all, so it proves nothing about how they are named",
+    );
+
+    for call in &calls {
+        let program = call
+            .first()
+            .expect("a recorded call always carries its program");
+        assert!(
+            program.starts_with('/'),
+            "{program} is run by a bare name: as root, PATH decides which binary that is",
+        );
+    }
 }

@@ -13,9 +13,9 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use maran_agent_core::validation::file_mode::FileMode;
-use maran_agent_core::validation::name::AccountName;
-use maran_agent_core::validation::relative_path::RelativePath;
+use maran_agent_core::validation::fs::file_mode::FileMode;
+use maran_agent_core::validation::fs::relative_path::RelativePath;
+use maran_agent_core::validation::system::name::AccountName;
 
 use super::write_file;
 use crate::files::FilesOpError;

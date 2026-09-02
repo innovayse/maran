@@ -12,8 +12,8 @@ use std::os::unix::fs::{MetadataExt, PermissionsExt, symlink};
 use std::path::Path;
 
 use maran_agent_core::utils::current_uid::current_uid;
-use maran_agent_core::validation::file_mode::FileMode;
-use maran_agent_core::validation::relative_path::RelativePath;
+use maran_agent_core::validation::fs::file_mode::FileMode;
+use maran_agent_core::validation::fs::relative_path::RelativePath;
 
 use super::write_in_home;
 use crate::files::FilesOpError;

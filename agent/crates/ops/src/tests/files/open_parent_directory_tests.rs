@@ -18,7 +18,7 @@ use std::os::unix::fs::{PermissionsExt, symlink};
 use std::path::Path;
 
 use maran_agent_core::utils::current_uid::current_uid;
-use maran_agent_core::validation::relative_path::RelativePath;
+use maran_agent_core::validation::fs::relative_path::RelativePath;
 
 use super::open_parent_directory;
 use crate::files::FilesOpError;

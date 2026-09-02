@@ -1,7 +1,7 @@
 //! The one place a site's paths are derived AND proved.
 
-use maran_agent_core::validation::domain::Domain;
-use maran_agent_core::validation::name::AccountName;
+use maran_agent_core::validation::system::name::AccountName;
+use maran_agent_core::validation::web::domain::Domain;
 
 use crate::sites::model::site_paths::SitePaths;
 use crate::sites::{SiteHost, SitesOpError};

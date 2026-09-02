@@ -1,7 +1,7 @@
 //! Everything a site operation needs about the site it acts on.
 
-use maran_agent_core::validation::domain::Domain;
-use maran_agent_core::validation::name::AccountName;
+use maran_agent_core::validation::system::name::AccountName;
+use maran_agent_core::validation::web::domain::Domain;
 
 use crate::sites::model::site_certificate::SiteCertificate;
 use crate::sites::model::site_kind::SiteKind;

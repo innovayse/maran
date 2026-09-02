@@ -16,9 +16,9 @@ use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
-use maran_agent_core::validation::domain::Domain;
-use maran_agent_core::validation::name::AccountName;
-use maran_agent_core::validation::php_version::PhpVersion;
+use maran_agent_core::validation::system::name::AccountName;
+use maran_agent_core::validation::web::domain::Domain;
+use maran_agent_core::validation::web::php_version::PhpVersion;
 use maran_distro::{DistroAdapter, DistroFamily, adapter_for};
 
 use crate::php::fake_php_host::FakePhpHost;

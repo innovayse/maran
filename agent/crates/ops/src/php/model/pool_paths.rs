@@ -3,8 +3,8 @@
 use std::path::PathBuf;
 
 use maran_agent_core::agent_paths::AgentPaths;
-use maran_agent_core::validation::name::AccountName;
-use maran_agent_core::validation::php_version::PhpVersion;
+use maran_agent_core::validation::system::name::AccountName;
+use maran_agent_core::validation::web::php_version::PhpVersion;
 use maran_distro::DistroAdapter;
 
 /// The directory, inside an account's home, holding everything the panel puts

@@ -1,7 +1,7 @@
 //! Everything one entry removal is told, already validated.
 
-use maran_agent_core::validation::name::AccountName;
-use maran_agent_core::validation::relative_path::RelativePath;
+use maran_agent_core::validation::fs::relative_path::RelativePath;
+use maran_agent_core::validation::system::name::AccountName;
 
 /// A validated request to remove one file inside an account's home.
 ///

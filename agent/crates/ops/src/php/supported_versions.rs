@@ -1,6 +1,6 @@
 //! The closed set of PHP versions this panel runs, and the check against it.
 
-use maran_agent_core::validation::php_version::PhpVersion;
+use maran_agent_core::validation::web::php_version::PhpVersion;
 
 /// Every PHP version the panel supports, oldest first (spec §11).
 ///

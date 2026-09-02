@@ -13,8 +13,8 @@
 
 use std::path::{Path, PathBuf};
 
-use maran_agent_core::validation::domain::Domain;
-use maran_agent_core::validation::upstream::Upstream;
+use maran_agent_core::validation::web::domain::Domain;
+use maran_agent_core::validation::web::upstream::Upstream;
 
 use crate::sites::model::create_site_input::CreateSiteInput;
 use crate::sites::model::site_certificate::SiteCertificate;
@@ -262,7 +262,8 @@ fn a_php_version_this_host_does_not_have_is_refused_before_any_vhost_is_written(
     let php_host = FakePhpHost::with_installed(&["8.3"]);
     let input = CreateSiteInput {
         kind: SiteKind::Php {
-            version: maran_agent_core::validation::php_version::PhpVersion::parse("8.4").unwrap(),
+            version: maran_agent_core::validation::web::php_version::PhpVersion::parse("8.4")
+                .unwrap(),
         },
         ..php_input()
     };

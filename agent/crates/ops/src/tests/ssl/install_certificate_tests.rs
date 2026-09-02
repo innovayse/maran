@@ -2,7 +2,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use maran_agent_core::validation::domain::Domain;
+use maran_agent_core::validation::web::domain::Domain;
 
 use crate::sites::fake_site_host::{create_test_site, distro, php_input};
 use crate::sites::{SiteCertificate, SitePaths};

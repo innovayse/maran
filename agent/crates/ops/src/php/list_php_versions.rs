@@ -3,7 +3,7 @@
 use std::path::Path;
 
 use maran_agent_core::agent_paths::AgentPaths;
-use maran_agent_core::validation::php_version::PhpVersion;
+use maran_agent_core::validation::web::php_version::PhpVersion;
 use maran_distro::DistroAdapter;
 
 use crate::php::model::installed_php_version::InstalledPhpVersion;

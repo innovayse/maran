@@ -1,6 +1,6 @@
 //! Failures of the account operations.
 
-use maran_agent_core::validation::name_error::NameError;
+use maran_agent_core::validation::system::name_error::NameError;
 
 /// What can go wrong while managing an account's operating-system identity.
 #[derive(Debug, thiserror::Error)]
@@ -73,6 +73,35 @@ pub enum AccountError {
         /// What the PHP area refused with.
         reason: String,
     },
+
+    /// The account's databases could not be taken away, so the account has NOT
+    /// been deleted.
+    ///
+    /// Its own variant for the same reason [`Self::PoolRemoval`] is: what an
+    /// operator must act on is that the deletion stopped on purpose. A database
+    /// left behind when an account of the same name is created again is that
+    /// customer's live data handed to the next tenant, together with the
+    /// credential that reaches it — which no later operation can undo, whereas
+    /// an account that is still there can simply be deleted again.
+    #[error("the account's databases could not be removed: {reason}")]
+    DatabaseRemoval {
+        /// What the database area refused with.
+        reason: String,
+    },
+
+    /// The account's SFTP logins, jail or bind mount could not be taken away,
+    /// so the account has NOT been deleted.
+    ///
+    /// The mount is the sharpest half. A bind mount that survives the deletion
+    /// is a mount of a home `userdel` is about to remove, into a jail nothing
+    /// owns any more; the uninstaller refuses to remove the agent's state
+    /// directory while any mount is left under it, and a re-created account of
+    /// the same name would land in the old jail rather than a fresh one.
+    #[error("the account's sftp logins could not be removed: {reason}")]
+    SftpRemoval {
+        /// What the SFTP area refused with.
+        reason: String,
+    },
 }
 
 impl From<crate::php::PhpOpError> for AccountError {
@@ -86,6 +115,31 @@ impl From<crate::php::PhpOpError> for AccountError {
     /// (rules/rust.md "one error enum per area").
     fn from(error: crate::php::PhpOpError) -> Self {
         Self::PoolRemoval {
+            reason: error.to_string(),
+        }
+    }
+}
+
+impl From<crate::db::DbError> for AccountError {
+    /// Reports a database the account still owns as a refusal to delete it.
+    ///
+    /// Flattened into one sentence rather than re-exported, for the reason the
+    /// PHP conversion above gives: a caller matching on the database area's
+    /// variants through the account area's error would be reaching across an
+    /// area boundary, and what an operator has to act on is that the deletion
+    /// did not happen and why.
+    fn from(error: crate::db::DbError) -> Self {
+        Self::DatabaseRemoval {
+            reason: error.to_string(),
+        }
+    }
+}
+
+impl From<crate::sftp::SftpError> for AccountError {
+    /// Reports an SFTP resource the account still owns as a refusal to delete
+    /// it, flattened for the same reason the two conversions above are.
+    fn from(error: crate::sftp::SftpError) -> Self {
+        Self::SftpRemoval {
             reason: error.to_string(),
         }
     }
