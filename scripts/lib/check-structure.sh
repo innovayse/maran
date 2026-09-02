@@ -295,6 +295,46 @@ while IFS= read -r file; do
   fi
 done < <(find agent/crates/ops/src -name '*.rs' -not -path '*/tests/*' 2>/dev/null | sort)
 
+# 17b. No program spawned by a bare name. The agent runs as uid 0, so a program named without a
+#      path is "whichever binary the first directory in PATH happens to hold" — one writable
+#      directory away from arbitrary code as root, on operations an unprivileged customer can
+#      trigger by creating an account. Rule 17 above catches a platform PATH written in `ops`;
+#      this catches the opposite mistake, which is writing no path at all.
+#
+#      It exists because the unit tests could not: `ProcessSystemHost` is the one type that
+#      spawns without going through `AccountOperations`, it is deliberately not unit-tested
+#      ("cannot be tested without creating real users"), and a bare `id` survived there through a
+#      review whose whole subject was this class of bug. A grep is a poor test and a fine gate.
+while IFS= read -r file; do
+  offenders="$(grep -nE '(Command::new|\.run|\.run_with_stdin|expect_success)\("[^/]' "$file" |
+               grep -v '^[0-9]*:\s*//' || true)"
+  if [ -n "$offenders" ]; then
+    line="$(printf '%s' "$offenders" | head -1 | cut -d: -f1)"
+    report "$file:$line: program spawned by a bare name — as root, PATH decides which binary that is; ask the DistroAdapter (rules/security.md)"
+  fi
+done < <(find agent/crates/ops/src agent/crates/agent/src -name '*.rs' -not -path '*/tests/*' 2>/dev/null | sort)
+
+# 17c. The provisioned-password alphabet is the same string in all THREE languages that hold it.
+#      The backend mints these passwords, the agent's `Password` type refuses anything outside its
+#      set, and the SPA generates one for the first-run administrator. A character the agent
+#      refuses is a provisioning that fails AFTER the panel has shown the customer a credential;
+#      a character dropped from one copy is entropy lost silently. C# and Rust are already pinned
+#      to each other by ProvisionedPasswordGeneratorTests; nothing pinned the third copy, which is
+#      exactly the kind of drift no compiler in any of the three can see.
+#      Both are extracted by the CONSTANT'S NAME rather than by the shape of the string, so a
+#      narrowed or widened alphabet is reported as the difference it is instead of as "cannot be
+#      read" — the first version of this check matched a literal of exactly 67 characters and told
+#      an honest mismatch it could not find the value at all.
+csharp_alphabet="$(grep -A2 'public const string Alphabet' backend/src/Maran.SharedKernel/Security/ProvisionedPasswordGenerator.cs 2>/dev/null |
+                   grep -oE '"[^"]*"' | head -1 | tr -d '"')"
+spa_alphabet="$(grep -E "^const ALPHABET = " frontend/src/utils/generate.ts 2>/dev/null |
+                grep -oE "'[^']*'" | head -1 | tr -d "'")"
+if [ -z "$csharp_alphabet" ] || [ -z "$spa_alphabet" ]; then
+  report "frontend/src/utils/generate.ts: the password alphabet could not be read from both the SPA and the backend — one of them moved, and the two can no longer be compared"
+elif [ "$csharp_alphabet" != "$spa_alphabet" ]; then
+  report "frontend/src/utils/generate.ts: the SPA's password alphabet differs from ProvisionedPasswordGenerator.Alphabet (rules/security.md)"
+fi
+
 # 18. Every locale carries the same keys. The backend has this check for its .resx files
 #     (ResourceKeyParityTests); the SPA had none, and its locale files are edited by hand three at
 #     a time. A key added to en/ and forgotten in hy/ is not an error anywhere — vue-i18n renders
