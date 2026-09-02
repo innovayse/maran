@@ -1,0 +1,74 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- The resx triples' neutral file is English (rules/csharp.md "The backend owns all
+         user-facing message text"). Declaring it lets the runtime skip probing for an "en"
+         satellite assembly that will never exist, and satisfies CA1824. -->
+    <NeutralLanguage>en</NeutralLanguage>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- A module is a plain class library (not Microsoft.NET.Sdk.Web): it contributes
+         controllers and endpoints into the Host's ASP.NET Core pipeline but never hosts
+         its own web server (rules/architecture.md "Backend: modular monolith"). -->
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- A module references only the Sdk (module contract, BaseApiController, result
+         translation, IAccountDirectory) and the SharedKernel (Result, IClock, ICurrentUser,
+         SensitiveString) — never another module, never the Host (rules/architecture.md
+         "Backend: modular monolith"). In particular this project does NOT reference
+         Maran.Modules.Accounts: the account's system user name and its plan's database
+         allowance arrive through Maran.Sdk's IAccountDirectory, whose implementation lives in
+         the module that owns those rows. -->
+    <!-- The agent client: a database only exists on the MySQL server, which only the agent may
+         reach. The row records which account asked for it — that record, and not the server's
+         names, is what every tenant decision here is made from. -->
+    <ProjectReference Include="..\..\Maran.Agent.Client\Maran.Agent.Client.csproj" />
+    <ProjectReference Include="..\..\Maran.Sdk\Maran.Sdk.csproj" />
+    <ProjectReference Include="..\..\Maran.SharedKernel\Maran.SharedKernel.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Npgsql.EntityFrameworkCore.PostgreSQL: the module owns its PostgreSQL schema and
+         DbContext (rules/architecture.md). WolverineFx: command/query dispatch. FluentValidation:
+         command/query validators (rules/csharp.md "Operation naming is fixed"). -->
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" />
+    <PackageReference Include="WolverineFx" />
+    <PackageReference Include="FluentValidation" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Resx-backed user-facing message text (rules/csharp.md "The backend owns all
+         user-facing message text"), one file per purpose rather than one catch-all: ErrorMessages
+         for domain failures surfaced as error codes, DisplayNames for the module's own name.
+         ErrorMessages is strongly typed so Error.Of(nameof(ErrorMessages.DatabaseNotFound)) fails
+         to compile when the key is absent — the codes ARE the resx keys, with no second
+         declaration. -->
+    <EmbeddedResource Update="Resources\ErrorMessages.resx">
+      <Generator>MSBuild:Compile</Generator>
+      <StronglyTypedLanguage>CSharp</StronglyTypedLanguage>
+      <StronglyTypedNamespace>Maran.Modules.Databases.Resources</StronglyTypedNamespace>
+      <StronglyTypedClassName>ErrorMessages</StronglyTypedClassName>
+      <StronglyTypedFileName>$(IntermediateOutputPath)ErrorMessages.Designer.cs</StronglyTypedFileName>
+    </EmbeddedResource>
+    <EmbeddedResource Update="Resources\ErrorMessages.ru.resx">
+      <Generator></Generator>
+    </EmbeddedResource>
+    <EmbeddedResource Update="Resources\ErrorMessages.hy.resx">
+      <Generator></Generator>
+    </EmbeddedResource>
+    <EmbeddedResource Update="Resources\DisplayNames.resx">
+      <Generator></Generator>
+    </EmbeddedResource>
+    <EmbeddedResource Update="Resources\DisplayNames.ru.resx">
+      <Generator></Generator>
+    </EmbeddedResource>
+    <EmbeddedResource Update="Resources\DisplayNames.hy.resx">
+      <Generator></Generator>
+    </EmbeddedResource>
+  </ItemGroup>
+
+</Project>

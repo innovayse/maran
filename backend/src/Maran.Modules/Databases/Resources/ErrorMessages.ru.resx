@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="DatabaseNotFound">
+    <value>База данных не найдена.</value>
+  </data>
+  <data name="DatabaseNameTaken">
+    <value>У вас уже есть база данных с таким именем.</value>
+  </data>
+  <data name="DatabaseUserNameTaken">
+    <value>У вас уже есть пользователь базы данных с таким именем.</value>
+  </data>
+  <data name="DatabaseLimitReached">
+    <value>Ваш тариф не позволяет создать больше баз данных.</value>
+  </data>
+  <data name="DatabaseNameTooLong">
+    <value>Это имя слишком длинное вместе с префиксом вашего аккаунта.</value>
+  </data>
+  <data name="DatabaseUserNameTooLong">
+    <value>Это имя пользователя слишком длинное вместе с префиксом вашего аккаунта.</value>
+  </data>
+  <data name="DatabaseNameInvalidFormat">
+    <value>Имя базы данных может содержать только строчные латинские буквы и цифры.</value>
+  </data>
+  <data name="DatabaseUserNameInvalidFormat">
+    <value>Имя пользователя базы данных может содержать только строчные латинские буквы и цифры.</value>
+  </data>
+  <data name="DatabaseProvisioningFailed">
+    <value>Не удалось создать базу данных. Ничего не осталось на сервере, попробуйте ещё раз.</value>
+  </data>
+  <data name="AccountNotFound">
+    <value>Аккаунт не найден.</value>
+  </data>
+</root>

@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="SftpUserNotFound">
+    <value>This SFTP user could not be found.</value>
+  </data>
+  <data name="SftpUserNameTaken">
+    <value>You already have an SFTP user with this name.</value>
+  </data>
+  <data name="SftpUserLimitReached">
+    <value>Your plan does not allow any more SFTP users.</value>
+  </data>
+  <data name="SftpUserNameTooLong">
+    <value>This name is too long once your account prefix is added.</value>
+  </data>
+  <data name="SftpUserNameInvalidFormat">
+    <value>An SFTP user name may only contain lowercase letters and digits.</value>
+  </data>
+  <data name="SftpUserProvisioningFailed">
+    <value>This SFTP user could not be created. Nothing was left behind; please try again.</value>
+  </data>
+  <data name="AccountNotFound">
+    <value>This account could not be found.</value>
+  </data>
+</root>
