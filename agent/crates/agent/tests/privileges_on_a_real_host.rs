@@ -33,9 +33,9 @@ use std::time::Duration;
 use maran_agent_core::privs::account_ids::AccountIds;
 use maran_agent_core::privs::fork_as_account::fork_as_account;
 use maran_agent_core::privs::priv_error::PrivError;
-use maran_agent_core::validation::domain::Domain;
-use maran_agent_core::validation::file_mode::FileMode;
-use maran_agent_core::validation::relative_path::RelativePath;
+use maran_agent_core::validation::fs::file_mode::FileMode;
+use maran_agent_core::validation::fs::relative_path::RelativePath;
+use maran_agent_core::validation::web::domain::Domain;
 use maran_ops::files::{DeleteEntryInput, FilesOpError, ProcessFilesHost, WriteFileInput};
 use maran_ops::sites::{LogSink, ProcessSiteHost, SiteLogKind, SitesOpError, TailEnd};
 

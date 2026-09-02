@@ -16,15 +16,19 @@ use tower::service_fn;
 
 use maran_agent::error::StartupError;
 use maran_agent::peercred::PeerPolicy;
+use maran_agent::proto::db_service_client::DbServiceClient;
 use maran_agent::proto::files_service_client::FilesServiceClient;
 use maran_agent::proto::php_service_client::PhpServiceClient;
+use maran_agent::proto::sftp_service_client::SftpServiceClient;
 use maran_agent::proto::sites_service_client::SitesServiceClient;
 use maran_agent::proto::ssl_service_client::SslServiceClient;
 use maran_agent::proto::system_service_client::SystemServiceClient;
 use maran_agent::proto::{
-    CreateDirectoryRequest, CreateSiteRequest, DeleteEntryRequest, ErrorCode, GetAgentInfoRequest,
-    InstallCertificateRequest, InstallPhpVersionRequest, ListPhpVersionsRequest,
-    delete_entry_response, get_agent_info_response,
+    CreateDatabaseRequest, CreateDirectoryRequest, CreateSftpUserRequest, CreateSiteRequest,
+    DeleteEntryRequest, ErrorCode, GetAgentInfoRequest, InstallCertificateRequest,
+    InstallPhpVersionRequest, ListDatabasesRequest, ListPhpVersionsRequest,
+    create_database_response, create_sftp_user_response, delete_entry_response,
+    get_agent_info_response,
 };
 
 /// How long the test waits for the server to bind before declaring it stuck.
@@ -214,6 +218,21 @@ async fn every_new_service_refuses_a_uid_the_policy_does_not_allow() {
         .await;
     assert_denied("FilesService", files.err());
 
+    // The two services that mint credentials. An unguarded registration here
+    // would let any local process create a database user or an SFTP login on
+    // the host, so they are checked through the rpc that CREATES rather than
+    // through a listing: a service that answered this at all would be answering
+    // the worst request it takes.
+    let database = DbServiceClient::new(channel.clone())
+        .create_database(CreateDatabaseRequest::default())
+        .await;
+    assert_denied("DbService", database.err());
+
+    let login = SftpServiceClient::new(channel.clone())
+        .create_sftp_user(CreateSftpUserRequest::default())
+        .await;
+    assert_denied("SftpService", login.err());
+
     // The streaming rpc too: the interceptor runs per request, but a service
     // registered without a guard would leak through whichever rpc nobody
     // checked.
@@ -303,6 +322,103 @@ async fn the_files_service_answers_over_the_wire_and_refuses_what_it_does_not_im
         unimplemented.err().map(|status| status.code()),
         Some(tonic::Code::Unimplemented),
         "an rpc that is not built must say so"
+    );
+
+    server.abort();
+}
+
+#[tokio::test]
+async fn the_database_and_sftp_services_answer_over_the_wire_with_a_typed_refusal() {
+    let directory = tempfile::tempdir().unwrap();
+    let socket_path = directory.path().join("agent.sock");
+
+    let policy = PeerPolicy::new(maran_agent_core::utils::current_uid::current_uid().unwrap());
+    let server_path = socket_path.clone();
+    let mut server =
+        tokio::spawn(async move { maran_agent::server::serve(&server_path, policy).await });
+
+    match wait_until_listening(&socket_path, &mut server).await {
+        Started::Listening => {}
+        Started::UnsupportedHost(reason) => {
+            eprintln!("skipping the database and sftp service test: {reason}");
+            return;
+        }
+    }
+
+    let channel = connect(&socket_path).await;
+
+    // An empty account name is the one refusal these services can produce on
+    // any machine: it is decided before a database client or a shadow-suite
+    // tool is spawned, so the answer is the same whether or not this host has
+    // MariaDB or an sshd. Each call proves three things at once — the service
+    // is registered, the client-facing contract matches, and a refusal comes
+    // back as a typed payload rather than as the transport's UNIMPLEMENTED,
+    // which a panel could not tell from "the agent is too old".
+    let database = DbServiceClient::new(channel.clone())
+        .create_database(CreateDatabaseRequest {
+            account_username: String::new(),
+            database_name: "shop".to_owned(),
+            db_username: "shop".to_owned(),
+            password: "Str0ng-pass.word".to_owned(),
+        })
+        .await
+        .unwrap()
+        .into_inner();
+
+    match database.result {
+        Some(create_database_response::Result::Error(error)) => {
+            assert_eq!(
+                error.code,
+                ErrorCode::InvalidInput as i32,
+                "an unnamed account must be refused, not acted on"
+            );
+            assert!(
+                !error.message.contains("Str0ng-pass.word"),
+                "a refusal must never echo the password: {}",
+                error.message
+            );
+        }
+        other => panic!("DbService must answer with a typed refusal, got {other:?}"),
+    }
+
+    let login = SftpServiceClient::new(channel.clone())
+        .create_sftp_user(CreateSftpUserRequest {
+            account_username: String::new(),
+            sftp_username: "web".to_owned(),
+            password: "Str0ng-pass.word".to_owned(),
+        })
+        .await
+        .unwrap()
+        .into_inner();
+
+    match login.result {
+        Some(create_sftp_user_response::Result::Error(error)) => {
+            assert_eq!(
+                error.code,
+                ErrorCode::InvalidInput as i32,
+                "an unnamed account must be refused, not acted on"
+            );
+            assert!(
+                !error.message.contains("Str0ng-pass.word"),
+                "a refusal must never echo the password: {}",
+                error.message
+            );
+        }
+        other => panic!("SftpService must answer with a typed refusal, got {other:?}"),
+    }
+
+    // And the listing, which is the rpc a panel calls first: an unregistered
+    // service answers UNIMPLEMENTED, which this assertion tells apart from a
+    // refusal by insisting on an ok response envelope.
+    let listing = DbServiceClient::new(channel)
+        .list_databases(ListDatabasesRequest {
+            account_username: String::new(),
+        })
+        .await;
+    assert!(
+        listing.is_ok(),
+        "DbService.ListDatabases must be registered, got {:?}",
+        listing.err()
     );
 
     server.abort();
