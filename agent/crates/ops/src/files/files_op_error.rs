@@ -1,7 +1,7 @@
 //! Why a file operation inside a customer's home could not be done.
 
 use maran_agent_core::privs::priv_error::PrivError;
-use maran_agent_core::validation::path_error::PathError;
+use maran_agent_core::validation::fs::path_error::PathError;
 
 /// Failures of the customer-file operations.
 ///

@@ -6,7 +6,7 @@ namespace Maran.Modules.Accounts.Services;
 
 /// <summary>
 /// The Accounts module's implementation of <see cref="IAccountDirectory"/>: the one place another
-/// module may learn an account's system user name and its plan's site allowance, without ever
+/// module may learn an account's system user name and its plan's allowances, without ever
 /// referencing this module (rules/architecture.md "Backend: modular monolith").
 /// </summary>
 /// <remarks>
@@ -53,7 +53,13 @@ public sealed class AccountDirectory : IAccountDirectory
                 _dbContext.Plans.AsNoTracking(),
                 account => account.PlanId,
                 plan => plan.Id,
-                (account, plan) => new AccountSnapshot(account.Id, account.Name, plan.MaxSites, plan.MaxPhpWorkersPerPool))
+                (account, plan) => new AccountSnapshot(
+                    account.Id,
+                    account.Name,
+                    plan.MaxSites,
+                    plan.MaxDatabases,
+                    plan.MaxSftpUsers,
+                    plan.MaxPhpWorkersPerPool))
             .SingleOrDefaultAsync(cancellationToken);
     }
 }

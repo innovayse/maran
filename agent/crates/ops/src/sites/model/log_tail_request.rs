@@ -3,7 +3,7 @@
 use std::ffi::OsString;
 use std::path::PathBuf;
 
-use maran_agent_core::validation::name::AccountName;
+use maran_agent_core::validation::system::name::AccountName;
 
 /// One site's log, named as a directory plus a file name rather than as a path.
 ///

@@ -1,7 +1,7 @@
 //! Turning a removal request into a validated input, or refusing it.
 
-use maran_agent_core::validation::name::AccountName;
-use maran_agent_core::validation::relative_path::RelativePath;
+use maran_agent_core::validation::fs::relative_path::RelativePath;
+use maran_agent_core::validation::system::name::AccountName;
 use maran_ops::files::DeleteEntryInput;
 
 use crate::proto::{AgentError, DeleteEntryRequest};

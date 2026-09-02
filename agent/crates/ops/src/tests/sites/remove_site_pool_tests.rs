@@ -4,8 +4,8 @@
 
 use std::path::Path;
 
-use maran_agent_core::validation::name::AccountName;
-use maran_agent_core::validation::php_version::PhpVersion;
+use maran_agent_core::validation::system::name::AccountName;
+use maran_agent_core::validation::web::php_version::PhpVersion;
 
 use crate::php::fake_php_host::{FakePhpHost, distro, pool_input};
 use crate::php::write_pool;

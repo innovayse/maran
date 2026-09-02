@@ -90,7 +90,7 @@ agent/
     │   ├── build.rs           compiles proto/agent/v1/ via tonic-build
     │   ├── src/
     │   │   ├── lib.rs · main.rs · server.rs · error.rs
-    │   │   ├── config/        agent_options.rs · current_uid.rs · options_error.rs
+    │   │   ├── config/        invocation.rs (the command line) · agent_options.rs · options_error.rs
     │   │   ├── peercred/      peer_policy.rs (who may connect) · peer_guard.rs (the check)
     │   │   └── services/      one FOLDER per proto service:
     │   │       ├── system/    system_service.rs
@@ -102,14 +102,23 @@ agent/
     │   │       │              stream_log_sink.rs · tail_terminal.rs (log-follow glue)
     │   │       ├── ssl/       ssl_service.rs · ssl_status.rs
     │   │       ├── php/       php_service.rs · php_status.rs
-    │   │       ├── db/        db_service.rs · db_status.rs
+    │   │       ├── db/        db_service.rs · db_status.rs · validated_account.rs ·
+    │   │       │              validated_creation.rs · validated_database.rs ·
+    │   │       │              validated_removal.rs — proto → validated input, one
+    │   │       │              bundle per request shape
     │   │       ├── files/     files_service.rs · file_status.rs ·
     │   │       │              validated_write.rs (the thin transport half:
     │   │       │              drains the stream) · write_collector.rs (the state machine that
     │   │       │              holds the header rules and the byte cap, so a unit test can drive
     │   │       │              them — a tonic Streaming cannot be constructed by one) ·
     │   │       │              validated_delete.rs
-    │   │       ├── ftp/       ftp_service.rs · ftp_status.rs
+    │   │       ├── sftp/      sftp_service.rs · sftp_status.rs ·
+    │   │       │              validated_creation.rs · validated_credential.rs ·
+    │   │       │              validated_password_change.rs · validated_sftp_user.rs.
+    │   │       │              It answers `ftp.proto`, which describes SFTP and
+    │   │       │              nothing else — the folder is named after what the
+    │   │       │              service IS, matching `ops/src/sftp/`. A future FTP
+    │   │       │              daemon would get its own `ftp/` beside it.
     │   │       ├── cron/      cron_service.rs · cron_status.rs
     │   │       ├── firewall/  firewall_service.rs · firewall_status.rs
     │   │       ├── backup/    backup_service.rs · backup_status.rs
@@ -119,7 +128,8 @@ agent/
     ├── agent-core/
     │   └── src/
     │       ├── agent_paths.rs AgentPaths — locations the agent owns and that are the SAME
-    │       │                  on every family (nginx include dir, certificate dir). A path
+    │       │                  on every family (nginx include dir, certificate dir, account
+    │       │                  home root, php-fpm socket dir, SFTP jail root). A path
     │       │                  that differs between families is a distro fact and lives in
     │       │                  distro/, never here; one that does not differ lives here, never
     │       │                  as an adapter method repeated with the same literal.
@@ -127,17 +137,19 @@ agent/
     │       │                  having run one program. Started in one `ops` area and needed
     │       │                  by a second, which is the rule below firing: it lives here so
     │       │                  both import it instead of each keeping its own copy.
-    │       ├── validation/    name.rs · name_error.rs · path.rs · path_error.rs ·
-    │       │                  domain.rs · domain_error.rs · upstream.rs · upstream_error.rs ·
-    │       │                  php_version.rs · php_version_error.rs ·
-    │       │                  port.rs · port_error.rs ·
-    │       │                  ip_address.rs · ip_address_error.rs ·
-    │       │                  cron_expression.rs · cron_expression_error.rs ·
-    │       │                  file_mode.rs · file_mode_error.rs ·
-    │       │                  relative_path.rs · relative_path_error.rs — RelativePath is a
-    │       │                  path inside an account's home stored as VALIDATED COMPONENTS
-    │       │                  rather than as text, which is what lets a caller hand each one
-    │       │                  to an `*at` syscall without re-parsing anything.
+    │       ├── validation/    one folder per DOMAIN the value ends up in, so a
+    │       │                  validator is found by asking "where is this written?".
+    │       │                  Every kind is a `<kind>.rs` + `<kind>_error.rs` pair in
+    │       │                  its group; a kind used by two groups still lives in the
+    │       │                  one that CREATES the object.
+    │       │   ├── system/    name · sftp_user_name — values that become OS objects
+    │       │   │              (planned, same shape: cron_expression)
+    │       │   ├── db/        database_name · db_user_name — values that reach MySQL
+    │       │   ├── web/       domain · upstream · php_version — values written into
+    │       │   │              web-server configuration (planned: port · ip_address)
+    │       │   ├── fs/        path (resolve_in_home) · relative_path · file_mode
+    │       │   └── secrets/   password (validated alphabet, injection-free by
+    │       │                  construction) · secret (redacting wrapper, no _error)
     │       ├── privs/         the ONLY home of unsafe syscall/setuid wrappers:
     │       │                  fork_as_account.rs · account_ids.rs · priv_error.rs ·
     │       │                  directory_entry_name.rs (the shared name check, no syscall) ·
@@ -166,9 +178,21 @@ agent/
     │                          rhel_services.rs
     ├── ops/
     │   ├── src/
-    │       ├── {accounts,sites,php,db,ftp,files,cron,firewall,ssl,backup,monitor}/
+    │       ├── {accounts,sites,php,db,sftp,ftp,files,cron,firewall,ssl,backup,monitor}/
     │       │                  one folder per area; anatomy below.
     │       │                  accounts = system users: useradd/userdel, homes, quotas
+    │       │                  sftp/ is OpenSSH logins chrooted into a per-account,
+    │       │                  root-owned jail with the real home bind-mounted inside;
+    │       │                  its model/account_jail.rs is where every path and the
+    │       │                  systemd mount unit's escaped NAME are derived from one
+    │       │                  AccountName, because systemd refuses a mount unit whose
+    │       │                  file name is not the escaping of its own mount point.
+    │       │                  model/account_ownership.rs carries the uid and gid the
+    │       │                  login is created WITH: an SFTP login shares its
+    │       │                  account's identity, because an account home of
+    │       │                  <account>:<web server group> 0750 gives an identity of
+    │       │                  its own nothing at all.
+    │       │                  ftp/ stays for a future FTP daemon and holds nothing.
     │       │                  php/ has both a service and an ops area. Installing a
     │       │                  PHP version is a host operation with no site to drive
     │       │                  it — it is done once and then bound by many sites — so

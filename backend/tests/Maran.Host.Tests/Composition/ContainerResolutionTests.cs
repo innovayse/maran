@@ -1,13 +1,14 @@
 using Maran.Agent.Client.Interfaces;
+using Maran.Host.Modules;
 using Maran.Host.Resilience;
-using Maran.Modules.Accounts.Persistence;
+using Maran.Host.Tests.Resilience;
 using Maran.Modules.Identity.Common.Interfaces;
-using Maran.Modules.Identity.Persistence;
-using Maran.Modules.Sites.Persistence;
 using Maran.Sdk.Interfaces;
 using Maran.SharedKernel.Interfaces;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Polly.Registry;
+using Polly.Timeout;
 
 namespace Maran.Host.Tests.Composition;
 
@@ -20,6 +21,13 @@ namespace Maran.Host.Tests.Composition;
 /// </summary>
 public sealed class ContainerResolutionTests : IClassFixture<PanelTestFactory>
 {
+    /// <summary>
+    /// Outer guard for a call the pipeline is expected to abandon. Far longer than the composed
+    /// host's one-second operation timeout and its two retries, so a failure here means the call was
+    /// never abandoned at all rather than that the deadline was tight.
+    /// </summary>
+    private static readonly TimeSpan ComposedTimeoutDeadline = TimeSpan.FromSeconds(30);
+
     private readonly PanelTestFactory _factory;
     /// <summary>Creates the fixture.</summary>
 
@@ -62,11 +70,61 @@ public sealed class ContainerResolutionTests : IClassFixture<PanelTestFactory>
         Assert.NotNull(scope.ServiceProvider.GetRequiredService(serviceType));
     }
 
+    /// <summary>Every database context every compiled-in module contributes.</summary>
+    /// <remarks>
+    /// Read off the module registry rather than written out, for the reason the IDOR fixtures assert
+    /// their own completeness: a hand-written list goes stale the first time a module is added, and it
+    /// goes stale SILENTLY — the theory keeps passing on the rows it still has. The list this replaced
+    /// named three contexts while the registry contributed six, so <c>SslDbContext</c>,
+    /// <c>DatabasesDbContext</c> and <c>SftpDbContext</c> had nothing asserting either that they
+    /// resolve or that they are scoped to one request.
+    /// </remarks>
+    /// <returns>The context types, one theory row each.</returns>
+    public static TheoryData<Type> ModuleDatabaseContexts()
+    {
+        var contexts = ModuleRegistry.All
+            .Select(module =>
+            {
+                return module.GetType().Assembly;
+            })
+            .Distinct()
+            .SelectMany(assembly =>
+            {
+                return assembly.GetTypes();
+            })
+            .Where(type =>
+            {
+                return typeof(DbContext).IsAssignableFrom(type) && !type.IsAbstract;
+            })
+            .OrderBy(type =>
+            {
+                return type.FullName;
+            }, StringComparer.Ordinal);
+
+        var rows = new TheoryData<Type>();
+        foreach (var context in contexts)
+        {
+            rows.Add(context);
+        }
+
+        return rows;
+    }
+
+    /// <summary>The registry contributes a database context for every compiled in module.</summary>
+    [Fact]
+    public void The_registry_contributes_a_database_context_for_every_compiled_in_module()
+    {
+        // A reflection-driven theory that finds nothing passes silently, which is the "no tests found
+        // is a failure" rule applied one level down (rules/testing.md). One context per module is the
+        // rule this product is built on — each module owns exactly one schema and one context
+        // (rules/architecture.md) — so the count is the assertion, not merely non-emptiness.
+        Assert.Equal(ModuleRegistry.All.Count, ModuleDatabaseContexts().Count);
+    }
+
     /// <summary>Every module database context resolves.</summary>
+    /// <param name="contextType">The module database context resolved from the container.</param>
     [Theory]
-    [InlineData(typeof(AccountsDbContext))]
-    [InlineData(typeof(IdentityDbContext))]
-    [InlineData(typeof(SitesDbContext))]
+    [MemberData(nameof(ModuleDatabaseContexts))]
     public void Every_module_database_context_resolves(Type contextType)
     {
         using var scope = _factory.Services.CreateScope();
@@ -88,9 +146,7 @@ public sealed class ContainerResolutionTests : IClassFixture<PanelTestFactory>
     /// </remarks>
     /// <param name="contextType">The module database context resolved from the container.</param>
     [Theory]
-    [InlineData(typeof(AccountsDbContext))]
-    [InlineData(typeof(IdentityDbContext))]
-    [InlineData(typeof(SitesDbContext))]
+    [MemberData(nameof(ModuleDatabaseContexts))]
     public void Every_module_database_context_is_scoped_to_one_request(Type contextType)
     {
         using var first = _factory.Services.CreateScope();
@@ -120,6 +176,9 @@ public sealed class ContainerResolutionTests : IClassFixture<PanelTestFactory>
     [InlineData(typeof(IAgentSitesClient), typeof(ResilientAgentSitesClient))]
     [InlineData(typeof(IAgentSslClient), typeof(ResilientAgentSslClient))]
     [InlineData(typeof(IAgentPhpClient), typeof(ResilientAgentPhpClient))]
+    [InlineData(typeof(IAgentFilesClient), typeof(ResilientAgentFilesClient))]
+    [InlineData(typeof(IAgentDbClient), typeof(ResilientAgentDbClient))]
+    [InlineData(typeof(IAgentSftpClient), typeof(ResilientAgentSftpClient))]
     public void Every_agent_client_resolves_wrapped_in_its_resilience_pipeline(Type serviceType, Type expectedType)
     {
         using var scope = _factory.Services.CreateScope();
@@ -127,6 +186,40 @@ public sealed class ContainerResolutionTests : IClassFixture<PanelTestFactory>
         var client = scope.ServiceProvider.GetRequiredService(serviceType);
 
         Assert.IsType(expectedType, client);
+    }
+
+    /// <summary>The database and sftp clients the container hands out apply the pipelines timeout.</summary>
+    /// <remarks>
+    /// The type check above says the decorator is in place; this says the decorator DOES something,
+    /// which is a different question and the one this repository got wrong before. The composed
+    /// decorator is re-created here around an inner client that never returns, using the container's
+    /// own <see cref="ResiliencePipelineProvider{TKey}"/> — the registry the host built, with the
+    /// host's configured operation timeout — so a pipeline registered without a timeout strategy, or
+    /// a decorator that forwards without executing through it, fails here rather than in production
+    /// as a request that never ends.
+    ///
+    /// The inner client cannot be substituted inside the container itself: the decoration happens
+    /// while <c>Program</c> registers services, and a test replacing the registration afterwards
+    /// would replace the decorator too, leaving nothing of the composition to test.
+    /// </remarks>
+    /// <returns>A task that completes when both calls have been abandoned.</returns>
+    [Fact]
+    public async Task The_database_and_sftp_clients_the_container_hands_out_apply_the_pipelines_timeout()
+    {
+        using var scope = _factory.Services.CreateScope();
+        var pipelines = scope.ServiceProvider.GetRequiredService<ResiliencePipelineProvider<string>>();
+
+        var database = new ResilientAgentDbClient(new RecordingAgentDbClient { Hangs = true }, pipelines);
+        var sftp = new ResilientAgentSftpClient(new RecordingAgentSftpClient { Hangs = true }, pipelines);
+
+        await Assert.ThrowsAsync<TimeoutRejectedException>(async () =>
+        {
+            await database.ListAsync("alice", default).WaitAsync(ComposedTimeoutDeadline);
+        });
+        await Assert.ThrowsAsync<TimeoutRejectedException>(async () =>
+        {
+            await sftp.DeleteAsync("alice", "web", default).WaitAsync(ComposedTimeoutDeadline);
+        });
     }
 
     /// <summary>Both named agent pipelines are registered.</summary>

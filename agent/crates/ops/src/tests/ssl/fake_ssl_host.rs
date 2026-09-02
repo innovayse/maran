@@ -22,7 +22,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
 use maran_agent_core::command_outcome::CommandOutcome;
-use maran_agent_core::validation::name::AccountName;
+use maran_agent_core::validation::system::name::AccountName;
 
 use crate::safe_write::model::{Reload, Validator};
 use crate::sites::fake_site_host::FakeSiteHost;

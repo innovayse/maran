@@ -16,6 +16,10 @@ export type NavigationIcon =
   | 'users'
   /** The sites module. */
   | 'earth'
+  /** The databases module. */
+  | 'database'
+  /** The SFTP module, whose logins open one directory and no other. */
+  | 'folderKey'
   /** The identity module, whose screens are the signed-in person's security ones. */
   | 'shieldCheck'
 

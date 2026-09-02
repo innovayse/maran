@@ -1,6 +1,6 @@
 //! InstallPhpVersion: adding one of the supported versions to this host.
 
-use maran_agent_core::validation::php_version::PhpVersion;
+use maran_agent_core::validation::web::php_version::PhpVersion;
 use maran_distro::DistroAdapter;
 
 use crate::php::list_php_versions::is_installed;

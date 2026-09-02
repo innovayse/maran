@@ -46,7 +46,7 @@ public sealed class CreateAccountCommandValidatorTests : IDisposable
     /// <summary>Builds a command that satisfies every rule, so a single field can be broken per test.</summary>
     private static CreateAccountCommand ValidCommand()
     {
-        return new("acme", "acme.example.com", SeededPlanId);
+        return new("acme", "acme.example.com", SeededPlanId, "203.0.113.7", "unit-tests");
     }
 
     /// <summary>Fully valid command passes every rule.</summary>

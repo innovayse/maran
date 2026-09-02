@@ -3,7 +3,7 @@
 use std::pin::Pin;
 use std::sync::Arc;
 
-use maran_agent_core::validation::php_version::PhpVersion;
+use maran_agent_core::validation::web::php_version::PhpVersion;
 use maran_ops::php::{self, PhpHost, PhpOpError};
 use tokio::sync::mpsc;
 use tokio_stream::Stream;

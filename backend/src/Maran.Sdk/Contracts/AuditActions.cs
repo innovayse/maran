@@ -40,6 +40,31 @@ public static class AuditActions
     /// <summary>The panel's first administrator was created from the installer's one-time token.</summary>
     public const string AdministratorCreated = "AdministratorCreated";
 
+    /// <summary>
+    /// A hosting account was created: its Linux user, home directory and disk quota now exist on
+    /// the host. Recorded on the refusals too, because a name or a domain already taken is how one
+    /// caller learns that another customer holds it.
+    /// </summary>
+    public const string AccountCreated = "AccountCreated";
+
+    /// <summary>
+    /// An account was suspended: its sites and services stopped while its data stayed. The event a
+    /// customer whose sites went dark needs explained, and the one a billing system produces.
+    /// </summary>
+    public const string AccountSuspended = "AccountSuspended";
+
+    /// <summary>An account's suspension was lifted and its sites and services put back.</summary>
+    public const string AccountReactivated = "AccountReactivated";
+
+    /// <summary>
+    /// An account was deleted, and with it its system user, its home directory, every database it
+    /// owned and every SFTP login it owned. The most destructive operation the panel offers and the
+    /// one nothing else leaves a trace of: after it, the account name is all that is left to search
+    /// for. Recorded on the refusals too — a deletion that got part-way through the cascade and then
+    /// failed is journalled as the failure it was.
+    /// </summary>
+    public const string AccountDeleted = "AccountDeleted";
+
     /// <summary>A site was created: its document root, vhost and pool now exist on the host.</summary>
     public const string SiteCreated = "SiteCreated";
 
@@ -60,6 +85,38 @@ public static class AuditActions
     /// caller may not read is a probe, and the journal is where a pattern of them becomes visible.
     /// </summary>
     public const string SiteLogTailed = "SiteLogTailed";
+
+    /// <summary>A database and its dedicated user were created on the MySQL server.</summary>
+    public const string DatabaseCreated = "DatabaseCreated";
+
+    /// <summary>A database and its dedicated user were dropped, and the customer's data with them.</summary>
+    public const string DatabaseDropped = "DatabaseDropped";
+
+    /// <summary>
+    /// A database user was given a new password. Recorded because it is the only recovery for a
+    /// credential nobody keeps a copy of, so a reset somebody else performed is exactly the event a
+    /// customer whose application stopped connecting needs explained. The entry names the database,
+    /// never the value.
+    /// </summary>
+    public const string DatabasePasswordReset = "DatabasePasswordReset";
+
+    /// <summary>An SFTP login was created on the host, jailed into its account's own chroot.</summary>
+    public const string SftpUserCreated = "SftpUserCreated";
+
+    /// <summary>
+    /// An SFTP login was removed. The account's files are NOT removed with it — the login's home is
+    /// the jail and the real home is bind-mounted inside it — so this entry records a revoked key
+    /// rather than deleted data, which is exactly the distinction an operator reading it needs.
+    /// </summary>
+    public const string SftpUserDeleted = "SftpUserDeleted";
+
+    /// <summary>
+    /// An SFTP login was given a new password. Recorded because it is the only recovery for a
+    /// credential nobody keeps a copy of, so a reset somebody else performed is exactly the event a
+    /// customer whose client stopped connecting needs explained. The entry names the login, never
+    /// the value.
+    /// </summary>
+    public const string SftpUserPasswordReset = "SftpUserPasswordReset";
 
     /// <summary>A certificate was ordered from a certificate authority and installed.</summary>
     public const string CertificateIssued = "CertificateIssued";

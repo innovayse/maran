@@ -1,7 +1,7 @@
 //! Every pool one account owns, taken away together.
 
-use maran_agent_core::validation::name::AccountName;
-use maran_agent_core::validation::php_version::PhpVersion;
+use maran_agent_core::validation::system::name::AccountName;
+use maran_agent_core::validation::web::php_version::PhpVersion;
 use maran_distro::DistroAdapter;
 
 use crate::php::remove_pool::remove_pool;

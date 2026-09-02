@@ -11,7 +11,7 @@ export const THE_PLAN: Plan = {
   diskQuotaMb: 5120,
   maxSites: 5,
   maxDatabases: 5,
-  maxFtpUsers: 5,
+  maxSftpUsers: 5,
 }
 
 /**
@@ -49,7 +49,7 @@ export const THREE_PLANS: Plan[] = [
     diskQuotaMb: 25600,
     maxSites: 25,
     maxDatabases: 10,
-    maxFtpUsers: 10,
+    maxSftpUsers: 10,
   },
   {
     id: '44444444-4444-4444-4444-444444444444',
@@ -57,6 +57,6 @@ export const THREE_PLANS: Plan[] = [
     diskQuotaMb: 1048576,
     maxSites: 500,
     maxDatabases: 500,
-    maxFtpUsers: 100,
+    maxSftpUsers: 100,
   },
 ]

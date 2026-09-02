@@ -124,17 +124,69 @@ RUN mkdir -p /run/maran /run/maran/php \
     && nginx -t \
     && rm -rf /tmp/maran-installer
 
+# MariaDB and OpenSSH, and — the same point again, for the two areas plan 4 adds —
+# the host preconditions obtained by RUNNING THE INSTALLER'S OWN STEP FILES.
+#
+# The package list is not written here: it comes from `mysql_packages_for_family`
+# in installer/lib/85-mysql.sh, so a package name that stops being right on this
+# family stops this build. What is asserted afterwards lives in
+# docker/polygon/assert-installer-steps.sh, identical for both families, which
+# runs the installer's own functions and checks what they left behind — including
+# the two loud refusals (a root password, a passwordless root) that no positive
+# test can reach.
+#
+# The ssh CLIENT is installed beside the server because the SFTP suite proves the
+# chroot by BEING REFUSED in a real session rather than by reading a config file,
+# and being refused requires logging in.
+#
+# Nothing is baked in running: MariaDB is started for the length of this one RUN
+# and shut down at the end of it, so the image ships a data directory rather than
+# a daemon and the suites start it in their own fixture. `ssh-keygen -A` and
+# /run/sshd are image setup too — sshd -t refuses to validate anything on a host
+# with no host keys and no privilege separation directory, and a container has
+# neither, both coming from tmpfiles and first-boot units no container runs.
+COPY installer/lib/85-mysql.sh /tmp/maran-installer/lib/85-mysql.sh
+COPY installer/lib/86-sftp.sh /tmp/maran-installer/lib/86-sftp.sh
+COPY docker/polygon/assert-installer-steps.sh /tmp/maran-installer/assert-installer-steps.sh
+RUN bash -c 'set -euo pipefail; \
+      export MARAN_OS_FAMILY=debian DEBIAN_FRONTEND=noninteractive; \
+      . /tmp/maran-installer/lib/85-mysql.sh; \
+      apt-get update; \
+      apt-get install -y --no-install-recommends openssh-server openssh-client $(mysql_packages_for_family); \
+      rm -rf /var/lib/apt/lists/*; \
+      getent passwd mysql >/dev/null || { echo "85-mysql.sh: mysql_packages_for_family produced no MariaDB SERVER package" >&2; exit 1; }; \
+      install -d -o mysql -g mysql -m 0755 /run/mysqld; \
+      ssh-keygen -A; \
+      install -d -m 0755 /run/sshd; \
+      mariadbd-safe --skip-networking --skip-syslog & \
+      for _ in $(seq 1 60); do mariadb-admin ping >/dev/null 2>&1 && break; sleep 1; done; \
+      MARAN_OS_FAMILY=debian bash /tmp/maran-installer/assert-installer-steps.sh; \
+      mariadb-admin shutdown' \
+    && rm -rf /tmp/maran-installer
+
 # A container has no init system, so the reload half of the config-write protocol
 # needs something to talk to. The stand-in explains itself and its limits.
 COPY docker/polygon/systemctl-stand-in.sh /usr/bin/systemctl
 # And a container has no filesystem quotas, which account creation applies.
-COPY docker/polygon/setquota-stand-in.sh /usr/local/bin/setquota
-RUN chmod 755 /usr/bin/systemctl /usr/local/bin/setquota
+COPY docker/polygon/setquota-stand-in.sh /usr/sbin/setquota
+RUN chmod 755 /usr/bin/systemctl /usr/sbin/setquota
 
 # Expected docker run invocation for the polygon suites, from the repository root:
 # docker run --rm -v "$PWD:/maran" -w /maran/agent maran-polygon-ubuntu24 \
 #   cargo test --test sites_on_a_real_host --test php_pools_on_a_real_host \
-#     --test privileges_on_a_real_host -- --ignored --test-threads=1
+#     --test privileges_on_a_real_host --test databases_on_a_real_host \
+#     -- --ignored --test-threads=1
+#
+# The SFTP suite needs one thing more, and it is worth saying why rather than
+# hiding it in a flag: it makes a REAL bind mount, which a container cannot do
+# without CAP_SYS_ADMIN and an unrestricted seccomp profile. That mount is the
+# point — without it the account's home is not inside the jail, and the suite
+# could not tell a working jail from an empty one. So:
+# docker run --rm --privileged -v "$PWD:/maran" -w /maran/agent maran-polygon-ubuntu24 \
+#   cargo test --test sftp_on_a_real_host -- --ignored --test-threads=1
+#
+# Run without --privileged it does not skip: the mount fails, create_sftp_user
+# returns JailFailed, and the suite goes red.
 #
 # And for the agent itself, which is still built on the host and mounted:
 # docker run --rm -v "$PWD/agent/target/debug/maran-agent:/usr/local/bin/maran-agent:ro" maran-polygon-ubuntu24 maran-agent --socket /run/maran/agent.sock --allow-uid 0

@@ -486,7 +486,13 @@ public sealed class CreateSiteCommandHandlerTests
             Php = phpFailure is null
                 ? new RecordingAgentPhpClient(installedPhp ?? ["8.3"])
                 : new RecordingAgentPhpClient(phpFailure);
-            Accounts = new StubAccountDirectory(new AccountSnapshot(accountId, "acme", maxSites, MaxPhpWorkersPerPool: 10));
+            Accounts = new StubAccountDirectory(new AccountSnapshot(
+                accountId,
+                "acme",
+                maxSites,
+                MaxDatabases: 2,
+                MaxSftpUsers: 3,
+                MaxPhpWorkersPerPool: 10));
         }
 
         /// <summary>Builds the handler under test.</summary>

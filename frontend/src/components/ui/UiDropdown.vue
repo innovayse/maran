@@ -21,6 +21,19 @@
  * viewport, so a menu that only ever opened downwards was unreachable there —
  * and the decision belongs here rather than at that one call site, because
  * every future footer menu has the same problem.
+ *
+ * The panel is rendered into `body` and positioned in viewport coordinates,
+ * NOT next to the trigger in the document. A menu absolutely positioned inside
+ * its trigger's box is clipped by any ancestor that scrolls, and the panel's
+ * own tables are exactly that: `UiTable` scrolls horizontally inside its own
+ * container so a wide table never moves the page sideways. A row's actions menu
+ * opened there was cut off at the container's edge — the first command was half
+ * visible and the second was not on screen at all. Escaping the ancestor is the
+ * only fix that does not give up the table's own scrolling.
+ *
+ * The cost of leaving the document flow is that the panel no longer travels
+ * with its trigger, so it closes on any scroll rather than drifting away from
+ * the control it belongs to.
  */
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, useId, type ComputedRef, type Ref } from 'vue'
 import UiIcon from './UiIcon.vue'
@@ -34,6 +47,9 @@ export type UiDropdownVariant = 'button' | 'bare'
 
 /** Which side of the trigger the panel is currently drawn on. */
 type UiDropdownSide = 'below' | 'above'
+
+/** Gap in CSS pixels between the trigger and the panel. */
+const TRIGGER_GAP = 4
 
 /**
  * Gap in CSS pixels kept between the panel and the viewport edge when deciding
@@ -95,6 +111,15 @@ const triggerElement: Ref<HTMLButtonElement | null> = ref(null)
 const menuElement: Ref<HTMLElement | null> = ref(null)
 
 /**
+ * The panel's viewport coordinates while it is open.
+ *
+ * Held as numbers rather than as classes because the panel is positioned
+ * against the trigger's measured box, and no set of utility classes can express
+ * "wherever that element happens to be right now".
+ */
+const panelOffset: Ref<{ top: number; left: number }> = ref({ top: 0, left: 0 })
+
+/**
  * Which side the panel is drawn on. Starts below and is re-decided from real
  * measurements every time the panel opens; it is never read from a prop,
  * because only the browser knows how much room the trigger has at that moment.
@@ -108,9 +133,12 @@ const triggerClasses: ComputedRef<string> = computed(() => {
     : 'rounded-lg border border-border-subtle bg-surface-2 px-4 py-2 font-medium enabled:hover:border-border-strong enabled:hover:bg-surface-3'
 })
 
-/** Classes placing the panel above or below the trigger, per the measured {@link side}. */
-const panelClasses: ComputedRef<string> = computed(() => {
-  return side.value === 'above' ? 'bottom-full mb-1' : 'top-full mt-1'
+/** Inline placement of the panel, in viewport coordinates. */
+const panelStyle: ComputedRef<Record<string, string>> = computed(() => {
+  return {
+    top: `${panelOffset.value.top}px`,
+    left: `${panelOffset.value.left}px`,
+  }
 })
 
 /**
@@ -132,11 +160,27 @@ const updateSide = (): void => {
   }
 
   const triggerRect = trigger.getBoundingClientRect()
-  const panelHeight = panel.getBoundingClientRect().height
+  const panelRect = panel.getBoundingClientRect()
   const roomBelow = window.innerHeight - triggerRect.bottom - VIEWPORT_MARGIN
   const roomAbove = triggerRect.top - VIEWPORT_MARGIN
 
-  side.value = panelHeight > roomBelow && roomAbove > roomBelow ? 'above' : 'below'
+  side.value = panelRect.height > roomBelow && roomAbove > roomBelow ? 'above' : 'below'
+
+  // `end` aligns the panel's right edge with the trigger's, which is what keeps
+  // a menu in the last column of a table from opening off the right of the
+  // viewport. Both edges are then clamped, because a trigger near an edge can
+  // put a wide panel outside the viewport whichever way it is aligned.
+  const preferredLeft =
+    props.align === 'end' ? triggerRect.right - panelRect.width : triggerRect.left
+  const furthestLeft = window.innerWidth - panelRect.width - VIEWPORT_MARGIN
+  const left = Math.max(VIEWPORT_MARGIN, Math.min(preferredLeft, furthestLeft))
+
+  const top =
+    side.value === 'above'
+      ? triggerRect.top - panelRect.height - TRIGGER_GAP
+      : triggerRect.bottom + TRIGGER_GAP
+
+  panelOffset.value = { top, left }
 }
 
 /**
@@ -164,7 +208,10 @@ const focusItemAt = (index: number): void => {
     return
   }
   const clamped = Math.min(Math.max(index, 0), menuItems.length - 1)
-  menuItems[clamped]?.focus()
+  // `preventScroll` because the browser scrolls an off-screen focus target into
+  // view, and this component now closes on ANY scroll: focusing the first item
+  // could scroll an ancestor and dismiss the menu in the same frame it opened.
+  menuItems[clamped]?.focus({ preventScroll: true })
 }
 
 /**
@@ -178,6 +225,10 @@ const open = async (edge: 'first' | 'last'): Promise<void> => {
     return
   }
   isOpen.value = true
+  // Bound here rather than on mount: a table of twenty rows is twenty triggers,
+  // and twenty listeners on every scroll frame is work done for a panel that is
+  // not on screen.
+  window.addEventListener('scroll', onAnyScroll, true)
   await nextTick()
   // The panel has to exist before it can be measured, so the side is decided
   // after the flush rather than from an estimate of its height.
@@ -191,6 +242,7 @@ const open = async (edge: 'first' | 'last'): Promise<void> => {
  */
 const close = (): void => {
   isOpen.value = false
+  window.removeEventListener('scroll', onAnyScroll, true)
   triggerElement.value?.focus()
 }
 
@@ -202,6 +254,7 @@ const close = (): void => {
  */
 const dismiss = (): void => {
   isOpen.value = false
+  window.removeEventListener('scroll', onAnyScroll, true)
 }
 
 /**
@@ -243,6 +296,20 @@ const onMenuClick = (): void => {
 }
 
 /**
+ * Whether a node belongs to this dropdown — its trigger or its panel.
+ *
+ * The panel is teleported into `body`, so it is NOT a descendant of the
+ * component's root element. Asking the root alone, as this used to, would
+ * report every click and every focus inside the open menu as "outside" and
+ * dismiss the menu the moment it was used.
+ * @param node The node to test.
+ * @returns True when the node is inside the trigger's box or the panel.
+ */
+const containsNode = (node: Node): boolean => {
+  return rootElement.value?.contains(node) === true || menuElement.value?.contains(node) === true
+}
+
+/**
  * Closes the panel when focus leaves the component entirely (a Tab out of the
  * last item), which is the menu pattern's expected dismissal.
  * @param event The native focusout event.
@@ -250,7 +317,7 @@ const onMenuClick = (): void => {
  */
 const onFocusOut = (event: FocusEvent): void => {
   const next = event.relatedTarget
-  if (next instanceof Node && rootElement.value?.contains(next) === true) {
+  if (next instanceof Node && containsNode(next)) {
     return
   }
   dismiss()
@@ -267,7 +334,7 @@ const onDocumentMouseDown = (event: MouseEvent): void => {
     return
   }
   const target = event.target
-  if (target instanceof Node && rootElement.value?.contains(target) === true) {
+  if (target instanceof Node && containsNode(target)) {
     return
   }
   dismiss()
@@ -286,6 +353,24 @@ const onViewportResize = (): void => {
   updateSide()
 }
 
+/**
+ * Closes an open panel when anything scrolls.
+ *
+ * A panel positioned in viewport coordinates does not move with its trigger, so
+ * a scroll would leave the menu floating beside a control that is no longer
+ * there. Closing is the honest answer: re-measuring on every scroll frame buys
+ * a behaviour nobody asked for at the cost of layout work on a hot path.
+ *
+ * Bound in the capture phase so it also sees scrolling inside a container —
+ * a scroll event on an element does not bubble to the document.
+ * @returns Nothing; state updates synchronously.
+ */
+const onAnyScroll = (): void => {
+  if (isOpen.value) {
+    dismiss()
+  }
+}
+
 onMounted((): void => {
   document.addEventListener('mousedown', onDocumentMouseDown)
   window.addEventListener('resize', onViewportResize)
@@ -294,6 +379,9 @@ onMounted((): void => {
 onBeforeUnmount((): void => {
   document.removeEventListener('mousedown', onDocumentMouseDown)
   window.removeEventListener('resize', onViewportResize)
+  // Also here, because a component unmounted while its panel is open — a row
+  // removed from the table under an open menu — never reaches `close`.
+  window.removeEventListener('scroll', onAnyScroll, true)
 })
 </script>
 
@@ -332,22 +420,27 @@ onBeforeUnmount((): void => {
       </slot>
       <UiIcon v-if="chevron" name="chevronDown" size="sm" class="text-text-muted" />
     </button>
-    <ul
-      v-if="isOpen"
-      :id="menuId"
-      ref="menuElement"
-      role="menu"
-      :aria-labelledby="triggerId"
-      class="absolute z-10 min-w-48 rounded-lg border border-border-strong bg-surface-2 p-1.5 shadow-[0_12px_32px_rgb(0_0_0/0.4)]"
-      :class="[align === 'end' ? 'right-0' : 'left-0', panelClasses]"
-      @click="onMenuClick"
-      @keydown.down.prevent="moveFocus(1)"
-      @keydown.up.prevent="moveFocus(-1)"
-      @keydown.home.prevent="focusItemAt(0)"
-      @keydown.end.prevent="focusItemAt(items().length - 1)"
-      @keydown.esc.prevent="close"
-    >
-      <slot />
-    </ul>
+    <!-- Teleported so no scrolling ancestor can clip it; see this component's
+         header. `fixed` because the coordinates are the viewport's. -->
+    <Teleport to="body">
+      <ul
+        v-if="isOpen"
+        :id="menuId"
+        ref="menuElement"
+        role="menu"
+        :aria-labelledby="triggerId"
+        class="fixed z-50 min-w-48 rounded-lg border border-border-strong bg-surface-2 p-1.5 shadow-[0_12px_32px_rgb(0_0_0/0.4)]"
+        :style="panelStyle"
+        @click="onMenuClick"
+        @focusout="onFocusOut"
+        @keydown.down.prevent="moveFocus(1)"
+        @keydown.up.prevent="moveFocus(-1)"
+        @keydown.home.prevent="focusItemAt(0)"
+        @keydown.end.prevent="focusItemAt(items().length - 1)"
+        @keydown.esc.prevent="close"
+      >
+        <slot />
+      </ul>
+    </Teleport>
   </div>
 </template>

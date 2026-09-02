@@ -24,4 +24,7 @@
   <data name="PlanNotFound">
     <value>Սակագինը չի գտնվել։</value>
   </data>
+  <data name="AccountCleanupFailed">
+    <value>Հաշիվը չի ջնջվել․ չհաջողվեց նախ հեռացնել դրան պատկանողը։ Ոչինչ չի փոխվել, փորձեք կրկին։</value>
+  </data>
 </root>

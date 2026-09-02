@@ -4,8 +4,10 @@ use std::os::unix::fs::{DirBuilderExt, PermissionsExt};
 use std::path::Path;
 
 use maran_ops::accounts::{AccountOperations, ProcessSystemHost};
+use maran_ops::db::ProcessDbHost;
 use maran_ops::files::ProcessFilesHost;
 use maran_ops::php::ProcessPhpHost;
+use maran_ops::sftp::ProcessSftpHost;
 use maran_ops::sites::ProcessSiteHost;
 use maran_ops::ssl::ProcessSslHost;
 use tokio::net::UnixListener;
@@ -15,14 +17,18 @@ use tonic::transport::Server;
 use crate::error::StartupError;
 use crate::peercred::{PeerGuard, PeerPolicy};
 use crate::proto::accounts_service_server::AccountsServiceServer;
+use crate::proto::db_service_server::DbServiceServer;
 use crate::proto::files_service_server::FilesServiceServer;
 use crate::proto::php_service_server::PhpServiceServer;
+use crate::proto::sftp_service_server::SftpServiceServer;
 use crate::proto::sites_service_server::SitesServiceServer;
 use crate::proto::ssl_service_server::SslServiceServer;
 use crate::proto::system_service_server::SystemServiceServer;
 use crate::services::accounts::accounts_service::AccountsServiceImpl;
+use crate::services::db::db_service::DbServiceImpl;
 use crate::services::files::files_service::FilesServiceImpl;
 use crate::services::php::php_service::PhpServiceImpl;
+use crate::services::sftp::sftp_service::SftpServiceImpl;
 use crate::services::sites::sites_service::SitesServiceImpl;
 use crate::services::ssl::ssl_service::SslServiceImpl;
 use crate::services::system::system_service::SystemServiceImpl;
@@ -94,8 +100,10 @@ pub async fn serve(socket_path: &Path, policy: PeerPolicy) -> Result<(), Startup
         // that can open the socket, whatever the others require.
         .add_service(AccountsServiceServer::with_interceptor(
             AccountsServiceImpl::new(
-                AccountOperations::new(ProcessSystemHost::new(), adapter),
+                AccountOperations::new(ProcessSystemHost::new(adapter), adapter),
                 ProcessPhpHost::new(),
+                ProcessDbHost::new(adapter),
+                ProcessSftpHost::new(),
             ),
             PeerGuard::new(policy),
         ))
@@ -118,6 +126,18 @@ pub async fn serve(socket_path: &Path, policy: PeerPolicy) -> Result<(), Startup
         // here, and there is not.
         .add_service(FilesServiceServer::with_interceptor(
             FilesServiceImpl::new(ProcessFilesHost::new()),
+            PeerGuard::new(policy),
+        ))
+        // No distro adapter either, and for the same kind of reason: the one
+        // platform fact the database area needs is the client's path, and
+        // `ProcessDbHost` takes it from the adapter at construction. Nothing an
+        // rpc does afterwards depends on the family.
+        .add_service(DbServiceServer::with_interceptor(
+            DbServiceImpl::new(ProcessDbHost::new(adapter)),
+            PeerGuard::new(policy),
+        ))
+        .add_service(SftpServiceServer::with_interceptor(
+            SftpServiceImpl::new(ProcessSftpHost::new(), adapter),
             PeerGuard::new(policy),
         ))
         .serve_with_incoming(UnixListenerStream::new(listener))

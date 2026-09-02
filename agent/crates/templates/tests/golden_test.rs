@@ -13,6 +13,7 @@ use maran_templates::nginx::static_site::StaticSite;
 use maran_templates::nginx::suspended_site::SuspendedSite;
 use maran_templates::php_fpm::pool::Pool;
 use maran_templates::php_fpm::pool_override::PoolOverride;
+use maran_templates::systemd::unit::MountUnit;
 
 /// Reads a golden by the name of the render type that produces it.
 fn golden(relative: &str) -> String {
@@ -165,4 +166,18 @@ fn a_pool_renders_its_golden() {
     };
 
     assert_eq!(pool.render_config().unwrap(), golden("php_fpm/pool.conf"));
+}
+
+#[test]
+fn a_jail_mount_unit_renders_its_golden() {
+    let unit = MountUnit {
+        account: "acme",
+        source_directory: "/home/acme",
+        mount_point: "/var/lib/maran/sftp/acme/home",
+    };
+
+    assert_eq!(
+        unit.render_config().unwrap(),
+        golden("systemd/mount_unit.mount")
+    );
 }

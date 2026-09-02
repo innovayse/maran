@@ -6,8 +6,8 @@ use std::process::Command;
 use maran_agent_core::privs::account_ids::AccountIds;
 use maran_agent_core::privs::fork_as_account::fork_as_account;
 use maran_agent_core::privs::priv_error::PrivError;
-use maran_agent_core::validation::name::AccountName;
-use maran_agent_core::validation::path::resolve_in_home;
+use maran_agent_core::validation::fs::path::resolve_in_home;
+use maran_agent_core::validation::system::name::AccountName;
 
 use crate::safe_write::model::{Reload, Validator};
 use crate::safe_write::{CommandOutcome, ConfigHost, SafeWriteError, remove_config, write_config};

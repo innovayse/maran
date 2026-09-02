@@ -1,5 +1,7 @@
 using Maran.Modules.Accounts;
+using Maran.Modules.Databases;
 using Maran.Modules.Identity;
+using Maran.Modules.Sftp;
 using Maran.Modules.Sites;
 using Maran.Modules.Ssl;
 using Maran.Sdk.Interfaces;
@@ -20,5 +22,12 @@ public static class ModuleRegistry
     /// container enforces.
     /// </summary>
     public static IReadOnlyList<IPanelModule> All { get; } =
-        [new IdentityModule(), new AccountsModule(), new SitesModule(), new SslModule()];
+        [
+            new IdentityModule(),
+            new AccountsModule(),
+            new SitesModule(),
+            new SslModule(),
+            new DatabasesModule(),
+            new SftpModule(),
+        ];
 }

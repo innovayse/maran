@@ -13,8 +13,8 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use maran_agent_core::validation::domain::Domain;
-use maran_agent_core::validation::name::AccountName;
+use maran_agent_core::validation::system::name::AccountName;
+use maran_agent_core::validation::web::domain::Domain;
 
 use crate::sites::fake_site_host::{CANONICAL_HOME_ROOT, FakeSiteHost, php_input};
 use crate::sites::log_sink::LogSink;

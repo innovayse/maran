@@ -32,6 +32,8 @@ export const NO_LANDING_ROUTE = null
 const LANDING_ROUTES: Readonly<Record<string, string | typeof NO_LANDING_ROUTE>> = {
   accounts: 'accounts',
   sites: 'sites',
+  databases: 'databases',
+  sftp: 'sftp-users',
   // The Identity module's own screens are the signed-in user's security ones. Sessions is the
   // first of them and the one that answers "who is in my panel right now".
   identity: 'sessions',

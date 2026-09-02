@@ -28,9 +28,11 @@ public sealed class ModulesEndpointTests : IClassFixture<PanelTestFactory>
         Assert.Equal(JsonValueKind.Array, body.RootElement.ValueKind);
     }
 
-    /// <summary>Module catalogue lists identity first then accounts then sites then ssl.</summary>
+    /// <summary>
+    /// Module catalogue lists identity first then accounts then sites then ssl then databases then sftp.
+    /// </summary>
     [Fact]
-    public async Task Module_catalogue_lists_identity_first_then_accounts_then_sites_then_ssl()
+    public async Task Module_catalogue_lists_identity_first_then_accounts_then_sites_then_ssl_then_databases_then_sftp()
     {
         using var client = _factory.CreateClient();
 
@@ -43,7 +45,7 @@ public sealed class ModulesEndpointTests : IClassFixture<PanelTestFactory>
         }).ToList();
 
         // Load order is what the registry promises, and Identity owning sign-in is why it leads.
-        Assert.Equal(["identity", "accounts", "sites", "ssl"], names);
+        Assert.Equal(["identity", "accounts", "sites", "ssl", "databases", "sftp"], names);
     }
 
     /// <summary>Every compiled in module publishes a tier a state and a translated display name.</summary>
@@ -52,6 +54,8 @@ public sealed class ModulesEndpointTests : IClassFixture<PanelTestFactory>
     [InlineData("accounts")]
     [InlineData("sites")]
     [InlineData("ssl")]
+    [InlineData("databases")]
+    [InlineData("sftp")]
     public async Task Every_compiled_in_module_publishes_a_tier_a_state_and_a_translated_display_name(string name)
     {
         using var client = _factory.CreateClient();

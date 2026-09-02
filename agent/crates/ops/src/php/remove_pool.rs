@@ -1,7 +1,7 @@
 //! Taking one php-fpm pool away through the same protocol that writes one.
 
-use maran_agent_core::validation::name::AccountName;
-use maran_agent_core::validation::php_version::PhpVersion;
+use maran_agent_core::validation::system::name::AccountName;
+use maran_agent_core::validation::web::php_version::PhpVersion;
 use maran_distro::DistroAdapter;
 
 use crate::php::model::pool_paths::PoolPaths;

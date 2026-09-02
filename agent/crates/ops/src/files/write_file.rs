@@ -55,7 +55,7 @@ use crate::files::{FilesHost, FilesOpError};
 ///
 /// There is no mode check here either, and its absence is the same kind of
 /// design: `mode` is a
-/// [`FileMode`](maran_agent_core::validation::file_mode::FileMode), which cannot
+/// [`FileMode`](maran_agent_core::validation::fs::file_mode::FileMode), which cannot
 /// be constructed from anything but plain permission bits.
 ///
 /// # Errors

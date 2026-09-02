@@ -1,0 +1,61 @@
+{
+  "databases": {
+    "list": {
+      "heading": "Databases",
+      "subtitle": "MySQL databases and their dedicated users.",
+      "prefixNote": "Every database and user carries the owning account's name as a prefix. The names below are exactly what MySQL holds — use them as they are.",
+      "loading": "Loading databases…",
+      "emptyTitle": "No databases yet",
+      "emptyDescription": "Create the first database above. Its password is shown once, when it is created.",
+      "tableCaption": "MySQL databases",
+      "columns": {
+        "fullName": "Database",
+        "dbUserName": "User",
+        "account": "Account",
+        "createdAt": "Created",
+        "actions": "Actions"
+      },
+      "unknownAccount": "—",
+      "resetPassword": "Reset password",
+      "drop": "Drop",
+      "confirmResetPassword": "Set a new password? The current one stops working immediately.",
+      "confirmDrop": "Drop this database? Its tables and its user go with it, and nothing here can bring them back.",
+      "confirm": "Yes, do it",
+      "cancel": "Cancel",
+      "working": "Working…",
+      "rowActions": "Actions for {name}"
+    },
+    "form": {
+      "fields": {
+        "accountId": "Account",
+        "name": "Database name",
+        "dbUserName": "User name"
+      },
+      "placeholders": {
+        "name": "shop",
+        "dbUserName": "shop"
+      },
+      "hint": "Lowercase letters and digits only. The account's name is added in front of both.",
+      "submit": "Create database",
+      "errors": {
+        "accountRequired": "Choose the account that will own the database.",
+        "nameRequired": "Database name is required.",
+        "nameInvalid": "Use lowercase letters and digits only, up to 30 characters.",
+        "dbUserNameRequired": "User name is required.",
+        "dbUserNameInvalid": "Use lowercase letters and digits only, up to 30 characters."
+      }
+    },
+    "credential": {
+      "title": "Database password",
+      "close": "Close",
+      "warning": "This password is shown once. Nothing keeps a copy of it — not this panel, not the server — so it cannot be shown again. Copy it before you close this.",
+      "databaseLabel": "Database",
+      "loginLabel": "User",
+      "passwordLabel": "Password",
+      "copy": "Copy password",
+      "copied": "Copied",
+      "done": "Done",
+      "resetHint": "If it is lost, reset the password from the list. That is the only way back — there is nothing to recover."
+    }
+  }
+}

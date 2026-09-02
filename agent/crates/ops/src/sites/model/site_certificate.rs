@@ -3,7 +3,7 @@
 use std::path::{Path, PathBuf};
 
 use maran_agent_core::agent_paths::AgentPaths;
-use maran_agent_core::validation::domain::Domain;
+use maran_agent_core::validation::web::domain::Domain;
 
 /// Where a site's installed certificate and private key are on disk.
 ///

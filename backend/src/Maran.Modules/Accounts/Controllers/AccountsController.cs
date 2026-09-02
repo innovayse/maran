@@ -31,6 +31,9 @@ namespace Maran.Modules.Accounts.Controllers;
 [EnableRateLimiting(RateLimitPolicies.Api)]
 public sealed class AccountsController : BaseApiController
 {
+    /// <summary>Recorded when the connection reports no remote address, as in a test host.</summary>
+    private const string UnknownIpAddress = "unknown";
+
     /// <summary>The message bus commands and queries are dispatched through.</summary>
     private readonly IMessageBus _bus;
 
@@ -76,7 +79,8 @@ public sealed class AccountsController : BaseApiController
         [FromBody] CreateAccountRequest request,
         CancellationToken cancellationToken)
     {
-        var command = new CreateAccountCommand(request.Name, request.PrimaryDomain, request.PlanId);
+        var command = new CreateAccountCommand(
+            request.Name, request.PrimaryDomain, request.PlanId, IpAddress(), UserAgent());
         var result = await _bus.InvokeAsync<Result<AccountDto>>(command, cancellationToken);
         return ToCreatedActionResult(result, $"/api/v1/accounts/{(result.IsSuccess ? result.Value.Id : Guid.Empty)}");
     }
@@ -92,7 +96,8 @@ public sealed class AccountsController : BaseApiController
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> SuspendAsync(Guid id, CancellationToken cancellationToken)
     {
-        var result = await _bus.InvokeAsync<Result<AccountDto>>(new SuspendAccountCommand(id), cancellationToken);
+        var command = new SuspendAccountCommand(id, IpAddress(), UserAgent());
+        var result = await _bus.InvokeAsync<Result<AccountDto>>(command, cancellationToken);
         return ToActionResult(result);
     }
 
@@ -104,7 +109,8 @@ public sealed class AccountsController : BaseApiController
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> ReactivateAsync(Guid id, CancellationToken cancellationToken)
     {
-        var result = await _bus.InvokeAsync<Result<AccountDto>>(new ReactivateAccountCommand(id), cancellationToken);
+        var command = new ReactivateAccountCommand(id, IpAddress(), UserAgent());
+        var result = await _bus.InvokeAsync<Result<AccountDto>>(command, cancellationToken);
         return ToActionResult(result);
     }
 
@@ -116,7 +122,8 @@ public sealed class AccountsController : BaseApiController
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> DeleteAsync(Guid id, CancellationToken cancellationToken)
     {
-        var result = await _bus.InvokeAsync<Result<ulong>>(new DeleteAccountCommand(id), cancellationToken);
+        var command = new DeleteAccountCommand(id, IpAddress(), UserAgent());
+        var result = await _bus.InvokeAsync<Result<ulong>>(command, cancellationToken);
         return ToActionResult(result);
     }
 
@@ -136,5 +143,19 @@ public sealed class AccountsController : BaseApiController
     {
         var result = await _bus.InvokeAsync<Result<IReadOnlyList<PlanDto>>>(new ListPlansQuery(), cancellationToken);
         return ToActionResult(result);
+    }
+
+    /// <summary>Reads the caller's address from the connection, never from a header a caller controls.</summary>
+    /// <returns>The remote address, or <see cref="UnknownIpAddress"/> when the connection reports none.</returns>
+    private string IpAddress()
+    {
+        return HttpContext.Connection.RemoteIpAddress?.ToString() ?? UnknownIpAddress;
+    }
+
+    /// <summary>Reads the caller's user agent for the audit journal.</summary>
+    /// <returns>The <c>User-Agent</c> header, or the empty string when absent.</returns>
+    private string UserAgent()
+    {
+        return HttpContext.Request.Headers.UserAgent.ToString();
     }
 }

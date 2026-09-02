@@ -25,7 +25,7 @@
 //!   account and have exactly one link.
 //! - **A swapped directory.** `rmdir logs && ln -s /somewhere logs` between two
 //!   polls redirects every later open, and `O_NOFOLLOW` never sees an
-//!   intermediate component. `crate::validation::path`'s own documentation
+//!   intermediate component. `crate::validation::fs::path`'s own documentation
 //!   names this: *"resolving and then reopening by the original path would
 //!   reintroduce the race this function exists to close."* So the directory is
 //!   opened ONCE and the log is reached through that descriptor with

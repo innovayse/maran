@@ -1,5 +1,6 @@
 using Maran.Modules.Accounts.Commands.ReactivateAccount;
 using Maran.Modules.Accounts.Commands.SuspendAccount;
+using Maran.Modules.Accounts.Common;
 using Maran.Modules.Accounts.Domain;
 using Maran.Modules.Accounts.Domain.Enums;
 using Maran.Modules.Accounts.Persistence;
@@ -18,8 +19,20 @@ public sealed class AccountSuspensionTests : IDisposable
 {
     private static readonly DateTimeOffset Now = new(2026, 8, 30, 12, 0, 0, TimeSpan.Zero);
 
+    /// <summary>The caller address every command in this file carries.</summary>
+    private const string Ip = "203.0.113.7";
+
+    /// <summary>The user agent every command in this file carries.</summary>
+    private const string Client = "unit-tests";
+
     private readonly AccountsDbContext _context = CreateDbContext();
     private readonly RecordingAgentAccountsClient _agent = new();
+
+    /// <summary>Builds a journal writing into a writer nothing asserts on; the audit tests do that.</summary>
+    private static AccountAuditJournal Journal()
+    {
+        return new AccountAuditJournal(new RecordingAuditWriter(), FakeCurrentUser.Admin());
+    }
 
     private static AccountsDbContext CreateDbContext()
     {
@@ -49,8 +62,8 @@ public sealed class AccountSuspensionTests : IDisposable
     {
         var account = await SeedAsync();
 
-        var result = await new SuspendAccountCommandHandler(_context, _agent).HandleAsync(
-            new SuspendAccountCommand(account.Id), CancellationToken.None);
+        var result = await new SuspendAccountCommandHandler(_context, _agent, Journal()).HandleAsync(
+            new SuspendAccountCommand(account.Id, Ip, Client), CancellationToken.None);
 
         Assert.Equal(AccountStatus.Suspended, result.Value.Status);
         Assert.Equal(AccountStatus.Suspended, (await _context.Accounts.SingleAsync()).Status);
@@ -63,10 +76,11 @@ public sealed class AccountSuspensionTests : IDisposable
         // A billing system calls this on every overdue invoice; an error on the second call would
         // make the caller track state the panel already holds.
         var account = await SeedAsync();
-        var handler = new SuspendAccountCommandHandler(_context, _agent);
-        await handler.HandleAsync(new SuspendAccountCommand(account.Id), CancellationToken.None);
+        var handler = new SuspendAccountCommandHandler(_context, _agent, Journal());
+        await handler.HandleAsync(new SuspendAccountCommand(account.Id, Ip, Client), CancellationToken.None);
 
-        var result = await handler.HandleAsync(new SuspendAccountCommand(account.Id), CancellationToken.None);
+        var result = await handler.HandleAsync(
+            new SuspendAccountCommand(account.Id, Ip, Client), CancellationToken.None);
 
         Assert.True(result.IsSuccess);
         Assert.Equal(AccountStatus.Suspended, result.Value.Status);
@@ -77,11 +91,11 @@ public sealed class AccountSuspensionTests : IDisposable
     public async Task Reactivating_a_suspended_account_puts_it_back()
     {
         var account = await SeedAsync();
-        await new SuspendAccountCommandHandler(_context, _agent).HandleAsync(
-            new SuspendAccountCommand(account.Id), CancellationToken.None);
+        await new SuspendAccountCommandHandler(_context, _agent, Journal()).HandleAsync(
+            new SuspendAccountCommand(account.Id, Ip, Client), CancellationToken.None);
 
-        var result = await new ReactivateAccountCommandHandler(_context, _agent).HandleAsync(
-            new ReactivateAccountCommand(account.Id), CancellationToken.None);
+        var result = await new ReactivateAccountCommandHandler(_context, _agent, Journal()).HandleAsync(
+            new ReactivateAccountCommand(account.Id, Ip, Client), CancellationToken.None);
 
         Assert.Equal(AccountStatus.Active, result.Value.Status);
     }
@@ -92,8 +106,8 @@ public sealed class AccountSuspensionTests : IDisposable
     {
         var account = await SeedAsync();
 
-        await new SuspendAccountCommandHandler(_context, _agent).HandleAsync(
-            new SuspendAccountCommand(account.Id), CancellationToken.None);
+        await new SuspendAccountCommandHandler(_context, _agent, Journal()).HandleAsync(
+            new SuspendAccountCommand(account.Id, Ip, Client), CancellationToken.None);
 
         var stored = await _context.Accounts.SingleAsync();
         Assert.Equal("acme", stored.Name);
@@ -105,8 +119,8 @@ public sealed class AccountSuspensionTests : IDisposable
     [Fact]
     public async Task Suspending_an_account_that_does_not_exist_answers_not_found()
     {
-        var result = await new SuspendAccountCommandHandler(_context, _agent).HandleAsync(
-            new SuspendAccountCommand(Guid.NewGuid()), CancellationToken.None);
+        var result = await new SuspendAccountCommandHandler(_context, _agent, Journal()).HandleAsync(
+            new SuspendAccountCommand(Guid.NewGuid(), Ip, Client), CancellationToken.None);
 
         Assert.Equal("AccountNotFound", result.Error!.Code);
     }
@@ -115,8 +129,8 @@ public sealed class AccountSuspensionTests : IDisposable
     [Fact]
     public async Task Reactivating_an_account_that_does_not_exist_answers_not_found()
     {
-        var result = await new ReactivateAccountCommandHandler(_context, _agent).HandleAsync(
-            new ReactivateAccountCommand(Guid.NewGuid()), CancellationToken.None);
+        var result = await new ReactivateAccountCommandHandler(_context, _agent, Journal()).HandleAsync(
+            new ReactivateAccountCommand(Guid.NewGuid(), Ip, Client), CancellationToken.None);
 
         Assert.Equal("AccountNotFound", result.Error!.Code);
     }
@@ -127,8 +141,8 @@ public sealed class AccountSuspensionTests : IDisposable
     {
         var account = await SeedAsync();
 
-        await new SuspendAccountCommandHandler(_context, _agent).HandleAsync(
-            new SuspendAccountCommand(account.Id), CancellationToken.None);
+        await new SuspendAccountCommandHandler(_context, _agent, Journal()).HandleAsync(
+            new SuspendAccountCommand(account.Id, Ip, Client), CancellationToken.None);
 
         Assert.Equal(["suspend:acme"], _agent.Calls);
     }
@@ -142,8 +156,8 @@ public sealed class AccountSuspensionTests : IDisposable
         var account = await SeedAsync();
         var refusing = new RecordingAgentAccountsClient(Error.Of("AgentSystemFailure"));
 
-        var result = await new SuspendAccountCommandHandler(_context, refusing).HandleAsync(
-            new SuspendAccountCommand(account.Id), CancellationToken.None);
+        var result = await new SuspendAccountCommandHandler(_context, refusing, Journal()).HandleAsync(
+            new SuspendAccountCommand(account.Id, Ip, Client), CancellationToken.None);
 
         Assert.False(result.IsSuccess);
         Assert.Equal("AgentSystemFailure", result.Error!.Code);
@@ -154,8 +168,8 @@ public sealed class AccountSuspensionTests : IDisposable
     [Fact]
     public async Task An_account_that_does_not_exist_never_reaches_the_agent()
     {
-        await new SuspendAccountCommandHandler(_context, _agent).HandleAsync(
-            new SuspendAccountCommand(Guid.NewGuid()), CancellationToken.None);
+        await new SuspendAccountCommandHandler(_context, _agent, Journal()).HandleAsync(
+            new SuspendAccountCommand(Guid.NewGuid(), Ip, Client), CancellationToken.None);
 
         Assert.Empty(_agent.Calls);
     }

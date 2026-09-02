@@ -9,7 +9,7 @@ use super::directory_entry_name::directory_entry_name;
 
 /// Opens `name` inside `directory` and nowhere else.
 ///
-/// The counterpart of [`crate::validation::path::resolve_in_home`], and the
+/// The counterpart of [`crate::validation::fs::path::resolve_in_home`], and the
 /// reason that function's warning can be obeyed at all. `resolve_in_home`'s own
 /// doc says it: *"resolving and then reopening by the original path would
 /// reintroduce the race this function exists to close"*. A long-lived reader —

@@ -1,7 +1,7 @@
 //! Failures of the site operations.
 
 use maran_agent_core::privs::priv_error::PrivError;
-use maran_agent_core::validation::path_error::PathError;
+use maran_agent_core::validation::fs::path_error::PathError;
 
 use crate::safe_write::SafeWriteError;
 

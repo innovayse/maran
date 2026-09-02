@@ -25,7 +25,7 @@ mod polygon_config_file;
 
 use std::path::{Path, PathBuf};
 
-use maran_agent_core::validation::php_version::PhpVersion;
+use maran_agent_core::validation::web::php_version::PhpVersion;
 use maran_distro::{DistroAdapter, adapter_for, detect};
 use maran_ops::php::{PhpOpError, PoolInput, PoolPaths, ProcessPhpHost, write_pool};
 

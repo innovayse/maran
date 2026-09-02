@@ -153,6 +153,11 @@ main() {
   run_step 60-config.sh       step_config
   run_step 70-services.sh     step_services
   run_step 80-nginx.sh        step_nginx
+  # Customer-facing services, after the panel itself is standing: MariaDB for
+  # customer databases (the panel's own PostgreSQL is step 30 and is untouched),
+  # then the host-level pieces a chrooted SFTP login needs.
+  run_step 85-mysql.sh        step_mysql
+  run_step 86-sftp.sh         step_sftp
   run_step 90-finish.sh       step_finish
 
   echo "Maran installer finished: $(date -u '+%Y-%m-%dT%H:%M:%SZ')"

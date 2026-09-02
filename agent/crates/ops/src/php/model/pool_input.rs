@@ -1,7 +1,7 @@
 //! Everything the pool writer needs about the pool it writes.
 
-use maran_agent_core::validation::name::AccountName;
-use maran_agent_core::validation::php_version::PhpVersion;
+use maran_agent_core::validation::system::name::AccountName;
+use maran_agent_core::validation::web::php_version::PhpVersion;
 
 use crate::php::model::php_override::PhpOverride;
 

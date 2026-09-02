@@ -4,7 +4,7 @@
 
 use std::sync::Mutex;
 
-use maran_agent_core::validation::php_version::PhpVersion;
+use maran_agent_core::validation::web::php_version::PhpVersion;
 
 use crate::php::fake_php_host::{FakePhpHost, distro};
 use crate::php::{PhpOpError, install_php_version};

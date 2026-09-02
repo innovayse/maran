@@ -26,10 +26,10 @@ use std::path::Path;
 use std::sync::mpsc;
 use std::time::Duration;
 
-use maran_agent_core::validation::domain::Domain;
-use maran_agent_core::validation::file_mode::FileMode;
-use maran_agent_core::validation::php_version::PhpVersion;
-use maran_agent_core::validation::relative_path::RelativePath;
+use maran_agent_core::validation::fs::file_mode::FileMode;
+use maran_agent_core::validation::fs::relative_path::RelativePath;
+use maran_agent_core::validation::web::domain::Domain;
+use maran_agent_core::validation::web::php_version::PhpVersion;
 use maran_distro::{DistroAdapter, adapter_for, detect};
 use maran_ops::files::{ProcessFilesHost, WriteFileInput};
 use maran_ops::php::ProcessPhpHost;

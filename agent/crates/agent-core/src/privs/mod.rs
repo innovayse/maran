@@ -7,7 +7,7 @@
 //! process that cannot read it, instead of one that can. Direct `std::fs` on a
 //! customer path as root is forbidden (rules/rust.md "Validation first").
 //!
-//! Callers pair this with [`crate::validation::path::resolve_in_home`]: that
+//! Callers pair this with [`crate::validation::fs::path::resolve_in_home`]: that
 //! decides *which* path, this decides *as whom*. Neither is sufficient alone —
 //! containment without a dropped uid is a check an attacker races, and a dropped
 //! uid without containment writes wherever the account can reach.

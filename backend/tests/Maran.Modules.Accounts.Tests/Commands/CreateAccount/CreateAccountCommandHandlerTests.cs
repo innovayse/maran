@@ -1,4 +1,5 @@
 using Maran.Modules.Accounts.Commands.CreateAccount;
+using Maran.Modules.Accounts.Common;
 using Maran.Modules.Accounts.Domain;
 using Maran.Modules.Accounts.Domain.Enums;
 using Maran.Modules.Accounts.Persistence;
@@ -17,6 +18,18 @@ namespace Maran.Modules.Accounts.Tests.Commands.CreateAccount;
 /// </summary>
 public sealed class CreateAccountCommandHandlerTests
 {
+    /// <summary>The caller address every command in this file carries.</summary>
+    private const string Ip = "203.0.113.7";
+
+    /// <summary>The user agent every command in this file carries.</summary>
+    private const string Client = "unit-tests";
+
+    /// <summary>Builds a journal writing into a writer nothing asserts on; the audit tests do that.</summary>
+    private static AccountAuditJournal Journal()
+    {
+        return new AccountAuditJournal(new RecordingAuditWriter(), FakeCurrentUser.Admin());
+    }
+
     /// <summary>Builds a fresh, isolated in-memory <see cref="AccountsDbContext"/>.</summary>
     private static AccountsDbContext CreateDbContext()
     {
@@ -33,10 +46,11 @@ public sealed class CreateAccountCommandHandlerTests
         await using var dbContext = CreateDbContext();
         var clock = new FakeClock(new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero));
         var agent = new RecordingAgentAccountsClient();
-        var handler = new CreateAccountCommandHandler(dbContext, agent, clock);
+        var handler = new CreateAccountCommandHandler(dbContext, agent, clock, Journal());
         var planId = await SeedPlanAsync(dbContext);
 
-        var result = await handler.HandleAsync(new CreateAccountCommand("acme", "acme.example.com", planId), CancellationToken.None);
+        var result = await handler.HandleAsync(
+            new CreateAccountCommand("acme", "acme.example.com", planId, Ip, Client), CancellationToken.None);
 
         Assert.True(result.IsSuccess);
         Assert.Equal("acme", result.Value.Name);
@@ -58,10 +72,10 @@ public sealed class CreateAccountCommandHandlerTests
         var agent = new RecordingAgentAccountsClient();
         dbContext.Accounts.Add(new Account(Guid.NewGuid(), "acme", "existing.example.com", Guid.NewGuid(), clock.UtcNow));
         await dbContext.SaveChangesAsync();
-        var handler = new CreateAccountCommandHandler(dbContext, agent, clock);
+        var handler = new CreateAccountCommandHandler(dbContext, agent, clock, Journal());
 
         var result = await handler.HandleAsync(
-            new CreateAccountCommand("acme", "different.example.com", Guid.NewGuid()),
+            new CreateAccountCommand("acme", "different.example.com", Guid.NewGuid(), Ip, Client),
             CancellationToken.None);
 
         Assert.False(result.IsSuccess);
@@ -77,10 +91,10 @@ public sealed class CreateAccountCommandHandlerTests
         var agent = new RecordingAgentAccountsClient();
         dbContext.Accounts.Add(new Account(Guid.NewGuid(), "existing", "acme.example.com", Guid.NewGuid(), clock.UtcNow));
         await dbContext.SaveChangesAsync();
-        var handler = new CreateAccountCommandHandler(dbContext, agent, clock);
+        var handler = new CreateAccountCommandHandler(dbContext, agent, clock, Journal());
 
         var result = await handler.HandleAsync(
-            new CreateAccountCommand("newname", "acme.example.com", Guid.NewGuid()),
+            new CreateAccountCommand("newname", "acme.example.com", Guid.NewGuid(), Ip, Client),
             CancellationToken.None);
 
         Assert.False(result.IsSuccess);
@@ -101,10 +115,11 @@ public sealed class CreateAccountCommandHandlerTests
         await using var dbContext = CreateDbContext();
         var clock = new FakeClock(new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero));
         var agent = new RecordingAgentAccountsClient();
-        var handler = new CreateAccountCommandHandler(dbContext, agent, clock);
+        var handler = new CreateAccountCommandHandler(dbContext, agent, clock, Journal());
         var planId = await SeedPlanAsync(dbContext, diskQuotaMb: 5_120);
 
-        await handler.HandleAsync(new CreateAccountCommand("acme", "acme.example.com", planId), CancellationToken.None);
+        await handler.HandleAsync(
+            new CreateAccountCommand("acme", "acme.example.com", planId, Ip, Client), CancellationToken.None);
 
         Assert.Equal($"create:acme:{5_120UL * 1024 * 1024}", Assert.Single(agent.Calls));
     }
@@ -118,11 +133,11 @@ public sealed class CreateAccountCommandHandlerTests
         await using var dbContext = CreateDbContext();
         var clock = new FakeClock(new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero));
         var agent = new RecordingAgentAccountsClient(Error.Of("AgentUnavailable"));
-        var handler = new CreateAccountCommandHandler(dbContext, agent, clock);
+        var handler = new CreateAccountCommandHandler(dbContext, agent, clock, Journal());
         var planId = await SeedPlanAsync(dbContext);
 
         var result = await handler.HandleAsync(
-            new CreateAccountCommand("acme", "acme.example.com", planId), CancellationToken.None);
+            new CreateAccountCommand("acme", "acme.example.com", planId, Ip, Client), CancellationToken.None);
 
         Assert.False(result.IsSuccess);
         Assert.Equal("AgentUnavailable", result.Error!.Code);
@@ -136,10 +151,10 @@ public sealed class CreateAccountCommandHandlerTests
         await using var dbContext = CreateDbContext();
         var clock = new FakeClock(new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero));
         var agent = new RecordingAgentAccountsClient();
-        var handler = new CreateAccountCommandHandler(dbContext, agent, clock);
+        var handler = new CreateAccountCommandHandler(dbContext, agent, clock, Journal());
 
         var result = await handler.HandleAsync(
-            new CreateAccountCommand("acme", "acme.example.com", Guid.NewGuid()), CancellationToken.None);
+            new CreateAccountCommand("acme", "acme.example.com", Guid.NewGuid(), Ip, Client), CancellationToken.None);
 
         Assert.Equal("PlanNotFound", result.Error!.Code);
         Assert.Empty(agent.Calls);

@@ -1,6 +1,38 @@
-// FTP/FTPS virtual users. Each FTP user maps onto an account's uid and is
-// chrooted to a directory inside that account's home; the agent never
-// creates a real system login for FTP access.
+// File-transfer logins for a hosting account. This panel ships SFTP and
+// NOTHING ELSE: an OpenSSH login, a real system account in one group, chrooted
+// into a root-owned jail with the account's real home bind-mounted inside it.
+//
+// Reshaped 2026-09-01. This file used to describe FTPS virtual users mapped
+// onto an account's uid by a separate FTP daemon, each chrooted to a
+// caller-supplied `chroot_path` under the account home. Every part of that
+// framing is retired, and each retirement is a decision worth keeping:
+//
+// - **No FTP daemon.** Shipping one means a second listening service, a second
+//   credential store, a second set of passive data ports through the firewall,
+//   and — for plain FTP — credentials on the wire. Every server this panel
+//   installs onto is already running the SSH daemon the operator reached it
+//   with, so SFTP costs no new attack surface at all.
+// - **No `chroot_path`, and it can never come back.** The jail is derived from
+//   the validated account name, is created and owned by root, and is not
+//   nameable by a request. That deletes the entire chroot-escape class of bug
+//   by construction rather than by a containment check that has to be right
+//   every time. The field number and name are `reserved` below so that protoc
+//   itself refuses a future re-introduction — a comment saying "do not add
+//   this" is advice, a `reserved` is a build failure.
+// - **The retired names are not reused.** `FtpService`, `CreateFtpUser`,
+//   `UpdateFtpUser` and `DeleteFtpUser` are gone from this file rather than
+//   renamed, and nothing new here takes those names. If a real FTP daemon is
+//   ever shipped it gets them back, unambiguously, in its own service.
+//
+// The rpcs below are additions in the sense rules/proto.md allows ("new rpcs
+// are always allowed"): no field number, name or type of anything that survives
+// has changed, and no released caller can have bound to what was removed —
+// nothing has ever implemented or generated against the FTPS shape.
+//
+// Passwords are always caller-supplied and no copy is kept anywhere: the panel
+// mints one, shows it once and forgets it; the agent hands it to `chpasswd` on
+// standard input and forgets it; the host's shadow file holds the only hash.
+// No message here carries a password back, and none may be added.
 syntax = "proto3";
 
 package maran.agent.v1;
@@ -9,79 +41,98 @@ option csharp_namespace = "Maran.Agent.V1";
 
 import "agent/v1/common.proto";
 
-service FtpService {
-  // Creates a virtual FTP user mapped to the account's uid, chrooted to
-  // chroot_path (relative to the account home; containment enforced by
-  // the agent). Idempotent: creating with the same username and identical
-  // settings returns AlreadyExists.
-  rpc CreateFtpUser(CreateFtpUserRequest) returns (CreateFtpUserResponse);
+service SftpService {
+  // Creates an SFTP login for an account: the account's jail if it is not
+  // there yet, then a system user with a nologin shell, membership of the
+  // chroot group, and its passwd home set to that jail. Idempotent: a login
+  // that already exists returns ALREADY_EXISTS and — deliberately — its
+  // password is NOT changed, so retrying a creation whose response was lost
+  // cannot reset the credential the customer was already shown.
+  rpc CreateSftpUser(CreateSftpUserRequest) returns (CreateSftpUserResponse);
 
-  // Updates a virtual FTP user's password and/or chroot path. Idempotent:
-  // applying the same settings twice is a no-op success.
-  rpc UpdateFtpUser(UpdateFtpUserRequest) returns (UpdateFtpUserResponse);
+  // Sets an existing login's password. This is the ONLY way to change one:
+  // there is nothing else about an SFTP login that is settable, because
+  // everything else about it — its home, its jail, its shell, its group — is
+  // derived from the account rather than chosen by the caller.
+  rpc SetSftpPassword(SetSftpPasswordRequest) returns (SetSftpPasswordResponse);
 
-  // Removes a virtual FTP user. Idempotent: deleting a non-existent user
-  // returns NotFound.
-  rpc DeleteFtpUser(DeleteFtpUserRequest) returns (DeleteFtpUserResponse);
+  // Removes an SFTP login, and only the login. The account's files are NOT
+  // touched: the login's passwd home is the jail, the account's real home is
+  // bind-mounted inside it, and removing a login means revoking a key, never
+  // deleting what it opened. Idempotent: deleting a login that is not there
+  // returns NOT_FOUND.
+  rpc DeleteSftpUser(DeleteSftpUserRequest) returns (DeleteSftpUserResponse);
 }
 
-message CreateFtpUserRequest {
-  // System username of the account this FTP user is mapped to; the FTP
-  // user inherits its uid so file ownership matches account files.
+message CreateSftpUserRequest {
+  // System username of the hosting account this login belongs to. The jail,
+  // the mount point and the bind-mount unit's name are all derived from it.
   string account_username = 1;
-  // FTP login name, validated against the agent's identifier allow-list.
-  string ftp_username = 2;
-  // Plaintext password for the FTP login, supplied by the caller. Never
+  // Login name suffix chosen by the customer, validated against the agent's
+  // identifier allow-list. The agent namespaces it under the account, so the
+  // created login is "<account_username>_<sftp_username>"; a suffix naming
+  // another tenant is impossible rather than merely refused.
+  string sftp_username = 2;
+  // Plaintext password for the new login, supplied by the caller. Never
   // logged; not echoed back in any response or error.
   string password = 3;
-  // Chroot directory, relative to the account's home directory, e.g.
-  // "sites/example.com". Canonicalized and required to resolve inside the
-  // account home; ".." components are rejected.
-  string chroot_path = 4;
+  // 4 was `chroot_path` (removed 2026-09-01). There is no caller-supplied
+  // chroot in this design and there must never be one: the jail is
+  // /var/lib/maran/sftp/<account>, created root-owned by the agent, and a
+  // request cannot name the directory it will be confined to.
+  reserved 4;
+  reserved "chroot_path";
 }
 
-message CreateFtpUserResponse {
+message CreateSftpUserResponse {
   oneof result {
-    CreateFtpUserOk ok = 1;
+    CreateSftpUserOk ok = 1;
     AgentError error = 2;
   }
 }
 
-message CreateFtpUserOk {}
+message CreateSftpUserOk {
+  // Fully-qualified login name as created, e.g. "acc12345_web".
+  string sftp_username = 1;
+}
 
-message UpdateFtpUserRequest {
+message SetSftpPasswordRequest {
   // System username of the owning account.
   string account_username = 1;
-  // FTP login name to update.
-  string ftp_username = 2;
-  // New plaintext password. Empty string means "leave unchanged".
+  // Login name suffix, namespaced under the account exactly as it was at
+  // creation. The fully-qualified name is never accepted off the wire, so a
+  // request cannot name another tenant's login.
+  string sftp_username = 2;
+  // New plaintext password. There is no "leave unchanged" here: setting a
+  // password is the whole rpc, and an empty value is refused as invalid input
+  // rather than treated as a no-op.
   string password = 3;
-  // New chroot directory, relative to the account home. Empty string
-  // means "leave unchanged".
-  string chroot_path = 4;
+  // 4 was `chroot_path` (removed 2026-09-01). See CreateSftpUserRequest.
+  reserved 4;
+  reserved "chroot_path";
 }
 
-message UpdateFtpUserResponse {
+message SetSftpPasswordResponse {
   oneof result {
-    UpdateFtpUserOk ok = 1;
+    SetSftpPasswordOk ok = 1;
     AgentError error = 2;
   }
 }
 
-message UpdateFtpUserOk {}
+message SetSftpPasswordOk {}
 
-message DeleteFtpUserRequest {
+message DeleteSftpUserRequest {
   // System username of the owning account.
   string account_username = 1;
-  // FTP login name to delete.
-  string ftp_username = 2;
+  // Login name suffix, namespaced under the account as at creation.
+  string sftp_username = 2;
 }
 
-message DeleteFtpUserResponse {
+message DeleteSftpUserResponse {
   oneof result {
-    DeleteFtpUserOk ok = 1;
+    DeleteSftpUserOk ok = 1;
     AgentError error = 2;
   }
 }
 
-message DeleteFtpUserOk {}
+message DeleteSftpUserOk {}

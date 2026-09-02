@@ -1,7 +1,7 @@
 //! Which site an operation acts on, when that is all it needs to know.
 
-use maran_agent_core::validation::domain::Domain;
-use maran_agent_core::validation::name::AccountName;
+use maran_agent_core::validation::system::name::AccountName;
+use maran_agent_core::validation::web::domain::Domain;
 
 /// The account and the domain that name one site.
 ///

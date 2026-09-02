@@ -67,3 +67,73 @@ fn the_web_server_belongs_to_a_different_group_on_each_family() {
     );
     assert_eq!(adapter_for(DistroFamily::Rhel).web_server_group(), "nginx");
 }
+
+/// Every adapter this crate can hand out, so a fact required of ALL of them is asserted
+/// against all of them rather than against whichever one the author had in mind.
+fn every_adapter() -> [&'static dyn crate::DistroAdapter; 2] {
+    [
+        adapter_for(DistroFamily::Debian),
+        adapter_for(DistroFamily::Rhel),
+    ]
+}
+
+#[test]
+fn the_mysql_client_is_an_absolute_path_on_every_family() {
+    // Processes are spawned with argv arrays, never through a shell, so there is no PATH
+    // lookup to fall back on: a relative name is a binary that simply fails to spawn.
+    for adapter in every_adapter() {
+        assert!(
+            adapter.mysql_client_binary().starts_with('/'),
+            "{:?} must name an absolute path: argv spawning has no PATH to fall back on",
+            adapter.family()
+        );
+    }
+}
+
+#[test]
+fn the_sftp_group_is_the_same_name_on_every_family_so_the_sshd_block_is_portable() {
+    // The `Match Group` block the installer writes names one group. If the two families
+    // answered different group names, the block written on one would chroot nobody on the
+    // other, and an SFTP user created there would get a full session instead of a jail —
+    // the opposite of the isolation it exists for. So here the invariant is SAMENESS,
+    // asserted deliberately, not difference.
+    assert_eq!(
+        adapter_for(DistroFamily::Debian).sftp_group(),
+        adapter_for(DistroFamily::Rhel).sftp_group()
+    );
+}
+
+#[test]
+fn both_families_restart_the_same_database_unit_because_both_ship_mariadb() {
+    // Agreement stated rather than left for a reader to suspect a copy-paste. If a family
+    // ever ships MySQL proper instead, this is the one method that changes.
+    assert_eq!(
+        adapter_for(DistroFamily::Debian).mysql_service(),
+        adapter_for(DistroFamily::Rhel).mysql_service()
+    );
+}
+
+#[test]
+fn every_family_names_the_user_management_tools_by_an_absolute_path() {
+    // A bare program name would be resolved through `PATH` by a root daemon, which is worse
+    // than the literal it would have replaced: whoever controls the environment then chooses
+    // which `useradd` runs as root.
+    for adapter in every_adapter() {
+        for binary in [
+            adapter.useradd_binary(),
+            adapter.userdel_binary(),
+            adapter.chpasswd_binary(),
+        ] {
+            assert!(binary.starts_with('/'), "{binary} is not an absolute path");
+        }
+    }
+}
+
+#[test]
+fn every_family_writes_its_unit_files_where_an_administrator_puts_them() {
+    // The agent's own units must outrank anything a package ships, which is what the
+    // administrator's unit directory is for.
+    for adapter in every_adapter() {
+        assert_eq!(adapter.systemd_unit_directory(), "/etc/systemd/system");
+    }
+}

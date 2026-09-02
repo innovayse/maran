@@ -45,6 +45,62 @@ public sealed class PlanSeederTests
         int maxSites,
         int maxPhpWorkersPerPool)
     {
+        await AssertLimitsAsync(planId, maxSites, maxPhpWorkersPerPool);
+    }
+
+    /// <summary>Each standard plan carries the database allowance it is documented with.</summary>
+    [Theory]
+    [InlineData("11111111-0000-4000-8000-000000000001", 2)]
+    [InlineData("11111111-0000-4000-8000-000000000002", 10)]
+    [InlineData("11111111-0000-4000-8000-000000000003", 500)]
+    public async Task Each_standard_plan_carries_the_database_allowance_it_is_documented_with(
+        string planId,
+        int maxDatabases)
+    {
+        // Pinned for the same reason the site and worker limits are, and with one extra: this is the
+        // number the Databases module refuses a creation against, so a customer's whole experience of
+        // "how many databases do I get" is these three values. The column has held them since the
+        // initial Accounts schema, so no backfill migration is needed — the failure mode the previous
+        // plan hit (a migration adding a limit column with a zero default while the seeder only
+        // inserts ABSENT plans, leaving every existing installation at zero) does not arise here, and
+        // Plan's constructor now refuses a non-positive allowance outright.
+        await using var dbContext = CreateDbContext();
+        await new PlanSeeder(dbContext).SeedAsync(CancellationToken.None);
+
+        var plan = await dbContext.Plans.SingleAsync(p => p.Id == Guid.Parse(planId));
+
+        Assert.Equal(maxDatabases, plan.MaxDatabases);
+    }
+
+    /// <summary>Each standard plan carries the sftp allowance it is documented with.</summary>
+    [Theory]
+    [InlineData("11111111-0000-4000-8000-000000000001", 3)]
+    [InlineData("11111111-0000-4000-8000-000000000002", 10)]
+    [InlineData("11111111-0000-4000-8000-000000000003", 100)]
+    public async Task Each_standard_plan_carries_the_sftp_allowance_it_is_documented_with(
+        string planId,
+        int maxSftpUsers)
+    {
+        // These are the values the column has held since the initial Accounts schema, under its old
+        // name MaxFtpUsers. The Sftp module's arrival RENAMED that column rather than adding one
+        // beside it — this panel serves file transfer over SFTP alone, so a separate FTP count would
+        // be a second limit on one thing — and the rename migration carries every seeded and
+        // operator-edited value across untouched. Pinned here so the rename is provably value-
+        // preserving rather than merely believed to be.
+        await using var dbContext = CreateDbContext();
+        await new PlanSeeder(dbContext).SeedAsync(CancellationToken.None);
+
+        var plan = await dbContext.Plans.SingleAsync(p => p.Id == Guid.Parse(planId));
+
+        Assert.Equal(maxSftpUsers, plan.MaxSftpUsers);
+    }
+
+    /// <summary>Asserts one seeded plan's site and worker limits.</summary>
+    /// <param name="planId">The plan's fixed identity.</param>
+    /// <param name="maxSites">The site allowance it must carry.</param>
+    /// <param name="maxPhpWorkersPerPool">The per-pool worker budget it must carry.</param>
+    private static async Task AssertLimitsAsync(string planId, int maxSites, int maxPhpWorkersPerPool)
+    {
         // Pinned to exact numbers deliberately. These are the values the migration backfills onto
         // every existing installation, so the two must not drift apart, and they are the numbers a
         // reviewer was asked to sign off — a limit nothing asserts is a limit nobody agreed to.

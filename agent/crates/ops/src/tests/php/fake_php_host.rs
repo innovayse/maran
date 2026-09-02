@@ -17,8 +17,8 @@ use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
 use maran_agent_core::command_outcome::CommandOutcome;
-use maran_agent_core::validation::name::AccountName;
-use maran_agent_core::validation::php_version::PhpVersion;
+use maran_agent_core::validation::system::name::AccountName;
+use maran_agent_core::validation::web::php_version::PhpVersion;
 use maran_distro::{DistroAdapter, DistroFamily, adapter_for};
 
 use crate::php::model::php_override::PhpOverride;

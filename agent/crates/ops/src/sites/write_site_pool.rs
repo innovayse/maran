@@ -1,6 +1,6 @@
 //! The one place a site's php-fpm pool is written from.
 
-use maran_agent_core::validation::php_version::PhpVersion;
+use maran_agent_core::validation::web::php_version::PhpVersion;
 use maran_distro::DistroAdapter;
 
 use crate::php::model::php_override::PhpOverride;

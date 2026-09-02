@@ -9,8 +9,8 @@ use std::path::Path;
 use maran_agent_core::privs::create_file_in_directory::create_file_in_directory;
 use maran_agent_core::privs::remove_file_in_directory::remove_file_in_directory;
 use maran_agent_core::privs::rename_in_directory::rename_in_directory;
-use maran_agent_core::validation::file_mode::FileMode;
-use maran_agent_core::validation::relative_path::RelativePath;
+use maran_agent_core::validation::fs::file_mode::FileMode;
+use maran_agent_core::validation::fs::relative_path::RelativePath;
 
 use crate::files::FilesOpError;
 use crate::files::model::missing_parents::MissingParents;

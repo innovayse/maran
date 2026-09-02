@@ -1,8 +1,8 @@
 //! Assembling a client-streamed write, one message at a time.
 
-use maran_agent_core::validation::file_mode::FileMode;
-use maran_agent_core::validation::name::AccountName;
-use maran_agent_core::validation::relative_path::RelativePath;
+use maran_agent_core::validation::fs::file_mode::FileMode;
+use maran_agent_core::validation::fs::relative_path::RelativePath;
+use maran_agent_core::validation::system::name::AccountName;
 use maran_ops::files::WriteFileInput;
 
 use crate::proto::{AgentError, WriteFileRequest};

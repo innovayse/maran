@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="DatabaseNotFound">
+    <value>Այս տվյալների բազան չի գտնվել։</value>
+  </data>
+  <data name="DatabaseNameTaken">
+    <value>Դուք արդեն ունեք այս անունով տվյալների բազա։</value>
+  </data>
+  <data name="DatabaseUserNameTaken">
+    <value>Դուք արդեն ունեք այս անունով տվյալների բազայի օգտվող։</value>
+  </data>
+  <data name="DatabaseLimitReached">
+    <value>Ձեր սակագինը թույլ չի տալիս ավելի շատ տվյալների բազա։</value>
+  </data>
+  <data name="DatabaseNameTooLong">
+    <value>Այս անունը չափազանց երկար է ձեր հաշվի նախածանցի հետ միասին։</value>
+  </data>
+  <data name="DatabaseUserNameTooLong">
+    <value>Այս օգտվողի անունը չափազանց երկար է ձեր հաշվի նախածանցի հետ միասին։</value>
+  </data>
+  <data name="DatabaseNameInvalidFormat">
+    <value>Տվյալների բազայի անունը կարող է պարունակել միայն փոքրատառ լատինական տառեր և թվեր։</value>
+  </data>
+  <data name="DatabaseUserNameInvalidFormat">
+    <value>Տվյալների բազայի օգտվողի անունը կարող է պարունակել միայն փոքրատառ լատինական տառեր և թվեր։</value>
+  </data>
+  <data name="DatabaseProvisioningFailed">
+    <value>Չհաջողվեց ստեղծել տվյալների բազան։ Սերվերի վրա ոչինչ չի մնացել, փորձեք կրկին։</value>
+  </data>
+  <data name="AccountNotFound">
+    <value>Այս հաշիվը չի գտնվել։</value>
+  </data>
+</root>

@@ -6,12 +6,13 @@
 //! against.
 
 use std::path::{Path, PathBuf};
+use std::process::Command;
 
 use maran_agent_core::privs::account_ids::AccountIds;
-use maran_agent_core::validation::name::AccountName;
+use maran_agent_core::validation::system::name::AccountName;
 use maran_distro::{DistroAdapter, adapter_for, detect};
-use maran_ops::accounts::{AccountError, AccountOperations, ProcessSystemHost};
-use maran_ops::php::ProcessPhpHost;
+use maran_ops::accounts::{AccountOperations, ProcessSystemHost};
+use maran_ops::php::{ProcessPhpHost, remove_account_pools};
 
 /// The environment variable each polygon image sets, naming itself.
 const POLYGON_MARKER: &str = "MARAN_POLYGON";
@@ -84,15 +85,10 @@ impl PolygonAccount {
                 .expect("a polygon image is a supported host")
                 .family,
         );
-        let operations = AccountOperations::new(ProcessSystemHost::new(), distro);
+        let operations = AccountOperations::new(ProcessSystemHost::new(distro), distro);
 
         // Idempotent by removal, not by reuse: see the doc comment above.
-        if let Err(error) = operations.delete(&ProcessPhpHost::new(), &name) {
-            assert!(
-                matches!(error, AccountError::NotFound { .. }),
-                "a leftover account must be removable: {error}"
-            );
-        }
+        remove_account(distro, &name);
 
         let created = operations
             .create(&name, 0)
@@ -124,18 +120,57 @@ impl PolygonAccount {
     }
 }
 
+/// Removes `name`'s php-fpm pools and then the system user itself.
+///
+/// **Deliberately NOT `AccountOperations::delete`, and the reason is worth
+/// stating.** That operation is the product's account-deletion cascade: it also
+/// drops the account's databases and takes its SFTP jail down, and to do so it
+/// has to reach a running MariaDB. Most polygon suites never start one — the
+/// images ship the server stopped on purpose — so a fixture built on the cascade
+/// would fail its teardown in every suite but two, leave the account behind, and
+/// report only a line on standard error.
+///
+/// What that costs is bounded and covered elsewhere: the two suites that create
+/// databases and SFTP logins remove them with guards of their own, and the
+/// cascade itself is exercised by `account_deletion_on_a_real_host.rs`, which
+/// starts the server it needs.
+///
+/// The pool removal is the agent's own operation, because a pool file outlives
+/// `userdel` and names a user that no longer resolves — which is what takes
+/// php-fpm down for every other tenant at the next reload.
+///
+/// # Panics
+///
+/// Panics when `userdel` cannot be run at all, or refuses for any reason other
+/// than the account not being there.
+fn remove_account(distro: &'static dyn DistroAdapter, name: &AccountName) {
+    if let Err(error) = remove_account_pools(&ProcessPhpHost::new(), distro, name) {
+        eprintln!(
+            "the polygon account {}'s pools could not be removed: {error}",
+            name.as_str()
+        );
+    }
+
+    let outcome = Command::new(distro.userdel_binary())
+        .args(["--remove", name.as_str()])
+        .output()
+        .unwrap_or_else(|error| panic!("the polygon image installs userdel: {error}"));
+
+    // 6 is the shadow suite's E_NOTFOUND: nothing to remove is the state this
+    // function wanted. 12 is "the home could not be removed in full", which a
+    // container's overlay filesystem produces for a mail spool that was never
+    // there; the user itself is gone, which is what matters here.
+    let status = outcome.status.code().unwrap_or(-1);
+    assert!(
+        matches!(status, 0 | 6 | 12),
+        "a leftover polygon account must be removable, userdel exited {status}: {}",
+        String::from_utf8_lossy(&outcome.stderr)
+    );
+}
+
 impl Drop for PolygonAccount {
     /// Removes the account and its home, whether the test passed or panicked.
     fn drop(&mut self) {
-        let operations = AccountOperations::new(ProcessSystemHost::new(), self.distro);
-        // A failure here cannot fail the test — a panic in `drop` during another
-        // panic aborts the process and hides the real failure — so it is
-        // reported and nothing more.
-        if let Err(error) = operations.delete(&ProcessPhpHost::new(), &self.name) {
-            eprintln!(
-                "the polygon account {} could not be removed: {error}",
-                self.name.as_str()
-            );
-        }
+        remove_account(self.distro, &self.name);
     }
 }
