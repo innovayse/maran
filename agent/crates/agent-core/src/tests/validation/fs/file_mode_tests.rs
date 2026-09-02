@@ -7,7 +7,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use super::FileMode;
-use crate::validation::file_mode_error::FileModeError;
+use crate::validation::fs::file_mode_error::FileModeError;
 
 #[test]
 fn the_mode_an_acme_challenge_needs_is_accepted_and_kept_exactly() {

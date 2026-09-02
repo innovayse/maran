@@ -1,6 +1,6 @@
 //! A hostname that is safe to write into a web-server configuration.
 
-use crate::validation::domain_error::DomainError;
+use crate::validation::web::domain_error::DomainError;
 
 /// The longest a domain may be, from DNS.
 const MAX_LENGTH: usize = 253;
@@ -72,5 +72,5 @@ impl Domain {
 }
 
 #[cfg(test)]
-#[path = "../tests/validation/domain_tests.rs"]
+#[path = "../../tests/validation/web/domain_tests.rs"]
 mod tests;

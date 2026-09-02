@@ -2,7 +2,7 @@
 
 use std::net::IpAddr;
 
-use crate::validation::upstream_error::UpstreamError;
+use crate::validation::web::upstream_error::UpstreamError;
 
 /// A validated `host:port` reverse-proxy target, checked once at the boundary
 /// so no later caller has to remember to re-check it.
@@ -99,5 +99,5 @@ impl Upstream {
 }
 
 #[cfg(test)]
-#[path = "../tests/validation/upstream_tests.rs"]
+#[path = "../../tests/validation/web/upstream_tests.rs"]
 mod tests;

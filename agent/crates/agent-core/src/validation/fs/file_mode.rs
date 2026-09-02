@@ -10,7 +10,7 @@ const NOT_PERMISSION_BITS: u32 = !0o777;
 ///
 /// Constructed only by [`FileMode::parse`], so holding one is proof that the
 /// bits are `rwxrwxrwx` and nothing else — the same "valid by construction"
-/// shape as [`AccountName`](super::name::AccountName) and
+/// shape as [`AccountName`](crate::validation::system::name::AccountName) and
 /// [`RelativePath`](super::relative_path::RelativePath). Downstream code does
 /// not re-check it, because it cannot be built from anything else (rules/rust.md
 /// "Validation first").
@@ -51,5 +51,5 @@ impl FileMode {
 }
 
 #[cfg(test)]
-#[path = "../tests/validation/file_mode_tests.rs"]
+#[path = "../../tests/validation/fs/file_mode_tests.rs"]
 mod tests;

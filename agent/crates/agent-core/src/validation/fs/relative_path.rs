@@ -142,7 +142,7 @@ impl RelativePath {
     /// The parent directory as a `PathBuf`, for the same second check.
     ///
     /// An empty path buffer for a one-component path, which
-    /// [`crate::validation::path::resolve_in_home`] reads as the home directory
+    /// [`crate::validation::fs::path::resolve_in_home`] reads as the home directory
     /// itself.
     #[must_use]
     pub fn parent_as_path(&self) -> PathBuf {
@@ -151,5 +151,5 @@ impl RelativePath {
 }
 
 #[cfg(test)]
-#[path = "../tests/validation/relative_path_tests.rs"]
+#[path = "../../tests/validation/fs/relative_path_tests.rs"]
 mod tests;

@@ -1,6 +1,6 @@
 //! A PHP version that is safe to write into a config file and a path.
 
-use crate::validation::php_version_error::PhpVersionError;
+use crate::validation::web::php_version_error::PhpVersionError;
 
 /// The most digits either component of a real PHP version needs.
 ///
@@ -72,5 +72,5 @@ impl PhpVersion {
 }
 
 #[cfg(test)]
-#[path = "../tests/validation/php_version_tests.rs"]
+#[path = "../../tests/validation/web/php_version_tests.rs"]
 mod tests;

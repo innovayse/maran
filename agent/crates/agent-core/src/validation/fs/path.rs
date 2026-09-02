@@ -2,9 +2,9 @@
 
 use std::path::{Path, PathBuf};
 
-use super::name::AccountName;
 use super::path_error::PathError;
 use crate::agent_paths::AgentPaths;
+use crate::validation::system::name::AccountName;
 
 /// Resolves `relative` inside `account`'s home directory.
 ///
@@ -48,5 +48,5 @@ fn resolve_under(home: &Path, relative: &Path) -> Result<PathBuf, PathError> {
 }
 
 #[cfg(test)]
-#[path = "../tests/validation/path_tests.rs"]
+#[path = "../../tests/validation/fs/path_tests.rs"]
 mod tests;

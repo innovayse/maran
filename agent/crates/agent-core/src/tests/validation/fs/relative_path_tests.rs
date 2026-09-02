@@ -10,7 +10,7 @@
 use std::path::PathBuf;
 
 use super::RelativePath;
-use crate::validation::relative_path_error::RelativePathError;
+use crate::validation::fs::relative_path_error::RelativePathError;
 
 /// The challenge path a real ACME issuance asks for.
 const CHALLENGE: &str = "sites/example.com/.well-known/acme-challenge/token123";

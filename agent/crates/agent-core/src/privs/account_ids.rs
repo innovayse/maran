@@ -4,7 +4,7 @@ use std::ffi::CString;
 use std::mem::MaybeUninit;
 
 use super::priv_error::PrivError;
-use crate::validation::name::AccountName;
+use crate::validation::system::name::AccountName;
 
 /// First buffer size handed to `getpwnam_r` when `sysconf` has no opinion.
 const INITIAL_BUFFER: usize = 1024;
