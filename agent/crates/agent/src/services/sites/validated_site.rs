@@ -1,8 +1,8 @@
 //! Rebuilding a site's full description from what the panel restated.
 
-use maran_agent_core::validation::domain::Domain;
-use maran_agent_core::validation::php_version::PhpVersion;
-use maran_agent_core::validation::upstream::Upstream;
+use maran_agent_core::validation::web::domain::Domain;
+use maran_agent_core::validation::web::php_version::PhpVersion;
+use maran_agent_core::validation::web::upstream::Upstream;
 use maran_ops::sites::{CreateSiteInput, SiteCertificate, SiteKind};
 
 use crate::proto::{AgentError, SiteBackendType, SiteSpec};

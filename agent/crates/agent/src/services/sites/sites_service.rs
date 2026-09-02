@@ -3,7 +3,7 @@
 use std::pin::Pin;
 use std::sync::Arc;
 
-use maran_agent_core::validation::php_version::PhpVersion;
+use maran_agent_core::validation::web::php_version::PhpVersion;
 use maran_ops::php::PhpHost;
 use maran_ops::sites::{
     self, CreateSiteInput, PhpSwitch, SiteHost, SiteIdentity, SiteLogKind, SiteMaintenanceHost,
@@ -216,13 +216,14 @@ where
             request.site.as_ref(),
         )
         .and_then(|input| {
-            let version =
-                maran_agent_core::validation::php_version::PhpVersion::parse(&request.php_version)
-                    .map_err(|error| AgentError {
-                        code: ErrorCode::InvalidInput as i32,
-                        message: error.to_string(),
-                        tool_output: String::new(),
-                    })?;
+            let version = maran_agent_core::validation::web::php_version::PhpVersion::parse(
+                &request.php_version,
+            )
+            .map_err(|error| AgentError {
+                code: ErrorCode::InvalidInput as i32,
+                message: error.to_string(),
+                tool_output: String::new(),
+            })?;
             let overrides = validated_overrides(&request.overrides)?;
             Ok((input, version, overrides))
         });

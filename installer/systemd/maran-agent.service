@@ -19,8 +19,9 @@ User=root
 Group=panel
 # The uid allowed to use the agent, written by the installer once the panel user exists
 # (installer/lib/60-config.sh). systemd expands this without a shell. It is not optional:
-# with no value the agent falls back to its own uid, which is root, and every request
-# from the API is denied.
+# with an empty value systemd drops the argument entirely, the agent falls back to its own uid —
+# root — and denies the API every request; with a value that is not a number it refuses to start
+# at all. Neither is a working panel.
 EnvironmentFile=/etc/maran/agent.env
 ExecStart=/usr/local/maran/agent/maran-agent --allow-uid ${MARAN_AGENT_ALLOW_UID}
 Restart=on-failure

@@ -42,9 +42,9 @@ tests can start a real server in-process on a temporary socket.
 | `src/lib.rs` | module declarations; includes generated proto once for the crate. |
 | `src/server.rs` | socket preparation, permissions, service registry. |
 | `src/error.rs` | `StartupError` — fatal startup failures only. |
-| `src/config/` | command-line and environment parsing: `agent_options.rs`, `options_error.rs`. |
+| `src/config/` | command-line and environment parsing: `invocation.rs` (what the command line asked for — run, or print usage; refuses an argument this binary does not define), `agent_options.rs` (the answer it carries), `options_error.rs`. |
 | `src/peercred/` | who may connect at all. `peer_policy.rs` = the rule, `peer_guard.rs` = the check. Authorisation starts below the RPC layer. |
-| `src/services/<service>/` | one folder per proto service. `<service>_service.rs` = the tonic trait impl, `<area>_status.rs` = the error → gRPC code mapping. Today: `system/`, `accounts/`. |
+| `src/services/<service>/` | one folder per proto service. `<service>_service.rs` = the tonic trait impl, `<area>_status.rs` = the error → gRPC code mapping, `validated_*.rs` = one proto-to-input bundle per request shape. Today: `system/`, `accounts/`, `sites/`, `ssl/`, `php/`, `files/`, `db/`, `sftp/`. |
 | `src/tests/` | unit tests, mirroring `src/`. |
 | `tests/` | integration tests over a real unix socket (`handshake.rs`), plus `fixtures/`. |
 | `build.rs` | compiles `proto/agent/v1/` via tonic-build. Generated code is never committed. |
@@ -60,8 +60,8 @@ knowledge, no system mutation.
 
 | Path | Purpose |
 |---|---|
-| `src/agent_paths.rs` | `AgentPaths`: directories the agent owns that are identical on every family (nginx include dir, certificate dir). A path that differs per family is a `distro` fact instead. |
-| `src/validation/` | one type per input kind, each with its own `*_error.rs`. Today: `name.rs`, `path.rs` (`resolve_in_home`). Planned, same shape: `domain`, `port`, `ip_address`, `cron_expression`. A constructed value is a valid value. |
+| `src/agent_paths.rs` | `AgentPaths`: directories the agent owns that are identical on every family (nginx include dir, certificate dir, account home root, php-fpm socket dir, SFTP jail root). A path that differs per family is a `distro` fact instead. |
+| `src/validation/` | grouped by the domain the value ends up in: `system/` (name, sftp_user_name), `db/` (database_name, db_user_name), `web/` (domain, upstream, php_version), `fs/` (path — `resolve_in_home` — relative_path, file_mode), `secrets/` (password, secret). One type per input kind, each with its own `*_error.rs` beside it. A constructed value is a valid value. |
 | `src/utils/` | helpers that belong to no single area and answer a question about the host, not about a feature: `directory.rs` (recursive size), `current_uid.rs`. A helper only one area calls belongs to that area, not here. |
 | `src/privs/` | the ONLY place `unsafe` is allowed. `fork_as_account.rs` is the single entry point for doing work as a customer; `account_ids.rs` resolves uid/gid via `getpwnam_r`; `priv_error.rs` types the failures. Threat note: `docs/superpowers/notes/2026-08-30-privs-threat-note.md`. |
 
@@ -98,9 +98,10 @@ an RPC is found without searching.
 | `src/accounts/` | system users: useradd/userdel, homes, quotas, usage. |
 | `src/sites/` *(planned)* | nginx vhosts: create, enable/disable, delete, php version, log tail, reload. |
 | `src/php/` *(planned)* | pools and versions. No proto service of its own — driven by sites and accounts. |
-| `src/db/` *(planned)* | MySQL/MariaDB databases and users. |
+| `src/db/` | MySQL/MariaDB databases and the dedicated user each one is created with. The agent holds no database credential: it connects over the local socket as root, authenticated by the connecting uid. |
 | `src/files/` *(planned)* | customer file operations. Every one goes through `resolve_in_home` and runs under the account's uid. |
-| `src/ftp/` *(planned)* | FTP users. |
+| `src/sftp/` | OpenSSH SFTP logins, each chrooted into a per-account root-owned jail with the account's real home bind-mounted inside. `model/account_jail.rs` derives every jail path AND the systemd mount unit's escaped name from one `AccountName`. The login is created with the ACCOUNT's own uid and gid (`model/account_ownership.rs`): a home of `<account>:<web server group> 0750` gives a separate identity nothing at all. |
+| `src/ftp/` *(planned)* | FTP users, if an FTP daemon is ever shipped. SFTP is `src/sftp/`. |
 | `src/cron/` *(planned)* | per-account crontab entries. |
 | `src/firewall/` *(planned)* | nftables rules and bans. |
 | `src/ssl/` *(planned)* | certificate install, removal, self-signed. |
@@ -123,7 +124,7 @@ why no cleanup scripts exist.
 
 | Path | Purpose |
 |---|---|
-| `src/nginx/`, `src/php_fpm/`, `src/vsftpd/`, `src/systemd/` *(planned)* | one askama render type per config artifact. |
+| `src/nginx/`, `src/php_fpm/`, `src/systemd/`, `src/vsftpd/` *(vsftpd planned)* | one askama render type per config artifact. |
 | `templates/<target>/` | the template sources, mirroring the render types. |
 | `tests/golden/<target>/` | byte-exact expected renders. Names are derived from the render type, never invented. |
 

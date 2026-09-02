@@ -1,7 +1,7 @@
 //! Entry point: tracing setup, flag parsing, server start.
 #![forbid(unsafe_code)]
 
-use maran_agent::config::agent_options::AgentOptions;
+use maran_agent::config::invocation::{Invocation, USAGE};
 use maran_agent::peercred::PeerPolicy;
 use maran_agent::server;
 use maran_agent_core::utils::current_uid::current_uid;
@@ -35,8 +35,14 @@ async fn main() {
     };
 
     let arguments: Vec<String> = std::env::args().skip(1).collect();
-    let options = match AgentOptions::parse(&arguments, default_uid) {
-        Ok(options) => options,
+    let options = match Invocation::parse(&arguments, default_uid) {
+        Ok(Invocation::Run(options)) => options,
+        // Printed rather than logged: usage is the answer the person asked for,
+        // and the tracing filter must not be able to swallow it.
+        Ok(Invocation::ShowUsage) => {
+            print!("{USAGE}");
+            return;
+        }
         Err(error) => {
             tracing::error!(%error, "invalid command line");
             std::process::exit(FAILURE_EXIT_CODE);

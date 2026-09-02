@@ -59,6 +59,19 @@ fi
 echo "building the agent"
 (cd "$root/agent" && cargo build -p maran-agent) >"$agent_log" 2>&1 || fail "the agent did not build"
 
+# Before starting one, check the two ways of NOT starting one. This is here rather than in a unit
+# test because the thing that went wrong was the binary's behaviour, not the parser's: `--help` was
+# swallowed as "no flags at all" and started a REAL root daemon on the production socket path,
+# taking it from the agent already serving it. A unit test on the parser would not have caught the
+# process that got launched.
+echo "checking the agent refuses a command line it does not understand"
+if ! "$root/agent/target/debug/maran-agent" --help >/dev/null 2>&1; then
+  fail "--help must print usage and exit 0, not start anything"
+fi
+if "$root/agent/target/debug/maran-agent" --from-a-newer-unit-file >/dev/null 2>&1; then
+  fail "an unknown flag must refuse to start, not be ignored"
+fi
+
 echo "starting the agent"
 # --allow-uid is this user: the peer-cred guard permits exactly one uid, and in production the
 # installer passes the panel user's. Same code path, different number.
