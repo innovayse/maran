@@ -16,12 +16,21 @@
  * is masked), `aria-pressed` reports the same state to assistive technology,
  * and `aria-controls` ties the toggle to the field it changes. An icon-only
  * control with no accessible name would be a regression, not a simplification.
+ *
+ * A second, OPTIONAL control sits beside the toggle: `generate` adds a button
+ * that fills the field with a strong random password. It is opt-in rather than
+ * always present because it only makes sense where a password is being SET —
+ * offering to generate one on a sign-in field would invite a person to lock
+ * themselves out of their own account. Generating also reveals the value: a
+ * password nobody can read is a password nobody can copy, so hiding it would
+ * make the button useless.
  */
 import { computed, ref, type ComputedRef, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import UiButton from './UiButton.vue'
 import UiIcon, { type UiIconName } from './UiIcon.vue'
 import UiInput from './UiInput.vue'
+import { generatePassword } from '../../utils/generate'
 
 /** Props accepted by {@link UiPasswordInput}. */
 const props = withDefaults(
@@ -38,8 +47,20 @@ const props = withDefaults(
     error?: string | null
     /** Native `autocomplete` token — `current-password` when signing in, `new-password` when setting one. */
     autocomplete?: string
+    /**
+     * Offers a button that fills the field with a generated password. Set it
+     * only on a field that SETS a password, never on one that asks for an
+     * existing one.
+     */
+    generate?: boolean
   }>(),
-  { placeholder: undefined, required: false, error: null, autocomplete: 'current-password' },
+  {
+    placeholder: undefined,
+    required: false,
+    error: null,
+    autocomplete: 'current-password',
+    generate: false,
+  },
 )
 
 /** Events emitted by {@link UiPasswordInput}. */
@@ -93,6 +114,17 @@ const onUpdate = (value: string): void => {
 const onToggle = (): void => {
   isRevealed.value = !isRevealed.value
 }
+
+/**
+ * Replaces the field's value with a freshly generated password and puts it on
+ * screen. Revealing is deliberate and not a convenience: the value exists
+ * nowhere else yet, so a person who cannot see it cannot record it.
+ * @returns Nothing; emits the generated value.
+ */
+const onGenerate = (): void => {
+  isRevealed.value = true
+  emit('update:modelValue', generatePassword())
+}
 </script>
 
 <template>
@@ -107,6 +139,19 @@ const onToggle = (): void => {
     @update:model-value="onUpdate"
   >
     <template #trailing="{ inputId }">
+      <!-- Named by `aria-label` for the same reason as the toggle beside it:
+           the icon announces nothing, so the button would otherwise reach a
+           screen reader unnamed. -->
+      <UiButton
+        v-if="props.generate"
+        variant="ghost"
+        :aria-label="t('app.auth.generatePassword')"
+        :aria-controls="inputId"
+        class="px-2.5 py-1"
+        @click="onGenerate"
+      >
+        <UiIcon name="dices" size="md" />
+      </UiButton>
       <!-- `aria-label` is the control's ONLY name now that the words are not
            rendered: the icon is decorative and announces nothing. `aria-controls`
            ties the toggle to the field it changes, and `aria-pressed` reports the

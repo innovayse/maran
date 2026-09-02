@@ -135,6 +135,7 @@ onMounted(() => {
             :label="t('app.auth.passwordLabel')"
           :placeholder="t('app.auth.passwordPlaceholder')"
           required
+          generate
           autocomplete="new-password"
         />
         <p v-if="strengthLabel !== ''" class="text-sm text-text-muted">{{ strengthLabel }}</p>

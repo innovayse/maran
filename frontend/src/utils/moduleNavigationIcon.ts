@@ -24,6 +24,10 @@ import type { NavigationIcon } from '../types/navigation'
 const MODULE_ICONS: Readonly<Record<string, NavigationIcon>> = {
   accounts: 'users',
   sites: 'earth',
+  databases: 'database',
+  // A folder with a key rather than a second generic transfer glyph: an SFTP login opens one
+  // account's directory and nothing else on the host, which is the fact worth drawing.
+  sftp: 'folderKey',
   // The Identity module's entry leads to the signed-in person's security screens (sessions,
   // two-factor), so it is marked as protection rather than as people.
   identity: 'shieldCheck',

@@ -8,9 +8,10 @@
  * It carries the full dialog contract so screens do not have to:
  * `role="dialog"` with `aria-modal`, an accessible name taken from the
  * rendered title, a focus trap that cycles Tab and Shift+Tab inside the
- * panel, Escape and backdrop-click dismissal, and focus restored to whatever
- * element opened it. The dialog is teleported to `<body>` so no ancestor's
- * `overflow` or stacking context can clip it.
+ * panel, Escape and backdrop-click dismissal (both suppressed together by
+ * `:dismissible="false"` for a dialog whose content cannot be recovered), and
+ * focus restored to whatever element opened it. The dialog is teleported to
+ * `<body>` so no ancestor's `overflow` or stacking context can clip it.
  *
  * The caller owns the open state: this component reports `close` and never
  * closes itself behind the caller's back.
@@ -28,10 +29,22 @@ const props = withDefaults(
     title: string
     /** Accessible name for the close button, already translated by the caller. */
     closeLabel: string
-    /** Whether a click on the backdrop dismisses the dialog; turn it off for a step the user must answer. */
-    dismissOnBackdrop?: boolean
+    /**
+     * Whether the user may dismiss the dialog themselves — by clicking the
+     * backdrop or pressing Escape. Turn it OFF for a dialog whose content
+     * cannot be recovered once it is gone: the credential dialogs show a
+     * password that exists nowhere else in the product, so a mis-aimed click
+     * beside the panel or a reflexive Escape would destroy it with no way
+     * back. Such a dialog still closes through its own explicit control and
+     * through the close button in the header.
+     *
+     * Both gestures are governed by this ONE prop rather than two, because a
+     * dialog that refuses a backdrop click while still answering Escape is
+     * protected against the accident nobody makes and open to the one they do.
+     */
+    dismissible?: boolean
   }>(),
-  { dismissOnBackdrop: true },
+  { dismissible: true },
 )
 
 /** Events emitted by {@link UiModal}. */
@@ -62,17 +75,33 @@ const requestClose = (): void => {
 }
 
 /**
- * Dismisses on a backdrop click, ignoring clicks that started inside the panel
- * and bubbled out.
+ * Dismisses on a backdrop click, unless the caller has declared the dialog
+ * undismissable, and ignoring clicks that started inside the panel and bubbled out.
  * @param event The native mouse event on the backdrop.
  * @returns Nothing; emits synchronously.
  */
 const onBackdropClick = (event: MouseEvent): void => {
-  if (!props.dismissOnBackdrop) {
+  if (!props.dismissible) {
     return
   }
   const target = event.target
   if (target instanceof Node && panelElement.value?.contains(target) === true) {
+    return
+  }
+  requestClose()
+}
+
+/**
+ * Dismisses on Escape, unless the caller has declared the dialog undismissable.
+ *
+ * Escape is guarded for the same reason the backdrop is, and it is the likelier
+ * of the two accidents: it is one keystroke, it is muscle memory, and on a
+ * dialog showing a value that exists nowhere else it destroys that value with
+ * nothing to undo it.
+ * @returns Nothing; emits synchronously when dismissal is allowed.
+ */
+const onEscape = (): void => {
+  if (!props.dismissible) {
     return
   }
   requestClose()
@@ -151,12 +180,15 @@ onBeforeUnmount((): void => {
          Focus on <body> is outside the trap, and the Escape and Tab handlers below
          never fire for it. Only the backdrop itself is suppressed, so presses
          inside the panel still focus and select normally. -->
+    <!-- z-[60] is above UiDropdown's panel, which is also teleported to body and
+         sits at z-50. Two teleported siblings at the SAME z resolve by mount
+         order, which is not a rule anyone can read off the page. -->
     <div
       v-if="open"
-      class="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-6 backdrop-blur-[2px]"
+      class="fixed inset-0 z-[60] flex items-center justify-center bg-black/55 p-6 backdrop-blur-[2px]"
       @mousedown.self.prevent
       @click="onBackdropClick"
-      @keydown.esc.prevent="requestClose"
+      @keydown.esc.prevent="onEscape"
       @keydown.tab="onTab"
     >
       <div

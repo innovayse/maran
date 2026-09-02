@@ -22,9 +22,14 @@ import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
+  Copy,
+  Database,
+  Dices,
   Earth,
+  Ellipsis,
   Eye,
   EyeOff,
+  FolderKey,
   Globe,
   LayoutGrid,
   LogOut,
@@ -54,6 +59,12 @@ export type UiIconName =
   | 'shieldCheck'
   /** Meridian sphere — the sites module. */
   | 'earth'
+  /** Stacked discs — the databases module. */
+  | 'database'
+  /** Folder with a key — the SFTP module, whose logins open one directory and no other. */
+  | 'folderKey'
+  /** Two sheets — copying a value, such as a one-time credential, to the clipboard. */
+  | 'copy'
   /** Stacked racks — the server picker. */
   | 'server'
   /** Magnifier — the command/search trigger and the search field. */
@@ -84,10 +95,14 @@ export type UiIconName =
   | 'x'
   /** Three rules — the header's sidebar toggle on narrow screens. */
   | 'menu'
+  /** Three dots — the trigger of a row's actions menu, where a word would crowd the row. */
+  | 'ellipsis'
   /** Open eye — the password value is currently revealed. */
   | 'eye'
   /** Struck-through eye — the password value is currently masked. */
   | 'eyeOff'
+  /** A pair of dice — replacing a typed password with a randomly generated one. */
+  | 'dices'
 
 /**
  * Every glyph the panel draws, mapped to its lucide component. The map is
@@ -100,6 +115,9 @@ const ICONS: Record<UiIconName, LucideIcon> = {
   users: Users,
   shieldCheck: ShieldCheck,
   earth: Earth,
+  database: Database,
+  folderKey: FolderKey,
+  copy: Copy,
   server: Server,
   search: Search,
   moon: Moon,
@@ -115,8 +133,10 @@ const ICONS: Record<UiIconName, LucideIcon> = {
   check: Check,
   x: X,
   menu: Menu,
+  ellipsis: Ellipsis,
   eye: Eye,
   eyeOff: EyeOff,
+  dices: Dices,
 }
 
 /**
