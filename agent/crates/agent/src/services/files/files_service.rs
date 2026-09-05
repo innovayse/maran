@@ -3,22 +3,23 @@
 use std::pin::Pin;
 use std::sync::Arc;
 
-use maran_ops::files::{self, FilesHost, FilesOpError};
+use maran_ops::files::{self, FilesHost};
 use tokio_stream::Stream;
 use tonic::{Request, Response, Status, Streaming};
 
 use crate::proto::files_service_server::FilesService;
 use crate::proto::{
-    AgentError, ChangePermissionsRequest, ChangePermissionsResponse, CreateArchiveRequest,
+    ChangePermissionsRequest, ChangePermissionsResponse, CreateArchiveRequest,
     CreateArchiveResponse, CreateDirectoryRequest, CreateDirectoryResponse, DeleteEntryOk,
-    DeleteEntryRequest, DeleteEntryResponse, ErrorCode, ExtractArchiveRequest,
-    ExtractArchiveResponse, ListDirectoryRequest, ListDirectoryResponse, MoveEntryRequest,
-    MoveEntryResponse, ReadFileRequest, ReadFileResponse, WriteFileOk, WriteFileRequest,
-    WriteFileResponse, delete_entry_response, write_file_response,
+    DeleteEntryRequest, DeleteEntryResponse, ExtractArchiveRequest, ExtractArchiveResponse,
+    ListDirectoryRequest, ListDirectoryResponse, MoveEntryRequest, MoveEntryResponse,
+    ReadFileRequest, ReadFileResponse, WriteFileOk, WriteFileRequest, WriteFileResponse,
+    delete_entry_response, write_file_response,
 };
 use crate::services::files::file_status::to_agent_error;
 use crate::services::files::validated_delete::validated_delete;
 use crate::services::files::validated_write::validated_write;
+use crate::services::wire::run_blocking::run_blocking;
 
 /// The stream type `ReadFile` would return.
 ///
@@ -64,36 +65,6 @@ impl<H: FilesHost + 'static> FilesServiceImpl<H> {
             host: Arc::new(host),
         }
     }
-
-    /// Runs one operation on the blocking pool and maps its failure onto the
-    /// wire error — the shape both rpcs here share, written once so that adding
-    /// an rpc cannot forget to leave the runtime or map an error differently
-    /// from its neighbour.
-    ///
-    /// Leaving the runtime is not optional here: every operation forks and then
-    /// waits in `waitpid`, which on a runtime worker stalls every other
-    /// in-flight command (rules/rust.md "Async and blocking").
-    ///
-    /// # Errors
-    ///
-    /// Returns the [`to_agent_error`] mapping of whatever the operation failed
-    /// on. A blocking task that panicked has no domain answer to give and is
-    /// reported as a system failure — not as a gRPC status, which rules/proto.md
-    /// reserves for transport problems, and a panic inside the agent is not one.
-    async fn run<T, F>(operation: F) -> Result<T, AgentError>
-    where
-        F: FnOnce() -> Result<T, FilesOpError> + Send + 'static,
-        T: Send + 'static,
-    {
-        match tokio::task::spawn_blocking(operation).await {
-            Ok(outcome) => outcome.map_err(|error| to_agent_error(&error)),
-            Err(error) => Err(AgentError {
-                code: ErrorCode::SystemFailure as i32,
-                message: format!("the file operation did not finish: {error}"),
-                tool_output: String::new(),
-            }),
-        }
-    }
 }
 
 #[tonic::async_trait]
@@ -108,7 +79,10 @@ impl<H: FilesHost + 'static> FilesService for FilesServiceImpl<H> {
         let result = match validated_write(request.into_inner()).await {
             Ok(input) => {
                 let host = Arc::clone(&self.host);
-                Self::run(move || files::write_file(host.as_ref(), &input)).await
+                run_blocking("file operation", to_agent_error, move || {
+                    files::write_file(host.as_ref(), &input)
+                })
+                .await
             }
             Err(error) => Err(error),
         };
@@ -131,7 +105,10 @@ impl<H: FilesHost + 'static> FilesService for FilesServiceImpl<H> {
         let result = match validated_delete(&request.into_inner()) {
             Ok(input) => {
                 let host = Arc::clone(&self.host);
-                Self::run(move || files::delete_entry(host.as_ref(), &input)).await
+                run_blocking("file operation", to_agent_error, move || {
+                    files::delete_entry(host.as_ref(), &input)
+                })
+                .await
             }
             Err(error) => Err(error),
         };

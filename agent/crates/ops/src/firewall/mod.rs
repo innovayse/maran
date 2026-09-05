@@ -65,8 +65,9 @@
 //! What covers the two readers — and the four mutations, before their first
 //! request ever runs — is a check of the CALL SITES rather than a runtime
 //! guess: `tests/services/firewall/firewall_service_tests.rs` in the `agent`
-//! crate asserts that every call into these six operations sits inside that
-//! `run` helper, and drives both readers over the rpc on a real runtime. It is
+//! crate asserts that every call into these six operations sits inside the
+//! shared `run_blocking` wrapper, and drives both readers over the rpc on a
+//! real runtime. It is
 //! written that way because tokio exposes nothing that tells a blocking-pool
 //! thread from a worker; `firewall_lock` records what was measured, and the
 //! defect the missing measurement produced.

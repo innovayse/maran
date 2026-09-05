@@ -2,23 +2,24 @@
 
 use std::sync::Arc;
 
-use maran_ops::db::{self, DbError, DbHost};
+use maran_ops::db::{self, DbHost};
 use tonic::{Request, Response, Status};
 
 use crate::proto::db_service_server::DbService;
 use crate::proto::{
-    AgentError, CreateDatabaseOk, CreateDatabaseRequest, CreateDatabaseResponse, DatabaseInfo,
-    DropDatabaseOk, DropDatabaseRequest, DropDatabaseResponse, ErrorCode, GetDatabaseSizeOk,
-    GetDatabaseSizeRequest, GetDatabaseSizeResponse, ListDatabasesOk, ListDatabasesRequest,
-    ListDatabasesResponse, SetDatabasePasswordOk, SetDatabasePasswordRequest,
-    SetDatabasePasswordResponse, create_database_response, drop_database_response,
-    get_database_size_response, list_databases_response, set_database_password_response,
+    CreateDatabaseOk, CreateDatabaseRequest, CreateDatabaseResponse, DatabaseInfo, DropDatabaseOk,
+    DropDatabaseRequest, DropDatabaseResponse, GetDatabaseSizeOk, GetDatabaseSizeRequest,
+    GetDatabaseSizeResponse, ListDatabasesOk, ListDatabasesRequest, ListDatabasesResponse,
+    SetDatabasePasswordOk, SetDatabasePasswordRequest, SetDatabasePasswordResponse,
+    create_database_response, drop_database_response, get_database_size_response,
+    list_databases_response, set_database_password_response,
 };
 use crate::services::db::db_status::to_agent_error;
 use crate::services::db::validated_creation::validated_creation;
 use crate::services::db::validated_database::validated_database;
 use crate::services::db::validated_password_change::validated_password_change;
 use crate::services::db::validated_removal::validated_removal;
+use crate::services::wire::run_blocking::run_blocking;
 use crate::services::wire::validated_account::validated_account;
 
 /// Serves the database operations over the wire.
@@ -53,36 +54,6 @@ impl<H: DbHost + 'static> DbServiceImpl<H> {
             host: Arc::new(host),
         }
     }
-
-    /// Runs one operation on the blocking pool and maps its failure onto the
-    /// wire error — the shape every rpc here shares, written once so that
-    /// adding an rpc cannot forget to leave the runtime or map an error
-    /// differently from its neighbours.
-    ///
-    /// Every operation here spawns the database client and waits for it;
-    /// rules/rust.md requires that off the runtime's workers, since a process
-    /// wait on a worker stalls every other in-flight command.
-    ///
-    /// # Errors
-    ///
-    /// Returns the [`to_agent_error`] mapping of whatever the operation failed
-    /// on, or a system failure when the blocking task did not finish — a panic
-    /// inside the agent has no domain answer to give, and rules/proto.md
-    /// reserves gRPC statuses for transport problems, which it is not.
-    async fn run<T, F>(operation: F) -> Result<T, AgentError>
-    where
-        F: FnOnce() -> Result<T, DbError> + Send + 'static,
-        T: Send + 'static,
-    {
-        match tokio::task::spawn_blocking(operation).await {
-            Ok(outcome) => outcome.map_err(|error| to_agent_error(&error)),
-            Err(error) => Err(AgentError {
-                code: ErrorCode::SystemFailure as i32,
-                message: format!("the database operation did not finish: {error}"),
-                tool_output: String::new(),
-            }),
-        }
-    }
 }
 
 #[tonic::async_trait]
@@ -111,9 +82,11 @@ impl<H: DbHost + 'static> DbService for DbServiceImpl<H> {
                     input.user.as_str().to_owned(),
                 );
 
-                Self::run(move || db::create_database(host.as_ref(), &input))
-                    .await
-                    .map(|()| created)
+                run_blocking("database operation", to_agent_error, move || {
+                    db::create_database(host.as_ref(), &input)
+                })
+                .await
+                .map(|()| created)
             }
             Err(error) => Err(error),
         };
@@ -147,7 +120,10 @@ impl<H: DbHost + 'static> DbService for DbServiceImpl<H> {
         ) {
             Ok((database, user)) => {
                 let host = Arc::clone(&self.host);
-                Self::run(move || db::drop_database(host.as_ref(), &database, &user)).await
+                run_blocking("database operation", to_agent_error, move || {
+                    db::drop_database(host.as_ref(), &database, &user)
+                })
+                .await
             }
             Err(error) => Err(error),
         };
@@ -180,7 +156,10 @@ impl<H: DbHost + 'static> DbService for DbServiceImpl<H> {
         ) {
             Ok((user, password)) => {
                 let host = Arc::clone(&self.host);
-                Self::run(move || db::set_database_password(host.as_ref(), &user, &password)).await
+                run_blocking("database operation", to_agent_error, move || {
+                    db::set_database_password(host.as_ref(), &user, &password)
+                })
+                .await
             }
             Err(error) => Err(error),
         };
@@ -205,7 +184,10 @@ impl<H: DbHost + 'static> DbService for DbServiceImpl<H> {
         let result = match validated_account(&request.account_username) {
             Ok(account) => {
                 let host = Arc::clone(&self.host);
-                Self::run(move || db::list_databases(host.as_ref(), &account)).await
+                run_blocking("database operation", to_agent_error, move || {
+                    db::list_databases(host.as_ref(), &account)
+                })
+                .await
             }
             Err(error) => Err(error),
         };
@@ -250,7 +232,10 @@ impl<H: DbHost + 'static> DbService for DbServiceImpl<H> {
         let result = match validated_database(&request.account_username, &request.database_name) {
             Ok(database) => {
                 let host = Arc::clone(&self.host);
-                Self::run(move || db::database_size(host.as_ref(), &database)).await
+                run_blocking("database operation", to_agent_error, move || {
+                    db::database_size(host.as_ref(), &database)
+                })
+                .await
             }
             Err(error) => Err(error),
         };

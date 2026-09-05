@@ -6,7 +6,7 @@ use std::sync::Arc;
 use maran_agent_core::validation::web::php_version::PhpVersion;
 use maran_ops::php::PhpHost;
 use maran_ops::sites::{
-    self, CreateSiteInput, PhpSwitch, SiteIdentity, SiteLogKind, SiteMaintenanceHost, SitesOpError,
+    self, CreateSiteInput, PhpSwitch, SiteIdentity, SiteLogKind, SiteMaintenanceHost,
 };
 use maran_ops::ssl::{self, SslHost};
 use tokio::sync::mpsc;
@@ -32,6 +32,7 @@ use crate::services::sites::validated_identity::validated_identity;
 use crate::services::sites::validated_overrides::validated_overrides;
 use crate::services::sites::validated_site::validated_site;
 use crate::services::wire::invalid_input::invalid_input;
+use crate::services::wire::run_blocking::run_blocking;
 
 /// How many log lines the tail may run ahead of the client.
 ///
@@ -97,32 +98,6 @@ where
         }
     }
 
-    /// Runs one operation on the blocking pool and maps its failure onto the
-    /// wire error — the shape every unary rpc here shares, written once so
-    /// that adding an rpc cannot forget to leave the runtime or map an error
-    /// differently from its neighbours.
-    ///
-    /// # Errors
-    ///
-    /// Returns the [`to_agent_error`] mapping of whatever the operation failed
-    /// on. A blocking task that panicked has no domain answer to give and is
-    /// reported as a system failure — not as a gRPC status, which rules/proto.md
-    /// reserves for transport problems, and a panic inside the agent is not one.
-    async fn run<T, F>(operation: F) -> Result<T, AgentError>
-    where
-        F: FnOnce() -> Result<T, SitesOpError> + Send + 'static,
-        T: Send + 'static,
-    {
-        match tokio::task::spawn_blocking(operation).await {
-            Ok(outcome) => outcome.map_err(|error| to_agent_error(&error)),
-            Err(error) => Err(AgentError {
-                code: ErrorCode::SystemFailure as i32,
-                message: format!("the site operation did not finish: {error}"),
-                tool_output: String::new(),
-            }),
-        }
-    }
-
     /// The site description a re-rendering rpc carries, validated.
     ///
     /// # Errors
@@ -183,7 +158,7 @@ where
                     self.distro,
                 );
                 let max_children = request.max_children;
-                Self::run(move || {
+                run_blocking("site operation", to_agent_error, move || {
                     sites::create_site(
                         host.as_ref(),
                         php_host.as_ref(),
@@ -244,7 +219,7 @@ where
                 );
                 let max_children = request.max_children;
                 let remove_previous_pool = request.remove_previous_pool;
-                Self::run(move || {
+                run_blocking("site operation", to_agent_error, move || {
                     sites::update_site_php_version(
                         host.as_ref(),
                         php_host.as_ref(),
@@ -286,7 +261,10 @@ where
         ) {
             Ok(input) => {
                 let (host, distro) = (Arc::clone(&self.host), self.distro);
-                Self::run(move || sites::enable_site(host.as_ref(), distro, &input)).await
+                run_blocking("site operation", to_agent_error, move || {
+                    sites::enable_site(host.as_ref(), distro, &input)
+                })
+                .await
             }
             Err(error) => Err(error),
         };
@@ -314,7 +292,10 @@ where
         ) {
             Ok(input) => {
                 let (host, distro) = (Arc::clone(&self.host), self.distro);
-                Self::run(move || sites::disable_site(host.as_ref(), distro, &input)).await
+                run_blocking("site operation", to_agent_error, move || {
+                    sites::disable_site(host.as_ref(), distro, &input)
+                })
+                .await
             }
             Err(error) => Err(error),
         };
@@ -372,7 +353,7 @@ where
                     self.distro,
                 );
                 let site = SiteIdentity { account, domain };
-                Self::run(move || {
+                run_blocking("site operation", to_agent_error, move || {
                     // The site AND its certificate material, as one operation.
                     // Two calls here is what this rpc used to be missing the
                     // second of: `purge_certificate` had no caller anywhere in
@@ -489,7 +470,10 @@ where
         _request: Request<ReloadWebServerRequest>,
     ) -> Result<Response<ReloadWebServerResponse>, Status> {
         let (host, distro) = (Arc::clone(&self.host), self.distro);
-        let result = match Self::run(move || sites::reload_web_server(host.as_ref(), distro)).await
+        let result = match run_blocking("site operation", to_agent_error, move || {
+            sites::reload_web_server(host.as_ref(), distro)
+        })
+        .await
         {
             Ok(()) => reload_web_server_response::Result::Ok(ReloadWebServerOk {}),
             Err(error) => reload_web_server_response::Result::Error(error),

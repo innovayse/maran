@@ -2,19 +2,19 @@
 
 use std::sync::Arc;
 
-use maran_ops::ssl::{self, CertificateMaterial, SslHost, SslOpError};
+use maran_ops::ssl::{self, CertificateMaterial, SslHost};
 use tonic::{Request, Response, Status};
 
 use crate::proto::ssl_service_server::SslService;
 use crate::proto::{
-    AgentError, ErrorCode, GenerateSelfSignedOk, GenerateSelfSignedRequest,
-    GenerateSelfSignedResponse, InstallCertificateOk, InstallCertificateRequest,
-    InstallCertificateResponse, RemoveCertificateOk, RemoveCertificateRequest,
-    RemoveCertificateResponse, generate_self_signed_response, install_certificate_response,
-    remove_certificate_response,
+    GenerateSelfSignedOk, GenerateSelfSignedRequest, GenerateSelfSignedResponse,
+    InstallCertificateOk, InstallCertificateRequest, InstallCertificateResponse,
+    RemoveCertificateOk, RemoveCertificateRequest, RemoveCertificateResponse,
+    generate_self_signed_response, install_certificate_response, remove_certificate_response,
 };
 use crate::services::sites::validated_site::validated_site;
 use crate::services::ssl::ssl_status::to_agent_error;
+use crate::services::wire::run_blocking::run_blocking;
 
 /// Serves the certificate operations over the wire.
 ///
@@ -47,37 +47,6 @@ impl<H: SslHost + 'static> SslServiceImpl<H> {
             distro,
         }
     }
-
-    /// Runs one operation on the blocking pool and maps its failure onto the
-    /// wire error — the shape every rpc here shares, written once so that
-    /// adding an rpc cannot forget to leave the runtime or map an error
-    /// differently from its neighbours.
-    ///
-    /// Every operation here spawns openssl and reloads nginx, and one of them
-    /// forks to the account; `rules/rust.md` requires all of that off the
-    /// runtime's workers, since `waitpid` on a worker stalls every other
-    /// in-flight command.
-    ///
-    /// # Errors
-    ///
-    /// Returns the [`to_agent_error`] mapping of whatever the operation failed
-    /// on. A blocking task that panicked has no domain answer to give and is
-    /// reported as a system failure — not as a gRPC status, which rules/proto.md
-    /// reserves for transport problems, and a panic inside the agent is not one.
-    async fn run<T, F>(operation: F) -> Result<T, AgentError>
-    where
-        F: FnOnce() -> Result<T, SslOpError> + Send + 'static,
-        T: Send + 'static,
-    {
-        match tokio::task::spawn_blocking(operation).await {
-            Ok(outcome) => outcome.map_err(|error| to_agent_error(&error)),
-            Err(error) => Err(AgentError {
-                code: ErrorCode::SystemFailure as i32,
-                message: format!("the certificate operation did not finish: {error}"),
-                tool_output: String::new(),
-            }),
-        }
-    }
 }
 
 #[tonic::async_trait]
@@ -101,8 +70,10 @@ impl<H: SslHost + 'static> SslService for SslServiceImpl<H> {
                 // with the rest of the message.
                 let material =
                     CertificateMaterial::new(&request.certificate_pem, &request.private_key_pem);
-                Self::run(move || ssl::install_certificate(host.as_ref(), distro, &site, &material))
-                    .await
+                run_blocking("certificate operation", to_agent_error, move || {
+                    ssl::install_certificate(host.as_ref(), distro, &site, &material)
+                })
+                .await
             }
             Err(error) => Err(error),
         };
@@ -133,7 +104,10 @@ impl<H: SslHost + 'static> SslService for SslServiceImpl<H> {
         ) {
             Ok(site) => {
                 let (host, distro) = (Arc::clone(&self.host), self.distro);
-                Self::run(move || ssl::remove_certificate(host.as_ref(), distro, &site)).await
+                run_blocking("certificate operation", to_agent_error, move || {
+                    ssl::remove_certificate(host.as_ref(), distro, &site)
+                })
+                .await
             }
             Err(error) => Err(error),
         };
@@ -162,7 +136,10 @@ impl<H: SslHost + 'static> SslService for SslServiceImpl<H> {
         ) {
             Ok(site) => {
                 let (host, distro) = (Arc::clone(&self.host), self.distro);
-                Self::run(move || ssl::generate_self_signed(host.as_ref(), distro, &site)).await
+                run_blocking("certificate operation", to_agent_error, move || {
+                    ssl::generate_self_signed(host.as_ref(), distro, &site)
+                })
+                .await
             }
             Err(error) => Err(error),
         };
