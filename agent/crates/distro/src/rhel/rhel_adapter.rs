@@ -117,6 +117,38 @@ impl DistroAdapter for RhelAdapter {
     fn passwd_database(&self) -> &'static str {
         rhel_services::passwd_database()
     }
+
+    fn crontab_binary(&self) -> &'static str {
+        rhel_services::crontab_binary()
+    }
+
+    fn sh_binary(&self) -> &'static str {
+        rhel_services::sh_binary()
+    }
+
+    fn nft_binary(&self) -> &'static str {
+        rhel_services::nft_binary()
+    }
+
+    fn nftables_include_target(&self) -> &'static str {
+        rhel_paths::nftables_include_target()
+    }
+
+    fn firewall_service(&self) -> &'static str {
+        rhel_services::firewall_service()
+    }
+
+    fn cron_service(&self) -> &'static str {
+        rhel_services::cron_service()
+    }
+
+    fn ssh_service(&self) -> &'static str {
+        rhel_services::ssh_service()
+    }
+
+    fn managed_units(&self) -> [&'static str; 4] {
+        rhel_services::managed_units()
+    }
 }
 
 #[cfg(test)]

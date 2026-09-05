@@ -4,11 +4,12 @@
 // by an `#[allow]` further down, so adding unsafe here does not compile at all.
 #![forbid(unsafe_code)]
 //! maran-templates — askama render types for the system configs the
-//! agent writes (`templates/{nginx,php-fpm,vsftpd,systemd}/`). Rendering
-//! follows the safe-write protocol: render → temp file → validate → atomic
-//! rename → reload (rules/rust.md "Validation first"). Byte-exact expected
-//! renders live in `tests/golden/`.
+//! agent writes (`templates/{nginx,php-fpm,vsftpd,systemd,nftables}/`).
+//! Rendering follows the safe-write protocol: render → temp file → validate →
+//! atomic rename → reload (rules/rust.md "Validation first"). Byte-exact
+//! expected renders live in `tests/golden/`.
 
+pub mod nftables;
 pub mod nginx;
 pub mod php_fpm;
 pub mod render_error;

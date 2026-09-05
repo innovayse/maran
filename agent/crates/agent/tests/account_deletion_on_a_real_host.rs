@@ -17,6 +17,13 @@
 //!   the absence of a line from a configuration file — a directive in the wrong
 //!   block reads the same and does nothing, and a login that has merely been
 //!   forgotten by the panel still works.
+//! - **The crontab is really gone from the host's spool**, and a same-named
+//!   account created afterwards has none. `userdel` removes neither family's
+//!   spool file — the Debian family keeps `/var/spool/cron/crontabs/<name>`
+//!   owned by the account's freed uid, the RHEL family `/var/spool/cron/<name>`
+//!   owned by root — and cron keys that file by NAME, so the survivor is handed
+//!   whole to whoever holds the name next. Only a real `crontab(1)` and a real
+//!   `userdel` can show that, which is why the claim lives here.
 //! - **The bind mount is really down and the jail is really gone.** A mount that
 //!   survives the deletion is a mount of a home `userdel` has just removed, and
 //!   the uninstaller refuses to remove `/var/lib/maran` while any mount remains
@@ -44,14 +51,18 @@ mod polygon_mariadb;
 mod polygon_sshd;
 
 use std::path::Path;
+use std::process::Command;
 
 use maran_agent_core::validation::db::database_name::DatabaseName;
 use maran_agent_core::validation::db::db_user_name::DbUserName;
 use maran_agent_core::validation::secrets::password::Password;
+use maran_agent_core::validation::system::cron_command::CronCommand;
+use maran_agent_core::validation::system::cron_schedule::CronSchedule;
 use maran_agent_core::validation::system::name::AccountName;
 use maran_agent_core::validation::system::sftp_user_name::SftpUserName;
 use maran_distro::{DistroAdapter, adapter_for, detect};
 use maran_ops::accounts::{AccountOperations, ProcessSystemHost};
+use maran_ops::cron::{ProcessCronHost, create_cron_entry, list_cron_entries};
 use maran_ops::db::{CreateDatabaseRequest, ProcessDbHost, create_database};
 use maran_ops::php::ProcessPhpHost;
 use maran_ops::sftp::{AccountJail, ProcessSftpHost, SftpUserRequest, create_sftp_user};
@@ -87,6 +98,23 @@ const CUSTOMER_TABLE: &str = "orders";
 /// The file planted in the account's home, so the SFTP session before the
 /// deletion is looking at real customer data rather than an empty directory.
 const CUSTOMER_FILE: &str = "hello.txt";
+
+/// The command the account's scheduled entry runs.
+///
+/// Its text never reaches the crontab line — it is written to a `0600` file
+/// under the account's home and the line names that file — so what survives a
+/// deletion is a schedule pointing at a path, not a command. That is why the
+/// assertions below are about the TABLE existing at all rather than about this
+/// string appearing in it.
+const CUSTOMER_CRON_COMMAND: &str = "/bin/echo scheduled by the previous tenant";
+
+/// The sentence both cron lineages print for an account with no table.
+///
+/// Written out again here rather than imported: a test that took the constant
+/// the implementation matches on would agree with it by construction and could
+/// never notice the program changing its mind. This one is compared against
+/// what the real tool printed.
+const NO_CRONTAB_MARKER: &str = "no crontab for";
 
 /// The distribution adapter for the polygon this suite is running in.
 ///
@@ -139,6 +167,52 @@ fn sftp_login_of(account: &AccountName) -> String {
     format!("{}_{SFTP_LOGIN}", account.as_str())
 }
 
+/// What `crontab -u <account> -l` printed, both streams and the status.
+///
+/// A separate process on purpose: it asks the same program the agent asks,
+/// through its documented interface, rather than reading the spool directly.
+/// Where that spool lives, what owns it and what a bare uid in it renders as
+/// differ between the two families — `/var/spool/cron/crontabs/<name>` owned by
+/// the account on the Debian family, `/var/spool/cron/<name>` owned by root on
+/// the RHEL one — so a test that stat-ed a path would be asserting one family's
+/// layout and passing vacuously on the other.
+///
+/// # Panics
+///
+/// Panics when the program cannot be run at all.
+fn crontab_of(account: &AccountName) -> std::process::Output {
+    Command::new(polygon_distro().crontab_binary())
+        .args(["-u", account.as_str(), "-l"])
+        .env("LC_ALL", "C")
+        .output()
+        .expect("the polygon image installs crontab")
+}
+
+/// Whether the host's cron spool holds a table for `account` at all.
+///
+/// True when the program printed one, false only when it said the account has
+/// none. Any other refusal is a failed test rather than a `false`: "the program
+/// would not answer" must never be read as "there is nothing there", which is
+/// the direction this whole area fails in.
+///
+/// # Panics
+///
+/// Panics when `crontab -l` refused for a reason that is not the absent table.
+fn has_a_crontab(account: &AccountName) -> bool {
+    let listed = crontab_of(account);
+    if listed.status.success() {
+        return true;
+    }
+
+    assert!(
+        String::from_utf8_lossy(&listed.stderr).contains(NO_CRONTAB_MARKER),
+        "crontab -l refused for a reason other than an absent table: {}",
+        said(&listed)
+    );
+
+    false
+}
+
 /// Gives `account` a database with a table in it and an SFTP login, through the
 /// same operations the panel drives.
 ///
@@ -176,6 +250,15 @@ fn provision(server: &PolygonMariadb, account: &AccountName) {
              the bind mount could not be made."
         )
     });
+
+    create_cron_entry(
+        &ProcessCronHost::new(polygon_distro()),
+        polygon_distro(),
+        account,
+        &CronSchedule::parse("*", "*", "*", "*", "*").expect("a valid schedule"),
+        &CronCommand::parse(CUSTOMER_CRON_COMMAND).expect("a valid command"),
+    )
+    .unwrap_or_else(|error| panic!("giving the account a cron entry must succeed: {error}"));
 }
 
 /// Puts a file in `account`'s home, owned by the account.
@@ -256,6 +339,11 @@ fn a_deleted_account_leaves_no_database_and_a_recreated_account_of_the_same_name
         said(&session)
     );
     assert!(
+        has_a_crontab(&name),
+        "the account must really have a crontab before the deletion, or nothing \
+         below about inheriting one proves anything"
+    );
+    assert!(
         said(&session).contains(CUSTOMER_FILE),
         "the login must reach the account's real files through the bind mount, or \
          the jail was never filled and nothing below proves anything:\n{}",
@@ -309,7 +397,32 @@ fn a_deleted_account_leaves_no_database_and_a_recreated_account_of_the_same_name
         "a re-created account must not inherit the previous tenant's files"
     );
 
-    // 5. The jail is gone, so the new account gets a fresh one rather than the
+    // 5. The previous tenant's schedule did not come with the name. `userdel`
+    //    removes neither family's spool file — measured, on both — so without
+    //    the cascade removing it the table survives under the account's NAME,
+    //    and cron hands it to whoever holds that name next. The panel then
+    //    renders it on the new account's own scheduled-tasks screen as an entry
+    //    it never created.
+    //
+    //    Asserted through the program rather than through a path: the two
+    //    families disagree about where the file lives and what owns it, and on
+    //    the Debian family the survivor's numeric uid is simply re-rendered as
+    //    the new account's name — nothing chowns anything — so a stat-based
+    //    assertion would be describing `ls` rather than the defect.
+    assert!(
+        !has_a_crontab(&name),
+        "a re-created account must not inherit the previous tenant's crontab"
+    );
+    assert!(
+        list_cron_entries(&ProcessCronHost::new(polygon_distro()), &name)
+            .expect("listing a fresh account's entries must succeed")
+            .is_empty(),
+        "the new account's scheduled tasks must be empty: an inherited row names \
+         a command file that went with the old home, so the panel would show an \
+         entry that cannot run and that nobody created"
+    );
+
+    // 6. The jail is gone, so the new account gets a fresh one rather than the
     //    old tenant's — and nothing is mounted where the old home was.
     let jail = AccountJail::for_account(&name, polygon_distro().systemd_unit_directory());
     assert!(
@@ -360,6 +473,13 @@ fn deleting_an_account_leaves_a_neighbouring_account_whose_name_it_prefixes_unto
         theirs.status.success(),
         "the neighbour's SFTP login must still work:\n{}",
         said(&theirs)
+    );
+
+    assert!(
+        has_a_crontab(&their_name),
+        "the neighbour's crontab must survive this account's deletion: the spool \
+         is keyed by name, and a removal that matched a prefix — or that ran \
+         against a uid the deleted account had just freed — would take theirs too"
     );
 
     let jail = AccountJail::for_account(&their_name, polygon_distro().systemd_unit_directory());

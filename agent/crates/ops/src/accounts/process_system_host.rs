@@ -38,6 +38,27 @@ impl ProcessSystemHost {
     }
 }
 
+/// The locale variable every spawn in this file sets.
+///
+/// `LC_ALL` and not `LANG`, because `LC_ALL` overrides every other locale
+/// variable — one assignment settles the question whatever the daemon's own
+/// environment holds. The cron module pins the same variable for the same
+/// reason, and this file had not, which made an account with no crontab
+/// undeletable under any non-English locale: `remove_crontab` decides "there
+/// was nothing to remove" by reading `crontab`'s own message, and a message in
+/// another language is a refusal it cannot recognise. Nothing sets a locale on
+/// the agent's unit, so the daemon's environment decided it.
+const LOCALE_VARIABLE: &str = "LC_ALL";
+
+/// The locale every spawn in this file runs under.
+///
+/// `C`, so the diagnostics this host reads back are the ones its matching was
+/// written against. It is pinned on the SPAWN rather than per call site: every
+/// decision here that reads a program's output has the same exposure, and a
+/// rule honoured at one call site and forgotten at the next is the shape of
+/// defect this repository keeps finding.
+const LOCALE_VALUE: &str = "C";
+
 impl SystemHost for ProcessSystemHost {
     /// Spawns `program` with `arguments` as an argv array.
     ///
@@ -49,6 +70,7 @@ impl SystemHost for ProcessSystemHost {
     fn run(&self, program: &str, arguments: &[&str]) -> Result<CommandOutcome, AccountError> {
         let output = Command::new(program)
             .args(arguments)
+            .env(LOCALE_VARIABLE, LOCALE_VALUE)
             .output()
             .map_err(|error| AccountError::CommandUnavailable {
                 program: program.to_owned(),
@@ -82,3 +104,7 @@ impl SystemHost for ProcessSystemHost {
         Ok(directory_size(Path::new(path)))
     }
 }
+
+#[cfg(test)]
+#[path = "../tests/accounts/process_system_host_tests.rs"]
+mod tests;

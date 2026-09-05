@@ -41,9 +41,15 @@ message HostMetrics {
   uint64 disk_used_bytes = 4;
   // Total disk capacity of the root filesystem, in bytes.
   uint64 disk_total_bytes = 5;
-  // Network bytes received since the last sample interval.
+  // Network bytes received, as a COUNTER since the host booted — summed over
+  // the physical interfaces, loopback excluded. It is not a per-interval
+  // delta: the agent holds no previous sample and takes one reading. The
+  // caller derives a rate by dividing the difference between two readings by
+  // the seconds that actually elapsed between them, and clamps a negative
+  // difference (a reboot, an interface removed) to zero.
   uint64 network_rx_bytes = 6;
-  // Network bytes sent since the last sample interval.
+  // Network bytes sent, as a COUNTER since the host booted. Same derivation
+  // as network_rx_bytes.
   uint64 network_tx_bytes = 7;
   // System load average over the last 1 minute.
   double load_average_1m = 8;
@@ -68,22 +74,78 @@ message GetServiceStatusesOk {
 
 // Well-known services the agent supervises. Closed set — status reporting
 // never accepts an arbitrary unit name from the caller.
+//
+// GetServiceStatuses reports one entry per service the agent actually
+// watches, and the set is smaller than this enum: a service with no entry in
+// the response is one this agent does not observe, and a reader must treat
+// its absence as SERVICE_STATE_UNKNOWN rather than as "not running".
 enum ManagedService {
   MANAGED_SERVICE_UNSPECIFIED = 0;
   MANAGED_SERVICE_WEB_SERVER = 1;
+  // Never reported: a php-fpm unit's name carries a PHP version, so there is
+  // no single unit to ask about. The number is kept and never reused.
   MANAGED_SERVICE_PHP_FPM = 2;
   MANAGED_SERVICE_DATABASE = 3;
+  // Never reported: no FTP daemon ships, so the agent watches no FTP unit and
+  // this value appears in no response — read its absence as UNKNOWN until one
+  // ships. The number is kept and never reused, so a future FTP daemon
+  // reports under it (rules/proto.md, additive evolution).
   MANAGED_SERVICE_FTP = 4;
   MANAGED_SERVICE_CRON = 5;
+  // The OpenSSH server. Added with the tri-state below, because it is the one
+  // managed unit whose "inactive" is routinely not an outage: on the Debian
+  // family the enabled unit is a socket and the service it fronts stays
+  // inactive from boot until the first connection.
+  MANAGED_SERVICE_SSH = 6;
+}
+
+// What the agent found out about one managed unit. Three values and not a
+// boolean: a monitor that can only say "running" or "stopped" has to invent
+// one of them whenever it does not know, and the invented answer is always
+// the one that pages an operator.
+enum ServiceState {
+  // No state was reported. An old agent that predates this field sends the
+  // proto3 default, so a reader that finds UNSPECIFIED must fall back to the
+  // legacy `running` boolean rather than treating it as an outage.
+  SERVICE_STATE_UNSPECIFIED = 0;
+  // The unit is up: the service manager reports it active, or reloading.
+  SERVICE_STATE_RUNNING = 1;
+  // The unit is down and nothing is waiting to bring it up. The one state
+  // worth waking somebody for, which is why it is never the fallback.
+  SERVICE_STATE_STOPPED = 2;
+  // The agent reached the service manager and cannot call the unit either up
+  // or down: a socket-activated service nothing has connected to yet, a unit
+  // mid-transition, or a unit not installed on this host. None of them is an
+  // outage and none is proof of health.
+  SERVICE_STATE_UNKNOWN = 3;
 }
 
 message ServiceStatus {
   // Which service this status describes.
   ManagedService service = 1;
-  // True if the service is currently running.
+  // DEPRECATED — read `state` instead. Kept and still written so that a
+  // panel built against the two-value contract keeps working across one
+  // release (rules/proto.md, additive evolution): it is true exactly for
+  // SERVICE_STATE_RUNNING, which means it reports both STOPPED and UNKNOWN as
+  // false. That conflation is the whole reason `state` exists.
   bool running = 2;
-  // Seconds since the service's last (re)start; 0 if not running.
+  // DEPRECATED and always written 0 — the agent does not produce it. The
+  // service manager reports a unit's start timestamp, not an uptime, and
+  // turning one into the other needs a clock reading this agent deliberately
+  // does not take. A 0 here is "unproduced", never "just restarted"; the
+  // field is kept rather than removed because removing it is a breaking
+  // change (rules/proto.md).
   uint64 uptime_seconds = 3;
+  // Up, down, or not known. Readers prefer this over `running`.
+  ServiceState state = 4;
+  // Why, in the service manager's own vocabulary — its ActiveState and
+  // SubState words, or a short sentence the agent wrote ("not yet started;
+  // ssh.socket is listening for it", "the unit is not installed on this
+  // host"). It exists because `state` deliberately collapses several
+  // situations into UNKNOWN and an operator needs to know which one. Never a
+  // tool's standard error, and never a value derived from a request: no rpc
+  // here accepts a unit name.
+  string detail = 5;
 }
 
 message GetAccountsDiskUsageRequest {}
@@ -104,6 +166,12 @@ message AccountDiskUsage {
   string account_username = 1;
   // Bytes currently used under the account's home directory.
   uint64 used_bytes = 2;
-  // Quota currently in effect for the account, in bytes.
+  // DEPRECATED and always written 0 — the agent does not produce it. A
+  // quota is the PANEL's own data: it is chosen when an account is created
+  // and stored by the Accounts module, so the panel already holds the exact
+  // figure and asking the agent to re-derive one from the filesystem would
+  // introduce a second answer that can disagree. A 0 here is "unproduced",
+  // never "no quota"; the field is kept rather than removed because removing
+  // it is a breaking change (rules/proto.md).
   uint64 quota_bytes = 3;
 }

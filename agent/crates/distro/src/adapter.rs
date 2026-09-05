@@ -16,6 +16,27 @@ use crate::family::DistroFamily;
 /// owns itself and that is the same everywhere — its nginx include directory,
 /// its certificate directory — is a constant on `maran_agent_core::agent_paths::AgentPaths`,
 /// not a method every adapter repeats with the same literal.
+///
+/// # Which spelling a path answers, on a merged-`/usr` host
+///
+/// Both supported families merge `/usr`: `/bin` is a symlink to `usr/bin` and
+/// `/sbin` to `usr/sbin`, so one file has two absolute names and a method here
+/// has to pick one. The rule, and it is the ONLY one this crate uses:
+///
+/// > answer the name that is a documented interface, not the name that happens
+/// > to resolve.
+///
+/// Concretely — `/bin/sh` because that is the shell path a crontab line and
+/// every shebang name; `/sbin/nologin` because that is the path the RHEL family
+/// documents; `/usr/sbin/nft` because that is where the `nftables` package
+/// installs it on both families. Each is checked against its own authority, not
+/// against the other two.
+///
+/// `command -v` is how an answer is CHECKED on a real host, never how it is
+/// chosen. On a merged-`/usr` host it returns whichever spelling `PATH` reaches
+/// first, which is a fact about `PATH` ordering rather than about where a file
+/// belongs — it answers `/usr/bin/sh` on both polygon images, while the value
+/// this crate returns for the same file is, correctly, `/bin/sh`.
 pub trait DistroAdapter: Send + Sync {
     /// The family this adapter implements.
     fn family(&self) -> DistroFamily;
@@ -196,10 +217,9 @@ pub trait DistroAdapter: Send + Sync {
 
     /// Absolute path of `chpasswd`, for the process-execution allow-list.
     ///
-    /// Passwords are set by writing one `user:password` line to this program's
-    /// standard input, never by putting the value in its argument vector: a
-    /// command line is world-readable through `/proc`, so a password there is a
-    /// password every local user on the host can read.
+    /// How a password reaches it, and why that way, belongs to the operation
+    /// that sets one: `ops::sftp`'s `set_sftp_password` carries the reasoning
+    /// beside the code that must keep it true.
     fn chpasswd_binary(&self) -> &'static str;
 
     /// Directory a unit file must be written to for the service manager to
@@ -224,4 +244,161 @@ pub trait DistroAdapter: Send + Sync {
     /// this answer for the same reason: both are POSIX systems using the shadow
     /// suite.
     fn passwd_database(&self) -> &'static str;
+
+    /// Absolute path of `crontab`, for the process-execution allow-list.
+    ///
+    /// A per-account crontab is installed by running this program, never by
+    /// writing the spool directory directly: where that spool lives, what owns
+    /// it, what mode it carries and how the daemon learns it changed are the
+    /// program's business on each family, and asking it to do the work is what
+    /// keeps all four out of `ops`. That is the part this crate knows.
+    ///
+    /// HOW it is run — what the argument vector is and where the table comes
+    /// from — is the caller's contract and is documented there, on
+    /// `ops::cron`'s `ProcessCronHost`. This comment used to assert one and was
+    /// wrong about it, which is the reason the convention is now stated in one
+    /// place instead of two.
+    ///
+    /// Both families install it at `/usr/bin/crontab` — from `cron` on the
+    /// Debian family and from `cronie` on the RHEL family — which is an
+    /// agreement between two packages rather than a rule, verified on both
+    /// polygon images and asked of the adapter all the same.
+    fn crontab_binary(&self) -> &'static str;
+
+    /// Absolute path of the POSIX shell a crontab line names.
+    ///
+    /// The agent never spawns this and never builds a command line for it:
+    /// running a shell is forbidden outright (rules/rust.md "Process
+    /// execution"). It is a path WRITTEN into a crontab line, and `cron` is
+    /// what runs it. What that line looks like belongs to the unit that
+    /// renders it, not here.
+    ///
+    /// Both families answer `/bin/sh`, and what stands behind that path is NOT
+    /// the same program: `dash` on the Debian family, `bash` on the RHEL family
+    /// (verified on both polygon images). The path is the contract; the shell
+    /// behind it is not, so a customer command written against bash builtins
+    /// runs on one family and fails on the other.
+    ///
+    /// `/bin/sh` and not the `/usr/bin/sh` that `command -v sh` answers on both
+    /// images: they are one file, and the rule under [`DistroAdapter`] answers
+    /// the spelling a crontab line and a shebang name.
+    fn sh_binary(&self) -> &'static str;
+
+    /// Absolute path of the `nft` binary, for the process-execution
+    /// allow-list.
+    ///
+    /// Every firewall operation is a call to this program: the rendered ruleset
+    /// is checked with it, loaded with it, and every ban is an element added
+    /// through it. Both families install it at `/usr/sbin/nft` — that is the
+    /// path in the `nftables` package's own file list on both, which is the
+    /// documented interface the rule under [`DistroAdapter`] says to answer.
+    /// The RHEL family's unit file spells the same file `/sbin/nft`, through
+    /// that directory's merged-`/usr` symlink rather than as a second binary.
+    fn nft_binary(&self) -> &'static str;
+
+    /// The file the packaged nftables service reads at boot, and therefore the
+    /// one file the installer wires the agent's include lines into.
+    ///
+    /// The single firewall fact that differs between the families:
+    /// `/etc/nftables.conf` on the Debian family, `/etc/sysconfig/nftables.conf`
+    /// on the RHEL family, each named by that family's own `nftables.service`.
+    /// Where the RULES live does not differ — the agent renders and replaces
+    /// `AgentPaths::nftables_ruleset_path()` and `AgentPaths::nftables_bans_path()`,
+    /// which are agent-owned and identical everywhere, so they are constants
+    /// there and not two methods here answering the same literal twice.
+    ///
+    /// Boot order follows from the Debian file's own content and is the order
+    /// we want. That file carries `flush ruleset` as its first effective line
+    /// (after a `#!/usr/sbin/nft -f` shebang comment) and no `include` of its
+    /// own, so the flush runs BEFORE the include appended to the end and the
+    /// agent's tables are what survives it. The RHEL file ships with its one
+    /// sample include commented out and nothing else in it, so an include
+    /// appended there has nothing to undo it either.
+    fn nftables_include_target(&self) -> &'static str;
+
+    /// Name of the firewall service unit, for `systemctl enable`/`restart`.
+    ///
+    /// `nftables` on both families, because both ship the same upstream
+    /// service. The agreement is a fact about these two distributions and not
+    /// a rule the crate relies on: a family that persisted its rules through a
+    /// different unit would change this answer alone.
+    fn firewall_service(&self) -> &'static str;
+
+    /// Name of the cron service unit.
+    ///
+    /// The one place the two families' cron packaging shows: `cron` on the
+    /// Debian family, `crond` on the RHEL family, the same daemon's job under
+    /// two package names. Writing either literal into `ops` would install
+    /// crontabs correctly on one family and fail to restart the daemon on the
+    /// other.
+    fn cron_service(&self) -> &'static str;
+
+    /// Name of the OpenSSH server's service unit.
+    ///
+    /// `ssh` on the Debian family, `sshd` on the RHEL family. Reported, never
+    /// restarted: the agent has no operation that touches the daemon its own
+    /// caller may be connected through.
+    ///
+    /// Reported, but NOT by asking whether this unit is active — see the
+    /// socket-activation warning on [`Self::managed_units`] before writing any
+    /// code that does. On the Debian family this unit is normally inactive on a
+    /// completely healthy host.
+    fn ssh_service(&self) -> &'static str;
+
+    /// The closed set of units whose state the panel reports, in this fixed
+    /// order: web server, database, cron, OpenSSH.
+    ///
+    /// Closed, and a fixed-size array rather than a slice, on purpose. Status
+    /// reporting never accepts a unit name from a caller, so no rpc can ask
+    /// about an arbitrary unit; and growing the set is then a type change every
+    /// family must answer rather than a line one family can be left out of.
+    ///
+    /// Each element is the corresponding accessor's own answer — see
+    /// [`Self::nginx_service`], [`Self::mysql_service`], [`Self::cron_service`]
+    /// and [`Self::ssh_service`] — so a unit cannot be named correctly in one
+    /// place and staler here.
+    ///
+    /// Two absences are deliberate. php-fpm is not in the set because its unit
+    /// name carries a PHP version ([`Self::php_fpm_service`]) and there is no
+    /// one unit to name; the firewall is not, because
+    /// [`Self::firewall_service`] is a unit the agent drives rather than one it
+    /// watches, and a firewall that is loaded and then `RemainAfterExit`s is
+    /// not answering the question this set asks.
+    ///
+    /// # `is-active` on the SSH unit is NOT the question "is SSH up"
+    ///
+    /// Read this before turning this set into statuses. On the Debian family
+    /// the enabled unit is `ssh.socket`, not `ssh.service`: on the Ubuntu 24.04
+    /// polygon `ssh.socket` is the only entry in `sockets.target.wants/`,
+    /// `ssh.service` is absent from `multi-user.target.wants/` entirely, and the
+    /// socket declares `Accept=no` with `RequiredBy=ssh.service`. So after a
+    /// boot on which nobody has connected yet, `systemctl is-active ssh` —
+    /// which resolves to `ssh.service` — reads **inactive** on a host whose SSH
+    /// is listening and completely healthy.
+    ///
+    /// The mechanism decides what the fix has to be, so it is stated exactly.
+    /// `Accept=no` means the socket hands its LISTENING file descriptor to one
+    /// `ssh.service`, which runs `sshd -D` and stays running; the family ships
+    /// no `ssh@.service` template and neither unit sets `StopWhenUnneeded`
+    /// (all four measured on the image). The service is therefore inactive from
+    /// boot until the FIRST connection triggers it, and active from then on —
+    /// the window CLOSES and does not reopen. It is not a per-connection unit
+    /// that comes and goes between logins: that shape is `Accept=yes` plus a
+    /// per-connection `sshd@.service` running `sshd -i`, which is what the RHEL
+    /// family's `sshd.socket` is — and that socket is the one alma9 does NOT
+    /// enable.
+    ///
+    /// A monitor that maps this inactive state to "stopped" therefore invents
+    /// an SSH outage on every freshly booted Debian-family host until someone
+    /// happens to log in. Because the window is bounded that way, treating a
+    /// socket-activated unit's inactive state as "not yet started" — asking the
+    /// SOCKET whether it is listening — settles it; polling per connection
+    /// would be answering a question this shape never asks. The hazard is also
+    /// one-sided: the RHEL family enables `sshd.service` in
+    /// `multi-user.target.wants/` and does not enable its `sshd.socket` at all,
+    /// so the naive read is right there and wrong here.
+    ///
+    /// Four `&'static str`s cannot carry "ask this one's socket too", so the
+    /// warning is prose until the element type stops being a bare unit name.
+    fn managed_units(&self) -> [&'static str; 4];
 }

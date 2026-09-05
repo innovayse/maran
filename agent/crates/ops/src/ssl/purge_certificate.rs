@@ -10,7 +10,7 @@ use crate::ssl::ssl_host::SslHost;
 /// Removes whatever certificate material `domain` has, on a best-effort basis,
 /// and reports a failure to the operator's log rather than to the caller.
 ///
-/// Called by the handler that has just deleted a site, immediately after
+/// Called by [`super::delete_site_with_certificate`], immediately after
 /// `sites::delete_site` returns, and in that order for a reason that is not
 /// stylistic: unlinking material the running configuration still names makes the
 /// next `nginx -t` fail — and the next `nginx -t` may belong to an unrelated

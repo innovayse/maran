@@ -35,6 +35,24 @@ tracing.workspace = true
 # later rename is atomic; `NamedTempFile` gives that plus RAII cleanup on any
 # path that returns before the file is persisted.
 tempfile.workspace = true
+# One call, and no `unsafe`: `statvfs`, which is how the monitoring area asks how
+# full the root filesystem is. There is no answer to that question in `/proc` and
+# none in `std`, and the two alternatives are both worse — a raw `libc::statvfs`
+# needs `unsafe`, which this crate forbids outright, and spawning `df` would put a
+# second parser between the panel and a number the kernel already has. Already in
+# the lockfile, so no new code enters the tree.
+rustix.workspace = true
+# `nft -j list set` answers in JSON, and the firewall's ban list is read out of
+# it. Named in the plan and expected by the licence pass; the version lives in
+# the workspace manifest with every other shared one.
+serde_json.workspace = true
+# `sync` alone: the ONE thing this crate needs from tokio is the process-wide
+# `Mutex` every `ops::firewall` mutation is serialised by. The operations
+# themselves are synchronous like every other area's, and are called from
+# `tokio::task::spawn_blocking` by the service layer — which is exactly the
+# situation `Mutex::blocking_lock` exists for. Declared here rather than in the
+# workspace root because tokio's version already lives there.
+tokio = { workspace = true, features = ["sync"] }
 
 [lints]
 workspace = true

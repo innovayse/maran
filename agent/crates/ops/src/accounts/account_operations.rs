@@ -6,6 +6,7 @@ use maran_distro::DistroAdapter;
 
 use crate::accounts::quota_blocks::QuotaBlocks;
 use crate::accounts::{AccountError, AccountUsage, CreatedAccount, SystemHost};
+use crate::cron::NO_CRONTAB_MARKER;
 use crate::db::{DbHost, drop_account_databases};
 use crate::php::{PhpHost, remove_account_pools};
 use crate::sftp::{SftpHost, remove_account_sftp};
@@ -202,6 +203,26 @@ impl<H: SystemHost> AccountOperations<H> {
     ///   — puts the pool back and reports failure. The file becomes unremovable
     ///   by the very operation meant to remove it, and the host is left one
     ///   reload away from having no PHP for any tenant.
+    /// - The CRONTAB lives in the cron spool and not in the home, so `userdel
+    ///   --remove` does not take it. Measured on both families rather than
+    ///   assumed: the table survives as
+    ///   `/var/spool/cron/crontabs/<name>` on the Debian family and
+    ///   `/var/spool/cron/<name>` on the RHEL one, and neither `userdel` removes
+    ///   either. The spool is keyed by NAME and the host recycles names, so an
+    ///   account created again under the same one adopts the previous tenant's
+    ///   table whole — `crontab -u <name> -l` prints it, and the panel presents
+    ///   it on the new customer's screen as their own live entry.
+    ///
+    ///   Bounded precisely, because overstating it would be as wrong as missing
+    ///   it: the inherited row is INERT. Every managed line names a `0600`
+    ///   `.cmd` file under the old home, which went with the old account, so
+    ///   what the new customer sees is a schedule pointing at a path that no
+    ///   longer exists. Hygiene and confusion, not code execution. The
+    ///   ownership half is smaller still: on the Debian family the surviving
+    ///   file keeps the numeric uid it always had and `ls` merely renders that
+    ///   uid as whoever holds it next — nothing chowns anything — and on the
+    ///   RHEL family the file is root-owned throughout, so nothing changes at
+    ///   all.
     /// - An SFTP login shares the account's uid, and `userdel` refuses to remove
     ///   a home another passwd entry still claims.
     /// - The account's home is BIND-MOUNTED inside its jail. Unmounting after
@@ -228,6 +249,8 @@ impl<H: SystemHost> AccountOperations<H> {
     ///   its unit could not be taken away.
     /// - [`AccountError::PoolRemoval`] when one of its pools could not be taken
     ///   away.
+    /// - [`AccountError::CommandFailed`] when `crontab` refused to remove the
+    ///   account's table for any reason other than there not being one.
     ///
     /// In every one of those cases `userdel` has NOT been run.
     pub fn delete(
@@ -246,6 +269,7 @@ impl<H: SystemHost> AccountOperations<H> {
         drop_account_databases(db_host, name)?;
         remove_account_sftp(sftp_host, self.distro, name)?;
         remove_account_pools(php_host, self.distro, name)?;
+        self.remove_crontab(&username)?;
 
         self.expect_success(self.distro.userdel_binary(), &["--remove", &username])?;
 
@@ -335,6 +359,61 @@ impl<H: SystemHost> AccountOperations<H> {
             .map_err(|_| AccountError::UnreadableOutput {
                 program: self.distro.id_binary().to_owned(),
             })
+    }
+
+    /// Removes the account's crontab from the host's cron spool.
+    ///
+    /// `crontab -u <account> -r`, which is the only correct way to write that
+    /// spool: where it lives, what owns it and how the daemon learns it changed
+    /// are `crontab(1)`'s business on each family, and unlinking the file
+    /// directly gets one of those wrong somewhere.
+    ///
+    /// An account that has no table is NOT a failure. Both cron lineages answer
+    /// `no crontab for <account>` and exit non-zero for that, and every account
+    /// that never used the feature is in exactly that state, so treating it as a
+    /// refusal would make deleting an ordinary account impossible. The sentence
+    /// is matched in standard ERROR and nowhere else, for the reason
+    /// `crontab_spool` sets out at length: standard output carries the
+    /// customer's own crontab, so an account that wrote that sentence into its
+    /// table could otherwise decide what this function concludes.
+    ///
+    /// # Why a name, and why here rather than after `userdel`
+    ///
+    /// The spool is addressed by the account's NAME and never by its uid, and
+    /// this runs while the account still exists — `require_existing` has already
+    /// resolved it, and `userdel` has not run. Both halves matter, because the
+    /// same recycling that creates the defect could just as easily make the
+    /// cleanup remove somebody else's table:
+    ///
+    /// - By uid, the removal would be wrong the moment a uid was reused, and
+    ///   `crontab(1)` offers no way to name one anyway.
+    /// - Afterwards, the name no longer resolves at all: `crontab -u` answers
+    ///   `user <name> unknown` for a deleted account, so the step could only be
+    ///   done by unlinking a path this agent guessed — and a guessed path is
+    ///   exactly what could point at whatever holds that name next.
+    ///
+    /// Run at this point, the name resolves to this account and to no other,
+    /// and the removal is as exact as the deletion it belongs to. It is not a
+    /// prefix match, so a neighbour whose name this one prefixes keeps its
+    /// table.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`AccountError::CommandFailed`] when `crontab` refused for any
+    /// other reason, so a table that could not be removed stops the deletion
+    /// while the account is still there to try again.
+    fn remove_crontab(&self, username: &str) -> Result<(), AccountError> {
+        let program = self.distro.crontab_binary();
+        let outcome = self.host.run(program, &["-u", username, "-r"])?;
+        if outcome.status == 0 || outcome.stderr.contains(NO_CRONTAB_MARKER) {
+            return Ok(());
+        }
+
+        Err(AccountError::CommandFailed {
+            program: program.to_owned(),
+            status: outcome.status,
+            stderr: outcome.stderr.trim().to_owned(),
+        })
     }
 
     /// Runs a program and turns a non-zero exit into an error.

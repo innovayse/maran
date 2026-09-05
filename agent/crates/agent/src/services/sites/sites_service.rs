@@ -6,9 +6,9 @@ use std::sync::Arc;
 use maran_agent_core::validation::web::php_version::PhpVersion;
 use maran_ops::php::PhpHost;
 use maran_ops::sites::{
-    self, CreateSiteInput, PhpSwitch, SiteHost, SiteIdentity, SiteLogKind, SiteMaintenanceHost,
-    SitesOpError,
+    self, CreateSiteInput, PhpSwitch, SiteIdentity, SiteLogKind, SiteMaintenanceHost, SitesOpError,
 };
+use maran_ops::ssl::{self, SslHost};
 use tokio::sync::mpsc;
 use tokio_stream::Stream;
 use tokio_stream::wrappers::ReceiverStream;
@@ -58,6 +58,13 @@ type TailStream = Pin<Box<dyn Stream<Item = Result<TailSiteLogResponse, Status>>
 /// answers the panel acts on — a site that already exists is information, not
 /// a transport error (rules/proto.md).
 ///
+/// The host is an [`SslHost`] and not merely a `SiteHost`, which is what lets
+/// `DeleteSite` take the domain's certificate material away with the vhost.
+/// `SslHost` is a supertrait of `SiteHost`, so every other rpc here is
+/// unaffected; what it buys is that the private key of a deleted site has ONE
+/// owner — the operation that removes the site — rather than none, which is the
+/// state this service shipped in.
+///
 /// Two hosts, because one rpc spans two areas: switching a site's PHP version
 /// rewrites the vhost AND the account's php-fpm pool, and the pool is the PHP
 /// area's to write. They are held as `Arc`s so a blocking task can own a
@@ -77,7 +84,7 @@ pub struct SitesServiceImpl<S, P> {
 
 impl<S, P> SitesServiceImpl<S, P>
 where
-    S: SiteHost + SiteMaintenanceHost + 'static,
+    S: SslHost + SiteMaintenanceHost + 'static,
     P: PhpHost + 'static,
 {
     /// Creates the service around the hosts it runs operations against.
@@ -133,7 +140,7 @@ where
 #[tonic::async_trait]
 impl<S, P> SitesService for SitesServiceImpl<S, P>
 where
-    S: SiteHost + SiteMaintenanceHost + 'static,
+    S: SslHost + SiteMaintenanceHost + 'static,
     P: PhpHost + 'static,
 {
     /// The stream `TailSiteLog` returns.
@@ -366,7 +373,13 @@ where
                 );
                 let site = SiteIdentity { account, domain };
                 Self::run(move || {
-                    sites::delete_site(
+                    // The site AND its certificate material, as one operation.
+                    // Two calls here is what this rpc used to be missing the
+                    // second of: `purge_certificate` had no caller anywhere in
+                    // the agent, and a deleted site's `privkey.pem` stayed on
+                    // disk. One function means there is no second call to
+                    // forget.
+                    ssl::delete_site_with_certificate(
                         host.as_ref(),
                         php_host.as_ref(),
                         distro,

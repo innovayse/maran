@@ -117,6 +117,38 @@ impl DistroAdapter for DebianAdapter {
     fn passwd_database(&self) -> &'static str {
         debian_services::passwd_database()
     }
+
+    fn crontab_binary(&self) -> &'static str {
+        debian_services::crontab_binary()
+    }
+
+    fn sh_binary(&self) -> &'static str {
+        debian_services::sh_binary()
+    }
+
+    fn nft_binary(&self) -> &'static str {
+        debian_services::nft_binary()
+    }
+
+    fn nftables_include_target(&self) -> &'static str {
+        debian_paths::nftables_include_target()
+    }
+
+    fn firewall_service(&self) -> &'static str {
+        debian_services::firewall_service()
+    }
+
+    fn cron_service(&self) -> &'static str {
+        debian_services::cron_service()
+    }
+
+    fn ssh_service(&self) -> &'static str {
+        debian_services::ssh_service()
+    }
+
+    fn managed_units(&self) -> [&'static str; 4] {
+        debian_services::managed_units()
+    }
 }
 
 #[cfg(test)]

@@ -34,7 +34,7 @@ use maran_agent_core::validation::system::name::AccountName;
 
 use super::{
     Window, follow_as, follow_with_patience, open_directory, open_log, read_exact_at, read_window,
-    window,
+    window, window_bounds,
 };
 use crate::sites::SitesOpError;
 use crate::sites::log_sink::LogSink;
@@ -694,4 +694,28 @@ fn a_window_larger_than_the_ceiling_is_skipped_and_the_hole_is_reported() {
     // The reported hole includes the partial line dropped at the front, not
     // only the bytes the window never reached.
     assert_eq!(skipped as usize, end as usize - text.len());
+}
+
+#[test]
+fn window_bounds_with_offset_past_end_collapses_to_an_empty_window() {
+    // `read_window`'s own `debug_assert` fires on this input, so it can only
+    // ever be exercised through the assertion, never past it — going through
+    // `read_window` here would prove the assertion exists, not that the
+    // arithmetic beneath it is safe once the assertion is gone. Calling
+    // `window_bounds` directly is the only way to see what a release build,
+    // where that assertion compiles to nothing, actually does.
+    //
+    // Red without the fix: reverting `window_bounds`'s
+    // `end.saturating_sub(begin)` to a plain `end - begin` underflows a `u64`
+    // for this input. `cargo test`'s default profile keeps overflow checks on
+    // (nothing in this workspace turns them off), so the mutation panics this
+    // test with "attempt to subtract with overflow" rather than returning a
+    // wrong-but-quiet value — a release build has no such check, and the same
+    // mutation there does not panic, it wraps into a size near `u64::MAX` and
+    // asks the allocator to satisfy it.
+    assert_eq!(window_bounds(500, 100), (500, 0, 0));
+    // `offset == end` is filtered out by `window` before it ever reaches
+    // `read_window`, same as `offset > end` — but it shares the same
+    // arithmetic, so it is worth the same proof rather than an assumption.
+    assert_eq!(window_bounds(500, 500), (500, 0, 0));
 }

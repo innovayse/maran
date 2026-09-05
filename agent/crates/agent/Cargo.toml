@@ -14,6 +14,13 @@ maran-agent-core = { path = "../agent-core" }
 # The account operations the AccountsService serves.
 maran-ops = { path = "../ops" }
 maran-distro = { path = "../distro" }
+# ONE type, and only for `main`: `NftablesBansTable`, which the
+# `render-firewall-bans` subcommand prints so the installer seeds its file from
+# the same template the agent later applies. No SERVICE names a template type —
+# `ops::firewall` re-exports `NftablesProtocol` for that — and no config text is
+# produced anywhere else in this crate (rules/rust.md: `agent` translates,
+# `templates` renders).
+maran-templates = { path = "../templates" }
 prost.workspace = true
 thiserror.workspace = true
 tokio.workspace = true

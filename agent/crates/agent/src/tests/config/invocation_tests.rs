@@ -31,7 +31,7 @@ fn arguments(values: &[&str]) -> Vec<String> {
 fn running(invocation: Invocation) -> super::AgentOptions {
     match invocation {
         Invocation::Run(options) => options,
-        Invocation::ShowUsage => panic!("expected a runnable invocation, got the usage text"),
+        other => panic!("expected a runnable invocation, got {other:?}"),
     }
 }
 
@@ -163,6 +163,237 @@ fn a_flag_used_as_another_flags_value_is_refused_rather_than_swallowed() {
         error,
         OptionsError::UnknownFlag {
             flag: "5".to_owned()
+        }
+    );
+}
+
+#[test]
+fn a_render_subcommand_parses_its_own_flags_and_only_there() {
+    // The two render subcommands are the installer's way of seeding the
+    // firewall from the SAME templates the agent later applies. Both flags are
+    // required and neither is defaulted: the file they produce is a
+    // `policy drop` ruleset, so a port it does not name is a port nothing can
+    // reach.
+    let invocation = Invocation::parse(
+        &arguments(&[
+            "render-firewall-ruleset",
+            "--ssh-port",
+            "2222",
+            "--panel-port",
+            "8443",
+        ]),
+        DEFAULT_UID,
+    )
+    .expect("the render subcommand must parse its own flags");
+
+    let ports = match invocation {
+        Invocation::RenderFirewallRuleset(ports) => ports,
+        other => panic!("expected a ruleset render, got {other:?}"),
+    };
+    // Asserted by FIELD, both of them, and with two different numbers. Equal
+    // numbers would pass just as well if the parse put ssh's value in panel's
+    // field, and that swap renders SSH's hard allow for the panel's port and
+    // the panel's for SSH's — a lockout from the host and the panel at once.
+    assert_eq!(
+        ports
+            .ssh_ports
+            .iter()
+            .map(|port| port.value())
+            .collect::<Vec<_>>(),
+        vec![2222]
+    );
+    assert_eq!(ports.panel_port.value(), 8443);
+
+    // The bans table takes no parameters, and an argument means the caller
+    // believes it is parameterised when it is not.
+    assert_eq!(
+        Invocation::parse(&arguments(&["render-firewall-bans"]), DEFAULT_UID)
+            .expect("the bans render takes no flags"),
+        Invocation::RenderFirewallBans
+    );
+    assert_eq!(
+        Invocation::parse(
+            &arguments(&["render-firewall-bans", "--ssh-port", "22"]),
+            DEFAULT_UID
+        )
+        .expect_err("the bans render must refuse a port flag"),
+        OptionsError::UnknownFlag {
+            flag: "--ssh-port".to_owned()
+        }
+    );
+
+    // And ONLY there: a subcommand is matched at the first position, so a
+    // subcommand name in a value position is a value. `--socket` takes the next
+    // argument whatever it spells, and what comes back is a daemon bound to a
+    // strangely named socket rather than a render.
+    let options = running(
+        Invocation::parse(
+            &arguments(&["--socket", "render-firewall-bans"]),
+            DEFAULT_UID,
+        )
+        .expect("a subcommand name in a value position is a value"),
+    );
+    assert_eq!(options.socket_path(), Path::new("render-firewall-bans"));
+}
+
+#[test]
+fn run_still_refuses_render_flags() {
+    // The daemon's flag loop has never heard of the render flags, and this is
+    // what stops `maran-agent --ssh-port 22` from starting a REAL root daemon
+    // that silently ignored an argument its operator meant. The refusal is
+    // asserted as the exact variant, not merely as "an error": swallowing the
+    // flag and running is the failure this file's history records.
+    for flag in ["--ssh-port", "--panel-port"] {
+        let error = Invocation::parse(&arguments(&[flag, "22"]), DEFAULT_UID)
+            .expect_err("the daemon must not accept a render flag");
+
+        assert_eq!(
+            error,
+            OptionsError::UnknownFlag {
+                flag: flag.to_owned()
+            },
+            "{flag}"
+        );
+    }
+}
+
+#[test]
+fn a_render_subcommand_with_a_missing_port_is_refused() {
+    // Absent, dangling and out of range are three ways to fail to name a port,
+    // and every one of them must refuse rather than default. A defaulted 22 on
+    // a host whose sshd listens elsewhere seeds a firewall that locks the
+    // installing operator out of the machine they are installing on.
+    let absent = Invocation::parse(
+        &arguments(&["render-firewall-ruleset", "--ssh-port", "2222"]),
+        DEFAULT_UID,
+    )
+    .expect_err("a render with only one port must be refused");
+    assert_eq!(
+        absent,
+        OptionsError::MissingValue {
+            flag: "--panel-port"
+        }
+    );
+
+    let dangling = Invocation::parse(
+        &arguments(&[
+            "render-firewall-ruleset",
+            "--panel-port",
+            "8443",
+            "--ssh-port",
+        ]),
+        DEFAULT_UID,
+    )
+    .expect_err("a dangling port flag must be refused");
+    assert_eq!(dangling, OptionsError::MissingValue { flag: "--ssh-port" });
+
+    // Zero is the value an absent proto field decodes to and the value a
+    // firewall reads as "any port", so it is refused like any other non-port.
+    for value in ["0", "65536", "ssh"] {
+        let error = Invocation::parse(
+            &arguments(&[
+                "render-firewall-ruleset",
+                "--ssh-port",
+                value,
+                "--panel-port",
+                "8443",
+            ]),
+            DEFAULT_UID,
+        )
+        .expect_err("a value that is not a port must be refused");
+
+        assert_eq!(
+            error,
+            OptionsError::InvalidPort {
+                flag: "--ssh-port",
+                value: value.to_owned()
+            },
+            "{value}"
+        );
+    }
+}
+
+#[test]
+fn help_wins_over_a_render_subcommand() {
+    // The help sweep runs over the whole command line before the subcommand is
+    // matched, so somebody who cannot remember which flags the render takes can
+    // ask, in the invocation they were already typing.
+    let invocation = Invocation::parse(
+        &arguments(&["render-firewall-ruleset", "--help"]),
+        DEFAULT_UID,
+    )
+    .expect("help must parse beside a subcommand");
+
+    assert_eq!(invocation, Invocation::ShowUsage);
+
+    // And the text documents what it now accepts, or it is not usage.
+    assert!(USAGE.contains("render-firewall-ruleset"));
+    assert!(USAGE.contains("render-firewall-bans"));
+    assert!(USAGE.contains("--ssh-port"));
+    assert!(USAGE.contains("--panel-port"));
+}
+
+#[test]
+fn the_ssh_port_flag_is_repeatable_and_every_occurrence_is_kept() {
+    // A host can serve SSH on several ports at once — sshd listens on every
+    // `Port` directive and every `ListenAddress host:port`. A flag that
+    // OVERWROTE would seed a firewall opening the last one and closing the
+    // others, which is the lockout the list exists to prevent.
+    let invocation = Invocation::parse(
+        &arguments(&[
+            "render-firewall-ruleset",
+            "--ssh-port",
+            "2222",
+            "--panel-port",
+            "8443",
+            "--ssh-port",
+            "2022",
+        ]),
+        DEFAULT_UID,
+    )
+    .expect("the ssh port flag repeats");
+
+    let ports = match invocation {
+        Invocation::RenderFirewallRuleset(ports) => ports,
+        other => panic!("expected a ruleset render, got {other:?}"),
+    };
+    assert_eq!(
+        ports
+            .ssh_ports
+            .iter()
+            .map(|port| port.value())
+            .collect::<Vec<_>>(),
+        vec![2222, 2022],
+        "both ports must survive, in the order they were given"
+    );
+    assert_eq!(ports.panel_port.value(), 8443);
+}
+
+#[test]
+fn a_repeated_panel_port_is_refused_rather_than_silently_last_wins() {
+    // The asymmetry with `--ssh-port` is deliberate and is the difference
+    // between the two facts: sshd really can listen on several ports, and
+    // nginx's panel vhost cannot. So a second `--panel-port` means the caller
+    // believes something untrue, and keeping the last value would seed a
+    // firewall that opens a port the panel is not on and closes the one it is.
+    let error = Invocation::parse(
+        &arguments(&[
+            "render-firewall-ruleset",
+            "--ssh-port",
+            "22",
+            "--panel-port",
+            "8443",
+            "--panel-port",
+            "9443",
+        ]),
+        DEFAULT_UID,
+    )
+    .expect_err("a repeated --panel-port must be refused");
+
+    assert_eq!(
+        error,
+        OptionsError::RepeatedFlag {
+            flag: "--panel-port"
         }
     );
 }
