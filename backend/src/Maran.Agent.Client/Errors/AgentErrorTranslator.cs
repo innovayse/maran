@@ -91,7 +91,31 @@ internal static partial class AgentErrorTranslator
             Redact($"{error.Message} {error.ToolOutput}".Trim(), sentSecret),
             null);
 
-        return Error.Of(code);
+        return Error.Of(code, ToErrorType(error.Code));
+    }
+
+    /// <summary>Maps a wire <see cref="ErrorCode"/> to the kind of failure it is.</summary>
+    /// <param name="code">The failure category reported by the agent.</param>
+    /// <returns>The <see cref="ErrorType"/> the panel answers that category with.</returns>
+    /// <remarks>
+    /// Kept beside <see cref="ToErrorCode"/> and switching on the same value, so the code and the
+    /// kind cannot drift: an arm added to one is an arm missing from the other, and the compiler's
+    /// exhaustiveness warning names the second. The unspecified arm is <see cref="ErrorType.Failure"/>
+    /// rather than a 400 — an agent that will not say what went wrong has failed, and blaming the
+    /// caller for it is both wrong and untestable.
+    /// </remarks>
+    public static ErrorType ToErrorType(ErrorCode code)
+    {
+        return code switch
+        {
+            ErrorCode.Unspecified => ErrorType.Failure,
+            ErrorCode.InvalidInput => ErrorType.Validation,
+            ErrorCode.AlreadyExists => ErrorType.Conflict,
+            ErrorCode.NotFound => ErrorType.NotFound,
+            ErrorCode.ValidationFailed => ErrorType.Validation,
+            ErrorCode.SystemFailure => ErrorType.Failure,
+            _ => ErrorType.Failure,
+        };
     }
 
     /// <summary>Maps a wire <see cref="ErrorCode"/> to its stable "Agent*" error code string.</summary>

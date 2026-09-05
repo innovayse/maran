@@ -108,7 +108,14 @@ jobs:
       # rather than merged into one command line. A suite that needs a real
       # mount and does not get one fails with `JailFailed`, which reads as a
       # code defect rather than as a runner that was started wrongly.
-      - name: Sites, PHP pools, privileges and databases on a real host
+      # `monitor_on_a_real_host` joins this step rather than the privileged one
+      # below because it needs no capability at all: it READS — `/proc`, a
+      # `statvfs`, the password database — and asks the polygon's `systemctl`
+      # stand-in about units. It is here that the four `/proc` path literals and
+      # the `f_frsize` block-size choice are exercised for the first time
+      # anywhere, and it is the only place a per-family parse runs against a
+      # real kernel rather than against a committed capture.
+      - name: Sites, PHP pools, privileges, databases and monitoring on a real host
         run: |
           docker run --rm \
             -v "$PWD:/maran" \
@@ -117,6 +124,7 @@ jobs:
             maran-polygon-${{ matrix.image }} \
             cargo test --test sites_on_a_real_host --test php_pools_on_a_real_host \
               --test privileges_on_a_real_host --test databases_on_a_real_host \
+              --test monitor_on_a_real_host --test binary_paths_on_a_real_host \
               -- --ignored --test-threads=1
 
       # `--privileged` because these two make a real bind mount: the SFTP jail is
@@ -144,4 +152,35 @@ jobs:
             -e CARGO_TARGET_DIR=/tmp/target \
             maran-polygon-${{ matrix.image }} \
             cargo test --test sftp_on_a_real_host --test account_deletion_on_a_real_host \
+              -- --ignored --test-threads=1
+
+      # A third step for the same reason the second one exists: these two need
+      # capabilities the first step's suites do not, and merging them would make
+      # a run started wrongly look like a code defect.
+      #
+      # The firewall suite loads real rulesets into the kernel, which needs
+      # CAP_NET_ADMIN — without it `nft` fails at "cache initialization failed"
+      # on every invocation. The cron suite lets a real cron daemon execute a
+      # real entry, and on the Debian family cron's PAM stack includes
+      # `pam_loginuid`, which needs CAP_AUDIT_WRITE; without it the daemon
+      # refuses to authorise the account and no entry ever runs. `--privileged`
+      # covers both rather than naming two capabilities that would then have to
+      # be kept in step with two PAM stacks.
+      #
+      # Nothing here reaches the runner's own firewall: a container has its own
+      # network namespace, so every table these tests load and delete is the
+      # container's.
+      #
+      # `!cancelled()` so a failure in a step above still reports these —
+      # attributing a break to whichever suite happened to run first is the same
+      # mistake `fail-fast: false` avoids across the matrix.
+      - name: Cron and the firewall on a real host
+        if: ${{ !cancelled() }}
+        run: |
+          docker run --rm --privileged \
+            -v "$PWD:/maran" \
+            -w /maran/agent \
+            -e CARGO_TARGET_DIR=/tmp/target \
+            maran-polygon-${{ matrix.image }} \
+            cargo test --test cron_on_a_real_host --test firewall_on_a_real_host \
               -- --ignored --test-threads=1

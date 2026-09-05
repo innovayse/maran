@@ -20,8 +20,16 @@ export type NavigationIcon =
   | 'database'
   /** The SFTP module, whose logins open one directory and no other. */
   | 'folderKey'
+  /** The firewall module, whose screen is the host's packet filter. */
+  | 'brickWall'
   /** The identity module, whose screens are the signed-in person's security ones. */
   | 'shieldCheck'
+  /** The cron module, whose screen is a list of things that happen at a time. */
+  | 'clock'
+  /** The tasks module, whose screen is the panel's feed of background work. */
+  | 'listChecks'
+  /** The monitoring module, whose screen plots what the server has been doing. */
+  | 'chartLine'
 
 /**
  * One entry in the authenticated shell's sidebar navigation, as built by

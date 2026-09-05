@@ -19,7 +19,7 @@ public sealed class ResultTests
     [Fact]
     public void Failed_result_carries_error_and_guards_value()
     {
-        var result = Result<int>.Fail(Error.Of("SitesDomainTaken"));
+        var result = Result<int>.Fail(Error.Of("SitesDomainTaken", ErrorType.Conflict));
 
         Assert.False(result.IsSuccess);
         Assert.Equal("SitesDomainTaken", result.Error!.Code);
@@ -40,7 +40,7 @@ public sealed class ResultTests
         {
             return $"err:{e.Code}";
         });
-        var fail = Result<int>.Fail(Error.Of("SitesDomainTaken")).Match(v =>
+        var fail = Result<int>.Fail(Error.Of("SitesDomainTaken", ErrorType.Conflict)).Match(v =>
         {
             return $"ok:{v}";
         }, e =>
@@ -66,7 +66,7 @@ public sealed class ResultTests
     [Fact]
     public void Non_generic_fail_result_carries_the_error()
     {
-        var result = Result.Fail(Error.Of("SitesDomainTaken"));
+        var result = Result.Fail(Error.Of("SitesDomainTaken", ErrorType.Conflict));
 
         Assert.False(result.IsSuccess);
         Assert.Equal("SitesDomainTaken", result.Error!.Code);
@@ -83,7 +83,7 @@ public sealed class ResultTests
         {
             return $"err:{e.Code}";
         });
-        var fail = Result.Fail(Error.Of("SitesDomainTaken")).Match(() =>
+        var fail = Result.Fail(Error.Of("SitesDomainTaken", ErrorType.Conflict)).Match(() =>
         {
             return "ok";
         }, e =>

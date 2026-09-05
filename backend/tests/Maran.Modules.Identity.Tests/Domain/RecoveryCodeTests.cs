@@ -1,4 +1,4 @@
-using Maran.Modules.Identity.Domain;
+using Maran.Modules.Identity.Domain.Entities;
 
 namespace Maran.Modules.Identity.Tests.Domain;
 /// <summary>Behavioural contract of recovery code.</summary>

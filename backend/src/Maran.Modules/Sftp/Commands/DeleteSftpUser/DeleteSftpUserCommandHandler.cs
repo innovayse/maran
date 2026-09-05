@@ -1,7 +1,7 @@
 using Maran.Agent.Client.Interfaces;
-using Maran.Modules.Sftp.Common;
 using Maran.Modules.Sftp.Persistence;
 using Maran.Modules.Sftp.Resources;
+using Maran.Modules.Sftp.Services;
 using Maran.Sdk.Contracts;
 using Maran.Sdk.Interfaces;
 
@@ -73,7 +73,7 @@ public sealed class DeleteSftpUserCommandHandler
             return await FailAsync(
                 command,
                 command.SftpUserId.ToString(),
-                nameof(ErrorMessages.SftpUserNotFound),
+                Error.Of(nameof(ErrorMessages.SftpUserNotFound), ErrorType.NotFound),
                 cancellationToken);
         }
 
@@ -81,13 +81,13 @@ public sealed class DeleteSftpUserCommandHandler
         if (account is null)
         {
             return await FailAsync(
-                command, sftpUser.Name, nameof(ErrorMessages.AccountNotFound), cancellationToken);
+                command, sftpUser.Name, Error.Of(nameof(ErrorMessages.AccountNotFound), ErrorType.NotFound), cancellationToken);
         }
 
         var deleted = await _agent.DeleteAsync(account.Username, sftpUser.Name, cancellationToken);
         if (!deleted.IsSuccess)
         {
-            return await FailAsync(command, sftpUser.Name, deleted.Error!.Code, cancellationToken);
+            return await FailAsync(command, sftpUser.Name, deleted.Error!, cancellationToken);
         }
 
         // Captured before the row goes: the journal records the name, which is the only thing about
@@ -106,18 +106,18 @@ public sealed class DeleteSftpUserCommandHandler
     /// <summary>Journals a refused delete and returns it as the typed failure.</summary>
     /// <param name="command">The delete that was refused.</param>
     /// <param name="subject">The login's name, or the supplied identifier when no row was found.</param>
-    /// <param name="code">The machine-stable code to answer with.</param>
+    /// <param name="error">The typed failure to answer with, code and kind together.</param>
     /// <param name="cancellationToken">Cancels the journal write.</param>
-    /// <returns>The failed result carrying <paramref name="code"/>.</returns>
+    /// <returns>The failed result carrying <paramref name="error"/>.</returns>
     private async Task<Result<bool>> FailAsync(
         DeleteSftpUserCommand command,
         string subject,
-        string code,
+        Error error,
         CancellationToken cancellationToken)
     {
         await _journal.RecordFailureAsync(
             AuditActions.SftpUserDeleted, subject, command.IpAddress, command.UserAgent, cancellationToken);
 
-        return Result<bool>.Fail(Error.Of(code));
+        return Result<bool>.Fail(error);
     }
 }

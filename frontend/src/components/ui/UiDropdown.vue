@@ -126,6 +126,25 @@ const panelOffset: Ref<{ top: number; left: number }> = ref({ top: 0, left: 0 })
  */
 const side: Ref<UiDropdownSide> = ref('below')
 
+/**
+ * Where the trigger sat, in viewport coordinates, when the panel was last
+ * placed against it. It is what tells a scroll that MOVED the trigger from one
+ * that did not.
+ *
+ * The distinction is not academic. A pointer press focuses the trigger, and a
+ * browser scrolls a focused control into view when it is not fully visible —
+ * but it dispatches that scroll event asynchronously, a frame later, by which
+ * time this component has already opened its panel and started listening. So
+ * the scroll that BROUGHT the user to the trigger arrived after the panel
+ * existed and dismissed it in the same breath: on a long screen the menu could
+ * not be opened at all, and on a short one it opened fine, which is why this
+ * survived review. Comparing the trigger's box answers the question the
+ * dismissal is actually asking — has the panel been left floating beside a
+ * control that has moved? — instead of trusting the arrival of an event whose
+ * timing says nothing about that.
+ */
+const anchor: Ref<{ top: number; left: number }> = ref({ top: 0, left: 0 })
+
 /** Classes positioning the trigger's box, which the `bare` variant does not draw. */
 const triggerClasses: ComputedRef<string> = computed(() => {
   return props.variant === 'bare'
@@ -161,6 +180,11 @@ const updateSide = (): void => {
 
   const triggerRect = trigger.getBoundingClientRect()
   const panelRect = panel.getBoundingClientRect()
+
+  // Recorded wherever the panel is placed, so `onAnyScroll` compares against the
+  // box this placement was actually derived from and not an older one.
+  anchor.value = { top: triggerRect.top, left: triggerRect.left }
+
   const roomBelow = window.innerHeight - triggerRect.bottom - VIEWPORT_MARGIN
   const roomAbove = triggerRect.top - VIEWPORT_MARGIN
 
@@ -354,19 +378,38 @@ const onViewportResize = (): void => {
 }
 
 /**
- * Closes an open panel when anything scrolls.
+ * Closes an open panel when a scroll has actually MOVED its trigger.
  *
  * A panel positioned in viewport coordinates does not move with its trigger, so
- * a scroll would leave the menu floating beside a control that is no longer
- * there. Closing is the honest answer: re-measuring on every scroll frame buys
- * a behaviour nobody asked for at the cost of layout work on a hot path.
+ * a scroll that carries the trigger away would leave the menu floating beside a
+ * control that is no longer there. Closing is the honest answer: re-positioning
+ * on every scroll frame buys a behaviour nobody asked for.
+ *
+ * What is measured is the TRIGGER's box, not the panel's, and only that one box
+ * — a single rect read, not a re-layout — because the question is whether the
+ * placement recorded in {@link anchor} still describes where the trigger is.
+ * A scroll event that arrives without having moved it is not a dismissal: see
+ * {@link anchor} for the pointer-press case that made an unconditional close
+ * dismiss menus the user had only just opened.
  *
  * Bound in the capture phase so it also sees scrolling inside a container —
  * a scroll event on an element does not bubble to the document.
  * @returns Nothing; state updates synchronously.
  */
 const onAnyScroll = (): void => {
-  if (isOpen.value) {
+  if (!isOpen.value) {
+    return
+  }
+
+  const trigger = triggerElement.value
+  if (trigger === null) {
+    dismiss()
+    return
+  }
+
+  const rect = trigger.getBoundingClientRect()
+  // Sub-pixel tolerance: a fractional layout position must not read as movement.
+  if (Math.abs(rect.top - anchor.value.top) > 0.5 || Math.abs(rect.left - anchor.value.left) > 0.5) {
     dismiss()
   }
 }

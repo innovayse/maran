@@ -158,6 +158,10 @@ dotnet_diagnostic.IDE0161.severity = none
 # CA1825: EF writes `new bool[0]` for a single-column descending index. It is a performance
 # suggestion about an allocation that happens once, at migration time, in code we do not author.
 dotnet_diagnostic.CA1825.severity = none
+# CA1861: and `new[] { "IpAddress", "WindowStart" }` for a composite index, for the same reason and
+# with the same lifetime — one allocation, once, inside `Up`. Hoisting it into a static field would
+# be an edit to machine output that the next `maran migrate add` throws away.
+dotnet_diagnostic.CA1861.severity = none
 
 # Test names are behaviour sentences (`Creating_a_site_with_a_taken_domain_returns_conflict`),
 # which rules/testing.md mandates and which xUnit requires to be public — so CA1707 fires on every

@@ -1,4 +1,4 @@
-using Maran.Modules.Identity.Common.Interfaces;
+using Maran.Modules.Identity.Interfaces;
 using OtpNet;
 
 namespace Maran.Modules.Identity.Services;

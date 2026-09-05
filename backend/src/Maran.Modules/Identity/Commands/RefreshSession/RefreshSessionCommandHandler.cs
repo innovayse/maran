@@ -1,9 +1,9 @@
-using Maran.Modules.Identity.Common;
-using Maran.Modules.Identity.Common.Interfaces;
+using Maran.Modules.Identity.Interfaces;
+using Maran.Modules.Identity.Models;
 using Maran.Modules.Identity.Persistence;
 using Maran.Modules.Identity.Resources;
+using Maran.Modules.Identity.Services;
 using Maran.Sdk.Contracts;
-using Maran.Sdk.Interfaces;
 
 namespace Maran.Modules.Identity.Commands.RefreshSession;
 
@@ -20,23 +20,23 @@ public sealed class RefreshSessionCommandHandler
     private readonly IAccessTokenIssuer _accessTokenIssuer;
 
     /// <summary>Records a detected token reuse; an ordinary refresh is not journal-worthy.</summary>
-    private readonly IAuditWriter _auditWriter;
+    private readonly IdentityAuditJournal _journal;
 
     /// <summary>Creates the handler.</summary>
     /// <param name="dbContext">The module's database context.</param>
     /// <param name="sessionService">Performs the rotation.</param>
     /// <param name="accessTokenIssuer">Signs the replacement access token.</param>
-    /// <param name="auditWriter">Records a detected token reuse.</param>
+    /// <param name="journal">Records a detected token reuse.</param>
     public RefreshSessionCommandHandler(
         IdentityDbContext dbContext,
         ISessionService sessionService,
         IAccessTokenIssuer accessTokenIssuer,
-        IAuditWriter auditWriter)
+        IdentityAuditJournal journal)
     {
         _dbContext = dbContext;
         _sessionService = sessionService;
         _accessTokenIssuer = accessTokenIssuer;
-        _auditWriter = auditWriter;
+        _journal = journal;
     }
 
     /// <summary>Rotates the presented token and issues a fresh access token for the same user.</summary>
@@ -45,8 +45,10 @@ public sealed class RefreshSessionCommandHandler
     /// <returns>
     /// The new token pair, or a typed failure. A detected reuse is the one refresh outcome worth
     /// auditing: it is the only signal the panel has that a token was copied off a device.
+    /// A refresh has no second-factor answer to give — the factor was satisfied when the session was
+    /// created — so its body carries no field for one.
     /// </returns>
-    public async Task<Result<LoginOutcome>> HandleAsync(RefreshSessionCommand command, CancellationToken cancellationToken)
+    public async Task<Result<AuthenticatedOutcome>> HandleAsync(RefreshSessionCommand command, CancellationToken cancellationToken)
     {
         var rotated = await _sessionService.RotateAsync(
             command.RefreshToken,
@@ -58,19 +60,17 @@ public sealed class RefreshSessionCommandHandler
         {
             if (rotated.Error!.Code == nameof(ErrorMessages.RefreshTokenReusedUnauthorized))
             {
-                await _auditWriter.WriteAsync(
-                    new AuditEntry(
-                        null,
-                        string.Empty,
-                        AuditActions.RefreshTokenReuseDetected,
-                        string.Empty,
-                        command.IpAddress,
-                        command.UserAgent,
-                        Succeeded: false),
+                // No claimed name and nothing verified: the caller presented only a token, and the
+                // token itself may never be journalled. See IdentityAuditJournal's remarks.
+                await _journal.RecordUnidentifiedAsync(
+                    AuditActions.RefreshTokenReuseDetected,
+                    string.Empty,
+                    command.IpAddress,
+                    command.UserAgent,
                     cancellationToken);
             }
 
-            return Result<LoginOutcome>.Fail(rotated.Error);
+            return Result<AuthenticatedOutcome>.Fail(rotated.Error);
         }
 
         var session = await _dbContext.Sessions
@@ -81,17 +81,15 @@ public sealed class RefreshSessionCommandHandler
         if (user is null)
         {
             // The user was deleted while the session lived. Nothing to sign for.
-            return Result<LoginOutcome>.Fail(Error.Of(nameof(ErrorMessages.RefreshTokenInvalidUnauthorized)));
+            return Result<AuthenticatedOutcome>.Fail(Error.Of(nameof(ErrorMessages.RefreshTokenInvalidUnauthorized), ErrorType.Unauthorized));
         }
 
-        var accessToken = _accessTokenIssuer.Issue(user, rotated.Value.SessionId);
+        // Re-issued rather than inherited, which is what makes a refresh re-evaluate the panel's
+        // forced-two-factor policy: an administrator who has just finished enrolling stops being
+        // steered on their next refresh, and one whose operator has just turned the policy on starts
+        // being steered on theirs.
+        var accessToken = await _accessTokenIssuer.IssueAsync(user, rotated.Value.SessionId, cancellationToken);
 
-        return Result<LoginOutcome>.Ok(new LoginOutcome(
-            new LoginResultDto(
-                accessToken.Value,
-                accessToken.ExpiresAt,
-                TwoFactorRequired: false,
-                new AuthenticatedUserDto(user.Id, user.Username, user.Email, user.Role, user.AccountId)),
-            rotated.Value));
+        return Result<AuthenticatedOutcome>.Ok(new AuthenticatedOutcome(accessToken, user, rotated.Value));
     }
 }

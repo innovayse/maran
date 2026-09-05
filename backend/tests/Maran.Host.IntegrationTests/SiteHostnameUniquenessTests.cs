@@ -1,5 +1,5 @@
 using Maran.Host.IntegrationTests.Fixtures;
-using Maran.Modules.Sites.Domain;
+using Maran.Modules.Sites.Domain.Entities;
 using Maran.Modules.Sites.Domain.Enums;
 using Maran.Modules.Sites.Persistence;
 using Microsoft.EntityFrameworkCore;

@@ -5,9 +5,9 @@ using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Text.Json;
-using Maran.Modules.Ssl.Common;
-using Maran.Modules.Ssl.Common.Interfaces;
-using Maran.Modules.Ssl.Common.Options;
+using Maran.Modules.Ssl.Interfaces;
+using Maran.Modules.Ssl.Models;
+using Maran.Modules.Ssl.Options;
 using Maran.Modules.Ssl.Resources;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -113,7 +113,7 @@ public sealed class AcmeClient : IAcmeClient
         var fetched = await ReadJsonAsync(http, _options.DirectoryUrl, _logger, cancellationToken);
         if (fetched is not { } directory)
         {
-            return Fail(request.Domain, "directory", nameof(ErrorMessages.AcmeAuthorityUnreachable));
+            return Fail(request.Domain, "directory", Error.Of(nameof(ErrorMessages.AcmeAuthorityUnreachable), ErrorType.Unavailable));
         }
 
         var registration = await _accountStore.GetOrCreateAsync(
@@ -247,14 +247,14 @@ public sealed class AcmeClient : IAcmeClient
         var order = await session.PostAsync(Url(directory, "newOrder"), identifiers, cancellationToken);
         if (!order.IsSuccess)
         {
-            return Fail(request.Domain, "newOrder", order.Error!.Code);
+            return Fail(request.Domain, "newOrder", order.Error!);
         }
 
         var orderUrl = order.Value.Location;
         var authorizationUrl = FirstAuthorizationUrl(order.Value.Body);
         if (authorizationUrl.Length == 0 || orderUrl.Length == 0)
         {
-            return Fail(request.Domain, "newOrder", nameof(ErrorMessages.AcmeOrderRejected));
+            return Fail(request.Domain, "newOrder", Error.Of(nameof(ErrorMessages.AcmeOrderRejected), ErrorType.Failure));
         }
 
         // RFC 8555 §7.1.6: an order for an identifier this account has ALREADY validated comes back
@@ -317,7 +317,7 @@ public sealed class AcmeClient : IAcmeClient
         var authorization = await session.PostAsync(authorizationUrl, PostAsGet, cancellationToken);
         if (!authorization.IsSuccess)
         {
-            return Result<bool>.Fail(Error.Of(nameof(ErrorMessages.AcmeOrderRejected)));
+            return Result<bool>.Fail(Error.Of(nameof(ErrorMessages.AcmeOrderRejected), ErrorType.Failure));
         }
 
         // The same cached-authorization case as the order status above, checked separately because
@@ -331,7 +331,7 @@ public sealed class AcmeClient : IAcmeClient
 
         if (!TryReadHttpChallenge(authorization.Value.Body, out var challengeUrl, out var token))
         {
-            return Result<bool>.Fail(Error.Of(nameof(ErrorMessages.AcmeChallengeUnavailable)));
+            return Result<bool>.Fail(Error.Of(nameof(ErrorMessages.AcmeChallengeUnavailable), ErrorType.Unavailable));
         }
 
         var written = await _challengeWriter.WriteAsync(
@@ -342,7 +342,7 @@ public sealed class AcmeClient : IAcmeClient
             cancellationToken);
         if (!written.IsSuccess)
         {
-            return Result<bool>.Fail(Error.Of(nameof(ErrorMessages.AcmeChallengeWriteFailed)));
+            return Result<bool>.Fail(Error.Of(nameof(ErrorMessages.AcmeChallengeWriteFailed), ErrorType.Failure));
         }
 
         try
@@ -350,7 +350,7 @@ public sealed class AcmeClient : IAcmeClient
             var triggered = await session.PostAsync(challengeUrl, "{}", cancellationToken);
             if (!triggered.IsSuccess)
             {
-                return Result<bool>.Fail(Error.Of(nameof(ErrorMessages.AcmeValidationFailed)));
+                return Result<bool>.Fail(Error.Of(nameof(ErrorMessages.AcmeValidationFailed), ErrorType.Failure));
             }
 
             return await PollAsync(session, authorizationUrl, cancellationToken);
@@ -419,7 +419,7 @@ public sealed class AcmeClient : IAcmeClient
             var polled = await session.PostAsync(authorizationUrl, PostAsGet, cancellationToken);
             if (!polled.IsSuccess)
             {
-                return Result<bool>.Fail(Error.Of(nameof(ErrorMessages.AcmeValidationFailed)));
+                return Result<bool>.Fail(Error.Of(nameof(ErrorMessages.AcmeValidationFailed), ErrorType.Failure));
             }
 
             var status = Url(polled.Value.Body, "status");
@@ -432,11 +432,11 @@ public sealed class AcmeClient : IAcmeClient
                 || string.Equals(status, "revoked", StringComparison.Ordinal)
                 || string.Equals(status, "deactivated", StringComparison.Ordinal))
             {
-                return Result<bool>.Fail(Error.Of(nameof(ErrorMessages.AcmeValidationFailed)));
+                return Result<bool>.Fail(Error.Of(nameof(ErrorMessages.AcmeValidationFailed), ErrorType.Failure));
             }
         }
 
-        return Result<bool>.Fail(Error.Of(nameof(ErrorMessages.AcmeValidationTimedOut)));
+        return Result<bool>.Fail(Error.Of(nameof(ErrorMessages.AcmeValidationTimedOut), ErrorType.Unavailable));
     }
 
     /// <summary>Finalizes a validated order and downloads the issued chain.</summary>
@@ -460,7 +460,7 @@ public sealed class AcmeClient : IAcmeClient
             var finalized = await session.PostAsync(Url(order, "finalize"), body, cancellationToken);
             if (!finalized.IsSuccess)
             {
-                return Fail(domain, "finalize", nameof(ErrorMessages.AcmeOrderRejected));
+                return Fail(domain, "finalize", Error.Of(nameof(ErrorMessages.AcmeOrderRejected), ErrorType.Failure));
             }
 
             var certificateUrl = await PollOrderAsync(session, orderUrl, cancellationToken);
@@ -472,7 +472,7 @@ public sealed class AcmeClient : IAcmeClient
             var chain = await session.PostForTextAsync(certificateUrl.Value, PostAsGet, cancellationToken);
             if (!chain.IsSuccess)
             {
-                return Fail(domain, "download", nameof(ErrorMessages.AcmeOrderRejected));
+                return Fail(domain, "download", Error.Of(nameof(ErrorMessages.AcmeOrderRejected), ErrorType.Failure));
             }
 
             return Materialize(chain.Value, key, domain);
@@ -496,7 +496,7 @@ public sealed class AcmeClient : IAcmeClient
             var polled = await session.PostAsync(orderUrl, PostAsGet, cancellationToken);
             if (!polled.IsSuccess)
             {
-                return Result<string>.Fail(Error.Of(nameof(ErrorMessages.AcmeOrderRejected)));
+                return Result<string>.Fail(Error.Of(nameof(ErrorMessages.AcmeOrderRejected), ErrorType.Failure));
             }
 
             var certificateUrl = Url(polled.Value.Body, "certificate");
@@ -507,13 +507,13 @@ public sealed class AcmeClient : IAcmeClient
 
             if (string.Equals(Url(polled.Value.Body, "status"), "invalid", StringComparison.Ordinal))
             {
-                return Result<string>.Fail(Error.Of(nameof(ErrorMessages.AcmeOrderRejected)));
+                return Result<string>.Fail(Error.Of(nameof(ErrorMessages.AcmeOrderRejected), ErrorType.Failure));
             }
 
             await Task.Delay(_options.PollInterval, cancellationToken);
         }
 
-        return Result<string>.Fail(Error.Of(nameof(ErrorMessages.AcmeValidationTimedOut)));
+        return Result<string>.Fail(Error.Of(nameof(ErrorMessages.AcmeValidationTimedOut), ErrorType.Unavailable));
     }
 
     /// <summary>Turns a downloaded chain and its key into the material an install takes.</summary>
@@ -537,19 +537,19 @@ public sealed class AcmeClient : IAcmeClient
             // whatever the authority actually sent, and a client that logs an unparseable response
             // is a client that logs whatever an unexpected response contains.
             LogOrderFailure(_logger, domain, "parse", exception.GetType().Name, null);
-            return Result<IssuedCertificate>.Fail(Error.Of(nameof(ErrorMessages.AcmeCertificateUnreadable)));
+            return Result<IssuedCertificate>.Fail(Error.Of(nameof(ErrorMessages.AcmeCertificateUnreadable), ErrorType.Failure));
         }
     }
 
     /// <summary>Logs one failed stage and returns it as the typed failure.</summary>
     /// <param name="domain">The domain the order was for.</param>
     /// <param name="stage">Which step refused, so an operator can tell an unreachable authority from a rejected order.</param>
-    /// <param name="code">The machine-stable code to answer with.</param>
-    /// <returns>The failed result carrying <paramref name="code"/>.</returns>
-    private Result<IssuedCertificate> Fail(string domain, string stage, string code)
+    /// <param name="error">The typed failure to answer with, code and kind together.</param>
+    /// <returns>The failed result carrying <paramref name="error"/>.</returns>
+    private Result<IssuedCertificate> Fail(string domain, string stage, Error error)
     {
-        LogOrderFailure(_logger, domain, stage, code, null);
-        return Result<IssuedCertificate>.Fail(Error.Of(code));
+        LogOrderFailure(_logger, domain, stage, error.Code, null);
+        return Result<IssuedCertificate>.Fail(error);
     }
 
     /// <summary>The media type header every signed request carries.</summary>

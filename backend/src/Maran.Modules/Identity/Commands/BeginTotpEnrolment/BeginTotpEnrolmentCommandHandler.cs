@@ -1,5 +1,5 @@
 using Maran.Modules.Identity.Common;
-using Maran.Modules.Identity.Common.Interfaces;
+using Maran.Modules.Identity.Interfaces;
 using Maran.Modules.Identity.Persistence;
 using Maran.Modules.Identity.Resources;
 
@@ -38,12 +38,12 @@ public sealed class BeginTotpEnrolmentCommandHandler
         var user = await _dbContext.Users.SingleOrDefaultAsync(u => u.Id == command.UserId, cancellationToken);
         if (user is null)
         {
-            return Result<TotpEnrolmentDto>.Fail(Error.Of(nameof(ErrorMessages.UserNotFound)));
+            return Result<TotpEnrolmentDto>.Fail(Error.Of(nameof(ErrorMessages.UserNotFound), ErrorType.NotFound));
         }
 
         if (user.IsTotpEnabled)
         {
-            return Result<TotpEnrolmentDto>.Fail(Error.Of(nameof(ErrorMessages.TwoFactorAlreadyEnabledForbidden)));
+            return Result<TotpEnrolmentDto>.Fail(Error.Of(nameof(ErrorMessages.TwoFactorAlreadyEnabledForbidden), ErrorType.Forbidden));
         }
 
         var secret = _totpService.GenerateSecret();

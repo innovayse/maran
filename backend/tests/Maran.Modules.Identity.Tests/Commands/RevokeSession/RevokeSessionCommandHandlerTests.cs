@@ -1,7 +1,7 @@
 using Maran.Modules.Identity.Commands.RevokeSession;
-using Maran.Modules.Identity.Common.Options;
-using Maran.Modules.Identity.Domain;
+using Maran.Modules.Identity.Domain.Entities;
 using Maran.Modules.Identity.Domain.Enums;
+using Maran.Modules.Identity.Options;
 using Maran.Modules.Identity.Persistence;
 using Maran.Modules.Identity.Services;
 using Maran.Modules.Identity.Tests.TestSupport;
@@ -38,12 +38,15 @@ public sealed class RevokeSessionCommandHandlerTests : IAsyncLifetime
 
     private SessionService NewSessionService()
     {
-        return new SessionService(_context, _clock, Options.Create(new JwtOptions { RefreshTokenDays = 14 }));
+        return new SessionService(_context, _clock, new OptionsWrapper<JwtOptions>(new JwtOptions { RefreshTokenDays = 14 }));
     }
 
     private RevokeSessionCommandHandler NewHandler()
     {
-        return new RevokeSessionCommandHandler(_context, NewSessionService(), _audit);
+        return new RevokeSessionCommandHandler(
+            _context,
+            NewSessionService(),
+            new IdentityAuditJournal(_audit, new StubCurrentUser(_owner, "owner")));
     }
 
     /// <summary>Revoking ones own session ends it and is audited.</summary>
@@ -96,5 +99,23 @@ public sealed class RevokeSessionCommandHandlerTests : IAsyncLifetime
             new RevokeSessionCommand(Guid.NewGuid(), _owner, "203.0.113.7", "agent"), CancellationToken.None);
 
         Assert.Equal("SessionNotFound", result.Error!.Code);
+    }
+
+    /// <summary>A revocation names the signed-in owner rather than leaving the actor column blank.</summary>
+    /// <remarks>
+    /// This endpoint requires an access token, so the panel knows the name; an entry that carries an
+    /// id and no name makes the one screen whose job is "who did what" unreadable.
+    /// </remarks>
+    [Fact]
+    public async Task A_revocation_names_the_signed_in_owner_rather_than_leaving_the_actor_column_blank()
+    {
+        var issued = await NewSessionService().IssueAsync(_owner, "203.0.113.7", "agent", CancellationToken.None);
+
+        await NewHandler().HandleAsync(
+            new RevokeSessionCommand(issued.SessionId, _owner, "203.0.113.7", "agent"), CancellationToken.None);
+
+        var entry = Assert.Single(_audit.Written);
+        Assert.Equal(_owner, entry.ActorUserId);
+        Assert.Equal("owner", entry.ActorUsername);
     }
 }

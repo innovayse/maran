@@ -1,4 +1,4 @@
-using Maran.Modules.Accounts.Domain;
+using Maran.Modules.Accounts.Domain.Entities;
 
 namespace Maran.Modules.Accounts.Tests.Domain;
 
@@ -17,7 +17,7 @@ public sealed class PlanTests
         // symptom is a pool that will not start.
         Assert.Throws<ArgumentOutOfRangeException>(() =>
         {
-            return new Plan(Guid.NewGuid(), "PlanStarterName", 5_120, 5, 2, 3, workers);
+            return new Plan(Guid.NewGuid(), "PlanStarterName", 5_120, 5, 2, 3, 5, workers);
         });
     }
 
@@ -33,7 +33,7 @@ public sealed class PlanTests
         // boundary is what stops the same value ever being written deliberately.
         Assert.Throws<ArgumentOutOfRangeException>(() =>
         {
-            return new Plan(Guid.NewGuid(), "PlanStarterName", 5_120, 5, databases, 3, 5);
+            return new Plan(Guid.NewGuid(), "PlanStarterName", 5_120, 5, databases, 3, 5, 5);
         });
     }
 
@@ -48,7 +48,7 @@ public sealed class PlanTests
         // sites can never be filled — while the refusal names the plan rather than the mistake.
         Assert.Throws<ArgumentOutOfRangeException>(() =>
         {
-            return new Plan(Guid.NewGuid(), "PlanStarterName", 5_120, 5, 2, sftpUsers, 5);
+            return new Plan(Guid.NewGuid(), "PlanStarterName", 5_120, 5, 2, sftpUsers, 5, 5);
         });
     }
 
@@ -56,7 +56,7 @@ public sealed class PlanTests
     [Fact]
     public void A_plan_with_a_positive_worker_budget_is_created()
     {
-        var plan = new Plan(Guid.NewGuid(), "PlanStarterName", 5_120, 5, 2, 3, 7);
+        var plan = new Plan(Guid.NewGuid(), "PlanStarterName", 5_120, 5, 2, 3, 5, 7);
 
         Assert.Equal(7, plan.MaxPhpWorkersPerPool);
     }
@@ -67,7 +67,7 @@ public sealed class PlanTests
     {
         // Guards the refusal above from passing because the constructor throws for some other
         // reason: a guard that rejects everything is not a guard.
-        var plan = new Plan(Guid.NewGuid(), "PlanStarterName", 5_120, 5, 4, 3, 7);
+        var plan = new Plan(Guid.NewGuid(), "PlanStarterName", 5_120, 5, 4, 3, 5, 7);
 
         Assert.Equal(4, plan.MaxDatabases);
     }
@@ -78,8 +78,46 @@ public sealed class PlanTests
     {
         // Guards the refusal above from passing because the constructor throws for some other
         // reason: a guard that rejects everything is not a guard.
-        var plan = new Plan(Guid.NewGuid(), "PlanStarterName", 5_120, 5, 4, 6, 7);
+        var plan = new Plan(Guid.NewGuid(), "PlanStarterName", 5_120, 5, 4, 6, 5, 7);
 
         Assert.Equal(6, plan.MaxSftpUsers);
+    }
+
+    /// <summary>A plan with a negative cron allowance cannot be created.</summary>
+    [Fact]
+    public void A_plan_with_a_negative_cron_allowance_cannot_be_created()
+    {
+        // Negative is not a smaller allowance, it is nonsense — and it would compare as "under the
+        // limit" against a crontab that already holds entries, which is the direction that lets one
+        // through rather than the direction that refuses.
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+        {
+            return new Plan(Guid.NewGuid(), "PlanStarterName", 5_120, 5, 2, 3, -1, 5);
+        });
+    }
+
+    /// <summary>A plan with a zero cron allowance is created because a tier may include no scheduled tasks.</summary>
+    [Fact]
+    public void A_plan_with_a_zero_cron_allowance_is_created_because_a_tier_may_include_no_scheduled_tasks()
+    {
+        // The deliberate difference from the database and SFTP allowances above, which refuse zero.
+        // An account with no SFTP login cannot fill its own sites and a pool with no workers cannot
+        // serve PHP, so zero there is a broken plan; "this tier has no scheduled tasks" is a product
+        // a hosting company may genuinely sell, and refusing it here would forbid selling it.
+        var plan = new Plan(Guid.NewGuid(), "PlanStarterName", 5_120, 5, 2, 3, 0, 5);
+
+        Assert.Equal(0, plan.MaxCronEntries);
+    }
+
+    /// <summary>A plan carries the cron allowance it was created with.</summary>
+    [Fact]
+    public void A_plan_carries_the_cron_allowance_it_was_created_with()
+    {
+        // The value has to survive the constructor to the property, and it has to be THIS value:
+        // every other integer on a plan is also a small number, so a mis-ordered argument list is
+        // invisible without an assertion that names one.
+        var plan = new Plan(Guid.NewGuid(), "PlanStarterName", 5_120, 5, 4, 6, 9, 7);
+
+        Assert.Equal(9, plan.MaxCronEntries);
     }
 }

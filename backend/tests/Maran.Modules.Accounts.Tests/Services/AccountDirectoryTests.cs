@@ -1,4 +1,4 @@
-using Maran.Modules.Accounts.Domain;
+using Maran.Modules.Accounts.Domain.Entities;
 using Maran.Modules.Accounts.Persistence;
 using Maran.Modules.Accounts.Services;
 using Maran.Modules.Accounts.Tests.TestSupport;
@@ -31,6 +31,12 @@ public sealed class AccountDirectoryTests
         Assert.Equal("acme", snapshot.Username);
         Assert.Equal(7, snapshot.MaxSites);
         Assert.Equal(11, snapshot.MaxPhpWorkersPerPool);
+
+        // The cron allowance travels with the snapshot because the Cron module keeps no rows of its
+        // own and cannot read the plan any other way. The seeded value is deliberately unlike every
+        // other number on the plan, so a projection that dropped it — or picked up its neighbour —
+        // fails here rather than showing up as a limit that refuses the wrong customer.
+        Assert.Equal(13, snapshot.MaxCronEntries);
     }
 
     /// <summary>A customer cannot read another tenants snapshot.</summary>
@@ -146,7 +152,7 @@ public sealed class AccountDirectoryTests
         {
             dbContext.Plans.Add(new Plan(
                 PlanId, "PlanStarterName", diskQuotaMb: 5_120, maxSites: 7, maxDatabases: 2, maxSftpUsers: 3,
-                maxPhpWorkersPerPool: 11));
+                maxCronEntries: 13, maxPhpWorkersPerPool: 11));
         }
 
         var account = new Account(

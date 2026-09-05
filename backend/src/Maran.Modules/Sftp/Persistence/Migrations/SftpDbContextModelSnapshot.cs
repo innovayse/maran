@@ -23,7 +23,7 @@ namespace Maran.Modules.Sftp.Persistence.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
-            modelBuilder.Entity("Maran.Modules.Sftp.Domain.SftpUser", b =>
+            modelBuilder.Entity("Maran.Modules.Sftp.Domain.Entities.SftpUser", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()

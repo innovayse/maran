@@ -1,7 +1,7 @@
 using Maran.Modules.Ssl.Commands.InstallCustomCertificate;
-using Maran.Modules.Ssl.Common;
 using Maran.Modules.Ssl.Controllers.Requests;
-using Maran.Modules.Ssl.Domain;
+using Maran.Modules.Ssl.Domain.Entities;
+using Maran.Modules.Ssl.Models;
 
 namespace Maran.Modules.Ssl.Tests.Common;
 

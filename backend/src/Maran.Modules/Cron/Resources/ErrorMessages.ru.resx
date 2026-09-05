@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="AccountNotFound">
+    <value>Аккаунт не найден.</value>
+  </data>
+  <data name="CronEntryNotFound">
+    <value>Запланированная задача не найдена.</value>
+  </data>
+  <data name="CronEntryAlreadyExists">
+    <value>Такая задача с этим расписанием и командой уже существует.</value>
+  </data>
+  <data name="CronEntryLimitReached">
+    <value>Ваш тариф не позволяет создать больше запланированных задач.</value>
+  </data>
+  <data name="CronEntryIdInvalid">
+    <value>Некорректный идентификатор запланированной задачи.</value>
+  </data>
+  <data name="CronScheduleInvalid">
+    <value>Некорректное расписание. Используйте пять полей cron, например 0 3 * * 1.</value>
+  </data>
+  <data name="CronCommandInvalid">
+    <value>Некорректная команда. Она должна быть одной строкой длиной не более 4096 байт.</value>
+  </data>
+  <data name="CronEnvironmentInvalid">
+    <value>Не удалось прочитать переданные переменные окружения.</value>
+  </data>
+  <data name="CronEnvironmentNameInvalid">
+    <value>Имя переменной может содержать только заглавные латинские буквы, цифры и подчёркивания и не может начинаться с цифры.</value>
+  </data>
+  <data name="CronEnvironmentNameReserved">
+    <value>MAILTO и SHELL управляются сервером и не могут быть заданы здесь.</value>
+  </data>
+  <data name="CronEnvironmentValueInvalid">
+    <value>Значение переменной не может содержать знак процента, управляющие символы, пробелы по краям или обрамляющие кавычки.</value>
+  </data>
+  <data name="CronEnvironmentDuplicateName">
+    <value>Одно и то же имя переменной передано дважды.</value>
+  </data>
+  <data name="CronEnvironmentTooManyVariables">
+    <value>Передано слишком много переменных окружения.</value>
+  </data>
+  <data name="CronOperationFailed">
+    <value>Не удалось изменить запланированную задачу. Ничего не изменено, попробуйте ещё раз.</value>
+  </data>
+</root>

@@ -127,7 +127,7 @@ public sealed class InstallCustomCertificateCommandHandlerTests
     [Fact]
     public async Task An_agent_that_refuses_the_material_leaves_no_row_and_no_flag()
     {
-        using var fixture = new SslHandlerFixture([Domain], agentFailure: Error.Of("AgentValidationFailed"));
+        using var fixture = new SslHandlerFixture([Domain], agentFailure: Error.Of("AgentValidationFailed", ErrorType.Validation));
 
         var result = await HandlerFor(fixture).HandleAsync(Command(), CancellationToken.None);
 

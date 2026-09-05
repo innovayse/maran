@@ -56,7 +56,7 @@ public sealed class AgentAccountsClient : IAgentAccountsClient
                 new CreatedAccountDto(response.Ok.HomeDirectory, response.Ok.Uid)),
             CreateAccountResponse.ResultOneofCase.Error => Result<CreatedAccountDto>.Fail(
                 AgentErrorTranslator.ToError(_logger, response.Error, nameof(CreateAsync))),
-            _ => Result<CreatedAccountDto>.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse))),
+            _ => Result<CreatedAccountDto>.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
         };
     }
 
@@ -72,7 +72,7 @@ public sealed class AgentAccountsClient : IAgentAccountsClient
             SuspendAccountResponse.ResultOneofCase.Ok => Result<bool>.Ok(true),
             SuspendAccountResponse.ResultOneofCase.Error => Result<bool>.Fail(
                 AgentErrorTranslator.ToError(_logger, response.Error, nameof(SuspendAsync))),
-            _ => Result<bool>.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse))),
+            _ => Result<bool>.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
         };
     }
 
@@ -88,7 +88,7 @@ public sealed class AgentAccountsClient : IAgentAccountsClient
             UnsuspendAccountResponse.ResultOneofCase.Ok => Result<bool>.Ok(true),
             UnsuspendAccountResponse.ResultOneofCase.Error => Result<bool>.Fail(
                 AgentErrorTranslator.ToError(_logger, response.Error, nameof(UnsuspendAsync))),
-            _ => Result<bool>.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse))),
+            _ => Result<bool>.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
         };
     }
 
@@ -104,7 +104,7 @@ public sealed class AgentAccountsClient : IAgentAccountsClient
             DeleteAccountResponse.ResultOneofCase.Ok => Result<ulong>.Ok(response.Ok.BytesFreed),
             DeleteAccountResponse.ResultOneofCase.Error => Result<ulong>.Fail(
                 AgentErrorTranslator.ToError(_logger, response.Error, nameof(DeleteAsync))),
-            _ => Result<ulong>.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse))),
+            _ => Result<ulong>.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
         };
     }
 
@@ -122,7 +122,7 @@ public sealed class AgentAccountsClient : IAgentAccountsClient
             SetAccountQuotaResponse.ResultOneofCase.Ok => Result<bool>.Ok(true),
             SetAccountQuotaResponse.ResultOneofCase.Error => Result<bool>.Fail(
                 AgentErrorTranslator.ToError(_logger, response.Error, nameof(SetQuotaAsync))),
-            _ => Result<bool>.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse))),
+            _ => Result<bool>.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
         };
     }
 
@@ -139,7 +139,7 @@ public sealed class AgentAccountsClient : IAgentAccountsClient
                 new AccountUsageDto(response.Ok.UsedBytes, response.Ok.QuotaBytes)),
             GetAccountUsageResponse.ResultOneofCase.Error => Result<AccountUsageDto>.Fail(
                 AgentErrorTranslator.ToError(_logger, response.Error, nameof(GetUsageAsync))),
-            _ => Result<AccountUsageDto>.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse))),
+            _ => Result<AccountUsageDto>.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
         };
     }
 }

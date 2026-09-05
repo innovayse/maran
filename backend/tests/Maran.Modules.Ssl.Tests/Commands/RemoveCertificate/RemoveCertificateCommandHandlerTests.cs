@@ -88,7 +88,7 @@ public sealed class RemoveCertificateCommandHandlerTests
     [Fact]
     public async Task An_agent_that_refuses_keeps_the_row_so_the_certificate_can_still_be_renewed()
     {
-        using var fixture = new SslHandlerFixture([Domain], agentFailure: Error.Of("AgentSystemFailure"));
+        using var fixture = new SslHandlerFixture([Domain], agentFailure: Error.Of("AgentSystemFailure", ErrorType.Failure));
         var id = await SeedAsync(fixture);
 
         var result = await HandlerFor(fixture).HandleAsync(

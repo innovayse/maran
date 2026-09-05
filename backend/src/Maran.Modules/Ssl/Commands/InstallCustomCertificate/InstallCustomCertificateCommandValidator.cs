@@ -1,5 +1,6 @@
 using FluentValidation;
 using Maran.Modules.Ssl.Resources;
+using Maran.SharedKernel.Utilities.Network;
 
 namespace Maran.Modules.Ssl.Commands.InstallCustomCertificate;
 
@@ -15,10 +16,6 @@ namespace Maran.Modules.Ssl.Commands.InstallCustomCertificate;
 public sealed class InstallCustomCertificateCommandValidator
     : AbstractValidator<InstallCustomCertificateCommand>
 {
-    /// <summary>A hostname of two or more DNS labels; anchored with <c>\z</c> so a trailing newline cannot pass.</summary>
-    private const string HostnamePattern =
-        @"\A(?!-)[A-Za-z0-9-]{1,63}(?<!-)(\.(?!-)[A-Za-z0-9-]{1,63}(?<!-))+\z";
-
     /// <summary>The armour a PEM certificate block must begin with.</summary>
     private const string CertificatePemPrefix = "-----BEGIN CERTIFICATE-----";
 
@@ -30,8 +27,8 @@ public sealed class InstallCustomCertificateCommandValidator
     {
         RuleFor(command => command.Domain)
             .NotEmpty()
-            .MaximumLength(253)
-            .Matches(HostnamePattern)
+            .MaximumLength(HostNameRule.MaximumLength)
+            .Must(HostNameRule.IsHostName)
             .WithMessage(nameof(ErrorMessages.CertificateDomainInvalidFormat));
 
         RuleFor(command => command.CertificatePem)

@@ -15,7 +15,7 @@
   <data name="CertificateNotFound">
     <value>Сертификат не найден.</value>
   </data>
-  <data name="CertificateAlreadyIssued">
+  <data name="CertificateAlreadyExists">
     <value>Для этого домена уже выпущен сертификат.</value>
   </data>
   <data name="CertificateDomainInvalidFormat">

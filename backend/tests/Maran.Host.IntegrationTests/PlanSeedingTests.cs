@@ -1,5 +1,5 @@
 using Maran.Host.IntegrationTests.Fixtures;
-using Maran.Modules.Accounts.Domain;
+using Maran.Modules.Accounts.Domain.Entities;
 using Maran.Modules.Accounts.Persistence;
 using Maran.Modules.Accounts.Seeders;
 using Microsoft.AspNetCore.Hosting;
@@ -137,6 +137,13 @@ public sealed class PlanSeedingTests : IAsyncLifetime
 
             builder.UseSetting("Security:EncryptionKey", EncryptionKey);
             builder.UseSetting("Jwt:SigningKey", EncryptionKey);
+
+            // Startup validation refuses to boot without the host's SSH ports and the panel's
+            // public port: a defaulted one is a locked-out server (rules/security.md).
+            foreach (var setting in FirewallSettings.Required())
+            {
+                builder.UseSetting(setting.Key, setting.Value);
+            }
         });
     }
 

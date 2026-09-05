@@ -27,4 +27,21 @@ namespace Maran.Host.Modules;
 /// Whether the running licence currently permits it. False renders the module's entries as locked
 /// rather than hiding the product's existence.
 /// </param>
-public sealed record ModuleDto(string Name, LicenceTier Tier, string DisplayName, bool IsEnabled);
+/// <param name="AgentCapabilities">
+/// The parts of the root agent this module is permitted to drive, from its own
+/// <see cref="Manifest"/>. It is on the wire so that the answer to "what does this module reach"
+/// is available to the interface — the question that matters for a module bought from a
+/// marketplace, where the description is otherwise the only evidence. No screen renders it yet;
+/// the one that does arrives with the install flow, and it will not need an API change to do it,
+/// which is the point of carrying it now. Serialized as member names by the
+/// panel-wide <see cref="System.Text.Json.Serialization.JsonStringEnumConverter"/>, for the same
+/// reason <paramref name="Tier"/> is. This is a disclosure, never the enforcement:
+/// <c>AgentCapabilityGuard</c> refuses the module at composition, before any request exists to
+/// check (rules/security.md item 13).
+/// </param>
+public sealed record ModuleDto(
+    string Name,
+    LicenceTier Tier,
+    string DisplayName,
+    bool IsEnabled,
+    IReadOnlyList<AgentCapability> AgentCapabilities);

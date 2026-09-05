@@ -27,6 +27,13 @@ frontend/.playwright/
 /*.jpeg
 /*.webp
 
+# The same shape again, for probes rather than screenshots. A reviewer checking what
+# `"nan".parse::<f64>()` really does wrote `nan.rs` at the repository root, compiled it, and left
+# both behind. No Rust source and no built binary belongs here — every crate lives under `agent/`,
+# and a loose one at the root is scratch that a `git add -A` would sweep into the history exactly
+# as #18's screenshot was. Probes belong in the session scratchpad.
+/*.rs
+
 # Generated code
 # --------------
 # Protobuf and gRPC types are generated at build time on both sides and never committed

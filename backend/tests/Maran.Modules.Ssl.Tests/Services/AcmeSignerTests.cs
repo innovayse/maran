@@ -59,6 +59,25 @@ public sealed class AcmeSignerTests
         Assert.DoesNotContain('/', encoded);
     }
 
+    /// <summary>
+    /// <see cref="AcmeSigner.Base64Url"/> matches the hand-written encoder it replaced
+    /// (<c>Convert.ToBase64String(value).TrimEnd('=').Replace('+', '-').Replace('/', '_')</c>)
+    /// byte for byte, across inputs chosen to exercise every padding remainder and both
+    /// alphabet substitutions.
+    /// </summary>
+    [Theory]
+    [InlineData(new byte[] { })]
+    [InlineData(new byte[] { 0x00 })]
+    [InlineData(new byte[] { 0xFF, 0xFF })]
+    [InlineData(new byte[] { 0xFB, 0xFF, 0xFE, 0x01, 0x02 })]
+    [InlineData(new byte[] { 0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09 })]
+    public void Base64url_output_matches_the_hand_written_encoder_it_replaced(byte[] value)
+    {
+        var expected = Convert.ToBase64String(value).TrimEnd('=').Replace('+', '-').Replace('/', '_');
+
+        Assert.Equal(expected, AcmeSigner.Base64Url(value));
+    }
+
     /// <summary>A signed request names the url and the nonce inside the protected header.</summary>
     [Fact]
     public void A_signed_request_names_the_url_and_the_nonce_inside_the_protected_header()

@@ -1,13 +1,13 @@
 using System.Security.Cryptography;
 using System.Text;
 using Maran.Modules.Identity.Common;
-using Maran.Modules.Identity.Common.Options;
-using Maran.Modules.Identity.Domain;
+using Maran.Modules.Identity.Domain.Entities;
 using Maran.Modules.Identity.Domain.Enums;
+using Maran.Modules.Identity.Options;
 using Maran.Modules.Identity.Persistence;
 using Maran.Modules.Identity.Resources;
+using Maran.Modules.Identity.Services;
 using Maran.Sdk.Contracts;
-using Maran.Sdk.Interfaces;
 using Microsoft.Extensions.Options;
 
 namespace Maran.Modules.Identity.Commands.CompleteSetup;
@@ -22,7 +22,7 @@ public sealed class CompleteSetupCommandHandler
     private readonly IPasswordHasher _passwordHasher;
 
     /// <summary>Records the creation.</summary>
-    private readonly IAuditWriter _auditWriter;
+    private readonly IdentityAuditJournal _journal;
 
     /// <summary>The panel's clock.</summary>
     private readonly IClock _clock;
@@ -33,19 +33,19 @@ public sealed class CompleteSetupCommandHandler
     /// <summary>Creates the handler.</summary>
     /// <param name="dbContext">The module's database context.</param>
     /// <param name="passwordHasher">Hashes the chosen password.</param>
-    /// <param name="auditWriter">Records the creation.</param>
+    /// <param name="journal">Records the creation.</param>
     /// <param name="clock">The panel's clock.</param>
     /// <param name="setupOptions">The bound <see cref="SetupOptions"/>, carrying the installer's token.</param>
     public CompleteSetupCommandHandler(
         IdentityDbContext dbContext,
         IPasswordHasher passwordHasher,
-        IAuditWriter auditWriter,
+        IdentityAuditJournal journal,
         IClock clock,
         IOptions<SetupOptions> setupOptions)
     {
         _dbContext = dbContext;
         _passwordHasher = passwordHasher;
-        _auditWriter = auditWriter;
+        _journal = journal;
         _clock = clock;
         _configuredToken = setupOptions.Value.Token;
     }
@@ -64,12 +64,12 @@ public sealed class CompleteSetupCommandHandler
         // closes the door permanently the moment setup succeeds, whatever happens to the file.
         if (await _dbContext.Users.AnyAsync(cancellationToken))
         {
-            return Result<AuthenticatedUserDto>.Fail(Error.Of(nameof(ErrorMessages.SetupAlreadyCompletedForbidden)));
+            return Result<AuthenticatedUserDto>.Fail(Error.Of(nameof(ErrorMessages.SetupAlreadyCompletedForbidden), ErrorType.Forbidden));
         }
 
         if (!TokenMatches(command.Token))
         {
-            return Result<AuthenticatedUserDto>.Fail(Error.Of(nameof(ErrorMessages.SetupTokenInvalidUnauthorized)));
+            return Result<AuthenticatedUserDto>.Fail(Error.Of(nameof(ErrorMessages.SetupTokenInvalidUnauthorized), ErrorType.Unauthorized));
         }
 
         var user = new User(
@@ -83,15 +83,13 @@ public sealed class CompleteSetupCommandHandler
         _dbContext.Users.Add(user);
         await _dbContext.SaveChangesAsync(cancellationToken);
 
-        await _auditWriter.WriteAsync(
-            new AuditEntry(
-                user.Id,
-                user.Username,
-                AuditActions.AdministratorCreated,
-                user.Username,
-                command.IpAddress,
-                command.UserAgent,
-                Succeeded: true),
+        await _journal.RecordClaimAsync(
+            user.Id,
+            user.Username,
+            AuditActions.AdministratorCreated,
+            command.IpAddress,
+            command.UserAgent,
+            succeeded: true,
             cancellationToken);
 
         return Result<AuthenticatedUserDto>.Ok(

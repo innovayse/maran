@@ -1,9 +1,14 @@
 using Maran.Modules.Accounts;
+using Maran.Modules.Cron;
 using Maran.Modules.Databases;
+using Maran.Modules.Firewall;
 using Maran.Modules.Identity;
+using Maran.Modules.Monitoring;
+using Maran.Modules.Notifications;
 using Maran.Modules.Sftp;
 using Maran.Modules.Sites;
 using Maran.Modules.Ssl;
+using Maran.Modules.Tasks;
 using Maran.Sdk.Interfaces;
 
 namespace Maran.Host.Modules;
@@ -29,5 +34,10 @@ public static class ModuleRegistry
             new SslModule(),
             new DatabasesModule(),
             new SftpModule(),
+            new CronModule(),
+            new FirewallModule(),
+            new TasksModule(),
+            new MonitoringModule(),
+            new NotificationsModule(),
         ];
 }

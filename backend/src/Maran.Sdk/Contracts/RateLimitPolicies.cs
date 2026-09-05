@@ -20,6 +20,20 @@ public static class RateLimitPolicies
     public const string Login = "login";
 
     /// <summary>
+    /// The password-reset limit: its own bucket, keyed by the caller's address.
+    /// </summary>
+    /// <remarks>
+    /// A separate policy rather than a reuse of <see cref="Login"/>, and that is deliberate in both
+    /// directions. Sharing a bucket with sign-in would let an attacker exhaust somebody's login
+    /// budget by asking for resets, and — the other way round — would let reset requests hide inside
+    /// a login allowance that is tuned for people who mistype. What this endpoint spends is not a
+    /// guess but an OUTGOING MESSAGE with the operator's own return address on it: an unlimited one
+    /// is a mail bomb aimed at any address the caller names and a fast route to the panel's domain
+    /// being listed as a spam source.
+    /// </remarks>
+    public const string PasswordReset = "password-reset";
+
+    /// <summary>
     /// The site-log stream limit: a CONCURRENCY limit on how many tails one account may hold
     /// open at once, which is a different question from how fast it may open them.
     /// </summary>

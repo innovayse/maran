@@ -1,4 +1,5 @@
 using Maran.Sdk.Contracts;
+using Maran.SharedKernel.Utilities.Network;
 
 namespace Maran.Host.RateLimiting;
 
@@ -18,6 +19,10 @@ namespace Maran.Host.RateLimiting;
 /// on behalf of, so an account with five panel users must not get five times the budget. A panel
 /// administrator owns no account and is keyed by user. An anonymous caller has neither and is keyed
 /// by address, which is all that is known about them.
+///
+/// That address is rendered by <see cref="ClientAddress"/> rather than by <c>ToString()</c>, so a
+/// dual-stack listener's <c>::ffff:</c> spelling and nginx's plain one land in ONE partition
+/// instead of granting the same caller two budgets.
 /// </remarks>
 public static class RateLimitPartitionKey
 {
@@ -38,6 +43,6 @@ public static class RateLimitPartitionKey
             return $"user:{userId}";
         }
 
-        return $"ip:{context.Connection.RemoteIpAddress?.ToString() ?? "unknown"}";
+        return $"ip:{ClientAddress.Of(context.Connection.RemoteIpAddress)}";
     }
 }

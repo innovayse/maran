@@ -1,5 +1,6 @@
 using System.Net;
 using System.Text.Json;
+using Maran.Host.Modules;
 
 namespace Maran.Host.Tests.Modules;
 
@@ -28,11 +29,29 @@ public sealed class ModulesEndpointTests : IClassFixture<PanelTestFactory>
         Assert.Equal(JsonValueKind.Array, body.RootElement.ValueKind);
     }
 
-    /// <summary>
-    /// Module catalogue lists identity first then accounts then sites then ssl then databases then sftp.
-    /// </summary>
+    /// <summary>Every compiled in module, one theory row each, read off the registry itself.</summary>
+    /// <remarks>
+    /// Derived rather than written out, for the reason every other fixture here asserts its own
+    /// completeness: a hand-written list of module names goes stale the first time a module is added,
+    /// and it goes stale SILENTLY — the theory keeps passing on the rows it still has, while the new
+    /// module's manifest, tier and display-name translation are covered by nothing. It went stale
+    /// three times in one plan, once per module added.
+    /// </remarks>
+    /// <returns>The module ids the registry contributes.</returns>
+    public static TheoryData<string> CompiledInModules()
+    {
+        var rows = new TheoryData<string>();
+        foreach (var module in ModuleRegistry.All)
+        {
+            rows.Add(module.Manifest.Id);
+        }
+
+        return rows;
+    }
+
+    /// <summary>Module catalogue lists every compiled in module in the registrys own load order.</summary>
     [Fact]
-    public async Task Module_catalogue_lists_identity_first_then_accounts_then_sites_then_ssl_then_databases_then_sftp()
+    public async Task Module_catalogue_lists_every_compiled_in_module_in_the_registrys_own_load_order()
     {
         using var client = _factory.CreateClient();
 
@@ -41,21 +60,29 @@ public sealed class ModulesEndpointTests : IClassFixture<PanelTestFactory>
         using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
         var names = body.RootElement.EnumerateArray().Select(m =>
         {
-            return m.GetProperty("name").GetString();
+            // Never null: the endpoint's own contract is that every module publishes a name, and a
+            // null here would be a defect this test should report as a mismatch rather than skip.
+            return m.GetProperty("name").GetString()!;
         }).ToList();
 
-        // Load order is what the registry promises, and Identity owning sign-in is why it leads.
-        Assert.Equal(["identity", "accounts", "sites", "ssl", "databases", "sftp"], names);
+        // Load order is what the registry promises, and the endpoint's contract is to report it
+        // unchanged — including a module compiled in later, which a hard-coded list would have made
+        // this test forbid rather than describe.
+        Assert.Equal(
+            ModuleRegistry.All.Select(module =>
+            {
+                return module.Manifest.Id;
+            }).ToList(),
+            names);
+
+        // Identity owning sign-in is why it leads: every other module's endpoints are meaningless
+        // until its services are registered. That is the one position the order actually promises.
+        Assert.Equal("identity", names[0]);
     }
 
     /// <summary>Every compiled in module publishes a tier a state and a translated display name.</summary>
     [Theory]
-    [InlineData("identity")]
-    [InlineData("accounts")]
-    [InlineData("sites")]
-    [InlineData("ssl")]
-    [InlineData("databases")]
-    [InlineData("sftp")]
+    [MemberData(nameof(CompiledInModules))]
     public async Task Every_compiled_in_module_publishes_a_tier_a_state_and_a_translated_display_name(string name)
     {
         using var client = _factory.CreateClient();

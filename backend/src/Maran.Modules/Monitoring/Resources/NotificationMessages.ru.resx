@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="AlertDiskUsageRaisedSubject">
+    <value>Заканчивается место на диске: {0}</value>
+  </data>
+  <data name="AlertDiskUsageRaisedBody">
+    <value>Файловая система {0} заполнена на {1}% и остаётся выше порога уже десять проверок подряд. Освободите место, пока запись не начала завершаться ошибкой.</value>
+  </data>
+  <data name="AlertDiskUsageResolvedSubject">
+    <value>Место на диске восстановлено: {0}</value>
+  </data>
+  <data name="AlertDiskUsageResolvedBody">
+    <value>Файловая система {0} снова ниже порога, заполнена на {1}%.</value>
+  </data>
+  <data name="AlertServiceStoppedRaisedSubject">
+    <value>Служба {0} остановлена</value>
+  </data>
+  <data name="AlertServiceStoppedRaisedBody">
+    <value>Служба {0} сообщается как остановленная уже десять проверок подряд. Менеджер служб сообщает: {1}</value>
+  </data>
+  <data name="AlertServiceStoppedResolvedSubject">
+    <value>Служба {0} снова работает</value>
+  </data>
+  <data name="AlertServiceStoppedResolvedBody">
+    <value>Служба {0} снова работает. Менеджер служб сообщает: {1}</value>
+  </data>
+</root>

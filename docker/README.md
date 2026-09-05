@@ -138,10 +138,12 @@ docker run --rm \
 
 ## Running the Polygon Suites
 
-Six test files are `#[ignore]`d by default and run only inside a polygon:
+Ten test files are `#[ignore]`d by default and run only inside a polygon:
 `sites_on_a_real_host.rs`, `php_pools_on_a_real_host.rs`,
 `privileges_on_a_real_host.rs`, `databases_on_a_real_host.rs`,
-`sftp_on_a_real_host.rs` and `account_deletion_on_a_real_host.rs`. They create real system accounts and real database
+`monitor_on_a_real_host.rs`, `binary_paths_on_a_real_host.rs`,
+`sftp_on_a_real_host.rs`, `account_deletion_on_a_real_host.rs`,
+`firewall_on_a_real_host.rs` and `cron_on_a_real_host.rs`. They create real system accounts and real database
 users, write real vhosts and pools, mount real filesystems, log in to a real
 sshd and drop real privileges, so they refuse to run unless the image's
 `MARAN_POLYGON` marker is set and the process is root — asked to run anywhere
@@ -154,25 +156,42 @@ docker run --rm -v "$PWD:/maran" -w /maran/agent -e CARGO_TARGET_DIR=/tmp/target
   maran-polygon-ubuntu24 \
   cargo test --test sites_on_a_real_host --test php_pools_on_a_real_host \
     --test privileges_on_a_real_host --test databases_on_a_real_host \
+    --test monitor_on_a_real_host --test binary_paths_on_a_real_host \
     -- --ignored --test-threads=1
 ```
 
-The SFTP and account-deletion suites run separately, because both need
-`--privileged`:
+The other four run separately, because each needs `--privileged`: SFTP and
+account-deletion for the jail's bind mount, `firewall` because `nft` cannot
+initialise its cache without `NET_ADMIN`, and `cron` because the Debian family's
+PAM stack includes `pam_loginuid`:
 
 ```bash
 docker run --rm --privileged -v "$PWD:/maran" -w /maran/agent -e CARGO_TARGET_DIR=/tmp/target \
   maran-polygon-ubuntu24 \
   cargo test --test sftp_on_a_real_host --test account_deletion_on_a_real_host \
+    --test firewall_on_a_real_host --test cron_on_a_real_host \
     -- --ignored --test-threads=1
 ```
+
+**Both commands name every suite explicitly, and that is the hazard this note
+exists for.** An earlier version of this file listed six of the ten suites, and
+the four it omitted — `cron`, `firewall`, `monitor`, `binary_paths` — were the
+newest ones. Because the command passes an explicit `--test` list rather than
+running everything ignored, anybody following these instructions ran six suites
+while believing they had run the polygon. A suite absent from this list is a
+suite nobody runs, so adding a `*_on_a_real_host.rs` file means editing here in
+the same change; `maran structure` checks that the two agree.
 
 `account_deletion_on_a_real_host.rs` is the account-deletion cascade: it gives an
 account a real database and a real SFTP login, deletes the account, **creates one
 again under the same name** — system user names are recycled — and asserts the new
 one inherits nothing. The database is gone from the server, the old credential is
 REFUSED rather than merely unlisted, the old SFTP login is refused by the real
-daemon in a real session, and the jail's bind mount is down. It also proves the
+daemon in a real session, the previous tenant's crontab is gone from the spool,
+and the jail's bind mount is down. The crontab claim needs a real host on both
+counts: neither family's `userdel` removes the spool file, and the two families
+keep it in different places under different ownership, so only a real
+`crontab(1)` can answer whether a re-created account has a table. It also proves the
 cascade does not reach past the account: a neighbour named `polycascade_two`
 keeps its database, its login and its mount, which is a case no unit test could
 express, because `polycascade_two` is simultaneously a valid account name and the

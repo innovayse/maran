@@ -9,6 +9,7 @@ use std::process::{Command, Stdio};
 
 use maran_agent_core::command_outcome::CommandOutcome;
 use maran_agent_core::privs::account_ids::AccountIds;
+use maran_agent_core::utils::system_accounts::system_accounts;
 use maran_agent_core::validation::system::name::AccountName;
 use maran_agent_core::validation::system::sftp_user_name::SftpUserName;
 
@@ -17,15 +18,6 @@ use crate::safe_write::{ConfigHost, SafeWriteError, write_config};
 use crate::sftp::model::account_ownership::AccountOwnership;
 use crate::sftp::sftp_error::SftpError;
 use crate::sftp::sftp_host::SftpHost;
-
-/// The field separator of the local password database.
-const PASSWD_SEPARATOR: char = ':';
-
-/// How many fields to skip AFTER the name to reach the home directory.
-///
-/// The file's format is `name:password:uid:gid:gecos:home:shell`, so the home is
-/// the fourth field after the password field the iterator is left on.
-const HOME_FIELD_OFFSET: usize = 4;
 
 /// The separator `SftpUserName::for_account` puts between the account and the
 /// name its customer chose.
@@ -236,6 +228,14 @@ impl SftpHost for ProcessSftpHost {
     /// password database lives is a fact of the platform, and `ops` names no
     /// absolute system path of its own (rules/architecture.md).
     ///
+    /// The file's TEXT is turned into rows by
+    /// [`maran_agent_core::utils::system_accounts::system_accounts`], which is
+    /// also what the monitoring area enumerates accounts with: where a home
+    /// field sits in a passwd line is a question about the host and not about
+    /// SFTP, so the two areas read it through one unit rather than each
+    /// counting fields for itself. What stays here is the only part that IS
+    /// about SFTP — which of those rows is a login of this account.
+    ///
     /// The file rather than a `getpwent` walk, and that is a deliberate
     /// narrowing: enumerating the password database through libc means holding
     /// iterator state across a root process's threads, whereas every login this
@@ -265,21 +265,10 @@ impl SftpHost for ProcessSftpHost {
     ) -> Result<Vec<SftpUserName>, SftpError> {
         let passwd = fs::read_to_string(passwd_database).map_err(|_| SftpError::AccountMissing)?;
 
-        let mut logins: Vec<SftpUserName> = passwd
-            .lines()
-            .filter_map(|line| {
-                let mut fields = line.split(PASSWD_SEPARATOR);
-                let name = fields.next()?;
-                // Name, uid, gid, gecos, home: the sixth field, counted from the
-                // file's own format rather than from the end, because the shell
-                // that follows it may itself be absent on a malformed line.
-                let home = fields.nth(HOME_FIELD_OFFSET)?;
-                if home != jail_directory {
-                    return None;
-                }
-
-                decode_login(account, name)
-            })
+        let mut logins: Vec<SftpUserName> = system_accounts(&passwd)
+            .into_iter()
+            .filter(|row| row.home == jail_directory)
+            .filter_map(|row| decode_login(account, &row.name))
             .collect();
         // Sorted so that two calls against an unchanged host remove the logins
         // in the same order, whatever order the file happened to hold them in.

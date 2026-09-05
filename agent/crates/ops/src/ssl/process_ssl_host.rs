@@ -11,7 +11,10 @@ use maran_agent_core::validation::system::name::AccountName;
 
 use crate::safe_write::model::{ConfigFile, Reload, Validator};
 use crate::safe_write::{ConfigHost, SafeWriteError, remove_config, write_config_set};
-use crate::sites::{ProcessSiteHost, SiteCertificate, SiteHost, SitesOpError};
+use crate::sites::log_sink::LogSink;
+use crate::sites::model::log_tail_request::LogTailRequest;
+use crate::sites::model::tail_end::TailEnd;
+use crate::sites::{ProcessSiteHost, SiteCertificate, SiteHost, SiteMaintenanceHost, SitesOpError};
 use crate::ssl::model::certificate_material::CertificateMaterial;
 use crate::ssl::model::key_tool_outcome::KeyToolOutcome;
 use crate::ssl::model::self_signed_request::SelfSignedRequest;
@@ -370,6 +373,35 @@ impl SslHost for ProcessSslHost {
             &read(&certificate_path)?,
             &read(&key_path)?,
         ))
+    }
+}
+
+impl SiteMaintenanceHost for ProcessSslHost {
+    /// Delegates to the site area's host.
+    ///
+    /// The certificate operations never reload on their own — every one of them
+    /// ends by rewriting a vhost through the write protocol, which validates and
+    /// reloads for them. This exists because the SITES service is now handed
+    /// this host rather than a bare [`ProcessSiteHost`]: deleting a site has to
+    /// take the domain's certificate material with it, which needs an
+    /// [`SslHost`], while the same service still offers the batching reload and
+    /// the log tail. Composition again, rather than a second implementation of
+    /// either.
+    fn validate_and_reload(
+        &self,
+        validator: &Validator<'_>,
+        reload: &Reload<'_>,
+    ) -> Result<(), SitesOpError> {
+        self.sites.validate_and_reload(validator, reload)
+    }
+
+    /// Delegates to the site area's host.
+    fn tail_log(
+        &self,
+        request: &LogTailRequest,
+        sink: &mut dyn LogSink,
+    ) -> Result<TailEnd, SitesOpError> {
+        self.sites.tail_log(request, sink)
     }
 }
 

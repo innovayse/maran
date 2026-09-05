@@ -1,5 +1,5 @@
 using Maran.Modules.Databases.Commands.DropDatabase;
-using Maran.Modules.Databases.Common;
+using Maran.Modules.Databases.Services;
 using Maran.Modules.Databases.Tests.TestSupport;
 using Maran.Sdk.Contracts;
 using Maran.SharedKernel.Results;
@@ -55,7 +55,7 @@ public sealed class DropDatabaseCommandHandlerTests
         // Agent first, row second. A row removed while the database still exists is a customer's
         // data nobody in the panel can see and nobody can now remove.
         var world = await WorldAsync();
-        world.Agent.DropResult = Result<bool>.Fail(Error.Of("AgentSystemFailure"));
+        world.Agent.DropResult = Result<bool>.Fail(Error.Of("AgentSystemFailure", ErrorType.Failure));
 
         var result = await world.DropAsync(world.OwnDatabaseId);
 
@@ -154,7 +154,7 @@ public sealed class DropDatabaseCommandHandlerTests
             var currentUser = FakeCurrentUser.Customer(OwnerAccountId);
             Handler = new DropDatabaseCommandHandler(
                 DatabasesTestContext.Create(currentUser, store),
-                new StubAccountDirectory(new AccountSnapshot(OwnerAccountId, "alice", 5, 5, 5, 5)),
+                new StubAccountDirectory(new AccountSnapshot(OwnerAccountId, "alice", 5, 5, 5, 5, 5, 1_024)),
                 Agent,
                 new DatabaseAuditJournal(Audit, currentUser));
         }

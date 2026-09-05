@@ -1,0 +1,10 @@
+{
+  "app": {
+    "chart": {
+      "emptyDescription": "За этот период данных пока нет.",
+      "tableCaption": "Показания {label}, в {unit}",
+      "columnTime": "Время",
+      "columnValue": "Значение"
+    }
+  }
+}

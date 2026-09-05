@@ -1,4 +1,5 @@
 using Maran.Modules.Ssl.Common;
+using Maran.Modules.Ssl.Mappers;
 using Maran.Modules.Ssl.Persistence;
 
 namespace Maran.Modules.Ssl.Queries.ListCertificates;
@@ -42,6 +43,6 @@ public sealed class ListCertificatesQueryHandler
             .ToListAsync(cancellationToken);
 
         return Result<IReadOnlyList<CertificateDto>>.Ok(
-            certificates.Select(CertificateDtoFactory.From).ToList());
+            certificates.Select(CertificateMapper.From).ToList());
     }
 }

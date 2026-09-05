@@ -142,11 +142,13 @@ agent/
     │       │                  Every kind is a `<kind>.rs` + `<kind>_error.rs` pair in
     │       │                  its group; a kind used by two groups still lives in the
     │       │                  one that CREATES the object.
-    │       │   ├── system/    name · sftp_user_name — values that become OS objects
-    │       │   │              (planned, same shape: cron_expression)
+    │       │   ├── system/    name · sftp_user_name · cron_schedule · cron_command ·
+    │       │   │              cron_entry_id · env_var_name · env_var_value — values
+    │       │   │              that become OS objects
     │       │   ├── db/        database_name · db_user_name — values that reach MySQL
-    │       │   ├── web/       domain · upstream · php_version — values written into
-    │       │   │              web-server configuration (planned: port · ip_address)
+    │       │   ├── web/       domain · upstream · php_version · port · source_cidr ·
+    │       │   │              ban_address · ipv4_disguise (shared predicate, no
+    │       │   │              _error) — values written into web-server configuration
     │       │   ├── fs/        path (resolve_in_home) · relative_path · file_mode
     │       │   └── secrets/   password (validated alphabet, injection-free by
     │       │                  construction) · secret (redacting wrapper, no _error)
@@ -162,7 +164,8 @@ agent/
     │       │                  own reason for the flags it forces, and a reviewer reads the
     │       │                  one that changed.
     │       └── utils/         helpers that carry no domain knowledge, one file per
-    │                          subject: directory.rs · current_uid.rs. A helper earns a
+    │                          subject: directory.rs · current_uid.rs ·
+    │                          system_account.rs · system_accounts.rs. A helper earns a
     │                          place here when a SECOND crate needs it; until then it
     │                          stays private beside its only caller. The banned shape is
     │                          the catch-all (util.rs, helpers.rs, misc.rs), not the folder.
@@ -230,9 +233,21 @@ agent/
         │                      the TLS block embed the same string instead of two
         │                      hand-kept copies that drift on the half a browser reaches. ·
         │                      php_fpm/{pool,pool_override}.rs · vsftpd/user_config.rs ·
-        │                      systemd/unit.rs · render_error.rs
-        ├── templates/{nginx,php-fpm,vsftpd,systemd}/
-        └── tests/golden/      byte-exact expected config renders
+        │                      systemd/unit.rs ·
+        │                      nftables/{nftables_ruleset,nftables_bans_table,
+        │                      nftables_allow,nftables_ssh_port,nftables_protocol}.rs —
+        │                      the firewall's applied policy is a rendered file like any
+        │                      other config, not a string built in `ops`: the ruleset and
+        │                      the runtime-ban table are two SEPARATE tables (`inet maran`
+        │                      vs `inet maran_bans`) because the ruleset is replaced
+        │                      wholesale on every apply and a ban table folded into it
+        │                      would lose every live ban on the next re-render · render_error.rs
+        ├── templates/{nginx,php-fpm,vsftpd,systemd,nftables}/
+        └── tests/golden/      byte-exact expected config renders — the four
+                               `golden/nftables/` files are what pins the replace idiom
+                               (create-if-absent, delete, redeclare) and the two ssh-port
+                               variants byte-exact, so a change to either can only ship
+                               with a reviewed diff of what `nft -f` is actually told
 ```
 
 Crate names are kebab-case `maran-*`; module path mirrors the folder; `error.rs`
@@ -509,6 +524,14 @@ in isolation never could.
 Partial writes are forbidden. An area that needs a variation on this protocol
 extends `safe_write` — it does not write its own copy. Two implementations of a
 write-and-rollback path is how the first unrecoverable config corruption happens.
+
+**The protocol binds every writer of a system config, not only this crate** — the
+installer's shell steps included. `installer/lib/80-nginx.sh` wrote the panel's own
+vhost under a `.staging` name and validated there, which step 5 cannot see (the
+validating tool reads the tree by path; `.staging` matches no include glob), so the
+gate passed on a file nginx never read and the vhost was never checked at all. The
+reasoning above is not agent-specific; a step that writes `/etc/` writes it this way
+or it does not write it.
 
 ## Idempotency
 

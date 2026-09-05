@@ -1,0 +1,10 @@
+{
+  "app": {
+    "chart": {
+      "emptyDescription": "Այս ժամանակահատվածի համար տվյալներ դեռ չկան։",
+      "tableCaption": "{label} ցուցումներ, {unit}-ով",
+      "columnTime": "Ժամանակ",
+      "columnValue": "Արժեք"
+    }
+  }
+}

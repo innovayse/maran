@@ -51,7 +51,7 @@ public sealed class AgentPhpClient : IAgentPhpClient
                 ToVersions(response.Ok)),
             ListPhpVersionsResponse.ResultOneofCase.Error => Result<IReadOnlyList<PhpVersionDto>>.Fail(
                 AgentErrorTranslator.ToError(_logger, response.Error, nameof(ListVersionsAsync))),
-            _ => Result<IReadOnlyList<PhpVersionDto>>.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse))),
+            _ => Result<IReadOnlyList<PhpVersionDto>>.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
         };
     }
 

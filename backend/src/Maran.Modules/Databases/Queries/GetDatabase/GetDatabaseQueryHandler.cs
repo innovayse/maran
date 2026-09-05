@@ -38,7 +38,7 @@ public sealed class GetDatabaseQueryHandler
 
         if (database is null)
         {
-            return Result<DatabaseDto>.Fail(Error.Of(nameof(ErrorMessages.DatabaseNotFound)));
+            return Result<DatabaseDto>.Fail(Error.Of(nameof(ErrorMessages.DatabaseNotFound), ErrorType.NotFound));
         }
 
         return Result<DatabaseDto>.Ok(new DatabaseDto(

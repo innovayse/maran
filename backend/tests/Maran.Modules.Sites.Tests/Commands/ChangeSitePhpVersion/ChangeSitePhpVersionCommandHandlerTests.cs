@@ -1,8 +1,8 @@
 using Maran.Agent.Client.Services.SitesService;
 using Maran.Modules.Sites.Commands.ChangeSitePhpVersion;
-using Maran.Modules.Sites.Common;
-using Maran.Modules.Sites.Domain;
+using Maran.Modules.Sites.Domain.Entities;
 using Maran.Modules.Sites.Domain.Enums;
+using Maran.Modules.Sites.Services;
 using Maran.Modules.Sites.Tests.TestSupport;
 using Maran.Sdk.Contracts;
 using Maran.SharedKernel.Results;
@@ -107,7 +107,7 @@ public sealed class ChangeSitePhpVersionCommandHandlerTests
         // The agent client's own code for a config the web server refused: AgentErrorTranslator is
         // the single wire-error boundary, so what a handler receives is one of ITS codes, never a
         // code this module invented (rules/csharp.md).
-        var agent = new RecordingAgentSitesClient(Error.Of("AgentValidationFailed"));
+        var agent = new RecordingAgentSitesClient(Error.Of("AgentValidationFailed", ErrorType.Validation));
         await using var context = SitesTestContext.Create(FakeCurrentUser.Customer(account), database);
 
         var result = await Handler(context, account, agent).HandleAsync(
@@ -307,7 +307,9 @@ public sealed class ChangeSitePhpVersionCommandHandlerTests
             MaxSites: 5,
             MaxDatabases: 2,
             MaxSftpUsers: 3,
-            MaxPhpWorkersPerPool: maxPhpWorkersPerPool));
+            MaxCronEntries: 7,
+            MaxPhpWorkersPerPool: maxPhpWorkersPerPool,
+            DiskQuotaMb: 1_024));
         return new ChangeSitePhpVersionCommandHandler(
             context,
             accounts,

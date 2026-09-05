@@ -54,7 +54,7 @@ public sealed class AcmeChallengeWriterTests
     [Fact]
     public async Task An_agent_that_refuses_the_write_is_surfaced_as_a_failure_rather_than_swallowed()
     {
-        var files = new RecordingAgentFilesClient(Error.Of("AgentValidationFailed"));
+        var files = new RecordingAgentFilesClient(Error.Of("AgentValidationFailed", ErrorType.Validation));
 
         var result = await new AcmeChallengeWriter(files)
             .WriteAsync("acct", "example.com", Token, "key-authorization", CancellationToken.None);

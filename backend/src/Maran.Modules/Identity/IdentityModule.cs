@@ -1,9 +1,12 @@
 using System.Resources;
-using Maran.Modules.Identity.Common.Interfaces;
+using Maran.Modules.Identity.Authorization;
+using Maran.Modules.Identity.Interfaces;
+using Maran.Modules.Identity.Options;
 using Maran.Modules.Identity.Persistence;
 using Maran.Modules.Identity.Services;
 using Maran.Sdk.Contracts;
 using Maran.Sdk.Interfaces;
+using Microsoft.AspNetCore.Authorization;
 
 namespace Maran.Modules.Identity;
 
@@ -52,7 +55,38 @@ public sealed class IdentityModule : IPanelModule
             options.UseNpgsql(connectionString);
         });
 
+        // ValidateOnStart, like every options class the panel binds (rules/csharp.md "Options
+        // validated at startup"). A threshold of zero would ban the first person to mistype a
+        // password and a window of zero would ban nobody ever; both must stop the boot rather than
+        // surface as a protection that behaves nothing like its documentation.
+        services.AddOptions<BruteForceOptions>()
+            .Bind(configuration.GetSection(BruteForceOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+
+        // The panel's own public address, for the link in a password-reset mail. Never taken from
+        // the request's Host header, which the caller controls — see PasswordResetOptions.
+        services.AddOptions<PasswordResetOptions>()
+            .Bind(configuration.GetSection(PasswordResetOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+
         services.AddScoped<IAuditWriter, DatabaseAuditWriter>();
+        services.AddScoped<IdentityAuditJournal>();
+
+        // Singleton: it holds one row for the life of the process and is read on the sign-in path,
+        // the token-issuing path and every password validator. It resolves its scoped DbContext
+        // through a scope factory rather than capturing one — see SecurityPolicyCache.
+        services.AddSingleton<SecurityPolicyCache>();
+
+        // The forced-two-factor steering. The requirement is attached to the panel's authorization
+        // policies by the Host (RolePolicies); the handler that decides it lives here, with the
+        // module that issues the claim it reads.
+        services.AddSingleton<IAuthorizationHandler, TwoFactorEnrolmentCompleteHandler>();
+
+        // Scoped, because it counts through the request's own DbContext and saves alongside the
+        // audit entry for the same refused attempt.
+        services.AddScoped<BruteForceDetector>();
         services.AddScoped<IAccessTokenIssuer, JwtAccessTokenIssuer>();
         services.AddScoped<ISessionService, SessionService>();
         services.AddScoped<ITotpService, TotpService>();
@@ -63,12 +97,5 @@ public sealed class IdentityModule : IPanelModule
         // lookups inject IStringLocalizer<T> directly instead.
         services.AddSingleton(new ResourceManager(ErrorMessagesResourceBaseName, typeof(IdentityModule).Assembly));
         services.AddSingleton(new ResourceManager(DisplayNamesResourceBaseName, typeof(IdentityModule).Assembly));
-    }
-
-    /// <inheritdoc />
-    public void MapEndpoints(IEndpointRouteBuilder endpoints)
-    {
-        // Controllers are discovered by ASP.NET Core's controller model (Program.cs calls
-        // MapControllers() once for the whole app) — this module has no endpoints to map by hand.
     }
 }

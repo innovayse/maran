@@ -9,8 +9,9 @@
 //!
 //! Grouped by the domain the value ends up in, so a reader finds a validator by
 //! asking "where is this written?": `system/` becomes OS objects, `db/` reaches
-//! MySQL/MariaDB, `web/` is written into web-server configuration, `fs/` names
-//! and modes filesystem entries, `secrets/` never leaves memory unredacted.
+//! MySQL/MariaDB, `web/` is written into web-server configuration or matched on
+//! by the firewall, `fs/` names and modes filesystem entries, `secrets/` never
+//! leaves memory unredacted.
 //! Every type keeps its own `*_error.rs` beside it, as everywhere else.
 
 pub mod db;

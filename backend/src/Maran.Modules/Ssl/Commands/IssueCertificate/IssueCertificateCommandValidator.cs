@@ -1,5 +1,6 @@
 using FluentValidation;
 using Maran.Modules.Ssl.Resources;
+using Maran.SharedKernel.Utilities.Network;
 
 namespace Maran.Modules.Ssl.Commands.IssueCertificate;
 
@@ -20,23 +21,13 @@ namespace Maran.Modules.Ssl.Commands.IssueCertificate;
 /// </remarks>
 public sealed class IssueCertificateCommandValidator : AbstractValidator<IssueCertificateCommand>
 {
-    /// <summary>A hostname of two or more DNS labels: 1–63 characters each, no leading or trailing hyphen.</summary>
-    /// <remarks>
-    /// Anchored with <c>\z</c> rather than <c>$</c>. In .NET <c>$</c> also matches immediately before
-    /// a trailing newline, so <c>example.com\n</c> satisfies a <c>$</c>-anchored pattern — and this
-    /// value is written into an nginx <c>server_name</c> directive, where an embedded newline is a
-    /// config-injection primitive (rules/security.md item 4).
-    /// </remarks>
-    private const string HostnamePattern =
-        @"\A(?!-)[A-Za-z0-9-]{1,63}(?<!-)(\.(?!-)[A-Za-z0-9-]{1,63}(?<!-))+\z";
-
     /// <summary>Configures the field rules for <see cref="IssueCertificateCommand"/>.</summary>
     public IssueCertificateCommandValidator()
     {
         RuleFor(command => command.Domain)
             .NotEmpty()
-            .MaximumLength(253)
-            .Matches(HostnamePattern)
+            .MaximumLength(HostNameRule.MaximumLength)
+            .Must(HostNameRule.IsHostName)
             .WithMessage(nameof(ErrorMessages.CertificateDomainInvalidFormat));
     }
 }

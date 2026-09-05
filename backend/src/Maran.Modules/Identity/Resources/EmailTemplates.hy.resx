@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="PasswordResetSubject">
+    <value>Վերականգնեք ձեր վահանակի գաղտնաբառը</value>
+  </data>
+  <data name="PasswordResetBody">
+    <value>Ինչ-որ մեկը պահանջել է վերականգնել ձեր վահանակի հաշվի գաղտնաբառը։
+
+{0}
+
+Հղումը կդադարի գործել մեկ ժամից և կարող է օգտագործվել մեկ անգամ։ Եթե դա դուք չեք եղել, ոչինչ անել պետք չէ. գաղտնաբառը չի փոխվել։</value>
+  </data>
+  <data name="PasswordResetLink">
+    <value>Բացեք այս հասցեն՝ նոր գաղտնաբառ ընտրելու համար․
+{0}</value>
+  </data>
+  <data name="PasswordResetTokenOnly">
+    <value>Բացեք վահանակը, անցեք գաղտնաբառի վերականգնման էջ և մուտքագրեք այս կոդը․
+{0}</value>
+  </data>
+</root>

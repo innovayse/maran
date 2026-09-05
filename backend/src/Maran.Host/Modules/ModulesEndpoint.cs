@@ -40,7 +40,8 @@ public static class ModulesEndpoint
                                 module.Name,
                                 module.Manifest.Tier,
                                 errorTextProvider.Resolve(module.Manifest.DisplayNameKey),
-                                IsEnabled: true);
+                                IsEnabled: true,
+                                module.Manifest.AgentCapabilities);
             })
             .ToList();
     }

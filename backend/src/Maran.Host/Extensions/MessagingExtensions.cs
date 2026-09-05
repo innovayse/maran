@@ -60,6 +60,21 @@ public static class MessagingExtensions
             // entry assembly by default — which left every module message with no handler and every
             // module request failing at runtime. The assemblies come from the explicit module
             // registry, so this stays a list, not a scan (rules/architecture.md).
+            //
+            // `Discovery.DisableConventionalDiscovery()` looks like the way to make that list the
+            // ONLY source, and it is not: in Wolverine 6 it disables type scanning outright,
+            // including the assemblies named below, so every module message loses its handler.
+            // Measured, not assumed — with it in place, 201 of 233 integration tests failed and
+            // `CertificateRenewalSchedulingTests` named the cause. What remains of the default is a
+            // scan of the ENTRY assembly, Maran.Host, and that is closed by
+            // `HandlerLocationTests` instead: the Host declares no handler, so the default scan has
+            // nothing to find, and a handler written there fails CI rather than silently becoming a
+            // route nobody registered.
+            //
+            // When the Licensing module lands, this list becomes the LICENSED modules rather than
+            // the composed ones: a module whose licence lapses must lose its live handlers, not
+            // merely its menu entry. That is a change to one expression here, which is the point of
+            // having a single source.
             foreach (var assembly in ModuleRegistry.All.Select(module =>
             {
                 return module.GetType().Assembly;
@@ -81,6 +96,19 @@ public static class MessagingExtensions
                 // The panel's OWN tables are a different matter: they change only through EF
                 // migrations applied deliberately by the installer and the update command, which
                 // take a database dump first — never as a side effect of a process start.
+
+                // Local queues stay IN-MEMORY, and that is a security decision rather than a
+                // default nobody revisited. `UseDurableLocalQueues()` would make every in-process
+                // publish survive a restart, which is worth having for a lost ban or a lost alert —
+                // and it persists the ENVELOPE BODY, which for `PasswordResetRequested` is a
+                // password-reset token. Measured, not assumed: with it on,
+                // `PasswordResetEndpointTests.The_token_bearing_envelope_is_never_written_to_the_message_store`
+                // found the token sitting in a `wolverine` table that outlives the request, which is
+                // exactly what rules/security.md item 8 forbids for anything that ACTS as a secret.
+                //
+                // So durability is a per-message decision, never a blanket policy: a message that
+                // must not be lost declares its own durable local queue, and a message that carries
+                // a secret must not be one of them (rules/csharp.md).
             }
         });
     }

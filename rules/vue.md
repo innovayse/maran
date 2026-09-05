@@ -217,7 +217,8 @@ async function remove(): Promise<void> { ... }
 
 - **The panel has exactly ONE icon source: the `lucide-vue-next` package**, reached through `UiIcon`
   in `src/components/ui/`. A hand-written `<svg>` in a component is forbidden — including a
-  "just this once" three-line path for a chevron or a close cross.
+  "just this once" three-line path for a chevron or a close cross. icon SVG comes only from lucide
+  via `UiIcon`; `UiChart` is the single non-icon SVG site.
 - This replaced the previous arrangement, in which `UiIcon` held ten glyphs copied from the design
   canvas as inline `<path>` data and nine more were written inline in the components that needed
   them. Those nineteen are gone: each was remapped to its lucide equivalent. Two glyphs had no exact

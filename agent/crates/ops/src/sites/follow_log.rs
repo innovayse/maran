@@ -460,17 +460,28 @@ fn read_window(
     end: u64,
     file_name: &OsStr,
 ) -> Result<Option<(String, u64, u64)>, SitesOpError> {
-    // Stated rather than left to be proved by reading the caller: `follow_log`
-    // handles `end < offset` and `end == offset` before calling. A root process
-    // must not panic on input (rules/rust.md), so the subtraction saturates as
-    // well as being asserted — the assertion catches the mistake in a test, the
-    // saturation keeps it from becoming a crash in production.
+    // Stated rather than left to be proved by reading the caller: `window`
+    // handles `end < offset` and `end == offset` before calling, so this is
+    // always true today. It stays asserted anyway, because the day it stops
+    // being true is the day `window`'s guard — or a new caller that bypasses
+    // it — got the precondition wrong, and a debug build (`cargo test`'s
+    // default) should say so immediately, by name, rather than let
+    // `window_bounds` quietly absorb the mistake into an empty read that
+    // looks like an ordinary quiet poll. This is not input: it is the shape
+    // of a call this module makes to itself, the same on every request, which
+    // is why an assertion and not a returned error is the right shape for
+    // it — a `Result` implies a condition a caller legitimately reaches and
+    // must handle, and no caller legitimately reaches this one.
+    //
+    // The assertion is not what keeps a release build (where it compiles to
+    // nothing) safe, though. `window_bounds` is: see its own doc for what an
+    // unsaturated version of that arithmetic would do instead, and why a
+    // `debug_assert` alone would not have been enough here the way it is for
+    // `firewall_lock`'s (`ops::firewall::firewall_lock` — no relation by
+    // path, only by shape).
     debug_assert!(end > offset, "read_window requires a non-empty window");
-    let available = end.saturating_sub(offset);
-    let skipped = available.saturating_sub(FOLLOW_CEILING);
-    let begin = offset + skipped;
+    let (begin, size, skipped) = window_bounds(offset, end);
 
-    let size = usize::try_from(end - begin).unwrap_or(usize::MAX);
     let mut bytes = vec![0_u8; size];
     if !read_exact_at(file, begin, &mut bytes, file_name)? {
         return Ok(None);
@@ -507,6 +518,47 @@ fn read_window(
         begin + dropped as u64 + last as u64 + 1,
         skipped + dropped as u64,
     )))
+}
+
+/// The start and size of the bytes [`read_window`] reads for one poll, and
+/// how many of the bytes between `offset` and `end` it skips to reach them.
+///
+/// Split out of [`read_window`] for the same reason [`window`] was split out
+/// of the poll loop: so the case that matters can be tested on its own. That
+/// case is `offset` at or past `end` — exactly the state [`read_window`]'s
+/// `debug_assert` exists to catch — and a test that only ever calls
+/// `read_window` can never observe what the arithmetic beneath that assertion
+/// does, because in a debug build (where a test runs) the assertion fires
+/// first and the arithmetic is never reached. This function carries no
+/// assertion of its own, so a test can hand it a broken precondition directly
+/// and see what a release build — where the assertion in `read_window` is
+/// compiled away — actually does with it.
+///
+/// Every step here saturates, which is the fix and not merely a restatement
+/// of the precondition. An earlier version computed the final step as a plain
+/// `end - begin`, sound only because `begin <= end` holds for every input
+/// `read_window`'s sole caller sends today — true by construction, not by
+/// this function's own guarantee. Had that caller's guard ever been wrong (a
+/// new call site added elsewhere, or `window`'s own checks weakened in a
+/// refactor), `begin` would land past `end`, and `end - begin` would underflow
+/// a `u64` into a value near [`u64::MAX`]. `usize::try_from` would not have
+/// caught it — on a 64-bit host `usize` and `u64` share a range, so the
+/// wrapped value converts without error — and `vec![0u8; size]` would then
+/// have asked the allocator for several exabytes. That is not a panic
+/// `spawn_blocking`'s `JoinHandle` could turn into a typed error: Rust's
+/// allocation-failure path calls `handle_alloc_error` and aborts the process
+/// outright, which unwinds nothing and is caught by no boundary — the whole
+/// daemon, and every tenant's connection open on it, ends with it. Saturating
+/// `end.saturating_sub(begin)` closes that specific gap: an `offset` past
+/// `end`, however it got there, now collapses to an empty window — `size` is
+/// `0`, `begin` is `offset` — which [`read_window`]'s caller already treats as
+/// nothing to report, rather than to an allocation nothing can satisfy.
+fn window_bounds(offset: u64, end: u64) -> (u64, usize, u64) {
+    let available = end.saturating_sub(offset);
+    let skipped = available.saturating_sub(FOLLOW_CEILING);
+    let begin = offset + skipped;
+    let size = usize::try_from(end.saturating_sub(begin)).unwrap_or(usize::MAX);
+    (begin, size, skipped)
 }
 
 /// Fills `buffer` from `position`.

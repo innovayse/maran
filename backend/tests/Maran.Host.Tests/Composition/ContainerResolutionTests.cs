@@ -1,8 +1,9 @@
+using System.Reflection;
 using Maran.Agent.Client.Interfaces;
 using Maran.Host.Modules;
 using Maran.Host.Resilience;
 using Maran.Host.Tests.Resilience;
-using Maran.Modules.Identity.Common.Interfaces;
+using Maran.Modules.Identity.Interfaces;
 using Maran.Sdk.Interfaces;
 using Maran.SharedKernel.Interfaces;
 using Microsoft.EntityFrameworkCore;
@@ -63,6 +64,11 @@ public sealed class ContainerResolutionTests : IClassFixture<PanelTestFactory>
     [InlineData(typeof(IRecoveryCodeService))]
     [InlineData(typeof(IAgentAccountsClient))]
     [InlineData(typeof(IAccountDirectory))]
+    // Registered by the Tasks module and injected into handlers in OTHER modules (account deletion,
+    // certificate issuance and renewal), which is precisely the shape this suite exists for: an
+    // unregistered ITaskRecorder is invisible until Wolverine tries to build one of those handlers,
+    // and it does that on the first real deletion on a customer's server.
+    [InlineData(typeof(ITaskRecorder))]
     public void Every_identity_service_resolves(Type serviceType)
     {
         using var scope = _factory.Services.CreateScope();
@@ -88,14 +94,7 @@ public sealed class ContainerResolutionTests : IClassFixture<PanelTestFactory>
                 return module.GetType().Assembly;
             })
             .Distinct()
-            .SelectMany(assembly =>
-            {
-                return assembly.GetTypes();
-            })
-            .Where(type =>
-            {
-                return typeof(DbContext).IsAssignableFrom(type) && !type.IsAbstract;
-            })
+            .SelectMany(ContextsIn)
             .OrderBy(type =>
             {
                 return type.FullName;
@@ -110,15 +109,54 @@ public sealed class ContainerResolutionTests : IClassFixture<PanelTestFactory>
         return rows;
     }
 
-    /// <summary>The registry contributes a database context for every compiled in module.</summary>
+    /// <summary>No module contributes more than one database context.</summary>
+    /// <remarks>
+    /// A reflection-driven theory that finds nothing passes silently, which is the "no tests found is
+    /// a failure" rule applied one level down (rules/testing.md) — so the first assertion is that
+    /// some module contributed one at all.
+    ///
+    /// The rule is AT MOST one, not exactly one. A module owns at most one schema and one context
+    /// (rules/architecture.md), and two would mean a module had quietly grown a second schema — the
+    /// thing worth failing on. Zero is legitimate and is not: the Cron module keeps no persistence at
+    /// all, because the account's crontab is the record and a panel table beside it would be a second
+    /// answer that goes stale the first time the customer edits their own crontab. This assertion was
+    /// once "one per module, counted", which read as the same rule and was not: it failed the moment
+    /// a module whose truth lives outside PostgreSQL was compiled in, and the count it compared could
+    /// only ever be made right by giving that module a table it must not have.
+    /// </remarks>
     [Fact]
-    public void The_registry_contributes_a_database_context_for_every_compiled_in_module()
+    public void No_module_contributes_more_than_one_database_context()
     {
-        // A reflection-driven theory that finds nothing passes silently, which is the "no tests found
-        // is a failure" rule applied one level down (rules/testing.md). One context per module is the
-        // rule this product is built on — each module owns exactly one schema and one context
-        // (rules/architecture.md) — so the count is the assertion, not merely non-emptiness.
-        Assert.Equal(ModuleRegistry.All.Count, ModuleDatabaseContexts().Count);
+        var perModule = ModuleRegistry.All
+            .Select(module =>
+            {
+                return (module.Name, Contexts: ContextsIn(module.GetType().Assembly).ToList());
+            })
+            .ToList();
+
+        Assert.Contains(perModule, entry =>
+        {
+            return entry.Contexts.Count > 0;
+        });
+
+        var overOne = perModule
+            .Where(entry =>
+            {
+                return entry.Contexts.Count > 1;
+            })
+            .Select(entry =>
+            {
+                return $"{entry.Name} ({string.Join(", ", entry.Contexts.Select(context =>
+                {
+                    return context.Name;
+                }))})";
+            })
+            .ToList();
+
+        Assert.True(
+            overOne.Count == 0,
+            "A module owns at most one schema and one DbContext (rules/architecture.md), and these "
+            + "contribute more than one: " + string.Join("; ", overOne));
     }
 
     /// <summary>Every module database context resolves.</summary>
@@ -179,6 +217,9 @@ public sealed class ContainerResolutionTests : IClassFixture<PanelTestFactory>
     [InlineData(typeof(IAgentFilesClient), typeof(ResilientAgentFilesClient))]
     [InlineData(typeof(IAgentDbClient), typeof(ResilientAgentDbClient))]
     [InlineData(typeof(IAgentSftpClient), typeof(ResilientAgentSftpClient))]
+    [InlineData(typeof(IAgentCronClient), typeof(ResilientAgentCronClient))]
+    [InlineData(typeof(IAgentFirewallClient), typeof(ResilientAgentFirewallClient))]
+    [InlineData(typeof(IAgentMonitorClient), typeof(ResilientAgentMonitorClient))]
     public void Every_agent_client_resolves_wrapped_in_its_resilience_pipeline(Type serviceType, Type expectedType)
     {
         using var scope = _factory.Services.CreateScope();
@@ -231,5 +272,16 @@ public sealed class ContainerResolutionTests : IClassFixture<PanelTestFactory>
 
         Assert.NotNull(pipelines.GetPipeline(AgentCallPipeline.Name));
         Assert.NotNull(pipelines.GetPipeline(AgentOperationPipeline.Name));
+    }
+
+    /// <summary>The concrete database contexts one module assembly declares.</summary>
+    /// <param name="assembly">A module's own assembly.</param>
+    /// <returns>Its non-abstract <see cref="DbContext"/> types; empty for a module with no persistence.</returns>
+    private static IEnumerable<Type> ContextsIn(Assembly assembly)
+    {
+        return assembly.GetTypes().Where(type =>
+        {
+            return typeof(DbContext).IsAssignableFrom(type) && !type.IsAbstract;
+        });
     }
 }

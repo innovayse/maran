@@ -76,7 +76,7 @@ public sealed class AgentFilesClient : IAgentFilesClient
             WriteFileResponse.ResultOneofCase.Ok => Result<ulong>.Ok(response.Ok.BytesWritten),
             WriteFileResponse.ResultOneofCase.Error => Result<ulong>.Fail(
                 AgentErrorTranslator.ToError(_logger, response.Error, nameof(WriteFileAsync))),
-            _ => Result<ulong>.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse))),
+            _ => Result<ulong>.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
         };
     }
 
@@ -100,7 +100,7 @@ public sealed class AgentFilesClient : IAgentFilesClient
             DeleteEntryResponse.ResultOneofCase.Ok => Result<bool>.Ok(true),
             DeleteEntryResponse.ResultOneofCase.Error => Result<bool>.Fail(
                 AgentErrorTranslator.ToError(_logger, response.Error, nameof(DeleteEntryAsync))),
-            _ => Result<bool>.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse))),
+            _ => Result<bool>.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
         };
     }
 }

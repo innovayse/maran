@@ -22,6 +22,7 @@ mod polygon_account;
 #[path = "fixtures/polygon_config_file.rs"]
 mod polygon_config_file;
 
+use std::os::unix::fs::PermissionsExt as _;
 use std::path::Path;
 use std::sync::mpsc;
 use std::time::Duration;
@@ -34,8 +35,10 @@ use maran_distro::{DistroAdapter, adapter_for, detect};
 use maran_ops::files::{ProcessFilesHost, WriteFileInput};
 use maran_ops::php::ProcessPhpHost;
 use maran_ops::sites::{
-    CreateSiteInput, ProcessSiteHost, SiteKind, SitePaths, SitesOpError, create_site,
+    CreateSiteInput, ProcessSiteHost, SiteCertificate, SiteIdentity, SiteKind, SitePaths,
+    SitesOpError, create_site,
 };
+use maran_ops::ssl::{ProcessSslHost, delete_site_with_certificate, generate_self_signed};
 
 use polygon_account::PolygonAccount;
 use polygon_config_file::PolygonConfigFile;
@@ -609,4 +612,83 @@ fn deleting_an_account_leaves_a_host_the_real_php_fpm_will_still_start() {
         !pool.exists(),
         "deleting the account must take its pool at {pool:?} with it"
     );
+}
+
+#[test]
+#[ignore = "writes a real vhost and a real private key: polygon only"]
+fn deleting_a_site_takes_its_private_key_off_the_disk() {
+    // The one claim about this that a fake cannot make. Every existing test of
+    // the purge asserts against a `FakeSslHost`'s in-memory store, which is a
+    // statement about the operation and not about the disk — and the operation
+    // was correct the whole time. What was wrong was that nothing called it, and
+    // what an operator found on a real host afterwards was
+    // `/etc/maran/certificates/<domain>/privkey.pem`, still there, 1704 bytes,
+    // after a deletion the panel reported as complete.
+    PolygonAccount::require_polygon();
+    ensure_nginx_is_running();
+    let account = PolygonAccount::create("polysitekey");
+    let domain = Domain::parse("polysitekey.example.com").expect("a valid domain");
+    let host = ProcessSslHost::new();
+    let input = php_site(&account, &domain);
+
+    create_site(
+        &host,
+        &ProcessPhpHost::new(),
+        polygon_distro(),
+        &input,
+        POLYGON_WORKERS,
+        &[],
+    )
+    .expect("the site must be created");
+
+    // Real openssl, real key material, at the real path and the real mode. A
+    // test that planted a file called `privkey.pem` would prove the unlink and
+    // nothing about what the agent installs.
+    generate_self_signed(&host, polygon_distro(), &input)
+        .expect("the polygon image installs openssl");
+
+    let material = SiteCertificate::for_domain(&domain);
+    assert!(
+        material.key_path().exists(),
+        "the key must really be on disk before the deletion, or its absence \
+         afterwards proves nothing"
+    );
+    assert_eq!(
+        std::fs::metadata(material.key_path())
+            .expect("the key is readable by root")
+            .permissions()
+            .mode()
+            & 0o777,
+        0o600,
+        "the material this test is about must be the real thing: a root-only key"
+    );
+
+    delete_site_with_certificate(
+        &host,
+        &ProcessPhpHost::new(),
+        polygon_distro(),
+        &SiteIdentity {
+            account: account.name().clone(),
+            domain: domain.clone(),
+        },
+        Some(&PhpVersion::parse(POLYGON_PHP_VERSION).expect("a valid PHP version")),
+    )
+    .expect("the deletion must succeed");
+
+    // The file, not a row and not a fake's counter.
+    assert!(
+        !material.key_path().exists(),
+        "the private key of a deleted site must not be on the disk: {:?}",
+        material.key_path()
+    );
+    assert!(
+        !material.certificate_path().exists(),
+        "the certificate of a deleted site must not be on the disk either"
+    );
+
+    // And the host is still serviceable. Unlinking material a running
+    // configuration still names is the failure this ordering exists to avoid,
+    // and it does not announce itself — it waits for the next reload, which may
+    // belong to an unrelated site. So nginx is asked now, about its whole tree.
+    assert_valid_nginx_tree("after a site and its certificate were deleted");
 }

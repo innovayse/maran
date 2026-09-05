@@ -1,4 +1,4 @@
-using Maran.Modules.Ssl.Domain;
+using Maran.Modules.Ssl.Domain.Entities;
 using Maran.SharedKernel.Security;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 

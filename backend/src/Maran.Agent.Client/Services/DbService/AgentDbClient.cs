@@ -71,7 +71,7 @@ public sealed class AgentDbClient : IAgentDbClient
                 new CreatedDatabaseDto(response.Ok.DatabaseName, response.Ok.DbUsername)),
             CreateDatabaseResponse.ResultOneofCase.Error => Result<CreatedDatabaseDto>.Fail(
                 AgentErrorTranslator.ToError(_logger, response.Error, nameof(CreateAsync), password)),
-            _ => Result<CreatedDatabaseDto>.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse))),
+            _ => Result<CreatedDatabaseDto>.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
         };
     }
 
@@ -95,7 +95,7 @@ public sealed class AgentDbClient : IAgentDbClient
             DropDatabaseResponse.ResultOneofCase.Ok => Result<bool>.Ok(true),
             DropDatabaseResponse.ResultOneofCase.Error => Result<bool>.Fail(
                 AgentErrorTranslator.ToError(_logger, response.Error, nameof(DropAsync))),
-            _ => Result<bool>.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse))),
+            _ => Result<bool>.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
         };
     }
 
@@ -122,7 +122,7 @@ public sealed class AgentDbClient : IAgentDbClient
             SetDatabasePasswordResponse.ResultOneofCase.Ok => Result<bool>.Ok(true),
             SetDatabasePasswordResponse.ResultOneofCase.Error => Result<bool>.Fail(
                 AgentErrorTranslator.ToError(_logger, response.Error, nameof(SetPasswordAsync), password)),
-            _ => Result<bool>.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse))),
+            _ => Result<bool>.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
         };
     }
 
@@ -140,7 +140,7 @@ public sealed class AgentDbClient : IAgentDbClient
                 ToSummaries(response.Ok)),
             ListDatabasesResponse.ResultOneofCase.Error => Result<IReadOnlyList<DatabaseSummaryDto>>.Fail(
                 AgentErrorTranslator.ToError(_logger, response.Error, nameof(ListAsync))),
-            _ => Result<IReadOnlyList<DatabaseSummaryDto>>.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse))),
+            _ => Result<IReadOnlyList<DatabaseSummaryDto>>.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
         };
     }
 
@@ -162,7 +162,7 @@ public sealed class AgentDbClient : IAgentDbClient
             GetDatabaseSizeResponse.ResultOneofCase.Ok => Result<ulong>.Ok(response.Ok.SizeBytes),
             GetDatabaseSizeResponse.ResultOneofCase.Error => Result<ulong>.Fail(
                 AgentErrorTranslator.ToError(_logger, response.Error, nameof(GetSizeAsync))),
-            _ => Result<ulong>.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse))),
+            _ => Result<ulong>.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
         };
     }
 

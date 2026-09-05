@@ -1,5 +1,4 @@
 using System.Resources;
-using Maran.Modules.Accounts.Common;
 using Maran.Modules.Accounts.Persistence;
 using Maran.Modules.Accounts.Services;
 using Maran.Sdk.Contracts;
@@ -70,12 +69,5 @@ public sealed class AccountsModule : IPanelModule
         // registration exists only for the two SDK-level, code-driven lookups above.
         services.AddSingleton(new ResourceManager(ErrorMessagesResourceBaseName, typeof(AccountsModule).Assembly));
         services.AddSingleton(new ResourceManager(DisplayNamesResourceBaseName, typeof(AccountsModule).Assembly));
-    }
-
-    /// <inheritdoc />
-    public void MapEndpoints(IEndpointRouteBuilder endpoints)
-    {
-        // Controllers are discovered by ASP.NET Core's controller model (Program.cs calls
-        // MapControllers() once for the whole app) — this module has no endpoints to map by hand.
     }
 }

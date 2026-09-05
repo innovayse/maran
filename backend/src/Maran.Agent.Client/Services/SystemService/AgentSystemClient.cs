@@ -44,7 +44,7 @@ public sealed class AgentSystemClient : IAgentSystemClient
             GetAgentInfoResponse.ResultOneofCase.Ok => Result<AgentInfoDto>.Ok(ToDto(response.Ok)),
             GetAgentInfoResponse.ResultOneofCase.Error => Result<AgentInfoDto>.Fail(
                 AgentErrorTranslator.ToError(_logger, response.Error, nameof(GetInfoAsync))),
-            _ => Result<AgentInfoDto>.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse))),
+            _ => Result<AgentInfoDto>.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
         };
     }
 

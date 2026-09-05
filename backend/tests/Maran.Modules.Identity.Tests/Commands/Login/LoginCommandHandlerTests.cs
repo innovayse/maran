@@ -1,7 +1,8 @@
 using Maran.Modules.Identity.Commands.Login;
-using Maran.Modules.Identity.Common.Options;
-using Maran.Modules.Identity.Domain;
+using Maran.Modules.Identity.Domain.Entities;
 using Maran.Modules.Identity.Domain.Enums;
+using Maran.Modules.Identity.Domain.ValueObjects;
+using Maran.Modules.Identity.Options;
 using Maran.Modules.Identity.Persistence;
 using Maran.Modules.Identity.Services;
 using Maran.Modules.Identity.Tests.TestSupport;
@@ -9,6 +10,7 @@ using Maran.Sdk.Contracts;
 using Maran.SharedKernel.Interfaces;
 using Maran.SharedKernel.Security;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 
 namespace Maran.Modules.Identity.Tests.Commands.Login;
@@ -23,6 +25,7 @@ public sealed class LoginCommandHandlerTests : IDisposable
     private readonly IdentityDbContext _context = IdentityTestContext.Create();
     private readonly Argon2idPasswordHasher _hasher = new();
     private readonly RecordingAuditWriter _audit = new();
+    private readonly RecordingMessageBus _bus = new();
     private readonly FakeClock _clock = new(Now);
 
     /// <summary>Releases what the fixture allocated.</summary>
@@ -49,9 +52,9 @@ public sealed class LoginCommandHandlerTests : IDisposable
         return user;
     }
 
-    private LoginCommandHandler NewHandler(IPasswordHasher? hasher = null)
+    private LoginCommandHandler NewHandler(IPasswordHasher? hasher = null, BruteForceOptions? bruteForce = null)
     {
-        var options = Options.Create(new JwtOptions
+        var options = new OptionsWrapper<JwtOptions>(new JwtOptions
         {
             SigningKey = Convert.ToBase64String(new byte[32]),
             AccessTokenMinutes = 15,
@@ -61,10 +64,22 @@ public sealed class LoginCommandHandlerTests : IDisposable
         return new LoginCommandHandler(
             _context,
             hasher ?? _hasher,
-            new JwtAccessTokenIssuer(options, _clock),
+            new JwtAccessTokenIssuer(options, TestSecurityPolicyCache.Over(_context), _clock),
             new SessionService(_context, _clock, options),
-            _audit,
+            new IdentityAuditJournal(_audit, new StubCurrentUser()),
+            NewDetector(bruteForce),
+            TestSecurityPolicyCache.Over(_context),
             _clock);
+    }
+
+    private BruteForceDetector NewDetector(BruteForceOptions? options)
+    {
+        return new BruteForceDetector(
+            _context,
+            _bus,
+            _clock,
+            new OptionsWrapper<BruteForceOptions>(options ?? new BruteForceOptions()),
+            NullLogger<BruteForceDetector>.Instance);
     }
 
     /// <summary>Logging in with the right password returns an access token.</summary>
@@ -76,8 +91,8 @@ public sealed class LoginCommandHandlerTests : IDisposable
         var result = await NewHandler().HandleAsync(Attempt(), CancellationToken.None);
 
         Assert.True(result.IsSuccess);
-        Assert.False(string.IsNullOrWhiteSpace(result.Value.Response.AccessToken));
-        Assert.NotNull(result.Value.Session);
+        Assert.NotNull(result.Value.Authenticated);
+        Assert.False(string.IsNullOrWhiteSpace(result.Value.Authenticated.AccessToken.Value));
     }
 
     /// <summary>Logging in with a wrong password fails with the credentials error.</summary>
@@ -122,9 +137,10 @@ public sealed class LoginCommandHandlerTests : IDisposable
 
         var result = await NewHandler().HandleAsync(Attempt(), CancellationToken.None);
 
-        Assert.True(result.Value.Response.TwoFactorRequired);
-        Assert.Null(result.Value.Response.AccessToken);
-        Assert.Null(result.Value.Session);
+        // One assertion where there were three: "a second factor is owed" is now the ABSENCE of the
+        // authenticated half, so a token without a session — or a session without a token — is not a
+        // state a test has to rule out, because the shape cannot express it.
+        Assert.Null(result.Value.Authenticated);
         Assert.Empty(await _context.Sessions.ToListAsync());
     }
 
@@ -186,7 +202,7 @@ public sealed class LoginCommandHandlerTests : IDisposable
     {
         var user = await SeedUserAsync(_hasher.Hash(Password));
 
-        for (var attempt = 0; attempt < User.MaxFailedLoginAttempts; attempt++)
+        for (var attempt = 0; attempt < SecurityPolicySnapshot.Default.MaxFailedLoginAttempts; attempt++)
         {
             await NewHandler().HandleAsync(Attempt(password: "wrong"), CancellationToken.None);
         }
@@ -199,7 +215,7 @@ public sealed class LoginCommandHandlerTests : IDisposable
     public async Task A_locked_account_is_refused_even_when_the_password_is_right()
     {
         await SeedUserAsync(_hasher.Hash(Password));
-        for (var attempt = 0; attempt < User.MaxFailedLoginAttempts; attempt++)
+        for (var attempt = 0; attempt < SecurityPolicySnapshot.Default.MaxFailedLoginAttempts; attempt++)
         {
             await NewHandler().HandleAsync(Attempt(password: "wrong"), CancellationToken.None);
         }
@@ -216,7 +232,7 @@ public sealed class LoginCommandHandlerTests : IDisposable
         // A distinct "locked" code would tell an attacker the account exists and that their
         // guessing had tripped the lock. Both answers must be the one word: no.
         await SeedUserAsync(_hasher.Hash(Password));
-        for (var attempt = 0; attempt < User.MaxFailedLoginAttempts; attempt++)
+        for (var attempt = 0; attempt < SecurityPolicySnapshot.Default.MaxFailedLoginAttempts; attempt++)
         {
             await NewHandler().HandleAsync(Attempt(password: "wrong"), CancellationToken.None);
         }
@@ -232,15 +248,79 @@ public sealed class LoginCommandHandlerTests : IDisposable
     public async Task The_lock_lifts_once_its_window_has_passed()
     {
         await SeedUserAsync(_hasher.Hash(Password));
-        for (var attempt = 0; attempt < User.MaxFailedLoginAttempts; attempt++)
+        for (var attempt = 0; attempt < SecurityPolicySnapshot.Default.MaxFailedLoginAttempts; attempt++)
         {
             await NewHandler().HandleAsync(Attempt(password: "wrong"), CancellationToken.None);
         }
 
-        _clock.Advance(User.LockoutDuration + TimeSpan.FromSeconds(1));
+        _clock.Advance(SecurityPolicySnapshot.Default.LockoutDuration() + TimeSpan.FromSeconds(1));
         var result = await NewHandler().HandleAsync(Attempt(), CancellationToken.None);
 
         Assert.True(result.IsSuccess);
+    }
+
+    /// <summary>Every refused sign-in is counted against the address it came from.</summary>
+    [Fact]
+    public async Task Every_refused_sign_in_is_counted_against_the_address_it_came_from()
+    {
+        // The gap this closes: BruteForceDetected had a subscriber, a contract and tests, and
+        // nothing anywhere published it, so automatic banning had never once run.
+        await SeedUserAsync(_hasher.Hash(Password));
+        var handler = NewHandler(bruteForce: new BruteForceOptions { MaxFailuresPerAddress = 3 });
+
+        await handler.HandleAsync(Attempt(password: "wrong"), CancellationToken.None);
+        await handler.HandleAsync(Attempt(username: "nosuchuser"), CancellationToken.None);
+        await handler.HandleAsync(Attempt(password: "wrong"), CancellationToken.None);
+
+        var detection = Assert.IsType<BruteForceDetected>(Assert.Single(_bus.Published));
+        Assert.Equal("203.0.113.7", detection.IpAddress);
+        Assert.Equal(3, detection.Failures);
+    }
+
+    /// <summary>The count crosses usernames so rotating names does not hide an address.</summary>
+    [Fact]
+    public async Task The_count_crosses_usernames_so_rotating_names_does_not_hide_an_address()
+    {
+        // The per-user lockout already stops guessing at ONE account and is blind to a script that
+        // tries one password against a thousand names. This counter is the one that is not.
+        var handler = NewHandler(bruteForce: new BruteForceOptions { MaxFailuresPerAddress = 3 });
+
+        await handler.HandleAsync(Attempt(username: "alice"), CancellationToken.None);
+        await handler.HandleAsync(Attempt(username: "bob"), CancellationToken.None);
+        await handler.HandleAsync(Attempt(username: "carol"), CancellationToken.None);
+
+        Assert.Single(_bus.Published);
+    }
+
+    /// <summary>A refusal by a locked account is counted like any other refusal.</summary>
+    [Fact]
+    public async Task A_refusal_by_a_locked_account_is_counted_like_any_other_refusal()
+    {
+        // The lock refuses before the password is read, and an early return past the counter is
+        // exactly how an attacker hammering one locked account would become invisible.
+        await SeedUserAsync(_hasher.Hash(Password));
+        var handler = NewHandler(bruteForce: new BruteForceOptions { MaxFailuresPerAddress = 100 });
+        for (var attempt = 0; attempt < SecurityPolicySnapshot.Default.MaxFailedLoginAttempts; attempt++)
+        {
+            await handler.HandleAsync(Attempt(password: "wrong"), CancellationToken.None);
+        }
+
+        await handler.HandleAsync(Attempt(), CancellationToken.None);
+
+        var counted = await _context.FailedLoginsByIp.SingleAsync();
+        Assert.Equal(SecurityPolicySnapshot.Default.MaxFailedLoginAttempts + 1, counted.Failures);
+    }
+
+    /// <summary>A successful sign-in announces nothing at all.</summary>
+    [Fact]
+    public async Task A_successful_sign_in_announces_nothing_at_all()
+    {
+        await SeedUserAsync(_hasher.Hash(Password));
+
+        await NewHandler().HandleAsync(Attempt(), CancellationToken.None);
+
+        Assert.Empty(_bus.Published);
+        Assert.Empty(await _context.FailedLoginsByIp.ToListAsync());
     }
 
     /// <summary>A successful sign-in resets the failures before they reach the threshold.</summary>
@@ -248,7 +328,7 @@ public sealed class LoginCommandHandlerTests : IDisposable
     public async Task A_successful_sign_in_resets_the_failures_before_they_reach_the_threshold()
     {
         var user = await SeedUserAsync(_hasher.Hash(Password));
-        for (var attempt = 0; attempt < User.MaxFailedLoginAttempts - 1; attempt++)
+        for (var attempt = 0; attempt < SecurityPolicySnapshot.Default.MaxFailedLoginAttempts - 1; attempt++)
         {
             await NewHandler().HandleAsync(Attempt(password: "wrong"), CancellationToken.None);
         }

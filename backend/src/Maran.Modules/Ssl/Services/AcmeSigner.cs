@@ -2,7 +2,7 @@ using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
-using Maran.Modules.Ssl.Common;
+using Maran.Modules.Ssl.Domain.Policies;
 
 namespace Maran.Modules.Ssl.Services;
 
@@ -73,7 +73,7 @@ public sealed class AcmeSigner : IDisposable
     /// <returns>The unpadded base64url text.</returns>
     public static string Base64Url(ReadOnlySpan<byte> value)
     {
-        return Convert.ToBase64String(value).TrimEnd('=').Replace('+', '-').Replace('/', '_');
+        return System.Buffers.Text.Base64Url.EncodeToString(value);
     }
 
     /// <summary>Exports the account key so it can be stored, encrypted, and used again.</summary>

@@ -1,6 +1,6 @@
 using FluentValidation.TestHelper;
 using Maran.Modules.Accounts.Commands.CreateAccount;
-using Maran.Modules.Accounts.Domain;
+using Maran.Modules.Accounts.Domain.Entities;
 using Maran.Modules.Accounts.Persistence;
 using Microsoft.EntityFrameworkCore;
 
@@ -31,7 +31,7 @@ public sealed class CreateAccountCommandValidatorTests : IDisposable
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
             .Options;
         _dbContext = new AccountsDbContext(options);
-        _dbContext.Plans.Add(new Plan(SeededPlanId, "PlanStarterName", 5_120, 5, 2, 3, 5));
+        _dbContext.Plans.Add(new Plan(SeededPlanId, "PlanStarterName", 5_120, 5, 2, 3, 5, 5));
         _dbContext.SaveChanges();
 
         _validator = new CreateAccountCommandValidator(_dbContext);
@@ -128,6 +128,23 @@ public sealed class CreateAccountCommandValidatorTests : IDisposable
         result.ShouldNotHaveValidationErrorFor(c => c.Name);
     }
 
+    /// <summary>Name with a trailing newline fails, because that name becomes a Linux user name.</summary>
+    [Theory]
+    [InlineData("acme\n")]
+    [InlineData("acme\r\n")]
+    [InlineData("acme\nroot")]
+    public async Task Name_with_a_trailing_newline_fails_on_the_name_property(string withNewline)
+    {
+        // .NET's `$` also matches immediately before a trailing newline, so a `$`-anchored pattern
+        // accepts the first two of these — and CreateAccountCommandHandler hands this exact value to
+        // the agent as a system user name (rules/security.md item 4).
+        var command = ValidCommand() with { Name = withNewline };
+
+        var result = await _validator.TestValidateAsync(command);
+
+        result.ShouldHaveValidationErrorFor(c => c.Name);
+    }
+
     /// <summary>Empty primary domain fails on the primary domain property.</summary>
     [Fact]
     public async Task Empty_primary_domain_fails_on_the_primary_domain_property()
@@ -149,6 +166,23 @@ public sealed class CreateAccountCommandValidatorTests : IDisposable
     public async Task Malformed_primary_domain_fails_on_the_primary_domain_property(string badDomain)
     {
         var command = ValidCommand() with { PrimaryDomain = badDomain };
+
+        var result = await _validator.TestValidateAsync(command);
+
+        result.ShouldHaveValidationErrorFor(c => c.PrimaryDomain);
+    }
+
+    /// <summary>Primary domain with a trailing newline fails on the primary domain property.</summary>
+    [Theory]
+    [InlineData("acme.example.com\n")]
+    [InlineData("acme.example.com\r\n")]
+    [InlineData("acme.example.com\nserver_name evil.example.com;")]
+    public async Task Primary_domain_with_a_trailing_newline_fails_on_the_primary_domain_property(
+        string withNewline)
+    {
+        // The rule this module now shares with Sites and Ssl is anchored `\A…\z`; a `^…$` anchor
+        // would accept the first two of these.
+        var command = ValidCommand() with { PrimaryDomain = withNewline };
 
         var result = await _validator.TestValidateAsync(command);
 

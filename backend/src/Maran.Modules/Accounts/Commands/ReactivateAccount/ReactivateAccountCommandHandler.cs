@@ -2,6 +2,7 @@ using Maran.Agent.Client.Interfaces;
 using Maran.Modules.Accounts.Common;
 using Maran.Modules.Accounts.Persistence;
 using Maran.Modules.Accounts.Resources;
+using Maran.Modules.Accounts.Services;
 using Maran.Sdk.Contracts;
 
 namespace Maran.Modules.Accounts.Commands.ReactivateAccount;
@@ -53,14 +54,14 @@ public sealed class ReactivateAccountCommandHandler
             return await FailAsync(
                 command,
                 command.AccountId.ToString(),
-                nameof(ErrorMessages.AccountNotFound),
+                Error.Of(nameof(ErrorMessages.AccountNotFound), ErrorType.NotFound),
                 cancellationToken);
         }
 
         var started = await _agent.UnsuspendAsync(account.Name, cancellationToken);
         if (!started.IsSuccess)
         {
-            return await FailAsync(command, account.Name, started.Error!.Code, cancellationToken);
+            return await FailAsync(command, account.Name, started.Error!, cancellationToken);
         }
 
         account.Reactivate();
@@ -76,18 +77,18 @@ public sealed class ReactivateAccountCommandHandler
     /// <summary>Journals a refused reactivate and returns it as the typed failure.</summary>
     /// <param name="command">The reactivate that was refused.</param>
     /// <param name="subject">The account's name, or the supplied identifier when no row was found.</param>
-    /// <param name="code">The machine-stable code to answer with.</param>
+    /// <param name="error">The typed failure to answer with, code and kind together.</param>
     /// <param name="cancellationToken">Cancels the journal write.</param>
-    /// <returns>The failed result carrying <paramref name="code"/>.</returns>
+    /// <returns>The failed result carrying <paramref name="error"/>.</returns>
     private async Task<Result<AccountDto>> FailAsync(
         ReactivateAccountCommand command,
         string subject,
-        string code,
+        Error error,
         CancellationToken cancellationToken)
     {
         await _journal.RecordFailureAsync(
             AuditActions.AccountReactivated, subject, command.IpAddress, command.UserAgent, cancellationToken);
 
-        return Result<AccountDto>.Fail(Error.Of(code));
+        return Result<AccountDto>.Fail(error);
     }
 }

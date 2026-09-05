@@ -42,6 +42,7 @@ struct RecordingHost {
     calls: Mutex<Vec<Vec<String>>>,
     statuses: Mutex<Vec<i32>>,
     stdout: Mutex<String>,
+    stderr: Mutex<String>,
     size: u64,
 }
 
@@ -52,6 +53,7 @@ impl RecordingHost {
             calls: Mutex::new(Vec::new()),
             statuses: Mutex::new(Vec::new()),
             stdout: Mutex::new("1001\n".to_owned()),
+            stderr: Mutex::new("refused\n".to_owned()),
             size: 0,
         }
     }
@@ -74,6 +76,20 @@ impl RecordingHost {
             .stdout
             .lock()
             .expect("the fixture lock is never poisoned") = stdout.to_owned();
+        self
+    }
+
+    /// What every refusing program prints on standard error.
+    ///
+    /// Overridable because one decision in this area is made by READING that
+    /// stream: an account with no crontab is a non-zero exit carrying the
+    /// absent-table sentence, and a deletion that treated it as a refusal could
+    /// never remove an ordinary account.
+    fn with_stderr(self, stderr: &str) -> Self {
+        *self
+            .stderr
+            .lock()
+            .expect("the fixture lock is never poisoned") = stderr.to_owned();
         self
     }
 
@@ -125,7 +141,10 @@ impl SystemHost for RecordingHost {
             stderr: if status == 0 {
                 String::new()
             } else {
-                "refused\n".to_owned()
+                self.stderr
+                    .lock()
+                    .expect("the fixture lock is never poisoned")
+                    .clone()
             },
         })
     }
@@ -395,6 +414,7 @@ fn tool_path(operations: &AccountOperations<RecordingHost>, program: &str) -> St
         "id" => distro.id_binary(),
         "chmod" => distro.chmod_binary(),
         "chgrp" => distro.chgrp_binary(),
+        "crontab" => distro.crontab_binary(),
         other => panic!("the accounts area never runs {other}"),
     }
     .to_owned()
@@ -740,4 +760,126 @@ fn every_program_the_accounts_area_runs_is_named_by_an_absolute_path() {
             "{program} is run by a bare name: as root, PATH decides which binary that is",
         );
     }
+}
+
+#[test]
+fn deleting_an_account_takes_its_crontab_with_it_before_userdel_runs() {
+    // `userdel` removes neither family's cron spool file — measured on both
+    // polygon images — and cron keys that file by the account's NAME, which the
+    // host recycles. So a deletion that skipped this step leaves a schedule
+    // behind that the next account of the same name inherits whole, and that
+    // the panel then renders on that account's own scheduled-tasks screen.
+    let operations = debian(RecordingHost::new().with_user("acme"));
+
+    operations
+        .delete(&FakePhpHost::empty(), &no_databases(), &no_sftp(), &name())
+        .expect("deletion succeeds");
+
+    assert_eq!(
+        operations_calls(&operations, "crontab")[0],
+        vec![
+            tool_path(&operations, "crontab").as_str(),
+            "-u",
+            "acme",
+            "-r"
+        ],
+        "the table must be removed through crontab(1), by the account's name"
+    );
+
+    // Order, and it is the whole of the safety argument. `crontab -u <name>`
+    // refuses a name the password database no longer holds, so the removal has
+    // to happen while the account is still there — and doing it then is also
+    // what makes the name unambiguous: it still resolves to THIS account, not
+    // to whoever takes its uid afterwards.
+    let calls = operations.host().calls();
+    let crontab = calls
+        .iter()
+        .position(|call| call[0] == tool_path(&operations, "crontab"))
+        .expect("the crontab removal must have run");
+    let userdel = calls
+        .iter()
+        .position(|call| call[0] == tool_path(&operations, "userdel"))
+        .expect("userdel must have run");
+    assert!(
+        crontab < userdel,
+        "the crontab must be removed while the account still exists to name"
+    );
+}
+
+#[test]
+fn an_account_that_never_had_a_crontab_is_still_deleted() {
+    // The normal case, and the one that would turn this cleanup into a worse
+    // defect than the leak. Both cron lineages exit non-zero and print
+    // `no crontab for <account>` for an account with no table, so a step that
+    // read that as a refusal would make deleting an ordinary account impossible.
+    let operations = debian(
+        RecordingHost::new()
+            .with_user("acme")
+            .with_stderr("no crontab for acme\n")
+            .failing_next(1),
+    );
+
+    operations
+        .delete(&FakePhpHost::empty(), &no_databases(), &no_sftp(), &name())
+        .expect("an account with no crontab is deleted normally");
+
+    assert!(
+        !operations_calls(&operations, "userdel").is_empty(),
+        "userdel must still run for an account that never had a crontab"
+    );
+}
+
+#[test]
+fn a_crontab_that_cannot_be_removed_stops_the_deletion_before_userdel() {
+    // The recoverable half of the failure, the same choice every other step in
+    // this cascade makes: an account that is still there can be deleted again,
+    // while a crontab orphaned under a name the host will recycle cannot be
+    // repaired by any operation this agent has — nothing points at it any more.
+    let operations = debian(RecordingHost::new().with_user("acme").failing_next(15));
+
+    let refusal = operations.delete(&FakePhpHost::empty(), &no_databases(), &no_sftp(), &name());
+
+    match refusal {
+        Err(AccountError::CommandFailed {
+            program,
+            status,
+            stderr,
+        }) => {
+            assert_eq!(program, tool_path(&operations, "crontab"));
+            assert_eq!(status, 15);
+            assert_eq!(stderr, "refused");
+        }
+        other => panic!("expected a refusing crontab to fail the deletion, got {other:?}"),
+    }
+
+    assert!(
+        operations_calls(&operations, "userdel").is_empty(),
+        "userdel must NOT have run while the account's crontab is still in the spool"
+    );
+}
+
+#[test]
+fn the_absent_crontab_sentence_is_believed_only_on_the_stream_the_account_cannot_write() {
+    // `crontab -l` prints the account's OWN table on standard output, so an
+    // account that put `no crontab for acme` in its crontab could otherwise
+    // decide what this step concludes — and what it would decide is "there was
+    // nothing to remove", which is the fail-open direction. The sentence is
+    // matched in standard error and nowhere else.
+    let operations = debian(
+        RecordingHost::new()
+            .with_user("acme")
+            .with_stdout("no crontab for acme\n")
+            .failing_next(1),
+    );
+
+    let refusal = operations.delete(&FakePhpHost::empty(), &no_databases(), &no_sftp(), &name());
+
+    assert!(
+        matches!(refusal, Err(AccountError::CommandFailed { .. })),
+        "a customer's own bytes must not turn a refusal into a success: {refusal:?}"
+    );
+    assert!(
+        operations_calls(&operations, "userdel").is_empty(),
+        "userdel must not run when the crontab removal was only believed to have worked"
+    );
 }

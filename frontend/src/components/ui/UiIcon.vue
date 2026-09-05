@@ -18,10 +18,13 @@
 import {
   Activity,
   Bell,
+  BrickWall,
+  ChartLine,
   Check,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
+  Clock,
   Copy,
   Database,
   Dices,
@@ -32,6 +35,7 @@ import {
   FolderKey,
   Globe,
   LayoutGrid,
+  ListChecks,
   LogOut,
   Menu,
   Moon,
@@ -63,6 +67,8 @@ export type UiIconName =
   | 'database'
   /** Folder with a key — the SFTP module, whose logins open one directory and no other. */
   | 'folderKey'
+  /** A course of bricks — the firewall module, whose screen is the host's packet filter. */
+  | 'brickWall'
   /** Two sheets — copying a value, such as a one-time credential, to the clipboard. */
   | 'copy'
   /** Stacked racks — the server picker. */
@@ -103,6 +109,12 @@ export type UiIconName =
   | 'eyeOff'
   /** A pair of dice — replacing a typed password with a randomly generated one. */
   | 'dices'
+  /** A clock face — the cron module, whose screen is a list of things that happen at a time. */
+  | 'clock'
+  /** A ticked list — the tasks module's feed of background work. */
+  | 'listChecks'
+  /** A plotted line — the monitoring module's charts of what the server has been doing. */
+  | 'chartLine'
 
 /**
  * Every glyph the panel draws, mapped to its lucide component. The map is
@@ -117,6 +129,7 @@ const ICONS: Record<UiIconName, LucideIcon> = {
   earth: Earth,
   database: Database,
   folderKey: FolderKey,
+  brickWall: BrickWall,
   copy: Copy,
   server: Server,
   search: Search,
@@ -137,6 +150,9 @@ const ICONS: Record<UiIconName, LucideIcon> = {
   eye: Eye,
   eyeOff: EyeOff,
   dices: Dices,
+  clock: Clock,
+  listChecks: ListChecks,
+  chartLine: ChartLine,
 }
 
 /**

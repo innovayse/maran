@@ -32,6 +32,15 @@ namespace Maran.Sdk.Contracts;
 /// module that creates the row is the module that must be able to read the limit, and it may not
 /// reach into the Accounts schema to find it.
 /// </param>
+/// <param name="MaxCronEntries">
+/// The plan's scheduled-task allowance, enforced by the Cron module at creation time and before the
+/// agent is asked to install anything (spec §8). Here for the same reason
+/// <paramref name="MaxSftpUsers"/> is: the module that creates the thing is the module that must be
+/// able to read the limit, and it may not reach into the Accounts schema to find it. Unlike the
+/// three above it is NOT counted against rows in the enforcing module's own tables — the Cron module
+/// keeps none, because the account's crontab is the truth — so it is counted against what the agent
+/// reports the crontab currently holds.
+/// </param>
 /// <param name="MaxPhpWorkersPerPool">
 /// The plan's php-fpm worker budget for ONE pool, written into each rendered pool as
 /// <c>pm.max_children</c> (spec §8, §11). Per pool and not per account, matching
@@ -40,10 +49,25 @@ namespace Maran.Sdk.Contracts;
 /// because the module that re-renders a pool is the module that must supply it, and a fabricated
 /// default here would be a customer silently given the wrong CPU ceiling.
 /// </param>
+/// <param name="DiskQuotaMb">
+/// The plan's disk allowance, in MEGABYTES — the unit <c>Plan.DiskQuotaMb</c> stores it in, carried
+/// across unconverted so that the number here and the number an operator typed into the plan are the
+/// same number. It is the one allowance on this record that is NOT enforced by a module counting its
+/// own rows: nothing in the panel can stop a customer writing a file, so it is enforced on the
+/// filesystem and merely REPORTED against here, by comparing it with what the agent measured.
+///
+/// The comparison is where the units meet: the agent reports bytes (<c>AccountDiskUsage.used_bytes</c>),
+/// deliberately produces no quota of its own, and the reader that puts the two beside each other is
+/// the one that must convert. Megabytes and not bytes here because a quota is the PANEL's own datum —
+/// chosen when the account was created — and re-expressing it in the agent's unit at the boundary
+/// would make the stored figure and the travelling figure two different numbers for one fact.
+/// </param>
 public sealed record AccountSnapshot(
     Guid Id,
     string Username,
     int MaxSites,
     int MaxDatabases,
     int MaxSftpUsers,
-    int MaxPhpWorkersPerPool);
+    int MaxCronEntries,
+    int MaxPhpWorkersPerPool,
+    int DiskQuotaMb);

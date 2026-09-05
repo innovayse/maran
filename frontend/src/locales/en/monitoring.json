@@ -1,0 +1,48 @@
+{
+  "monitoring": {
+    "heading": "Monitoring",
+    "subtitle": "What this server has been doing, and what it is running right now.",
+    "loading": "Loading the server's readings",
+    "range": {
+      "label": "Chart range",
+      "day": "24 h",
+      "week": "7 d"
+    },
+    "charts": {
+      "cpu": "Processor",
+      "memory": "Memory in use",
+      "disk": "Disk in use",
+      "networkReceive": "Network received",
+      "networkTransmit": "Network sent",
+      "load": "Load average, 1 min"
+    },
+    "units": {
+      "percent": "%",
+      "gibibytes": "GiB",
+      "mebibytesPerSecond": "MiB/s",
+      "load": "load"
+    },
+    "services": {
+      "title": "Services",
+      "running": "Running",
+      "stopped": "Stopped",
+      "unknown": "Not known",
+      "emptyTitle": "No services are being watched",
+      "emptyDescription": "The agent reports no service on this host that it observes."
+    },
+    "disk": {
+      "title": "Disk use by account",
+      "caption": "Disk use by account, against each plan's allowance",
+      "columnAccount": "Account",
+      "columnUsed": "Used",
+      "columnQuota": "Allowance",
+      "columnRatio": "Used of allowance",
+      "notMeasured": "Not measured",
+      "noQuota": "No allowance recorded",
+      "ratio": "{used} of {quota}",
+      "meterLabel": "Disk used of the allowance for {username}",
+      "emptyTitle": "No accounts yet",
+      "emptyDescription": "There is no hosting account on this server to measure."
+    }
+  }
+}

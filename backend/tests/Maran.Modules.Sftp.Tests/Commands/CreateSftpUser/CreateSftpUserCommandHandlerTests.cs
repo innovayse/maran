@@ -1,6 +1,7 @@
 using Maran.Modules.Sftp.Commands.CreateSftpUser;
 using Maran.Modules.Sftp.Common;
 using Maran.Modules.Sftp.Persistence;
+using Maran.Modules.Sftp.Services;
 using Maran.Modules.Sftp.Tests.TestSupport;
 using Maran.Sdk.Contracts;
 using Maran.SharedKernel.Results;
@@ -112,7 +113,7 @@ public sealed class CreateSftpUserCommandHandlerTests
     public async Task A_refused_provisioning_leaves_no_sftp_user_row_behind()
     {
         var world = new World();
-        world.Agent.CreateResult = Result<string>.Fail(Error.Of("AgentSystemFailure"));
+        world.Agent.CreateResult = Result<string>.Fail(Error.Of("AgentSystemFailure", ErrorType.Failure));
 
         var result = await world.HandleAsync("deploy");
 
@@ -363,7 +364,7 @@ public sealed class CreateSftpUserCommandHandlerTests
             Context = SftpTestContext.Create(currentUser, databaseName, saveFailure);
             Handler = new CreateSftpUserCommandHandler(
                 Context,
-                new StubAccountDirectory(new AccountSnapshot(AccountId, username, 5, 5, maxSftpUsers, 5)),
+                new StubAccountDirectory(new AccountSnapshot(AccountId, username, 5, 5, maxSftpUsers, 5, 5, 1_024)),
                 Agent,
                 new SftpAuditJournal(Audit, currentUser),
                 new FakeClock(Now),

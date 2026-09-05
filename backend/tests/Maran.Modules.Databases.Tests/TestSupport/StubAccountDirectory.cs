@@ -32,4 +32,14 @@ public sealed class StubAccountDirectory : IAccountDirectory
         Lookups.Add(accountId);
         return Task.FromResult(_snapshots.GetValueOrDefault(accountId));
     }
+
+    /// <inheritdoc />
+    public Task<IReadOnlyList<AccountSnapshot>> ListAsync(CancellationToken cancellationToken)
+    {
+        // Unscoped, exactly as the contract says the real one is: every snapshot this double was
+        // given, with no reference to any current user. A double that quietly filtered here would
+        // make an unscoped method look scoped and hide the very exposure the interface documents.
+        // Nothing in this module calls it; it is implemented because the interface declares it.
+        return Task.FromResult<IReadOnlyList<AccountSnapshot>>([.. _snapshots.Values]);
+    }
 }

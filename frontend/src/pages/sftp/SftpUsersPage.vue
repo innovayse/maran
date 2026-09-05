@@ -194,7 +194,7 @@ onBeforeUnmount(dismissCredential)
           <UiTableHeaderCell>{{ t('sftp.list.columns.fullName') }}</UiTableHeaderCell>
           <UiTableHeaderCell>{{ t('sftp.list.columns.account') }}</UiTableHeaderCell>
           <UiTableHeaderCell>{{ t('sftp.list.columns.createdAt') }}</UiTableHeaderCell>
-          <UiTableHeaderCell>{{ t('sftp.list.columns.actions') }}</UiTableHeaderCell>
+          <UiTableHeaderCell align="end">{{ t('sftp.list.columns.actions') }}</UiTableHeaderCell>
         </UiTableRow>
       </template>
       <UiTableRow v-for="user in store.sftpUsers" :key="user.id">
@@ -204,7 +204,7 @@ onBeforeUnmount(dismissCredential)
         <UiTableCell class="font-mono text-text-muted">
           {{ formatDate(user.createdAt, localeStore.current) }}
         </UiTableCell>
-        <UiTableCell>
+        <UiTableCell align="end">
           <div class="flex flex-wrap items-center justify-end gap-2">
             <!-- The confirmation stays INLINE rather than becoming two more menu
                  items. A menu is a list of things one might do; a confirmation is

@@ -1,8 +1,9 @@
 using Maran.Modules.Identity.Commands.CompleteSetup;
-using Maran.Modules.Identity.Common.Options;
-using Maran.Modules.Identity.Domain;
+using Maran.Modules.Identity.Domain.Entities;
 using Maran.Modules.Identity.Domain.Enums;
+using Maran.Modules.Identity.Options;
 using Maran.Modules.Identity.Persistence;
+using Maran.Modules.Identity.Services;
 using Maran.Modules.Identity.Tests.TestSupport;
 using Maran.Sdk.Contracts;
 using Maran.SharedKernel.Security;
@@ -38,9 +39,9 @@ public sealed class CompleteSetupCommandHandlerTests : IDisposable
         return new CompleteSetupCommandHandler(
             _context,
             new Argon2idPasswordHasher(),
-            _audit,
+            new IdentityAuditJournal(_audit, new StubCurrentUser()),
             new FakeClock(Now),
-            Options.Create(new SetupOptions { Token = configuredToken }));
+            new OptionsWrapper<SetupOptions>(new SetupOptions { Token = configuredToken }));
     }
 
     /// <summary>Completing setup on an empty panel creates an administrator.</summary>

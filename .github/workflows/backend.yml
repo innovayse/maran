@@ -19,6 +19,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Full history, because `maran migrate guard` compares this branch against its merge
+          # point with the default branch. At the default depth of 1 there is no merge base, the
+          # guard falls back to "uncommitted changes only" — of which CI has none — and the check
+          # passes without having looked at anything.
+          fetch-depth: 0
 
       - uses: actions/setup-dotnet@v4
         with:
@@ -48,6 +54,12 @@ jobs:
       # and then it surfaces as a confusing query failure instead of as what actually happened.
       - name: Migrations match the model
         run: bash scripts/maran migrate check
+
+      # Expand-contract: no migration on this branch destroys or renames what the previous
+      # release still reads. The installer promises an update is reversible by restoring a dump,
+      # and that promise is only keepable while the old code runs against the new schema.
+      - name: Migrations are additive
+        run: bash scripts/maran migrate guard
 
       # Includes the architecture tests (module isolation + the guard that stops them
       # passing vacuously) and the Testcontainers-backed integration tests.

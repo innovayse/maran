@@ -1,4 +1,4 @@
-using Maran.Modules.Databases.Domain;
+using Maran.Modules.Databases.Domain.Entities;
 using Maran.Modules.Databases.Tests.TestSupport;
 using Microsoft.EntityFrameworkCore;
 

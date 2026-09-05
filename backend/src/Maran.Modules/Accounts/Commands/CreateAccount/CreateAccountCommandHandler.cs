@@ -1,8 +1,9 @@
 using Maran.Agent.Client.Interfaces;
 using Maran.Modules.Accounts.Common;
-using Maran.Modules.Accounts.Domain;
+using Maran.Modules.Accounts.Domain.Entities;
 using Maran.Modules.Accounts.Persistence;
 using Maran.Modules.Accounts.Resources;
+using Maran.Modules.Accounts.Services;
 using Maran.Sdk.Contracts;
 
 namespace Maran.Modules.Accounts.Commands.CreateAccount;
@@ -72,7 +73,7 @@ public sealed class CreateAccountCommandHandler
             .AnyAsync(a => a.Name == command.Name, cancellationToken);
         if (nameTaken)
         {
-            return await FailAsync(command, nameof(ErrorMessages.AccountNameTaken), cancellationToken);
+            return await FailAsync(command, Error.Of(nameof(ErrorMessages.AccountNameTaken), ErrorType.Conflict), cancellationToken);
         }
 
         var domainTaken = await _dbContext.Accounts
@@ -80,7 +81,7 @@ public sealed class CreateAccountCommandHandler
             .AnyAsync(a => a.PrimaryDomain == command.PrimaryDomain, cancellationToken);
         if (domainTaken)
         {
-            return await FailAsync(command, nameof(ErrorMessages.AccountDomainTaken), cancellationToken);
+            return await FailAsync(command, Error.Of(nameof(ErrorMessages.AccountDomainTaken), ErrorType.Conflict), cancellationToken);
         }
 
         var plan = await _dbContext.Plans
@@ -88,13 +89,13 @@ public sealed class CreateAccountCommandHandler
             .SingleOrDefaultAsync(p => p.Id == command.PlanId, cancellationToken);
         if (plan is null)
         {
-            return await FailAsync(command, nameof(ErrorMessages.PlanNotFound), cancellationToken);
+            return await FailAsync(command, Error.Of(nameof(ErrorMessages.PlanNotFound), ErrorType.NotFound), cancellationToken);
         }
 
         var provisioned = await _agent.CreateAsync(command.Name, QuotaBytes(plan), cancellationToken);
         if (!provisioned.IsSuccess)
         {
-            return await FailAsync(command, provisioned.Error!.Code, cancellationToken);
+            return await FailAsync(command, provisioned.Error!, cancellationToken);
         }
 
         var account = new Account(Guid.NewGuid(), command.Name, command.PrimaryDomain, command.PlanId, _clock.UtcNow);
@@ -117,18 +118,18 @@ public sealed class CreateAccountCommandHandler
     /// them from one address is exactly the pattern the journal exists to make visible.
     /// </remarks>
     /// <param name="command">The creation that was refused.</param>
-    /// <param name="code">The machine-stable code to answer with.</param>
+    /// <param name="error">The typed failure to answer with, code and kind together.</param>
     /// <param name="cancellationToken">Cancels the journal write.</param>
-    /// <returns>The failed result carrying <paramref name="code"/>.</returns>
+    /// <returns>The failed result carrying <paramref name="error"/>.</returns>
     private async Task<Result<AccountDto>> FailAsync(
         CreateAccountCommand command,
-        string code,
+        Error error,
         CancellationToken cancellationToken)
     {
         await _journal.RecordFailureAsync(
             AuditActions.AccountCreated, command.Name, command.IpAddress, command.UserAgent, cancellationToken);
 
-        return Result<AccountDto>.Fail(Error.Of(code));
+        return Result<AccountDto>.Fail(error);
     }
 
     /// <summary>Converts a plan's disk allowance to the bytes the agent's quota call expects.</summary>

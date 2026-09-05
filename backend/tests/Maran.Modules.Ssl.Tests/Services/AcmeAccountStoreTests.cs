@@ -1,5 +1,5 @@
 using System.Text.Json;
-using Maran.Modules.Ssl.Common;
+using Maran.Modules.Ssl.Models;
 using Maran.Modules.Ssl.Persistence;
 using Maran.Modules.Ssl.Services;
 using Maran.Modules.Ssl.Tests.TestSupport;

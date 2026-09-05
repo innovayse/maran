@@ -2,6 +2,7 @@ using Maran.Agent.Client.Interfaces;
 using Maran.Modules.Databases.Common;
 using Maran.Modules.Databases.Persistence;
 using Maran.Modules.Databases.Resources;
+using Maran.Modules.Databases.Services;
 using Maran.Sdk.Contracts;
 using Maran.Sdk.Interfaces;
 using Maran.SharedKernel.Security;
@@ -91,7 +92,7 @@ public sealed class ResetDatabasePasswordCommandHandler
             return await FailAsync(
                 command,
                 command.DatabaseId.ToString(),
-                nameof(ErrorMessages.DatabaseNotFound),
+                Error.Of(nameof(ErrorMessages.DatabaseNotFound), ErrorType.NotFound),
                 cancellationToken);
         }
 
@@ -99,7 +100,7 @@ public sealed class ResetDatabasePasswordCommandHandler
         if (account is null)
         {
             return await FailAsync(
-                command, database.Name, nameof(ErrorMessages.AccountNotFound), cancellationToken);
+                command, database.Name, Error.Of(nameof(ErrorMessages.AccountNotFound), ErrorType.NotFound), cancellationToken);
         }
 
         var password = ProvisionedPasswordGenerator.Generate();
@@ -108,7 +109,7 @@ public sealed class ResetDatabasePasswordCommandHandler
             account.Username, database.DbUserNameSuffix, password, cancellationToken);
         if (!installed.IsSuccess)
         {
-            return await FailAsync(command, database.Name, installed.Error!.Code, cancellationToken);
+            return await FailAsync(command, database.Name, installed.Error!, cancellationToken);
         }
 
         // The name, never the value. An entry recording which password was set would be the journal
@@ -128,18 +129,18 @@ public sealed class ResetDatabasePasswordCommandHandler
     /// <summary>Journals a refused reset and returns it as the typed failure.</summary>
     /// <param name="command">The reset that was refused.</param>
     /// <param name="subject">The database's name, or the supplied identifier when no row was found.</param>
-    /// <param name="code">The machine-stable code to answer with.</param>
+    /// <param name="error">The typed failure to answer with, code and kind together.</param>
     /// <param name="cancellationToken">Cancels the journal write.</param>
-    /// <returns>The failed result carrying <paramref name="code"/>.</returns>
+    /// <returns>The failed result carrying <paramref name="error"/>.</returns>
     private async Task<Result<DatabasePasswordDto>> FailAsync(
         ResetDatabasePasswordCommand command,
         string subject,
-        string code,
+        Error error,
         CancellationToken cancellationToken)
     {
         await _journal.RecordFailureAsync(
             AuditActions.DatabasePasswordReset, subject, command.IpAddress, command.UserAgent, cancellationToken);
 
-        return Result<DatabasePasswordDto>.Fail(Error.Of(code));
+        return Result<DatabasePasswordDto>.Fail(error);
     }
 }

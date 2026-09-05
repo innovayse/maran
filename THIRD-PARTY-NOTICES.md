@@ -94,6 +94,7 @@ Resolved by cargo from `agent/Cargo.lock`.
 | `serde` | 1.0.229 | MIT OR Apache-2.0 |
 | `serde_core` | 1.0.229 | MIT OR Apache-2.0 |
 | `serde_derive` | 1.0.229 | MIT OR Apache-2.0 |
+| `serde_json` | 1.0.151 | MIT OR Apache-2.0 |
 | `sharded-slab` | 0.1.7 | MIT |
 | `signal-hook-registry` | 1.4.8 | MIT OR Apache-2.0 |
 | `slab` | 0.4.12 | MIT |
@@ -139,6 +140,7 @@ Resolved by cargo from `agent/Cargo.lock`.
 | `windows_x86_64_gnu` | 0.52.6 | MIT OR Apache-2.0 |
 | `windows_x86_64_gnullvm` | 0.52.6 | MIT OR Apache-2.0 |
 | `windows_x86_64_msvc` | 0.52.6 | MIT OR Apache-2.0 |
+| `zmij` | 1.0.23 | MIT |
 
 ## .NET — the panel
 
@@ -146,6 +148,7 @@ Resolved by restore; versions are pinned in `backend/Directory.Packages.props`.
 
 | Package | Version | Licence |
 |---|---|---|
+| `BouncyCastle.Cryptography` | 2.6.2 | MIT |
 | `BouncyCastle.Cryptography` | 2.7.0 | MIT |
 | `DistributedLock.Core` | 1.0.8 | MIT |
 | `DistributedLock.Postgres` | 1.3.0 | MIT |
@@ -159,19 +162,20 @@ Resolved by restore; versions are pinned in `backend/Directory.Packages.props`.
 | `FastExpressionCompiler` | 5.4.1 | MIT |
 | `FluentValidation` | 12.1.1 | Apache-2.0 |
 | `FluentValidation.DependencyInjectionExtensions` | 12.1.1 | Apache-2.0 |
-| `Google.Protobuf` | 3.36.0 | BSD-3-Clause |
+| `Google.Protobuf` | 3.36.1 | BSD-3-Clause |
 | `Grpc.Core.Api` | 2.83.0 | Apache-2.0 |
 | `Grpc.Net.Client` | 2.83.0 | Apache-2.0 |
 | `Grpc.Net.Common` | 2.83.0 | Apache-2.0 |
 | `Grpc.Tools` | 2.83.0 | Apache-2.0 |
 | `Humanizer.Core` | 2.14.1 | MIT |
 | `ImTools` | 4.0.0 | MIT |
-| `JasperFx` | 2.57.1 | MIT |
-| `JasperFx.Events` | 2.57.1 | MIT |
+| `JasperFx` | 2.60.0 | MIT |
+| `JasperFx.Events` | 2.60.0 | MIT |
 | `JasperFx.RuntimeCompiler` | 5.0.0 | MIT |
-| `JasperFx.SourceGenerator` | 2.57.1 | MIT |
+| `JasperFx.SourceGenerator` | 2.60.0 | MIT |
 | `Konscious.Security.Cryptography.Argon2` | 1.3.1 | MIT |
 | `Konscious.Security.Cryptography.Blake2` | 1.1.1 | MIT |
+| `MailKit` | 4.17.0 | MIT |
 | `Microsoft.AspNetCore.Authentication.JwtBearer` | 9.0.19 | MIT |
 | `Microsoft.AspNetCore.Mvc.Testing` | 9.0.19 | MIT |
 | `Microsoft.AspNetCore.TestHost` | 9.0.19 | MIT |
@@ -205,6 +209,7 @@ Resolved by restore; versions are pinned in `backend/Directory.Packages.props`.
 | `Microsoft.Extensions.Compliance.Abstractions` | 10.9.0 | MIT |
 | `Microsoft.Extensions.Configuration` | 9.0.0 | MIT |
 | `Microsoft.Extensions.Configuration` | 9.0.19 | MIT |
+| `Microsoft.Extensions.Configuration.Abstractions` | 9.0.0 | MIT |
 | `Microsoft.Extensions.Configuration.Abstractions` | 9.0.19 | MIT |
 | `Microsoft.Extensions.Configuration.Binder` | 9.0.0 | MIT |
 | `Microsoft.Extensions.Configuration.Binder` | 9.0.19 | MIT |
@@ -273,6 +278,7 @@ Resolved by restore; versions are pinned in `backend/Directory.Packages.props`.
 | `Microsoft.TestPlatform.ObjectModel` | 18.9.0 | MIT |
 | `Microsoft.TestPlatform.TestHost` | 18.9.0 | MIT |
 | `Microsoft.VisualStudio.SolutionPersistence` | 1.0.52 | MIT |
+| `MimeKit` | 4.17.0 | MIT |
 | `Mono.Cecil` | 0.11.3 | http://opensource.org/licenses/mit-license.php |
 | `Mono.TextTemplating` | 3.0.0 | MIT |
 | `NetArchTest.Rules` | 1.3.2 | not declared |
@@ -310,6 +316,7 @@ Resolved by restore; versions are pinned in `backend/Directory.Packages.props`.
 | `System.Composition.TypedParts` | 9.0.0 | MIT |
 | `System.Diagnostics.EventLog` | 9.0.0 | MIT |
 | `System.Diagnostics.EventLog` | 9.0.19 | MIT |
+| `System.Formats.Asn1` | 8.0.1 | MIT |
 | `System.IO.Pipelines` | 9.0.0 | MIT |
 | `System.IdentityModel.Tokens.Jwt` | 8.19.2 | MIT |
 | `System.Memory` | 4.5.4 | https://github.com/dotnet/corefx/blob/master/LICENSE.TXT |
@@ -317,6 +324,7 @@ Resolved by restore; versions are pinned in `backend/Directory.Packages.props`.
 | `System.Numerics.Vectors` | 4.6.0 | MIT |
 | `System.Reflection.Metadata` | 9.0.0 | MIT |
 | `System.Runtime.CompilerServices.Unsafe` | 6.1.0 | MIT |
+| `System.Security.Cryptography.Pkcs` | 8.0.1 | MIT |
 | `System.Text.Encoding.CodePages` | 8.0.0 | MIT |
 | `System.Text.Json` | 9.0.19 | MIT |
 | `System.Threading.Channels` | 8.0.0 | MIT |
@@ -324,12 +332,12 @@ Resolved by restore; versions are pinned in `backend/Directory.Packages.props`.
 | `System.Threading.Tasks.Extensions` | 4.6.0 | MIT |
 | `Testcontainers` | 4.14.0 | MIT |
 | `Testcontainers.PostgreSql` | 4.14.0 | MIT |
-| `Weasel.Core` | 9.27.0 | MIT |
-| `Weasel.Postgresql` | 9.27.0 | MIT |
-| `WolverineFx` | 6.30.3 | MIT |
-| `WolverineFx.FluentValidation` | 6.30.3 | MIT |
-| `WolverineFx.Postgresql` | 6.30.3 | MIT |
-| `WolverineFx.RDBMS` | 6.30.3 | MIT |
+| `Weasel.Core` | 9.30.0 | MIT |
+| `Weasel.Postgresql` | 9.30.0 | MIT |
+| `WolverineFx` | 6.33.0 | MIT |
+| `WolverineFx.FluentValidation` | 6.33.0 | MIT |
+| `WolverineFx.Postgresql` | 6.33.0 | MIT |
+| `WolverineFx.RDBMS` | 6.33.0 | MIT |
 | `xunit` | 2.9.3 | Apache-2.0 |
 | `xunit.abstractions` | 2.0.3 | https://raw.githubusercontent.com/xunit/xunit/master/license.txt |
 | `xunit.analyzers` | 1.18.0 | Apache-2.0 |

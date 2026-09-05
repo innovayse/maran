@@ -21,9 +21,6 @@ namespace Maran.Modules.Identity.Controllers;
 [EnableRateLimiting(RateLimitPolicies.Api)]
 public sealed class SessionsController : BaseApiController
 {
-    /// <summary>Fallback recorded when the connection reports no remote address, as in a test host.</summary>
-    private const string UnknownIpAddress = "unknown";
-
     /// <summary>The message bus commands and queries are dispatched through.</summary>
     private readonly IMessageBus _bus;
 
@@ -58,7 +55,7 @@ public sealed class SessionsController : BaseApiController
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> RevokeAsync(Guid id, CancellationToken cancellationToken)
     {
-        var command = new RevokeSessionCommand(id, CurrentUser.UserId, CallerIpAddress(), CallerUserAgent());
+        var command = new RevokeSessionCommand(id, CurrentUser.UserId, ClientIpAddress, CallerUserAgent);
         return ToActionResult(await _bus.InvokeAsync<Result<bool>>(command, cancellationToken));
     }
 
@@ -69,18 +66,4 @@ public sealed class SessionsController : BaseApiController
         return Guid.TryParse(User.FindFirst(PanelClaimTypes.SessionId)?.Value, out var id) ? id : Guid.Empty;
     }
 
-    /// <summary>The caller's address, as recorded in the audit journal.</summary>
-    /// <returns>The remote address, or a marker when the connection reports none.</returns>
-    private string CallerIpAddress()
-    {
-        return HttpContext.Connection.RemoteIpAddress?.ToString() ?? UnknownIpAddress;
-    }
-
-    /// <summary>The caller's user agent, as recorded in the audit journal.</summary>
-    /// <returns>The header value, truncated to the column's length.</returns>
-    private string CallerUserAgent()
-    {
-        var userAgent = Request.Headers.UserAgent.ToString();
-        return userAgent.Length > 512 ? userAgent[..512] : userAgent;
-    }
 }

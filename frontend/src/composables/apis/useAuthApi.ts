@@ -4,8 +4,10 @@ import type {
   AuthenticatedUser,
   CompleteSetupRequest,
   LoginRequest,
+  AuthenticatedSession,
   LoginResult,
   RecoveryCodes,
+  ResetPasswordRequest,
   Session,
   SetupState,
   TotpEnrolment,
@@ -69,11 +71,15 @@ export const useAuthApi = (): AuthApi => {
 
   /**
    * Exchanges the refresh cookie for a new access token, rotating the cookie.
+   *
+   * Answers with the signed-in half directly rather than the login envelope: a
+   * refresh has no "a second factor is owed" case — the cookie either still stands
+   * or the call fails — so there is no absent session to represent.
    * @param signal Optional abort signal to cancel the in-flight request.
    * @returns The new token and the user it belongs to.
    */
-  const refresh = (signal?: AbortSignal): Promise<LoginResult> => {
-    return api.post<LoginResult>(`${AUTH_PATH}/refresh`, undefined, signal, false)
+  const refresh = (signal?: AbortSignal): Promise<AuthenticatedSession> => {
+    return api.post<AuthenticatedSession>(`${AUTH_PATH}/refresh`, undefined, signal, false)
   }
 
   /**
@@ -170,6 +176,32 @@ export const useAuthApi = (): AuthApi => {
     return api.post<boolean>(`${AUTH_PATH}/two-factor/disable`, { code }, signal)
   }
 
+  /**
+   * Asks for a password-reset link.
+   *
+   * Opts out of the 401 retry, like every other anonymous call here: there is no
+   * session to renew, and a replay would only spend a refresh.
+   * @param email The address to send the link to; it may belong to nobody.
+   * @param signal Optional abort signal to cancel the in-flight request.
+   * @returns True — the endpoint answers the same way whether or not the address exists.
+   */
+  const requestPasswordReset = (email: string, signal?: AbortSignal): Promise<boolean> => {
+    return api.post<boolean>(`${AUTH_PATH}/forgot-password`, { email }, signal, false)
+  }
+
+  /**
+   * Sets a new password from a reset link, and signs the account out everywhere.
+   *
+   * A token that never existed, one that has expired and one already spent all get
+   * the same refusal from the backend, so nothing here may branch on which it was.
+   * @param request The token from the mail and the new password.
+   * @param signal Optional abort signal to cancel the in-flight request.
+   * @returns True once the password has been changed.
+   */
+  const resetPassword = (request: ResetPasswordRequest, signal?: AbortSignal): Promise<boolean> => {
+    return api.post<boolean>(`${AUTH_PATH}/reset-password`, request, signal, false)
+  }
+
   return {
     login,
     verifyTwoFactor,
@@ -183,5 +215,7 @@ export const useAuthApi = (): AuthApi => {
     beginTwoFactorEnrolment,
     confirmTwoFactorEnrolment,
     disableTwoFactor,
+    requestPasswordReset,
+    resetPassword,
   }
 }

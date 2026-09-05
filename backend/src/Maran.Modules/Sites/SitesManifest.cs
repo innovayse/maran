@@ -16,5 +16,6 @@ public static class SitesManifest
         DisplayNameKey: "SitesModuleDisplayName",
         Version: "1.0.0",
         Tier: LicenceTier.Included,
-        Dependencies: []);
+        Dependencies: [],
+        AgentCapabilities: [AgentCapability.Php, AgentCapability.Sites]);
 }

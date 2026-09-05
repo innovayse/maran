@@ -1,7 +1,7 @@
-using Maran.Modules.Identity.Common.Interfaces;
 using Maran.Modules.Identity.Domain.Enums;
+using Maran.Modules.Identity.Interfaces;
+using Maran.Modules.Identity.Services;
 using Maran.Sdk.Contracts;
-using Maran.Sdk.Interfaces;
 
 namespace Maran.Modules.Identity.Commands.Logout;
 
@@ -12,15 +12,15 @@ public sealed class LogoutCommandHandler
     private readonly ISessionService _sessionService;
 
     /// <summary>Records the sign-out.</summary>
-    private readonly IAuditWriter _auditWriter;
+    private readonly IdentityAuditJournal _journal;
 
     /// <summary>Creates the handler.</summary>
     /// <param name="sessionService">Revokes the session.</param>
-    /// <param name="auditWriter">Records the sign-out.</param>
-    public LogoutCommandHandler(ISessionService sessionService, IAuditWriter auditWriter)
+    /// <param name="journal">Records the sign-out.</param>
+    public LogoutCommandHandler(ISessionService sessionService, IdentityAuditJournal journal)
     {
         _sessionService = sessionService;
-        _auditWriter = auditWriter;
+        _journal = journal;
     }
 
     /// <summary>Revokes the session behind the presented token.</summary>
@@ -40,15 +40,13 @@ public sealed class LogoutCommandHandler
 
         if (userId is { } actorId)
         {
-            await _auditWriter.WriteAsync(
-                new AuditEntry(
-                    actorId,
-                    string.Empty,
-                    AuditActions.LoggedOut,
-                    actorId.ToString(),
-                    command.IpAddress,
-                    command.UserAgent,
-                    Succeeded: true),
+            await _journal.RecordIdentifiedAsync(
+                actorId,
+                AuditActions.LoggedOut,
+                actorId.ToString(),
+                command.IpAddress,
+                command.UserAgent,
+                succeeded: true,
                 cancellationToken);
         }
 

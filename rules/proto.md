@@ -56,6 +56,28 @@ Within `v1`:
 
 Breaking anything above = new directory `proto/agent/v2/` — a deliberate, planned event, not a PR side effect.
 
+### How the additive law is checked
+
+`maran proto` compiles the contract and then compares it against
+**`proto/agent/v1/contract-baseline.txt`** — a sorted, text inventory of every message, enum,
+service, rpc, field, enum value and `reserved` clause, rendered from protoc's own descriptor set,
+so the comparison sees the compiled contract and not the source text. It refuses, by name: a
+removed or renamed message/enum/service/rpc/field/enum value; a changed field number, type, label
+or `oneof` membership; a number whose owner changed; a field taking a reserved number or name —
+including the case protoc cannot see, where the `reserved` clause was deleted in the same change.
+Additions pass with no ceremony.
+
+The check NEVER writes the baseline. Recording an accepted change is a separate command that a
+developer types and CI never runs:
+
+```
+maran proto --accept
+```
+
+The baseline is text for one reason: regenerating it to bury a breaking change then shows up in
+the pull request as deleted and altered inventory lines, in front of a reviewer, instead of an
+opaque binary blob. Refreshing it belongs in its own reviewed commit.
+
 ## Codegen
 
 - C#: `Grpc.Tools` in `Maran.Agent.Client` only — the rest of the backend consumes its typed wrappers, never raw generated clients.

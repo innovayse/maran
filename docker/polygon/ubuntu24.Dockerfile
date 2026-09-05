@@ -124,6 +124,29 @@ RUN mkdir -p /run/maran /run/maran/php \
     && nginx -t \
     && rm -rf /tmp/maran-installer
 
+# nftables, installed BEFORE the installer assertions below rather than beside
+# cron further down, and the ordering is the whole point: those assertions run
+# 87-firewall.sh's own include wiring, which invokes `nft` to check the file it
+# is about to write. With the package installed later the wiring found no `nft`,
+# refused the candidate it had just rendered, and failed the build — the step
+# behaving correctly against an image that was not ready for it.
+#
+# `netbase` comes with it, and only decides how `nft` PRINTS a rule back — the
+# ruleset itself loads without /etc/protocols, measured on a base image that has
+# none. Same ruleset, two images:
+#
+#   without /etc/protocols:  meta l4proto 58 accept
+#   with it:                 meta l4proto ipv6-icmp accept
+#
+# The firewall suite asserts the name form, because that is what an operator
+# reading `nft list` on a real server sees — and a real Ubuntu server has
+# netbase, which is priority `important`. The `grep` fails the build if the file
+# stops being there, which is what stops that assertion turning into a puzzle.
+RUN apt-get update && apt-get install -y --no-install-recommends netbase nftables \
+    && rm -rf /var/lib/apt/lists/* \
+    && nft --version \
+    && grep -q '^ipv6-icmp' /etc/protocols
+
 # MariaDB and OpenSSH, and — the same point again, for the two areas plan 4 adds —
 # the host preconditions obtained by RUNNING THE INSTALLER'S OWN STEP FILES.
 #
@@ -147,6 +170,74 @@ RUN mkdir -p /run/maran /run/maran/php \
 # neither, both coming from tmpfiles and first-boot units no container runs.
 COPY installer/lib/85-mysql.sh /tmp/maran-installer/lib/85-mysql.sh
 COPY installer/lib/86-sftp.sh /tmp/maran-installer/lib/86-sftp.sh
+# SOURCED by the assert script for its functions, never run: `step_firewall`
+# ends at a gate that asks whether `table inet maran` is loaded, and nothing
+# loads it here because the stand-in starts no unit. That gate failing in a
+# container is the gate working, not a regression — so the assertions exercise
+# the step's parts (its render invocations, its include wiring, its one-flag-
+# per-port argv) rather than the step end to end.
+COPY installer/lib/87-firewall.sh /tmp/maran-installer/lib/87-firewall.sh
+# Files the assert script needs beside the two step files above. The first two
+# it READS rather than runs: the installer's entry point, which is the single
+# authority for the panel port, and the panel vhost whose every `listen` must
+# name it. A port that used to be a literal in four places is one number now,
+# and this is what keeps it one.
+# The uninstaller, SOURCED IN A CHILD by the assert script and never run whole: it is the
+# other copy of the marker state machine, and until it was copied in here nothing in this
+# repository exercised it at all — the `sed '/BEGIN/,/END/d'` that once deleted an
+# operator's own table could be put back in it and every gate would stay green.
+COPY installer/uninstall.sh /tmp/maran-installer/uninstall.sh
+COPY installer/install.sh /tmp/maran-installer/install.sh
+COPY installer/nginx/maran.conf /tmp/maran-installer/nginx/maran.conf
+# `60-config.sh` is SOURCED: its SSH port detection is RUN against this image's
+# real sshd_config rather than described. That matters here more than anywhere
+# else, because these images ship the `Include /etc/ssh/sshd_config.d/*.conf`
+# shape that defeated the single-file parser — so the assertion is the
+# regression itself, not an account of one.
+COPY installer/lib/60-config.sh /tmp/maran-installer/lib/60-config.sh
+# Read, never sourced: `10-preflight.sh` defines its own `fail`, and sourcing it
+# would replace the assert script's.
+COPY installer/lib/10-preflight.sh /tmp/maran-installer/lib/10-preflight.sh
+# Read, so the documented keys can be checked against what the installer writes.
+COPY installer/panel.env.example /tmp/maran-installer/panel.env.example
+# The api's unit, the tmpfiles snippet that builds the directory holding its listening socket,
+# the agent unit step 70 installs beside it, and step 70 itself. The step is SOURCED and RUN:
+# assert_the_panel_socket_directory_is_built_and_then_looked_at calls its own install_units,
+# build_api_socket_directory and assert_api_socket_directory, so the panel's trust boundary is
+# BUILT by this family's real systemd-tmpfiles and then stat'ed, rather than grepped for in a
+# unit file. The two greps that used to stand in for that passed while the directory came out
+# group-owned by panel on both families and nginx could not open the socket at all.
+#
+# A check whose subject is not in the image does not skip, it fails with
+# `grep: ... No such file or directory` and then blames the unit. Every file that script reads or
+# runs needs its COPY here; these are those four.
+COPY installer/systemd/maran-api.service /tmp/maran-installer/systemd/maran-api.service
+COPY installer/systemd/maran-api.tmpfiles.conf /tmp/maran-installer/systemd/maran-api.tmpfiles.conf
+COPY installer/systemd/maran-agent.service /tmp/maran-installer/systemd/maran-agent.service
+COPY installer/lib/70-services.sh /tmp/maran-installer/lib/70-services.sh
+# Step 80 again — the earlier COPY was consumed by the `rm -rf /tmp/maran-installer` that ends
+# the include block above — and step 40 beside it. Both are RUN by the assert script, not read:
+# it drives the real step_nginx against this family's real nginx to prove that the vhost the
+# installer validates is the vhost nginx serves, and it takes the `panel` group step 80 needs
+# from step 40's own create_panel_user rather than making one of its own.
+COPY installer/lib/80-nginx.sh /tmp/maran-installer/lib/80-nginx.sh
+COPY installer/lib/40-user.sh /tmp/maran-installer/lib/40-user.sh
+# A container has no init system, so the reload half of the config-write protocol
+# needs something to talk to. The stand-in explains itself and its limits.
+#
+# BEFORE the assertions below, not after them, and that ordering is a fix rather
+# than a tidy-up. `disable_firewalld` is the one part of the firewall step whose
+# subject is a unit rather than a file, and the only firewalld a container can
+# have — or a query about one that fails to ANSWER — is the state this stand-in
+# records. Copied after the suite had run, those four cases met this image's REAL
+# systemctl, which needs no booted manager to read unit files off the disk and so
+# answers `0 unit files listed.` honestly for every one of them: the case that
+# puts the host into "the query broke" was told "No firewalld unit on this host",
+# and the build failed on a fixture that had never been installed. The suite
+# refuses to start without it now (require_systemctl_stand_in), so this cannot
+# drift back into a check that cannot fail for the reason it names.
+COPY docker/polygon/systemctl-stand-in.sh /usr/bin/systemctl
+RUN chmod 755 /usr/bin/systemctl
 COPY docker/polygon/assert-installer-steps.sh /tmp/maran-installer/assert-installer-steps.sh
 RUN bash -c 'set -euo pipefail; \
       export MARAN_OS_FAMILY=debian DEBIAN_FRONTEND=noninteractive; \
@@ -161,20 +252,95 @@ RUN bash -c 'set -euo pipefail; \
       mariadbd-safe --skip-networking --skip-syslog & \
       for _ in $(seq 1 60); do mariadb-admin ping >/dev/null 2>&1 && break; sleep 1; done; \
       MARAN_OS_FAMILY=debian bash /tmp/maran-installer/assert-installer-steps.sh; \
-      mariadb-admin shutdown' \
-    && rm -rf /tmp/maran-installer
+      mariadb-admin shutdown'
 
-# A container has no init system, so the reload half of the config-write protocol
-# needs something to talk to. The stand-in explains itself and its limits.
-COPY docker/polygon/systemctl-stand-in.sh /usr/bin/systemctl
-# And a container has no filesystem quotas, which account creation applies.
+# cron, for the scheduling half of plan 5. It is here to be RUN against rather
+# than to make the container a scheduler: a real `crontab(1)` to accept or refuse
+# the rendered table, and a real daemon to RUN an entry — the part no unit test
+# reaches, since `%` and `#` are the two characters that killed two earlier
+# designs and only a daemon executing the installed line proves they survive.
+#
+# nftables moved to its own block above, before the installer assertions that
+# need it; this one is cron alone.
+#
+# The package name is NOT written here: it comes from `cron_packages_for_family`
+# in installer/lib/88-cron.sh, the same arrangement 85-mysql.sh's block uses, so
+# a package name that stops being right on this family stops this build instead
+# of waiting to be found on a customer's server.
+COPY installer/lib/88-cron.sh /tmp/maran-installer/lib/88-cron.sh
+RUN bash -c 'set -euo pipefail; \
+      export MARAN_OS_FAMILY=debian DEBIAN_FRONTEND=noninteractive; \
+      . /tmp/maran-installer/lib/88-cron.sh; \
+      apt-get update; \
+      apt-get install -y --no-install-recommends $(cron_packages_for_family); \
+      rm -rf /var/lib/apt/lists/*; \
+      test -x /usr/sbin/cron'
+
+# The quota tools. The agent execs BOTH halves by absolute path — `/usr/sbin/setquota`
+# to apply an account's limit and `/usr/bin/quota` to read its usage back for
+# GetAccountUsage — and until this block existed the image had neither, so the
+# read path's binary was declared by the distro adapter, asserted by a test that
+# only compared one string to another, and present on no host anybody ran.
+# `binary_paths_on_a_real_host.rs` now stats what the adapter declares, and it
+# needs the real package to have something to stat.
+RUN apt-get update && apt-get install -y --no-install-recommends quota \
+    && rm -rf /var/lib/apt/lists/* \
+    && test -x /usr/bin/quota
+
+# ...and then the administrative half is replaced by a stand-in, AFTER the
+# package installed the real one, so the stand-in is what wins. A container has
+# no filesystem quotas, which account creation applies. The reading half is left
+# real: `quota` on a filesystem without quotas prints no limit and that is a
+# state the parse must handle anyway.
 COPY docker/polygon/setquota-stand-in.sh /usr/sbin/setquota
-RUN chmod 755 /usr/bin/systemctl /usr/sbin/setquota
+RUN chmod 755 /usr/sbin/setquota
+
+# 88-cron.sh's own gate, run against this image — and then run against a cron
+# that is DOWN, so the green half is not the only half anybody has seen.
+#
+# Exactly one of its three checks is fully real here: `/usr/bin/crontab` is the
+# path the agent executes, and the package installed above either put it there
+# or did not. The other two ask the service manager, which in a container is the
+# stand-in copied above — so on their own they would be a check that cannot
+# fail, which is the shape of defect this repository keeps finding. The mutation
+# closes that: the stand-in is told cron is inactive, the gate MUST refuse and
+# MUST say why, the state is put back, and then the SAME thing is done to the
+# enablement half. Both, because passing one of the gate's questions is not the
+# state the panel needs, and a gate that had stopped asking either would look
+# identical to one that passed.
+#
+# What is still not covered anywhere automated: whether the unit really comes
+# back after a reboot. A container has no reboot, so "enabled" here means the
+# stand-in was told to enable it — never that systemd would start it at boot.
+# Only a real host settles that.
+RUN bash -c 'set -euo pipefail; \
+      export MARAN_OS_FAMILY=debian; \
+      . /tmp/maran-installer/lib/88-cron.sh; \
+      verify_cron_ready; \
+      mkdir -p /run/polygon-units; \
+      printf "inactive\n" > /run/polygon-units/cron; \
+      if ( verify_cron_ready ) >/dev/null 2>/tmp/refusal; then \
+        echo "88-cron.sh accepted a host whose cron is not running" >&2; exit 1; \
+      fi; \
+      grep -q "not running" /tmp/refusal \
+        || { echo "88-cron.sh refused, but not for the reason it should have:" >&2; cat /tmp/refusal >&2; exit 1; }; \
+      rm -f /run/polygon-units/cron; \
+      systemctl disable cron; \
+      if ( verify_cron_ready ) >/dev/null 2>/tmp/refusal; then \
+        echo "88-cron.sh accepted a host whose cron is not enabled at boot" >&2; exit 1; \
+      fi; \
+      grep -q "not enabled at boot" /tmp/refusal \
+        || { echo "88-cron.sh refused, but not for the reason it should have:" >&2; cat /tmp/refusal >&2; exit 1; }; \
+      systemctl enable cron; \
+      rm -f /tmp/refusal; \
+      verify_cron_ready' \
+    && rm -rf /tmp/maran-installer
 
 # Expected docker run invocation for the polygon suites, from the repository root:
 # docker run --rm -v "$PWD:/maran" -w /maran/agent maran-polygon-ubuntu24 \
 #   cargo test --test sites_on_a_real_host --test php_pools_on_a_real_host \
 #     --test privileges_on_a_real_host --test databases_on_a_real_host \
+#     --test binary_paths_on_a_real_host \
 #     -- --ignored --test-threads=1
 #
 # The SFTP suite needs one thing more, and it is worth saying why rather than

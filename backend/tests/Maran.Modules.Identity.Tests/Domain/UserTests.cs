@@ -1,5 +1,6 @@
-using Maran.Modules.Identity.Domain;
+using Maran.Modules.Identity.Domain.Entities;
 using Maran.Modules.Identity.Domain.Enums;
+using Maran.Modules.Identity.Domain.ValueObjects;
 
 namespace Maran.Modules.Identity.Tests.Domain;
 /// <summary>Behavioural contract of user.</summary>
@@ -7,6 +8,8 @@ namespace Maran.Modules.Identity.Tests.Domain;
 public sealed class UserTests
 {
     private static readonly DateTimeOffset Now = new(2026, 8, 30, 12, 0, 0, TimeSpan.Zero);
+
+    private static readonly SecurityPolicySnapshot Policy = SecurityPolicySnapshot.Default;
 
     private static User NewUser()
     {
@@ -101,9 +104,9 @@ public sealed class UserTests
     {
         var user = NewUser();
 
-        for (var attempt = 0; attempt < User.MaxFailedLoginAttempts - 1; attempt++)
+        for (var attempt = 0; attempt < Policy.MaxFailedLoginAttempts - 1; attempt++)
         {
-            user.RecordFailedLogin(Now);
+            user.RecordFailedLogin(Now, Policy.MaxFailedLoginAttempts, Policy.LockoutDuration());
         }
 
         Assert.False(user.IsLockedOut(Now));
@@ -115,13 +118,13 @@ public sealed class UserTests
     {
         var user = NewUser();
 
-        for (var attempt = 0; attempt < User.MaxFailedLoginAttempts; attempt++)
+        for (var attempt = 0; attempt < Policy.MaxFailedLoginAttempts; attempt++)
         {
-            user.RecordFailedLogin(Now);
+            user.RecordFailedLogin(Now, Policy.MaxFailedLoginAttempts, Policy.LockoutDuration());
         }
 
         Assert.True(user.IsLockedOut(Now));
-        Assert.Equal(Now + User.LockoutDuration, user.LockedUntil);
+        Assert.Equal(Now + Policy.LockoutDuration(), user.LockedUntil);
     }
 
     /// <summary>The lock expires on its own.</summary>
@@ -129,12 +132,12 @@ public sealed class UserTests
     public void The_lock_expires_on_its_own()
     {
         var user = NewUser();
-        for (var attempt = 0; attempt < User.MaxFailedLoginAttempts; attempt++)
+        for (var attempt = 0; attempt < Policy.MaxFailedLoginAttempts; attempt++)
         {
-            user.RecordFailedLogin(Now);
+            user.RecordFailedLogin(Now, Policy.MaxFailedLoginAttempts, Policy.LockoutDuration());
         }
 
-        Assert.False(user.IsLockedOut(Now + User.LockoutDuration + TimeSpan.FromSeconds(1)));
+        Assert.False(user.IsLockedOut(Now + Policy.LockoutDuration() + TimeSpan.FromSeconds(1)));
     }
 
     /// <summary>A successful login clears the failures and the lock.</summary>
@@ -142,9 +145,9 @@ public sealed class UserTests
     public void A_successful_login_clears_the_failures_and_the_lock()
     {
         var user = NewUser();
-        for (var attempt = 0; attempt < User.MaxFailedLoginAttempts; attempt++)
+        for (var attempt = 0; attempt < Policy.MaxFailedLoginAttempts; attempt++)
         {
-            user.RecordFailedLogin(Now);
+            user.RecordFailedLogin(Now, Policy.MaxFailedLoginAttempts, Policy.LockoutDuration());
         }
 
         user.RecordLogin(Now);

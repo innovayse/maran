@@ -1,12 +1,13 @@
 using System.Resources;
-using Maran.Modules.Ssl.Common;
-using Maran.Modules.Ssl.Common.Interfaces;
-using Maran.Modules.Ssl.Common.Options;
+using Maran.Modules.Ssl.Interfaces;
 using Maran.Modules.Ssl.Jobs;
+using Maran.Modules.Ssl.Options;
 using Maran.Modules.Ssl.Persistence;
 using Maran.Modules.Ssl.Services;
+using Maran.Modules.Ssl.Validators;
 using Maran.Sdk.Contracts;
 using Maran.Sdk.Interfaces;
+using Microsoft.Extensions.Options;
 
 namespace Maran.Modules.Ssl;
 
@@ -61,6 +62,11 @@ public sealed class SslModule : IPanelModule
         // Validated at startup rather than at the first order: an unusable directory URL or a missing
         // contact address is a configuration mistake, and finding it out when a customer clicks
         // "issue" means the customer is the one who found it (rules/security.md item 7).
+        //
+        // AcmeOptionsValidator carries the one check data annotations cannot express here: the
+        // contact address is held to the panel's single definition of a valid address rather than
+        // to a per-module annotation (rules/csharp.md "Cross-cutting infrastructure").
+        services.AddSingleton<IValidateOptions<AcmeOptions>, AcmeOptionsValidator>();
         services.AddOptions<AcmeOptions>()
             .Bind(configuration.GetSection(AcmeOptions.SectionName))
             .ValidateDataAnnotations()
@@ -91,12 +97,5 @@ public sealed class SslModule : IPanelModule
         // Manifest.DisplayNameKey against. Module-internal lookups inject IStringLocalizer<T> instead.
         services.AddSingleton(new ResourceManager(ErrorMessagesResourceBaseName, typeof(SslModule).Assembly));
         services.AddSingleton(new ResourceManager(DisplayNamesResourceBaseName, typeof(SslModule).Assembly));
-    }
-
-    /// <inheritdoc />
-    public void MapEndpoints(IEndpointRouteBuilder endpoints)
-    {
-        // Controllers are discovered by ASP.NET Core's controller model (Program.cs calls
-        // MapControllers() once for the whole app) — this module has no endpoints to map by hand.
     }
 }

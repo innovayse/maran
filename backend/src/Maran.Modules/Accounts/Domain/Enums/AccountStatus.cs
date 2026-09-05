@@ -1,3 +1,5 @@
+using Maran.Modules.Accounts.Domain.Entities;
+
 namespace Maran.Modules.Accounts.Domain.Enums;
 
 /// <summary>Lifecycle state of a hosting <see cref="Account"/>.</summary>

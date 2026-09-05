@@ -53,7 +53,31 @@ message FirewallRule {
   string source_cidr = 3;
 }
 
-message ListRulesRequest {}
+message ListRulesRequest {
+  // Every port this host's sshd listens on, each 1-65535, and the panel's
+  // public port. Carried by a READ, which is unusual and is worth the
+  // sentence: the ruleset's unconditional accepts are byte-identical to an
+  // operator's own any-source TCP allow — `tcp dport 2222 accept` reads the
+  // same whether the agent rendered it because sshd listens there or because
+  // somebody asked for it. Telling them apart is exactly what these ports are
+  // for, and without them a listing reports accepts nobody created, which an
+  // administrator would then try to deny.
+  //
+  // Refused when empty or zero, as on the mutations. On a READ that refusal
+  // buys no safety of its own — a listing cannot lock anybody out — so it is
+  // here for consistency of meaning rather than for protection: one rule about
+  // what these fields mean, in every message that carries them.
+  //
+  // It costs nothing, because this message was parameterised BEFORE the
+  // contract's first release. `ListRulesRequest` was empty and unreleased, so
+  // there is no caller anywhere that sends it without these, and the proto3
+  // defaults are unreachable rather than a compatibility hazard. From the
+  // first release onward that stops being true and the additive law applies
+  // (rules/proto.md).
+  repeated uint32 ssh_ports = 1;
+  // The public port the panel is reachable on, 1-65535.
+  uint32 panel_port = 2;
+}
 
 message ListRulesResponse {
   oneof result {
@@ -67,12 +91,56 @@ message ListRulesOk {
 }
 
 message AllowPortRequest {
+  // Removed 2026-09-02, before this contract's first release: `uint32
+  // ssh_port = 4` carried ONE ssh port, and a host can serve SSH on several at
+  // once. `ssh_ports` replaces it. The number and the name are reserved so
+  // neither can be reused for something of a different shape (rules/proto.md).
+  //
+  // Deleted rather than kept deprecated, and the distinction is the point: the
+  // additive law protects RELEASED clients, and this field was added and
+  // superseded inside one unreleased change-set, so there is no client to
+  // protect and keeping it would spend field number 4 forever on a field
+  // nothing ever sent.
+  reserved 4;
+  reserved "ssh_port";
+
   // Port number, 1-65535.
   uint32 port = 1;
   // Protocol the rule applies to.
   Protocol protocol = 2;
   // Source CIDR to scope the allow to; "0.0.0.0/0" allows any source.
   string source_cidr = 3;
+  // The public port the panel is reachable on, 1-65535.
+  //
+  // nginx's public vhost port — emphatically NOT the backend's own listen
+  // port, which is loopback-only: rendering that one under a drop policy
+  // closes the panel to the world. Sent on every mutation and refused when
+  // absent or zero, for the same reason ssh_ports is: a panel lockout has no
+  // remote recovery path at all. Singular, because the installer writes the
+  // panel's vhost and it listens on exactly one port.
+  uint32 panel_port = 5;
+  // Every port this host's sshd listens on, each 1-65535.
+  //
+  // Sent on EVERY firewall mutation, because the agent re-renders the WHOLE
+  // ruleset on each one and the rendered policy defaults to drop: a ruleset
+  // rendered without knowing these ports closes the operator's own session
+  // with no remote recovery. They are host facts only the installer can read —
+  // every `Port` directive and every `ListenAddress host:port` in the real
+  // sshd_config AND in everything its `Include` pulls in, deduplicated — and
+  // never values the agent may assume.
+  //
+  // The rendered policy accepts the UNION. Each port keeps an unconditional
+  // accept until an explicit TCP rule for that port exists, and an explicit
+  // rule for one never disturbs another's fallback.
+  //
+  // The agent REFUSES an EMPTY list with ERROR_CODE_INVALID_INPUT and changes
+  // nothing. It is deliberately not defaulted to [22]: the installer already
+  // falls back to 22 and logs it when detection finds nothing, so an empty
+  // list arriving here means something upstream broke — and a defaulted 22 on
+  // a host whose sshd listens elsewhere renders an accept for a port nothing
+  // is listening on and no accept for the one the operator is connected
+  // through, which is the exact lockout this field exists to prevent.
+  repeated uint32 ssh_ports = 6;
 }
 
 message AllowPortResponse {
@@ -85,12 +153,33 @@ message AllowPortResponse {
 message AllowPortOk {}
 
 message DenyPortRequest {
+  // Removed 2026-09-02, before this contract's first release: `uint32
+  // ssh_port = 4` carried ONE ssh port, and a host can serve SSH on several at
+  // once. `ssh_ports` replaces it. The number and the name are reserved so
+  // neither can be reused for something of a different shape (rules/proto.md).
+  //
+  // Deleted rather than kept deprecated, and the distinction is the point: the
+  // additive law protects RELEASED clients, and this field was added and
+  // superseded inside one unreleased change-set, so there is no client to
+  // protect and keeping it would spend field number 4 forever on a field
+  // nothing ever sent.
+  reserved 4;
+  reserved "ssh_port";
+
   // Port number, 1-65535.
   uint32 port = 1;
   // Protocol the rule applies to.
   Protocol protocol = 2;
   // Source CIDR the original allow was scoped to.
   string source_cidr = 3;
+  // The public port the panel is reachable on, 1-65535. Same meaning, same
+  // obligation and same refusal as AllowPortRequest.panel_port.
+  uint32 panel_port = 5;
+  // Every port this host's sshd listens on, each 1-65535. Same meaning, same
+  // obligation and same refusal of an empty list as
+  // AllowPortRequest.ssh_ports: a deny re-renders the whole ruleset, so it can
+  // lock an operator out just as thoroughly as an allow can.
+  repeated uint32 ssh_ports = 6;
 }
 
 message DenyPortResponse {
@@ -108,8 +197,14 @@ message BanAddressRequest {
   // Ban duration in seconds from now; 0 means permanent until explicitly
   // unbanned.
   uint32 duration_seconds = 2;
-  // Operator-facing reason recorded alongside the ban (e.g. "brute force
-  // login attempts"), shown in the ban list.
+  // DEPRECATED — never read by the agent, and never written into the
+  // firewall. The reason is panel metadata: the Firewall module records every
+  // ban with its reason, and the agent stores none, because the only place a
+  // reason could go on this side is an nftables `comment`, whose argument nft
+  // parses in its own grammar — an injection primitive for a string the panel
+  // composes. The field is kept rather than removed because removing it is a
+  // breaking change; it goes away at the next major with `reserved`
+  // (rules/proto.md).
   string reason = 3;
 }
 
@@ -150,10 +245,23 @@ message ListBansOk {
 }
 
 message BanEntry {
-  // Banned IPv4 or IPv6 address.
+  // Banned IPv4 or IPv6 address, as the kernel holds it.
   string address = 1;
-  // Reason recorded when the ban was created.
+  // DEPRECATED and always written empty — the agent stores no reason. See
+  // BanAddressRequest.reason; the panel holds the reason it recorded when it
+  // asked for the ban.
   string reason = 2;
-  // Ban expiry as Unix seconds (UTC); 0 means permanent.
+  // DEPRECATED and always written 0 — the agent does not produce it. What the
+  // kernel holds is a REMAINING timeout, not an instant, and turning one into
+  // an absolute time needs a clock reading this agent deliberately does not
+  // take. A 0 here is "unproduced", never "permanent": read
+  // expires_in_seconds instead, whose absence is what permanent looks like.
   int64 expires_at_unix = 3;
+  // Seconds still to run on this ban, as the kernel reports its timeout.
+  //
+  // ABSENT means the ban has no timeout at all — permanent until explicitly
+  // unbanned. Explicit presence rather than a sentinel, because 0 would
+  // otherwise have to mean both "permanent" and "expiring this second", and
+  // the two call for opposite reconciliations by the panel.
+  optional uint32 expires_in_seconds = 4;
 }

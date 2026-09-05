@@ -60,4 +60,13 @@
   <data name="EmailInvalidFormat">
     <value>Մուտքագրեք վավեր էլ. հասցե։</value>
   </data>
+  <data name="PasswordResetTokenInvalid">
+    <value>Գաղտնաբառի վերականգնման հղումն այլևս վավեր չէ։ Պահանջեք նորը։</value>
+  </data>
+  <data name="PasswordResetEmailInvalid">
+    <value>Մուտքագրեք վավեր էլ. փոստի հասցե։</value>
+  </data>
+  <data name="SecurityPolicyInvalid">
+    <value>Անվտանգության այդ կարգավորումները թույլատրելի սահմաններից դուրս են։</value>
+  </data>
 </root>

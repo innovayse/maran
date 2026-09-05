@@ -1,4 +1,4 @@
-using Maran.Modules.Sftp.Domain;
+using Maran.Modules.Sftp.Domain.Entities;
 
 namespace Maran.Modules.Sftp.Common;
 

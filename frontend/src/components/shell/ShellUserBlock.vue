@@ -129,6 +129,14 @@ const signOut = async (): Promise<void> => {
          only ever answers 403 is a worse answer than no link. This is presentation, not
          authorization: the endpoint refuses a customer whatever this menu shows. -->
     <UiDropdownItem v-if="isAdmin" @select="go('audit')">{{ t('app.shell.menu.audit') }}</UiDropdownItem>
+    <!-- Administrator-only for the same presentational reason as the journal above:
+         both endpoints refuse a customer whatever this menu shows. -->
+    <UiDropdownItem v-if="isAdmin" @select="go('security-policy')">
+      {{ t('app.shell.menu.securityPolicy') }}
+    </UiDropdownItem>
+    <UiDropdownItem v-if="isAdmin" @select="go('smtp-settings')">
+      {{ t('app.shell.menu.smtpSettings') }}
+    </UiDropdownItem>
     <UiDropdownItem destructive @select="signOut">{{ t('app.auth.signOut') }}</UiDropdownItem>
   </UiDropdown>
 

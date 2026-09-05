@@ -26,20 +26,25 @@ if [ -e "$mod" ]; then
 fi
 
 # The canonical module anatomy (kept in sync with rules/csharp.md).
+#
+# Interfaces/, Options/ and Validators/ are deliberately NOT scaffolded. They are real module
+# folders at the module root — the same place Maran.Sdk, Maran.SharedKernel and Maran.Host put
+# them — but a module that has no seam, no settings record and no shared input validator should
+# not be given three empty folders to file into. Pre-created empty folders are how a layout
+# spreads without anyone deciding it: forty-seven such folders existed across sixteen modules and
+# thirty-six of them were empty .gitkeep scaffolding. Create the folder with its first real file.
 for d in \
   "Controllers/Requests" \
   "Commands" \
   "Queries" \
   "Common" \
-  "Common/Interfaces" \
-  "Common/Options" \
-  "Common/Validators" \
   "IntegrationEvents/Events" \
   "IntegrationEvents/Handlers" \
   "Services" \
   "Jobs" \
   "Authorization" \
   "Domain" \
+  "Domain/Enums" \
   "Domain/Events" \
   "Domain/Interfaces" \
   "Persistence/Configurations" \

@@ -1,4 +1,5 @@
-using Maran.Modules.Identity.Domain;
+using Maran.Modules.Identity.Domain.Entities;
+using Maran.SharedKernel.Utilities.Network;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace Maran.Modules.Identity.Persistence.Configurations;
@@ -34,7 +35,7 @@ public sealed class AuditEventConfiguration : IEntityTypeConfiguration<AuditEven
 
         builder.Property(e => e.UserAgent)
             .IsRequired()
-            .HasMaxLength(512);
+            .HasMaxLength(UserAgentText.MaxLength);
 
         builder.Property(e => e.Succeeded)
             .IsRequired();

@@ -66,7 +66,7 @@ public sealed class AgentSslClient : IAgentSslClient
                 new InstalledCertificateDto(DateTimeOffset.FromUnixTimeSeconds(response.Ok.ExpiresAtUnix))),
             InstallCertificateResponse.ResultOneofCase.Error => Result<InstalledCertificateDto>.Fail(
                 AgentErrorTranslator.ToError(_logger, response.Error, nameof(InstallCertificateAsync))),
-            _ => Result<InstalledCertificateDto>.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse))),
+            _ => Result<InstalledCertificateDto>.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
         };
     }
 
@@ -90,7 +90,7 @@ public sealed class AgentSslClient : IAgentSslClient
             RemoveCertificateResponse.ResultOneofCase.Ok => Result<bool>.Ok(true),
             RemoveCertificateResponse.ResultOneofCase.Error => Result<bool>.Fail(
                 AgentErrorTranslator.ToError(_logger, response.Error, nameof(RemoveCertificateAsync))),
-            _ => Result<bool>.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse))),
+            _ => Result<bool>.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
         };
     }
 }

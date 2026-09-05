@@ -20,8 +20,10 @@ use crate::sites::{SiteHost, SitesOpError};
 ///
 /// The site's CERTIFICATE material is not removed here either, and that is a
 /// decision about dependencies rather than about lifetimes: it MUST be removed,
-/// and `ssl::purge_certificate` is what removes it, called by the same handler
-/// immediately after this operation returns. Doing it inline would make the site
+/// and `ssl::purge_certificate` is what removes it, called by
+/// `ssl::delete_site_with_certificate` immediately after this operation returns.
+/// That wrapper is the only caller: there is no separate handler that pairs the
+/// two, and an earlier version of this sentence asserted one that never existed. Doing it inline would make the site
 /// area depend on the certificate area, which already depends on the site area —
 /// `SslHost` is a `SiteHost`, and installing a certificate re-renders a vhost
 /// with this area's own renderer. That is a cycle, not the one-directional

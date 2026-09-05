@@ -15,7 +15,7 @@
   <data name="CertificateNotFound">
     <value>This certificate could not be found.</value>
   </data>
-  <data name="CertificateAlreadyIssued">
+  <data name="CertificateAlreadyExists">
     <value>This domain already has a certificate.</value>
   </data>
   <data name="CertificateDomainInvalidFormat">

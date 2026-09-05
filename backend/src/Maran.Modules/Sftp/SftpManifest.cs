@@ -16,5 +16,6 @@ public static class SftpManifest
         DisplayNameKey: "SftpModuleDisplayName",
         Version: "1.0.0",
         Tier: LicenceTier.Included,
-        Dependencies: []);
+        Dependencies: [],
+        AgentCapabilities: [AgentCapability.Sftp]);
 }

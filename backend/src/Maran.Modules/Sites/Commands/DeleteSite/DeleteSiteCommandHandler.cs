@@ -1,9 +1,9 @@
 using Maran.Agent.Client.Interfaces;
-using Maran.Modules.Sites.Common;
-using Maran.Modules.Sites.Domain;
+using Maran.Modules.Sites.Domain.Entities;
 using Maran.Modules.Sites.Domain.Enums;
 using Maran.Modules.Sites.Persistence;
 using Maran.Modules.Sites.Resources;
+using Maran.Modules.Sites.Services;
 using Maran.Sdk.Contracts;
 using Maran.Sdk.Interfaces;
 
@@ -70,13 +70,13 @@ public sealed class DeleteSiteCommandHandler
         {
             // The subject is the identifier the caller supplied, because no domain is known — a
             // probe for a site the caller may not see still leaves a trace naming what was probed for.
-            return await FailAsync(command, command.SiteId.ToString(), nameof(ErrorMessages.SiteNotFound), cancellationToken);
+            return await FailAsync(command, command.SiteId.ToString(), Error.Of(nameof(ErrorMessages.SiteNotFound), ErrorType.NotFound), cancellationToken);
         }
 
         var account = await _accounts.FindAsync(site.AccountId, cancellationToken);
         if (account is null)
         {
-            return await FailAsync(command, site.Domain, nameof(ErrorMessages.AccountNotFound), cancellationToken);
+            return await FailAsync(command, site.Domain, Error.Of(nameof(ErrorMessages.AccountNotFound), ErrorType.NotFound), cancellationToken);
         }
 
         // Whether the site's php-fpm pool may go with it is a question only the panel can answer,
@@ -91,7 +91,7 @@ public sealed class DeleteSiteCommandHandler
             cancellationToken);
         if (!removed.IsSuccess)
         {
-            return await FailAsync(command, site.Domain, removed.Error!.Code, cancellationToken);
+            return await FailAsync(command, site.Domain, removed.Error!, cancellationToken);
         }
 
         // Captured before the row is removed: the journal records the domain, which is the only
@@ -142,18 +142,18 @@ public sealed class DeleteSiteCommandHandler
     /// <summary>Journals a refused deletion and returns it as the typed failure.</summary>
     /// <param name="command">The deletion that was refused.</param>
     /// <param name="subject">The site's domain, or the supplied identifier when no site was found.</param>
-    /// <param name="code">The machine-stable code to answer with.</param>
+    /// <param name="error">The typed failure to answer with, code and kind together.</param>
     /// <param name="cancellationToken">Cancels the journal write.</param>
-    /// <returns>The failed result carrying <paramref name="code"/>.</returns>
+    /// <returns>The failed result carrying <paramref name="error"/>.</returns>
     private async Task<Result<bool>> FailAsync(
         DeleteSiteCommand command,
         string subject,
-        string code,
+        Error error,
         CancellationToken cancellationToken)
     {
         await _journal.RecordFailureAsync(
             AuditActions.SiteDeleted, subject, command.IpAddress, command.UserAgent, cancellationToken);
 
-        return Result<bool>.Fail(Error.Of(code));
+        return Result<bool>.Fail(error);
     }
 }

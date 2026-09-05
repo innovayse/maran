@@ -1,8 +1,9 @@
 using Maran.Agent.Client.Interfaces;
 using Maran.Modules.Sftp.Common;
-using Maran.Modules.Sftp.Domain;
+using Maran.Modules.Sftp.Domain.Entities;
 using Maran.Modules.Sftp.Persistence;
 using Maran.Modules.Sftp.Resources;
+using Maran.Modules.Sftp.Services;
 using Maran.Sdk.Contracts;
 using Maran.Sdk.Interfaces;
 using Maran.SharedKernel.Security;
@@ -149,7 +150,7 @@ public sealed class CreateSftpUserCommandHandler
         var account = await _accounts.FindAsync(command.AccountId, cancellationToken);
         if (account is null)
         {
-            return await FailAsync(command, nameof(ErrorMessages.AccountNotFound), cancellationToken);
+            return await FailAsync(command, Error.Of(nameof(ErrorMessages.AccountNotFound), ErrorType.NotFound), cancellationToken);
         }
 
         // Spec §8: countable limits are enforced in the application at creation time, BEFORE the
@@ -164,7 +165,7 @@ public sealed class CreateSftpUserCommandHandler
             .CountAsync(sftpUser => sftpUser.AccountId == command.AccountId, cancellationToken);
         if (existing >= account.MaxSftpUsers)
         {
-            return await FailAsync(command, nameof(ErrorMessages.SftpUserLimitReached), cancellationToken);
+            return await FailAsync(command, Error.Of(nameof(ErrorMessages.SftpUserLimitReached), ErrorType.Conflict), cancellationToken);
         }
 
         // Whether the PREFIXED name fits is a question only this layer can answer, because it is the
@@ -172,7 +173,7 @@ public sealed class CreateSftpUserCommandHandler
         // left to the agent so the customer is told what is wrong with the name they typed.
         if (account.Username.Length + PrefixSeparatorLength + command.Name.Length > SystemUserNameMaxLength)
         {
-            return await FailAsync(command, nameof(ErrorMessages.SftpUserNameTooLong), cancellationToken);
+            return await FailAsync(command, Error.Of(nameof(ErrorMessages.SftpUserNameTooLong), ErrorType.Validation), cancellationToken);
         }
 
         // Asked of the account's OWN rows, through the tenant filter, and never of the host's
@@ -201,7 +202,7 @@ public sealed class CreateSftpUserCommandHandler
                 cancellationToken);
         if (nameTaken)
         {
-            return await FailAsync(command, nameof(ErrorMessages.SftpUserNameTaken), cancellationToken);
+            return await FailAsync(command, Error.Of(nameof(ErrorMessages.SftpUserNameTaken), ErrorType.Conflict), cancellationToken);
         }
 
         var password = ProvisionedPasswordGenerator.Generate();
@@ -209,7 +210,7 @@ public sealed class CreateSftpUserCommandHandler
         var provisioned = await _agent.CreateAsync(account.Username, command.Name, password, cancellationToken);
         if (!provisioned.IsSuccess)
         {
-            return await FailAsync(command, provisioned.Error!.Code, cancellationToken);
+            return await FailAsync(command, provisioned.Error!, cancellationToken);
         }
 
         // The fully-qualified login is taken from the agent's answer, not rebuilt from the suffix and
@@ -273,8 +274,8 @@ public sealed class CreateSftpUserCommandHandler
                 // revoke a credential the winner has already been shown and cannot be shown again —
                 // so this is the one post-create failure that must NOT compensate. The caller is
                 // told the name is taken, which is true.
-                return Result<bool>.Fail(Error.Of(
-                    await FailedCodeAsync(command, nameof(ErrorMessages.SftpUserNameTaken), cancellationToken)));
+                return Result<bool>.Fail(await FailedErrorAsync(
+                    command, Error.Of(nameof(ErrorMessages.SftpUserNameTaken), ErrorType.Conflict), cancellationToken));
             }
 
             // No winner, so there is nothing whose credential a delete could revoke — and there IS a
@@ -282,8 +283,8 @@ public sealed class CreateSftpUserCommandHandler
             // account's home. It goes.
             await CompensateAsync(accountUsername, command, cancellationToken);
 
-            return Result<bool>.Fail(Error.Of(await FailedCodeAsync(
-                command, nameof(ErrorMessages.SftpUserProvisioningFailed), cancellationToken)));
+            return Result<bool>.Fail(await FailedErrorAsync(
+                    command, Error.Of(nameof(ErrorMessages.SftpUserProvisioningFailed), ErrorType.Failure), cancellationToken));
         }
     }
 
@@ -316,31 +317,30 @@ public sealed class CreateSftpUserCommandHandler
 
     /// <summary>Journals a refused creation and hands back the code to answer with.</summary>
     /// <param name="command">The creation that was refused, whose name is the journal's subject.</param>
-    /// <param name="code">The machine-stable code to answer with.</param>
+    /// <param name="error">The typed failure to answer with, code and kind together.</param>
     /// <param name="cancellationToken">Cancels the journal write.</param>
-    /// <returns><paramref name="code"/>, unchanged.</returns>
-    private async Task<string> FailedCodeAsync(
+    /// <returns><paramref name="error"/>, unchanged.</returns>
+    private async Task<Error> FailedErrorAsync(
         CreateSftpUserCommand command,
-        string code,
+        Error error,
         CancellationToken cancellationToken)
     {
         await _journal.RecordFailureAsync(
             AuditActions.SftpUserCreated, command.Name, command.IpAddress, command.UserAgent, cancellationToken);
 
-        return code;
+        return error;
     }
 
     /// <summary>Journals a refused creation and returns it as the typed failure.</summary>
     /// <param name="command">The creation that was refused.</param>
-    /// <param name="code">The machine-stable code to answer with.</param>
+    /// <param name="error">The typed failure to answer with, code and kind together.</param>
     /// <param name="cancellationToken">Cancels the journal write.</param>
-    /// <returns>The failed result carrying <paramref name="code"/>.</returns>
+    /// <returns>The failed result carrying <paramref name="error"/>.</returns>
     private async Task<Result<CreatedSftpUserDto>> FailAsync(
         CreateSftpUserCommand command,
-        string code,
+        Error error,
         CancellationToken cancellationToken)
     {
-        return Result<CreatedSftpUserDto>.Fail(
-            Error.Of(await FailedCodeAsync(command, code, cancellationToken)));
+        return Result<CreatedSftpUserDto>.Fail(await FailedErrorAsync(command, error, cancellationToken));
     }
 }

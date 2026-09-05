@@ -19,6 +19,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             "../../../proto/agent/v1/files.proto",
             "../../../proto/agent/v1/db.proto",
             "../../../proto/agent/v1/ftp.proto",
+            "../../../proto/agent/v1/cron.proto",
+            "../../../proto/agent/v1/firewall.proto",
+            "../../../proto/agent/v1/monitor.proto",
         ],
         &["../../../proto"],
     )?;

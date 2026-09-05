@@ -4,11 +4,10 @@ import { stubEmptyModules } from '../fixtures/stub-modules-route'
 import { stubHealthy } from '../fixtures/stub-health-route'
 
 /** What the backend answers a password-only sign-in with when the user has a second factor. */
+// A second factor is owed, and that is now the ABSENCE of the signed-in half rather
+// than a flag beside three nulls that had to agree with it.
 const TWO_FACTOR_OWED = {
-  accessToken: null,
-  expiresAt: null,
-  twoFactorRequired: true,
-  user: null,
+  session: null,
 }
 
 test('a user with a second factor is taken to the code screen rather than shown an error', async ({

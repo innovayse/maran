@@ -44,6 +44,7 @@
 //! replacing a trusted certificate with one every browser rejects.
 
 mod certificate_expiry;
+mod delete_site_with_certificate;
 #[cfg(test)]
 #[path = "../tests/ssl/fake_ssl_host.rs"]
 pub(crate) mod fake_ssl_host;
@@ -60,6 +61,7 @@ mod ssl_host;
 mod ssl_op_error;
 mod write_material;
 
+pub use delete_site_with_certificate::delete_site_with_certificate;
 pub use generate_self_signed::generate_self_signed;
 pub use install_certificate::install_certificate;
 pub use model::certificate_material::CertificateMaterial;

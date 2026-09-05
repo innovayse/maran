@@ -29,6 +29,14 @@ const username: Ref<string> = ref('')
 const password: Ref<string> = ref('')
 
 /**
+ * Opens the screen that asks for a password-reset link.
+ * @returns Resolves once the navigation has settled.
+ */
+const forgotPassword = async (): Promise<void> => {
+  await router.push({ name: 'forgot-password' })
+}
+
+/**
  * Signs in, then goes wherever the visitor was originally headed.
  * @returns Resolves once the attempt has settled.
  */
@@ -80,6 +88,12 @@ const submit = async (): Promise<void> => {
 
       <UiButton class="mt-1 w-full justify-center" type="submit" :disabled="authStore.loading">
         {{ authStore.loading ? t('app.auth.signingIn') : t('app.auth.signIn') }}
+      </UiButton>
+
+      <!-- The panel mints reset tokens, and until this link existed there was no
+           screen from which to ask for one. -->
+      <UiButton variant="ghost" class="justify-center" @click="forgotPassword">
+        {{ t('app.passwordReset.forgotPassword') }}
       </UiButton>
     </div>
   </UiForm>

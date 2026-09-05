@@ -1,4 +1,4 @@
-using Maran.Modules.Sites.Domain;
+using Maran.Modules.Sites.Domain.Entities;
 using Maran.Modules.Sites.Domain.Enums;
 using Maran.Modules.Sites.Queries.ListSites;
 using Maran.Modules.Sites.Tests.TestSupport;

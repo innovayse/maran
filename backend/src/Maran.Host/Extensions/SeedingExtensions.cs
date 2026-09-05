@@ -21,6 +21,7 @@ public static class SeedingExtensions
     public static IServiceCollection AddPanelSeeding(this IServiceCollection services)
     {
         services.AddHostedService<PlanSeedingStartupTask>();
+        services.AddHostedService<FirewallWhitelistSeedingStartupTask>();
 
         return services;
     }

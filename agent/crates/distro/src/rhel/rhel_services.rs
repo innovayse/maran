@@ -179,8 +179,8 @@ pub fn chgrp_binary() -> &'static str {
 
 /// Absolute path of `chpasswd`, for the process-execution allow-list.
 ///
-/// The one program the agent hands a password to, and it reads it from
-/// standard input rather than from its arguments.
+/// The one program the agent hands a password to; how it is handed over is
+/// the calling operation's business, not this file's.
 #[must_use]
 pub fn chpasswd_binary() -> &'static str {
     "/usr/sbin/chpasswd"
@@ -206,4 +206,94 @@ pub fn systemd_unit_directory() -> &'static str {
 #[must_use]
 pub fn passwd_database() -> &'static str {
     "/etc/passwd"
+}
+
+/// Absolute path of `crontab`, for the process-execution allow-list.
+///
+/// RHEL's `cronie` package installs it here — verified on the AlmaLinux 9
+/// polygon, where `rpm -qf /usr/bin/crontab` answers `cronie-1.5.7`. The Debian
+/// family's `cron` package chooses the same path, which is an agreement between
+/// two packages rather than a rule.
+#[must_use]
+pub fn crontab_binary() -> &'static str {
+    "/usr/bin/crontab"
+}
+
+/// Absolute path of the `nft` binary, for the process-execution allow-list.
+///
+/// RHEL's `nftables` package installs it here, and that is the path in the
+/// package's own file list — `rpm -ql nftables` names `/usr/sbin/nft`, and
+/// `rpm -qf /usr/sbin/nft` answers `nftables-1.0.9`, both verified on the
+/// AlmaLinux 9 polygon. The packaged unit spells the same file `/sbin/nft`,
+/// through that directory's merged-`/usr` symlink rather than as a second
+/// binary; the file list is the documented interface the rule on
+/// [`crate::DistroAdapter`] says to answer, and it is the same evidence the
+/// Debian family cites for the same value.
+#[must_use]
+pub fn nft_binary() -> &'static str {
+    "/usr/sbin/nft"
+}
+
+/// Absolute path of the POSIX shell a crontab line names.
+///
+/// Here with every other `*_binary` rather than in `rhel_paths.rs`, even though
+/// the agent never spawns it: a reader looking for one asks the file whose
+/// subject is binary names, and one exception to that is one more than a reader
+/// can be expected to know about.
+///
+/// The agent writes this path into a crontab line, and `cron` is what runs it.
+/// On the RHEL family `/bin/sh` is `bash` — verified on the AlmaLinux 9
+/// polygon, where it is a symlink to `/usr/bin/bash` — while the Debian family
+/// puts `dash` behind the identical path, so a customer command may behave
+/// differently on each without either answer being wrong. `/bin/sh` rather than
+/// the `/usr/bin/sh` that `command -v sh` answers, per the merged-`/usr` rule
+/// on [`crate::DistroAdapter`].
+#[must_use]
+pub fn sh_binary() -> &'static str {
+    "/bin/sh"
+}
+
+/// Name of the firewall systemd service unit.
+///
+/// The unit `nftables` ships, which loads
+/// [`crate::rhel::rhel_paths::nftables_include_target`] at boot. The Debian
+/// family registers the same name for the same upstream service.
+#[must_use]
+pub fn firewall_service() -> &'static str {
+    "nftables"
+}
+
+/// Name of the cron systemd service unit.
+///
+/// `crond`, after the daemon `cronie` ships — the Debian family's `cron`
+/// package registers `cron` instead, and no alias bridges the two on this
+/// family. The disagreement is the reason the name is asked of the adapter
+/// rather than written where a crontab is installed.
+#[must_use]
+pub fn cron_service() -> &'static str {
+    "crond"
+}
+
+/// Name of the OpenSSH server's systemd service unit.
+///
+/// `sshd` on this family, against `ssh` on the Debian family, and this family's
+/// unit carries no alias for the other name.
+#[must_use]
+pub fn ssh_service() -> &'static str {
+    "sshd"
+}
+
+/// The closed set of units whose state the panel reports, in the order the
+/// trait fixes: web server, database, cron, OpenSSH.
+///
+/// Built from this family's own answers rather than from four fresh literals,
+/// so a unit renamed above cannot stay right there and go stale here.
+#[must_use]
+pub fn managed_units() -> [&'static str; 4] {
+    [
+        nginx_service(),
+        mysql_service(),
+        cron_service(),
+        ssh_service(),
+    ]
 }

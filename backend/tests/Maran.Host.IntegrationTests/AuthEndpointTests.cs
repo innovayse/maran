@@ -2,7 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using Maran.Host.IntegrationTests.Fixtures;
-using Maran.Modules.Identity.Domain;
+using Maran.Modules.Identity.Domain.Entities;
 using Maran.Modules.Identity.Domain.Enums;
 using Maran.Modules.Identity.Persistence;
 using Maran.SharedKernel.Interfaces;
@@ -57,6 +57,13 @@ public sealed class AuthEndpointTests : IAsyncLifetime
 
             builder.UseSetting("Security:EncryptionKey", Key);
             builder.UseSetting("Jwt:SigningKey", Key);
+
+            // Startup validation refuses to boot without the host's SSH ports and the panel's
+            // public port: a defaulted one is a locked-out server (rules/security.md).
+            foreach (var setting in FirewallSettings.Required())
+            {
+                builder.UseSetting(setting.Key, setting.Value);
+            }
         });
     }
 
@@ -92,8 +99,8 @@ public sealed class AuthEndpointTests : IAsyncLifetime
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
-        Assert.False(string.IsNullOrWhiteSpace(body.RootElement.GetProperty("accessToken").GetString()));
-        Assert.Equal("admin", body.RootElement.GetProperty("user").GetProperty("username").GetString());
+        Assert.False(string.IsNullOrWhiteSpace(body.RootElement.GetProperty("session").GetProperty("accessToken").GetString()));
+        Assert.Equal("admin", body.RootElement.GetProperty("session").GetProperty("user").GetProperty("username").GetString());
     }
 
     /// <summary>The refresh cookie is http only secure and same site strict.</summary>

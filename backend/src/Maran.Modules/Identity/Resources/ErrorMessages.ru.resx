@@ -60,4 +60,13 @@
   <data name="EmailInvalidFormat">
     <value>Введите корректный адрес электронной почты.</value>
   </data>
+  <data name="PasswordResetTokenInvalid">
+    <value>Ссылка для сброса пароля больше недействительна. Запросите новую.</value>
+  </data>
+  <data name="PasswordResetEmailInvalid">
+    <value>Введите корректный адрес электронной почты.</value>
+  </data>
+  <data name="SecurityPolicyInvalid">
+    <value>Эти настройки безопасности выходят за допустимые пределы.</value>
+  </data>
 </root>

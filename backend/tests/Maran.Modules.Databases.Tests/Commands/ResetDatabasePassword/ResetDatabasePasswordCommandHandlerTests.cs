@@ -1,5 +1,6 @@
 using Maran.Modules.Databases.Commands.ResetDatabasePassword;
 using Maran.Modules.Databases.Common;
+using Maran.Modules.Databases.Services;
 using Maran.Modules.Databases.Tests.TestSupport;
 using Maran.Sdk.Contracts;
 using Maran.SharedKernel.Results;
@@ -92,7 +93,7 @@ public sealed class ResetDatabasePasswordCommandHandlerTests
     public async Task An_agent_that_refuses_leaves_the_old_password_live_and_is_reported_as_it_answered()
     {
         var world = await WorldAsync();
-        world.Agent.SetPasswordResult = Result<bool>.Fail(Error.Of("AgentNotFound"));
+        world.Agent.SetPasswordResult = Result<bool>.Fail(Error.Of("AgentNotFound", ErrorType.NotFound));
 
         var result = await world.ResetAsync(world.OwnDatabaseId);
 
@@ -197,7 +198,7 @@ public sealed class ResetDatabasePasswordCommandHandlerTests
             var currentUser = FakeCurrentUser.Customer(OwnerAccountId);
             Handler = new ResetDatabasePasswordCommandHandler(
                 DatabasesTestContext.Create(currentUser, store),
-                new StubAccountDirectory(new AccountSnapshot(OwnerAccountId, "alice", 5, 5, 5, 5)),
+                new StubAccountDirectory(new AccountSnapshot(OwnerAccountId, "alice", 5, 5, 5, 5, 5, 1_024)),
                 Agent,
                 new DatabaseAuditJournal(Audit, currentUser));
         }

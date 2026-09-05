@@ -1,6 +1,6 @@
 using System.Net;
 using System.Text.Json;
-using Maran.Modules.Ssl.Common;
+using Maran.Modules.Ssl.Models;
 using Maran.Modules.Ssl.Resources;
 using Microsoft.Extensions.Logging;
 
@@ -125,7 +125,7 @@ public sealed class AcmeSession
         {
             // The authority's text is deliberately not carried into the error: a problem document can
             // quote what it could not parse (rules/security.md item 8).
-            return Result<AcmeResponse>.Fail(Error.Of(nameof(ErrorMessages.AcmeAuthorityUnreachable)));
+            return Result<AcmeResponse>.Fail(Error.Of(nameof(ErrorMessages.AcmeAuthorityUnreachable), ErrorType.Unavailable));
         }
     }
 

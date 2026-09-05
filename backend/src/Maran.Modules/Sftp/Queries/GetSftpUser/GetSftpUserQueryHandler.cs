@@ -41,7 +41,7 @@ public sealed class GetSftpUserQueryHandler
 
         if (sftpUser is null)
         {
-            return Result<SftpUserDto>.Fail(Error.Of(nameof(ErrorMessages.SftpUserNotFound)));
+            return Result<SftpUserDto>.Fail(Error.Of(nameof(ErrorMessages.SftpUserNotFound), ErrorType.NotFound));
         }
 
         return Result<SftpUserDto>.Ok(new SftpUserDto(

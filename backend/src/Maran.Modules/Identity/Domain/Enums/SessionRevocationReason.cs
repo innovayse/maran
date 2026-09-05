@@ -1,6 +1,6 @@
 namespace Maran.Modules.Identity.Domain.Enums;
 
-/// <summary>Why a <see cref="Session"/> stopped being usable. Recorded so the audit screen can say more than "gone".</summary>
+/// <summary>Why a <see cref="Entities.Session"/> stopped being usable. Recorded so the audit screen can say more than "gone".</summary>
 public enum SessionRevocationReason
 {
     /// <summary>The user signed out of this device.</summary>

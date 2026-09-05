@@ -49,6 +49,13 @@ public sealed class HealthEndpointTests : IAsyncLifetime
             }
             builder.UseSetting("Security:EncryptionKey", "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=");
             builder.UseSetting("Jwt:SigningKey", "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=");
+
+            // Startup validation refuses to boot without the host's SSH ports and the panel's
+            // public port: a defaulted one is a locked-out server (rules/security.md).
+            foreach (var setting in FirewallSettings.Required())
+            {
+                builder.UseSetting(setting.Key, setting.Value);
+            }
         });
 
         using var client = factory.CreateClient();

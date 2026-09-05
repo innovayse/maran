@@ -1,6 +1,7 @@
 using FluentValidation;
 using Maran.Modules.Sites.Domain.Enums;
 using Maran.Modules.Sites.Resources;
+using Maran.SharedKernel.Utilities.Network;
 
 namespace Maran.Modules.Sites.Commands.CreateSite;
 
@@ -18,17 +19,11 @@ namespace Maran.Modules.Sites.Commands.CreateSite;
 /// </remarks>
 public sealed class CreateSiteCommandValidator : AbstractValidator<CreateSiteCommand>
 {
-    /// <summary>A hostname of two or more DNS labels: 1–63 characters each, no leading or trailing hyphen.</summary>
-    /// <remarks>
-    /// Anchored with <c>\z</c> rather than <c>$</c>. In .NET <c>$</c> also matches immediately before
-    /// a trailing newline, so <c>example.com\n</c> satisfies a <c>$</c>-anchored pattern — and this
-    /// value is written into an nginx <c>server_name</c> directive, where an embedded newline is a
-    /// config-injection primitive. rules/security.md item 4 requires the boundary to reject it.
-    /// </remarks>
-    private const string HostnamePattern =
-        @"\A(?!-)[A-Za-z0-9-]{1,63}(?<!-)(\.(?!-)[A-Za-z0-9-]{1,63}(?<!-))+\z";
-
-    /// <summary>Two-component PHP version as the packages name it, e.g. <c>8.3</c>. Anchored like the hostname, and for the same reason.</summary>
+    /// <summary>
+    /// Two-component PHP version as the packages name it, e.g. <c>8.3</c>. Anchored with <c>\z</c>
+    /// rather than <c>$</c> for the same reason <see cref="HostNameRule"/> is: in .NET <c>$</c> also
+    /// matches immediately before a trailing newline, and this value is written into a config file.
+    /// </summary>
     private const string PhpVersionPattern = @"\A[0-9]\.[0-9]{1,2}\z";
 
     /// <summary>An upstream nginx will proxy to: host or host:port, with no scheme, path or whitespace.</summary>
@@ -42,8 +37,8 @@ public sealed class CreateSiteCommandValidator : AbstractValidator<CreateSiteCom
 
         RuleFor(command => command.Domain)
             .NotEmpty()
-            .MaximumLength(253)
-            .Matches(HostnamePattern)
+            .MaximumLength(HostNameRule.MaximumLength)
+            .Must(HostNameRule.IsHostName)
             .WithMessage(nameof(ErrorMessages.SiteDomainInvalidFormat));
 
         RuleFor(command => command.Aliases)
@@ -51,8 +46,8 @@ public sealed class CreateSiteCommandValidator : AbstractValidator<CreateSiteCom
 
         RuleForEach(command => command.Aliases)
             .NotEmpty()
-            .MaximumLength(253)
-            .Matches(HostnamePattern)
+            .MaximumLength(HostNameRule.MaximumLength)
+            .Must(HostNameRule.IsHostName)
             .WithMessage(nameof(ErrorMessages.SiteAliasInvalidFormat));
 
         // A request that names the same hostname twice — an alias repeating the domain, or two

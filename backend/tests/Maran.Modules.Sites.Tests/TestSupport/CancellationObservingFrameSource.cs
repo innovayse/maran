@@ -1,5 +1,5 @@
 using System.Runtime.CompilerServices;
-using Maran.Modules.Sites.Common;
+using Maran.Modules.Sites.Models;
 
 namespace Maran.Modules.Sites.Tests.TestSupport;
 

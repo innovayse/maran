@@ -3,8 +3,11 @@ using Grpc.Net.Client;
 using Maran.Agent.Client.Channels;
 using Maran.Agent.Client.Interfaces;
 using Maran.Agent.Client.Services.AccountsService;
+using Maran.Agent.Client.Services.CronService;
 using Maran.Agent.Client.Services.DbService;
 using Maran.Agent.Client.Services.FilesService;
+using Maran.Agent.Client.Services.FirewallService;
+using Maran.Agent.Client.Services.MonitorService;
 using Maran.Agent.Client.Services.PhpService;
 using Maran.Agent.Client.Services.SftpService;
 using Maran.Agent.Client.Services.SitesService;
@@ -92,6 +95,27 @@ public static class DependencyInjection
                     provider.GetRequiredService<GrpcChannel>(),
                     provider.GetRequiredService<ILogger<AgentSftpClient>>());
             });
+        services.AddSingleton<IAgentCronClient>(
+            provider =>
+            {
+                return new AgentCronClient(
+                    provider.GetRequiredService<GrpcChannel>(),
+                    provider.GetRequiredService<ILogger<AgentCronClient>>());
+            });
+        services.AddSingleton<IAgentFirewallClient>(
+            provider =>
+            {
+                return new AgentFirewallClient(
+                    provider.GetRequiredService<GrpcChannel>(),
+                    provider.GetRequiredService<ILogger<AgentFirewallClient>>());
+            });
+        services.AddSingleton<IAgentMonitorClient>(
+            provider =>
+            {
+                return new AgentMonitorClient(
+                    provider.GetRequiredService<GrpcChannel>(),
+                    provider.GetRequiredService<ILogger<AgentMonitorClient>>());
+            });
         services.AddSingleton<IAgentSystemClient>(
             provider =>
             {
@@ -102,7 +126,7 @@ public static class DependencyInjection
 
         // Registers this project's resource manager into the shared pool the panel-wide
         // ResxErrorTextProvider resolves error codes against (rules/csharp.md "The backend owns all
-        // user-facing message text"). Without it the seven Agent* codes this project produces are
+        // user-facing message text"). Without it the eight Agent* codes this project produces are
         // claimed by no resource file, and the provider's last-resort fallback shows the customer
         // the machine code itself instead of a sentence.
         services.AddSingleton(

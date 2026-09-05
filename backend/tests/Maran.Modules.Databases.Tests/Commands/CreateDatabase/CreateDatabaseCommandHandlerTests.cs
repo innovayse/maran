@@ -1,6 +1,7 @@
 using Maran.Modules.Databases.Commands.CreateDatabase;
 using Maran.Modules.Databases.Common;
 using Maran.Modules.Databases.Persistence;
+using Maran.Modules.Databases.Services;
 using Maran.Modules.Databases.Tests.TestSupport;
 using Maran.Sdk.Contracts;
 using Maran.SharedKernel.Results;
@@ -118,7 +119,7 @@ public sealed class CreateDatabaseCommandHandlerTests
     {
         var world = new World();
         world.Agent.CreateResult = Result<AgentCreatedDatabaseDto>.Fail(
-            Error.Of("AgentSystemFailure"));
+            Error.Of("AgentSystemFailure", ErrorType.Failure));
 
         var result = await world.HandleAsync("shop", "shopuser");
 
@@ -377,7 +378,7 @@ public sealed class CreateDatabaseCommandHandlerTests
             Context = DatabasesTestContext.Create(currentUser, databaseName, saveFailure);
             Handler = new CreateDatabaseCommandHandler(
                 Context,
-                new StubAccountDirectory(new AccountSnapshot(AccountId, username, 5, maxDatabases, 5, 5)),
+                new StubAccountDirectory(new AccountSnapshot(AccountId, username, 5, maxDatabases, 5, 5, 5, 1_024)),
                 Agent,
                 new DatabaseAuditJournal(Audit, currentUser),
                 new FakeClock(Now),

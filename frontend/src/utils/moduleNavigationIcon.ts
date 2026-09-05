@@ -28,9 +28,21 @@ const MODULE_ICONS: Readonly<Record<string, NavigationIcon>> = {
   // A folder with a key rather than a second generic transfer glyph: an SFTP login opens one
   // account's directory and nothing else on the host, which is the fact worth drawing.
   sftp: 'folderKey',
+  // A course of bricks rather than a shield: the shield is already the identity module's mark, and
+  // the firewall screen is the wall itself — a list of what the host lets through.
+  firewall: 'brickWall',
   // The Identity module's entry leads to the signed-in person's security screens (sessions,
   // two-factor), so it is marked as protection rather than as people.
   identity: 'shieldCheck',
+  // A clock rather than a calendar: a cron entry recurs at a time of day, which is what a clock
+  // face says and what a calendar page does not.
+  cron: 'clock',
+  // A ticked list, because the screen is a feed of work items reaching a final state — not an
+  // activity trace, which is already the shell's own system-status mark.
+  tasks: 'listChecks',
+  // A plotted line rather than a second activity trace: the shell's own system-status entry is
+  // already the pulse, and this module's screen is the history behind it, not the present moment.
+  monitoring: 'chartLine',
 }
 
 /**

@@ -1,4 +1,4 @@
-using Maran.Modules.Sites.Domain;
+using Maran.Modules.Sites.Domain.Entities;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace Maran.Modules.Sites.Persistence.Configurations;
