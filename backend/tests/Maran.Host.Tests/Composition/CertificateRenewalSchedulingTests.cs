@@ -1,6 +1,6 @@
 using Maran.Host.BackgroundServices;
-using Maran.Modules.Ssl.Common.Options;
 using Maran.Modules.Ssl.Jobs;
+using Maran.Modules.Ssl.Options;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Wolverine.Runtime.Handlers;

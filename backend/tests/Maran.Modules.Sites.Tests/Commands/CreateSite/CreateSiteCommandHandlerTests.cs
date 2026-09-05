@@ -1,7 +1,7 @@
 using Maran.Modules.Sites.Commands.CreateSite;
-using Maran.Modules.Sites.Common;
 using Maran.Modules.Sites.Domain.Enums;
 using Maran.Modules.Sites.Persistence;
+using Maran.Modules.Sites.Services;
 using Maran.Modules.Sites.Tests.TestSupport;
 using Maran.Sdk.Contracts;
 using Maran.SharedKernel.Results;
@@ -240,7 +240,7 @@ public sealed class CreateSiteCommandHandlerTests
         // on. Collapsing them would tell a customer their PHP version is uninstalled every time the
         // agent socket hiccups.
         var account = Guid.NewGuid();
-        var world = new World(account, phpFailure: Error.Of("AgentUnavailable"));
+        var world = new World(account, phpFailure: Error.Of("AgentUnavailable", ErrorType.Unavailable));
 
         var result = await world.Handler().HandleAsync(Command(account), CancellationToken.None);
 
@@ -270,7 +270,7 @@ public sealed class CreateSiteCommandHandlerTests
         // The agent runs before the row precisely so this is the failure mode: nothing was written,
         // and the caller sees the agent's own typed error rather than a site that does not serve.
         var account = Guid.NewGuid();
-        var world = new World(account, agentFailure: Error.Of("AgentValidationFailed"));
+        var world = new World(account, agentFailure: Error.Of("AgentValidationFailed", ErrorType.Validation));
 
         var result = await world.Handler().HandleAsync(Command(account), CancellationToken.None);
 
@@ -347,7 +347,7 @@ public sealed class CreateSiteCommandHandlerTests
     public async Task The_stored_site_keeps_the_aliases_it_was_created_with()
     {
         // Asserted on the ROW, not only on the agent argument. The row is what every later
-        // re-render reads (SiteDescriptorFactory), so aliases dropped on the way into the database
+        // re-render reads (SiteDescriptorMapper), so aliases dropped on the way into the database
         // would survive creation intact and then vanish from the vhost on the first enable, disable
         // or version change — long after anyone would connect the two.
         var account = Guid.NewGuid();
@@ -379,7 +379,7 @@ public sealed class CreateSiteCommandHandlerTests
         // AuditEntry says failures are the half of the journal worth reading, and a refused
         // provisioning is exactly the event an operator later needs to explain a missing site.
         var account = Guid.NewGuid();
-        var world = new World(account, agentFailure: Error.Of("AgentSystemFailure"));
+        var world = new World(account, agentFailure: Error.Of("AgentSystemFailure", ErrorType.Failure));
 
         await world.Handler().HandleAsync(Command(account), CancellationToken.None);
 
@@ -492,7 +492,9 @@ public sealed class CreateSiteCommandHandlerTests
                 maxSites,
                 MaxDatabases: 2,
                 MaxSftpUsers: 3,
-                MaxPhpWorkersPerPool: 10));
+                MaxCronEntries: 7,
+                MaxPhpWorkersPerPool: 10,
+                DiskQuotaMb: 1_024));
         }
 
         /// <summary>Builds the handler under test.</summary>

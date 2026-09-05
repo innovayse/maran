@@ -1,4 +1,4 @@
-using Maran.Modules.Identity.Domain;
+using Maran.Modules.Identity.Domain.Entities;
 using Maran.Modules.Identity.Domain.Enums;
 
 namespace Maran.Modules.Identity.Tests.Domain;

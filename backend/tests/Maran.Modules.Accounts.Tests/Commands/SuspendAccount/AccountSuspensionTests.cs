@@ -1,9 +1,9 @@
 using Maran.Modules.Accounts.Commands.ReactivateAccount;
 using Maran.Modules.Accounts.Commands.SuspendAccount;
-using Maran.Modules.Accounts.Common;
-using Maran.Modules.Accounts.Domain;
+using Maran.Modules.Accounts.Domain.Entities;
 using Maran.Modules.Accounts.Domain.Enums;
 using Maran.Modules.Accounts.Persistence;
+using Maran.Modules.Accounts.Services;
 using Maran.Modules.Accounts.Tests.TestSupport;
 using Maran.SharedKernel.Results;
 using Microsoft.EntityFrameworkCore;
@@ -154,7 +154,7 @@ public sealed class AccountSuspensionTests : IDisposable
         // The order is the whole subject: the row records what the agent did, so a refusal
         // must not leave the panel claiming an account is suspended while its sites serve.
         var account = await SeedAsync();
-        var refusing = new RecordingAgentAccountsClient(Error.Of("AgentSystemFailure"));
+        var refusing = new RecordingAgentAccountsClient(Error.Of("AgentSystemFailure", ErrorType.Failure));
 
         var result = await new SuspendAccountCommandHandler(_context, refusing, Journal()).HandleAsync(
             new SuspendAccountCommand(account.Id, Ip, Client), CancellationToken.None);

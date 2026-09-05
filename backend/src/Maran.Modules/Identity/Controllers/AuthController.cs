@@ -1,3 +1,4 @@
+using Maran.Modules.Identity.Authorization;
 using Maran.Modules.Identity.Commands.BeginTotpEnrolment;
 using Maran.Modules.Identity.Commands.ConfirmTotpEnrolment;
 using Maran.Modules.Identity.Commands.DisableTotp;
@@ -5,9 +6,13 @@ using Maran.Modules.Identity.Commands.Login;
 using Maran.Modules.Identity.Commands.Logout;
 using Maran.Modules.Identity.Commands.LogoutEverywhere;
 using Maran.Modules.Identity.Commands.RefreshSession;
+using Maran.Modules.Identity.Commands.RequestPasswordReset;
+using Maran.Modules.Identity.Commands.ResetPassword;
 using Maran.Modules.Identity.Commands.VerifyTwoFactor;
 using Maran.Modules.Identity.Common;
 using Maran.Modules.Identity.Controllers.Requests;
+using Maran.Modules.Identity.Mappers;
+using Maran.Modules.Identity.Models;
 using Maran.Sdk.Contracts;
 using Maran.Sdk.Controllers;
 using Microsoft.AspNetCore.Authorization;
@@ -31,9 +36,6 @@ namespace Maran.Modules.Identity.Controllers;
 [Produces("application/json")]
 public sealed class AuthController : BaseApiController
 {
-    /// <summary>Fallback recorded when the connection reports no remote address, as in a test host.</summary>
-    private const string UnknownIpAddress = "unknown";
-
     /// <summary>The message bus commands are dispatched through.</summary>
     private readonly IMessageBus _bus;
 
@@ -69,18 +71,21 @@ public sealed class AuthController : BaseApiController
         [FromBody] LoginRequest request,
         CancellationToken cancellationToken)
     {
-        var command = new LoginCommand(request.Username, request.Password, CallerIpAddress(), CallerUserAgent());
+        var command = new LoginCommand(request.Username, request.Password, ClientIpAddress, CallerUserAgent);
         var result = await _bus.InvokeAsync<Result<LoginOutcome>>(command, cancellationToken);
 
-        if (result.IsSuccess && result.Value.Session is { } session)
+        if (result.IsSuccess && result.Value.Authenticated is { } authenticated)
         {
-            RefreshCookie.Append(Response, session);
+            RefreshCookie.Append(Response, authenticated.Session);
         }
 
         return ToActionResult(result.Match(
             outcome =>
             {
-                return Result<LoginResultDto>.Ok(outcome.Response);
+                return Result<LoginResultDto>.Ok(new LoginResultDto(
+                    outcome.Authenticated is { } signedIn
+                        ? AuthenticatedSessionMapper.From(signedIn)
+                        : null));
             },
             error =>
             {
@@ -96,7 +101,7 @@ public sealed class AuthController : BaseApiController
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpPost("refresh")]
     [AllowAnonymous]
-    [ProducesResponseType(typeof(LoginResultDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(AuthenticatedSessionDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public async Task<IActionResult> RefreshAsync(CancellationToken cancellationToken)
     {
@@ -106,16 +111,18 @@ public sealed class AuthController : BaseApiController
             // No cookie at all is a plain "sign in again", not a server fault: a first-time visitor
             // and a visitor whose cookie expired are the same case, and both belong on the login
             // screen rather than looking at a 500.
-            return ToActionResult(Result<LoginResultDto>.Fail(
-                Error.Of(nameof(Resources.ErrorMessages.RefreshTokenInvalidUnauthorized))));
+            return ToActionResult(Result<AuthenticatedSessionDto>.Fail(
+                Error.Of(nameof(Resources.ErrorMessages.RefreshTokenInvalidUnauthorized), ErrorType.Unauthorized)));
         }
 
-        var command = new RefreshSessionCommand(refreshToken, CallerIpAddress(), CallerUserAgent());
-        var result = await _bus.InvokeAsync<Result<LoginOutcome>>(command, cancellationToken);
+        var command = new RefreshSessionCommand(refreshToken, ClientIpAddress, CallerUserAgent);
+        var result = await _bus.InvokeAsync<Result<AuthenticatedOutcome>>(command, cancellationToken);
 
-        if (result.IsSuccess && result.Value.Session is { } session)
+        if (result.IsSuccess)
         {
-            RefreshCookie.Append(Response, session);
+            // A rotation always issues a session, so there is nothing to test but success: the type
+            // no longer admits a rotated outcome without one.
+            RefreshCookie.Append(Response, result.Value.Session);
         }
         else
         {
@@ -128,11 +135,11 @@ public sealed class AuthController : BaseApiController
         return ToActionResult(result.Match(
             outcome =>
             {
-                return Result<LoginResultDto>.Ok(outcome.Response);
+                return Result<AuthenticatedSessionDto>.Ok(AuthenticatedSessionMapper.From(outcome));
             },
             error =>
             {
-                return Result<LoginResultDto>.Fail(error);
+                return Result<AuthenticatedSessionDto>.Fail(error);
             }));
     }
 
@@ -151,7 +158,7 @@ public sealed class AuthController : BaseApiController
             return ToActionResult(Result<bool>.Ok(true));
         }
 
-        var command = new LogoutCommand(refreshToken, CallerIpAddress(), CallerUserAgent());
+        var command = new LogoutCommand(refreshToken, ClientIpAddress, CallerUserAgent);
         return ToActionResult(await _bus.InvokeAsync<Result<bool>>(command, cancellationToken));
     }
 
@@ -170,7 +177,7 @@ public sealed class AuthController : BaseApiController
     {
         RefreshCookie.Delete(Response);
 
-        var command = new LogoutEverywhereCommand(CurrentUser.UserId, CallerIpAddress(), CallerUserAgent());
+        var command = new LogoutEverywhereCommand(CurrentUser.UserId, ClientIpAddress, CallerUserAgent);
         return ToActionResult(await _bus.InvokeAsync<Result<bool>>(command, cancellationToken));
     }
 
@@ -184,29 +191,31 @@ public sealed class AuthController : BaseApiController
     [HttpPost("two-factor")]
     [AllowAnonymous]
     [EnableRateLimiting(RateLimitPolicies.Login)]
-    [ProducesResponseType(typeof(LoginResultDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(AuthenticatedSessionDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public async Task<IActionResult> VerifyTwoFactorAsync(
         [FromBody] VerifyTwoFactorRequest request,
         CancellationToken cancellationToken)
     {
         var command = new VerifyTwoFactorCommand(
-            request.Username, request.Password, request.Code, CallerIpAddress(), CallerUserAgent());
-        var result = await _bus.InvokeAsync<Result<LoginOutcome>>(command, cancellationToken);
+            request.Username, request.Password, request.Code, ClientIpAddress, CallerUserAgent);
+        var result = await _bus.InvokeAsync<Result<AuthenticatedOutcome>>(command, cancellationToken);
 
-        if (result.IsSuccess && result.Value.Session is { } session)
+        if (result.IsSuccess)
         {
-            RefreshCookie.Append(Response, session);
+            // Verifying the second factor either signs the caller in or fails; a success carries a
+            // session by construction, so there is no "signed in without a cookie" branch left.
+            RefreshCookie.Append(Response, result.Value.Session);
         }
 
         return ToActionResult(result.Match(
             outcome =>
             {
-                return Result<LoginResultDto>.Ok(outcome.Response);
+                return Result<AuthenticatedSessionDto>.Ok(AuthenticatedSessionMapper.From(outcome));
             },
             error =>
             {
-                return Result<LoginResultDto>.Fail(error);
+                return Result<AuthenticatedSessionDto>.Fail(error);
             }));
     }
 
@@ -214,6 +223,7 @@ public sealed class AuthController : BaseApiController
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpPost("two-factor/enrol")]
     [Authorize]
+    [AllowDuringTwoFactorEnrolment]
     [ProducesResponseType(typeof(TotpEnrolmentDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     public async Task<IActionResult> BeginTwoFactorEnrolmentAsync(CancellationToken cancellationToken)
@@ -227,6 +237,7 @@ public sealed class AuthController : BaseApiController
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpPost("two-factor/confirm")]
     [Authorize]
+    [AllowDuringTwoFactorEnrolment]
     [ProducesResponseType(typeof(RecoveryCodesDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
@@ -235,7 +246,7 @@ public sealed class AuthController : BaseApiController
         CancellationToken cancellationToken)
     {
         var command = new ConfirmTotpEnrolmentCommand(
-            CurrentUser.UserId, request.Secret, request.Code, CallerIpAddress(), CallerUserAgent());
+            CurrentUser.UserId, request.Secret, request.Code, ClientIpAddress, CallerUserAgent);
         return ToActionResult(await _bus.InvokeAsync<Result<RecoveryCodesDto>>(command, cancellationToken));
     }
 
@@ -252,22 +263,62 @@ public sealed class AuthController : BaseApiController
         CancellationToken cancellationToken)
     {
         var command = new DisableTotpCommand(
-            CurrentUser.UserId, request.Code, CallerIpAddress(), CallerUserAgent());
+            CurrentUser.UserId, request.Code, ClientIpAddress, CallerUserAgent);
         return ToActionResult(await _bus.InvokeAsync<Result<bool>>(command, cancellationToken));
     }
 
-    /// <summary>The caller's address, as recorded on the session and in the audit journal.</summary>
-    /// <returns>The remote address, or a marker when the connection reports none.</returns>
-    private string CallerIpAddress()
+    /// <summary>
+    /// Asks for a password-reset link. Answers the same way whether or not the address belongs to an
+    /// account.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>The response is deliberately uninformative, and that is the feature.</b> Status, body and —
+    /// as far as this panel can make it so — timing are identical for an address that exists and one
+    /// that does not, because any difference between them is a way to test whether somebody holds an
+    /// account here. The handler is where that is enforced; see
+    /// <see cref="RequestPasswordResetCommandHandler"/>.
+    /// </para>
+    /// <para>
+    /// <b>Rate limited on its own bucket</b>, not the login one. What this endpoint spends is an
+    /// outgoing message with the operator's return address on it, and an unlimited one is a mail
+    /// bomb aimed at whatever address the caller names.
+    /// </para>
+    /// </remarks>
+    /// <param name="request">The address to send the link to.</param>
+    /// <param name="cancellationToken">Cancellation token for the request.</param>
+    [HttpPost("forgot-password")]
+    [AllowAnonymous]
+    [EnableRateLimiting(RateLimitPolicies.PasswordReset)]
+    [ProducesResponseType(typeof(bool), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> RequestPasswordResetAsync(
+        [FromBody] RequestPasswordResetRequest request,
+        CancellationToken cancellationToken)
     {
-        return HttpContext.Connection.RemoteIpAddress?.ToString() ?? UnknownIpAddress;
+        var command = new RequestPasswordResetCommand(request.Email, ClientIpAddress, CallerUserAgent);
+        return ToActionResult(await _bus.InvokeAsync<Result<bool>>(command, cancellationToken));
     }
 
-    /// <summary>The caller's user agent, as recorded on the session and in the audit journal.</summary>
-    /// <returns>The header value, truncated to the column's length, or an empty string.</returns>
-    private string CallerUserAgent()
+    /// <summary>Sets a new password from a reset link, and signs the account out everywhere.</summary>
+    /// <remarks>
+    /// Anonymous by necessity: the caller has forgotten their password, and the token IS the
+    /// credential. It is single-use and expires in an hour, and a token that never existed, has
+    /// expired, or has already been spent all get the same refusal — a caller must not learn which.
+    /// </remarks>
+    /// <param name="request">The token from the mail and the new password.</param>
+    /// <param name="cancellationToken">Cancellation token for the request.</param>
+    [HttpPost("reset-password")]
+    [AllowAnonymous]
+    [EnableRateLimiting(RateLimitPolicies.PasswordReset)]
+    [ProducesResponseType(typeof(bool), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> ResetPasswordAsync(
+        [FromBody] ResetPasswordRequest request,
+        CancellationToken cancellationToken)
     {
-        var userAgent = Request.Headers.UserAgent.ToString();
-        return userAgent.Length > 512 ? userAgent[..512] : userAgent;
+        var command = new ResetPasswordCommand(
+            request.Token, request.NewPassword, ClientIpAddress, CallerUserAgent);
+        return ToActionResult(await _bus.InvokeAsync<Result<bool>>(command, cancellationToken));
     }
 }

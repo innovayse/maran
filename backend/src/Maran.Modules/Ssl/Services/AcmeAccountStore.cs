@@ -1,6 +1,6 @@
 using System.Text.Json;
-using Maran.Modules.Ssl.Common;
-using Maran.Modules.Ssl.Domain;
+using Maran.Modules.Ssl.Domain.Entities;
+using Maran.Modules.Ssl.Models;
 using Maran.Modules.Ssl.Persistence;
 using Maran.Modules.Ssl.Resources;
 using Microsoft.Extensions.Logging;
@@ -84,7 +84,7 @@ public sealed class AcmeAccountStore
     {
         if (directory is not { } document)
         {
-            return Result<AcmeRegistration>.Fail(Error.Of(nameof(ErrorMessages.AcmeAuthorityUnreachable)));
+            return Result<AcmeRegistration>.Fail(Error.Of(nameof(ErrorMessages.AcmeAuthorityUnreachable), ErrorType.Unavailable));
         }
 
         var signer = AcmeSigner.CreateNew();
@@ -105,7 +105,7 @@ public sealed class AcmeAccountStore
             var created = await session.PostAsync(Member(document, "newAccount"), payload, cancellationToken);
             if (!created.IsSuccess || created.Value.Location.Length == 0)
             {
-                return Result<AcmeRegistration>.Fail(Error.Of(nameof(ErrorMessages.AcmeAccountRejected)));
+                return Result<AcmeRegistration>.Fail(Error.Of(nameof(ErrorMessages.AcmeAccountRejected), ErrorType.Failure));
             }
 
             _dbContext.AcmeAccounts.Add(new AcmeAccount(

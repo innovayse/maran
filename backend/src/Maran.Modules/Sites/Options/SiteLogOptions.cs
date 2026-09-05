@@ -1,6 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 
-namespace Maran.Modules.Sites.Common.Options;
+namespace Maran.Modules.Sites.Options;
 
 /// <summary>Settings of the site-log stream, validated at startup.</summary>
 public sealed class SiteLogOptions

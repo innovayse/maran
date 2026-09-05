@@ -1,4 +1,4 @@
-using Maran.Modules.Accounts.Domain;
+using Maran.Modules.Accounts.Domain.Entities;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace Maran.Modules.Accounts.Persistence.Configurations;
@@ -29,6 +29,9 @@ public sealed class PlanConfiguration : IEntityTypeConfiguration<Plan>
             .IsRequired();
 
         builder.Property(p => p.MaxSftpUsers)
+            .IsRequired();
+
+        builder.Property(p => p.MaxCronEntries)
             .IsRequired();
 
         builder.Property(p => p.MaxPhpWorkersPerPool)

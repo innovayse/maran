@@ -1,8 +1,8 @@
-using Maran.Modules.Identity.Common.Interfaces;
+using Maran.Modules.Identity.Interfaces;
 using Maran.Modules.Identity.Persistence;
 using Maran.Modules.Identity.Resources;
+using Maran.Modules.Identity.Services;
 using Maran.Sdk.Contracts;
-using Maran.Sdk.Interfaces;
 
 namespace Maran.Modules.Identity.Commands.DisableTotp;
 
@@ -19,23 +19,23 @@ public sealed class DisableTotpCommandHandler
     private readonly IRecoveryCodeService _recoveryCodeService;
 
     /// <summary>Records the change.</summary>
-    private readonly IAuditWriter _auditWriter;
+    private readonly IdentityAuditJournal _journal;
 
     /// <summary>Creates the handler.</summary>
     /// <param name="dbContext">The module's database context.</param>
     /// <param name="totpService">Verifies the proving code.</param>
     /// <param name="recoveryCodeService">Verifies a recovery code and discards the set.</param>
-    /// <param name="auditWriter">Records the change.</param>
+    /// <param name="journal">Records the change.</param>
     public DisableTotpCommandHandler(
         IdentityDbContext dbContext,
         ITotpService totpService,
         IRecoveryCodeService recoveryCodeService,
-        IAuditWriter auditWriter)
+        IdentityAuditJournal journal)
     {
         _dbContext = dbContext;
         _totpService = totpService;
         _recoveryCodeService = recoveryCodeService;
-        _auditWriter = auditWriter;
+        _journal = journal;
     }
 
     /// <summary>Removes the factor, but only for someone who can still use it.</summary>
@@ -51,12 +51,12 @@ public sealed class DisableTotpCommandHandler
         var user = await _dbContext.Users.SingleOrDefaultAsync(u => u.Id == command.UserId, cancellationToken);
         if (user is null)
         {
-            return Result<bool>.Fail(Error.Of(nameof(ErrorMessages.UserNotFound)));
+            return Result<bool>.Fail(Error.Of(nameof(ErrorMessages.UserNotFound), ErrorType.NotFound));
         }
 
         if (!user.IsTotpEnabled || user.TotpSecret is null)
         {
-            return Result<bool>.Fail(Error.Of(nameof(ErrorMessages.TwoFactorNotEnabledForbidden)));
+            return Result<bool>.Fail(Error.Of(nameof(ErrorMessages.TwoFactorNotEnabledForbidden), ErrorType.Forbidden));
         }
 
         var accepted = _totpService.Verify(user.TotpSecret, command.Code, user.LastTotpWindow, out var window);
@@ -66,7 +66,7 @@ public sealed class DisableTotpCommandHandler
         }
         else if (!await _recoveryCodeService.ConsumeAsync(user.Id, command.Code, cancellationToken))
         {
-            return Result<bool>.Fail(Error.Of(nameof(ErrorMessages.InvalidTwoFactorCodeUnauthorized)));
+            return Result<bool>.Fail(Error.Of(nameof(ErrorMessages.InvalidTwoFactorCodeUnauthorized), ErrorType.Unauthorized));
         }
 
         user.DisableTotp();
@@ -76,15 +76,13 @@ public sealed class DisableTotpCommandHandler
         // of paper satisfy a factor enrolled later with a different secret.
         await _recoveryCodeService.DiscardAsync(user.Id, cancellationToken);
 
-        await _auditWriter.WriteAsync(
-            new AuditEntry(
-                user.Id,
-                user.Username,
-                AuditActions.TwoFactorDisabled,
-                user.Username,
-                command.IpAddress,
-                command.UserAgent,
-                Succeeded: true),
+        await _journal.RecordClaimAsync(
+            user.Id,
+            user.Username,
+            AuditActions.TwoFactorDisabled,
+            command.IpAddress,
+            command.UserAgent,
+            succeeded: true,
             cancellationToken);
 
         return Result<bool>.Ok(true);

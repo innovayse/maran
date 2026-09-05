@@ -2,6 +2,7 @@ using Maran.Agent.Client.Interfaces;
 using Maran.Modules.Sftp.Common;
 using Maran.Modules.Sftp.Persistence;
 using Maran.Modules.Sftp.Resources;
+using Maran.Modules.Sftp.Services;
 using Maran.Sdk.Contracts;
 using Maran.Sdk.Interfaces;
 using Maran.SharedKernel.Security;
@@ -91,7 +92,7 @@ public sealed class ResetSftpUserPasswordCommandHandler
             return await FailAsync(
                 command,
                 command.SftpUserId.ToString(),
-                nameof(ErrorMessages.SftpUserNotFound),
+                Error.Of(nameof(ErrorMessages.SftpUserNotFound), ErrorType.NotFound),
                 cancellationToken);
         }
 
@@ -99,7 +100,7 @@ public sealed class ResetSftpUserPasswordCommandHandler
         if (account is null)
         {
             return await FailAsync(
-                command, sftpUser.Name, nameof(ErrorMessages.AccountNotFound), cancellationToken);
+                command, sftpUser.Name, Error.Of(nameof(ErrorMessages.AccountNotFound), ErrorType.NotFound), cancellationToken);
         }
 
         var password = ProvisionedPasswordGenerator.Generate();
@@ -108,7 +109,7 @@ public sealed class ResetSftpUserPasswordCommandHandler
             account.Username, sftpUser.Name, password, cancellationToken);
         if (!installed.IsSuccess)
         {
-            return await FailAsync(command, sftpUser.Name, installed.Error!.Code, cancellationToken);
+            return await FailAsync(command, sftpUser.Name, installed.Error!, cancellationToken);
         }
 
         // The name, never the value. An entry recording which password was set would be the journal
@@ -128,18 +129,18 @@ public sealed class ResetSftpUserPasswordCommandHandler
     /// <summary>Journals a refused reset and returns it as the typed failure.</summary>
     /// <param name="command">The reset that was refused.</param>
     /// <param name="subject">The login's name, or the supplied identifier when no row was found.</param>
-    /// <param name="code">The machine-stable code to answer with.</param>
+    /// <param name="error">The typed failure to answer with, code and kind together.</param>
     /// <param name="cancellationToken">Cancels the journal write.</param>
-    /// <returns>The failed result carrying <paramref name="code"/>.</returns>
+    /// <returns>The failed result carrying <paramref name="error"/>.</returns>
     private async Task<Result<SftpUserPasswordDto>> FailAsync(
         ResetSftpUserPasswordCommand command,
         string subject,
-        string code,
+        Error error,
         CancellationToken cancellationToken)
     {
         await _journal.RecordFailureAsync(
             AuditActions.SftpUserPasswordReset, subject, command.IpAddress, command.UserAgent, cancellationToken);
 
-        return Result<SftpUserPasswordDto>.Fail(Error.Of(code));
+        return Result<SftpUserPasswordDto>.Fail(error);
     }
 }

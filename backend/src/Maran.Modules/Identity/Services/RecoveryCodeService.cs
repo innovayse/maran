@@ -1,6 +1,6 @@
 using System.Security.Cryptography;
-using Maran.Modules.Identity.Common.Interfaces;
-using Maran.Modules.Identity.Domain;
+using Maran.Modules.Identity.Domain.Entities;
+using Maran.Modules.Identity.Interfaces;
 using Maran.Modules.Identity.Persistence;
 
 namespace Maran.Modules.Identity.Services;

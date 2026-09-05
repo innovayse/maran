@@ -49,8 +49,16 @@ public sealed class Program
 
         var app = builder.Build();
 
-        // First in the pipeline, before anything reads an address: the rate limiter partitions on
-        // it, the audit journal records it, and both must see the caller rather than nginx.
+        // Before the pipeline serves anything: the panel's listening socket is its trust boundary,
+        // and Kestrel creates it world-connectable.
+        app.UsePanelListenSocketGuard();
+
+        // First two in the pipeline, before anything reads an address: the rate limiter partitions
+        // on it, the audit journal records it, and both must see the caller rather than nginx.
+        // The order of this pair is load-bearing — UsePanelPeerAddress feeds UseForwardedHeaders
+        // the peer address it compares against KnownProxies, and over a unix socket there is no
+        // such address until it does.
+        app.UsePanelPeerAddress();
         app.UseForwardedHeaders();
         app.UseSecurityHeaders();
         app.UseCorrelationId();
@@ -64,7 +72,6 @@ public sealed class Program
         app.MapPanelHealth();
         app.MapModuleCatalogue();
         app.MapControllers();
-        app.MapPanelModules();
 
         app.Run();
     }

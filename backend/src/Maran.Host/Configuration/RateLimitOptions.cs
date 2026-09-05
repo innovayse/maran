@@ -28,6 +28,19 @@ public sealed class RateLimitOptions
     [Range(1, 86_400)]
     public int LoginLockoutSeconds { get; set; } = 300;
 
+    /// <summary>Password-reset requests allowed from one address within <see cref="PasswordResetWindowSeconds"/>.</summary>
+    /// <remarks>
+    /// Small on purpose. A person who has forgotten their password asks once, looks at their mail,
+    /// and perhaps asks again; three in the window covers that with room to spare. Every request
+    /// above it is somebody using the panel to send mail to an address they chose.
+    /// </remarks>
+    [Range(1, 100)]
+    public int PasswordResetMaxRequests { get; set; } = 3;
+
+    /// <summary>Length of the sliding window password-reset requests are counted over, in seconds.</summary>
+    [Range(1, 86_400)]
+    public int PasswordResetWindowSeconds { get; set; } = 900;
+
     /// <summary>Requests allowed per authenticated account (or IP, when anonymous) within <see cref="ApiWindowSeconds"/>.</summary>
     [Range(1, 100_000)]
     public int ApiPermitLimit { get; set; } = 300;

@@ -1,5 +1,5 @@
-using Maran.Modules.Identity.Common.Options;
 using Maran.Modules.Identity.Domain.Enums;
+using Maran.Modules.Identity.Options;
 using Maran.Modules.Identity.Persistence;
 using Maran.Modules.Identity.Queries.ListSessions;
 using Maran.Modules.Identity.Services;
@@ -26,7 +26,7 @@ public sealed class ListSessionsQueryHandlerTests : IDisposable
 
     private SessionService NewSessionService()
     {
-        return new SessionService(_context, _clock, Options.Create(new JwtOptions { RefreshTokenDays = 14 }));
+        return new SessionService(_context, _clock, new OptionsWrapper<JwtOptions>(new JwtOptions { RefreshTokenDays = 14 }));
     }
 
     private ListSessionsQueryHandler NewHandler()

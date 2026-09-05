@@ -35,9 +35,6 @@ namespace Maran.Modules.Ssl.Controllers;
 [EnableRateLimiting(RateLimitPolicies.Api)]
 public sealed class CertificatesController : BaseApiController
 {
-    /// <summary>Recorded when the connection reports no remote address, as in a test host.</summary>
-    private const string UnknownIpAddress = "unknown";
-
     /// <summary>The message bus commands and queries are dispatched through.</summary>
     private readonly IMessageBus _bus;
 
@@ -75,7 +72,7 @@ public sealed class CertificatesController : BaseApiController
         [FromBody] IssueCertificateRequest request,
         CancellationToken cancellationToken)
     {
-        var command = new IssueCertificateCommand(request.Domain ?? string.Empty, IpAddress(), UserAgent());
+        var command = new IssueCertificateCommand(request.Domain ?? string.Empty, ClientIpAddress, UserAgent());
         var result = await _bus.InvokeAsync<Result<CertificateDto>>(command, cancellationToken);
         return ToCreatedActionResult(
             result, $"/api/v1/certificates/{(result.IsSuccess ? result.Value.Id : Guid.Empty)}");
@@ -97,7 +94,7 @@ public sealed class CertificatesController : BaseApiController
             request.Domain ?? string.Empty,
             request.CertificatePem ?? string.Empty,
             request.PrivateKeyPem ?? string.Empty,
-            IpAddress(),
+            ClientIpAddress,
             UserAgent());
 
         var result = await _bus.InvokeAsync<Result<CertificateDto>>(command, cancellationToken);
@@ -114,15 +111,8 @@ public sealed class CertificatesController : BaseApiController
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> RemoveAsync(Guid id, CancellationToken cancellationToken)
     {
-        var command = new RemoveCertificateCommand(id, IpAddress(), UserAgent());
+        var command = new RemoveCertificateCommand(id, ClientIpAddress, UserAgent());
         return ToActionResult(await _bus.InvokeAsync<Result<bool>>(command, cancellationToken));
-    }
-
-    /// <summary>Reads the caller's address from the connection, never from a header a caller controls.</summary>
-    /// <returns>The remote address, or <see cref="UnknownIpAddress"/> when the connection reports none.</returns>
-    private string IpAddress()
-    {
-        return HttpContext.Connection.RemoteIpAddress?.ToString() ?? UnknownIpAddress;
     }
 
     /// <summary>Reads the caller's user agent for the audit journal.</summary>

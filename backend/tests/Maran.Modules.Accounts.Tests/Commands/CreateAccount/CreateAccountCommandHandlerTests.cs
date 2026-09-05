@@ -1,8 +1,8 @@
 using Maran.Modules.Accounts.Commands.CreateAccount;
-using Maran.Modules.Accounts.Common;
-using Maran.Modules.Accounts.Domain;
+using Maran.Modules.Accounts.Domain.Entities;
 using Maran.Modules.Accounts.Domain.Enums;
 using Maran.Modules.Accounts.Persistence;
+using Maran.Modules.Accounts.Services;
 using Maran.Modules.Accounts.Tests.TestSupport;
 using Maran.SharedKernel.Results;
 using Microsoft.EntityFrameworkCore;
@@ -132,7 +132,7 @@ public sealed class CreateAccountCommandHandlerTests
         // caller sees the agent's own typed error rather than an account that does not exist.
         await using var dbContext = CreateDbContext();
         var clock = new FakeClock(new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero));
-        var agent = new RecordingAgentAccountsClient(Error.Of("AgentUnavailable"));
+        var agent = new RecordingAgentAccountsClient(Error.Of("AgentUnavailable", ErrorType.Unavailable));
         var handler = new CreateAccountCommandHandler(dbContext, agent, clock, Journal());
         var planId = await SeedPlanAsync(dbContext);
 
@@ -166,7 +166,7 @@ public sealed class CreateAccountCommandHandlerTests
     /// <returns>The seeded plan's id.</returns>
     private static async Task<Guid> SeedPlanAsync(AccountsDbContext dbContext, int diskQuotaMb = 1_024)
     {
-        var plan = new Plan(Guid.NewGuid(), "PlanStarterName", diskQuotaMb, 5, 2, 3, 5);
+        var plan = new Plan(Guid.NewGuid(), "PlanStarterName", diskQuotaMb, 5, 2, 3, 5, 5);
         dbContext.Plans.Add(plan);
         await dbContext.SaveChangesAsync();
         return plan.Id;

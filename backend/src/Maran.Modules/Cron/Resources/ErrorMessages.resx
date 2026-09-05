@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="AccountNotFound">
+    <value>This account could not be found.</value>
+  </data>
+  <data name="CronEntryNotFound">
+    <value>This scheduled task could not be found.</value>
+  </data>
+  <data name="CronEntryAlreadyExists">
+    <value>You already have a scheduled task with this schedule and command.</value>
+  </data>
+  <data name="CronEntryLimitReached">
+    <value>Your plan does not allow any more scheduled tasks.</value>
+  </data>
+  <data name="CronEntryIdInvalid">
+    <value>This scheduled task identifier is not valid.</value>
+  </data>
+  <data name="CronScheduleInvalid">
+    <value>This schedule is not valid. Use five cron fields, such as 0 3 * * 1.</value>
+  </data>
+  <data name="CronCommandInvalid">
+    <value>This command is not valid. It must be a single line and at most 4096 bytes.</value>
+  </data>
+  <data name="CronEnvironmentInvalid">
+    <value>The environment variables sent could not be read.</value>
+  </data>
+  <data name="CronEnvironmentNameInvalid">
+    <value>A variable name may only contain uppercase letters, digits and underscores, and may not start with a digit.</value>
+  </data>
+  <data name="CronEnvironmentNameReserved">
+    <value>MAILTO and SHELL are managed by the server and cannot be set here.</value>
+  </data>
+  <data name="CronEnvironmentValueInvalid">
+    <value>A variable value may not contain a percent sign, a control character, surrounding spaces or wrapping quotes.</value>
+  </data>
+  <data name="CronEnvironmentDuplicateName">
+    <value>The same variable name was sent twice.</value>
+  </data>
+  <data name="CronEnvironmentTooManyVariables">
+    <value>Too many environment variables were sent.</value>
+  </data>
+  <data name="CronOperationFailed">
+    <value>This scheduled task could not be changed. Nothing was altered; please try again.</value>
+  </data>
+</root>

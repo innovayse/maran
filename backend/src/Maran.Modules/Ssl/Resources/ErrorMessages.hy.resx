@@ -15,7 +15,7 @@
   <data name="CertificateNotFound">
     <value>Վկայագիրը չի գտնվել։</value>
   </data>
-  <data name="CertificateAlreadyIssued">
+  <data name="CertificateAlreadyExists">
     <value>Այս տիրույթի համար վկայագիր արդեն թողարկված է։</value>
   </data>
   <data name="CertificateDomainInvalidFormat">

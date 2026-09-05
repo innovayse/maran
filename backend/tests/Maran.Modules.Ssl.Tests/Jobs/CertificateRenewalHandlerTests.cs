@@ -1,8 +1,9 @@
-using Maran.Modules.Ssl.Common;
-using Maran.Modules.Ssl.Common.Interfaces;
 using Maran.Modules.Ssl.Domain.Enums;
+using Maran.Modules.Ssl.Interfaces;
 using Maran.Modules.Ssl.Jobs;
+using Maran.Modules.Ssl.Services;
 using Maran.Modules.Ssl.Tests.TestSupport;
+using Maran.Sdk.Contracts;
 using Maran.SharedKernel.Results;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -26,7 +27,8 @@ public sealed class CertificateRenewalHandlerTests
             fixture.AgentSites,
             fixture.Journal,
             fixture.Clock,
-            NullLogger<CertificateRenewalHandler>.Instance);
+            NullLogger<CertificateRenewalHandler>.Instance,
+            fixture.Tasks);
     }
 
     /// <summary>Seeds one certificate for a fixture's site.</summary>
@@ -124,7 +126,7 @@ public sealed class CertificateRenewalHandlerTests
     public async Task A_failed_renewal_records_a_code_on_the_row_without_moving_the_expiry()
     {
         using var fixture = new SslHandlerFixture(
-            ["soon.example.com"], acmeFailure: Error.Of("AcmeValidationFailed"));
+            ["soon.example.com"], acmeFailure: Error.Of("AcmeValidationFailed", ErrorType.Failure));
         await SeedAsync(fixture, "soon.example.com", 5);
 
         var renewed = await HandlerFor(fixture).HandleAsync(new CertificateRenewalRequested(), CancellationToken.None);
@@ -141,7 +143,7 @@ public sealed class CertificateRenewalHandlerTests
     public async Task A_failed_renewal_is_journalled_so_an_operator_can_see_it_without_watching_the_job()
     {
         using var fixture = new SslHandlerFixture(
-            ["soon.example.com"], acmeFailure: Error.Of("AcmeValidationFailed"));
+            ["soon.example.com"], acmeFailure: Error.Of("AcmeValidationFailed", ErrorType.Failure));
         await SeedAsync(fixture, "soon.example.com", 5);
 
         await HandlerFor(fixture).HandleAsync(new CertificateRenewalRequested(), CancellationToken.None);
@@ -171,7 +173,7 @@ public sealed class CertificateRenewalHandlerTests
     public async Task A_reload_the_agent_refuses_does_not_undo_the_renewals_the_pass_already_made()
     {
         using var fixture = new SslHandlerFixture(
-            ["soon.example.com"], reloadFailure: Error.Of("AgentValidationFailed"));
+            ["soon.example.com"], reloadFailure: Error.Of("AgentValidationFailed", ErrorType.Validation));
         await SeedAsync(fixture, "soon.example.com", 5);
 
         var renewed = await HandlerFor(fixture).HandleAsync(new CertificateRenewalRequested(), CancellationToken.None);
@@ -272,16 +274,18 @@ public sealed class CertificateRenewalHandlerTests
         await HandlerFor(fixture).HandleAsync(new CertificateRenewalRequested(), CancellationToken.None);
 
         var entry = Assert.Single(fixture.Audit.Entries);
-        Assert.Equal(CertificateAuditJournal.SystemActor, entry.ActorUsername);
-        Assert.Equal(CertificateAuditJournal.SystemActor, entry.IpAddress);
+        Assert.Equal(SystemAuditEntry.NameFor(CertificateAuditJournal.ModuleName), entry.ActorUsername);
+        Assert.Null(entry.ActorUserId);
+        Assert.Equal(string.Empty, entry.IpAddress);
+        Assert.Equal(string.Empty, entry.UserAgent);
     }
 
     /// <summary>Finds one stored certificate by domain.</summary>
     /// <param name="stored">Everything the pass left in the table.</param>
     /// <param name="domain">The domain to find.</param>
     /// <returns>That domain's row.</returns>
-    private static Maran.Modules.Ssl.Domain.Certificate Stored(
-        List<Maran.Modules.Ssl.Domain.Certificate> stored,
+    private static Maran.Modules.Ssl.Domain.Entities.Certificate Stored(
+        List<Maran.Modules.Ssl.Domain.Entities.Certificate> stored,
         string domain)
     {
         return stored.Single(certificate =>
@@ -305,6 +309,7 @@ public sealed class CertificateRenewalHandlerTests
             fixture.AgentSites,
             fixture.Journal,
             fixture.Clock,
-            NullLogger<CertificateRenewalHandler>.Instance);
+            NullLogger<CertificateRenewalHandler>.Instance,
+            fixture.Tasks);
     }
 }

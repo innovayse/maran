@@ -26,7 +26,7 @@ namespace Maran.Modules.Ssl.Persistence.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
-            modelBuilder.Entity("Maran.Modules.Ssl.Domain.AcmeAccount", b =>
+            modelBuilder.Entity("Maran.Modules.Ssl.Domain.Entities.AcmeAccount", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -59,7 +59,7 @@ namespace Maran.Modules.Ssl.Persistence.Migrations
                     b.ToTable("AcmeAccounts", "ssl");
                 });
 
-            modelBuilder.Entity("Maran.Modules.Ssl.Domain.Certificate", b =>
+            modelBuilder.Entity("Maran.Modules.Ssl.Domain.Entities.Certificate", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()

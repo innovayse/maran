@@ -1,6 +1,6 @@
 namespace Maran.Modules.Identity.Domain.Enums;
 
-/// <summary>What a panel <see cref="User"/> is allowed to reach (spec §8).</summary>
+/// <summary>What a panel <see cref="Entities.User"/> is allowed to reach (spec §8).</summary>
 public enum UserRole
 {
     /// <summary>Full control of the server and every hosting account on it.</summary>

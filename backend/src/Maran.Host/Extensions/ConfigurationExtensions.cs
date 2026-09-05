@@ -1,6 +1,6 @@
 using System.Diagnostics.CodeAnalysis;
 using Maran.Host.Configuration;
-using Maran.Modules.Identity.Common.Options;
+using Maran.Modules.Identity.Options;
 
 namespace Maran.Host.Extensions;
 
@@ -69,6 +69,14 @@ public static class ConfigurationExtensions
         // that has finished its setup, and it must not stop the boot.
         services.AddOptions<SetupOptions>()
             .Bind(configuration.GetSection(SetupOptions.SectionName));
+
+        // Also no [Required], for a different reason: a panel on TCP (development, and a server
+        // whose installer has not been re-run) never consults the uid, so demanding it would fail
+        // a boot with nothing wrong with it. Absence is refused where it means something instead —
+        // ListenSocketGuard stops a panel that bound a socket without one, and PanelPeerPolicy
+        // permits nobody until one is set.
+        services.AddOptions<ReverseProxyOptions>()
+            .Bind(configuration.GetSection(ReverseProxyOptions.SectionName));
 
         return services;
     }

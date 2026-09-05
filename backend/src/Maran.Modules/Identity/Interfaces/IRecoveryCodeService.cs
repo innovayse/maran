@@ -1,4 +1,4 @@
-namespace Maran.Modules.Identity.Common.Interfaces;
+namespace Maran.Modules.Identity.Interfaces;
 
 /// <summary>Issues and spends the single-use codes that stand in for a lost authenticator.</summary>
 public interface IRecoveryCodeService

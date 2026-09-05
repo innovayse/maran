@@ -79,7 +79,7 @@ public sealed class AgentSitesClient : IAgentSitesClient
                 new CreatedSiteDto(response.Ok.DocumentRoot)),
             CreateSiteResponse.ResultOneofCase.Error => Result<CreatedSiteDto>.Fail(
                 AgentErrorTranslator.ToError(_logger, response.Error, nameof(CreateAsync))),
-            _ => Result<CreatedSiteDto>.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse))),
+            _ => Result<CreatedSiteDto>.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
         };
     }
 
@@ -115,7 +115,7 @@ public sealed class AgentSitesClient : IAgentSitesClient
             UpdateSitePhpVersionResponse.ResultOneofCase.Ok => Result<bool>.Ok(true),
             UpdateSitePhpVersionResponse.ResultOneofCase.Error => Result<bool>.Fail(
                 AgentErrorTranslator.ToError(_logger, response.Error, nameof(ChangePhpVersionAsync))),
-            _ => Result<bool>.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse))),
+            _ => Result<bool>.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
         };
     }
 
@@ -139,7 +139,7 @@ public sealed class AgentSitesClient : IAgentSitesClient
             EnableSiteResponse.ResultOneofCase.Ok => Result<bool>.Ok(true),
             EnableSiteResponse.ResultOneofCase.Error => Result<bool>.Fail(
                 AgentErrorTranslator.ToError(_logger, response.Error, nameof(EnableAsync))),
-            _ => Result<bool>.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse))),
+            _ => Result<bool>.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
         };
     }
 
@@ -163,7 +163,7 @@ public sealed class AgentSitesClient : IAgentSitesClient
             DisableSiteResponse.ResultOneofCase.Ok => Result<bool>.Ok(true),
             DisableSiteResponse.ResultOneofCase.Error => Result<bool>.Fail(
                 AgentErrorTranslator.ToError(_logger, response.Error, nameof(DisableAsync))),
-            _ => Result<bool>.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse))),
+            _ => Result<bool>.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
         };
     }
 
@@ -187,7 +187,7 @@ public sealed class AgentSitesClient : IAgentSitesClient
             DeleteSiteResponse.ResultOneofCase.Ok => Result<bool>.Ok(true),
             DeleteSiteResponse.ResultOneofCase.Error => Result<bool>.Fail(
                 AgentErrorTranslator.ToError(_logger, response.Error, nameof(DeleteAsync))),
-            _ => Result<bool>.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse))),
+            _ => Result<bool>.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
         };
     }
 
@@ -201,7 +201,7 @@ public sealed class AgentSitesClient : IAgentSitesClient
             ReloadWebServerResponse.ResultOneofCase.Ok => Result<bool>.Ok(true),
             ReloadWebServerResponse.ResultOneofCase.Error => Result<bool>.Fail(
                 AgentErrorTranslator.ToError(_logger, response.Error, nameof(ReloadWebServerAsync))),
-            _ => Result<bool>.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse))),
+            _ => Result<bool>.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
         };
     }
 

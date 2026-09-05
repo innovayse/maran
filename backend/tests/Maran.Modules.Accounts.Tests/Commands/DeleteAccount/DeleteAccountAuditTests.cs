@@ -1,7 +1,7 @@
 using Maran.Modules.Accounts.Commands.DeleteAccount;
-using Maran.Modules.Accounts.Common;
-using Maran.Modules.Accounts.Domain;
+using Maran.Modules.Accounts.Domain.Entities;
 using Maran.Modules.Accounts.Persistence;
+using Maran.Modules.Accounts.Services;
 using Maran.Modules.Accounts.Tests.TestSupport;
 using Maran.Sdk.Contracts;
 using Maran.SharedKernel.Results;
@@ -59,7 +59,7 @@ public sealed class DeleteAccountAuditTests : IDisposable
         var bus = new StubMessageBus();
 
         var result = await DeleteAsync(
-            new RecordingAgentAccountsClient(Error.Of("AgentSystemFailure")), bus, account.Id);
+            new RecordingAgentAccountsClient(Error.Of("AgentSystemFailure", ErrorType.Failure)), bus, account.Id);
 
         Assert.Equal("AgentSystemFailure", result.Error!.Code);
         Assert.Single(bus.Invoked);
@@ -152,7 +152,10 @@ public sealed class DeleteAccountAuditTests : IDisposable
             agent,
             bus,
             NullLogger<DeleteAccountCommandHandler>.Instance,
-            new AccountAuditJournal(_audit, FakeCurrentUser.Admin()));
+            new AccountAuditJournal(_audit, FakeCurrentUser.Admin()),
+            new RecordingTaskRecorder(),
+            new StubAccountResidueAuditor(),
+            new StubCorrelationIdAccessor(null));
 
         return handler.HandleAsync(new DeleteAccountCommand(accountId, Ip, Client), CancellationToken.None);
     }

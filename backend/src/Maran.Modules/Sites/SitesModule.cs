@@ -1,6 +1,5 @@
 using System.Resources;
-using Maran.Modules.Sites.Common;
-using Maran.Modules.Sites.Common.Options;
+using Maran.Modules.Sites.Options;
 using Maran.Modules.Sites.Persistence;
 using Maran.Modules.Sites.Services;
 using Maran.Sdk.Contracts;
@@ -82,12 +81,5 @@ public sealed class SitesModule : IPanelModule
 
         services.AddSingleton(new ResourceManager(ErrorMessagesResourceBaseName, typeof(SitesModule).Assembly));
         services.AddSingleton(new ResourceManager(DisplayNamesResourceBaseName, typeof(SitesModule).Assembly));
-    }
-
-    /// <inheritdoc />
-    public void MapEndpoints(IEndpointRouteBuilder endpoints)
-    {
-        // Controllers are discovered by ASP.NET Core's controller model (Program.cs calls
-        // MapControllers() once for the whole app) — this module has no endpoints to map by hand.
     }
 }

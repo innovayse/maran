@@ -1,7 +1,8 @@
+using System.Buffers.Text;
 using System.Security.Cryptography;
 using System.Text;
 
-namespace Maran.Modules.Identity.Common;
+namespace Maran.SharedKernel.Utilities.Tokens;
 
 /// <summary>
 /// Generates refresh tokens and reduces them to the digest stored beside a session.
@@ -13,6 +14,16 @@ namespace Maran.Modules.Identity.Common;
 /// milliseconds on every refresh — a call the SPA makes on every page load. rules/security.md
 /// item 9 bans MD5 and SHA-1 for anything security-relevant; SHA-256 over a full-entropy secret is
 /// exactly what it is for.
+///
+/// <b>Why <c>Utilities/Tokens/</c> and not <c>Security/</c>, given that
+/// <see cref="SharedKernel.Security.Argon2idPasswordHasher"/> also hashes.</b> The line the map
+/// draws is not "hashing" — it is whether the output depends on anything but the input.
+/// This type is a pure deterministic function: no key, no salt, no cost parameters, no
+/// registration, nothing an operator can configure. <c>Security/</c> holds the things that carry a
+/// secret or state a policy — the encryption key, the Argon2id cost parameters and the rehash
+/// upgrade path they drive, the redaction floor, the sensitive-string types. A digest with no
+/// dial on it is a utility, and it sits beside the other pure rules the whole panel may ask
+/// (rules/csharp.md, "Security/, Utilities/ and a module's Common/").
 /// </remarks>
 public static class RefreshTokenHasher
 {
@@ -23,7 +34,7 @@ public static class RefreshTokenHasher
     /// <returns>A base64url-encoded token, safe to put in a cookie.</returns>
     public static string Generate()
     {
-        return Base64UrlEncode(RandomNumberGenerator.GetBytes(TokenBytes));
+        return Base64Url.EncodeToString(RandomNumberGenerator.GetBytes(TokenBytes));
     }
 
     /// <summary>Reduces a token to the digest stored in the database.</summary>
@@ -32,13 +43,5 @@ public static class RefreshTokenHasher
     public static string Hash(string token)
     {
         return Convert.ToBase64String(SHA256.HashData(Encoding.UTF8.GetBytes(token)));
-    }
-
-    /// <summary>Encodes bytes in the URL- and cookie-safe base64 alphabet, without padding.</summary>
-    /// <param name="value">The bytes to encode.</param>
-    /// <returns>The encoded text.</returns>
-    private static string Base64UrlEncode(byte[] value)
-    {
-        return Convert.ToBase64String(value).TrimEnd('=').Replace('+', '-').Replace('/', '_');
     }
 }

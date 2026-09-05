@@ -1,9 +1,9 @@
-using Maran.Modules.Identity.Common.Interfaces;
 using Maran.Modules.Identity.Domain.Enums;
+using Maran.Modules.Identity.Interfaces;
 using Maran.Modules.Identity.Persistence;
 using Maran.Modules.Identity.Resources;
+using Maran.Modules.Identity.Services;
 using Maran.Sdk.Contracts;
-using Maran.Sdk.Interfaces;
 
 namespace Maran.Modules.Identity.Commands.RevokeSession;
 
@@ -17,20 +17,20 @@ public sealed class RevokeSessionCommandHandler
     private readonly ISessionService _sessionService;
 
     /// <summary>Records the revocation.</summary>
-    private readonly IAuditWriter _auditWriter;
+    private readonly IdentityAuditJournal _journal;
 
     /// <summary>Creates the handler.</summary>
     /// <param name="dbContext">The module's database context.</param>
     /// <param name="sessionService">Revokes the session.</param>
-    /// <param name="auditWriter">Records the revocation.</param>
+    /// <param name="journal">Records the revocation.</param>
     public RevokeSessionCommandHandler(
         IdentityDbContext dbContext,
         ISessionService sessionService,
-        IAuditWriter auditWriter)
+        IdentityAuditJournal journal)
     {
         _dbContext = dbContext;
         _sessionService = sessionService;
-        _auditWriter = auditWriter;
+        _journal = journal;
     }
 
     /// <summary>Ends the session, provided it belongs to the caller.</summary>
@@ -49,20 +49,18 @@ public sealed class RevokeSessionCommandHandler
 
         if (session is null)
         {
-            return Result<bool>.Fail(Error.Of(nameof(ErrorMessages.SessionNotFound)));
+            return Result<bool>.Fail(Error.Of(nameof(ErrorMessages.SessionNotFound), ErrorType.NotFound));
         }
 
         await _sessionService.RevokeAsync(command.SessionId, SessionRevocationReason.Logout, cancellationToken);
 
-        await _auditWriter.WriteAsync(
-            new AuditEntry(
-                command.UserId,
-                string.Empty,
-                AuditActions.SessionRevoked,
-                command.SessionId.ToString(),
-                command.IpAddress,
-                command.UserAgent,
-                Succeeded: true),
+        await _journal.RecordIdentifiedAsync(
+            command.UserId,
+            AuditActions.SessionRevoked,
+            command.SessionId.ToString(),
+            command.IpAddress,
+            command.UserAgent,
+            succeeded: true,
             cancellationToken);
 
         return Result<bool>.Ok(true);

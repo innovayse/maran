@@ -1,7 +1,8 @@
 using Maran.Agent.Client.Interfaces;
-using Maran.Modules.Ssl.Common;
+using Maran.Modules.Ssl.Mappers;
 using Maran.Modules.Ssl.Persistence;
 using Maran.Modules.Ssl.Resources;
+using Maran.Modules.Ssl.Services;
 using Maran.Sdk.Contracts;
 using Maran.Sdk.Interfaces;
 
@@ -76,31 +77,31 @@ public sealed class RemoveCertificateCommandHandler
         if (certificate is null)
         {
             return await FailAsync(
-                command.Id.ToString(), nameof(ErrorMessages.CertificateNotFound), command, cancellationToken);
+                command.Id.ToString(), Error.Of(nameof(ErrorMessages.CertificateNotFound), ErrorType.NotFound), command, cancellationToken);
         }
 
         var site = await _sites.FindByDomainAsync(certificate.Domain, cancellationToken);
         if (site is null)
         {
             return await FailAsync(
-                certificate.Domain, nameof(ErrorMessages.SiteNotFound), command, cancellationToken);
+                certificate.Domain, Error.Of(nameof(ErrorMessages.SiteNotFound), ErrorType.NotFound), command, cancellationToken);
         }
 
         var account = await _accounts.FindAsync(certificate.AccountId, cancellationToken);
         if (account is null)
         {
             return await FailAsync(
-                certificate.Domain, nameof(ErrorMessages.AccountNotFound), command, cancellationToken);
+                certificate.Domain, Error.Of(nameof(ErrorMessages.AccountNotFound), ErrorType.NotFound), command, cancellationToken);
         }
 
         var removed = await _agent.RemoveCertificateAsync(
             account.Username,
             certificate.Domain,
-            SiteDescriptorFactory.From(site, hasCertificate: false),
+            SiteDescriptorMapper.From(site, hasCertificate: false),
             cancellationToken);
         if (!removed.IsSuccess)
         {
-            return await FailAsync(certificate.Domain, removed.Error!.Code, command, cancellationToken);
+            return await FailAsync(certificate.Domain, removed.Error!, command, cancellationToken);
         }
 
         // The ROW's own linkage, not the site the domain lookup happened to return. The two agree
@@ -127,19 +128,19 @@ public sealed class RemoveCertificateCommandHandler
     /// The domain where one is known; otherwise the identifier the caller supplied, so a probe for a
     /// certificate the caller may not see still leaves a trace naming what was probed for.
     /// </param>
-    /// <param name="code">The machine-stable code to answer with.</param>
+    /// <param name="error">The typed failure to answer with, code and kind together.</param>
     /// <param name="command">The removal that was refused.</param>
     /// <param name="cancellationToken">Cancels the journal write.</param>
-    /// <returns>The failed result carrying <paramref name="code"/>.</returns>
+    /// <returns>The failed result carrying <paramref name="error"/>.</returns>
     private async Task<Result<bool>> FailAsync(
         string subject,
-        string code,
+        Error error,
         RemoveCertificateCommand command,
         CancellationToken cancellationToken)
     {
         await _journal.RecordFailureAsync(
             AuditActions.CertificateRemoved, subject, command.IpAddress, command.UserAgent, cancellationToken);
 
-        return Result<bool>.Fail(Error.Of(code));
+        return Result<bool>.Fail(error);
     }
 }

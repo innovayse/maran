@@ -30,7 +30,7 @@ public sealed class GetAccountQueryHandler
             .SingleOrDefaultAsync(cancellationToken);
 
         return account is null
-            ? Result<AccountDetailDto>.Fail(Error.Of(nameof(ErrorMessages.AccountNotFound)))
+            ? Result<AccountDetailDto>.Fail(Error.Of(nameof(ErrorMessages.AccountNotFound), ErrorType.NotFound))
             : Result<AccountDetailDto>.Ok(account);
     }
 }

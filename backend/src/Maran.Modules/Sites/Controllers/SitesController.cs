@@ -35,9 +35,6 @@ namespace Maran.Modules.Sites.Controllers;
 [EnableRateLimiting(RateLimitPolicies.Api)]
 public sealed class SitesController : BaseApiController
 {
-    /// <summary>Recorded when the connection reports no remote address, as in a test host.</summary>
-    private const string UnknownIpAddress = "unknown";
-
     /// <summary>The message bus commands and queries are dispatched through.</summary>
     private readonly IMessageBus _bus;
 
@@ -108,7 +105,7 @@ public sealed class SitesController : BaseApiController
             request.BackendType,
             request.PhpVersion ?? string.Empty,
             request.ProxyUpstream ?? string.Empty,
-            IpAddress(),
+            ClientIpAddress,
             UserAgent());
 
         var result = await _bus.InvokeAsync<Result<SiteDto>>(command, cancellationToken);
@@ -129,7 +126,7 @@ public sealed class SitesController : BaseApiController
         [FromBody] ChangeSitePhpVersionRequest request,
         CancellationToken cancellationToken)
     {
-        var command = new ChangeSitePhpVersionCommand(id, request.PhpVersion, IpAddress(), UserAgent());
+        var command = new ChangeSitePhpVersionCommand(id, request.PhpVersion, ClientIpAddress, UserAgent());
         return ToActionResult(await _bus.InvokeAsync<Result<SiteDto>>(command, cancellationToken));
     }
 
@@ -142,7 +139,7 @@ public sealed class SitesController : BaseApiController
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> EnableAsync(Guid id, CancellationToken cancellationToken)
     {
-        var command = new EnableSiteCommand(id, IpAddress(), UserAgent());
+        var command = new EnableSiteCommand(id, ClientIpAddress, UserAgent());
         return ToActionResult(await _bus.InvokeAsync<Result<SiteDto>>(command, cancellationToken));
     }
 
@@ -155,7 +152,7 @@ public sealed class SitesController : BaseApiController
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> DisableAsync(Guid id, CancellationToken cancellationToken)
     {
-        var command = new DisableSiteCommand(id, IpAddress(), UserAgent());
+        var command = new DisableSiteCommand(id, ClientIpAddress, UserAgent());
         return ToActionResult(await _bus.InvokeAsync<Result<SiteDto>>(command, cancellationToken));
     }
 
@@ -168,7 +165,7 @@ public sealed class SitesController : BaseApiController
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> DeleteAsync(Guid id, CancellationToken cancellationToken)
     {
-        var command = new DeleteSiteCommand(id, IpAddress(), UserAgent());
+        var command = new DeleteSiteCommand(id, ClientIpAddress, UserAgent());
         return ToActionResult(await _bus.InvokeAsync<Result<bool>>(command, cancellationToken));
     }
 
@@ -224,7 +221,7 @@ public sealed class SitesController : BaseApiController
         CancellationToken cancellationToken)
     {
         var target = await _logTail.ResolveAsync(
-            id, request.Source, request.HistoryLines, IpAddress(), UserAgent(), cancellationToken);
+            id, request.Source, request.HistoryLines, ClientIpAddress, UserAgent(), cancellationToken);
         if (!target.IsSuccess)
         {
             return ToActionResult(target);
@@ -235,13 +232,6 @@ public sealed class SitesController : BaseApiController
         // a stream that only ends when the operator stops watching.
         await _logStreamWriter.WriteAsync(Response, _logTail.ReadAsync(target.Value, cancellationToken), cancellationToken);
         return new EmptyResult();
-    }
-
-    /// <summary>Reads the caller's address from the connection, never from a header a caller controls.</summary>
-    /// <returns>The remote address, or <see cref="UnknownIpAddress"/> when the connection reports none.</returns>
-    private string IpAddress()
-    {
-        return HttpContext.Connection.RemoteIpAddress?.ToString() ?? UnknownIpAddress;
     }
 
     /// <summary>Reads the caller's user agent for the audit journal.</summary>

@@ -26,7 +26,7 @@ namespace Maran.Modules.Identity.Persistence.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
-            modelBuilder.Entity("Maran.Modules.Identity.Domain.AuditEvent", b =>
+            modelBuilder.Entity("Maran.Modules.Identity.Domain.Entities.AuditEvent", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -82,7 +82,7 @@ namespace Maran.Modules.Identity.Persistence.Migrations
                     b.ToTable("AuditEvents", "identity");
                 });
 
-            modelBuilder.Entity("Maran.Modules.Identity.Domain.RecoveryCode", b =>
+            modelBuilder.Entity("Maran.Modules.Identity.Domain.Entities.RecoveryCode", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -107,7 +107,7 @@ namespace Maran.Modules.Identity.Persistence.Migrations
                     b.ToTable("RecoveryCodes", "identity");
                 });
 
-            modelBuilder.Entity("Maran.Modules.Identity.Domain.Session", b =>
+            modelBuilder.Entity("Maran.Modules.Identity.Domain.Entities.Session", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -162,7 +162,7 @@ namespace Maran.Modules.Identity.Persistence.Migrations
                     b.ToTable("Sessions", "identity");
                 });
 
-            modelBuilder.Entity("Maran.Modules.Identity.Domain.User", b =>
+            modelBuilder.Entity("Maran.Modules.Identity.Domain.Entities.User", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -220,9 +220,9 @@ namespace Maran.Modules.Identity.Persistence.Migrations
                     b.ToTable("Users", "identity");
                 });
 
-            modelBuilder.Entity("Maran.Modules.Identity.Domain.RecoveryCode", b =>
+            modelBuilder.Entity("Maran.Modules.Identity.Domain.Entities.RecoveryCode", b =>
                 {
-                    b.HasOne("Maran.Modules.Identity.Domain.User", null)
+                    b.HasOne("Maran.Modules.Identity.Domain.Entities.User", null)
                         .WithMany()
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
@@ -230,9 +230,9 @@ namespace Maran.Modules.Identity.Persistence.Migrations
                         .HasConstraintName("FK_RecoveryCodes_Users_UserId");
                 });
 
-            modelBuilder.Entity("Maran.Modules.Identity.Domain.Session", b =>
+            modelBuilder.Entity("Maran.Modules.Identity.Domain.Entities.Session", b =>
                 {
-                    b.HasOne("Maran.Modules.Identity.Domain.User", null)
+                    b.HasOne("Maran.Modules.Identity.Domain.Entities.User", null)
                         .WithMany()
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)

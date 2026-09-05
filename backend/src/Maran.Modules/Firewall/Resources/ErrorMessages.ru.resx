@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="RulePortInvalid">
+    <value>Правило брандмауэра должно указывать порт от 1 до 65535.</value>
+  </data>
+  <data name="RuleProtocolInvalid">
+    <value>Правило брандмауэра применяется к TCP или к UDP.</value>
+  </data>
+  <data name="RuleSourceCidrInvalid">
+    <value>Диапазон источника указывается в нотации CIDR, без битов хоста за пределами префикса.</value>
+  </data>
+  <data name="BanAddressInvalid">
+    <value>Это не адрес, который брандмауэр может заблокировать.</value>
+  </data>
+  <data name="BanAddressLoopback">
+    <value>Адрес обратной петли заблокировать нельзя: этот узел пропускает трафик обратной петли до того, как проверяются блокировки, поэтому такая блокировка ничего не остановит. Заблокируйте адрес, с которого трафик приходит на сервер, — тот, что показан для соединения, а не 127.0.0.1 или ::1.</value>
+  </data>
+  <data name="BanDurationInvalid">
+    <value>Блокировка длится от одной минуты до одного года; оставьте срок пустым для постоянной блокировки.</value>
+  </data>
+  <data name="BanNotFound">
+    <value>Для этого адреса нет действующей блокировки.</value>
+  </data>
+  <data name="WhitelistCidrInvalid">
+    <value>Диапазон указывается в нотации CIDR, без битов хоста за пределами префикса.</value>
+  </data>
+  <data name="WhitelistCidrTaken">
+    <value>Этот диапазон уже есть в белом списке.</value>
+  </data>
+  <data name="WhitelistEntryNotFound">
+    <value>Запись белого списка не найдена.</value>
+  </data>
+  <data name="WhitelistEntryProtectsCaller">
+    <value>Удаление этого диапазона снимет исключение с адреса, с которого вы подключены, и тогда опечатка в пароле может закрыть вам доступ к этому серверу. Добавьте исключение, которое тоже покрывает этот адрес, и удалите это после, либо удалите его, подключившись с другого адреса.</value>
+  </data>
+</root>

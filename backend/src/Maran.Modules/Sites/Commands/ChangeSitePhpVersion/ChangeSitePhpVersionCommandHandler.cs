@@ -1,10 +1,12 @@
 using Maran.Agent.Client.Interfaces;
 using Maran.Agent.Client.Services.PhpService;
 using Maran.Modules.Sites.Common;
-using Maran.Modules.Sites.Domain;
+using Maran.Modules.Sites.Domain.Entities;
 using Maran.Modules.Sites.Domain.Enums;
+using Maran.Modules.Sites.Mappers;
 using Maran.Modules.Sites.Persistence;
 using Maran.Modules.Sites.Resources;
+using Maran.Modules.Sites.Services;
 using Maran.Sdk.Contracts;
 using Maran.Sdk.Interfaces;
 
@@ -81,7 +83,7 @@ public sealed class ChangeSitePhpVersionCommandHandler
         {
             // The subject is the identifier the caller supplied, because no domain is known — a
             // probe for a site the caller may not see still leaves a trace naming what was probed for.
-            return await FailAsync(command, command.SiteId.ToString(), nameof(ErrorMessages.SiteNotFound), cancellationToken);
+            return await FailAsync(command, command.SiteId.ToString(), Error.Of(nameof(ErrorMessages.SiteNotFound), ErrorType.NotFound), cancellationToken);
         }
 
         // A site whose backend is not PHP has no PHP version to change. Without this the agent is
@@ -90,19 +92,19 @@ public sealed class ChangeSitePhpVersionCommandHandler
         // no renderer can make sense of and nothing else in the module would ever produce.
         if (site.BackendType != SiteBackendType.Php)
         {
-            return await FailAsync(command, site.Domain, nameof(ErrorMessages.SiteBackendNotPhp), cancellationToken);
+            return await FailAsync(command, site.Domain, Error.Of(nameof(ErrorMessages.SiteBackendNotPhp), ErrorType.Validation), cancellationToken);
         }
 
         var account = await _accounts.FindAsync(site.AccountId, cancellationToken);
         if (account is null)
         {
-            return await FailAsync(command, site.Domain, nameof(ErrorMessages.AccountNotFound), cancellationToken);
+            return await FailAsync(command, site.Domain, Error.Of(nameof(ErrorMessages.AccountNotFound), ErrorType.NotFound), cancellationToken);
         }
 
         var versions = await _php.ListVersionsAsync(cancellationToken);
         if (!versions.IsSuccess)
         {
-            return await FailAsync(command, site.Domain, versions.Error!.Code, cancellationToken);
+            return await FailAsync(command, site.Domain, versions.Error!, cancellationToken);
         }
 
         // "The agent could not be asked" and "the version is not installed" are different answers
@@ -113,17 +115,17 @@ public sealed class ChangeSitePhpVersionCommandHandler
         });
         if (!installed)
         {
-            return await FailAsync(command, site.Domain, nameof(ErrorMessages.PhpVersionNotInstalled), cancellationToken);
+            return await FailAsync(command, site.Domain, Error.Of(nameof(ErrorMessages.PhpVersionNotInstalled), ErrorType.Validation), cancellationToken);
         }
 
         // The descriptor is built from the STORED row, never assembled here, so the re-rendered
         // vhost is the site's own — the same aliases, the same backend, and the same TLS block it
-        // already had (see SiteDescriptorFactory).
+        // already had (see SiteDescriptorMapper).
         var rebound = await _agent.ChangePhpVersionAsync(
             account.Username,
             site.Domain,
             command.PhpVersion,
-            SiteDescriptorFactory.From(site),
+            SiteDescriptorMapper.From(site),
             (uint)account.MaxPhpWorkersPerPool,
             NoSettingOverrides,
             // Whether the version being LEFT may lose its pool, answered from the panel's own rows:
@@ -134,7 +136,7 @@ public sealed class ChangeSitePhpVersionCommandHandler
             cancellationToken);
         if (!rebound.IsSuccess)
         {
-            return await FailAsync(command, site.Domain, rebound.Error!.Code, cancellationToken);
+            return await FailAsync(command, site.Domain, rebound.Error!, cancellationToken);
         }
 
         site.ChangePhpVersion(command.PhpVersion);
@@ -176,18 +178,18 @@ public sealed class ChangeSitePhpVersionCommandHandler
     /// <summary>Journals a refused rebind and returns it as the typed failure.</summary>
     /// <param name="command">The rebind that was refused.</param>
     /// <param name="subject">The site's domain, or the supplied identifier when no site was found.</param>
-    /// <param name="code">The machine-stable code to answer with.</param>
+    /// <param name="error">The typed failure to answer with, code and kind together.</param>
     /// <param name="cancellationToken">Cancels the journal write.</param>
-    /// <returns>The failed result carrying <paramref name="code"/>.</returns>
+    /// <returns>The failed result carrying <paramref name="error"/>.</returns>
     private async Task<Result<SiteDto>> FailAsync(
         ChangeSitePhpVersionCommand command,
         string subject,
-        string code,
+        Error error,
         CancellationToken cancellationToken)
     {
         await _journal.RecordFailureAsync(
             AuditActions.SitePhpVersionChanged, subject, command.IpAddress, command.UserAgent, cancellationToken);
 
-        return Result<SiteDto>.Fail(Error.Of(code));
+        return Result<SiteDto>.Fail(error);
     }
 }

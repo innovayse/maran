@@ -1,4 +1,5 @@
 using FluentValidation;
+using Maran.SharedKernel.Utilities.Mail;
 
 namespace Maran.Modules.Identity.Commands.CompleteSetup;
 
@@ -15,6 +16,12 @@ public sealed class CompleteSetupCommandValidator : AbstractValidator<CompleteSe
     private const int MaxUsernameLength = 64;
 
     /// <summary>Longest address the panel stores, matching the column.</summary>
+    /// <remarks>
+    /// A storage bound, not a definition of validity — the column is <c>varchar(254)</c>, so a
+    /// longer address could not be written even though
+    /// <see cref="EmailAddressRule.MaximumLength"/> allows the standard's full 320. The shared rule
+    /// has no business knowing this table's width, so the cap stays here and stays stricter.
+    /// </remarks>
     private const int MaxEmailLength = 254;
 
     /// <summary>Characters a username may contain: what a Linux login name and a URL both tolerate.</summary>
@@ -34,10 +41,15 @@ public sealed class CompleteSetupCommandValidator : AbstractValidator<CompleteSe
             .MaximumLength(MaxUsernameLength).WithMessage(nameof(Resources.ErrorMessages.UsernameInvalidFormat))
             .Matches(UsernamePattern).WithMessage(nameof(Resources.ErrorMessages.UsernameInvalidFormat));
 
+        // EmailAddressRule, not FluentValidation's .EmailAddress(): the built-in asks only for an
+        // "@" with something either side, so it accepted "Ops Team <ops@example.com>" — a display
+        // name plus an address, in a field that validates neither — and every control character
+        // besides. One definition of a valid address now serves the whole panel
+        // (Maran.SharedKernel/Utilities/Mail).
         RuleFor(command => command.Email)
             .NotEmpty().WithMessage(nameof(Resources.ErrorMessages.EmailInvalidFormat))
-            .EmailAddress().WithMessage(nameof(Resources.ErrorMessages.EmailInvalidFormat))
-            .MaximumLength(MaxEmailLength).WithMessage(nameof(Resources.ErrorMessages.EmailInvalidFormat));
+            .MaximumLength(MaxEmailLength).WithMessage(nameof(Resources.ErrorMessages.EmailInvalidFormat))
+            .Must(EmailAddressRule.IsAddress).WithMessage(nameof(Resources.ErrorMessages.EmailInvalidFormat));
 
         // Length, and not being the username, are the whole policy: the two rules that actually
         // stop the passwords people pick under time pressure while installing a server. Character-

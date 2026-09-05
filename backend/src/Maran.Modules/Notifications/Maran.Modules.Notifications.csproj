@@ -1,0 +1,87 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- The resx triples' neutral file is English (rules/csharp.md "The backend owns all
+         user-facing message text"). Declaring it lets the runtime skip probing for an "en"
+         satellite assembly that will never exist, and satisfies CA1824. -->
+    <NeutralLanguage>en</NeutralLanguage>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- A module is a plain class library (not Microsoft.NET.Sdk.Web): it contributes
+         controllers and endpoints into the Host's ASP.NET Core pipeline but never hosts
+         its own web server (rules/architecture.md "Backend: modular monolith"). -->
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- A module references only the Sdk (module contract, BaseApiController, result translation,
+         the audit journal, the SendMailRequested contract this module HANDLES and the
+         IAlertRecipientDirectory contract it implements) and the SharedKernel (Result, IClock,
+         ICurrentUser, the encryption service behind the SMTP password column) — never another
+         module, never the Host (rules/architecture.md "Backend: modular monolith").
+         Deliberately NOT the agent client: nothing here asks the host machine anything. Mail
+         leaves this process over SMTP, which needs no root and therefore no agent. -->
+    <ProjectReference Include="..\..\Maran.Sdk\Maran.Sdk.csproj" />
+    <ProjectReference Include="..\..\Maran.SharedKernel\Maran.SharedKernel.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Npgsql.EntityFrameworkCore.PostgreSQL: the module owns its PostgreSQL schema and
+         DbContext (rules/architecture.md). WolverineFx: command/query dispatch and the
+         SendMailRequested subscription. FluentValidation: command and query validators
+         (rules/csharp.md "Operation naming is fixed"). -->
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" />
+    <PackageReference Include="WolverineFx" />
+    <PackageReference Include="FluentValidation" />
+    <!-- MailKit: the panel's only SMTP client, reached from exactly one file
+         (Services/SmtpMailer.cs). .NET's own System.Net.Mail.SmtpClient is documented obsolete by
+         its authors and does not implement modern submission (STARTTLS negotiation, implicit TLS
+         on 465, SASL), so writing against it would mean writing the parts it lacks by hand —
+         which rules/security.md item 9 forbids for anything security-relevant. -->
+    <PackageReference Include="MailKit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Resx-backed user-facing message text (rules/csharp.md "The backend owns all
+         user-facing message text"), one file per purpose rather than one catch-all: ErrorMessages
+         for domain failures surfaced as error codes, DisplayNames for the module's own name,
+         NotificationMessages for the words of the mail this module composes itself.
+         ErrorMessages is strongly typed so Error.Of(nameof(ErrorMessages.SmtpNotConfigured)) fails
+         to compile when the key is absent — the codes ARE the resx keys, with no second
+         declaration. -->
+    <EmbeddedResource Update="Resources\ErrorMessages.resx">
+      <Generator>MSBuild:Compile</Generator>
+      <StronglyTypedLanguage>CSharp</StronglyTypedLanguage>
+      <StronglyTypedNamespace>Maran.Modules.Notifications.Resources</StronglyTypedNamespace>
+      <StronglyTypedClassName>ErrorMessages</StronglyTypedClassName>
+      <StronglyTypedFileName>$(IntermediateOutputPath)ErrorMessages.Designer.cs</StronglyTypedFileName>
+    </EmbeddedResource>
+    <EmbeddedResource Update="Resources\ErrorMessages.ru.resx">
+      <Generator></Generator>
+    </EmbeddedResource>
+    <EmbeddedResource Update="Resources\ErrorMessages.hy.resx">
+      <Generator></Generator>
+    </EmbeddedResource>
+    <EmbeddedResource Update="Resources\DisplayNames.resx">
+      <Generator></Generator>
+    </EmbeddedResource>
+    <EmbeddedResource Update="Resources\DisplayNames.ru.resx">
+      <Generator></Generator>
+    </EmbeddedResource>
+    <EmbeddedResource Update="Resources\DisplayNames.hy.resx">
+      <Generator></Generator>
+    </EmbeddedResource>
+    <EmbeddedResource Update="Resources\NotificationMessages.resx">
+      <Generator></Generator>
+    </EmbeddedResource>
+    <EmbeddedResource Update="Resources\NotificationMessages.ru.resx">
+      <Generator></Generator>
+    </EmbeddedResource>
+    <EmbeddedResource Update="Resources\NotificationMessages.hy.resx">
+      <Generator></Generator>
+    </EmbeddedResource>
+  </ItemGroup>
+
+</Project>

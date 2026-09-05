@@ -54,10 +54,12 @@ public sealed class AccountDeletingHandler
     /// <param name="cancellationToken">Cancels the operation.</param>
     public async Task HandleAsync(AccountDeleting message, CancellationToken cancellationToken)
     {
+#pragma warning disable RS0030 // the account is being deleted, so its rows must be found whoever asked for the deletion
         var owned = await _dbContext.Databases
             .IgnoreQueryFilters()
             .Where(row => row.AccountId == message.AccountId)
             .ToListAsync(cancellationToken);
+#pragma warning restore RS0030
         if (owned.Count == 0)
         {
             return;

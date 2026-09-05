@@ -23,7 +23,7 @@ namespace Maran.Modules.Identity.Persistence.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
-            modelBuilder.Entity("Maran.Modules.Identity.Domain.AuditEvent", b =>
+            modelBuilder.Entity("Maran.Modules.Identity.Domain.Entities.AuditEvent", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -79,7 +79,62 @@ namespace Maran.Modules.Identity.Persistence.Migrations
                     b.ToTable("AuditEvents", "identity");
                 });
 
-            modelBuilder.Entity("Maran.Modules.Identity.Domain.RecoveryCode", b =>
+            modelBuilder.Entity("Maran.Modules.Identity.Domain.Entities.FailedLoginByIp", b =>
+                {
+                    b.Property<string>("IpAddress")
+                        .HasMaxLength(45)
+                        .HasColumnType("character varying(45)");
+
+                    b.Property<int>("Failures")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset>("WindowStart")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("IpAddress");
+
+                    b.HasIndex("WindowStart")
+                        .HasDatabaseName("IX_FailedLoginByIp_WindowStart");
+
+                    b.ToTable("FailedLoginByIp", "identity");
+                });
+
+            modelBuilder.Entity("Maran.Modules.Identity.Domain.Entities.PasswordResetToken", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("TokenHash")
+                        .IsRequired()
+                        .HasMaxLength(44)
+                        .HasColumnType("character varying(44)");
+
+                    b.Property<DateTimeOffset?>("UsedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TokenHash")
+                        .IsUnique()
+                        .HasDatabaseName("IX_PasswordResetTokens_TokenHash");
+
+                    b.HasIndex("UserId")
+                        .HasDatabaseName("IX_PasswordResetTokens_UserId");
+
+                    b.ToTable("PasswordResetTokens", "identity");
+                });
+
+            modelBuilder.Entity("Maran.Modules.Identity.Domain.Entities.RecoveryCode", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -104,7 +159,32 @@ namespace Maran.Modules.Identity.Persistence.Migrations
                     b.ToTable("RecoveryCodes", "identity");
                 });
 
-            modelBuilder.Entity("Maran.Modules.Identity.Domain.Session", b =>
+            modelBuilder.Entity("Maran.Modules.Identity.Domain.Entities.SecurityPolicy", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("ForceTwoFactorForAdmins")
+                        .HasColumnType("boolean");
+
+                    b.Property<int>("LockoutMinutes")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("MaxFailedLoginAttempts")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("MinimumPasswordLength")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("SecurityPolicy", "identity");
+                });
+
+            modelBuilder.Entity("Maran.Modules.Identity.Domain.Entities.Session", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -159,7 +239,7 @@ namespace Maran.Modules.Identity.Persistence.Migrations
                     b.ToTable("Sessions", "identity");
                 });
 
-            modelBuilder.Entity("Maran.Modules.Identity.Domain.User", b =>
+            modelBuilder.Entity("Maran.Modules.Identity.Domain.Entities.User", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -223,9 +303,9 @@ namespace Maran.Modules.Identity.Persistence.Migrations
                     b.ToTable("Users", "identity");
                 });
 
-            modelBuilder.Entity("Maran.Modules.Identity.Domain.RecoveryCode", b =>
+            modelBuilder.Entity("Maran.Modules.Identity.Domain.Entities.RecoveryCode", b =>
                 {
-                    b.HasOne("Maran.Modules.Identity.Domain.User", null)
+                    b.HasOne("Maran.Modules.Identity.Domain.Entities.User", null)
                         .WithMany()
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
@@ -233,9 +313,9 @@ namespace Maran.Modules.Identity.Persistence.Migrations
                         .HasConstraintName("FK_RecoveryCodes_Users_UserId");
                 });
 
-            modelBuilder.Entity("Maran.Modules.Identity.Domain.Session", b =>
+            modelBuilder.Entity("Maran.Modules.Identity.Domain.Entities.Session", b =>
                 {
-                    b.HasOne("Maran.Modules.Identity.Domain.User", null)
+                    b.HasOne("Maran.Modules.Identity.Domain.Entities.User", null)
                         .WithMany()
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)

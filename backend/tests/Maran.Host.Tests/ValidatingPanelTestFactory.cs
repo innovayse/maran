@@ -28,6 +28,8 @@ public sealed class ValidatingPanelTestFactory : WebApplicationFactory<Program>
         builder.UseEnvironment("Testing");
         builder.UseSetting(PanelTestSettings.EncryptionKeyPath, PanelTestSettings.EncryptionKey);
         builder.UseSetting(PanelTestSettings.JwtSigningKeyPath, PanelTestSettings.JwtSigningKey);
+        builder.UseSetting(PanelTestSettings.FirewallSshPortsPath, PanelTestSettings.FirewallSshPorts);
+        builder.UseSetting(PanelTestSettings.FirewallPanelPortPath, PanelTestSettings.FirewallPanelPort);
         builder.UseSetting("Database:Host", string.Empty);
 
         builder.UseDefaultServiceProvider(options =>

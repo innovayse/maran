@@ -1,4 +1,4 @@
-namespace Maran.Modules.Ssl.Common.Interfaces;
+namespace Maran.Modules.Ssl.Interfaces;
 
 /// <summary>
 /// Places and removes the file that answers an ACME HTTP-01 challenge.

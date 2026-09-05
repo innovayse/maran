@@ -21,9 +21,6 @@ namespace Maran.Modules.Identity.Controllers;
 [AllowAnonymous]
 public sealed class SetupController : BaseApiController
 {
-    /// <summary>Fallback recorded when the connection reports no remote address, as in a test host.</summary>
-    private const string UnknownIpAddress = "unknown";
-
     /// <summary>The message bus commands and queries are dispatched through.</summary>
     private readonly IMessageBus _bus;
 
@@ -67,24 +64,10 @@ public sealed class SetupController : BaseApiController
             request.Username,
             request.Email,
             request.Password,
-            CallerIpAddress(),
-            CallerUserAgent());
+            ClientIpAddress,
+            CallerUserAgent);
 
         return ToActionResult(await _bus.InvokeAsync<Result<AuthenticatedUserDto>>(command, cancellationToken));
     }
 
-    /// <summary>The caller's address, as recorded in the audit journal.</summary>
-    /// <returns>The remote address, or a marker when the connection reports none.</returns>
-    private string CallerIpAddress()
-    {
-        return HttpContext.Connection.RemoteIpAddress?.ToString() ?? UnknownIpAddress;
-    }
-
-    /// <summary>The caller's user agent, as recorded in the audit journal.</summary>
-    /// <returns>The header value, truncated to the column's length.</returns>
-    private string CallerUserAgent()
-    {
-        var userAgent = Request.Headers.UserAgent.ToString();
-        return userAgent.Length > 512 ? userAgent[..512] : userAgent;
-    }
 }

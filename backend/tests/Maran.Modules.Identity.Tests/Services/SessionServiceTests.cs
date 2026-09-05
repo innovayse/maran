@@ -1,6 +1,6 @@
-using Maran.Modules.Identity.Common.Options;
-using Maran.Modules.Identity.Domain;
+using Maran.Modules.Identity.Domain.Entities;
 using Maran.Modules.Identity.Domain.Enums;
+using Maran.Modules.Identity.Options;
 using Maran.Modules.Identity.Persistence;
 using Maran.Modules.Identity.Services;
 using Maran.Modules.Identity.Tests.TestSupport;
@@ -33,7 +33,7 @@ public sealed class SessionServiceTests : IAsyncLifetime
 
     private SessionService NewService()
     {
-        return new SessionService(_context, _clock, Options.Create(new JwtOptions { RefreshTokenDays = 14 }));
+        return new SessionService(_context, _clock, new OptionsWrapper<JwtOptions>(new JwtOptions { RefreshTokenDays = 14 }));
     }
 
     /// <summary>Rotating a refresh token revokes the old session and issues a new one.</summary>

@@ -1,6 +1,6 @@
 using System.Text;
 using Maran.Host.Authorization;
-using Maran.Modules.Identity.Common.Options;
+using Maran.Modules.Identity.Options;
 using Maran.Sdk.Contracts;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.JsonWebTokens;

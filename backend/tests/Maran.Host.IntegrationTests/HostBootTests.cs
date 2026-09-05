@@ -47,6 +47,13 @@ public sealed class HostBootTests : IAsyncLifetime
             // Startup validation refuses to boot without an encryption key (rules/security.md).
             b.UseSetting("Security:EncryptionKey", "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=");
             b.UseSetting("Jwt:SigningKey", "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=");
+
+            // Startup validation refuses to boot without the host's SSH ports and the panel's
+            // public port: a defaulted one is a locked-out server (rules/security.md).
+            foreach (var setting in FirewallSettings.Required())
+            {
+                b.UseSetting(setting.Key, setting.Value);
+            }
         });
 
         using var client = factory.CreateClient();

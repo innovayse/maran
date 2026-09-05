@@ -1,5 +1,5 @@
 using Maran.Agent.Client.Interfaces;
-using Maran.Modules.Ssl.Common.Interfaces;
+using Maran.Modules.Ssl.Interfaces;
 using Maran.Modules.Ssl.Resources;
 
 namespace Maran.Modules.Ssl.Services;
@@ -64,7 +64,7 @@ public sealed class AcmeChallengeWriter : IAcmeChallengeWriter
     {
         if (!IsBase64Url(token))
         {
-            return Result<bool>.Fail(Error.Of(nameof(ErrorMessages.AcmeChallengeTokenInvalid)));
+            return Result<bool>.Fail(Error.Of(nameof(ErrorMessages.AcmeChallengeTokenInvalid), ErrorType.Failure));
         }
 
         var written = await _files.WriteFileAsync(
@@ -86,7 +86,7 @@ public sealed class AcmeChallengeWriter : IAcmeChallengeWriter
     {
         if (!IsBase64Url(token))
         {
-            return Result<bool>.Fail(Error.Of(nameof(ErrorMessages.AcmeChallengeTokenInvalid)));
+            return Result<bool>.Fail(Error.Of(nameof(ErrorMessages.AcmeChallengeTokenInvalid), ErrorType.Failure));
         }
 
         return await _files.DeleteEntryAsync(

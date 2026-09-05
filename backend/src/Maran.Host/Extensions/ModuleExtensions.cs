@@ -1,5 +1,6 @@
 using FluentValidation;
 using Maran.Host.Modules;
+using Maran.Sdk.Interfaces;
 
 namespace Maran.Host.Extensions;
 
@@ -17,6 +18,17 @@ public static class ModuleExtensions
         this IServiceCollection services,
         IConfiguration configuration)
     {
+        // Before a single service is registered: a module that reaches for a part of the agent it
+        // did not declare does not load at all. Placed first deliberately — half a composed panel
+        // is a worse state to refuse from than none of one (AgentCapabilityGuard).
+        AgentCapabilityGuard.Verify(ModuleRegistry.All);
+
+        // Registered by the Host and not by any module, because it is the only place that knows all
+        // of them: it answers whether the account-deletion cascade actually emptied every module's
+        // rows, so a deletion completes on observed absence rather than on nothing having thrown.
+        // Scoped, because it resolves the module contexts from the caller's own scope.
+        services.AddScoped<IAccountResidueAuditor, ModuleAccountResidueAuditor>();
+
         foreach (var module in ModuleRegistry.All)
         {
             module.ConfigureServices(services, configuration);
@@ -28,18 +40,5 @@ public static class ModuleExtensions
         }
 
         return services;
-    }
-
-    /// <summary>Lets every registered module map its endpoints.</summary>
-    /// <param name="endpoints">The endpoint route builder modules map onto.</param>
-    /// <returns>The same builder, for chaining.</returns>
-    public static IEndpointRouteBuilder MapPanelModules(this IEndpointRouteBuilder endpoints)
-    {
-        foreach (var module in ModuleRegistry.All)
-        {
-            module.MapEndpoints(endpoints);
-        }
-
-        return endpoints;
     }
 }

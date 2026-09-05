@@ -1,4 +1,5 @@
 using Maran.Modules.Accounts.Common;
+using Maran.Modules.Accounts.Domain.Entities;
 using Maran.Modules.Accounts.Persistence;
 using Maran.Modules.Accounts.Resources;
 using Microsoft.Extensions.Localization;
@@ -17,7 +18,7 @@ public sealed class ListPlansQueryHandler
     /// <summary>The Accounts module's database context.</summary>
     private readonly AccountsDbContext _dbContext;
 
-    /// <summary>Resolves each plan's <see cref="Domain.Plan.DisplayNameKey"/> in the current request culture.</summary>
+    /// <summary>Resolves each plan's <see cref="Plan.DisplayNameKey"/> in the current request culture.</summary>
     private readonly IStringLocalizer<DisplayNames> _displayNames;
 
     /// <summary>Creates the handler with the module's own database context and its typed resource localizer.</summary>

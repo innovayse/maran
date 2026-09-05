@@ -1,7 +1,8 @@
 using Maran.Modules.Accounts.Commands.CreateAccount;
 using Maran.Modules.Accounts.Common;
-using Maran.Modules.Accounts.Domain;
+using Maran.Modules.Accounts.Domain.Entities;
 using Maran.Modules.Accounts.Persistence;
+using Maran.Modules.Accounts.Services;
 using Maran.Modules.Accounts.Tests.TestSupport;
 using Maran.Sdk.Contracts;
 using Maran.SharedKernel.Results;
@@ -71,7 +72,7 @@ public sealed class CreateAccountAuditTests
     [Fact]
     public async Task A_creation_the_agent_refuses_is_journalled_as_a_failure_and_never_as_a_success()
     {
-        var world = await WorldAsync(new RecordingAgentAccountsClient(Error.Of("AgentUnavailable")));
+        var world = await WorldAsync(new RecordingAgentAccountsClient(Error.Of("AgentUnavailable", ErrorType.Unavailable)));
 
         var result = await world.CreateAsync("acme", "acme.example.com", world.PlanId);
 
@@ -106,7 +107,7 @@ public sealed class CreateAccountAuditTests
             .Options;
         var dbContext = new AccountsDbContext(options);
 
-        var plan = new Plan(Guid.NewGuid(), "PlanStarterName", 1_024, 5, 2, 3, 5);
+        var plan = new Plan(Guid.NewGuid(), "PlanStarterName", 1_024, 5, 2, 3, 5, 5);
         dbContext.Plans.Add(plan);
         await dbContext.SaveChangesAsync();
 

@@ -1,5 +1,6 @@
+using Maran.Modules.Ssl.Models;
 
-namespace Maran.Modules.Ssl.Common.Interfaces;
+namespace Maran.Modules.Ssl.Interfaces;
 
 /// <summary>
 /// Orders a certificate from an ACME certificate authority and returns the issued material.

@@ -1,6 +1,7 @@
 using System.Threading.RateLimiting;
 using Maran.Host.Configuration;
 using Maran.Sdk.Contracts;
+using Maran.SharedKernel.Utilities.Network;
 using Microsoft.AspNetCore.RateLimiting;
 
 namespace Maran.Host.RateLimiting;
@@ -57,14 +58,20 @@ public static class LoginRateLimitPolicy
     }
 
     /// <summary>
-    /// Builds the partition key: the caller's address, or <c>unknown</c> when there is none.
-    /// Nothing from the request is mixed in — see the type's remarks for why a caller-supplied
-    /// component made the limit unenforceable.
+    /// Builds the partition key: the caller's address in the panel's canonical spelling, or
+    /// <see cref="ClientAddress.Unknown"/> when there is none. Nothing from the request is mixed in
+    /// — see the type's remarks for why a caller-supplied component made the limit unenforceable.
     /// </summary>
+    /// <remarks>
+    /// The spelling matters here more than anywhere: a dual-stack listener reports an IPv4 peer as
+    /// <c>::ffff:203.0.113.7</c> while the same client through nginx is <c>203.0.113.7</c>, and two
+    /// spellings of one address are two partitions — a lockout that takes twice the configured
+    /// number of attempts to bite. <see cref="ClientAddress"/> is the panel's one answer to it.
+    /// </remarks>
     /// <param name="context">The current HTTP request.</param>
     /// <returns>The partition every attempt from this address shares.</returns>
     private static string BuildPartitionKey(HttpContext context)
     {
-        return context.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+        return ClientAddress.Of(context.Connection.RemoteIpAddress);
     }
 }

@@ -1,4 +1,4 @@
-using Maran.Modules.Ssl.Domain;
+using Maran.Modules.Ssl.Domain.Entities;
 using Maran.Modules.Ssl.Domain.Enums;
 using Maran.Modules.Ssl.Persistence;
 using Maran.SharedKernel.Interfaces;

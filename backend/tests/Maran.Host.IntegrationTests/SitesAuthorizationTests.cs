@@ -3,13 +3,13 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
 using Maran.Host.IntegrationTests.Fixtures;
-using Maran.Modules.Accounts.Domain;
+using Maran.Modules.Accounts.Domain.Entities;
 using Maran.Modules.Accounts.Persistence;
-using Maran.Modules.Identity.Domain;
+using Maran.Modules.Identity.Domain.Entities;
 using Maran.Modules.Identity.Domain.Enums;
 using Maran.Modules.Identity.Persistence;
 using Maran.Modules.Sites.Controllers;
-using Maran.Modules.Sites.Domain;
+using Maran.Modules.Sites.Domain.Entities;
 using Maran.Modules.Sites.Domain.Enums;
 using Maran.Modules.Sites.Persistence;
 using Maran.SharedKernel.Interfaces;
@@ -265,6 +265,13 @@ public sealed class SitesAuthorizationTests : IAsyncLifetime
 
             builder.UseSetting("Security:EncryptionKey", Key);
             builder.UseSetting("Jwt:SigningKey", Key);
+
+            // Startup validation refuses to boot without the host's SSH ports and the panel's
+            // public port: a defaulted one is a locked-out server (rules/security.md).
+            foreach (var setting in FirewallSettings.Required())
+            {
+                builder.UseSetting(setting.Key, setting.Value);
+            }
         });
     }
 
@@ -290,7 +297,7 @@ public sealed class SitesAuthorizationTests : IAsyncLifetime
         var now = scope.ServiceProvider.GetRequiredService<IClock>().UtcNow;
 
         var planId = Guid.NewGuid();
-        accounts.Plans.Add(new Plan(planId, "PlanStarterName", 5_120, 5, 2, 3, 5));
+        accounts.Plans.Add(new Plan(planId, "PlanStarterName", 5_120, 5, 2, 3, 5, 5));
         var own = new Account(Guid.NewGuid(), "own", "own.example.com", planId, now);
         var stranger = new Account(Guid.NewGuid(), "stranger", "stranger.example.com", planId, now);
         accounts.Accounts.AddRange(own, stranger);
@@ -342,7 +349,7 @@ public sealed class SitesAuthorizationTests : IAsyncLifetime
         var response = await client.PostAsJsonAsync("/api/v1/auth/login", new { Username = username, Password });
 
         using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
-        var accessToken = body.RootElement.GetProperty("accessToken").GetString()!;
+        var accessToken = body.RootElement.GetProperty("session").GetProperty("accessToken").GetString()!;
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
 
         return client;

@@ -1,10 +1,10 @@
-using Maran.Modules.Identity.Common;
-using Maran.Modules.Identity.Common.Interfaces;
-using Maran.Modules.Identity.Domain;
+using Maran.Modules.Identity.Domain.Entities;
+using Maran.Modules.Identity.Interfaces;
+using Maran.Modules.Identity.Models;
 using Maran.Modules.Identity.Persistence;
 using Maran.Modules.Identity.Resources;
+using Maran.Modules.Identity.Services;
 using Maran.Sdk.Contracts;
-using Maran.Sdk.Interfaces;
 
 namespace Maran.Modules.Identity.Commands.Login;
 
@@ -33,7 +33,13 @@ public sealed class LoginCommandHandler
     private readonly ISessionService _sessionService;
 
     /// <summary>Records the attempt, successful or not.</summary>
-    private readonly IAuditWriter _auditWriter;
+    private readonly IdentityAuditJournal _journal;
+
+    /// <summary>Counts refusals per source address and announces an attack.</summary>
+    private readonly BruteForceDetector _bruteForceDetector;
+
+    /// <summary>The panel's security policy, read for the account lockout numbers.</summary>
+    private readonly SecurityPolicyCache _policyCache;
 
     /// <summary>The panel's clock.</summary>
     private readonly IClock _clock;
@@ -43,21 +49,27 @@ public sealed class LoginCommandHandler
     /// <param name="passwordHasher">Verifies the password.</param>
     /// <param name="accessTokenIssuer">Signs the access token.</param>
     /// <param name="sessionService">Issues the refresh-token session.</param>
-    /// <param name="auditWriter">Records the attempt.</param>
+    /// <param name="journal">Records the attempt.</param>
+    /// <param name="bruteForceDetector">Counts refusals per source address.</param>
+    /// <param name="policyCache">The panel's security policy, read for the account lockout numbers.</param>
     /// <param name="clock">The panel's clock.</param>
     public LoginCommandHandler(
         IdentityDbContext dbContext,
         IPasswordHasher passwordHasher,
         IAccessTokenIssuer accessTokenIssuer,
         ISessionService sessionService,
-        IAuditWriter auditWriter,
+        IdentityAuditJournal journal,
+        BruteForceDetector bruteForceDetector,
+        SecurityPolicyCache policyCache,
         IClock clock)
     {
         _dbContext = dbContext;
         _passwordHasher = passwordHasher;
         _accessTokenIssuer = accessTokenIssuer;
         _sessionService = sessionService;
-        _auditWriter = auditWriter;
+        _journal = journal;
+        _bruteForceDetector = bruteForceDetector;
+        _policyCache = policyCache;
         _clock = clock;
     }
 
@@ -76,8 +88,7 @@ public sealed class LoginCommandHandler
         {
             // Spend the same time a real verification would, then fail identically.
             _passwordHasher.Verify(command.Password, DummyHash);
-            await AuditFailureAsync(null, command, cancellationToken);
-            return Result<LoginOutcome>.Fail(Error.Of(nameof(ErrorMessages.InvalidCredentialsUnauthorized)));
+            return await RefuseAsync(null, command, cancellationToken);
         }
 
         // A locked account is refused before its password is even looked at, and refused with the
@@ -87,19 +98,20 @@ public sealed class LoginCommandHandler
         // either — which is the cost, paid deliberately, and why the window is short.
         if (user.IsLockedOut(_clock.UtcNow))
         {
-            await AuditFailureAsync(user, command, cancellationToken);
-            return Result<LoginOutcome>.Fail(Error.Of(nameof(ErrorMessages.InvalidCredentialsUnauthorized)));
+            return await RefuseAsync(user, command, cancellationToken);
         }
 
         if (!_passwordHasher.Verify(command.Password, user.PasswordHash))
         {
             // Counted on the user row, not in memory: the per-address rate limit cannot see an
             // attacker who rotates addresses, and this is the counter that can.
-            user.RecordFailedLogin(_clock.UtcNow);
+            // The threshold and the window come from the panel's operator-configurable policy, not
+            // from constants on the entity: the lockout used to be a recompile.
+            var policy = await _policyCache.GetAsync(cancellationToken);
+            user.RecordFailedLogin(_clock.UtcNow, policy.MaxFailedLoginAttempts, policy.LockoutDuration());
             await _dbContext.SaveChangesAsync(cancellationToken);
 
-            await AuditFailureAsync(user, command, cancellationToken);
-            return Result<LoginOutcome>.Fail(Error.Of(nameof(ErrorMessages.InvalidCredentialsUnauthorized)));
+            return await RefuseAsync(user, command, cancellationToken);
         }
 
         // The one moment the plaintext password is known to be correct, and therefore the only
@@ -114,63 +126,77 @@ public sealed class LoginCommandHandler
         {
             // Deliberately no session and no token: the second factor has not been shown yet, and
             // issuing anything now would make the factor optional for anyone holding the password.
-            return Result<LoginOutcome>.Ok(new LoginOutcome(
-                new LoginResultDto(null, null, TwoFactorRequired: true, null),
-                null));
+            return Result<LoginOutcome>.Ok(new LoginOutcome(null));
         }
 
-        return Result<LoginOutcome>.Ok(await CompleteAsync(user, command, cancellationToken));
+        var authenticated = await CompleteAsync(user, command, cancellationToken);
+        return Result<LoginOutcome>.Ok(new LoginOutcome(authenticated));
     }
 
     /// <summary>Issues the session and access token for a fully authenticated user.</summary>
     /// <param name="user">The authenticated user.</param>
     /// <param name="command">The attempt that authenticated them.</param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
-    /// <returns>The response body and the session whose token becomes a cookie.</returns>
-    private async Task<LoginOutcome> CompleteAsync(User user, LoginCommand command, CancellationToken cancellationToken)
+    /// <returns>The response body and the session whose token becomes a cookie, both required.</returns>
+    private async Task<AuthenticatedOutcome> CompleteAsync(
+        User user,
+        LoginCommand command,
+        CancellationToken cancellationToken)
     {
         var session = await _sessionService.IssueAsync(user.Id, command.IpAddress, command.UserAgent, cancellationToken);
-        var accessToken = _accessTokenIssuer.Issue(user, session.SessionId);
+        var accessToken = await _accessTokenIssuer.IssueAsync(user, session.SessionId, cancellationToken);
 
         user.RecordLogin(_clock.UtcNow);
         await _dbContext.SaveChangesAsync(cancellationToken);
 
-        await _auditWriter.WriteAsync(
-            new AuditEntry(
-                user.Id,
-                user.Username,
-                AuditActions.LoginSucceeded,
-                user.Username,
-                command.IpAddress,
-                command.UserAgent,
-                Succeeded: true),
+        await _journal.RecordClaimAsync(
+            user.Id,
+            user.Username,
+            AuditActions.LoginSucceeded,
+            command.IpAddress,
+            command.UserAgent,
+            succeeded: true,
             cancellationToken);
 
-        return new LoginOutcome(
-            new LoginResultDto(
-                accessToken.Value,
-                accessToken.ExpiresAt,
-                TwoFactorRequired: false,
-                new AuthenticatedUserDto(user.Id, user.Username, user.Email, user.Role, user.AccountId)),
-            session);
+        return new AuthenticatedOutcome(accessToken, user, session);
     }
 
-    /// <summary>Records a refused attempt.</summary>
+    /// <summary>Records a refused attempt, counts it against its source address, and answers no.</summary>
     /// <param name="user">The user, when the name matched one; null when it did not.</param>
     /// <param name="command">The attempt. Its password never reaches the journal.</param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
-    /// <returns>Resolves once the entry is stored.</returns>
-    private async Task AuditFailureAsync(User? user, LoginCommand command, CancellationToken cancellationToken)
+    /// <returns>The one refusal every failed sign-in returns, whatever it actually failed on.</returns>
+    /// <remarks>
+    /// <para>
+    /// <b>All three refusals go through here, and that is the point.</b> A sign-in can be refused for
+    /// an unknown name, a locked account or a wrong password, and each of the three has to leave the
+    /// same trace, be counted the same way, and return the same error — a distinct answer to any of
+    /// them would tell a caller which of their guesses was closest. Keeping the three obligations in
+    /// one place is what stops a fourth refusal added later from silently having none of them: the
+    /// brute-force counter existed as a contract for a whole release without a producer, and an
+    /// early <c>return</c> that walks past a two-line block is exactly how that happens again.
+    /// </para>
+    /// <para>
+    /// The counting comes after the journal entry, so a detection is never announced for an attempt
+    /// the journal has no record of.
+    /// </para>
+    /// </remarks>
+    private async Task<Result<LoginOutcome>> RefuseAsync(
+        User? user,
+        LoginCommand command,
+        CancellationToken cancellationToken)
     {
-        await _auditWriter.WriteAsync(
-            new AuditEntry(
-                user?.Id,
-                command.Username,
-                AuditActions.LoginFailed,
-                command.Username,
-                command.IpAddress,
-                command.UserAgent,
-                Succeeded: false),
+        await _journal.RecordClaimAsync(
+            user?.Id,
+            command.Username,
+            AuditActions.LoginFailed,
+            command.IpAddress,
+            command.UserAgent,
+            succeeded: false,
             cancellationToken);
+
+        await _bruteForceDetector.RecordFailureAsync(command.IpAddress, cancellationToken);
+
+        return Result<LoginOutcome>.Fail(Error.Of(nameof(ErrorMessages.InvalidCredentialsUnauthorized), ErrorType.Unauthorized));
     }
 }

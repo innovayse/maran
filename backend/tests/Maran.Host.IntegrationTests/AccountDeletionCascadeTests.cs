@@ -1,13 +1,22 @@
 using Maran.Agent.Client.Interfaces;
 using Maran.Host.IntegrationTests.Fixtures;
 using Maran.Modules.Accounts.Commands.DeleteAccount;
-using Maran.Modules.Accounts.Domain;
+using Maran.Modules.Accounts.Domain.Entities;
 using Maran.Modules.Accounts.Persistence;
-using Maran.Modules.Databases.Domain;
+using Maran.Modules.Databases.Domain.Entities;
 using Maran.Modules.Databases.Persistence;
 using Maran.Modules.Identity.Persistence;
-using Maran.Modules.Sftp.Domain;
+using Maran.Modules.Sftp.Domain.Entities;
 using Maran.Modules.Sftp.Persistence;
+using Maran.Modules.Sites.Domain.Entities;
+using Maran.Modules.Sites.Domain.Enums;
+using Maran.Modules.Sites.Persistence;
+using Maran.Modules.Ssl.Domain.Entities;
+using Maran.Modules.Ssl.Domain.Enums;
+using Maran.Modules.Ssl.Persistence;
+using Maran.Modules.Tasks.Domain.Enums;
+using Maran.Modules.Tasks.Persistence;
+using Maran.Sdk.Contracts;
 using Maran.SharedKernel.Interfaces;
 using Maran.SharedKernel.Results;
 using Microsoft.AspNetCore.Hosting;
@@ -50,6 +59,12 @@ public sealed class AccountDeletionCascadeTests : IAsyncLifetime
 
     /// <summary>The account under test, and the name a later tenant would be given again.</summary>
     private const string AccountName = "cascade";
+
+    /// <summary>The domain of the site and of the certificate the account owns.</summary>
+    private const string SiteDomain = "cascade.example.com";
+
+    /// <summary>The PHP version the account's one site runs, and therefore the pool the deletion retires.</summary>
+    private const string PhpVersion = "8.3";
 
     /// <summary>This test's own database on the assembly's shared PostgreSQL server.</summary>
     private readonly TestDatabase _pg;
@@ -128,6 +143,59 @@ public sealed class AccountDeletionCascadeTests : IAsyncLifetime
         Assert.Single(await Rows<SftpDbContext, SftpUser>(scope, accountId));
     }
 
+    /// <summary>Deleting an account that owns a site and a certificate leaves neither behind.</summary>
+    /// <remarks>
+    /// <para>
+    /// The fixture is the whole point. The test above seeds a database row and an SFTP row, which
+    /// are the two modules that had a subscriber, and it passed for the entire time <c>Sites</c> and
+    /// <c>Ssl</c> had none — a live browser run found an ENABLED site, a <c>Certificate</c> row and
+    /// <c>privkey.pem</c> surviving an account deletion that reported COMPLETED at 100. A cascade
+    /// test whose fixture omits the modules that leak asserts nothing about them and reads as
+    /// though it did, which is the vacuity rules/testing.md names.
+    /// </para>
+    /// <para>
+    /// So the account here owns one of everything a v1 account can own, and the assertions are on
+    /// both halves: the ROWS are gone from every module's schema, and the agent was actually ORDERED
+    /// to take the vhost — and with it the account's certificate material — off the host. The second
+    /// half is what a row count cannot see: a handler that removed its rows and told the agent
+    /// nothing would satisfy every database assertion and leave a private key on disk.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public async Task Deleting_an_account_that_owns_a_site_and_a_certificate_leaves_neither_behind()
+    {
+        var agent = new StubAgentAccountsClient();
+        var sites = new RecordingAgentSitesClient();
+        await using var factory = CreateFactory(agent, sites);
+        await MigrateAsync(factory);
+        var accountId = await SeedAsync(factory, includeWebsite: true);
+
+        var result = await DeleteAsync(factory, accountId);
+
+        Assert.True(result.IsSuccess, result.Error?.Code);
+
+        using var scope = factory.Services.CreateScope();
+        Assert.Empty(await Rows<SitesDbContext, Site>(scope, accountId));
+        Assert.Empty(await Rows<SslDbContext, Certificate>(scope, accountId));
+        Assert.Empty(await Rows<DatabasesDbContext, Database>(scope, accountId));
+        Assert.Empty(await Rows<SftpDbContext, SftpUser>(scope, accountId));
+
+        // The host half. The retired pool version is asserted too, because the account's only site
+        // is the last one on it: an empty string here would leave a php-fpm pool naming a user that
+        // no longer resolves, which is the state the agent's own deletion doc calls unrecoverable.
+        Assert.Equal([(AccountName, SiteDomain, PhpVersion)], sites.Deleted);
+
+        // And the task said so honestly. A deletion that reported COMPLETED while the rows above
+        // survived is the defect this test was written for, so the claim is asserted beside the
+        // facts it claims rather than trusted.
+        // Past the filter: the Tasks module's global filter is `IsAdmin`, and this scope carries no
+        // principal at all, so a filtered read would answer "no such task" for a task that is there.
+        // That is the answer that would make this assertion unfalsifiable.
+        var task = await scope.ServiceProvider.GetRequiredService<TasksDbContext>()
+            .PanelTasks.IgnoreQueryFilters().SingleAsync(row => row.Kind == TaskKinds.AccountDeletion);
+        Assert.Equal(PanelTaskStatus.Completed, task.Status);
+    }
+
     /// <summary>Every row a module holds for an account, read past the tenant filter.</summary>
     /// <typeparam name="TContext">The module's database context.</typeparam>
     /// <typeparam name="TRow">The module's tenant-scoped entity.</typeparam>
@@ -162,8 +230,15 @@ public sealed class AccountDeletionCascadeTests : IAsyncLifetime
 
     /// <summary>Boots the host against this class's PostgreSQL, with the agent stubbed.</summary>
     /// <param name="agent">The stand-in for the agent's account operations.</param>
+    /// <param name="sites">
+    /// The stand-in for the agent's site operations, for the tests whose account owns a site. Left
+    /// null by the tests that seed none, so that a cascade which nevertheless called it fails on the
+    /// real client's absent socket rather than on a stub that was happy to be asked.
+    /// </param>
     /// <returns>The factory, which the caller disposes.</returns>
-    private WebApplicationFactory<Program> CreateFactory(IAgentAccountsClient agent)
+    private WebApplicationFactory<Program> CreateFactory(
+        IAgentAccountsClient agent,
+        IAgentSitesClient? sites = null)
     {
         return new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
         {
@@ -175,10 +250,23 @@ public sealed class AccountDeletionCascadeTests : IAsyncLifetime
 
             builder.UseSetting("Security:EncryptionKey", Key);
             builder.UseSetting("Jwt:SigningKey", Key);
+
+            // Startup validation refuses to boot without the host's SSH ports and the panel's
+            // public port: a defaulted one is a locked-out server (rules/security.md).
+            foreach (var setting in FirewallSettings.Required())
+            {
+                builder.UseSetting(setting.Key, setting.Value);
+            }
             builder.ConfigureTestServices(services =>
             {
                 services.RemoveAll<IAgentAccountsClient>();
                 services.AddSingleton(agent);
+
+                if (sites is not null)
+                {
+                    services.RemoveAll<IAgentSitesClient>();
+                    services.AddSingleton(sites);
+                }
             });
         });
     }
@@ -195,6 +283,9 @@ public sealed class AccountDeletionCascadeTests : IAsyncLifetime
         await scope.ServiceProvider.GetRequiredService<IdentityDbContext>().Database.MigrateAsync();
         await scope.ServiceProvider.GetRequiredService<AccountsDbContext>().Database.MigrateAsync();
         await scope.ServiceProvider.GetRequiredService<SftpDbContext>().Database.MigrateAsync();
+        await scope.ServiceProvider.GetRequiredService<SitesDbContext>().Database.MigrateAsync();
+        await scope.ServiceProvider.GetRequiredService<SslDbContext>().Database.MigrateAsync();
+        await scope.ServiceProvider.GetRequiredService<TasksDbContext>().Database.MigrateAsync();
 
         if (includeDatabases)
         {
@@ -205,15 +296,23 @@ public sealed class AccountDeletionCascadeTests : IAsyncLifetime
     /// <summary>Seeds one account with a database row and an SFTP login row.</summary>
     /// <param name="factory">The booted host.</param>
     /// <param name="includeDatabase">Whether a database row is written; <c>false</c> when its schema is absent.</param>
+    /// <param name="includeWebsite">
+    /// Whether the account is also given a site and a certificate for it. Off by default so that the
+    /// two older tests keep the fixtures their assertions were written against, and ON for the test
+    /// that exists because a fixture without them proved nothing about the modules that leaked.
+    /// </param>
     /// <returns>The account's identity.</returns>
-    private static async Task<Guid> SeedAsync(WebApplicationFactory<Program> factory, bool includeDatabase = true)
+    private static async Task<Guid> SeedAsync(
+        WebApplicationFactory<Program> factory,
+        bool includeDatabase = true,
+        bool includeWebsite = false)
     {
         using var scope = factory.Services.CreateScope();
         var accounts = scope.ServiceProvider.GetRequiredService<AccountsDbContext>();
         var now = scope.ServiceProvider.GetRequiredService<IClock>().UtcNow;
 
         var planId = Guid.NewGuid();
-        accounts.Plans.Add(new Plan(planId, "PlanStarterName", 5_120, 5, 2, 3, 5));
+        accounts.Plans.Add(new Plan(planId, "PlanStarterName", 5_120, 5, 2, 3, 5, 5));
         var account = new Account(Guid.NewGuid(), AccountName, "cascade.example.com", planId, now);
         accounts.Accounts.Add(account);
         await accounts.SaveChangesAsync();
@@ -221,6 +320,11 @@ public sealed class AccountDeletionCascadeTests : IAsyncLifetime
         var sftp = scope.ServiceProvider.GetRequiredService<SftpDbContext>();
         sftp.SftpUsers.Add(new SftpUser(Guid.NewGuid(), account.Id, "web", $"{AccountName}_web", now));
         await sftp.SaveChangesAsync();
+
+        if (includeWebsite)
+        {
+            await SeedWebsiteAsync(scope, account.Id, now);
+        }
 
         if (includeDatabase)
         {
@@ -237,5 +341,37 @@ public sealed class AccountDeletionCascadeTests : IAsyncLifetime
         }
 
         return account.Id;
+    }
+
+    /// <summary>Gives the account one PHP site and one certificate installed for it.</summary>
+    /// <param name="scope">The scope the module contexts are resolved from.</param>
+    /// <param name="accountId">The account that owns both.</param>
+    /// <param name="now">The injected instant both rows are stamped with.</param>
+    private static async Task SeedWebsiteAsync(IServiceScope scope, Guid accountId, DateTimeOffset now)
+    {
+        var siteId = Guid.NewGuid();
+        var siteContext = scope.ServiceProvider.GetRequiredService<SitesDbContext>();
+        siteContext.Sites.Add(new Site(
+            siteId,
+            accountId,
+            SiteDomain,
+            [],
+            SiteBackendType.Php,
+            PhpVersion,
+            string.Empty,
+            $"/home/{AccountName}/sites/{SiteDomain}",
+            now));
+        await siteContext.SaveChangesAsync();
+
+        var ssl = scope.ServiceProvider.GetRequiredService<SslDbContext>();
+        ssl.Certificates.Add(new Certificate(
+            Guid.NewGuid(),
+            accountId,
+            siteId,
+            SiteDomain,
+            CertificateSource.Custom,
+            now.AddDays(90),
+            now));
+        await ssl.SaveChangesAsync();
     }
 }

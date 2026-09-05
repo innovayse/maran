@@ -16,5 +16,6 @@ public static class IdentityManifest
         DisplayNameKey: "IdentityModuleDisplayName",
         Version: "1.0.0",
         Tier: LicenceTier.Included,
-        Dependencies: []);
+        Dependencies: [],
+        AgentCapabilities: []);
 }

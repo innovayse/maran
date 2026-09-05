@@ -1,5 +1,6 @@
 using Maran.Modules.Sftp.Commands.ResetSftpUserPassword;
 using Maran.Modules.Sftp.Common;
+using Maran.Modules.Sftp.Services;
 using Maran.Modules.Sftp.Tests.TestSupport;
 using Maran.Sdk.Contracts;
 using Maran.SharedKernel.Results;
@@ -104,7 +105,7 @@ public sealed class ResetSftpUserPasswordCommandHandlerTests
     public async Task An_agent_that_refuses_leaves_the_old_password_live_and_is_reported_as_it_answered()
     {
         var world = await WorldAsync();
-        world.Agent.SetPasswordResult = Result<bool>.Fail(Error.Of("AgentNotFound"));
+        world.Agent.SetPasswordResult = Result<bool>.Fail(Error.Of("AgentNotFound", ErrorType.NotFound));
 
         var result = await world.ResetAsync(world.OwnSftpUserId);
 
@@ -209,7 +210,7 @@ public sealed class ResetSftpUserPasswordCommandHandlerTests
             var currentUser = FakeCurrentUser.Customer(OwnerAccountId);
             Handler = new ResetSftpUserPasswordCommandHandler(
                 SftpTestContext.Create(currentUser, store),
-                new StubAccountDirectory(new AccountSnapshot(OwnerAccountId, "alice", 5, 5, 5, 5)),
+                new StubAccountDirectory(new AccountSnapshot(OwnerAccountId, "alice", 5, 5, 5, 5, 5, 1_024)),
                 Agent,
                 new SftpAuditJournal(Audit, currentUser));
         }

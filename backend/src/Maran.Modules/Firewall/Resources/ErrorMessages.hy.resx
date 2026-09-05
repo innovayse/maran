@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="RulePortInvalid">
+    <value>Պատնեշի կանոնը պետք է նշի 1-ից 65535 միջակայքի պորտ։</value>
+  </data>
+  <data name="RuleProtocolInvalid">
+    <value>Պատնեշի կանոնը կիրառվում է TCP-ի կամ UDP-ի վրա։</value>
+  </data>
+  <data name="RuleSourceCidrInvalid">
+    <value>Աղբյուրի միջակայքը գրվում է CIDR ձևաչափով՝ առանց նախածանցից դուրս հոսթի բիթերի։</value>
+  </data>
+  <data name="BanAddressInvalid">
+    <value>Սա հասցե չէ, որը պատնեշը կարող է արգելափակել։</value>
+  </data>
+  <data name="BanAddressLoopback">
+    <value>Հետադարձ կապի հասցեն հնարավոր չէ արգելափակել. այս հանգույցը թույլ է տալիս հետադարձ կապի երթևեկությունը մինչև արգելափակումների ստուգումը, ուստի այդպիսի արգելափակումը ոչինչ չի կասեցնի։ Փոխարենը արգելափակեք այն հասցեն, որտեղից երթևեկությունը հասնում է սերվերին՝ կապի համար ցուցադրվածը, ոչ թե 127.0.0.1 կամ ::1։</value>
+  </data>
+  <data name="BanDurationInvalid">
+    <value>Արգելափակումը տևում է մեկ րոպեից մեկ տարի. մշտական արգելափակման համար թողեք տևողությունը դատարկ։</value>
+  </data>
+  <data name="BanNotFound">
+    <value>Այս հասցեի համար գործող արգելափակում չկա։</value>
+  </data>
+  <data name="WhitelistCidrInvalid">
+    <value>Միջակայքը գրվում է CIDR ձևաչափով՝ առանց նախածանցից դուրս հոսթի բիթերի։</value>
+  </data>
+  <data name="WhitelistCidrTaken">
+    <value>Այս միջակայքն արդեն սպիտակ ցուցակում է։</value>
+  </data>
+  <data name="WhitelistEntryNotFound">
+    <value>Սպիտակ ցուցակի այս գրառումը չի գտնվել։</value>
+  </data>
+  <data name="WhitelistEntryProtectsCaller">
+    <value>Այս միջակայքի հեռացումը կդադարեցնի ձեր միացման հասցեի բացառումը, և գաղտնաբառի սխալ մուտքագրումն այնուհետև կարող է փակել ձեր մուտքն այս սերվեր։ Ավելացրեք բացառում, որը նույնպես ընդգրկում է այս հասցեն, և հեռացրեք սա հետո, կամ հեռացրեք այն՝ միանալով այլ հասցեից։</value>
+  </data>
+</root>

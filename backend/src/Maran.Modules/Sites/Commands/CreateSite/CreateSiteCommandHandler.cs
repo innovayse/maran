@@ -2,10 +2,11 @@ using Maran.Agent.Client.Interfaces;
 using Maran.Agent.Client.Services.PhpService;
 using Maran.Agent.Client.Services.SitesService;
 using Maran.Modules.Sites.Common;
-using Maran.Modules.Sites.Domain;
+using Maran.Modules.Sites.Domain.Entities;
 using Maran.Modules.Sites.Domain.Enums;
 using Maran.Modules.Sites.Persistence;
 using Maran.Modules.Sites.Resources;
+using Maran.Modules.Sites.Services;
 using Maran.Sdk.Contracts;
 using Maran.Sdk.Interfaces;
 
@@ -96,7 +97,7 @@ public sealed class CreateSiteCommandHandler
         var account = await _accounts.FindAsync(command.AccountId, cancellationToken);
         if (account is null)
         {
-            return await FailAsync(command, nameof(ErrorMessages.AccountNotFound), cancellationToken);
+            return await FailAsync(command, Error.Of(nameof(ErrorMessages.AccountNotFound), ErrorType.NotFound), cancellationToken);
         }
 
         // Spec §8: countable limits are enforced in the application at creation time, BEFORE the
@@ -121,7 +122,7 @@ public sealed class CreateSiteCommandHandler
             .CountAsync(site => site.AccountId == command.AccountId, cancellationToken);
         if (existingSites >= account.MaxSites)
         {
-            return await FailAsync(command, nameof(ErrorMessages.SiteLimitReached), cancellationToken);
+            return await FailAsync(command, Error.Of(nameof(ErrorMessages.SiteLimitReached), ErrorType.Conflict), cancellationToken);
         }
 
         // Deliberately ignores the tenant filter: a hostname is claimed once across the whole
@@ -141,13 +142,15 @@ public sealed class CreateSiteCommandHandler
             })
             .Append(command.Domain.ToLowerInvariant())
             .ToList();
+#pragma warning disable RS0030 // a hostname is claimed server-wide; scoping this read would let one account take another's domain
         var domainTaken = await _dbContext.SiteHostnames
             .IgnoreQueryFilters()
             .AsNoTracking()
             .AnyAsync(hostname => claimed.Contains(hostname.Name), cancellationToken);
+#pragma warning restore RS0030
         if (domainTaken)
         {
-            return await FailAsync(command, nameof(ErrorMessages.SiteDomainTaken), cancellationToken);
+            return await FailAsync(command, Error.Of(nameof(ErrorMessages.SiteDomainTaken), ErrorType.Conflict), cancellationToken);
         }
 
         if (command.BackendType == SiteBackendType.Php)
@@ -155,12 +158,12 @@ public sealed class CreateSiteCommandHandler
             var installed = await IsPhpVersionInstalledAsync(command.PhpVersion, cancellationToken);
             if (!installed.IsSuccess)
             {
-                return await FailAsync(command, installed.Error!.Code, cancellationToken);
+                return await FailAsync(command, installed.Error!, cancellationToken);
             }
 
             if (!installed.Value)
             {
-                return await FailAsync(command, nameof(ErrorMessages.PhpVersionNotInstalled), cancellationToken);
+                return await FailAsync(command, Error.Of(nameof(ErrorMessages.PhpVersionNotInstalled), ErrorType.Validation), cancellationToken);
             }
         }
 
@@ -180,7 +183,7 @@ public sealed class CreateSiteCommandHandler
             cancellationToken);
         if (!provisioned.IsSuccess)
         {
-            return await FailAsync(command, provisioned.Error!.Code, cancellationToken);
+            return await FailAsync(command, provisioned.Error!, cancellationToken);
         }
 
         var site = new Site(
@@ -207,7 +210,7 @@ public sealed class CreateSiteCommandHandler
     /// <summary>Maps the module's backend enum onto the agent client's, for a site that has no row yet.</summary>
     /// <param name="backendType">The requested backend type.</param>
     /// <returns>The agent client's matching kind.</returns>
-    /// <exception cref="ArgumentOutOfRangeException">Thrown for a value the mapping does not know; see <see cref="SiteDescriptorFactory"/>.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown for a value the mapping does not know; see <see cref="Maran.Modules.Sites.Mappers.SiteDescriptorMapper"/>.</exception>
     private static SiteBackendKind SiteBackendKindOf(SiteBackendType backendType)
     {
         return backendType switch
@@ -221,18 +224,18 @@ public sealed class CreateSiteCommandHandler
 
     /// <summary>Journals a refused creation and returns it as the typed failure.</summary>
     /// <param name="command">The creation that was refused, whose domain is the journal's subject.</param>
-    /// <param name="code">The machine-stable code to answer with.</param>
+    /// <param name="error">The typed failure to answer with, code and kind together.</param>
     /// <param name="cancellationToken">Cancels the journal write.</param>
-    /// <returns>The failed result carrying <paramref name="code"/>.</returns>
+    /// <returns>The failed result carrying <paramref name="error"/>.</returns>
     private async Task<Result<SiteDto>> FailAsync(
         CreateSiteCommand command,
-        string code,
+        Error error,
         CancellationToken cancellationToken)
     {
         await _journal.RecordFailureAsync(
             AuditActions.SiteCreated, command.Domain, command.IpAddress, command.UserAgent, cancellationToken);
 
-        return Result<SiteDto>.Fail(Error.Of(code));
+        return Result<SiteDto>.Fail(error);
     }
 
     /// <summary>Asks the agent whether a PHP version is installed on this host.</summary>

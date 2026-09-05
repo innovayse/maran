@@ -60,4 +60,13 @@
   <data name="EmailInvalidFormat">
     <value>Enter a valid email address.</value>
   </data>
+  <data name="PasswordResetTokenInvalid">
+    <value>That password reset link is no longer valid. Request a new one.</value>
+  </data>
+  <data name="PasswordResetEmailInvalid">
+    <value>Enter a valid e-mail address.</value>
+  </data>
+  <data name="SecurityPolicyInvalid">
+    <value>Those security settings are outside the range the panel accepts.</value>
+  </data>
 </root>

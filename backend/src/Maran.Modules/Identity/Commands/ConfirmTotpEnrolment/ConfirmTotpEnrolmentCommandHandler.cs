@@ -1,9 +1,9 @@
 using Maran.Modules.Identity.Common;
-using Maran.Modules.Identity.Common.Interfaces;
+using Maran.Modules.Identity.Interfaces;
 using Maran.Modules.Identity.Persistence;
 using Maran.Modules.Identity.Resources;
+using Maran.Modules.Identity.Services;
 using Maran.Sdk.Contracts;
-using Maran.Sdk.Interfaces;
 
 namespace Maran.Modules.Identity.Commands.ConfirmTotpEnrolment;
 
@@ -20,23 +20,23 @@ public sealed class ConfirmTotpEnrolmentCommandHandler
     private readonly IRecoveryCodeService _recoveryCodeService;
 
     /// <summary>Records the change.</summary>
-    private readonly IAuditWriter _auditWriter;
+    private readonly IdentityAuditJournal _journal;
 
     /// <summary>Creates the handler.</summary>
     /// <param name="dbContext">The module's database context.</param>
     /// <param name="totpService">Verifies the proving code.</param>
     /// <param name="recoveryCodeService">Issues the recovery codes.</param>
-    /// <param name="auditWriter">Records the change.</param>
+    /// <param name="journal">Records the change.</param>
     public ConfirmTotpEnrolmentCommandHandler(
         IdentityDbContext dbContext,
         ITotpService totpService,
         IRecoveryCodeService recoveryCodeService,
-        IAuditWriter auditWriter)
+        IdentityAuditJournal journal)
     {
         _dbContext = dbContext;
         _totpService = totpService;
         _recoveryCodeService = recoveryCodeService;
-        _auditWriter = auditWriter;
+        _journal = journal;
     }
 
     /// <summary>Enables the factor and hands over the recovery codes.</summary>
@@ -50,17 +50,17 @@ public sealed class ConfirmTotpEnrolmentCommandHandler
         var user = await _dbContext.Users.SingleOrDefaultAsync(u => u.Id == command.UserId, cancellationToken);
         if (user is null)
         {
-            return Result<RecoveryCodesDto>.Fail(Error.Of(nameof(ErrorMessages.UserNotFound)));
+            return Result<RecoveryCodesDto>.Fail(Error.Of(nameof(ErrorMessages.UserNotFound), ErrorType.NotFound));
         }
 
         if (user.IsTotpEnabled)
         {
-            return Result<RecoveryCodesDto>.Fail(Error.Of(nameof(ErrorMessages.TwoFactorAlreadyEnabledForbidden)));
+            return Result<RecoveryCodesDto>.Fail(Error.Of(nameof(ErrorMessages.TwoFactorAlreadyEnabledForbidden), ErrorType.Forbidden));
         }
 
         if (!_totpService.Verify(command.Secret, command.Code, user.LastTotpWindow, out var window))
         {
-            return Result<RecoveryCodesDto>.Fail(Error.Of(nameof(ErrorMessages.InvalidTwoFactorCodeUnauthorized)));
+            return Result<RecoveryCodesDto>.Fail(Error.Of(nameof(ErrorMessages.InvalidTwoFactorCodeUnauthorized), ErrorType.Unauthorized));
         }
 
         user.EnableTotp(command.Secret);
@@ -69,15 +69,13 @@ public sealed class ConfirmTotpEnrolmentCommandHandler
 
         var codes = await _recoveryCodeService.ReplaceAsync(user.Id, cancellationToken);
 
-        await _auditWriter.WriteAsync(
-            new AuditEntry(
-                user.Id,
-                user.Username,
-                AuditActions.TwoFactorEnabled,
-                user.Username,
-                command.IpAddress,
-                command.UserAgent,
-                Succeeded: true),
+        await _journal.RecordClaimAsync(
+            user.Id,
+            user.Username,
+            AuditActions.TwoFactorEnabled,
+            command.IpAddress,
+            command.UserAgent,
+            succeeded: true,
             cancellationToken);
 
         return Result<RecoveryCodesDto>.Ok(new RecoveryCodesDto(codes));

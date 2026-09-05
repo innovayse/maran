@@ -1,5 +1,5 @@
-using Maran.Modules.Ssl.Common;
-using Maran.Modules.Ssl.Common.Options;
+using Maran.Modules.Ssl.Models;
+using Maran.Modules.Ssl.Options;
 using Maran.Modules.Ssl.Persistence;
 using Maran.Modules.Ssl.Services;
 using Maran.Modules.Ssl.Tests.TestSupport;
@@ -202,7 +202,7 @@ public sealed class AcmeClientTests : IDisposable
     /// <returns>The client under test.</returns>
     private AcmeClient ClientFor(IHttpClientFactory factory)
     {
-        var options = Options.Create(new AcmeOptions
+        var options = new OptionsWrapper<AcmeOptions>(new AcmeOptions
         {
             DirectoryUrl = FakeAcmeAuthority.DirectoryUrl,
             ContactEmail = "ops@example.com",

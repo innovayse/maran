@@ -27,4 +27,15 @@ public static class PanelClaimTypes
 
     /// <summary>The session this token was issued against, so revoking the session can disown it.</summary>
     public const string SessionId = "sid";
+
+    /// <summary>
+    /// Present, with the value <c>true</c>, only while its holder is being steered into two-factor
+    /// enrolment and may reach nothing else.
+    /// </summary>
+    /// <remarks>
+    /// The claim's PRESENCE is the restriction: a token issued on a panel that does not force
+    /// enrolment carries no such claim at all, so there is no "false" spelling for a reader to parse
+    /// wrongly and no way for an absent claim to be mistaken for a permissive one.
+    /// </remarks>
+    public const string TwoFactorSetupRequired = "tfa_setup";
 }

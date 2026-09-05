@@ -1,6 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 
-namespace Maran.Modules.Ssl.Common.Options;
+namespace Maran.Modules.Ssl.Options;
 
 /// <summary>
 /// Settings for ordering certificates from an ACME certificate authority. Bound from the
@@ -36,8 +36,14 @@ public sealed class AcmeOptions
     /// The operator's contact address, registered with the ACME account so the authority can warn
     /// about expiries and account problems. An operator address, never a customer's.
     /// </summary>
+    /// <remarks>
+    /// Presence is checked here; the SHAPE is checked by
+    /// <c>Validators/AcmeOptionsValidator.cs</c> against the panel's one definition of a
+    /// valid address (<c>Maran.SharedKernel.Utilities.Mail.EmailAddressRule</c>). The
+    /// <c>[EmailAddress]</c> annotation that used to stand here was a third, laxer answer to a
+    /// question two other modules were already answering differently.
+    /// </remarks>
     [Required]
-    [EmailAddress]
     public string ContactEmail { get; set; } = "admin@localhost";
 
     /// <summary>

@@ -59,7 +59,7 @@ public sealed class ListPhpVersionsQueryHandlerTests
     {
         // An empty list would tell the SPA "this server has no PHP", which is a different and
         // wrong thing to show a customer whose agent is merely unreachable.
-        var handler = new ListPhpVersionsQueryHandler(new RecordingAgentPhpClient(Error.Of("AgentUnavailable")));
+        var handler = new ListPhpVersionsQueryHandler(new RecordingAgentPhpClient(Error.Of("AgentUnavailable", ErrorType.Unavailable)));
 
         var result = await handler.HandleAsync(new ListPhpVersionsQuery(), CancellationToken.None);
 

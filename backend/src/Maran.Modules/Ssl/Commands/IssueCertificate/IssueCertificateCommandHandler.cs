@@ -1,9 +1,12 @@
 using Maran.Modules.Ssl.Common;
-using Maran.Modules.Ssl.Common.Interfaces;
-using Maran.Modules.Ssl.Domain;
+using Maran.Modules.Ssl.Domain.Entities;
 using Maran.Modules.Ssl.Domain.Enums;
+using Maran.Modules.Ssl.Interfaces;
+using Maran.Modules.Ssl.Mappers;
+using Maran.Modules.Ssl.Models;
 using Maran.Modules.Ssl.Persistence;
 using Maran.Modules.Ssl.Resources;
+using Maran.Modules.Ssl.Services;
 using Maran.Sdk.Contracts;
 using Maran.Sdk.Interfaces;
 using Npgsql;
@@ -53,6 +56,12 @@ public sealed class IssueCertificateCommandHandler
     /// <summary>The injected time source; never the ambient clock (rules/csharp.md).</summary>
     private readonly IClock _clock;
 
+    /// <summary>The panel-wide task journal, so an operator can watch an order instead of waiting on it.</summary>
+    private readonly ITaskRecorder _tasks;
+
+    /// <summary>The current request's correlation id, recorded on the task beside its stages.</summary>
+    private readonly ICorrelationIdAccessor _correlationIds;
+
     /// <summary>Creates the handler.</summary>
     /// <param name="dbContext">The Ssl module's database context.</param>
     /// <param name="sites">The tenant-scoped window onto the sites this caller owns.</param>
@@ -61,6 +70,8 @@ public sealed class IssueCertificateCommandHandler
     /// <param name="installer">The shared install path.</param>
     /// <param name="journal">This module's audit journal.</param>
     /// <param name="clock">The injected time source used to stamp the new row.</param>
+    /// <param name="tasks">The panel-wide task journal.</param>
+    /// <param name="correlationIds">The current request's correlation id.</param>
     public IssueCertificateCommandHandler(
         SslDbContext dbContext,
         ISiteDirectory sites,
@@ -68,7 +79,9 @@ public sealed class IssueCertificateCommandHandler
         IAcmeClient acme,
         CertificateInstaller installer,
         CertificateAuditJournal journal,
-        IClock clock)
+        IClock clock,
+        ITaskRecorder tasks,
+        ICorrelationIdAccessor correlationIds)
     {
         _dbContext = dbContext;
         _sites = sites;
@@ -77,58 +90,75 @@ public sealed class IssueCertificateCommandHandler
         _installer = installer;
         _journal = journal;
         _clock = clock;
+        _tasks = tasks;
+        _correlationIds = correlationIds;
     }
 
     /// <summary>Issues and installs a certificate for one of the caller's sites.</summary>
     /// <param name="command">The validated domain; see <see cref="IssueCertificateCommandValidator"/>.</param>
     /// <param name="cancellationToken">Cancels the operation.</param>
     /// <returns>
-    /// The recorded certificate, or <c>SiteNotFound</c>, <c>CertificateAlreadyIssued</c>,
+    /// The recorded certificate, or <c>SiteNotFound</c>, <c>CertificateAlreadyExists</c>,
     /// <c>AccountNotFound</c>, or the authority's or agent's own typed failure.
     /// </returns>
     public async Task<Result<CertificateDto>> HandleAsync(
         IssueCertificateCommand command,
         CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(command);
+
+        // Opened before the first check, because an order is the panel's slowest foreground
+        // operation — an authority to reach, a challenge to serve, a poll to wait out — and the
+        // domain the caller named is already a good enough subject to watch it by, whether or not
+        // it turns out to be theirs.
+        var taskId = await _tasks.BeginAsync(
+            TaskKinds.CertificateIssue, command.Domain, _correlationIds.CorrelationId, cancellationToken);
+
         // Tenant-scoped: the directory answers null for a site this caller does not own, so a guessed
         // domain reads as "not found" rather than "forbidden".
         var site = await _sites.FindByDomainAsync(command.Domain, cancellationToken);
         if (site is null)
         {
-            return await FailAsync(command, nameof(ErrorMessages.SiteNotFound), cancellationToken);
+            return await FailAsync(command, Error.Of(nameof(ErrorMessages.SiteNotFound), ErrorType.NotFound), taskId, cancellationToken);
         }
 
         // Deliberately ignores the tenant filter: a domain carries one certificate across the whole
         // server, so a certificate already issued for this domain under ANOTHER account still blocks
         // it. Without this the filter would hide the row, the check would pass, and the insert would
         // fail on the unique index as an unhandled exception instead of a typed 409.
+#pragma warning disable RS0030 // a certificate is claimed per domain across the server, not per account
         var alreadyIssued = await _dbContext.Certificates
             .IgnoreQueryFilters()
             .AsNoTracking()
             .AnyAsync(certificate => certificate.Domain == command.Domain, cancellationToken);
+#pragma warning restore RS0030
         if (alreadyIssued)
         {
-            return await FailAsync(command, nameof(ErrorMessages.CertificateAlreadyIssued), cancellationToken);
+            return await FailAsync(command, Error.Of(nameof(ErrorMessages.CertificateAlreadyExists), ErrorType.Conflict), taskId, cancellationToken);
         }
 
         var account = await _accounts.FindAsync(site.AccountId, cancellationToken);
         if (account is null)
         {
-            return await FailAsync(command, nameof(ErrorMessages.AccountNotFound), cancellationToken);
+            return await FailAsync(command, Error.Of(nameof(ErrorMessages.AccountNotFound), ErrorType.NotFound), taskId, cancellationToken);
         }
+
+        await _tasks.ReportAsync(taskId, 20, "ordering the certificate from the authority", cancellationToken);
 
         var issued = await _acme.OrderAsync(
             new AcmeOrderRequest(command.Domain, account.Username), cancellationToken);
         if (!issued.IsSuccess)
         {
-            return await FailAsync(command, issued.Error!.Code, cancellationToken);
+            return await FailAsync(command, issued.Error!, taskId, cancellationToken);
         }
+
+        await _tasks.ReportAsync(taskId, 70, "installing the material and reloading the web server", cancellationToken);
 
         var installed = await _installer.InstallAsync(
             account.Username, site, issued.Value.CertificatePem, issued.Value.PrivateKeyPem, cancellationToken);
         if (!installed.IsSuccess)
         {
-            return await FailAsync(command, installed.Error!.Code, cancellationToken);
+            return await FailAsync(command, installed.Error!, taskId, cancellationToken);
         }
 
         var certificate = new Certificate(
@@ -168,28 +198,38 @@ public sealed class IssueCertificateCommandHandler
             // told the certificate already exists, which is exactly the message that discourages
             // the retry that would repair it. Those surface as a fault instead.
             _dbContext.Certificates.Remove(certificate);
-            return await FailAsync(command, nameof(ErrorMessages.CertificateAlreadyIssued), cancellationToken);
+            return await FailAsync(command, Error.Of(nameof(ErrorMessages.CertificateAlreadyExists), ErrorType.Conflict), taskId, cancellationToken);
         }
 
         await _journal.RecordSuccessAsync(
             AuditActions.CertificateIssued, command.Domain, command.IpAddress, command.UserAgent, cancellationToken);
 
-        return Result<CertificateDto>.Ok(CertificateDtoFactory.From(certificate));
+        await _tasks.CompleteAsync(taskId, cancellationToken);
+
+        return Result<CertificateDto>.Ok(CertificateMapper.From(certificate));
     }
 
     /// <summary>Journals a refused issuance and returns it as the typed failure.</summary>
     /// <param name="command">The issuance that was refused, whose domain is the journal's subject.</param>
-    /// <param name="code">The machine-stable code to answer with.</param>
+    /// <param name="error">The typed failure to answer with, code and kind together.</param>
     /// <param name="cancellationToken">Cancels the journal write.</param>
-    /// <returns>The failed result carrying <paramref name="code"/>.</returns>
+    /// <param name="taskId">
+    /// The task to close under the same code. Closed HERE, in the one funnel every refusal already
+    /// passes through, so the task and the response cannot disagree: a code answered to the caller
+    /// and not written onto the task would leave a pane showing an order still in flight.
+    /// </param>
+    /// <returns>The failed result carrying <paramref name="error"/>.</returns>
     private async Task<Result<CertificateDto>> FailAsync(
         IssueCertificateCommand command,
-        string code,
+        Error error,
+        Guid taskId,
         CancellationToken cancellationToken)
     {
         await _journal.RecordFailureAsync(
             AuditActions.CertificateIssued, command.Domain, command.IpAddress, command.UserAgent, cancellationToken);
 
-        return Result<CertificateDto>.Fail(Error.Of(code));
+        await _tasks.FailAsync(taskId, error.Code, cancellationToken);
+
+        return Result<CertificateDto>.Fail(error);
     }
 }

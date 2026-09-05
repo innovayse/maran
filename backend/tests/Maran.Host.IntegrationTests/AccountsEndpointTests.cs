@@ -3,7 +3,7 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
 using Maran.Host.IntegrationTests.Fixtures;
-using Maran.Modules.Accounts.Domain;
+using Maran.Modules.Accounts.Domain.Entities;
 using Maran.Modules.Accounts.Persistence;
 using Maran.Modules.Identity.Persistence;
 using Microsoft.AspNetCore.Hosting;
@@ -87,7 +87,7 @@ public sealed class AccountsEndpointTests : IAsyncLifetime
 
             // Account.PlanId carries a real foreign key to Plans (rules/csharp.md "Database
             // naming" — FK_Accounts_Plans_PlanId), so a plan row must exist first.
-            setupContext.Plans.Add(new Plan(planId, "PlanStarterName", 5_120, 5, 2, 3, 5));
+            setupContext.Plans.Add(new Plan(planId, "PlanStarterName", 5_120, 5, 2, 3, 5, 5));
             await setupContext.SaveChangesAsync();
         }
 
@@ -167,6 +167,13 @@ public sealed class AccountsEndpointTests : IAsyncLifetime
 
             b.UseSetting("Security:EncryptionKey", EncryptionKey);
             b.UseSetting("Jwt:SigningKey", EncryptionKey);
+
+            // Startup validation refuses to boot without the host's SSH ports and the panel's
+            // public port: a defaulted one is a locked-out server (rules/security.md).
+            foreach (var setting in FirewallSettings.Required())
+            {
+                b.UseSetting(setting.Key, setting.Value);
+            }
             b.UseSetting("Setup:Token", SetupToken);
         });
     }
@@ -191,6 +198,6 @@ public sealed class AccountsEndpointTests : IAsyncLifetime
             new { Username = "admin", Password = AdminPassword });
 
         using var body = JsonDocument.Parse(await login.Content.ReadAsStringAsync());
-        return body.RootElement.GetProperty("accessToken").GetString()!;
+        return body.RootElement.GetProperty("session").GetProperty("accessToken").GetString()!;
     }
 }

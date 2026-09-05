@@ -1,7 +1,7 @@
 using Maran.Agent.Client.Interfaces;
 using Maran.Host.Configuration;
 using Maran.Host.Resilience;
-using Maran.Modules.Ssl.Common.Options;
+using Maran.Modules.Ssl.Options;
 using Microsoft.Extensions.Options;
 using Polly;
 using Polly.Registry;
@@ -72,6 +72,18 @@ public static class ResilienceExtensions
         Decorate<IAgentSftpClient>(services, (inner, pipelines) =>
         {
             return new ResilientAgentSftpClient(inner, pipelines);
+        });
+        Decorate<IAgentCronClient>(services, (inner, pipelines) =>
+        {
+            return new ResilientAgentCronClient(inner, pipelines);
+        });
+        Decorate<IAgentFirewallClient>(services, (inner, pipelines) =>
+        {
+            return new ResilientAgentFirewallClient(inner, pipelines);
+        });
+        Decorate<IAgentMonitorClient>(services, (inner, pipelines) =>
+        {
+            return new ResilientAgentMonitorClient(inner, pipelines);
         });
 
         return services;

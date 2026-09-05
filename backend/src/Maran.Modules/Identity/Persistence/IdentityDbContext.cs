@@ -1,4 +1,4 @@
-using Maran.Modules.Identity.Domain;
+using Maran.Modules.Identity.Domain.Entities;
 using Maran.Modules.Identity.Persistence.Configurations;
 
 namespace Maran.Modules.Identity.Persistence;
@@ -61,6 +61,45 @@ public sealed class IdentityDbContext : DbContext
         }
     }
 
+    /// <summary>
+    /// The open brute-force counting window of every address that has recently had a sign-in
+    /// refused. Working state rather than a record: a row appears when an address fails, is removed
+    /// when its window is announced as an attack, and is reclaimed once it has closed unannounced.
+    /// The permanent record of what happened is <see cref="AuditEvents"/>.
+    /// </summary>
+    public DbSet<FailedLoginByIp> FailedLoginsByIp
+    {
+        get
+        {
+            return Set<FailedLoginByIp>();
+        }
+    }
+
+    /// <summary>
+    /// The panel's security policy: at most one row, keyed by a constant. See
+    /// <see cref="Domain.Entities.SecurityPolicy"/> for why it is a singleton by construction rather than by
+    /// convention, and why its absence means the defaults rather than "no policy".
+    /// </summary>
+    public DbSet<SecurityPolicy> SecurityPolicies
+    {
+        get
+        {
+            return Set<SecurityPolicy>();
+        }
+    }
+
+    /// <summary>
+    /// Outstanding permissions to set a password without knowing the old one. Digests only — the
+    /// token itself lives in one request and one e-mail and is never written down.
+    /// </summary>
+    public DbSet<PasswordResetToken> PasswordResetTokens
+    {
+        get
+        {
+            return Set<PasswordResetToken>();
+        }
+    }
+
     /// <summary>Applies the schema and every entity configuration for this module.</summary>
     /// <param name="modelBuilder">The model builder supplied by EF Core.</param>
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -70,6 +109,9 @@ public sealed class IdentityDbContext : DbContext
         modelBuilder.ApplyConfiguration(new SessionConfiguration());
         modelBuilder.ApplyConfiguration(new RecoveryCodeConfiguration());
         modelBuilder.ApplyConfiguration(new AuditEventConfiguration());
+        modelBuilder.ApplyConfiguration(new FailedLoginByIpConfiguration());
+        modelBuilder.ApplyConfiguration(new SecurityPolicyConfiguration());
+        modelBuilder.ApplyConfiguration(new PasswordResetTokenConfiguration());
         base.OnModelCreating(modelBuilder);
     }
 }

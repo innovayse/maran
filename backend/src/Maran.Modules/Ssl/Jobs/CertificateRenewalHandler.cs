@@ -1,9 +1,10 @@
 using Maran.Agent.Client.Interfaces;
-using Maran.Modules.Ssl.Common;
-using Maran.Modules.Ssl.Common.Interfaces;
-using Maran.Modules.Ssl.Domain;
+using Maran.Modules.Ssl.Domain.Entities;
+using Maran.Modules.Ssl.Interfaces;
+using Maran.Modules.Ssl.Models;
 using Maran.Modules.Ssl.Persistence;
 using Maran.Modules.Ssl.Resources;
+using Maran.Modules.Ssl.Services;
 using Maran.Sdk.Contracts;
 using Maran.Sdk.Interfaces;
 using Microsoft.Extensions.Logging;
@@ -100,6 +101,12 @@ public sealed class CertificateRenewalHandler
     /// <summary>Where a renewal failure becomes visible to an operator, since nobody is watching the call.</summary>
     private readonly ILogger<CertificateRenewalHandler> _logger;
 
+    /// <summary>
+    /// The panel-wide task journal. One task per certificate, so an operator opening the panel the
+    /// morning after a pass sees which domains renewed and which did not, without reading the log.
+    /// </summary>
+    private readonly ITaskRecorder _tasks;
+
     /// <summary>Creates the job.</summary>
     /// <param name="dbContext">The Ssl module's database context.</param>
     /// <param name="sites">The window onto site rows.</param>
@@ -110,6 +117,7 @@ public sealed class CertificateRenewalHandler
     /// <param name="journal">This module's audit journal.</param>
     /// <param name="clock">The injected time source defining the renewal window.</param>
     /// <param name="logger">Sink for renewal failures.</param>
+    /// <param name="tasks">The panel-wide task journal.</param>
     public CertificateRenewalHandler(
         SslDbContext dbContext,
         ISiteDirectory sites,
@@ -119,7 +127,8 @@ public sealed class CertificateRenewalHandler
         IAgentSitesClient agentSites,
         CertificateAuditJournal journal,
         IClock clock,
-        ILogger<CertificateRenewalHandler> logger)
+        ILogger<CertificateRenewalHandler> logger,
+        ITaskRecorder tasks)
     {
         _dbContext = dbContext;
         _sites = sites;
@@ -130,6 +139,7 @@ public sealed class CertificateRenewalHandler
         _journal = journal;
         _clock = clock;
         _logger = logger;
+        _tasks = tasks;
     }
 
     /// <summary>Runs one renewal pass over every certificate due within the window.</summary>
@@ -190,18 +200,31 @@ public sealed class CertificateRenewalHandler
     /// </remarks>
     private async Task<bool> RenewSafelyAsync(Certificate certificate, CancellationToken cancellationToken)
     {
+        // The task is opened HERE rather than inside RenewAsync, because this is the frame that
+        // owns every way one certificate's renewal can end. A task opened one level down would be
+        // left Running forever by the broad catch below — a pane showing a renewal in flight that
+        // stopped hours ago is worse than no pane at all.
+        //
+        // There is no correlation id: a renewal pass has no request behind it. The task's own id is
+        // what an operator correlates by, and the journal records the pass under its system actor.
+        var taskId = await _tasks.BeginAsync(
+            TaskKinds.CertificateRenewal, certificate.Domain, correlationId: null, cancellationToken);
+
         try
         {
-            return await RenewAsync(certificate, cancellationToken);
+            return await RenewAsync(certificate, taskId, cancellationToken);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
+            // Deliberately left open. The pass is being shut down, not failing: the renewal was
+            // neither done nor refused, and writing an outcome here would claim one.
             throw;
         }
         catch (Exception exception)
         {
             LogRenewalThrew(_logger, certificate.Domain, exception);
             certificate.RenewalFailed(nameof(ErrorMessages.AcmeAuthorityUnreachable), _clock.UtcNow);
+            await _tasks.FailAsync(taskId, nameof(ErrorMessages.AcmeAuthorityUnreachable), cancellationToken);
             return false;
         }
     }
@@ -227,11 +250,13 @@ public sealed class CertificateRenewalHandler
         var now = _clock.UtcNow;
         var deadline = now + RenewalWindow;
 
+#pragma warning disable RS0030 // unattended renewal runs with no principal and must see every account's certificates
         var candidates = await _dbContext.Certificates
             .IgnoreQueryFilters()
             .Where(certificate => certificate.NotAfter <= deadline)
             .OrderBy(certificate => certificate.NotAfter)
             .ToListAsync(cancellationToken);
+#pragma warning restore RS0030
 
         return candidates
             .Where(certificate =>
@@ -243,6 +268,7 @@ public sealed class CertificateRenewalHandler
 
     /// <summary>Re-orders and reinstalls one certificate.</summary>
     /// <param name="certificate">The certificate to renew. Its row is updated either way.</param>
+    /// <param name="taskId">The task this certificate's renewal is being watched through.</param>
     /// <param name="cancellationToken">Cancels the renewal.</param>
     /// <returns><c>true</c> when new material was installed.</returns>
     /// <remarks>
@@ -251,32 +277,38 @@ public sealed class CertificateRenewalHandler
     /// any of which can throw — which is why <see cref="RenewSafelyAsync"/> wraps it. A previous
     /// version of this remark asserted "none of them throws", and that assertion was simply false.
     /// </remarks>
-    private async Task<bool> RenewAsync(Certificate certificate, CancellationToken cancellationToken)
+    private async Task<bool> RenewAsync(Certificate certificate, Guid taskId, CancellationToken cancellationToken)
     {
         var site = await _sites.FindByIdUnscopedAsync(certificate.SiteId, cancellationToken);
         if (site is null)
         {
-            return await RecordFailureAsync(certificate, nameof(ErrorMessages.SiteNotFound), cancellationToken);
+            return await RecordFailureAsync(
+                certificate, nameof(ErrorMessages.SiteNotFound), taskId, cancellationToken);
         }
 
         var account = await _accounts.FindAsync(certificate.AccountId, cancellationToken);
         if (account is null)
         {
-            return await RecordFailureAsync(certificate, nameof(ErrorMessages.AccountNotFound), cancellationToken);
+            return await RecordFailureAsync(
+                certificate, nameof(ErrorMessages.AccountNotFound), taskId, cancellationToken);
         }
+
+        await _tasks.ReportAsync(taskId, 20, "re-ordering the certificate from the authority", cancellationToken);
 
         var issued = await _acme.OrderAsync(
             new AcmeOrderRequest(certificate.Domain, account.Username), cancellationToken);
         if (!issued.IsSuccess)
         {
-            return await RecordFailureAsync(certificate, issued.Error!.Code, cancellationToken);
+            return await RecordFailureAsync(certificate, issued.Error!.Code, taskId, cancellationToken);
         }
+
+        await _tasks.ReportAsync(taskId, 70, "installing the renewed material", cancellationToken);
 
         var installed = await _installer.InstallAsync(
             account.Username, site, issued.Value.CertificatePem, issued.Value.PrivateKeyPem, cancellationToken);
         if (!installed.IsSuccess)
         {
-            return await RecordFailureAsync(certificate, installed.Error!.Code, cancellationToken);
+            return await RecordFailureAsync(certificate, installed.Error!.Code, taskId, cancellationToken);
         }
 
         certificate.Renewed(installed.Value, _clock.UtcNow);
@@ -284,17 +316,24 @@ public sealed class CertificateRenewalHandler
         await _journal.RecordScheduledAsync(
             AuditActions.CertificateRenewed, certificate.Domain, succeeded: true, cancellationToken);
 
+        await _tasks.CompleteAsync(taskId, cancellationToken);
+
         return true;
     }
 
     /// <summary>Records a failed renewal on the row, in the journal and in the log.</summary>
     /// <param name="certificate">The certificate whose renewal failed.</param>
     /// <param name="code">The machine-stable code of the failure. Never a supplied sentence.</param>
+    /// <param name="taskId">
+    /// The task to close under the same code, in the one funnel every refusal already passes
+    /// through, so the task carries what the row and the journal carry.
+    /// </param>
     /// <param name="cancellationToken">Cancels the journal write.</param>
     /// <returns>Always <c>false</c>, so the caller can return it directly.</returns>
     private async Task<bool> RecordFailureAsync(
         Certificate certificate,
         string code,
+        Guid taskId,
         CancellationToken cancellationToken)
     {
         certificate.RenewalFailed(code, _clock.UtcNow);
@@ -303,6 +342,8 @@ public sealed class CertificateRenewalHandler
 
         await _journal.RecordScheduledAsync(
             AuditActions.CertificateRenewed, certificate.Domain, succeeded: false, cancellationToken);
+
+        await _tasks.FailAsync(taskId, code, cancellationToken);
 
         return false;
     }

@@ -32,7 +32,7 @@
     <PackageReference Include="FluentValidation" />
     <!-- Microsoft.IdentityModel.JsonWebTokens: Services/JwtAccessTokenIssuer.cs signs the panel's
          access tokens (spec §10). The Host validates them with JwtBearer; both sides read this
-         module's Common/Options/JwtOptions.cs. -->
+         module's Options/JwtOptions.cs. -->
     <PackageReference Include="Microsoft.IdentityModel.JsonWebTokens" />
     <!-- Otp.NET: Services/TotpService.cs verifies the second factor's codes. -->
     <PackageReference Include="Otp.NET" />
@@ -66,6 +66,15 @@
       <Generator></Generator>
     </EmbeddedResource>
     <EmbeddedResource Update="Resources\DisplayNames.hy.resx">
+      <Generator></Generator>
+    </EmbeddedResource>
+    <EmbeddedResource Update="Resources\EmailTemplates.resx">
+      <Generator></Generator>
+    </EmbeddedResource>
+    <EmbeddedResource Update="Resources\EmailTemplates.ru.resx">
+      <Generator></Generator>
+    </EmbeddedResource>
+    <EmbeddedResource Update="Resources\EmailTemplates.hy.resx">
       <Generator></Generator>
     </EmbeddedResource>
   </ItemGroup>

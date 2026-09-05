@@ -1,4 +1,4 @@
-using Maran.Modules.Identity.Domain;
+using Maran.Modules.Identity.Domain.Entities;
 using Maran.Modules.Identity.Persistence;
 using Maran.Sdk.Contracts;
 using Maran.Sdk.Interfaces;

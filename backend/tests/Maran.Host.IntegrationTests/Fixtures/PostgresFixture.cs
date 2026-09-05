@@ -61,6 +61,19 @@ public sealed class PostgresFixture : IAsyncLifetime
     /// <returns>A connection string for a database no other test uses.</returns>
     public async Task<string> CreateDatabaseAsync()
     {
+        // Release what previous tests' pools are still holding. Npgsql's pools are process-global and
+        // keyed by connection string, and every test here gets a database of its own — so a pool is
+        // dead the moment its test ends, but nothing tells Npgsql that and its connections stay open
+        // against this one server. Left alone the assembly's open connection count only ever grows
+        // with the number of tests, and the server refuses new ones with `53300: sorry, too many
+        // clients already` in whichever test happens to be running when the ceiling is reached rather
+        // than in the one that exhausted it. Clearing here — before a new database is handed out,
+        // which is exactly once per test — bounds the total at what the running tests hold, and makes
+        // the max_connections headroom above a fixed cost rather than a number that has to grow every
+        // time the suite does. Safe for a connection in use: Npgsql closes a cleared connection when
+        // it is returned, never under its owner.
+        NpgsqlConnection.ClearAllPools();
+
         var name = $"maran_test_{Interlocked.Increment(ref _issued)}_{Guid.NewGuid():N}";
 
         await using (var admin = new NpgsqlConnection(_container.GetConnectionString()))

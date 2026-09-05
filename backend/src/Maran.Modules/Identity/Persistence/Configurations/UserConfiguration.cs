@@ -1,4 +1,4 @@
-using Maran.Modules.Identity.Domain;
+using Maran.Modules.Identity.Domain.Entities;
 using Maran.SharedKernel.Security;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 

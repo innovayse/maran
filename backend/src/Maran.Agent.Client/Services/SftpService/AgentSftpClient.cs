@@ -71,7 +71,7 @@ public sealed class AgentSftpClient : IAgentSftpClient
             CreateSftpUserResponse.ResultOneofCase.Ok => Result<string>.Ok(response.Ok.SftpUsername),
             CreateSftpUserResponse.ResultOneofCase.Error => Result<string>.Fail(
                 AgentErrorTranslator.ToError(_logger, response.Error, nameof(CreateAsync), password)),
-            _ => Result<string>.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse))),
+            _ => Result<string>.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
         };
     }
 
@@ -95,7 +95,7 @@ public sealed class AgentSftpClient : IAgentSftpClient
             SetSftpPasswordResponse.ResultOneofCase.Ok => Result<bool>.Ok(true),
             SetSftpPasswordResponse.ResultOneofCase.Error => Result<bool>.Fail(
                 AgentErrorTranslator.ToError(_logger, response.Error, nameof(SetPasswordAsync), password)),
-            _ => Result<bool>.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse))),
+            _ => Result<bool>.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
         };
     }
 
@@ -117,7 +117,7 @@ public sealed class AgentSftpClient : IAgentSftpClient
             DeleteSftpUserResponse.ResultOneofCase.Ok => Result<bool>.Ok(true),
             DeleteSftpUserResponse.ResultOneofCase.Error => Result<bool>.Fail(
                 AgentErrorTranslator.ToError(_logger, response.Error, nameof(DeleteAsync))),
-            _ => Result<bool>.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse))),
+            _ => Result<bool>.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
         };
     }
 }

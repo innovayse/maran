@@ -1,8 +1,8 @@
 using System.Runtime.CompilerServices;
 using Maran.Agent.Client.Interfaces;
 using Maran.Agent.Client.Services.SitesService;
-using Maran.Modules.Sites.Common;
 using Maran.Modules.Sites.Domain.Enums;
+using Maran.Modules.Sites.Models;
 using Maran.Modules.Sites.Persistence;
 using Maran.Modules.Sites.Resources;
 using Maran.Sdk.Contracts;
@@ -117,26 +117,26 @@ public sealed class SiteLogTailService
         {
             // The subject is the identifier the caller supplied, because no domain is known: a probe
             // for a log the caller may not read still leaves a trace naming what was probed for.
-            return await FailAsync(siteId.ToString(), nameof(ErrorMessages.SiteNotFound), ipAddress, userAgent, cancellationToken);
+            return await FailAsync(siteId.ToString(), Error.Of(nameof(ErrorMessages.SiteNotFound), ErrorType.NotFound), ipAddress, userAgent, cancellationToken);
         }
 
         var account = await _accounts.FindAsync(site.AccountId, cancellationToken);
         if (account is null)
         {
-            return await FailAsync(site.Domain, nameof(ErrorMessages.AccountNotFound), ipAddress, userAgent, cancellationToken);
+            return await FailAsync(site.Domain, Error.Of(nameof(ErrorMessages.AccountNotFound), ErrorType.NotFound), ipAddress, userAgent, cancellationToken);
         }
 
         var logSource = ParseSource(source);
         if (logSource is null)
         {
             return await FailAsync(
-                site.Domain, nameof(ErrorMessages.SiteLogSourceInvalid), ipAddress, userAgent, cancellationToken);
+                site.Domain, Error.Of(nameof(ErrorMessages.SiteLogSourceInvalid), ErrorType.Validation), ipAddress, userAgent, cancellationToken);
         }
 
         if (historyLines < 0 || historyLines > MaxHistoryLines)
         {
             return await FailAsync(
-                site.Domain, nameof(ErrorMessages.SiteLogHistoryLinesInvalid), ipAddress, userAgent, cancellationToken);
+                site.Domain, Error.Of(nameof(ErrorMessages.SiteLogHistoryLinesInvalid), ErrorType.Validation), ipAddress, userAgent, cancellationToken);
         }
 
         await _journal.RecordSuccessAsync(
@@ -252,14 +252,14 @@ public sealed class SiteLogTailService
 
     /// <summary>Journals a refused tail and returns it as the typed failure.</summary>
     /// <param name="subject">The site's domain, or the identifier the caller supplied.</param>
-    /// <param name="code">The machine-stable code to answer with.</param>
+    /// <param name="error">The typed failure to answer with, code and kind together.</param>
     /// <param name="ipAddress">The caller's address.</param>
     /// <param name="userAgent">The caller's user agent.</param>
     /// <param name="cancellationToken">Cancels the journal write.</param>
-    /// <returns>The failed result carrying <paramref name="code"/>.</returns>
+    /// <returns>The failed result carrying <paramref name="error"/>.</returns>
     private async Task<Result<SiteLogTailTarget>> FailAsync(
         string subject,
-        string code,
+        Error error,
         string ipAddress,
         string userAgent,
         CancellationToken cancellationToken)
@@ -267,6 +267,6 @@ public sealed class SiteLogTailService
         await _journal.RecordFailureAsync(
             AuditActions.SiteLogTailed, subject, ipAddress, userAgent, cancellationToken);
 
-        return Result<SiteLogTailTarget>.Fail(Error.Of(code));
+        return Result<SiteLogTailTarget>.Fail(error);
     }
 }

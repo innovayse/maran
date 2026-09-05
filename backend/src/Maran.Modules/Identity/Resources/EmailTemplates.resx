@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="PasswordResetSubject">
+    <value>Reset your panel password</value>
+  </data>
+  <data name="PasswordResetBody">
+    <value>Somebody asked to reset the password for your panel account.
+
+{0}
+
+The link stops working in one hour and can be used once. If this was not you, no action is needed: your password has not changed.</value>
+  </data>
+  <data name="PasswordResetLink">
+    <value>Open this address to choose a new password:
+{0}</value>
+  </data>
+  <data name="PasswordResetTokenOnly">
+    <value>Open the panel, go to the reset-password page, and enter this code:
+{0}</value>
+  </data>
+</root>

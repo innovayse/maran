@@ -1,8 +1,9 @@
 using Maran.Agent.Client.Interfaces;
 using Maran.Modules.Databases.Common;
-using Maran.Modules.Databases.Domain;
+using Maran.Modules.Databases.Domain.Entities;
 using Maran.Modules.Databases.Persistence;
 using Maran.Modules.Databases.Resources;
+using Maran.Modules.Databases.Services;
 using Maran.Sdk.Contracts;
 using Maran.Sdk.Interfaces;
 using Maran.SharedKernel.Security;
@@ -158,7 +159,7 @@ public sealed class CreateDatabaseCommandHandler
         var account = await _accounts.FindAsync(command.AccountId, cancellationToken);
         if (account is null)
         {
-            return await FailAsync(command, nameof(ErrorMessages.AccountNotFound), cancellationToken);
+            return await FailAsync(command, Error.Of(nameof(ErrorMessages.AccountNotFound), ErrorType.NotFound), cancellationToken);
         }
 
         // Spec §8: countable limits are enforced in the application at creation time, BEFORE the
@@ -173,7 +174,7 @@ public sealed class CreateDatabaseCommandHandler
             .CountAsync(database => database.AccountId == command.AccountId, cancellationToken);
         if (existing >= account.MaxDatabases)
         {
-            return await FailAsync(command, nameof(ErrorMessages.DatabaseLimitReached), cancellationToken);
+            return await FailAsync(command, Error.Of(nameof(ErrorMessages.DatabaseLimitReached), ErrorType.Conflict), cancellationToken);
         }
 
         // Whether the PREFIXED names fit is a question only this layer can answer, because it is the
@@ -181,12 +182,12 @@ public sealed class CreateDatabaseCommandHandler
         // left to the agent so the customer is told which of their two names is too long.
         if (account.Username.Length + PrefixSeparatorLength + command.Name.Length > MySqlIdentifierMaxLength)
         {
-            return await FailAsync(command, nameof(ErrorMessages.DatabaseNameTooLong), cancellationToken);
+            return await FailAsync(command, Error.Of(nameof(ErrorMessages.DatabaseNameTooLong), ErrorType.Validation), cancellationToken);
         }
 
         if (account.Username.Length + PrefixSeparatorLength + command.DbUserName.Length > MySqlUserNameMaxLength)
         {
-            return await FailAsync(command, nameof(ErrorMessages.DatabaseUserNameTooLong), cancellationToken);
+            return await FailAsync(command, Error.Of(nameof(ErrorMessages.DatabaseUserNameTooLong), ErrorType.Validation), cancellationToken);
         }
 
         // Asked of the account's OWN rows, through the tenant filter, and never of the server's
@@ -214,7 +215,7 @@ public sealed class CreateDatabaseCommandHandler
                 cancellationToken);
         if (nameTaken)
         {
-            return await FailAsync(command, nameof(ErrorMessages.DatabaseNameTaken), cancellationToken);
+            return await FailAsync(command, Error.Of(nameof(ErrorMessages.DatabaseNameTaken), ErrorType.Conflict), cancellationToken);
         }
 
         // A MySQL user is one login. Two of the account's databases sharing one would mean a reset
@@ -228,7 +229,7 @@ public sealed class CreateDatabaseCommandHandler
                 cancellationToken);
         if (userNameTaken)
         {
-            return await FailAsync(command, nameof(ErrorMessages.DatabaseUserNameTaken), cancellationToken);
+            return await FailAsync(command, Error.Of(nameof(ErrorMessages.DatabaseUserNameTaken), ErrorType.Conflict), cancellationToken);
         }
 
         var password = ProvisionedPasswordGenerator.Generate();
@@ -241,7 +242,7 @@ public sealed class CreateDatabaseCommandHandler
             cancellationToken);
         if (!provisioned.IsSuccess)
         {
-            return await FailAsync(command, provisioned.Error!.Code, cancellationToken);
+            return await FailAsync(command, provisioned.Error!, cancellationToken);
         }
 
         // The fully-qualified names are taken from the agent's answer, not rebuilt from the suffix
@@ -332,8 +333,8 @@ public sealed class CreateDatabaseCommandHandler
                 // live database with a password nobody holds and no row. It goes.
                 await CompensateAsync(accountUsername, command, cancellationToken);
 
-                return Result<bool>.Fail(Error.Of(await FailedCodeAsync(
-                    command, nameof(ErrorMessages.DatabaseProvisioningFailed), cancellationToken)));
+                return Result<bool>.Fail(await FailedErrorAsync(
+                    command, Error.Of(nameof(ErrorMessages.DatabaseProvisioningFailed), ErrorType.Failure), cancellationToken));
             }
 
             if (ClaimsTheSameDatabase(duplicate.ConstraintName))
@@ -342,8 +343,8 @@ public sealed class CreateDatabaseCommandHandler
                 // ITS row owns the database now on the server. Nothing is orphaned, and dropping
                 // would destroy the winner's data — so this is the one post-create failure that
                 // must NOT compensate. The caller is told the name is taken, which is true.
-                return Result<bool>.Fail(Error.Of(
-                    await FailedCodeAsync(command, nameof(ErrorMessages.DatabaseNameTaken), cancellationToken)));
+                return Result<bool>.Fail(await FailedErrorAsync(
+                    command, Error.Of(nameof(ErrorMessages.DatabaseNameTaken), ErrorType.Conflict), cancellationToken));
             }
 
             // The conflict is on the dedicated USER, which another of this account's databases
@@ -351,8 +352,8 @@ public sealed class CreateDatabaseCommandHandler
             // the orphan described above and is compensated for like any other.
             await CompensateAsync(accountUsername, command, cancellationToken);
 
-            return Result<bool>.Fail(Error.Of(
-                await FailedCodeAsync(command, nameof(ErrorMessages.DatabaseUserNameTaken), cancellationToken)));
+            return Result<bool>.Fail(await FailedErrorAsync(
+                    command, Error.Of(nameof(ErrorMessages.DatabaseUserNameTaken), ErrorType.Conflict), cancellationToken));
         }
     }
 
@@ -385,31 +386,30 @@ public sealed class CreateDatabaseCommandHandler
 
     /// <summary>Journals a refused creation and hands back the code to answer with.</summary>
     /// <param name="command">The creation that was refused, whose name is the journal's subject.</param>
-    /// <param name="code">The machine-stable code to answer with.</param>
+    /// <param name="error">The typed failure to answer with, code and kind together.</param>
     /// <param name="cancellationToken">Cancels the journal write.</param>
-    /// <returns><paramref name="code"/>, unchanged.</returns>
-    private async Task<string> FailedCodeAsync(
+    /// <returns><paramref name="error"/>, unchanged.</returns>
+    private async Task<Error> FailedErrorAsync(
         CreateDatabaseCommand command,
-        string code,
+        Error error,
         CancellationToken cancellationToken)
     {
         await _journal.RecordFailureAsync(
             AuditActions.DatabaseCreated, command.Name, command.IpAddress, command.UserAgent, cancellationToken);
 
-        return code;
+        return error;
     }
 
     /// <summary>Journals a refused creation and returns it as the typed failure.</summary>
     /// <param name="command">The creation that was refused.</param>
-    /// <param name="code">The machine-stable code to answer with.</param>
+    /// <param name="error">The typed failure to answer with, code and kind together.</param>
     /// <param name="cancellationToken">Cancels the journal write.</param>
-    /// <returns>The failed result carrying <paramref name="code"/>.</returns>
+    /// <returns>The failed result carrying <paramref name="error"/>.</returns>
     private async Task<Result<CreatedDatabaseDto>> FailAsync(
         CreateDatabaseCommand command,
-        string code,
+        Error error,
         CancellationToken cancellationToken)
     {
-        return Result<CreatedDatabaseDto>.Fail(
-            Error.Of(await FailedCodeAsync(command, code, cancellationToken)));
+        return Result<CreatedDatabaseDto>.Fail(await FailedErrorAsync(command, error, cancellationToken));
     }
 }

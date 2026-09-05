@@ -16,5 +16,6 @@ public static class DatabasesManifest
         DisplayNameKey: "DatabasesModuleDisplayName",
         Version: "1.0.0",
         Tier: LicenceTier.Included,
-        Dependencies: []);
+        Dependencies: [],
+        AgentCapabilities: [AgentCapability.Db]);
 }

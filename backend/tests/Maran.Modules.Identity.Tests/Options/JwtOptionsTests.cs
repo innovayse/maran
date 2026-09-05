@@ -1,6 +1,6 @@
-using Maran.Modules.Identity.Common.Options;
+using Maran.Modules.Identity.Options;
 
-namespace Maran.Modules.Identity.Tests.Common.Options;
+namespace Maran.Modules.Identity.Tests.Options;
 /// <summary>Behavioural contract of jwt options.</summary>
 
 public sealed class JwtOptionsTests

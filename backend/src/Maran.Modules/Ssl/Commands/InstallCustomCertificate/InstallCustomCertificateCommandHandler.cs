@@ -1,8 +1,10 @@
 using Maran.Modules.Ssl.Common;
-using Maran.Modules.Ssl.Domain;
+using Maran.Modules.Ssl.Domain.Entities;
 using Maran.Modules.Ssl.Domain.Enums;
+using Maran.Modules.Ssl.Mappers;
 using Maran.Modules.Ssl.Persistence;
 using Maran.Modules.Ssl.Resources;
+using Maran.Modules.Ssl.Services;
 using Maran.Sdk.Contracts;
 using Maran.Sdk.Interfaces;
 
@@ -77,20 +79,20 @@ public sealed class InstallCustomCertificateCommandHandler
         var site = await _sites.FindByDomainAsync(command.Domain, cancellationToken);
         if (site is null)
         {
-            return await FailAsync(command, nameof(ErrorMessages.SiteNotFound), cancellationToken);
+            return await FailAsync(command, Error.Of(nameof(ErrorMessages.SiteNotFound), ErrorType.NotFound), cancellationToken);
         }
 
         var account = await _accounts.FindAsync(site.AccountId, cancellationToken);
         if (account is null)
         {
-            return await FailAsync(command, nameof(ErrorMessages.AccountNotFound), cancellationToken);
+            return await FailAsync(command, Error.Of(nameof(ErrorMessages.AccountNotFound), ErrorType.NotFound), cancellationToken);
         }
 
         var installed = await _installer.InstallAsync(
             account.Username, site, command.CertificatePem, command.PrivateKeyPem, cancellationToken);
         if (!installed.IsSuccess)
         {
-            return await FailAsync(command, installed.Error!.Code, cancellationToken);
+            return await FailAsync(command, installed.Error!, cancellationToken);
         }
 
         var certificate = await UpsertAsync(command.Domain, site, installed.Value, cancellationToken);
@@ -102,7 +104,7 @@ public sealed class InstallCustomCertificateCommandHandler
             command.UserAgent,
             cancellationToken);
 
-        return Result<CertificateDto>.Ok(CertificateDtoFactory.From(certificate));
+        return Result<CertificateDto>.Ok(CertificateMapper.From(certificate));
     }
 
     /// <summary>Replaces the domain's existing row, or writes the first one.</summary>
@@ -122,9 +124,11 @@ public sealed class InstallCustomCertificateCommandHandler
         DateTimeOffset notAfter,
         CancellationToken cancellationToken)
     {
+#pragma warning disable RS0030 // a certificate is claimed per domain across the server, not per account
         var existing = await _dbContext.Certificates
             .IgnoreQueryFilters()
             .FirstOrDefaultAsync(certificate => certificate.Domain == domain, cancellationToken);
+#pragma warning restore RS0030
 
         if (existing is not null)
         {
@@ -148,12 +152,12 @@ public sealed class InstallCustomCertificateCommandHandler
 
     /// <summary>Journals a refused installation and returns it as the typed failure.</summary>
     /// <param name="command">The installation that was refused, whose domain is the journal's subject.</param>
-    /// <param name="code">The machine-stable code to answer with.</param>
+    /// <param name="error">The typed failure to answer with, code and kind together.</param>
     /// <param name="cancellationToken">Cancels the journal write.</param>
-    /// <returns>The failed result carrying <paramref name="code"/>.</returns>
+    /// <returns>The failed result carrying <paramref name="error"/>.</returns>
     private async Task<Result<CertificateDto>> FailAsync(
         InstallCustomCertificateCommand command,
-        string code,
+        Error error,
         CancellationToken cancellationToken)
     {
         await _journal.RecordFailureAsync(
@@ -163,6 +167,6 @@ public sealed class InstallCustomCertificateCommandHandler
             command.UserAgent,
             cancellationToken);
 
-        return Result<CertificateDto>.Fail(Error.Of(code));
+        return Result<CertificateDto>.Fail(error);
     }
 }

@@ -1,5 +1,5 @@
 using Maran.Modules.Sftp.Commands.DeleteSftpUser;
-using Maran.Modules.Sftp.Common;
+using Maran.Modules.Sftp.Services;
 using Maran.Modules.Sftp.Tests.TestSupport;
 using Maran.Sdk.Contracts;
 using Maran.SharedKernel.Results;
@@ -53,7 +53,7 @@ public sealed class DeleteSftpUserCommandHandlerTests
         // into a customer's home that nobody in the panel can see and nobody can now revoke — and
         // the customer asked for exactly that access to end.
         var world = await WorldAsync();
-        world.Agent.DeleteResult = Result<bool>.Fail(Error.Of("AgentSystemFailure"));
+        world.Agent.DeleteResult = Result<bool>.Fail(Error.Of("AgentSystemFailure", ErrorType.Failure));
 
         var result = await world.DeleteAsync(world.OwnSftpUserId);
 
@@ -164,7 +164,7 @@ public sealed class DeleteSftpUserCommandHandlerTests
             var currentUser = FakeCurrentUser.Customer(OwnerAccountId);
             Handler = new DeleteSftpUserCommandHandler(
                 SftpTestContext.Create(currentUser, store),
-                new StubAccountDirectory(new AccountSnapshot(OwnerAccountId, "alice", 5, 5, 5, 5)),
+                new StubAccountDirectory(new AccountSnapshot(OwnerAccountId, "alice", 5, 5, 5, 5, 5, 1_024)),
                 Agent,
                 new SftpAuditJournal(Audit, currentUser));
         }

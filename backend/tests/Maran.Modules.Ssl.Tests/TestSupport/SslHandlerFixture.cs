@@ -1,5 +1,5 @@
-using Maran.Modules.Ssl.Common;
 using Maran.Modules.Ssl.Persistence;
+using Maran.Modules.Ssl.Services;
 using Maran.Sdk.Contracts;
 using Maran.SharedKernel.Results;
 using Npgsql;
@@ -18,6 +18,9 @@ namespace Maran.Modules.Ssl.Tests.TestSupport;
 /// </remarks>
 public sealed class SslHandlerFixture : IDisposable
 {
+    /// <summary>The correlation id every request-driven handler in this fixture runs under.</summary>
+    public const string Correlation = "corr-ssl";
+
     /// <summary>The instant every clock in this fixture reports.</summary>
     public static readonly DateTimeOffset Now = new(2026, 3, 1, 0, 0, 0, TimeSpan.Zero);
 
@@ -60,6 +63,12 @@ public sealed class SslHandlerFixture : IDisposable
     /// <summary>The fixed clock every handler is given.</summary>
     public FakeClock Clock { get; } = new(Now);
 
+    /// <summary>Everything the handlers recorded as panel tasks.</summary>
+    public RecordingTaskRecorder Tasks { get; } = new();
+
+    /// <summary>The correlation id the request-driven handlers put on the tasks they open.</summary>
+    public StubCorrelationIdAccessor CorrelationIds { get; } = new(Correlation);
+
     /// <summary>Builds the fixture.</summary>
     /// <param name="domains">The domains of the sites the caller owns.</param>
     /// <param name="acmeFailure">A refusal for every order, or null to succeed.</param>
@@ -96,7 +105,7 @@ public sealed class SslHandlerFixture : IDisposable
         }).ToArray();
         Sites = new StubSiteDirectory(Snapshots);
         Accounts = knowsAccount
-            ? new StubAccountDirectory(new AccountSnapshot(AccountId, Username, 10, 10, 10, 10))
+            ? new StubAccountDirectory(new AccountSnapshot(AccountId, Username, 10, 10, 10, 10, 10, 1_024))
             : new StubAccountDirectory();
         Acme = new StubAcmeClient(acmeFailure);
         Agent = new RecordingAgentSslClient(agentFailure);

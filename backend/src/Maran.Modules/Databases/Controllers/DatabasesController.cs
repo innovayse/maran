@@ -31,9 +31,6 @@ namespace Maran.Modules.Databases.Controllers;
 [EnableRateLimiting(RateLimitPolicies.Api)]
 public sealed class DatabasesController : BaseApiController
 {
-    /// <summary>Recorded when the connection reports no remote address, as in a test host.</summary>
-    private const string UnknownIpAddress = "unknown";
-
     /// <summary>The message bus commands and queries are dispatched through.</summary>
     private readonly IMessageBus _bus;
 
@@ -87,7 +84,7 @@ public sealed class DatabasesController : BaseApiController
         CancellationToken cancellationToken)
     {
         var command = new CreateDatabaseCommand(
-            request.AccountId, request.Name, request.DbUserName, IpAddress(), UserAgent());
+            request.AccountId, request.Name, request.DbUserName, ClientIpAddress, UserAgent());
 
         var result = await _bus.InvokeAsync<Result<CreatedDatabaseDto>>(command, cancellationToken);
         return ToCreatedActionResult(
@@ -106,7 +103,7 @@ public sealed class DatabasesController : BaseApiController
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> ResetPasswordAsync(Guid id, CancellationToken cancellationToken)
     {
-        var command = new ResetDatabasePasswordCommand(id, IpAddress(), UserAgent());
+        var command = new ResetDatabasePasswordCommand(id, ClientIpAddress, UserAgent());
         return ToActionResult(await _bus.InvokeAsync<Result<DatabasePasswordDto>>(command, cancellationToken));
     }
 
@@ -122,15 +119,8 @@ public sealed class DatabasesController : BaseApiController
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> DeleteAsync(Guid id, CancellationToken cancellationToken)
     {
-        var command = new DropDatabaseCommand(id, IpAddress(), UserAgent());
+        var command = new DropDatabaseCommand(id, ClientIpAddress, UserAgent());
         return ToActionResult(await _bus.InvokeAsync<Result<bool>>(command, cancellationToken));
-    }
-
-    /// <summary>Reads the caller's address from the connection, never from a header a caller controls.</summary>
-    /// <returns>The remote address, or <see cref="UnknownIpAddress"/> when the connection reports none.</returns>
-    private string IpAddress()
-    {
-        return HttpContext.Connection.RemoteIpAddress?.ToString() ?? UnknownIpAddress;
     }
 
     /// <summary>Reads the caller's user agent for the audit journal.</summary>

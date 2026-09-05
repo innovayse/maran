@@ -1,4 +1,4 @@
-using Maran.Modules.Sites.Common.Options;
+using Maran.Modules.Sites.Options;
 using Microsoft.Extensions.Options;
 
 namespace Maran.Host.Tests.Configuration;

@@ -3,7 +3,7 @@ using Maran.Modules.Ssl.Tests.TestSupport;
 
 namespace Maran.Modules.Ssl.Tests.Domain;
 
-/// <summary>Behavioural contract of the <see cref="Maran.Modules.Ssl.Domain.Certificate"/> entity.</summary>
+/// <summary>Behavioural contract of the <see cref="Maran.Modules.Ssl.Domain.Entities.Certificate"/> entity.</summary>
 public sealed class CertificateTests
 {
     /// <summary>A fixed instant, so nothing here reads the ambient clock.</summary>

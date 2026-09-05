@@ -34,7 +34,7 @@ public sealed class AgentHealthProbeTests
     [Fact]
     public async Task An_agent_that_answers_with_a_failure_is_reported_as_unavailable()
     {
-        var probe = NewProbe(new StubAgentSystemClient(Result<AgentInfoDto>.Fail(Error.Of("AgentUnavailable"))));
+        var probe = NewProbe(new StubAgentSystemClient(Result<AgentInfoDto>.Fail(Error.Of("AgentUnavailable", ErrorType.Unavailable))));
 
         Assert.Equal(AgentHealthProbe.Unavailable, await probe.ProbeAsync());
     }

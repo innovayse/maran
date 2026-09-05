@@ -1,4 +1,4 @@
-namespace Maran.Modules.Identity.Common.Interfaces;
+namespace Maran.Modules.Identity.Interfaces;
 
 /// <summary>Generates and verifies the time-based codes of the panel's second factor (spec §10).</summary>
 public interface ITotpService

@@ -1,4 +1,4 @@
-using Maran.Modules.Databases.Domain;
+using Maran.Modules.Databases.Domain.Entities;
 using Maran.Modules.Databases.Persistence.Configurations;
 
 namespace Maran.Modules.Databases.Persistence;

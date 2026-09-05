@@ -23,7 +23,7 @@ namespace Maran.Modules.Sites.Persistence.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
-            modelBuilder.Entity("Maran.Modules.Sites.Domain.Site", b =>
+            modelBuilder.Entity("Maran.Modules.Sites.Domain.Entities.Site", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -84,7 +84,7 @@ namespace Maran.Modules.Sites.Persistence.Migrations
                     b.ToTable("Sites", "sites");
                 });
 
-            modelBuilder.Entity("Maran.Modules.Sites.Domain.SiteHostname", b =>
+            modelBuilder.Entity("Maran.Modules.Sites.Domain.Entities.SiteHostname", b =>
                 {
                     b.Property<string>("Name")
                         .HasMaxLength(253)
@@ -101,9 +101,9 @@ namespace Maran.Modules.Sites.Persistence.Migrations
                     b.ToTable("SiteHostnames", "sites");
                 });
 
-            modelBuilder.Entity("Maran.Modules.Sites.Domain.SiteHostname", b =>
+            modelBuilder.Entity("Maran.Modules.Sites.Domain.Entities.SiteHostname", b =>
                 {
-                    b.HasOne("Maran.Modules.Sites.Domain.Site", "Site")
+                    b.HasOne("Maran.Modules.Sites.Domain.Entities.Site", "Site")
                         .WithMany("Hostnames")
                         .HasForeignKey("SiteId")
                         .OnDelete(DeleteBehavior.Cascade)
@@ -112,7 +112,7 @@ namespace Maran.Modules.Sites.Persistence.Migrations
                     b.Navigation("Site");
                 });
 
-            modelBuilder.Entity("Maran.Modules.Sites.Domain.Site", b =>
+            modelBuilder.Entity("Maran.Modules.Sites.Domain.Entities.Site", b =>
                 {
                     b.Navigation("Hostnames");
                 });

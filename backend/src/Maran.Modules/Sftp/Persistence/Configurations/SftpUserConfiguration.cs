@@ -1,4 +1,4 @@
-using Maran.Modules.Sftp.Domain;
+using Maran.Modules.Sftp.Domain.Entities;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace Maran.Modules.Sftp.Persistence.Configurations;

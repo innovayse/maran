@@ -56,6 +56,13 @@ public sealed class SetupEndpointTests : IAsyncLifetime
 
             builder.UseSetting("Security:EncryptionKey", Key);
             builder.UseSetting("Jwt:SigningKey", Key);
+
+            // Startup validation refuses to boot without the host's SSH ports and the panel's
+            // public port: a defaulted one is a locked-out server (rules/security.md).
+            foreach (var setting in FirewallSettings.Required())
+            {
+                builder.UseSetting(setting.Key, setting.Value);
+            }
             builder.UseSetting("Setup:Token", Token);
         });
     }

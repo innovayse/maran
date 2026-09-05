@@ -1,7 +1,7 @@
-using Maran.Modules.Identity.Common.Interfaces;
 using Maran.Modules.Identity.Domain.Enums;
+using Maran.Modules.Identity.Interfaces;
+using Maran.Modules.Identity.Services;
 using Maran.Sdk.Contracts;
-using Maran.Sdk.Interfaces;
 
 namespace Maran.Modules.Identity.Commands.LogoutEverywhere;
 
@@ -12,15 +12,15 @@ public sealed class LogoutEverywhereCommandHandler
     private readonly ISessionService _sessionService;
 
     /// <summary>Records the sign-out.</summary>
-    private readonly IAuditWriter _auditWriter;
+    private readonly IdentityAuditJournal _journal;
 
     /// <summary>Creates the handler.</summary>
     /// <param name="sessionService">Revokes the sessions.</param>
-    /// <param name="auditWriter">Records the sign-out.</param>
-    public LogoutEverywhereCommandHandler(ISessionService sessionService, IAuditWriter auditWriter)
+    /// <param name="journal">Records the sign-out.</param>
+    public LogoutEverywhereCommandHandler(ISessionService sessionService, IdentityAuditJournal journal)
     {
         _sessionService = sessionService;
-        _auditWriter = auditWriter;
+        _journal = journal;
     }
 
     /// <summary>Revokes every live session the user has, including the one making the request.</summary>
@@ -31,15 +31,13 @@ public sealed class LogoutEverywhereCommandHandler
     {
         await _sessionService.RevokeAllAsync(command.UserId, SessionRevocationReason.LogoutAll, cancellationToken);
 
-        await _auditWriter.WriteAsync(
-            new AuditEntry(
-                command.UserId,
-                string.Empty,
-                AuditActions.LoggedOutEverywhere,
-                command.UserId.ToString(),
-                command.IpAddress,
-                command.UserAgent,
-                Succeeded: true),
+        await _journal.RecordIdentifiedAsync(
+            command.UserId,
+            AuditActions.LoggedOutEverywhere,
+            command.UserId.ToString(),
+            command.IpAddress,
+            command.UserAgent,
+            succeeded: true,
             cancellationToken);
 
         return Result<bool>.Ok(true);

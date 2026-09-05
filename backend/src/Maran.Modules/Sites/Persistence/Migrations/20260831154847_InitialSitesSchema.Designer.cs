@@ -26,7 +26,7 @@ namespace Maran.Modules.Sites.Persistence.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
-            modelBuilder.Entity("Maran.Modules.Sites.Domain.Site", b =>
+            modelBuilder.Entity("Maran.Modules.Sites.Domain.Entities.Site", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()

@@ -1,6 +1,7 @@
 using Maran.Modules.Identity.Domain.Enums;
+using Maran.Modules.Identity.Domain.ValueObjects;
 
-namespace Maran.Modules.Identity.Common.Interfaces;
+namespace Maran.Modules.Identity.Interfaces;
 
 /// <summary>
 /// Owns the lifecycle of refresh-token sessions: issuing them at login, rotating them on refresh,

@@ -29,7 +29,9 @@ public sealed class IssueCertificateCommandHandlerTests
             fixture.Acme,
             fixture.Installer,
             fixture.Journal,
-            fixture.Clock);
+            fixture.Clock,
+            fixture.Tasks,
+            fixture.CorrelationIds);
     }
 
     /// <summary>Issuing stores the certificate with the expiry the agent read off the material.</summary>
@@ -106,7 +108,7 @@ public sealed class IssueCertificateCommandHandlerTests
     [Fact]
     public async Task A_failed_order_leaves_no_row_and_installs_nothing()
     {
-        using var fixture = new SslHandlerFixture([Domain], acmeFailure: Error.Of("AcmeValidationFailed"));
+        using var fixture = new SslHandlerFixture([Domain], acmeFailure: Error.Of("AcmeValidationFailed", ErrorType.Failure));
 
         var result = await HandlerFor(fixture).HandleAsync(Command(), CancellationToken.None);
 
@@ -121,7 +123,7 @@ public sealed class IssueCertificateCommandHandlerTests
     [Fact]
     public async Task An_agent_that_refuses_the_install_leaves_no_row_and_no_flag()
     {
-        using var fixture = new SslHandlerFixture([Domain], agentFailure: Error.Of("AgentValidationFailed"));
+        using var fixture = new SslHandlerFixture([Domain], agentFailure: Error.Of("AgentValidationFailed", ErrorType.Validation));
 
         var result = await HandlerFor(fixture).HandleAsync(Command(), CancellationToken.None);
 
@@ -143,7 +145,7 @@ public sealed class IssueCertificateCommandHandlerTests
         var result = await HandlerFor(fixture).HandleAsync(Command(), CancellationToken.None);
 
         Assert.False(result.IsSuccess);
-        Assert.Equal("CertificateAlreadyIssued", result.Error!.Code);
+        Assert.Equal("CertificateAlreadyExists", result.Error!.Code);
         Assert.Empty(fixture.Acme.Orders);
     }
 
@@ -161,7 +163,7 @@ public sealed class IssueCertificateCommandHandlerTests
         // The tenant filter hides that row from this caller; the check must look past it or the
         // insert collides on the unique index as an unhandled exception.
         Assert.False(result.IsSuccess);
-        Assert.Equal("CertificateAlreadyIssued", result.Error!.Code);
+        Assert.Equal("CertificateAlreadyExists", result.Error!.Code);
     }
 
     /// <summary>An account the caller may not see refuses before any order is placed.</summary>
@@ -197,7 +199,7 @@ public sealed class IssueCertificateCommandHandlerTests
     public async Task No_journal_entry_ever_carries_the_issued_material()
     {
         using var fixture = new SslHandlerFixture([Domain]);
-        fixture.Acme.Material = new Maran.Modules.Ssl.Common.IssuedCertificate(
+        fixture.Acme.Material = new Maran.Modules.Ssl.Models.IssuedCertificate(
             "-----BEGIN CERTIFICATE-----\nleaf\n-----END CERTIFICATE-----",
             "SUPER-SECRET-PRIVATE-KEY",
             SslHandlerFixture.Now.AddDays(90));
@@ -223,7 +225,7 @@ public sealed class IssueCertificateCommandHandlerTests
         var result = await HandlerFor(fixture).HandleAsync(Command(), CancellationToken.None);
 
         Assert.False(result.IsSuccess);
-        Assert.Equal("CertificateAlreadyIssued", result.Error!.Code);
+        Assert.Equal("CertificateAlreadyExists", result.Error!.Code);
     }
 
     /// <summary>A duplicate leaves the site flagged as carrying tls because it genuinely does.</summary>
@@ -261,7 +263,7 @@ public sealed class IssueCertificateCommandHandlerTests
         // Only a UNIQUE VIOLATION has a winner whose row renewal will use. On any other failure —
         // here a serialization failure — the material is on disk, the site says it carries a
         // certificate, and no row exists at all, so renewal would never run and TLS would expire
-        // silently in ~90 days. Swallowing it as CertificateAlreadyIssued would also tell the
+        // silently in ~90 days. Swallowing it as CertificateAlreadyExists would also tell the
         // customer the very thing that stops them retrying, which is the one action that repairs it.
         using var fixture = new SslHandlerFixture(
             [Domain], saveFailures: 1, saveFailureSqlState: PostgresErrorCodes.SerializationFailure);

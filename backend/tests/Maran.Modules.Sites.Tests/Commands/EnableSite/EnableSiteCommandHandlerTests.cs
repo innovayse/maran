@@ -1,9 +1,9 @@
 using Maran.Agent.Client.Services.SitesService;
 using Maran.Modules.Sites.Commands.EnableSite;
-using Maran.Modules.Sites.Common;
-using Maran.Modules.Sites.Domain;
+using Maran.Modules.Sites.Domain.Entities;
 using Maran.Modules.Sites.Domain.Enums;
 using Maran.Modules.Sites.Persistence;
+using Maran.Modules.Sites.Services;
 using Maran.Modules.Sites.Tests.TestSupport;
 using Maran.Sdk.Contracts;
 using Maran.SharedKernel.Results;
@@ -66,7 +66,7 @@ public sealed class EnableSiteCommandHandlerTests
         // The agent client's own code for a config the web server refused: AgentErrorTranslator is
         // the single wire-error boundary, so what a handler receives is one of ITS codes, never a
         // code this module invented (rules/csharp.md).
-        var agent = new RecordingAgentSitesClient(Error.Of("AgentValidationFailed"));
+        var agent = new RecordingAgentSitesClient(Error.Of("AgentValidationFailed", ErrorType.Validation));
         await using var context = SitesTestContext.Create(FakeCurrentUser.Customer(account), database);
 
         var result = await Handler(context, account, agent).HandleAsync(
@@ -168,7 +168,7 @@ public sealed class EnableSiteCommandHandlerTests
         var audit = new RecordingAuditWriter();
         await using var context = SitesTestContext.Create(FakeCurrentUser.Customer(account), database);
 
-        await Handler(context, account, new RecordingAgentSitesClient(Error.Of("AgentSystemFailure")), audit)
+        await Handler(context, account, new RecordingAgentSitesClient(Error.Of("AgentSystemFailure", ErrorType.Failure)), audit)
             .HandleAsync(new EnableSiteCommand(siteId, "198.51.100.7", "tests"), CancellationToken.None);
 
         var entry = Assert.Single(audit.Entries);
@@ -221,7 +221,9 @@ public sealed class EnableSiteCommandHandlerTests
                 MaxSites: 5,
                 MaxDatabases: 2,
                 MaxSftpUsers: 3,
-                MaxPhpWorkersPerPool: 10));
+                MaxCronEntries: 7,
+                MaxPhpWorkersPerPool: 10,
+                DiskQuotaMb: 1_024));
         return new EnableSiteCommandHandler(
             context,
             accounts,

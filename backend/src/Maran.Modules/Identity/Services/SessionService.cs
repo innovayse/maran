@@ -1,10 +1,11 @@
-using Maran.Modules.Identity.Common;
-using Maran.Modules.Identity.Common.Interfaces;
-using Maran.Modules.Identity.Common.Options;
-using Maran.Modules.Identity.Domain;
+using Maran.Modules.Identity.Domain.Entities;
 using Maran.Modules.Identity.Domain.Enums;
+using Maran.Modules.Identity.Domain.ValueObjects;
+using Maran.Modules.Identity.Interfaces;
+using Maran.Modules.Identity.Options;
 using Maran.Modules.Identity.Persistence;
 using Maran.Modules.Identity.Resources;
+using Maran.SharedKernel.Utilities.Tokens;
 using Microsoft.Extensions.Options;
 
 namespace Maran.Modules.Identity.Services;
@@ -57,7 +58,7 @@ public sealed class SessionService : ISessionService
 
         if (session is null)
         {
-            return Result<IssuedSession>.Fail(Error.Of(nameof(ErrorMessages.RefreshTokenInvalidUnauthorized)));
+            return Result<IssuedSession>.Fail(Error.Of(nameof(ErrorMessages.RefreshTokenInvalidUnauthorized), ErrorType.Unauthorized));
         }
 
         // A token that has already been rotated is being presented a second time. Either it was
@@ -69,12 +70,12 @@ public sealed class SessionService : ISessionService
         if (session.RevokedAt is not null)
         {
             await RevokeFamilyAsync(session.FamilyId, SessionRevocationReason.ReuseDetected, cancellationToken);
-            return Result<IssuedSession>.Fail(Error.Of(nameof(ErrorMessages.RefreshTokenReusedUnauthorized)));
+            return Result<IssuedSession>.Fail(Error.Of(nameof(ErrorMessages.RefreshTokenReusedUnauthorized), ErrorType.Unauthorized));
         }
 
         if (!session.IsActive(_clock.UtcNow))
         {
-            return Result<IssuedSession>.Fail(Error.Of(nameof(ErrorMessages.RefreshTokenInvalidUnauthorized)));
+            return Result<IssuedSession>.Fail(Error.Of(nameof(ErrorMessages.RefreshTokenInvalidUnauthorized), ErrorType.Unauthorized));
         }
 
         session.Revoke(_clock.UtcNow, SessionRevocationReason.Rotated);

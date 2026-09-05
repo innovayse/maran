@@ -1,6 +1,6 @@
 using Maran.Agent.Client.Services.SitesService;
-using Maran.Modules.Sites.Common;
 using Maran.Modules.Sites.Domain.Enums;
+using Maran.Modules.Sites.Models;
 using Maran.Modules.Sites.Persistence;
 using Maran.Modules.Sites.Services;
 using Maran.Modules.Sites.Tests.TestSupport;
@@ -360,7 +360,7 @@ public sealed class SiteLogTailServiceTests
         var currentUser = FakeCurrentUser.Customer(knownAccountId);
         return new SiteLogTailService(
             context,
-            new StubAccountDirectory(new AccountSnapshot(knownAccountId, "owner", 5, 2, 3, 5)),
+            new StubAccountDirectory(new AccountSnapshot(knownAccountId, "owner", 5, 2, 3, 7, 5, 1_024)),
             agent ?? new RecordingAgentSitesClient(),
             errorText ?? new StubErrorTextProvider(),
             new SiteAuditJournal(audit ?? new RecordingAuditWriter(), currentUser));

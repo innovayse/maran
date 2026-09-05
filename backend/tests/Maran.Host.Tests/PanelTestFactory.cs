@@ -27,6 +27,8 @@ public sealed class PanelTestFactory : WebApplicationFactory<Program>
         builder.UseEnvironment("Testing");
         builder.UseSetting(PanelTestSettings.EncryptionKeyPath, PanelTestSettings.EncryptionKey);
         builder.UseSetting(PanelTestSettings.JwtSigningKeyPath, PanelTestSettings.JwtSigningKey);
+        builder.UseSetting(PanelTestSettings.FirewallSshPortsPath, PanelTestSettings.FirewallSshPorts);
+        builder.UseSetting(PanelTestSettings.FirewallPanelPortPath, PanelTestSettings.FirewallPanelPort);
         builder.UseSetting("Database:Host", string.Empty);
 
         // The agent socket is pinned to a path that cannot exist, for the same reason the

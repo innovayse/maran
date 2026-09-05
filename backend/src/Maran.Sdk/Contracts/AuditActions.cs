@@ -133,4 +133,109 @@ public static class AuditActions
     /// stopped renewing becomes visible before the site goes dark.
     /// </summary>
     public const string CertificateRenewed = "CertificateRenewed";
+
+    /// <summary>A scheduled command was added to an account's crontab.</summary>
+    /// <remarks>
+    /// The subject is the entry's identifier, NEVER the command. A cron command is the customer's
+    /// own and is shown back to them in the panel, but it can legitimately carry a credential —
+    /// <c>mysql -pSECRET</c>, a URL with a token — and this journal is append-only and never
+    /// deleted. An identifier is enough to find the entry; a command here is a customer's password
+    /// kept forever, in a place their operator reads.
+    /// </remarks>
+    public const string CronEntryCreated = "CronEntryCreated";
+
+    /// <summary>A cron entry's schedule or command was replaced. Subject: the entry id, never the command.</summary>
+    public const string CronEntryUpdated = "CronEntryUpdated";
+
+    /// <summary>A cron entry was removed, together with the files that held its command and its last run.</summary>
+    public const string CronEntryDeleted = "CronEntryDeleted";
+
+    /// <summary>
+    /// A cron entry was enabled or disabled. Recorded separately from an update because a disabled
+    /// entry that still fires — or an enabled one that does not — is the failure an operator needs
+    /// to be able to date.
+    /// </summary>
+    public const string CronEntryEnabledChanged = "CronEntryEnabledChanged";
+
+    /// <summary>An account's cron environment variables were replaced. Names are recorded; values are not.</summary>
+    public const string CronEnvironmentChanged = "CronEnvironmentChanged";
+
+    /// <summary>A port was opened on the host firewall, optionally scoped to a source range.</summary>
+    public const string FirewallRuleAllowed = "FirewallRuleAllowed";
+
+    /// <summary>A port was closed on the host firewall.</summary>
+    public const string FirewallRuleDenied = "FirewallRuleDenied";
+
+    /// <summary>
+    /// An address was banned from the host. Recorded whether a human or the brute-force detector
+    /// asked for it, because "who banned this customer's office" is the question an operator will
+    /// have, and an automatic ban with no entry is indistinguishable from a network fault.
+    /// </summary>
+    public const string AddressBanned = "AddressBanned";
+
+    /// <summary>A ban was lifted before its timeout, or a permanent one was removed.</summary>
+    public const string AddressUnbanned = "AddressUnbanned";
+
+    /// <summary>The firewall whitelist was changed. Addresses on it are never banned automatically.</summary>
+    public const string FirewallWhitelistChanged = "FirewallWhitelistChanged";
+
+    /// <summary>
+    /// The installer's recorded address became the whitelist's first row, at the panel's own
+    /// initiative and with nobody signed in. Recorded because it is an exemption from every
+    /// automatic ban that no request created, so without this entry the one row an operator never
+    /// added is also the one row with no history.
+    /// </summary>
+    public const string FirewallWhitelistSeeded = "FirewallWhitelistSeeded";
+
+    /// <summary>
+    /// A brute-force ban was NOT applied because the address is whitelisted. Recorded as its own
+    /// action rather than as a failure: nothing went wrong, and the absence of a ban an operator
+    /// expected is exactly what this explains.
+    /// </summary>
+    public const string BanSkippedWhitelisted = "BanSkippedWhitelisted";
+
+    /// <summary>The panel's outgoing mail settings were saved. The password is never part of the entry.</summary>
+    public const string SmtpSettingsSaved = "SmtpSettingsSaved";
+
+    /// <summary>A test message was sent to the administrator who asked for it.</summary>
+    public const string TestMailSent = "TestMailSent";
+
+    /// <summary>
+    /// Mail was wanted and no SMTP settings exist, so nothing was sent. Recorded because the
+    /// alternative is a password reset that silently never arrives.
+    /// </summary>
+    public const string MailSkippedNoSmtp = "MailSkippedNoSmtp";
+
+    /// <summary>The mail server refused or could not be reached. Recorded with the reason, never with the body.</summary>
+    public const string MailSendFailed = "MailSendFailed";
+
+    /// <summary>A monitored condition crossed into alarm — a full disk, a stopped service.</summary>
+    public const string AlertRaised = "AlertRaised";
+
+    /// <summary>A monitored condition returned to normal. Paired with the raise so an operator can read the outage's length.</summary>
+    public const string AlertResolved = "AlertResolved";
+
+    /// <summary>
+    /// A password reset was asked for. Recorded for EVERY request, including one naming an address
+    /// no user holds — the journal is where a sweep through a list of guessed addresses becomes
+    /// visible, and it is the only place that can see it, because the endpoint deliberately answers
+    /// a known and an unknown address identically. The subject is the address as the caller typed
+    /// it; the token never appears.
+    /// </summary>
+    public const string PasswordResetRequested = "PasswordResetRequested";
+
+    /// <summary>
+    /// A reset token was presented and refused — expired, already spent, or never issued. Its own
+    /// action rather than a failed <see cref="PasswordChanged"/>, because a replayed token is the
+    /// panel's only signal that a reset mail was intercepted, and it must not be lost among ordinary
+    /// password changes. The entry never carries the token, only whether one was refused.
+    /// </summary>
+    public const string PasswordResetRefused = "PasswordResetRefused";
+
+    /// <summary>
+    /// The panel's security policy was changed: password length, forced two-factor, or the account
+    /// lockout. Every one of those weakens or strengthens every account at once, so the change needs
+    /// a date and an author more than most.
+    /// </summary>
+    public const string SecurityPolicySaved = "SecurityPolicySaved";
 }

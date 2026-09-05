@@ -23,7 +23,7 @@ namespace Maran.Modules.Accounts.Persistence.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
-            modelBuilder.Entity("Maran.Modules.Accounts.Domain.Account", b =>
+            modelBuilder.Entity("Maran.Modules.Accounts.Domain.Entities.Account", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -65,7 +65,7 @@ namespace Maran.Modules.Accounts.Persistence.Migrations
                     b.ToTable("Accounts", "accounts");
                 });
 
-            modelBuilder.Entity("Maran.Modules.Accounts.Domain.Plan", b =>
+            modelBuilder.Entity("Maran.Modules.Accounts.Domain.Entities.Plan", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -78,6 +78,9 @@ namespace Maran.Modules.Accounts.Persistence.Migrations
                         .IsRequired()
                         .HasMaxLength(128)
                         .HasColumnType("character varying(128)");
+
+                    b.Property<int>("MaxCronEntries")
+                        .HasColumnType("integer");
 
                     b.Property<int>("MaxDatabases")
                         .HasColumnType("integer");
@@ -100,9 +103,9 @@ namespace Maran.Modules.Accounts.Persistence.Migrations
                     b.ToTable("Plans", "accounts");
                 });
 
-            modelBuilder.Entity("Maran.Modules.Accounts.Domain.Account", b =>
+            modelBuilder.Entity("Maran.Modules.Accounts.Domain.Entities.Account", b =>
                 {
-                    b.HasOne("Maran.Modules.Accounts.Domain.Plan", null)
+                    b.HasOne("Maran.Modules.Accounts.Domain.Entities.Plan", null)
                         .WithMany()
                         .HasForeignKey("PlanId")
                         .OnDelete(DeleteBehavior.Restrict)

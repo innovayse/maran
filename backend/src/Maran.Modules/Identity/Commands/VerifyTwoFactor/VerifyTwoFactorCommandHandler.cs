@@ -1,9 +1,9 @@
-using Maran.Modules.Identity.Common;
-using Maran.Modules.Identity.Common.Interfaces;
+using Maran.Modules.Identity.Interfaces;
+using Maran.Modules.Identity.Models;
 using Maran.Modules.Identity.Persistence;
 using Maran.Modules.Identity.Resources;
+using Maran.Modules.Identity.Services;
 using Maran.Sdk.Contracts;
-using Maran.Sdk.Interfaces;
 
 namespace Maran.Modules.Identity.Commands.VerifyTwoFactor;
 
@@ -29,7 +29,10 @@ public sealed class VerifyTwoFactorCommandHandler
     private readonly ISessionService _sessionService;
 
     /// <summary>Records the attempt.</summary>
-    private readonly IAuditWriter _auditWriter;
+    private readonly IdentityAuditJournal _journal;
+
+    /// <summary>Counts refusals per source address and announces an attack.</summary>
+    private readonly BruteForceDetector _bruteForceDetector;
 
     /// <summary>The panel's clock.</summary>
     private readonly IClock _clock;
@@ -41,7 +44,8 @@ public sealed class VerifyTwoFactorCommandHandler
     /// <param name="recoveryCodeService">Verifies a recovery code.</param>
     /// <param name="accessTokenIssuer">Signs the access token.</param>
     /// <param name="sessionService">Issues the session.</param>
-    /// <param name="auditWriter">Records the attempt.</param>
+    /// <param name="journal">Records the attempt.</param>
+    /// <param name="bruteForceDetector">Counts refusals per source address.</param>
     /// <param name="clock">The panel's clock.</param>
     public VerifyTwoFactorCommandHandler(
         IdentityDbContext dbContext,
@@ -50,7 +54,8 @@ public sealed class VerifyTwoFactorCommandHandler
         IRecoveryCodeService recoveryCodeService,
         IAccessTokenIssuer accessTokenIssuer,
         ISessionService sessionService,
-        IAuditWriter auditWriter,
+        IdentityAuditJournal journal,
+        BruteForceDetector bruteForceDetector,
         IClock clock)
     {
         _dbContext = dbContext;
@@ -59,15 +64,19 @@ public sealed class VerifyTwoFactorCommandHandler
         _recoveryCodeService = recoveryCodeService;
         _accessTokenIssuer = accessTokenIssuer;
         _sessionService = sessionService;
-        _auditWriter = auditWriter;
+        _journal = journal;
+        _bruteForceDetector = bruteForceDetector;
         _clock = clock;
     }
 
     /// <summary>Verifies password and code together, then issues the session.</summary>
     /// <param name="command">Both factors, with the caller's address and client.</param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
-    /// <returns>The signed-in outcome, or a typed failure.</returns>
-    public async Task<Result<LoginOutcome>> HandleAsync(VerifyTwoFactorCommand command, CancellationToken cancellationToken)
+    /// <returns>
+    /// The signed-in outcome, or a typed failure. There is no third answer: this endpoint cannot owe
+    /// a second factor — it IS the second factor — so its body has no field to say so.
+    /// </returns>
+    public async Task<Result<AuthenticatedOutcome>> HandleAsync(VerifyTwoFactorCommand command, CancellationToken cancellationToken)
     {
         var user = await _dbContext.Users.SingleOrDefaultAsync(u => u.Username == command.Username, cancellationToken);
 
@@ -76,12 +85,16 @@ public sealed class VerifyTwoFactorCommandHandler
         // second factor into the ONLY factor for anyone who can call it directly.
         if (user is null || !_passwordHasher.Verify(command.Password, user.PasswordHash))
         {
-            return Result<LoginOutcome>.Fail(Error.Of(nameof(ErrorMessages.InvalidCredentialsUnauthorized)));
+            // Counted, because this endpoint takes a password and can be called on its own: an
+            // attacker who guessed passwords here rather than at /login would be invisible to the
+            // detector otherwise, which is a bypass of the whole ban path rather than a gap in it.
+            await _bruteForceDetector.RecordFailureAsync(command.IpAddress, cancellationToken);
+            return Result<AuthenticatedOutcome>.Fail(Error.Of(nameof(ErrorMessages.InvalidCredentialsUnauthorized), ErrorType.Unauthorized));
         }
 
         if (!user.IsTotpEnabled || user.TotpSecret is null)
         {
-            return Result<LoginOutcome>.Fail(Error.Of(nameof(ErrorMessages.TwoFactorNotEnabledForbidden)));
+            return Result<AuthenticatedOutcome>.Fail(Error.Of(nameof(ErrorMessages.TwoFactorNotEnabledForbidden), ErrorType.Forbidden));
         }
 
         var usedRecoveryCode = false;
@@ -96,11 +109,12 @@ public sealed class VerifyTwoFactorCommandHandler
         else
         {
             await WriteAuditAsync(user.Id, user.Username, AuditActions.LoginFailed, command, false, cancellationToken);
-            return Result<LoginOutcome>.Fail(Error.Of(nameof(ErrorMessages.InvalidTwoFactorCodeUnauthorized)));
+            await _bruteForceDetector.RecordFailureAsync(command.IpAddress, cancellationToken);
+            return Result<AuthenticatedOutcome>.Fail(Error.Of(nameof(ErrorMessages.InvalidTwoFactorCodeUnauthorized), ErrorType.Unauthorized));
         }
 
         var session = await _sessionService.IssueAsync(user.Id, command.IpAddress, command.UserAgent, cancellationToken);
-        var accessToken = _accessTokenIssuer.Issue(user, session.SessionId);
+        var accessToken = await _accessTokenIssuer.IssueAsync(user, session.SessionId, cancellationToken);
 
         user.RecordLogin(_clock.UtcNow);
         await _dbContext.SaveChangesAsync(cancellationToken);
@@ -114,13 +128,7 @@ public sealed class VerifyTwoFactorCommandHandler
 
         await WriteAuditAsync(user.Id, user.Username, AuditActions.LoginSucceeded, command, true, cancellationToken);
 
-        return Result<LoginOutcome>.Ok(new LoginOutcome(
-            new LoginResultDto(
-                accessToken.Value,
-                accessToken.ExpiresAt,
-                TwoFactorRequired: false,
-                new AuthenticatedUserDto(user.Id, user.Username, user.Email, user.Role, user.AccountId)),
-            session));
+        return Result<AuthenticatedOutcome>.Ok(new AuthenticatedOutcome(accessToken, user, session));
     }
 
     /// <summary>Writes one journal entry for this attempt.</summary>
@@ -139,8 +147,13 @@ public sealed class VerifyTwoFactorCommandHandler
         bool succeeded,
         CancellationToken cancellationToken)
     {
-        await _auditWriter.WriteAsync(
-            new AuditEntry(userId, username, action, username, command.IpAddress, command.UserAgent, succeeded),
+        await _journal.RecordClaimAsync(
+            userId,
+            username,
+            action,
+            command.IpAddress,
+            command.UserAgent,
+            succeeded,
             cancellationToken);
     }
 }

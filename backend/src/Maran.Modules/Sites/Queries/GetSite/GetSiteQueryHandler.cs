@@ -35,7 +35,7 @@ public sealed class GetSiteQueryHandler
 
         if (site is null)
         {
-            return Result<SiteDetailDto>.Fail(Error.Of(nameof(ErrorMessages.SiteNotFound)));
+            return Result<SiteDetailDto>.Fail(Error.Of(nameof(ErrorMessages.SiteNotFound), ErrorType.NotFound));
         }
 
         return Result<SiteDetailDto>.Ok(new SiteDetailDto(

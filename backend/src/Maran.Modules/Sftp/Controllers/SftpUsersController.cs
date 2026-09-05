@@ -31,9 +31,6 @@ namespace Maran.Modules.Sftp.Controllers;
 [EnableRateLimiting(RateLimitPolicies.Api)]
 public sealed class SftpUsersController : BaseApiController
 {
-    /// <summary>Recorded when the connection reports no remote address, as in a test host.</summary>
-    private const string UnknownIpAddress = "unknown";
-
     /// <summary>The message bus commands and queries are dispatched through.</summary>
     private readonly IMessageBus _bus;
 
@@ -85,7 +82,7 @@ public sealed class SftpUsersController : BaseApiController
         [FromBody] CreateSftpUserRequest request,
         CancellationToken cancellationToken)
     {
-        var command = new CreateSftpUserCommand(request.AccountId, request.Name, IpAddress(), UserAgent());
+        var command = new CreateSftpUserCommand(request.AccountId, request.Name, ClientIpAddress, UserAgent());
 
         var result = await _bus.InvokeAsync<Result<CreatedSftpUserDto>>(command, cancellationToken);
         return ToCreatedActionResult(
@@ -104,7 +101,7 @@ public sealed class SftpUsersController : BaseApiController
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> ResetPasswordAsync(Guid id, CancellationToken cancellationToken)
     {
-        var command = new ResetSftpUserPasswordCommand(id, IpAddress(), UserAgent());
+        var command = new ResetSftpUserPasswordCommand(id, ClientIpAddress, UserAgent());
         return ToActionResult(await _bus.InvokeAsync<Result<SftpUserPasswordDto>>(command, cancellationToken));
     }
 
@@ -120,15 +117,8 @@ public sealed class SftpUsersController : BaseApiController
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> DeleteAsync(Guid id, CancellationToken cancellationToken)
     {
-        var command = new DeleteSftpUserCommand(id, IpAddress(), UserAgent());
+        var command = new DeleteSftpUserCommand(id, ClientIpAddress, UserAgent());
         return ToActionResult(await _bus.InvokeAsync<Result<bool>>(command, cancellationToken));
-    }
-
-    /// <summary>Reads the caller's address from the connection, never from a header a caller controls.</summary>
-    /// <returns>The remote address, or <see cref="UnknownIpAddress"/> when the connection reports none.</returns>
-    private string IpAddress()
-    {
-        return HttpContext.Connection.RemoteIpAddress?.ToString() ?? UnknownIpAddress;
     }
 
     /// <summary>Reads the caller's user agent for the audit journal.</summary>

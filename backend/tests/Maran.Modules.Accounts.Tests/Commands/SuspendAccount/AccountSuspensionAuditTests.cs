@@ -1,8 +1,9 @@
 using Maran.Modules.Accounts.Commands.ReactivateAccount;
 using Maran.Modules.Accounts.Commands.SuspendAccount;
 using Maran.Modules.Accounts.Common;
-using Maran.Modules.Accounts.Domain;
+using Maran.Modules.Accounts.Domain.Entities;
 using Maran.Modules.Accounts.Persistence;
+using Maran.Modules.Accounts.Services;
 using Maran.Modules.Accounts.Tests.TestSupport;
 using Maran.Sdk.Contracts;
 using Maran.SharedKernel.Results;
@@ -71,7 +72,7 @@ public sealed class AccountSuspensionAuditTests : IDisposable
     {
         var account = await SeedAsync();
 
-        var result = await SuspendAsync(new RecordingAgentAccountsClient(Error.Of("AgentSystemFailure")), account.Id);
+        var result = await SuspendAsync(new RecordingAgentAccountsClient(Error.Of("AgentSystemFailure", ErrorType.Failure)), account.Id);
 
         Assert.Equal("AgentSystemFailure", result.Error!.Code);
         var entry = Assert.Single(_audit.Entries);

@@ -1,4 +1,4 @@
-using Maran.Modules.Sftp.Domain;
+using Maran.Modules.Sftp.Domain.Entities;
 using Maran.Modules.Sftp.Tests.TestSupport;
 using Microsoft.EntityFrameworkCore;
 

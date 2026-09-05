@@ -1,4 +1,5 @@
-using Maran.Modules.Identity.Domain;
+using Maran.Modules.Identity.Domain.Entities;
+using Maran.SharedKernel.Utilities.Network;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace Maran.Modules.Identity.Persistence.Configurations;
@@ -42,7 +43,7 @@ public sealed class SessionConfiguration : IEntityTypeConfiguration<Session>
 
         builder.Property(s => s.UserAgent)
             .IsRequired()
-            .HasMaxLength(512);
+            .HasMaxLength(UserAgentText.MaxLength);
 
         // Every refresh looks a session up by this hash, so the index is the hot path; unique
         // because two sessions sharing a token hash would make rotation ambiguous.

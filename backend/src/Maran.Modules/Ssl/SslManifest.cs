@@ -21,5 +21,6 @@ public static class SslManifest
         DisplayNameKey: "SslModuleDisplayName",
         Version: "1.0.0",
         Tier: LicenceTier.Included,
-        Dependencies: ["sites"]);
+        Dependencies: ["sites"],
+        AgentCapabilities: [AgentCapability.Files, AgentCapability.Sites, AgentCapability.Ssl]);
 }

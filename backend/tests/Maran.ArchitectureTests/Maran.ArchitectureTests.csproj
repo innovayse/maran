@@ -2,9 +2,6 @@
 
   <PropertyGroup>
     <IsPackable>false</IsPackable>
-    <!-- Test code is exempt from XML doc comments (rules/testing.md) and uses
-         behavior-sentence method names with underscores by convention, so the
-         corresponding analyzer warnings do not apply to this project. -->
   </PropertyGroup>
 
   <ItemGroup>
@@ -32,6 +29,9 @@
     <ProjectReference Include="..\..\src\Maran.Modules\Ssl\Maran.Modules.Ssl.csproj" />
     <ProjectReference Include="..\..\src\Maran.Modules\Databases\Maran.Modules.Databases.csproj" />
     <ProjectReference Include="..\..\src\Maran.Modules\Sftp\Maran.Modules.Sftp.csproj" />
+    <ProjectReference Include="..\..\src\Maran.Modules\Firewall\Maran.Modules.Firewall.csproj" />
+    <ProjectReference Include="..\..\src\Maran.Modules\Cron\Maran.Modules.Cron.csproj" />
+    <ProjectReference Include="..\..\src\Maran.Modules\Tasks\Maran.Modules.Tasks.csproj" />
   </ItemGroup>
 
 </Project>

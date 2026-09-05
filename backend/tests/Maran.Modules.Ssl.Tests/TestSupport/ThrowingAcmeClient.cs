@@ -1,5 +1,5 @@
-using Maran.Modules.Ssl.Common;
-using Maran.Modules.Ssl.Common.Interfaces;
+using Maran.Modules.Ssl.Interfaces;
+using Maran.Modules.Ssl.Models;
 using Maran.SharedKernel.Results;
 
 namespace Maran.Modules.Ssl.Tests.TestSupport;

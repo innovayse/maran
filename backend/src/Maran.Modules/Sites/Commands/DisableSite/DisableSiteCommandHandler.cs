@@ -1,7 +1,9 @@
 using Maran.Agent.Client.Interfaces;
 using Maran.Modules.Sites.Common;
+using Maran.Modules.Sites.Mappers;
 using Maran.Modules.Sites.Persistence;
 using Maran.Modules.Sites.Resources;
+using Maran.Modules.Sites.Services;
 using Maran.Sdk.Contracts;
 using Maran.Sdk.Interfaces;
 
@@ -59,25 +61,25 @@ public sealed class DisableSiteCommandHandler
         {
             // The subject is the identifier the caller supplied, because no domain is known — a
             // probe for a site the caller may not see still leaves a trace naming what was probed for.
-            return await FailAsync(command, command.SiteId.ToString(), nameof(ErrorMessages.SiteNotFound), cancellationToken);
+            return await FailAsync(command, command.SiteId.ToString(), Error.Of(nameof(ErrorMessages.SiteNotFound), ErrorType.NotFound), cancellationToken);
         }
 
         var account = await _accounts.FindAsync(site.AccountId, cancellationToken);
         if (account is null)
         {
-            return await FailAsync(command, site.Domain, nameof(ErrorMessages.AccountNotFound), cancellationToken);
+            return await FailAsync(command, site.Domain, Error.Of(nameof(ErrorMessages.AccountNotFound), ErrorType.NotFound), cancellationToken);
         }
 
         // The descriptor comes from the stored row, so the re-rendered vhost keeps the site's own
-        // aliases, backend, upstream and TLS block (see SiteDescriptorFactory).
+        // aliases, backend, upstream and TLS block (see SiteDescriptorMapper).
         var applied = await _agent.DisableAsync(
             account.Username,
             site.Domain,
-            SiteDescriptorFactory.From(site),
+            SiteDescriptorMapper.From(site),
             cancellationToken);
         if (!applied.IsSuccess)
         {
-            return await FailAsync(command, site.Domain, applied.Error!.Code, cancellationToken);
+            return await FailAsync(command, site.Domain, applied.Error!, cancellationToken);
         }
 
         site.Disable();
@@ -93,18 +95,18 @@ public sealed class DisableSiteCommandHandler
     /// <summary>Journals a refused operation and returns it as the typed failure.</summary>
     /// <param name="command">The operation that was refused.</param>
     /// <param name="subject">The site's domain, or the supplied identifier when no site was found.</param>
-    /// <param name="code">The machine-stable code to answer with.</param>
+    /// <param name="error">The typed failure to answer with, code and kind together.</param>
     /// <param name="cancellationToken">Cancels the journal write.</param>
-    /// <returns>The failed result carrying <paramref name="code"/>.</returns>
+    /// <returns>The failed result carrying <paramref name="error"/>.</returns>
     private async Task<Result<SiteDto>> FailAsync(
         DisableSiteCommand command,
         string subject,
-        string code,
+        Error error,
         CancellationToken cancellationToken)
     {
         await _journal.RecordFailureAsync(
             AuditActions.SiteDisabled, subject, command.IpAddress, command.UserAgent, cancellationToken);
 
-        return Result<SiteDto>.Fail(Error.Of(code));
+        return Result<SiteDto>.Fail(error);
     }
 }

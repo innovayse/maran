@@ -1,6 +1,6 @@
 using System.Resources;
-using Maran.Modules.Sftp.Common;
 using Maran.Modules.Sftp.Persistence;
+using Maran.Modules.Sftp.Services;
 using Maran.Sdk.Contracts;
 using Maran.Sdk.Interfaces;
 
@@ -62,12 +62,5 @@ public sealed class SftpModule : IPanelModule
         // directly instead.
         services.AddSingleton(new ResourceManager(ErrorMessagesResourceBaseName, typeof(SftpModule).Assembly));
         services.AddSingleton(new ResourceManager(DisplayNamesResourceBaseName, typeof(SftpModule).Assembly));
-    }
-
-    /// <inheritdoc />
-    public void MapEndpoints(IEndpointRouteBuilder endpoints)
-    {
-        // Controllers are discovered by ASP.NET Core's controller model (Program.cs calls
-        // MapControllers() once for the whole app) — this module has no endpoints to map by hand.
     }
 }

@@ -1,4 +1,4 @@
-using Maran.Modules.Ssl.Domain;
+using Maran.Modules.Ssl.Domain.Entities;
 using Maran.Modules.Ssl.Persistence.Configurations;
 
 namespace Maran.Modules.Ssl.Persistence;
