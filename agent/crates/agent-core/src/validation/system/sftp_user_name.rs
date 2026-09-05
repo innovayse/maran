@@ -1,13 +1,9 @@
 //! A system user name for SFTP access, carrying its owning account's prefix.
 
+use crate::validation::prefix_problem::PrefixProblem;
+use crate::validation::prefixed_name::{SEPARATOR, prefixed};
 use crate::validation::system::name::AccountName;
 use crate::validation::system::sftp_user_name_error::SftpUserNameError;
-
-/// The separator between an account's name and the name its customer chose.
-///
-/// The same underscore the database types use, so one hosting account's system
-/// users, databases and database users all read as one family.
-const SEPARATOR: char = '_';
 
 /// The `useradd` name ceiling.
 ///
@@ -51,23 +47,42 @@ impl SftpUserName {
     /// - [`SftpUserNameError::TooLong`] when the prefixed result exceeds the
     ///   thirty-two byte `useradd` limit.
     pub fn for_account(account: &AccountName, requested: &str) -> Result<Self, SftpUserNameError> {
-        if requested.is_empty() {
-            return Err(SftpUserNameError::Empty);
+        prefixed(account, requested, MAXIMUM_LENGTH)
+            .map(Self)
+            .map_err(|problem| match problem {
+                PrefixProblem::Empty => SftpUserNameError::Empty,
+                PrefixProblem::UnexpectedCharacter { character } => {
+                    SftpUserNameError::UnexpectedCharacter { character }
+                }
+                PrefixProblem::TooLong { length } => SftpUserNameError::TooLong { length },
+            })
+    }
+
+    /// Decodes a full system login back into the name, only when it belongs to
+    /// `account`.
+    ///
+    /// The inverse of [`SftpUserName::for_account`], kept on the same type so
+    /// the separator cannot drift between the builder and the decoder. The
+    /// WHOLE account is compared, not a prefix of it: account names may contain
+    /// the separator, so `alice_` is a prefix of `alice_bob_deploy`, which
+    /// belongs to account `alice_bob`. Splitting at the LAST separator recovers
+    /// the halves, because `for_account` forbids the separator in the requested
+    /// half.
+    ///
+    /// A candidate this agent could not have created — `root`, a login an
+    /// administrator made by hand, another account's — decodes to `None`
+    /// rather than to a plausible-looking guess. That refusal is what an
+    /// account deletion enumerating logins to remove depends on.
+    #[must_use]
+    pub fn decode(account: &AccountName, candidate: &str) -> Option<Self> {
+        let (owner, requested) = candidate.rsplit_once(SEPARATOR)?;
+        if owner != account.as_str() {
+            return None;
         }
 
-        if let Some(character) = requested
-            .chars()
-            .find(|c| !(c.is_ascii_lowercase() || c.is_ascii_digit()))
-        {
-            return Err(SftpUserNameError::UnexpectedCharacter { character });
-        }
-
-        let full = format!("{}{SEPARATOR}{requested}", account.as_str());
-        if full.len() > MAXIMUM_LENGTH {
-            return Err(SftpUserNameError::TooLong { length: full.len() });
-        }
-
-        Ok(Self(full))
+        // Rebuilt rather than wrapped: `for_account` is the only constructor,
+        // which keeps every value in the process one this agent could create.
+        Self::for_account(account, requested).ok()
     }
 
     /// The name as the system will hold it, prefix included.

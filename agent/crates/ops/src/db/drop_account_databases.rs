@@ -21,14 +21,6 @@ const USER_HOST: &str = "localhost";
 /// caller can influence.
 const SHOW_LOCAL_USERS: &str = "SELECT User FROM mysql.user WHERE Host = 'localhost'";
 
-/// The character `for_account` puts between the account and the requested name.
-///
-/// Held here as well as in the validated types because this module performs the
-/// inverse operation, and a decoder that guessed at the separator would decode
-/// nothing on the day the two disagreed — silently, as an account whose
-/// databases were all left behind.
-const SEPARATOR: char = '_';
-
 /// Drops every database and every database user that belongs to `account`.
 ///
 /// # Why this is not a loop over [`drop_database`](crate::db::drop_database)
@@ -98,9 +90,10 @@ pub fn drop_account_databases(host: &dyn DbHost, account: &AccountName) -> Resul
 /// Every local database user whose name decodes to `account`.
 ///
 /// The decode is the one [`list_databases`] documents at length, applied to the
-/// user namespace: split at the LAST separator, compare the WHOLE account, and
-/// rebuild through `DbUserName::for_account` so that a name this function
-/// reports is a name this agent could itself have created. A user an
+/// user namespace and performed by [`DbUserName::decode`] — the inverse of the
+/// constructor that built the name, living beside it so the split can never use
+/// a character the join did not. It compares the WHOLE account, so a name this
+/// function reports is a name this agent could itself have created. A user an
 /// administrator made by hand outside the convention decodes to nothing and is
 /// left alone — as are `root`, `mysql.sys` and the server's own accounts, which
 /// have no separator at all.
@@ -119,21 +112,11 @@ fn account_users(host: &dyn DbHost, account: &AccountName) -> Result<Vec<DbUserN
         .lines()
         .map(str::trim)
         .filter(|line| !line.is_empty())
-        .filter_map(|name| decode_for_account(account, name))
+        .filter_map(|name| DbUserName::decode(account, name))
         .collect();
     owned.sort_by(|left, right| left.as_str().cmp(right.as_str()));
 
     Ok(owned)
-}
-
-/// Decodes `name` and reports it only when it decodes to `account` in full.
-fn decode_for_account(account: &AccountName, name: &str) -> Option<DbUserName> {
-    let (owner, requested) = name.rsplit_once(SEPARATOR)?;
-    if owner != account.as_str() {
-        return None;
-    }
-
-    DbUserName::for_account(account, requested).ok()
 }
 
 #[cfg(test)]

@@ -13,9 +13,16 @@
 //! by the firewall, `fs/` names and modes filesystem entries, `secrets/` never
 //! leaves memory unredacted.
 //! Every type keeps its own `*_error.rs` beside it, as everywhere else.
+//!
+//! `prefixed_name` and `prefix_problem` are the exception to the grouping: they
+//! are not a validated value of any domain but the shared construction core the
+//! three account-prefixed names — a database, a database user and an SFTP login
+//! — are built from, so they sit at this level and stay crate-internal.
 
 pub mod db;
 pub mod fs;
+pub(crate) mod prefix_problem;
+pub(crate) mod prefixed_name;
 pub mod secrets;
 pub mod system;
 pub mod web;

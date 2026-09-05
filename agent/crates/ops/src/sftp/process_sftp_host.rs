@@ -20,34 +20,6 @@ use crate::sftp::model::account_ownership::AccountOwnership;
 use crate::sftp::sftp_error::SftpError;
 use crate::sftp::sftp_host::SftpHost;
 
-/// The separator `SftpUserName::for_account` puts between the account and the
-/// name its customer chose.
-///
-/// Held here as well as in the validated type because this file performs the
-/// inverse operation, and a decoder that guessed at the separator would decode
-/// nothing on the day the two disagreed — silently, as an account deletion that
-/// left every login behind.
-const NAME_SEPARATOR: char = '_';
-
-/// Decodes one passwd name and reports it only when it is `account`'s login.
-///
-/// The whole account is compared and not a prefix of it: account names may
-/// contain the separator, so `alice_` is a prefix of `alice_bob_deploy`, which
-/// belongs to account `alice_bob`. Splitting at the LAST separator recovers the
-/// two halves the name was built from, because `for_account` forbids the
-/// separator in the requested half.
-fn decode_login(account: &AccountName, name: &str) -> Option<SftpUserName> {
-    let (owner, requested) = name.rsplit_once(NAME_SEPARATOR)?;
-    if owner != account.as_str() {
-        return None;
-    }
-
-    // Rebuilt rather than wrapped: the type has no constructor that takes a
-    // whole name, and that is what keeps every `SftpUserName` in the process a
-    // name this agent could have created.
-    SftpUserName::for_account(account, requested).ok()
-}
-
 /// Runs the real `useradd`, `userdel` and `chpasswd`, and installs the real
 /// mount unit.
 ///
@@ -251,10 +223,11 @@ impl SftpHost for ProcessSftpHost {
     /// spelling: `alice_bob` is both the account `alice_bob` and the login `bob`
     /// of account `alice`, and only the home field distinguishes them.
     ///
-    /// Each name is then decoded at its LAST separator and rebuilt through
-    /// [`SftpUserName::for_account`], so nothing outside this agent's own naming
-    /// convention is ever reported, and one account's name can never alias
-    /// another's: `alice_bob_deploy` decodes to `alice_bob` and is not `alice`'s.
+    /// Each name is then put through [`SftpUserName::decode`], which is the
+    /// inverse of the constructor that built it and lives beside it, so nothing
+    /// outside this agent's own naming convention is ever reported and one
+    /// account's name can never alias another's: `alice_bob_deploy` decodes to
+    /// `alice_bob` and is not `alice`'s.
     ///
     /// # Errors
     ///
@@ -271,7 +244,7 @@ impl SftpHost for ProcessSftpHost {
         let mut logins: Vec<SftpUserName> = system_accounts(&passwd)
             .into_iter()
             .filter(|row| row.home == jail_directory)
-            .filter_map(|row| decode_login(account, &row.name))
+            .filter_map(|row| SftpUserName::decode(account, &row.name))
             .collect();
         // Sorted so that two calls against an unchanged host remove the logins
         // in the same order, whatever order the file happened to hold them in.

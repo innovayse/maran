@@ -150,8 +150,15 @@ agent/
     │       │   │              ban_address · ipv4_disguise (shared predicate, no
     │       │   │              _error) — values written into web-server configuration
     │       │   ├── fs/        path (resolve_in_home) · relative_path · file_mode
-    │       │   └── secrets/   password (validated alphabet, injection-free by
-    │       │                  construction) · secret (redacting wrapper, no _error)
+    │       │   ├── secrets/   password (validated alphabet, injection-free by
+    │       │   │              construction) · secret (redacting wrapper, no _error)
+    │       │   └── prefixed_name.rs + prefix_problem.rs — NOT a domain group: the
+    │       │                  crate-internal core the three account-prefixed names
+    │       │                  (database_name · db_user_name · sftp_user_name) are
+    │       │                  built from, plus the ONE separator their `decode`
+    │       │                  methods split at. It sits at this level because it
+    │       │                  belongs to no single domain, and it is `pub(crate)`
+    │       │                  because each type still maps it onto its own error.
     │       ├── privs/         the ONLY home of unsafe syscall/setuid wrappers:
     │       │                  fork_as_account.rs · account_ids.rs · priv_error.rs ·
     │       │                  directory_entry_name.rs (the shared name check, no syscall) ·
