@@ -2,12 +2,12 @@
 
 use std::fs;
 use std::path::Path;
-use std::process::{Command, Stdio};
 use std::thread;
 use std::time::Duration;
 
 use maran_agent_core::command_outcome::CommandOutcome;
 use maran_agent_core::utils::directory::directory_size;
+use maran_agent_core::utils::spawn_argv::spawn_argv;
 
 use crate::monitor::model::filesystem_usage::FilesystemUsage;
 use crate::monitor::monitor_error::MonitorError;
@@ -148,27 +148,19 @@ impl MonitorHost for ProcessMonitorHost {
     /// allow-list and never from a request, and so does every argument — this
     /// area accepts no unit name from a caller at all.
     ///
-    /// Standard input is `/dev/null` rather than inherited: a tool that decides
-    /// to prompt then fails instead of hanging a root daemon forever.
+    /// The spawn itself is [`spawn_argv`], shared with every other host that
+    /// runs an argv array. Standard input is closed rather than inherited
+    /// there too — a tool that decides to prompt fails instead of hanging a
+    /// root daemon forever — and it pins `LC_ALL=C`, which this file did not
+    /// do before: a gain, since this area parses the service manager's own
+    /// words to decide whether a unit is running.
     ///
     /// # Errors
     ///
     /// Returns [`MonitorError::ServiceManagerUnavailable`] with a `code` of
     /// `-1` when the program cannot be started or waited for.
     fn run(&self, program: &str, arguments: &[&str]) -> Result<CommandOutcome, MonitorError> {
-        let output = Command::new(program)
-            .args(arguments)
-            .stdin(Stdio::null())
-            .output()
-            .map_err(|_| MonitorError::program_unavailable())?;
-
-        Ok(CommandOutcome {
-            // -1 for a process killed by a signal: it did not exit, and
-            // reporting 0 would read as success to every caller.
-            status: output.status.code().unwrap_or(-1),
-            stdout: String::from_utf8_lossy(&output.stdout).into_owned(),
-            stderr: String::from_utf8_lossy(&output.stderr).into_owned(),
-        })
+        spawn_argv(program, arguments).map_err(|_| MonitorError::program_unavailable())
     }
 
     /// Reads the host's own passwd file.

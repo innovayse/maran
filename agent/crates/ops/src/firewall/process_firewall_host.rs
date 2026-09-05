@@ -5,9 +5,9 @@ use std::fs::File;
 use std::io;
 use std::io::Write as _;
 use std::path::{Path, PathBuf};
-use std::process::Command;
 
 use maran_agent_core::command_outcome::CommandOutcome;
+use maran_agent_core::utils::spawn_argv::spawn_argv;
 
 use crate::firewall::firewall_error::FirewallError;
 use crate::firewall::firewall_host::FirewallHost;
@@ -56,8 +56,11 @@ impl FirewallHost for ProcessFirewallHost {
     /// set element are tokens in it. `program` comes from the
     /// `DistroAdapter`'s allow-list and never from a request.
     ///
-    /// `Command::output` gives the child a closed standard input, so an `nft`
-    /// that decides to read from it fails instead of hanging a root daemon.
+    /// The spawn itself is [`spawn_argv`], shared with every other host that
+    /// runs an argv array: it gives the child a closed standard input, so an
+    /// `nft` that decides to read from it fails instead of hanging a root
+    /// daemon, and it pins `LC_ALL=C`, which this file did not do before — a
+    /// gain, since this area reads `nft`'s own diagnostics back.
     ///
     /// # Errors
     ///
@@ -66,19 +69,8 @@ impl FirewallHost for ProcessFirewallHost {
     /// non-zero exit is not an error here — it is returned in the outcome for
     /// the caller to read.
     fn run(&self, program: &str, arguments: &[&str]) -> Result<CommandOutcome, FirewallError> {
-        let output = Command::new(program)
-            .args(arguments)
-            .output()
-            .map_err(|error| FirewallError::NftFailed {
-                stderr: format!("could not run {program}: {error}"),
-            })?;
-
-        Ok(CommandOutcome {
-            // -1 for a process killed by a signal: it did not exit, and
-            // reporting 0 would read as success to every caller.
-            status: output.status.code().unwrap_or(-1),
-            stdout: String::from_utf8_lossy(&output.stdout).into_owned(),
-            stderr: String::from_utf8_lossy(&output.stderr).into_owned(),
+        spawn_argv(program, arguments).map_err(|error| FirewallError::NftFailed {
+            stderr: format!("could not run {program}: {error}"),
         })
     }
 

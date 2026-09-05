@@ -30,8 +30,9 @@ use crate::safe_write::{ConfigHost, RollbackGuard, SafeWriteError};
 /// not be read, and [`SafeWriteError::Rename`] when the file could not be
 /// unlinked — in both cases the target is untouched. Returns
 /// [`SafeWriteError::ValidationFailed`] or [`SafeWriteError::ReloadFailed`]
-/// with the file restored, and [`SafeWriteError::RollbackFailed`] when that
-/// restoration also failed.
+/// with the file restored, [`SafeWriteError::SpawnFailed`] with the same
+/// restoration when one of those programs could not be started at all, and
+/// [`SafeWriteError::RollbackFailed`] when that restoration also failed.
 pub fn remove_config(
     host: &dyn ConfigHost,
     target: &Path,

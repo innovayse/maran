@@ -9,6 +9,7 @@ use std::process::{Command, Stdio};
 
 use maran_agent_core::command_outcome::CommandOutcome;
 use maran_agent_core::privs::account_ids::AccountIds;
+use maran_agent_core::utils::spawn_argv::spawn_argv;
 use maran_agent_core::utils::system_accounts::system_accounts;
 use maran_agent_core::validation::system::name::AccountName;
 use maran_agent_core::validation::system::sftp_user_name::SftpUserName;
@@ -80,20 +81,22 @@ impl ConfigHost for ProcessSftpHost {
     /// arguments reach `execve` one by one, so there is no command line for
     /// anything to re-parse. `program` comes from the `DistroAdapter`'s
     /// allow-list and never from a request.
+    ///
+    /// The spawn itself is [`spawn_argv`], shared with every other host that
+    /// runs an argv array — but only THIS impl's spawn. The password change
+    /// below keeps its own `Command`, because it pipes a secret to the child's
+    /// standard input, which is exactly what the shared body does not do.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SafeWriteError::SpawnFailed`] when the program cannot be
+    /// started, carrying the operating system's reason. A program that started
+    /// and exited non-zero is not an error: its status comes back in the
+    /// outcome for the protocol above to judge.
     fn run(&self, program: &str, arguments: &[&str]) -> Result<CommandOutcome, SafeWriteError> {
-        let output = Command::new(program)
-            .args(arguments)
-            .output()
-            .map_err(|error| SafeWriteError::ReloadFailed {
-                stderr: format!("could not run {program}: {error}"),
-            })?;
-
-        Ok(CommandOutcome {
-            // -1 for a process killed by a signal: it did not exit, and
-            // reporting 0 would read as success to every caller.
-            status: output.status.code().unwrap_or(-1),
-            stdout: String::from_utf8_lossy(&output.stdout).into_owned(),
-            stderr: String::from_utf8_lossy(&output.stderr).into_owned(),
+        spawn_argv(program, arguments).map_err(|error| SafeWriteError::SpawnFailed {
+            program: program.to_owned(),
+            reason: error.to_string(),
         })
     }
 }

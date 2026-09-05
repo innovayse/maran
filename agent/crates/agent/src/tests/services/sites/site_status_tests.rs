@@ -14,6 +14,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use maran_ops::safe_write::SafeWriteError;
 use maran_ops::sites::SitesOpError;
 
 use super::to_agent_error;
@@ -162,4 +163,40 @@ fn the_message_is_the_failures_own_display_and_never_a_sentence_invented_here() 
     };
 
     assert_eq!(to_agent_error(&error).message, error.to_string());
+}
+
+/// A binary that could not be started reaches the panel saying so.
+///
+/// The end-to-end statement of the defect this variant was added for. The
+/// operator's log line is built from `message`, so what matters is the sentence
+/// the whole chain produces: `SafeWriteError::SpawnFailed` folds into
+/// [`SitesOpError::ConfigWrite`] like every other protocol failure that is not a
+/// refusal of the content, and its `Display` carries the program and the
+/// operating system's reason through. It travels as a system failure, which is
+/// what a missing binary is — a fault of the machine, not of the caller's input
+/// — and it carries no `tool_output`, because no tool ran to produce any.
+#[test]
+fn a_program_that_could_not_be_started_reaches_the_panel_as_a_system_failure_naming_it() {
+    let error = SitesOpError::from(SafeWriteError::SpawnFailed {
+        program: "/usr/sbin/nginx".to_owned(),
+        reason: "No such file or directory (os error 2)".to_owned(),
+    });
+
+    let wire = to_agent_error(&error);
+
+    assert_eq!(wire.code, ErrorCode::SystemFailure as i32);
+    assert!(
+        wire.message.contains("could not run /usr/sbin/nginx"),
+        "the operator's log line must name the program it could not run: {}",
+        wire.message
+    );
+    assert!(
+        !wire.message.contains("reload failed"),
+        "a spawn failure must not read as a reload failure: {}",
+        wire.message
+    );
+    assert!(
+        wire.tool_output.is_empty(),
+        "no tool ran, so none has output"
+    );
 }

@@ -6,9 +6,13 @@
 /// Every variant from [`Self::ValidationFailed`] onward is a point at which
 /// [`super::render_validate_swap::write_config`] has already put the previous
 /// content back — the variant tells an operator which step refused, not
-/// whether the target file is now safe. [`Self::RollbackFailed`] is the one
-/// exception: it means the restoration itself did not happen, which is why it
-/// carries both errors rather than collapsing into the first one.
+/// whether the target file is now safe. Two are exceptions.
+/// [`Self::RollbackFailed`] means the restoration itself did not happen, which
+/// is why it carries both errors rather than collapsing into the first one.
+/// [`Self::SpawnFailed`] says the step did not refuse at all — its program
+/// never started — and it stands where the validator or the reload would have
+/// stood, so the restoration that follows it is the restoration that step
+/// would have had.
 #[derive(Debug, thiserror::Error)]
 #[non_exhaustive]
 pub enum SafeWriteError {
@@ -70,6 +74,23 @@ pub enum SafeWriteError {
     ReloadFailed {
         /// The reload command's standard error, for an operator's log.
         stderr: String,
+    },
+
+    /// The program could not be started at all — missing binary, not
+    /// executable. Distinct from a validator or reload that RAN and refused:
+    /// an operator fixing "nginx -t failed" and one installing a missing
+    /// package are doing different work, and the error name should say which.
+    ///
+    /// Nothing on disk has changed when the VALIDATOR could not be started;
+    /// when the RELOAD could not be started the new file is already in place
+    /// and the protocol restores the previous one, exactly as it does for a
+    /// reload that ran and refused.
+    #[error("could not run {program}: {reason}")]
+    SpawnFailed {
+        /// The program that could not be started.
+        program: String,
+        /// The operating system's reason.
+        reason: String,
     },
 
     /// The previous configuration could not be restored after a later step
