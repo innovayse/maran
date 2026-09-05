@@ -2,15 +2,34 @@ import type { RouteLocationRaw } from 'vue-router'
 
 /**
  * Glyph a navigation entry is drawn with. Deliberately a closed union of the
- * two icons the shell actually draws today: the module catalogue reports no
- * icon of its own, so an entry's glyph is a presentation decision this bundle
- * makes, not data the backend sent.
+ * icons the shell actually draws: the module catalogue reports no icon of its
+ * own, so an entry's glyph is a presentation decision this bundle makes, not
+ * data the backend sent. Which module gets which is stated in
+ * `utils/moduleNavigationIcon.ts`.
  */
 export type NavigationIcon =
   /** The shell's own always-present entries (system status). */
   | 'pulse'
-  /** A module reported by the panel's catalogue. */
+  /** A module the panel reported that this bundle has no glyph for. */
   | 'grid'
+  /** The accounts module. */
+  | 'users'
+  /** The sites module. */
+  | 'earth'
+  /** The databases module. */
+  | 'database'
+  /** The SFTP module, whose logins open one directory and no other. */
+  | 'folderKey'
+  /** The firewall module, whose screen is the host's packet filter. */
+  | 'brickWall'
+  /** The identity module, whose screens are the signed-in person's security ones. */
+  | 'shieldCheck'
+  /** The cron module, whose screen is a list of things that happen at a time. */
+  | 'clock'
+  /** The tasks module, whose screen is the panel's feed of background work. */
+  | 'listChecks'
+  /** The monitoring module, whose screen plots what the server has been doing. */
+  | 'chartLine'
 
 /**
  * One entry in the authenticated shell's sidebar navigation, as built by

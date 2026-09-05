@@ -54,12 +54,13 @@ public static class ApiResultExtensions
 
         // Resolved via DI rather than assumed present: a Host without any module loaded (or an
         // isolated unit test host) never registers Maran.SharedKernel.Localization.ResxErrorTextProvider,
-        // and this must still degrade to the machine code rather than throw. The machine code is
-        // never Error.Message, which is documented operator-only text that must not reach customers.
+        // and this must still degrade to the machine code rather than throw. Falling back to the code
+        // is the same answer ResxErrorTextProvider gives for a key no module claims: machine-stable,
+        // and never a path, a stack trace or tool output (rules/security.md "Secrets").
         var errorTextProvider = httpContext.RequestServices.GetService<IErrorTextProvider>();
         var detail = errorTextProvider?.Resolve(error.Code) ?? error.Code;
 
-        var statusCode = MapStatusCode(error.Code);
+        var statusCode = MapStatusCode(error.Type);
         var problem = new ProblemDetails
         {
             Status = statusCode,
@@ -74,27 +75,34 @@ public static class ApiResultExtensions
     }
 
     /// <summary>
-    /// Infers an HTTP status from the machine error code's suffix convention (e.g.
-    /// <c>"SitesNotFound"</c> → 404). Modules are free to use any suffix; unrecognized ones map
-    /// to 400, so a new code never silently produces a wrong-but-plausible status.
+    /// Maps a failure's <see cref="ErrorType"/> to its HTTP status. One arm per kind, no knowledge of
+    /// any error code, and the only place in the panel where a status is chosen.
     /// </summary>
     /// <remarks>
-    /// The suffixes are PascalCase because the codes are (rules/csharp.md: resource names are flat
-    /// PascalCase, and a code is the name of its resource entry). They were once matched in a
-    /// dotted lower-case form, which stopped matching the moment the codes became PascalCase — and
-    /// silently answered 400 to every missing account and every duplicate domain.
+    /// This method used to read the CODE and infer a status from its spelling, which is the design
+    /// <see cref="ErrorType"/> exists to replace — see that type for the two ways it failed. Nothing
+    /// here may grow a special case for a particular code: a failure that needs a different status
+    /// needs a different <see cref="ErrorType"/>, declared where the error is built and visible to
+    /// the handler's own tests.
     /// </remarks>
-    /// <param name="code">The machine-stable error code.</param>
-    private static int MapStatusCode(string code)
+    /// <param name="type">The kind of failure, taken from the error itself.</param>
+    private static int MapStatusCode(ErrorType type)
     {
-        return code switch
+        return type switch
         {
-            _ when code.EndsWith("NotFound", StringComparison.Ordinal) => StatusCodes.Status404NotFound,
-            _ when code.EndsWith("AlreadyExists", StringComparison.Ordinal) => StatusCodes.Status409Conflict,
-            _ when code.EndsWith("Taken", StringComparison.Ordinal) => StatusCodes.Status409Conflict,
-            _ when code.EndsWith("Forbidden", StringComparison.Ordinal) => StatusCodes.Status403Forbidden,
-            _ when code.EndsWith("Unauthorized", StringComparison.Ordinal) => StatusCodes.Status401Unauthorized,
-            _ => StatusCodes.Status400BadRequest,
+            ErrorType.Validation => StatusCodes.Status400BadRequest,
+            ErrorType.NotFound => StatusCodes.Status404NotFound,
+            ErrorType.Conflict => StatusCodes.Status409Conflict,
+            ErrorType.Unauthorized => StatusCodes.Status401Unauthorized,
+            ErrorType.Forbidden => StatusCodes.Status403Forbidden,
+            ErrorType.Unavailable => StatusCodes.Status503ServiceUnavailable,
+            ErrorType.Failure => StatusCodes.Status500InternalServerError,
+
+            // Unreachable while the enum and this switch agree, and deliberately NOT a 400: a kind
+            // this method has never heard of is the panel failing to describe its own failure, which
+            // is a server fault by definition. Answering 400 would blame the caller for a value they
+            // could not have sent.
+            _ => StatusCodes.Status500InternalServerError,
         };
     }
 }

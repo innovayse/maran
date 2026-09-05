@@ -8,6 +8,7 @@
  * Pressing Enter emits `search`; callers may also debounce on `update:modelValue`.
  */
 import { computed, ref, useId, type ComputedRef, type Ref } from 'vue'
+import UiIcon from './UiIcon.vue'
 
 /** Props accepted by {@link UiSearchInput}. */
 const props = withDefaults(
@@ -38,6 +39,11 @@ const fieldId: string = useId()
 /** The underlying input element, needed to restore focus after the clear button is used. */
 const inputElement: Ref<HTMLInputElement | null> = ref(null)
 
+/** Whether there is a query to clear; the clear button is meaningless on an empty field. */
+const hasValue: ComputedRef<boolean> = computed(() => {
+  return props.modelValue.length > 0
+})
+
 /**
  * Moves keyboard focus into the field.
  *
@@ -51,9 +57,6 @@ const focus = (): void => {
 }
 
 defineExpose({ focus })
-
-/** Whether there is a query to clear; the clear button is meaningless on an empty field. */
-const hasValue: ComputedRef<boolean> = computed(() => props.modelValue.length > 0)
 
 /**
  * Forwards the native input value to the `update:modelValue` emit.
@@ -89,21 +92,18 @@ const onClear = (): void => {
 
 <template>
   <div class="flex flex-col gap-1">
-    <label :for="fieldId" class="text-xs font-medium text-text-secondary">{{ label }}</label>
+    <label :for="fieldId" class="text-base font-medium text-text-secondary">{{ label }}</label>
     <div class="relative flex items-center">
       <!-- Decorative glyph: the field is already named by its label, so the
            magnifier repeats nothing to a screen reader. -->
-      <svg
-        class="pointer-events-none absolute left-2 size-3.5 text-text-muted"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="2"
-        aria-hidden="true"
-      >
-        <circle cx="11" cy="11" r="7" />
-        <path d="M20 20l-4-4" />
-      </svg>
+      <UiIcon
+        name="search"
+        size="sm"
+        class="pointer-events-none absolute left-3 text-text-muted"
+      />
+      <!-- The side paddings are geometry, not taste: `pl-9` clears the magnifier
+           at `left-3`, `pr-10` clears the clear button at `right-2`. Move either
+           inset and the text runs under the glyph. -->
       <input
         :id="fieldId"
         ref="inputElement"
@@ -111,20 +111,18 @@ const onClear = (): void => {
         role="searchbox"
         :value="modelValue"
         :placeholder="placeholder"
-        class="w-full rounded-lg border border-border-subtle bg-surface-2 py-1.5 pr-7.5 pl-7 text-xs text-text-primary transition-colors placeholder:text-text-muted hover:border-border-strong focus-visible:border-accent focus-visible:shadow-focus focus-visible:outline-none"
+        class="w-full rounded-lg border border-border-subtle bg-surface-2 py-2 pr-10 pl-9 text-base text-text-primary transition-colors placeholder:text-text-muted hover:border-border-strong focus-visible:border-accent focus-visible:shadow-focus focus-visible:outline-none"
         @input="onInput"
         @keydown.enter.prevent="onEnter"
       />
       <button
         v-if="hasValue"
         type="button"
-        class="absolute right-1 inline-flex size-6 items-center justify-center rounded-md text-text-muted transition-colors hover:bg-surface-3 hover:text-text-primary focus-visible:shadow-focus focus-visible:outline-none"
+        class="absolute right-2 inline-flex size-6 items-center justify-center rounded-md text-text-muted transition-colors hover:bg-surface-3 hover:text-text-primary focus-visible:shadow-focus focus-visible:outline-none"
         @click="onClear"
       >
         <!-- Decorative glyph: the button's accessible name comes from the caller-translated label. -->
-        <svg class="size-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
-          <path d="M6 6l12 12M18 6L6 18" stroke-width="2" stroke-linecap="round" />
-        </svg>
+        <UiIcon name="x" size="sm" />
         <span class="sr-only">{{ clearLabel }}</span>
       </button>
     </div>

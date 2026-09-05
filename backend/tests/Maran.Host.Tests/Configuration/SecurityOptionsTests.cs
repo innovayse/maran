@@ -10,6 +10,7 @@ namespace Maran.Host.Tests.Configuration;
 /// </summary>
 public sealed class SecurityOptionsTests
 {
+    /// <summary>Missing encryption key fails startup.</summary>
     [Fact]
     public void Missing_encryption_key_fails_startup()
     {
@@ -26,6 +27,7 @@ public sealed class SecurityOptionsTests
         Assert.Contains("EncryptionKey", exception.Message, StringComparison.Ordinal);
     }
 
+    /// <summary>Too short encryption key fails startup.</summary>
     [Fact]
     public void Too_short_encryption_key_fails_startup()
     {
@@ -44,12 +46,14 @@ public sealed class SecurityOptionsTests
         Assert.Contains("256-bit key", exception.Message, StringComparison.Ordinal);
     }
 
+    /// <summary>Valid encryption key boots successfully.</summary>
     [Fact]
     public void Valid_encryption_key_boots_successfully()
     {
         using var factory = new PanelTestFactory().WithWebHostBuilder(builder =>
         {
             builder.UseSetting(PanelTestSettings.EncryptionKeyPath, PanelTestSettings.EncryptionKey);
+            builder.UseSetting(PanelTestSettings.JwtSigningKeyPath, PanelTestSettings.JwtSigningKey);
         });
 
         // Forces the host to actually build and start; a validation failure here throws.

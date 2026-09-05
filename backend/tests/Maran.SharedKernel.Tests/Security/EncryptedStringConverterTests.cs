@@ -8,6 +8,7 @@ public sealed class EncryptedStringConverterTests
     /// <summary>A throwaway base64-encoded 256-bit key, valid only for these tests.</summary>
     private const string ValidKey = "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=";
 
+    /// <summary>Value survives a conversion round trip.</summary>
     [Fact]
     public void Value_survives_a_conversion_round_trip()
     {

@@ -36,17 +36,53 @@ ProtectHome=true
 # is enforced twice over — once by ProtectHome, once because /home is simply absent
 # from ReadWritePaths.
 PrivateTmp=true
-# Own runtime dir for any transient files (e.g. correlation-id scratch, health probes);
-# 0750 keeps it unreadable to other unprivileged users on the box.
-RuntimeDirectory=maran-api
-RuntimeDirectoryMode=0750
+# THE SOCKET DIRECTORY IS DELIBERATELY NOT A RuntimeDirectory=, AND THAT IS THE WHOLE POINT.
+#
+# The directory holding the panel's listening socket is the panel's trust boundary: at 2710 owned
+# panel:<web server group> it has no permissions for "other", so a uid that is neither panel nor a
+# member of the web server's group cannot resolve a path inside it and connect(2) fails at path
+# resolution — before any socket permission is consulted, before a byte is sent, before the panel
+# is involved. That ownership is set by installer/systemd/maran-api.tmpfiles.conf, installed as
+# /etc/tmpfiles.d/maran-api.conf, and this unit must not take the directory back.
+#
+# Why not RuntimeDirectory=, which is the obvious spelling: systemd re-runs its exec-directory
+# setup for EVERY command invocation of a unit, not once per start, and that setup re-applies this
+# unit's User=/Group= to RuntimeDirectory=. An earlier version of this file set the group with
+# `ExecStartPre=+/usr/bin/chgrp <web group>`; measured on booted systemd on both families (255 on
+# the Debian family, 252 on the RHEL family), the chgrp took effect inside its own invocation and
+# was undone before the next one, so ExecStart always saw panel:panel, the socket inherited the
+# group panel, `connect(2)` from the web server's uid returned EACCES and every API call answered
+# 502. systemd offers no per-RuntimeDirectory group setting, so the group must come from something
+# the unit's own command invocations do not re-apply. systemd-tmpfiles is that: it runs before this
+# unit (systemd-tmpfiles-setup.service is Before=sysinit.target and every ordinary unit is ordered
+# after it), it corrects a directory that already exists, and no start, restart or reload of this
+# unit touches it. The alternatives all cost something real and are recorded in
+# docs/superpowers/notes/2026-09-03-panel-socket-threat-note.md §3.1.
+#
+# ReadWritePaths must therefore NAME the directory: ProtectSystem=strict mounts the whole
+# hierarchy read-only, RuntimeDirectory= used to make its own exception, and without one Kestrel
+# could not create the socket. A unit that starts before the tmpfiles snippet is installed fails
+# here, by name, rather than serving on a directory nobody arranged.
+#
+# ExecStopPost removes the socket the panel leaves behind. systemd no longer deletes a runtime
+# directory on stop, and Kestrel refuses to bind over an existing path rather than reusing it — so
+# without this line a SIGKILLed panel would never restart. ExecStopPost runs however the service
+# stopped, including after a kill, and is prefixed `-` so that a failure to unlink leaves the loud
+# "address already in use" refusal rather than replacing it with a second failure. The directory
+# itself survives, which is what keeps its ownership stable across restarts; /run is a tmpfs, so a
+# reboot clears the socket regardless and systemd-tmpfiles rebuilds the directory.
+#
+# __MARAN_API_SOCKET_DIR__ and __MARAN_API_SOCKET__ are substituted by installer/lib/70-services.sh
+# from MARAN_API_SOCKET_PATH in install.sh, the one place the socket's path is decided.
+ExecStopPost=-/usr/bin/rm -f __MARAN_API_SOCKET__
 # The api's only persistent state is under /var/lib/maran (its own subtree) and its
-# own logs; everything else it needs (the socket, the binaries) is read-only to it.
-ReadWritePaths=/var/lib/maran /var/log/maran
-NoExecPaths=/var/lib/maran /var/log/maran
+# own logs; everything else it needs (the binaries) is read-only to it. The socket
+# directory joins them for the reason given above.
+ReadWritePaths=/var/lib/maran /var/log/maran __MARAN_API_SOCKET_DIR__
+NoExecPaths=/var/lib/maran /var/log/maran __MARAN_API_SOCKET_DIR__
 # No sockets/devices are opened directly by this unit beyond outbound network
 # (PostgreSQL over unix socket, the agent over unix socket, and the license lease
-# call) and the HTTPS listener nginx proxies to; PrivateDevices removes device node
+# call) and the unix socket nginx proxies to; PrivateDevices removes device node
 # access entirely since none is needed.
 PrivateDevices=true
 ProtectKernelTunables=true
@@ -62,10 +98,14 @@ LockPersonality=true
 MemoryDenyWriteExecute=true
 RemoveIPC=true
 # The managed monolith needs no raw sockets or exotic address families; AF_UNIX for
-# PostgreSQL/agent sockets and AF_INET/AF_INET6 for the HTTPS listener are sufficient.
+# PostgreSQL, the agent and its own listening socket, and AF_INET/AF_INET6 for the
+# OUTBOUND calls it still makes (the license lease, ACME). The panel no longer listens
+# on a TCP port at all, but the inet families cannot be dropped while it dials out.
 RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
-# Capabilities: the api binds a high port behind nginx (nginx owns 8443), so it needs
-# no CAP_NET_BIND_SERVICE and no other capability at all.
+# Capabilities: the api listens on a unix socket behind nginx (nginx owns 8443), so it
+# needs no CAP_NET_BIND_SERVICE and no other capability at all — which is also why the
+# socket's group is arranged by a setgid directory that root builds ahead of this unit,
+# rather than by the panel chgrp'ing anything of its own.
 CapabilityBoundingSet=
 AmbientCapabilities=
 SystemCallFilter=@system-service

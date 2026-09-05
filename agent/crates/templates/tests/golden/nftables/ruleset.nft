@@ -1,0 +1,38 @@
+# Rendered by the Maran agent. Hand edits are overwritten on the next apply.
+# The replace idiom: create-if-absent, delete, redeclare — nft -f is ADDITIVE
+# without it, and an apply that merely appended left a removed rule live.
+table inet maran {}
+delete table inet maran
+
+table inet maran {
+    chain input {
+        type filter hook input priority 0; policy drop;
+
+        # Loopback first: the panel's own nginx→Kestrel hop lives here and
+        # nothing — not even a ban — may sever it. Bans hook at priority -5
+        # in table inet maran_bans and repeat this exemption for the same
+        # reason.
+        iif "lo" accept
+
+        ct state invalid drop
+        ct state established,related accept
+
+        ip protocol icmp accept
+        # 58 is ICMPv6, written as the NUMBER because the name is not one nft
+        # knows: it resolves `ipv6-icmp` through getprotobyname, i.e. through
+        # /etc/protocols, which is a file a minimal host can be missing. Then
+        # the whole ruleset fails to load with "Could not resolve protocol
+        # name" and the host is left with no firewall at all — measured on a
+        # base image without it. `ip protocol icmp` above is a different case
+        # and is left as the name: nft resolves that one itself, verified on
+        # the same host with no /etc/protocols.
+        meta l4proto 58 accept
+
+        tcp dport 2222 accept
+        tcp dport 2022 accept
+        tcp dport 8443 accept
+        tcp dport 80 accept
+        tcp dport 443 accept
+        tcp dport 3306 ip saddr 10.0.0.0/8 accept
+    }
+}

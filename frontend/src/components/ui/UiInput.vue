@@ -5,7 +5,10 @@
  * caller forgets — a label is a required prop, not an optional slot — and
  * exposes an error state wired to `aria-invalid`/`aria-describedby` so
  * assistive tech announces validation problems (rules/vue.md: "UI comes
- * from components/ui").
+ * from components/ui"). A `trailing` slot places one control inside the
+ * field's right edge — the reveal toggle of {@link UiPasswordInput} is its
+ * only caller — so that control shares the field's box instead of sitting
+ * beside it, and the input reserves room for it rather than running underneath.
  */
 import { computed, useId, type ComputedRef } from 'vue'
 
@@ -29,8 +32,15 @@ const props = withDefaults(
     required?: boolean
     /** Already-translated validation message; when set, the field renders as invalid. */
     error?: string | null
+    /**
+     * Native `autocomplete` token. A real prop rather than a fallthrough attribute: this
+     * component renders a wrapper `div`, so an attribute written on the tag would land on the
+     * wrapper and never reach the input. Password managers rely on it, and a sign-in form that
+     * cannot be filled by one pushes people towards passwords they can retype from memory.
+     */
+    autocomplete?: string
   }>(),
-  { type: 'text', placeholder: undefined, required: false, error: null },
+  { type: 'text', placeholder: undefined, required: false, error: null, autocomplete: undefined },
 )
 
 /** Events emitted by {@link UiInput}. */
@@ -44,7 +54,9 @@ const inputId: string = useId()
 const errorId: string = `${inputId}-error`
 
 /** Whether the field is currently in an error state. */
-const hasError: ComputedRef<boolean> = computed(() => props.error !== null && props.error !== undefined)
+const hasError: ComputedRef<boolean> = computed(() => {
+  return props.error !== null && props.error !== undefined
+})
 
 /**
  * Forwards the native input value to the `update:modelValue` emit.
@@ -62,26 +74,35 @@ const onInput = (event: Event): void => {
          readable as invalid from the label down, not only from the border. -->
     <label
       :for="inputId"
-      class="text-xs font-medium"
+      class="text-base font-medium"
       :class="hasError ? 'text-danger' : 'text-text-secondary'"
       >{{ label }}</label
     >
-    <input
-      :id="inputId"
-      :type="type"
-      :value="modelValue"
-      :placeholder="placeholder"
-      :aria-required="required ? 'true' : undefined"
-      :aria-invalid="hasError"
-      :aria-describedby="hasError ? errorId : undefined"
-      class="rounded-lg border bg-surface-2 px-2 py-1.5 text-xs text-text-primary placeholder:text-text-muted focus-visible:outline-none"
-      :class="
-        hasError
-          ? 'border-[rgb(229_72_77/0.5)] focus-visible:shadow-focus-danger'
-          : 'border-border-subtle focus-visible:border-accent focus-visible:shadow-focus'
-      "
-      @input="onInput"
-    />
-    <p v-if="hasError" :id="errorId" class="text-xs text-danger">{{ error }}</p>
+    <!-- `relative` only so a trailing control can be positioned over the field's
+         right edge; with no `trailing` slot the wrapper adds nothing. -->
+    <div class="relative">
+      <input
+        :id="inputId"
+        :type="type"
+        :value="modelValue"
+        :placeholder="placeholder"
+        :autocomplete="autocomplete"
+        :aria-required="required ? 'true' : undefined"
+        :aria-invalid="hasError"
+        :aria-describedby="hasError ? errorId : undefined"
+        class="w-full rounded-lg border bg-surface-2 py-2 pl-3 text-base text-text-primary placeholder:text-text-muted focus-visible:outline-none"
+        :class="[
+          hasError
+            ? 'border-[rgb(229_72_77/0.5)] focus-visible:shadow-focus-danger'
+            : 'border-border-subtle focus-visible:border-accent focus-visible:shadow-focus',
+          $slots.trailing ? 'pr-16' : 'pr-3',
+        ]"
+        @input="onInput"
+      />
+      <span v-if="$slots.trailing" class="absolute inset-y-0 right-1 flex items-center">
+        <slot name="trailing" :input-id="inputId" />
+      </span>
+    </div>
+    <p v-if="hasError" :id="errorId" class="text-base text-danger">{{ error }}</p>
   </div>
 </template>

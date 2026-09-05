@@ -39,9 +39,9 @@ const labelId: string = useId()
  * design only draws the "on" track (the accent); "off" is the sunken surface
  * inside a strong border, the same treatment its other empty wells get.
  */
-const trackClasses: ComputedRef<string> = computed(() =>
-  props.modelValue ? 'border-accent bg-accent' : 'border-border-strong bg-surface-3',
-)
+const trackClasses: ComputedRef<string> = computed(() => {
+  return props.modelValue ? 'border-accent bg-accent' : 'border-border-strong bg-surface-3'
+})
 
 /**
  * Tailwind utility classes positioning and colouring the knob.
@@ -51,9 +51,9 @@ const trackClasses: ComputedRef<string> = computed(() =>
  * light theme — a white knob there is invisible. Off therefore uses the
  * secondary text token, which clears its track in both themes.
  */
-const knobClasses: ComputedRef<string> = computed(() =>
-  props.modelValue ? 'translate-x-3.5 bg-white' : 'translate-x-0 bg-text-secondary',
-)
+const knobClasses: ComputedRef<string> = computed(() => {
+  return props.modelValue ? 'translate-x-4.5 bg-white' : 'translate-x-0 bg-text-secondary'
+})
 
 /**
  * Flips the switch, unless it is disabled.
@@ -75,17 +75,20 @@ const onToggle = (): void => {
       :aria-checked="modelValue"
       :aria-labelledby="labelId"
       :disabled="disabled"
-      class="inline-flex h-4.5 w-8 shrink-0 items-center rounded-full border p-0.5 transition-colors focus-visible:shadow-focus focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-65"
+      class="inline-flex h-5.5 w-10 shrink-0 items-center rounded-full border p-0.5 transition-colors focus-visible:shadow-focus focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-65"
       :class="trackClasses"
       @click="onToggle"
     >
+      <!-- Track, knob and travel are one arithmetic: 40px wide minus the 1px
+           border and the 2px inset on each side leaves 34px of rail for a 16px
+           knob, so the "on" position is exactly 18px along. -->
       <span
-        class="ui-switch-knob size-3.5 rounded-full transition-transform duration-150 ease-out"
+        class="ui-switch-knob size-4 rounded-full transition-transform duration-150 ease-out"
         :class="knobClasses"
         aria-hidden="true"
       />
     </button>
-    <span :id="labelId" class="text-xs text-text-primary">{{ label }}</span>
+    <span :id="labelId" class="text-base text-text-primary">{{ label }}</span>
   </div>
 </template>
 

@@ -1,4 +1,4 @@
-using Maran.Modules.Accounts.Domain;
+using Maran.Modules.Accounts.Domain.Entities;
 using Maran.Modules.Accounts.Persistence;
 using Maran.Modules.Accounts.Queries.ListPlans;
 using Maran.Modules.Accounts.Resources;
@@ -25,28 +25,30 @@ public sealed class ListPlansQueryHandlerTests
         return new AccountsDbContext(options);
     }
 
+    /// <summary>Empty store returns an empty list.</summary>
     [Fact]
     public async Task Empty_store_returns_an_empty_list()
     {
         await using var dbContext = CreateDbContext();
         var handler = new ListPlansQueryHandler(dbContext, new UppercasingDisplayNamesLocalizer());
 
-        var result = await handler.Handle(new ListPlansQuery(), CancellationToken.None);
+        var result = await handler.HandleAsync(new ListPlansQuery(), CancellationToken.None);
 
         Assert.True(result.IsSuccess);
         Assert.Empty(result.Value);
     }
 
+    /// <summary>Returns every plan the store holds with its display name resolved.</summary>
     [Fact]
     public async Task Returns_every_plan_the_store_holds_with_its_display_name_resolved()
     {
         await using var dbContext = CreateDbContext();
-        var plan = new Plan(Guid.NewGuid(), "PlanStarterName", 5_120, 5, 2, 3);
+        var plan = new Plan(Guid.NewGuid(), "PlanStarterName", 5_120, 5, 2, 3, 5, 5);
         dbContext.Plans.Add(plan);
         await dbContext.SaveChangesAsync();
         var handler = new ListPlansQueryHandler(dbContext, new UppercasingDisplayNamesLocalizer());
 
-        var result = await handler.Handle(new ListPlansQuery(), CancellationToken.None);
+        var result = await handler.HandleAsync(new ListPlansQuery(), CancellationToken.None);
 
         var dto = Assert.Single(result.Value);
         Assert.Equal(plan.Id, dto.Id);
@@ -54,22 +56,23 @@ public sealed class ListPlansQueryHandlerTests
         Assert.Equal(5_120, dto.DiskQuotaMb);
         Assert.Equal(5, dto.MaxSites);
         Assert.Equal(2, dto.MaxDatabases);
-        Assert.Equal(3, dto.MaxFtpUsers);
+        Assert.Equal(3, dto.MaxSftpUsers);
     }
 
+    /// <summary>Returns plans ordered by disk quota ascending.</summary>
     [Fact]
     public async Task Returns_plans_ordered_by_disk_quota_ascending()
     {
         await using var dbContext = CreateDbContext();
-        var large = new Plan(Guid.NewGuid(), "large", 1_048_576, 500, 500, 100);
-        var small = new Plan(Guid.NewGuid(), "small", 5_120, 5, 2, 3);
-        var medium = new Plan(Guid.NewGuid(), "medium", 25_600, 25, 10, 10);
+        var large = new Plan(Guid.NewGuid(), "large", 1_048_576, 500, 500, 100, 200, 100);
+        var small = new Plan(Guid.NewGuid(), "small", 5_120, 5, 2, 3, 5, 5);
+        var medium = new Plan(Guid.NewGuid(), "medium", 25_600, 25, 10, 10, 20, 20);
         // Inserted out of size order so the assertion cannot pass by insertion-order accident.
         dbContext.Plans.AddRange(large, small, medium);
         await dbContext.SaveChangesAsync();
         var handler = new ListPlansQueryHandler(dbContext, new UppercasingDisplayNamesLocalizer());
 
-        var result = await handler.Handle(new ListPlansQuery(), CancellationToken.None);
+        var result = await handler.HandleAsync(new ListPlansQuery(), CancellationToken.None);
 
         Assert.Equal([small.Id, medium.Id, large.Id], result.Value.Select(dto =>
         {

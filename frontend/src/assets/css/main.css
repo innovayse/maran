@@ -88,16 +88,16 @@ html[data-theme='light'] {
   --font-mono: 'Azeret Mono', ui-monospace, monospace;
 
   /*
-   * Tailwind's own scale carries almost all of this design: 12.5px reads as
-   * `text-xs` (12), 21px as `text-xl` (20), radii 5-8px as `rounded-md`/`rounded-lg`.
-   * Half a pixel is not worth a parallel scale nobody else recognises, so stock
-   * classes are the default and only the genuinely missing steps are defined here.
+   * No font-size scale is defined here. Tailwind's own steps carry all of it — `text-sm`
+   * for body copy, `text-2xl` for page titles — and a parallel scale would be a second
+   * vocabulary that only this repository understands.
    *
-   * 10px has no stock equivalent — Tailwind's smallest is 12 — and the design uses
-   * it constantly for badges, table headers and sidebar group labels, so it earns
-   * a name. The design's 10.5 and 11 collapse into it.
+   * The panel used to sit one step lower, matching the canvas's 13px base. That reads
+   * correctly in a mockup at 100% on a laptop and reads as fine print on a desktop
+   * monitor, which is where an operator spends hours on tables of domains and log lines.
+   * The fix was to move every component up one stock step, not to invent sizes between
+   * the stock ones.
    */
-  --text-2xs: 10px;
 
   /* Letter-spacing: caps need air, large text needs less. */
   --tracking-caps: 0.06em;
@@ -122,9 +122,11 @@ html[data-theme='light'] {
     background: var(--bg);
     color: var(--t1);
     font-family: 'Public Sans', system-ui, sans-serif;
-    /* 13px, not 16px: a control panel is a dense instrument, and the design sets
-       its whole rhythm against this base. */
-    font-size: 13px;
+    /* The document base, matching Tailwind's own `text-base` — the same 16px the web
+       defaults to. The panel started a step lower, from the canvas's 13px, and that read
+       as fine print on a desktop monitor at arm's length. Text with a class of its own
+       does not depend on this; it matters for the few places that inherit. */
+    font-size: 1rem;
     letter-spacing: -0.005em;
     -webkit-font-smoothing: antialiased;
     text-wrap: pretty;

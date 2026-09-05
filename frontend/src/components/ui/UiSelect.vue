@@ -17,6 +17,7 @@
  */
 import { computed, onBeforeUnmount, onMounted, ref, useId, watch, type ComputedRef, type Ref } from 'vue'
 import { nextEnabledIndex } from '../../utils/nextEnabledIndex'
+import UiIcon from './UiIcon.vue'
 import UiOption from './UiOption.vue'
 
 /**
@@ -95,20 +96,28 @@ const rootElement: Ref<HTMLElement | null> = ref(null)
 const triggerElement: Ref<HTMLButtonElement | null> = ref(null)
 
 /** Whether the field is currently in an error state. */
-const hasError: ComputedRef<boolean> = computed(() => props.error !== null && props.error !== undefined)
+const hasError: ComputedRef<boolean> = computed(() => {
+  return props.error !== null && props.error !== undefined
+})
 
 /** The currently selected option, or `null` when the model value matches none. */
-const selectedOption: ComputedRef<SelectOption | null> = computed(
-  () => props.options.find((option: SelectOption): boolean => option.value === props.modelValue) ?? null,
-)
+const selectedOption: ComputedRef<SelectOption | null> = computed(() => {
+  return (
+    props.options.find((option: SelectOption): boolean => {
+      return option.value === props.modelValue
+    }) ?? null
+  )
+})
 
 /** Text rendered on the trigger: the selection's label, or the placeholder while nothing is selected. */
-const triggerText: ComputedRef<string> = computed(() => selectedOption.value?.label ?? props.placeholder ?? '')
+const triggerText: ComputedRef<string> = computed(() => {
+  return selectedOption.value?.label ?? props.placeholder ?? ''
+})
 
 /** DOM id of the active option, published to assistive tech as `aria-activedescendant`. */
-const activeOptionId: ComputedRef<string | undefined> = computed(() =>
-  isOpen.value && activeIndex.value >= 0 ? `${fieldId}-option-${String(activeIndex.value)}` : undefined,
-)
+const activeOptionId: ComputedRef<string | undefined> = computed(() => {
+  return isOpen.value && activeIndex.value >= 0 ? `${fieldId}-option-${String(activeIndex.value)}` : undefined
+})
 
 /**
  * Builds the DOM id for the option at a position. Ids must be derivable from the
@@ -116,7 +125,9 @@ const activeOptionId: ComputedRef<string | undefined> = computed(() =>
  * @param index Position of the option in {@link props.options}.
  * @returns The option row's DOM id.
  */
-const optionId = (index: number): string => `${fieldId}-option-${String(index)}`
+const optionId = (index: number): string => {
+  return `${fieldId}-option-${String(index)}`
+}
 
 /**
  * Index the list should open on: the current selection when there is one, else the
@@ -124,7 +135,9 @@ const optionId = (index: number): string => `${fieldId}-option-${String(index)}`
  * @returns The index to make active on open, or -1 when no option is choosable.
  */
 const initialActiveIndex = (): number => {
-  const selected = props.options.findIndex((option: SelectOption): boolean => option.value === props.modelValue)
+  const selected = props.options.findIndex((option: SelectOption): boolean => {
+    return option.value === props.modelValue
+  })
   if (selected >= 0 && props.options[selected]?.disabled !== true) {
     return selected
   }
@@ -209,7 +222,8 @@ const moveToEdge = (edge: 'first' | 'last'): void => {
   if (!isOpen.value) {
     open()
   }
-  activeIndex.value = edge === 'first'
+  activeIndex.value =
+    edge === 'first'
       ? nextEnabledIndex(props.options, -1, 1)
       : nextEnabledIndex(props.options, props.options.length, -1)
 }
@@ -286,7 +300,9 @@ onBeforeUnmount((): void => {
 // past its end; re-anchor it instead of pointing `aria-activedescendant` at an
 // id that no longer exists.
 watch(
-  (): number => props.options.length,
+  (): number => {
+    return props.options.length
+  },
   (length: number): void => {
     if (isOpen.value && activeIndex.value >= length) {
       activeIndex.value = nextEnabledIndex(props.options, length, -1)
@@ -299,11 +315,15 @@ watch(
   <div ref="rootElement" class="flex flex-col gap-1" @focusout="onFocusOut">
     <span
       :id="labelId"
-      class="text-xs font-medium"
+      class="text-base font-medium"
       :class="[hasError ? 'text-danger' : 'text-text-secondary', hideLabel ? 'sr-only' : '']"
       >{{ label }}</span
     >
     <div class="relative">
+      <!-- `min-h-10.5` is the height an input renders at (24px of text, 8px of
+           padding each side, 1px of border). Without it a select with no chosen
+           value collapses to its empty line box and sits shorter than the
+           inputs beside it. -->
       <button
         ref="triggerElement"
         type="button"
@@ -317,7 +337,7 @@ watch(
         :aria-invalid="hasError"
         :aria-describedby="hasError ? errorId : undefined"
         :disabled="disabled"
-        class="flex w-full items-center justify-between gap-2 rounded-lg border bg-surface-2 px-2 py-1.5 text-left text-xs text-text-primary transition-colors focus-visible:outline-none disabled:cursor-not-allowed disabled:text-text-muted disabled:opacity-65"
+        class="flex min-h-10.5 w-full items-center justify-between gap-2 rounded-lg border bg-surface-2 px-3 py-2 text-left text-base text-text-primary transition-colors focus-visible:outline-none disabled:cursor-not-allowed disabled:text-text-muted disabled:opacity-65"
         :class="
           hasError
             ? 'border-[rgb(229_72_77/0.5)] focus-visible:shadow-focus-danger'
@@ -333,15 +353,7 @@ watch(
         @keydown.esc.prevent="close"
       >
         <span :class="selectedOption === null ? 'text-text-muted' : ''">{{ triggerText }}</span>
-        <svg
-          class="size-3 shrink-0 text-text-muted"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          aria-hidden="true"
-        >
-          <path d="M6 9l6 6 6-6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
-        </svg>
+        <UiIcon name="chevronDown" size="sm" class="text-text-muted" />
       </button>
       <!-- The rows are not focusable, so a plain mousedown on one would move focus
            to the body, fire `focusout` on the trigger and dismiss the list before
@@ -352,7 +364,7 @@ watch(
         :id="listboxId"
         role="listbox"
         :aria-labelledby="labelId"
-        class="absolute z-10 mt-1 max-h-60 w-full overflow-y-auto rounded-lg border border-border-strong bg-surface-2 p-1 shadow-[0_12px_32px_rgb(0_0_0/0.4)]"
+        class="absolute z-10 mt-1 max-h-60 w-full overflow-y-auto rounded-lg border border-border-strong bg-surface-2 p-1.5 shadow-[0_12px_32px_rgb(0_0_0/0.4)]"
         @mousedown.prevent
       >
         <UiOption
@@ -369,6 +381,6 @@ watch(
         />
       </ul>
     </div>
-    <p v-if="hasError" :id="errorId" class="text-xs text-danger">{{ error }}</p>
+    <p v-if="hasError" :id="errorId" class="text-base text-danger">{{ error }}</p>
   </div>
 </template>

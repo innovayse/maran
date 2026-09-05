@@ -17,12 +17,14 @@ const { t } = useI18n()
 const themeStore = useThemeStore()
 
 /** The offered themes, dark first — this panel's baseline, not its alternative. */
-const options: ComputedRef<readonly SegmentOption[]> = computed(() =>
-  SUPPORTED_THEMES.map((theme: AppTheme) => ({
-    value: theme,
-    label: t(`app.shell.themes.${theme}`),
-  })),
-)
+const options: ComputedRef<readonly SegmentOption[]> = computed(() => {
+  return SUPPORTED_THEMES.map((theme: AppTheme) => {
+    return {
+      value: theme,
+      label: t(`app.shell.themes.${theme}`),
+    }
+  })
+})
 
 /**
  * Applies the chosen theme.
@@ -51,7 +53,7 @@ const iconFor = (value: string): 'moon' | 'sun' => {
     @update:model-value="select"
   >
     <template #icon="{ option }">
-      <UiIcon :name="iconFor(option.value)" :size="12" />
+      <UiIcon :name="iconFor(option.value)" size="md" />
     </template>
   </UiSegmentedControl>
 </template>

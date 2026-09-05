@@ -1,0 +1,37 @@
+{
+  "certificates": {
+    "heading": "SSL",
+    "subtitle": "TLS certificates for this site.",
+    "loading": "Loading certificates…",
+    "emptyTitle": "No certificate installed",
+    "emptyDescription": "This site is served over plain HTTP until a certificate is installed.",
+    "source": {
+      "acme": "Issued by the panel",
+      "custom": "Uploaded"
+    },
+    "domainLabel": "Domain",
+    "sourceLabel": "Source",
+    "issuedAtLabel": "Issued",
+    "expiresAtLabel": "Expires",
+    "issue": "Request a certificate",
+    "issueHint": "The panel validates the domain over HTTP and installs the result. The domain must already point at this server.",
+    "installCustom": "Install my own certificate",
+    "fields": {
+      "certificatePem": "Certificate chain (PEM)",
+      "privateKeyPem": "Private key (PEM)"
+    },
+    "hints": {
+      "privateKeyPem": "Sent once and never shown again."
+    },
+    "submitCustom": "Install certificate",
+    "cancel": "Cancel",
+    "remove": "Remove certificate",
+    "confirmRemove": "Remove this certificate? The site goes back to serving plain HTTP.",
+    "confirm": "Yes, do it",
+    "working": "Working…",
+    "errors": {
+      "certificatePemRequired": "The certificate chain is required.",
+      "privateKeyPemRequired": "The private key is required."
+    }
+  }
+}

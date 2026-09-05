@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
-import { computed, ref, type ComputedRef, type Ref  } from 'vue'
-import { type AppLocale, SUPPORTED_LOCALES  } from '../types/app'
+import { computed, ref, type ComputedRef, type Ref } from 'vue'
+import { type AppLocale, SUPPORTED_LOCALES } from '../types/app'
 
 /**
  * Key the chosen locale is persisted under, so a reload keeps the user's language.
@@ -40,7 +40,9 @@ export const useLocaleStore = defineStore('locale', () => {
   const current: Ref<AppLocale> = ref(detectInitialLocale())
 
   /** The value sent as `Accept-Language`, so the backend localizes its messages to match. */
-  const acceptLanguageHeader: ComputedRef<string> = computed(() => `${current.value}, en;q=0.8`)
+  const acceptLanguageHeader: ComputedRef<string> = computed(() => {
+    return `${current.value}, en;q=0.8`
+  })
 
   /**
    * Switches the interface language and remembers the choice.

@@ -1,0 +1,17 @@
+<Project>
+
+  <!-- Inherit everything backend/Directory.Build.props sets; a Directory.Build.props in a
+       subdirectory REPLACES the one above it unless it imports it explicitly. -->
+  <Import Project="$([MSBuild]::GetPathOfFileAbove($(MSBuildThisFileName)$(MSBuildThisFileExtension), $(MSBuildThisFileDirectory)../))" />
+
+  <!-- A second banned-symbol list that applies to PRODUCTION code only, and it is separate for a
+       reason rather than for tidiness. IgnoreQueryFilters is what a test uses to prove a tenant
+       filter works — it reads the row the filter hides and asserts it is there — so banning it in
+       backend/tests would put a suppression on the assertions that verify the rule, which is the
+       opposite of enforcement. In src/ it is a deliberate, rare and always-explained act, and every
+       one of its uses now says so at the line rather than only in a doc comment. -->
+  <ItemGroup>
+    <AdditionalFiles Include="$(MSBuildThisFileDirectory)BannedSymbols.txt" />
+  </ItemGroup>
+
+</Project>

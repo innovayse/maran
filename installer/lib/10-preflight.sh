@@ -10,7 +10,17 @@ readonly MARAN_MIN_RAM_MB=1024
 readonly MARAN_MIN_DISK_MB=2048
 # Ports the panel and its dependencies claim by default. PostgreSQL is unix-socket
 # only (see 30-postgresql.sh) so it is deliberately not in this list.
-readonly MARAN_REQUIRED_PORTS="8443"
+#
+# Derived from the authority in install.sh rather than repeated here: preflight's job is
+# to refuse when something else already holds a port Maran is about to take, and a
+# preflight that guards a DIFFERENT port from the one nginx will bind guards nothing. The
+# expansion is safe where it sits because install.sh sets and exports MARAN_PANEL_PORT
+# before main() runs, and run_step sources this file from inside main().
+#
+# `:?` rather than a default: a default would be the literal all over again, and it would
+# make a step file sourced without the installer around it silently check the wrong port
+# instead of saying so.
+readonly MARAN_REQUIRED_PORTS="${MARAN_PANEL_PORT:?must be set by install.sh before this step is sourced}"
 
 # supported_os_matrix: "id:version" pairs from the design spec §4. A version prefix
 # match (e.g. "22.04" matches VERSION_ID "22.04") keeps point releases working.

@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="SftpUserNotFound">
+    <value>Այս SFTP օգտվողը չի գտնվել։</value>
+  </data>
+  <data name="SftpUserNameTaken">
+    <value>Դուք արդեն ունեք այս անունով SFTP օգտվող։</value>
+  </data>
+  <data name="SftpUserLimitReached">
+    <value>Ձեր սակագինը թույլ չի տալիս ավելի շատ SFTP օգտվողներ։</value>
+  </data>
+  <data name="SftpUserNameTooLong">
+    <value>Այս անունը չափազանց երկար է ձեր հաշվի նախածանցի հետ միասին։</value>
+  </data>
+  <data name="SftpUserNameInvalidFormat">
+    <value>SFTP օգտվողի անունը կարող է պարունակել միայն փոքրատառ լատինական տառեր և թվեր։</value>
+  </data>
+  <data name="SftpUserProvisioningFailed">
+    <value>Չհաջողվեց ստեղծել SFTP օգտվողը։ Սերվերի վրա ոչինչ չի մնացել, փորձեք կրկին։</value>
+  </data>
+  <data name="AccountNotFound">
+    <value>Այս հաշիվը չի գտնվել։</value>
+  </data>
+</root>

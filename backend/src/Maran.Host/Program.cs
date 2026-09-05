@@ -32,29 +32,46 @@ public sealed class Program
         builder.Host.AddPanelObservability();
         builder.Host.AddPanelMessaging(connectionString);
 
+        builder.Services.AddPanelForwardedHeaders();
         builder.Services.AddPanelConfiguration(builder.Configuration);
         builder.Services.AddPanelLocalization();
         builder.Services.AddSharedKernel();
         builder.Services.AddPanelSecurity();
+        builder.Services.AddPanelAuthentication(builder.Configuration);
         builder.Services.AddAgentClient(ResolveAgentSocketPath(builder.Configuration));
         builder.Services.AddPanelHealthChecks(connectionString);
         builder.Services.AddPanelResilience();
         builder.Services.AddPanelRateLimiting();
         builder.Services.AddPanelJsonSerialization();
         builder.Services.AddPanelModules(builder.Configuration);
+        builder.Services.AddPanelBackgroundWork();
+        builder.Services.AddPanelSeeding();
 
         var app = builder.Build();
 
+        // Before the pipeline serves anything: the panel's listening socket is its trust boundary,
+        // and Kestrel creates it world-connectable.
+        app.UsePanelListenSocketGuard();
+
+        // First two in the pipeline, before anything reads an address: the rate limiter partitions
+        // on it, the audit journal records it, and both must see the caller rather than nginx.
+        // The order of this pair is load-bearing — UsePanelPeerAddress feeds UseForwardedHeaders
+        // the peer address it compares against KnownProxies, and over a unix socket there is no
+        // such address until it does.
+        app.UsePanelPeerAddress();
+        app.UseForwardedHeaders();
+        app.UseSecurityHeaders();
         app.UseCorrelationId();
         app.UsePanelRequestLogging();
         app.UseExceptionHandling();
         app.UsePanelLocalization();
+        app.UseCsrfHeader();
+        app.UsePanelAuthentication();
         app.UseRateLimiter();
 
         app.MapPanelHealth();
         app.MapModuleCatalogue();
         app.MapControllers();
-        app.MapPanelModules();
 
         app.Run();
     }

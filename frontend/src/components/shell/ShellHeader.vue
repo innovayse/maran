@@ -23,6 +23,7 @@ import { useI18n } from 'vue-i18n'
 import UiButton from '../ui/UiButton.vue'
 import UiIcon from '../ui/UiIcon.vue'
 import ShellLocaleSwitcher from './ShellLocaleSwitcher.vue'
+import ShellTasksBadge from './ShellTasksBadge.vue'
 import ShellThemeSwitcher from './ShellThemeSwitcher.vue'
 import type { NavigationEntry } from '../../types/navigation'
 
@@ -81,7 +82,9 @@ const crumbs: ComputedRef<string[]> = computed(() => {
   // `meta.module` is the authority — matching on the route NAME missed every
   // child route, whose name ('accounts-new') is not the module's ('accounts').
   const moduleName = typeof route.meta.module === 'string' ? route.meta.module : routeName
-  const entry = props.entries.find((candidate) => candidate.moduleName === moduleName)
+  const entry = props.entries.find((candidate) => {
+    return candidate.moduleName === moduleName
+  })
   const trail = [t('app.nav.groups.panel'), entry?.label ?? moduleName]
 
   const childLabelKey = CHILD_ROUTE_LABEL_KEYS[routeName]
@@ -91,13 +94,14 @@ const crumbs: ComputedRef<string[]> = computed(() => {
 
   return trail
 })
-
 </script>
 
 <template>
   <!-- h-11.5 is the design's 46px header band exactly, on Tailwind's own
        spacing scale; h-12 would have made it 48px. -->
-  <header class="shell-header flex h-11.5 shrink-0 items-center gap-2.5 border-b border-border-subtle bg-surface-1 px-3.5">
+  <header
+    class="shell-header flex h-11.5 shrink-0 items-center gap-2.5 border-b border-border-subtle bg-surface-1 px-3.5"
+  >
     <!-- The menu button opens the off-canvas navigation and exists only below
          `lg`, where no navigation column is rendered. The icon is drawn inline
          because the kit's icon set has no menu glyph and `components/ui/**` is
@@ -109,23 +113,17 @@ const crumbs: ComputedRef<string[]> = computed(() => {
       :aria-expanded="navigationOpen"
       @click="emit('openNavigation')"
     >
-      <svg
-        width="15"
-        height="15"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="1.8"
-        stroke-linecap="round"
-        aria-hidden="true"
-      >
-        <path d="M4 7h16M4 12h16M4 17h16" />
-      </svg>
+      <UiIcon name="menu" size="md" />
     </UiButton>
 
     <nav class="min-w-0" :aria-label="t('app.shell.breadcrumbLabel')">
-      <ol class="flex min-w-0 items-center gap-1.5 text-xs">
-        <li v-for="(crumb, index) in crumbs" :key="crumb" class="crumb truncate" :class="index === crumbs.length - 1 ? 'font-semibold text-text-primary' : 'text-text-secondary'">
+      <ol class="flex min-w-0 items-center gap-1.5 text-base">
+        <li
+          v-for="(crumb, index) in crumbs"
+          :key="crumb"
+          class="crumb truncate"
+          :class="index === crumbs.length - 1 ? 'font-semibold text-text-primary' : 'text-text-secondary'"
+        >
           {{ crumb }}
         </li>
       </ol>
@@ -136,12 +134,17 @@ const crumbs: ComputedRef<string[]> = computed(() => {
     <!-- The panel exposes no server inventory yet, so the picker states that
          plainly and stays disabled rather than showing an invented server. -->
     <UiButton variant="secondary" class="shell-header-picker max-lg:hidden" disabled>
-      <UiIcon name="server" :size="12" />
+      <UiIcon name="server" size="md" />
       <span>{{ t('app.shell.noServerSelected') }}</span>
-      <UiIcon name="chevronDown" :size="11" />
+      <UiIcon name="chevronDown" size="sm" />
     </UiButton>
 
     <span class="flex-1"></span>
+
+    <!-- Background work in flight, on every screen. It is a view of the tasks store rather than a
+         fetch of its own, which is what lets it move the moment a task's stream reports a change —
+         no navigation, no reload. It draws nothing while nothing is running. -->
+    <ShellTasksBadge />
 
     <!-- Below `sm` the theme segment drops out rather than pushing the row wide:
          the drawer's own footer still carries a theme control, so nothing is lost. -->
@@ -157,18 +160,17 @@ const crumbs: ComputedRef<string[]> = computed(() => {
          every time the page loads. Disabled says "not yet"; populated would say
          something false. -->
     <UiButton class="shell-header-ai max-lg:hidden" disabled>
-      <UiIcon name="sparkle" :size="13" />
+      <UiIcon name="sparkle" size="md" />
       {{ t('app.shell.askAi') }}
     </UiButton>
 
     <UiButton class="shell-header-icon max-lg:hidden" :aria-label="t('app.shell.notifications')" disabled>
-      <UiIcon name="bell" :size="14" />
+      <UiIcon name="bell" size="md" />
     </UiButton>
 
     <UiButton class="shell-header-avatar max-lg:hidden" :aria-label="t('app.shell.account')" disabled>
-      <UiIcon name="user" :size="14" />
+      <UiIcon name="user" size="md" />
     </UiButton>
-
   </header>
 </template>
 
@@ -198,7 +200,7 @@ const crumbs: ComputedRef<string[]> = computed(() => {
   border: 1px solid var(--b1);
   border-radius: 6px;
   color: var(--t2);
-  font-size: 12px;
+  font-size: var(--text-base);
   font-weight: 400;
 }
 
@@ -215,7 +217,7 @@ const crumbs: ComputedRef<string[]> = computed(() => {
   background: var(--pus);
   border-color: rgb(139 109 240 / 0.35);
   color: var(--pu);
-  font-size: 12px;
+  font-size: var(--text-base);
   font-weight: 500;
 }
 

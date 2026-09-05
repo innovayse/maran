@@ -56,7 +56,9 @@ const matches: ComputedRef<readonly NavigationEntry[]> = computed(() => {
     return props.entries
   }
 
-  return props.entries.filter((entry) => entryLabel(entry).toLocaleLowerCase().includes(needle))
+  return props.entries.filter((entry) => {
+    return entryLabel(entry).toLocaleLowerCase().includes(needle)
+  })
 })
 
 /**
@@ -108,7 +110,9 @@ const chooseActive = async (): Promise<void> => {
 // A fresh open starts from an empty query with the first entry selected: a
 // palette that reopens holding the last search makes the user delete it first.
 watch(
-  (): boolean => props.open,
+  (): boolean => {
+    return props.open
+  },
   async (open: boolean): Promise<void> => {
     if (!open) {
       return
@@ -134,7 +138,12 @@ watch(matches, (): void => {
     :close-label="t('app.shell.paletteClose')"
     @close="emit('close')"
   >
-    <div class="flex flex-col gap-3" @keydown.down.prevent="moveSelection(1)" @keydown.up.prevent="moveSelection(-1)" @keydown.enter.prevent="chooseActive">
+    <div
+      class="flex flex-col gap-3"
+      @keydown.down.prevent="moveSelection(1)"
+      @keydown.up.prevent="moveSelection(-1)"
+      @keydown.enter.prevent="chooseActive"
+    >
       <UiSearchInput
         ref="searchField"
         v-model="query"
@@ -158,19 +167,23 @@ watch(matches, (): void => {
           :key="entry.key"
           role="option"
           :aria-selected="index === activeIndex"
-          class="flex cursor-pointer items-center gap-2.5 rounded-lg px-2 py-1.5 text-xs text-text-primary"
-          :class="index === activeIndex ? 'bg-accent-soft text-accent' : 'hover:bg-surface-3 hover:text-text-primary'"
+          class="flex cursor-pointer items-center gap-2.5 rounded-lg px-2 py-1.5 text-base text-text-primary"
+          :class="
+            index === activeIndex
+              ? 'bg-accent-soft text-accent'
+              : 'hover:bg-surface-3 hover:text-text-primary'
+          "
           @click="choose(entry)"
         >
-          <UiIcon :name="entry.icon" :size="14" />
+          <UiIcon :name="entry.icon" size="md" />
           <span class="flex-1 truncate">{{ entryLabel(entry) }}</span>
-          <span v-if="entry.locked" class="text-2xs tracking-caps text-text-muted uppercase">
+          <span v-if="entry.locked" class="text-sm tracking-caps text-text-muted uppercase">
             {{ t('app.nav.lockedBadge') }}
           </span>
         </li>
       </ul>
 
-      <p v-else class="px-2 py-6 text-center text-xs text-text-muted">
+      <p v-else class="px-2 py-6 text-center text-base text-text-muted">
         {{ t('app.shell.paletteNoMatches') }}
       </p>
     </div>
@@ -179,7 +192,7 @@ watch(matches, (): void => {
          this palette actually implements are listed: a hint for a shortcut that
          does nothing would be worse than no hint at all. -->
     <template #footer>
-      <span class="mr-auto flex items-center gap-3.5 text-2xs text-text-muted">
+      <span class="mr-auto flex items-center gap-3.5 text-sm text-text-muted">
         <span>{{ t('app.shell.paletteHintNavigate') }}</span>
         <span>{{ t('app.shell.paletteHintOpen') }}</span>
       </span>

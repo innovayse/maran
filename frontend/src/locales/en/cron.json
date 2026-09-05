@@ -1,0 +1,119 @@
+{
+  "cron": {
+    "list": {
+      "heading": "Scheduled tasks",
+      "subtitle": "What this account's crontab runs, read from the server rather than remembered by the panel.",
+      "accountLabel": "Account",
+      "accountPlaceholder": "Choose an account",
+      "loading": "Loading scheduled tasks…",
+      "emptyTitle": "Nothing scheduled yet",
+      "emptyDescription": "Add the first entry above. It goes into this account's crontab, and the server is what runs it.",
+      "tableCaption": "Scheduled tasks",
+      "columns": {
+        "schedule": "Schedule",
+        "command": "Command",
+        "state": "State",
+        "actions": "Actions"
+      },
+      "enabled": "On",
+      "disabled": "Off",
+      "enable": "Turn on",
+      "disable": "Turn off",
+      "edit": "Edit",
+      "lastOutput": "Last run",
+      "remove": "Remove",
+      "confirmRemove": "Remove this entry? Its command file and its last run go with it.",
+      "confirm": "Yes, remove it",
+      "cancel": "Cancel",
+      "working": "Working…",
+      "rowActions": "Actions for {command}"
+    },
+    "schedule": {
+      "legend": "Schedule",
+      "modeLabel": "How to write the schedule",
+      "modes": {
+        "builder": "Builder",
+        "raw": "Expression"
+      },
+      "frequencies": {
+        "everyMinute": "Every minute",
+        "hourly": "Every hour",
+        "daily": "Every day",
+        "weekly": "Every week",
+        "monthly": "Every month"
+      },
+      "weekdays": {
+        "sunday": "Sunday",
+        "monday": "Monday",
+        "tuesday": "Tuesday",
+        "wednesday": "Wednesday",
+        "thursday": "Thursday",
+        "friday": "Friday",
+        "saturday": "Saturday"
+      },
+      "fields": {
+        "frequency": "How often",
+        "minute": "Minute",
+        "hour": "Hour",
+        "dayOfWeek": "Day of the week",
+        "dayOfMonth": "Day of the month",
+        "expression": "Cron expression"
+      },
+      "placeholders": {
+        "expression": "*/5 * * * *"
+      },
+      "errors": {
+        "expression": "That is not a schedule this server accepts. Five fields, separated by spaces: minute, hour, day of month, month, day of week.",
+        "builder": "Those values are outside what the field allows."
+      },
+      "previewLabel": "Sent as",
+      "previewUnavailable": "—"
+    },
+    "form": {
+      "createHeading": "Add a scheduled task",
+      "editHeading": "Edit a scheduled task",
+      "fields": {
+        "command": "Command"
+      },
+      "placeholders": {
+        "command": "/usr/bin/php /home/site/cleanup.php"
+      },
+      "commandHint": "One line, run by the server as this account. It is stored exactly as typed.",
+      "errors": {
+        "schedule": "Fix the schedule above before saving.",
+        "command": "A command is one line, with no leading or trailing spaces."
+      },
+      "create": "Add entry",
+      "save": "Save changes",
+      "cancel": "Cancel",
+      "working": "Saving…"
+    },
+    "environment": {
+      "heading": "Environment",
+      "description": "Values every entry in this crontab runs with, such as PATH or TZ.",
+      "fields": {
+        "name": "Name",
+        "value": "Value"
+      },
+      "add": "Add a variable",
+      "remove": "Remove",
+      "removeRow": "Remove the variable {name}",
+      "save": "Save environment",
+      "working": "Saving…",
+      "reservedHint": "{name} is managed by the server and cannot be set here — it will be refused.",
+      "reservedNote": "Rename or remove the highlighted variables before saving.",
+      "replaceWarning": "Saving replaces the whole set: a variable removed from this list is removed from the crontab, and saving an empty list clears them all."
+    },
+    "output": {
+      "title": "Last run",
+      "close": "Close",
+      "loading": "Reading the last run…",
+      "neverRan": "This entry has not run yet, so there is nothing to show.",
+      "exitCode": "Exit code",
+      "lastRunAt": "Finished",
+      "notReported": "Not reported",
+      "noOutput": "The run printed nothing.",
+      "provenance": "This is the account's own record of its runs, kept under its home directory. It is informational."
+    }
+  }
+}

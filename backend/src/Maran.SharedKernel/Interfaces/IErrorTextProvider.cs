@@ -4,10 +4,12 @@ namespace Maran.SharedKernel.Interfaces;
 /// Resolves localized, customer-facing text for a domain error code. <see cref="Results.Error.Code"/>
 /// stays machine-stable and untranslated; this is the seam that turns it into the text placed in an
 /// RFC 7807 <c>ProblemDetails</c> title/detail (rules/csharp.md "The backend owns all user-facing
-/// message text"). Implementations read <c>Resources/Messages*.resx</c> from the owning module and
-/// resolve against the current request culture set by <c>RequestLocalizationMiddleware</c>; the
-/// first concrete implementation ships with the first module that has real message resources —
-/// none exists yet, so none is invented here.
+/// message text"). The shipped implementation,
+/// <see cref="Localization.ResxErrorTextProvider"/>, resolves against the
+/// <c>Resources/Messages*.resx</c> tables each module registers for itself and against the current
+/// request culture set by <c>RequestLocalizationMiddleware</c>. SharedKernel therefore needs no
+/// reference to any module: a module hands over its own <c>ResourceManager</c>, and the provider
+/// reads it.
 /// </summary>
 public interface IErrorTextProvider
 {

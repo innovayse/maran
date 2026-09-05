@@ -1,5 +1,6 @@
 using FluentValidation;
 using Maran.Modules.Accounts.Persistence;
+using Maran.SharedKernel.Utilities.Network;
 
 namespace Maran.Modules.Accounts.Commands.CreateAccount;
 
@@ -12,12 +13,36 @@ namespace Maran.Modules.Accounts.Commands.CreateAccount;
 public sealed class CreateAccountCommandValidator : AbstractValidator<CreateAccountCommand>
 {
     /// <summary>
-    /// The <see cref="Errors.AccountsErrors.PlanNotFound"/> machine code, attached to the plan
-    /// existence rule below so a caller translating validation failures into the module's typed
-    /// errors (rather than letting an unknown plan id reach the database as a foreign-key
-    /// violation) has the same code <see cref="Errors.AccountsErrors.PlanNotFound"/> produces.
+    /// The <c>PlanNotFound</c> machine code, attached to the plan existence rule below so a caller
+    /// translating validation failures into typed errors (rather than letting an unknown plan id
+    /// reach the database as a foreign-key violation) uses the same code — and therefore the same
+    /// translated sentence — the rest of the module does. It names an entry in
+    /// <c>Resources/ErrorMessages.resx</c>, which is where that sentence lives.
     /// </summary>
-    private const string PlanNotFoundErrorCode = "PlanNotFound";
+    private const string PlanNotFoundErrorCode = nameof(Resources.ErrorMessages.PlanNotFound);
+
+    /// <summary>
+    /// The POSIX portable username character set and a conservative length, so a validated name is
+    /// always safe to become the account's eventual Linux user name, a home directory and a systemd
+    /// unit name.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Anchored with <c>\A…\z</c>, never <c>^…$</c>. In .NET <c>$</c> also matches immediately
+    /// before a trailing newline, so a <c>$</c>-anchored pattern accepts <c>acme\n</c> — and this
+    /// exact value is handed to the agent as a system user name by
+    /// <c>CreateAccountCommandHandler</c>. rules/security.md item 4 requires the boundary to refuse
+    /// it, and the agent's own <c>AccountName::parse</c> refuses it too; that is defence in depth,
+    /// not a reason for the API to let it past.
+    /// </para>
+    /// <para>
+    /// It stays here rather than moving to <c>SharedKernel/Utilities/</c> because it is asked in
+    /// exactly one place. A helper earns that home by answering a general question the panel asks in
+    /// more than one place (rules/csharp.md "Cross-cutting infrastructure"); a rule with one call
+    /// site moved down there would be a home built for a duplicate that does not exist.
+    /// </para>
+    /// </remarks>
+    private const string LinuxUserNamePattern = @"\A[a-z][a-z0-9_-]{2,31}\z";
 
     /// <summary>The Accounts module's database context, used to confirm a submitted plan id exists.</summary>
     private readonly AccountsDbContext _dbContext;
@@ -28,18 +53,16 @@ public sealed class CreateAccountCommandValidator : AbstractValidator<CreateAcco
     {
         _dbContext = dbContext;
 
-        // Matches the POSIX portable username character set and a conservative length, so a
-        // validated name is always safe to become the account's eventual Linux user name.
         RuleFor(command => command.Name)
             .NotEmpty()
             .MaximumLength(32)
-            .Matches("^[a-z][a-z0-9_-]{2,31}$")
+            .Matches(LinuxUserNamePattern)
             .WithMessage("Name must be a lowercase, Linux-username-safe identifier.");
 
         RuleFor(command => command.PrimaryDomain)
             .NotEmpty()
-            .MaximumLength(253)
-            .Matches("^(?!-)[A-Za-z0-9-]{1,63}(?<!-)(\\.(?!-)[A-Za-z0-9-]{1,63}(?<!-))+$")
+            .MaximumLength(HostNameRule.MaximumLength)
+            .Must(HostNameRule.IsHostName)
             .WithMessage("PrimaryDomain must be a valid domain name.");
 
         RuleFor(command => command.PlanId)

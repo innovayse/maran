@@ -1,6 +1,6 @@
 using FluentValidation.TestHelper;
 using Maran.Modules.Accounts.Commands.CreateAccount;
-using Maran.Modules.Accounts.Domain;
+using Maran.Modules.Accounts.Domain.Entities;
 using Maran.Modules.Accounts.Persistence;
 using Microsoft.EntityFrameworkCore;
 
@@ -31,7 +31,7 @@ public sealed class CreateAccountCommandValidatorTests : IDisposable
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
             .Options;
         _dbContext = new AccountsDbContext(options);
-        _dbContext.Plans.Add(new Plan(SeededPlanId, "PlanStarterName", 5_120, 5, 2, 3));
+        _dbContext.Plans.Add(new Plan(SeededPlanId, "PlanStarterName", 5_120, 5, 2, 3, 5, 5));
         _dbContext.SaveChanges();
 
         _validator = new CreateAccountCommandValidator(_dbContext);
@@ -46,9 +46,10 @@ public sealed class CreateAccountCommandValidatorTests : IDisposable
     /// <summary>Builds a command that satisfies every rule, so a single field can be broken per test.</summary>
     private static CreateAccountCommand ValidCommand()
     {
-        return new("acme", "acme.example.com", SeededPlanId);
+        return new("acme", "acme.example.com", SeededPlanId, "203.0.113.7", "unit-tests");
     }
 
+    /// <summary>Fully valid command passes every rule.</summary>
     [Fact]
     public async Task Fully_valid_command_passes_every_rule()
     {
@@ -57,6 +58,7 @@ public sealed class CreateAccountCommandValidatorTests : IDisposable
         result.ShouldNotHaveAnyValidationErrors();
     }
 
+    /// <summary>Empty name fails on the name property.</summary>
     [Fact]
     public async Task Empty_name_fails_on_the_name_property()
     {
@@ -67,6 +69,7 @@ public sealed class CreateAccountCommandValidatorTests : IDisposable
         result.ShouldHaveValidationErrorFor(c => c.Name);
     }
 
+    /// <summary>Name shorter than three characters fails on the name property.</summary>
     [Theory]
     [InlineData("a")]
     [InlineData("ab")]
@@ -79,6 +82,7 @@ public sealed class CreateAccountCommandValidatorTests : IDisposable
         result.ShouldHaveValidationErrorFor(c => c.Name);
     }
 
+    /// <summary>Name longer than thirty two characters fails on the name property.</summary>
     [Fact]
     public async Task Name_longer_than_thirty_two_characters_fails_on_the_name_property()
     {
@@ -90,6 +94,7 @@ public sealed class CreateAccountCommandValidatorTests : IDisposable
         result.ShouldHaveValidationErrorFor(c => c.Name);
     }
 
+    /// <summary>Name with an illegal character or shape fails on the name property.</summary>
     [Theory]
     [InlineData("Acme")] // uppercase is not part of the portable username set
     [InlineData("1acme")] // must start with a letter, not a digit
@@ -108,6 +113,7 @@ public sealed class CreateAccountCommandValidatorTests : IDisposable
         result.ShouldHaveValidationErrorFor(c => c.Name);
     }
 
+    /// <summary>Name matching the portable username pattern passes.</summary>
     [Theory]
     [InlineData("acme")]
     [InlineData("acme-01")]
@@ -122,6 +128,24 @@ public sealed class CreateAccountCommandValidatorTests : IDisposable
         result.ShouldNotHaveValidationErrorFor(c => c.Name);
     }
 
+    /// <summary>Name with a trailing newline fails, because that name becomes a Linux user name.</summary>
+    [Theory]
+    [InlineData("acme\n")]
+    [InlineData("acme\r\n")]
+    [InlineData("acme\nroot")]
+    public async Task Name_with_a_trailing_newline_fails_on_the_name_property(string withNewline)
+    {
+        // .NET's `$` also matches immediately before a trailing newline, so a `$`-anchored pattern
+        // accepts the first two of these — and CreateAccountCommandHandler hands this exact value to
+        // the agent as a system user name (rules/security.md item 4).
+        var command = ValidCommand() with { Name = withNewline };
+
+        var result = await _validator.TestValidateAsync(command);
+
+        result.ShouldHaveValidationErrorFor(c => c.Name);
+    }
+
+    /// <summary>Empty primary domain fails on the primary domain property.</summary>
     [Fact]
     public async Task Empty_primary_domain_fails_on_the_primary_domain_property()
     {
@@ -132,6 +156,7 @@ public sealed class CreateAccountCommandValidatorTests : IDisposable
         result.ShouldHaveValidationErrorFor(c => c.PrimaryDomain);
     }
 
+    /// <summary>Malformed primary domain fails on the primary domain property.</summary>
     [Theory]
     [InlineData("not-a-domain")] // no dot, so no TLD
     [InlineData("-acme.example.com")] // leading hyphen on a label
@@ -147,6 +172,24 @@ public sealed class CreateAccountCommandValidatorTests : IDisposable
         result.ShouldHaveValidationErrorFor(c => c.PrimaryDomain);
     }
 
+    /// <summary>Primary domain with a trailing newline fails on the primary domain property.</summary>
+    [Theory]
+    [InlineData("acme.example.com\n")]
+    [InlineData("acme.example.com\r\n")]
+    [InlineData("acme.example.com\nserver_name evil.example.com;")]
+    public async Task Primary_domain_with_a_trailing_newline_fails_on_the_primary_domain_property(
+        string withNewline)
+    {
+        // The rule this module now shares with Sites and Ssl is anchored `\A…\z`; a `^…$` anchor
+        // would accept the first two of these.
+        var command = ValidCommand() with { PrimaryDomain = withNewline };
+
+        var result = await _validator.TestValidateAsync(command);
+
+        result.ShouldHaveValidationErrorFor(c => c.PrimaryDomain);
+    }
+
+    /// <summary>Too long primary domain fails on the primary domain property.</summary>
     [Fact]
     public async Task Too_long_primary_domain_fails_on_the_primary_domain_property()
     {
@@ -161,6 +204,7 @@ public sealed class CreateAccountCommandValidatorTests : IDisposable
         result.ShouldHaveValidationErrorFor(c => c.PrimaryDomain);
     }
 
+    /// <summary>Missing plan id fails on the plan id property.</summary>
     [Fact]
     public async Task Missing_plan_id_fails_on_the_plan_id_property()
     {
@@ -171,6 +215,7 @@ public sealed class CreateAccountCommandValidatorTests : IDisposable
         result.ShouldHaveValidationErrorFor(c => c.PlanId);
     }
 
+    /// <summary>Plan id that does not exist fails on the plan id property with the plan not found code.</summary>
     [Fact]
     public async Task Plan_id_that_does_not_exist_fails_on_the_plan_id_property_with_the_plan_not_found_code()
     {
@@ -182,6 +227,7 @@ public sealed class CreateAccountCommandValidatorTests : IDisposable
             .WithErrorCode("PlanNotFound");
     }
 
+    /// <summary>Plan id that exists passes the plan id rule.</summary>
     [Fact]
     public async Task Plan_id_that_exists_passes_the_plan_id_rule()
     {

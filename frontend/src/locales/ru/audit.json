@@ -1,0 +1,20 @@
+{
+  "app": {
+    "audit": {
+      "heading": "Журнал аудита",
+      "subtitle": "Каждый вход и каждое изменение — так, как их записала панель.",
+      "loading": "Загружаем журнал…",
+      "emptyTitle": "Записей пока нет",
+      "emptyDescription": "Действия появятся здесь по мере того, как происходят.",
+      "tableCaption": "Последние записи аудита",
+      "whenColumn": "Когда",
+      "actorColumn": "Кто",
+      "actionColumn": "Действие",
+      "subjectColumn": "Объект",
+      "addressColumn": "Откуда",
+      "outcomeColumn": "Результат",
+      "succeeded": "Успешно",
+      "failed": "Отказ"
+    }
+  }
+}

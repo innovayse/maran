@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="DatabaseNotFound">
+    <value>This database could not be found.</value>
+  </data>
+  <data name="DatabaseNameTaken">
+    <value>You already have a database with this name.</value>
+  </data>
+  <data name="DatabaseUserNameTaken">
+    <value>You already have a database user with this name.</value>
+  </data>
+  <data name="DatabaseLimitReached">
+    <value>Your plan does not allow any more databases.</value>
+  </data>
+  <data name="DatabaseNameTooLong">
+    <value>This name is too long once your account prefix is added.</value>
+  </data>
+  <data name="DatabaseUserNameTooLong">
+    <value>This user name is too long once your account prefix is added.</value>
+  </data>
+  <data name="DatabaseNameInvalidFormat">
+    <value>A database name may only contain lowercase letters and digits.</value>
+  </data>
+  <data name="DatabaseUserNameInvalidFormat">
+    <value>A database user name may only contain lowercase letters and digits.</value>
+  </data>
+  <data name="DatabaseProvisioningFailed">
+    <value>This database could not be created. Nothing was left behind; please try again.</value>
+  </data>
+  <data name="AccountNotFound">
+    <value>This account could not be found.</value>
+  </data>
+</root>

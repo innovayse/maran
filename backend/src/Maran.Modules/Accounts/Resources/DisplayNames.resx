@@ -12,7 +12,7 @@
   <resheader name="writer">
     <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
   </resheader>
-  <data name="ModuleDisplayName">
+  <data name="AccountsModuleDisplayName">
     <value>Accounts</value>
   </data>
   <data name="PlanStarterName">

@@ -1,5 +1,6 @@
 using System.Resources;
 using Maran.Modules.Accounts.Persistence;
+using Maran.Modules.Accounts.Services;
 using Maran.Sdk.Contracts;
 using Maran.Sdk.Interfaces;
 
@@ -50,6 +51,14 @@ public sealed class AccountsModule : IPanelModule
             options.UseNpgsql(connectionString);
         });
 
+        // Scoped, because it reads the request's own ICurrentUser for the journal's actor.
+        services.AddScoped<AccountAuditJournal>();
+
+        // The one window other modules have onto this module's data (rules/architecture.md
+        // "Cross-module needs go through Wolverine messages or Sdk abstractions"). Scoped, because
+        // it reads the request's own DbContext and applies the request's own tenant scope.
+        services.AddScoped<IAccountDirectory, AccountDirectory>();
+
         // Registers this module's resource managers into the shared pool the panel-wide
         // ResxErrorTextProvider resolves error codes and Manifest.DisplayNameKey against
         // (rules/csharp.md "The backend owns all user-facing message text") — that mechanism is
@@ -60,12 +69,5 @@ public sealed class AccountsModule : IPanelModule
         // registration exists only for the two SDK-level, code-driven lookups above.
         services.AddSingleton(new ResourceManager(ErrorMessagesResourceBaseName, typeof(AccountsModule).Assembly));
         services.AddSingleton(new ResourceManager(DisplayNamesResourceBaseName, typeof(AccountsModule).Assembly));
-    }
-
-    /// <inheritdoc />
-    public void MapEndpoints(IEndpointRouteBuilder endpoints)
-    {
-        // Controllers are discovered by ASP.NET Core's controller model (Program.cs calls
-        // MapControllers() once for the whole app) — this module has no endpoints to map by hand.
     }
 }

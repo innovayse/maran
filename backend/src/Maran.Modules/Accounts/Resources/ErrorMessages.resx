@@ -24,4 +24,7 @@
   <data name="PlanNotFound">
     <value>This plan could not be found.</value>
   </data>
+  <data name="AccountCleanupFailed">
+    <value>The account was not deleted: something it owns could not be removed first. Nothing has been changed; please try again.</value>
+  </data>
 </root>

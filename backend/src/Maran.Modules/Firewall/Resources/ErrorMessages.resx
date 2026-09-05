@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="RulePortInvalid">
+    <value>A firewall rule must name a port between 1 and 65535.</value>
+  </data>
+  <data name="RuleProtocolInvalid">
+    <value>A firewall rule applies to TCP or to UDP.</value>
+  </data>
+  <data name="RuleSourceCidrInvalid">
+    <value>The source range must be written in CIDR notation, with no host bits beyond the prefix.</value>
+  </data>
+  <data name="BanAddressInvalid">
+    <value>This is not an address the firewall can ban.</value>
+  </data>
+  <data name="BanAddressLoopback">
+    <value>A loopback address cannot be banned: this host accepts loopback traffic before any ban is consulted, so the ban would block nothing. Ban the address the traffic reaches this server from instead — the one shown for the connection, not 127.0.0.1 or ::1.</value>
+  </data>
+  <data name="BanDurationInvalid">
+    <value>A ban lasts between one minute and one year; leave the duration empty for a permanent ban.</value>
+  </data>
+  <data name="BanNotFound">
+    <value>No ban is in force for this address.</value>
+  </data>
+  <data name="WhitelistCidrInvalid">
+    <value>The range must be written in CIDR notation, with no host bits beyond the prefix.</value>
+  </data>
+  <data name="WhitelistCidrTaken">
+    <value>This range is already on the whitelist.</value>
+  </data>
+  <data name="WhitelistEntryNotFound">
+    <value>This whitelist entry could not be found.</value>
+  </data>
+  <data name="WhitelistEntryProtectsCaller">
+    <value>Removing this range would stop exempting the address you are connected from, and a mistyped password could then lock you out of this server. Add an exemption that also covers this address and remove this one afterwards, or remove it while connected from another address.</value>
+  </data>
+</root>

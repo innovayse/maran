@@ -2,10 +2,6 @@
 
   <PropertyGroup>
     <IsPackable>false</IsPackable>
-    <!-- Test code is exempt from XML doc comments (rules/testing.md) and uses
-         behavior-sentence method names with underscores by convention, so the
-         corresponding analyzer warnings do not apply to this project. -->
-    <NoWarn>$(NoWarn);CS1591;CA1707</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
@@ -28,6 +24,14 @@
     <ProjectReference Include="..\..\src\Maran.SharedKernel\Maran.SharedKernel.csproj" />
     <ProjectReference Include="..\..\src\Maran.Agent.Client\Maran.Agent.Client.csproj" />
     <ProjectReference Include="..\..\src\Maran.Modules\Accounts\Maran.Modules.Accounts.csproj" />
+    <ProjectReference Include="..\..\src\Maran.Modules\Identity\Maran.Modules.Identity.csproj" />
+    <ProjectReference Include="..\..\src\Maran.Modules\Sites\Maran.Modules.Sites.csproj" />
+    <ProjectReference Include="..\..\src\Maran.Modules\Ssl\Maran.Modules.Ssl.csproj" />
+    <ProjectReference Include="..\..\src\Maran.Modules\Databases\Maran.Modules.Databases.csproj" />
+    <ProjectReference Include="..\..\src\Maran.Modules\Sftp\Maran.Modules.Sftp.csproj" />
+    <ProjectReference Include="..\..\src\Maran.Modules\Firewall\Maran.Modules.Firewall.csproj" />
+    <ProjectReference Include="..\..\src\Maran.Modules\Cron\Maran.Modules.Cron.csproj" />
+    <ProjectReference Include="..\..\src\Maran.Modules\Tasks\Maran.Modules.Tasks.csproj" />
   </ItemGroup>
 
 </Project>

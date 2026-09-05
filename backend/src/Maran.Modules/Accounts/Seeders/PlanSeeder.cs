@@ -1,4 +1,4 @@
-using Maran.Modules.Accounts.Domain;
+using Maran.Modules.Accounts.Domain.Entities;
 using Maran.Modules.Accounts.Persistence;
 
 namespace Maran.Modules.Accounts.Seeders;
@@ -8,15 +8,20 @@ namespace Maran.Modules.Accounts.Seeders;
 /// account against before an operator has defined any plan of their own. Three tiers — a starter, a
 /// business, and a top tier with a generous-but-finite ceiling rather than a literal "unlimited"
 /// (this pass keeps every limit a plain, comparable integer; an explicit unlimited flag is a
-/// speculative addition YAGNI rules out until a real need for one shows up):
+/// speculative addition YAGNI rules out until a real need for one shows up).
+///
+/// The worker figure on each tier is per POOL (see <see cref="Plan.MaxPhpWorkersPerPool"/>), not a
+/// per-account total: an account owns one pool per PHP version it uses, so the tier ceiling is the
+/// number below multiplied by the versions in use, not by the site count. At a conservative 50 MB
+/// per worker, 5/10/20 is 250&#160;MB, 500&#160;MB and 1&#160;GB of resident memory per pool.
 /// <list type="bullet">
-/// <item><b>Starter</b> — 5&#160;120&#160;MB (5&#160;GB) disk, 5 sites, 2 databases, 3 FTP users. A
-/// single small site or two, the smallest useful account.</item>
-/// <item><b>Business</b> — 25&#160;600&#160;MB (25&#160;GB) disk, 25 sites, 10 databases, 10 FTP
-/// users. An agency running several client sites.</item>
+/// <item><b>Starter</b> — 5&#160;120&#160;MB (5&#160;GB) disk, 5 sites, 2 databases, 3 SFTP logins,
+/// 5 cron entries. A single small site or two, the smallest useful account.</item>
+/// <item><b>Business</b> — 25&#160;600&#160;MB (25&#160;GB) disk, 25 sites, 10 databases, 10 SFTP
+/// logins, 20 cron entries. An agency running several client sites.</item>
 /// <item><b>Unlimited</b> — 1&#160;048&#160;576&#160;MB (1&#160;TB) disk, 500 sites, 500 databases,
-/// 100 FTP users. High enough that no real customer hits it in practice, without pretending the
-/// server has infinite resources.</item>
+/// 100 SFTP logins, 200 cron entries. High enough that no real customer hits it in practice, without
+/// pretending the server has infinite resources.</item>
 /// </list>
 /// </summary>
 public sealed class PlanSeeder
@@ -65,9 +70,18 @@ public sealed class PlanSeeder
     private static IReadOnlyList<Plan> StandardPlans()
     {
         return [
-        new Plan(StarterPlanId, "PlanStarterName", diskQuotaMb: 5_120, maxSites: 5, maxDatabases: 2, maxFtpUsers: 3),
-        new Plan(BusinessPlanId, "PlanBusinessName", diskQuotaMb: 25_600, maxSites: 25, maxDatabases: 10, maxFtpUsers: 10),
-        new Plan(UnlimitedPlanId, "PlanUnlimitedName", diskQuotaMb: 1_048_576, maxSites: 500, maxDatabases: 500, maxFtpUsers: 100),
-    ];
+            new Plan(
+                StarterPlanId, "PlanStarterName",
+                diskQuotaMb: 5_120, maxSites: 5, maxDatabases: 2, maxSftpUsers: 3, maxCronEntries: 5,
+                maxPhpWorkersPerPool: 5),
+            new Plan(
+                BusinessPlanId, "PlanBusinessName",
+                diskQuotaMb: 25_600, maxSites: 25, maxDatabases: 10, maxSftpUsers: 10, maxCronEntries: 20,
+                maxPhpWorkersPerPool: 10),
+            new Plan(
+                UnlimitedPlanId, "PlanUnlimitedName",
+                diskQuotaMb: 1_048_576, maxSites: 500, maxDatabases: 500, maxSftpUsers: 100, maxCronEntries: 200,
+                maxPhpWorkersPerPool: 20),
+        ];
     }
 }

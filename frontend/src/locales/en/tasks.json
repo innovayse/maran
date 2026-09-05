@@ -1,0 +1,38 @@
+{
+  "tasks": {
+    "list": {
+      "heading": "Background tasks",
+      "subtitle": "Long operations the panel is running, or has recently run, newest first.",
+      "loading": "Loading tasks…",
+      "emptyTitle": "No tasks yet",
+      "emptyDescription": "Operations that take long enough to be worth watching appear here while they run.",
+      "tableCaption": "Background tasks",
+      "watch": "Live view",
+      "watchTask": "Watch the task for {subject}"
+    },
+    "columns": {
+      "kind": "Operation",
+      "subject": "Subject",
+      "status": "Status",
+      "percent": "Progress",
+      "startedAt": "Started",
+      "actions": "Actions"
+    },
+    "statuses": {
+      "running": "Running",
+      "completed": "Completed",
+      "failed": "Failed"
+    },
+    "pane": {
+      "close": "Close",
+      "correlationId": "Correlation id",
+      "notReported": "Not reported",
+      "progressLabel": "Progress of this task",
+      "failedWith": "The operation failed with the code {code}.",
+      "noLog": "Nothing has been reported yet."
+    },
+    "badge": {
+      "label": "{count} background tasks running"
+    }
+  }
+}

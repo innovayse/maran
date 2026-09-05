@@ -1,3 +1,5 @@
+import type { ComputedRef } from 'vue'
+
 /**
  * A module as the panel reports it to the interface: what it is, which licence tier it belongs
  * to, and whether the running licence currently permits it.

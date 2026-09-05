@@ -1,0 +1,122 @@
+{
+  "sites": {
+    "status": {
+      "enabled": "Включён",
+      "disabled": "Отключён"
+    },
+    "backendType": {
+      "static": "Статика",
+      "php": "PHP",
+      "reverseProxy": "Обратный прокси"
+    },
+    "list": {
+      "heading": "Сайты",
+      "subtitle": "Сайты, обслуживаемые этим сервером.",
+      "createAction": "Новый сайт",
+      "loading": "Загрузка сайтов…",
+      "emptyTitle": "Сайтов пока нет",
+      "emptyDescription": "Создайте первый сайт, чтобы начать обслуживать домен.",
+      "tableCaption": "Сайты",
+      "columns": {
+        "domain": "Домен",
+        "backendType": "Бэкенд",
+        "phpVersion": "PHP",
+        "status": "Статус",
+        "createdAt": "Создан"
+      },
+      "noPhpVersion": "—"
+    },
+    "form": {
+      "heading": "Новый сайт",
+      "subtitle": "Панель проверяет эти значения перед отправкой, и сервер проверяет их снова.",
+      "fields": {
+        "accountId": "Аккаунт",
+        "domain": "Домен",
+        "aliases": "Псевдонимы",
+        "backendType": "Бэкенд",
+        "phpVersion": "Версия PHP",
+        "proxyUpstream": "Апстрим"
+      },
+      "hints": {
+        "aliases": "По одному имени хоста в строке. Все они обслуживаются одним и тем же vhost.",
+        "phpVersion": "Выбрать можно только версии, установленные на этом сервере.",
+        "proxyUpstream": "Хост или хост:порт, куда пересылаются запросы, например 127.0.0.1:3000. Без схемы, пути и параметров."
+      },
+      "placeholders": {
+        "domain": "example.com",
+        "proxyUpstream": "127.0.0.1:3000"
+      },
+      "phpVersionOption": "PHP {version}",
+      "phpVersionDefaultOption": "PHP {version} (по умолчанию на сервере)",
+      "noPhpVersions": "На этом сервере не установлено ни одной версии PHP.",
+      "submit": "Создать сайт",
+      "cancel": "Отмена",
+      "errors": {
+        "accountRequired": "Выберите аккаунт, которому будет принадлежать сайт.",
+        "domainRequired": "Домен обязателен.",
+        "domainInvalid": "Домен должен быть корректным именем хоста.",
+        "phpVersionRequired": "Выберите установленную версию PHP.",
+        "proxyUpstreamRequired": "Для сайта с обратным прокси нужен апстрим.",
+        "proxyUpstreamInvalid": "Апстрим должен быть хостом или хост:порт, без схемы и пути."
+      }
+    },
+    "detail": {
+      "heading": "Сайт",
+      "loading": "Загрузка сайта…",
+      "notFoundTitle": "Сайт не найден",
+      "notFoundDescription": "Возможно, он был удалён после того, как была создана эта ссылка.",
+      "backToList": "К списку сайтов",
+      "tabs": {
+        "overview": "Обзор",
+        "logs": "Логи",
+        "ssl": "SSL"
+      },
+      "domainLabel": "Домен",
+      "aliasesLabel": "Псевдонимы",
+      "noAliases": "Нет",
+      "backendTypeLabel": "Бэкенд",
+      "phpVersionLabel": "Версия PHP",
+      "proxyUpstreamLabel": "Апстрим",
+      "documentRootLabel": "Корень документов",
+      "statusLabel": "Статус",
+      "certificateLabel": "Сертификат",
+      "certificateInstalled": "Установлен",
+      "certificateMissing": "Не установлен",
+      "createdAtLabel": "Создан",
+      "changePhpVersion": "Сменить версию PHP",
+      "enable": "Включить",
+      "disable": "Отключить",
+      "delete": "Удалить",
+      "confirmEnable": "Включить этот сайт? Он снова начнёт отдавать своё содержимое.",
+      "confirmDisable": "Отключить этот сайт? Его vhost сохранится, но он будет отвечать страницей о приостановке.",
+      "confirmDelete": "Удалить этот сайт? Его vhost будет удалён, и домен перестанет обслуживаться. Файлы в корне документов останутся на диске.",
+      "confirm": "Да, выполнить",
+      "cancel": "Отмена",
+      "working": "Выполняется…",
+      "logs": {
+        "sourceLabel": "Лог",
+        "source": {
+          "access": "Лог доступа",
+          "error": "Лог ошибок"
+        },
+        "start": "Начать чтение",
+        "stop": "Остановить чтение",
+        "streaming": "Идёт трансляция…",
+        "waiting": "Ожидание первой строки…",
+        "emptyTitle": "Пока нечего показать",
+        "emptyDescription": "Начните чтение, чтобы видеть лог этого сайта по мере записи.",
+        "lineCount": "Хранится строк: {count}",
+        "historical": "История",
+        "truncatedNotice": "Самые старые строки вышли за пределы этого окна.",
+        "endReason": {
+          "completed": "Лог завершён: серверу больше нечего отправить.",
+          "dropped": "Поток был сброшен, потому что это окно не успевало читать. Начните чтение заново.",
+          "idle": "Поток закрыт после периода, когда ничего не записывалось.",
+          "failed": "Поток завершился ошибкой.",
+          "truncated": "Поток завершился без указания причины — часть строк может отсутствовать.",
+          "cancelled": "Чтение остановлено."
+        }
+      }
+    }
+  }
+}

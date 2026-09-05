@@ -1,8 +1,9 @@
 {
   "extends": "@vue/tsconfig/tsconfig.dom.json",
-  "include": ["src/**/*.ts", "src/**/*.vue", "src/**/*.spec.ts"],
+  "include": ["src/**/*.ts", "src/**/*.vue", "src/**/*.spec.ts", "e2e/**/*.ts"],
   "compilerOptions": {
     "composite": true,
+    "noEmit": true,
     "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.app.tsbuildinfo",
     "baseUrl": ".",
     "paths": {

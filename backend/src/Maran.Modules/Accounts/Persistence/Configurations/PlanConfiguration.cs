@@ -1,4 +1,4 @@
-using Maran.Modules.Accounts.Domain;
+using Maran.Modules.Accounts.Domain.Entities;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace Maran.Modules.Accounts.Persistence.Configurations;
@@ -28,7 +28,13 @@ public sealed class PlanConfiguration : IEntityTypeConfiguration<Plan>
         builder.Property(p => p.MaxDatabases)
             .IsRequired();
 
-        builder.Property(p => p.MaxFtpUsers)
+        builder.Property(p => p.MaxSftpUsers)
+            .IsRequired();
+
+        builder.Property(p => p.MaxCronEntries)
+            .IsRequired();
+
+        builder.Property(p => p.MaxPhpWorkersPerPool)
             .IsRequired();
 
         // A plan's display-name key is its human-visible identity; two plans sharing one would be

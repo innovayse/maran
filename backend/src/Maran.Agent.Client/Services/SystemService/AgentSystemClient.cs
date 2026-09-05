@@ -1,7 +1,10 @@
 using Grpc.Net.Client;
+using Maran.Agent.Client.Errors;
 using Maran.Agent.Client.Interfaces;
+using Maran.Agent.Client.Resources;
 using Maran.Agent.V1;
 using Maran.SharedKernel.Results;
+using Microsoft.Extensions.Logging;
 
 namespace Maran.Agent.Client.Services.SystemService;
 
@@ -11,17 +14,23 @@ public sealed class AgentSystemClient : IAgentSystemClient
     /// <summary>The transport seam this client drives; a stub in tests, a real gRPC call in production.</summary>
     private readonly ISystemServiceInvoker _invoker;
 
+    /// <summary>Where the agent's own diagnostic text goes, since <see cref="Error"/> carries only a code.</summary>
+    private readonly ILogger<AgentSystemClient> _logger;
+
     /// <summary>Creates a client over an explicit transport seam (used by tests and by the other constructor).</summary>
     /// <param name="invoker">The transport that performs the actual <c>GetAgentInfo</c> call.</param>
-    internal AgentSystemClient(ISystemServiceInvoker invoker)
+    /// <param name="logger">Sink for the agent's diagnostic text.</param>
+    internal AgentSystemClient(ISystemServiceInvoker invoker, ILogger<AgentSystemClient> logger)
     {
         _invoker = invoker;
+        _logger = logger;
     }
 
     /// <summary>Creates a client that calls the agent over <paramref name="channel"/>.</summary>
     /// <param name="channel">A channel to the agent, e.g. from <see cref="Channels.AgentChannel.CreateUnixSocket"/>.</param>
-    public AgentSystemClient(GrpcChannel channel)
-        : this(new GrpcSystemServiceInvoker(new Maran.Agent.V1.SystemService.SystemServiceClient(channel)))
+    /// <param name="logger">Sink for the agent's diagnostic text.</param>
+    public AgentSystemClient(GrpcChannel channel, ILogger<AgentSystemClient> logger)
+        : this(new GrpcSystemServiceInvoker(new Maran.Agent.V1.SystemService.SystemServiceClient(channel)), logger)
     {
     }
 
@@ -33,9 +42,9 @@ public sealed class AgentSystemClient : IAgentSystemClient
         return response.ResultCase switch
         {
             GetAgentInfoResponse.ResultOneofCase.Ok => Result<AgentInfoDto>.Ok(ToDto(response.Ok)),
-            GetAgentInfoResponse.ResultOneofCase.Error => Result<AgentInfoDto>.Fail(ToError(response.Error)),
-            _ => Result<AgentInfoDto>.Fail(
-                Error.Of("AgentInvalidResponse", "Agent returned neither a result nor an error.")),
+            GetAgentInfoResponse.ResultOneofCase.Error => Result<AgentInfoDto>.Fail(
+                AgentErrorTranslator.ToError(_logger, response.Error, nameof(GetInfoAsync))),
+            _ => Result<AgentInfoDto>.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
         };
     }
 
@@ -59,26 +68,4 @@ public sealed class AgentSystemClient : IAgentSystemClient
         };
     }
 
-    /// <summary>Converts a wire <see cref="AgentError"/> into a <see cref="SharedKernel.Results.Error"/>.</summary>
-    /// <param name="error">The failure payload returned by the agent.</param>
-    private static Error ToError(AgentError error)
-    {
-        return Error.Of(ToErrorCode(error.Code), error.Message);
-    }
-
-    /// <summary>Maps a wire <see cref="ErrorCode"/> to its stable "agent.*" error code string.</summary>
-    /// <param name="code">The failure category reported by the agent.</param>
-    private static string ToErrorCode(ErrorCode code)
-    {
-        return code switch
-        {
-            ErrorCode.Unspecified => "AgentUnspecified",
-            ErrorCode.InvalidInput => "AgentInvalidInput",
-            ErrorCode.AlreadyExists => "AgentAlreadyExists",
-            ErrorCode.NotFound => "AgentNotFound",
-            ErrorCode.ValidationFailed => "AgentValidationFailed",
-            ErrorCode.SystemFailure => "AgentSystemFailure",
-            _ => "AgentUnspecified",
-        };
-    }
 }

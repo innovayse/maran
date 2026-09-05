@@ -1,4 +1,8 @@
 #![warn(missing_docs)]
+// The compiler, not a grep, is the gate: `unsafe` exists in this workspace only
+// in maran-agent-core::privs (rules/rust.md "unsafe"). `forbid` cannot be lowered
+// by an `#[allow]` further down, so adding unsafe here does not compile at all.
+#![forbid(unsafe_code)]
 //! maran-distro — the only crate that may know a distribution's name.
 //!
 //! `detection/` answers what the host is; `adapter` turns that answer into
@@ -7,14 +11,14 @@
 //! (rules/architecture.md).
 
 pub mod adapter;
-pub mod adapter_selector;
+pub mod adapter_for;
 pub mod debian;
 pub mod detection;
 pub mod family;
 pub mod rhel;
 
 pub use adapter::DistroAdapter;
-pub use adapter_selector::adapter_for;
+pub use adapter_for::adapter_for;
 pub use detection::detect::detect;
 pub use detection::detect_error::DetectError;
 pub use detection::distro_info::DistroInfo;

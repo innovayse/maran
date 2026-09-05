@@ -1,0 +1,21 @@
+using Maran.Sdk.Contracts;
+
+namespace Maran.Modules.Sites;
+
+/// <summary>
+/// Holds the Sites module's single published <see cref="Manifest"/> instance (rules/csharp.md
+/// "Canonical backend layout" — module identity). Kept as its own type, distinct from
+/// <see cref="SitesModule"/>, because <see cref="Manifest"/> is plain data with no framework
+/// dependency, while <see cref="SitesModule"/> is the DI/routing entry point.
+/// </summary>
+public static class SitesManifest
+{
+    /// <summary>The Sites module's published identity.</summary>
+    public static Manifest Instance { get; } = new(
+        Id: "sites",
+        DisplayNameKey: "SitesModuleDisplayName",
+        Version: "1.0.0",
+        Tier: LicenceTier.Included,
+        Dependencies: [],
+        AgentCapabilities: [AgentCapability.Php, AgentCapability.Sites]);
+}

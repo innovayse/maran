@@ -1,0 +1,141 @@
+{
+  "firewall": {
+    "heading": "Firewall",
+    "subtitle": "What this host lets through, who it is currently refusing, and who it will never refuse.",
+    "sshNote": "The accepts the panel renders for SSH and for its own port are not listed here and cannot be removed from this screen. Which port SSH listens on is a host fact the panel holds and does not send to the browser, so read the port yourself before changing a rule.",
+    "loading": "Loading the firewall…",
+    "protocols": {
+      "tcp": "TCP",
+      "udp": "UDP"
+    },
+    "presets": {
+      "heading": "Presets",
+      "subtitle": "The ports opened often enough that typing them into three fields is friction. Each one sends the same request the form below sends.",
+      "web": "Open the web ports (80 and 443)",
+      "mysqlExternal": "MySQL reachable from outside (3306)"
+    },
+    "rules": {
+      "heading": "Rules",
+      "tableCaption": "Firewall rules",
+      "ruleSummary": "{protocol}/{port} from {source}",
+      "remove": "Remove",
+      "rowActions": "Actions for {rule}",
+      "emptyTitle": "No rules of your own",
+      "emptyDescription": "Nothing has been opened from the panel. SSH and the panel's own port answer regardless — the agent renders those accepts itself, and they are not shown here.",
+      "columns": {
+        "port": "Port",
+        "protocol": "Protocol",
+        "source": "Source range",
+        "actions": "Actions"
+      },
+      "form": {
+        "fields": {
+          "port": "Port",
+          "protocol": "Protocol",
+          "sourceCidr": "Source range"
+        },
+        "placeholders": {
+          "port": "8080",
+          "sourceCidr": "0.0.0.0/0"
+        },
+        "errors": {
+          "portRequired": "Enter the port to open.",
+          "portInvalid": "Enter a port between 1 and 65535.",
+          "sourceRequired": "Enter the source range.",
+          "sourceInvalid": "Enter a range in CIDR notation with no bits set below the prefix — 203.0.113.0/24, not 203.0.113.7/24."
+        },
+        "hint": "0.0.0.0/0 admits every source. A narrower range is confirmed before it is installed.",
+        "submit": "Open the port"
+      }
+    },
+    "lockout": {
+      "allowTitle": "Install this rule?",
+      "denyTitle": "Remove this rule?",
+      "allowWarning": "This rule admits only the range shown. If it names the port your SSH daemon listens on, it replaces the unconditional accept that is holding your session open — and everybody outside that range, you included, stops reaching it.",
+      "denyWarning": "Removing a rule changes what reaches this host. If this is the rule restricting SSH, the panel's unconditional accept comes back and SSH answers every source again; if it is not, the port it names stops answering.",
+      "lastRuleForPort": "This leaves no rule at all for that port.",
+      "sshPortUnknown": "This screen is not told which port your SSH daemon listens on: the panel holds that fact and does not send it to the browser. Read the port above before you confirm.",
+      "confirmAllow": "Install the rule",
+      "confirmDeny": "Remove the rule",
+      "cancel": "Cancel",
+      "close": "Close"
+    },
+    "bans": {
+      "heading": "Bans",
+      "subtitle": "The addresses this host is refusing, and why each one is refused. The reason is the panel's own record — the kernel keeps none.",
+      "tableCaption": "Banned addresses",
+      "permanent": "Until it is lifted",
+      "unban": "Lift the ban",
+      "confirmUnban": "Let this address back in?",
+      "confirm": "Yes, lift it",
+      "cancel": "Cancel",
+      "rowActions": "Actions for {address}",
+      "emptyTitle": "Nobody is banned",
+      "emptyDescription": "The brute-force detector has banned nobody, and no address has been banned by hand.",
+      "reasons": {
+        "manual": "By hand",
+        "bruteForce": "Brute force"
+      },
+      "columns": {
+        "address": "Address",
+        "reason": "Reason",
+        "failures": "Failures",
+        "bannedAt": "Banned",
+        "expiresAt": "Expires",
+        "actions": "Actions"
+      },
+      "form": {
+        "fields": {
+          "address": "Address",
+          "durationMinutes": "Minutes"
+        },
+        "placeholders": {
+          "address": "203.0.113.7",
+          "durationMinutes": "60"
+        },
+        "errors": {
+          "addressRequired": "Enter the address to ban.",
+          "durationInvalid": "Enter a whole number of minutes between 1 and 525600, or leave the field empty."
+        },
+        "hint": "Leave the minutes empty for a ban that lasts until somebody lifts it.",
+        "submit": "Ban the address"
+      }
+    },
+    "whitelist": {
+      "heading": "Never banned",
+      "subtitle": "The ranges the automatic bans never touch.",
+      "seedNote": "On a fresh server the panel adds one row itself: the address the installer was run from, so a mistyped password cannot lock out the person who installed the panel. Nothing on the wire marks that row as the panel's — its note is what says so — and removing the range you administer from is how an operator locks themselves out.",
+      "tableCaption": "Ranges exempt from the automatic bans",
+      "remove": "Remove",
+      "confirmRemove": "Remove this exemption? The automatic bans can reach the range again — and if it is the range you administer from, that includes you.",
+      "confirm": "Yes, remove it",
+      "cancel": "Cancel",
+      "rowActions": "Actions for {cidr}",
+      "emptyTitle": "No exemptions",
+      "emptyDescription": "Every address can be banned, including the one you are reading this from.",
+      "columns": {
+        "cidr": "Range",
+        "note": "Note",
+        "createdAt": "Added",
+        "actions": "Actions"
+      },
+      "form": {
+        "fields": {
+          "cidr": "Range",
+          "note": "Note"
+        },
+        "placeholders": {
+          "cidr": "203.0.113.0/24",
+          "note": "The office"
+        },
+        "errors": {
+          "cidrRequired": "Enter the range to exempt.",
+          "cidrInvalid": "Enter a range in CIDR notation with no bits set below the prefix — 203.0.113.0/24, not 203.0.113.7/24.",
+          "noteTooLong": "The note is longer than 200 characters."
+        },
+        "hint": "Say what the range is. In six months the note is the only thing that will explain the row.",
+        "submit": "Add the exemption"
+      }
+    }
+  }
+}

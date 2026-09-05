@@ -1,0 +1,59 @@
+{
+  "app": {
+    "title": "Maran",
+    "brandInitial": "M",
+    "nav": {
+      "ariaLabel": "Main navigation",
+      "systemStatus": "System status",
+      "lockedBadge": "Locked",
+      "groups": {
+        "panel": "Panel"
+      }
+    },
+    "shell": {
+      "search": "Search or jump to…",
+      "searchShortcut": "⌘K",
+      "collapseSidebar": "Collapse the sidebar",
+      "expandSidebar": "Expand the sidebar",
+      "openNavigation": "Open the navigation",
+      "navigationLabel": "Navigation",
+      "toggleTheme": "Switch between the dark and light theme",
+      "breadcrumbLabel": "Breadcrumb",
+      "noServerSelected": "No server selected",
+      "paletteTitle": "Jump to",
+      "paletteClose": "Close the jump-to palette",
+      "paletteFieldLabel": "Search the panel",
+      "palettePlaceholder": "Search sections…",
+      "paletteClear": "Clear the search",
+      "paletteResultsLabel": "Matching sections",
+      "paletteNoMatches": "Nothing matches that.",
+      "paletteHintNavigate": "↑↓ to move",
+      "paletteHintOpen": "↵ to open",
+      "themeSwitcherLabel": "Interface theme",
+      "themes": {
+        "dark": "Dark",
+        "light": "Light"
+      },
+      "askAi": "Ask AI",
+      "notifications": "Notifications",
+      "account": "Your account",
+      "signedOut": "Nobody is signed in",
+      "accountMenu": "Account menu",
+      "menu": {
+        "sessions": "Sessions",
+        "twoFactor": "Two-step verification",
+        "audit": "Audit journal",
+        "securityPolicy": "Security policy",
+        "smtpSettings": "Outgoing mail"
+      }
+    },
+    "locale": {
+      "switcherLabel": "Interface language",
+      "names": {
+        "en": "English",
+        "ru": "Русский",
+        "hy": "Հայերեն"
+      }
+    }
+  }
+}

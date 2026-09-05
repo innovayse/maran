@@ -26,7 +26,9 @@ const { t } = useI18n()
 const localeStore = useLocaleStore()
 
 /** The offered languages, in menu order. */
-const locales: ComputedRef<readonly AppLocale[]> = computed(() => SUPPORTED_LOCALES)
+const locales: ComputedRef<readonly AppLocale[]> = computed(() => {
+  return SUPPORTED_LOCALES
+})
 
 /**
  * Switches the interface language.
@@ -47,7 +49,7 @@ const select = (locale: AppLocale): void => {
     :chevron="false"
   >
     <template #leading>
-      <UiIcon name="globe" :size="13" />
+      <UiIcon name="globe" size="md" />
     </template>
 
     <UiDropdownItem
@@ -68,7 +70,7 @@ const select = (locale: AppLocale): void => {
   gap: 6px;
   padding: 4px 8px;
   border-radius: 6px;
-  font-size: 12px;
+  font-size: var(--text-base);
   font-weight: 400;
   color: var(--t2);
 }

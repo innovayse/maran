@@ -1,37 +1,91 @@
 <script setup lang="ts">
 /**
- * Single-path line icon used by the application shell.
+ * The panel's only icon primitive. Every glyph the SPA draws comes from
+ * `lucide-vue-next` through this component; no component hand-writes an
+ * `<svg>` any more (rules/vue.md: "Icons come from lucide-vue-next").
  *
- * The paths are copied verbatim from the design canvas's `ICON` map — only
- * the entries the shell actually draws — and are rendered exactly as the
- * design draws them: a 24×24 viewBox, `fill:none`, `stroke:currentColor`,
- * `stroke-width:1.7`, round caps and joins.
+ * It stays a wrapper rather than letting screens import lucide components
+ * directly, so the size, the stroke weight and the decorative-by-default
+ * treatment are decided once, every call site keeps passing a plain `name`
+ * string, and swapping icon libraries again would touch this file alone.
  *
- * It lives beside the layouts rather than in `src/components/ui/` because it
- * is chrome for this shell alone and carries no interactive behaviour; the
- * moment a second area needs it, it moves down into the kit.
- *
- * Always decorative: an icon here sits next to its own text label, so it is
- * hidden from assistive technology rather than given a duplicate name
- * (rules/vue.md: "a decorative icon is declared rather than omitted").
+ * Always decorative: an icon here sits next to its own text label or inside a
+ * control that carries its own accessible name, so it is hidden from assistive
+ * technology rather than given a duplicate one (rules/vue.md: "a decorative
+ * icon is declared rather than omitted"). A control whose ONLY content is an
+ * icon must therefore carry an `aria-label` of its own.
  */
+import {
+  Activity,
+  Bell,
+  BrickWall,
+  ChartLine,
+  Check,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  Clock,
+  Copy,
+  Database,
+  Dices,
+  Earth,
+  Ellipsis,
+  Eye,
+  EyeOff,
+  FolderKey,
+  Globe,
+  LayoutGrid,
+  ListChecks,
+  LogOut,
+  Menu,
+  Moon,
+  Search,
+  Server,
+  ShieldCheck,
+  Sparkle,
+  Sun,
+  User,
+  Users,
+  X,
+  type LucideIcon,
+} from 'lucide-vue-next'
+import { computed, type ComputedRef } from 'vue'
 
-/** Name of a shell icon; each maps to one SVG path in {@link ICON_PATHS}. */
+/** Name of a panel icon; each maps to one lucide component in {@link ICONS}. */
 export type UiIconName =
   /** Activity trace — the shell's own system status entry. */
   | 'pulse'
-  /** Four tiles — a module reported by the panel's catalogue. */
+  /** Four tiles — a module the panel reported that this bundle has no glyph for. */
   | 'grid'
+  /** People — the accounts module. */
+  | 'users'
+  /** Shield with a tick — the identity module's security screens. */
+  | 'shieldCheck'
+  /** Meridian sphere — the sites module. */
+  | 'earth'
+  /** Stacked discs — the databases module. */
+  | 'database'
+  /** Folder with a key — the SFTP module, whose logins open one directory and no other. */
+  | 'folderKey'
+  /** A course of bricks — the firewall module, whose screen is the host's packet filter. */
+  | 'brickWall'
+  /** Two sheets — copying a value, such as a one-time credential, to the clipboard. */
+  | 'copy'
   /** Stacked racks — the server picker. */
   | 'server'
-  /** Magnifier — the command/search trigger. */
+  /** Magnifier — the command/search trigger and the search field. */
   | 'search'
-  /** Crescent — the theme toggle. */
+  /** Crescent — the theme toggle's dark state. */
   | 'moon'
+  /** Rayed disc — the theme toggle's light state. */
   | 'sun'
+  /** Meridians — the locale switcher. */
   | 'globe'
+  /** Four-point star — an assistant-initiated action. */
   | 'sparkle'
+  /** Notifications. */
   | 'bell'
+  /** The signed-in account. */
   | 'user'
   /** Collapse the sidebar into the rail. */
   | 'chevronLeft'
@@ -39,55 +93,122 @@ export type UiIconName =
   | 'chevronRight'
   /** Opens a picker. */
   | 'chevronDown'
+  /** Door with an outgoing arrow — signing out of the panel. */
+  | 'logOut'
+  /** Tick — a selected option, a ticked checkbox. */
+  | 'check'
+  /** Cross — dismissing a toast, a modal or a search term. */
+  | 'x'
+  /** Three rules — the header's sidebar toggle on narrow screens. */
+  | 'menu'
+  /** Three dots — the trigger of a row's actions menu, where a word would crowd the row. */
+  | 'ellipsis'
+  /** Open eye — the password value is currently revealed. */
+  | 'eye'
+  /** Struck-through eye — the password value is currently masked. */
+  | 'eyeOff'
+  /** A pair of dice — replacing a typed password with a randomly generated one. */
+  | 'dices'
+  /** A clock face — the cron module, whose screen is a list of things that happen at a time. */
+  | 'clock'
+  /** A ticked list — the tasks module's feed of background work. */
+  | 'listChecks'
+  /** A plotted line — the monitoring module's charts of what the server has been doing. */
+  | 'chartLine'
 
 /**
- * The design canvas's `ICON` map, restricted to the glyphs this shell draws.
- * `search` is the one composed entry: the design draws it as a circle plus a
- * line, expressed here as the equivalent single path so every icon in the
- * shell renders through one code path.
+ * Every glyph the panel draws, mapped to its lucide component. The map is
+ * explicit rather than derived from the name, so the set of icons in the SPA
+ * is one readable list and an unknown name is a type error, not a blank box.
  */
-const ICON_PATHS: Record<UiIconName, string> = {
-  pulse: 'M3 12h4l2-6 3 12 2-6h5',
-  grid: 'M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z',
-  server: 'M4 5h16v5H4zM4 14h16v5H4zM7 7.5h.01M7 16.5h.01',
-  search: 'M18 11a7 7 0 11-14 0 7 7 0 0114 0zM20 20l-4-4',
-  moon: 'M12 3a9 9 0 109 9 7 7 0 01-9-9z',
-  sparkle: 'M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z',
-  bell: 'M18 15V10a6 6 0 10-12 0v5l-1.5 3h15zM10 21h4',
-  user: 'M12 12a4 4 0 100-8 4 4 0 000 8zM4 21c0-4 3.6-6 8-6s8 2 8 6',
-  globe: 'M12 3a9 9 0 100 18 9 9 0 000-18zM3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18',
-  sun: 'M12 8a4 4 0 100 8 4 4 0 000-8zM12 2v2M12 20v2M4 12H2M22 12h-2M5.6 5.6L4.2 4.2M19.8 19.8l-1.4-1.4M5.6 18.4L4.2 19.8M19.8 4.2l-1.4 1.4',
-  chevronLeft: 'M15 6l-6 6 6 6',
-  chevronRight: 'M9 6l6 6-6 6',
-  chevronDown: 'M6 9l6 6 6-6',
+const ICONS: Record<UiIconName, LucideIcon> = {
+  pulse: Activity,
+  grid: LayoutGrid,
+  users: Users,
+  shieldCheck: ShieldCheck,
+  earth: Earth,
+  database: Database,
+  folderKey: FolderKey,
+  brickWall: BrickWall,
+  copy: Copy,
+  server: Server,
+  search: Search,
+  moon: Moon,
+  sun: Sun,
+  globe: Globe,
+  sparkle: Sparkle,
+  bell: Bell,
+  user: User,
+  chevronLeft: ChevronLeft,
+  chevronRight: ChevronRight,
+  chevronDown: ChevronDown,
+  logOut: LogOut,
+  check: Check,
+  x: X,
+  menu: Menu,
+  ellipsis: Ellipsis,
+  eye: Eye,
+  eyeOff: EyeOff,
+  dices: Dices,
+  clock: Clock,
+  listChecks: ListChecks,
+  chartLine: ChartLine,
+}
+
+/**
+ * The named size steps an icon may be drawn at. A glyph is chosen by role, not
+ * by pixel count: `sm` for a mark inside a dense control, `md` beside body
+ * text, `lg` for a glyph that stands on its own.
+ */
+export type UiIconSize = 'sm' | 'md' | 'lg'
+
+/**
+ * Edge length in CSS pixels for each step, paired with the stroke weight that
+ * reads correctly at it. The weight is NOT constant across the steps: one
+ * absolute stroke looks heavy on a small glyph and spidery on a large one, so
+ * it eases down as the glyph grows.
+ */
+const SIZES: Record<UiIconSize, { edge: number; strokeWidth: number }> = {
+  sm: { edge: 14, strokeWidth: 2 },
+  md: { edge: 18, strokeWidth: 1.8 },
+  lg: { edge: 22, strokeWidth: 1.6 },
 }
 
 /** Props accepted by {@link UiIcon}. */
-withDefaults(
+const props = withDefaults(
   defineProps<{
     /** Which glyph to draw. */
     name: UiIconName
-    /** Edge length in CSS pixels; the design draws shell icons at 15 or 16. */
-    size?: number
+    /**
+     * Which step of the icon scale to draw at. There is deliberately no
+     * numeric escape hatch: a free pixel prop is what let six different sizes
+     * accumulate across the panel, each chosen by whoever wrote the call site.
+     * A glyph that genuinely does not fit any step is a reason to change a
+     * step here, for every screen at once.
+     */
+    size?: UiIconSize
   }>(),
-  { size: 15 },
+  { size: 'md' },
 )
+
+/** The pixel edge and stroke weight of the requested step. */
+const step: ComputedRef<{ edge: number; strokeWidth: number }> = computed(() => {
+  return SIZES[props.size]
+})
+
+/** The lucide component for the requested {@link UiIconName}. */
+const glyph: ComputedRef<LucideIcon> = computed(() => {
+  return ICONS[props.name]
+})
 </script>
 
 <template>
-  <svg
-    :width="size"
-    :height="size"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    stroke-width="1.7"
-    stroke-linecap="round"
-    stroke-linejoin="round"
+  <component
+    :is="glyph"
+    :size="step.edge"
+    :stroke-width="step.strokeWidth"
     aria-hidden="true"
     focusable="false"
     class="shrink-0"
-  >
-    <path :d="ICON_PATHS[name]" />
-  </svg>
+  />
 </template>

@@ -11,7 +11,16 @@ publish.workspace = true
 # The agent validates every name and path through the core primitives before it
 # touches the system, and asks maran-distro rather than branching on distro names.
 maran-agent-core = { path = "../agent-core" }
+# The account operations the AccountsService serves.
+maran-ops = { path = "../ops" }
 maran-distro = { path = "../distro" }
+# ONE type, and only for `main`: `NftablesBansTable`, which the
+# `render-firewall-bans` subcommand prints so the installer seeds its file from
+# the same template the agent later applies. No SERVICE names a template type —
+# `ops::firewall` re-exports `NftablesProtocol` for that — and no config text is
+# produced anywhere else in this crate (rules/rust.md: `agent` translates,
+# `templates` renders).
+maran-templates = { path = "../templates" }
 prost.workspace = true
 thiserror.workspace = true
 tokio.workspace = true
@@ -27,6 +36,10 @@ tracing-subscriber.workspace = true
 # tonic's Endpoint dial a socket path, and tempfile owns the directory the
 # socket lives in so the test leaves nothing behind.
 hyper-util.workspace = true
+# The polygon suites read the credentials of a child that has dropped privileges
+# and give a file away to a second account; both are syscalls, and this is how a
+# test performs one without writing `unsafe`.
+rustix.workspace = true
 tempfile.workspace = true
 # The bind poll needs a timer, which the production feature set does not ask for.
 tokio = { workspace = true, features = ["time"] }

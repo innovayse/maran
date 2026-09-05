@@ -24,4 +24,7 @@
   <data name="PlanNotFound">
     <value>Тарифный план не найден.</value>
   </data>
+  <data name="AccountCleanupFailed">
+    <value>Аккаунт не удалён: не удалось сначала удалить принадлежащие ему объекты. Ничего не изменено, попробуйте ещё раз.</value>
+  </data>
 </root>

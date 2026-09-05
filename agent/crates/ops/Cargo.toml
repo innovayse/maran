@@ -7,5 +7,52 @@ version.workspace = true
 edition.workspace = true
 publish.workspace = true
 
+[dependencies]
+# Platform facts — paths, package names, service names — come from the adapter, never from
+# a literal in an operation (rules/rust.md "Distro adapter").
+maran-distro = { path = "../distro" }
+# The validated AccountName: this crate turns one into a system user, so it takes the
+# proof of validation rather than a string (rules/rust.md "Validation first").
+maran-agent-core = { path = "../agent-core" }
+# The askama render types for every config this crate writes. An operation
+# renders through them and never builds config text itself: a template is the
+# reviewable artifact, and its golden is the diff (rules/rust.md "Template
+# anatomy").
+maran-templates = { path = "../templates" }
+thiserror.workspace = true
+# One constant, and no `unsafe`: `O_NOFOLLOW` for the log tail, which opens a
+# file inside a customer's home from the root daemon. Written as `libc::O_NOFOLLOW`
+# rather than as its numeric value because the number differs by architecture,
+# and a platform literal outside `crates/distro` is a build failure
+# (rules/rust.md "Distro adapter").
+libc.workspace = true
+# The one dependency this crate has on an observability crate, and it earns its
+# place on a single path: a certificate cleanup that fails leaves a private key
+# for a deleted site on disk, which nobody learns about unless it is logged
+# (rules/rust.md "Logging": `tracing` only, and never a secret in it).
+tracing.workspace = true
+# safe_write's temporary file must live in the target's own directory so the
+# later rename is atomic; `NamedTempFile` gives that plus RAII cleanup on any
+# path that returns before the file is persisted.
+tempfile.workspace = true
+# One call, and no `unsafe`: `statvfs`, which is how the monitoring area asks how
+# full the root filesystem is. There is no answer to that question in `/proc` and
+# none in `std`, and the two alternatives are both worse — a raw `libc::statvfs`
+# needs `unsafe`, which this crate forbids outright, and spawning `df` would put a
+# second parser between the panel and a number the kernel already has. Already in
+# the lockfile, so no new code enters the tree.
+rustix.workspace = true
+# `nft -j list set` answers in JSON, and the firewall's ban list is read out of
+# it. Named in the plan and expected by the licence pass; the version lives in
+# the workspace manifest with every other shared one.
+serde_json.workspace = true
+# `sync` alone: the ONE thing this crate needs from tokio is the process-wide
+# `Mutex` every `ops::firewall` mutation is serialised by. The operations
+# themselves are synchronous like every other area's, and are called from
+# `tokio::task::spawn_blocking` by the service layer — which is exactly the
+# situation `Mutex::blocking_lock` exists for. Declared here rather than in the
+# workspace root because tokio's version already lives there.
+tokio = { workspace = true, features = ["sync"] }
+
 [lints]
 workspace = true

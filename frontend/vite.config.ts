@@ -20,6 +20,18 @@ export default defineConfig({
       '@': fileURLToPath(new URL('./src', import.meta.url)),
     },
   },
+  build: {
+    rollupOptions: {
+      input: {
+        main: fileURLToPath(new URL('./index.html', import.meta.url)),
+        // `UiChart`'s Playwright-only mount point (e2e/fixtures/chart-harness.html):
+        // registered as a real build entry so `vite preview` — what CI's e2e run
+        // serves — can reach it at the same path the dev server already does,
+        // rather than only the dev server's implicit any-.html-file serving.
+        chartHarness: fileURLToPath(new URL('./e2e/fixtures/chart-harness.html', import.meta.url)),
+      },
+    },
+  },
   server: {
     // The API's address in development. It must match ASPNETCORE_URLS in
     // scripts/run-dev.sh, which in turn matches the port the installer writes and

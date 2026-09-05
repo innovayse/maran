@@ -1,0 +1,59 @@
+{
+  "app": {
+    "title": "Maran",
+    "brandInitial": "M",
+    "nav": {
+      "ariaLabel": "Основная навигация",
+      "systemStatus": "Состояние системы",
+      "lockedBadge": "Заблокировано",
+      "groups": {
+        "panel": "Панель"
+      }
+    },
+    "shell": {
+      "search": "Поиск или переход…",
+      "searchShortcut": "⌘K",
+      "collapseSidebar": "Свернуть боковую панель",
+      "expandSidebar": "Развернуть боковую панель",
+      "openNavigation": "Открыть навигацию",
+      "navigationLabel": "Навигация",
+      "toggleTheme": "Переключить тёмную и светлую тему",
+      "breadcrumbLabel": "Навигационная цепочка",
+      "noServerSelected": "Сервер не выбран",
+      "paletteTitle": "Перейти к",
+      "paletteClose": "Закрыть окно перехода",
+      "paletteFieldLabel": "Поиск по панели",
+      "palettePlaceholder": "Искать разделы…",
+      "paletteClear": "Очистить поиск",
+      "paletteResultsLabel": "Подходящие разделы",
+      "paletteNoMatches": "Ничего не найдено.",
+      "paletteHintNavigate": "↑↓ — переход по списку",
+      "paletteHintOpen": "↵ — открыть",
+      "themeSwitcherLabel": "Тема интерфейса",
+      "themes": {
+        "dark": "Тёмная",
+        "light": "Светлая"
+      },
+      "askAi": "Спросить ИИ",
+      "notifications": "Уведомления",
+      "account": "Ваша учётная запись",
+      "signedOut": "Никто не вошёл в систему",
+      "accountMenu": "Меню аккаунта",
+      "menu": {
+        "sessions": "Сессии",
+        "twoFactor": "Двухфакторная проверка",
+        "audit": "Журнал аудита",
+        "securityPolicy": "Политика безопасности",
+        "smtpSettings": "Исходящая почта"
+      }
+    },
+    "locale": {
+      "switcherLabel": "Язык интерфейса",
+      "names": {
+        "en": "English",
+        "ru": "Русский",
+        "hy": "Հայերեն"
+      }
+    }
+  }
+}

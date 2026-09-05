@@ -1,7 +1,18 @@
-// Database and database-user lifecycle (MySQL/MariaDB). Passwords are
-// always caller-supplied: the agent never generates or stores credentials
-// itself, so the backend remains the single place a password is minted
-// and persisted (encrypted) for one-time display to the customer.
+// Database and database-user lifecycle (MySQL/MariaDB). Passwords are always
+// caller-supplied: the agent never generates a credential and never stores one,
+// so the panel is the single place a password is minted.
+//
+// Corrected 2026-09-01, comment only. This header used to say the panel
+// persists the password "(encrypted) for one-time display to the customer".
+// That is not the design and must not be re-introduced: NOBODY keeps a copy.
+// The panel mints the password, shows it once, and forgets it; the agent passes
+// it to the server and forgets it; the SERVER holds its own hash, which is the
+// only copy in the system. A stored copy — however it is encrypted — is a copy
+// that can be read out of the panel's database, and a panel that can read back
+// every customer's database password is a single theft away from every
+// customer's data. A customer who has lost the password gets a new one set, not
+// the old one shown. Nothing in this contract carries a password back: no
+// response message here has a password field, and none may be added.
 syntax = "proto3";
 
 package maran.agent.v1;
@@ -23,6 +34,23 @@ service DbService {
 
   // Lists databases owned by an account.
   rpc ListDatabases(ListDatabasesRequest) returns (ListDatabasesResponse);
+
+  // Added 2026-09-02. Sets an existing database user's password. This is the
+  // ONLY way to change one, and it exists because nobody keeps a copy: the
+  // panel mints a password, shows it once and forgets it, so a customer who
+  // lost theirs has no way back except being given a new one. CreateDatabase
+  // deliberately does NOT reset the password of a pair that already exists —
+  // that is what makes a retried creation safe — which leaves this rpc as the
+  // whole of the recovery path.
+  //
+  // Idempotent in the only sense a password change can be: setting a password
+  // twice leaves the user with the second one. A user that does not exist is
+  // NotFound rather than silently created, because creating one here would
+  // mint a credential for a database the panel has no row for.
+  //
+  // Nothing is returned but success: the caller already holds the value it
+  // sent, and no response message in this file carries a password.
+  rpc SetDatabasePassword(SetDatabasePasswordRequest) returns (SetDatabasePasswordResponse);
 
   // Reads the on-disk size of a database.
   rpc GetDatabaseSize(GetDatabaseSizeRequest) returns (GetDatabaseSizeResponse);
@@ -56,11 +84,29 @@ message CreateDatabaseOk {
   string db_username = 2;
 }
 
+// Corrected 2026-09-01. `database_name` used to be documented as the
+// FULLY-QUALIFIED name. It is now the same suffix CreateDatabaseRequest takes,
+// and the agent re-applies the account prefix itself, because a fully-qualified
+// name off the wire is a request that can name ANOTHER tenant's database. The
+// agent has no way to authorise one — the server has no notion of a tenant —
+// so the only safe contract is one where the caller cannot express the
+// question: a suffix plus the account the panel authorised can only ever
+// produce that account's own name. Nothing has ever generated against the old
+// reading; the field number, name and type are unchanged.
 message DropDatabaseRequest {
   // System username of the owning account.
   string account_username = 1;
-  // Fully-qualified database name to drop.
+  // Database name suffix, as passed to CreateDatabase. The agent namespaces it
+  // under account_username, so a suffix naming another tenant's database is
+  // impossible rather than merely refused.
   string database_name = 2;
+  // Added 2026-09-01. Username suffix of the dedicated user created alongside
+  // the database, dropped with it. Required: the customer names the database
+  // and its user independently (see CreateDatabaseRequest), so there is nothing
+  // to derive one from the other with, and a drop that guessed would either
+  // leave a live credential behind or remove somebody else's. An empty value is
+  // refused as invalid input rather than treated as "drop the database only".
+  string db_username = 3;
 }
 
 message DropDatabaseResponse {
@@ -88,19 +134,76 @@ message ListDatabasesOk {
   repeated DatabaseInfo databases = 1;
 }
 
+// One row of the DIAGNOSTIC listing: what this SERVER holds under a name that
+// decodes to the account. It is not the panel's record of what the account
+// owns, and it is not an authorisation answer — the server has no notion of a
+// tenant, so a name only looks like it belongs to an account because of the
+// prefix this panel put there. What a customer may see, drop or measure is
+// decided by the panel's own rows.
+//
+// Reconciled 2026-09-01, additively: `db_username` and `size_bytes` gained
+// explicit presence and the agent leaves BOTH UNSET. Absence is a real answer
+// here, and the proto3 default is not:
+//
+// `db_username` is unset because the server records which users are GRANTED on
+// a database, not which one was "its" user, and the customer names the two
+// halves independently (see CreateDatabaseRequest). Filling it in means
+// guessing — usually by assuming the user is named after the database — and a
+// guess printed beside a real name reads as a fact. The panel HAS the true
+// pairing in its own rows; the agent does not, and says so.
+//
+// `size_bytes` is unset because a size is one `information_schema` query per
+// database, so filling it here turns an operator's overview into a full scan of
+// the server's table metadata on a host with thousands of databases. A caller
+// that wants a size asks GetDatabaseSize for the one it wants. Sending `0`
+// would also be a claim — "this database is empty" — that the listing never
+// measured, and a panel could not tell it from "not known".
+//
+// A future agent that can answer either honestly sets it; until then an
+// unset field means "the agent did not establish this", which is the truth.
 message DatabaseInfo {
-  // Fully-qualified database name.
+  // Fully-qualified database name, as the server holds it. Always set: it is
+  // the one thing the listing actually establishes.
   string database_name = 1;
-  // Fully-qualified username of its dedicated user.
-  string db_username = 2;
-  // Current on-disk size in bytes.
-  uint64 size_bytes = 3;
+  // Fully-qualified username of its dedicated user, when the sender knows it.
+  // Left unset by the agent — see the note above.
+  optional string db_username = 2;
+  // Current on-disk size in bytes, when the sender has measured it. Left unset
+  // by the agent — see the note above. Ask GetDatabaseSize for a real figure.
+  optional uint64 size_bytes = 3;
 }
+
+message SetDatabasePasswordRequest {
+  // System username of the owning account.
+  string account_username = 1;
+  // Username suffix of the dedicated database user, as passed to
+  // CreateDatabase. Namespaced under account_username by the agent, so a
+  // request cannot name another tenant's user — the same reason
+  // DropDatabaseRequest takes a suffix rather than a fully-qualified name.
+  string db_username = 2;
+  // New plaintext password, supplied by the caller. There is no "leave
+  // unchanged" here: setting a password is the whole rpc, and an empty value is
+  // refused as invalid input rather than treated as a no-op. Never logged; not
+  // echoed back in any response or error.
+  string password = 3;
+}
+
+message SetDatabasePasswordResponse {
+  oneof result {
+    SetDatabasePasswordOk ok = 1;
+    AgentError error = 2;
+  }
+}
+
+message SetDatabasePasswordOk {}
 
 message GetDatabaseSizeRequest {
   // System username of the owning account.
   string account_username = 1;
-  // Fully-qualified database name.
+  // Database name suffix, as passed to CreateDatabase — corrected 2026-09-01
+  // from "fully-qualified", for the reason DropDatabaseRequest gives. A size is
+  // a smaller prize than a drop, but it is still an answer about another
+  // tenant's data, so the boundary is one rule rather than one rule per rpc.
   string database_name = 2;
 }
 

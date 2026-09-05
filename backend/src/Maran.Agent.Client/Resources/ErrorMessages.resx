@@ -33,4 +33,7 @@
   <data name="AgentInvalidResponse">
     <value>Your server did not return a usable answer. Please try again in a few minutes, and contact support if it keeps happening.</value>
   </data>
+  <data name="AgentFirewallPortsMisconfigured">
+    <value>The firewall was not changed, because this panel does not know which ports must stay open on your server. Nothing was changed. Please contact support.</value>
+  </data>
 </root>

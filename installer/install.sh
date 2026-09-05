@@ -27,6 +27,37 @@ export SCRIPT_DIR LIB_DIR
 MARAN_LOG_DIR="/var/log/maran"
 MARAN_LOG_FILE="${MARAN_LOG_DIR}/install.log"
 
+# --- The panel's public port -------------------------------------------------------
+# The one place this number is decided. nginx listens on it, preflight refuses to install
+# when something else already holds it, and the finish step prints it in the URL handed to
+# the operator. Anything added later that needs the number derives it from here rather
+# than repeating it: a port written as a literal in four files is a port that is wrong in
+# three of them the first time an operator changes it.
+#
+# Set here, before main() runs, and therefore before run_step sources anything under lib/ —
+# so a step file may derive from it at source time (10-preflight.sh does) as well as inside
+# a function.
+#
+# The one site that cannot read it is the nginx vhost's own `listen` line: a configuration
+# file interpolates no shell variable. That literal is tied back to this one by an assertion
+# in docker/polygon/assert-installer-steps.sh, which fails the polygon image build when the
+# two disagree — a failing check in place of a hope.
+MARAN_PANEL_PORT=8443
+export MARAN_PANEL_PORT
+
+# --- The panel's listening socket --------------------------------------------------
+# The one place this path is decided, and the panel's trust boundary. The api binds it instead
+# of a loopback TCP port so that WHICH LOCAL PROCESS connected is a kernel fact rather than a
+# guess: a port on 127.0.0.1 is reachable by every uid on the box, and everything that reaches
+# it arrives with the source address the panel trusts as its reverse proxy.
+#
+# Read by 60-config.sh (into ASPNETCORE_URLS), by 80-nginx.sh (into the vhost's upstream) and by
+# 70-services.sh, which substitutes both this path and its directory half into the api unit and
+# into the tmpfiles snippet that builds that directory. Nothing spells either one a second time;
+# the polygon's assert-installer-steps.sh builds the directory from this value and checks it.
+MARAN_API_SOCKET_PATH=/run/maran-api/api.sock
+export MARAN_API_SOCKET_PATH
+
 # --- CLI arguments -----------------------------------------------------------------
 # Parsed once here and exported so any step file can read them without re-parsing argv.
 MARAN_CHANNEL="stable"
@@ -113,6 +144,38 @@ detect_os() {
   export MARAN_OS_ID MARAN_OS_VERSION_ID MARAN_OS_FAMILY
 }
 
+# detect_web_server_identity: the unix user and group nginx runs as on this family.
+#
+# The one place these two names are decided, for the same reason MARAN_PANEL_PORT is: two steps
+# need them and they must not disagree. 60-config.sh resolves the USER to a uid and hands it to
+# the panel as the only caller allowed on its listening socket; 70-services.sh renders the GROUP
+# into the api unit, so that the socket's directory is traversable by nginx and by no other user
+# on the machine. Written apart even though both families spell them the same word, because what
+# a directory is group-owned by is a GROUP: naming the user there would be right by coincidence
+# and wrong the first time a distribution changed one of them. The agent's distro adapter makes
+# the same separation for the same reason.
+#
+# Detection only — an unsupported family is rejected by 10-preflight.sh, not here. An empty value
+# reaching a step is refused there with `:?` rather than defaulted, because a defaulted web server
+# group is a socket the wrong processes can open.
+detect_web_server_identity() {
+  case "$MARAN_OS_FAMILY" in
+    debian)
+      MARAN_WEB_SERVER_USER="www-data"
+      MARAN_WEB_SERVER_GROUP="www-data"
+      ;;
+    rhel)
+      MARAN_WEB_SERVER_USER="nginx"
+      MARAN_WEB_SERVER_GROUP="nginx"
+      ;;
+    *)
+      MARAN_WEB_SERVER_USER=""
+      MARAN_WEB_SERVER_GROUP=""
+      ;;
+  esac
+  export MARAN_WEB_SERVER_USER MARAN_WEB_SERVER_GROUP
+}
+
 # detect_arch: normalizes `uname -m` to Maran's two supported artifact arches.
 # Anything else is rejected by preflight with an explicit message.
 detect_arch() {
@@ -142,6 +205,7 @@ main() {
   echo "Maran installer starting: $(date -u '+%Y-%m-%dT%H:%M:%SZ')"
 
   detect_os
+  detect_web_server_identity
   detect_arch
   echo "Detected: ${MARAN_OS_ID} ${MARAN_OS_VERSION_ID} (${MARAN_OS_FAMILY} family), arch ${MARAN_ARCH}"
 
@@ -153,6 +217,17 @@ main() {
   run_step 60-config.sh       step_config
   run_step 70-services.sh     step_services
   run_step 80-nginx.sh        step_nginx
+  # Customer-facing services, after the panel itself is standing: MariaDB for
+  # customer databases (the panel's own PostgreSQL is step 30 and is untouched),
+  # then the host-level pieces a chrooted SFTP login needs, then the firewall, then
+  # the cron daemon that runs the scheduled jobs the panel writes.
+  #
+  # The firewall comes after nginx and SFTP, not before: it seeds a policy-drop
+  # ruleset, and the ports it opens are the ones those steps established.
+  run_step 85-mysql.sh        step_mysql
+  run_step 86-sftp.sh         step_sftp
+  run_step 87-firewall.sh     step_firewall
+  run_step 88-cron.sh         step_cron
   run_step 90-finish.sh       step_finish
 
   echo "Maran installer finished: $(date -u '+%Y-%m-%dT%H:%M:%SZ')"

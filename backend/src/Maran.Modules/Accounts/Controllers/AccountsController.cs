@@ -1,9 +1,15 @@
 using Maran.Modules.Accounts.Commands.CreateAccount;
+using Maran.Modules.Accounts.Commands.DeleteAccount;
+using Maran.Modules.Accounts.Commands.ReactivateAccount;
+using Maran.Modules.Accounts.Commands.SuspendAccount;
 using Maran.Modules.Accounts.Common;
 using Maran.Modules.Accounts.Controllers.Requests;
+using Maran.Modules.Accounts.Queries.GetAccount;
 using Maran.Modules.Accounts.Queries.ListAccounts;
 using Maran.Modules.Accounts.Queries.ListPlans;
+using Maran.Sdk.Contracts;
 using Maran.Sdk.Controllers;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.RateLimiting;
 using Wolverine;
 
@@ -13,21 +19,16 @@ namespace Maran.Modules.Accounts.Controllers;
 /// HTTP surface for hosting accounts. Thin by design (rules/csharp.md "Controller shape is
 /// fixed"): binds the request, dispatches through Wolverine, translates the <see cref="Result{T}"/>.
 /// No business logic, no data access.
+///
+/// Administrators only. Managing the hosting accounts on a server is a server-owner action
+/// (spec §8); a customer's own view of the account they own arrives with the accounts lifecycle,
+/// scoped by the caller's own token rather than by a parameter.
 /// </summary>
-/// <remarks>
-/// No <c>[Authorize]</c> here yet: the panel has no authentication stack (no login, no session, no
-/// <see cref="ICurrentUser"/> implementation — see <see cref="BaseApiController"/>'s constructor
-/// doc comment). Adding the attribute today would require an authentication handler that does not
-/// exist, which fails every request — including anonymous smoke checks — the instant this
-/// controller is exercised, rather than degrading gracefully. The rate limit, route, tags and
-/// per-action response shapes are otherwise exactly as mandated; only the authorization gate is
-/// deferred, and it must be added the moment authentication ships (rules/csharp.md "Controller
-/// shape is fixed" — an accepted, reported deviation, not a silent skip).
-/// </remarks>
 [Route("api/v1/accounts")]
+[Authorize(Policy = AuthorizationPolicies.AdminOnly)]
 [Tags("Accounts")]
 [Produces("application/json")]
-[EnableRateLimiting("api")]
+[EnableRateLimiting(RateLimitPolicies.Api)]
 public sealed class AccountsController : BaseApiController
 {
     /// <summary>The message bus commands and queries are dispatched through.</summary>
@@ -52,6 +53,18 @@ public sealed class AccountsController : BaseApiController
         return ToActionResult(result);
     }
 
+    /// <summary>Reads one hosting account.</summary>
+    /// <param name="id">The account to read.</param>
+    /// <param name="cancellationToken">Cancellation token for the request.</param>
+    [HttpGet("{id:guid}")]
+    [ProducesResponseType(typeof(AccountDetailDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetAsync(Guid id, CancellationToken cancellationToken)
+    {
+        var result = await _bus.InvokeAsync<Result<AccountDetailDto>>(new GetAccountQuery(id), cancellationToken);
+        return ToActionResult(result);
+    }
+
     /// <summary>Creates a new hosting account row.</summary>
     /// <param name="request">The account's name, primary domain, and plan.</param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
@@ -63,9 +76,52 @@ public sealed class AccountsController : BaseApiController
         [FromBody] CreateAccountRequest request,
         CancellationToken cancellationToken)
     {
-        var command = new CreateAccountCommand(request.Name, request.PrimaryDomain, request.PlanId);
+        var command = new CreateAccountCommand(
+            request.Name, request.PrimaryDomain, request.PlanId, ClientIpAddress, UserAgent());
         var result = await _bus.InvokeAsync<Result<AccountDto>>(command, cancellationToken);
         return ToCreatedActionResult(result, $"/api/v1/accounts/{(result.IsSuccess ? result.Value.Id : Guid.Empty)}");
+    }
+
+    /// <summary>
+    /// Suspends an account: its sites and services stop while its data stays (spec §8). Idempotent,
+    /// so a billing system may call it on every overdue invoice without tracking what it already did.
+    /// </summary>
+    /// <param name="id">The account to suspend.</param>
+    /// <param name="cancellationToken">Cancellation token for the request.</param>
+    [HttpPost("{id:guid}/suspend")]
+    [ProducesResponseType(typeof(AccountDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> SuspendAsync(Guid id, CancellationToken cancellationToken)
+    {
+        var command = new SuspendAccountCommand(id, ClientIpAddress, UserAgent());
+        var result = await _bus.InvokeAsync<Result<AccountDto>>(command, cancellationToken);
+        return ToActionResult(result);
+    }
+
+    /// <summary>Lifts a suspension. Idempotent, for the same reason suspension is.</summary>
+    /// <param name="id">The account to reactivate.</param>
+    /// <param name="cancellationToken">Cancellation token for the request.</param>
+    [HttpPost("{id:guid}/reactivate")]
+    [ProducesResponseType(typeof(AccountDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> ReactivateAsync(Guid id, CancellationToken cancellationToken)
+    {
+        var command = new ReactivateAccountCommand(id, ClientIpAddress, UserAgent());
+        var result = await _bus.InvokeAsync<Result<AccountDto>>(command, cancellationToken);
+        return ToActionResult(result);
+    }
+
+    /// <summary>Removes an account, its system user and everything under its home directory.</summary>
+    /// <param name="id">The account to remove.</param>
+    /// <param name="cancellationToken">Cancellation token for the request.</param>
+    [HttpDelete("{id:guid}")]
+    [ProducesResponseType(typeof(ulong), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> DeleteAsync(Guid id, CancellationToken cancellationToken)
+    {
+        var command = new DeleteAccountCommand(id, ClientIpAddress, UserAgent());
+        var result = await _bus.InvokeAsync<Result<ulong>>(command, cancellationToken);
+        return ToActionResult(result);
     }
 
     /// <summary>
@@ -84,5 +140,12 @@ public sealed class AccountsController : BaseApiController
     {
         var result = await _bus.InvokeAsync<Result<IReadOnlyList<PlanDto>>>(new ListPlansQuery(), cancellationToken);
         return ToActionResult(result);
+    }
+
+    /// <summary>Reads the caller's user agent for the audit journal.</summary>
+    /// <returns>The <c>User-Agent</c> header, or the empty string when absent.</returns>
+    private string UserAgent()
+    {
+        return HttpContext.Request.Headers.UserAgent.ToString();
     }
 }

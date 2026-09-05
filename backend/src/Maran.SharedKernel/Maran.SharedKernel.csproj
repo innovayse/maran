@@ -1,17 +1,5 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
-  <PropertyGroup>
-    <!-- CA1716: `Error` is the project-wide contract name for a typed domain failure
-         (rules/csharp.md "Errors: Result, not exceptions"); every module and Task 8's
-         agent client depend on this exact name, so it is not renamed to appease the
-         reserved-keyword-in-other-languages rule.
-         CA1000: `Result<T>.Ok`/`Fail` are the mandated factory API on the generic type
-         itself (see the brief's Interfaces block); introducing a non-generic helper
-         type purely to host these statics would be a speculative abstraction the
-         SharedKernel primitives (YAGNI, rules/architecture.md) do not need. -->
-    <NoWarn>$(NoWarn);CA1716;CA1000</NoWarn>
-  </PropertyGroup>
-
   <ItemGroup>
     <!-- Microsoft.EntityFrameworkCore: SharedKernel/Security/EncryptedStringConverter.cs is an EF
          Core ValueConverter so any module's <Entity>Configuration.cs can encrypt a column with
@@ -21,6 +9,10 @@
          ours" (rules/architecture.md) — it is a third-party primitive, like Npgsql is for
          Agent.Client. -->
     <PackageReference Include="Microsoft.EntityFrameworkCore" />
+    <!-- Konscious.Security.Cryptography.Argon2: backs Security/Argon2idPasswordHasher.cs, the only
+         place a panel password is ever hashed. A third-party primitive, like the EF Core reference
+         above — SharedKernel still references nothing of ours. -->
+    <PackageReference Include="Konscious.Security.Cryptography.Argon2" />
     <!-- DI.Abstractions: only for the AddSharedKernel registration entry point (DependencyInjection.cs). -->
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
   </ItemGroup>

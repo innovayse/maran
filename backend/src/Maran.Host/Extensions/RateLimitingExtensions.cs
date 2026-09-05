@@ -31,6 +31,8 @@ public static class RateLimitingExtensions
 
             LoginRateLimitPolicy.Configure(options, limits);
             ApiRateLimitPolicy.Configure(options, limits);
+            SiteLogStreamRateLimitPolicy.Configure(options, limits);
+            PasswordResetRateLimitPolicy.Configure(options, limits);
 
             options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
             options.OnRejected = async (context, cancellationToken) =>
