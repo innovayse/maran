@@ -74,14 +74,18 @@ public sealed class IpAddressNormalizerTests
     {
         // Kept, re-pointed. It used to guard the pre-parse text check, and it still guards the
         // thing that mattered: the framework treats the two spellings differently, so a rule
-        // written for one silently misses the other. Measured here rather than assumed — the
-        // framework PARSES the named form and throws the name away, leaving ScopeId zero, while
-        // the numeric form survives into ScopeId. Stripping AFTER the parse is what makes one
+        // written for one silently misses the other. Stripping AFTER the parse is what makes one
         // rule cover both, where the old text check covered only the spelling nobody tested.
-        Assert.True(IPAddress.TryParse("fe80::1%eth0", out var parsedByFramework));
+        //
+        // The name is one Linux cannot have — an interface name is at most fifteen characters —
+        // because the framework RESOLVES a name that exists on the host into its index. An earlier
+        // version of this test used "eth0" and asserted the resulting ScopeId was zero, which was
+        // true on a developer machine whose interfaces are called wlp1s0 and false on a CI runner
+        // that has an eth0: it asserted a fact about the host it ran on rather than about the code.
+        Assert.True(IPAddress.TryParse("fe80::1%maran-no-such-interface", out var parsedByFramework));
         Assert.Equal(0u, parsedByFramework.ScopeId);
 
-        Assert.True(IpAddressNormalizer.TryNormalize("fe80::1%eth0", out var named));
+        Assert.True(IpAddressNormalizer.TryNormalize("fe80::1%maran-no-such-interface", out var named));
         Assert.True(IpAddressNormalizer.TryNormalize("fe80::1%3", out var numeric));
         Assert.Equal("fe80::1", named.ToString());
         Assert.Equal(named.ToString(), numeric.ToString());
