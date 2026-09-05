@@ -5,7 +5,7 @@ use maran_agent_core::validation::system::name::AccountName;
 use maran_ops::files::DeleteEntryInput;
 
 use crate::proto::{AgentError, DeleteEntryRequest};
-use crate::services::sites::invalid_input::invalid_input;
+use crate::services::wire::invalid_input::invalid_input;
 
 /// Rebuilds a validated removal from what the panel sent.
 ///

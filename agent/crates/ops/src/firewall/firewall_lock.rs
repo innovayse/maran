@@ -45,9 +45,11 @@ static FIREWALL_MUTATIONS: Mutex<()> = Mutex::const_new(());
 /// the point, and it is not correct anywhere else.
 ///
 /// `services/firewall/firewall_service.rs` carries that requirement today: it
-/// wraps every one of the six operations, the way every other service wraps
-/// its own, in a private `run` helper that calls `spawn_blocking` and maps the
-/// error. Calling an operation directly from an async handler is a defect even
+/// hands every one of the six operations, the way every other service hands
+/// its own, to `services/wire/run_blocking.rs` — the one wrapper that calls
+/// `spawn_blocking` and maps the error, shared by every service since each
+/// kept its own copy and the accounts service had none at all. Calling an
+/// operation directly from an async handler is a defect even
 /// on the runs where it appears to work — including the two, `list_rules` and
 /// `list_bans`, that take no lock and so cannot lean on the `# Panics` section
 /// below.
@@ -72,7 +74,8 @@ static FIREWALL_MUTATIONS: Mutex<()> = Mutex::const_new(());
 /// check of the CALL SITES, which are a static fact rather than a runtime
 /// guess: `tests/services/firewall/firewall_service_tests.rs` in the `agent`
 /// crate asserts that every call into this area's six operations sits inside
-/// `Self::run(move || …)`, and that `run` is `spawn_blocking`.
+/// `run_blocking("firewall operation", to_agent_error, move || …)`, and that
+/// `run_blocking` is `spawn_blocking`.
 ///
 /// # Panics
 ///

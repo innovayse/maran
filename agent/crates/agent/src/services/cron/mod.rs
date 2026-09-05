@@ -4,7 +4,6 @@ pub mod cron_service;
 pub mod cron_status;
 pub mod entry_output;
 pub mod listed_entry;
-pub mod validated_account;
 pub mod validated_creation;
 pub mod validated_entry;
 pub mod validated_environment;

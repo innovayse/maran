@@ -4,8 +4,8 @@ use maran_agent_core::validation::db::db_user_name::DbUserName;
 use maran_agent_core::validation::secrets::password::Password;
 
 use crate::proto::AgentError;
-use crate::services::db::validated_account::validated_account;
-use crate::services::sites::invalid_input::invalid_input;
+use crate::services::wire::invalid_input::invalid_input;
+use crate::services::wire::validated_account::validated_account;
 
 /// Builds the user and the password `SetDatabasePassword` re-credentials with.
 ///

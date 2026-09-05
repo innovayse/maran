@@ -26,6 +26,7 @@ use crate::php::model::pool_input::PoolInput;
 use crate::php::{PhpHost, PhpOpError};
 use crate::safe_write::model::{Reload, Validator};
 use crate::safe_write::{ConfigHost, SafeWriteError};
+use crate::test_support::recording_commands::RecordingCommands;
 
 /// A [`PhpHost`] that keeps the pool directory, the installed versions and the
 /// spawned commands in memory.
@@ -35,12 +36,10 @@ pub(crate) struct FakePhpHost {
     directories: Mutex<BTreeSet<PathBuf>>,
     /// The pool files, path to content.
     files: Mutex<BTreeMap<PathBuf, String>>,
-    /// Every command the host was asked to spawn, as `program` plus its argv.
-    commands: Mutex<Vec<Vec<String>>>,
+    /// The spawned commands and the outcome they are answered with.
+    recording: RecordingCommands,
     /// `php-fpm -t`'s answer, and what it says when it refuses.
     validation: Mutex<(i32, String)>,
-    /// The status and standard error every spawned command reports.
-    command: Mutex<(i32, String)>,
     /// How many times a write actually reached the protocol — the number an
     /// idempotence test pins.
     writes: Mutex<usize>,
@@ -59,9 +58,8 @@ impl FakePhpHost {
         Self {
             directories: Mutex::new(BTreeSet::new()),
             files: Mutex::new(BTreeMap::new()),
-            commands: Mutex::new(Vec::new()),
+            recording: RecordingCommands::new(),
             validation: Mutex::new((0, String::new())),
-            command: Mutex::new((0, String::new())),
             writes: Mutex::new(0),
             removals: Mutex::new(0),
             created_as_account: Mutex::new(Vec::new()),
@@ -86,7 +84,7 @@ impl FakePhpHost {
     /// Makes every spawned command fail, with `stderr` as the reason an
     /// operator would read in the log.
     pub(crate) fn reject_commands(&self, stderr: &str) {
-        *self.command.lock().unwrap() = (1, stderr.to_owned());
+        self.recording.set_next(1, "", stderr);
     }
 
     /// Makes `php-fpm -t` refuse every pool, with `stderr` as the reason.
@@ -101,7 +99,7 @@ impl FakePhpHost {
 
     /// Every command the host was asked to spawn.
     pub(crate) fn commands(&self) -> Vec<Vec<String>> {
-        self.commands.lock().unwrap().clone()
+        self.recording.calls()
     }
 
     /// The directories the host was asked to create as the account.
@@ -127,16 +125,7 @@ impl FakePhpHost {
 
 impl ConfigHost for FakePhpHost {
     fn run(&self, program: &str, arguments: &[&str]) -> Result<CommandOutcome, SafeWriteError> {
-        let mut command = vec![program.to_owned()];
-        command.extend(arguments.iter().map(|argument| (*argument).to_owned()));
-        self.commands.lock().unwrap().push(command);
-
-        let (status, stderr) = self.command.lock().unwrap().clone();
-        Ok(CommandOutcome {
-            status,
-            stdout: String::new(),
-            stderr,
-        })
+        Ok(self.recording.record(program, arguments))
     }
 }
 

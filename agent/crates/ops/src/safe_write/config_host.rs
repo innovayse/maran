@@ -21,9 +21,12 @@ pub trait ConfigHost: Send + Sync {
     ///
     /// # Errors
     ///
-    /// Returns a [`SafeWriteError`] when the program cannot be started at
-    /// all. A non-zero exit is NOT an error here — it is returned in the
-    /// outcome, because [`super::render_validate_swap::write_config`] reads a
-    /// validation exit status differently from a reload exit status.
+    /// Returns [`SafeWriteError::SpawnFailed`] when the program cannot be
+    /// started at all — that variant and not a refusal of the content, because
+    /// an operator installing a missing package and one fixing a rejected
+    /// config are doing different work. A non-zero exit is NOT an error here —
+    /// it is returned in the outcome, because
+    /// [`super::render_validate_swap::write_config`] reads a validation exit
+    /// status differently from a reload exit status.
     fn run(&self, program: &str, arguments: &[&str]) -> Result<CommandOutcome, SafeWriteError>;
 }

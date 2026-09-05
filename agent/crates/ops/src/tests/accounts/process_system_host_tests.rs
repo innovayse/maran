@@ -8,9 +8,10 @@
 // bans on unwrap/expect/panic are lifted here only.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use maran_agent_core::utils::spawn_argv::{LOCALE_VALUE, LOCALE_VARIABLE};
 use maran_distro::debian::debian_adapter::DebianAdapter;
 
-use super::{LOCALE_VALUE, LOCALE_VARIABLE, ProcessSystemHost};
+use super::ProcessSystemHost;
 use crate::accounts::system_host::SystemHost;
 
 /// The program that prints the environment a child was actually given.
@@ -25,8 +26,11 @@ const ENV_BINARY: &str = "/usr/bin/env";
 /// account without a crontab undeletable. Asserting on the child's real environment
 /// rather than on the builder is the point: the question is what `execve` received.
 ///
-/// Remove the `.env` line and this test fails on a host whose own environment sets
-/// no `LC_ALL` — which is the agent's unit, since nothing sets a locale on it.
+/// The pin now lives in `maran_agent_core::utils::spawn_argv`, which is where every
+/// host's spawn goes, so this test guards it for all of them and not only for this
+/// one. Remove the `.env` line there and this test fails on a host whose own
+/// environment sets no `LC_ALL` — which is the agent's unit, since nothing sets a
+/// locale on it.
 #[test]
 fn a_spawned_program_runs_under_the_pinned_locale() {
     // The adapter is irrelevant here — this asserts on the spawn, which every

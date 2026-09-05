@@ -2,20 +2,21 @@
 
 use std::sync::Arc;
 
-use maran_ops::sftp::{self, SftpError, SftpHost};
+use maran_ops::sftp::{self, SftpHost};
 use tonic::{Request, Response, Status};
 
 use crate::proto::sftp_service_server::SftpService;
 use crate::proto::{
-    AgentError, CreateSftpUserOk, CreateSftpUserRequest, CreateSftpUserResponse, DeleteSftpUserOk,
-    DeleteSftpUserRequest, DeleteSftpUserResponse, ErrorCode, SetSftpPasswordOk,
-    SetSftpPasswordRequest, SetSftpPasswordResponse, create_sftp_user_response,
-    delete_sftp_user_response, set_sftp_password_response,
+    CreateSftpUserOk, CreateSftpUserRequest, CreateSftpUserResponse, DeleteSftpUserOk,
+    DeleteSftpUserRequest, DeleteSftpUserResponse, SetSftpPasswordOk, SetSftpPasswordRequest,
+    SetSftpPasswordResponse, create_sftp_user_response, delete_sftp_user_response,
+    set_sftp_password_response,
 };
 use crate::services::sftp::sftp_status::to_agent_error;
 use crate::services::sftp::validated_creation::validated_creation;
 use crate::services::sftp::validated_password_change::validated_password_change;
 use crate::services::sftp::validated_sftp_user::validated_sftp_user;
+use crate::services::wire::run_blocking::run_blocking;
 
 /// Serves the SFTP login operations over the wire.
 ///
@@ -50,37 +51,6 @@ impl<H: SftpHost + 'static> SftpServiceImpl<H> {
             distro,
         }
     }
-
-    /// Runs one operation on the blocking pool and maps its failure onto the
-    /// wire error — the shape every rpc here shares, written once so that
-    /// adding an rpc cannot forget to leave the runtime or map an error
-    /// differently from its neighbours.
-    ///
-    /// Every operation here spawns a shadow-suite tool and waits for it, and
-    /// creation also writes a unit file and asks the service manager to start
-    /// it; rules/rust.md requires all of that off the runtime's workers, since
-    /// a process wait on a worker stalls every other in-flight command.
-    ///
-    /// # Errors
-    ///
-    /// Returns the [`to_agent_error`] mapping of whatever the operation failed
-    /// on, or a system failure when the blocking task did not finish — a panic
-    /// inside the agent has no domain answer to give, and rules/proto.md
-    /// reserves gRPC statuses for transport problems, which it is not.
-    async fn run<T, F>(operation: F) -> Result<T, AgentError>
-    where
-        F: FnOnce() -> Result<T, SftpError> + Send + 'static,
-        T: Send + 'static,
-    {
-        match tokio::task::spawn_blocking(operation).await {
-            Ok(outcome) => outcome.map_err(|error| to_agent_error(&error)),
-            Err(error) => Err(AgentError {
-                code: ErrorCode::SystemFailure as i32,
-                message: format!("the sftp operation did not finish: {error}"),
-                tool_output: String::new(),
-            }),
-        }
-    }
 }
 
 #[tonic::async_trait]
@@ -105,9 +75,11 @@ impl<H: SftpHost + 'static> SftpService for SftpServiceImpl<H> {
                 // account prefix the agent applied.
                 let created = input.user.as_str().to_owned();
 
-                Self::run(move || sftp::create_sftp_user(host.as_ref(), distro, &input))
-                    .await
-                    .map(|()| created)
+                run_blocking("sftp operation", to_agent_error, move || {
+                    sftp::create_sftp_user(host.as_ref(), distro, &input)
+                })
+                .await
+                .map(|()| created)
             }
             Err(error) => Err(error),
         };
@@ -138,8 +110,10 @@ impl<H: SftpHost + 'static> SftpService for SftpServiceImpl<H> {
         ) {
             Ok((user, password)) => {
                 let (host, distro) = (Arc::clone(&self.host), self.distro);
-                Self::run(move || sftp::set_sftp_password(host.as_ref(), distro, &user, &password))
-                    .await
+                run_blocking("sftp operation", to_agent_error, move || {
+                    sftp::set_sftp_password(host.as_ref(), distro, &user, &password)
+                })
+                .await
             }
             Err(error) => Err(error),
         };
@@ -164,7 +138,10 @@ impl<H: SftpHost + 'static> SftpService for SftpServiceImpl<H> {
         let result = match validated_sftp_user(&request.account_username, &request.sftp_username) {
             Ok((_, user)) => {
                 let (host, distro) = (Arc::clone(&self.host), self.distro);
-                Self::run(move || sftp::delete_sftp_user(host.as_ref(), distro, &user)).await
+                run_blocking("sftp operation", to_agent_error, move || {
+                    sftp::delete_sftp_user(host.as_ref(), distro, &user)
+                })
+                .await
             }
             Err(error) => Err(error),
         };

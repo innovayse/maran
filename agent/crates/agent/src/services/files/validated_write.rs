@@ -5,7 +5,7 @@ use tonic::Streaming;
 
 use crate::proto::{AgentError, WriteFileRequest};
 use crate::services::files::write_collector::WriteCollector;
-use crate::services::sites::invalid_input::invalid_input;
+use crate::services::wire::invalid_input::invalid_input;
 
 /// Reads the whole write stream and returns what the operation should do.
 ///

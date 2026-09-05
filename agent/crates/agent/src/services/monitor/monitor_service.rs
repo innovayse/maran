@@ -3,12 +3,12 @@
 use std::sync::Arc;
 
 use maran_distro::DistroAdapter;
-use maran_ops::monitor::{self, MonitorError, MonitorHost};
+use maran_ops::monitor::{self, MonitorHost};
 use tonic::{Request, Response, Status};
 
 use crate::proto::monitor_service_server::MonitorService;
 use crate::proto::{
-    AccountDiskUsage, AgentError, ErrorCode, GetAccountsDiskUsageOk, GetAccountsDiskUsageRequest,
+    AccountDiskUsage, GetAccountsDiskUsageOk, GetAccountsDiskUsageRequest,
     GetAccountsDiskUsageResponse, GetHostMetricsRequest, GetHostMetricsResponse,
     GetServiceStatusesOk, GetServiceStatusesRequest, GetServiceStatusesResponse, HostMetrics,
     ServiceStatus, get_accounts_disk_usage_response, get_host_metrics_response,
@@ -17,6 +17,7 @@ use crate::proto::{
 use crate::services::monitor::managed_service::managed_service;
 use crate::services::monitor::monitor_status::to_agent_error;
 use crate::services::monitor::reported_state::reported_state;
+use crate::services::wire::run_blocking::run_blocking;
 
 /// The uptime the agent reports for every unit.
 ///
@@ -66,40 +67,6 @@ impl<H: MonitorHost + 'static> MonitorServiceImpl<H> {
             distro,
         }
     }
-
-    /// Runs one operation on the blocking pool and maps its failure onto the
-    /// wire error — the shape every rpc here shares, written once so that
-    /// adding an rpc cannot forget to leave the runtime or map an error
-    /// differently from its neighbours.
-    ///
-    /// Reading is not free here and none of it may happen on a runtime worker:
-    /// the metrics call deliberately WAITS between two processor readings,
-    /// because a percentage exists only between two samples of a counter; the
-    /// statuses call spawns the service manager once per unit and waits for it;
-    /// and the disk-usage call walks every account's home. Each of the three
-    /// would stall every other in-flight command (rules/rust.md "Async and
-    /// blocking").
-    ///
-    /// # Errors
-    ///
-    /// Returns the [`to_agent_error`] mapping of whatever the operation failed
-    /// on, or a system failure when the blocking task did not finish — a panic
-    /// inside the agent has no domain answer to give, and rules/proto.md
-    /// reserves gRPC statuses for transport problems, which it is not.
-    async fn run<T, F>(operation: F) -> Result<T, AgentError>
-    where
-        F: FnOnce() -> Result<T, MonitorError> + Send + 'static,
-        T: Send + 'static,
-    {
-        match tokio::task::spawn_blocking(operation).await {
-            Ok(outcome) => outcome.map_err(|error| to_agent_error(&error)),
-            Err(error) => Err(AgentError {
-                code: ErrorCode::SystemFailure as i32,
-                message: format!("the monitoring reading did not finish: {error}"),
-                tool_output: String::new(),
-            }),
-        }
-    }
 }
 
 #[tonic::async_trait]
@@ -111,7 +78,10 @@ impl<H: MonitorHost + 'static> MonitorService for MonitorServiceImpl<H> {
         _request: Request<GetHostMetricsRequest>,
     ) -> Result<Response<GetHostMetricsResponse>, Status> {
         let host = Arc::clone(&self.host);
-        let result = Self::run(move || monitor::get_host_metrics(host.as_ref())).await;
+        let result = run_blocking("monitoring reading", to_agent_error, move || {
+            monitor::get_host_metrics(host.as_ref())
+        })
+        .await;
 
         let result = match result {
             Ok(metrics) => get_host_metrics_response::Result::Ok(HostMetrics {
@@ -142,7 +112,10 @@ impl<H: MonitorHost + 'static> MonitorService for MonitorServiceImpl<H> {
     ) -> Result<Response<GetServiceStatusesResponse>, Status> {
         let host = Arc::clone(&self.host);
         let distro = self.distro;
-        let result = Self::run(move || monitor::get_service_statuses(host.as_ref(), distro)).await;
+        let result = run_blocking("monitoring reading", to_agent_error, move || {
+            monitor::get_service_statuses(host.as_ref(), distro)
+        })
+        .await;
 
         let result = match result {
             Ok(statuses) => get_service_statuses_response::Result::Ok(GetServiceStatusesOk {
@@ -177,8 +150,10 @@ impl<H: MonitorHost + 'static> MonitorService for MonitorServiceImpl<H> {
     ) -> Result<Response<GetAccountsDiskUsageResponse>, Status> {
         let host = Arc::clone(&self.host);
         let distro = self.distro;
-        let result =
-            Self::run(move || monitor::get_accounts_disk_usage(host.as_ref(), distro)).await;
+        let result = run_blocking("monitoring reading", to_agent_error, move || {
+            monitor::get_accounts_disk_usage(host.as_ref(), distro)
+        })
+        .await;
 
         let result = match result {
             Ok(accounts) => get_accounts_disk_usage_response::Result::Ok(GetAccountsDiskUsageOk {

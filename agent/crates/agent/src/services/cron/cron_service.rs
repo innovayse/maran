@@ -3,18 +3,17 @@
 use std::sync::Arc;
 
 use maran_distro::DistroAdapter;
-use maran_ops::cron::{self, CronError, CronHost};
+use maran_ops::cron::{self, CronHost};
 use tonic::{Request, Response, Status};
 
 use crate::proto::cron_service_server::CronService;
 use crate::proto::{
-    AgentError, CreateCronEntryOk, CreateCronEntryRequest, CreateCronEntryResponse,
-    CronEnvironmentVariable, DeleteCronEntryOk, DeleteCronEntryRequest, DeleteCronEntryResponse,
-    ErrorCode, GetCronEntryOutputRequest, GetCronEntryOutputResponse, GetCronEnvironmentOk,
-    GetCronEnvironmentRequest, GetCronEnvironmentResponse, ListCronEntriesOk,
-    ListCronEntriesRequest, ListCronEntriesResponse, SetCronEntryEnabledOk,
-    SetCronEntryEnabledRequest, SetCronEntryEnabledResponse, SetCronEnvironmentOk,
-    SetCronEnvironmentRequest, SetCronEnvironmentResponse, UpdateCronEntryOk,
+    CreateCronEntryOk, CreateCronEntryRequest, CreateCronEntryResponse, CronEnvironmentVariable,
+    DeleteCronEntryOk, DeleteCronEntryRequest, DeleteCronEntryResponse, GetCronEntryOutputRequest,
+    GetCronEntryOutputResponse, GetCronEnvironmentOk, GetCronEnvironmentRequest,
+    GetCronEnvironmentResponse, ListCronEntriesOk, ListCronEntriesRequest, ListCronEntriesResponse,
+    SetCronEntryEnabledOk, SetCronEntryEnabledRequest, SetCronEntryEnabledResponse,
+    SetCronEnvironmentOk, SetCronEnvironmentRequest, SetCronEnvironmentResponse, UpdateCronEntryOk,
     UpdateCronEntryRequest, UpdateCronEntryResponse, create_cron_entry_response,
     delete_cron_entry_response, get_cron_entry_output_response, get_cron_environment_response,
     list_cron_entries_response, set_cron_entry_enabled_response, set_cron_environment_response,
@@ -23,11 +22,12 @@ use crate::proto::{
 use crate::services::cron::cron_status::to_agent_error;
 use crate::services::cron::entry_output::entry_output;
 use crate::services::cron::listed_entry::listed_entry;
-use crate::services::cron::validated_account::validated_account;
 use crate::services::cron::validated_creation::validated_creation;
 use crate::services::cron::validated_entry::validated_entry;
 use crate::services::cron::validated_environment::validated_environment;
 use crate::services::cron::validated_update::validated_update;
+use crate::services::wire::run_blocking::run_blocking;
+use crate::services::wire::validated_account::validated_account;
 
 /// Serves the per-account cron operations over the wire.
 ///
@@ -57,37 +57,6 @@ impl<H: CronHost + 'static> CronServiceImpl<H> {
             distro,
         }
     }
-
-    /// Runs one operation on the blocking pool and maps its failure onto the
-    /// wire error — the shape every rpc here shares, written once so that
-    /// adding an rpc cannot forget to leave the runtime or map an error
-    /// differently from its neighbours.
-    ///
-    /// Every operation here spawns `crontab(1)` and waits for it, or forks into
-    /// the account to touch a file under its home; rules/rust.md requires both
-    /// off the runtime's workers, since a process wait on a worker stalls every
-    /// other in-flight command.
-    ///
-    /// # Errors
-    ///
-    /// Returns the [`to_agent_error`] mapping of whatever the operation failed
-    /// on, or a system failure when the blocking task did not finish — a panic
-    /// inside the agent has no domain answer to give, and rules/proto.md
-    /// reserves gRPC statuses for transport problems, which it is not.
-    async fn run<T, F>(operation: F) -> Result<T, AgentError>
-    where
-        F: FnOnce() -> Result<T, CronError> + Send + 'static,
-        T: Send + 'static,
-    {
-        match tokio::task::spawn_blocking(operation).await {
-            Ok(outcome) => outcome.map_err(|error| to_agent_error(&error)),
-            Err(error) => Err(AgentError {
-                code: ErrorCode::SystemFailure as i32,
-                message: format!("the cron operation did not finish: {error}"),
-                tool_output: String::new(),
-            }),
-        }
-    }
 }
 
 #[tonic::async_trait]
@@ -102,7 +71,10 @@ impl<H: CronHost + 'static> CronService for CronServiceImpl<H> {
         let result = match validated_account(&request.account_username) {
             Ok(account) => {
                 let host = Arc::clone(&self.host);
-                Self::run(move || cron::list_cron_entries(host.as_ref(), &account)).await
+                run_blocking("cron operation", to_agent_error, move || {
+                    cron::list_cron_entries(host.as_ref(), &account)
+                })
+                .await
             }
             Err(error) => Err(error),
         };
@@ -135,7 +107,7 @@ impl<H: CronHost + 'static> CronService for CronServiceImpl<H> {
                 let host = Arc::clone(&self.host);
                 let distro = self.distro;
 
-                Self::run(move || {
+                run_blocking("cron operation", to_agent_error, move || {
                     cron::create_cron_entry(host.as_ref(), distro, &account, &schedule, &command)
                 })
                 .await
@@ -172,7 +144,7 @@ impl<H: CronHost + 'static> CronService for CronServiceImpl<H> {
                 let host = Arc::clone(&self.host);
                 let distro = self.distro;
 
-                Self::run(move || {
+                run_blocking("cron operation", to_agent_error, move || {
                     cron::update_cron_entry(
                         host.as_ref(),
                         distro,
@@ -209,8 +181,10 @@ impl<H: CronHost + 'static> CronService for CronServiceImpl<H> {
                 let host = Arc::clone(&self.host);
                 let distro = self.distro;
 
-                Self::run(move || cron::delete_cron_entry(host.as_ref(), distro, &account, &entry))
-                    .await
+                run_blocking("cron operation", to_agent_error, move || {
+                    cron::delete_cron_entry(host.as_ref(), distro, &account, &entry)
+                })
+                .await
             }
             Err(error) => Err(error),
         };
@@ -238,7 +212,7 @@ impl<H: CronHost + 'static> CronService for CronServiceImpl<H> {
                 let host = Arc::clone(&self.host);
                 let distro = self.distro;
 
-                Self::run(move || {
+                run_blocking("cron operation", to_agent_error, move || {
                     cron::set_cron_entry_enabled(host.as_ref(), distro, &account, &entry, enabled)
                 })
                 .await
@@ -266,8 +240,10 @@ impl<H: CronHost + 'static> CronService for CronServiceImpl<H> {
         let result = match validated_entry(&request.account_username, &request.entry_id) {
             Ok((account, entry)) => {
                 let host = Arc::clone(&self.host);
-                Self::run(move || cron::get_cron_entry_output(host.as_ref(), &account, &entry))
-                    .await
+                run_blocking("cron operation", to_agent_error, move || {
+                    cron::get_cron_entry_output(host.as_ref(), &account, &entry)
+                })
+                .await
             }
             Err(error) => Err(error),
         };
@@ -292,7 +268,10 @@ impl<H: CronHost + 'static> CronService for CronServiceImpl<H> {
         let result = match validated_account(&request.account_username) {
             Ok(account) => {
                 let host = Arc::clone(&self.host);
-                Self::run(move || cron::get_cron_environment(host.as_ref(), &account)).await
+                run_blocking("cron operation", to_agent_error, move || {
+                    cron::get_cron_environment(host.as_ref(), &account)
+                })
+                .await
             }
             Err(error) => Err(error),
         };
@@ -327,7 +306,7 @@ impl<H: CronHost + 'static> CronService for CronServiceImpl<H> {
                 let host = Arc::clone(&self.host);
                 let distro = self.distro;
 
-                Self::run(move || {
+                run_blocking("cron operation", to_agent_error, move || {
                     cron::set_cron_environment(host.as_ref(), distro, &account, environment)
                 })
                 .await

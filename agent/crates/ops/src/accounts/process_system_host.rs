@@ -1,9 +1,9 @@
 //! The [`SystemHost`] that actually runs programs on this machine.
 
 use std::path::Path;
-use std::process::Command;
 
 use maran_agent_core::utils::directory::directory_size;
+use maran_agent_core::utils::spawn_argv::spawn_argv;
 use maran_distro::DistroAdapter;
 
 use crate::accounts::{AccountError, CommandOutcome, SystemHost};
@@ -38,27 +38,6 @@ impl ProcessSystemHost {
     }
 }
 
-/// The locale variable every spawn in this file sets.
-///
-/// `LC_ALL` and not `LANG`, because `LC_ALL` overrides every other locale
-/// variable — one assignment settles the question whatever the daemon's own
-/// environment holds. The cron module pins the same variable for the same
-/// reason, and this file had not, which made an account with no crontab
-/// undeletable under any non-English locale: `remove_crontab` decides "there
-/// was nothing to remove" by reading `crontab`'s own message, and a message in
-/// another language is a refusal it cannot recognise. Nothing sets a locale on
-/// the agent's unit, so the daemon's environment decided it.
-const LOCALE_VARIABLE: &str = "LC_ALL";
-
-/// The locale every spawn in this file runs under.
-///
-/// `C`, so the diagnostics this host reads back are the ones its matching was
-/// written against. It is pinned on the SPAWN rather than per call site: every
-/// decision here that reads a program's output has the same exposure, and a
-/// rule honoured at one call site and forgotten at the next is the shape of
-/// defect this repository keeps finding.
-const LOCALE_VALUE: &str = "C";
-
 impl SystemHost for ProcessSystemHost {
     /// Spawns `program` with `arguments` as an argv array.
     ///
@@ -67,22 +46,23 @@ impl SystemHost for ProcessSystemHost {
     /// quote or a semicolon is one argument containing those characters — there is
     /// no string for anything to re-parse. The agent also never builds a command
     /// line by concatenation, which is the other half of the same rule.
+    ///
+    /// The spawn itself is [`spawn_argv`], shared with every other host that runs
+    /// an argv array. The `LC_ALL=C` pin this file used to carry moved there with
+    /// it and is now on every spawn in the agent rather than on this one file's:
+    /// `quota` links gettext, and a translated header made its parse silently
+    /// yield "unlimited", while `remove_crontab` reads `crontab`'s own message to
+    /// decide there was nothing to remove.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`AccountError::CommandUnavailable`] when the program cannot be
+    /// started, carrying the operating system's reason. A non-zero exit is not an
+    /// error here — it comes back in the outcome for the operations to read.
     fn run(&self, program: &str, arguments: &[&str]) -> Result<CommandOutcome, AccountError> {
-        let output = Command::new(program)
-            .args(arguments)
-            .env(LOCALE_VARIABLE, LOCALE_VALUE)
-            .output()
-            .map_err(|error| AccountError::CommandUnavailable {
-                program: program.to_owned(),
-                reason: error.to_string(),
-            })?;
-
-        Ok(CommandOutcome {
-            // -1 for a process killed by a signal: it did not exit, and reporting 0
-            // would read as success to every caller that checks the status.
-            status: output.status.code().unwrap_or(-1),
-            stdout: String::from_utf8_lossy(&output.stdout).into_owned(),
-            stderr: String::from_utf8_lossy(&output.stderr).into_owned(),
+        spawn_argv(program, arguments).map_err(|error| AccountError::CommandUnavailable {
+            program: program.to_owned(),
+            reason: error.to_string(),
         })
     }
 

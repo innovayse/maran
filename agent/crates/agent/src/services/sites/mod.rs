@@ -1,7 +1,6 @@
 //! The `SitesService` handler, its error mapping, and the checks that turn a
 //! proto site description into a validated operation input.
 
-pub mod invalid_input;
 pub mod site_status;
 pub mod sites_service;
 pub mod stream_log_sink;

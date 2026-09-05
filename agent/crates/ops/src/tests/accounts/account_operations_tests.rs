@@ -31,6 +31,7 @@ use crate::php::model::pool_input::PoolInput;
 use crate::php::write_pool;
 use crate::sftp::fake_sftp_host::FakeSftpHost;
 use crate::sftp::model::account_jail::AccountJail;
+use crate::test_support::recording_commands::RecordingCommands;
 
 /// A machine that records what it was asked to do instead of doing it.
 ///
@@ -39,7 +40,7 @@ use crate::sftp::model::account_jail::AccountJail;
 /// nothing a type system can see and by everything a customer's data can.
 struct RecordingHost {
     existing: Mutex<HashSet<String>>,
-    calls: Mutex<Vec<Vec<String>>>,
+    recording: RecordingCommands,
     statuses: Mutex<Vec<i32>>,
     stdout: Mutex<String>,
     stderr: Mutex<String>,
@@ -50,7 +51,7 @@ impl RecordingHost {
     fn new() -> Self {
         Self {
             existing: Mutex::new(HashSet::new()),
-            calls: Mutex::new(Vec::new()),
+            recording: RecordingCommands::new(),
             statuses: Mutex::new(Vec::new()),
             stdout: Mutex::new("1001\n".to_owned()),
             stderr: Mutex::new("refused\n".to_owned()),
@@ -102,51 +103,45 @@ impl RecordingHost {
     }
 
     fn calls(&self) -> Vec<Vec<String>> {
-        self.calls
-            .lock()
-            .expect("the fixture lock is never poisoned")
-            .clone()
+        self.recording.calls()
     }
 
     fn called(&self, program: &str) -> Vec<Vec<String>> {
-        self.calls()
-            .into_iter()
-            .filter(|call| call[0] == program)
-            .collect()
+        self.recording.calls_to(program)
+    }
+
+    /// What a program prints on standard error given the status it exited
+    /// with: nothing when it succeeded, the configured reason when it
+    /// refused.
+    fn stderr_for(&self, status: i32) -> String {
+        if status == 0 {
+            String::new()
+        } else {
+            self.stderr
+                .lock()
+                .expect("the fixture lock is never poisoned")
+                .clone()
+        }
     }
 }
 
 impl SystemHost for RecordingHost {
     fn run(&self, program: &str, arguments: &[&str]) -> Result<CommandOutcome, AccountError> {
-        let mut call = vec![program.to_owned()];
-        call.extend(arguments.iter().map(|argument| (*argument).to_owned()));
-        self.calls
-            .lock()
-            .expect("the fixture lock is never poisoned")
-            .push(call);
-
         let status = self
             .statuses
             .lock()
             .expect("the fixture lock is never poisoned")
             .pop()
             .unwrap_or(0);
-        Ok(CommandOutcome {
-            status,
-            stdout: self
-                .stdout
-                .lock()
-                .expect("the fixture lock is never poisoned")
-                .clone(),
-            stderr: if status == 0 {
-                String::new()
-            } else {
-                self.stderr
-                    .lock()
-                    .expect("the fixture lock is never poisoned")
-                    .clone()
-            },
-        })
+        let stdout = self
+            .stdout
+            .lock()
+            .expect("the fixture lock is never poisoned")
+            .clone();
+        self.recording
+            .set_next(status, &stdout, &self.stderr_for(status));
+
+        Ok(self.recording.record(program, arguments))
     }
 
     fn user_exists(&self, username: &str) -> Result<bool, AccountError> {

@@ -6,8 +6,8 @@ use maran_agent_core::validation::web::upstream::Upstream;
 use maran_ops::sites::{CreateSiteInput, SiteCertificate, SiteKind};
 
 use crate::proto::{AgentError, SiteBackendType, SiteSpec};
-use crate::services::sites::invalid_input::invalid_input;
 use crate::services::sites::validated_identity::validated_identity;
+use crate::services::wire::invalid_input::invalid_input;
 
 /// Rebuilds the full site description from the identity and the panel's
 /// [`SiteSpec`].

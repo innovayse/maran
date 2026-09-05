@@ -10,6 +10,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use maran_agent_core::agent_paths::AgentPaths;
 use maran_agent_core::command_outcome::CommandOutcome;
+use maran_agent_core::utils::spawn_argv;
 use maran_agent_core::validation::system::name::AccountName;
 use maran_distro::DistroAdapter;
 
@@ -76,10 +77,12 @@ const TABLE_PREFIX: &str = "crontab";
 
 /// The locale variable every spawn in this file sets.
 ///
-/// `LC_ALL` and not `LANG`, because `LC_ALL` overrides every other locale
-/// variable — one assignment settles the question whatever the daemon's own
-/// environment holds.
-const LOCALE_VARIABLE: &str = "LC_ALL";
+/// The name is not restated here: it comes from [`spawn_argv`], which is the one
+/// place this agent decides what the pin IS. This file's spawns are deliberately
+/// not `spawn_argv` — they pipe stdin and carry a cron-specific unavailable
+/// sentinel — but they must pin the same variable to the same value, and a
+/// second literal is how the two would drift.
+const LOCALE_VARIABLE: &str = spawn_argv::LOCALE_VARIABLE;
 
 /// The locale every spawn in this file runs under.
 ///
@@ -94,7 +97,11 @@ const LOCALE_VARIABLE: &str = "LC_ALL";
 /// It changes the direction of nothing: an unmatched message was already a
 /// refusal rather than a wrong "this account has no crontab", so what this
 /// removes is a source of spurious refusals on a non-English host, not a hole.
-const LOCALE_VALUE: &str = "C";
+///
+/// The value comes from [`spawn_argv`] for the reason [`LOCALE_VARIABLE`]
+/// gives; what is local is this paragraph — the reason cron cannot do without
+/// the pin.
+const LOCALE_VALUE: &str = spawn_argv::LOCALE_VALUE;
 
 /// One account's crontab, read and installed through `crontab(1)`.
 ///

@@ -41,8 +41,10 @@ use crate::safe_write::{ConfigHost, RollbackGuard, SafeWriteError};
 /// target has been touched at that point. Returns [`SafeWriteError::Rename`]
 /// when a swap fails, with every target already swapped restored. Returns
 /// [`SafeWriteError::ValidationFailed`] or [`SafeWriteError::ReloadFailed`] with
-/// ALL targets restored, and [`SafeWriteError::RollbackFailed`] when one of
-/// those restorations also failed.
+/// ALL targets restored, [`SafeWriteError::SpawnFailed`] with the same
+/// restoration when one of those programs could not be started at all, and
+/// [`SafeWriteError::RollbackFailed`] when one of those restorations also
+/// failed.
 pub fn write_config_set(
     host: &dyn ConfigHost,
     files: &[ConfigFile<'_>],

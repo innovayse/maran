@@ -10,6 +10,12 @@
 //! (rules/rust.md "Validation first"). Modules land with their backend
 //! counterparts, starting with Plan 2.
 
+/// Shared test support, mounted once for the whole crate because the recording
+/// core in it is composed by fakes that live in different areas.
+#[cfg(test)]
+#[path = "tests/support/mod.rs"]
+mod test_support;
+
 pub mod accounts;
 pub mod cron;
 pub mod db;

@@ -12,5 +12,6 @@
 
 pub mod current_uid;
 pub mod directory;
+pub mod spawn_argv;
 pub mod system_account;
 pub mod system_accounts;

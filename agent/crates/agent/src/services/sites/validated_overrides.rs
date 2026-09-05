@@ -3,7 +3,7 @@
 use maran_ops::php::PhpOverride;
 
 use crate::proto::{AgentError, PhpSetting};
-use crate::services::sites::invalid_input::invalid_input;
+use crate::services::wire::invalid_input::invalid_input;
 
 /// Revalidates the customer's php.ini overrides against the agent's own
 /// whitelist.

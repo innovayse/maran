@@ -176,10 +176,21 @@ const FIREWALL_OPERATIONS: [&str; 6] = [
     "unban_address",
 ];
 
+/// The noun phrase this service passes to the shared wrapper, which is also
+/// what distinguishes its call sites from any other area's.
+const FIREWALL_WHAT: &str = "\"firewall operation\"";
+
 /// The shape a correct call site has: the operation named directly as the body
-/// of the closure handed to the `run` helper.
+/// of the closure handed to the shared `run_blocking` wrapper, with this
+/// service's own noun phrase and error mapping in between.
+///
+/// The whole prefix is matched rather than the closure alone. `run_blocking`
+/// is shared with nine other services now, so `move || firewall::…` on its own
+/// would be satisfied by a closure handed to anything at all — including a
+/// helper that never reaches the blocking pool, which is precisely the
+/// substitution the last assertion below exists to refuse.
 fn wrapped_call(operation: &str) -> String {
-    format!("Self::run(move || firewall::{operation}(")
+    format!("run_blocking({FIREWALL_WHAT}, to_agent_error, move || firewall::{operation}(")
 }
 
 /// Any call at all into one of the operations.
@@ -218,9 +229,29 @@ fn agent_sources() -> Vec<(PathBuf, String)> {
     sources
 }
 
+/// `source` with every run of whitespace collapsed to one space, and a
+/// closure body's opening brace dropped.
+///
+/// Both normalizations exist so the matcher reads the CODE and not rustfmt's
+/// line breaking. A call to the shared wrapper is long enough that rustfmt
+/// splits it across lines and wraps a multi-line body in braces, so the same
+/// correct call site is spelled `move || firewall::list_bans(` in one handler
+/// and `move ||\n{\n firewall::allow_port(` in the next. A matcher sensitive
+/// to that difference would silently stop seeing five of the six operations
+/// the first time a line grew.
+fn normalized(source: &str) -> String {
+    source
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+        .replace("move || { ", "move || ")
+}
+
 /// Counts the calls into `operation` in `source`, and how many of those are
 /// wrapped in the blocking-pool helper.
 fn call_sites(source: &str, operation: &str) -> (usize, usize) {
+    let source = normalized(source);
+
     (
         source.matches(&any_call(operation)).count(),
         source.matches(&wrapped_call(operation)).count(),
@@ -254,7 +285,8 @@ fn every_firewall_operation_is_reached_through_the_blocking_pool() {
                 calls,
                 wrapped,
                 "{}: {} of the {calls} call(s) to firewall::{operation} do not go through \
-                 Self::run(move || …), which is the only thing putting them on the blocking pool",
+                 run_blocking(\"firewall operation\", to_agent_error, move || …), which is the \
+                 only thing putting them on the blocking pool",
                 path.display(),
                 calls - wrapped
             );
@@ -276,13 +308,13 @@ fn every_firewall_operation_is_reached_through_the_blocking_pool() {
 
     let helper = sources
         .iter()
-        .find(|(path, _)| path.ends_with("firewall_service.rs"))
+        .find(|(path, _)| path.ends_with("run_blocking.rs"))
         .map(|(_, source)| source)
-        .expect("the firewall service is in this crate's source tree");
+        .expect("the shared blocking wrapper is in this crate's source tree");
     assert!(
         helper.contains("tokio::task::spawn_blocking(operation).await"),
-        "Self::run must be spawn_blocking; wrapping the calls in a helper that is not one \
-         satisfies every assertion above while changing nothing"
+        "run_blocking must be spawn_blocking; routing the calls through a wrapper that is not \
+         one satisfies every assertion above while changing nothing"
     );
 }
 
@@ -304,9 +336,35 @@ fn the_call_site_check_refuses_an_operation_awaited_directly() {
         "a direct call is not wrapped, and must not count"
     );
 
-    let accepted = "Self::run(move || firewall::list_bans(host.as_ref(), distro)).await";
+    let accepted = "run_blocking(\"firewall operation\", to_agent_error, move || \
+         firewall::list_bans(host.as_ref(), distro)).await";
     let (calls, wrapped) = call_sites(accepted, "list_bans");
 
     assert_eq!(calls, 1, "the matcher must see the wrapped call too");
     assert_eq!(wrapped, 1, "a wrapped call must be accepted");
+
+    // The shared wrapper is nine other services' wrapper too, so a call handed
+    // to it under a different area's noun phrase is not this area's call site
+    // and must not be counted as one.
+    let another_area = "run_blocking(\"site operation\", to_agent_error, move || \
+                        firewall::list_bans(host.as_ref(), distro)).await";
+    let (calls, wrapped) = call_sites(another_area, "list_bans");
+
+    assert_eq!(calls, 1, "the matcher must see the call");
+    assert_eq!(
+        wrapped, 0,
+        "a call wrapped under another area's phrase must not count as this area's"
+    );
+
+    // rustfmt writes a multi-line closure body in braces, and both spellings
+    // are the same call site.
+    let across_lines = "run_blocking(\"firewall operation\", to_agent_error, move || {\n    \
+                        firewall::list_bans(host.as_ref(), distro)\n})\n.await";
+    let (calls, wrapped) = call_sites(across_lines, "list_bans");
+
+    assert_eq!(calls, 1, "the matcher must see the call across lines");
+    assert_eq!(
+        wrapped, 1,
+        "a wrapped call broken across lines must be accepted"
+    );
 }

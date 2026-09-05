@@ -84,3 +84,75 @@ fn a_request_containing_digits_is_accepted() {
 
     assert_eq!(name.as_str(), "acme_shop2024");
 }
+
+#[test]
+fn every_name_the_constructor_accepts_decodes_back_to_itself() {
+    // The round-trip property: construction and its inverse must agree for EVERY accepted
+    // input, not only for the tidy one the worked example uses. The accounts below are the
+    // cases that could break an `rsplit` — a plain name, an account whose own name contains
+    // the separator, and one that is mostly separators — crossed with the whole accepted
+    // alphabet of the requested half.
+    for account_name in ["acme", "alice_bob", "a_b_c_d"] {
+        let owner = AccountName::parse(account_name).expect("a valid account name");
+
+        for requested in ["shop", "a", "shop2024", "x1", "zzzzzzzzzz"] {
+            let built = DbUserName::for_account(&owner, requested).expect("a valid request");
+
+            let decoded = DbUserName::decode(&owner, built.as_str());
+
+            assert_eq!(
+                decoded.map(|name| name.as_str().to_owned()),
+                Some(built.as_str().to_owned()),
+                "{account_name} / {requested} must round-trip"
+            );
+        }
+    }
+}
+
+#[test]
+fn a_name_that_exactly_fills_the_limit_still_round_trips() {
+    // The boundary the constructor accepts is the boundary the decoder must too: `decode`
+    // rebuilds through `for_account`, so a ceiling that disagreed by one byte would drop the
+    // longest names an account owns and nothing else.
+    let built = DbUserName::for_account(&account(), &"a".repeat(32 - 5)).expect("a valid request");
+
+    let decoded =
+        DbUserName::decode(&account(), built.as_str()).expect("the longest name round-trips");
+
+    assert_eq!(decoded.as_str().len(), 32);
+}
+
+#[test]
+fn another_accounts_name_does_not_decode() {
+    // `alice_` is a prefix of `alice_bob_admin`, so a prefix scan would hand this
+    // account another tenant's name. Splitting at the LAST separator and comparing the whole
+    // account is what refuses it.
+    let other = AccountName::parse("alice_bob").expect("a valid account name");
+    let theirs = DbUserName::for_account(&other, "admin").expect("a valid request");
+    let alice = AccountName::parse("alice").expect("a valid account name");
+
+    assert!(DbUserName::decode(&alice, theirs.as_str()).is_none());
+}
+
+#[test]
+fn a_name_that_was_never_built_by_this_agent_decodes_to_nothing() {
+    // `decode` refuses rather than guessing: these reach it from the server's own listings,
+    // and a plausible-looking answer for a name outside the convention is what would put
+    // another tenant's row into a listing or a deletion.
+    for candidate in [
+        "",                // nothing at all
+        "acme",            // no separator: the account's own name is not a prefixed name
+        "_",               // the separator alone: both halves empty
+        "___",             // all separators, which the requested half may not contain
+        "acme_",           // the account, then nothing requested
+        "_shop",           // a requested half with no account in front
+        "other_shop",      // a different account entirely
+        "acme_Shop",       // outside the alphabet, so this agent never created it
+        "acme_shop_extra", // decodes to account `acme_shop`, which is not `acme`
+    ] {
+        assert!(
+            DbUserName::decode(&account(), candidate).is_none(),
+            "{candidate:?} must not decode"
+        );
+    }
+}

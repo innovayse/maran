@@ -3,17 +3,16 @@
 use std::sync::Arc;
 
 use maran_distro::DistroAdapter;
-use maran_ops::firewall::{self, FirewallError, FirewallHost};
+use maran_ops::firewall::{self, FirewallHost};
 use tonic::{Request, Response, Status};
 
 use crate::proto::firewall_service_server::FirewallService;
 use crate::proto::{
-    AgentError, AllowPortOk, AllowPortRequest, AllowPortResponse, BanAddressOk, BanAddressRequest,
-    BanAddressResponse, DenyPortOk, DenyPortRequest, DenyPortResponse, ErrorCode, ListBansOk,
-    ListBansRequest, ListBansResponse, ListRulesOk, ListRulesRequest, ListRulesResponse,
-    UnbanAddressOk, UnbanAddressRequest, UnbanAddressResponse, allow_port_response,
-    ban_address_response, deny_port_response, list_bans_response, list_rules_response,
-    unban_address_response,
+    AllowPortOk, AllowPortRequest, AllowPortResponse, BanAddressOk, BanAddressRequest,
+    BanAddressResponse, DenyPortOk, DenyPortRequest, DenyPortResponse, ListBansOk, ListBansRequest,
+    ListBansResponse, ListRulesOk, ListRulesRequest, ListRulesResponse, UnbanAddressOk,
+    UnbanAddressRequest, UnbanAddressResponse, allow_port_response, ban_address_response,
+    deny_port_response, list_bans_response, list_rules_response, unban_address_response,
 };
 use crate::services::firewall::firewall_status::to_agent_error;
 use crate::services::firewall::listed_ban::listed_ban;
@@ -22,6 +21,7 @@ use crate::services::firewall::validated_address::validated_address;
 use crate::services::firewall::validated_ban::validated_ban;
 use crate::services::firewall::validated_ports::validated_ports;
 use crate::services::firewall::validated_rule::validated_rule;
+use crate::services::wire::run_blocking::run_blocking;
 
 /// Serves the host firewall operations over the wire.
 ///
@@ -50,9 +50,10 @@ use crate::services::firewall::validated_rule::validated_rule;
 /// otherwise is what made every debug build answer `/firewall` with a 500.
 /// What holds it now is the call-site assertion in this file's own tests,
 /// which reads this source and requires every one of the six operations to be
-/// reached through the `run` helper below. The helper is used for all six
-/// because the requirement is the same one for all six, and a handler that had
-/// to remember which kind it was calling is a handler that will get it wrong.
+/// reached through `wire::run_blocking` under this area's own noun phrase.
+/// The wrapper is used for all six because the requirement is the same one for
+/// all six, and a handler that had to remember which kind it was calling is a
+/// handler that will get it wrong.
 ///
 /// The distro adapter is held because every operation spawns `nft`, whose
 /// absolute path is a platform fact. The service asks no question of it itself
@@ -73,35 +74,6 @@ impl<H: FirewallHost + 'static> FirewallServiceImpl<H> {
             distro,
         }
     }
-
-    /// Runs one operation on the blocking pool and maps its failure onto the
-    /// wire error — the shape every rpc here shares, written once so that
-    /// adding an rpc cannot forget to leave the runtime or map an error
-    /// differently from its neighbours.
-    ///
-    /// See the note on the type: this is used for the two read-only operations
-    /// as well, which take no lock and would fail silently rather than loudly.
-    ///
-    /// # Errors
-    ///
-    /// Returns the [`to_agent_error`] mapping of whatever the operation failed
-    /// on, or a system failure when the blocking task did not finish — a panic
-    /// inside the agent has no domain answer to give, and rules/proto.md
-    /// reserves gRPC statuses for transport problems, which it is not.
-    async fn run<T, F>(operation: F) -> Result<T, AgentError>
-    where
-        F: FnOnce() -> Result<T, FirewallError> + Send + 'static,
-        T: Send + 'static,
-    {
-        match tokio::task::spawn_blocking(operation).await {
-            Ok(outcome) => outcome.map_err(|error| to_agent_error(&error)),
-            Err(error) => Err(AgentError {
-                code: ErrorCode::SystemFailure as i32,
-                message: format!("the firewall operation did not finish: {error}"),
-                tool_output: String::new(),
-            }),
-        }
-    }
 }
 
 #[tonic::async_trait]
@@ -116,7 +88,10 @@ impl<H: FirewallHost + 'static> FirewallService for FirewallServiceImpl<H> {
         let result = match validated_ports(&request.ssh_ports, request.panel_port) {
             Ok(ports) => {
                 let host = Arc::clone(&self.host);
-                Self::run(move || firewall::list_rules(host.as_ref(), &ports)).await
+                run_blocking("firewall operation", to_agent_error, move || {
+                    firewall::list_rules(host.as_ref(), &ports)
+                })
+                .await
             }
             Err(error) => Err(error),
         };
@@ -151,7 +126,10 @@ impl<H: FirewallHost + 'static> FirewallService for FirewallServiceImpl<H> {
                 let host = Arc::clone(&self.host);
                 let distro = self.distro;
 
-                Self::run(move || firewall::allow_port(host.as_ref(), distro, &ports, &rule)).await
+                run_blocking("firewall operation", to_agent_error, move || {
+                    firewall::allow_port(host.as_ref(), distro, &ports, &rule)
+                })
+                .await
             }
             Err(error) => Err(error),
         };
@@ -184,7 +162,10 @@ impl<H: FirewallHost + 'static> FirewallService for FirewallServiceImpl<H> {
                 let host = Arc::clone(&self.host);
                 let distro = self.distro;
 
-                Self::run(move || firewall::deny_port(host.as_ref(), distro, &ports, &rule)).await
+                run_blocking("firewall operation", to_agent_error, move || {
+                    firewall::deny_port(host.as_ref(), distro, &ports, &rule)
+                })
+                .await
             }
             Err(error) => Err(error),
         };
@@ -211,8 +192,10 @@ impl<H: FirewallHost + 'static> FirewallService for FirewallServiceImpl<H> {
                 let host = Arc::clone(&self.host);
                 let distro = self.distro;
 
-                Self::run(move || firewall::ban_address(host.as_ref(), distro, &address, lifetime))
-                    .await
+                run_blocking("firewall operation", to_agent_error, move || {
+                    firewall::ban_address(host.as_ref(), distro, &address, lifetime)
+                })
+                .await
             }
             Err(error) => Err(error),
         };
@@ -239,7 +222,10 @@ impl<H: FirewallHost + 'static> FirewallService for FirewallServiceImpl<H> {
                 let host = Arc::clone(&self.host);
                 let distro = self.distro;
 
-                Self::run(move || firewall::unban_address(host.as_ref(), distro, &address)).await
+                run_blocking("firewall operation", to_agent_error, move || {
+                    firewall::unban_address(host.as_ref(), distro, &address)
+                })
+                .await
             }
             Err(error) => Err(error),
         };
@@ -261,7 +247,10 @@ impl<H: FirewallHost + 'static> FirewallService for FirewallServiceImpl<H> {
     ) -> Result<Response<ListBansResponse>, Status> {
         let host = Arc::clone(&self.host);
         let distro = self.distro;
-        let result = Self::run(move || firewall::list_bans(host.as_ref(), distro)).await;
+        let result = run_blocking("firewall operation", to_agent_error, move || {
+            firewall::list_bans(host.as_ref(), distro)
+        })
+        .await;
 
         let result = match result {
             Ok(bans) => list_bans_response::Result::Ok(ListBansOk {

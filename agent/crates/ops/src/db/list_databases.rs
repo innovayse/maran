@@ -7,13 +7,6 @@ use crate::db::db_error::DbError;
 use crate::db::db_host::DbHost;
 use crate::db::model::database_summary::DatabaseSummary;
 
-/// The character `for_account` puts between the account and the requested name.
-///
-/// Kept here as well as in the validated type because this module performs the
-/// inverse operation, and a decoder that guessed at the separator would decode
-/// nothing on the day the two disagreed — silently, as an empty listing.
-const SEPARATOR: char = '_';
-
 /// The statement that asks the server for every database it holds.
 const SHOW_DATABASES: &str = "SHOW DATABASES";
 
@@ -43,11 +36,14 @@ const SHOW_DATABASES: &str = "SHOW DATABASES";
 ///   from. `alice_bob_shop` decodes to account `alice_bob`, which is not
 ///   `alice`, and is dropped.
 ///
-/// Each surviving name is then rebuilt through `DatabaseName::for_account`, so
-/// a row this call reports is a row whose name this agent could itself have
-/// created. A database an administrator made by hand under a name outside the
-/// convention decodes to nothing and is not listed — as are the server's own
-/// `mysql` and `information_schema`, which have no separator at all.
+/// Neither predicate is written here. [`DatabaseName::decode`] is the inverse of
+/// the constructor that built the name and lives beside it, so the split can
+/// never use a character the join did not; this call only keeps what it
+/// returns. A row reported here is therefore a row whose name this agent could
+/// itself have created. A database an administrator made by hand under a name
+/// outside the convention decodes to nothing and is not listed — as are the
+/// server's own `mysql` and `information_schema`, which have no separator at
+/// all.
 ///
 /// The result is sorted by name so that two calls against an unchanged server
 /// give the same answer in the same order, whatever order the server printed.
@@ -86,23 +82,12 @@ fn server_databases(host: &dyn DbHost) -> Result<Vec<String>, DbError> {
         .collect())
 }
 
-/// Decodes `name` and reports it only when it decodes to `account` in full.
+/// Wraps [`DatabaseName::decode`]'s answer as the summary the listing returns.
 ///
-/// The whole account is compared, not a prefix of it — see the note on
-/// [`list_databases`] for why those are different predicates and why only one of
-/// them is sound.
+/// The decode itself belongs to the type — see the note on [`list_databases`]
+/// for why the whole account is compared and not a prefix of it.
 fn decode_for_account(account: &AccountName, name: &str) -> Option<DatabaseSummary> {
-    let (owner, requested) = name.rsplit_once(SEPARATOR)?;
-    if owner != account.as_str() {
-        return None;
-    }
-
-    // Rebuilt rather than wrapped: the type has no constructor that takes a
-    // whole name, and that is what keeps every `DatabaseName` in the process a
-    // name this agent could have created.
-    let database = DatabaseName::for_account(account, requested).ok()?;
-
-    Some(DatabaseSummary { name: database })
+    DatabaseName::decode(account, name).map(|database| DatabaseSummary { name: database })
 }
 
 /// Whether the server holds `name`.

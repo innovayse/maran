@@ -4,7 +4,7 @@ use std::pin::Pin;
 use std::sync::Arc;
 
 use maran_agent_core::validation::web::php_version::PhpVersion;
-use maran_ops::php::{self, PhpHost, PhpOpError};
+use maran_ops::php::{self, PhpHost};
 use tokio::sync::mpsc;
 use tokio_stream::Stream;
 use tokio_stream::wrappers::ReceiverStream;
@@ -17,6 +17,7 @@ use crate::proto::{
     PhpVersion as ProtoVersion, Progress, install_php_version_response, list_php_versions_response,
 };
 use crate::services::php::php_status::to_agent_error;
+use crate::services::wire::run_blocking::run_blocking;
 
 /// How many messages an installation may run ahead of the client.
 ///
@@ -56,37 +57,6 @@ impl<H: PhpHost + 'static> PhpServiceImpl<H> {
         }
     }
 
-    /// Runs one operation on the blocking pool and maps its failure onto the
-    /// wire error — the shape every rpc here shares, written once so that
-    /// adding an rpc cannot forget to leave the runtime or map an error
-    /// differently from its neighbours.
-    ///
-    /// It exists in all three of the new services and says the same thing in
-    /// each: a blocking task that panicked has no domain answer to give and is
-    /// reported as a system failure, NOT as a gRPC status, which rules/proto.md
-    /// reserves for transport problems. Written by hand in one service and
-    /// borrowed in the others, that is exactly the line that comes out
-    /// different.
-    ///
-    /// # Errors
-    ///
-    /// Returns the [`to_agent_error`] mapping of whatever the operation failed
-    /// on, or a system failure when the blocking task did not finish.
-    async fn run<T, F>(operation: F) -> Result<T, AgentError>
-    where
-        F: FnOnce() -> Result<T, PhpOpError> + Send + 'static,
-        T: Send + 'static,
-    {
-        match tokio::task::spawn_blocking(operation).await {
-            Ok(outcome) => outcome.map_err(|error| to_agent_error(&error)),
-            Err(error) => Err(AgentError {
-                code: ErrorCode::SystemFailure as i32,
-                message: format!("the PHP operation did not finish: {error}"),
-                tool_output: String::new(),
-            }),
-        }
-    }
-
     /// Revalidates a version string arriving from the panel.
     ///
     /// The API validated it already. This is the agent's own check, and it
@@ -119,7 +89,11 @@ impl<H: PhpHost + 'static> PhpService for PhpServiceImpl<H> {
     ) -> Result<Response<ListPhpVersionsResponse>, Status> {
         let (host, distro) = (Arc::clone(&self.host), self.distro);
 
-        let result = match Self::run(move || php::list_php_versions(host.as_ref(), distro)).await {
+        let result = match run_blocking("PHP operation", to_agent_error, move || {
+            php::list_php_versions(host.as_ref(), distro)
+        })
+        .await
+        {
             Ok(versions) => list_php_versions_response::Result::Ok(ListPhpVersionsOk {
                 versions: versions
                     .into_iter()

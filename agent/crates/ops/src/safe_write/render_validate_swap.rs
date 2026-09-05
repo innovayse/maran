@@ -39,8 +39,12 @@ use crate::safe_write::{ConfigHost, RollbackGuard, SafeWriteError};
 /// restored to its previous state (or removed, if it did not exist before).
 /// Returns [`SafeWriteError::ReloadFailed`] when validation passed but the
 /// reload command did not, with the previous configuration restored despite
-/// the successful swap. Returns [`SafeWriteError::RollbackFailed`] when a
-/// restoration required by one of the above also failed.
+/// the successful swap. Returns [`SafeWriteError::SpawnFailed`] when the
+/// validator or the reload could not be STARTED — a missing or unexecutable
+/// binary, which is a different job for an operator than either of them
+/// refusing — with the same restoration the refusal would have had. Returns
+/// [`SafeWriteError::RollbackFailed`] when a restoration required by one of
+/// the above also failed.
 pub fn write_config(
     host: &dyn ConfigHost,
     target: &Path,

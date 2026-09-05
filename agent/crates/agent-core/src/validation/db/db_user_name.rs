@@ -1,13 +1,9 @@
 //! A MySQL user name that carries its owning account's prefix.
 
 use crate::validation::db::db_user_name_error::DbUserNameError;
+use crate::validation::prefix_problem::PrefixProblem;
+use crate::validation::prefixed_name::{SEPARATOR, prefixed};
 use crate::validation::system::name::AccountName;
-
-/// The separator between an account's name and the name its customer chose.
-///
-/// The same underscore [`super::database_name::DatabaseName`] uses, so a
-/// database and the user that owns it read as one pair in an operator's listing.
-const SEPARATOR: char = '_';
 
 /// MySQL's user-name ceiling.
 ///
@@ -49,23 +45,42 @@ impl DbUserName {
     /// - [`DbUserNameError::TooLong`] when the prefixed result exceeds MySQL's
     ///   thirty-two byte user-name limit.
     pub fn for_account(account: &AccountName, requested: &str) -> Result<Self, DbUserNameError> {
-        if requested.is_empty() {
-            return Err(DbUserNameError::Empty);
+        prefixed(account, requested, MAXIMUM_LENGTH)
+            .map(Self)
+            .map_err(|problem| match problem {
+                PrefixProblem::Empty => DbUserNameError::Empty,
+                PrefixProblem::UnexpectedCharacter { character } => {
+                    DbUserNameError::UnexpectedCharacter { character }
+                }
+                PrefixProblem::TooLong { length } => DbUserNameError::TooLong { length },
+            })
+    }
+
+    /// Decodes a database user name back into the type, only when it belongs
+    /// to `account`.
+    ///
+    /// The inverse of [`DbUserName::for_account`], kept on the same type so the
+    /// separator cannot drift between the builder and the decoder. The WHOLE
+    /// account is compared, not a prefix of it: account names may contain the
+    /// separator, so `alice_` is a prefix of `alice_bob_admin`, which belongs
+    /// to account `alice_bob`. Splitting at the LAST separator recovers the
+    /// halves, because `for_account` forbids the separator in the requested
+    /// half.
+    ///
+    /// A candidate this agent could not have created — `root`, `mysql.sys`, a
+    /// user an administrator made by hand, another account's — decodes to
+    /// `None`. It never comes back as a plausible-looking guess: this is what
+    /// a cascade deciding which credentials to drop reads.
+    #[must_use]
+    pub fn decode(account: &AccountName, candidate: &str) -> Option<Self> {
+        let (owner, requested) = candidate.rsplit_once(SEPARATOR)?;
+        if owner != account.as_str() {
+            return None;
         }
 
-        if let Some(character) = requested
-            .chars()
-            .find(|c| !(c.is_ascii_lowercase() || c.is_ascii_digit()))
-        {
-            return Err(DbUserNameError::UnexpectedCharacter { character });
-        }
-
-        let full = format!("{}{SEPARATOR}{requested}", account.as_str());
-        if full.len() > MAXIMUM_LENGTH {
-            return Err(DbUserNameError::TooLong { length: full.len() });
-        }
-
-        Ok(Self(full))
+        // Rebuilt rather than wrapped: `for_account` is the only constructor,
+        // which keeps every value in the process one this agent could create.
+        Self::for_account(account, requested).ok()
     }
 
     /// The name as MySQL will hold it, prefix included.
