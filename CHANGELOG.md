@@ -101,6 +101,27 @@ otherwise find out the hard way.
 
 ### Fixed
 
+- **The installer's panel vhost was never the file `nginx -t` checked, and the vhost it shipped
+  did not load.** Step 80 wrote the rendered vhost to `maran.conf.staging` and then ran
+  `nginx -t`; nginx includes `conf.d/*.conf`, which `.staging` does not match, so the test parsed
+  a tree the new file was not in, printed "test is successful", and the installer moved a file
+  nothing had read over the served path. It hid a second defect for as long as it existed: the
+  shipped vhost asked for HTTP/2 with `http2 on;`, a directive that arrived in nginx 1.25.1, while
+  the supported families ship older ones — so on Ubuntu 24.04 and AlmaLinux 9 the panel's own
+  vhost was an "unknown directive" and nginx would not start with it. The vhost now reaches disk
+  through the same render-swap-validate-roll-back protocol the agent uses for customer configs, so
+  what is validated is the file that will be served; a vhost nginx refuses now stops the install
+  with the previous configuration restored and nothing reloaded, instead of surfacing at the next
+  reload with a successful `nginx -t` in the log as evidence that it was fine. Validating after the
+  swap means there is one `nginx -t` during which a file nobody has approved sits on the served
+  path, so an install interrupted inside it — Ctrl-C, a dropped SSH session, a stopped container —
+  now puts the previous vhost back before the installer dies, and re-raises the signal. After a
+  `SIGKILL`, which nothing can catch, the next run prefers the rollback copy the installer left
+  behind to the file on the served path — and asks `nginx -t` about that copy before serving it,
+  because a copy this step did not write may be a fragment a hard reset left behind. One it cannot
+  load is left where it is, named, with the panel vhost removed rather than replaced by it: the
+  panel is then unreachable until an install finishes, which costs the panel, where an nginx that
+  will not start costs every site on the host.
 - **Deleting a customer armed a trap for every other customer.** A php-fpm pool names the account
   it runs as and php-fpm resolves that name at startup, so a pool left behind by a deleted account
   made the next reload — for any reason, days later — fail with `cannot get uid for user` and take

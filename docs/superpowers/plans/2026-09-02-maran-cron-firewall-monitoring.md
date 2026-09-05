@@ -6,7 +6,7 @@
 
 **Architecture:** Same shape as Plans 3 and 4. The agent gains three areas (`ops::cron`, `ops::firewall`, `ops::monitor`) behind the three proto services that already exist as stubs; every value that reaches a config file is a validated type from `agent-core`; nftables text is rendered by `templates` with golden tests. The backend fills four prepared module homes (Cron, Firewall, Monitoring, Tasks) plus Identity changes; modules talk only through Wolverine messages and `Maran.Sdk`. The SPA gains four screens and two settings screens.
 
-**Tech Stack:** Existing stack plus TWO new dependencies, both named here so the licence pass expects them: **MailKit** (backend — `System.Net.Mail.SmtpClient` is documented obsolete) and **serde_json** (agent `maran-ops` — parsing `nft -j` output; a hand-rolled JSON parser in a root daemon is worse than a vetted one). `maran licenses` runs in Task 17.
+**Tech Stack:** Existing stack plus THREE new dependencies, all named here so the licence pass expects them: **MailKit** (backend — `System.Net.Mail.SmtpClient` is documented obsolete), **serde_json** (agent `maran-ops` — parsing `nft -j` output; a hand-rolled JSON parser in a root daemon is worse than a vetted one), and **rustix** (agent `maran-ops` — `statvfs` for the root filesystem's used/total bytes; added during Task 6 because the only alternatives were `unsafe` in `ops`, which the rules forbid, or a `DistroAdapter` method for something that does not differ per family). `maran licenses` runs in Task 17 and must cover all three.
 
 **Spec:** docs/superpowers/specs/2026-08-29-maran-design.md — §11 (Cron, Firewall, Monitoring, Tasks), §15, §10/§16. Issue #5.
 
@@ -39,7 +39,9 @@
 - **R1 — default-drop input, split across two tables, and the order is load-bearing.** Bans live in `table inet maran_bans` whose input chain hooks at priority -5: `iif "lo" accept`, then the two ban-set drops, policy accept. Rules live in `table inet maran` at priority 0: loopback accept, `ct state invalid` drop, `ct state established,related` accept, ICMP/ICMPv6, SSH, the panel port, the API-managed allows, policy drop. Consequences, all intended and empirically verified on the polygon: a ban can never sever loopback (the -5 chain accepts `lo` before its drops, and an accept verdict in one chain only ends THAT chain — the packet still traverses priority 0, which accepts `lo` again; ping from a banned loopback alias was confirmed answered); a ban DOES kill the attacker's already-open sessions (priority -5 runs before the rules table's established-accept); a ban applies to SSH and the panel — that is what an anti-brute-force ban is FOR, and self-lockout is guarded one layer up (R8's whitelist, seeded by the installer). `inet` family means the port allows cover IPv6 (verified).
 - **R2 — SSH's hard allow is a fallback, not a cage, and neither port is a literal.** The template takes `ssh_port` and `panel_port` as parameters, and BOTH are host facts only the INSTALLER knows, delivered the same way: `Firewall__SshPort` (first `Port` directive of the host's real `sshd_config`, default 22 — a host running sshd on 2222 must not be locked out by a template that only knows 22) and `Firewall__PanelPort` (nginx's public vhost port, 8443, written by the same installer that writes the vhost) into `panel.env`, bound by the Firewall module's options and sent on every firewall mutation as two proto fields. The panel port is emphatically NOT the backend's own listen configuration: Kestrel listens on loopback 5080 behind nginx, and a literal reading of "its own listen port" renders `tcp dport 5080 accept` under policy drop — the panel then survives the installer's seed and dies on its first mutation, with no remote recovery. This paragraph exists because a review caught exactly that reading. `tcp dport {{ ssh_port }} accept` renders UNCONDITIONALLY ONLY while no admin-authored **TCP** rule for that port exists; the moment one does, the explicit rules render instead — so an admin CAN source-restrict SSH. A UDP rule for the same port number is an ordinary allow and does NOT displace the fallback (a UDP rule deleting TCP SSH access was a reviewed lockout hole). Removing the last TCP ssh-port rule returns the fallback: fail-open for SSH, by design. The panel port's hard allow has no override in v1 — a panel lockout has no remote recovery path at all.
 - **R3 — the customer's command NEVER appears in the crontab.** v1 wrapped the command in `( … )` inline and was disproved twice: cron rewrites the first unescaped `%` into a newline (breaking v1's own `date +%s` suffix), and `echo hi # comment` parses standalone but not inside `( )`. The corrected design: the command is written VERBATIM (plus trailing newline) to a per-entry file `~/.maran/cron/<id>.cmd`, and the installed crontab line is one hundred percent agent constants plus the entry id: `<schedule> /bin/sh /home/<acc>/.maran/cron/<id>.cmd > /home/<acc>/.maran/cron/<id>.log 2>&1; echo $? > /home/<acc>/.maran/cron/<id>.exit`. Output is truncated per run (`>` — the spec wants the LAST run); the exit file's CONTENT is the code and its MTIME is the run timestamp, so no `date`, no `%`, no second file. `/bin/sh` is named explicitly so a crontab `SHELL` override cannot change the interpreter. The command alphabet accordingly RELAXES from v1: `%` and `#` are legal (they live in a file now); control characters (`\n`, `\r`, `\0`, all of `char::is_control`) and the 4096-byte ceiling remain refused — a `.cmd` is one command line, not a script editor.
-- **R4 — everything the agent touches under an account's home, it touches AS the account.** Creating `~/.maran/cron`, writing `.cmd`, reading `.log`/`.exit` all run inside `fork_as_account` (the privs module's single entry point) with paths derived through `AgentPaths` + the entry id, never from input. v1 had root read files inside an account-owned 0700 directory — a customer-planted symlink was an arbitrary-root-file-read surfaced straight into the UI's "show last output". Under the account's own uid a symlink can only reach what the account already reads. There is no chown branch anywhere.
+- **R4 (as corrected during Task 4) — writes and removals under an account's home fork; reads that must RETURN data use the hardened root-side open.** Creating `~/.maran/cron`, writing `.cmd` and removing entry files run inside `fork_as_account`, with paths derived through `AgentPaths` + the entry id, never from input. There is no chown branch anywhere.
+  READS are different, and the original wording was wrong about them: `fork_as_account` returns `Result<(), PrivError>` with no channel back from the child, and `close_inherited_descriptors()` closes every descriptor ≥3 before the child's work runs, so no pipe or handoff file can carry a file's contents out. A rule that cannot be implemented is a rule that gets quietly broken. So `.cmd`, `.log` and `.exit` are read root-side through the repository's OWN hardened pattern — the one `ops::sites::follow_log` documents — which closes every attack the fork was meant to close: `O_NOFOLLOW` on the directory and the file, `O_DIRECTORY` on the first, `O_NONBLOCK` plus `is_file()` against a FIFO, `nlink == 1` against a hardlink, `uid` ownership checked on BOTH, the file reached through the directory descriptor via `open_in_directory` so no rename can redirect it between opens, and a byte budget enforced DURING the read — a budget checked beforehand is one the account chooses the moment to exceed.
+  The `privs` gap is real and is filed separately: giving `fork_as_account` a channel back from the child touches the one crate where `unsafe` is allowed, and `rules/security.md` requires a second reviewer and a threat note for that.
 - **R5 — the ruleset file is REPLACED atomically; bans live in a second table.** `nft -f` is ADDITIVE — proven on the alma9 polygon: re-loading a re-rendered file left a removed rule live and duplicated the rest, so v1's DenyPort reported success while the port stayed open. The rendered file therefore begins with the canonical replace idiom — `table inet maran {}` (no-op create) followed by `delete table inet maran` followed by the full declaration — and bans CANNOT live in that table (delete would erase them): they live in `table inet maran_bans` with its own input chain at hook priority -5. Order across tables is decided by hook priority alone, so the bans chain runs before the rules chain, and it therefore carries its own `iif "lo" accept` ahead of the set drops. Both chains are golden-tested (Task 3) and the whole arrangement was verified live on the polygon (a ban survives a rules re-apply; loopback survives a ban).
 - **R6 — a ban is `nft add element` with a timeout; the panel is the durable store.** Both families' nftables units flush on stop/reload (verified: Debian's config file opens with `flush ruleset`; RHEL's unit `ExecStop`/`ExecReload` flush), so runtime bans die with a service restart or reboot. That is fine BECAUSE the Firewall module records every ban (address, expiry, reason) in `firewall.BanEpisodes` and a startup reconciler re-applies the unexpired ones. The agent stores no reason: v1 put `reason` on the wire and into an nft `comment`, which was an injection primitive (nft parses its argument in its own grammar) — the reason is panel metadata only; the proto fields STAY on the wire, deprecated and never read or written (the additive law — Task 7 Step 0 is normative).
 - **R7 — network metrics are counters since boot**; the chart endpoint derives rates by dividing the delta by the ACTUAL elapsed seconds between the two samples (the sampler is allowed gaps), clamping a negative delta (reboot, interface churn) to zero.
@@ -60,7 +62,109 @@
 5. **Mutation-test protections against the WHOLE suite; restore byte-identical with fresh mtime (`cmp`), then rebuild.**
 6. **Counters, not deltas, across a stateless boundary; divide by measured elapsed time.**
 7. **Silence is not success.** A verifier must positively confirm it saw the thing it verifies (empty CI run list ≠ green; `*) exit 0` in a stand-in ≠ a service manager).
-8. **Verify rulings empirically before building on them.** Two v1 rulings died on the polygon in review (`nft -f` additivity, `%` in the capture suffix). When a task says "verify on the polygon and record the answer", that verification is part of the task's deliverable, and the recorded answer goes in the code's doc comment.
+8. **Score a mutation on its NAMED failures, never on a count.** Three separate runs in Task 4's
+   re-review each reported exactly `1057 passed / 2 failed` — a count-scoring harness would have
+   called two genuine kills SURVIVED, because two unrelated tests from a concurrent agent were red
+   throughout. Only the named list separates a kill from a coincidence. Cross-checking the count
+   against the names is not enough on a shared tree: the NAMES are the score.
+9. **A SURVIVED verdict owes a witness.** A mutation that changes nothing survives accurately and
+   means nothing — `filter_map(|f| Some(x))` where the original was `map` compiles to identical IR,
+   and no "did the file change" guard can see it. So a survivor is only reportable with one
+   throwaway assertion that is RED under the mutant and GREEN under the original, both results
+   pasted. If no such assertion can be written, the mutation changed no behaviour and must not
+   appear in the table at all — and it belongs under the existing NOT MEASURED verdict rather than
+   as a new category, because KILLED already carries its own proof of observability. Only SURVIVED
+   bears the burden.
+   **Three mechanisms, in the order they cost:** (a) log `diff pristine mutant` into every run —
+   free, and it makes a three-line no-op visible on sight; (b) the **escalation probe** — re-mutate
+   the SAME expression to something maximally destructive and read the pair: both survive means the
+   region is genuinely untested and the verdict stands, while the destructive one dying means the
+   tests do reach it and the survivor must not be scored. Measured on the real case: the no-op
+   survived all 1060 tests while `Some(0)` on the same expression killed 8. It is a screen, not a
+   proof, but it needs no author judgement; (c) the deciding check is the harness-verified witness
+   above — one input and the two differing outputs, run on pristine and mutant, refuse to score if
+   they are equal. An author cannot bluff it, and writing the witness IS writing the killing test.
+   **A measured dead end, recorded so nobody spends the afternoon on it:** codegen hashing does not
+   work. `rustc -O --emit=llvm-ir` gave 843 differing IR lines for the no-op against 1588 for the
+   faithful mutation — no threshold separates them. An earlier draft of this rule claimed identical
+   IR would prove a no-op; it was wrong, and it was corrected by a reviewer who ran it. The REASON
+   it cannot work is worth keeping beside the result: a no-op rewrite still changes WHICH iterator
+   adapters are instantiated, so it perturbs the IR heavily while perturbing behaviour not at all.
+   IR distance measures how much code moved; a mutation harness needs to know whether MEANING
+   moved. The escalation probe works precisely because it asks a behavioural question instead of a
+   structural one.
+10. **Mutate the SHAPE of the original bug, not merely the absence of its fix.** Deleting a call
+   proves the call is reached; only mis-ordering it proves the ORDER is what the test checks. Task
+   5's durability fix needed both mutants before the test meant anything.
+11. **A filtered test run manufactures survivors — re-measure every SURVIVED verdict unfiltered
+   before tabling it.** Observed live in Task 3: a `-p`-filtered target reported SURVIVED for two
+   template lines that the whole workspace showed KILLED, by four tests in `ops::firewall`. The
+   guard for a line can live in another crate entirely — Task 3's line 23 turned out to be half
+   guarded by `templates` goldens and half by firewall unit tests — so a crate-scoped run is blind
+   to exactly the coverage that matters most, the kind that crosses a boundary.
+12. **No fixture may give a parameter a value equal to what a literal-substitution mutant would
+   render.** A golden whose `ssh_port` is 22 cannot see `{{ ssh_port }}` → `22`; a golden whose
+   `panel_port` is 8443 cannot see `{{ panel_port }}` → `8443`. Both survived a full workspace run
+   in Task 3, on the two lines where a wrong value costs remote access to the host. The realistic
+   default is precisely the value that blinds the test, and an implementer reaches for it by
+   instinct — so the rule is stated where fixtures are built, not left to judgement.
+13. **Before declaring a fix round done, sweep the docs for identifiers that no longer exist.**
+   Grepping for the name you just removed only finds the removal you already remembered — which is
+   why a stale doc outlived its mechanism three separate times in this plan. The check that works
+   asks the opposite question: take every backticked identifier in every comment in the area and
+   confirm each still resolves to something in `agent/crates`. Task 5 ran it over 28 files and got
+   zero unresolved; it is cheap, it needs no memory of what changed, and it is what would have
+   caught the stale comment that survived the round claiming to close it.
+14. **When one mutation could be killed by either of two guards, mutate them separately — and if
+   no existing test separates them, that is the missing test.** Task 5's first attempt at the
+   malformed-set finding mutated both guards at once, which scores the pair rather than each check.
+   Splitting them revealed that the obvious test does NOT separate them: with the per-set refusal
+   downgraded, the document-level guard still catches a document whose ONLY set is junk. What
+   separates them is a readable set BESIDE an unreadable one — the readable one satisfies the
+   document guard while the junk one is skipped in silence. The distinguishing case is the test
+   that was missing.
+15. **A shell gate must be run to completion in the real image, and that run is the last step of
+   verification rather than an afterthought.** `bash -n` parses without evaluating, so it cannot see
+   an unbound variable; and a local run of `assert-installer-steps.sh` dies at the MariaDB gate
+   ~300 lines before the line that was broken. A `readonly` dropped while both its uses remained
+   therefore passed every local check and killed BOTH image builds. Nothing short of the complete
+   script inside the real image proves a shell gate works.
+16. **When an oracle compares two sources of truth, decide deliberately whether it demands equality
+   or a superset — and say which.** Task 16a's detector answers `2300` for
+   `ListenAddress 0.0.0.0:2300` while `sshd -T` reports that port under `listenaddress` rather than
+   `port`, so an equality assertion would have failed the build on CORRECT behaviour. The oracle
+   allows a superset on purpose. An oracle whose strictness was never chosen will eventually fail
+   the thing it was built to protect.
+17. **When two sources disagree, go to the ground truth rather than to a third opinion.** Task
+   16a's detector answered 2300 and its oracle answered 22 for the same host. Both were readings of
+   `sshd_config` and of `sshd -T`; neither settles which port sshd actually binds. The implementer
+   started a real sshd on both families and looked at the listening sockets: 2300. That turned
+   "two views of the host" into "one of them is wrong about it" — `sshd -T`'s `port` lines are the
+   `Port` OPTION, printed always and defaulting to 22 whether or not a socket uses it, while
+   `listenaddress` is the socket list. A disagreement between two derived readings is not resolved
+   by reasoning about either.
+18. **When a field is retained for compatibility and a new field supersedes it, every test must
+   set the two to DISAGREE.** Task 8's tri-state mapping consulted the deprecated `running` boolean
+   in one arm and no test noticed, because every existing case set the boolean to AGREE with the
+   state field — so reading either gave the same answer and the mutant survived. The fix is a
+   theory whose every row sets the old field to the value that flips the result if it is consulted:
+   `(Running,false)`, `(Stopped,true)`, `(Unknown,true)`. A compatibility field is retained
+   precisely so new code stops reading it; a test that lets the two agree cannot tell whether it
+   did.
+19. **When a mutant dies, confirm it died from the check under test and not from an earlier
+   guard.** Task 16b's unbounded-`sed` mutant survived twice, and the second time was the
+   instructive one: the case had been added AFTER an earlier step deleted the payload, so the
+   refusal came from a missing include rather than from the marker check the test names. A green
+   assertion that refuses for the wrong reason is indistinguishable from one that refuses for the
+   right one — set the precondition immediately before the case, and take the expected text from
+   the production constant rather than restating it.
+20. **A test must run the code path production runs, not an isolated helper.** Task 16b's `exit 1`
+   fired inside a process substitution, so a malformed port list truncated instead of aborting and
+   the step returned rc 0 — while its assertion ran the same helper in an EXPLICIT subshell, where
+   `exit` is observable, and passed. Not a missing case: a case run in a context the real caller
+   does not have. Assert on the CALLER's outcome — what it returned, what reached the outside world
+   — and the isolated-helper test becomes unnecessary rather than misleading.
+21. **Verify rulings empirically before building on them.** Two v1 rulings died on the polygon in review (`nft -f` additivity, `%` in the capture suffix). When a task says "verify on the polygon and record the answer", that verification is part of the task's deliverable, and the recorded answer goes in the code's doc comment.
 
 ## File structure
 
@@ -91,7 +195,10 @@ agent-core (+): utils/system_accounts.rs  NEW unit: parse a passwd database into
 
 distro (+): crontab/nft/sh binaries; nftables persistence facts per family (Task 2, VERIFIED);
             firewall_service, cron_service, managed_units
-templates: nftables/{ruleset.rs, bans_table.rs} + .j2 ×2 + golden ×2
+templates: nftables/{nftables_ruleset.rs, nftables_bans_table.rs, nftables_allow.rs,
+           nftables_protocol.rs} + .j2 ×2 + golden ×3   [names corrected during Task 3: structure
+           check 16 names a file after its public item, and `ruleset.rs` holding `NftablesRuleset`
+           fails it. `subject_named` is a SKIP list and must not be extended to keep a wrong name.]
 ops: cron/ …entry files, cron_host.rs, process_cron_host.rs (privs!), model/…
      firewall/ …, apply_ruleset.rs (replace idiom), ensure_bans_table.rs, model/…
      monitor/ …, fixtures under tests/fixtures/proc/{ubuntu24,alma9}/
@@ -167,7 +274,7 @@ docker/polygon (+): nftables + cron packages; systemctl stand-in state support
 
 ### Task 3: The nftables templates — rules table and bans table
 
-**Files:** `templates/src/nftables/{mod.rs,ruleset.rs,bans_table.rs}`, `templates/nftables/{ruleset.nft.j2,bans_table.nft.j2}`, two goldens, registrations (+).
+**Files:** `templates/src/nftables/{mod.rs, nftables_ruleset.rs, nftables_bans_table.rs, nftables_allow.rs, nftables_protocol.rs}`, `templates/nftables/{ruleset.nft.j2,bans_table.nft.j2}`, three goldens, registrations (+). One file per public item — structure check 16 derives the expected filename from the item, so a type named `NftablesRuleset` lives in `nftables_ruleset.rs`. Never extend `subject_named` in `check-structure.sh` to keep a different name: it is a SKIP list, and an entry there EXEMPTS the file from the check entirely.
 
 **Render structs:** `NftablesRuleset { ssh_port: u16, panel_port: u16, ssh_rules: Vec<NftablesAllow>, allows: Vec<NftablesAllow> }` — `ssh_rules` holds ONLY the TCP rules whose port equals `ssh_port` (the builder in Task 5 routes them; a UDP rule for the same number is an ordinary allow and never displaces the fallback); `NftablesAllow { port: u16, protocol: NftablesProtocol, source_cidr: String, source_is_any: bool, family_keyword: &'static str }`. `NftablesBansTable {}` (constant text, but rendered like every other template so the golden regime covers it).
 
@@ -236,7 +343,11 @@ table inet maran_bans {
 }
 ```
 
-Goldens: ruleset rendered with ssh_port 22, panel_port 8443, no ssh_rules, allows [80/tcp any, 443/tcp any, 3306/tcp 10.0.0.0/8]; a second golden `ruleset_ssh_restricted.nft` with ssh_port 2222 and one ssh_rule (203.0.113.0/24) proving both the parameterised port and that the fallback disappears; bans table as-is.
+Goldens — THREE for the ruleset, and the third exists because a mutation survived the first two.
+1. `ruleset.nft`: ssh_port 22, panel_port 8443, no ssh_rules, allows [80/tcp any, 443/tcp any, 3306/tcp 10.0.0.0/8].
+2. `ruleset_ssh_restricted.nft`: ssh_port 2222 with restricted ssh rules whose `port` is deliberately 22 — NOT equal to `ssh_port` — plus a second ssh rule on `ip6`, and a source-restricted UDP allow. Every one of those parameters pins a mutant that survived without it: with the ports equal, `{{ ssh_port }}` → `{{ rule.port }}` renders identically; with every restricted allow TCP, a hard-coded `tcp` renders identically and would leave a requested UDP port closed while opening an unrequested TCP one under `policy drop`; with one family only, `{{ rule.family_keyword }}` → `ip` renders identically. A comment in the test data says why the ports disagree, so nobody "simplifies" them back.
+3. `ruleset_ssh_any_source.nft`: ssh_port 2222, one ssh rule with `source_is_any: true` and `port: 22`. Covers the `source_is_any` ssh branch alone, which survives both goldens above; it cannot live in golden 2 because a bare `tcp dport 2222 accept` there would be byte-identical to the fallback and destroy the very property golden 2 exists to show.
+Bans table golden as-is.
 
 - [ ] Steps: goldens first (red) → implement → byte-flip check on each template → restore.
 
@@ -274,7 +385,17 @@ Goldens: ruleset rendered with ssh_port 22, panel_port 8443, no ssh_rules, allow
 
 `get_service_statuses` returns `ServiceState::{Running, Stopped, Unknown}` + detail (the proto changes in Task 7 make it representable); `get_accounts_disk_usage` reports USED BYTES ONLY, and `quota_bytes` on the wire is written 0 and deprecated: the panel already owns every account's quota (the plan assigned it; the Accounts module stores it), and the Sdk-window widening that lets Monitoring read it is BACKEND work — it lives in Task 11, not here (an earlier draft filed it in this agent task, breaking Phase A's disjointness). This task's whole obligation is: report used bytes and the agent never parses `repquota` for this at all — the earlier draft's plan to reuse `ops::accounts`' `QuotaBlocks` was a forbidden cross-area import, and moving a domain parser into `utils/` (which rules/rust.md defines as domain-free) would have been a second violation to paper over the first. What the monitor DOES need is account enumeration, which today is a method body inside `ProcessSftpHost` reading the passwd database — so this task EXTRACTS it: a new `agent-core/src/utils/system_accounts.rs` (pure function: passwd text → account rows; tests move with the logic), `SftpHost`'s implementation delegates to it (a trait-shape-preserving refactor, and the full agent suite is measured before and after with equal totals), and `ops::monitor` calls the same unit. Rules-change §4 adds exactly that one map row; `/proc` parsers are pure functions over committed fixture text captured FROM both polygon images into `ops/tests/fixtures/proc/{ubuntu24,alma9}/`; CPU is two `/proc/stat` reads 250ms apart (the one permitted in-call wait, doc-commented); network sums physical interfaces (skip `lo`), counters per R7.
 
-- [ ] Steps: failing parser tests on fixtures + `a_stopped_service_is_an_answer_not_an_error`, `loopback_traffic_is_not_network_traffic`, `cpu_percent_is_bounded_0_to_100`; implement; gates; meminfo swap mutation → red.
+**Socket-activated units, measured on the polygons during Task 2 — read `DistroAdapter::managed_units`'s
+doc before writing the status mapping.** On ubuntu24 `ssh.socket` is the enabled unit and
+`ssh.service` is NOT in `multi-user.target.wants/`, so `systemctl is-active ssh` reads inactive on a
+perfectly healthy host. `Accept=no` means the service STAYS ACTIVE once a first connection triggers
+it, so the false-outage window is **boot until the first connection** — it does not reopen between
+logins. Map that window to `Unknown` (or a "not yet started" state), never to `Stopped`: a monitor
+that calls it stopped invents an outage on every Debian-family host at every reboot, and alerting
+(Task 11) would mail about it. Alma9 enables `sshd.service` directly and has no such window. A named
+test pins it: `a_socket_activated_unit_that_has_never_been_triggered_is_not_an_outage`.
+
+- [ ] Steps: failing parser tests on fixtures + `a_stopped_service_is_an_answer_not_an_error`, `a_socket_activated_unit_that_has_never_been_triggered_is_not_an_outage`, `loopback_traffic_is_not_network_traffic`, `cpu_percent_is_bounded_0_to_100`; implement; gates; meminfo swap mutation → red.
 
 ### Task 7: Proto deltas, three services, and a polygon that can say no
 
@@ -284,8 +405,23 @@ Goldens: ruleset rendered with ssh_port 22, panel_port 8443, no ssh_rules, allow
 - cron: created entry appears in `crontab -u acc -l` as the constant line + marker; the `.cmd` holds the command verbatim; **cron RUNS it** (`* * * * *` sentinel write; wait ≤70s; sentinel exists owned by the account; output tail returns it; exit file reads 0 and its mtime is recent); a command containing `#` and `%` runs and captures (the two v1 killers, now regression-pinned on a REAL cron); a disabled entry does not run; a foreign line survives.
 - firewall: apply → `nft list table inet maran` contains policy drop + loopback-first + fallback ssh allow; **allow 3306 then deny 3306 → the listing contains NO 3306 rule and the rule count equals the seeded count** (the F1 regression test, on real nft); a 22-rule displaces the fallback in the live listing; ban an address with 5s timeout → present in `nft -j list set`, absent after 6s; bans table survives a rules re-apply (add ban → apply ruleset → ban still listed).
 - monitor: metrics non-zero and bounded; nginx Running → stand-in `systemctl stop nginx` → Stopped → restore.
+- monitor, **the two things no gate and no unit test can see** (proposed by Task 6's implementer, who
+  named them rather than leaving them uncovered): the `statvfs` block-size choice (`f_frsize` vs
+  `f_bsize`, and free-vs-available — both argued in the doc comment, neither tested anywhere) and the
+  four `/proc` paths, which are string literals no structure rule inspects. ONE cheap assertion closes
+  both: the reported root-filesystem total is within a percent of `df --output=size /`. Add it.
+- monitor, **what the committed fixtures cannot prove**: only `/proc/net/dev` is namespaced, so the
+  container captures of meminfo, stat and loadavg are the HOST kernel's — the fixtures pin the FORMAT,
+  not per-family data, and Docker cannot give alma9 its own kernel. The polygon is therefore the only
+  place a real per-family parse is exercised: assert the metrics parse and are bounded on BOTH images
+  against whatever those kernels actually emit.
+- cron, **carried from Task 4** (three properties provable only on a real host): that `crontab(1)`
+  accepts the rendered table on both families; that `no crontab for` is genuinely what an empty
+  account prints — the implementation matches that STRING rather than an exit code and says so, which
+  makes this the assertion that catches the day it changes; and that a command containing `#` and `%`
+  actually runs and captures, the two characters that killed two earlier designs.
 
-- [ ] **Step 0 — the proto deltas obey rules/proto.md's additive law, checked BY HAND because the lint cannot**: `scripts/lib/proto-lint.sh` is a stub that prints PROTO-OK without checking anything (lesson 7 — do not cite its pass as evidence; the reviewed diff is the artifact). Concretely: NO field is deleted, renumbered or retyped. `BanAddressRequest.reason` and `BanEntry.reason` stay in the file marked deprecated in their comments and are never read or written (removal happens at the next major, with `reserved`); `ServiceStatus.bool running = 2` STAYS and keeps being written for compatibility, and the new `ServiceState state = 4` enum field (next free number) is added beside it with the tri-state — readers prefer `state`; `uptime_seconds` stays, written as 0, comment says unproduced; `MANAGED_SERVICE_FTP` keeps its number with a comment ("reported UNKNOWN until an FTP daemon ships"). New RPCs and new fields are the additive part — and that includes `uint32 ssh_port` and `uint32 panel_port` on `AllowPortRequest`/`DenyPortRequest` (new field numbers; the agent validates both 1..=65535 and renders them per R2 — an absent/zero value is refused, never defaulted, because a defaulted 22 on a host running sshd elsewhere is the lockout this chain exists to prevent).
+- [ ] **Step 0 — the proto deltas obey rules/proto.md's additive law, checked BY HAND because the lint cannot**: `scripts/lib/proto-lint.sh` was never a stub — it compiled every file with protoc — but it discarded the descriptor set, so it proved compilation and NOTHING about the additive law (lesson 7 — the reviewed diff was the artifact). Closed in task 22: the lint now compares the compiled contract against `proto/agent/v1/contract-baseline.txt` and refuses removals, renames, renumberings, retypings and reserved reuse by name, so this step is machine-checked and no longer by hand. Concretely: NO field is deleted, renumbered or retyped. `BanAddressRequest.reason` and `BanEntry.reason` stay in the file marked deprecated in their comments and are never read or written (removal happens at the next major, with `reserved`); `ServiceStatus.bool running = 2` STAYS and keeps being written for compatibility, and the new `ServiceState state = 4` enum field (next free number) is added beside it with the tri-state — readers prefer `state`; `uptime_seconds` stays, written as 0, comment says unproduced; `MANAGED_SERVICE_FTP` keeps its number with a comment ("reported UNKNOWN until an FTP daemon ships"). New RPCs and new fields are the additive part — and that includes `uint32 ssh_port` and `uint32 panel_port` on `AllowPortRequest`/`DenyPortRequest` (new field numbers; the agent validates both 1..=65535 and renders them per R2 — an absent/zero value is refused, never defaulted, because a defaulted 22 on a host running sshd elsewhere is the lockout this chain exists to prevent).
 - [ ] Steps: proto per Step 0 → regenerate → services → status-mapping unit tests → polygon on BOTH images with pasted totals → `maran agent check`/`structure`/`handshake` green.
 
 ---
@@ -311,6 +447,13 @@ The module, concretely: no Persistence (crontab is truth); account addressed by 
 The module, concretely:
 - `Domain/BanEpisode` carries `ExpiresAt` (nullable = permanent) and `Reason` — the reason lives HERE, never on the wire (R6). Manual bans (command) record an episode too.
 - **`Services/StartupBanReconciler.cs`** (hosted service): on panel start, list episodes with `ExpiresAt > now || ExpiresAt == null` → `BanAsync` each with the REMAINING ttl — bans survive reboots because the panel is the durable store (R6). Idempotent by the agent's extend-on-re-ban semantics; agent unavailable at start → logged, retried by the next sampler tick hook (subscribe once, simple timer retry, capped).
+- **The reported address is mapped to IPv4 before it is ever sent to the agent.** A dual-stack
+  listener reports an IPv4 peer as `::ffff:a.b.c.d`, and the agent's `BanAddress` REFUSES that
+  form deliberately — a mapped address placed in the `banned_v6` set matches no real traffic, so
+  accepting it would produce a ban that silently does nothing. Normalise once, where the address
+  enters this module (`IPAddress.IsIPv4MappedToIPv6` → `MapToIPv4()`), and test it: a ban built
+  from a mapped address must reach the agent as the plain IPv4 form. Without this, every
+  brute-force ban on a dual-stack host is rejected by the agent and the whole feature is inert.
 - `BruteForceDetectedHandler`: whitelist check (`BanSkippedWhitelisted` audit) → episode count in 24h → TTL 15m/1h/24h → `BanAsync` → record episode (keyed ip+window start, redelivery-idempotent) → audit.
 - `Options/FirewallOptions.cs`: `SshPort` + `PanelPort`, bound from configuration (`Firewall__SshPort`/`Firewall__PanelPort`, written into `panel.env` by the installer — Task 16); every `AllowPortAsync`/`DenyPortAsync` call passes both. Startup validation refuses the module coming up with either missing/zero, with a message naming the env keys — a silently-defaulted port IS the lockout (R2).
 - Every endpoint admin-only, 404 to customers, matching the existing admin-gating idiom (read an admin controller's Authorization first and NAME it in the report).
@@ -328,7 +471,12 @@ The module, concretely: the per-account disk query joins agent-reported used byt
 
 ### Task 12: The Tasks module
 
-The module, concretely: the stream mirrors the REAL site-log transport — `Sites/Controllers/SitesController.cs:215`'s endpoint shape and `Sites/Common/SiteLogStreamWriter.cs`'s SSE framing (`text/event-stream`, `event:`/`data:` frames, heartbeat comments) — via the module's own `Common/TaskStreamWriter.cs` (R9; same framing constants, independent file). `ITaskRecorder` in Sdk (`BeginAsync(kind, subject, correlationId, ct) → Guid`, `ReportAsync(id, percent, line, ct)`, `CompleteAsync`, `FailAsync`); recorder never throws into the instrumented operation (wrapped; a recording failure is a log line). Instrument three admin operations: certificate issue/renew, PHP version install, account deletion. Tasks list/stream admin-only (R14). Log text capped with a truncation marker.
+The module, concretely: the stream mirrors the REAL site-log transport — `Sites/Controllers/SitesController.cs:215`'s endpoint shape and `Sites/Common/SiteLogStreamWriter.cs`'s SSE framing (`text/event-stream`, `event:`/`data:` frames, heartbeat comments) — via the module's own `Common/TaskStreamWriter.cs` (R9; same framing constants, independent file). `ITaskRecorder` in Sdk (`BeginAsync(kind, subject, correlationId, ct) → Guid`, `ReportAsync(id, percent, line, ct)`, `CompleteAsync`, `FailAsync`); recorder never throws into the instrumented operation (wrapped; a recording failure is a log line). Instrument three admin operations. **CORRECTED during Task 12: the plan named "PHP version install"
+and that operation does not exist** — `IAgentPhpClient.InstallVersionAsync` is never called by any
+module, and the three call sites use `ListVersionsAsync` only, so instrumenting it would have meant
+writing the operation. The three instrumented are certificate ISSUE, certificate RENEW and account
+deletion. The implementer checked rather than improvised, which is why this is a corrected plan
+line and not a fabricated call site. Tasks list/stream admin-only (R14). Log text capped with a truncation marker.
 
 - [ ] Steps: failing recorder tests (clamp; cap; Fail-after-Complete refused; wrap swallows) + instrumentation tests (deletion leaves ONE task; its failure carries the same error the response did) + a streaming integration test (two SSE frames read, clean cancel) → implement → mutations (break the wrap → the "never throws into" test red).
 
@@ -336,6 +484,13 @@ The module, concretely: the stream mirrors the REAL site-log transport — `Site
 
 The work, concretely:
 - **ForwardedHeaders — verify, do not rebuild**: the correct configuration already ships (`ForwardedHeadersExtensions`: `ForwardLimit=1`, loopback the only trusted proxy; nginx appends the peer via `$proxy_add_x_forwarded_for`). What this tree LACKS is the tests that pin it, and R8's whole feature rests on them: a forwarded request records the CLIENT address (not 127.0.0.1); the same header from a non-loopback peer is ignored; a client-stuffed multi-entry header still yields the nginx-appended rightmost value. Add those three integration tests and change no configuration unless one fails.
+- **The recorded client address is mapped to IPv4 before storage or publication.** Kestrel behind
+  a dual-stack socket reports `::ffff:a.b.c.d` for an IPv4 client, so `FailedLoginByIp`, the
+  session record and the `BruteForceDetected` payload all normalise (`IsIPv4MappedToIPv6` →
+  `MapToIPv4()`) at the single point the address is read. Two forms of one address split the
+  brute-force counter in half and make the threshold unreachable; the agent then refuses the
+  mapped form outright (Task 1's `BanAddress`). One integration test pins it: a request from a
+  mapped address is counted under its IPv4 form.
 - **`RequestPasswordReset` is rate-limited** with the same machinery as login (read `LoginRateLimitPolicy` and mirror; own bucket, keyed by IP), because an unlimited endpoint that sends mail is a mail bomb with our return address.
 - **The reset mail goes to the local non-durable queue** (R11): the token never rests in an envelope table AND the response never waits on SMTP. Tests: response equality (status+body) for known vs unknown addresses; and the decoupling test — mailer faked at 5 seconds, both requests answer in milliseconds. The report still states plainly that fine-grained timing is shaped (both paths run the token-generation work), not proven.
 - Token: 32 random bytes, stored SHA-256, TTL 1h, single-use; reset revokes all sessions (reuse the Plan-2 revoke-all) and clears lockout. `PasswordResetRefused` audit on expired/used/garbage.
@@ -378,7 +533,7 @@ The screens, concretely: `UiChart` (props `series: { at: number; value: number }
 - [ ] i18n parity: `maran structure` + backend `ResourceKeyParityTests` (auto-discovers the new resx families — name them in the report).
 - [ ] IDOR sweep: every new endpoint listed with its proving test; admin surfaces return 404 to customers; the ONE 403 exception (Task 13 steering) listed as such.
 - [ ] Audit sweep: table endpoint → success/failure action names, grep-verified.
-- [ ] Threat note `docs/superpowers/notes/2026-XX-XX-cron-firewall-monitoring-threat-note.md`: the cron design's injection analysis (why no customer byte reaches the crontab; the `.cmd`-file trust boundary; what `fork_as_account` buys and what it does not; `.cmd`/`.exit`/mtime are account-forgeable, so last-run data is the account's own report, not an audit source); the firewall lockout layers (R1/R2, what `--check` does NOT catch — a semantically-lockout ruleset passes a syntax check; the boot-include failure mode and why both files are seeded); the ban path (a spoofed source cannot complete the TCP handshake that precedes HTTP auth — say it; whitelist seeding; the mutex and the verified element-loss race); SMTP credential handling; reset-token handling incl. why the mail queue is local and non-durable; open items (crontab-parser fuzzing not done; fine-grained timing not proven; the SSH fallback means port 22/`ssh_port` cannot be fully closed while no explicit rule exists — accepted; proto-lint checks nothing — filed as its own follow-up issue).
+- [ ] Threat note `docs/superpowers/notes/2026-XX-XX-cron-firewall-monitoring-threat-note.md`: the cron design's injection analysis (why no customer byte reaches the crontab; the `.cmd`-file trust boundary; what `fork_as_account` buys and what it does not; `.cmd`/`.exit`/mtime are account-forgeable, so last-run data is the account's own report, not an audit source); the firewall lockout layers (R1/R2, what `--check` does NOT catch — a semantically-lockout ruleset passes a syntax check; the boot-include failure mode and why both files are seeded); the ban path (a spoofed source cannot complete the TCP handshake that precedes HTTP auth — say it; whitelist seeding; the mutex and the verified element-loss race); SMTP credential handling; reset-token handling incl. why the mail queue is local and non-durable; open items (crontab-parser fuzzing not done; fine-grained timing not proven; the SSH fallback means port 22/`ssh_port` cannot be fully closed while no explicit rule exists — accepted; the proto lint checked only compilation, not the additive law — CLOSED in task 22, see the note's residual-risk list).
 - [ ] Quiet-tree measurement of all five suites + both polygons; totals pasted.
 - [ ] Mutation ledger: every task's score; survivors killed or accepted with reasons.
 
