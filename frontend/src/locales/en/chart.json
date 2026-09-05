@@ -1,0 +1,10 @@
+{
+  "app": {
+    "chart": {
+      "emptyDescription": "No data recorded for this period yet.",
+      "tableCaption": "{label} readings, in {unit}",
+      "columnTime": "Time",
+      "columnValue": "Value"
+    }
+  }
+}

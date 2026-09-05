@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>UiChart harness</title>
+  </head>
+  <body>
+    <!--
+      Playwright-only mount point for `UiChart` (src/e2e/ui-kit/chart.spec.ts).
+
+      The kit component ships with no consuming page yet — Task 15's monitoring
+      screen, which is where `UiChart` is actually used, is dispatched separately
+      once its backend module exists. This harness mounts the component directly,
+      bypassing the app's router/shell/auth entirely, so the two propositions the
+      plan names (renders stubbed buckets; the hover readout formats values) can
+      be exercised without inventing a page that does not belong to this task.
+
+      Registered as a second Vite build entry (vite.config.ts) so it is reachable
+      the same way under both `vite dev` (local) and `vite preview` (CI).
+    -->
+    <div id="app" style="max-width: 480px; padding: 24px"></div>
+    <script type="module" src="./chart-harness.ts"></script>
+  </body>
+</html>

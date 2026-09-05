@@ -21,18 +21,38 @@ export interface AuthenticatedUser {
 }
 
 /**
- * The body of a successful sign-in or refresh. There is deliberately no refresh
- * token here: it lives in an httpOnly cookie the page's JavaScript cannot read.
+ * The half of a sign-in that exists only once the caller is actually signed in.
+ * Every field is present together or the whole object is absent, which is what
+ * makes "signed in" a single question instead of four fields that must agree.
+ */
+export interface AuthenticatedSession {
+  /** The signed access token. */
+  accessToken: string
+  /** When that token expires, so the app can refresh before a call fails. */
+  expiresAt: string
+  /** Who signed in. */
+  user: AuthenticatedUser
+  /**
+   * True when the panel forces administrators to hold a second factor and this
+   * one does not yet. The sign-in SUCCEEDED — there is an access token — but that
+   * token reaches only the enrolment endpoints and every other one answers 403
+   * until enrolment is finished. That refusal is the server's; this flag only
+   * lets the app route straight to enrolment instead of showing a wall of 403s.
+   */
+  requiresTwoFactorSetup: boolean
+}
+
+/**
+ * The body of a sign-in or refresh. There is deliberately no refresh token here:
+ * it lives in an httpOnly cookie the page's JavaScript cannot read.
+ *
+ * `session` is `null` in exactly one case — the password was right and a second
+ * factor is still owed — so there is no separate `twoFactorRequired` flag to
+ * contradict it, and no token that can arrive without its expiry or its user.
  */
 export interface LoginResult {
-  /** The signed access token, or `null` when a second factor is still owed. */
-  accessToken: string | null
-  /** When that token expires, so the app can refresh before a call fails. */
-  expiresAt: string | null
-  /** True when the password was right but a code is required. */
-  twoFactorRequired: boolean
-  /** Who signed in, or `null` while the sign-in is incomplete. */
-  user: AuthenticatedUser | null
+  /** The signed-in half, or `null` when a second factor is still owed. */
+  session: AuthenticatedSession | null
 }
 
 /** Credentials for the first step of signing in. */
@@ -59,6 +79,19 @@ export interface CompleteSetupRequest {
   email: string
   /** The chosen password. */
   password: string
+}
+
+/**
+ * What a password reset needs: the token from the mail, and the password it buys.
+ *
+ * The token IS the credential, which is why nothing else identifies the account —
+ * naming the user here would let a caller aim a token at somebody else's password.
+ */
+export interface ResetPasswordRequest {
+  /** The plaintext token from the reset mail. */
+  token: string
+  /** The password to set. */
+  newPassword: string
 }
 
 /** Whether the panel still needs its first administrator. */
@@ -104,7 +137,7 @@ export interface AuthApi {
   /** Completes a sign-in that stopped for a second factor. */
   verifyTwoFactor: (request: VerifyTwoFactorRequest, signal?: AbortSignal) => Promise<LoginResult>
   /** Exchanges the refresh cookie for a new access token. */
-  refresh: (signal?: AbortSignal) => Promise<LoginResult>
+  refresh: (signal?: AbortSignal) => Promise<AuthenticatedSession>
   /** Signs out of this device. */
   logout: (signal?: AbortSignal) => Promise<boolean>
   /** Signs out of every device. */
@@ -123,4 +156,8 @@ export interface AuthApi {
   confirmTwoFactorEnrolment: (secret: string, code: string, signal?: AbortSignal) => Promise<RecoveryCodes>
   /** Turns the second factor off. */
   disableTwoFactor: (code: string, signal?: AbortSignal) => Promise<boolean>
+  /** Asks for a password-reset link, and is answered the same way whatever the address is. */
+  requestPasswordReset: (email: string, signal?: AbortSignal) => Promise<boolean>
+  /** Sets a new password from a reset link. */
+  resetPassword: (request: ResetPasswordRequest, signal?: AbortSignal) => Promise<boolean>
 }

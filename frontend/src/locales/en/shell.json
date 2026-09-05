@@ -42,7 +42,9 @@
       "menu": {
         "sessions": "Sessions",
         "twoFactor": "Two-step verification",
-        "audit": "Audit journal"
+        "audit": "Audit journal",
+        "securityPolicy": "Security policy",
+        "smtpSettings": "Outgoing mail"
       }
     },
     "locale": {

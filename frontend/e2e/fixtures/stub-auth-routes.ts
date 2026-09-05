@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import type { AuthenticatedUser, LoginResult, SetupState } from '../../src/types/auth'
+import type { AuthenticatedSession, AuthenticatedUser, LoginResult, SetupState } from '../../src/types/auth'
 
 /** The administrator every authenticated spec signs in as. */
 const ADMINISTRATOR: AuthenticatedUser = {
@@ -17,13 +17,20 @@ const ADMINISTRATOR: AuthenticatedUser = {
  */
 const ACCESS_TOKEN = 'stub.access.token'
 
-/** The login result a stubbed sign-in or refresh returns. */
-const SIGNED_IN: LoginResult = {
+/**
+ * The signed-in half, declared once. Both shapes below are built from it rather
+ * than one being dug out of the other, so neither needs an assertion about the
+ * other's contents.
+ */
+const SIGNED_IN_SESSION: AuthenticatedSession = {
   accessToken: ACCESS_TOKEN,
   expiresAt: '2099-01-01T00:00:00+00:00',
-  twoFactorRequired: false,
   user: ADMINISTRATOR,
+  requiresTwoFactorSetup: false,
 }
+
+/** The login result a stubbed sign-in returns: the signed-in half in its envelope. */
+const SIGNED_IN: LoginResult = { session: SIGNED_IN_SESSION }
 
 /**
  * Fulfils the two endpoints the router's auth guard consults on every navigation,
@@ -42,10 +49,12 @@ export const stubSignedIn = async (page: Page, user: AuthenticatedUser = ADMINIS
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
-      // The user is a parameter because the shell shows different things to different roles.
-      // While it was hard-coded, a spec could pass a customer and silently be handed the
-      // administrator instead — the assertion would then be testing nothing it claimed to.
-      body: JSON.stringify({ ...SIGNED_IN, user }),
+      // Refresh answers with the signed-in half FLAT — no `session` envelope, because a
+      // refresh has no "a factor is owed" case. Spreading the login body here instead put
+      // `user` beside a nested `session` the store reads from, so a spec passing a customer
+      // was silently handed the administrator: the hazard this comment used to claim was
+      // fixed, reintroduced by the shape change and caught by two red specs.
+      body: JSON.stringify({ ...SIGNED_IN_SESSION, user }),
     })
   })
 }
@@ -117,3 +126,14 @@ export const stubbedAdministrator: AuthenticatedUser = ADMINISTRATOR
 
 /** The login result a successful stubbed sign-in returns. */
 export const stubbedSignIn: LoginResult = SIGNED_IN
+
+/**
+ * What a stubbed `/auth/refresh` returns, which is NOT the same shape as a sign-in.
+ *
+ * Refresh answers with the signed-in half flat, because it has no "a second factor is
+ * owed" case — the cookie either still stands or the call fails. The two are separate
+ * exports rather than one, because feeding the login body to a refresh route is a
+ * mistake that costs nothing at type-check time and then quietly signs nobody in: the
+ * store reads `accessToken` from the top level and finds an envelope instead.
+ */
+export const stubbedRefresh: AuthenticatedSession = SIGNED_IN_SESSION

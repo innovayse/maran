@@ -23,6 +23,7 @@ import { useI18n } from 'vue-i18n'
 import UiButton from '../ui/UiButton.vue'
 import UiIcon from '../ui/UiIcon.vue'
 import ShellLocaleSwitcher from './ShellLocaleSwitcher.vue'
+import ShellTasksBadge from './ShellTasksBadge.vue'
 import ShellThemeSwitcher from './ShellThemeSwitcher.vue'
 import type { NavigationEntry } from '../../types/navigation'
 
@@ -139,6 +140,11 @@ const crumbs: ComputedRef<string[]> = computed(() => {
     </UiButton>
 
     <span class="flex-1"></span>
+
+    <!-- Background work in flight, on every screen. It is a view of the tasks store rather than a
+         fetch of its own, which is what lets it move the moment a task's stream reports a change —
+         no navigation, no reload. It draws nothing while nothing is running. -->
+    <ShellTasksBadge />
 
     <!-- Below `sm` the theme segment drops out rather than pushing the row wide:
          the drawer's own footer still carries a theme control, so nothing is lost. -->

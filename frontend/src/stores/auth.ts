@@ -6,7 +6,9 @@ import type {
   AuthenticatedUser,
   CompleteSetupRequest,
   LoginRequest,
+  AuthenticatedSession,
   RecoveryCodes,
+  ResetPasswordRequest,
   Session,
   TotpEnrolment,
 } from '../types/auth'
@@ -42,6 +44,17 @@ export const useAuthStore = defineStore('auth', () => {
   /** Whether the panel already has an administrator; `null` until asked. */
   const isSetupComplete: Ref<boolean | null> = ref(null)
 
+  /**
+   * True when the panel forces administrators to hold a second factor and the
+   * signed-in one does not yet.
+   *
+   * The sign-in succeeded and there IS a token, so `isAuthenticated` is true — but
+   * that token reaches only the enrolment endpoints, and every other one answers
+   * 403. The router reads this to keep the person inside enrolment; without it the
+   * panel would render its whole shell over screens that can only fail.
+   */
+  const requiresTwoFactorSetup: Ref<boolean> = ref(false)
+
   /** True once the store has tried to restore a session, successfully or not. */
   const isRestored: Ref<boolean> = ref(false)
 
@@ -65,13 +78,18 @@ export const useAuthStore = defineStore('auth', () => {
 
   /**
    * Stores the outcome of a successful sign-in or refresh.
-   * @param token The signed access token, or null when a second factor is still owed.
-   * @param signedIn Who signed in, or null while the sign-in is incomplete.
+   *
+   * Takes the whole result rather than its parts: the token, its user and the
+   * enrolment flag arrive together or not at all, so there is no caller who could
+   * pass two of the three and leave the shell open to a token every endpoint but
+   * enrolment refuses.
+   * @param session The signed-in half, or `null` when a second factor is still owed.
    * @returns Nothing; state is updated synchronously.
    */
-  const accept = (token: string | null, signedIn: AuthenticatedUser | null): void => {
-    accessToken.value = token
-    user.value = signedIn
+  const accept = (session: AuthenticatedSession | null): void => {
+    accessToken.value = session?.accessToken ?? null
+    user.value = session?.user ?? null
+    requiresTwoFactorSetup.value = session?.requiresTwoFactorSetup ?? false
   }
 
   /**
@@ -83,6 +101,7 @@ export const useAuthStore = defineStore('auth', () => {
     user.value = null
     sessions.value = []
     twoFactorUsername.value = null
+    requiresTwoFactorSetup.value = false
   }
 
   /**
@@ -107,9 +126,12 @@ export const useAuthStore = defineStore('auth', () => {
 
     const attempt = api
       .refresh()
-      .then((result) => {
-        accept(result.accessToken, result.user)
-        return result.accessToken !== null
+      .then((session) => {
+        // Refresh answers with the signed-in half directly and has no "a factor is
+        // owed" case: the cookie either still stands or the call failed. Wrapping it
+        // in a nullable envelope would re-create a state that cannot occur.
+        accept(session)
+        return true
       })
       .catch(() => {
         clear()
@@ -146,12 +168,12 @@ export const useAuthStore = defineStore('auth', () => {
     errorMessage.value = null
     try {
       const result = await api.login(request)
-      if (result.twoFactorRequired) {
+      if (result.session === null) {
         twoFactorUsername.value = request.username
         return false
       }
 
-      accept(result.accessToken, result.user)
+      accept(result.session)
       return true
     } catch (error) {
       remember(error)
@@ -176,7 +198,7 @@ export const useAuthStore = defineStore('auth', () => {
     errorMessage.value = null
     try {
       const result = await api.verifyTwoFactor({ username: twoFactorUsername.value, password, code })
-      accept(result.accessToken, result.user)
+      accept(result.session)
       twoFactorUsername.value = null
       return true
     } catch (error) {
@@ -342,12 +364,61 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
+  /**
+   * Asks the panel to send a password-reset link.
+   *
+   * **Reports nothing about the address, and that is the whole point.** The backend
+   * answers identically for an address that has an account and one that does not,
+   * so this action returns `void` rather than a boolean: a caller with a boolean
+   * would eventually branch on it, and a screen that renders two outcomes is the
+   * account-enumeration oracle the backend spent effort closing. A transport
+   * failure is remembered as an error because it says nothing about the address —
+   * it says the panel could not be reached.
+   * @param email The address to send the link to.
+   * @returns Resolves once the request has settled, whatever it settled as.
+   */
+  const requestPasswordReset = async (email: string): Promise<void> => {
+    loading.value = true
+    errorMessage.value = null
+    try {
+      await api.requestPasswordReset(email)
+    } catch (error) {
+      remember(error)
+    } finally {
+      loading.value = false
+    }
+  }
+
+  /**
+   * Sets a new password from a reset link.
+   * @param request The token from the mail and the new password.
+   * @returns True when the password was changed; false when the panel refused.
+   */
+  const resetPassword = async (request: ResetPasswordRequest): Promise<boolean> => {
+    loading.value = true
+    errorMessage.value = null
+    try {
+      await api.resetPassword(request)
+      return true
+    } catch (error) {
+      // The backend gives one refusal for a token that never existed, one that has
+      // expired and one already spent. It is rendered as sent, and nothing here
+      // inspects it: any branch on the reason would re-create the distinction the
+      // single message exists to hide.
+      remember(error)
+      return false
+    } finally {
+      loading.value = false
+    }
+  }
+
   return {
     accessToken,
     user,
     loading,
     errorMessage,
     twoFactorUsername,
+    requiresTwoFactorSetup,
     isSetupComplete,
     isRestored,
     sessions,
@@ -365,5 +436,7 @@ export const useAuthStore = defineStore('auth', () => {
     beginTwoFactorEnrolment,
     confirmTwoFactorEnrolment,
     disableTwoFactor,
+    requestPasswordReset,
+    resetPassword,
   }
 })

@@ -34,9 +34,13 @@ const LANDING_ROUTES: Readonly<Record<string, string | typeof NO_LANDING_ROUTE>>
   sites: 'sites',
   databases: 'databases',
   sftp: 'sftp-users',
+  firewall: 'firewall',
   // The Identity module's own screens are the signed-in user's security ones. Sessions is the
   // first of them and the one that answers "who is in my panel right now".
   identity: 'sessions',
+  cron: 'cron',
+  tasks: 'tasks',
+  monitoring: 'monitoring',
   // No page of its own by design: a certificate belongs to a site, so the SSL module's interface
   // is a tab on the site it protects. A sidebar entry for it would have to lead somewhere, and
   // every somewhere is worse than nowhere: a list of every certificate on the server is a screen
