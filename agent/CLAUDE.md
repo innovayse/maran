@@ -45,6 +45,7 @@ tests can start a real server in-process on a temporary socket.
 | `src/config/` | command-line and environment parsing: `invocation.rs` (what the command line asked for — run the daemon, print usage, or render one of the two firewall files the installer seeds from; refuses an argument this binary does not define, and matches a subcommand at the first position only), `agent_options.rs` (the answer it carries), `options_error.rs`. |
 | `src/peercred/` | who may connect at all. `peer_policy.rs` = the rule, `peer_guard.rs` = the check. Authorisation starts below the RPC layer. |
 | `src/services/<service>/` | one folder per proto service. `<service>_service.rs` = the tonic trait impl, `<area>_status.rs` = the error → gRPC code mapping, `validated_*.rs` = one proto-to-input bundle per request shape. Today: `system/`, `accounts/`, `sites/`, `ssl/`, `php/`, `files/`, `db/`, `sftp/`, `cron/`, `firewall/`, `monitor/`. |
+| `src/services/wire/` | NOT a service: the proto ↔ domain boundary every service shares. `invalid_input.rs` and `system_failure.rs` (the two wire-error constructors), `validated_account.rs` (the agent's own re-check of the account name an rpc carries), `run_blocking.rs` (the one `spawn_blocking` wrapper — every process wait leaves the async workers through it, and the failure message stays caller-chosen so no operator-facing text moved). Services import from here, never from each other's folders. |
 | `src/tests/` | unit tests, mirroring `src/`. |
 | `tests/` | integration tests over a real unix socket (`handshake.rs`), plus `fixtures/`. |
 | `build.rs` | compiles `proto/agent/v1/` via tonic-build. Generated code is never committed. |
@@ -108,6 +109,7 @@ an RPC is found without searching.
 | `src/backup/` *(planned)* | create, restore, list, delete. |
 | `src/monitor/` | host metrics, service statuses, per-account disk usage. |
 | `src/safe_write/` | the ONE implementation of render → temp → fsync → validate → atomic rename → reload → rollback. Areas call it; they never write their own copy. |
+| `src/tests/support/` | test-only, mounted once from `lib.rs` under `#[cfg(test)]`: helpers whose users are fakes in different areas. `recording_commands.rs` is the record-the-argv, answer-a-configured-outcome core that the fakes sharing that shape hold in a field and delegate to. A fake that answers per-argv (ssl) or per-unit (monitor) is a different kind of fake and keeps its own body. |
 
 Inside an area: `mod.rs` (declarations only), `<area>_error.rs` (one error enum
 for the area), one file per operation, and `model/` for its input and output

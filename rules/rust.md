@@ -95,17 +95,17 @@ agent/
     │   │   └── services/      one FOLDER per proto service:
     │   │       ├── system/    system_service.rs
     │   │       ├── accounts/  accounts_service.rs · account_status.rs
-    │   │       ├── sites/     sites_service.rs · site_status.rs · invalid_input.rs ·
+    │   │       ├── sites/     sites_service.rs · site_status.rs ·
     │   │       │              validated_{site,identity,overrides}.rs — proto → validated
     │   │       │              input, one bundle per request shape, so the service file
     │   │       │              stays the three steps and nothing else ·
     │   │       │              stream_log_sink.rs · tail_terminal.rs (log-follow glue)
     │   │       ├── ssl/       ssl_service.rs · ssl_status.rs
     │   │       ├── php/       php_service.rs · php_status.rs
-    │   │       ├── db/        db_service.rs · db_status.rs · validated_account.rs ·
+    │   │       ├── db/        db_service.rs · db_status.rs ·
     │   │       │              validated_creation.rs · validated_database.rs ·
-    │   │       │              validated_removal.rs — proto → validated input, one
-    │   │       │              bundle per request shape
+    │   │       │              validated_password_change.rs · validated_removal.rs —
+    │   │       │              proto → validated input, one bundle per request shape
     │   │       ├── files/     files_service.rs · file_status.rs ·
     │   │       │              validated_write.rs (the thin transport half:
     │   │       │              drains the stream) · write_collector.rs (the state machine that
@@ -122,7 +122,15 @@ agent/
     │   │       ├── cron/      cron_service.rs · cron_status.rs
     │   │       ├── firewall/  firewall_service.rs · firewall_status.rs
     │   │       ├── backup/    backup_service.rs · backup_status.rs
-    │   │       └── monitor/   monitor_service.rs · monitor_status.rs
+    │   │       ├── monitor/   monitor_service.rs · monitor_status.rs
+    │   │       └── wire/      NOT a proto service: the proto ↔ domain boundary shared
+    │   │                      by EVERY service — invalid_input.rs · validated_account.rs ·
+    │   │                      system_failure.rs · run_blocking.rs (the ONE
+    │   │                      spawn_blocking wrapper, so no service can forget to take
+    │   │                      a process wait off the async workers). Services import
+    │   │                      from here and never from each other's folders: the
+    │   │                      alternative is nine services reaching into sites/ for an
+    │   │                      error constructor, which is what they were doing.
     │   ├── src/tests/         unit tests, mirroring src/ (rules/testing.md)
     │   └── tests/             integration tests (+ fixtures/)
     ├── agent-core/
@@ -172,10 +180,16 @@ agent/
     │       │                  one that changed.
     │       └── utils/         helpers that carry no domain knowledge, one file per
     │                          subject: directory.rs · current_uid.rs ·
-    │                          system_account.rs · system_accounts.rs. A helper earns a
-    │                          place here when a SECOND crate needs it; until then it
-    │                          stays private beside its only caller. The banned shape is
-    │                          the catch-all (util.rs, helpers.rs, misc.rs), not the folder.
+    │                          system_account.rs · system_accounts.rs ·
+    │                          spawn_argv.rs — the ONE plain argv spawn body (run it,
+    │                          wait, hand back a CommandOutcome). A host whose spawn is
+    │                          deliberately different — stdin piped into the child,
+    │                          output read under a memory ceiling — keeps its own body
+    │                          beside its owner and says in a comment which of those it
+    │                          is. A helper earns a place here when a SECOND crate needs
+    │                          it; until then it stays private beside its only caller.
+    │                          The banned shape is the catch-all (util.rs, helpers.rs,
+    │                          misc.rs), not the folder.
     ├── distro/
     │   └── src/
     │       ├── adapter.rs     the DistroAdapter trait, alone
@@ -230,6 +244,15 @@ agent/
     │                          vhost can leave the tree invalid, so removal extends
     │                          the protocol here rather than becoming an
     │                          `fs::remove_file` in the area that wanted it.
+    │       └── tests/support/ shared test support mounted ONCE from lib.rs under
+    │                          #[cfg(test)], for helpers whose users live in different
+    │                          areas: recording_commands.rs — the record-the-argv,
+    │                          answer-a-configured-outcome core that the fakes sharing
+    │                          that shape COMPOSE (they hold it in a field and delegate,
+    │                          keeping their own trait impls and fixtures). A fake that
+    │                          answers per-argv or per-unit is a different kind of fake
+    │                          and keeps its own body — see the rule of two below on
+    │                          what is a copy and what only looks like one.
     │   └── tests/fixtures/    inert certificate/key PEMs the ssl unit tests
     │                          `include_str!`; generated for tests, never real material.
     └── templates/
@@ -338,6 +361,35 @@ pub mod name_error;
 
 Files stay small and single-purpose; target < 300 lines, hard review trigger at 400. A file approaching the trigger is almost always holding more than one unit.
 
+**The rule of two.** The SECOND copy of a block is the moment it moves to a named
+home — a shared module named after what it does, never a `util.rs`. A third copy
+is a review reject. This is how `safe_write/` and `CommandOutcome` happened, and
+how nine hand-kept copies of a spawn wrapper must not happen again.
+
+What counts as a copy: two blocks are copies when one could be **replaced by a
+call to the other with nothing observable changing** — same inputs, same outputs,
+same failure modes, same resource bounds. Looking alike is not the test, and it is
+the test that fails most expensively. The agent's process spawns are the worked
+example. Six of them were one body wearing six error types, and are now
+`agent-core::utils::spawn_argv`. Three more read almost identically and are NOT
+copies; folding them in would have deleted the one thing each was written for:
+
+- the spawn that reads its child's output **under a memory ceiling** and then
+  keeps draining it, so the child finishes on its own status instead of dying of
+  `SIGPIPE` — `.output()` has no ceiling, and an account's own crontab is not
+  bounded by anything we chose;
+- the spawns that **pipe stdin** into the child (`chpasswd`, `openssl`) — an
+  argv-only body cannot carry a secret that must never reach a command line;
+- the spawn whose "could not run it" status is a **named negative sentinel**
+  rather than `-1`, because that area's callers decide on the number and two
+  different negatives must not collide.
+
+So before folding, say what the second copy would lose. If the answer is nothing,
+fold it — that is the rule firing, and "I will fold it when there are three" is
+the reject. If the answer is something — a bound, a stream, a sentinel that
+carries meaning — it is not a copy: leave it where it is and write the one
+sentence saying which of these it is, so the next reader does not fold it for you.
+
 ## Service anatomy (`crates/agent/src/services/<service>/`)
 
 One folder per proto service, three kinds of file inside:
@@ -352,7 +404,7 @@ One folder per proto service, three kinds of file inside:
   one error variant maps to one gRPC code in one place.
 - one item-named file per decision the handler would otherwise inline — the
   request-to-input checks (`validated_site.rs`, `validated_identity.rs`,
-  `validated_overrides.rs`, `invalid_input.rs`), a sink or adapter the rpc needs
+  `validated_overrides.rs`), a sink or adapter the rpc needs
   (`stream_log_sink.rs`), and the terminal-outcome choices of a streaming rpc
   (`tail_terminal.rs`). A handler is a translation layer, so anything with more
   than one case gets a name, and it gets one for a reason a reviewer can check:

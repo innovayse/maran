@@ -68,7 +68,7 @@ agent/crates/ops/src/tests/support/
 - Produces: `crate::services::wire::invalid_input::invalid_input(message: String) -> AgentError` (signature unchanged); `crate::services::wire::validated_account::validated_account(account_username: &str) -> Result<AccountName, AgentError>`; `crate::services::wire::system_failure::system_failure(message: String) -> AgentError`.
 - Consumed by: every current importer; Task 2 consumes `system_failure`.
 
-- [ ] **Step 1: Create the module skeleton**
+- [x] **Step 1: Create the module skeleton**
 
 `wire/mod.rs` (NOTE: `run_blocking` is deliberately NOT declared here — its file arrives in Task 2, and this task must end green on its own):
 ```rust
@@ -106,7 +106,7 @@ pub fn system_failure(message: String) -> AgentError {
 }
 ```
 
-- [ ] **Step 2: Move the two existing files**
+- [x] **Step 2: Move the two existing files**
 
 ```bash
 cd agent/crates/agent/src/services
@@ -115,7 +115,7 @@ mv cron/validated_account.rs wire/validated_account.rs
 rm db/validated_account.rs
 ```
 
-- [ ] **Step 3: Generalize `wire/validated_account.rs`'s docs**
+- [x] **Step 3: Generalize `wire/validated_account.rs`'s docs**
 
 The cron original's docs are crontab-specific and the deleted db copy's were decode-specific; the shared file must speak for every caller. Replace the module doc and the fn doc's first/why paragraphs with (keep the `# Errors` section as it is):
 ```rust
@@ -133,7 +133,7 @@ The cron original's docs are crontab-specific and the deleted db copy's were dec
 ```
 Update its `invalid_input` import to `use crate::services::wire::invalid_input::invalid_input;`.
 
-- [ ] **Step 4: Rewrite the imports workspace-wide**
+- [x] **Step 4: Rewrite the imports workspace-wide**
 
 All importers use full `crate::services::…` paths (verified — no `super::` forms to miss):
 ```bash
@@ -144,7 +144,7 @@ grep -rl "services::cron::validated_account\|services::db::validated_account" ag
 ```
 Remove the `mod invalid_input;` line from `sites/mod.rs` and the `mod validated_account;` lines from `cron/mod.rs` and `db/mod.rs`; add `pub mod wire;` to `services/mod.rs`.
 
-- [ ] **Step 5: Verify**
+- [x] **Step 5: Verify**
 
 Run: `source scripts/dev && maran agent check && maran structure`
 Expected: exit 0 (all current tests green), STRUCTURE-OK.
@@ -175,7 +175,7 @@ where
 `what` is the message's noun phrase, chosen per service so every existing message stays byte-identical (see the table in Step 2).
 - Consumes: `wire::system_failure::system_failure` from Task 1.
 
-- [ ] **Step 1: Write `run_blocking.rs`**
+- [x] **Step 1: Write `run_blocking.rs`**
 
 ```rust
 //! The one place a service hands a blocking operation to the runtime.
@@ -219,7 +219,7 @@ where
 ```
 Add `pub mod run_blocking;` to `wire/mod.rs` (alphabetical position: after `invalid_input`).
 
-- [ ] **Step 2: Migrate the nine async services (mechanical, message-preserving)**
+- [x] **Step 2: Migrate the nine async services (mechanical, message-preserving)**
 
 In each file: delete the private `async fn run<T, F> … }` block, add `use crate::services::wire::run_blocking::run_blocking;`, change every `Self::run(move || …)` call to `run_blocking(WHAT, |error| to_agent_error(error), move || …)`, then remove imports the deleted block was the only user of — typically `ErrorCode` and sometimes `AgentError` (the build's `-D warnings` + IDE0005-equivalent will name them; `maran agent lint` fails on any leftover).
 
@@ -256,7 +256,7 @@ let outcome = run_blocking("PHP operation", |error| to_agent_error(error), move 
 .await;
 ```
 
-- [ ] **Step 3: Fix the accounts service (four fields, not one)**
+- [x] **Step 3: Fix the accounts service (four fields, not one)**
 
 `AccountsServiceImpl` is generic over four hosts because `delete_account` drives the cross-area cascade. The rewrite wraps each field in `Arc` and keeps `new`'s signature, so `server.rs` does not change:
 ```rust
@@ -325,7 +325,7 @@ match run_blocking("account operation", |error| to_agent_error(error), move || {
 ```
 (Check the current call at `accounts_service.rs` `delete_account` and preserve its exact parameter order and any extra arguments.)
 
-- [ ] **Step 4: Verify**
+- [x] **Step 4: Verify**
 
 Run: `source scripts/dev && maran agent check && maran handshake`
 Expected: exit 0; all tests green (no agent unit test constructs `AccountsServiceImpl` — only `server.rs` does, and its call did not change); handshake proves the boot path.
@@ -349,7 +349,7 @@ pub fn spawn_argv(program: &str, arguments: &[&str]) -> std::io::Result<CommandO
 ```
 - Consumes: `maran_agent_core::command_outcome::CommandOutcome`.
 
-- [ ] **Step 1: Write `spawn_argv.rs`**
+- [x] **Step 1: Write `spawn_argv.rs`**
 
 ```rust
 //! The one body that turns an argv array into a finished [`CommandOutcome`].
@@ -389,7 +389,7 @@ pub fn spawn_argv(program: &str, arguments: &[&str]) -> std::io::Result<CommandO
 }
 ```
 
-- [ ] **Step 2: Add the honest variant to `SafeWriteError`**
+- [x] **Step 2: Add the honest variant to `SafeWriteError`**
 
 In `safe_write_error.rs`:
 ```rust
@@ -407,7 +407,7 @@ In `safe_write_error.rs`:
 ```
 This compiles everywhere without further edits — verified: the only matches on `SafeWriteError` are the three `From` impls in `sites_op_error.rs` / `php_op_error.rs` / `ssl_op_error.rs`, and each ends with an `other => … { reason: other.to_string() }` arm that absorbs the new variant (it is those arms, not `#[non_exhaustive]`, that protect in-crate matches). No test asserts on the spawn-failure text — verified against the firewall fixtures (fake-fabricated), `render_validate_swap_tests.rs` (a reload that really ran), and the golden files.
 
-- [ ] **Step 3: Migrate the six hosts**
+- [x] **Step 3: Migrate the six hosts**
 
 php, sites, and sftp's `ConfigHost` impl — the three whose spawn failure currently lies as `ReloadFailed` — become:
 ```rust
@@ -429,7 +429,7 @@ accounts, firewall, monitor keep their existing mapping targets, only the body i
 ```
 (Match each file's actual variant field names — firewall's is `NftFailed`, monitor's is `MonitorError::program_unavailable()` which takes no fields; read the current `map_err` and keep its target exactly.) Remove `use std::process::Command;` where the file no longer spawns — that is accounts, firewall, monitor, php, sites, but NOT sftp.
 
-- [ ] **Step 4: Verify**
+- [x] **Step 4: Verify**
 
 Run: `source scripts/dev && maran agent check`
 Expected: exit 0; all tests green (the fakes implement the host traits and never touch these bodies).
@@ -454,7 +454,7 @@ pub(crate) fn prefixed(account: &AccountName, requested: &str, maximum_length: u
 ```
 - Consumed by: the three `for_account`s here; Task 5 consumes `SEPARATOR` from the `decode` methods.
 
-- [ ] **Step 1: Write `prefix_problem.rs`**
+- [x] **Step 1: Write `prefix_problem.rs`**
 
 ```rust
 //! Why a requested name could not be prefixed.
@@ -480,7 +480,7 @@ pub(crate) enum PrefixProblem {
 }
 ```
 
-- [ ] **Step 2: Write `prefixed_name.rs`**
+- [x] **Step 2: Write `prefixed_name.rs`**
 
 ```rust
 //! The shared core of every "account-prefixed" name.
@@ -529,7 +529,7 @@ pub(crate) fn prefixed(
 }
 ```
 
-- [ ] **Step 3: Rewrite the three `for_account`s as mappings**
+- [x] **Step 3: Rewrite the three `for_account`s as mappings**
 
 Method docs stay EXACTLY as they are (they carry the per-domain reasoning); only bodies change. Keep each file's `MAXIMUM_LENGTH`; delete each file's `SEPARATOR` const (verified used only by `for_account`). Worked example, `db_user_name.rs`:
 ```rust
@@ -550,7 +550,7 @@ use crate::validation::prefixed_name::prefixed;
 ```
 Apply the same shape in `database_name.rs` (limit 64, `DatabaseNameError`) and `sftp_user_name.rs` (limit 32, `SftpUserNameError`).
 
-- [ ] **Step 4: Verify**
+- [x] **Step 4: Verify**
 
 Run: `source scripts/dev && maran agent check`
 Expected: exit 0 — the existing `*_tests.rs` for all three types pin the exact behavior (including `TooLong { length: 33 }` / `{ length: 65 }`) and must pass unchanged.
@@ -567,7 +567,7 @@ Expected: exit 0 — the existing `*_tests.rs` for all three types pin the exact
 **Interfaces:**
 - Produces (same shape on all three types): `pub fn decode(account: &AccountName, candidate: &str) -> Option<Self>` — all three ops call sites need the decoded VALUE (verified), which this returns.
 
-- [ ] **Step 1: Add `decode` to the three types**
+- [x] **Step 1: Add `decode` to the three types**
 
 Worked example, `sftp_user_name.rs`:
 ```rust
@@ -596,14 +596,14 @@ Worked example, `sftp_user_name.rs`:
 ```
 Same method on `DatabaseName` ("Decodes a database name back…") and `DbUserName` ("Decodes a database user name back…").
 
-- [ ] **Step 2: Point the three ops call sites at the methods**
+- [x] **Step 2: Point the three ops call sites at the methods**
 
 - `process_sftp_host.rs`: delete the file-level `NAME_SEPARATOR` const and the `decode_login` fn (with its doc); at the listing site replace `decode_login(account, name)` with `SftpUserName::decode(account, name)`.
 - `list_databases.rs`: delete its `SEPARATOR` const; replace the inline rsplit/compare/rebuild with `DatabaseName::decode(account, row_name)`.
 - `drop_account_databases.rs`: delete its `SEPARATOR` const; replace the users-pass inline decode with `DbUserName::decode(account, user_name)`.
 Preserve each site's surrounding filtering semantics exactly (they iterate rows and keep the `Some`s).
 
-- [ ] **Step 3: Add decode tests (behavior sentences)**
+- [x] **Step 3: Add decode tests (behavior sentences)**
 
 In `sftp_user_name_tests.rs`:
 ```rust
@@ -626,7 +626,7 @@ fn another_accounts_login_does_not_decode() {
 ```
 Mirror the same two tests in `database_name_tests.rs` (with `DatabaseName`, request `"shop"`) and `db_user_name_tests.rs` (with `DbUserName`, request `"shop"`).
 
-- [ ] **Step 4: Verify**
+- [x] **Step 4: Verify**
 
 Run: `source scripts/dev && maran agent check`
 Expected: exit 0; sftp/db area tests unchanged and green; 6 new decode tests pass.
@@ -655,7 +655,7 @@ impl RecordingCommands {
 }
 ```
 
-- [ ] **Step 1: Write the support module**
+- [x] **Step 1: Write the support module**
 
 `tests/support/mod.rs`:
 ```rust
@@ -731,13 +731,13 @@ impl RecordingCommands {
 }
 ```
 
-- [ ] **Step 2: Compose it into the two fakes**
+- [x] **Step 2: Compose it into the two fakes**
 
 `fake_php_host.rs`: replace the `commands: Mutex<Vec<Vec<String>>>` and `command: Mutex<(i32, String)>` fields with one `recording: crate::test_support::recording_commands::RecordingCommands`; `ConfigHost::run` becomes `Ok(self.recording.record(program, arguments))`; the `reject_commands`-style configurator calls `self.recording.set_next(status, "", stderr)`; assertion helpers delegate to `self.recording.calls()` / `calls_to`, keeping their public signatures so the area tests do not change.
 
 Accounts' `RecordingHost`: keep its `statuses: Mutex<Vec<i32>>` queue and stdout field (queue semantics are area behavior); its `run` becomes: pop the next status as today, then `self.recording.set_next(status, &self.stdout(), Self::stderr_for(status))` followed by `Ok(self.recording.record(program, arguments))` — and its calls-accessors delegate to `self.recording`. If the accounts helpers read simpler with the queue folded differently, keep the EXTERNAL helper signatures identical; the tests' assertions are the contract.
 
-- [ ] **Step 3: Verify**
+- [x] **Step 3: Verify**
 
 Run: `source scripts/dev && maran agent check`
 Expected: exit 0; php and accounts test files pass with zero assertion changes.
@@ -750,7 +750,7 @@ Expected: exit 0; php and accounts test files pass with zero assertion changes.
 - Modify: `rules/rust.md` (canonical map + the "rule of two" paragraph)
 - Modify: `agent/CLAUDE.md` (crate tables)
 
-- [ ] **Step 1: Map entries (rules/rust.md)**
+- [x] **Step 1: Map entries (rules/rust.md)**
 
 Services block gains:
 ```
@@ -763,7 +763,7 @@ agent-core `utils/` line gains: `spawn_argv.rs — the ONE plain argv spawn body
 `validation/` block gains: `prefixed_name.rs + prefix_problem.rs — crate-internal shared core of the three account-prefixed names (the types keep their own errors and docs)`.
 ops block gains: `src/tests/support/ — recording_commands.rs, the recording core the compatible fakes compose (mounted from lib.rs under #[cfg(test)])`.
 
-- [ ] **Step 2: The rule of two (rules/rust.md, under "One unit per file")**
+- [x] **Step 2: The rule of two (rules/rust.md, under "One unit per file")**
 
 ```markdown
 **The rule of two.** The SECOND copy of a block is the moment it moves to a
@@ -772,11 +772,11 @@ copy is a review reject. This is how `safe_write/` and `CommandOutcome`
 happened, and how nine copies of a spawn wrapper must not happen again.
 ```
 
-- [ ] **Step 3: agent/CLAUDE.md tables**
+- [x] **Step 3: agent/CLAUDE.md tables**
 
 Services table gains a `wire/` row; agent-core table gains `spawn_argv.rs` and the `prefixed_name`/`prefix_problem` pair on the validation row; ops table gains the `tests/support/` row. Wording mirrors Step 1.
 
-- [ ] **Step 4: Final verification, whole workspace**
+- [x] **Step 4: Final verification, whole workspace**
 
 Run: `source scripts/dev && maran agent check && maran structure && maran handshake && maran proto`
 Expected: all green; test count = pre-plan count + 6 new decode tests, zero changed assertions.
@@ -787,3 +787,57 @@ Expected: all green; test count = pre-plan count + 6 new decode tests, zero chan
 - Adversarial audit (2026-09-01) amendments folded: message-noun table incl. "monitoring reading"; php's only migratable call site named and the streaming rpc excluded; unused-import pruning step; four-Arc accounts rewrite with unchanged `new` arity; `#[non_exhaustive]` reasoning corrected to the `other =>` arms; `prefix_problem.rs` split out to keep one-unit-per-file; support module mounted once from `lib.rs`; `run_blocking` declared in Task 2, so Task 1 is green standalone. ✓
 - Type consistency: `system_failure(String)` (Task 1) consumed by `run_blocking` (Task 2); `spawn_argv -> io::Result<CommandOutcome>` mapped per host (Task 3); `PrefixProblem` fields identical between Task 4's enum and mappings; `decode` consumes Task 4's `SEPARATOR`. ✓
 - No commit steps by design (owner commits); each task's gate is the maran command set. ✓
+
+---
+
+## Outcome (all seven tasks complete, 2026-09-05)
+
+Every step above is done and its gate ran green. Per-task reports:
+`.superpowers/sdd/2026-09-01-agent-shared-homes/task-{1,2,3,4-5,6-7}-report.md`.
+
+Final gate, `agent/`: `cargo fmt --check`, `cargo clippy --all-targets -D warnings`,
+`RUSTDOCFLAGS="-D warnings" cargo doc --no-deps --workspace` all clean;
+`cargo test` = **1114 passed / 0 failed / 60 ignored across 23 targets**
+(pre-plan count + the 6 new decode tests, zero changed assertions), `maran structure`
+STRUCTURE-OK.
+
+### Where the tree differed from what this plan predicted
+
+These are corrections to the Findings above, recorded so the next reader inherits
+the measurement and not the estimate:
+
+1. **Finding 4 — `invalid_input` had 24 importers, not 23.** The extra file was
+   `db/validated_account.rs`, which Task 1 deleted; after the move exactly 23 files
+   import `wire::invalid_input`, which is the number the plan quoted. Not tree
+   drift, and no work was missed. The two `validated_account.rs` files were verified
+   identical in code (a comment-stripped `diff` was empty) before one was deleted.
+2. **Finding 3 — a FOURTH spawn candidate exists, and was deliberately not folded.**
+   `ops/src/cron/crontab_spool.rs`'s `fn run` has the same
+   `.args().env().output()` outline as the six, but its signal-killed status is
+   `PROGRAM_UNAVAILABLE`, a negative cron-specific sentinel that
+   `CronError::CrontabRefused` carries as a code, and it is paired with the bounded
+   `run_bounded` beside it. Folding it would have lost the sentinel or pushed a cron
+   constant into `agent-core`. The plan named six and excluded this one by silence;
+   it is now excluded by name, and it is one of the three worked examples in the
+   rule of two (Task 7) precisely because it looks like a copy and is not.
+3. **Finding 3 — `LC_ALL=C` was pinned on ONE host, not assumed on all six.** Only
+   the accounts host set it. Rather than let the pin evaporate into the shared body,
+   `spawn_argv` sets it on every spawn and owns the constants. That is a stated
+   behaviour change for firewall, monitor, php, sftp and sites, which now spawn
+   under `LC_ALL=C` where they did not: monitor parses a service manager's own words
+   and firewall reads `nft`'s diagnostics, so both carried the same exposure that
+   once made `quota` report "unlimited" and made a crontab-less account undeletable.
+   Nothing in those areas matches translated text today, so nothing breaks; what
+   changes is that nothing can.
+4. **Task 7's map was already partly done when it started.** Tasks 4 and 5 had
+   entered `prefixed_name.rs`/`prefix_problem.rs` in both maps and `spawn_argv.rs`
+   in `agent/CLAUDE.md`, because the Global Constraints require the map to move with
+   the file. Task 7 therefore audited the whole map against the tree rather than
+   applying the list in Step 1, and that audit found one entry the list did not name:
+   `services/db/` had never gained `validated_password_change.rs` (a plan-4 gap).
+   It is now listed.
+5. **Task 7 found and removed one live violation of the rule it was writing.**
+   Task 3 noted that cron's private `LOCALE_VARIABLE`/`LOCALE_VALUE` had become a
+   second copy of `spawn_argv`'s public pair, and left it as out of scope. Cron's
+   spawns stay their own (stdin, sentinel); its two constants now read their VALUES
+   from `spawn_argv` and keep only their own local reasoning as prose.
