@@ -4,7 +4,7 @@ use maran_agent_core::validation::web::port::Port;
 use maran_ops::firewall::RulesetPorts;
 
 use crate::proto::AgentError;
-use crate::services::sites::invalid_input::invalid_input;
+use crate::services::wire::invalid_input::invalid_input;
 
 /// The refusal for a request that names no SSH port at all.
 const NO_SSH_PORTS: &str =

@@ -4,8 +4,8 @@ use maran_agent_core::validation::system::cron_entry_id::CronEntryId;
 use maran_agent_core::validation::system::name::AccountName;
 
 use crate::proto::AgentError;
-use crate::services::cron::validated_account::validated_account;
-use crate::services::sites::invalid_input::invalid_input;
+use crate::services::wire::invalid_input::invalid_input;
+use crate::services::wire::validated_account::validated_account;
 
 /// Builds the account and entry id that `DeleteCronEntry`,
 /// `SetCronEntryEnabled` and `GetCronEntryOutput` all address an entry by.

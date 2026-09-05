@@ -25,13 +25,13 @@ use crate::proto::{
     disable_site_response, enable_site_response, reload_web_server_response,
     tail_site_log_response, update_site_php_version_response,
 };
-use crate::services::sites::invalid_input::invalid_input;
 use crate::services::sites::site_status::to_agent_error;
 use crate::services::sites::stream_log_sink::StreamLogSink;
 use crate::services::sites::tail_terminal::tail_terminal;
 use crate::services::sites::validated_identity::validated_identity;
 use crate::services::sites::validated_overrides::validated_overrides;
 use crate::services::sites::validated_site::validated_site;
+use crate::services::wire::invalid_input::invalid_input;
 
 /// How many log lines the tail may run ahead of the client.
 ///

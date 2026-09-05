@@ -9,7 +9,7 @@ use crate::proto::AgentError;
 use crate::proto::CronSchedule as WireSchedule;
 use crate::services::cron::validated_entry::validated_entry;
 use crate::services::cron::validated_schedule::validated_schedule;
-use crate::services::sites::invalid_input::invalid_input;
+use crate::services::wire::invalid_input::invalid_input;
 
 /// Builds the four values `UpdateCronEntry` needs from what it carries.
 ///

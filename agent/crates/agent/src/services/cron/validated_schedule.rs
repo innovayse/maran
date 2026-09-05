@@ -4,7 +4,7 @@ use maran_agent_core::validation::system::cron_schedule::CronSchedule;
 
 use crate::proto::AgentError;
 use crate::proto::CronSchedule as WireSchedule;
-use crate::services::sites::invalid_input::invalid_input;
+use crate::services::wire::invalid_input::invalid_input;
 
 /// The refusal for a request whose schedule message is absent altogether.
 ///

@@ -11,3 +11,4 @@ pub mod sftp;
 pub mod sites;
 pub mod ssl;
 pub mod system;
+pub mod wire;

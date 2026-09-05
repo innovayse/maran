@@ -4,7 +4,7 @@ use maran_agent_core::validation::system::name::AccountName;
 use maran_agent_core::validation::system::sftp_user_name::SftpUserName;
 
 use crate::proto::AgentError;
-use crate::services::sites::invalid_input::invalid_input;
+use crate::services::wire::invalid_input::invalid_input;
 
 /// Rebuilds the login named by `account_username` and the suffix
 /// `sftp_username`, returning the account beside it.

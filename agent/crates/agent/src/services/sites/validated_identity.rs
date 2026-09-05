@@ -4,7 +4,7 @@ use maran_agent_core::validation::system::name::AccountName;
 use maran_agent_core::validation::web::domain::Domain;
 
 use crate::proto::AgentError;
-use crate::services::sites::invalid_input::invalid_input;
+use crate::services::wire::invalid_input::invalid_input;
 
 /// Revalidates the account and the domain every site rpc carries.
 ///

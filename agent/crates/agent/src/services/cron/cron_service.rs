@@ -23,11 +23,11 @@ use crate::proto::{
 use crate::services::cron::cron_status::to_agent_error;
 use crate::services::cron::entry_output::entry_output;
 use crate::services::cron::listed_entry::listed_entry;
-use crate::services::cron::validated_account::validated_account;
 use crate::services::cron::validated_creation::validated_creation;
 use crate::services::cron::validated_entry::validated_entry;
 use crate::services::cron::validated_environment::validated_environment;
 use crate::services::cron::validated_update::validated_update;
+use crate::services::wire::validated_account::validated_account;
 
 /// Serves the per-account cron operations over the wire.
 ///

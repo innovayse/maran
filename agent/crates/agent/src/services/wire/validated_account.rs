@@ -1,18 +1,19 @@
-//! Revalidating the account name a database listing is asked about.
+//! Revalidating the account name an rpc carries.
 
 use maran_agent_core::validation::system::name::AccountName;
 
 use crate::proto::AgentError;
-use crate::services::sites::invalid_input::invalid_input;
+use crate::services::wire::invalid_input::invalid_input;
 
-/// Revalidates the account name `ListDatabases` carries.
+/// Revalidates the account name an rpc carries.
 ///
 /// The API validated it already. This is the agent's own check, and it exists
 /// because the agent runs as root and the API does not (rules/security.md item
 /// 1, which requires revalidation in the agent and not only at the API
-/// boundary): the name becomes the prefix every returned database name is
-/// decoded against, so a name outside the allow-list would decode rows that
-/// belong to nobody.
+/// boundary). What the name goes on to decide differs per service — whose
+/// crontab is edited, which home is written under, which prefix database rows
+/// are decoded against — but every one of those is an argument handed to a
+/// root process, which is why the gate is shared and unconditional.
 ///
 /// # Errors
 ///

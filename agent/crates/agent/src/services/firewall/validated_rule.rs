@@ -6,7 +6,7 @@ use maran_ops::firewall::{FirewallRule, NftablesProtocol, RulesetPorts};
 
 use crate::proto::{AgentError, Protocol};
 use crate::services::firewall::validated_ports::validated_ports;
-use crate::services::sites::invalid_input::invalid_input;
+use crate::services::wire::invalid_input::invalid_input;
 
 /// The refusal for a request that names no transport protocol.
 const MISSING_PROTOCOL: &str = "a firewall rule needs a protocol: tcp or udp";

@@ -3,7 +3,7 @@
 use maran_agent_core::validation::secrets::password::Password;
 
 use crate::proto::AgentError;
-use crate::services::sites::invalid_input::invalid_input;
+use crate::services::wire::invalid_input::invalid_input;
 
 /// Revalidates the password `CreateSftpUser` and `SetSftpPassword` carry.
 ///

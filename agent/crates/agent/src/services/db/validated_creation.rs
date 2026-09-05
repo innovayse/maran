@@ -6,8 +6,8 @@ use maran_agent_core::validation::secrets::password::Password;
 use maran_ops::db::CreateDatabaseRequest;
 
 use crate::proto::AgentError;
-use crate::services::db::validated_account::validated_account;
-use crate::services::sites::invalid_input::invalid_input;
+use crate::services::wire::invalid_input::invalid_input;
+use crate::services::wire::validated_account::validated_account;
 
 /// Builds the operation's input from the four values `CreateDatabase` carries.
 ///

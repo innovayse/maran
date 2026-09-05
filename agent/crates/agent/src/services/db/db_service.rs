@@ -15,11 +15,11 @@ use crate::proto::{
     get_database_size_response, list_databases_response, set_database_password_response,
 };
 use crate::services::db::db_status::to_agent_error;
-use crate::services::db::validated_account::validated_account;
 use crate::services::db::validated_creation::validated_creation;
 use crate::services::db::validated_database::validated_database;
 use crate::services::db::validated_password_change::validated_password_change;
 use crate::services::db::validated_removal::validated_removal;
+use crate::services::wire::validated_account::validated_account;
 
 /// Serves the database operations over the wire.
 ///

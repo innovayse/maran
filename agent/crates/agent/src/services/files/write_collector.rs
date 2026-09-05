@@ -6,7 +6,7 @@ use maran_agent_core::validation::system::name::AccountName;
 use maran_ops::files::WriteFileInput;
 
 use crate::proto::{AgentError, WriteFileRequest};
-use crate::services::sites::invalid_input::invalid_input;
+use crate::services::wire::invalid_input::invalid_input;
 
 /// The most content the agent will accept for one file.
 ///
