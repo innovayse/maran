@@ -45,12 +45,13 @@ while IFS= read -r file; do
   esac
 done < <(sources | grep 'Extensions\.cs$')
 
-# 3. Interfaces live in an Interfaces/ folder — except module-internal Common/ and Domain/ ones,
-#    which the module layout places deliberately.
+# 3. Interfaces live in an Interfaces/ folder. A module's own Interfaces/ sits at the module root,
+#    beside Maran.Sdk/Interfaces/ and Maran.SharedKernel/Interfaces/; Domain/Interfaces/ is the one
+#    deliberate second home, for repository contracts that belong beside the entities they load.
 while IFS= read -r file; do
   case "$file" in
     */Interfaces/*) ;;
-    */Common/Interfaces/*|*/Domain/Interfaces/*) ;;
+    */Domain/Interfaces/*) ;;
     *) report "$file: an interface belongs in an Interfaces/ folder (rules/csharp.md)" ;;
   esac
 done < <(sources | grep -E '/I[A-Z][A-Za-z0-9_]*\.cs$')
@@ -85,6 +86,96 @@ done < <(find backend/src/Maran.Modules -name '*.cs' -not -path '*/obj/*' -not -
 while IFS= read -r file; do
   report "$file: junk-drawer name — every file states its single purpose (rules/architecture.md)"
 done < <(sources | grep -iE '/(utils|helpers|misc|common|shared|manager|service)\.cs$')
+
+# 6b. The caller's address is spelled in exactly ONE place. SharedKernel/Utilities/Network/
+#     ClientAddress.cs owns the rendering; production code asks it. The duplicate this catches is
+#     invisible in review — every copy of `RemoteIpAddress?.ToString()` looks correct, and each one
+#     silently drops the IPv4-mapped normalisation, which splits a brute-force counter in half and
+#     produces bans the agent refuses. Eleven controllers had written it out before this check
+#     existed (rules/csharp.md "One spelling of the caller's address, mechanically").
+#
+#     backend/src only: a test fixture that deliberately echoes the raw connection value is
+#     asserting on middleware behaviour and must stay raw.
+while IFS= read -r file; do
+  report "$file: spells the caller's address itself — call ClientAddress.Of (rules/csharp.md)"
+done < <(grep -rl 'RemoteIpAddress?\.ToString()' --include='*.cs' backend/src 2>/dev/null \
+  | grep -v '/obj/' | grep -v '/bin/' | sort)
+
+# 6c. An audit entry is built by its module's journal and nowhere else. The journal is where a
+#     module decides what an entry of its kind carries and what it must NOT — which identifiers
+#     are recorded, what is redacted, how a system actor is spelled — and that decision is only
+#     reviewable while it lives in one file. Identity built entries inline in thirteen handlers,
+#     which is how three different spellings of the system actor reached one table, one of them
+#     filling IpAddress/UserAgent with the actor's name against AuditEntry's own documentation
+#     (rules/csharp.md "A module writes its audit entries through its own journal").
+#
+#     backend/src only, and the type's own file is exempt by construction: a constructor has to
+#     be called somewhere, and Sdk/Contracts/SystemAuditEntry.cs is where AuditEntry is declared.
+while IFS= read -r file; do
+  report "$file: builds an AuditEntry itself — write it through the module's <Module>AuditJournal (rules/csharp.md)"
+done < <(grep -rl 'new AuditEntry(' --include='*.cs' backend/src 2>/dev/null \
+  | grep -v '/obj/' | grep -v '/bin/' \
+  | grep -v 'AuditJournal\.cs$' | grep -v '/SystemAuditEntry\.cs$' | sort)
+
+# 6d. A DI-registered type is a service, and services live in the module's Services/ — never
+#     anywhere under Common/. Common/ is the module's inert furniture: DTOs, value objects and pure
+#     rules over values, none of which the container ever constructs. The rule has a measurement
+#     rather than an adjective behind it, which is the whole point: "is it module-specific" cannot
+#     separate SecurityPolicyCache from SecurityPolicyDto (both are), but "does <Name>Module.cs
+#     register it" separates them exactly. SecurityPolicyCache and IdentityAuditJournal sat in
+#     Identity/Common/ for want of this line (rules/csharp.md "Common/ versus Services/").
+#
+#     The WHOLE Common/ subtree is considered, not just its top level. It used to be the top level
+#     only, because Common/Interfaces/, Common/Options/ and Common/Validators/ held exactly the
+#     kinds of type a registration legitimately mentions — the seam, the settings record, the
+#     options validator — and 6d would have fired on all of them. That carve-out was a hole the
+#     size of a folder: anything a module wanted to keep out of Services/ could be filed one level
+#     down and the check went quiet. Those three folders are now module-root folders
+#     (<Module>/Interfaces/, Options/, Validators/), matching Maran.Sdk and Maran.SharedKernel, so
+#     nothing registered by design lives under Common/ any more and the exemption is gone with it.
+registered_types_in_common() {
+  find backend/src/Maran.Modules -maxdepth 2 -name '*Module.cs' \
+    -not -path '*/obj/*' -not -path '*/bin/*' | sort | while IFS= read -r module_file; do
+    module_dir="$(dirname "$module_file")"
+    [ -d "$module_dir/Common" ] || continue
+    grep -oE 'services\.Add(Scoped|Singleton|Transient)<[^>]*>' "$module_file" \
+      | sed -E 's/.*<//; s/>$//' \
+      | tr ',' '\n' \
+      | sed -E 's/^ *//; s/ *$//; s/<.*//' \
+      | while IFS= read -r type_name; do
+          [ -n "$type_name" ] || continue
+          found="$(find "$module_dir/Common" -name "$type_name.cs" \
+            -not -path '*/obj/*' -not -path '*/bin/*' | sort | head -1)"
+          if [ -n "$found" ]; then
+            printf '%s\t%s\n' "$found" "$(basename "$module_file")"
+          fi
+        done
+  done | sort -u
+}
+while IFS="$(printf '\t')" read -r file module_file; do
+  report "$file: registered in $module_file — a type with a DI lifetime belongs in the module's Services/ (rules/csharp.md)"
+done < <(registered_types_in_common)
+
+# 6e. Nothing anywhere under a module's Common/ touches the HTTP surface. Check 6d's measurement is a
+#     DI registration, and a static class never has one — so a static class escapes 6d whatever it
+#     does. RefreshCookie passed both written tests (Identity-specific, never registered) and still
+#     did not belong: it took an HttpResponse and MUTATED it, owning the refresh cookie's name,
+#     path, HttpOnly/Secure/SameSite flags and expiry. Inert means NO EFFECT, not merely no DI
+#     lifetime, and behaviour on the HTTP surface belongs in Controllers/ (rules/csharp.md
+#     "Common/ versus Services/", the effect test).
+#
+#     Same scope as 6d — the whole Common/ subtree. Comments and doc comments are
+#     stripped before matching, so a remark explaining why a handler has no HttpContext (as
+#     LoginOutcome.cs carries) is not a violation; only real code is.
+while IFS= read -r file; do
+  report "$file: touches the HTTP surface — Common/ is inert furniture, HTTP behaviour belongs in Controllers/ (rules/csharp.md)"
+done < <(find backend/src/Maran.Modules -mindepth 3 -path '*/Common/*.cs' \
+  -not -path '*/obj/*' -not -path '*/bin/*' | sort | while IFS= read -r file; do
+    if sed -E 's://.*::g' "$file" \
+      | grep -qE '\b(HttpResponse|HttpRequest|HttpContext|CookieOptions|IHeaderDictionary|IResponseCookies|IRequestCookieCollection)\b'; then
+      printf '%s\n' "$file"
+    fi
+  done)
 
 # 7. Rust obeys the same law as C#: exactly one public unit per file, and a crate root or
 #    mod.rs declares modules rather than defining anything (rules/rust.md). Until this check
@@ -181,8 +272,18 @@ method = re.compile(r"^    (public|internal|protected|private)\b.*\w+\(.*\)\s*$"
 # constructors — exactly the members this rule is about — would slip past unseen.
 wrapped = re.compile(r"^    (public|internal|protected|private)\b.*\w+\($")
 
+try:
+    lines = open(path, encoding="utf-8").readlines()
+except FileNotFoundError:
+    # The file was listed by find and deleted before this check opened it. In a tree several
+    # sessions have open that is a race, not a violation — and it used to be reported as one,
+    # because any non-zero exit from this script is read as a failed check: a run of this gate
+    # printed "a property is declared after a method" for a file that no longer existed, above
+    # its own traceback. A check must not report on what it could not observe (rules/testing.md).
+    sys.exit(0)
+
 first_method = None
-for number, line in enumerate(open(path, encoding="utf-8"), start=1):
+for number, line in enumerate(lines, start=1):
     if not declaration.match(line):
         continue
     # A constructor counts: it belongs below the properties too (rules/csharp.md), because it is
@@ -205,8 +306,14 @@ import sys
 arrow = re.compile(r"^const \w+ = (async )?\(.*\)(: [^=]+)? =>")
 state = re.compile(r"^const \w+.*= (ref|computed|reactive)\(")
 
+try:
+    lines = open(sys.argv[1], encoding="utf-8").readlines()
+except FileNotFoundError:
+    # Deleted between the find and this open — a race in a shared tree, not a violation (check 11).
+    sys.exit(0)
+
 first_function = None
-for line in open(sys.argv[1], encoding="utf-8"):
+for line in lines:
     if first_function is None and arrow.match(line):
         first_function = True
     elif first_function and state.match(line):
@@ -378,6 +485,19 @@ PYEOF
 while IFS= read -r line; do
   [ -n "$line" ] && report "$line"
 done <<< "$locale_report"
+
+# 7. Every polygon suite is named in docker/README.md's run commands. The commands pass an explicit
+#    --test list rather than running everything ignored, so a suite absent from the file is a suite
+#    nobody runs — and that is not hypothetical: the file listed six of ten for the whole of plan 5,
+#    omitting exactly the four newest (cron, firewall, monitor, binary_paths), while everyone
+#    following it believed they had run the polygon.
+for suite_file in agent/crates/*/tests/*_on_a_real_host.rs; do
+  [ -e "$suite_file" ] || continue
+  suite="$(basename "$suite_file" .rs)"
+  if ! grep -q -- "--test $suite" docker/README.md 2>/dev/null; then
+    report "docker/README.md: does not name the polygon suite '$suite' in a run command — a suite absent from that list is a suite nobody runs"
+  fi
+done
 
 if [ "$violations" -gt 0 ]; then
   echo
