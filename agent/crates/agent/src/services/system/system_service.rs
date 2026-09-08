@@ -1,6 +1,7 @@
 //! `SystemService`: the identity handshake the API performs before trusting the
 //! agent.
 
+use maran_agent_core::validation::system::local_backup_root::LocalBackupRoot;
 use maran_distro::{DistroFamily, DistroInfo};
 use tonic::{Request, Response, Status};
 
@@ -47,6 +48,12 @@ impl SystemService for SystemServiceImpl {
     ///
     /// Infallible by design: an agent that cannot answer this cannot have
     /// started, since the distribution is detected before the socket is bound.
+    ///
+    /// `backup_root` is reported from [`LocalBackupRoot::default`], which is
+    /// built from `AgentPaths::BACKUP_ROOT` — the same constant every backup
+    /// operation writes under. It is READ from here rather than restated by
+    /// the panel, so there is one statement of the directory and the panel can
+    /// only show what this answer said.
     async fn get_agent_info(
         &self,
         _request: Request<GetAgentInfoRequest>,
@@ -56,6 +63,7 @@ impl SystemService for SystemServiceImpl {
             distro_id: self.distro.id.clone(),
             family: self.wire_family() as i32,
             proto_version: PROTO_VERSION,
+            backup_root: LocalBackupRoot::default().as_str().to_owned(),
         };
 
         Ok(Response::new(GetAgentInfoResponse {
@@ -63,3 +71,7 @@ impl SystemService for SystemServiceImpl {
         }))
     }
 }
+
+#[cfg(test)]
+#[path = "../../tests/services/system/system_service_tests.rs"]
+mod tests;

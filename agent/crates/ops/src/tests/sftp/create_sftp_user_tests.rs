@@ -62,7 +62,7 @@ fn creating_an_sftp_user_points_its_home_at_the_jail_and_forbids_useradd_from_cr
         .position(|argument| argument == "--home-dir")
         .and_then(|at| useradd.argv.get(at + 1))
         .expect("a home argument");
-    assert_eq!(home, "/var/lib/maran/sftp/alice");
+    assert_eq!(home, "/var/lib/maran-sftp/alice");
     assert!(
         useradd
             .argv
@@ -165,8 +165,8 @@ fn creating_an_sftp_user_makes_the_jail_and_its_mount_point_before_the_login() {
     assert_eq!(
         directories,
         vec![
-            ("/var/lib/maran/sftp/alice".to_owned(), 0o755),
-            ("/var/lib/maran/sftp/alice/home".to_owned(), 0o755),
+            ("/var/lib/maran-sftp/alice".to_owned(), 0o755),
+            ("/var/lib/maran-sftp/alice/home".to_owned(), 0o755),
         ],
         "the jail must be created, and at a mode OpenSSH will chroot into"
     );
@@ -191,12 +191,12 @@ fn creating_an_sftp_user_installs_an_enabled_bind_mount_unit_for_the_account() {
     let unit = configs.first().expect("a unit was written");
     assert_eq!(
         unit.target,
-        "/etc/systemd/system/var-lib-maran-sftp-alice-home.mount"
+        "/etc/systemd/system/var-lib-maran\\x2dsftp-alice-home.mount"
     );
     assert!(unit.contents.contains("What=/home/alice"));
     assert!(
         unit.contents
-            .contains("Where=/var/lib/maran/sftp/alice/home")
+            .contains("Where=/var/lib/maran-sftp/alice/home")
     );
     assert!(unit.contents.contains("Options=bind"));
     assert!(
@@ -208,7 +208,7 @@ fn creating_an_sftp_user_installs_an_enabled_bind_mount_unit_for_the_account() {
         unit.reload.contains(&"--now".to_owned())
             && unit
                 .reload
-                .contains(&"var-lib-maran-sftp-alice-home.mount".to_owned()),
+                .contains(&"var-lib-maran\\x2dsftp-alice-home.mount".to_owned()),
         "the unit must be enabled and started: {:?}",
         unit.reload
     );

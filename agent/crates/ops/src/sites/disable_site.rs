@@ -1,9 +1,9 @@
 //! DisableSite: suspending a site without taking its vhost away.
 
 use maran_distro::DistroAdapter;
-use maran_templates::nginx::suspended_site::SuspendedSite;
 
 use crate::sites::model::create_site_input::CreateSiteInput;
+use crate::sites::render_suspended_vhost::render_suspended_vhost;
 use crate::sites::resolved_site_paths::resolved_site_paths;
 use crate::sites::write_vhost::write_vhost;
 use crate::sites::{SiteHost, SitesOpError};
@@ -51,17 +51,7 @@ pub fn disable_site(
         .iter()
         .map(|alias| alias.as_str().to_owned())
         .collect();
-    let contents = SuspendedSite {
-        domain: input.domain.as_str(),
-        aliases: &aliases,
-        document_root: &paths.document_root.display().to_string(),
-        access_log: &paths.access_log.display().to_string(),
-        error_log: &paths.error_log.display().to_string(),
-    }
-    .render_config()
-    .map_err(|error| SitesOpError::Render {
-        reason: error.to_string(),
-    })?;
+    let contents = render_suspended_vhost(input.domain.as_str(), &aliases, &paths)?;
 
     if current == contents {
         return Ok(());

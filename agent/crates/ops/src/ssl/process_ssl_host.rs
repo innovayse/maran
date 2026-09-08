@@ -7,6 +7,7 @@ use std::process::{Command, Stdio};
 
 use maran_agent_core::agent_paths::AgentPaths;
 use maran_agent_core::command_outcome::CommandOutcome;
+use maran_agent_core::utils::apply_child_environment::apply_child_environment;
 use maran_agent_core::validation::system::name::AccountName;
 
 use crate::safe_write::model::{ConfigFile, Reload, Validator};
@@ -100,6 +101,11 @@ impl ConfigHost for ProcessSslHost {
 }
 
 impl SiteHost for ProcessSslHost {
+    /// Delegates to the site area's host.
+    fn list_config_paths(&self) -> Result<Vec<PathBuf>, SitesOpError> {
+        self.sites.list_config_paths()
+    }
+
     /// Delegates to the site area's host.
     fn read_config(&self, path: &Path) -> Result<Option<String>, SitesOpError> {
         self.sites.read_config(path)
@@ -456,7 +462,9 @@ fn spawn_with_input(
 ) -> Result<CommandOutcome, SslOpError> {
     let unavailable = |reason: String| SslOpError::ToolUnavailable { reason };
 
-    let mut child = Command::new(program)
+    let mut command = Command::new(program);
+    apply_child_environment(&mut command);
+    let mut child = command
         .args(arguments)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())

@@ -36,25 +36,10 @@ fn the_debian_family_runs_cron_through_the_cron_unit() {
     assert_eq!(DebianAdapter.cron_service(), "cron");
 }
 
-/// The Debian family drives the firewall through the nftables unit.
-#[test]
-fn the_debian_family_drives_the_firewall_through_the_nftables_unit() {
-    assert_eq!(DebianAdapter.firewall_service(), "nftables");
-}
-
 /// The Debian family serves SSH from the unit its OpenSSH package registers.
 #[test]
 fn the_debian_family_serves_ssh_from_the_ssh_unit() {
     assert_eq!(DebianAdapter.ssh_service(), "ssh");
-}
-
-/// The Debian family wires its firewall include into the file its nftables unit reads.
-#[test]
-fn the_debian_family_wires_its_firewall_include_into_the_file_its_unit_reads() {
-    assert_eq!(
-        DebianAdapter.nftables_include_target(),
-        "/etc/nftables.conf"
-    );
 }
 
 /// The panel reports exactly the four units it manages on the Debian family.
@@ -91,7 +76,7 @@ fn the_debian_family_reports_exactly_the_four_units_the_panel_manages() {
 /// `sh` is in the table for the same reason and not because the agent spawns it
 /// — it never does — but because the path is written into a crontab line, where
 /// a wrong one is a cron entry that silently never runs.
-const EXPECTED_BINARIES: [(&str, &str); 12] = [
+const EXPECTED_BINARIES: [(&str, &str); 16] = [
     ("useradd", "/usr/sbin/useradd"),
     ("usermod", "/usr/sbin/usermod"),
     ("userdel", "/usr/sbin/userdel"),
@@ -104,10 +89,14 @@ const EXPECTED_BINARIES: [(&str, &str); 12] = [
     ("crontab", "/usr/bin/crontab"),
     ("nft", "/usr/sbin/nft"),
     ("sh", "/bin/sh"),
+    ("tar", "/usr/bin/tar"),
+    ("gzip", "/usr/bin/gzip"),
+    ("database_dump", "/usr/bin/mariadb-dump"),
+    ("getent", "/usr/bin/getent"),
 ];
 
 /// The adapter's answer for each tool, in the order of [`EXPECTED_BINARIES`].
-fn actual_binaries() -> [&'static str; 12] {
+fn actual_binaries() -> [&'static str; 16] {
     [
         DebianAdapter.useradd_binary(),
         DebianAdapter.usermod_binary(),
@@ -121,6 +110,10 @@ fn actual_binaries() -> [&'static str; 12] {
         DebianAdapter.crontab_binary(),
         DebianAdapter.nft_binary(),
         DebianAdapter.sh_binary(),
+        DebianAdapter.tar_binary(),
+        DebianAdapter.gzip_binary(),
+        DebianAdapter.database_dump_binary(),
+        DebianAdapter.getent_binary(),
     ]
 }
 

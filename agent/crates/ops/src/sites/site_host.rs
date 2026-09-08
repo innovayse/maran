@@ -43,6 +43,25 @@ pub trait SiteHost: Send + Sync {
     /// that reading would have `create_site` overwrite a live vhost.
     fn read_config(&self, path: &Path) -> Result<Option<String>, SitesOpError>;
 
+    /// Lists every vhost file the web server is served from, in the agent's
+    /// own include directory.
+    ///
+    /// The enumeration exists so that "which sites does this account have?"
+    /// can be answered by the MACHINE rather than by a list the caller passes
+    /// in. A list can only describe what the panel remembers creating, and a
+    /// vhost it has forgotten is precisely the one still serving a suspended
+    /// customer's site.
+    ///
+    /// Order is not part of the contract; a caller that needs one sorts.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SitesOpError::ConfigUnreadable`] naming the directory when it
+    /// cannot be listed. Distinguishing that from an empty directory is the
+    /// caller's responsibility and matters: both would otherwise read as "this
+    /// account serves nothing".
+    fn list_config_paths(&self) -> Result<Vec<PathBuf>, SitesOpError>;
+
     /// Creates `directories`, and every missing parent, running as `account`.
     ///
     /// The document root and the log directory are inside a customer's home,

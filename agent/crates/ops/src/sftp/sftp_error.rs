@@ -73,6 +73,16 @@ pub enum SftpError {
     #[error("the password was refused")]
     PasswordRejected,
 
+    /// `passwd -S` printed something this agent cannot read as an answer about
+    /// the login it asked about.
+    ///
+    /// Its own variant and never folded into a `false`: "not locked" and
+    /// "unreadable" are the same value to any caller that guesses, and the
+    /// guess would certify a suspension nobody observed. It carries no output,
+    /// for the reason the enum gives.
+    #[error("the password status could not be read")]
+    StatusUnreadable,
+
     /// The hosting account the login was to belong to is not on this host.
     ///
     /// Its own variant rather than a [`Self::NotFound`], which is about the

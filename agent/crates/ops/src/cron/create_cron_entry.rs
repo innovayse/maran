@@ -76,6 +76,11 @@ pub fn create_cron_entry(
         id: id.clone(),
         schedule: schedule.clone(),
         enabled: true,
+        // The account's own state, not a choice this operation makes: an entry
+        // created while the account is suspended must not start firing. The
+        // render normalises every managed line to the document's flag anyway,
+        // so this says out loud what the table is about to say.
+        suspended: document.is_suspended(),
         command: None,
     });
 

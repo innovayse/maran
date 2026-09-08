@@ -5,14 +5,57 @@ use maran_agent_core::validation::system::name::AccountName;
 use maran_distro::DistroAdapter;
 
 use crate::accounts::quota_blocks::QuotaBlocks;
-use crate::accounts::{AccountError, AccountUsage, CreatedAccount, SystemHost};
-use crate::cron::NO_CRONTAB_MARKER;
+use crate::accounts::{
+    AccountError, AccountSuspensionState, AccountUsage, CreatedAccount, StoredPassword, SystemHost,
+};
+use crate::cron::{CronHost, NO_CRONTAB_MARKER, inspect_account_cron};
 use crate::db::{DbHost, drop_account_databases};
 use crate::php::{PhpHost, remove_account_pools};
-use crate::sftp::{SftpHost, remove_account_sftp};
+use crate::sftp::{SftpHost, inspect_account_logins, remove_account_sftp};
+use crate::sites::{SiteHost, inspect_account_sites};
 
 /// Where every account's home directory lives.
 const HOME_ROOT: &str = "/home";
+
+/// The argument that makes `passwd` REPORT a login's state instead of changing
+/// it.
+///
+/// Named so that the one place this agent runs `passwd` cannot be read as the
+/// place it sets a password: `-S` is the whole difference.
+const PASSWORD_STATUS_ARGUMENT: &str = "-S";
+
+/// What `passwd -S` prints in its second field for a locked password — the
+/// FIRST LETTER of it, because the two families do not spell the rest the same.
+///
+/// Measured on both polygon images rather than assumed, because assuming cost
+/// the RHEL family a working suspension:
+///
+/// ```text
+/// ubuntu24:  u1 P  …   u1 L  …        (Debian shadow-utils)
+/// alma9:     u1 PS …   u1 LK …        (RHEL's passwd)
+/// ```
+///
+/// An exact comparison against `"L"` is therefore true on Debian and FALSE on
+/// every RHEL host, which made the login half of the suspension attestation
+/// report every account as unlocked there and refuse every suspension. Matching
+/// the first letter is unambiguous on both: the other states are `P`/`PS` for a
+/// usable password and `NP` for none at all, and neither begins with `L`.
+const LOCKED_PASSWORD_PREFIX: char = 'L';
+
+/// The database `getent` is asked for when the question is about a password.
+const SHADOW_DATABASE: &str = "shadow";
+
+/// The separator between the fields of a shadow entry.
+const SHADOW_FIELD_SEPARATOR: char = ':';
+
+/// Which field of a shadow entry holds the password, counting from zero.
+///
+/// `<name>:<password>:<last change>:…` — the name is field 0 and the password
+/// is field 1. Named rather than written as a literal `1`, because a bare
+/// index next to `split` is the kind of thing a later edit moves by one
+/// without anything noticing: the entry would still parse, and the agent would
+/// classify a DATE as a password.
+const SHADOW_PASSWORD_FIELD: usize = 1;
 
 /// Account operations: create, suspend, unsuspend, delete, quota, usage.
 ///
@@ -153,19 +196,142 @@ impl<H: SystemHost> AccountOperations<H> {
     ///
     /// Idempotent, for the same reason suspension is.
     ///
+    /// # Why the unlock is conditional, and why that is not a special case
+    ///
+    /// `usermod --unlock` refuses a login that has no password hash — "unlocking
+    /// the user's password would result in a passwordless account" — and the two
+    /// families spell that refusal differently: **exit 0 on Debian, exit 1 on
+    /// RHEL**, measured on both polygon images and unchanged under `LC_ALL=C`.
+    /// Every hosting account is exactly such a login: `useradd` leaves the field
+    /// as `!`/`!!` and this agent never sets a password on an account's own
+    /// entry — the credentials it hands a customer are SFTP logins. So an
+    /// unconditional `--unlock` whose non-zero status is a failure **could not
+    /// succeed on any RHEL host for any account**, and reactivation was
+    /// impossible on half the supported matrix from the day this was written.
+    ///
+    /// The repair is not to forgive the exit status but to stop making the call
+    /// that has nothing to do. `usermod --lock` on a passwordless login is a
+    /// measured no-op on both families — the field keeps the exact bytes
+    /// `useradd` wrote — so for such an account the suspension never locked a
+    /// password and the reversal has none to restore. Asking
+    /// [`StoredPassword`] which state the field is in answers that portably,
+    /// and the unlock runs on the one state where it means something.
+    ///
+    /// What this deliberately does NOT do, each rejected on its own grounds:
+    /// match `usermod`'s English sentence (locale-dependent, and this
+    /// repository already has a finding where a translated message changed a
+    /// parse's meaning); treat exit 1 as success (it would swallow "cannot
+    /// update the password file" and every other real refusal of the same
+    /// call); or decide from `passwd -S`, which reports `L`/`LK` for a
+    /// passwordless login and for one locked over a real password alike and
+    /// therefore cannot make this distinction at all.
+    ///
+    /// The lock is not weakened. Fewer inputs reach `--unlock` than before, not
+    /// more, and a real `Locked` account is still unlocked with its status
+    /// required to be zero.
+    ///
     /// # Errors
     ///
-    /// Returns [`AccountError::NotFound`] when the account does not exist.
+    /// - [`AccountError::NotFound`] when the account does not exist.
+    /// - [`AccountError::CommandFailed`] when the shadow entry cannot be read,
+    ///   when `usermod --unlock` refuses a genuinely locked account, or when
+    ///   the shell cannot be set.
+    /// - [`AccountError::UnreadableOutput`] when the shadow entry does not have
+    ///   the shape `<name>:<password>:…` for this account.
     pub fn unsuspend(&self, name: &AccountName) -> Result<(), AccountError> {
         let username = self.require_existing(name)?;
 
-        self.expect_success(self.distro.usermod_binary(), &["--unlock", &username])?;
+        if self.stored_password(&username)? == StoredPassword::Locked {
+            self.expect_success(self.distro.usermod_binary(), &["--unlock", &username])?;
+        }
+
         self.expect_success(
             self.distro.usermod_binary(),
             &["--shell", self.distro.nologin_shell(), &username],
         )?;
 
         Ok(())
+    }
+
+    /// Reports what this host can be OBSERVED to be doing for the account.
+    ///
+    /// Read-only: it changes nothing, and it may be called on an account in
+    /// any state. It exists so the panel can refuse to report a suspension it
+    /// cannot see.
+    ///
+    /// # Why an observation and not a return value of `suspend`
+    ///
+    /// `suspend` returning `Ok(())` says two `usermod` invocations exited
+    /// zero. It says nothing about whether the account's sites stopped
+    /// serving, because this agent is not what stopped them — the panel drives
+    /// `DisableSite` per site, and a site it has forgotten is never driven at
+    /// all. Suspension's residue is on the HOST, so the check has to look at
+    /// the host; the residue audit that verifies DELETION reads the panel's
+    /// rows, which is right for deletion (its residue IS rows) and would be
+    /// green over a serving site here.
+    ///
+    /// # Why it takes three hosts
+    ///
+    /// Because suspension's residue is spread across three subsystems and the
+    /// evidence has to come from each of them in turn: the vhost directory,
+    /// the account's crontab, and the password database. One host would mean
+    /// one area answering about another's files, and the answer is worth
+    /// exactly as much as the seam it came through.
+    ///
+    /// # What it does not observe
+    ///
+    /// The account's databases, the panel's own web login, and the FOREIGN
+    /// lines of the crontab — each stated on [`AccountSuspensionState`] with
+    /// its reason. The foreign lines are counted rather than ignored.
+    ///
+    /// # Errors
+    ///
+    /// - [`AccountError::NotFound`] when the account does not exist.
+    /// - [`AccountError::SiteInspection`] when a vhost exists and cannot be
+    ///   read — refusing to answer rather than answering about the files that
+    ///   happened to be readable.
+    /// - [`AccountError::CronInspection`] when the account's crontab exists
+    ///   and cannot be read. An unreadable crontab is never reported as an
+    ///   empty one: that is the answer that reads as "nothing is firing".
+    /// - [`AccountError::SftpInspection`] when the password database cannot be
+    ///   enumerated, or `passwd -S` refuses or prints something unreadable for
+    ///   one of the account's logins.
+    /// - [`AccountError::CommandFailed`] or
+    ///   [`AccountError::UnreadableOutput`] when `passwd -S` refuses or prints
+    ///   something this agent cannot read for the account's OWN login.
+    pub fn suspension_state(
+        &self,
+        site_host: &dyn SiteHost,
+        cron_host: &dyn CronHost,
+        sftp_host: &dyn SftpHost,
+        name: &AccountName,
+    ) -> Result<AccountSuspensionState, AccountError> {
+        let username = self.require_existing(name)?;
+        let sites = inspect_account_sites(site_host, name)?;
+        // Both conversions are written out rather than ridden on `?`: the
+        // blanket `From<SftpError>` means "the deletion did not happen", which
+        // is the wrong sentence for an observation, and cron has no blanket
+        // conversion for the same reason.
+        let cron = inspect_account_cron(cron_host, name).map_err(|error| {
+            AccountError::CronInspection {
+                reason: error.to_string(),
+            }
+        })?;
+        let sftp_logins =
+            inspect_account_logins(sftp_host, self.distro, name).map_err(|error| {
+                AccountError::SftpInspection {
+                    reason: error.to_string(),
+                }
+            })?;
+
+        Ok(AccountSuspensionState {
+            login_locked: self.login_locked(&username)?,
+            login_password: self.stored_password(&username)?,
+            sites_directory_readable: sites.directory_readable,
+            sites: sites.sites,
+            cron,
+            sftp_logins,
+        })
     }
 
     /// Removes everything on this host that belongs to the account, then the
@@ -359,6 +525,112 @@ impl<H: SystemHost> AccountOperations<H> {
             .map_err(|_| AccountError::UnreadableOutput {
                 program: self.distro.id_binary().to_owned(),
             })
+    }
+
+    /// Reads whether the account's password is locked, as `passwd -S` reports
+    /// it.
+    ///
+    /// The status line is `<name> <state> <last change> ...`, and the state is
+    /// `L` for locked, `P` for a usable password and `NP` for none at all.
+    /// Only `L` counts as locked here: `NP` is an account with NO password,
+    /// which is not the same thing and must not be reported as suspended — an
+    /// SSH key or any authentication method that does not consult the password
+    /// still works against it.
+    ///
+    /// The NAME is matched too, and not merely the second field. `passwd -S`
+    /// without a name prints the invoking user's line, and a future edit that
+    /// dropped the argument would otherwise be reported as the account's own
+    /// state.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`AccountError::CommandFailed`] when `passwd` exits non-zero
+    /// and [`AccountError::UnreadableOutput`] when its first line does not
+    /// have that shape. Neither is answered with `false`: "the agent could not
+    /// tell" and "the login is open" are different facts, and only one of them
+    /// may be reported to a caller deciding whether an account is suspended.
+    /// Reads what the account's shadow password field actually holds.
+    ///
+    /// `getent shadow <name>`, and never a read of `/etc/shadow` itself: the
+    /// question is about ONE name, `getent` answers through the host's
+    /// configured name service rather than only the local file, and asking for
+    /// one key returns one line instead of pulling every hash on the host into
+    /// a root process (rules/security.md item 8).
+    ///
+    /// The field is classified immediately and the bytes are dropped.
+    /// [`StoredPassword`] holds no hash in any variant, and no error raised
+    /// here carries the entry — [`AccountError::UnreadableOutput`] names the
+    /// program and nothing else, precisely so that a malformed shadow line
+    /// cannot be echoed into a log by the code that failed to parse it.
+    ///
+    /// The NAME is matched as well as the field, for the reason
+    /// `login_locked` matches it: a future edit that dropped the argument
+    /// would otherwise have some other account's entry classified as this
+    /// one's.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`AccountError::CommandFailed`] when `getent` exits non-zero.
+    /// That includes its "key not found" status (2, documented in `getent(1)`
+    /// and measured as 2 on both families): an account `require_existing` has
+    /// just resolved and which nevertheless has no shadow entry is a host in a
+    /// state this agent will not guess about. And
+    /// [`AccountError::UnreadableOutput`] when the first line is not
+    /// `<name>:<password>:…` for this account.
+    fn stored_password(&self, username: &str) -> Result<StoredPassword, AccountError> {
+        let program = self.distro.getent_binary();
+        let outcome = self.host.run(program, &[SHADOW_DATABASE, username])?;
+        if outcome.status != 0 {
+            return Err(AccountError::CommandFailed {
+                program: program.to_owned(),
+                status: outcome.status,
+                stderr: outcome.stderr.trim().to_owned(),
+            });
+        }
+
+        let mut fields = outcome
+            .stdout
+            .lines()
+            .next()
+            .unwrap_or_default()
+            .split(SHADOW_FIELD_SEPARATOR);
+
+        match (fields.next(), fields.nth(SHADOW_PASSWORD_FIELD - 1)) {
+            (Some(name), Some(field)) if name == username => Ok(StoredPassword::classify(field)),
+            _ => Err(AccountError::UnreadableOutput {
+                program: program.to_owned(),
+            }),
+        }
+    }
+
+    fn login_locked(&self, username: &str) -> Result<bool, AccountError> {
+        let program = self.distro.passwd_binary();
+        let outcome = self
+            .host
+            .run(program, &[PASSWORD_STATUS_ARGUMENT, username])?;
+        if outcome.status != 0 {
+            return Err(AccountError::CommandFailed {
+                program: program.to_owned(),
+                status: outcome.status,
+                stderr: outcome.stderr.trim().to_owned(),
+            });
+        }
+
+        let mut fields = outcome
+            .stdout
+            .lines()
+            .next()
+            .unwrap_or_default()
+            .split_whitespace();
+
+        match (fields.next(), fields.next()) {
+            (Some(name), Some(state)) if name == username => {
+                Ok(state.starts_with(LOCKED_PASSWORD_PREFIX))
+            }
+            _ => Err(AccountError::UnreadableOutput {
+                program: program.to_owned(),
+            }),
+        }
     }
 
     /// Removes the account's crontab from the host's cron spool.

@@ -12,7 +12,7 @@ use super::system_accounts;
 const PASSWD: &str = "root:x:0:0:root:/root:/bin/bash\n\
                       daemon:x:1:1:daemon:/usr/sbin:/usr/sbin/nologin\n\
                       alice:x:1001:1001::/home/alice:/usr/sbin/nologin\n\
-                      alice_deploy:x:1001:1001::/var/lib/maran/sftp/alice:/usr/sbin/nologin\n";
+                      alice_deploy:x:1001:1001::/var/lib/maran-sftp/alice:/usr/sbin/nologin\n";
 
 #[test]
 fn every_row_of_the_database_becomes_an_account() {

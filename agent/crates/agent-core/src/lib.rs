@@ -13,5 +13,6 @@
 pub mod agent_paths;
 pub mod command_outcome;
 pub mod privs;
+pub mod secret_string;
 pub mod utils;
 pub mod validation;

@@ -10,6 +10,8 @@
 //! private beside its only caller, where it can be changed without a thought for
 //! anyone else.
 
+pub mod apply_child_environment;
+pub mod available_bytes;
 pub mod current_uid;
 pub mod directory;
 pub mod spawn_argv;

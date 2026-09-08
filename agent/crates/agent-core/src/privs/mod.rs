@@ -50,6 +50,8 @@ pub mod directory_entry_name;
 #[allow(unsafe_code)]
 pub mod fork_as_account;
 #[allow(unsafe_code)]
+pub mod group_id;
+#[allow(unsafe_code)]
 pub mod make_directory_in_directory;
 #[allow(unsafe_code)]
 pub mod open_in_directory;

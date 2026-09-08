@@ -6,8 +6,9 @@ use maran_agent_core::validation::system::cron_schedule::CronSchedule;
 
 /// One entry this agent installed into an account's crontab.
 ///
-/// The three fields the crontab itself carries — the id, the schedule and
-/// whether the line is commented out — plus the one it deliberately does not.
+/// The four fields the crontab itself carries — the id, the schedule and the
+/// two independent reasons its line may be commented out — plus the one it
+/// deliberately does not.
 ///
 /// **`command` is an `Option` because the crontab does not hold commands.**
 /// That is the whole design of this area, not a gap in this type: the
@@ -31,6 +32,20 @@ pub struct CronEntry {
     /// is what makes re-enabling it give back the same entry rather than a new
     /// one with the same text.
     pub enabled: bool,
+    /// Whether the ACCOUNT's suspension is what is stopping it.
+    ///
+    /// A second, orthogonal fact about the same line, and never the same field
+    /// as [`Self::enabled`]. `enabled` is the customer's own switch; this is
+    /// the panel's, set for every managed entry at once when the account is
+    /// suspended and cleared when it is resumed. An entry runs only when it is
+    /// enabled AND not suspended.
+    ///
+    /// They are two fields because a resume has to give the customer back
+    /// exactly the entries they had running. Suspension writing to `enabled`
+    /// would destroy that record — the panel keeps no cron rows, so the
+    /// crontab is the only place it exists — and the resume would silently
+    /// switch back on every job the customer had turned off themselves.
+    pub suspended: bool,
     /// What it runs, read back from its own command file.
     ///
     /// `None` when the file has not been read, or when there is no file to

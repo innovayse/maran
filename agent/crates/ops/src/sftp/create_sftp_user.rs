@@ -69,7 +69,7 @@ const START_NOW: &str = "--now";
 ///
 /// # What is built, and why in this order
 ///
-/// 1. The account's jail — `/var/lib/maran/sftp/<account>`, root-owned `0755`,
+/// 1. The account's jail — `/var/lib/maran-sftp/<account>`, root-owned `0755`,
 ///    with the account's real home bind-mounted at `home` inside it by a
 ///    systemd unit. Ensured on every call and idempotent, because an account's
 ///    second SFTP login must not fail on the first one's work.

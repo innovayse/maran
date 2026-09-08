@@ -41,18 +41,48 @@ tempfile.workspace = true
 # needs `unsafe`, which this crate forbids outright, and spawning `df` would put a
 # second parser between the panel and a number the kernel already has. Already in
 # the lockfile, so no new code enters the tree.
-rustix.workspace = true
+# `stdio` on top of the workspace features, for `dup2_stdin`: a restore hands the
+# account's archiver its artifact on descriptor 0, which is the only descriptor
+# that survives `fork_as_account`'s sweep, and putting an open file there needs a
+# `dup2`. The alternative is `libc::dup2`, which needs `unsafe` — forbidden in
+# this crate — so the safe wrapper of a crate already in the lockfile is what
+# keeps the `unsafe` exception confined to `agent-core::privs`.
+rustix = { workspace = true, features = ["stdio"] }
 # `nft -j list set` answers in JSON, and the firewall's ban list is read out of
 # it. Named in the plan and expected by the licence pass; the version lives in
 # the workspace manifest with every other shared one.
 serde_json.workspace = true
-# `sync` alone: the ONE thing this crate needs from tokio is the process-wide
-# `Mutex` every `ops::firewall` mutation is serialised by. The operations
-# themselves are synchronous like every other area's, and are called from
+# The manifest is written and read back through derive: see the workspace
+# manifest for why the backup area does not hand-roll that JSON.
+serde = { workspace = true }
+# SHA-256 over each dump and over the finished artifact. rules/security.md item
+# 9 forbids MD5/SHA1 for anything security-relevant, and a restore's integrity
+# check is exactly that.
+sha2 = { workspace = true }
+# `sync` and `rt`, and nothing else. `sync` is the process-wide `Mutex` every
+# `ops::firewall` mutation is serialised by; the operations themselves are
+# synchronous like every other area's, and are called from
 # `tokio::task::spawn_blocking` by the service layer — which is exactly the
-# situation `Mutex::blocking_lock` exists for. Declared here rather than in the
-# workspace root because tokio's version already lives there.
-tokio = { workspace = true, features = ["sync"] }
+# situation `Mutex::blocking_lock` exists for. `rt` is the `Handle` the S3
+# object store bridges over: `object_store`'s API is async, this area's is not,
+# and the bridge is one documented `Handle::block_on` inside a blocking task
+# rather than an async colouring of every operation above it. Declared here
+# rather than in the workspace root because tokio's version already lives
+# there.
+tokio = { workspace = true, features = ["rt", "sync"] }
+# The S3-compatible transport behind `ObjectStoreHost`. See the workspace
+# manifest for why this is a dependency and not a signer of our own
+# (rules/security.md item 9). Nothing outside `backup/s3_object_store_host.rs`
+# names this crate: the rest of the area speaks to the seam.
+object_store = { workspace = true }
 
 [lints]
 workspace = true
+
+[dev-dependencies]
+# The backup area's S3 transport bridges an async client on a runtime handle, so
+# its tests need a real runtime to hand it — and the local HTTP stub they drive
+# it against needs the IO driver turned while `Handle::block_on` waits, which is
+# what the multi-threaded flavour does. Production code needs only `rt`, so the
+# flavour is declared here rather than widening the shipped dependency.
+tokio = { workspace = true, features = ["rt-multi-thread"] }

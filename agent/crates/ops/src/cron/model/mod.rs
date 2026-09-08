@@ -1,6 +1,7 @@
 //! Inputs, outputs and derived values of the cron operations, one type per file
 //! (rules/rust.md "Operation anatomy").
 
+pub mod account_cron_suspension;
 pub mod cron_entry;
 pub mod cron_entry_output;
 pub mod cron_environment;

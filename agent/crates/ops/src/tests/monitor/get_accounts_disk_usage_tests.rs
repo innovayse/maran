@@ -14,7 +14,7 @@ use crate::monitor::fake_monitor_host::{FakeMonitorHost, distro};
 const PASSWD: &str = "root:x:0:0:root:/root:/bin/bash\n\
                       daemon:x:1:1:daemon:/usr/sbin:/usr/sbin/nologin\n\
                       alice:x:1001:1001::/home/alice:/usr/sbin/nologin\n\
-                      alice_deploy:x:1001:1001::/var/lib/maran/sftp/alice:/usr/sbin/nologin\n";
+                      alice_deploy:x:1001:1001::/var/lib/maran-sftp/alice:/usr/sbin/nologin\n";
 
 /// The names reported, in the order they came back.
 fn names(host: &FakeMonitorHost) -> Vec<String> {
@@ -58,10 +58,10 @@ fn an_sftp_login_is_not_reported_as_an_account() {
     let host = FakeMonitorHost::from_ubuntu_captures()
         .with_passwd(
             "alice:x:1001:1001::/home/alice:/usr/sbin/nologin\n\
-             alice_bob:x:1002:1002::/var/lib/maran/sftp/alice:/usr/sbin/nologin\n",
+             alice_bob:x:1002:1002::/var/lib/maran-sftp/alice:/usr/sbin/nologin\n",
         )
         .with_size("/home/alice", 4096)
-        .with_size("/var/lib/maran/sftp/alice", 4096);
+        .with_size("/var/lib/maran-sftp/alice", 4096);
 
     let usage = get_accounts_disk_usage(&host, distro()).expect("the database is readable");
 

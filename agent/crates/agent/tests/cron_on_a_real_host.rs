@@ -55,7 +55,8 @@ use maran_agent_core::validation::system::name::AccountName;
 use maran_distro::{DistroAdapter, adapter_for, detect};
 use maran_ops::cron::{
     CronError, ProcessCronHost, create_cron_entry, delete_cron_entry, get_cron_entry_output,
-    list_cron_entries, set_cron_entry_enabled, update_cron_entry,
+    inspect_account_cron, list_cron_entries, set_account_cron_suspended, set_cron_entry_enabled,
+    update_cron_entry,
 };
 
 use polygon_account::PolygonAccount;
@@ -554,4 +555,145 @@ fn a_line_the_account_wrote_itself_survives_every_managed_change() {
     );
 
     let _ = std::fs::remove_file(&staged);
+}
+
+#[test]
+#[ignore = "lets a real cron daemon miss two ticks on purpose; takes about two minutes: polygon only"]
+fn suspending_the_account_stops_its_entries_and_resuming_gives_back_only_what_was_running() {
+    // P5. Observed as the SENTINEL FILE's absence and presence, never as the
+    // crontab's text: a prefix in the table proves that the agent wrote a
+    // prefix, and the question is whether cron stops running the job.
+    //
+    // The whole point of the marker being its own is here, in the second half:
+    // an entry the customer disabled THEMSELVES must be silent through the
+    // suspension AND after the resume. A suspension that reused the customer's
+    // flag would hand that job back running, and there would be nothing left
+    // anywhere to say it should not have — the panel keeps no cron rows.
+    PolygonCron::require_polygon();
+    let account = PolygonAccount::create("polycronsusp");
+    let neighbour = PolygonAccount::create("polycronfree");
+    clear_crontab(account.name());
+    clear_crontab(neighbour.name());
+
+    let running = sentinel_path(account.name(), "running.sentinel");
+    let switched_off = sentinel_path(account.name(), "switchedoff.sentinel");
+    let control = sentinel_path(neighbour.name(), "control.sentinel");
+
+    install(account.name(), &format!("echo ran > {}", running.display()));
+    let disabled = install(
+        account.name(),
+        &format!("echo ran > {}", switched_off.display()),
+    );
+    set_cron_entry_enabled(
+        &ProcessCronHost::new(polygon_distro()),
+        polygon_distro(),
+        account.name(),
+        &disabled,
+        false,
+    )
+    .expect("the customer turns their own entry off");
+
+    // The POSITIVE CONTROL, and this test is worth nothing without it. Both
+    // assertions below are about a file that must NOT appear, and a host where
+    // cron never ran at all satisfies them perfectly. This entry belongs to an
+    // account that is never suspended, fires on the same tick, and is the proof
+    // that the tick happened.
+    install(
+        neighbour.name(),
+        &format!("echo ran > {}", control.display()),
+    );
+
+    set_account_cron_suspended(
+        &ProcessCronHost::new(polygon_distro()),
+        polygon_distro(),
+        account.name(),
+        true,
+    )
+    .expect("suspending the account's cron must succeed");
+
+    // Cheap, and not the assertion: the two prefixes are two facts, and the
+    // customer's is still under the suspension's rather than replaced by it.
+    let table = installed_table(account.name());
+    assert!(
+        table.contains("#susp# #off# "),
+        "the customer's own prefix must survive under the suspension's:\n{table}"
+    );
+
+    // The daemon starts after the tables are installed, for the reason the test
+    // above gives at length: cron NOTICING a table installed under a running
+    // daemon is the daemon's own reload detection, and waiting on it was
+    // measured flaky here.
+    let first_tick = PolygonCron::start();
+
+    assert!(
+        PolygonCron::wait_for(&control),
+        "the control entry must run within {CRON_TICK_DEADLINE:?}, or nothing below \
+         distinguishes a suspension from a cron that never ticked.\n{}\nthe daemon said:\n{}",
+        entry_directory(neighbour.name()),
+        PolygonCron::log()
+    );
+    assert!(
+        !running.exists(),
+        "a suspended account's entry must not run: {} was written",
+        running.display()
+    );
+    assert!(
+        !switched_off.exists(),
+        "and neither must the one its owner had already turned off: {} was written",
+        switched_off.display()
+    );
+
+    // The agent's own answer about the same crontab, checked against what the
+    // filesystem just showed rather than against the code that wrote it.
+    let observed = inspect_account_cron(&ProcessCronHost::new(polygon_distro()), account.name())
+        .expect("the crontab must be readable");
+    assert_eq!(observed.entries_total, 2);
+    assert_eq!(
+        observed.entries_suspended, 2,
+        "both lines carry the marker that just stopped them"
+    );
+    assert_eq!(observed.foreign_lines, 0);
+
+    drop(first_tick);
+
+    set_account_cron_suspended(
+        &ProcessCronHost::new(polygon_distro()),
+        polygon_distro(),
+        account.name(),
+        false,
+    )
+    .expect("resuming the account's cron must succeed");
+
+    let _second_tick = PolygonCron::start();
+
+    assert!(
+        PolygonCron::wait_for(&running),
+        "the resumed entry must run again within {CRON_TICK_DEADLINE:?}; nothing was \
+         written to {}.\n{}\nthe daemon said:\n{}",
+        running.display(),
+        entry_directory(account.name()),
+        PolygonCron::log()
+    );
+    assert!(
+        !switched_off.exists(),
+        "the entry the CUSTOMER disabled must still be silent after the resume: {} was written",
+        switched_off.display()
+    );
+
+    let resumed = inspect_account_cron(&ProcessCronHost::new(polygon_distro()), account.name())
+        .expect("the crontab must be readable");
+    assert_eq!(
+        resumed.entries_suspended, 0,
+        "nothing may still carry the suspension marker"
+    );
+    let listed = list_cron_entries(&ProcessCronHost::new(polygon_distro()), account.name())
+        .expect("listing must succeed");
+    assert_eq!(
+        listed
+            .iter()
+            .filter(|entry| entry.id == disabled && !entry.enabled)
+            .count(),
+        1,
+        "the customer's own switch must come back exactly as they left it"
+    );
 }

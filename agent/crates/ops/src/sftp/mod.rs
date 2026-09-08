@@ -14,8 +14,12 @@
 //! refuses to chroot into a directory that is not root-owned or is group- or
 //! world-writable, and an account's home is `<account>:<web server group> 0750`
 //! — an ownership that sites, nginx and php-fpm all depend on. So the chroot is
-//! not the home: it is `/var/lib/maran/sftp/<account>`, root-owned `0755`, with
-//! the real home bind-mounted at `home` inside it. The login lands in the jail,
+//! not the home: it is `/var/lib/maran-sftp/<account>`, root-owned `0755`, with
+//! the real home bind-mounted at `home` inside it. The base directory is a
+//! SIBLING of `/var/lib/maran` and not a child of it, because OpenSSH walks
+//! every component of the chroot path and the panel-owned state root above the
+//! old base refused every login on every real install — see
+//! [`AgentPaths::SFTP_JAIL_ROOT`](maran_agent_core::agent_paths::AgentPaths::SFTP_JAIL_ROOT). The login lands in the jail,
 //! enters `home`, and is in its own files with their own permissions. Nothing
 //! about the home, the document root or the vhost changes, and cross-tenant
 //! isolation is exactly what it was.
@@ -55,20 +59,25 @@ mod delete_sftp_user;
 #[cfg(test)]
 #[path = "../tests/sftp/fake_sftp_host.rs"]
 pub(crate) mod fake_sftp_host;
+mod inspect_account_logins;
 pub mod model;
 mod process_sftp_host;
 mod remove_account_sftp;
+mod set_account_logins_locked;
 mod set_sftp_password;
 mod sftp_error;
 mod sftp_host;
 
 pub use create_sftp_user::create_sftp_user;
 pub use delete_sftp_user::delete_sftp_user;
+pub use inspect_account_logins::inspect_account_logins;
 pub use model::account_jail::AccountJail;
 pub use model::account_ownership::AccountOwnership;
+pub use model::sftp_login_suspension_fact::SftpLoginSuspensionFact;
 pub use model::sftp_user_request::SftpUserRequest;
 pub use process_sftp_host::ProcessSftpHost;
 pub use remove_account_sftp::remove_account_sftp;
+pub use set_account_logins_locked::set_account_logins_locked;
 pub use set_sftp_password::set_sftp_password;
 pub use sftp_error::SftpError;
 pub use sftp_host::SftpHost;

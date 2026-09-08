@@ -27,11 +27,14 @@ use crate::db::db_error::DbError;
 pub trait DbHost: Send + Sync {
     /// Runs exactly one SQL statement and returns what the server printed.
     ///
-    /// One statement, not a script: the client is invoked with `--execute`,
-    /// which takes a single statement, so an implementation has nowhere to put
-    /// a second one even if a caller tried to build one. The output comes back
-    /// unformatted and without column headers, so a caller reads values rather
-    /// than a table.
+    /// One statement, not a script — and an implementation MUST refuse a
+    /// candidate carrying more than one rather than assume the caller built it
+    /// well. That obligation is written here because the flag that used to
+    /// carry it no longer does: the statement holds a customer's database
+    /// password on two paths, so it travels on the client's standard input,
+    /// where `/proc/<pid>/cmdline` cannot show it, and standard input takes a
+    /// whole script. The output comes back unformatted and without column
+    /// headers, so a caller reads values rather than a table.
     ///
     /// # Errors
     ///

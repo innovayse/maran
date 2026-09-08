@@ -62,6 +62,18 @@ impl DistroAdapter for RhelAdapter {
         rhel_packages::package_manager()
     }
 
+    fn tar_binary(&self) -> &'static str {
+        rhel_services::tar_binary()
+    }
+
+    fn gzip_binary(&self) -> &'static str {
+        rhel_services::gzip_binary()
+    }
+
+    fn database_dump_binary(&self) -> &'static str {
+        rhel_services::database_dump_binary()
+    }
+
     fn mysql_client_binary(&self) -> &'static str {
         rhel_services::mysql_client_binary()
     }
@@ -86,12 +98,20 @@ impl DistroAdapter for RhelAdapter {
         rhel_services::usermod_binary()
     }
 
+    fn getent_binary(&self) -> &'static str {
+        rhel_services::getent_binary()
+    }
+
     fn setquota_binary(&self) -> &'static str {
         rhel_services::setquota_binary()
     }
 
     fn quota_binary(&self) -> &'static str {
         rhel_services::quota_binary()
+    }
+
+    fn passwd_binary(&self) -> &'static str {
+        rhel_services::passwd_binary()
     }
 
     fn id_binary(&self) -> &'static str {
@@ -128,14 +148,6 @@ impl DistroAdapter for RhelAdapter {
 
     fn nft_binary(&self) -> &'static str {
         rhel_services::nft_binary()
-    }
-
-    fn nftables_include_target(&self) -> &'static str {
-        rhel_paths::nftables_include_target()
-    }
-
-    fn firewall_service(&self) -> &'static str {
-        rhel_services::firewall_service()
     }
 
     fn cron_service(&self) -> &'static str {

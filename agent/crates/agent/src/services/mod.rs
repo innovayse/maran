@@ -1,6 +1,7 @@
 //! gRPC service implementations — one file per proto service (rules/rust.md).
 
 pub mod accounts;
+pub mod backup;
 pub mod cron;
 pub mod db;
 pub mod files;

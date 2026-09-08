@@ -28,8 +28,15 @@ pub enum TailEnd {
 impl TailEnd {
     /// Whether the operator should be told about this ending.
     ///
-    /// The one thing a caller ever needs to decide from this type, written here
-    /// so that a second caller cannot decide it differently.
+    /// **Nothing in the daemon calls this.** The one production consumer,
+    /// `agent::services::sites::tail_terminal`, matches the three variants
+    /// itself, because it must also choose the gRPC code and the message for
+    /// each involuntary ending and a `bool` cannot carry that. So this is the
+    /// same question asked in one place cheaply — for the tests that only need
+    /// the answer, and for a future caller that needs no more than it. It is
+    /// deliberately NOT described as the single decider: an earlier version of
+    /// this comment claimed that, and the claim was already false when it was
+    /// written.
     #[must_use]
     pub fn is_involuntary(self) -> bool {
         matches!(self, Self::ClientStalled | Self::Idle)

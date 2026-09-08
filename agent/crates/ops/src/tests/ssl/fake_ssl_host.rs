@@ -294,6 +294,10 @@ impl FakeSslHost {
 }
 
 impl SiteHost for FakeSslHost {
+    fn list_config_paths(&self) -> Result<Vec<PathBuf>, SitesOpError> {
+        self.sites.list_config_paths()
+    }
+
     fn read_config(&self, path: &Path) -> Result<Option<String>, SitesOpError> {
         self.sites.read_config(path)
     }

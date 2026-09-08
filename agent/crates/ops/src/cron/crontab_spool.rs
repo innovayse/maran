@@ -10,7 +10,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use maran_agent_core::agent_paths::AgentPaths;
 use maran_agent_core::command_outcome::CommandOutcome;
-use maran_agent_core::utils::spawn_argv;
+use maran_agent_core::utils::apply_child_environment::apply_child_environment;
 use maran_agent_core::validation::system::name::AccountName;
 use maran_distro::DistroAdapter;
 
@@ -75,33 +75,22 @@ const TABLE_TOO_LARGE: i32 = -2;
 /// Prefix every temporary crontab this host writes carries.
 const TABLE_PREFIX: &str = "crontab";
 
-/// The locale variable every spawn in this file sets.
-///
-/// The name is not restated here: it comes from [`spawn_argv`], which is the one
-/// place this agent decides what the pin IS. This file's spawns are deliberately
-/// not `spawn_argv` — they pipe stdin and carry a cron-specific unavailable
-/// sentinel — but they must pin the same variable to the same value, and a
-/// second literal is how the two would drift.
-const LOCALE_VARIABLE: &str = spawn_argv::LOCALE_VARIABLE;
-
-/// The locale every spawn in this file runs under.
-///
-/// The absent-crontab answer is decided by matching a MESSAGE
-/// ([`NO_CRONTAB_MARKER`]), so the language that message is printed in is part
-/// of that control decision. Inheriting the daemon's environment would make it
-/// ambient state — whatever `LANG` the unit file, the installer or the
-/// operator's shell happened to leave behind — and a control decision must not
-/// rest on that. With this set, **both halves of the decision are pinned: the
-/// stream the message arrives on, and the language it arrives in.**
-///
-/// It changes the direction of nothing: an unmatched message was already a
-/// refusal rather than a wrong "this account has no crontab", so what this
-/// removes is a source of spurious refusals on a non-English host, not a hole.
-///
-/// The value comes from [`spawn_argv`] for the reason [`LOCALE_VARIABLE`]
-/// gives; what is local is this paragraph — the reason cron cannot do without
-/// the pin.
-const LOCALE_VALUE: &str = spawn_argv::LOCALE_VALUE;
+// The environment this file's spawns are given.
+//
+// This file's spawns are deliberately not `spawn_argv` — they pipe stdin and
+// carry a cron-specific unavailable sentinel — but their environment must be
+// the same one, and a second list is how the two would drift.
+//
+// It matters more here than almost anywhere: the absent-crontab answer is
+// decided by matching a MESSAGE ([`NO_CRONTAB_MARKER`]), so the language that
+// message is printed in is part of that control decision. Inheriting the
+// daemon's environment would make it ambient state — whatever `LANG` the unit
+// file, the installer or the operator's shell happened to leave behind — and a
+// control decision must not rest on that.
+//
+// It changes the direction of nothing: an unmatched message was already a
+// refusal rather than a wrong "this account has no crontab", so what this
+// removes is a source of spurious refusals on a non-English host, not a hole.
 
 /// One account's crontab, read and installed through `crontab(1)`.
 ///
@@ -210,9 +199,10 @@ impl CrontabSpool {
     /// for. A non-zero exit is not an error here — it is returned in the
     /// outcome, because each caller reads a status differently.
     fn run(program: &str, arguments: &[&str]) -> Result<CommandOutcome, CronError> {
-        let output = Command::new(program)
+        let mut command = Command::new(program);
+        apply_child_environment(&mut command);
+        let output = command
             .args(arguments)
-            .env(LOCALE_VARIABLE, LOCALE_VALUE)
             .stdin(Stdio::null())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
@@ -259,9 +249,10 @@ impl CrontabSpool {
             code: PROGRAM_UNAVAILABLE,
         };
 
-        let mut child = Command::new(program)
+        let mut command = Command::new(program);
+        apply_child_environment(&mut command);
+        let mut child = command
             .args(arguments)
-            .env(LOCALE_VARIABLE, LOCALE_VALUE)
             .stdin(Stdio::null())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())

@@ -121,6 +121,25 @@ pub(crate) struct FakeSftpHost {
     /// The status the service manager exits with, when a test installed a
     /// refusal.
     systemctl_status: Mutex<i32>,
+    /// The logins whose password the "host" holds as locked.
+    ///
+    /// Modelled as a set rather than a flag on [`PasswdEntry`] because a test
+    /// needs to be able to lock a login this fake never created — which is what
+    /// a hand-made login on a real host is.
+    locked: Mutex<Vec<String>>,
+    /// The logins that have no password at all.
+    ///
+    /// The one measured asymmetry of the real tool: `usermod --unlock` refuses
+    /// such a login while still exiting zero, so it stays locked. A fake that
+    /// unlocked it would agree with an implementation that assumed the tool did.
+    passwordless: Mutex<Vec<String>>,
+    /// The status `usermod` exits with, when a test installed a refusal.
+    usermod_status: Mutex<i32>,
+    /// The status `passwd` exits with, when a test installed a refusal.
+    passwd_status: Mutex<i32>,
+    /// What `passwd -S` prints instead of its ordinary line, when a test
+    /// installed something unreadable.
+    passwd_output: Mutex<Option<String>>,
 }
 
 impl FakeSftpHost {
@@ -137,7 +156,46 @@ impl FakeSftpHost {
             paths: Mutex::new(Vec::new()),
             unremovable: Mutex::new(Vec::new()),
             systemctl_status: Mutex::new(0),
+            locked: Mutex::new(Vec::new()),
+            passwordless: Mutex::new(Vec::new()),
+            usermod_status: Mutex::new(0),
+            passwd_status: Mutex::new(0),
+            passwd_output: Mutex::new(None),
         }
+    }
+
+    /// Marks `name`'s password as already locked on the "host".
+    pub(crate) fn with_locked(self, name: &str) -> Self {
+        self.locked.lock().unwrap().push(name.to_owned());
+
+        self
+    }
+
+    /// Marks `name` as a login that has no password at all.
+    pub(crate) fn with_passwordless(self, name: &str) -> Self {
+        self.passwordless.lock().unwrap().push(name.to_owned());
+
+        self
+    }
+
+    /// Whether `name`'s password is locked on the "host" right now.
+    pub(crate) fn is_locked(&self, name: &str) -> bool {
+        self.locked.lock().unwrap().iter().any(|held| held == name)
+    }
+
+    /// Makes `usermod` refuse with `status`.
+    pub(crate) fn refuse_usermod_with(&self, status: i32) {
+        *self.usermod_status.lock().unwrap() = status;
+    }
+
+    /// Makes `passwd` refuse with `status`.
+    pub(crate) fn refuse_passwd_with(&self, status: i32) {
+        *self.passwd_status.lock().unwrap() = status;
+    }
+
+    /// Makes `passwd -S` print `text` instead of its ordinary line.
+    pub(crate) fn passwd_prints(&self, text: &str) {
+        *self.passwd_output.lock().unwrap() = Some(text.to_owned());
     }
 
     /// Puts `path` on the "host", so `path_exists` finds it and a removal has
@@ -266,6 +324,78 @@ impl FakeSftpHost {
     }
 }
 
+impl FakeSftpHost {
+    /// Answers as `usermod --lock` / `--unlock` was measured to answer.
+    ///
+    /// Both are idempotent and both exit zero — including the one case that
+    /// surprises: unlocking a login that has NO password leaves it locked and
+    /// still succeeds. Modelling that here is what stops a test agreeing with
+    /// an implementation that assumed otherwise.
+    fn usermod(&self, arguments: &[&str]) -> CommandOutcome {
+        let status = *self.usermod_status.lock().unwrap();
+        if status != 0 {
+            return CommandOutcome {
+                status,
+                stdout: String::new(),
+                stderr: String::new(),
+            };
+        }
+
+        let name = arguments.last().copied().unwrap_or_default().to_owned();
+        let mut locked = self.locked.lock().unwrap();
+        match arguments.first().copied() {
+            Some("--lock") => {
+                if !locked.contains(&name) {
+                    locked.push(name);
+                }
+            }
+            Some("--unlock") => {
+                let passwordless = self.passwordless.lock().unwrap();
+                if !passwordless.contains(&name) {
+                    locked.retain(|held| *held != name);
+                }
+            }
+            other => panic!("the fake was asked for an unexpected usermod flag: {other:?}"),
+        }
+
+        CommandOutcome {
+            status: 0,
+            stdout: String::new(),
+            stderr: String::new(),
+        }
+    }
+
+    /// Answers as `passwd -S <login>` does: the name, then one letter for the
+    /// state.
+    fn password_status(&self, arguments: &[&str]) -> CommandOutcome {
+        let status = *self.passwd_status.lock().unwrap();
+        if status != 0 {
+            return CommandOutcome {
+                status,
+                stdout: String::new(),
+                stderr: String::new(),
+            };
+        }
+
+        if let Some(text) = self.passwd_output.lock().unwrap().clone() {
+            return CommandOutcome {
+                status: 0,
+                stdout: text,
+                stderr: String::new(),
+            };
+        }
+
+        let name = arguments.last().copied().unwrap_or_default();
+        let state = if self.is_locked(name) { "L" } else { "P" };
+
+        CommandOutcome {
+            status: 0,
+            stdout: format!("{name} {state} 2026-09-08 0 99999 7 -1\n"),
+            stderr: String::new(),
+        }
+    }
+}
+
 impl SftpHost for FakeSftpHost {
     /// Records the spawn, then answers as the tool would.
     ///
@@ -314,6 +444,10 @@ impl SftpHost for FakeSftpHost {
             *self.chpasswd_status.lock().unwrap()
         } else if program.ends_with("systemctl") {
             *self.systemctl_status.lock().unwrap()
+        } else if program.ends_with("usermod") {
+            return Ok(self.usermod(arguments));
+        } else if program.ends_with("passwd") {
+            return Ok(self.password_status(arguments));
         } else {
             panic!("the fake was asked to run an unexpected program: {program}");
         };

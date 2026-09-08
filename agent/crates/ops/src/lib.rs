@@ -17,6 +17,7 @@
 mod test_support;
 
 pub mod accounts;
+pub mod backup;
 pub mod cron;
 pub mod db;
 pub mod files;

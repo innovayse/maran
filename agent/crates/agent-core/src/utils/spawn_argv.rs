@@ -3,31 +3,7 @@
 use std::process::Command;
 
 use crate::command_outcome::CommandOutcome;
-
-/// The locale variable every spawn here sets.
-///
-/// `LC_ALL` and not `LANG`, because `LC_ALL` overrides every other locale
-/// variable — one assignment settles the question whatever the daemon's own
-/// environment holds. It is public so a test can assert on the child's real
-/// environment by name rather than restating the string.
-pub const LOCALE_VARIABLE: &str = "LC_ALL";
-
-/// The locale every spawn here runs under.
-///
-/// `C`, so the diagnostics a caller reads back are the ones its matching was
-/// written against. This started as the accounts host's own pin, added because
-/// `quota` links gettext and a translated header made its parse silently yield
-/// "unlimited", and because `remove_crontab` decides "there was nothing to
-/// remove" by reading `crontab`'s own message — a message in another language
-/// is a refusal it cannot recognise, which made an account with no crontab
-/// undeletable. Nothing sets a locale on the agent's unit, so the daemon's
-/// environment decided it.
-///
-/// It is pinned on the SPAWN rather than per call site, and now on the ONE
-/// spawn rather than one file's: every caller that reads a program's output has
-/// the same exposure, and a rule honoured at one call site and forgotten at the
-/// next is the shape of defect this repository keeps finding.
-pub const LOCALE_VALUE: &str = "C";
+use crate::utils::apply_child_environment::apply_child_environment;
 
 /// Spawns `program` with `arguments` as an argv array and waits for it.
 ///
@@ -44,8 +20,11 @@ pub const LOCALE_VALUE: &str = "C";
 /// refused: a diagnostic is for an operator to read, and losing the whole
 /// message over one stray byte helps nobody.
 ///
-/// The child also runs under [`LOCALE_VARIABLE`]`=`[`LOCALE_VALUE`], for the
-/// reason those constants give.
+/// The child's environment is [`apply_child_environment`]'s and nothing else:
+/// the daemon's own environment is CLEARED and replaced by the two entries
+/// that function names, so no `LD_PRELOAD`, `BASH_ENV` or `TAR_OPTIONS` the
+/// unit or `/etc/maran/agent.env` happens to carry reaches anything this agent
+/// starts.
 ///
 /// Callers whose child needs stdin (`chpasswd`, `openssl`) or whose output must
 /// be read bounded (the database client) do NOT belong here — those spawns
@@ -58,10 +37,9 @@ pub const LOCALE_VALUE: &str = "C";
 /// NOT an error here: its status is the caller's domain decision, so it comes
 /// back as a [`CommandOutcome`] like any success.
 pub fn spawn_argv(program: &str, arguments: &[&str]) -> std::io::Result<CommandOutcome> {
-    let output = Command::new(program)
-        .args(arguments)
-        .env(LOCALE_VARIABLE, LOCALE_VALUE)
-        .output()?;
+    let mut command = Command::new(program);
+    apply_child_environment(&mut command);
+    let output = command.args(arguments).output()?;
 
     Ok(CommandOutcome {
         // -1 for a process killed by a signal: it did not exit, and reporting

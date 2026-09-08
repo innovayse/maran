@@ -2,6 +2,7 @@
 
 use std::path::{Path, PathBuf};
 
+use crate::validation::system::backup_id::BackupId;
 use crate::validation::system::cron_entry_id::CronEntryId;
 use crate::validation::system::name::AccountName;
 
@@ -67,9 +68,91 @@ impl AgentPaths {
     /// its mount point to be there before the first login rather than after the
     /// next account operation.
     ///
+    /// Directly under `/var/lib`, and deliberately NOT under `/var/lib/maran`,
+    /// which is where it used to live — the same relocation, for a related
+    /// reason, as [`Self::BULK_SCRATCH_ROOT`]. OpenSSH does not merely require
+    /// the chroot directory to be root-owned; it walks EVERY component of the
+    /// path and refuses the login if any one of them is owned by another uid or
+    /// is group- or other-writable. `/var/lib/maran` is created `panel:panel
+    /// 0750` by `installer/lib/40-user.sh`, and step 40 runs before the SFTP
+    /// step, so while the base was `/var/lib/maran/sftp` every SFTP login on
+    /// every real install was refused. Measured on both supported families:
+    ///
+    /// ```text
+    /// Accepted password for <login> from 127.0.0.1 port 58788 ssh2
+    /// bad ownership or modes for chroot directory component "/var/lib/maran/"
+    /// ```
+    ///
+    /// The client sees only a connection that closes after the password was
+    /// accepted; the reason exists solely in the daemon's log, which is why this
+    /// survived a passing local suite and a jail base whose own mode was right.
+    /// `/var/lib` is `root:root 0755` on both families, so at the sibling every
+    /// component of the path belongs to root.
+    ///
+    /// The same move also removes an escalation: while the panel uid owned an
+    /// ancestor of this directory it could rename a level aside and leave an
+    /// entry of its own at that name — here, at the name of every customer's
+    /// chroot — without ever having permission to enter it.
+    ///
+    /// The `-` in the name is not free: a `.mount` unit's file name is
+    /// systemd's escaping of its `Where=`, and `-` is the escaping of `/`, so
+    /// the account's mount unit is `var-lib-maran\x2dsftp-<account>-home.mount`
+    /// and not the readable spelling. `AccountJail` derives it with systemd's
+    /// full rule, so nothing here has to be spelled twice.
+    ///
     /// An agent decision that is identical on every family, so it belongs here
     /// and not on the `DistroAdapter` as the same literal written twice.
-    pub const SFTP_JAIL_ROOT: &'static str = "/var/lib/maran/sftp";
+    pub const SFTP_JAIL_ROOT: &'static str = "/var/lib/maran-sftp";
+
+    /// Root-owned directory the agent stages temporary files whose size is the
+    /// CUSTOMER's, not the agent's, in.
+    ///
+    /// The counterpart to [`Self::agent_scratch_dir`], and the difference
+    /// between them is which resource a runaway file exhausts. That directory
+    /// is under `/run`, a tmpfs: its capacity is a slice of physical memory —
+    /// 10% of it on both families — so a database dump staged there is not
+    /// stored on a disk at all, and a dump larger than the slice is an
+    /// out-of-memory condition on a live server rather than a failed backup.
+    /// This directory is on real storage, under the agent's own state root,
+    /// where the resource a large dump consumes is the resource everyone
+    /// already reasons about it consuming.
+    ///
+    /// Directly under `/var/lib`, and deliberately NOT under `/var/lib/maran`,
+    /// which is where it used to live. `/var/lib/maran` is created
+    /// `panel:panel 0750` by the installer, because the API — an unprivileged
+    /// process and the largest attack surface this product exposes — writes its
+    /// own state there. Staging root-only data inside a directory an
+    /// unprivileged uid OWNS is not a boundary at all, whatever the modes on
+    /// the leaves say: the owner of a parent directory can rename an entry
+    /// aside and put a symlink in its place without ever having permission to
+    /// enter it, and root's next write then lands wherever the symlink points.
+    /// That was measured, both directions — a customer's plaintext dump
+    /// delivered into a panel-owned file, and a root-owned `0600` file
+    /// truncated and overwritten by the dump — in
+    /// `docs/superpowers/notes/2026-09-05-backups-threat-note.md` §1. `/var/lib`
+    /// itself is `root:root 0755` on both families, so no unprivileged uid can
+    /// place an entry at this name in the first place. The operations that use
+    /// this root check the whole ancestor chain as well, because a path that is
+    /// out of reach today is out of reach only for as long as somebody keeps it
+    /// that way.
+    ///
+    /// NOT under [`Self::BACKUP_ROOT`], which was
+    /// the other candidate and is disk-backed too: the backup root is
+    /// operator-configurable
+    /// ([`crate::validation::system::local_backup_root::LocalBackupRoot`]), so
+    /// staging under it would mean the agent's temporary files move whenever an
+    /// operator moves their archives, and a directory of half-written dumps
+    /// would appear inside the tree whose whole contract is "the artifacts you
+    /// may restore from". Staging is the agent's business and lives with the
+    /// agent's other state.
+    ///
+    /// It is NOT reboot-clean, which `/run` was. Nothing here is meant to
+    /// survive a restart, so the shipped `systemd` unit empties this directory
+    /// before the daemon starts; see `installer/systemd/maran-agent.service`.
+    /// The operations that write here also remove their own subdirectory on
+    /// every exit path, success and failure alike — the unit is the second of
+    /// two locks, for the run that was killed rather than returned from.
+    pub const BULK_SCRATCH_ROOT: &'static str = "/var/lib/maran-scratch";
 
     /// Directory the agent keeps certificate material in.
     ///
@@ -78,6 +161,41 @@ impl AgentPaths {
     /// than deferring to `/etc/letsencrypt` and friends, which it does not use
     /// directly.
     pub const CERTIFICATE_DIRECTORY: &'static str = "/etc/maran/certificates";
+
+    /// Root directory holding every account's local backup artifacts.
+    ///
+    /// Outside every home and every document root, `root:root 0700`. The
+    /// location is the one the filesystem hierarchy already assigns to exactly
+    /// this kind of file, and it exists on both families, so the agent adopts
+    /// it rather than inventing a directory of its own under `/var/lib`.
+    ///
+    /// This is the DEFAULT and not the only legal value: an operator may point
+    /// the panel at another directory, which is what
+    /// [`crate::validation::system::local_backup_root::LocalBackupRoot`]
+    /// validates. That type reads this constant as the value it must approve,
+    /// so the shipped root and the rules the shipped root is held to cannot
+    /// drift apart.
+    pub const BACKUP_ROOT: &'static str = "/var/backups/maran";
+
+    /// Root directory the two halves of a restore's directory swap live in.
+    ///
+    /// Under [`Self::ACCOUNT_HOME_ROOT`] on purpose, and that is the whole
+    /// reason it exists as a location of its own rather than under
+    /// `/var/lib/maran`. A restore replaces an account's home with two
+    /// `rename` calls — the live home becomes
+    /// [`Self::restore_previous_dir`], then
+    /// [`Self::restore_staging_dir`] becomes the live home — and `rename` is
+    /// atomic only WITHIN one filesystem. Homes frequently sit on a filesystem
+    /// of their own, so staging anywhere else silently turns each of those
+    /// renames into a recursive copy: not atomic, not reversible halfway
+    /// through, and slow in proportion to the customer's data. A future change
+    /// that moves either staging path out of this root breaks that and nothing
+    /// else in the code would object, which is why the reason is written here
+    /// and asserted in a test.
+    ///
+    /// The name begins with a dot and account names cannot, so this directory
+    /// can never collide with an account's home.
+    pub const RESTORE_STAGING_ROOT: &'static str = "/home/.maran-restore";
 
     /// Directory, relative to an account's home, holding that account's cron
     /// artefacts.
@@ -165,7 +283,7 @@ impl AgentPaths {
         Path::new("/etc/maran/firewall-bans.nft")
     }
 
-    /// Root-owned directory the agent writes its own temporary files in.
+    /// Root-owned directory the agent writes its own SMALL temporary files in.
     ///
     /// Mode 0700 and owned by root, and that is the whole point of it existing:
     /// a temporary file written by root anywhere an account can reach is a
@@ -177,9 +295,121 @@ impl AgentPaths {
     /// [`Self::SFTP_JAIL_ROOT`]: nothing here is meant to survive a reboot, and
     /// a scratch file that outlives the operation that made it is litter at
     /// best.
+    ///
+    /// **`/run` is a tmpfs, so every byte written here is RESIDENT KERNEL
+    /// MEMORY, not disk.** It is sized as a fraction of RAM — `systemd`
+    /// mounts it at 10% of physical memory on both families this product
+    /// supports, measured at `size=1604940k` against a `MemTotal` of
+    /// `16049400 kB` on the development host — so a 2 GiB VPS, a real customer
+    /// of this panel, has roughly 200 MiB here in total, shared with every
+    /// other consumer of `/run`. Filling it does not fail one operation; it
+    /// takes memory away from every process on a live server that the agent
+    /// runs as root on.
+    ///
+    /// That is why this directory is for files whose size is bounded by
+    /// something OTHER than the customer's data — a rendered crontab table is
+    /// kilobytes — and why bulk staging goes to
+    /// [`Self::BULK_SCRATCH_ROOT`] instead. A new caller that stages anything
+    /// proportional to what an account stores belongs there, not here.
     #[must_use]
     pub fn agent_scratch_dir() -> &'static Path {
         Path::new("/run/maran/scratch")
+    }
+
+    /// The account's backup directory: `<backup root>/<account>`.
+    ///
+    /// One directory per account, `root:root 0700`, so listing one account's
+    /// artifacts is a directory read rather than a scan of everybody's.
+    #[must_use]
+    pub fn account_backup_dir(account: &AccountName) -> PathBuf {
+        PathBuf::from(Self::BACKUP_ROOT).join(account.as_str())
+    }
+
+    /// The suffix every published backup artifact wears, in every destination.
+    ///
+    /// **The one spelling of this string in the workspace.** It was five: this
+    /// method, `object_key.rs`, `list_backups.rs`, `delete_backup.rs` and an
+    /// inline `format!` in `restore_backup.rs`, each of which had to stay equal
+    /// to the other four for a listing to see what a creation published and for
+    /// a delete to remove what a restore reads. A constant that four files
+    /// agree on by inspection is four chances to be the odd one out, and the
+    /// failure is silent in the worst direction: a listing that returns nothing
+    /// is indistinguishable from an account with no backups, which is what
+    /// retention prunes against.
+    ///
+    /// It is public and lives here, rather than in `ops::backup`, because
+    /// `ops` already asks this type what a backup file is CALLED
+    /// ([`Self::backup_artifact_path`]) and a suffix is the half of that answer
+    /// a caller needs on its own — to strip it off a directory entry, or to
+    /// build a key for a destination that has no filesystem path at all.
+    pub const BACKUP_ARTIFACT_SUFFIX: &'static str = ".tar.gz";
+
+    /// The suffix every backup's sidecar wears, beside its artifact.
+    ///
+    /// The one spelling, for the reason [`Self::BACKUP_ARTIFACT_SUFFIX`] gives;
+    /// it was four.
+    pub const BACKUP_SIDECAR_SUFFIX: &'static str = ".meta.json";
+
+    /// The archive one backup produced: `<account's backup dir>/<id>.tar.gz`.
+    #[must_use]
+    pub fn backup_artifact_path(account: &AccountName, backup_id: &BackupId) -> PathBuf {
+        Self::backup_file(account, backup_id, Self::BACKUP_ARTIFACT_SUFFIX)
+    }
+
+    /// The sidecar describing one backup:
+    /// `<account's backup dir>/<id>.meta.json`.
+    ///
+    /// Beside the archive rather than inside it, because listing must be able
+    /// to describe a backup without decompressing it. The copy INSIDE the
+    /// archive is the authority a restore checks against — a sidecar that
+    /// disagrees with it is a refusal, not a tie to break.
+    #[must_use]
+    pub fn backup_sidecar_path(account: &AccountName, backup_id: &BackupId) -> PathBuf {
+        Self::backup_file(account, backup_id, Self::BACKUP_SIDECAR_SUFFIX)
+    }
+
+    /// The root-only directory one backup's database dumps are staged in:
+    /// `<bulk scratch root>/backup/<id>`.
+    ///
+    /// Root-only and never under a home, for the reason the agent has a scratch
+    /// at all: a dump written where an account can reach it can be replaced
+    /// between being written and being read, and the process that reads it
+    /// connects to the database as its superuser.
+    ///
+    /// Under [`Self::BULK_SCRATCH_ROOT`] and no longer under
+    /// [`Self::agent_scratch_dir`], and the move is the point rather than a
+    /// tidy-up. What is staged here is one file per database holding a full
+    /// dump of it, plus — during a restore — a second file per database holding
+    /// the pre-drop rollback dump, and all of them coexist until the operation
+    /// ends. Its peak is therefore the customer's entire database estate,
+    /// twice; on `/run` that peak was charged to RAM.
+    #[must_use]
+    pub fn backup_scratch_dir(backup_id: &BackupId) -> PathBuf {
+        PathBuf::from(Self::BULK_SCRATCH_ROOT)
+            .join("backup")
+            .join(backup_id.as_str())
+    }
+
+    /// Where a restore builds the new home before it becomes the home:
+    /// `<restore staging root>/<account>.<id>`.
+    ///
+    /// Shares its parent with [`Self::restore_previous_dir`] so the swap is two
+    /// same-filesystem renames; [`Self::RESTORE_STAGING_ROOT`] carries the full
+    /// argument.
+    #[must_use]
+    pub fn restore_staging_dir(account: &AccountName, backup_id: &BackupId) -> PathBuf {
+        Self::restore_staging_entry(account, backup_id, "")
+    }
+
+    /// Where the home a restore replaced is kept until the restore has
+    /// succeeded: `<restore staging root>/<account>.previous.<id>`.
+    ///
+    /// This directory is what makes everything before the first `DROP DATABASE`
+    /// undoable: while it exists, the previous home is one rename away from
+    /// being live again.
+    #[must_use]
+    pub fn restore_previous_dir(account: &AccountName, backup_id: &BackupId) -> PathBuf {
+        Self::restore_staging_entry(account, backup_id, "previous.")
     }
 
     /// Builds `<the account's cron directory>/<entry id><extension>`.
@@ -196,6 +426,33 @@ impl AgentPaths {
     /// answers, and the type answers it before the path exists at all.
     fn cron_entry_file(account: &AccountName, entry_id: &CronEntryId, extension: &str) -> PathBuf {
         Self::account_cron_dir(account).join(format!("{}{extension}", entry_id.as_str()))
+    }
+
+    /// Builds `<the account's backup directory>/<backup id><extension>`.
+    ///
+    /// One place composes these names, so an artifact and its sidecar cannot
+    /// drift apart into two different spellings of one id.
+    ///
+    /// There is no traversal check here and there is deliberately none: the id
+    /// arrives as a [`BackupId`], whose grammar is 36 characters of lowercase
+    /// hex and four hyphens, so it cannot hold a `/`, a `..`, a leading `/` or
+    /// a NUL — and `Path::join` with an absolute string REPLACES the path it is
+    /// joined to. The type answers that question before a path exists at all.
+    fn backup_file(account: &AccountName, backup_id: &BackupId, extension: &str) -> PathBuf {
+        Self::account_backup_dir(account).join(format!("{}{extension}", backup_id.as_str()))
+    }
+
+    /// Builds `<restore staging root>/<account>.<infix><backup id>`.
+    ///
+    /// Flat, one level under the staging root, and named after both the account
+    /// and the backup: the two directories of one swap must be siblings for the
+    /// renames to be renames, and two accounts restoring at once must not meet.
+    fn restore_staging_entry(account: &AccountName, backup_id: &BackupId, infix: &str) -> PathBuf {
+        PathBuf::from(Self::RESTORE_STAGING_ROOT).join(format!(
+            "{}.{infix}{}",
+            account.as_str(),
+            backup_id.as_str()
+        ))
     }
 }
 

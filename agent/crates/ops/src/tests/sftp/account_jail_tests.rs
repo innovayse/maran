@@ -16,8 +16,8 @@ fn a_jail_is_derived_from_the_account_and_never_from_a_request() {
 
     let jail = AccountJail::for_account(&account, UNIT_DIRECTORY);
 
-    assert_eq!(jail.directory(), "/var/lib/maran/sftp/alice");
-    assert_eq!(jail.mount_point(), "/var/lib/maran/sftp/alice/home");
+    assert_eq!(jail.directory(), "/var/lib/maran-sftp/alice");
+    assert_eq!(jail.mount_point(), "/var/lib/maran-sftp/alice/home");
     assert_eq!(jail.source_directory(), "/home/alice");
 }
 
@@ -31,10 +31,10 @@ fn the_mount_unit_is_named_as_systemd_escapes_its_own_mount_point() {
 
     let jail = AccountJail::for_account(&account, UNIT_DIRECTORY);
 
-    assert_eq!(jail.unit_name(), "var-lib-maran-sftp-alice-home.mount");
+    assert_eq!(jail.unit_name(), "var-lib-maran\\x2dsftp-alice-home.mount");
     assert_eq!(
         jail.unit_path(),
-        "/etc/systemd/system/var-lib-maran-sftp-alice-home.mount"
+        "/etc/systemd/system/var-lib-maran\\x2dsftp-alice-home.mount"
     );
 }
 
@@ -45,7 +45,10 @@ fn an_underscore_in_an_account_name_survives_the_escaping_unchanged() {
 
     let jail = AccountJail::for_account(&account, UNIT_DIRECTORY);
 
-    assert_eq!(jail.unit_name(), "var-lib-maran-sftp-alice_two-home.mount");
+    assert_eq!(
+        jail.unit_name(),
+        "var-lib-maran\\x2dsftp-alice_two-home.mount"
+    );
 }
 
 /// Anything systemd would escape is escaped, not passed through.

@@ -250,6 +250,21 @@ where
 /// Runs only in the forked child. Returns the exit status to use on failure, so
 /// the caller does not have to decide what a failure means.
 ///
+/// # The ordering of the three syscalls is NOT observable locally
+///
+/// Said here because a developer who breaks it sees green. Swapping `setuid`
+/// ahead of `setgroups` — the classic privilege-drop defect, which leaves the
+/// child in root's supplementary groups with no capability left to leave them —
+/// was measured surviving the ENTIRE local Rust suite: 1472 tests, none of which
+/// forks as another account, because a local run is not root. It is caught only
+/// where a real drop happens, in the polygon suites run as root on both
+/// families, where the same break puts one named test plus twenty-five further
+/// host tests red (`.github/workflows/agent.yml`).
+///
+/// So: `cargo test` passing is NOT evidence about the four lines below, and the
+/// order they are written in is load-bearing rather than stylistic. Change it
+/// only against a polygon run.
+///
 /// # Errors
 ///
 /// Returns [`EXIT_DROP_FAILED`] when a syscall failed and

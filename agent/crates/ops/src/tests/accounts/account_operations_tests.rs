@@ -20,9 +20,12 @@ use maran_agent_core::validation::web::php_version::PhpVersion;
 
 use maran_distro::{DistroFamily, adapter_for};
 
-use crate::accounts::{AccountError, AccountOperations, CommandOutcome, SystemHost};
+use crate::accounts::{
+    AccountError, AccountOperations, CommandOutcome, StoredPassword, SystemHost,
+};
 use std::path::Path;
 
+use crate::cron::recording_cron_host::RecordingCronHost;
 use crate::db::create_database;
 use crate::db::fake_db_host::FakeDbHost;
 use crate::db::model::create_database_request::CreateDatabaseRequest;
@@ -31,6 +34,10 @@ use crate::php::model::pool_input::PoolInput;
 use crate::php::write_pool;
 use crate::sftp::fake_sftp_host::FakeSftpHost;
 use crate::sftp::model::account_jail::AccountJail;
+use crate::sites::disable_site;
+use crate::sites::fake_site_host::{
+    FakeSiteHost, create_test_site, distro as site_distro, php_input,
+};
 use crate::test_support::recording_commands::RecordingCommands;
 
 /// A machine that records what it was asked to do instead of doing it.
@@ -43,6 +50,15 @@ struct RecordingHost {
     recording: RecordingCommands,
     statuses: Mutex<Vec<i32>>,
     stdout: Mutex<String>,
+    /// What `getent shadow <name>` prints, when a test needs it to differ from
+    /// everything else the host says.
+    ///
+    /// Present because one observation asks TWO programs about the same login:
+    /// `passwd -S` for the flag the panel's suspension reads, and
+    /// `getent shadow` for the field its reactivation reads. A fixture with one
+    /// stdout for both would hand `passwd -S`'s status line to the classifier,
+    /// which is not a shape any host produces.
+    shadow: Mutex<Option<String>>,
     stderr: Mutex<String>,
     size: u64,
 }
@@ -54,6 +70,7 @@ impl RecordingHost {
             recording: RecordingCommands::new(),
             statuses: Mutex::new(Vec::new()),
             stdout: Mutex::new("1001\n".to_owned()),
+            shadow: Mutex::new(None),
             stderr: Mutex::new("refused\n".to_owned()),
             size: 0,
         }
@@ -86,6 +103,15 @@ impl RecordingHost {
     /// stream: an account with no crontab is a non-zero exit carrying the
     /// absent-table sentence, and a deletion that treated it as a refusal could
     /// never remove an ordinary account.
+    /// Gives `getent shadow acme` a password field of its own.
+    fn with_shadow_field(self, field: &str) -> Self {
+        *self
+            .shadow
+            .lock()
+            .expect("the fixture lock is never poisoned") = Some(shadow_entry(field));
+        self
+    }
+
     fn with_stderr(self, stderr: &str) -> Self {
         *self
             .stderr
@@ -133,11 +159,20 @@ impl SystemHost for RecordingHost {
             .expect("the fixture lock is never poisoned")
             .pop()
             .unwrap_or(0);
-        let stdout = self
-            .stdout
-            .lock()
-            .expect("the fixture lock is never poisoned")
-            .clone();
+        let stdout = match (
+            arguments.first(),
+            self.shadow
+                .lock()
+                .expect("the fixture lock is never poisoned")
+                .clone(),
+        ) {
+            (Some(&"shadow"), Some(entry)) => entry,
+            _ => self
+                .stdout
+                .lock()
+                .expect("the fixture lock is never poisoned")
+                .clone(),
+        };
         self.recording
             .set_next(status, &stdout, &self.stderr_for(status));
 
@@ -277,9 +312,24 @@ fn suspending_locks_the_password_and_takes_the_shell_away() {
     );
 }
 
+/// A shadow entry for `acme` whose password field is `field`.
+///
+/// `<name>:<password>:<last change>:…`, which is what `getent shadow acme`
+/// prints on both families.
+fn shadow_entry(field: &str) -> String {
+    format!("acme:{field}:20704:0:99999:7:::\n")
+}
+
+/// A shadow password field holding a real hash, as either family writes one.
+const HASHED_PASSWORD: &str = "$6$ou076yYZZcNDB1l3$9ClrBhB8kkMnQbmP16aIMTk3c0NcW..K8AxyIxIvLPY";
+
 #[test]
 fn unsuspending_reverses_exactly_what_suspending_did() {
-    let operations = debian(RecordingHost::new().with_user("acme"));
+    let operations = debian(
+        RecordingHost::new()
+            .with_user("acme")
+            .with_stdout(&shadow_entry(&format!("!{HASHED_PASSWORD}"))),
+    );
 
     operations
         .unsuspend(&name())
@@ -291,6 +341,405 @@ fn unsuspending_reverses_exactly_what_suspending_did() {
             .iter()
             .any(|call| call.contains(&"--unlock".to_owned()))
     );
+}
+
+/// A login that never had a password is unsuspended WITHOUT the call that
+/// refuses it.
+///
+/// The defect this replaces: every hosting account is passwordless, and
+/// `usermod --unlock` on such a login exits **0 on the Debian family and 1 on
+/// the RHEL one** (measured on both polygon images, unchanged under `LC_ALL=C`).
+/// An unconditional unlock whose non-zero status is a failure therefore made
+/// reactivation impossible on the entire RHEL half of the supported matrix.
+///
+/// If the fix were broken, this line would see a `--unlock` in the argv — the
+/// exact call that cannot succeed there.
+#[test]
+fn unsuspending_a_login_with_no_password_never_runs_the_unlock_that_refuses_it() {
+    let operations = debian(
+        RecordingHost::new()
+            .with_user("acme")
+            .with_stdout(&shadow_entry("!")),
+    );
+
+    operations
+        .unsuspend(&name())
+        .expect("unsuspension succeeds");
+
+    let usermod = operations_calls(&operations, "usermod");
+    assert!(
+        !usermod
+            .iter()
+            .any(|call| call.contains(&"--unlock".to_owned())),
+        "a login with no password has nothing to unlock: {usermod:?}"
+    );
+    assert!(
+        usermod
+            .iter()
+            .any(|call| call.contains(&"--shell".to_owned())),
+        "the shell is still restored: {usermod:?}"
+    );
+}
+
+/// The same, on the family the defect was fatal on, with that family's spelling.
+///
+/// `useradd` writes `!` on the Debian family and `!!` on the RHEL one. Both mean
+/// "no password", and the RHEL spelling is the one that must not reach
+/// `usermod --unlock`.
+#[test]
+fn on_the_rhel_family_the_double_marker_login_is_unsuspended_without_an_unlock() {
+    let operations = AccountOperations::new(
+        RecordingHost::new()
+            .with_user("acme")
+            .with_stdout(&shadow_entry("!!")),
+        adapter_for(DistroFamily::Rhel),
+    );
+
+    operations
+        .unsuspend(&name())
+        .expect("unsuspension succeeds on the RHEL family");
+
+    assert!(
+        !operations_calls(&operations, "usermod")
+            .iter()
+            .any(|call| call.contains(&"--unlock".to_owned()))
+    );
+}
+
+/// An account whose password is already usable is not unlocked again.
+#[test]
+fn unsuspending_an_already_unlocked_login_runs_no_unlock() {
+    let operations = debian(
+        RecordingHost::new()
+            .with_user("acme")
+            .with_stdout(&shadow_entry(HASHED_PASSWORD)),
+    );
+
+    operations
+        .unsuspend(&name())
+        .expect("unsuspension succeeds");
+
+    assert!(
+        !operations_calls(&operations, "usermod")
+            .iter()
+            .any(|call| call.contains(&"--unlock".to_owned()))
+    );
+}
+
+/// A real refusal of a real unlock is still a failure.
+///
+/// The inverse control for the two tests above: the repair must not become
+/// "ignore what `usermod --unlock` says", which would swallow "cannot update
+/// the password file" along with the harmless refusal.
+#[test]
+fn unsuspending_fails_when_the_unlock_it_did_run_was_refused() {
+    let operations = debian(
+        RecordingHost::new()
+            .with_user("acme")
+            .with_stdout(&shadow_entry(&format!("!{HASHED_PASSWORD}")))
+            .failing_next(1)
+            .failing_next(0),
+    );
+
+    let error = operations
+        .unsuspend(&name())
+        .expect_err("a refused unlock is a refusal");
+
+    assert!(matches!(error, AccountError::CommandFailed { .. }));
+}
+
+/// The shadow entry is read for this account and for no other.
+#[test]
+fn unsuspending_asks_getent_for_this_accounts_shadow_entry_only() {
+    let operations = debian(
+        RecordingHost::new()
+            .with_user("acme")
+            .with_stdout(&shadow_entry("!")),
+    );
+
+    operations
+        .unsuspend(&name())
+        .expect("unsuspension succeeds");
+
+    let getent = operations_calls(&operations, "getent");
+    assert_eq!(getent.len(), 1);
+    assert_eq!(
+        getent[0],
+        vec![
+            operations.distro().getent_binary().to_owned(),
+            "shadow".to_owned(),
+            "acme".to_owned(),
+        ]
+    );
+}
+
+/// An entry naming another account is refused rather than classified.
+#[test]
+fn unsuspending_refuses_a_shadow_entry_that_names_a_different_account() {
+    let operations = debian(
+        RecordingHost::new()
+            .with_user("acme")
+            .with_stdout("root:!:20704:0:99999:7:::\n"),
+    );
+
+    let error = operations
+        .unsuspend(&name())
+        .expect_err("another account's entry is not an answer about this one");
+
+    assert!(matches!(error, AccountError::UnreadableOutput { .. }));
+}
+
+/// A shadow lookup that fails is not read as "no password".
+///
+/// "The agent could not tell" and "there is nothing to unlock" are different
+/// facts, and only one of them may quietly skip a step.
+#[test]
+fn unsuspending_refuses_when_the_shadow_lookup_itself_failed() {
+    let operations = debian(
+        RecordingHost::new()
+            .with_user("acme")
+            .with_stdout(&shadow_entry("!"))
+            .failing_next(2),
+    );
+
+    let error = operations
+        .unsuspend(&name())
+        .expect_err("an unreadable shadow database is a refusal");
+
+    assert!(matches!(error, AccountError::CommandFailed { .. }));
+}
+
+/// A `passwd -S` status line for `acme` in `state`.
+fn password_status(state: &str) -> String {
+    format!("acme {state} 2026-01-01 0 99999 7 -1\n")
+}
+
+#[test]
+fn a_locked_login_is_observed_as_locked_rather_than_assumed_from_the_suspend_call() {
+    let host = RecordingHost::new()
+        .with_user("acme")
+        .with_stdout(&password_status("L"))
+        .with_shadow_field(&format!("!{HASHED_PASSWORD}"));
+    let operations = debian(host);
+
+    let state = operations
+        .suspension_state(
+            &FakeSiteHost::passing(),
+            &quiet_cron_host(),
+            &FakeSftpHost::new(),
+            &name(),
+        )
+        .expect("the state is readable");
+
+    assert!(state.login_locked);
+    assert_eq!(state.login_password, StoredPassword::Locked);
+    assert_eq!(
+        operations
+            .host()
+            .called(operations.distro().passwd_binary()),
+        vec![vec![
+            operations.distro().passwd_binary().to_owned(),
+            "-S".to_owned(),
+            "acme".to_owned(),
+        ]],
+        "the state is READ with -S; anything else would be setting a password",
+    );
+}
+
+/// The RHEL family's own spelling of "locked" is recognised.
+///
+/// `passwd -S` prints `L`/`P` on the Debian family and `LK`/`PS` on the RHEL
+/// one — measured on both polygon images, not assumed. An exact comparison
+/// against `"L"` was true on Debian and false on every RHEL host, which made
+/// this observation report every account there as unlocked and made the panel
+/// refuse every suspension on the whole family. Both spellings are pinned here
+/// because a test carrying only one of them is what let that ship.
+#[test]
+fn the_rhel_familys_own_spelling_of_a_locked_password_is_recognised() {
+    let operations = debian(
+        RecordingHost::new()
+            .with_user("acme")
+            .with_stdout(&password_status("LK"))
+            .with_shadow_field(&format!("!{HASHED_PASSWORD}")),
+    );
+
+    let state = operations
+        .suspension_state(
+            &FakeSiteHost::passing(),
+            &quiet_cron_host(),
+            &FakeSftpHost::new(),
+            &name(),
+        )
+        .expect("the state is readable");
+
+    assert!(state.login_locked);
+    assert_eq!(state.login_password, StoredPassword::Locked);
+}
+
+/// And its spelling of "not locked" is NOT mistaken for one.
+///
+/// The inverse control the test above owes: matching a first letter is only
+/// safe while no OTHER state begins with it, and `PS` is the state a perfectly
+/// usable RHEL password is reported in.
+#[test]
+fn the_rhel_familys_own_spelling_of_a_usable_password_is_not_read_as_locked() {
+    let operations = debian(
+        RecordingHost::new()
+            .with_user("acme")
+            .with_stdout(&password_status("PS"))
+            .with_shadow_field(HASHED_PASSWORD),
+    );
+
+    let state = operations
+        .suspension_state(
+            &FakeSiteHost::passing(),
+            &quiet_cron_host(),
+            &FakeSftpHost::new(),
+            &name(),
+        )
+        .expect("the state is readable");
+
+    assert!(!state.login_locked);
+    assert_eq!(state.login_password, StoredPassword::Usable);
+}
+
+#[test]
+fn a_login_with_a_usable_password_is_not_reported_as_locked() {
+    let operations = debian(
+        RecordingHost::new()
+            .with_user("acme")
+            .with_stdout(&password_status("P"))
+            .with_shadow_field(HASHED_PASSWORD),
+    );
+
+    let state = operations
+        .suspension_state(
+            &FakeSiteHost::passing(),
+            &quiet_cron_host(),
+            &FakeSftpHost::new(),
+            &name(),
+        )
+        .expect("the state is readable");
+
+    assert!(!state.login_locked);
+    assert_eq!(state.login_password, StoredPassword::Usable);
+}
+
+#[test]
+fn a_login_with_no_password_at_all_is_not_reported_as_locked() {
+    // `NP` is an account with no password, which is NOT a locked one: any
+    // authentication method that does not consult the password — an SSH key
+    // already in place — still works against it. Reporting it as locked would
+    // certify a suspension that never happened.
+    let operations = debian(
+        RecordingHost::new()
+            .with_user("acme")
+            .with_stdout(&password_status("NP"))
+            .with_shadow_field(""),
+    );
+
+    let state = operations
+        .suspension_state(
+            &FakeSiteHost::passing(),
+            &quiet_cron_host(),
+            &FakeSftpHost::new(),
+            &name(),
+        )
+        .expect("the state is readable");
+
+    assert!(!state.login_locked);
+    // The pair that `passwd -S` cannot express: `NP` and an EMPTY shadow field
+    // are the same login, and it authenticates with no password at all.
+    assert_eq!(state.login_password, StoredPassword::Empty);
+}
+
+#[test]
+fn a_password_status_line_naming_another_login_is_refused_rather_than_believed() {
+    let operations = debian(
+        RecordingHost::new()
+            .with_user("acme")
+            .with_stdout("root L 2026-01-01 0 99999 7 -1\n"),
+    );
+
+    let error = operations
+        .suspension_state(
+            &FakeSiteHost::passing(),
+            &quiet_cron_host(),
+            &FakeSftpHost::new(),
+            &name(),
+        )
+        .expect_err("a line about another login says nothing about this one");
+
+    assert!(matches!(error, AccountError::UnreadableOutput { .. }));
+}
+
+#[test]
+fn a_password_status_that_cannot_be_read_is_an_error_and_never_an_open_login() {
+    // "The agent could not tell" and "the login is open" are different facts,
+    // and only one of them may reach a caller deciding whether an account is
+    // suspended. Answering `false` here would make an unreadable host look
+    // like an un-suspended one, which is the direction that gets acted on.
+    let operations = debian(RecordingHost::new().with_user("acme").with_stdout(""));
+
+    let error = operations
+        .suspension_state(
+            &FakeSiteHost::passing(),
+            &quiet_cron_host(),
+            &FakeSftpHost::new(),
+            &name(),
+        )
+        .expect_err("an unreadable status line is not an answer");
+
+    assert!(matches!(error, AccountError::UnreadableOutput { .. }));
+}
+
+#[test]
+fn the_suspension_state_of_an_account_that_does_not_exist_is_not_found() {
+    let operations = debian(RecordingHost::new());
+
+    let error = operations
+        .suspension_state(
+            &FakeSiteHost::passing(),
+            &quiet_cron_host(),
+            &FakeSftpHost::new(),
+            &name(),
+        )
+        .expect_err("there is no such account");
+
+    assert!(matches!(error, AccountError::NotFound { .. }));
+}
+
+#[test]
+fn the_suspension_state_carries_the_sites_the_host_actually_serves() {
+    let operations = debian(
+        RecordingHost::new()
+            .with_user("acme")
+            .with_stdout(&password_status("L"))
+            .with_shadow_field("!"),
+    );
+    let site_host = FakeSiteHost::passing();
+    let input = php_input();
+    create_test_site(&site_host, &input).expect("the site is created");
+    disable_site(&site_host, site_distro(), &input).expect("the site is disabled");
+
+    let state = operations
+        .suspension_state(
+            &site_host,
+            &quiet_cron_host(),
+            &FakeSftpHost::new(),
+            &name(),
+        )
+        .expect("the state is readable");
+
+    assert!(state.sites_directory_readable);
+    assert_eq!(state.sites.len(), 1);
+    assert!(state.sites[0].serving_stub);
+    // The ordinary hosting account, and the whole reason the field exists:
+    // `passwd -S` says LOCKED while the shadow field says there is no password
+    // to unlock. A panel deciding a reactivation from the first refuses every
+    // account there is.
+    assert!(state.login_locked);
+    assert_eq!(state.login_password, StoredPassword::Absent);
 }
 
 #[test]
@@ -410,6 +859,8 @@ fn tool_path(operations: &AccountOperations<RecordingHost>, program: &str) -> St
         "chmod" => distro.chmod_binary(),
         "chgrp" => distro.chgrp_binary(),
         "crontab" => distro.crontab_binary(),
+        "passwd" => distro.passwd_binary(),
+        "getent" => distro.getent_binary(),
         other => panic!("the accounts area never runs {other}"),
     }
     .to_owned()
@@ -730,11 +1181,27 @@ fn every_program_the_accounts_area_runs_is_named_by_an_absolute_path() {
     let creating = debian(RecordingHost::new());
     creating.create(&name(), 1024).expect("creation succeeds");
 
-    let existing = debian(RecordingHost::new().with_user("acme").with_size(4096));
+    // The shadow entry is what `unsuspend` reads first, so this fixture's stdout
+    // has to be one; the sweep is about the argv of every program, not about what
+    // any single one of them printed.
+    let existing = debian(
+        RecordingHost::new()
+            .with_user("acme")
+            .with_size(4096)
+            .with_stdout(&shadow_entry("!")),
+    );
     existing.suspend(&name()).expect("suspension succeeds");
     existing.unsuspend(&name()).expect("unsuspension succeeds");
     existing.set_quota(&name(), 2048).expect("the quota is set");
     let _ = existing.usage(&name());
+    // Its stdout is not what this sweep is about — the call is recorded either
+    // way, and `passwd` is a program run as root like every other one here.
+    let _ = existing.suspension_state(
+        &FakeSiteHost::passing(),
+        &quiet_cron_host(),
+        &FakeSftpHost::new(),
+        &name(),
+    );
     existing
         .delete(&FakePhpHost::empty(), &no_databases(), &no_sftp(), &name())
         .expect("deletion succeeds");
@@ -877,4 +1344,14 @@ fn the_absent_crontab_sentence_is_believed_only_on_the_stream_the_account_cannot
         operations_calls(&operations, "userdel").is_empty(),
         "userdel must not run when the crontab removal was only believed to have worked"
     );
+}
+
+/// A cron host holding no crontab at all.
+///
+/// The cron half of the suspension state has its own tests against a fake
+/// carrying real crontab text (`inspect_account_cron_tests.rs`); what the tests
+/// in this file are about is the LOGIN half and the site half, so cron answers
+/// the state every account has before the panel installs anything.
+fn quiet_cron_host() -> RecordingCronHost {
+    RecordingCronHost::new()
 }

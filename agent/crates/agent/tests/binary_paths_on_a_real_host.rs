@@ -72,7 +72,7 @@ fn polygon_distro() -> &'static dyn DistroAdapter {
 /// The name is carried alongside so a failure says WHICH accessor is wrong
 /// rather than only which path is missing; a bare list of strings would leave a
 /// reader grepping for the literal.
-fn declared_binaries(distro: &'static dyn DistroAdapter) -> [(&'static str, &'static str); 15] {
+fn declared_binaries(distro: &'static dyn DistroAdapter) -> [(&'static str, &'static str); 20] {
     [
         ("nginx_binary", distro.nginx_binary()),
         ("openssl_binary", distro.openssl_binary()),
@@ -86,9 +86,14 @@ fn declared_binaries(distro: &'static dyn DistroAdapter) -> [(&'static str, &'st
         ("chmod_binary", distro.chmod_binary()),
         ("chgrp_binary", distro.chgrp_binary()),
         ("chpasswd_binary", distro.chpasswd_binary()),
+        ("passwd_binary", distro.passwd_binary()),
+        ("getent_binary", distro.getent_binary()),
         ("crontab_binary", distro.crontab_binary()),
         ("sh_binary", distro.sh_binary()),
         ("nft_binary", distro.nft_binary()),
+        ("tar_binary", distro.tar_binary()),
+        ("gzip_binary", distro.gzip_binary()),
+        ("database_dump_binary", distro.database_dump_binary()),
     ]
 }
 

@@ -10,6 +10,7 @@
 use std::path::Path;
 
 use super::AgentPaths;
+use crate::validation::system::backup_id::BackupId;
 use crate::validation::system::cron_entry_id::CronEntryId;
 use crate::validation::system::name::AccountName;
 
@@ -119,4 +120,130 @@ fn the_two_nftables_files_are_distinct_absolute_paths() {
     assert_ne!(ruleset, bans);
     assert!(ruleset.is_absolute());
     assert!(bans.is_absolute());
+}
+
+/// A parsed backup id for the backup helpers under test.
+fn backup() -> BackupId {
+    BackupId::parse("7c9e6679-7425-40de-944b-e07fc1f90ae7").unwrap()
+}
+
+#[test]
+fn a_backups_artifact_and_sidecar_share_the_accounts_own_backup_directory() {
+    let account = account();
+    let backup = backup();
+    let id = backup.as_str();
+
+    let directory = AgentPaths::account_backup_dir(&account);
+    assert_eq!(directory, Path::new("/var/backups/maran/acme"));
+
+    let artifact = AgentPaths::backup_artifact_path(&account, &backup);
+    let sidecar = AgentPaths::backup_sidecar_path(&account, &backup);
+
+    assert_eq!(artifact, directory.join(format!("{id}.tar.gz")));
+    assert_eq!(sidecar, directory.join(format!("{id}.meta.json")));
+    for path in [&artifact, &sidecar] {
+        assert_eq!(path.parent(), Some(directory.as_path()));
+        assert!(!path.starts_with(AgentPaths::ACCOUNT_HOME_ROOT));
+    }
+}
+
+#[test]
+fn database_dumps_are_staged_where_only_root_can_reach_them() {
+    // A dump sitting in account-writable space can be replaced between being
+    // written and being loaded, and the loader connects as the database
+    // superuser.
+    let scratch = AgentPaths::backup_scratch_dir(&backup());
+
+    assert!(scratch.starts_with(AgentPaths::BULK_SCRATCH_ROOT));
+    assert!(!scratch.starts_with(AgentPaths::ACCOUNT_HOME_ROOT));
+    assert!(scratch.ends_with(backup().as_str()));
+}
+
+#[test]
+fn database_dumps_are_staged_on_disk_and_never_on_the_tmpfs_under_run() {
+    // The defect this pins: /run is a tmpfs sized at a fraction of RAM, so a
+    // dump staged there is resident kernel memory on a live root-run server,
+    // and a restore holds one archive dump AND one rollback dump per database
+    // at once. Moving the staging back under the /run scratch would be a
+    // one-word change that nothing else in this workspace would object to.
+    let scratch = AgentPaths::backup_scratch_dir(&backup());
+
+    assert!(!scratch.starts_with(AgentPaths::agent_scratch_dir()));
+    assert!(!scratch.starts_with("/run"));
+    assert!(Path::new(AgentPaths::BULK_SCRATCH_ROOT).is_absolute());
+}
+
+#[test]
+fn the_bulk_scratch_is_outside_every_directory_the_panel_uid_owns() {
+    // The escalation this pins, measured in
+    // docs/superpowers/notes/2026-09-05-backups-threat-note.md §1: the scratch
+    // used to be /var/lib/maran/scratch, and /var/lib/maran is created
+    // panel:panel 0750 by installer/lib/40-user.sh. The panel uid owned the
+    // parent, so it could rename the leaf aside and leave a symlink at that
+    // name — which needs write permission on the parent only — and root's next
+    // dump write followed it. Two measured outcomes: a customer's plaintext
+    // dump landing in a panel-readable file, and a root-owned 0600 file
+    // truncated and overwritten. The 0700 modes on the leaves were real and
+    // stopped neither, because the attacker never had to enter them.
+    assert!(!Path::new(AgentPaths::BULK_SCRATCH_ROOT).starts_with("/var/lib/maran/"));
+    assert_ne!(
+        Path::new(AgentPaths::BULK_SCRATCH_ROOT),
+        Path::new("/var/lib/maran")
+    );
+
+    // The inverse control on the same axis: the assertions above are also
+    // satisfied by a scratch somewhere useless (or by /home, which the panel
+    // cannot write but every account can). It is still under /var/lib, whose
+    // own mode is root:root 0755 on both families.
+    assert!(Path::new(AgentPaths::BULK_SCRATCH_ROOT).starts_with("/var/lib"));
+}
+
+#[test]
+fn the_small_and_the_bulk_scratch_are_two_different_places() {
+    // The inverse control for the test above: it is satisfied by the two
+    // constants being anything at all as long as one is not under the other,
+    // including by the bulk root having quietly become the /run one under a
+    // second name. They are distinct roots, and the small one is still the
+    // /run one, because the crontab staging that depends on being reboot-clean
+    // still lives there.
+    assert_eq!(
+        AgentPaths::agent_scratch_dir(),
+        Path::new("/run/maran/scratch")
+    );
+    assert_ne!(
+        Path::new(AgentPaths::BULK_SCRATCH_ROOT),
+        AgentPaths::agent_scratch_dir()
+    );
+}
+
+#[test]
+fn the_two_restore_paths_share_one_parent_so_the_swap_is_a_rename() {
+    // The swap is `home -> previous` then `staging -> home`. A rename is only
+    // atomic within one filesystem, so both staging paths sit under one root
+    // that is itself on the same filesystem as the homes. Moving either of them
+    // elsewhere turns the swap into a copy and nothing else in the code would
+    // object.
+    let account = account();
+    let backup = backup();
+
+    let staging = AgentPaths::restore_staging_dir(&account, &backup);
+    let previous = AgentPaths::restore_previous_dir(&account, &backup);
+
+    assert_eq!(staging.parent(), previous.parent());
+    assert_eq!(
+        staging.parent(),
+        Some(Path::new(AgentPaths::RESTORE_STAGING_ROOT))
+    );
+    assert!(Path::new(AgentPaths::RESTORE_STAGING_ROOT).starts_with(AgentPaths::ACCOUNT_HOME_ROOT));
+    assert_ne!(staging, previous);
+
+    let id = backup.as_str();
+    assert_eq!(
+        staging,
+        Path::new("/home/.maran-restore").join(format!("acme.{id}"))
+    );
+    assert_eq!(
+        previous,
+        Path::new("/home/.maran-restore").join(format!("acme.previous.{id}"))
+    );
 }
