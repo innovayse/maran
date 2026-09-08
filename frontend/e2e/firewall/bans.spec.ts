@@ -126,13 +126,60 @@ test('lifting a ban asks first, and then names the address in the request', asyn
   await row.getByRole('button', { name: `Actions for ${BRUTE_FORCE.ipAddress}` }).click()
   await page.getByRole('menuitem', { name: 'Lift the ban' }).click()
 
-  await expect(row).toContainText('Let this address back in?')
+  // Asserted on the dialog rather than on the row: the row is where the question used to live, and
+  // an assertion left there would pass on a page that had lost the confirmation entirely.
+  const dialog = page.getByRole('dialog', { name: `Lift the ban on ${BRUTE_FORCE.ipAddress}` })
+  await expect(dialog).toBeVisible()
+  await expect(dialog).toContainText('Let this address back in?')
   expect(deletes).toEqual([])
 
-  await row.getByRole('button', { name: 'Yes, lift it' }).click()
+  await dialog.getByRole('button', { name: 'Yes, lift it' }).click()
 
   await expect.poll(() => {
     return deletes
   }).toHaveLength(1)
   expect(deletes[0]).toContain(`address=${encodeURIComponent(BRUTE_FORCE.ipAddress)}`)
+})
+
+// A confirmation that lifts the ban on the way out is a ban lifted by the answer "no". The count is
+// what says so — "the dialog closed" is true of both outcomes.
+test('dismissing the lift confirmation sends no request, and confirm is not the default answer', async ({
+  page,
+}) => {
+  const deletes: string[] = []
+  await openScreen(page, [BRUTE_FORCE])
+  page.on('request', (request) => {
+    if (request.method() === 'DELETE' && request.url().includes('/api/v1/firewall/bans')) {
+      deletes.push(request.url())
+    }
+  })
+
+  const row = page.getByRole('row').filter({ hasText: BRUTE_FORCE.ipAddress })
+  await row.getByRole('button', { name: `Actions for ${BRUTE_FORCE.ipAddress}` }).click()
+  await page.getByRole('menuitem', { name: 'Lift the ban' }).click()
+
+  const dialog = page.getByRole('dialog', { name: `Lift the ban on ${BRUTE_FORCE.ipAddress}` })
+  await expect(dialog).toBeVisible()
+
+  // Opened from a row menu, focus must be INSIDE the dialog and not left behind on the trigger the
+  // menu hung from — the defect measured on the databases screen, where the panel's own close()
+  // took focus back a microtask after the dialog had claimed it. And not on the confirm button:
+  // a reflexive Enter must not answer "yes".
+  const focus = await page.evaluate(() => {
+    const panel = document.querySelector('[role="dialog"]')
+    const active = document.activeElement
+    return {
+      inside: panel !== null && active !== null && panel.contains(active),
+      label: active?.getAttribute('aria-label') ?? '',
+      text: active?.textContent?.trim() ?? '',
+    }
+  })
+  expect(focus.inside).toBe(true)
+  expect(focus.label).not.toContain('Actions for')
+  expect(focus.text).not.toEqual('Yes, lift it')
+
+  await page.keyboard.press('Escape')
+  await expect(page.getByRole('dialog')).toHaveCount(0)
+  expect(deletes).toEqual([])
+  await expect(row).toBeVisible()
 })

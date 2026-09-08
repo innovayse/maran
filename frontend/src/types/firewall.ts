@@ -12,7 +12,7 @@ export type FirewallProtocol = 'tcp' | 'udp'
  *
  * The same shape names a rule, creates one and removes one, because a rule has no identifier — it
  * IS its port, its protocol and its source range, held by the kernel and not by a row on the
- * server. `AllowPortRequest` and `DenyPortRequest` on the backend carry exactly these three fields
+ * server. `AllowPortCommand` and `DenyPortCommand` on the backend carry exactly these three fields
  * for that reason, so a second and a third interface here would be the same shape written three
  * times and three places for it to drift.
  *
@@ -71,7 +71,7 @@ export interface Ban {
   expiresAt: string | null
 }
 
-/** Request body for `POST /api/v1/firewall/bans`, mirroring the backend's `BanAddressRequest`. */
+/** Request body for `POST /api/v1/firewall/bans`, binding the backend's `BanAddressCommand`. */
 export interface BanAddressRequest {
   /** The address to ban. */
   address: string
@@ -101,7 +101,7 @@ export interface WhitelistEntry {
   createdAt: string
 }
 
-/** Request body for `POST /api/v1/firewall/whitelist`, mirroring the backend's `AddWhitelistEntryRequest`. */
+/** Request body for `POST /api/v1/firewall/whitelist`, binding the backend's `AddWhitelistEntryCommand`. */
 export interface AddWhitelistEntryRequest {
   /** The range to exempt, in CIDR notation. */
   cidr: string

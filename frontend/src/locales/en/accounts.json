@@ -20,7 +20,6 @@
       "clearSearch": "Clear filter",
       "tableCaption": "Hosting accounts",
       "columns": {
-        "name": "Name",
         "primaryDomain": "Primary domain",
         "status": "Status",
         "createdAt": "Created"
@@ -30,46 +29,57 @@
       "heading": "New account",
       "subtitle": "The panel checks these values before sending them, and the server checks them again.",
       "fields": {
-        "name": "Name",
         "primaryDomain": "Primary domain",
         "planId": "Plan ID"
       },
       "placeholders": {
         "name": "example",
         "primaryDomain": "example.com",
-        "planId": "00000000-0000-0000-0000-000000000000"
+        "planId": "Choose a plan"
       },
       "submit": "Create account",
-      "cancel": "Cancel",
       "errors": {
         "nameRequired": "Name is required.",
         "nameInvalid": "Name must be a lowercase, Linux-username-safe identifier (letters, digits, hyphen, underscore, starting with a letter, 3-32 characters).",
         "primaryDomainRequired": "Primary domain is required.",
         "primaryDomainInvalid": "Primary domain must be a valid domain name.",
-        "planIdRequired": "Plan ID is required.",
-        "planIdInvalid": "Plan ID must be a valid UUID."
+        "planIdRequired": "Plan ID is required."
       },
       "planOption": "{name} — {disk} MB, {sites} sites"
     },
     "detail": {
-      "heading": "Account",
       "loading": "Loading the account…",
       "notFoundTitle": "Account not found",
       "notFoundDescription": "It may have been deleted since this link was made.",
-      "nameLabel": "Name",
       "primaryDomainLabel": "Primary domain",
       "statusLabel": "Status",
       "createdAtLabel": "Created",
       "backToList": "Back to accounts",
       "suspend": "Suspend",
       "reactivate": "Reactivate",
-      "delete": "Delete",
       "confirmSuspend": "Suspend this account? Its sites stop serving and its user can no longer sign in.",
       "confirmReactivate": "Reactivate this account?",
-      "confirmDelete": "Delete this account, its system user and its home directory? This cannot be undone.",
-      "confirm": "Yes, do it",
-      "cancel": "Cancel",
-      "working": "Working…"
+      "working": "Working…",
+      "confirmSuspendTitle": "Suspend account {account}",
+      "confirmReactivateTitle": "Reactivate account {account}"
+    },
+    "delete": {
+      "title": "Delete {account}",
+      "working": "Deleting {account}…",
+      "refusedNote": "Nothing was deleted. The account is exactly as it was, and it can be deleted again once whatever refused has been dealt with.",
+      "removedHeading": "What is removed",
+      "removedUser": "The system user and its login.",
+      "removedHome": "The home directory and every file in it.",
+      "removedDatabases": "Every database this account owns, and its SFTP logins.",
+      "backupHeading": "The final backup",
+      "backupFirst": "A final copy of the account is taken first, before anything is removed.",
+      "backupRefuses": "If that copy cannot be made, the deletion is refused and the account is left exactly as it is.",
+      "backupOutlives": "The copy stays on this server after the account is gone, listed under the name the account had.",
+      "backupNoModule": "This panel has no backups module, so no final copy is taken. Once this account is gone, nothing here holds what it had.",
+      "pointOfNoReturn": "After the copy is taken, nothing here can bring the account back.",
+      "confirmLabel": "Type the account name to confirm",
+      "confirmHint": "Type {name} exactly, including its capitalisation.",
+      "submit": "Delete this account"
     }
   }
 }

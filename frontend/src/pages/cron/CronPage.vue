@@ -20,13 +20,15 @@ import { computed, onMounted, ref, useTemplateRef, type ComputedRef, type Ref } 
 import { useI18n } from 'vue-i18n'
 import UiAlert from '../../components/ui/UiAlert.vue'
 import UiBadge from '../../components/ui/UiBadge.vue'
-import UiButton from '../../components/ui/UiButton.vue'
 import UiCard from '../../components/ui/UiCard.vue'
+import UiConfirm from '../../components/ui/UiConfirm.vue'
 import UiDropdown from '../../components/ui/UiDropdown.vue'
 import UiDropdownItem from '../../components/ui/UiDropdownItem.vue'
 import UiEmptyState from '../../components/ui/UiEmptyState.vue'
 import UiIcon from '../../components/ui/UiIcon.vue'
 import UiSelect, { type SelectOption } from '../../components/ui/UiSelect.vue'
+import UiPageHeading from '../../components/ui/UiPageHeading.vue'
+import UiSectionHeading from '../../components/ui/UiSectionHeading.vue'
 import UiSpinner from '../../components/ui/UiSpinner.vue'
 import UiTable from '../../components/ui/UiTable.vue'
 import UiTableCell from '../../components/ui/UiTableCell.vue'
@@ -53,6 +55,21 @@ const editing: Ref<{ entryId: string; schedule: CronSchedule; command: string } 
 
 /** The entry awaiting a removal confirmation, or the empty string when none is. */
 const pendingRemovalId: Ref<string> = ref('')
+
+/** The entry the removal confirmation is open for, or `null` when none is. */
+const pendingEntry: ComputedRef<CronEntry | null> = computed(() => {
+  return (
+    store.entries.find((entry) => {
+      return entry.entryId === pendingRemovalId.value
+    }) ?? null
+  )
+})
+
+/** The confirmation's accessible name, naming the command that would stop running. */
+const confirmationTitle: ComputedRef<string> = computed(() => {
+  const pending = pendingEntry.value
+  return pending === null ? '' : t('cron.list.confirmRemoveTitle', { command: pending.command })
+})
 
 /** The accounts one crontab can be read for, as the select wants them. */
 const accountOptions: ComputedRef<SelectOption[]> = computed(() => {
@@ -156,9 +173,11 @@ const cancelRemove = (): void => {
  * @returns Resolves once the request has settled.
  */
 const confirmRemove = async (): Promise<void> => {
-  const entryId = pendingRemovalId.value
+  await store.remove(pendingRemovalId.value)
+
+  // Closed after the request settles rather than before it is sent: the dialog holds the
+  // spinner that tells the operator the panel is working.
   pendingRemovalId.value = ''
-  await store.remove(entryId)
 }
 
 /**
@@ -201,12 +220,7 @@ onMounted(start)
 
 <template>
   <section class="w-full">
-    <div class="mb-4">
-      <h1 class="text-3xl font-semibold tracking-title text-text-primary">
-        {{ t('cron.list.heading') }}
-      </h1>
-      <p class="mt-1 text-base text-text-secondary">{{ t('cron.list.subtitle') }}</p>
-    </div>
+    <UiPageHeading class="mb-4" :title="t('cron.list.heading')" :subtitle="t('cron.list.subtitle')" />
 
     <UiSelect
       :model-value="store.accountId"
@@ -222,9 +236,10 @@ onMounted(start)
     </UiAlert>
 
     <UiCard class="mb-6">
-      <h2 class="mb-3 text-lg font-semibold text-text-primary">
-        {{ editing === null ? t('cron.form.createHeading') : t('cron.form.editHeading') }}
-      </h2>
+      <UiSectionHeading
+        class="mb-3"
+        :title="editing === null ? t('cron.form.createHeading') : t('cron.form.editHeading')"
+      />
       <CronEntryForm
         ref="form"
         :submitting="store.saving"
@@ -235,9 +250,7 @@ onMounted(start)
     </UiCard>
 
     <UiCard class="mb-6">
-      <h2 class="mb-3 text-lg font-semibold text-text-primary">
-        {{ t('cron.environment.heading') }}
-      </h2>
+      <UiSectionHeading class="mb-3" :title="t('cron.environment.heading')" />
       <UiAlert v-if="store.environmentErrorMessage !== null" variant="error" class="mb-3">
         {{ store.environmentErrorMessage }}
       </UiAlert>
@@ -268,7 +281,7 @@ onMounted(start)
           <UiTableHeaderCell>{{ t('cron.list.columns.schedule') }}</UiTableHeaderCell>
           <UiTableHeaderCell>{{ t('cron.list.columns.command') }}</UiTableHeaderCell>
           <UiTableHeaderCell>{{ t('cron.list.columns.state') }}</UiTableHeaderCell>
-          <UiTableHeaderCell>{{ t('cron.list.columns.actions') }}</UiTableHeaderCell>
+          <UiTableHeaderCell>{{ t('common.actions') }}</UiTableHeaderCell>
         </UiTableRow>
       </template>
       <UiTableRow v-for="entry in store.entries" :key="entry.entryId">
@@ -284,20 +297,8 @@ onMounted(start)
         </UiTableCell>
         <UiTableCell>
           <div class="flex flex-wrap items-center justify-end gap-2">
-            <!-- The confirmation stays INLINE rather than becoming another menu item: a menu is a
-                 list of things one might do, and a question already asked is not one of them. -->
-            <template v-if="pendingRemovalId === entry.entryId">
-              <span class="text-sm text-text-secondary">{{ t('cron.list.confirmRemove') }}</span>
-              <UiButton variant="destructive" :disabled="store.acting" @click="confirmRemove">
-                {{ store.acting ? t('cron.list.working') : t('cron.list.confirm') }}
-              </UiButton>
-              <UiButton variant="secondary" @click="cancelRemove">
-                {{ t('cron.list.cancel') }}
-              </UiButton>
-            </template>
             <UiDropdown
-              v-else
-              :label="t('cron.list.columns.actions')"
+              :label="t('common.actions')"
               :aria-label="t('cron.list.rowActions', { command: entry.command })"
               align="end"
               variant="bare"
@@ -321,6 +322,21 @@ onMounted(start)
         </UiTableCell>
       </UiTableRow>
     </UiTable>
+
+    <!-- One dialog for the whole table rather than one per row: only one removal can be awaiting
+         an answer, and the menu that opened it is already gone by the time it appears. -->
+    <UiConfirm
+      :open="pendingRemovalId.length > 0"
+      :title="confirmationTitle"
+      :question="t('cron.list.confirmRemove')"
+      :confirm-label="t('cron.list.confirm')"
+      :cancel-label="t('common.cancel')"
+      :close-label="t('common.close')"
+      :acting="store.acting"
+      :acting-label="t('cron.list.working')"
+      @close="cancelRemove"
+      @confirm="confirmRemove"
+    />
 
     <!-- `:open` is bound to a value that really changes, and the dialog is NOT wrapped in a `v-if`:
          a component created with `open` already true never runs `UiModal`s open-watcher, so its

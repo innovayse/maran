@@ -102,7 +102,7 @@ watch(
   <UiModal
     :open="open"
     :title="t('databases.credential.title')"
-    :close-label="t('databases.credential.close')"
+    :close-label="t('common.close')"
     :dismissible="false"
     @close="close"
   >

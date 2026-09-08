@@ -150,7 +150,7 @@ watch(
       <div class="flex flex-wrap items-end gap-2">
         <UiInput
           :model-value="row.name"
-          :label="t('cron.environment.fields.name')"
+          :label="t('common.name')"
           class="min-w-40 flex-1"
           @update:model-value="changeName(index, $event)"
         />
@@ -183,7 +183,7 @@ watch(
     <div class="flex items-center gap-2">
       <UiButton variant="secondary" @click="addRow">{{ t('cron.environment.add') }}</UiButton>
       <UiButton type="submit" :disabled="saving">
-        {{ saving ? t('cron.environment.working') : t('cron.environment.save') }}
+        {{ saving ? t('common.saving') : t('cron.environment.save') }}
       </UiButton>
     </div>
 

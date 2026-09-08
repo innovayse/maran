@@ -113,3 +113,22 @@ export const stubDeferredTaskStream = async (
     },
   }
 }
+
+/**
+ * Fulfils `GET /api/v1/tasks` with an empty listing — the default every authenticated spec gets.
+ *
+ * The shell's tasks badge loads the listing once on every screen, so without this the suite fires
+ * one unstubbed request per authenticated navigation: measured at 197 of the 200 `ECONNREFUSED`
+ * lines in a full local run. Those cost real latency on every navigation, and a page whose network
+ * is only half stubbed is a page under test conditions nobody wrote down.
+ *
+ * It is installed by `stubSignedIn`, which runs BEFORE any stub a spec installs itself, and
+ * Playwright matches routes newest-first — so a spec that stubs the listing (or answers 404 for a
+ * caller the surface does not exist for) still wins, and this default only covers the screens that
+ * never mentioned tasks at all.
+ * @param page The Playwright page whose network the route is installed on.
+ * @returns Resolves once the route is installed.
+ */
+export const stubEmptyTasks = async (page: Page): Promise<void> => {
+  await stubTasks(page, [])
+}

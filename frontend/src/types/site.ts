@@ -75,7 +75,7 @@ export interface SiteDetail {
 }
 
 /**
- * Request body for `POST /api/v1/sites`, mirroring the backend's `CreateSiteRequest`
+ * Request body for `POST /api/v1/sites`, binding the backend's `CreateSiteCommand`
  * field-for-field. The caller's address and user agent are NOT here: the backend reads those
  * from the connection, so the request being audited cannot set them.
  */
@@ -95,8 +95,8 @@ export interface CreateSiteRequest {
 }
 
 /**
- * Request body for `POST /api/v1/sites/{id}/php-version`, mirroring the backend's
- * `ChangeSitePhpVersionRequest`.
+ * Request body for `POST /api/v1/sites/{id}/php-version`, binding the backend's
+ * `ChangeSitePhpVersionCommand`.
  */
 export interface ChangeSitePhpVersionRequest {
   /** The installed version to switch to. */

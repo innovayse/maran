@@ -2,8 +2,8 @@
 /**
  * One site, in three tabs: what it is, what it is logging, and what certifies it.
  *
- * Every action asks first, and the question names the consequence rather than asking the
- * operator to repeat themselves. Deletion in particular says exactly what the contract does:
+ * Every action asks first, in {@link UiConfirm}, and the question names the consequence rather
+ * than asking the operator to repeat themselves. Deletion in particular says exactly what the contract does:
  * the vhost is removed and the domain stops being served, and the files in the document root
  * are left on disk. An operator who believes deletion wipes the customer's data will hesitate
  * over a harmless action; one who believes it does not, when it does, will not hesitate over a
@@ -17,8 +17,12 @@ import { useRouter } from 'vue-router'
 import UiAlert from '../../components/ui/UiAlert.vue'
 import UiButton from '../../components/ui/UiButton.vue'
 import UiCard from '../../components/ui/UiCard.vue'
+import UiDescriptionItem from '../../components/ui/UiDescriptionItem.vue'
+import UiDescriptionList from '../../components/ui/UiDescriptionList.vue'
 import UiEmptyState from '../../components/ui/UiEmptyState.vue'
+import UiConfirm from '../../components/ui/UiConfirm.vue'
 import UiSegmentedControl, { type SegmentOption } from '../../components/ui/UiSegmentedControl.vue'
+import UiPageHeading from '../../components/ui/UiPageHeading.vue'
 import UiSpinner from '../../components/ui/UiSpinner.vue'
 import PhpVersionSelect from '../../components/sites/PhpVersionSelect.vue'
 import SiteStatusBadge from '../../components/sites/SiteStatusBadge.vue'
@@ -63,17 +67,28 @@ const tabOptions: ComputedRef<SegmentOption[]> = computed(() => {
   ]
 })
 
-/** The sentence shown while an action awaits confirmation. */
+/** The confirmation's title, naming the domain and what would be done to it. */
+const confirmationTitle: ComputedRef<string> = computed(() => {
+  const domain = store.selected?.domain ?? ''
+  switch (pending.value) {
+    case 'enable':
+      return t('sites.detail.confirmEnableTitle', { domain })
+    case 'disable':
+      return t('sites.detail.confirmDisableTitle', { domain })
+    default:
+      return t('sites.detail.confirmDeleteTitle', { domain })
+  }
+})
+
+/** The consequence the confirmation asks the operator to weigh. */
 const confirmationText: ComputedRef<string> = computed(() => {
   switch (pending.value) {
     case 'enable':
       return t('sites.detail.confirmEnable')
     case 'disable':
       return t('sites.detail.confirmDisable')
-    case 'delete':
-      return t('sites.detail.confirmDelete')
     default:
-      return ''
+      return t('sites.detail.confirmDelete')
   }
 })
 
@@ -123,7 +138,6 @@ const cancel = (): void => {
  */
 const confirm = async (): Promise<void> => {
   const action = pending.value
-  pending.value = null
 
   if (action === 'enable') {
     await store.enable(props.id)
@@ -132,6 +146,10 @@ const confirm = async (): Promise<void> => {
   } else if (action === 'delete' && (await store.remove(props.id))) {
     await router.push({ name: 'sites' })
   }
+
+  // Closed after the request settles rather than before it is sent: the dialog is
+  // what tells the operator the panel is working, and it must outlive the wait.
+  pending.value = null
 }
 
 /**
@@ -170,22 +188,19 @@ onBeforeUnmount(() => {
     <UiSpinner v-if="store.loading" :label="t('sites.detail.loading')" />
 
     <template v-else-if="store.selected !== null">
-      <div class="mb-4 flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h1 class="font-mono text-3xl font-semibold tracking-title text-text-primary">
-            {{ store.selected.domain }}
-          </h1>
-          <p class="mt-1 text-base text-text-secondary">
-            {{ t(`sites.backendType.${store.selected.backendType}`) }}
-          </p>
-        </div>
-        <div class="flex items-center gap-2">
+      <UiPageHeading
+        class="mb-4"
+        mono
+        :title="store.selected.domain"
+        :subtitle="t(`sites.backendType.${store.selected.backendType}`)"
+      >
+        <template #actions>
           <SiteStatusBadge :status="store.selected.status" />
           <UiButton variant="ghost" @click="router.push({ name: 'sites' })">
             {{ t('sites.detail.backToList') }}
           </UiButton>
-        </div>
-      </div>
+        </template>
+      </UiPageHeading>
 
       <UiAlert v-if="store.errorMessage !== null" variant="error" class="mb-4">
         {{ store.errorMessage }}
@@ -202,60 +217,51 @@ onBeforeUnmount(() => {
 
       <template v-if="tab === 'overview'">
         <UiCard>
-          <dl class="grid gap-3 sm:grid-cols-2">
-            <div>
-              <dt class="text-sm text-text-secondary">{{ t('sites.detail.domainLabel') }}</dt>
-              <dd class="font-mono text-base text-text-primary">{{ store.selected.domain }}</dd>
-            </div>
-            <div>
-              <dt class="text-sm text-text-secondary">{{ t('sites.detail.aliasesLabel') }}</dt>
-              <dd class="font-mono text-base text-text-primary">
-                {{
-                  store.selected.aliases.length > 0
-                    ? store.selected.aliases.join(', ')
-                    : t('sites.detail.noAliases')
-                }}
-              </dd>
-            </div>
-            <div>
-              <dt class="text-sm text-text-secondary">{{ t('sites.detail.backendTypeLabel') }}</dt>
-              <dd class="text-base text-text-primary">
-                {{ t(`sites.backendType.${store.selected.backendType}`) }}
-              </dd>
-            </div>
-            <div v-if="store.selected.phpVersion.length > 0">
-              <dt class="text-sm text-text-secondary">{{ t('sites.detail.phpVersionLabel') }}</dt>
-              <dd class="font-mono text-base text-text-primary">{{ store.selected.phpVersion }}</dd>
-            </div>
-            <div v-if="store.selected.proxyUpstream.length > 0">
-              <dt class="text-sm text-text-secondary">{{ t('sites.detail.proxyUpstreamLabel') }}</dt>
-              <dd class="font-mono text-base text-text-primary">{{ store.selected.proxyUpstream }}</dd>
-            </div>
-            <div>
-              <dt class="text-sm text-text-secondary">{{ t('sites.detail.documentRootLabel') }}</dt>
-              <dd class="font-mono text-base text-text-primary">{{ store.selected.documentRoot }}</dd>
-            </div>
-            <div>
-              <dt class="text-sm text-text-secondary">{{ t('sites.detail.statusLabel') }}</dt>
-              <dd><SiteStatusBadge :status="store.selected.status" /></dd>
-            </div>
-            <div>
-              <dt class="text-sm text-text-secondary">{{ t('sites.detail.certificateLabel') }}</dt>
-              <dd class="text-base text-text-primary">
-                {{
-                  store.selected.hasCertificate
-                    ? t('sites.detail.certificateInstalled')
-                    : t('sites.detail.certificateMissing')
-                }}
-              </dd>
-            </div>
-            <div>
-              <dt class="text-sm text-text-secondary">{{ t('sites.detail.createdAtLabel') }}</dt>
-              <dd class="text-base text-text-primary">
-                {{ formatDate(store.selected.createdAt, localeStore.current) }}
-              </dd>
-            </div>
-          </dl>
+          <UiDescriptionList>
+            <UiDescriptionItem :term="t('sites.detail.domainLabel')" mono>
+              {{ store.selected.domain }}
+            </UiDescriptionItem>
+            <UiDescriptionItem :term="t('sites.detail.aliasesLabel')" mono>
+              {{
+                store.selected.aliases.length > 0
+                  ? store.selected.aliases.join(', ')
+                  : t('sites.detail.noAliases')
+              }}
+            </UiDescriptionItem>
+            <UiDescriptionItem :term="t('sites.detail.backendTypeLabel')">
+              {{ t(`sites.backendType.${store.selected.backendType}`) }}
+            </UiDescriptionItem>
+            <UiDescriptionItem
+              v-if="store.selected.phpVersion.length > 0"
+              :term="t('sites.detail.phpVersionLabel')"
+              mono
+            >
+              {{ store.selected.phpVersion }}
+            </UiDescriptionItem>
+            <UiDescriptionItem
+              v-if="store.selected.proxyUpstream.length > 0"
+              :term="t('sites.detail.proxyUpstreamLabel')"
+              mono
+            >
+              {{ store.selected.proxyUpstream }}
+            </UiDescriptionItem>
+            <UiDescriptionItem :term="t('sites.detail.documentRootLabel')" mono>
+              {{ store.selected.documentRoot }}
+            </UiDescriptionItem>
+            <UiDescriptionItem :term="t('sites.detail.statusLabel')">
+              <SiteStatusBadge :status="store.selected.status" />
+            </UiDescriptionItem>
+            <UiDescriptionItem :term="t('sites.detail.certificateLabel')">
+              {{
+                store.selected.hasCertificate
+                  ? t('sites.detail.certificateInstalled')
+                  : t('sites.detail.certificateMissing')
+              }}
+            </UiDescriptionItem>
+            <UiDescriptionItem :term="t('sites.detail.createdAtLabel')">
+              {{ formatDate(store.selected.createdAt, localeStore.current) }}
+            </UiDescriptionItem>
+          </UiDescriptionList>
         </UiCard>
 
         <UiCard v-if="isPhpSite" class="mt-4">
@@ -274,29 +280,36 @@ onBeforeUnmount(() => {
         </UiCard>
 
         <div class="mt-4 flex flex-wrap items-center gap-2">
-          <template v-if="pending !== null">
-            <span class="text-base text-text-secondary">{{ confirmationText }}</span>
-            <UiButton variant="destructive" :disabled="store.acting" @click="confirm">
-              {{ store.acting ? t('sites.detail.working') : t('sites.detail.confirm') }}
-            </UiButton>
-            <UiButton variant="secondary" @click="cancel">{{ t('sites.detail.cancel') }}</UiButton>
-          </template>
-
-          <template v-else>
-            <UiButton v-if="store.selected.status === 'disabled'" variant="secondary" @click="ask('enable')">
-              {{ t('sites.detail.enable') }}
-            </UiButton>
-            <UiButton v-else variant="secondary" @click="ask('disable')">
-              {{ t('sites.detail.disable') }}
-            </UiButton>
-            <UiButton variant="destructive" @click="ask('delete')">{{ t('sites.detail.delete') }}</UiButton>
-          </template>
+          <UiButton v-if="store.selected.status === 'disabled'" variant="secondary" @click="ask('enable')">
+            {{ t('sites.detail.enable') }}
+          </UiButton>
+          <UiButton v-else variant="secondary" @click="ask('disable')">
+            {{ t('sites.detail.disable') }}
+          </UiButton>
+          <UiButton variant="destructive" @click="ask('delete')">{{ t('common.delete') }}</UiButton>
         </div>
       </template>
 
       <SiteLogsTab v-else-if="tab === 'logs'" :site-id="props.id" />
 
       <SiteSslTab v-else :site-id="props.id" :domain="store.selected.domain" />
+
+      <!-- Outside the tab branches, and bound to a value that really changes rather than wrapped
+           in a `v-if`: a dialog created with `open` already true never runs `UiModal`s
+           open-watcher, so focus never enters it and Escape never reaches it. -->
+      <UiConfirm
+        :open="pending !== null"
+        :title="confirmationTitle"
+        :question="confirmationText"
+        :confirm-label="t('common.confirm')"
+        :cancel-label="t('common.cancel')"
+        :close-label="t('common.close')"
+        :acting="store.acting"
+        :acting-label="t('sites.detail.working')"
+        :destructive="pending !== 'enable'"
+        @close="cancel"
+        @confirm="confirm"
+      />
     </template>
 
     <UiAlert v-else-if="store.errorMessage !== null" variant="error">{{ store.errorMessage }}</UiAlert>

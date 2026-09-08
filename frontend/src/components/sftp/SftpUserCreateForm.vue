@@ -134,6 +134,7 @@ defineExpose({ reset })
         <UiSelect
           v-model="accountId"
           :label="t('sftp.form.fields.accountId')"
+          :placeholder="t('sftp.form.placeholders.accountId')"
           :options="accountOptions"
           :error="accountError"
           required

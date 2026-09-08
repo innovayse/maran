@@ -18,9 +18,11 @@
 import { onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import UiAlert from '../../components/ui/UiAlert.vue'
-import UiButton from '../../components/ui/UiButton.vue'
+import UiDropdown from '../../components/ui/UiDropdown.vue'
+import UiDropdownItem from '../../components/ui/UiDropdownItem.vue'
 import UiEmptyState from '../../components/ui/UiEmptyState.vue'
 import UiIcon from '../../components/ui/UiIcon.vue'
+import UiPageHeading from '../../components/ui/UiPageHeading.vue'
 import UiSpinner from '../../components/ui/UiSpinner.vue'
 import UiTable from '../../components/ui/UiTable.vue'
 import UiTableCell from '../../components/ui/UiTableCell.vue'
@@ -28,6 +30,7 @@ import UiTableHeaderCell from '../../components/ui/UiTableHeaderCell.vue'
 import UiTableRow from '../../components/ui/UiTableRow.vue'
 import TaskLivePane from '../../components/tasks/TaskLivePane.vue'
 import TaskStatusBadge from '../../components/tasks/TaskStatusBadge.vue'
+import { useTaskKindLabel } from '../../composables/useTaskKindLabel'
 import { useLocaleStore } from '../../stores/locale'
 import { useTasksStore } from '../../stores/tasks'
 import { formatDate } from '../../utils/formatDate'
@@ -35,6 +38,7 @@ import { formatDate } from '../../utils/formatDate'
 const { t } = useI18n()
 const store = useTasksStore()
 const localeStore = useLocaleStore()
+const kindLabel = useTaskKindLabel()
 
 /**
  * Reads the listing.
@@ -78,12 +82,7 @@ onMounted(refresh)
 
 <template>
   <section class="w-full">
-    <div class="mb-4">
-      <h1 class="text-3xl font-semibold tracking-title text-text-primary">
-        {{ t('tasks.list.heading') }}
-      </h1>
-      <p class="mt-1 text-base text-text-secondary">{{ t('tasks.list.subtitle') }}</p>
-    </div>
+    <UiPageHeading class="mb-4" :title="t('tasks.list.heading')" :subtitle="t('tasks.list.subtitle')" />
 
     <TaskLivePane v-if="store.openTask !== null" :task="store.openTask" @close="close" />
 
@@ -109,23 +108,38 @@ onMounted(refresh)
           <UiTableHeaderCell>{{ t('tasks.columns.status') }}</UiTableHeaderCell>
           <UiTableHeaderCell>{{ t('tasks.columns.percent') }}</UiTableHeaderCell>
           <UiTableHeaderCell>{{ t('tasks.columns.startedAt') }}</UiTableHeaderCell>
-          <UiTableHeaderCell>{{ t('tasks.columns.actions') }}</UiTableHeaderCell>
+          <UiTableHeaderCell>{{ t('common.actions') }}</UiTableHeaderCell>
         </UiTableRow>
       </template>
       <UiTableRow v-for="task in store.tasks" :key="task.id">
-        <UiTableCell class="font-medium">{{ task.kind }}</UiTableCell>
-        <UiTableCell class="break-all text-text-secondary">{{ task.subject }}</UiTableCell>
+        <UiTableCell class="font-medium">{{ kindLabel(task.kind) }}</UiTableCell>
+        <!-- The subject is whatever the module named the task after, and it is machine text as
+             often as not — a domain, a system user name, an identifier. Monospaced for the same
+             reason `UiDescriptionItem` has a `mono` prop: a column of them lines up, and a zero is
+             not an O. -->
+        <UiTableCell class="font-mono break-all text-text-secondary">{{ task.subject }}</UiTableCell>
         <UiTableCell><TaskStatusBadge :status="task.status" /></UiTableCell>
-        <UiTableCell class="font-mono">{{ task.percent }}</UiTableCell>
+        <!-- The wire value is an integer 0-100 clamped by the module, never absent, so the cell
+             always carries a percentage and says so: a bare "100" names no unit. -->
+        <UiTableCell class="font-mono">{{ t('tasks.list.percentValue', { percent: task.percent }) }}</UiTableCell>
         <UiTableCell class="font-mono text-text-muted">{{ started(task.startedAt) }}</UiTableCell>
         <UiTableCell>
-          <UiButton
-            variant="secondary"
-            :aria-label="t('tasks.list.watchTask', { subject: task.subject })"
-            @click="open(task.id)"
+          <!-- One command today and a menu anyway, so the last column has one shape in every
+               table of the panel and an operator learns the control once. The trigger's name
+               carries the row's subject, because "Actions" repeated down a column of identical
+               triggers names nothing to a screen reader. -->
+          <UiDropdown
+            :label="t('common.actions')"
+            :aria-label="t('tasks.list.rowActions', { subject: task.subject })"
+            align="start"
+            variant="bare"
+            :chevron="false"
           >
-            {{ t('tasks.list.watch') }}
-          </UiButton>
+            <template #trigger>
+              <UiIcon name="ellipsis" size="md" />
+            </template>
+            <UiDropdownItem @select="open(task.id)">{{ t('tasks.list.watch') }}</UiDropdownItem>
+          </UiDropdown>
         </UiTableCell>
       </UiTableRow>
     </UiTable>

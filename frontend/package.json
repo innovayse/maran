@@ -9,8 +9,10 @@
     "build": "vue-tsc --build && vite build",
     "preview": "vite preview",
     "typecheck": "vue-tsc --build",
-    "lint": "oxlint . && eslint .",
+    "lint": "oxlint . && eslint . && node scripts/check-locale-keys.mjs && node scripts/check-page-routes.mjs",
     "lint:fix": "oxlint . --fix && eslint . --fix",
+    "lint:locales": "node scripts/check-locale-keys.mjs",
+    "lint:routes": "node scripts/check-page-routes.mjs",
     "test:e2e": "playwright test"
   },
   "dependencies": {

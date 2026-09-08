@@ -16,6 +16,7 @@ import { computed, type ComputedRef } from 'vue'
 import { useI18n } from 'vue-i18n'
 import UiButton from '../ui/UiButton.vue'
 import UiSwitch from '../ui/UiSwitch.vue'
+import UiSectionHeading from '../ui/UiSectionHeading.vue'
 import { ANY_IPV4_SOURCE } from '../../utils/anySourceRange'
 import type { FirewallRule } from '../../types/firewall'
 
@@ -103,8 +104,10 @@ const toggleMysql = (open: boolean): void => {
 
 <template>
   <div class="rounded-xl border border-border-subtle bg-surface-1 p-4.5">
-    <h2 class="text-lg font-semibold text-text-primary">{{ t('firewall.presets.heading') }}</h2>
-    <p class="mt-1 text-sm text-text-muted">{{ t('firewall.presets.subtitle') }}</p>
+    <UiSectionHeading
+      :title="t('firewall.presets.heading')"
+      :subtitle="t('firewall.presets.subtitle')"
+    />
     <div class="mt-3.5 flex flex-wrap items-center gap-4">
       <UiButton
         variant="secondary"

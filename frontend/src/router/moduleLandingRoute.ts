@@ -41,6 +41,7 @@ const LANDING_ROUTES: Readonly<Record<string, string | typeof NO_LANDING_ROUTE>>
   cron: 'cron',
   tasks: 'tasks',
   monitoring: 'monitoring',
+  backups: 'backups',
   // No page of its own by design: a certificate belongs to a site, so the SSL module's interface
   // is a tab on the site it protects. A sidebar entry for it would have to lead somewhere, and
   // every somewhere is worse than nowhere: a list of every certificate on the server is a screen

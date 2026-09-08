@@ -197,9 +197,9 @@ onBeforeUnmount((): void => {
         aria-modal="true"
         :aria-labelledby="titleId"
         tabindex="-1"
-        class="ui-modal-panel w-full max-w-[460px] overflow-hidden rounded-xl border border-border-strong bg-surface-1 shadow-[0_24px_64px_rgb(0_0_0/0.5)] focus-visible:outline-none"
+        class="ui-modal-panel flex max-h-full w-full max-w-[460px] flex-col overflow-hidden rounded-xl border border-border-strong bg-surface-1 shadow-[0_24px_64px_rgb(0_0_0/0.5)] focus-visible:outline-none"
       >
-        <div class="flex items-start justify-between gap-4 px-6 pt-5 pb-4">
+        <div class="flex shrink-0 items-start justify-between gap-4 px-6 pt-5 pb-4">
           <h2 :id="titleId" class="text-lg font-semibold text-text-primary">{{ title }}</h2>
           <button
             type="button"
@@ -211,14 +211,20 @@ onBeforeUnmount((): void => {
             <span class="sr-only">{{ closeLabel }}</span>
           </button>
         </div>
-        <div class="px-6 pb-5 text-base leading-normal text-text-secondary">
+        <!-- The body scrolls, the header and the footer do not. A dialog taller than the
+             viewport otherwise clips its own footer: the panel is centred and hidden past its
+             edges, so the confirm button sits off-screen with nothing to scroll it into view —
+             which turns "the user must read this before acting" into "the user cannot act". Found
+             on the backup restore dialog, whose body states what a restore replaces and what it
+             does not, and is long because it has to be. -->
+        <div class="min-h-0 flex-1 overflow-y-auto px-6 pb-5 text-base leading-normal text-text-secondary">
           <slot />
         </div>
         <!-- The design seats the actions on the raised surface, which is what
              separates them from the body without a second full-width rule. -->
         <div
           v-if="$slots.footer"
-          class="flex justify-end gap-2 border-t border-border-subtle bg-surface-2 px-6 py-4"
+          class="flex shrink-0 justify-end gap-2 border-t border-border-subtle bg-surface-2 px-6 py-4"
         >
           <slot name="footer" />
         </div>

@@ -18,6 +18,7 @@ import { useI18n } from 'vue-i18n'
 import UiAlert from '../../components/ui/UiAlert.vue'
 import UiButton from '../../components/ui/UiButton.vue'
 import UiEmptyState from '../../components/ui/UiEmptyState.vue'
+import UiPageHeading from '../../components/ui/UiPageHeading.vue'
 import UiSearchInput from '../../components/ui/UiSearchInput.vue'
 import UiSpinner from '../../components/ui/UiSpinner.vue'
 import UiTable from '../../components/ui/UiTable.vue'
@@ -88,15 +89,15 @@ const clearQuery = (): void => {
 
 <template>
   <section class="w-full">
-    <div class="mb-4 flex flex-wrap items-end justify-between gap-4">
-      <div>
-        <h1 class="text-3xl font-semibold tracking-title text-text-primary">
-          {{ t('accounts.list.heading') }}
-        </h1>
-        <p class="mt-1 text-base text-text-secondary">{{ t('accounts.list.subtitle') }}</p>
-      </div>
-      <UiButton @click="goToCreate">{{ t('accounts.list.createAction') }}</UiButton>
-    </div>
+    <UiPageHeading
+      class="mb-4"
+      :title="t('accounts.list.heading')"
+      :subtitle="t('accounts.list.subtitle')"
+    >
+      <template #actions>
+        <UiButton @click="goToCreate">{{ t('accounts.list.createAction') }}</UiButton>
+      </template>
+    </UiPageHeading>
 
     <div v-if="store.accounts.length > 0" class="mb-3 flex flex-wrap items-center gap-2">
       <UiSearchInput
@@ -134,7 +135,7 @@ const clearQuery = (): void => {
     <UiTable v-else-if="visibleAccounts.length > 0" :caption="t('accounts.list.tableCaption')">
       <template #head>
         <UiTableRow>
-          <UiTableHeaderCell>{{ t('accounts.list.columns.name') }}</UiTableHeaderCell>
+          <UiTableHeaderCell>{{ t('common.name') }}</UiTableHeaderCell>
           <UiTableHeaderCell>{{ t('accounts.list.columns.primaryDomain') }}</UiTableHeaderCell>
           <UiTableHeaderCell>{{ t('accounts.list.columns.status') }}</UiTableHeaderCell>
           <UiTableHeaderCell>{{ t('accounts.list.columns.createdAt') }}</UiTableHeaderCell>

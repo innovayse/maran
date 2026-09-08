@@ -20,8 +20,11 @@ import { useI18n } from 'vue-i18n'
 import UiAlert from '../ui/UiAlert.vue'
 import UiButton from '../ui/UiButton.vue'
 import UiCard from '../ui/UiCard.vue'
+import UiDescriptionItem from '../ui/UiDescriptionItem.vue'
+import UiDescriptionList from '../ui/UiDescriptionList.vue'
 import TaskStatusBadge from './TaskStatusBadge.vue'
 import { formatDate } from '../../utils/formatDate'
+import { useTaskKindLabel } from '../../composables/useTaskKindLabel'
 import { useLocaleStore } from '../../stores/locale'
 import type { PanelTask } from '../../types/panelTask'
 
@@ -42,6 +45,7 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 const localeStore = useLocaleStore()
+const kindLabel = useTaskKindLabel()
 
 /**
  * The progress bar's width, clamped to the range it claims to be in.
@@ -70,22 +74,26 @@ const close = (): void => {
 <template>
   <UiCard class="mb-6">
     <div class="mb-3 flex flex-wrap items-center gap-2">
-      <h2 class="text-lg font-semibold text-text-primary">{{ task.kind }}</h2>
+      <h2 class="text-lg font-semibold text-text-primary">{{ kindLabel(task.kind) }}</h2>
       <TaskStatusBadge :status="task.status" />
       <span class="flex-1"></span>
-      <UiButton variant="secondary" @click="close">{{ t('tasks.pane.close') }}</UiButton>
+      <UiButton variant="secondary" @click="close">{{ t('common.close') }}</UiButton>
     </div>
 
-    <dl class="mb-3 grid grid-cols-2 gap-2 text-sm">
-      <dt class="text-text-muted">{{ t('tasks.columns.subject') }}</dt>
-      <dd class="text-text-primary">{{ task.subject }}</dd>
-      <dt class="text-text-muted">{{ t('tasks.columns.startedAt') }}</dt>
-      <dd class="font-mono text-text-primary">{{ startedAt }}</dd>
-      <dt class="text-text-muted">{{ t('tasks.pane.correlationId') }}</dt>
-      <dd class="font-mono break-all text-text-primary">
+    <!-- The kit's list, not a hand-rolled one: the `<dl>` grid was retyped here and the three
+         pairs were the only ones in the panel that did not carry `UiDescriptionItem`'s `mono`
+         treatment for machine text (rules/vue.md — the kit owns the markup). -->
+    <UiDescriptionList class="mb-3">
+      <UiDescriptionItem class="break-all" :term="t('tasks.columns.subject')" mono>
+        {{ task.subject }}
+      </UiDescriptionItem>
+      <UiDescriptionItem :term="t('tasks.columns.startedAt')" mono>
+        {{ startedAt }}
+      </UiDescriptionItem>
+      <UiDescriptionItem class="break-all" :term="t('tasks.pane.correlationId')" mono>
         {{ task.correlationId ?? t('tasks.pane.notReported') }}
-      </dd>
-    </dl>
+      </UiDescriptionItem>
+    </UiDescriptionList>
 
     <div
       class="mb-3 h-2 w-full overflow-hidden rounded-full bg-surface-3"

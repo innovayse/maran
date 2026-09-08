@@ -78,6 +78,7 @@ const onUpdate = (value: string): void => {
     <UiSelect
       :model-value="modelValue"
       :label="t('sites.form.fields.phpVersion')"
+      :placeholder="t('sites.form.placeholders.phpVersion')"
       :options="options"
       :error="error"
       :disabled="disabled"

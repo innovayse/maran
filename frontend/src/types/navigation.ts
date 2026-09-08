@@ -30,6 +30,8 @@ export type NavigationIcon =
   | 'listChecks'
   /** The monitoring module, whose screen plots what the server has been doing. */
   | 'chartLine'
+  /** The backups module, whose screen lists the copies taken of an account. */
+  | 'archive'
 
 /**
  * One entry in the authenticated shell's sidebar navigation, as built by

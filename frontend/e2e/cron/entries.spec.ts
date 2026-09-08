@@ -93,10 +93,10 @@ test('turning an entry off sends the state explicitly, with the account that own
   expect(request.postDataJSON()).toEqual({ accountId: ALICE.id, enabled: false })
 })
 
-// Removal is destructive, so it asks first, and the question is asked in the row rather than behind
-// a second press of the same trigger. What would break it: a menu item that removed immediately
-// (the confirmation would never appear), or a DELETE that omitted `?accountId=`, which the module
-// needs because it has no row to infer the account from.
+// Removal is destructive, so it asks first, in the panel's one confirmation dialog. What would
+// break it: a menu item that removed immediately (the confirmation would never appear), or a
+// DELETE that omitted `?accountId=`, which the module needs because it has no row to infer the
+// account from.
 test('removing an entry asks first and then names the account in the request', async ({ page }) => {
   await openCronPage(page, [NIGHTLY])
   await stubCronEntryMutations(page)
@@ -104,12 +104,18 @@ test('removing an entry asks first and then names the account in the request', a
   await openRowActions(page, NIGHTLY)
   await page.getByRole('menuitem', { name: 'Remove' }).click()
 
-  await expect(page.getByText('Remove this entry?', { exact: false })).toBeVisible()
+  // Asserted on the dialog, and by its accessible name as well as its text: a dialog that appeared
+  // asking the wrong question would satisfy a bare "some text is visible" check.
+  const dialog = page.getByRole('dialog', { name: `Remove the scheduled task ${NIGHTLY.command}` })
+  await expect(dialog).toBeVisible()
+  await expect(dialog).toContainText(
+    'Remove this entry? Its command file and its last run go with it.',
+  )
 
   const deleted = page.waitForRequest((request) => {
     return request.method() === 'DELETE'
   })
-  await page.getByRole('button', { name: 'Yes, remove it' }).click()
+  await dialog.getByRole('button', { name: 'Yes, remove it' }).click()
 
   const request = await deleted
   expect(request.url()).toContain(`/api/v1/cron-entries/${NIGHTLY.entryId}`)
@@ -167,4 +173,45 @@ test('the cron screen renders the panel’s RFC 7807 detail verbatim when the re
   await expect(page.getByText(backendDetail)).toBeVisible()
   await expect(page.getByRole('table')).toHaveCount(0)
   await expect(page.getByText('Nothing scheduled yet')).toHaveCount(0)
+})
+
+// The answer "no" must leave the crontab exactly as it was. Counting the DELETEs is what says so:
+// a dialog that closes is compatible with a request already on its way.
+test('dismissing the removal confirmation sends no request, and confirm is not the default answer', async ({
+  page,
+}) => {
+  const deletes: string[] = []
+  await openCronPage(page, [NIGHTLY])
+  await stubCronEntryMutations(page)
+  page.on('request', (request) => {
+    if (request.method() === 'DELETE') {
+      deletes.push(request.url())
+    }
+  })
+
+  await openRowActions(page, NIGHTLY)
+  await page.getByRole('menuitem', { name: 'Remove' }).click()
+
+  const dialog = page.getByRole('dialog', { name: `Remove the scheduled task ${NIGHTLY.command}` })
+  await expect(dialog).toBeVisible()
+
+  // Focus is inside the dialog rather than left on the row menu's trigger behind it, and it is not
+  // on the confirm button: a reflexive Enter must not be the answer "yes".
+  const focus = await page.evaluate(() => {
+    const panel = document.querySelector('[role="dialog"]')
+    const active = document.activeElement
+    return {
+      inside: panel !== null && active !== null && panel.contains(active),
+      label: active?.getAttribute('aria-label') ?? '',
+      text: active?.textContent?.trim() ?? '',
+    }
+  })
+  expect(focus.inside).toBe(true)
+  expect(focus.label).not.toContain('Actions for')
+  expect(focus.text).not.toEqual('Yes, remove it')
+
+  await dialog.getByRole('button', { name: 'Cancel' }).click()
+  await expect(page.getByRole('dialog')).toHaveCount(0)
+  expect(deletes).toEqual([])
+  await expect(page.getByRole('row').filter({ hasText: NIGHTLY.command })).toBeVisible()
 })

@@ -12,7 +12,10 @@ const LICENSED: PanelModule[] = [
   { name: 'databases', displayName: 'Databases', tier: 'included', isEnabled: true },
   { name: 'sftp', displayName: 'SFTP', tier: 'included', isEnabled: true },
   // A module this bundle has no glyph for, so a spec can tell a chosen icon from the neutral one.
-  { name: 'backups', displayName: 'Backups', tier: 'included', isEnabled: true },
+  // It was `backups` until the backups screen landed and gave that module a glyph of its own — a
+  // control has to be a module this bundle really does not draw, or the comparison compares two
+  // chosen glyphs and passes for the wrong reason.
+  { name: 'notifications', displayName: 'Notifications', tier: 'included', isEnabled: true },
 ]
 
 const ALICE: Account = {
@@ -159,7 +162,7 @@ test('the sidebar links to the databases screen when the panel licenses the modu
 })
 
 // Three identical glyphs in a column of three rows tell the reader nothing the labels do not.
-// `backups` is in the catalogue precisely as the neutral case to compare against.
+// `notifications` is in the catalogue precisely as the neutral case to compare against.
 test('the databases and sftp entries draw their own glyph rather than the neutral one', async ({ page }) => {
   await stubSignedIn(page)
   await stubHealthy(page)
@@ -172,7 +175,10 @@ test('the databases and sftp entries draw their own glyph rather than the neutra
   const navigation = page.getByRole('navigation')
   const databasesGlyph = await navigation.getByRole('link', { name: 'Databases' }).locator('svg').innerHTML()
   const sftpGlyph = await navigation.getByRole('link', { name: 'SFTP' }).locator('svg').innerHTML()
-  const neutralGlyph = await navigation.getByRole('link', { name: 'Backups' }).locator('svg').innerHTML()
+  const neutralGlyph = await navigation
+    .getByRole('link', { name: 'Notifications' })
+    .locator('svg')
+    .innerHTML()
 
   expect(databasesGlyph).not.toEqual(neutralGlyph)
   expect(sftpGlyph).not.toEqual(neutralGlyph)

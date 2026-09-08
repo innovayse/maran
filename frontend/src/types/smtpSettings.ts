@@ -18,7 +18,7 @@
  */
 export type SmtpSecurity = 'none' | 'startTls' | 'implicitTls'
 
-/** The mail settings as `GET /api/v1/monitoring/smtp` reports them. */
+/** The mail settings as `GET /api/v1/notifications/smtp` reports them. */
 export interface SmtpSettings {
   /** Host name or address of the mail server. */
   host: string
@@ -41,7 +41,7 @@ export interface SmtpSettings {
 }
 
 /**
- * The body of `PUT /api/v1/monitoring/smtp`.
+ * The body of `PUT /api/v1/notifications/smtp`, binding the backend's `SaveSmtpSettingsCommand`.
  *
  * `password` is absent when the administrator did not retype one, and the save
  * keeps what is stored; an empty string is a different instruction and clears it.

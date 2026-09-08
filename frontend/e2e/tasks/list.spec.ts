@@ -80,7 +80,8 @@ test('opening a task shows what its stream reports, not what the listing said', 
   )
 
   await page.goto('/tasks')
-  await page.getByRole('button', { name: `Watch the task for ${INSTALL.subject}` }).click()
+  await page.getByRole('button', { name: `Actions for ${INSTALL.subject}` }).click()
+  await page.getByRole('menuitem', { name: 'Live view' }).click()
 
   const pane = page.getByRole('progressbar', { name: 'Progress of this task' })
   await expect(pane).toHaveAttribute('aria-valuenow', '90')
@@ -107,7 +108,8 @@ test('a task that failed shows the code it failed with', async ({ page }) => {
   )
 
   await page.goto('/tasks')
-  await page.getByRole('button', { name: `Watch the task for ${INSTALL.subject}` }).click()
+  await page.getByRole('button', { name: `Actions for ${INSTALL.subject}` }).click()
+  await page.getByRole('menuitem', { name: 'Live view' }).click()
 
   await expect(page.getByText('SitesPhpVersionUnavailable', { exact: false })).toBeVisible()
   await expect(page.getByText('Failed').first()).toBeVisible()
@@ -129,4 +131,40 @@ test('the tasks screen renders the panel’s refusal verbatim rather than an emp
 
   await expect(page.getByText(backendDetail)).toBeVisible()
   await expect(page.getByText('No tasks yet')).toHaveCount(0)
+})
+
+// `BackupCreate` is a machine-stable name, not a sentence, so it is this panel's chrome to
+// translate — the same ground the status beside it is translated on. The operator read the constant
+// verbatim until this was rendered through the locale files.
+test('a task kind is shown in the operator’s language, not as the name the panel stores', async ({
+  page,
+}) => {
+  await stubSignedIn(page)
+  await stubHealthy(page)
+  await stubModules(page, LICENSED)
+  await stubTasks(page, [{ ...INSTALL, kind: 'BackupCreate', subject: 'acme' }])
+  await stubTaskStream(page, '')
+
+  await page.goto('/tasks')
+
+  const row = page.getByRole('row').filter({ hasText: 'acme' })
+  await expect(row).toContainText('Taking a backup')
+  await expect(row).not.toContainText('BackupCreate')
+})
+
+// The kinds are string constants rather than an enum precisely so a module compiled after this
+// bundle can record one it has no word for. Such a kind reaches the screen as the panel sent it —
+// never as a dotted locale key, which is what a plain lookup would have rendered.
+test('a kind this bundle has no word for is shown as the panel sent it', async ({ page }) => {
+  await stubSignedIn(page)
+  await stubHealthy(page)
+  await stubModules(page, LICENSED)
+  await stubTasks(page, [INSTALL])
+  await stubTaskStream(page, '')
+
+  await page.goto('/tasks')
+
+  const row = page.getByRole('row').filter({ hasText: INSTALL.subject })
+  await expect(row).toContainText('PhpVersionInstall')
+  await expect(row).not.toContainText('tasks.kinds.')
 })

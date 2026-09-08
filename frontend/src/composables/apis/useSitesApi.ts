@@ -147,7 +147,9 @@ export const useSitesApi = (): SitesApi => {
    * Exactly one `onEnd` call is made per stream, whatever happened — the server's own ending, an
    * abort, or a transport failure — so the caller never has to infer that a stream is over from
    * lines having stopped arriving. An ending is never upgraded to a friendlier one: a stream
-   * that fails ends as `failed`, and one nobody named ends as `failed` too.
+   * that fails ends as `failed`, an `end` frame naming a reason this SPA does not know ends as
+   * `failed`, and a connection that closes without any `end` frame at all ends as `truncated` —
+   * the two silences are told apart because only the second one means lines may be missing.
    * @param options The site, the log and how much history to replay.
    * @param handlers Where lines and the ending are delivered.
    * @param signal Abort signal that stops the stream and releases its connection.

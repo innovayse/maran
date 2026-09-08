@@ -10,14 +10,15 @@
       "deviceColumn": "Device",
       "addressColumn": "Address",
       "signedInColumn": "Signed in",
-      "actionsColumn": "Actions",
       "currentDevice": "This device",
       "end": "Sign out",
       "confirm": "End this session?",
       "confirmCurrent": "This will sign you out here.",
       "confirmEnd": "End",
-      "cancel": "Cancel",
-      "signOutEverywhere": "Sign out everywhere"
+      "working": "Ending the session…",
+      "confirmEndTitle": "End the session from {address}",
+      "signOutEverywhere": "Sign out everywhere",
+      "rowActions": "Actions for the session from {address}"
     }
   }
 }

@@ -10,14 +10,15 @@
       "deviceColumn": "Устройство",
       "addressColumn": "Адрес",
       "signedInColumn": "Вход выполнен",
-      "actionsColumn": "Действия",
       "currentDevice": "Это устройство",
       "end": "Завершить",
       "confirm": "Завершить этот сеанс?",
       "confirmCurrent": "Вы выйдете из панели на этом устройстве.",
       "confirmEnd": "Завершить",
-      "cancel": "Отмена",
-      "signOutEverywhere": "Выйти на всех устройствах"
+      "working": "Завершение сеанса…",
+      "confirmEndTitle": "Завершить сеанс с {address}",
+      "signOutEverywhere": "Выйти на всех устройствах",
+      "rowActions": "Действия для сеанса с адреса {address}"
     }
   }
 }

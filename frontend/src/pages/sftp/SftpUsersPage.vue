@@ -23,11 +23,12 @@
 import { computed, onBeforeUnmount, onMounted, ref, useTemplateRef, type ComputedRef, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import UiAlert from '../../components/ui/UiAlert.vue'
-import UiButton from '../../components/ui/UiButton.vue'
+import UiConfirm from '../../components/ui/UiConfirm.vue'
 import UiDropdown from '../../components/ui/UiDropdown.vue'
 import UiDropdownItem from '../../components/ui/UiDropdownItem.vue'
 import UiEmptyState from '../../components/ui/UiEmptyState.vue'
 import UiIcon from '../../components/ui/UiIcon.vue'
+import UiPageHeading from '../../components/ui/UiPageHeading.vue'
 import UiSpinner from '../../components/ui/UiSpinner.vue'
 import UiTable from '../../components/ui/UiTable.vue'
 import UiTableCell from '../../components/ui/UiTableCell.vue'
@@ -63,7 +64,22 @@ const isEmpty: ComputedRef<boolean> = computed(() => {
   return store.isLoaded && store.sftpUsers.length === 0
 })
 
-/** The sentence a row shows while its action awaits confirmation. */
+/** The name of the row whose action is awaiting an answer, so the dialog says what it asks about. */
+const pendingName: ComputedRef<string> = computed(() => {
+  const pending = store.sftpUsers.find((item) => {
+    return item.id === pendingId.value
+  })
+  return pending?.fullName ?? ''
+})
+
+/** The confirmation's title, naming the row and what would be done to it. */
+const confirmationTitle: ComputedRef<string> = computed(() => {
+  return pendingAction.value === 'remove'
+    ? t('sftp.list.confirmRemoveTitle', { name: pendingName.value })
+    : t('sftp.list.confirmResetPasswordTitle', { name: pendingName.value })
+})
+
+/** The consequence the confirmation asks the operator to weigh. */
 const confirmationText: ComputedRef<string> = computed(() => {
   return pendingAction.value === 'remove'
     ? t('sftp.list.confirmRemove')
@@ -79,7 +95,7 @@ const accountName = (id: string): string => {
   const owner = accountsStore.accounts.find((account) => {
     return account.id === id
   })
-  return owner?.name ?? t('sftp.list.unknownAccount')
+  return owner?.name ?? t('common.emptyValue')
 }
 
 /**
@@ -130,13 +146,16 @@ const cancel = (): void => {
 const confirm = async (): Promise<void> => {
   const id = pendingId.value
   const action = pendingAction.value
-  pendingId.value = ''
 
   if (action === 'remove') {
     await store.remove(id)
-    return
+  } else {
+    await store.resetPassword(id)
   }
-  await store.resetPassword(id)
+
+  // Closed after the request settles rather than before it is sent: the dialog holds the
+  // spinner that tells the operator the panel is working.
+  pendingId.value = ''
 }
 
 /**
@@ -156,13 +175,7 @@ onBeforeUnmount(dismissCredential)
 
 <template>
   <section class="w-full">
-    <div class="mb-4">
-      <h1 class="text-3xl font-semibold tracking-title text-text-primary">
-        {{ t('sftp.list.heading') }}
-      </h1>
-      <p class="mt-1 text-base text-text-secondary">{{ t('sftp.list.subtitle') }}</p>
-      <p class="mt-1 text-sm text-text-muted">{{ t('sftp.list.prefixNote') }}</p>
-    </div>
+    <UiPageHeading class="mb-4" :title="t('sftp.list.heading')" :subtitle="t('sftp.list.subtitle')" :note="t('sftp.list.prefixNote')" />
 
     <UiAlert v-if="store.createErrorMessage !== null" variant="error" class="mb-4">
       {{ store.createErrorMessage }}
@@ -194,7 +207,7 @@ onBeforeUnmount(dismissCredential)
           <UiTableHeaderCell>{{ t('sftp.list.columns.fullName') }}</UiTableHeaderCell>
           <UiTableHeaderCell>{{ t('sftp.list.columns.account') }}</UiTableHeaderCell>
           <UiTableHeaderCell>{{ t('sftp.list.columns.createdAt') }}</UiTableHeaderCell>
-          <UiTableHeaderCell align="end">{{ t('sftp.list.columns.actions') }}</UiTableHeaderCell>
+          <UiTableHeaderCell align="end">{{ t('common.actions') }}</UiTableHeaderCell>
         </UiTableRow>
       </template>
       <UiTableRow v-for="user in store.sftpUsers" :key="user.id">
@@ -206,25 +219,13 @@ onBeforeUnmount(dismissCredential)
         </UiTableCell>
         <UiTableCell align="end">
           <div class="flex flex-wrap items-center justify-end gap-2">
-            <!-- The confirmation stays INLINE rather than becoming two more menu
-                 items. A menu is a list of things one might do; a confirmation is
-                 a question already asked, and burying the answer behind a second
-                 press of the same trigger would hide the state the row is in. -->
-            <template v-if="pendingId === user.id">
-              <span class="text-sm text-text-secondary">{{ confirmationText }}</span>
-              <UiButton variant="destructive" :disabled="store.acting" @click="confirm">
-                {{ store.acting ? t('sftp.list.working') : t('sftp.list.confirm') }}
-              </UiButton>
-              <UiButton variant="secondary" @click="cancel">{{ t('sftp.list.cancel') }}</UiButton>
-            </template>
             <!-- One trigger instead of a button per command: the row's actions grow
                  with the module, and a row that grows a button every time is a row
                  that stops fitting on a narrow screen. `align="end"` because this is
                  the last column — a menu aligned to the start would open off the
                  right edge. -->
             <UiDropdown
-              v-else
-              :label="t('sftp.list.columns.actions')"
+              :label="t('common.actions')"
               :aria-label="t('sftp.list.rowActions', { name: user.fullName })"
               align="end"
               variant="bare"
@@ -244,6 +245,24 @@ onBeforeUnmount(dismissCredential)
         </UiTableCell>
       </UiTableRow>
     </UiTable>
+
+    <!-- One dialog for the whole table rather than one per row: only one action can be awaiting
+         an answer, and the menu that opened it is already gone by the time it appears. `UiModal`
+         restores focus to the row's menu trigger when the dialog closes, so the keyboard user
+         lands back on the control they used. -->
+    <UiConfirm
+      :open="pendingId.length > 0"
+      :title="confirmationTitle"
+      :question="confirmationText"
+      :confirm-label="t('common.confirm')"
+      :cancel-label="t('common.cancel')"
+      :close-label="t('common.close')"
+      :acting="store.acting"
+      :acting-label="t('sftp.list.working')"
+      :destructive="pendingAction === 'remove'"
+      @close="cancel"
+      @confirm="confirm"
+    />
 
     <!-- `:open` is bound to a value that really changes, and the dialog is NOT wrapped in a
          `v-if`. With `v-if` plus a literal `:open="true"` the component was created with the prop

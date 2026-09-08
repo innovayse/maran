@@ -241,8 +241,10 @@ test('resetting the password is offered on the list and shows a new one once', a
 
   const row = page.getByRole('row').filter({ hasText: 'alice_shop' })
   await chooseRowAction(page, row, 'alice_shop', 'Reset password')
-  await expect(row).toContainText('The current one stops working immediately.')
-  await row.getByRole('button', { name: 'Yes, do it' }).click()
+  // The question is asked in a modal now, and its accessible name says which row it is about.
+  const confirmation = page.getByRole('dialog', { name: 'Reset the password for alice_shop' })
+  await expect(confirmation).toContainText('The current one stops working immediately.')
+  await confirmation.getByRole('button', { name: 'Yes, do it' }).click()
 
   await expect(page.getByTestId('database-password')).toHaveText(stubbedResetPassword)
   await expect(page.getByRole('dialog')).toContainText('alice_shopuser')
@@ -251,15 +253,33 @@ test('resetting the password is offered on the list and shows a new one once', a
   await expect(page.getByText(stubbedResetPassword)).toHaveCount(0)
 })
 
-test('dropping a database asks for confirmation before it is done', async ({ page }) => {
+test('dropping a database asks in a dialog, and a dismissal drops nothing', async ({ page }) => {
   await openScreen(page, [SHOP])
+  let destructiveRequests = 0
+  // Registered last, so it wins Playwright's ordering over the fixture's own route: a dismissal
+  // that merely leaves the row on screen would also pass against a drop the stub re-listed.
+  await page.route(`**/api/v1/databases/${SHOP.id}`, async (route) => {
+    destructiveRequests += 1
+    await route.fulfill({ status: 204, body: '' })
+  })
 
   const row = page.getByRole('row').filter({ hasText: 'alice_shop' })
   await chooseRowAction(page, row, 'alice_shop', 'Drop')
-  await expect(row).toContainText('nothing here can bring them back')
 
-  await row.getByRole('button', { name: 'Cancel' }).click()
+  const confirmation = page.getByRole('dialog', { name: 'Drop database alice_shop' })
+  await expect(confirmation).toContainText('nothing here can bring them back')
+  // Focus moved out of the menu that opened it and into the dialog, rather than being lost
+  // between the two when the menu closed.
+  await expect(confirmation.locator(':focus')).toHaveCount(1)
+  await expect(confirmation.getByRole('button', { name: 'Yes, do it' })).not.toBeFocused()
+
+  await confirmation.getByRole('button', { name: 'Cancel' }).click()
+
+  await expect(page.getByRole('dialog')).toHaveCount(0)
+  expect(destructiveRequests).toBe(0)
   await expect(page.getByRole('row').filter({ hasText: 'alice_shop' })).toBeVisible()
+  // Focus is back on the trigger the operator used, not at the top of the document.
+  await expect(row.getByRole('button', { name: 'Actions for alice_shop' })).toBeFocused()
 })
 
 test('the row commands live behind one trigger and are reachable from the keyboard', async ({

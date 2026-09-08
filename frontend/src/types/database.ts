@@ -27,7 +27,7 @@ export interface Database {
 }
 
 /**
- * Request body for `POST /api/v1/databases`, mirroring the backend's `CreateDatabaseRequest`
+ * Request body for `POST /api/v1/databases`, binding the backend's `CreateDatabaseCommand`
  * field-for-field.
  *
  * It has no password field, and none may be added: the panel mints the credential, so a

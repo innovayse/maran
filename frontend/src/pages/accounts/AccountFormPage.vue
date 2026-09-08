@@ -19,6 +19,7 @@ import UiAlert from '../../components/ui/UiAlert.vue'
 import UiButton from '../../components/ui/UiButton.vue'
 import UiForm from '../../components/ui/UiForm.vue'
 import UiInput from '../../components/ui/UiInput.vue'
+import UiPageHeading from '../../components/ui/UiPageHeading.vue'
 import UiSelect, { type SelectOption } from '../../components/ui/UiSelect.vue'
 import { useAccountsStore } from '../../stores/accounts'
 
@@ -151,12 +152,7 @@ onMounted(loadPlans)
 
 <template>
   <section class="w-full max-w-2xl">
-    <div class="mb-4">
-      <h1 class="text-3xl font-semibold tracking-title text-text-primary">
-        {{ t('accounts.form.heading') }}
-      </h1>
-      <p class="mt-1 text-base text-text-secondary">{{ t('accounts.form.subtitle') }}</p>
-    </div>
+    <UiPageHeading class="mb-4" :title="t('accounts.form.heading')" :subtitle="t('accounts.form.subtitle')" />
 
     <UiAlert v-if="store.createErrorMessage !== null" variant="error" class="mb-4">
       {{ store.createErrorMessage }}
@@ -176,7 +172,7 @@ onMounted(loadPlans)
         <div class="flex flex-col gap-3.5 p-4.5">
           <UiInput
             v-model="name"
-            :label="t('accounts.form.fields.name')"
+            :label="t('common.name')"
             :error="nameError"
             required
             :placeholder="t('accounts.form.placeholders.name')"
@@ -199,7 +195,7 @@ onMounted(loadPlans)
         </div>
         <div class="flex justify-end gap-2 rounded-b-xl border-t border-border-subtle bg-surface-2 px-4.5 py-3">
           <UiButton variant="secondary" type="button" @click="cancel">
-            {{ t('accounts.form.cancel') }}
+            {{ t('common.cancel') }}
           </UiButton>
           <UiButton type="submit" :disabled="store.creating">{{ t('accounts.form.submit') }}</UiButton>
         </div>

@@ -322,6 +322,19 @@ export default tseslint.config(
     },
   },
 
+  // Repository check scripts are plain Node ESM, deliberately outside the app's TypeScript
+  // projects: they run with bare `node` in the lint gate, before anything is compiled. The
+  // type-aware rules need a tsconfig that owns the file and there is none, so they are turned
+  // off here rather than by widening an app tsconfig to include tooling it never ships.
+  // (`node:process` is imported explicitly there, so no Node globals are declared.)
+  {
+    // The spread comes last on purpose: `disableTypeChecked` carries its own `languageOptions`
+    // clearing `projectService`, and that is the half that matters here — a config that set
+    // `languageOptions` after it would restore the project service and fail to parse the file.
+    files: ['scripts/**/*.mjs'],
+    ...tseslint.configs.disableTypeChecked,
+  },
+
   // Must be last: turns off stylistic rules that would conflict with a
   // formatter, per the owner directive ("eslint-config-prettier last").
   prettier,

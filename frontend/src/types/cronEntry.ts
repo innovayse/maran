@@ -71,7 +71,7 @@ export interface CronEntryOutput {
 }
 
 /**
- * Request body for `POST /api/v1/cron-entries`, mirroring the backend's `CreateCronEntryRequest`.
+ * Request body for `POST /api/v1/cron-entries`, binding the backend's `CreateCronEntryCommand`.
  *
  * It carries no entry id, and none may be added: the agent mints the identifier when it installs
  * the entry, so an id a caller could choose is an id a caller could aim at one that already exists.
@@ -86,8 +86,8 @@ export interface CreateCronEntryRequest {
 }
 
 /**
- * Request body for `PUT /api/v1/cron-entries/{entryId}`, mirroring the backend's
- * `UpdateCronEntryRequest`.
+ * Request body for `PUT /api/v1/cron-entries/{entryId}`, binding the backend's
+ * `UpdateCronEntryCommand`.
  *
  * The entry id travels in the route rather than here, and there is deliberately no enablement flag:
  * rewriting what a job runs and switching it back on are separate decisions, and an edit that
@@ -103,8 +103,8 @@ export interface UpdateCronEntryRequest {
 }
 
 /**
- * Request body for `POST /api/v1/cron-entries/{entryId}/enabled`, mirroring the backend's
- * `SetCronEntryEnabledRequest`.
+ * Request body for `POST /api/v1/cron-entries/{entryId}/enabled`, binding the backend's
+ * `SetCronEntryEnabledCommand`.
  *
  * The state is sent explicitly rather than the route offering a "toggle": a toggle applied to a
  * state the operator last saw some seconds ago switches whatever it finds, so two clicks that race

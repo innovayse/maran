@@ -43,6 +43,9 @@ const MODULE_ICONS: Readonly<Record<string, NavigationIcon>> = {
   // A plotted line rather than a second activity trace: the shell's own system-status entry is
   // already the pulse, and this module's screen is the history behind it, not the present moment.
   monitoring: 'chartLine',
+  // A lidded box rather than a disc or a cloud: the disc is already the databases module's mark,
+  // and a cloud would say the copies leave this server, which they do not.
+  backups: 'archive',
 }
 
 /**

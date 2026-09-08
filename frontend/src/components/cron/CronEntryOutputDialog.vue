@@ -91,7 +91,7 @@ const close = (): void => {
   <UiModal
     :open="open"
     :title="t('cron.output.title')"
-    :close-label="t('cron.output.close')"
+    :close-label="t('common.close')"
     @close="close"
   >
     <UiSpinner v-if="loading" :label="t('cron.output.loading')" />

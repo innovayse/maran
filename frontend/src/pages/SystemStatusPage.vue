@@ -12,6 +12,7 @@ import { onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import UiAlert from '../components/ui/UiAlert.vue'
 import UiCard from '../components/ui/UiCard.vue'
+import UiPageHeading from '../components/ui/UiPageHeading.vue'
 import UiSpinner from '../components/ui/UiSpinner.vue'
 import { useSystemStore } from '../stores/system'
 
@@ -31,9 +32,7 @@ onMounted(refresh)
 
 <template>
   <section class="w-full">
-    <h1 class="mb-4 text-3xl font-semibold tracking-title text-text-primary">
-      {{ t('app.status.heading') }}
-    </h1>
+    <UiPageHeading class="mb-4" :title="t('app.status.heading')" />
 
     <!-- Healthy: the backend answered; interpolate its reported status. -->
     <UiCard v-if="store.status !== null">

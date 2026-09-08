@@ -23,8 +23,7 @@
         "phpVersion": "PHP",
         "status": "Статус",
         "createdAt": "Создан"
-      },
-      "noPhpVersion": "—"
+      }
     },
     "form": {
       "heading": "Новый сайт",
@@ -44,13 +43,14 @@
       },
       "placeholders": {
         "domain": "example.com",
-        "proxyUpstream": "127.0.0.1:3000"
+        "proxyUpstream": "127.0.0.1:3000",
+        "accountId": "Выберите аккаунт",
+        "phpVersion": "Выберите версию PHP"
       },
       "phpVersionOption": "PHP {version}",
       "phpVersionDefaultOption": "PHP {version} (по умолчанию на сервере)",
       "noPhpVersions": "На этом сервере не установлено ни одной версии PHP.",
       "submit": "Создать сайт",
-      "cancel": "Отмена",
       "errors": {
         "accountRequired": "Выберите аккаунт, которому будет принадлежать сайт.",
         "domainRequired": "Домен обязателен.",
@@ -86,12 +86,9 @@
       "changePhpVersion": "Сменить версию PHP",
       "enable": "Включить",
       "disable": "Отключить",
-      "delete": "Удалить",
       "confirmEnable": "Включить этот сайт? Он снова начнёт отдавать своё содержимое.",
       "confirmDisable": "Отключить этот сайт? Его vhost сохранится, но он будет отвечать страницей о приостановке.",
       "confirmDelete": "Удалить этот сайт? Его vhost будет удалён, и домен перестанет обслуживаться. Файлы в корне документов останутся на диске.",
-      "confirm": "Да, выполнить",
-      "cancel": "Отмена",
       "working": "Выполняется…",
       "logs": {
         "sourceLabel": "Лог",
@@ -116,7 +113,10 @@
           "truncated": "Поток завершился без указания причины — часть строк может отсутствовать.",
           "cancelled": "Чтение остановлено."
         }
-      }
+      },
+      "confirmEnableTitle": "Включить сайт {domain}",
+      "confirmDisableTitle": "Отключить сайт {domain}",
+      "confirmDeleteTitle": "Удалить сайт {domain}"
     }
   }
 }

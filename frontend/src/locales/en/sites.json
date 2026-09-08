@@ -23,8 +23,7 @@
         "phpVersion": "PHP",
         "status": "Status",
         "createdAt": "Created"
-      },
-      "noPhpVersion": "—"
+      }
     },
     "form": {
       "heading": "New site",
@@ -44,13 +43,14 @@
       },
       "placeholders": {
         "domain": "example.com",
-        "proxyUpstream": "127.0.0.1:3000"
+        "proxyUpstream": "127.0.0.1:3000",
+        "accountId": "Choose an account",
+        "phpVersion": "Choose a PHP version"
       },
       "phpVersionOption": "PHP {version}",
       "phpVersionDefaultOption": "PHP {version} (server default)",
       "noPhpVersions": "No PHP versions are installed on this server.",
       "submit": "Create site",
-      "cancel": "Cancel",
       "errors": {
         "accountRequired": "Choose the account that will own the site.",
         "domainRequired": "Domain is required.",
@@ -86,12 +86,9 @@
       "changePhpVersion": "Change PHP version",
       "enable": "Enable",
       "disable": "Disable",
-      "delete": "Delete",
       "confirmEnable": "Enable this site? It starts serving its own content again.",
       "confirmDisable": "Disable this site? It keeps its vhost and answers with a suspension response.",
       "confirmDelete": "Delete this site? Its vhost is removed and the domain stops being served. The files in the document root are left on disk.",
-      "confirm": "Yes, do it",
-      "cancel": "Cancel",
       "working": "Working…",
       "logs": {
         "sourceLabel": "Log",
@@ -116,7 +113,10 @@
           "truncated": "The stream ended without saying why — lines may be missing.",
           "cancelled": "Tailing stopped."
         }
-      }
+      },
+      "confirmEnableTitle": "Enable site {domain}",
+      "confirmDisableTitle": "Disable site {domain}",
+      "confirmDeleteTitle": "Delete site {domain}"
     }
   }
 }

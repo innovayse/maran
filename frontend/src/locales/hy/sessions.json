@@ -10,14 +10,15 @@
       "deviceColumn": "Սարք",
       "addressColumn": "Հասցե",
       "signedInColumn": "Մուտք է գործվել",
-      "actionsColumn": "Գործողություններ",
       "currentDevice": "Այս սարքը",
       "end": "Ավարտել",
       "confirm": "Ավարտե՞լ այս աշխատաշրջանը։",
       "confirmCurrent": "Դուք դուրս կգաք վահանակից այս սարքում։",
       "confirmEnd": "Ավարտել",
-      "cancel": "Չեղարկել",
-      "signOutEverywhere": "Դուրս գալ բոլոր սարքերից"
+      "working": "Սեսիան ավարտվում է…",
+      "confirmEndTitle": "Ավարտել սեսիան {address}-ից",
+      "signOutEverywhere": "Դուրս գալ բոլոր սարքերից",
+      "rowActions": "Գործողություններ {address} հասցեից բացված աշխատաշրջանի համար"
     }
   }
 }
