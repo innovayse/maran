@@ -47,6 +47,15 @@ enum ErrorCode {
   // code so a panel can say "nothing more was logged" instead of raising a
   // fault. Reopen the stream to keep watching.
   ERROR_CODE_STREAM_IDLE = 7;
+  // Added 2026-09-06, additively. The request is well formed and the agent
+  // understands it, but this build holds no code path that could carry it
+  // out. It exists for one case, documented at that case rather than in the
+  // abstract: BackupDestination can name an S3 bucket, while the agent's
+  // backup operations reach only a directory on this machine, so a remote
+  // destination is refused with this code instead of being taken quietly down
+  // the local path. Not retryable against the same agent — a panel that reads
+  // it tells the operator, rather than backing off and asking again.
+  ERROR_CODE_NOT_IMPLEMENTED = 8;
 }
 
 // Streamed progress of a long-running operation (backup, restore, install).

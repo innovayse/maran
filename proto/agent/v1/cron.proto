@@ -48,6 +48,28 @@ service CronService {
   // Replaces the agent-managed environment assignments, whole. Idempotent:
   // sending the same set twice converges on the same crontab.
   rpc SetCronEnvironment(SetCronEnvironmentRequest) returns (SetCronEnvironmentResponse);
+
+  // Suppresses, or restores, EVERY managed entry of one account at once,
+  // because the account itself was suspended or resumed.
+  //
+  // Its own rpc and not a loop of SetCronEntryEnabled, and that is the point of
+  // the whole call: `enabled` is the CUSTOMER's switch. Driving suspension
+  // through it would make a resume re-enable entries the customer had turned
+  // off, and the panel keeps no cron rows to remember which those were — the
+  // crontab on the host is the only truth there is.
+  //
+  // So the agent carries a second, orthogonal marker. A suspended entry stays
+  // in the crontab, keeps its id, its command file, its schedule and its own
+  // `enabled` value, and is merely invisible to cron. Idempotent in both
+  // directions, and an account with no crontab at all is a success that
+  // installs nothing.
+  //
+  // FOREIGN crontab lines are deliberately untouched: a line the panel did not
+  // write is a line an account or an administrator added by hand, and this
+  // agent does not delete or rewrite it. Such a line keeps firing under a
+  // suspended account. GetAccountSuspensionState reports how many there are so
+  // the panel can say so rather than certify a silence it did not achieve.
+  rpc SetAccountCronSuspended(SetAccountCronSuspendedRequest) returns (SetAccountCronSuspendedResponse);
 }
 
 // Standard five-field cron schedule. Each field uses conventional cron
@@ -103,6 +125,21 @@ message CronEntry {
   // DEPRECATED in this message and always written 0, for the same reason as
   // last_exit_code. GetCronEntryOutput answers it per entry.
   int64 last_run_at_unix = 6;
+  // True when the entry is suppressed because the ACCOUNT is suspended, as
+  // opposed to `enabled` above, which is the customer's own switch.
+  //
+  // Two facts and never one. They are carried by two different prefixes on the
+  // installed line and set by two different rpcs, because suspension must
+  // never overwrite state that also expresses a customer choice: if suspension
+  // reused `enabled`, resuming the account would silently switch back on every
+  // entry the customer had turned off themselves.
+  //
+  // An entry runs only when it is enabled AND not suspended. A suspended entry
+  // keeps its `enabled` value untouched, which is what the resume gives back.
+  //
+  // Default false is the old caller's answer and is correct for it: before this
+  // field existed no entry was ever suspended.
+  bool suspended = 7;
 }
 
 // One environment assignment the agent manages in an account's crontab.
@@ -296,3 +333,19 @@ message SetCronEnvironmentResponse {
 }
 
 message SetCronEnvironmentOk {}
+
+message SetAccountCronSuspendedRequest {
+  // System username of the account whose whole crontab is affected.
+  string account_username = 1;
+  // True to suppress every managed entry, false to restore them.
+  bool suspended = 2;
+}
+
+message SetAccountCronSuspendedResponse {
+  oneof result {
+    SetAccountCronSuspendedOk ok = 1;
+    AgentError error = 2;
+  }
+}
+
+message SetAccountCronSuspendedOk {}
