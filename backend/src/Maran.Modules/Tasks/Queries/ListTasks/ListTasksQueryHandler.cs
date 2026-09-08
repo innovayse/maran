@@ -2,6 +2,7 @@ using Maran.Modules.Tasks.Common;
 using Maran.Modules.Tasks.Mappers;
 using Maran.Modules.Tasks.Persistence;
 using Maran.Modules.Tasks.Resources;
+using Maran.Modules.Tasks.Services;
 
 namespace Maran.Modules.Tasks.Queries.ListTasks;
 
@@ -40,13 +41,21 @@ public sealed class ListTasksQueryHandler
     /// <summary>The authenticated principal, whose administrator status the surface requires.</summary>
     private readonly ICurrentUser _currentUser;
 
+    /// <summary>Names each task's kind as an operator reads it, in the request's culture.</summary>
+    private readonly TaskKindDisplayNames _kindNames;
+
     /// <summary>Creates the handler.</summary>
     /// <param name="dbContext">The Tasks module's database context.</param>
     /// <param name="currentUser">The authenticated principal of the current request.</param>
-    public ListTasksQueryHandler(TasksDbContext dbContext, ICurrentUser currentUser)
+    /// <param name="kindNames">Names a task's kind for the request's culture.</param>
+    public ListTasksQueryHandler(
+        TasksDbContext dbContext,
+        ICurrentUser currentUser,
+        TaskKindDisplayNames kindNames)
     {
         _dbContext = dbContext;
         _currentUser = currentUser;
+        _kindNames = kindNames;
     }
 
     /// <summary>Returns the most recent tasks, newest first.</summary>
@@ -68,7 +77,12 @@ public sealed class ListTasksQueryHandler
             .Take(MaxTasks)
             .ToListAsync(cancellationToken);
 
-        IReadOnlyList<PanelTaskDto> projected = tasks.Select(PanelTaskMapper.From).ToList();
+        IReadOnlyList<PanelTaskDto> projected = tasks
+            .Select(task =>
+            {
+                return PanelTaskMapper.From(task, _kindNames.Of(task.Kind));
+            })
+            .ToList();
         return Result<IReadOnlyList<PanelTaskDto>>.Ok(projected);
     }
 }

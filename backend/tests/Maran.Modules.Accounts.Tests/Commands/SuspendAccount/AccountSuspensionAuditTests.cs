@@ -8,6 +8,7 @@ using Maran.Modules.Accounts.Tests.TestSupport;
 using Maran.Sdk.Contracts;
 using Maran.SharedKernel.Results;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Maran.Modules.Accounts.Tests.Commands.SuspendAccount;
 
@@ -25,6 +26,9 @@ public sealed class AccountSuspensionAuditTests : IDisposable
 
     private readonly AccountsDbContext _context = CreateDbContext();
     private readonly RecordingAuditWriter _audit = new();
+
+    /// <summary>The task journal the handlers write into; nothing here asserts on it.</summary>
+    private readonly RecordingTaskRecorder _tasks = new();
 
     /// <summary>Releases what the fixture allocated.</summary>
     public void Dispose()
@@ -57,8 +61,7 @@ public sealed class AccountSuspensionAuditTests : IDisposable
         await SuspendAsync(agent, account.Id);
         _audit.Entries.Clear();
 
-        await new ReactivateAccountCommandHandler(_context, agent, Journal()).HandleAsync(
-            new ReactivateAccountCommand(account.Id, Ip, Client), CancellationToken.None);
+        await ReactivateAsync(agent, account.Id);
 
         var entry = Assert.Single(_audit.Entries);
         Assert.Equal(AuditActions.AccountReactivated, entry.Action);
@@ -104,9 +107,7 @@ public sealed class AccountSuspensionAuditTests : IDisposable
     {
         var probed = Guid.NewGuid();
 
-        var result = await new ReactivateAccountCommandHandler(
-            _context, new RecordingAgentAccountsClient(), Journal()).HandleAsync(
-            new ReactivateAccountCommand(probed, Ip, Client), CancellationToken.None);
+        var result = await ReactivateAsync(new RecordingAgentAccountsClient(), probed);
 
         Assert.Equal("AccountNotFound", result.Error!.Code);
         var entry = Assert.Single(_audit.Entries);
@@ -148,7 +149,33 @@ public sealed class AccountSuspensionAuditTests : IDisposable
     /// <returns>The handler's result.</returns>
     private Task<Result<AccountDto>> SuspendAsync(RecordingAgentAccountsClient agent, Guid accountId)
     {
-        return new SuspendAccountCommandHandler(_context, agent, Journal()).HandleAsync(
-            new SuspendAccountCommand(accountId, Ip, Client), CancellationToken.None);
+        var handler = new SuspendAccountCommandHandler(
+            _context,
+            agent,
+            new StubMessageBus(),
+            NullLogger<SuspendAccountCommandHandler>.Instance,
+            Journal(),
+            _tasks,
+            new StubCorrelationIdAccessor("corr-1"));
+
+        return handler.HandleAsync(new SuspendAccountCommand(accountId, Ip, Client), CancellationToken.None);
+    }
+
+    /// <summary>Runs one reactivation.</summary>
+    /// <param name="agent">The agent double to answer with.</param>
+    /// <param name="accountId">The account to reactivate.</param>
+    /// <returns>The handler's result.</returns>
+    private Task<Result<AccountDto>> ReactivateAsync(RecordingAgentAccountsClient agent, Guid accountId)
+    {
+        var handler = new ReactivateAccountCommandHandler(
+            _context,
+            agent,
+            new StubMessageBus(),
+            NullLogger<ReactivateAccountCommandHandler>.Instance,
+            Journal(),
+            _tasks,
+            new StubCorrelationIdAccessor("corr-1"));
+
+        return handler.HandleAsync(new ReactivateAccountCommand(accountId, Ip, Client), CancellationToken.None);
     }
 }

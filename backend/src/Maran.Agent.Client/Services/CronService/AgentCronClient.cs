@@ -163,6 +163,28 @@ public sealed class AgentCronClient : IAgentCronClient
     }
 
     /// <inheritdoc/>
+    public async Task<Result<bool>> SetAccountSuspendedAsync(
+        string accountUsername,
+        bool suspended,
+        CancellationToken cancellationToken)
+    {
+        var request = new SetAccountCronSuspendedRequest
+        {
+            AccountUsername = accountUsername,
+            Suspended = suspended,
+        };
+        var response = await _invoker.SetAccountCronSuspendedAsync(request, cancellationToken);
+
+        return response.ResultCase switch
+        {
+            SetAccountCronSuspendedResponse.ResultOneofCase.Ok => Result<bool>.Ok(true),
+            SetAccountCronSuspendedResponse.ResultOneofCase.Error => Result<bool>.Fail(
+                AgentErrorTranslator.ToError(_logger, response.Error, nameof(SetAccountSuspendedAsync))),
+            _ => Result<bool>.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
+        };
+    }
+
+    /// <inheritdoc/>
     public async Task<Result<AgentCronRunOutput?>> GetEntryOutputAsync(
         string accountUsername,
         string entryId,

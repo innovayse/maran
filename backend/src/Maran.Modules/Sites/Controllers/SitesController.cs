@@ -4,7 +4,6 @@ using Maran.Modules.Sites.Commands.DeleteSite;
 using Maran.Modules.Sites.Commands.DisableSite;
 using Maran.Modules.Sites.Commands.EnableSite;
 using Maran.Modules.Sites.Common;
-using Maran.Modules.Sites.Controllers.Requests;
 using Maran.Modules.Sites.Queries.GetSite;
 using Maran.Modules.Sites.Queries.ListPhpVersions;
 using Maran.Modules.Sites.Queries.ListSites;
@@ -86,7 +85,7 @@ public sealed class SitesController : BaseApiController
     }
 
     /// <summary>Creates a site: its document root, vhost and pool on the host, then the row.</summary>
-    /// <param name="request">The site's account, domain, aliases and backend.</param>
+    /// <param name="command">The site's account, domain, aliases and backend.</param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpPost]
     [ProducesResponseType(typeof(SiteDto), StatusCodes.Status201Created)]
@@ -95,18 +94,20 @@ public sealed class SitesController : BaseApiController
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
     public async Task<IActionResult> CreateAsync(
-        [FromBody] CreateSiteRequest request,
+        [FromBody] CreateSiteCommand command,
         CancellationToken cancellationToken)
     {
-        var command = new CreateSiteCommand(
-            request.AccountId,
-            request.Domain,
-            request.Aliases ?? [],
-            request.BackendType,
-            request.PhpVersion ?? string.Empty,
-            request.ProxyUpstream ?? string.Empty,
-            ClientIpAddress,
-            UserAgent());
+        // The three coalescings are the ones the removed request type performed. A JSON null lands
+        // as null in a non-nullable member (nothing sets RespectNullableAnnotations), so dropping
+        // them would hand the validator a null where it sees an empty value today.
+        command = command with
+        {
+            Aliases = command.Aliases is null ? [] : command.Aliases,
+            PhpVersion = command.PhpVersion is null ? string.Empty : command.PhpVersion,
+            ProxyUpstream = command.ProxyUpstream is null ? string.Empty : command.ProxyUpstream,
+            IpAddress = ClientIpAddress,
+            UserAgent = CallerUserAgent,
+        };
 
         var result = await _bus.InvokeAsync<Result<SiteDto>>(command, cancellationToken);
         return ToCreatedActionResult(result, $"/api/v1/sites/{(result.IsSuccess ? result.Value.Id : Guid.Empty)}");
@@ -114,7 +115,7 @@ public sealed class SitesController : BaseApiController
 
     /// <summary>Rebinds a site to a different installed PHP version.</summary>
     /// <param name="id">The site to rebind.</param>
-    /// <param name="request">The version to switch to.</param>
+    /// <param name="command">The version to switch to.</param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpPost("{id:guid}/php-version")]
     [ProducesResponseType(typeof(SiteDto), StatusCodes.Status200OK)]
@@ -123,10 +124,10 @@ public sealed class SitesController : BaseApiController
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> ChangePhpVersionAsync(
         Guid id,
-        [FromBody] ChangeSitePhpVersionRequest request,
+        [FromBody] ChangeSitePhpVersionCommand command,
         CancellationToken cancellationToken)
     {
-        var command = new ChangeSitePhpVersionCommand(id, request.PhpVersion, ClientIpAddress, UserAgent());
+        command = command with { SiteId = id, IpAddress = ClientIpAddress, UserAgent = CallerUserAgent };
         return ToActionResult(await _bus.InvokeAsync<Result<SiteDto>>(command, cancellationToken));
     }
 
@@ -139,7 +140,7 @@ public sealed class SitesController : BaseApiController
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> EnableAsync(Guid id, CancellationToken cancellationToken)
     {
-        var command = new EnableSiteCommand(id, ClientIpAddress, UserAgent());
+        var command = new EnableSiteCommand(id, ClientIpAddress, CallerUserAgent);
         return ToActionResult(await _bus.InvokeAsync<Result<SiteDto>>(command, cancellationToken));
     }
 
@@ -152,7 +153,7 @@ public sealed class SitesController : BaseApiController
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> DisableAsync(Guid id, CancellationToken cancellationToken)
     {
-        var command = new DisableSiteCommand(id, ClientIpAddress, UserAgent());
+        var command = new DisableSiteCommand(id, ClientIpAddress, CallerUserAgent);
         return ToActionResult(await _bus.InvokeAsync<Result<SiteDto>>(command, cancellationToken));
     }
 
@@ -165,7 +166,7 @@ public sealed class SitesController : BaseApiController
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> DeleteAsync(Guid id, CancellationToken cancellationToken)
     {
-        var command = new DeleteSiteCommand(id, ClientIpAddress, UserAgent());
+        var command = new DeleteSiteCommand(id, ClientIpAddress, CallerUserAgent);
         return ToActionResult(await _bus.InvokeAsync<Result<bool>>(command, cancellationToken));
     }
 
@@ -205,7 +206,11 @@ public sealed class SitesController : BaseApiController
     /// can (see <c>SiteLogStreamRateLimitPolicy</c>). Over the limit is 429, not a queued connection.
     /// </remarks>
     /// <param name="id">The site whose log to read.</param>
-    /// <param name="request">Which log, and how much of its history to replay.</param>
+    /// <param name="source">Which log to read: <c>access</c> or <c>error</c>. Any other value is refused.</param>
+    /// <param name="historyLines">
+    /// How many existing lines to replay before the live ones; bounded by the service. Absent means
+    /// zero, which replays nothing — the only count that cannot mislead.
+    /// </param>
     /// <param name="cancellationToken">Cancelled when the caller disconnects.</param>
     [HttpGet("{id:guid}/logs")]
     [EnableRateLimiting(RateLimitPolicies.SiteLogs)]
@@ -217,11 +222,12 @@ public sealed class SitesController : BaseApiController
     [ProducesResponseType(StatusCodes.Status429TooManyRequests)]
     public async Task<IActionResult> GetLogsAsync(
         Guid id,
-        [FromQuery] TailSiteLogRequest request,
+        [FromQuery] string? source,
+        [FromQuery] int historyLines,
         CancellationToken cancellationToken)
     {
         var target = await _logTail.ResolveAsync(
-            id, request.Source, request.HistoryLines, ClientIpAddress, UserAgent(), cancellationToken);
+            id, source ?? string.Empty, historyLines, ClientIpAddress, CallerUserAgent, cancellationToken);
         if (!target.IsSuccess)
         {
             return ToActionResult(target);
@@ -232,12 +238,5 @@ public sealed class SitesController : BaseApiController
         // a stream that only ends when the operator stops watching.
         await _logStreamWriter.WriteAsync(Response, _logTail.ReadAsync(target.Value, cancellationToken), cancellationToken);
         return new EmptyResult();
-    }
-
-    /// <summary>Reads the caller's user agent for the audit journal.</summary>
-    /// <returns>The <c>User-Agent</c> header, or the empty string when absent.</returns>
-    private string UserAgent()
-    {
-        return HttpContext.Request.Headers.UserAgent.ToString();
     }
 }

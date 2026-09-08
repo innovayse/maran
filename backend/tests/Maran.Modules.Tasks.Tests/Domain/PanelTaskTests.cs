@@ -1,3 +1,4 @@
+using System.Text;
 using Maran.Modules.Tasks.Domain.Entities;
 using Maran.Modules.Tasks.Domain.Enums;
 using Maran.Modules.Tasks.Tests.TestSupport;
@@ -181,5 +182,51 @@ public sealed class PanelTaskTests
 
         Assert.Equal(2, afterOutcome);
         Assert.Equal(afterOutcome, task.Revision);
+    }
+
+    /// <summary>A log cut at the cap never ends in half a character.</summary>
+    /// <remarks>
+    /// A log line is agent output and agent output names things customers chose, so a non-BMP
+    /// character can sit across the cap. Cut at UTF-16 index <c>MaxLogLength</c> the log ends in an
+    /// unpaired high surrogate, which Npgsql's write buffer throws on rather than substituting —
+    /// and <c>TaskRecorder</c> swallows that throw, so the row silently stops accepting changes and
+    /// the operation shows as Running for ever. The line here is one character short of the cap so
+    /// that the emoji straddles it.
+    ///
+    /// The exact-value assertion matters more than the round trip: a cut that dropped the emoji
+    /// entirely, or cut to half the cap, would also round-trip cleanly while losing the log.
+    /// </remarks>
+    [Fact]
+    public void A_log_cut_at_the_cap_never_ends_in_half_a_character()
+    {
+        const string emoji = "\U0001F600";
+        var task = TasksTestContext.Row();
+        var head = new string('x', PanelTask.MaxLogLength - 1);
+
+        task.Report(10, head + string.Concat(Enumerable.Repeat(emoji, 10)));
+
+        var strict = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true);
+
+        Assert.Equal(head + emoji + PanelTask.TruncationMarker, task.Log);
+        Assert.Equal(task.Log, strict.GetString(strict.GetBytes(task.Log)));
+        Assert.Equal(
+            PanelTask.MaxLogLength + PanelTask.TruncationMarker.Length,
+            CodePointsIn(task.Log));
+    }
+
+    /// <summary>Counts the characters a <c>character varying</c> column charges for a value.</summary>
+    /// <param name="value">The text to measure.</param>
+    /// <returns>The number of code points in <paramref name="value"/>.</returns>
+    private static int CodePointsIn(string value)
+    {
+        var runes = value.EnumerateRunes();
+        var points = 0;
+
+        while (runes.MoveNext())
+        {
+            points++;
+        }
+
+        return points;
     }
 }

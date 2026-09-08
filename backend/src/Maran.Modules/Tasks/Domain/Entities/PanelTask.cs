@@ -1,4 +1,5 @@
 using Maran.Modules.Tasks.Domain.Enums;
+using Maran.SharedKernel.Utilities.Text;
 
 namespace Maran.Modules.Tasks.Domain.Entities;
 
@@ -198,9 +199,21 @@ public sealed class PanelTask
     /// <summary>Appends one line to the log, cutting and marking it once it no longer fits.</summary>
     /// <param name="line">The line to append, without its trailing newline.</param>
     /// <remarks>
+    /// <para>
     /// Once the marker is on the end, the log is longer than the cap and every later line is
     /// dropped in one comparison — so a task that keeps reporting costs one length check per report
     /// rather than a growing string it then throws away.
+    /// </para>
+    /// <para>
+    /// <b>The cut goes through <see cref="ColumnText.Fit"/> rather than through a raw index.</b>
+    /// A log line is agent output, and agent output names things customers chose — sites,
+    /// databases, paths. Slicing at UTF-16 index <see cref="MaxLogLength"/> can land between the
+    /// halves of one non-BMP character in such a name and leave a LONE SURROGATE, which Npgsql's
+    /// strict encoder throws on rather than substituting. <c>TaskRecorder</c> swallows that throw,
+    /// so nothing surfaces: the row simply stops accepting changes, and the operation stays
+    /// Running in the panel for ever while it has in fact finished. Cutting on a code point
+    /// boundary removes the possibility.
+    /// </para>
     /// </remarks>
     private void Append(string line)
     {
@@ -212,7 +225,7 @@ public sealed class PanelTask
         Log = Log.Length == 0 ? line : Log + "\n" + line;
         if (Log.Length > MaxLogLength)
         {
-            Log = Log[..MaxLogLength] + TruncationMarker;
+            Log = ColumnText.Fit(Log, MaxLogLength) + TruncationMarker;
         }
     }
 }

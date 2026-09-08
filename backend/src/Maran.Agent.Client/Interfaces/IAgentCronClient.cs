@@ -67,6 +67,30 @@ public interface IAgentCronClient
         string command,
         CancellationToken cancellationToken);
 
+    /// <summary>Suppresses, or restores, every managed entry of one account at once.</summary>
+    /// <param name="accountUsername">System username of the account whose whole crontab is affected.</param>
+    /// <param name="suspended"><c>true</c> to suppress every managed entry, <c>false</c> to restore them.</param>
+    /// <param name="cancellationToken">Cancellation for the call.</param>
+    /// <returns>Success, or a typed failure. An account with no crontab is a success.</returns>
+    /// <remarks>
+    /// <para>
+    /// Its own call and NOT a loop over <see cref="SetEntryEnabledAsync"/>, which is the point of it
+    /// existing: <c>enabled</c> is the CUSTOMER's switch. Driving a suspension through it would make
+    /// the resume switch back on every entry the customer had turned off themselves, and the panel
+    /// keeps no cron rows to put them back from — the crontab on the host is the only record of that
+    /// choice there is. The agent therefore carries a second, orthogonal marker.
+    /// </para>
+    /// <para>
+    /// A suspended entry keeps its id, its command, its schedule and its own enablement, and is
+    /// merely invisible to cron. Idempotent in both directions. FOREIGN crontab lines are untouched
+    /// and keep firing; the suspension state reports how many there are.
+    /// </para>
+    /// </remarks>
+    Task<Result<bool>> SetAccountSuspendedAsync(
+        string accountUsername,
+        bool suspended,
+        CancellationToken cancellationToken);
+
     /// <summary>Removes a cron entry from an account's crontab.</summary>
     /// <param name="accountUsername">System username of the owning account.</param>
     /// <param name="entryId">Identifier of the entry to remove.</param>

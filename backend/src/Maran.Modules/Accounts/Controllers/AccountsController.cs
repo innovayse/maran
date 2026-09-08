@@ -3,7 +3,6 @@ using Maran.Modules.Accounts.Commands.DeleteAccount;
 using Maran.Modules.Accounts.Commands.ReactivateAccount;
 using Maran.Modules.Accounts.Commands.SuspendAccount;
 using Maran.Modules.Accounts.Common;
-using Maran.Modules.Accounts.Controllers.Requests;
 using Maran.Modules.Accounts.Queries.GetAccount;
 using Maran.Modules.Accounts.Queries.ListAccounts;
 using Maran.Modules.Accounts.Queries.ListPlans;
@@ -66,19 +65,23 @@ public sealed class AccountsController : BaseApiController
     }
 
     /// <summary>Creates a new hosting account row.</summary>
-    /// <param name="request">The account's name, primary domain, and plan.</param>
+    /// <param name="command">
+    /// The account's name, primary domain, and plan. The command is bound straight from the body —
+    /// there is no request type in between — and the two audit fields it also carries are unbindable
+    /// by construction (see <see cref="CreateAccountCommand"/>), so the stamp below is the only
+    /// thing that can fill them.
+    /// </param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpPost]
     [ProducesResponseType(typeof(AccountDto), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
     public async Task<IActionResult> CreateAsync(
-        [FromBody] CreateAccountRequest request,
+        [FromBody] CreateAccountCommand command,
         CancellationToken cancellationToken)
     {
-        var command = new CreateAccountCommand(
-            request.Name, request.PrimaryDomain, request.PlanId, ClientIpAddress, UserAgent());
-        var result = await _bus.InvokeAsync<Result<AccountDto>>(command, cancellationToken);
+        var stamped = command with { IpAddress = ClientIpAddress, UserAgent = CallerUserAgent };
+        var result = await _bus.InvokeAsync<Result<AccountDto>>(stamped, cancellationToken);
         return ToCreatedActionResult(result, $"/api/v1/accounts/{(result.IsSuccess ? result.Value.Id : Guid.Empty)}");
     }
 
@@ -93,7 +96,7 @@ public sealed class AccountsController : BaseApiController
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> SuspendAsync(Guid id, CancellationToken cancellationToken)
     {
-        var command = new SuspendAccountCommand(id, ClientIpAddress, UserAgent());
+        var command = new SuspendAccountCommand(id, ClientIpAddress, CallerUserAgent);
         var result = await _bus.InvokeAsync<Result<AccountDto>>(command, cancellationToken);
         return ToActionResult(result);
     }
@@ -106,20 +109,40 @@ public sealed class AccountsController : BaseApiController
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> ReactivateAsync(Guid id, CancellationToken cancellationToken)
     {
-        var command = new ReactivateAccountCommand(id, ClientIpAddress, UserAgent());
+        var command = new ReactivateAccountCommand(id, ClientIpAddress, CallerUserAgent);
         var result = await _bus.InvokeAsync<Result<AccountDto>>(command, cancellationToken);
         return ToActionResult(result);
     }
 
-    /// <summary>Removes an account, its system user and everything under its home directory.</summary>
+    /// <summary>
+    /// Removes an account, its system user and everything under its home directory — after taking
+    /// the final backup the panel promises (spec §12).
+    /// </summary>
     /// <param name="id">The account to remove.</param>
+    /// <param name="skipFinalBackup">
+    /// Deletes WITHOUT taking that final backup. Off unless asked for, and the whole of what makes
+    /// it safe is that this controller is <c>AdminOnly</c> at class level, so a customer has no
+    /// route to this parameter at all — the guarantee is the policy, not a check in the handler.
+    /// It exists because the alternative to a refusal on a failed backup is an undeletable account:
+    /// an operator whose customer's data is already gone, or already copied, has to be able to say
+    /// so. Whoever sets it is named in the audit journal.
+    /// </param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
+    /// <remarks>
+    /// A failed final backup REFUSES the deletion and leaves the account exactly as it was, which is
+    /// the recoverable state; the answer carries the failure's code and the panel task carries the
+    /// same one. It is not a 500 and it is not a partial deletion.
+    /// </remarks>
     [HttpDelete("{id:guid}")]
     [ProducesResponseType(typeof(ulong), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> DeleteAsync(Guid id, CancellationToken cancellationToken)
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+    public async Task<IActionResult> DeleteAsync(
+        Guid id,
+        [FromQuery] bool skipFinalBackup,
+        CancellationToken cancellationToken)
     {
-        var command = new DeleteAccountCommand(id, ClientIpAddress, UserAgent());
+        var command = new DeleteAccountCommand(id, ClientIpAddress, CallerUserAgent, skipFinalBackup);
         var result = await _bus.InvokeAsync<Result<ulong>>(command, cancellationToken);
         return ToActionResult(result);
     }
@@ -140,12 +163,5 @@ public sealed class AccountsController : BaseApiController
     {
         var result = await _bus.InvokeAsync<Result<IReadOnlyList<PlanDto>>>(new ListPlansQuery(), cancellationToken);
         return ToActionResult(result);
-    }
-
-    /// <summary>Reads the caller's user agent for the audit journal.</summary>
-    /// <returns>The <c>User-Agent</c> header, or the empty string when absent.</returns>
-    private string UserAgent()
-    {
-        return HttpContext.Request.Headers.UserAgent.ToString();
     }
 }

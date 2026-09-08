@@ -64,6 +64,19 @@ internal sealed class RecordingAgentSftpClient : IAgentSftpClient
     }
 
     /// <inheritdoc/>
+    public async Task<Result<bool>> SetAccountLoginsLockedAsync(
+        string accountUsername,
+        bool locked,
+        CancellationToken cancellationToken)
+    {
+        LastAccountUsername = accountUsername;
+
+        await EnterAsync(cancellationToken);
+
+        return Result<bool>.Ok(true);
+    }
+
+    /// <inheritdoc/>
     public async Task<Result<bool>> DeleteAsync(
         string accountUsername,
         string sftpUsername,

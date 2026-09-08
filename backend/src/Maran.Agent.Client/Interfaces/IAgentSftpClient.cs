@@ -69,4 +69,29 @@ public interface IAgentSftpClient
         string accountUsername,
         string sftpUsername,
         CancellationToken cancellationToken);
+
+    /// <summary>Locks, or unlocks, every SFTP login one account holds.</summary>
+    /// <param name="accountUsername">System username of the account whose every login is affected.</param>
+    /// <param name="locked"><c>true</c> to lock every login, <c>false</c> to unlock them.</param>
+    /// <param name="cancellationToken">Cancellation for the call.</param>
+    /// <returns>Success, or a typed failure. An account with no login is a success.</returns>
+    /// <remarks>
+    /// <para>
+    /// <b>Why this call has to exist.</b> <c>usermod --lock &lt;account&gt;</c> does not reach these
+    /// logins. Each is its own passwd entry named <c>&lt;account&gt;_&lt;name&gt;</c> created with
+    /// <c>useradd --non-unique --uid &lt;account uid&gt;</c> so that it writes as the account, so
+    /// locking the account's own entry leaves every one of them authenticating — a suspended
+    /// customer kept a working WRITE credential into their home.
+    /// </para>
+    /// <para>
+    /// It takes an ACCOUNT and no login name: the logins come from the host's own password database
+    /// rather than from this module's rows, because a table can only describe what the panel
+    /// remembers creating. Nothing is deleted and no password is changed, so the resume gives back
+    /// the credential the customer already has.
+    /// </para>
+    /// </remarks>
+    Task<Result<bool>> SetAccountLoginsLockedAsync(
+        string accountUsername,
+        bool locked,
+        CancellationToken cancellationToken);
 }

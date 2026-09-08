@@ -101,6 +101,19 @@ internal sealed class RecordingAgentCronClient : IAgentCronClient
     }
 
     /// <inheritdoc/>
+    public async Task<Result<bool>> SetAccountSuspendedAsync(
+        string accountUsername,
+        bool suspended,
+        CancellationToken cancellationToken)
+    {
+        LastAccountUsername = accountUsername;
+
+        await EnterAsync(cancellationToken);
+
+        return Result<bool>.Ok(true);
+    }
+
+    /// <inheritdoc/>
     public async Task<Result<bool>> SetEntryEnabledAsync(
         string accountUsername,
         string entryId,

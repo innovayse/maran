@@ -3,8 +3,14 @@ using Maran.Host.IntegrationTests.Fixtures;
 using Maran.Modules.Accounts.Commands.DeleteAccount;
 using Maran.Modules.Accounts.Domain.Entities;
 using Maran.Modules.Accounts.Persistence;
+using Maran.Modules.Backups.Domain.Entities;
+using Maran.Modules.Backups.Domain.Enums;
+using Maran.Modules.Backups.Persistence;
+using Maran.Modules.Backups.Seeders;
 using Maran.Modules.Databases.Domain.Entities;
 using Maran.Modules.Databases.Persistence;
+using Maran.Modules.Identity.Domain.Entities;
+using Maran.Modules.Identity.Domain.Enums;
 using Maran.Modules.Identity.Persistence;
 using Maran.Modules.Sftp.Domain.Entities;
 using Maran.Modules.Sftp.Persistence;
@@ -109,6 +115,47 @@ public sealed class AccountDeletionCascadeTests : IAsyncLifetime
             .Accounts.IgnoreQueryFilters().Where(row => row.Id == accountId).ToListAsync());
     }
 
+    /// <summary>Deleting an account removes its backup rows.</summary>
+    /// <remarks>
+    /// The Backups module's own unit tests cover its handler, but they exercise it directly. This is
+    /// the same cascade through the real deletion command, against a real PostgreSQL, with the
+    /// residue auditor in the path — the altitude at which a module that quietly stopped removing
+    /// its rows would actually be caught. It is the assertion that was missing when a mutant handler
+    /// that deleted nothing left this whole class green.
+    /// </remarks>
+    [Fact]
+    public async Task Deleting_an_account_removes_its_backup_rows()
+    {
+        var agent = new StubAgentAccountsClient();
+        await using var factory = CreateFactory(agent);
+        await MigrateAsync(factory);
+        var accountId = await SeedAsync(factory);
+
+        // The row is there BEFORE the deletion. Without this, an assertion that the rows are gone
+        // afterwards passes just as loudly for a fixture that never wrote one — which is precisely
+        // how the gap this test closes went unnoticed.
+        using (var before = factory.Services.CreateScope())
+        {
+            Assert.NotEmpty(await Rows<BackupsDbContext, Backup>(before, accountId));
+        }
+
+        var result = await DeleteAsync(factory, accountId);
+
+        Assert.True(result.IsSuccess, result.Error?.Code);
+
+        using var scope = factory.Services.CreateScope();
+        var remaining = await Rows<BackupsDbContext, Backup>(scope, accountId);
+
+        // EXACTLY ONE row survives, and it is the final backup this very deletion took (spec §12).
+        // The cascade removed the seeded manual row and kept the PreDeletion one, which is the whole
+        // of Backup.SurvivesAccountDeletion() measured end to end: a cascade that swept everything
+        // would delete the last copy of the customer's data in the same breath as the thing it was a
+        // copy of, and a cascade that kept everything would leave the residue the auditor refuses
+        // over. Asserting the KIND rather than the count alone is what keeps those two apart.
+        Assert.Single(remaining);
+        Assert.Equal(BackupKind.PreDeletion, remaining[0].Kind);
+    }
+
     /// <summary>A cleanup failure aborts the deletion and leaves the account recoverable.</summary>
     [Fact]
     public async Task A_cleanup_failure_aborts_the_deletion_and_leaves_the_account_recoverable()
@@ -196,6 +243,56 @@ public sealed class AccountDeletionCascadeTests : IAsyncLifetime
         Assert.Equal(PanelTaskStatus.Completed, task.Status);
     }
 
+    /// <summary>Deleting an account removes its panel login and every credential that login holds.</summary>
+    /// <remarks>
+    /// <para>
+    /// The Identity module was the last one owning rows keyed by an account and handling no cascade,
+    /// and the exemption recording that read as harmless because v1 creates no customer login. It was
+    /// not harmless in either direction. The residue auditor has no exemption list, so the first
+    /// customer login ever created would have made EVERY deletion of its account fail with
+    /// <c>AccountCleanupFailed</c> and no way forward for the operator; and the obvious repair —
+    /// widening the exemption — would have left a working password against a tenant that was gone.
+    /// </para>
+    /// <para>
+    /// So this test seeds the login that did not exist, and its assertions are on both halves: the
+    /// deletion SUCCEEDS, which is the half that was going to break loudly, and the session, the
+    /// reset token and the recovery code are gone, which is the half that was going to break
+    /// quietly. Those three tables carry a <c>UserId</c> and no <c>AccountId</c>, so the residue
+    /// audit cannot see them and this is the only thing that looks.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public async Task Deleting_an_account_removes_its_panel_login_and_every_credential_that_login_holds()
+    {
+        var agent = new StubAgentAccountsClient();
+        await using var factory = CreateFactory(agent);
+        await MigrateAsync(factory);
+        var accountId = await SeedAsync(factory, includeCustomerLogin: true);
+
+        using (var before = factory.Services.CreateScope())
+        {
+            // The fixture is asserted before the act, because every assertion below is satisfied by
+            // a seed that never landed — the vacuity this suite has already been bitten by once.
+            var seeded = before.ServiceProvider.GetRequiredService<IdentityDbContext>();
+            Assert.Equal(1, await seeded.Users.CountAsync(user => user.AccountId == accountId));
+            Assert.Equal(1, await seeded.Sessions.CountAsync());
+            Assert.Equal(1, await seeded.PasswordResetTokens.CountAsync());
+            Assert.Equal(1, await seeded.RecoveryCodes.CountAsync());
+        }
+
+        var result = await DeleteAsync(factory, accountId);
+
+        Assert.True(result.IsSuccess, result.Error?.Code);
+        Assert.Equal([AccountName], agent.Deleted);
+
+        using var scope = factory.Services.CreateScope();
+        var identity = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
+        Assert.Empty(await identity.Users.Where(user => user.AccountId == accountId).ToListAsync());
+        Assert.Equal(0, await identity.Sessions.CountAsync());
+        Assert.Equal(0, await identity.PasswordResetTokens.CountAsync());
+        Assert.Equal(0, await identity.RecoveryCodes.CountAsync());
+    }
+
     /// <summary>Every row a module holds for an account, read past the tenant filter.</summary>
     /// <typeparam name="TContext">The module's database context.</typeparam>
     /// <typeparam name="TRow">The module's tenant-scoped entity.</typeparam>
@@ -262,6 +359,14 @@ public sealed class AccountDeletionCascadeTests : IAsyncLifetime
                 services.RemoveAll<IAgentAccountsClient>();
                 services.AddSingleton(agent);
 
+                // The deletion now takes a final backup BEFORE it releases anything (spec §12), and
+                // a failed final backup refuses the deletion. Without a stand-in these tests reach
+                // the real gRPC client, which has no socket here, and every one of them fails with
+                // Unavailable over an account that is now undeletable — the honest behaviour of a
+                // panel whose agent is down, and not what these tests are about.
+                services.RemoveAll<IAgentBackupClient>();
+                services.AddSingleton<IAgentBackupClient>(new StubAgentBackupClient());
+
                 if (sites is not null)
                 {
                     services.RemoveAll<IAgentSitesClient>();
@@ -287,6 +392,22 @@ public sealed class AccountDeletionCascadeTests : IAsyncLifetime
         await scope.ServiceProvider.GetRequiredService<SslDbContext>().Database.MigrateAsync();
         await scope.ServiceProvider.GetRequiredService<TasksDbContext>().Database.MigrateAsync();
 
+        // The Backups module joined the composed host, so its schema is part of what an account
+        // deletion has to be able to reach. Left unmigrated, its cascade handler throws and the
+        // residue audit reports the module as UNCHECKED rather than clean — which is what these
+        // fixtures measured before this line existed.
+        await scope.ServiceProvider.GetRequiredService<BackupsDbContext>().Database.MigrateAsync();
+
+        // The default backup destination, which a real server has because the installer migrates
+        // before the panel boots and the reconciliation runs at boot. In this fixture the order is
+        // reversed — the host is built first and the schema arrives here — so the hosted task found
+        // no tables, logged, and swallowed, exactly as it is written to. Without this line the final
+        // backup that guards every deletion (spec §12) refuses with BackupDestinationNotConfigured
+        // and the account survives, which is the RIGHT behaviour on a panel that genuinely has
+        // nowhere to put the copy, and the wrong fixture for measuring the cascade.
+        await scope.ServiceProvider.GetRequiredService<DefaultBackupDestinationSeeder>()
+            .SeedAsync(CancellationToken.None);
+
         if (includeDatabases)
         {
             await scope.ServiceProvider.GetRequiredService<DatabasesDbContext>().Database.MigrateAsync();
@@ -301,11 +422,17 @@ public sealed class AccountDeletionCascadeTests : IAsyncLifetime
     /// two older tests keep the fixtures their assertions were written against, and ON for the test
     /// that exists because a fixture without them proved nothing about the modules that leaked.
     /// </param>
+    /// <param name="includeCustomerLogin">
+    /// Whether the account is also given a panel login with a session, a reset token and a recovery
+    /// code. Off by default, because it is the row v1 never creates and the older tests describe the
+    /// panel as it is; ON for the test of the module that had no subscriber.
+    /// </param>
     /// <returns>The account's identity.</returns>
     private static async Task<Guid> SeedAsync(
         WebApplicationFactory<Program> factory,
         bool includeDatabase = true,
-        bool includeWebsite = false)
+        bool includeWebsite = false,
+        bool includeCustomerLogin = false)
     {
         using var scope = factory.Services.CreateScope();
         var accounts = scope.ServiceProvider.GetRequiredService<AccountsDbContext>();
@@ -321,9 +448,28 @@ public sealed class AccountDeletionCascadeTests : IAsyncLifetime
         sftp.SftpUsers.Add(new SftpUser(Guid.NewGuid(), account.Id, "web", $"{AccountName}_web", now));
         await sftp.SaveChangesAsync();
 
+        // Unconditional, like the SFTP row and unlike the opt-in ones below, because without it
+        // NOTHING at this altitude observes the Backups cascade at all. Measured: with the module's
+        // AccountDeleting handler mutated to delete nothing, every test in this class and in
+        // AccountResidueAuditTests stayed GREEN — the fixtures held no backup row, so the residue
+        // auditor had nothing to find and reported the module clean because it was empty, not
+        // because the cascade worked. That is the vacuous-gate shape rules/testing.md names: the
+        // check could not have seen the defect it exists for. This row is what gives it something
+        // to see, and it makes every cascade test in this class carry the observation.
+        var backups = scope.ServiceProvider.GetRequiredService<BackupsDbContext>();
+        var backup = new Backup(Guid.NewGuid(), account.Id, destinationId: null, BackupKind.Manual, now);
+        backup.Completed(4096, new string('a', 64), 1, now);
+        backups.Backups.Add(backup);
+        await backups.SaveChangesAsync();
+
         if (includeWebsite)
         {
             await SeedWebsiteAsync(scope, account.Id, now);
+        }
+
+        if (includeCustomerLogin)
+        {
+            await SeedCustomerLoginAsync(scope, account.Id, now);
         }
 
         if (includeDatabase)
@@ -341,6 +487,41 @@ public sealed class AccountDeletionCascadeTests : IAsyncLifetime
         }
 
         return account.Id;
+    }
+
+    /// <summary>Gives the account one panel login, with every credential such a login carries.</summary>
+    /// <param name="scope">The scope the module contexts are resolved from.</param>
+    /// <param name="accountId">The account the login owns.</param>
+    /// <param name="now">The injected instant every row is stamped with.</param>
+    /// <remarks>
+    /// The role is <c>Customer</c> and the login owns the account, which is exactly the row the
+    /// product does not yet construct. Writing it here is what makes the cascade testable before the
+    /// feature that creates it exists — the alternative is discovering the behaviour on the day a
+    /// customer login ships, on a live panel, with deletions failing.
+    /// </remarks>
+    private static async Task SeedCustomerLoginAsync(IServiceScope scope, Guid accountId, DateTimeOffset now)
+    {
+        var identity = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
+
+        var user = new User(
+            Guid.NewGuid(), AccountName, $"{AccountName}@example.com", "hash", UserRole.Customer, now);
+        user.AssignAccount(accountId);
+        identity.Users.Add(user);
+
+        identity.Sessions.Add(new Session(
+            Guid.NewGuid(),
+            user.Id,
+            Guid.NewGuid(),
+            "cascade-refresh-token-digest",
+            now,
+            now.AddDays(30),
+            "203.0.113.10",
+            "integration-tests"));
+        identity.PasswordResetTokens.Add(new PasswordResetToken(
+            Guid.NewGuid(), user.Id, "cascade-reset-token-digest", now));
+        identity.RecoveryCodes.Add(new RecoveryCode(Guid.NewGuid(), user.Id, "cascade-recovery-code-digest"));
+
+        await identity.SaveChangesAsync();
     }
 
     /// <summary>Gives the account one PHP site and one certificate installed for it.</summary>

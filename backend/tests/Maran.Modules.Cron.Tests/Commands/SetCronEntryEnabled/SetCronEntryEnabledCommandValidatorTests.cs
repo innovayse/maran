@@ -40,7 +40,7 @@ public sealed class SetCronEntryEnabledCommandValidatorTests
     private static bool IsValid(string entryId, bool enabled)
     {
         return new SetCronEntryEnabledCommandValidator()
-            .Validate(new SetCronEntryEnabledCommand(AccountId, entryId, enabled, "203.0.113.7", "tests"))
+            .Validate(new SetCronEntryEnabledCommand(AccountId, enabled, entryId, "203.0.113.7", "tests"))
             .IsValid;
     }
 }

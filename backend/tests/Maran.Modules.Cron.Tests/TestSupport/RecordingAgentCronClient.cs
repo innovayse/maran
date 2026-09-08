@@ -123,6 +123,23 @@ public sealed class RecordingAgentCronClient : IAgentCronClient
         return Task.FromResult(DeleteEntryResult ?? Result<bool>.Ok(true));
     }
 
+    /// <summary>Every account-wide suspension the handler asked for, in order.</summary>
+    public List<AgentAccountSuspensionCall> AccountSuspensions { get; } = [];
+
+    /// <summary>What <see cref="SetAccountSuspendedAsync"/> answers; success by default.</summary>
+    public Result<bool>? SetAccountSuspendedResult { get; set; }
+
+    /// <inheritdoc/>
+    public Task<Result<bool>> SetAccountSuspendedAsync(
+        string accountUsername,
+        bool suspended,
+        CancellationToken cancellationToken)
+    {
+        AccountSuspensions.Add(new AgentAccountSuspensionCall(accountUsername, suspended));
+
+        return Task.FromResult(SetAccountSuspendedResult ?? Result<bool>.Ok(true));
+    }
+
     /// <inheritdoc/>
     public Task<Result<bool>> SetEntryEnabledAsync(
         string accountUsername,

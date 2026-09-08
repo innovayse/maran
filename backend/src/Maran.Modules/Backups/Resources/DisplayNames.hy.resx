@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="BackupsModuleDisplayName">
+    <value>Պահուստային պատճեններ</value>
+  </data>
+  <data name="BackupFailureBackupStreamDropped">
+    <value>Կապը սերվերի հետ ընդհատվեց</value>
+  </data>
+  <data name="BackupFailureBackupStreamIdle">
+    <value>Սերվերը դադարեց պատասխանել</value>
+  </data>
+  <data name="BackupFailureBackupTruncated">
+    <value>Սերվերն այդպես էլ չհայտնեց արդյունքը</value>
+  </data>
+  <data name="BackupFailureBackupCancelled">
+    <value>Չեղարկված</value>
+  </data>
+  <data name="BackupFailureBackupInvalidOutcome">
+    <value>Սերվերը հայտնեց արխիվի մասին, որը չկարողացավ անվանել</value>
+  </data>
+  <data name="BackupFailureBackupScheduledRunAborted">
+    <value>Ժամանակացույցով գործարկումն ընդհատվեց</value>
+  </data>
+  <data name="BackupFailureAgentUnspecified">
+    <value>Սերվերը պատճառը չհայտնեց</value>
+  </data>
+  <data name="BackupFailureAgentInvalidInput">
+    <value>Սերվերը չընդունեց այս հարցումը</value>
+  </data>
+  <data name="BackupFailureAgentAlreadyExists">
+    <value>Սերվերում այս նույնացուցիչով պատճեն արդեն կա</value>
+  </data>
+  <data name="BackupFailureAgentNotFound">
+    <value>Սերվերը չգտավ իրեն անհրաժեշտը</value>
+  </data>
+  <data name="BackupFailureAgentValidationFailed">
+    <value>Սերվերն այս հարցումը համարեց սխալ</value>
+  </data>
+  <data name="BackupFailureAgentSystemFailure">
+    <value>Սերվերին չհաջողվեց ստեղծել պատճենը</value>
+  </data>
+  <data name="BackupFailureAgentNotImplemented">
+    <value>Սերվերը չի աջակցում այս պահոցը</value>
+  </data>
+  <data name="BackupFailureAgentInvalidResponse">
+    <value>Սերվերը վերադարձրեց պատասխան, որը վահանակը չկարողացավ կարդալ</value>
+  </data>
+  <data name="BackupDestinationDefault">
+    <value>Տեղական պահոց</value>
+  </data>
+</root>

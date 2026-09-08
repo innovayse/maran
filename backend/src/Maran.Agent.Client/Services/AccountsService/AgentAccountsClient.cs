@@ -93,6 +93,49 @@ public sealed class AgentAccountsClient : IAgentAccountsClient
     }
 
     /// <inheritdoc/>
+    /// <remarks>
+    /// The wire lists are copied into this module's own DTOs rather than surfaced as protobuf
+    /// collections, so nothing outside this project holds a generated type — the same boundary every
+    /// other method here keeps. Order is preserved as the agent reported it.
+    /// </remarks>
+    public async Task<Result<AccountSuspensionStateDto>> GetSuspensionStateAsync(
+        string username,
+        CancellationToken cancellationToken)
+    {
+        var response = await _invoker.GetAccountSuspensionStateAsync(
+            new GetAccountSuspensionStateRequest { Username = username },
+            cancellationToken);
+
+        return response.ResultCase switch
+        {
+            GetAccountSuspensionStateResponse.ResultOneofCase.Ok => Result<AccountSuspensionStateDto>.Ok(
+                new AccountSuspensionStateDto(
+                    response.Ok.LoginLocked,
+                    // Mapped by NUMBER and not by name: the wire enum and this project's are two
+                    // declarations of the same four states, and a value this build has never heard
+                    // of — a newer agent — must read as Unspecified, which sends the caller back to
+                    // LoginLocked rather than to whatever the cast produced.
+                    Enum.IsDefined(typeof(AccountLoginPasswordState), (int)response.Ok.LoginPasswordState)
+                        ? (AccountLoginPasswordState)(int)response.Ok.LoginPasswordState
+                        : AccountLoginPasswordState.Unspecified,
+                    response.Ok.SitesDirectoryReadable,
+                    response.Ok.Sites
+                        .Select(site => { return new SiteSuspensionFactDto(site.Domain, site.ServingStub); })
+                        .ToList(),
+                    response.Ok.CronEntriesTotal,
+                    response.Ok.CronEntriesSuspended,
+                    response.Ok.CronForeignLines,
+                    response.Ok.SftpLogins
+                        .Select(login => { return new SftpLoginSuspensionFactDto(login.Username, login.Locked); })
+                        .ToList())),
+            GetAccountSuspensionStateResponse.ResultOneofCase.Error => Result<AccountSuspensionStateDto>.Fail(
+                AgentErrorTranslator.ToError(_logger, response.Error, nameof(GetSuspensionStateAsync))),
+            _ => Result<AccountSuspensionStateDto>.Fail(
+                Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
+        };
+    }
+
+    /// <inheritdoc/>
     public async Task<Result<ulong>> DeleteAsync(string username, CancellationToken cancellationToken)
     {
         var response = await _invoker.DeleteAccountAsync(

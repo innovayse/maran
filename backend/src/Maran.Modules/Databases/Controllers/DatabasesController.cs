@@ -2,7 +2,6 @@ using Maran.Modules.Databases.Commands.CreateDatabase;
 using Maran.Modules.Databases.Commands.DropDatabase;
 using Maran.Modules.Databases.Commands.ResetDatabasePassword;
 using Maran.Modules.Databases.Common;
-using Maran.Modules.Databases.Controllers.Requests;
 using Maran.Modules.Databases.Queries.GetDatabase;
 using Maran.Modules.Databases.Queries.ListDatabases;
 using Maran.Sdk.Contracts;
@@ -71,7 +70,12 @@ public sealed class DatabasesController : BaseApiController
     /// Creates a database and its dedicated user, and returns the generated password — the only time
     /// it is ever shown.
     /// </summary>
-    /// <param name="request">The owning account and the two names the customer chose.</param>
+    /// <param name="command">
+    /// The owning account and the two names the customer chose. The command is bound straight from
+    /// the body — there is no request type in between — and the two audit fields it also carries are
+    /// unbindable by construction (see <see cref="CreateDatabaseCommand"/>), so the stamp below is
+    /// the only thing that can fill them.
+    /// </param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpPost]
     [ProducesResponseType(typeof(CreatedDatabaseDto), StatusCodes.Status201Created)]
@@ -80,13 +84,12 @@ public sealed class DatabasesController : BaseApiController
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
     public async Task<IActionResult> CreateAsync(
-        [FromBody] CreateDatabaseRequest request,
+        [FromBody] CreateDatabaseCommand command,
         CancellationToken cancellationToken)
     {
-        var command = new CreateDatabaseCommand(
-            request.AccountId, request.Name, request.DbUserName, ClientIpAddress, UserAgent());
+        var stamped = command with { IpAddress = ClientIpAddress, UserAgent = CallerUserAgent };
 
-        var result = await _bus.InvokeAsync<Result<CreatedDatabaseDto>>(command, cancellationToken);
+        var result = await _bus.InvokeAsync<Result<CreatedDatabaseDto>>(stamped, cancellationToken);
         return ToCreatedActionResult(
             result, $"/api/v1/databases/{(result.IsSuccess ? result.Value.Id : Guid.Empty)}");
     }
@@ -103,7 +106,7 @@ public sealed class DatabasesController : BaseApiController
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> ResetPasswordAsync(Guid id, CancellationToken cancellationToken)
     {
-        var command = new ResetDatabasePasswordCommand(id, ClientIpAddress, UserAgent());
+        var command = new ResetDatabasePasswordCommand(id, ClientIpAddress, CallerUserAgent);
         return ToActionResult(await _bus.InvokeAsync<Result<DatabasePasswordDto>>(command, cancellationToken));
     }
 
@@ -119,14 +122,7 @@ public sealed class DatabasesController : BaseApiController
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> DeleteAsync(Guid id, CancellationToken cancellationToken)
     {
-        var command = new DropDatabaseCommand(id, ClientIpAddress, UserAgent());
+        var command = new DropDatabaseCommand(id, ClientIpAddress, CallerUserAgent);
         return ToActionResult(await _bus.InvokeAsync<Result<bool>>(command, cancellationToken));
-    }
-
-    /// <summary>Reads the caller's user agent for the audit journal.</summary>
-    /// <returns>The <c>User-Agent</c> header, or the empty string when absent.</returns>
-    private string UserAgent()
-    {
-        return HttpContext.Request.Headers.UserAgent.ToString();
     }
 }

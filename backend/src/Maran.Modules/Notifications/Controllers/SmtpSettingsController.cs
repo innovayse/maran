@@ -1,7 +1,6 @@
 using Maran.Modules.Notifications.Commands.SaveSmtpSettings;
 using Maran.Modules.Notifications.Commands.SendTestMail;
 using Maran.Modules.Notifications.Common;
-using Maran.Modules.Notifications.Controllers.Requests;
 using Maran.Modules.Notifications.Queries.GetSmtpSettings;
 using Maran.Sdk.Contracts;
 using Maran.Sdk.Controllers;
@@ -58,7 +57,13 @@ public sealed class SmtpSettingsController : BaseApiController
     }
 
     /// <summary>Replaces the panel's mail settings.</summary>
-    /// <param name="request">The settings to save.</param>
+    /// <param name="command">
+    /// The settings to save. The command is bound straight from the body — there is no request type
+    /// in between — and the two audit fields it also carries are unbindable by construction (see
+    /// <see cref="SaveSmtpSettingsCommand"/>), so the stamp below is the only thing that can fill
+    /// them. A body that omits <c>password</c> still deserializes it to <c>null</c>, which still
+    /// means "keep the stored one".
+    /// </param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     /// <remarks>
     /// A PUT rather than a POST: there is exactly one settings row on a panel, the request carries
@@ -70,26 +75,20 @@ public sealed class SmtpSettingsController : BaseApiController
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     public async Task<IActionResult> SaveAsync(
-        [FromBody] SaveSmtpSettingsRequest request,
+        [FromBody] SaveSmtpSettingsCommand command,
         CancellationToken cancellationToken)
     {
-        var command = new SaveSmtpSettingsCommand(
-            request.Host,
-            request.Port,
-            request.Security,
-            request.Username,
-            request.Password,
-            request.FromAddress,
-            request.FromName,
-            request.AlertRecipient,
-            ClientIpAddress,
-            UserAgent());
+        var stamped = command with { IpAddress = ClientIpAddress, UserAgent = CallerUserAgent };
 
-        return ToActionResult(await _bus.InvokeAsync<Result<bool>>(command, cancellationToken));
+        return ToActionResult(await _bus.InvokeAsync<Result<bool>>(stamped, cancellationToken));
     }
 
     /// <summary>Sends one fixed test message, so an administrator can see whether the settings work.</summary>
-    /// <param name="request">Where to send it.</param>
+    /// <param name="command">
+    /// Where to send it. The command is bound straight from the body — there is no request type in
+    /// between — and its two audit fields are unbindable by construction (see
+    /// <see cref="SendTestMailCommand"/>).
+    /// </param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     /// <remarks>
     /// This is the one mail path that reports its failure to a caller. Everywhere else a failed send
@@ -102,17 +101,10 @@ public sealed class SmtpSettingsController : BaseApiController
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     public async Task<IActionResult> SendTestAsync(
-        [FromBody] SendTestMailRequest request,
+        [FromBody] SendTestMailCommand command,
         CancellationToken cancellationToken)
     {
-        var command = new SendTestMailCommand(request.Recipient, ClientIpAddress, UserAgent());
-        return ToActionResult(await _bus.InvokeAsync<Result<bool>>(command, cancellationToken));
-    }
-
-    /// <summary>Reads the caller's user agent for the audit journal.</summary>
-    /// <returns>The <c>User-Agent</c> header, or the empty string when absent.</returns>
-    private string UserAgent()
-    {
-        return HttpContext.Request.Headers.UserAgent.ToString();
+        var stamped = command with { IpAddress = ClientIpAddress, UserAgent = CallerUserAgent };
+        return ToActionResult(await _bus.InvokeAsync<Result<bool>>(stamped, cancellationToken));
     }
 }

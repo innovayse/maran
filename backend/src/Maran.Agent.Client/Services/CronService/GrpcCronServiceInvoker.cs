@@ -57,6 +57,14 @@ internal sealed class GrpcCronServiceInvoker : ICronServiceInvoker
     }
 
     /// <inheritdoc/>
+    public async Task<SetAccountCronSuspendedResponse> SetAccountCronSuspendedAsync(
+        SetAccountCronSuspendedRequest request,
+        CancellationToken cancellationToken)
+    {
+        return await _client.SetAccountCronSuspendedAsync(request, cancellationToken: cancellationToken);
+    }
+
+    /// <inheritdoc/>
     public async Task<GetCronEntryOutputResponse> GetCronEntryOutputAsync(
         GetCronEntryOutputRequest request,
         CancellationToken cancellationToken)

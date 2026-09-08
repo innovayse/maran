@@ -27,4 +27,16 @@
   <data name="AccountCleanupFailed">
     <value>Հաշիվը չի ջնջվել․ չհաջողվեց նախ հեռացնել դրան պատկանողը։ Ոչինչ չի փոխվել, փորձեք կրկին։</value>
   </data>
+  <data name="AccountSuspensionFailed">
+    <value>Հաշիվը չի կասեցվել․ չհաջողվեց նախ կանգնեցնել այն, ինչ այն աշխատեցնում է։ Ոչինչ չի փոխվել, փորձեք կրկին։</value>
+  </data>
+  <data name="AccountSuspensionNotObserved">
+    <value>Հաշիվը չի կասեցվել․ չհաջողվեց համոզվել, որ սերվերն իրոք կանգնեցրել է այն։ Ոչինչ չի փոխվել, փորձեք կրկին։</value>
+  </data>
+  <data name="AccountResumptionFailed">
+    <value>Հաշիվը չի վերականգնվել․ չհաջողվեց նորից գործարկել այն, ինչ այն աշխատեցնում է։ Ոչինչ չի փոխվել, փորձեք կրկին։</value>
+  </data>
+  <data name="AccountResumptionNotObserved">
+    <value>Հաշիվը չի վերականգնվել․ չհաջողվեց համոզվել, որ սերվերն իրոք նորից գործարկել է այն։ Ոչինչ չի փոխվել, փորձեք կրկին։</value>
+  </data>
 </root>

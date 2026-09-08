@@ -2,6 +2,7 @@ using Maran.Modules.Tasks.Common;
 using Maran.Modules.Tasks.Mappers;
 using Maran.Modules.Tasks.Persistence;
 using Maran.Modules.Tasks.Resources;
+using Maran.Modules.Tasks.Services;
 
 namespace Maran.Modules.Tasks.Queries.GetTask;
 
@@ -17,11 +18,16 @@ public sealed class GetTaskQueryHandler
     /// <summary>The Tasks module's database context, and this module's read boundary.</summary>
     private readonly TasksDbContext _dbContext;
 
+    /// <summary>Names the task's kind as an operator reads it, in the request's culture.</summary>
+    private readonly TaskKindDisplayNames _kindNames;
+
     /// <summary>Creates the handler with the module's own database context.</summary>
     /// <param name="dbContext">The Tasks module's database context.</param>
-    public GetTaskQueryHandler(TasksDbContext dbContext)
+    /// <param name="kindNames">Names a task's kind for the request's culture.</param>
+    public GetTaskQueryHandler(TasksDbContext dbContext, TaskKindDisplayNames kindNames)
     {
         _dbContext = dbContext;
+        _kindNames = kindNames;
     }
 
     /// <summary>Returns one task.</summary>
@@ -38,6 +44,6 @@ public sealed class GetTaskQueryHandler
 
         return task is null
             ? Result<PanelTaskDto>.Fail(Error.Of(nameof(ErrorMessages.TaskNotFound), ErrorType.NotFound))
-            : Result<PanelTaskDto>.Ok(PanelTaskMapper.From(task));
+            : Result<PanelTaskDto>.Ok(PanelTaskMapper.From(task, _kindNames.Of(task.Kind)));
     }
 }

@@ -42,5 +42,16 @@ public sealed class PasswordResetTokenConfiguration : IEntityTypeConfiguration<P
         // denial-of-service lever.
         builder.HasIndex(token => token.UserId)
             .HasDatabaseName("IX_PasswordResetTokens_UserId");
+
+        // The relationship the other two user-owned tables have had since they were written, and
+        // this one had not: an outstanding reset token is a live permission to take over a login,
+        // so it must not be able to outlive the login it names. Without the constraint the column
+        // was a user id by convention only, and a deleted user left its reset tokens behind as rows
+        // the database saw no reason to touch.
+        builder.HasOne<User>()
+            .WithMany()
+            .HasForeignKey(token => token.UserId)
+            .HasConstraintName("FK_PasswordResetTokens_Users_UserId")
+            .OnDelete(DeleteBehavior.Cascade);
     }
 }

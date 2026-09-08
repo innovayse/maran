@@ -3,7 +3,6 @@ using Maran.Modules.Cron.Commands.DeleteCronEntry;
 using Maran.Modules.Cron.Commands.SetCronEntryEnabled;
 using Maran.Modules.Cron.Commands.UpdateCronEntry;
 using Maran.Modules.Cron.Common;
-using Maran.Modules.Cron.Controllers.Requests;
 using Maran.Modules.Cron.Queries.GetCronEntryOutput;
 using Maran.Modules.Cron.Queries.ListCronEntries;
 using Maran.Modules.Cron.Services;
@@ -71,7 +70,7 @@ public sealed class CronEntriesController : BaseApiController
     /// <summary>
     /// Installs a new cron entry and returns it, including the identifier the agent minted for it.
     /// </summary>
-    /// <param name="request">The owning account, the schedule and the command.</param>
+    /// <param name="command">The owning account, the schedule and the command.</param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpPost]
     [ProducesResponseType(typeof(CronEntryDto), StatusCodes.Status201Created)]
@@ -80,17 +79,16 @@ public sealed class CronEntriesController : BaseApiController
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
     public async Task<IActionResult> CreateAsync(
-        [FromBody] CreateCronEntryRequest request,
+        [FromBody] CreateCronEntryCommand command,
         CancellationToken cancellationToken)
     {
-        var command = new CreateCronEntryCommand(
-            request.AccountId, request.Schedule, request.Command, ClientIpAddress, UserAgent());
+        command = command with { IpAddress = ClientIpAddress, UserAgent = CallerUserAgent };
 
         var result = await _bus.InvokeAsync<Result<CronEntryDto>>(command, cancellationToken);
         return ToCreatedActionResult(
             result,
             $"/api/v1/cron-entries/{(result.IsSuccess ? result.Value.EntryId : string.Empty)}"
-            + $"/output?accountId={request.AccountId}");
+            + $"/output?accountId={command.AccountId}");
     }
 
     /// <summary>
@@ -98,7 +96,7 @@ public sealed class CronEntriesController : BaseApiController
     /// customer's entry answers 404, not 403.
     /// </summary>
     /// <param name="entryId">The entry to rewrite.</param>
-    /// <param name="request">The owning account, the new schedule and the new command.</param>
+    /// <param name="command">The owning account, the new schedule and the new command.</param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpPut("{entryId}")]
     [ProducesResponseType(typeof(bool), StatusCodes.Status200OK)]
@@ -106,12 +104,11 @@ public sealed class CronEntriesController : BaseApiController
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> UpdateAsync(
-        string entryId,
-        [FromBody] UpdateCronEntryRequest request,
+        [FromRoute] string entryId,
+        [FromBody] UpdateCronEntryCommand command,
         CancellationToken cancellationToken)
     {
-        var command = new UpdateCronEntryCommand(
-            request.AccountId, entryId, request.Schedule, request.Command, ClientIpAddress, UserAgent());
+        command = command with { EntryId = entryId, IpAddress = ClientIpAddress, UserAgent = CallerUserAgent };
 
         return ToActionResult(await _bus.InvokeAsync<Result<bool>>(command, cancellationToken));
     }
@@ -121,7 +118,7 @@ public sealed class CronEntriesController : BaseApiController
     /// 404, not 403.
     /// </summary>
     /// <param name="entryId">The entry to switch.</param>
-    /// <param name="request">The owning account and the state to put the entry in.</param>
+    /// <param name="command">The owning account and the state to put the entry in.</param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpPost("{entryId}/enabled")]
     [ProducesResponseType(typeof(bool), StatusCodes.Status200OK)]
@@ -129,12 +126,11 @@ public sealed class CronEntriesController : BaseApiController
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> SetEnabledAsync(
-        string entryId,
-        [FromBody] SetCronEntryEnabledRequest request,
+        [FromRoute] string entryId,
+        [FromBody] SetCronEntryEnabledCommand command,
         CancellationToken cancellationToken)
     {
-        var command = new SetCronEntryEnabledCommand(
-            request.AccountId, entryId, request.Enabled, ClientIpAddress, UserAgent());
+        command = command with { EntryId = entryId, IpAddress = ClientIpAddress, UserAgent = CallerUserAgent };
 
         return ToActionResult(await _bus.InvokeAsync<Result<bool>>(command, cancellationToken));
     }
@@ -177,14 +173,7 @@ public sealed class CronEntriesController : BaseApiController
         Guid accountId,
         CancellationToken cancellationToken)
     {
-        var command = new DeleteCronEntryCommand(accountId, entryId, ClientIpAddress, UserAgent());
+        var command = new DeleteCronEntryCommand(accountId, entryId, ClientIpAddress, CallerUserAgent);
         return ToActionResult(await _bus.InvokeAsync<Result<bool>>(command, cancellationToken));
-    }
-
-    /// <summary>Reads the caller's user agent for the audit journal.</summary>
-    /// <returns>The <c>User-Agent</c> header, or the empty string when absent.</returns>
-    private string UserAgent()
-    {
-        return HttpContext.Request.Headers.UserAgent.ToString();
     }
 }

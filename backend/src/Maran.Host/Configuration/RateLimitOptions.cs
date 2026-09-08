@@ -59,4 +59,17 @@ public sealed class RateLimitOptions
     /// </remarks>
     [Range(1, 1_000)]
     public int SiteLogConcurrentStreamLimit { get; set; } = 6;
+
+    /// <summary>
+    /// Restores allowed for one hosting account within <see cref="BackupRestoreWindowSeconds"/>.
+    /// </summary>
+    /// <remarks>
+    /// Three, and deliberately small: a restore is a thing a person does on purpose, not something a
+    /// screen does on their behalf, and a fourth attempt inside an hour is more likely to be a
+    /// mistake being repeated than a need.
+    /// </remarks>
+    public int BackupRestoreMaxRequests { get; set; } = 3;
+
+    /// <summary>The window <see cref="BackupRestoreMaxRequests"/> is counted over, in seconds.</summary>
+    public int BackupRestoreWindowSeconds { get; set; } = 3600;
 }

@@ -89,6 +89,17 @@ public sealed class StubAgentCronClient : IAgentCronClient
     }
 
     /// <inheritdoc/>
+    public Task<Result<bool>> SetAccountSuspendedAsync(
+        string accountUsername,
+        bool suspended,
+        CancellationToken cancellationToken)
+    {
+        AddressedAccounts.Add(accountUsername);
+
+        return Task.FromResult(Result<bool>.Ok(true));
+    }
+
+    /// <inheritdoc/>
     public Task<Result<bool>> SetEntryEnabledAsync(
         string accountUsername,
         string entryId,

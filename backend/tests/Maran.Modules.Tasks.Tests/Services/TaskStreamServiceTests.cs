@@ -37,7 +37,7 @@ public sealed class TaskStreamServiceTests
         }
 
         await using var context = TasksTestContext.Create(FakeCurrentUser.Admin(), database);
-        var service = new TaskStreamService(context, TasksTestContext.StreamOptions());
+        var service = new TaskStreamService(context, TasksTestContext.StreamOptions(), TasksTestContext.KindNames());
 
         using var watching = new CancellationTokenSource(ReadTimeout);
         await using var frames = service.ReadAsync(task.Id, watching.Token).GetAsyncEnumerator(watching.Token);
@@ -84,7 +84,7 @@ public sealed class TaskStreamServiceTests
         }
 
         await using var context = TasksTestContext.Create(FakeCurrentUser.Admin(), database);
-        var service = new TaskStreamService(context, TasksTestContext.StreamOptions());
+        var service = new TaskStreamService(context, TasksTestContext.StreamOptions(), TasksTestContext.KindNames());
 
         using var watching = new CancellationTokenSource(ReadTimeout);
         var collected = new List<TaskFrame>();
@@ -116,7 +116,7 @@ public sealed class TaskStreamServiceTests
         }
 
         await using var context = TasksTestContext.Create(FakeCurrentUser.Customer(), database);
-        var service = new TaskStreamService(context, TasksTestContext.StreamOptions());
+        var service = new TaskStreamService(context, TasksTestContext.StreamOptions(), TasksTestContext.KindNames());
 
         var result = await service.ResolveAsync(task.Id, CancellationToken.None);
 
@@ -139,7 +139,7 @@ public sealed class TaskStreamServiceTests
         }
 
         await using var context = TasksTestContext.Create(FakeCurrentUser.Admin(), database);
-        var service = new TaskStreamService(context, TasksTestContext.StreamOptions());
+        var service = new TaskStreamService(context, TasksTestContext.StreamOptions(), TasksTestContext.KindNames());
 
         var result = await service.ResolveAsync(task.Id, CancellationToken.None);
 
@@ -152,7 +152,7 @@ public sealed class TaskStreamServiceTests
     public async Task A_task_that_does_not_exist_is_answered_not_found()
     {
         await using var context = TasksTestContext.Create(FakeCurrentUser.Admin());
-        var service = new TaskStreamService(context, TasksTestContext.StreamOptions());
+        var service = new TaskStreamService(context, TasksTestContext.StreamOptions(), TasksTestContext.KindNames());
 
         var result = await service.ResolveAsync(Guid.NewGuid(), CancellationToken.None);
 

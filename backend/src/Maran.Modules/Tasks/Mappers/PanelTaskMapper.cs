@@ -12,14 +12,20 @@ public static class PanelTaskMapper
 {
     /// <summary>Projects one task row into its outward view.</summary>
     /// <param name="task">The row to project.</param>
+    /// <param name="kindDisplayName">
+    /// The row's kind as an operator reads it, already resolved for the request's culture by
+    /// <c>TaskKindDisplayNames</c>. Passed in rather than looked up here because a mapper translates
+    /// and never decides (rules/csharp.md), and a resource lookup is a decision about culture.
+    /// </param>
     /// <returns>The task as a screen sees it.</returns>
-    public static PanelTaskDto From(PanelTask task)
+    public static PanelTaskDto From(PanelTask task, string kindDisplayName)
     {
         ArgumentNullException.ThrowIfNull(task);
 
         return new PanelTaskDto(
             task.Id,
             task.Kind,
+            kindDisplayName,
             task.Subject,
             task.CorrelationId,
             task.Status,

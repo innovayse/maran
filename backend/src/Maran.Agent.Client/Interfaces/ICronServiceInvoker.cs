@@ -50,6 +50,14 @@ internal interface ICronServiceInvoker
         SetCronEntryEnabledRequest request,
         CancellationToken cancellationToken);
 
+    /// <summary>Invokes <c>SetAccountCronSuspended</c>.</summary>
+    /// <param name="request">The wire request.</param>
+    /// <param name="cancellationToken">Cancellation for the call.</param>
+    /// <returns>The raw wire response, carrying either branch of its oneof.</returns>
+    Task<SetAccountCronSuspendedResponse> SetAccountCronSuspendedAsync(
+        SetAccountCronSuspendedRequest request,
+        CancellationToken cancellationToken);
+
     /// <summary>Invokes <c>GetCronEntryOutput</c>.</summary>
     /// <param name="request">The wire request.</param>
     /// <param name="cancellationToken">Cancellation for the call.</param>

@@ -166,8 +166,8 @@ public sealed class CreateSiteCommandValidatorTests
         return new CreateSiteCommand(
             Guid.NewGuid(),
             "example.com",
-            ["www.example.com"],
             SiteBackendType.Php,
+            ["www.example.com"],
             "8.3",
             string.Empty,
             "198.51.100.7",

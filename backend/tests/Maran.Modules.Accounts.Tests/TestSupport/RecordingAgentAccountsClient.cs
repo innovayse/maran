@@ -19,6 +19,37 @@ public sealed class RecordingAgentAccountsClient : IAgentAccountsClient
     /// <summary>Names the agent was asked to act on, in order, prefixed with the operation.</summary>
     public List<string> Calls { get; } = [];
 
+    /// <summary>
+    /// What this double reports the host to be doing for the account, as the attestation reads it.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// It is settable because the attestation is the subject of most of these tests: a test says
+    /// "the host still serves this vhost" or "the directory could not be read" and then asserts the
+    /// handler refused. The default is a host that agrees with whatever was last asked of it — no
+    /// vhosts, a readable directory — so a test that is not about the attestation does not have to
+    /// arrange one.
+    /// </para>
+    /// <para>
+    /// <see cref="SuspendAsync"/> and <see cref="UnsuspendAsync"/> move
+    /// <see cref="AccountSuspensionStateDto.LoginLocked"/> on a successful call, which is what makes
+    /// the default honest rather than merely convenient: a double whose observation never followed
+    /// its own actions would let a handler that never calls the agent at all pass every test here.
+    /// </para>
+    /// <para>
+    /// They move <see cref="AccountSuspensionStateDto.LoginPasswordState"/> with it, between
+    /// <see cref="AccountLoginPasswordState.Locked"/> and
+    /// <see cref="AccountLoginPasswordState.Usable"/>, so this double models an account with a
+    /// HAND-SET password — the one kind of account whose login a suspension really locks and a
+    /// resumption really unlocks. It is deliberately NOT the ordinary hosting account, which never
+    /// has a password and is modelled by <see cref="FixedObservationAgentAccountsClient"/>: a double
+    /// that let one type stand for both is what hid this handler's defect for the life of the
+    /// feature.
+    /// </para>
+    /// </remarks>
+    public AccountSuspensionStateDto SuspensionState { get; set; } =
+        new AccountSuspensionStateDto(false, AccountLoginPasswordState.Usable, true, [], 0, 0, 0, []);
+
     /// <summary>Creates a client that succeeds at everything.</summary>
     public RecordingAgentAccountsClient()
     {
@@ -47,14 +78,45 @@ public sealed class RecordingAgentAccountsClient : IAgentAccountsClient
     public Task<Result<bool>> SuspendAsync(string username, CancellationToken cancellationToken)
     {
         Calls.Add($"suspend:{username}");
-        return Task.FromResult(Answer());
+        var answer = Answer();
+        if (answer.IsSuccess)
+        {
+            SuspensionState = SuspensionState with
+            {
+                LoginLocked = true,
+                LoginPasswordState = AccountLoginPasswordState.Locked,
+            };
+        }
+
+        return Task.FromResult(answer);
     }
 
     /// <inheritdoc/>
     public Task<Result<bool>> UnsuspendAsync(string username, CancellationToken cancellationToken)
     {
         Calls.Add($"unsuspend:{username}");
-        return Task.FromResult(Answer());
+        var answer = Answer();
+        if (answer.IsSuccess)
+        {
+            SuspensionState = SuspensionState with
+            {
+                LoginLocked = false,
+                LoginPasswordState = AccountLoginPasswordState.Usable,
+            };
+        }
+
+        return Task.FromResult(answer);
+    }
+
+    /// <inheritdoc/>
+    public Task<Result<AccountSuspensionStateDto>> GetSuspensionStateAsync(
+        string username,
+        CancellationToken cancellationToken)
+    {
+        Calls.Add($"observe:{username}");
+        return Task.FromResult(_failure is null
+            ? Result<AccountSuspensionStateDto>.Ok(SuspensionState)
+            : Result<AccountSuspensionStateDto>.Fail(_failure));
     }
 
     /// <inheritdoc/>

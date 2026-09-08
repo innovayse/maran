@@ -44,4 +44,15 @@ public static class RateLimitPolicies
     /// whole reason this is a separate policy rather than a bigger number on <see cref="Api"/>.
     /// </remarks>
     public const string SiteLogs = "site-logs";
+
+    /// <summary>
+    /// The restore limit: its own bucket, keyed by the caller's hosting account.
+    /// </summary>
+    /// <remarks>
+    /// Separate from <see cref="Api"/> because what it bounds is not load but the hazard of the
+    /// operation itself — a restore replaces a live account's home and every one of its databases,
+    /// and a caller repeating one is the thing worth refusing. Sharing the general budget would make
+    /// it either meaningless or ruinous for every other screen.
+    /// </remarks>
+    public const string BackupRestore = "backup-restore";
 }

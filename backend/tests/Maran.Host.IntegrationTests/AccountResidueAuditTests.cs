@@ -1,6 +1,7 @@
 using Maran.Host.IntegrationTests.Fixtures;
 using Maran.Modules.Accounts.Domain.Entities;
 using Maran.Modules.Accounts.Persistence;
+using Maran.Modules.Backups.Persistence;
 using Maran.Modules.Databases.Persistence;
 using Maran.Modules.Identity.Persistence;
 using Maran.Modules.Sftp.Persistence;
@@ -166,6 +167,12 @@ public sealed class AccountResidueAuditTests : IAsyncLifetime
         await scope.ServiceProvider.GetRequiredService<SitesDbContext>().Database.MigrateAsync();
         await scope.ServiceProvider.GetRequiredService<SslDbContext>().Database.MigrateAsync();
         await scope.ServiceProvider.GetRequiredService<TasksDbContext>().Database.MigrateAsync();
+
+        // The Backups module joined the composed host, so its schema is part of what an account
+        // deletion has to be able to reach. Left unmigrated, its cascade handler throws and the
+        // residue audit reports the module as UNCHECKED rather than clean — which is what these
+        // fixtures measured before this line existed.
+        await scope.ServiceProvider.GetRequiredService<BackupsDbContext>().Database.MigrateAsync();
 
         if (includeDatabases)
         {

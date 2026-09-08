@@ -1,6 +1,5 @@
 using Maran.Modules.Identity.Commands.CompleteSetup;
 using Maran.Modules.Identity.Common;
-using Maran.Modules.Identity.Controllers.Requests;
 using Maran.Modules.Identity.Queries.GetSetupState;
 using Maran.Sdk.Contracts;
 using Maran.Sdk.Controllers;
@@ -47,7 +46,8 @@ public sealed class SetupController : BaseApiController
     /// Rate limited with the login policy: the token is the only thing standing between a stranger
     /// and ownership of the server, so guessing at it must be as expensive as guessing a password.
     /// </remarks>
-    /// <param name="request">The token and the administrator's details.</param>
+    /// <param name="command">The token and the administrator's details. The caller's address and
+    /// user agent are stamped here.</param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpPost]
     [EnableRateLimiting(RateLimitPolicies.Login)]
@@ -56,16 +56,10 @@ public sealed class SetupController : BaseApiController
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     public async Task<IActionResult> CompleteAsync(
-        [FromBody] CompleteSetupRequest request,
+        [FromBody] CompleteSetupCommand command,
         CancellationToken cancellationToken)
     {
-        var command = new CompleteSetupCommand(
-            request.Token,
-            request.Username,
-            request.Email,
-            request.Password,
-            ClientIpAddress,
-            CallerUserAgent);
+        command = command with { IpAddress = ClientIpAddress, UserAgent = CallerUserAgent };
 
         return ToActionResult(await _bus.InvokeAsync<Result<AuthenticatedUserDto>>(command, cancellationToken));
     }

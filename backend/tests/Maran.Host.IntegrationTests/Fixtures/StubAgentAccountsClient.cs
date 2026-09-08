@@ -70,6 +70,17 @@ public sealed class StubAgentAccountsClient : IAgentAccountsClient
 
     /// <summary>Not exercised by these tests.</summary>
     /// <param name="username">Unused.</param>
+    /// <param name="cancellationToken">Unused.</param>
+    /// <returns>Never returns.</returns>
+    public Task<Result<AccountSuspensionStateDto>> GetSuspensionStateAsync(
+        string username,
+        CancellationToken cancellationToken)
+    {
+        throw new NotSupportedException();
+    }
+
+    /// <summary>Not exercised by these tests.</summary>
+    /// <param name="username">Unused.</param>
     /// <param name="quotaBytes">Unused.</param>
     /// <param name="cancellationToken">Unused.</param>
     /// <returns>Never returns.</returns>

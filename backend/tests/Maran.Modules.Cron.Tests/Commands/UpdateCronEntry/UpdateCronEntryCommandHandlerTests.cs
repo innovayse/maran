@@ -135,9 +135,9 @@ public sealed class UpdateCronEntryCommandHandlerTests
             return await Handler.HandleAsync(
                 new UpdateCronEntryCommand(
                     accountId ?? AccountId,
-                    EntryId,
                     new CronScheduleDto("0", "4", "*", "*", "*"),
                     command,
+                    EntryId,
                     "203.0.113.7",
                     "tests"),
                 CancellationToken.None);

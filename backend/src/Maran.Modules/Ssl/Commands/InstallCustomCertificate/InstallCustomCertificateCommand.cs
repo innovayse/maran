@@ -1,3 +1,6 @@
+using System.Text.Json.Serialization;
+using Microsoft.AspNetCore.Mvc.ModelBinding;
+
 namespace Maran.Modules.Ssl.Commands.InstallCustomCertificate;
 
 /// <summary>
@@ -10,17 +13,34 @@ namespace Maran.Modules.Ssl.Commands.InstallCustomCertificate;
 /// this type must never be interpolated into a message, and <see cref="ToString"/> below says so by
 /// refusing to render the material.
 /// </remarks>
-/// <param name="Domain">The domain to install for. It must be a site the caller owns.</param>
-/// <param name="CertificatePem">PEM-encoded leaf certificate, optionally followed by its chain.</param>
-/// <param name="PrivateKeyPem">PEM-encoded private key matching the certificate. Never logged, never stored.</param>
-/// <param name="IpAddress">The caller's address, recorded in the audit journal.</param>
-/// <param name="UserAgent">The caller's user agent, recorded in the audit journal.</param>
+/// <param name="Domain">
+/// The domain to install for. It must be a site the caller owns. Optional on the wire, and the
+/// default is what makes it optional: <c>[ApiController]</c> infers <c>required</c> for a
+/// non-nullable reference-type constructor parameter that has none, which would answer a body that
+/// omits the field with a model-state error instead of this module's own validation code.
+/// </param>
+/// <param name="CertificatePem">
+/// PEM-encoded leaf certificate, optionally followed by its chain. Optional on the wire for the
+/// reason given on <paramref name="Domain"/>.
+/// </param>
+/// <param name="PrivateKeyPem">
+/// PEM-encoded private key matching the certificate. Never logged, never stored. Optional on the
+/// wire for the reason given on <paramref name="Domain"/>.
+/// </param>
+/// <param name="IpAddress">
+/// The caller's address, recorded in the audit journal. Established by the server and stamped by the
+/// action; never bound from the request, which is the thing being audited.
+/// </param>
+/// <param name="UserAgent">
+/// The caller's user agent, recorded in the audit journal. Established by the server and stamped by
+/// the action; never bound from the request.
+/// </param>
 public sealed record InstallCustomCertificateCommand(
-    string Domain,
-    string CertificatePem,
-    string PrivateKeyPem,
-    string IpAddress,
-    string UserAgent)
+    string Domain = "",
+    string CertificatePem = "",
+    string PrivateKeyPem = "",
+    [property: JsonIgnore][property: BindNever][BindNever] string IpAddress = "",
+    [property: JsonIgnore][property: BindNever][BindNever] string UserAgent = "")
 {
     /// <summary>Describes the command without revealing the material it carries.</summary>
     /// <returns>A sentence naming the operation and the domain, and no material at all.</returns>

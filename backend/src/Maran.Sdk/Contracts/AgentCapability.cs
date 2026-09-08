@@ -35,6 +35,9 @@ public enum AgentCapability
     /// <summary>System users and their home directories: <c>IAgentAccountsClient</c>.</summary>
     Accounts,
 
+    /// <summary>An account's backups, their restore and their destinations: <c>IAgentBackupClient</c>.</summary>
+    Backup,
+
     /// <summary>An account's crontab: <c>IAgentCronClient</c>.</summary>
     Cron,
 

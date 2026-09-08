@@ -82,6 +82,10 @@ public sealed class TasksModule : IPanelModule
         // TaskRetentionRequested; this is what runs when it arrives.
         services.AddScoped<TaskRetentionHandler>();
 
+        // Scoped, because IStringLocalizer resolves the culture of the current request and a task's
+        // display name must follow the reader's language rather than the process's.
+        services.AddScoped<TaskKindDisplayNames>();
+
         // The shared resource pool the panel-wide ResxErrorTextProvider resolves error codes and
         // Manifest.DisplayNameKey against. Module-internal lookups inject IStringLocalizer<T>
         // directly instead.

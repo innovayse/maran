@@ -1,6 +1,5 @@
 using Maran.Modules.Identity.Commands.SaveSecurityPolicy;
 using Maran.Modules.Identity.Common;
-using Maran.Modules.Identity.Controllers.Requests;
 using Maran.Modules.Identity.Queries.GetSecurityPolicy;
 using Maran.Sdk.Contracts;
 using Maran.Sdk.Controllers;
@@ -56,7 +55,8 @@ public sealed class SecurityPolicyController : BaseApiController
     /// A PUT rather than a POST: there is exactly one policy on a panel, the request carries all of
     /// it, and repeating the same body twice leaves the panel in the same state.
     /// </remarks>
-    /// <param name="request">The policy to save.</param>
+    /// <param name="command">The policy to save. The caller's address and user agent are stamped
+    /// here.</param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpPut]
     [ProducesResponseType(typeof(bool), StatusCodes.Status200OK)]
@@ -64,16 +64,10 @@ public sealed class SecurityPolicyController : BaseApiController
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     public async Task<IActionResult> SaveAsync(
-        [FromBody] SaveSecurityPolicyRequest request,
+        [FromBody] SaveSecurityPolicyCommand command,
         CancellationToken cancellationToken)
     {
-        var command = new SaveSecurityPolicyCommand(
-            request.MinimumPasswordLength,
-            request.ForceTwoFactorForAdmins,
-            request.MaxFailedLoginAttempts,
-            request.LockoutMinutes,
-            ClientIpAddress,
-            CallerUserAgent);
+        command = command with { IpAddress = ClientIpAddress, UserAgent = CallerUserAgent };
 
         return ToActionResult(await _bus.InvokeAsync<Result<bool>>(command, cancellationToken));
     }

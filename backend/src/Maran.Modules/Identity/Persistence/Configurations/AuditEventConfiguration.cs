@@ -19,19 +19,19 @@ public sealed class AuditEventConfiguration : IEntityTypeConfiguration<AuditEven
 
         builder.Property(e => e.ActorUsername)
             .IsRequired()
-            .HasMaxLength(64);
+            .HasMaxLength(AuditEvent.ActorUsernameMaxLength);
 
         builder.Property(e => e.Action)
             .IsRequired()
-            .HasMaxLength(64);
+            .HasMaxLength(AuditEvent.ActionMaxLength);
 
         builder.Property(e => e.Subject)
             .IsRequired()
-            .HasMaxLength(256);
+            .HasMaxLength(AuditEvent.SubjectMaxLength);
 
         builder.Property(e => e.IpAddress)
             .IsRequired()
-            .HasMaxLength(45);
+            .HasMaxLength(AuditEvent.IpAddressMaxLength);
 
         builder.Property(e => e.UserAgent)
             .IsRequired()
@@ -41,7 +41,7 @@ public sealed class AuditEventConfiguration : IEntityTypeConfiguration<AuditEven
             .IsRequired();
 
         builder.Property(e => e.CorrelationId)
-            .HasMaxLength(64);
+            .HasMaxLength(AuditEvent.CorrelationIdMaxLength);
 
         // The audit screen reads newest-first, and an operator asking "what did this user do"
         // filters by actor; both get an index so the journal stays readable as it grows.

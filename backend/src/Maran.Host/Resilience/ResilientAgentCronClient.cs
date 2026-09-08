@@ -105,6 +105,22 @@ public sealed class ResilientAgentCronClient : IAgentCronClient
     }
 
     /// <inheritdoc/>
+    public async Task<Result<bool>> SetAccountSuspendedAsync(
+        string accountUsername,
+        bool suspended,
+        CancellationToken cancellationToken)
+    {
+        return await _pipeline.ExecuteAsync(
+            async (state, token) =>
+            {
+                return await state.Client.SetAccountSuspendedAsync(
+                    state.AccountUsername, state.Suspended, token);
+            },
+            (Client: _inner, AccountUsername: accountUsername, Suspended: suspended),
+            cancellationToken);
+    }
+
+    /// <inheritdoc/>
     public async Task<Result<bool>> SetEntryEnabledAsync(
         string accountUsername,
         string entryId,

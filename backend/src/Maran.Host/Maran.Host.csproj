@@ -57,6 +57,7 @@
     <ProjectReference Include="..\Maran.Modules\Tasks\Maran.Modules.Tasks.csproj" />
     <ProjectReference Include="..\Maran.Modules\Monitoring\Maran.Modules.Monitoring.csproj" />
     <ProjectReference Include="..\Maran.Modules\Notifications\Maran.Modules.Notifications.csproj" />
+    <ProjectReference Include="..\Maran.Modules\Backups\Maran.Modules.Backups.csproj" />
   </ItemGroup>
 
   <ItemGroup>
