@@ -1,0 +1,46 @@
+name: api-contract
+
+# The HTTP request contract between the SPA and the panel's CQRS commands.
+#
+# It gets its own workflow because it is the only gate that spans both trees, and because neither
+# tree's own gate can fail on it: renaming a command member leaves the backend compiling and the
+# SPA type-checking, and the e2e suite runs against stubs, so a renamed key stays green there by
+# construction. It therefore triggers on BOTH trees — a rename on either side must fail it — and
+# needs neither .NET nor a database, only the SPA's own TypeScript compiler.
+
+on:
+  push:
+    paths:
+      - 'backend/src/**'
+      - 'frontend/**'
+      - 'scripts/**'
+      - '.github/workflows/api-contract.yml'
+  pull_request:
+    paths:
+      - 'backend/src/**'
+      - 'frontend/**'
+      - 'scripts/**'
+      - '.github/workflows/api-contract.yml'
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      # Only for `node_modules/typescript`: the SPA's request types are read with the same compiler
+      # that type-checks them, so an interface this job understands is the one `vue-tsc` sees.
+      - name: Install the SPA's toolchain
+        run: npm ci
+        working-directory: frontend
+
+      # Never `--accept`. Recording the baseline is a developer's deliberate act in its own commit,
+      # exactly as `maran proto --accept` is (rules/proto.md).
+      - name: SPA request bodies against the commands they bind
+        run: bash scripts/maran api

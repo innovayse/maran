@@ -31,5 +31,62 @@ services:
       retries: 5
       start_period: 10s
 
+  # The Rust agent, development-only, behind the `agent` profile so that plain
+  # `docker compose up -d` keeps starting the database alone as it always has.
+  #
+  # WHY IT RUNS IN A CONTAINER AND NOT ON THE HOST. The agent is the product's only root process
+  # (rules/architecture.md). It creates system accounts, writes vhosts into /etc/nginx, drops
+  # databases, mounts SFTP jails and writes /var/backups/maran. Running that on a developer's own
+  # machine means either giving it root over the workstation — where every one of those actions is
+  # destructive and permanent — or running it unprivileged, which is what `maran handshake` does
+  # and why that check can prove the wire and nothing behind it. The polygon image is already a
+  # real host, built by running the installer's own steps, so it is the composition to extend
+  # rather than a new one to invent.
+  #
+  # WHY THE PANEL REACHES THE SOCKET WITH NO `chown`. In production the agent is `User=root` with
+  # `Group=panel` (installer/systemd/maran-agent.service), so the socket it binds is
+  # `root:panel 0660` and the panel process reaches it because it is in that group. `user: "0:<gid>"`
+  # here is that same mechanism with the developer's gid in place of `panel`'s: the process is
+  # still uid 0, the socket is still 0660 with no world access, and the group that may open it is
+  # still exactly one. Nothing is loosened — SOCKET_MODE in agent/crates/agent/src/server.rs is
+  # untouched and no `chown` runs anywhere. `--allow-uid` narrows it further, to a single uid, the
+  # same way the installer passes the panel user's.
+  #
+  # WHY IT IS SAFE FOR DEVELOPMENT ONLY. Two things here belong nowhere near a server: `privileged`
+  # (the SFTP bind mounts and quota calls need it, as docker/README.md already records for the
+  # polygon suites) and a socket directory inside the working tree, which is owned by a normal
+  # user. On a server the socket lives in root-owned /run/maran and the group is a service account
+  # that owns nothing else. Production is never composed by this file: the installer sets every
+  # process up natively.
+  agent:
+    profiles: ["agent"]
+    image: maran-polygon-ubuntu24:latest
+    build:
+      # The repository root, not docker/: the image copies files out of installer/.
+      context: ..
+      dockerfile: docker/polygon/ubuntu24.Dockerfile
+    container_name: maran-agent-dev
+    privileged: true
+    # uid 0 with the developer's gid — the Group=panel model, see above. MARAN_DEV_GID and
+    # MARAN_DEV_UID are exported by scripts/lib/run-dev.sh; the fallbacks are the first login
+    # account on a Linux workstation.
+    user: "0:${MARAN_DEV_GID:-1000}"
+    environment:
+      MARAN_AGENT_SOCKET: /run/maran-dev/agent.sock
+      MARAN_AGENT_ALLOW_UID: ${MARAN_DEV_UID:-1000}
+    entrypoint: ["/usr/local/maran-dev/agent-entrypoint.sh"]
+    volumes:
+      # The binary is built on the host and mounted, as docker/README.md explains for the polygon
+      # suites: the host and this image share a glibc, and a binary built inside the container
+      # would not be the one the developer is editing.
+      - ../agent/target/debug/maran-agent:/usr/local/bin/maran-agent:ro
+      - ./agent-entrypoint.sh:/usr/local/maran-dev/agent-entrypoint.sh:ro
+      # Mounted at /run/maran-dev and NOT at /run/maran: the image's own /run/maran carries the
+      # php-fpm socket directory the installer step created, and a bind mount over it would hide
+      # that and break every php pool the agent writes.
+      - ../.dev-agent:/run/maran-dev
+    # The agent is pid 1 and stops on SIGTERM; five seconds is plenty and keeps `--stop` quick.
+    stop_grace_period: 5s
+
 volumes:
   pgdata:

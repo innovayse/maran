@@ -78,8 +78,24 @@ ExecStopPost=-/usr/bin/rm -f __MARAN_API_SOCKET__
 # The api's only persistent state is under /var/lib/maran (its own subtree) and its
 # own logs; everything else it needs (the binaries) is read-only to it. The socket
 # directory joins them for the reason given above.
-ReadWritePaths=/var/lib/maran /var/log/maran __MARAN_API_SOCKET_DIR__
-NoExecPaths=/var/lib/maran /var/log/maran __MARAN_API_SOCKET_DIR__
+#
+# /var/log/maran/panel and NOT /var/log/maran. The parent holds files ROOT opens for append —
+# install.sh's install.log and, through the nginx master, the panel vhost's access and error
+# logs — so a panel uid that could create entries there could unlink one of those names and
+# leave a symbolic link for root to follow. That was measured working, against a root-owned
+# 0600 file, on both writers
+# (docs/superpowers/notes/2026-09-07-installer-privileged-steps-threat-note.md, the
+# "/var/log/maran" section). The parent is now root:panel 0750, so the panel still READS the
+# install log and the vhost logs — through the sandbox's read-only view of the filesystem,
+# which needs no entry here — and writes only in the subdirectory installer/lib/40-user.sh
+# creates for it. Nothing writes files there today (the api logs to stdout and journald takes
+# it), but Serilog reads its sinks from configuration, so an operator can enable a file sink
+# from panel.env; without this entry that sink would fail on a read-only filesystem.
+#
+# The path must EXIST before this unit starts: ProtectSystem=strict makes a missing
+# ReadWritePaths= entry a startup failure, by name. Step 40 creates it, and runs first.
+ReadWritePaths=/var/lib/maran /var/log/maran/panel __MARAN_API_SOCKET_DIR__
+NoExecPaths=/var/lib/maran /var/log/maran/panel __MARAN_API_SOCKET_DIR__
 # No sockets/devices are opened directly by this unit beyond outbound network
 # (PostgreSQL over unix socket, the agent over unix socket, and the license lease
 # call) and the unix socket nginx proxies to; PrivateDevices removes device node

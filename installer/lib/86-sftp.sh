@@ -16,7 +16,7 @@
 #   `<account>:<web server group> 0750` and every site, vhost and php-fpm pool
 #   depends on that. OpenSSH refuses to chroot into a directory that is not
 #   root-owned and not group-writable-free, which is precisely why the chroot is
-#   the JAIL (`/var/lib/maran/sftp/<account>`, set as the login's passwd home, so
+#   the JAIL (`/var/lib/maran-sftp/<account>`, set as the login's passwd home, so
 #   `ChrootDirectory %h` resolves to it) with the real home bind-mounted inside.
 #   The jail exists so the home never has to change. Changing the home here would
 #   undo the design and break sites in the same move.
@@ -36,10 +36,19 @@ set -euo pipefail
 readonly MARAN_SFTP_GROUP="maran-sftp"
 
 # The base directory holding one root-owned jail per account, matching
-# `AgentPaths::SFTP_JAIL_ROOT`. root:root 0755: it is the parent of every chroot
-# on the host, so a login that reaches it must not be able to write in it, and
-# OpenSSH walks it on every chroot.
-readonly MARAN_SFTP_JAIL_ROOT="/var/lib/maran/sftp"
+# `AgentPaths::SFTP_JAIL_ROOT`. root:root 0700: only root ever traverses it from
+# the outside, and every path component of a chroot must be root-owned and not
+# group- or other-writable or OpenSSH refuses the login.
+#
+# A SIBLING of /var/lib/maran, not a child of it. It used to be
+# /var/lib/maran/sftp, and step 40 creates /var/lib/maran as `panel:panel 0750`,
+# so on a real install — where step 40 runs before this one — sshd refused every
+# chroot with `bad ownership or modes for chroot directory component
+# "/var/lib/maran/"` and SFTP had never worked on a real server. The directory is
+# CREATED and gated by step 40 alongside the other root-only directories; this
+# step re-states it idempotently so that running this file on its own (the
+# polygon images do) still lays the ground its sshd block depends on.
+readonly MARAN_SFTP_JAIL_ROOT="/var/lib/maran-sftp"
 
 readonly MARAN_SSHD_CONFIG="/etc/ssh/sshd_config"
 
@@ -77,14 +86,25 @@ ensure_sftp_group() {
   groupadd --system "$MARAN_SFTP_GROUP"
 }
 
-# ensure_jail_root: the base directory, root:root 0755.
+# ensure_jail_root: the base directory, root:root 0700.
 #
-# The parent (`/var/lib/maran`) is created plainly rather than with `install -d`'s
-# ownership flags, because on a real install it already exists and belongs to
-# step 40 — this step states an opinion about ITS directory only.
+# The parent is `/var/lib`, which every supported family ships as root:root 0755,
+# so there is no parent to create and no ancestor whose ownership this step has to
+# argue about — which is the whole point of the relocation documented above.
+#
+# `install -d` alone would exit 0 on a path somebody else had already put there
+# and would follow a symbolic link, so the same conditional removal step 40 uses
+# runs first: whatever occupies the path is deleted unless it is already a real
+# root-owned directory. The exception is not a weakening — only root can create a
+# root-owned directory here — and it is what stops a re-run from recursing through
+# the live bind mounts of customer homes that hang beneath this path.
 ensure_jail_root() {
-  mkdir -p "$(dirname "$MARAN_SFTP_JAIL_ROOT")"
-  install -d -o root -g root -m 0755 "$MARAN_SFTP_JAIL_ROOT"
+  if [ -L "$MARAN_SFTP_JAIL_ROOT" ] \
+    || { [ -e "$MARAN_SFTP_JAIL_ROOT" ] && [ ! -d "$MARAN_SFTP_JAIL_ROOT" ]; } \
+    || { [ -d "$MARAN_SFTP_JAIL_ROOT" ] && [ "$(stat -c '%u' "$MARAN_SFTP_JAIL_ROOT")" -ne 0 ]; }; then
+    rm -rf -- "$MARAN_SFTP_JAIL_ROOT"
+  fi
+  install -d -o root -g root -m 0700 "$MARAN_SFTP_JAIL_ROOT"
 }
 
 # render_sshd_block: the block itself, on stdout.
@@ -155,6 +175,43 @@ install_sshd_match_block() {
   mv -f "$candidate" "$MARAN_SSHD_CONFIG"
 }
 
+# The base directory this step used to use, kept only so that an upgrade of a host
+# installed before the relocation can SEE its own leftovers and say what they are.
+readonly MARAN_LEGACY_SFTP_JAIL_ROOT="/var/lib/maran/sftp"
+
+# report_legacy_jails: names what an upgrade leaves behind, and does not touch it.
+#
+# Nothing is moved, unmounted or deleted here, and that is a decision rather than an
+# omission. Everything under the legacy base is CUSTOMER DATA reachable through a live
+# bind mount of a real home, an `rm -rf` across one deletes the home it points at, and an
+# installer step is the worst possible place to unmount a customer's files unattended. The
+# migration also cannot be silent even in principle: each existing SFTP login's passwd home
+# is the OLD jail path, so relocating the directory without `usermod`-ing every login would
+# leave the logins pointing at a path that no longer exists.
+#
+# What the operator loses by us doing nothing is nothing they had: those logins have NEVER
+# worked. `sshd` refused every one of them at the legacy path — that is the defect this
+# relocation fixes — so there is no working credential to preserve, only a directory tree
+# and some mount units. Recreating each SFTP user through the panel rebuilds the jail at the
+# new base, and the old tree can then be removed by hand once nothing is mounted in it.
+report_legacy_jails() {
+  [ -d "$MARAN_LEGACY_SFTP_JAIL_ROOT" ] || return 0
+
+  echo "NOTE: this host has SFTP jails at the OLD base ${MARAN_LEGACY_SFTP_JAIL_ROOT}."
+  echo "      They are NOT migrated and NOT deleted by this installer: each jail has a"
+  echo "      customer's real home bind-mounted inside it, and each existing SFTP login's"
+  echo "      passwd home still names the old path."
+  echo "      Those logins never worked — sshd refuses a chroot whose parent is not"
+  echo "      root-owned, which is exactly why the base has moved to ${MARAN_SFTP_JAIL_ROOT}."
+  echo "      To finish by hand, per account:"
+  echo "        1. systemctl disable --now <the account's var-lib-maran-sftp-*.mount unit>"
+  echo "        2. rm -f /etc/systemd/system/<that unit>  &&  systemctl daemon-reload"
+  echo "        3. confirm nothing is left in /proc/self/mounts under ${MARAN_LEGACY_SFTP_JAIL_ROOT}"
+  echo "        4. recreate the account's SFTP users in the panel — the agent builds the new"
+  echo "           jail, mount unit and passwd home under ${MARAN_SFTP_JAIL_ROOT}"
+  echo "      Only when step 3 reports nothing mounted: rm -rf ${MARAN_LEGACY_SFTP_JAIL_ROOT}"
+}
+
 # install_sftp_prerequisites: everything this step lays down, with no service
 # management — so it is callable anywhere sshd is a file rather than a daemon,
 # which is what lets the polygon images run the real thing.
@@ -167,6 +224,7 @@ install_sftp_prerequisites() {
 step_sftp() {
   echo "Preparing chrooted SFTP (group ${MARAN_SFTP_GROUP}, jails under ${MARAN_SFTP_JAIL_ROOT})..."
   install_sftp_prerequisites
+  report_legacy_jails
   # Reload rather than restart: existing SSH sessions — including the operator's
   # own, the one running this installer — survive a reload and do not survive a
   # restart on every distribution.

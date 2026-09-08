@@ -26,6 +26,15 @@ export SCRIPT_DIR LIB_DIR
 
 MARAN_LOG_DIR="/var/log/maran"
 MARAN_LOG_FILE="${MARAN_LOG_DIR}/install.log"
+# The leaf names inside MARAN_LOG_DIR that a ROOT process opens for append: this script's own
+# install log, and the two the root nginx MASTER opens for the panel vhost
+# (installer/nginx/maran.conf). They are listed in one place because they are the reason the
+# directory must be root-owned, and because harden_log_directory below has to neutralise a
+# symbolic link planted at any of them on a server installed before that was true.
+# Exported so installer/lib/40-user.sh re-states the same three names rather than inventing
+# its own list.
+MARAN_ROOT_TRUSTED_LOG_NAMES="install.log nginx-access.log nginx-error.log"
+export MARAN_LOG_DIR MARAN_ROOT_TRUSTED_LOG_NAMES
 
 # --- The panel's public port -------------------------------------------------------
 # The one place this number is decided. nginx listens on it, preflight refuses to install
@@ -90,13 +99,92 @@ require_root() {
   fi
 }
 
-# setup_logging: create the log directory before anything else writes to it, then
+# MARAN_LOG_DIR_WARNINGS: anything harden_log_directory has to say. It runs BEFORE stdout is
+# redirected into the log file, so a message printed there would reach the terminal and never the
+# install log — and a "somebody had planted a symlink at your install log" line is precisely the
+# one an operator needs to find again tomorrow. The messages are collected here and replayed by
+# setup_logging once the redirection is in place.
+MARAN_LOG_DIR_WARNINGS=""
+
+# harden_log_directory: make /var/log/maran a directory only root can create entries in, and
+# neutralise anything already planted at a name root opens for append.
+#
+# Why this exists (docs/superpowers/notes/2026-09-07-installer-privileged-steps-threat-note.md,
+# section "/var/log/maran"): this directory used to be created panel:panel 0750 by step 40, while
+# root appended to `install.log` here and the root nginx MASTER opened `nginx-access.log` and
+# `nginx-error.log` here. The panel uid owning the directory can unlink either name and leave a
+# symbolic link in its place without ever having permission to enter the target. Both follows were
+# measured under real root with the distribution's own nginx: root's `tee -a` appended into a
+# root-owned 0600 file, and nginx appended a line whose request target the attacker chose.
+# `fs.protected_symlinks` does not help — it engages only in a world-writable STICKY directory, and
+# this one is 0750.
+#
+# So the directory is root's, and the panel writes in a subdirectory of its own that step 40
+# creates (/var/log/maran/panel). This function is in install.sh rather than in a step file
+# because it must run before the FIRST root write, which is this script's own logging — earlier
+# than step 40 and earlier than every gate.
+#
+# The group is deliberately left alone here: on a fresh install the `panel` group does not exist
+# yet (step 40 creates it) and on an upgrade it is already the right one. Step 40 sets it.
+#
+# Nothing is deleted. An operator's logs are their record of every install this server has had,
+# and a planted symlink is evidence of an attempted escalation; both are kept, the link under a
+# name no root process opens.
+harden_log_directory() {
+  local name path stamp aside owner
+  stamp="$(date -u '+%Y%m%dT%H%M%SZ')"
+
+  # A symbolic link AT the directory itself. /var/log is root:root 0755 on both families, so no
+  # unprivileged uid can put one here — but `mkdir -p` and `chmod` would both follow it, and a
+  # refusal costs nothing next to reaching through somebody else's link as root.
+  if [ -L "$MARAN_LOG_DIR" ]; then
+    echo "install.sh: ${MARAN_LOG_DIR} is a symbolic link, not a directory. Refusing to log" >&2
+    echo "  through it. Move it aside and re-run the installer." >&2
+    exit 1
+  fi
+  mkdir -p "$MARAN_LOG_DIR"
+  # An upgrade inherits the directory this defect created: panel:panel. Take it back.
+  owner="$(stat -c '%u' "$MARAN_LOG_DIR")"
+  if [ "$owner" -ne 0 ]; then
+    chown root "$MARAN_LOG_DIR"
+    MARAN_LOG_DIR_WARNINGS="${MARAN_LOG_DIR_WARNINGS}NOTE: ${MARAN_LOG_DIR} was owned by uid ${owner}, not root, and has been taken back by this upgrade. Root appends its install log and nginx opens the panel vhost's logs in this directory, so a uid that owns it can redirect either write into any file root can append to.
+"
+  fi
+  chmod 750 "$MARAN_LOG_DIR"
+
+  # Whatever the previous owner may have left at the three names root opens.
+  for name in $MARAN_ROOT_TRUSTED_LOG_NAMES; do
+    path="${MARAN_LOG_DIR}/${name}"
+    if [ -L "$path" ]; then
+      aside="${path}.planted-symlink.${stamp}"
+      mv -f -- "$path" "$aside"
+      MARAN_LOG_DIR_WARNINGS="${MARAN_LOG_DIR_WARNINGS}SECURITY: ${path} was a SYMBOLIC LINK to $(readlink "$aside"), not a log file. A root process appends to that name, so this server may already have had root writes redirected into that target. The link has been moved to ${aside} — it is NOT deleted, so you can see where it pointed — and nothing root opens carries its name any more. Inspect the target before trusting this host.
+"
+      continue
+    fi
+    # A real file the previous owner could still rewrite. Root's install log is a record of what
+    # was done to this server; leave the content, take the inode.
+    if [ -e "$path" ]; then
+      owner="$(stat -c '%u' "$path")"
+      if [ "$owner" -ne 0 ]; then
+        chown root "$path"
+        chmod g-w,o-w "$path"
+        MARAN_LOG_DIR_WARNINGS="${MARAN_LOG_DIR_WARNINGS}NOTE: ${path} was owned by uid ${owner}; ownership taken by root. Its contents are unchanged and may have been written by that uid.
+"
+      fi
+    fi
+  done
+}
+
+# setup_logging: make the log directory root's before anything else writes to it, then
 # duplicate all stdout/stderr into the log file (via `tee`) while still showing output
 # on the terminal. Uses `tee -a` so a re-run after an interrupted install appends
 # rather than truncates — the log is a full history of every attempt.
+#
+# The `tee -a` below is the FIRST root write on this server, which is why the directory it
+# writes into is hardened on the line above and not in a step file.
 setup_logging() {
-  mkdir -p "$MARAN_LOG_DIR"
-  chmod 750 "$MARAN_LOG_DIR"
+  harden_log_directory
   # Keep the original stdout on file descriptor 3 BEFORE redirecting. Anything a step
   # must show the operator without persisting it — the one-time setup token, which is
   # enough on its own to create the first administrator — is written to fd 3, so it
@@ -106,6 +194,10 @@ setup_logging() {
   # timestamps are added by `ts`-less awk (no extra dependency), and the terminal
   # still sees everything live.
   exec > >(awk '{ print strftime("[%Y-%m-%d %H:%M:%S]"), $0; fflush() }' | tee -a "$MARAN_LOG_FILE") 2>&1
+  # Replayed here rather than printed where they were produced, so they reach the log file too.
+  if [ -n "$MARAN_LOG_DIR_WARNINGS" ]; then
+    printf '%s' "$MARAN_LOG_DIR_WARNINGS" >&2
+  fi
 }
 
 # detect_os: identifies distro family (debian|rhel), distro id and version from

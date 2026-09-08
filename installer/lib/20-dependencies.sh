@@ -58,10 +58,84 @@ base_packages_for_family() {
   esac
 }
 
+# agent_tooling_packages_for_family: the packages that supply the programs the AGENT
+# execs by absolute path. Every one of them is a path a `DistroAdapter` accessor
+# declares, and a missing one is not a degraded feature — it is `SpawnFailed { code: -1 }`
+# on a customer's server, in whichever operation reaches it first.
+#
+# These were installed by nothing before this step named them: the base set above covers
+# what the PANEL needs, and the shadow suite, the quota tools and the archive tools were
+# simply assumed to be on every host. The assumption held on the images this was developed
+# against and is not a promise any minimal install makes.
+#
+# Package ownership, measured on both families rather than read off one of them
+# (`rpm -qf` / `dpkg -S` over every declared path):
+#
+#   binary                                   Debian package    RHEL package
+#   useradd userdel usermod chpasswd         passwd            shadow-utils
+#   passwd                                   passwd            passwd      <- the split
+#   setquota quota                           quota             quota
+#   tar / gzip                               tar / gzip        tar / gzip
+#   id chmod chgrp                           coreutils         coreutils-single
+#
+# The `passwd` row is the one that has already cost this project a bug. On the Debian
+# family ONE package (`passwd`) supplies all five shadow programs, so nothing there could
+# ever notice; on the RHEL family `/usr/bin/passwd` is its own package, separate from the
+# `shadow-utils` that supplies the other four. A host without it runs `useradd` fine and
+# fails only when the agent asks `passwd -S` whether a login is locked — which is the
+# suspension attestation, i.e. billing. It was missing from a polygon image for exactly
+# that reason and made every suspension on that family fail.
+#
+# `crontab`, `nft` and the MariaDB client are deliberately NOT here: 88-cron.sh, 87-firewall.sh
+# and 85-mysql.sh each install their family's package beside the configuration only they know
+# how to write. `getent` is not here either, and that is not an oversight — it belongs to the
+# C library (`libc-bin` / `glibc-common`) and cannot be absent from a host that boots.
+agent_tooling_packages_for_family() {
+  case "$MARAN_OS_FAMILY" in
+    debian)
+      echo "passwd quota tar gzip"
+      ;;
+    rhel)
+      echo "shadow-utils passwd quota tar gzip"
+      ;;
+    *)
+      echo "20-dependencies.sh: unsupported OS family '${MARAN_OS_FAMILY}'" >&2
+      exit 1
+      ;;
+  esac
+}
+
+# assert_agent_tooling: proves the packages above actually put the programs where the
+# agent's DistroAdapter says they are, on THIS host, rather than trusting that the install
+# succeeded. A package manager reporting success and a path existing are different facts,
+# and the agent execs the path.
+#
+# The list is the subset of declared paths this step is responsible for; the ones other
+# steps install are checked by those steps.
+assert_agent_tooling() {
+  local missing=""
+  local binary
+  for binary in /usr/sbin/useradd /usr/sbin/userdel /usr/sbin/usermod /usr/sbin/chpasswd \
+                /usr/bin/passwd /usr/sbin/setquota /usr/bin/quota /usr/bin/tar \
+                /usr/bin/gzip /usr/bin/getent; do
+    [ -x "$binary" ] || missing="${missing} ${binary}"
+  done
+  if [ -n "$missing" ]; then
+    echo "20-dependencies.sh: the agent execs these by absolute path and this host has" >&2
+    echo "  nothing executable there:${missing}" >&2
+    echo "  Install the packages named in agent_tooling_packages_for_family and re-run." >&2
+    exit 1
+  fi
+}
+
 step_dependencies() {
   echo "Installing base OS packages for ${MARAN_OS_FAMILY} family..."
   pkg_update
   # shellcheck disable=SC2046
   pkg_install $(base_packages_for_family)
+  echo "Installing the tooling the agent execs..."
+  # shellcheck disable=SC2046
+  pkg_install $(agent_tooling_packages_for_family)
+  assert_agent_tooling
   echo "Base packages installed."
 }

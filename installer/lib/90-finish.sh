@@ -33,7 +33,9 @@ step_finish() {
   # the log directory's group.
   # The link, not just the token: /setup reads ?token= and prefills the field, so the operator
   # pastes one thing instead of transcribing a 48-character secret by hand. Printed to the
-  # terminal only — never to the install log, which is world-readable for support purposes.
+  # terminal only — never to the install log, which is not world-readable (install.sh chmods
+  # /var/log/maran 0750 and 40-user.sh installs it panel:panel 0750) but outlives the install
+  # and is readable by every uid in the panel group, which is wider than "nobody".
   # The port comes from install.sh's MARAN_PANEL_PORT, not from a literal: a URL printed
   # with a port nginx is not listening on sends the operator to a connection refusal on
   # the one screen they must reach, and it would go wrong the first time the port changes.
