@@ -46,6 +46,30 @@ Normative. Security is the product's core promise — every PR is reviewed again
 
 Changes to auth, session/token handling, the agent's privs module, license verification, or the installer's privileged steps require a second reviewer and an explicit threat note in the PR description: what could an attacker do with this surface, and why is it safe now.
 
+**When no second reviewer can be obtained, the change is NOT compliant — and this rule says so
+rather than pretending otherwise.** Most work in this repository is done by agent sessions, which
+cannot dispatch a reviewer; several privileged changes have therefore landed in the working tree
+with a written threat note and the reviewer requirement recorded as OUTSTANDING. That is a real
+gap, not an alternative path, and the rule is not weakened to describe it as one: the second
+reviewer exists because the author of a privileged change is the person least able to see what they
+assumed, and a threat note written by that same author closes nothing. What it does buy is that the
+reviewer, when they arrive, reads an argument instead of a diff.
+
+So the deferral is permitted only in this exact shape, and it is a debt with a name:
+
+- The threat note is written **first**, before the change, and lands in `docs/superpowers/notes/`
+  as a file, not as prose in a report that only one session ever reads. Written after the fact it
+  is a justification validating a choice already made, which rules/architecture.md names as the
+  mechanism that stops the next reader looking.
+- The note states the requirement as **OUTSTANDING**, names what a reviewer must check, and names
+  what the author could not verify.
+- The change **may land on a branch; it MUST NOT merge to `main`.** `main` is protected and the
+  second reviewer is a merge gate (rules/git.md "Pull requests"), so an outstanding review means an
+  unmergeable branch — which is the honest state and the one the owner can see.
+- The owner is told at hand-off which privileged surfaces are carrying an outstanding review.
+
+A note recording the debt is the minimum, never the discharge of it.
+
 ## Disclosure
 
 `SECURITY.md` at repo root carries the report contact and the promise: acknowledge in 48h, fix-or-mitigation target 14 days for critical. Vulnerabilities are never discussed in public issues before a fix ships.

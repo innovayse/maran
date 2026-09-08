@@ -234,8 +234,75 @@ And two rules about reading the results, which cost as much as the harness bugs 
 
 ## CI gates (all required for merge)
 
-- C#: build warnings-as-errors, unit + integration + architecture tests.
-- Rust: fmt --check, clippy -D warnings, tests, cargo-deny/audit clean, doc build clean.
-- Frontend: oxlint + eslint, vue-tsc, build (unit runner intentionally absent — see above).
-- Cross: proto lint, handshake E2E (built agent ↔ built API over unix socket).
-- PR smoke matrix: Ubuntu 24.04 + AlmaLinux 9 polygons. Nightly: full six-OS matrix + fresh-container installer run + Playwright golden path.
+Each row names the workflow that runs it, so this list can be checked against
+`.github/workflows/` rather than believed. A gate not named in a workflow is not a gate.
+
+**Per stack**
+
+- C#: build warnings-as-errors, unit + integration + architecture tests (`backend.yml`).
+- Rust: fmt --check, clippy -D warnings, tests, cargo-deny/audit clean, doc build clean (`agent.yml`).
+- Frontend: oxlint + eslint, vue-tsc, build, Playwright `test:e2e` (`frontend.yml`) — no unit runner,
+  by design (see above).
+- Cross: proto lint, handshake E2E (built agent ↔ built API over unix socket) (`cross.yml`).
+
+**Structure, contract and schema — the checks no compiler can express**
+
+- `maran structure` — one type per file, file name equals type name, the folder maps, member order
+  (`backend.yml`, first in the job).
+- `maran proto` — contract lint plus the additive law; `--accept` records a deliberate change
+  (`cross.yml`).
+- `maran api` — **the request contract.** It reads every SPA request body and the command each
+  endpoint binds it to, and fails when they have drifted apart; `--accept` records a deliberate
+  change against `scripts/api-contract-baseline.txt` (`api-contract.yml`). It exists because
+  endpoints now bind their command object directly — there is no request type left in between to
+  hold the two shapes together — so nothing but this gate observes the seam. It prints its own blind
+  spot (`UNOBSERVED HERE — query-string and route binding, and every response body`), which is the
+  form every gate here owes.
+- `maran migrate check` and `maran migrate guard` — the expand-then-contract law: a migration that
+  drops, renames or narrows what the previous release reads fails the build (`backend.yml`, with
+  full history checked out so the branch can be diffed against its merge base). The guard reads
+  **untracked** migration files too, because a migration that has not been committed yet is exactly
+  the one about to land, and it scans `migrationBuilder.Sql(...)` for destructive verbs as well as
+  the typed `Drop*`/`Rename*`/`AlterColumn` calls. It prints what it cannot see.
+- `maran licenses --check` — third-party notices cover every declared dependency (`notices.yml`).
+
+**Counting, and the guards against a run that measured nothing**
+
+- `maran polygon verify` — **scores an already-executed polygon run from its logs, and runs
+  nothing itself** (`agent.yml`). Per suite it requires a `Running tests/<suite>.rs` line, a
+  `test result:` line, and `passed + failed` equal to the count `scripts/test-baseline.txt` declares
+  for that suite; over the run it requires at least one test executed, and it reconciles every named
+  failure against the totals. Its suite list is **discovered** from `agent/crates/*/tests`, never
+  written down, so a new `*_on_a_real_host.rs` that no `--test` list names fails this job by name.
+- `polygon_verify_ran`'s **fifth axis** (`scripts/lib/polygon.sh`). The first four axes are all axes
+  of PRESENCE — did the suite appear, did it print a result line, did the container exit, did
+  anything run. All four are satisfied by a suite that ran a fraction of itself. The fifth axis is
+  the DECLARED TOTAL: the count the committed baseline states for that suite, which is the same
+  thing `suite_compare` enforces in the other lanes and which the polygon lane alone used to lack.
+- `suite_compare` (`scripts/lib/suite.sh`), used by `maran test`, `maran mutate` and
+  `maran polygon verify` — compares parsed per-target rows against `scripts/test-baseline.txt`,
+  names every target that VANISHED from a run, and names a target that is new since the baseline
+  rather than silently accepting it. This is the mechanism behind "a total that dropped is a failed
+  run whatever the exit code says".
+- `maran mutate --polygon` — scores a mutation in three lanes instead of one: the local workspace
+  and every `#[ignore]`d suite inside each polygon family. It exists because the two lanes disagree
+  in both directions, and each disagreement is information: killed locally but surviving on the
+  polygon means the local test asserts a rendered string rather than the system's answer; surviving
+  locally but killed on the polygon means the protection has **no local test at all**. In
+  `--polygon` mode no repository file is written — the mutation is applied to an rsync snapshot.
+
+**PR and nightly matrices**
+
+- PR smoke matrix: Ubuntu 24.04 + AlmaLinux 9 polygons. Nightly: full six-OS matrix +
+  fresh-container installer run + Playwright golden path.
+
+### Known gap in this list, stated rather than papered over
+
+**`maran test` is not wired into CI.** `backend.yml:67` runs bare `dotnet test` and `agent.yml:59`
+runs bare `cargo test`; neither passes through `test-verdict.sh`, so on those two lanes the
+committed baseline in `scripts/test-baseline.txt` is compared against nothing. Every failure mode
+this file spends a section arguing about — a test project that vanishes from a run, `Passed!`
+printed over a smaller total — is therefore uncaught in CI on the backend and agent lanes, and
+caught only in the polygon lane and in the mutation harness, which do go through `suite_compare`.
+The SPA has no committed baseline at all. This is a real gap and the fix is to route both lanes
+through `maran test`; until that lands, the rule stands and the enforcement does not.
