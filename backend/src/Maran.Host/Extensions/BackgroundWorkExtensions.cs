@@ -54,6 +54,14 @@ public static class BackgroundWorkExtensions
         // the panel runs. The module owns the JOB (the seven-day window of R10) and this the CADENCE.
         services.AddHostedService<MetricsRetentionScheduler>();
 
+        // The one cadence that is not daily, because a backup schedule names an hour of the day and
+        // a daily tick could not see it. Without this line the Backups module's schedules never fire
+        // and its retention never runs — so backups.Backups and the archives underneath it grow by
+        // one whole account per manual backup and are bounded by nothing at all. The module owns the
+        // SWEEP (which schedules are due, what a run writes, what retention prunes) and this owns how
+        // often it is asked.
+        services.AddHostedService<BackupScheduleScheduler>();
+
         return services;
     }
 }

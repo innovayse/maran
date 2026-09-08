@@ -57,6 +57,10 @@ public sealed class DatabasesModule : IPanelModule
         // Scoped, because it reads the request's own ICurrentUser for the journal's actor.
         services.AddScoped<DatabaseAuditJournal>();
 
+        // The one window another module reads this schema through: names only, tenant-scoped by the
+        // context's own filter (rules/architecture.md "A shared facility's contract").
+        services.AddScoped<IAccountDatabaseDirectory, AccountDatabaseDirectory>();
+
         // The shared resource pool the panel-wide ResxErrorTextProvider resolves error codes and
         // Manifest.DisplayNameKey against. Module-internal lookups inject IStringLocalizer<T>
         // directly instead.

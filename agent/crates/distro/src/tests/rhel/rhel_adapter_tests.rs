@@ -36,25 +36,10 @@ fn the_rhel_family_runs_cron_through_the_crond_unit() {
     assert_eq!(RhelAdapter.cron_service(), "crond");
 }
 
-/// The RHEL family drives the firewall through the nftables unit.
-#[test]
-fn the_rhel_family_drives_the_firewall_through_the_nftables_unit() {
-    assert_eq!(RhelAdapter.firewall_service(), "nftables");
-}
-
 /// The RHEL family serves SSH from the unit its OpenSSH package registers.
 #[test]
 fn the_rhel_family_serves_ssh_from_the_sshd_unit() {
     assert_eq!(RhelAdapter.ssh_service(), "sshd");
-}
-
-/// The RHEL family wires its firewall include into the file its nftables unit reads.
-#[test]
-fn the_rhel_family_wires_its_firewall_include_into_the_file_its_unit_reads() {
-    assert_eq!(
-        RhelAdapter.nftables_include_target(),
-        "/etc/sysconfig/nftables.conf"
-    );
 }
 
 /// The panel reports exactly the four units it manages on the RHEL family.
@@ -92,7 +77,7 @@ fn the_rhel_family_reports_exactly_the_four_units_the_panel_manages() {
 /// `sh` is in the table for the same reason and not because the agent spawns it
 /// — it never does — but because the path is written into a crontab line, where
 /// a wrong one is a cron entry that silently never runs.
-const EXPECTED_BINARIES: [(&str, &str); 12] = [
+const EXPECTED_BINARIES: [(&str, &str); 16] = [
     ("useradd", "/usr/sbin/useradd"),
     ("usermod", "/usr/sbin/usermod"),
     ("userdel", "/usr/sbin/userdel"),
@@ -105,10 +90,14 @@ const EXPECTED_BINARIES: [(&str, &str); 12] = [
     ("crontab", "/usr/bin/crontab"),
     ("nft", "/usr/sbin/nft"),
     ("sh", "/bin/sh"),
+    ("tar", "/usr/bin/tar"),
+    ("gzip", "/usr/bin/gzip"),
+    ("database_dump", "/usr/bin/mariadb-dump"),
+    ("getent", "/usr/bin/getent"),
 ];
 
 /// The adapter's answer for each tool, in the order of [`EXPECTED_BINARIES`].
-fn actual_binaries() -> [&'static str; 12] {
+fn actual_binaries() -> [&'static str; 16] {
     [
         RhelAdapter.useradd_binary(),
         RhelAdapter.usermod_binary(),
@@ -122,6 +111,10 @@ fn actual_binaries() -> [&'static str; 12] {
         RhelAdapter.crontab_binary(),
         RhelAdapter.nft_binary(),
         RhelAdapter.sh_binary(),
+        RhelAdapter.tar_binary(),
+        RhelAdapter.gzip_binary(),
+        RhelAdapter.database_dump_binary(),
+        RhelAdapter.getent_binary(),
     ]
 }
 

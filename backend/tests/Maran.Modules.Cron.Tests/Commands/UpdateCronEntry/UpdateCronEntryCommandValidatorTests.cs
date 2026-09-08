@@ -70,7 +70,7 @@ public sealed class UpdateCronEntryCommandValidatorTests
     private static bool IsValid(string entryId, CronScheduleDto schedule, string command)
     {
         return new UpdateCronEntryCommandValidator()
-            .Validate(new UpdateCronEntryCommand(AccountId, entryId, schedule, command, "203.0.113.7", "tests"))
+            .Validate(new UpdateCronEntryCommand(AccountId, schedule, command, entryId, "203.0.113.7", "tests"))
             .IsValid;
     }
 }

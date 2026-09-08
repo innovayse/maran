@@ -20,6 +20,7 @@ import UiButton from '../../components/ui/UiButton.vue'
 import UiForm from '../../components/ui/UiForm.vue'
 import UiInput from '../../components/ui/UiInput.vue'
 import UiSelect, { type SelectOption } from '../../components/ui/UiSelect.vue'
+import UiPageHeading from '../../components/ui/UiPageHeading.vue'
 import UiTextarea from '../../components/ui/UiTextarea.vue'
 import SiteBackendFields from '../../components/sites/SiteBackendFields.vue'
 import { useAccountsStore } from '../../stores/accounts'
@@ -208,12 +209,7 @@ onMounted(loadReferenceData)
 
 <template>
   <section class="w-full max-w-2xl">
-    <div class="mb-4">
-      <h1 class="text-3xl font-semibold tracking-title text-text-primary">
-        {{ t('sites.form.heading') }}
-      </h1>
-      <p class="mt-1 text-base text-text-secondary">{{ t('sites.form.subtitle') }}</p>
-    </div>
+    <UiPageHeading class="mb-4" :title="t('sites.form.heading')" :subtitle="t('sites.form.subtitle')" />
 
     <UiAlert v-if="store.createErrorMessage !== null" variant="error" class="mb-4">
       {{ store.createErrorMessage }}
@@ -231,6 +227,7 @@ onMounted(loadReferenceData)
           <UiSelect
             v-model="accountId"
             :label="t('sites.form.fields.accountId')"
+            :placeholder="t('sites.form.placeholders.accountId')"
             :options="accountOptions"
             :error="accountError"
             required
@@ -262,7 +259,7 @@ onMounted(loadReferenceData)
         </div>
         <div class="flex justify-end gap-2 rounded-b-xl border-t border-border-subtle bg-surface-2 px-4.5 py-3">
           <UiButton variant="secondary" type="button" @click="cancel">
-            {{ t('sites.form.cancel') }}
+            {{ t('common.cancel') }}
           </UiButton>
           <UiButton type="submit" :disabled="store.creating">{{ t('sites.form.submit') }}</UiButton>
         </div>

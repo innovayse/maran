@@ -114,6 +114,7 @@ internal static partial class AgentErrorTranslator
             ErrorCode.NotFound => ErrorType.NotFound,
             ErrorCode.ValidationFailed => ErrorType.Validation,
             ErrorCode.SystemFailure => ErrorType.Failure,
+            ErrorCode.NotImplemented => ErrorType.Failure,
             _ => ErrorType.Failure,
         };
     }
@@ -126,6 +127,15 @@ internal static partial class AgentErrorTranslator
     /// a stream ended, and the streaming clients turn them into typed terminal events before they
     /// ever reach here; a stream code arriving on a unary call is the agent misbehaving, so it takes
     /// the unspecified arm.
+    ///
+    /// <see cref="ErrorCode.NotImplemented"/> does have an arm, and it is the reason this list is
+    /// worth auditing whenever the contract grows one. It is how the agent refuses an operation this
+    /// build cannot perform at all — today, every backup destination naming an object store — and
+    /// without the arm it fell to the unspecified default, telling an operator "something went wrong
+    /// on your server" about a feature that was never built. Its KIND is
+    /// <see cref="ErrorType.Failure"/> rather than <see cref="ErrorType.Validation"/>: the caller
+    /// asked for something reasonable and the server cannot do it, so blaming the request would be
+    /// both wrong and a dead end for the operator.
     /// </remarks>
     public static string ToErrorCode(ErrorCode code)
     {
@@ -137,6 +147,7 @@ internal static partial class AgentErrorTranslator
             ErrorCode.NotFound => nameof(ErrorMessages.AgentNotFound),
             ErrorCode.ValidationFailed => nameof(ErrorMessages.AgentValidationFailed),
             ErrorCode.SystemFailure => nameof(ErrorMessages.AgentSystemFailure),
+            ErrorCode.NotImplemented => nameof(ErrorMessages.AgentNotImplemented),
             _ => nameof(ErrorMessages.AgentUnspecified),
         };
     }

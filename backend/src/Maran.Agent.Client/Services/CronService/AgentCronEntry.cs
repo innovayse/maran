@@ -15,12 +15,24 @@ namespace Maran.Agent.Client.Services.CronService;
 /// so disabling never loses it.
 /// </param>
 /// <remarks>
+/// <para>
 /// The wire message also carries <c>last_exit_code</c> and <c>last_run_at_unix</c>, and this type
 /// deliberately drops both. The agent writes them as 0 in a listing and says so: reading an entry's
 /// exit status means one privileged read per entry under the account's home, which would turn one
 /// listing into N of them. Carrying the zeros here would put "the last run succeeded, at the epoch"
 /// in front of a customer for an entry that has never run. Ask <c>GetEntryOutputAsync</c> for the
 /// entry being shown.
+/// </para>
+/// <para>
+/// It also carries <c>suspended</c>, which is dropped here too and for a different reason: that flag
+/// is true for every managed entry of a SUSPENDED account, and the panel has nowhere to show it yet.
+/// Carrying it as a field nothing reads would be a speculative one; what it must not become is a
+/// value folded into <paramref name="Enabled"/>, because the two are different facts — an entry runs
+/// only when it is enabled AND not suspended, and the customer's own switch is the one that has to
+/// survive a resume. Until the panel's cron screen grows a column for it, an operator looking at a
+/// suspended account's entries sees them as the customer left them, and the account's own screen is
+/// what says the account is suspended.
+/// </para>
 /// </remarks>
 public sealed record AgentCronEntry(
     string EntryId,

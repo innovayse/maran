@@ -287,6 +287,7 @@ fn a_disabled_entry_renders_behind_the_off_prefix() {
         id: entry_id(FIRST_ID),
         schedule: every_five_minutes(),
         enabled: false,
+        suspended: false,
         command: None,
     });
 
@@ -304,6 +305,7 @@ fn a_rendered_crontab_parses_back_into_the_document_that_produced_it() {
         id: entry_id(FIRST_ID),
         schedule: every_five_minutes(),
         enabled: true,
+        suspended: false,
         command: None,
     });
 

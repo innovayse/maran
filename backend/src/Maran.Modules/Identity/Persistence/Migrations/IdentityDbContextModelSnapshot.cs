@@ -303,6 +303,16 @@ namespace Maran.Modules.Identity.Persistence.Migrations
                     b.ToTable("Users", "identity");
                 });
 
+            modelBuilder.Entity("Maran.Modules.Identity.Domain.Entities.PasswordResetToken", b =>
+                {
+                    b.HasOne("Maran.Modules.Identity.Domain.Entities.User", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("FK_PasswordResetTokens_Users_UserId");
+                });
+
             modelBuilder.Entity("Maran.Modules.Identity.Domain.Entities.RecoveryCode", b =>
                 {
                     b.HasOne("Maran.Modules.Identity.Domain.Entities.User", null)

@@ -3,15 +3,16 @@
 //! "is this path inside the account's home?" have exactly one answer each,
 //! rather than one per call site (rules/security.md: defense in depth).
 //!
-//! Two shapes live here. Most modules are validated names — a constructor that
-//! can fail, and a type whose existence is the proof it succeeded. `secrets::secret`
-//! is the other: it validates nothing and only refuses to print itself.
+//! Every module here is a validated name — a constructor that can fail, and a
+//! type whose existence is the proof it succeeded. A type that only hides a
+//! value rather than validating it does not belong in this tree — see
+//! [`crate::secret_string`].
 //!
 //! Grouped by the domain the value ends up in, so a reader finds a validator by
 //! asking "where is this written?": `system/` becomes OS objects, `db/` reaches
 //! MySQL/MariaDB, `web/` is written into web-server configuration or matched on
-//! by the firewall, `fs/` names and modes filesystem entries, `secrets/` never
-//! leaves memory unredacted.
+//! by the firewall, `fs/` names and modes filesystem entries, `secrets/` holds
+//! the one validated kind, `password`.
 //! Every type keeps its own `*_error.rs` beside it, as everywhere else.
 //!
 //! `prefixed_name` and `prefix_problem` are the exception to the grouping: they

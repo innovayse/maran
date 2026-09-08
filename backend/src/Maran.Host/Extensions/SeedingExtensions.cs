@@ -22,6 +22,7 @@ public static class SeedingExtensions
     {
         services.AddHostedService<PlanSeedingStartupTask>();
         services.AddHostedService<FirewallWhitelistSeedingStartupTask>();
+        services.AddHostedService<BackupDestinationSeedingStartupTask>();
 
         return services;
     }

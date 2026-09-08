@@ -23,6 +23,7 @@ public sealed class TaskStreamWriterTests
     private static readonly PanelTaskDto Snapshot = new(
         Guid.Parse("11111111-2222-3333-4444-555555555555"),
         "CertificateIssue",
+        "Issuing a certificate",
         "example.com",
         null,
         PanelTaskStatus.Running,
@@ -41,7 +42,8 @@ public sealed class TaskStreamWriterTests
 
         Assert.Equal(
             ": open\n\nevent: task\ndata: {\"id\":\"11111111-2222-3333-4444-555555555555\","
-            + "\"kind\":\"CertificateIssue\",\"subject\":\"example.com\",\"status\":\"running\","
+            + "\"kind\":\"CertificateIssue\",\"kindDisplayName\":\"Issuing a certificate\","
+            + "\"subject\":\"example.com\",\"status\":\"running\","
             + "\"percent\":40,\"log\":\"ordering\","
             + "\"startedAt\":\"2026-03-01T12:00:00+00:00\",\"revision\":1}\n\n",
             written);

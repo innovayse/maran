@@ -178,7 +178,7 @@ fn a_jail_mount_unit_renders_its_golden() {
     let unit = MountUnit {
         account: "acme",
         source_directory: "/home/acme",
-        mount_point: "/var/lib/maran/sftp/acme/home",
+        mount_point: "/var/lib/maran-sftp/acme/home",
     };
 
     assert_eq!(

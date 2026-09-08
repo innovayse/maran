@@ -15,4 +15,25 @@
   <data name="TasksModuleDisplayName">
     <value>Задачи</value>
   </data>
+  <data name="TaskKindCertificateIssue">
+    <value>Выпуск сертификата</value>
+  </data>
+  <data name="TaskKindCertificateRenewal">
+    <value>Продление сертификата</value>
+  </data>
+  <data name="TaskKindAccountDeletion">
+    <value>Удаление аккаунта</value>
+  </data>
+  <data name="TaskKindAccountSuspension">
+    <value>Приостановка аккаунта</value>
+  </data>
+  <data name="TaskKindAccountResumption">
+    <value>Возобновление аккаунта</value>
+  </data>
+  <data name="TaskKindBackupCreate">
+    <value>Создание резервной копии</value>
+  </data>
+  <data name="TaskKindBackupRestore">
+    <value>Восстановление из резервной копии</value>
+  </data>
 </root>

@@ -272,4 +272,61 @@ public sealed class AgentSftpClientTests
             new SensitiveString(ReplacementPassword),
             CancellationToken.None);
     }
+
+    /// <summary>The account-wide lock request carries the account and the direction.</summary>
+    /// <remarks>
+    /// Both directions, because a client that hard-coded <c>true</c> would map a resume onto a second
+    /// lock and leave every customer of a reactivated account shut out of their own files.
+    /// </remarks>
+    /// <param name="locked">The direction under test.</param>
+    /// <returns>The asynchronous test.</returns>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task The_account_wide_lock_request_carries_the_account_and_the_direction(bool locked)
+    {
+        var stub = new StubSftpService();
+
+        await new AgentSftpClient(stub, NullLogger<AgentSftpClient>.Instance).SetAccountLoginsLockedAsync("alice", locked, CancellationToken.None);
+
+        var request = Assert.IsType<SetAccountLoginsLockedRequest>(stub.LastSetLoginsLockedRequest);
+        Assert.Equal("alice", request.AccountUsername);
+        Assert.Equal(locked, request.Locked);
+    }
+
+    /// <summary>The account-wide lock ok payload maps to success.</summary>
+    [Fact]
+    public async Task The_account_wide_lock_ok_payload_maps_to_success()
+    {
+        var stub = new StubSftpService
+        {
+            SetLoginsLockedResponse = new SetAccountLoginsLockedResponse
+            {
+                Ok = new SetAccountLoginsLockedOk(),
+            },
+        };
+
+        var result = await new AgentSftpClient(stub, NullLogger<AgentSftpClient>.Instance).SetAccountLoginsLockedAsync("alice", true, CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.True(result.Value);
+    }
+
+    /// <summary>The account-wide lock error payload maps to a failed result with the agent code.</summary>
+    [Fact]
+    public async Task The_account_wide_lock_error_payload_maps_to_a_failed_result_with_the_agent_code()
+    {
+        var stub = new StubSftpService
+        {
+            SetLoginsLockedResponse = new SetAccountLoginsLockedResponse
+            {
+                Error = new AgentError { Code = ErrorCode.NotFound, Message = "no such account" },
+            },
+        };
+
+        var result = await new AgentSftpClient(stub, NullLogger<AgentSftpClient>.Instance).SetAccountLoginsLockedAsync("alice", true, CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("AgentNotFound", result.Error!.Code);
+    }
 }

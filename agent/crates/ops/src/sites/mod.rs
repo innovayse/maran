@@ -28,6 +28,7 @@ mod enable_site;
 #[path = "../tests/sites/fake_site_host.rs"]
 pub(crate) mod fake_site_host;
 mod follow_log;
+mod inspect_account_sites;
 pub mod model;
 mod process_site_host;
 mod reload_web_server;
@@ -37,6 +38,7 @@ mod remove_vhost;
 // this area produces — a second rendering of a vhost is a second opinion about
 // what the site serves, and the halves drift on the one a browser reaches.
 pub(crate) mod remove_site_pool;
+pub(crate) mod render_suspended_vhost;
 pub(crate) mod render_vhost;
 pub(crate) mod resolved_site_paths;
 mod site_host;
@@ -51,7 +53,9 @@ pub use create_site::create_site;
 pub use delete_site::delete_site;
 pub use disable_site::disable_site;
 pub use enable_site::enable_site;
+pub use inspect_account_sites::inspect_account_sites;
 pub use log_sink::LogSink;
+pub use model::account_site_suspension::AccountSiteSuspension;
 pub use model::create_site_input::CreateSiteInput;
 pub use model::created_site::CreatedSite;
 pub use model::log_tail_request::LogTailRequest;
@@ -61,6 +65,7 @@ pub use model::site_identity::SiteIdentity;
 pub use model::site_kind::SiteKind;
 pub use model::site_log_kind::SiteLogKind;
 pub use model::site_paths::SitePaths;
+pub use model::site_suspension_fact::SiteSuspensionFact;
 pub use model::tail_end::TailEnd;
 pub use process_site_host::ProcessSiteHost;
 pub use reload_web_server::reload_web_server;

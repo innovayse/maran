@@ -8,6 +8,20 @@ set -euo pipefail
 # comfortably on a small VPS. Conservative floor, not a recommendation.
 readonly MARAN_MIN_RAM_MB=1024
 readonly MARAN_MIN_DISK_MB=2048
+# The floor the BACKUP root's filesystem is measured against, and the path it is measured
+# at. Separate from MARAN_MIN_DISK_MB above, and much larger, because they answer different
+# questions: 2 GiB is what the product's own files need, while a backup is a full copy of an
+# account's home plus its databases and every retained generation of both (the plan's
+# Decision 1: every backup is a full backup, retention 7 by default). A host that can install
+# Maran comfortably can still be a host on which the first backup of a 20 GiB account fills
+# the disk.
+#
+# A WARNING and never a refusal — see check_backup_space. The number is a floor for one
+# unremarkable account's first archive, not a capacity plan, and it is deliberately not
+# derived from the per-archive ceiling in the agent (64 GiB): a floor nobody can meet is a
+# floor everybody learns to ignore.
+readonly MARAN_MIN_BACKUP_MB=10240
+readonly MARAN_BACKUP_ROOT=/var/backups/maran
 # Ports the panel and its dependencies claim by default. PostgreSQL is unix-socket
 # only (see 30-postgresql.sh) so it is deliberately not in this list.
 #
@@ -39,6 +53,54 @@ fail() {
 
 ok() {
   echo "PREFLIGHT OK:   $1"
+}
+
+# warn: something an operator should see and decide about, which does NOT stop the install.
+# It does not touch _PREFLIGHT_FAILED, and that is the whole distinction between it and fail:
+# a preflight that refuses an install over a condition the operator can fix afterwards teaches
+# operators to skip preflight, and this one has exactly one such condition (check_backup_space).
+warn() {
+  local what="$1" advice="$2"
+  echo "PREFLIGHT WARN: ${what}"
+  echo "  -> ${advice}"
+}
+
+# nearest_existing_ancestor: the closest path at or above <path> that exists.
+#
+# Needed because this step runs BEFORE step 40 creates /var/backups/maran, so the backup root
+# is normally absent here and `df` on an absent path answers nothing at all. The filesystem
+# holding the nearest existing ancestor is the filesystem the directory will be created on,
+# unless the operator later mounts a volume in between — which check_backup_space says out
+# loud rather than leaving the reader to assume the number is about the final layout.
+#
+# Terminates: the loop stops at "/", which exists on every host this runs on.
+nearest_existing_ancestor() {
+  local path="$1"
+  while [ ! -e "$path" ] && [ "$path" != "/" ]; do
+    path="$(dirname "$path")"
+  done
+  printf '%s' "$path"
+}
+
+# check_backup_space: warns when the filesystem that will hold the backup root has less free
+# space than MARAN_MIN_BACKUP_MB, and says the number it measured and the path it measured it
+# at. Never fails the install.
+#
+# What this check can observe, stated because a check that cannot see its subject is worse
+# than none (rules/testing.md): it reads `df` on a real path on this host, so a low number is
+# a real number. What it CANNOT observe is the future: an operator who mounts a volume at
+# /var/backups after installing gets a warning about the root filesystem, which is why the
+# message names the path that was measured instead of implying it measured the backup root.
+check_backup_space() {
+  local measured avail_mb
+  measured="$(nearest_existing_ancestor "$MARAN_BACKUP_ROOT")"
+  avail_mb="$(df -Pm "$measured" | awk 'NR==2 { print $4 }')"
+  if [ "${avail_mb:-0}" -ge "$MARAN_MIN_BACKUP_MB" ]; then
+    ok "backup space at ${measured}: ${avail_mb} MiB free (>= ${MARAN_MIN_BACKUP_MB} MiB suggested for ${MARAN_BACKUP_ROOT})"
+  else
+    warn "only ${avail_mb:-0} MiB free on the filesystem holding ${measured}, where backups will be written (${MARAN_BACKUP_ROOT}); ${MARAN_MIN_BACKUP_MB} MiB is suggested" \
+      "Installing anyway. Every backup is a full backup and the default retention keeps seven, so plan for several times the size of one account — or mount a larger volume at ${MARAN_BACKUP_ROOT} and it will be used from the next backup onward."
+  fi
 }
 
 # check_os_supported: rejects any (id, version) pair not in the supported matrix.
@@ -162,6 +224,7 @@ step_preflight() {
   check_arch_supported
   check_ram
   check_disk
+  check_backup_space
   # Before check_ports_free: it needs to know whether the port is held by a previous
   # Maran install (a resume) or by an unrelated service (a real conflict).
   check_existing_install_state

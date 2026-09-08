@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="BackupsModuleDisplayName">
+    <value>Резервные копии</value>
+  </data>
+  <data name="BackupFailureBackupStreamDropped">
+    <value>Связь с сервером прервалась</value>
+  </data>
+  <data name="BackupFailureBackupStreamIdle">
+    <value>Сервер перестал отвечать</value>
+  </data>
+  <data name="BackupFailureBackupTruncated">
+    <value>Сервер так и не сообщил результат</value>
+  </data>
+  <data name="BackupFailureBackupCancelled">
+    <value>Отменена</value>
+  </data>
+  <data name="BackupFailureBackupInvalidOutcome">
+    <value>Сервер сообщил об архиве, который не смог назвать</value>
+  </data>
+  <data name="BackupFailureBackupScheduledRunAborted">
+    <value>Запуск по расписанию прерван</value>
+  </data>
+  <data name="BackupFailureAgentUnspecified">
+    <value>Сервер не сообщил причину</value>
+  </data>
+  <data name="BackupFailureAgentInvalidInput">
+    <value>Сервер не принял этот запрос</value>
+  </data>
+  <data name="BackupFailureAgentAlreadyExists">
+    <value>На сервере уже есть копия с этим идентификатором</value>
+  </data>
+  <data name="BackupFailureAgentNotFound">
+    <value>Сервер не нашёл того, что ему требовалось</value>
+  </data>
+  <data name="BackupFailureAgentValidationFailed">
+    <value>Сервер счёл этот запрос некорректным</value>
+  </data>
+  <data name="BackupFailureAgentSystemFailure">
+    <value>Серверу не удалось создать копию</value>
+  </data>
+  <data name="BackupFailureAgentNotImplemented">
+    <value>Сервер не поддерживает это хранилище</value>
+  </data>
+  <data name="BackupFailureAgentInvalidResponse">
+    <value>Сервер вернул ответ, который панель не смогла прочитать</value>
+  </data>
+  <data name="BackupDestinationDefault">
+    <value>Локальное хранилище</value>
+  </data>
+</root>

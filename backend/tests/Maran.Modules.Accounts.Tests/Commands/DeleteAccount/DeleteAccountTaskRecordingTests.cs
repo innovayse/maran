@@ -171,7 +171,11 @@ public sealed class DeleteAccountTaskRecordingTests : IDisposable
             new AccountAuditJournal(_audit, FakeCurrentUser.Admin()),
             _tasks,
             new StubAccountResidueAuditor(),
-            new StubCorrelationIdAccessor(Correlation));
+            new StubCorrelationIdAccessor(Correlation),
+
+            // No final-backup service: these fixtures compose the Accounts module alone, which is
+            // the "panel without a Backups module" arrangement, and the deletion proceeds.
+            []);
 
         return handler.HandleAsync(new DeleteAccountCommand(accountId, Ip, Client), CancellationToken.None);
     }

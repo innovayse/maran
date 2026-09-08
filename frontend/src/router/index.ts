@@ -10,6 +10,9 @@ import SitesListPage from '../pages/sites/SitesListPage.vue'
 import SiteFormPage from '../pages/sites/SiteFormPage.vue'
 import SiteDetailPage from '../pages/sites/SiteDetailPage.vue'
 import DatabasesPage from '../pages/databases/DatabasesPage.vue'
+import BackupDestinationsPage from '../pages/backups/BackupDestinationsPage.vue'
+import BackupSchedulePage from '../pages/backups/BackupSchedulePage.vue'
+import BackupsPage from '../pages/backups/BackupsPage.vue'
 import SftpUsersPage from '../pages/sftp/SftpUsersPage.vue'
 import FirewallPage from '../pages/firewall/FirewallPage.vue'
 import CronPage from '../pages/cron/CronPage.vue'
@@ -91,6 +94,36 @@ export const createAppRouter = (): Router => {
         component: DefaultLayout,
         children: [
           { path: '', name: 'databases', component: DatabasesPage, meta: { module: 'databases' } },
+        ],
+      },
+      {
+        // Three routes. The list has no detail to open — every field the panel holds about a
+        // backup is already a column in it, and `GET /api/v1/backups/{id}` answers the same shape
+        // — but the schedule and the destinations are different things from the copies they
+        // describe: one edits a server-wide setting, the other reads where the copies live, and
+        // neither belongs under a table of rows it did not take.
+        path: '/backups',
+        component: DefaultLayout,
+        children: [
+          { path: '', name: 'backups', component: BackupsPage, meta: { module: 'backups' } },
+          // Administrators only, and the endpoint is what says so: a customer who types this URL
+          // gets the panel's own 403 rendered on the page. No route guard duplicates that rule —
+          // a second copy of an authorization decision is a second place for it to be wrong.
+          {
+            path: 'schedule',
+            name: 'backup-schedule',
+            component: BackupSchedulePage,
+            meta: { module: 'backups' },
+          },
+          // Administrators only for the same reason and by the same mechanism: the endpoint
+          // answers 403 and the page renders that sentence. The screen reads and never writes —
+          // the panel publishes no way to add or remove a destination that could succeed.
+          {
+            path: 'destinations',
+            name: 'backup-destinations',
+            component: BackupDestinationsPage,
+            meta: { module: 'backups' },
+          },
         ],
       },
       {

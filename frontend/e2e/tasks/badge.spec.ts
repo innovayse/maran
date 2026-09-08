@@ -74,7 +74,8 @@ test('a task arriving in the stream raises the header badge without navigating',
   await expect(badge(page)).toHaveCount(0)
 
   const urlBefore = page.url()
-  await page.getByRole('button', { name: `Watch the task for ${SETTLED.subject}` }).click()
+  await page.getByRole('button', { name: `Actions for ${SETTLED.subject}` }).click()
+  await page.getByRole('menuitem', { name: 'Live view' }).click()
 
   await expect(badge(page)).toBeVisible()
   await expect(badge(page)).toHaveText('1')

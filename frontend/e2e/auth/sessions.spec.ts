@@ -55,16 +55,33 @@ test('the sessions screen lists the devices and marks the one being used', async
 })
 
 test('a listed session never carries a token or a hash of one', async ({ page }) => {
+  // The panel is stubbed as a SERVER THAT LEAKS: it answers with the session fields the SPA knows
+  // about plus a `tokenHash` the DTO has no room for. That is what makes this assertion able to
+  // fail at all. Stubbing the clean shape and then checking the page for `tokenHash` — which is
+  // what this spec did — was decoration: the string was in neither the response nor the page, so
+  // the probe had nothing to find whatever the screen rendered. A mutation that made the row
+  // render `JSON.stringify(session)` — the whole DTO, verbatim, the exact leak this spec names —
+  // was caught only by a strict-mode locator collision on the line above, never by this one.
+  const leaked = [
+    { ...CURRENT, tokenHash: 'sha256:0000feed' },
+    { ...OTHER, tokenHash: 'sha256:0000beef' },
+  ] as unknown as Session[]
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubEmptyModules(page)
-  await stubSessions(page, [CURRENT, OTHER])
+  await stubSessions(page, leaked)
 
   await page.goto('/settings/sessions')
-  await expect(page.getByText('Chrome on Linux')).toBeVisible()
+  await expect(page.getByText('Chrome on Linux').first()).toBeVisible()
 
-  // The DTO has no field a secret could occupy; this asserts the rendered page agrees.
+  // Positive control on the probe itself: `userAgent` IS rendered, so a value planted there must
+  // be found. Without this, a probe that had stopped being able to see the page would report the
+  // same silence as a page with nothing to hide.
+  await expect(page.locator('body')).toContainText('Safari on iPhone')
+
+  // The real assertion: the screen renders the fields it knows, never the response wholesale.
   await expect(page.locator('body')).not.toContainText('tokenHash')
+  await expect(page.locator('body')).not.toContainText('sha256:0000feed')
 })
 
 test('ending another device asks first, then removes its row', async ({ page }) => {
@@ -79,12 +96,21 @@ test('ending another device asks first, then removes its row', async ({ page }) 
   await page.goto('/settings/sessions')
   await page
     .getByRole('row', { name: /Safari on iPhone/ })
-    .getByRole('button', { name: 'Sign out' })
+    .getByRole('button', { name: `Actions for the session from ${OTHER.ipAddress}` })
     .click()
 
-  // Confirmation first: the row the user clicks may be the session they are reading from.
-  await expect(page.getByText('End this session?')).toBeVisible()
-  await page.getByRole('button', { name: 'End' }).click()
+  // Positive control: the row's menu opened and holds the command, so a failure below is about the
+  // confirmation and not about a menu that never appeared.
+  const signOut = page.getByRole('menuitem', { name: 'Sign out' })
+  await expect(signOut).toBeVisible()
+  await signOut.click()
+
+  // Confirmation first: the row the user clicks may be the session they are reading from. Asserted
+  // on the dialog and by its accessible name, so a dialog asking about the wrong device fails.
+  const dialog = page.getByRole('dialog', { name: `End the session from ${OTHER.ipAddress}` })
+  await expect(dialog).toBeVisible()
+  await expect(dialog).toContainText('End this session?')
+  await dialog.getByRole('button', { name: 'End' }).click()
 
   await expect(page.getByText('Safari on iPhone')).toBeHidden()
   await expect(page.getByText('Chrome on Linux')).toBeVisible()
@@ -118,4 +144,71 @@ test('signing out everywhere returns to the sign-in screen', async ({ page }) =>
   await signOutEverywhere.click()
 
   await expect(page).toHaveURL('/login')
+})
+
+// The current device's question is not the other device's question: ending this one signs the
+// reader out where they are standing, and the dialog has to say so.
+test('the confirmation for this device says it signs you out here', async ({ page }) => {
+  await stubSignedIn(page)
+  await stubHealthy(page)
+  await stubEmptyModules(page)
+  await stubSessions(page, [CURRENT, OTHER])
+
+  await page.goto('/settings/sessions')
+  await page
+    .getByRole('row', { name: /Chrome on Linux/ })
+    .getByRole('button', { name: `Actions for the session from ${CURRENT.ipAddress}` })
+    .click()
+  await page.getByRole('menuitem', { name: 'Sign out' }).click()
+
+  const dialog = page.getByRole('dialog', { name: `End the session from ${CURRENT.ipAddress}` })
+  await expect(dialog).toBeVisible()
+  await expect(dialog).toContainText('This will sign you out here.')
+})
+
+// The answer "no" must leave the device signed in. Counting the DELETEs is what says so: the row
+// disappearing is a consequence, not the request.
+test('dismissing the session confirmation sends no request, and confirm is not the default answer', async ({
+  page,
+}) => {
+  const deletes: string[] = []
+  await stubSignedIn(page)
+  await stubHealthy(page)
+  await stubEmptyModules(page)
+  await stubSessions(page, [CURRENT, OTHER])
+  page.on('request', (request) => {
+    if (request.method() === 'DELETE' && request.url().includes('/api/v1/sessions/')) {
+      deletes.push(request.url())
+    }
+  })
+
+  await page.goto('/settings/sessions')
+  await page
+    .getByRole('row', { name: /Safari on iPhone/ })
+    .getByRole('button', { name: `Actions for the session from ${OTHER.ipAddress}` })
+    .click()
+  await page.getByRole('menuitem', { name: 'Sign out' }).click()
+
+  const dialog = page.getByRole('dialog', { name: `End the session from ${OTHER.ipAddress}` })
+  await expect(dialog).toBeVisible()
+
+  // Focus is inside the dialog rather than on the row menu's trigger behind it, and not on the
+  // confirm button: a reflexive Enter must not end a session.
+  const focus = await page.evaluate(() => {
+    const panel = document.querySelector('[role="dialog"]')
+    const active = document.activeElement
+    return {
+      inside: panel !== null && active !== null && panel.contains(active),
+      label: active?.getAttribute('aria-label') ?? '',
+      text: active?.textContent?.trim() ?? '',
+    }
+  })
+  expect(focus.inside).toBe(true)
+  expect(focus.label).not.toContain('Actions for')
+  expect(focus.text).not.toEqual('End')
+
+  await page.keyboard.press('Escape')
+  await expect(page.getByRole('dialog')).toHaveCount(0)
+  expect(deletes).toEqual([])
+  await expect(page.getByText('Safari on iPhone')).toBeVisible()
 })

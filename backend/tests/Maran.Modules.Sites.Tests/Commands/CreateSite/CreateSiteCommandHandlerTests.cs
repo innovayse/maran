@@ -432,8 +432,8 @@ public sealed class CreateSiteCommandHandlerTests
         return new CreateSiteCommand(
             accountId,
             domain,
-            aliases ?? ["www.example.com"],
             SiteBackendType.Php,
+            aliases ?? ["www.example.com"],
             "8.3",
             string.Empty,
             "198.51.100.7",

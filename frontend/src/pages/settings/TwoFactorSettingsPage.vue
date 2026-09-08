@@ -15,6 +15,7 @@ import UiButton from '../../components/ui/UiButton.vue'
 import UiCard from '../../components/ui/UiCard.vue'
 import UiForm from '../../components/ui/UiForm.vue'
 import UiInput from '../../components/ui/UiInput.vue'
+import UiPageHeading from '../../components/ui/UiPageHeading.vue'
 import { useAuthStore } from '../../stores/auth'
 import type { TotpEnrolment } from '../../types/auth'
 
@@ -101,10 +102,7 @@ const copyRecoveryCodes = async (): Promise<void> => {
 
 <template>
   <section class="w-full max-w-2xl">
-    <h1 class="text-3xl font-semibold tracking-title text-text-primary">
-      {{ t('app.twoFactor.heading') }}
-    </h1>
-    <p class="mt-1 mb-4 text-base text-text-secondary">{{ t('app.twoFactor.subtitle') }}</p>
+    <UiPageHeading class="mb-4" :title="t('app.twoFactor.heading')" :subtitle="t('app.twoFactor.subtitle')" />
 
     <UiAlert v-if="authStore.errorMessage !== null" variant="error" class="mb-4">
       {{ authStore.errorMessage }}
@@ -143,7 +141,7 @@ const copyRecoveryCodes = async (): Promise<void> => {
           <div class="flex gap-2">
             <UiButton type="submit">{{ t('app.twoFactor.confirmEnrolment') }}</UiButton>
             <UiButton variant="secondary" @click="cancelEnrolment">
-              {{ t('app.twoFactor.cancelEnrolment') }}
+              {{ t('common.cancel') }}
             </UiButton>
           </div>
         </div>

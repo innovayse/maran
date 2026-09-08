@@ -14,6 +14,7 @@ import { useI18n } from 'vue-i18n'
 import UiAlert from '../../components/ui/UiAlert.vue'
 import UiBadge from '../../components/ui/UiBadge.vue'
 import UiEmptyState from '../../components/ui/UiEmptyState.vue'
+import UiPageHeading from '../../components/ui/UiPageHeading.vue'
 import UiSpinner from '../../components/ui/UiSpinner.vue'
 import UiTable from '../../components/ui/UiTable.vue'
 import UiTableCell from '../../components/ui/UiTableCell.vue'
@@ -34,12 +35,7 @@ onMounted(async () => {
 
 <template>
   <section class="w-full">
-    <div class="mb-4">
-      <h1 class="text-3xl font-semibold tracking-title text-text-primary">
-        {{ t('app.audit.heading') }}
-      </h1>
-      <p class="mt-1 text-base text-text-secondary">{{ t('app.audit.subtitle') }}</p>
-    </div>
+    <UiPageHeading class="mb-4" :title="t('app.audit.heading')" :subtitle="t('app.audit.subtitle')" />
 
     <UiSpinner v-if="auditStore.loading" :label="t('app.audit.loading')" />
 

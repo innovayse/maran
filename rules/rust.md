@@ -99,7 +99,13 @@ agent/
     │   │       │              validated_{site,identity,overrides}.rs — proto → validated
     │   │       │              input, one bundle per request shape, so the service file
     │   │       │              stays the three steps and nothing else ·
-    │   │       │              stream_log_sink.rs · tail_terminal.rs (log-follow glue)
+    │   │       │              stream_log_sink.rs · tail_terminal.rs (log-follow glue) ·
+    │   │       │              sink_clock.rs · system_sink_clock.rs — the sink's whole
+    │   │       │              contract is a deadline, so the deadline is injected: the
+    │   │       │              trait is what a test drives as virtual time, the impl is
+    │   │       │              the only clock production reads. They live beside the sink
+    │   │       │              and not in a shared `wire/` because one sink observes them
+    │   │       │              (rules/testing.md: no sleeps — inject `Clock`).
     │   │       ├── ssl/       ssl_service.rs · ssl_status.rs
     │   │       ├── php/       php_service.rs · php_status.rs
     │   │       ├── db/        db_service.rs · db_status.rs ·
@@ -145,21 +151,32 @@ agent/
     │       │                  having run one program. Started in one `ops` area and needed
     │       │                  by a second, which is the rule below firing: it lives here so
     │       │                  both import it instead of each keeping its own copy.
+    │       ├── secret_string.rs SecretString — a string whose Debug AND Display print
+    │       │                  «redacted», so a credential inside a #[derive(Debug)]
+    │       │                  request struct cannot reach a log line. Not validation —
+    │       │                  it checks nothing — so it sits here and not under
+    │       │                  validation/. `expose` is the only reader and is named to
+    │       │                  be greppable.
     │       ├── validation/    one folder per DOMAIN the value ends up in, so a
     │       │                  validator is found by asking "where is this written?".
     │       │                  Every kind is a `<kind>.rs` + `<kind>_error.rs` pair in
     │       │                  its group; a kind used by two groups still lives in the
     │       │                  one that CREATES the object.
     │       │   ├── system/    name · sftp_user_name · cron_schedule · cron_command ·
-    │       │   │              cron_entry_id · env_var_name · env_var_value — values
-    │       │   │              that become OS objects
+    │       │   │              cron_entry_id · env_var_name · env_var_value ·
+    │       │   │              backup_id · local_backup_root — values that become
+    │       │   │              OS objects
     │       │   ├── db/        database_name · db_user_name — values that reach MySQL
     │       │   ├── web/       domain · upstream · php_version · port · source_cidr ·
     │       │   │              ban_address · ipv4_disguise (shared predicate, no
-    │       │   │              _error) — values written into web-server configuration
+    │       │   │              _error) · s3_bucket · s3_region · s3_object_prefix —
+    │       │   │              values written into web-server configuration, and the
+    │       │   │              remote endpoints the agent addresses, which are the
+    │       │   │              same kind of value reaching a different writer
     │       │   ├── fs/        path (resolve_in_home) · relative_path · file_mode
     │       │   ├── secrets/   password (validated alphabet, injection-free by
-    │       │   │              construction) · secret (redacting wrapper, no _error)
+    │       │   │              construction) — the one validated kind here; a value that
+    │       │   │              only needs hiding, not validating, is secret_string.rs above
     │       │   └── prefixed_name.rs + prefix_problem.rs — NOT a domain group: the
     │       │                  crate-internal core the three account-prefixed names
     │       │                  (database_name · db_user_name · sftp_user_name) are
@@ -182,11 +199,19 @@ agent/
     │                          subject: directory.rs · current_uid.rs ·
     │                          system_account.rs · system_accounts.rs ·
     │                          spawn_argv.rs — the ONE plain argv spawn body (run it,
-    │                          wait, hand back a CommandOutcome). A host whose spawn is
+    │                          wait, hand back a CommandOutcome) · available_bytes.rs
+    │                          (how much room the filesystem UNDER a given directory
+    │                          still has, asked at the directory the write lands on and
+    │                          never at its parent — a parent can be a different mount) ·
+    │                          apply_child_environment.rs
+    │                          — the ONE environment any of them gives a child (cleared,
+    │                          then the declared entries). A host whose spawn is
     │                          deliberately different — stdin piped into the child,
     │                          output read under a memory ceiling — keeps its own body
     │                          beside its owner and says in a comment which of those it
-    │                          is. A helper earns a place here when a SECOND crate needs
+    │                          is, but still takes its environment from
+    │                          apply_child_environment.rs: what a child INHERITS is not one
+    │                          area's decision. A helper earns a place here when a SECOND crate needs
     │                          it; until then it stays private beside its only caller.
     │                          The banned shape is the catch-all (util.rs, helpers.rs,
     │                          misc.rs), not the folder.
@@ -232,6 +257,24 @@ agent/
     │       │                  a test can drive it against a temporary directory with an
     │       │                  injected uid instead of needing root — the same split
     │       │                  `sites/follow_log.rs` uses, for the same reason.
+    │       │                  backup/ is the second area whose files are not all
+    │       │                  "one file per rpc", so its non-rpc units are named too:
+    │       │                  archive/ (the steps ONE artifact is physically made of —
+    │       │                  dump, manifest-and-archive, measure, checksum, scan,
+    │       │                  extract, replace — crate-private, because they are steps
+    │       │                  and not operations) · backup_root.rs (the inode check
+    │       │                  between a validated configuration string and a directory
+    │       │                  whose ownership or mode has since drifted) ·
+    │       │                  root_only_chain.rs (that same inode discipline for the
+    │       │                  root-only scratch, held beside BOTH bulk callers rather
+    │       │                  than inside either: create and restore stage into the same
+    │       │                  tree, and a boundary enforced by one of them is not a
+    │       │                  boundary) · database_catalog.rs (the seam that keeps this
+    │       │                  area from importing `ops::db`) · object_store_host.rs
+    │       │                  with local_object_store_host.rs and s3_object_store_host.rs
+    │       │                  (the destination seam; the remote half is DECLARED and
+    │       │                  unwired — see
+    │       │                  docs/superpowers/notes/2026-09-07-backup-object-store-seam.md).
     │       ├── safe_write/    render_validate_swap.rs · remove_config.rs ·
     │       │                  rollback_guard.rs · safe_write_error.rs ·
     │       │                  config_host.rs (the injectable filesystem/reload seam) ·

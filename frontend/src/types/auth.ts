@@ -3,7 +3,20 @@
  * frontend groups types by domain (rules/vue.md "Types").
  */
 
-/** What a signed-in user is allowed to reach. Mirrors the backend's `UserRole`. */
+/**
+ * What a signed-in user is allowed to reach. Mirrors the backend's `UserRole`.
+ *
+ * **Adding a member here is a decision, and this is where it is taken.** Exactly one place in the
+ * SPA branches on this union — `isAdmin` in `components/shell/ShellUserBlock.vue` — and it asks
+ * `role !== 'customer'` rather than `role === 'admin'` on purpose, so that a role added here is
+ * offered the administrator entries rather than silently denied them. That is deliberate and it is
+ * the right default (the menu is presentation; the endpoints are the boundary, and a wrongly
+ * offered link costs one refusal where a wrongly withheld one hides the page entirely) — but it is
+ * a DEFAULT, not an answer. If the new role must NOT see the audit journal, the security policy
+ * and the SMTP settings, that branch has to be changed in the same commit, because no test can
+ * catch it: over a two-member union `!== 'customer'` and `=== 'admin'` are the same function, so
+ * every spec that could be written today passes either way.
+ */
 export type UserRole = 'admin' | 'customer'
 
 /** The person the panel has signed in. */

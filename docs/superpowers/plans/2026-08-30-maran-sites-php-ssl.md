@@ -143,7 +143,7 @@ Both are scaffolded with `maran module <Name>`, never assembled by hand.
 | `Queries/ListSites/`, `GetSite/`, `ListPhpVersions/` | Reads. |
 | `Common/SiteDto.cs`, `SiteDetailDto.cs`, `PhpVersionDto.cs` | Outward shapes. |
 | `Resources/ErrorMessages.resx` + `.ru.resx` + `.hy.resx` | `SiteDomainTaken`, `SiteLimitReached`, `PhpVersionNotInstalled`, `SiteNotFound`, `WebServerValidationFailed`. Error codes are defined by these files; there is no hand-written errors class. |
-| `Controllers/SitesController.cs` + `Requests/` | `api/v1/sites`, thin: bind, dispatch, translate `Result`. |
+| `Controllers/SitesController.cs` | `api/v1/sites`, thin: bind, dispatch, translate `Result`. **SUPERSEDED:** this row read `+ \`Requests/\`` when the plan was written; that folder was abolished product-wide and an action now binds its Command or Query directly (`rules/csharp.md`, "An endpoint binds its command directly"). Do not create it. |
 
 ### `backend/src/Maran.Modules/Ssl/` — schema `ssl`
 

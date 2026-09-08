@@ -57,7 +57,7 @@ const describe = (rule: FirewallRule): string => {
         <UiTableHeaderCell>{{ t('firewall.rules.columns.port') }}</UiTableHeaderCell>
         <UiTableHeaderCell>{{ t('firewall.rules.columns.protocol') }}</UiTableHeaderCell>
         <UiTableHeaderCell>{{ t('firewall.rules.columns.source') }}</UiTableHeaderCell>
-        <UiTableHeaderCell align="end">{{ t('firewall.rules.columns.actions') }}</UiTableHeaderCell>
+        <UiTableHeaderCell align="end">{{ t('common.actions') }}</UiTableHeaderCell>
       </UiTableRow>
     </template>
     <UiTableRow
@@ -74,7 +74,7 @@ const describe = (rule: FirewallRule): string => {
           <!-- One trigger rather than a button per command, and `align="end"` because this is the
                last column: a menu aligned to the start would open off the right edge. -->
           <UiDropdown
-            :label="t('firewall.rules.columns.actions')"
+            :label="t('common.actions')"
             :aria-label="t('firewall.rules.rowActions', { rule: describe(rule) })"
             align="end"
             variant="bare"

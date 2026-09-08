@@ -6,7 +6,7 @@ use maran_agent_core::validation::system::env_var_name::EnvVarName;
 use maran_agent_core::validation::system::env_var_value::EnvVarValue;
 use maran_agent_core::validation::system::name::AccountName;
 
-use crate::cron::installed_line::{DISABLED_PREFIX, installed_line};
+use crate::cron::installed_line::{DISABLED_PREFIX, SUSPENDED_PREFIX, installed_line};
 use crate::cron::model::cron_entry::CronEntry;
 use crate::cron::model::cron_environment::CronEnvironment;
 
@@ -20,6 +20,26 @@ const BANNER: &str = "# maran: managed section - every line below is rewritten b
 
 /// What precedes an entry's id on its marker line.
 const MARKER_PREFIX: &str = "# maran-entry: ";
+
+/// The line that records that the ACCOUNT is suspended.
+///
+/// It sits immediately below the banner, inside the region this agent rewrites
+/// whole, and it exists for exactly one thing the per-line prefixes cannot do:
+/// carry the account's suspension across a crontab that has no managed entries
+/// in it. Without it, suspending an account whose crontab is empty would leave
+/// nothing to inherit, and the first entry created afterwards would run.
+///
+/// **It is not what anything OBSERVES.** Whether cron can see an entry is
+/// decided by that entry's own line, and
+/// [`CronEntry::suspended`](crate::cron::model::cron_entry::CronEntry::suspended)
+/// is read off the line rather than off this marker — so a marker that
+/// disagreed with the lines beneath it could never certify a silence the file
+/// does not have. What it governs is the next RENDER, which re-applies the
+/// prefix to every managed line and thereby repairs a table somebody had
+/// half-marked by hand.
+///
+/// Compared for exact equality, for the reason the banner is.
+const SUSPENDED_MARKER: &str = "# maran-suspended";
 
 /// The mail policy the agent writes for every account, above its own entries.
 ///
@@ -84,6 +104,8 @@ pub struct CrontabDocument {
     environment: Vec<CronEnvironment>,
     /// The entries the panel owns, in the order they are rendered.
     entries: Vec<CronEntry>,
+    /// Whether the account this crontab belongs to is suspended.
+    suspended: bool,
 }
 
 impl CrontabDocument {
@@ -111,6 +133,7 @@ impl CrontabDocument {
             foreign: Vec::new(),
             environment: Vec::new(),
             entries: Vec::new(),
+            suspended: false,
         };
         let mut in_managed_region = false;
         let mut index = 0;
@@ -123,7 +146,18 @@ impl CrontabDocument {
                 continue;
             }
 
+            if in_managed_region && recognised(line) == SUSPENDED_MARKER {
+                document.suspended = true;
+                continue;
+            }
+
             if let Some(entry) = read_entry(&lines, index - 1) {
+                // A marked LINE says the account is suspended just as the
+                // marker line does. Believing either is the safe direction: a
+                // table somebody half-marked by hand renders back fully marked,
+                // whereas requiring both would render it back fully unmarked —
+                // a suspended account whose jobs start firing again.
+                document.suspended |= entry.suspended;
                 document.entries.push(entry);
                 // The marker line and the line it names.
                 index += 1;
@@ -162,6 +196,9 @@ impl CrontabDocument {
         let mut lines: Vec<String> = self.foreign.clone();
 
         lines.push(BANNER.to_owned());
+        if self.suspended {
+            lines.push(SUSPENDED_MARKER.to_owned());
+        }
         lines.push(MAILTO_LINE.to_owned());
         lines.push(format!("{SHELL_NAME}={sh_binary}"));
 
@@ -175,7 +212,19 @@ impl CrontabDocument {
 
         for entry in &self.entries {
             lines.push(format!("{MARKER_PREFIX}{}", entry.id.as_str()));
-            lines.push(installed_line(entry, account, sh_binary));
+            // The account's suspension governs every managed line, rather than
+            // each line's own parsed flag: rendering is where a half-marked
+            // table is repaired. The customer's `enabled` is NOT normalised
+            // this way — it is per entry because it is the customer's own
+            // choice about that entry.
+            lines.push(installed_line(
+                &CronEntry {
+                    suspended: self.suspended,
+                    ..entry.clone()
+                },
+                account,
+                sh_binary,
+            ));
         }
 
         let mut text = lines.join("\n");
@@ -187,6 +236,41 @@ impl CrontabDocument {
     #[must_use]
     pub fn entries(&self) -> &[CronEntry] {
         &self.entries
+    }
+
+    /// Whether the account this crontab belongs to is suspended.
+    #[must_use]
+    pub fn is_suspended(&self) -> bool {
+        self.suspended
+    }
+
+    /// Suspends, or resumes, every managed entry of this account at once.
+    ///
+    /// **It never touches [`CronEntry::enabled`], and that is the whole reason
+    /// this method exists rather than a loop over
+    /// [`Self::set_enabled`].** The two flags are two different facts:
+    /// `enabled` is the customer's own switch, this is the panel's. Driving
+    /// suspension through `enabled` would leave a resume with nothing to
+    /// distinguish an entry the customer had turned off from one suspension
+    /// turned off — and the panel keeps no cron rows, so the crontab is the
+    /// only record of that choice there is. Every entry the customer had
+    /// disabled would come back running.
+    ///
+    /// Idempotent: suspending a suspended crontab renders a table that says
+    /// exactly what the last one said.
+    pub fn set_suspended(&mut self, suspended: bool) {
+        self.suspended = suspended;
+    }
+
+    /// The lines this agent did not write, in the order they were found.
+    ///
+    /// Exposed so a suspension can REPORT them. They are not touched by
+    /// anything here — a crontab is not this agent's file — so they keep firing
+    /// under a suspended account, and a suspension that said nothing about them
+    /// would be claiming a silence it did not achieve.
+    #[must_use]
+    pub fn foreign(&self) -> &[String] {
+        &self.foreign
     }
 
     /// The customer's environment assignments, in the order they are rendered.
@@ -310,28 +394,39 @@ fn split_lines(text: &str) -> Vec<&str> {
 fn read_entry(lines: &[&str], index: usize) -> Option<CronEntry> {
     let marker = recognised(lines.get(index)?);
     let id = CronEntryId::parse(marker.strip_prefix(MARKER_PREFIX)?).ok()?;
-    let (schedule, enabled) = read_schedule(recognised(lines.get(index + 1)?))?;
+    let (schedule, enabled, suspended) = read_schedule(recognised(lines.get(index + 1)?))?;
 
     Some(CronEntry {
         id,
         schedule,
         enabled,
+        suspended,
         // The crontab carries no command. See [`CronEntry`].
         command: None,
     })
 }
 
-/// Reads a managed entry's own line: its schedule, and whether cron can see it.
+/// Reads a managed entry's own line: its schedule, and the two independent
+/// reasons cron may not see it.
+///
+/// The two prefixes are stripped in the order the render applies them —
+/// suspension outermost — and each is reported as its own flag. They share no
+/// text beyond the `#`, so stripping one can never consume the other, and a
+/// line carrying both comes back as both.
 ///
 /// The five fields are re-validated through [`CronSchedule::parse`] rather than
 /// taken as text, so a schedule that came back off a disk cannot be rendered
 /// again unless it is one this agent would have accepted in the first place
 /// (rules/rust.md "Validation first"). Everything after the fifth field is what
 /// this agent wrote and is rebuilt by the render, so it is not read.
-fn read_schedule(line: &str) -> Option<(CronSchedule, bool)> {
-    let (text, enabled) = match line.strip_prefix(DISABLED_PREFIX) {
+fn read_schedule(line: &str) -> Option<(CronSchedule, bool, bool)> {
+    let (text, suspended) = match line.strip_prefix(SUSPENDED_PREFIX) {
+        Some(rest) => (rest, true),
+        None => (line, false),
+    };
+    let (text, enabled) = match text.strip_prefix(DISABLED_PREFIX) {
         Some(rest) => (rest, false),
-        None => (line, true),
+        None => (text, true),
     };
 
     let mut fields = text.split_whitespace();
@@ -343,7 +438,7 @@ fn read_schedule(line: &str) -> Option<(CronSchedule, bool)> {
 
     let schedule = CronSchedule::parse(minute, hour, day_of_month, month, day_of_week).ok()?;
 
-    Some((schedule, enabled))
+    Some((schedule, enabled, suspended))
 }
 
 /// Reads a `NAME=VALUE` line as a customer assignment, if it is one.

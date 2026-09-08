@@ -18,6 +18,7 @@ import UiButton from '../../components/ui/UiButton.vue'
 import UiCard from '../../components/ui/UiCard.vue'
 import UiForm from '../../components/ui/UiForm.vue'
 import UiInput from '../../components/ui/UiInput.vue'
+import UiPageHeading from '../../components/ui/UiPageHeading.vue'
 import UiPasswordInput from '../../components/ui/UiPasswordInput.vue'
 import UiSelect, { type SelectOption } from '../../components/ui/UiSelect.vue'
 import { useSmtpSettingsStore } from '../../stores/smtpSettings'
@@ -156,10 +157,7 @@ void smtpStore.load()
 
 <template>
   <section class="w-full max-w-2xl">
-    <h1 class="text-3xl font-semibold tracking-title text-text-primary">
-      {{ t('app.smtp.heading') }}
-    </h1>
-    <p class="mt-1 mb-4 text-base text-text-secondary">{{ t('app.smtp.subtitle') }}</p>
+    <UiPageHeading class="mb-4" :title="t('app.smtp.heading')" :subtitle="t('app.smtp.subtitle')" />
 
     <UiAlert v-if="smtpStore.errorMessage !== null" variant="error" class="mb-4">
       {{ smtpStore.errorMessage }}

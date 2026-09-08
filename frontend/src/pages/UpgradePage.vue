@@ -12,6 +12,7 @@ import { computed, type ComputedRef } from 'vue'
 import { useI18n } from 'vue-i18n'
 import UiEmptyState from '../components/ui/UiEmptyState.vue'
 import UiNavLink from '../components/ui/UiNavLink.vue'
+import UiPageHeading from '../components/ui/UiPageHeading.vue'
 import { useModulesStore } from '../stores/modules'
 import type { PanelModule } from '../types/module'
 
@@ -39,12 +40,7 @@ const catalogueEntry: ComputedRef<PanelModule | undefined> = computed(() => {
 
 <template>
   <section class="w-full">
-    <div class="mb-4">
-      <h1 class="text-3xl font-semibold tracking-title text-text-primary">
-        {{ t('app.upgrade.heading') }}
-      </h1>
-      <p class="mt-1 text-base text-text-secondary">{{ t('app.upgrade.subtitle') }}</p>
-    </div>
+    <UiPageHeading class="mb-4" :title="t('app.upgrade.heading')" :subtitle="t('app.upgrade.subtitle')" />
 
     <UiEmptyState
       :title="t('app.upgrade.module', { module })"

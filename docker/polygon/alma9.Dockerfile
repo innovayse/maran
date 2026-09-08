@@ -235,6 +235,13 @@ COPY installer/lib/70-services.sh /tmp/maran-installer/lib/70-services.sh
 # from step 40's own create_panel_user rather than making one of its own.
 COPY installer/lib/80-nginx.sh /tmp/maran-installer/lib/80-nginx.sh
 COPY installer/lib/40-user.sh /tmp/maran-installer/lib/40-user.sh
+# Step 50 beside them, for the same reason and RUN the same way: the assert script calls its
+# prepare_staging_dir directly. Step 50 as a whole downloads release artifacts over HTTPS and
+# this build spends no trust on that, but the directory that function builds is where an
+# archive is checksummed and extracted from, and the file that comes out of it is the binary
+# maran-agent.service starts as root — so the directory is asserted here even though the
+# download is not.
+COPY installer/lib/50-artifacts.sh /tmp/maran-installer/lib/50-artifacts.sh
 # A container has no init system, so the reload half of the config-write protocol
 # needs something to talk to. The stand-in explains itself and its limits.
 #
@@ -266,6 +273,29 @@ RUN bash -c 'set -euo pipefail; \
       for _ in $(seq 1 60); do mariadb-admin ping >/dev/null 2>&1 && break; sleep 1; done; \
       MARAN_OS_FAMILY=rhel bash /tmp/maran-installer/assert-installer-steps.sh; \
       mariadb-admin shutdown'
+
+# The backup root, made by the installer's OWN step rather than by a literal
+# here. `ops::backup` refuses to write into a directory that is not root-owned
+# and root-only, and it refuses one that does not exist — `LocalBackupRoot`
+# answers a question about a STRING and the inode check answers a separate one
+# about the directory — so a polygon without this directory fails every backup
+# case with `BackupRootUnsafe` and tells nobody why.
+#
+# `create_directory_layout` is sourced and called instead of `install -d
+# /var/backups/maran` being written out again, so the mode the suites measure
+# is the mode a real install produces; a second copy of the path or the mode in
+# this file is a copy that stops matching. The one thing put back afterwards is
+# /run/maran's mode: that function sets 0750 root:panel, and this image sets
+# 0755 on purpose for the php-pool suites (see the assert-script comment that
+# says so).
+COPY installer/lib/40-user.sh /tmp/maran-installer/lib/40-user.sh
+RUN bash -c 'set -euo pipefail; \
+      . /tmp/maran-installer/lib/40-user.sh; \
+      create_panel_user >/dev/null; \
+      create_directory_layout; \
+      chmod 0755 /run/maran; \
+      test -d /var/backups/maran' \
+    && rm -f /tmp/maran-installer/lib/40-user.sh
 
 # cronie, this family's cron, for the scheduling half of plan 5. It is here to
 # be RUN against rather than to make the container a scheduler: a real
@@ -313,6 +343,22 @@ RUN bash -c 'set -euo pipefail; \
       sed -i "s/^account    include    system-auth$/account    required   pam_unix.so broken_shadow/" \
         /etc/pam.d/crond; \
       grep -q broken_shadow /etc/pam.d/crond'
+
+# `passwd`, which on this family is its OWN package and not part of
+# `shadow-utils` — the package that supplies `useradd`, `usermod` and `userdel`.
+# On the Debian family one package supplies all four, which is exactly why the
+# gap survived: the agent's suspension attestation runs `/usr/bin/passwd -S` to
+# read whether a login is locked, it worked on ubuntu24 from the first run, and
+# on this image the program was not there at all. Everything that asks the host
+# whether an account is suspended failed at exec time on the whole RHEL family,
+# and the polygon suite that would have caught it did not list this path.
+#
+# `test -x` and not a bare install, for the reason every other block here gives:
+# an install that succeeded while putting the program somewhere else is the
+# failure this stops.
+RUN dnf install -y --nodocs passwd \
+    && dnf clean all \
+    && test -x /usr/bin/passwd
 
 # The quota tools. The agent execs BOTH halves by absolute path — `/usr/sbin/setquota`
 # to apply an account's limit and `/usr/bin/quota` to read its usage back for

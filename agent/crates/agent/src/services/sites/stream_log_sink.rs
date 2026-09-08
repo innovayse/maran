@@ -1,13 +1,15 @@
 //! The [`LogSink`] that puts a tailed log line onto the gRPC stream.
 
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use maran_ops::sites::{LogSink, TailEnd};
 use tokio::sync::mpsc::Sender;
 use tokio::sync::mpsc::error::TrySendError;
 use tonic::Status;
 
-use crate::proto::{TailSiteLogLine, TailSiteLogResponse, tail_site_log_response};
+use super::sink_clock::SinkClock;
+use super::system_sink_clock::SystemSinkClock;
+use crate::proto::{AgentError, TailSiteLogLine, TailSiteLogResponse, tail_site_log_response};
 
 /// How long a line may wait for a client that has stopped reading.
 ///
@@ -31,7 +33,11 @@ const SEND_TIMEOUT: Duration = Duration::from_secs(30);
 /// A poll rather than an async wait because this runs on a blocking thread with
 /// no runtime to await on, and `try_send` hands the message back on a full
 /// channel so nothing is lost by retrying.
-const RETRY_INTERVAL: Duration = Duration::from_millis(50);
+///
+/// It is also the granularity of the deadline, and therefore the only slack the
+/// tests allow above it: the sink gives up at the first attempt that finds the
+/// deadline passed, so it can overshoot by at most one interval.
+pub(crate) const RETRY_INTERVAL: Duration = Duration::from_millis(50);
 
 /// Delivers a tail's lines into the bounded channel behind the response stream.
 ///
@@ -51,6 +57,8 @@ pub struct StreamLogSink {
     lines: Sender<Result<TailSiteLogResponse, Status>>,
     /// How long a line may wait before the client is treated as absent.
     patience: Duration,
+    /// The clock the deadline and the retry interval are measured on.
+    clock: Box<dyn SinkClock>,
 }
 
 impl StreamLogSink {
@@ -60,7 +68,7 @@ impl StreamLogSink {
         Self::with_patience(lines, SEND_TIMEOUT)
     }
 
-    /// The same sink with an explicit deadline.
+    /// The same sink with an explicit deadline, on the host's own clock.
     ///
     /// Exists so the give-up path can be TESTED rather than reasoned about: a
     /// test that had to wait out `SEND_TIMEOUT` would take half a minute, so
@@ -72,21 +80,68 @@ impl StreamLogSink {
         lines: Sender<Result<TailSiteLogResponse, Status>>,
         patience: Duration,
     ) -> Self {
-        Self { lines, patience }
+        Self::with_patience_on_clock(lines, patience, Box::new(SystemSinkClock))
     }
-}
 
-impl LogSink for StreamLogSink {
-    /// Sends one line within `SEND_TIMEOUT`, and names the ending if it cannot.
-    fn line(&mut self, line: &str, historical: bool) -> Result<(), TailEnd> {
-        let mut message = Ok(TailSiteLogResponse {
-            result: Some(tail_site_log_response::Result::Ok(TailSiteLogLine {
-                line: line.to_owned(),
-                historical,
-            })),
-        });
+    /// The same sink with an explicit deadline AND an explicit clock.
+    ///
+    /// A shortened deadline alone still leaves the tests measuring wall time on
+    /// a machine that is also building four other things, which is a race with
+    /// a shorter fuse rather than no race. With the clock injected the deadline
+    /// becomes something a test can observe exactly — how long the sink waited,
+    /// in the sink's own units — and the retry can carry a synchronisation
+    /// point (a reader draining one slot) instead of a duration nobody can
+    /// promise. Production has one caller and it is [`Self::new`].
+    #[must_use]
+    pub fn with_patience_on_clock(
+        lines: Sender<Result<TailSiteLogResponse, Status>>,
+        patience: Duration,
+        clock: Box<dyn SinkClock>,
+    ) -> Self {
+        Self {
+            lines,
+            patience,
+            clock,
+        }
+    }
 
-        let deadline = Instant::now() + self.patience;
+    /// Delivers the tail's terminal message under the same deadline a line gets.
+    ///
+    /// The terminal message travels through THIS type rather than through a
+    /// second clone of the sender, and the reason is the ending it is most
+    /// often sent on. [`TailEnd::ClientStalled`] is reached only when the
+    /// channel has been full for the whole of `SEND_TIMEOUT` with the receiver
+    /// still open — so on exactly that path a plain `blocking_send` of the
+    /// terminal message is a send into a full channel nobody is draining, and
+    /// it parks the tail's blocking-pool thread with no bound at all. That is
+    /// the failure this file exists to prevent, reintroduced one statement
+    /// after it was prevented.
+    ///
+    /// The outcome is deliberately discarded: a client that is gone, and a
+    /// client that is still not reading a whole deadline later, are both
+    /// clients there is nothing further to do about. What the bound buys is
+    /// that the thread comes back either way.
+    pub fn terminal(&mut self, error: AgentError) {
+        let _ = self.send_within_patience(Ok(TailSiteLogResponse {
+            result: Some(tail_site_log_response::Result::Error(error)),
+        }));
+    }
+
+    /// Sends one message, retrying a full channel until the deadline.
+    ///
+    /// The single delivery body, shared by [`LogSink::line`] and
+    /// [`Self::terminal`] so the bound cannot hold for one and not the other.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`TailEnd::ClientClosed`] when the receiving half is gone, and
+    /// [`TailEnd::ClientStalled`] when the channel was still full at the
+    /// deadline.
+    fn send_within_patience(
+        &mut self,
+        mut message: Result<TailSiteLogResponse, Status>,
+    ) -> Result<(), TailEnd> {
+        let deadline = self.clock.now() + self.patience;
 
         loop {
             match self.lines.try_send(message) {
@@ -96,7 +151,7 @@ impl LogSink for StreamLogSink {
                 // ending, so nothing is sent about it.
                 Err(TrySendError::Closed(_)) => return Err(TailEnd::ClientClosed),
                 Err(TrySendError::Full(returned)) => {
-                    if Instant::now() >= deadline {
+                    if self.clock.now() >= deadline {
                         // The agent's decision, not the client's: the stream is
                         // still open and the operator is owed an explanation.
                         return Err(TailEnd::ClientStalled);
@@ -104,10 +159,22 @@ impl LogSink for StreamLogSink {
                     // `try_send` hands the message back, so a retry costs
                     // nothing and drops nothing.
                     message = returned;
-                    std::thread::sleep(RETRY_INTERVAL);
+                    self.clock.wait(RETRY_INTERVAL);
                 }
             }
         }
+    }
+}
+
+impl LogSink for StreamLogSink {
+    /// Sends one line within `SEND_TIMEOUT`, and names the ending if it cannot.
+    fn line(&mut self, line: &str, historical: bool) -> Result<(), TailEnd> {
+        self.send_within_patience(Ok(TailSiteLogResponse {
+            result: Some(tail_site_log_response::Result::Ok(TailSiteLogLine {
+                line: line.to_owned(),
+                historical,
+            })),
+        }))
     }
 
     /// Whether the receiving half is still open — asked once per poll, with no

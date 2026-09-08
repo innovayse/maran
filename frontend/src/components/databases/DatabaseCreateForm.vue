@@ -151,6 +151,7 @@ defineExpose({ reset })
         <UiSelect
           v-model="accountId"
           :label="t('databases.form.fields.accountId')"
+          :placeholder="t('databases.form.placeholders.accountId')"
           :options="accountOptions"
           :error="accountError"
           required

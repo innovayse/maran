@@ -27,6 +27,9 @@ import {
   isValidCronSchedule,
   parseCronExpression,
 } from '../../utils/cronSchedule'
+import { weekdayName } from '../../utils/weekdayName'
+import { useLocaleStore } from '../../stores/locale'
+import { WEEKDAY_KEYS } from '../../types/weekday'
 import type { CronSchedule, CronScheduleFrequency } from '../../types/cronEntry'
 
 /** Which way the operator is currently writing the schedule. */
@@ -62,24 +65,8 @@ const FREQUENCIES: readonly CronScheduleFrequency[] = [
   'monthly',
 ]
 
-/**
- * The days of the week, as cron numbers them alongside the key each is named by.
- *
- * The number is the contract — cron counts Sunday as 0 — and the name is this panel's own chrome.
- * They are paired here rather than the locale being keyed by the digit, because a numeric segment
- * in an i18n path reads as an array index rather than a key.
- */
-const WEEKDAYS: readonly { readonly value: string; readonly key: string }[] = [
-  { value: '0', key: 'sunday' },
-  { value: '1', key: 'monday' },
-  { value: '2', key: 'tuesday' },
-  { value: '3', key: 'wednesday' },
-  { value: '4', key: 'thursday' },
-  { value: '5', key: 'friday' },
-  { value: '6', key: 'saturday' },
-]
-
 const { t } = useI18n()
+const localeStore = useLocaleStore()
 
 /** Which mode the operator is in. Builder first: it is the one that cannot be got wrong. */
 const mode: Ref<ScheduleMode> = ref('builder')
@@ -120,10 +107,15 @@ const frequencyOptions: ComputedRef<SelectOption[]> = computed(() => {
   })
 })
 
-/** The weekday choices, already translated; the value is the number cron uses. */
+/**
+ * The weekday choices, named in the interface language; the value is the number cron uses.
+ *
+ * The position in {@link WEEKDAY_KEYS} IS the cron number — cron counts Sunday as 0 — so the two
+ * are related by the order of one list rather than by a second table that could disagree with it.
+ */
 const weekdayOptions: ComputedRef<SelectOption[]> = computed(() => {
-  return WEEKDAYS.map((day) => {
-    return { value: day.value, label: t(`cron.schedule.weekdays.${day.key}`) }
+  return WEEKDAY_KEYS.map((key, index) => {
+    return { value: String(index), label: weekdayName(key, localeStore.current) }
   })
 })
 
@@ -162,7 +154,7 @@ const currentSchedule: ComputedRef<CronSchedule | null> = computed(() => {
 /** The crontab line the current inputs describe, shown so the two modes agree in front of the operator. */
 const preview: ComputedRef<string> = computed(() => {
   const current = currentSchedule.value
-  return current === null ? t('cron.schedule.previewUnavailable') : formatCronExpression(current)
+  return current === null ? t('common.emptyValue') : formatCronExpression(current)
 })
 
 /** The message shown under the raw field, or `null` while it is acceptable or untouched. */

@@ -1,5 +1,6 @@
 using System.Linq.Expressions;
 using System.Reflection;
+using Maran.Modules.Backups.Domain.Entities;
 using Maran.Sdk.Contracts;
 using Maran.Sdk.Interfaces;
 using Microsoft.EntityFrameworkCore;
@@ -32,6 +33,16 @@ namespace Maran.Host.Modules;
 /// filtered count would answer "nothing left" for rows that are merely invisible to whoever this
 /// scope thinks is asking — which is the shape of answer that produced the defect in the first
 /// place.
+/// </para>
+/// <para>
+/// <b>It carries exactly ONE exemption, and naming it here is part of the exemption.</b> A row of
+/// the Backups module's <see cref="Backup"/> entity that <see cref="Backup.SurvivesAccountDeletion"/>
+/// claims — the §12 final backup, taken immediately before this very deletion — is not counted as
+/// residue, because it is meant to outlive the account and an audit with no exemption would refuse
+/// every deletion that feature exists to protect. Everything about how narrow it is, and why it is
+/// typed rather than name-matched, is on <c>CountSurvivingBackupsAsync</c> below. It is the only
+/// place this class knows a module by name, and it should stay the only one: an exemption per
+/// module is a list, and a list is the thing this auditor was written instead of.
 /// </para>
 /// <para>
 /// <b>Its blind spot, stated rather than papered over.</b> A context that cannot be resolved or
@@ -104,7 +115,10 @@ public sealed class ModuleAccountResidueAuditor : IAccountResidueAuditor
 
                 foreach (var entity in TenantEntities(context))
                 {
-                    var count = await CountRowsAsync(context, entity, accountId, cancellationToken);
+                    var count = entity.ClrType == typeof(Backup)
+                        ? await CountSurvivingBackupsAsync(context, accountId, cancellationToken)
+                        : await CountRowsAsync(context, entity, accountId, cancellationToken);
+
                     if (count > 0)
                     {
                         residue.Add($"{entity.ClrType.Name}({count})");
@@ -164,6 +178,62 @@ public sealed class ModuleAccountResidueAuditor : IAccountResidueAuditor
         return (Task<int>)CountMethod
             .MakeGenericMethod(entity.ClrType)
             .Invoke(null, [context, accountId, cancellationToken])!;
+    }
+
+    /// <summary>
+    /// Counts the backup rows that still name the account and are NOT the final backup taken for
+    /// this deletion.
+    /// </summary>
+    /// <param name="context">The Backups module's context.</param>
+    /// <param name="accountId">The account being deleted.</param>
+    /// <param name="cancellationToken">Cancels the query.</param>
+    /// <returns>How many backup rows count as residue.</returns>
+    /// <remarks>
+    /// <para>
+    /// <b>This is the one exemption in this auditor, and it is a hole in the check that caught the
+    /// cascade defect — so read it as one.</b> Added 2026-09-07 for the plan's Task 13. Everywhere
+    /// else, a row still naming a deleted account refuses the deletion; here, exactly one kind of
+    /// row does not, because that row is the whole point of the operation. The §12 final backup is
+    /// taken immediately before the account is destroyed and must outlive it, so a residue audit
+    /// with no exemption would refuse every deletion the final backup exists to protect — the check
+    /// and the feature would cancel each other out and the visible symptom would be "accounts can no
+    /// longer be deleted".
+    /// </para>
+    /// <para>
+    /// <b>Why it is narrowed twice over rather than once.</b> It is keyed on the CLR type
+    /// <see cref="Backup"/>, so no other module can fall into it whatever it names its rows; and
+    /// within that type it is keyed on <see cref="Backup.SurvivesAccountDeletion"/>, the same
+    /// predicate the Backups module's own cascade handler applies, so the audit and the cascade
+    /// cannot disagree about which row was meant to be kept. A backup of any other kind that
+    /// survived the cascade is still residue and still refuses the deletion, which is what
+    /// <c>DeleteAccountResidueTests</c> pins.
+    /// </para>
+    /// <para>
+    /// <b>The typed reference is the point, not an accident of the Host referencing the module.</b>
+    /// A name-matched exemption (<c>"Backup"</c>, <c>"PreDeletion"</c>) would survive a rename and
+    /// silently stop applying — or start applying to somebody else's <c>Backup</c>. The compiler is
+    /// the thing that notices, so the compiler is what this is written against. This does not let
+    /// the Host know a module's business in general: it composes them already, and what it knows
+    /// here is one entity and one predicate that entity itself declares.
+    /// </para>
+    /// </remarks>
+    private static async Task<int> CountSurvivingBackupsAsync(
+        DbContext context,
+        Guid accountId,
+        CancellationToken cancellationToken)
+    {
+#pragma warning disable RS0030 // the account is being deleted; its rows must be found whoever asked
+        var owned = await context.Set<Backup>()
+            .IgnoreQueryFilters()
+            .Where(row => row.AccountId == accountId)
+            .ToListAsync(cancellationToken);
+#pragma warning restore RS0030
+
+        // Counted in memory so the exemption is the ENTITY'S predicate and not a translation of it.
+        // A `Kind != PreDeletion` in the SQL would be a second spelling of the rule, and the two
+        // could drift apart without either side failing to compile. Materialising is affordable
+        // here: this runs once per account deletion, over one account's backups.
+        return owned.Count(row => { return !row.SurvivesAccountDeletion(); });
     }
 
     /// <summary>Counts the rows of one mapped entity that still name the account.</summary>

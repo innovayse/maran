@@ -41,7 +41,21 @@ export interface ShellUser {
   initials: string
   /** Display name, shown on one truncating line. */
   name: string
-  /** The role this person holds, already localized by the backend. */
+  /**
+   * The role this person holds, as a display string.
+   *
+   * This one is translated by the SPA, not by the backend: the panel reports a
+   * machine role (`admin`, `customer`) because the router and this menu branch
+   * on it, and the contract carries no localized label beside it. So the two
+   * words live in `app.auth.role.*` and are looked up here. That is a
+   * documented exception to "the backend owns the text of anything server-side"
+   * (rules/vue.md), and it is the SPA's own chrome only for as long as the role
+   * set stays these two words; a role the locale files do not know renders as
+   * its key. Closing it properly means the panel reporting a display name
+   * alongside the machine role — a backend change, noted rather than guessed at
+   * here. This comment previously claimed the backend had already localized it,
+   * which was never true of any version of this file.
+   */
   role: string
 }
 
@@ -70,9 +84,23 @@ const user: ComputedRef<ShellUser | null> = computed(() => {
   }
 })
 
-/** Whether the signed-in person is an administrator, used to decide what the menu offers. */
+/**
+ * Whether to offer the administrator-only entries.
+ *
+ * Asks whether the person is NOT a customer, rather than whether they ARE an
+ * administrator, and the difference is the whole point. This menu is
+ * presentation and never a gate — the endpoints refuse a customer whatever it
+ * shows — so on a role it does not recognise it must err PERMISSIVE and offer
+ * the entry (rules/architecture.md: the SPA is never the boundary). The
+ * `=== 'admin'` form errs the other way: the day the panel reports a role above
+ * administrator (`owner`, `superadmin`), every one of those people silently
+ * loses the audit journal, the security policy and the SMTP settings from their
+ * menu, with nothing on screen to say why and the backend perfectly willing to
+ * serve them. A customer who is wrongly offered a link reads one refusal; an
+ * owner who is wrongly denied one cannot find the page at all.
+ */
 const isAdmin: ComputedRef<boolean> = computed(() => {
-  return authStore.user?.role === 'admin'
+  return authStore.user !== null && authStore.user.role !== 'customer'
 })
 
 /**

@@ -2,7 +2,6 @@ using Maran.Modules.Ssl.Commands.InstallCustomCertificate;
 using Maran.Modules.Ssl.Commands.IssueCertificate;
 using Maran.Modules.Ssl.Commands.RemoveCertificate;
 using Maran.Modules.Ssl.Common;
-using Maran.Modules.Ssl.Controllers.Requests;
 using Maran.Modules.Ssl.Queries.ListCertificates;
 using Maran.Sdk.Contracts;
 using Maran.Sdk.Controllers;
@@ -60,7 +59,7 @@ public sealed class CertificatesController : BaseApiController
     }
 
     /// <summary>Orders a certificate for one of the caller's sites and installs it.</summary>
-    /// <param name="request">The domain to issue for.</param>
+    /// <param name="command">The domain to issue for.</param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpPost]
     [ProducesResponseType(typeof(CertificateDto), StatusCodes.Status201Created)]
@@ -69,17 +68,25 @@ public sealed class CertificatesController : BaseApiController
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
     public async Task<IActionResult> IssueAsync(
-        [FromBody] IssueCertificateRequest request,
+        [FromBody] IssueCertificateCommand command,
         CancellationToken cancellationToken)
     {
-        var command = new IssueCertificateCommand(request.Domain ?? string.Empty, ClientIpAddress, UserAgent());
+        // The coalescing is the one the removed request type performed: a JSON null lands as null in
+        // a non-nullable member, and the validator's host-name rule is written for a string.
+        command = command with
+        {
+            Domain = command.Domain is null ? string.Empty : command.Domain,
+            IpAddress = ClientIpAddress,
+            UserAgent = CallerUserAgent,
+        };
+
         var result = await _bus.InvokeAsync<Result<CertificateDto>>(command, cancellationToken);
         return ToCreatedActionResult(
             result, $"/api/v1/certificates/{(result.IsSuccess ? result.Value.Id : Guid.Empty)}");
     }
 
     /// <summary>Installs certificate material the customer supplied, replacing what is there.</summary>
-    /// <param name="request">The domain and the material.</param>
+    /// <param name="command">The domain and the material.</param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpPost("custom")]
     [ProducesResponseType(typeof(CertificateDto), StatusCodes.Status201Created)]
@@ -87,15 +94,20 @@ public sealed class CertificatesController : BaseApiController
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> InstallCustomAsync(
-        [FromBody] InstallCustomCertificateRequest request,
+        [FromBody] InstallCustomCertificateCommand command,
         CancellationToken cancellationToken)
     {
-        var command = new InstallCustomCertificateCommand(
-            request.Domain ?? string.Empty,
-            request.CertificatePem ?? string.Empty,
-            request.PrivateKeyPem ?? string.Empty,
-            ClientIpAddress,
-            UserAgent());
+        // The three coalescings are the ones the removed request type performed. The material is
+        // moved, not copied: the command's own ToString still refuses to render it, so the secret is
+        // no more printable here than it was one type earlier.
+        command = command with
+        {
+            Domain = command.Domain is null ? string.Empty : command.Domain,
+            CertificatePem = command.CertificatePem is null ? string.Empty : command.CertificatePem,
+            PrivateKeyPem = command.PrivateKeyPem is null ? string.Empty : command.PrivateKeyPem,
+            IpAddress = ClientIpAddress,
+            UserAgent = CallerUserAgent,
+        };
 
         var result = await _bus.InvokeAsync<Result<CertificateDto>>(command, cancellationToken);
         return ToCreatedActionResult(
@@ -111,14 +123,7 @@ public sealed class CertificatesController : BaseApiController
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> RemoveAsync(Guid id, CancellationToken cancellationToken)
     {
-        var command = new RemoveCertificateCommand(id, ClientIpAddress, UserAgent());
+        var command = new RemoveCertificateCommand(id, ClientIpAddress, CallerUserAgent);
         return ToActionResult(await _bus.InvokeAsync<Result<bool>>(command, cancellationToken));
-    }
-
-    /// <summary>Reads the caller's user agent for the audit journal.</summary>
-    /// <returns>The <c>User-Agent</c> header, or the empty string when absent.</returns>
-    private string UserAgent()
-    {
-        return HttpContext.Request.Headers.UserAgent.ToString();
     }
 }

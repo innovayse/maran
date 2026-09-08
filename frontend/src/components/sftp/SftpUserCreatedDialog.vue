@@ -100,7 +100,7 @@ watch(
   <UiModal
     :open="open"
     :title="t('sftp.credential.title')"
-    :close-label="t('sftp.credential.close')"
+    :close-label="t('common.close')"
     :dismissible="false"
     @close="close"
   >

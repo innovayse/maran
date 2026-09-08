@@ -12,8 +12,7 @@
       "columns": {
         "schedule": "Schedule",
         "command": "Command",
-        "state": "State",
-        "actions": "Actions"
+        "state": "State"
       },
       "enabled": "On",
       "disabled": "Off",
@@ -23,8 +22,8 @@
       "lastOutput": "Last run",
       "remove": "Remove",
       "confirmRemove": "Remove this entry? Its command file and its last run go with it.",
+      "confirmRemoveTitle": "Remove the scheduled task {command}",
       "confirm": "Yes, remove it",
-      "cancel": "Cancel",
       "working": "Working…",
       "rowActions": "Actions for {command}"
     },
@@ -42,15 +41,6 @@
         "weekly": "Every week",
         "monthly": "Every month"
       },
-      "weekdays": {
-        "sunday": "Sunday",
-        "monday": "Monday",
-        "tuesday": "Tuesday",
-        "wednesday": "Wednesday",
-        "thursday": "Thursday",
-        "friday": "Friday",
-        "saturday": "Saturday"
-      },
       "fields": {
         "frequency": "How often",
         "minute": "Minute",
@@ -66,8 +56,7 @@
         "expression": "That is not a schedule this server accepts. Five fields, separated by spaces: minute, hour, day of month, month, day of week.",
         "builder": "Those values are outside what the field allows."
       },
-      "previewLabel": "Sent as",
-      "previewUnavailable": "—"
+      "previewLabel": "Sent as"
     },
     "form": {
       "createHeading": "Add a scheduled task",
@@ -84,29 +73,24 @@
         "command": "A command is one line, with no leading or trailing spaces."
       },
       "create": "Add entry",
-      "save": "Save changes",
-      "cancel": "Cancel",
-      "working": "Saving…"
+      "save": "Save changes"
     },
     "environment": {
       "heading": "Environment",
       "description": "Values every entry in this crontab runs with, such as PATH or TZ.",
       "fields": {
-        "name": "Name",
         "value": "Value"
       },
       "add": "Add a variable",
       "remove": "Remove",
       "removeRow": "Remove the variable {name}",
       "save": "Save environment",
-      "working": "Saving…",
       "reservedHint": "{name} is managed by the server and cannot be set here — it will be refused.",
       "reservedNote": "Rename or remove the highlighted variables before saving.",
       "replaceWarning": "Saving replaces the whole set: a variable removed from this list is removed from the crontab, and saving an empty list clears them all."
     },
     "output": {
       "title": "Last run",
-      "close": "Close",
       "loading": "Reading the last run…",
       "neverRan": "This entry has not run yet, so there is nothing to show.",
       "exitCode": "Exit code",

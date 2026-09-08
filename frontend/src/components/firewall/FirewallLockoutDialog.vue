@@ -96,7 +96,7 @@ const describe = (rule: FirewallRule): string => {
   <UiModal
     :open="open"
     :title="title"
-    :close-label="t('firewall.lockout.close')"
+    :close-label="t('common.close')"
     @close="emit('close')"
   >
     <div class="flex flex-col gap-3">
@@ -115,7 +115,7 @@ const describe = (rule: FirewallRule): string => {
       <p class="text-sm text-text-muted">{{ t('firewall.lockout.sshPortUnknown') }}</p>
       <div class="mt-1 flex flex-wrap justify-end gap-2">
         <UiButton variant="secondary" @click="emit('close')">
-          {{ t('firewall.lockout.cancel') }}
+          {{ t('common.cancel') }}
         </UiButton>
         <UiButton
           :variant="intent === 'deny' ? 'destructive' : 'primary'"

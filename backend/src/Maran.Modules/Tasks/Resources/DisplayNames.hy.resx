@@ -15,4 +15,25 @@
   <data name="TasksModuleDisplayName">
     <value>Առաջադրանքներ</value>
   </data>
+  <data name="TaskKindCertificateIssue">
+    <value>Վկայագրի թողարկում</value>
+  </data>
+  <data name="TaskKindCertificateRenewal">
+    <value>Վկայագրի երկարաձգում</value>
+  </data>
+  <data name="TaskKindAccountDeletion">
+    <value>Հաշվի ջնջում</value>
+  </data>
+  <data name="TaskKindAccountSuspension">
+    <value>Հաշվի կասեցում</value>
+  </data>
+  <data name="TaskKindAccountResumption">
+    <value>Հաշվի վերականգնում</value>
+  </data>
+  <data name="TaskKindBackupCreate">
+    <value>Պահուստային պատճենի ստեղծում</value>
+  </data>
+  <data name="TaskKindBackupRestore">
+    <value>Վերականգնում պահուստային պատճենից</value>
+  </data>
 </root>

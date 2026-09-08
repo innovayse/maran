@@ -23,8 +23,7 @@
         "phpVersion": "PHP",
         "status": "Կարգավիճակ",
         "createdAt": "Ստեղծված"
-      },
-      "noPhpVersion": "—"
+      }
     },
     "form": {
       "heading": "Նոր կայք",
@@ -44,13 +43,14 @@
       },
       "placeholders": {
         "domain": "example.com",
-        "proxyUpstream": "127.0.0.1:3000"
+        "proxyUpstream": "127.0.0.1:3000",
+        "accountId": "Ընտրեք հաշիվը",
+        "phpVersion": "Ընտրեք PHP-ի տարբերակը"
       },
       "phpVersionOption": "PHP {version}",
       "phpVersionDefaultOption": "PHP {version} (սերվերի կանխադրված)",
       "noPhpVersions": "Այս սերվերում PHP-ի ոչ մի տարբերակ տեղադրված չէ։",
       "submit": "Ստեղծել կայք",
-      "cancel": "Չեղարկել",
       "errors": {
         "accountRequired": "Ընտրեք հաշիվը, որին պատկանելու է կայքը։",
         "domainRequired": "Դոմեյնը պարտադիր է։",
@@ -86,12 +86,9 @@
       "changePhpVersion": "Փոխել PHP-ի տարբերակը",
       "enable": "Միացնել",
       "disable": "Անջատել",
-      "delete": "Ջնջել",
       "confirmEnable": "Միացնե՞լ այս կայքը։ Այն կրկին կսկսի հանձնել իր բովանդակությունը։",
       "confirmDisable": "Անջատե՞լ այս կայքը։ Նրա vhost-ը կմնա, բայց կպատասխանի կասեցման էջով։",
       "confirmDelete": "Ջնջե՞լ այս կայքը։ Նրա vhost-ը կհեռացվի, և դոմեյնը կդադարի սպասարկվել։ Փաստաթղթերի արմատի ֆայլերը կմնան սկավառակի վրա։",
-      "confirm": "Այո, կատարել",
-      "cancel": "Չեղարկել",
       "working": "Կատարվում է…",
       "logs": {
         "sourceLabel": "Լոգ",
@@ -116,7 +113,10 @@
           "truncated": "Հոսքն ավարտվեց առանց պատճառ նշելու․ տողեր կարող են բացակայել։",
           "cancelled": "Ընթերցումը դադարեցվեց։"
         }
-      }
+      },
+      "confirmEnableTitle": "Միացնել {domain} կայքը",
+      "confirmDisableTitle": "Անջատել {domain} կայքը",
+      "confirmDeleteTitle": "Ջնջել {domain} կայքը"
     }
   }
 }

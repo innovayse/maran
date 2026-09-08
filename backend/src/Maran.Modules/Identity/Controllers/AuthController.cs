@@ -10,7 +10,6 @@ using Maran.Modules.Identity.Commands.RequestPasswordReset;
 using Maran.Modules.Identity.Commands.ResetPassword;
 using Maran.Modules.Identity.Commands.VerifyTwoFactor;
 using Maran.Modules.Identity.Common;
-using Maran.Modules.Identity.Controllers.Requests;
 using Maran.Modules.Identity.Mappers;
 using Maran.Modules.Identity.Models;
 using Maran.Sdk.Contracts;
@@ -59,7 +58,7 @@ public sealed class AuthController : BaseApiController
     /// the body. A caller who omits or forges the query value only makes their own attempts share a
     /// coarser bucket, never a larger budget.
     /// </remarks>
-    /// <param name="request">The username and password.</param>
+    /// <param name="command">The username and password. The address and user agent are stamped here.</param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpPost("login")]
     [AllowAnonymous]
@@ -68,10 +67,10 @@ public sealed class AuthController : BaseApiController
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public async Task<IActionResult> LoginAsync(
-        [FromBody] LoginRequest request,
+        [FromBody] LoginCommand command,
         CancellationToken cancellationToken)
     {
-        var command = new LoginCommand(request.Username, request.Password, ClientIpAddress, CallerUserAgent);
+        command = command with { IpAddress = ClientIpAddress, UserAgent = CallerUserAgent };
         var result = await _bus.InvokeAsync<Result<LoginOutcome>>(command, cancellationToken);
 
         if (result.IsSuccess && result.Value.Authenticated is { } authenticated)
@@ -186,7 +185,7 @@ public sealed class AuthController : BaseApiController
     /// password: this endpoint is reachable on its own, so treating the caller as already half
     /// authenticated would make the code the only factor for anyone who calls it directly.
     /// </summary>
-    /// <param name="request">Both factors.</param>
+    /// <param name="command">Both factors. The address and user agent are stamped here.</param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpPost("two-factor")]
     [AllowAnonymous]
@@ -194,11 +193,10 @@ public sealed class AuthController : BaseApiController
     [ProducesResponseType(typeof(AuthenticatedSessionDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public async Task<IActionResult> VerifyTwoFactorAsync(
-        [FromBody] VerifyTwoFactorRequest request,
+        [FromBody] VerifyTwoFactorCommand command,
         CancellationToken cancellationToken)
     {
-        var command = new VerifyTwoFactorCommand(
-            request.Username, request.Password, request.Code, ClientIpAddress, CallerUserAgent);
+        command = command with { IpAddress = ClientIpAddress, UserAgent = CallerUserAgent };
         var result = await _bus.InvokeAsync<Result<AuthenticatedOutcome>>(command, cancellationToken);
 
         if (result.IsSuccess)
@@ -233,7 +231,8 @@ public sealed class AuthController : BaseApiController
     }
 
     /// <summary>Completes an enrolment and returns the recovery codes, once.</summary>
-    /// <param name="request">The secret and a code proving it works.</param>
+    /// <param name="command">The secret and a code proving it works. The caller, address and user
+    /// agent are stamped here.</param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpPost("two-factor/confirm")]
     [Authorize]
@@ -242,16 +241,21 @@ public sealed class AuthController : BaseApiController
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     public async Task<IActionResult> ConfirmTwoFactorEnrolmentAsync(
-        [FromBody] ConfirmTwoFactorRequest request,
+        [FromBody] ConfirmTotpEnrolmentCommand command,
         CancellationToken cancellationToken)
     {
-        var command = new ConfirmTotpEnrolmentCommand(
-            CurrentUser.UserId, request.Secret, request.Code, ClientIpAddress, CallerUserAgent);
+        command = command with
+        {
+            UserId = CurrentUser.UserId,
+            IpAddress = ClientIpAddress,
+            UserAgent = CallerUserAgent,
+        };
         return ToActionResult(await _bus.InvokeAsync<Result<RecoveryCodesDto>>(command, cancellationToken));
     }
 
     /// <summary>Turns the second factor off, for a caller who can still satisfy it.</summary>
-    /// <param name="request">A current code or a recovery code.</param>
+    /// <param name="command">A current code or a recovery code. The caller, address and user agent
+    /// are stamped here.</param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpPost("two-factor/disable")]
     [Authorize]
@@ -259,11 +263,15 @@ public sealed class AuthController : BaseApiController
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     public async Task<IActionResult> DisableTwoFactorAsync(
-        [FromBody] DisableTwoFactorRequest request,
+        [FromBody] DisableTotpCommand command,
         CancellationToken cancellationToken)
     {
-        var command = new DisableTotpCommand(
-            CurrentUser.UserId, request.Code, ClientIpAddress, CallerUserAgent);
+        command = command with
+        {
+            UserId = CurrentUser.UserId,
+            IpAddress = ClientIpAddress,
+            UserAgent = CallerUserAgent,
+        };
         return ToActionResult(await _bus.InvokeAsync<Result<bool>>(command, cancellationToken));
     }
 
@@ -285,7 +293,8 @@ public sealed class AuthController : BaseApiController
     /// bomb aimed at whatever address the caller names.
     /// </para>
     /// </remarks>
-    /// <param name="request">The address to send the link to.</param>
+    /// <param name="command">The address to send the link to. The caller's address and user agent
+    /// are stamped here.</param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpPost("forgot-password")]
     [AllowAnonymous]
@@ -293,10 +302,10 @@ public sealed class AuthController : BaseApiController
     [ProducesResponseType(typeof(bool), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> RequestPasswordResetAsync(
-        [FromBody] RequestPasswordResetRequest request,
+        [FromBody] RequestPasswordResetCommand command,
         CancellationToken cancellationToken)
     {
-        var command = new RequestPasswordResetCommand(request.Email, ClientIpAddress, CallerUserAgent);
+        command = command with { IpAddress = ClientIpAddress, UserAgent = CallerUserAgent };
         return ToActionResult(await _bus.InvokeAsync<Result<bool>>(command, cancellationToken));
     }
 
@@ -306,7 +315,8 @@ public sealed class AuthController : BaseApiController
     /// credential. It is single-use and expires in an hour, and a token that never existed, has
     /// expired, or has already been spent all get the same refusal — a caller must not learn which.
     /// </remarks>
-    /// <param name="request">The token from the mail and the new password.</param>
+    /// <param name="command">The token from the mail and the new password. The caller's address and
+    /// user agent are stamped here.</param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpPost("reset-password")]
     [AllowAnonymous]
@@ -314,11 +324,10 @@ public sealed class AuthController : BaseApiController
     [ProducesResponseType(typeof(bool), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> ResetPasswordAsync(
-        [FromBody] ResetPasswordRequest request,
+        [FromBody] ResetPasswordCommand command,
         CancellationToken cancellationToken)
     {
-        var command = new ResetPasswordCommand(
-            request.Token, request.NewPassword, ClientIpAddress, CallerUserAgent);
+        command = command with { IpAddress = ClientIpAddress, UserAgent = CallerUserAgent };
         return ToActionResult(await _bus.InvokeAsync<Result<bool>>(command, cancellationToken));
     }
 }

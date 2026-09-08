@@ -89,6 +89,47 @@ pub enum AccountError {
         reason: String,
     },
 
+    /// The account's sites could not be inspected, so nothing can be
+    /// concluded about whether they are serving.
+    ///
+    /// Its own variant rather than a `CommandFailed`, and never folded into a
+    /// success with an empty list: the caller of the suspension state uses the
+    /// answer to decide whether it may report an account as suspended, and an
+    /// account whose sites could not be looked at is precisely the one it must
+    /// refuse to report on.
+    #[error("the account's sites could not be inspected: {reason}")]
+    SiteInspection {
+        /// What the site area refused with.
+        reason: String,
+    },
+
+    /// The account's crontab could not be read, so its cron cannot be reported
+    /// on.
+    ///
+    /// Never folded into a count of zero. Zero entries and an unreadable
+    /// crontab are the same number to any caller that guesses, and zero is the
+    /// one that reads as "nothing is firing" — over a crontab that is.
+    #[error("the account's crontab could not be inspected: {reason}")]
+    CronInspection {
+        /// What the cron area refused with.
+        reason: String,
+    },
+
+    /// The account's SFTP logins could not be enumerated, or one of them could
+    /// not be asked about.
+    ///
+    /// Its own variant rather than the [`Self::SftpRemoval`] that the blanket
+    /// `From<SftpError>` produces, and so the conversion is written out at the
+    /// call site instead of ridden on `?`: the same refusal from the same area
+    /// means "the deletion did not happen" in one operation and "the state
+    /// could not be observed" in this one, and an operator sent to the wrong
+    /// one of those looks in the wrong place.
+    #[error("the account's sftp logins could not be inspected: {reason}")]
+    SftpInspection {
+        /// What the SFTP area refused with.
+        reason: String,
+    },
+
     /// The account's SFTP logins, jail or bind mount could not be taken away,
     /// so the account has NOT been deleted.
     ///
@@ -140,6 +181,18 @@ impl From<crate::sftp::SftpError> for AccountError {
     /// it, flattened for the same reason the two conversions above are.
     fn from(error: crate::sftp::SftpError) -> Self {
         Self::SftpRemoval {
+            reason: error.to_string(),
+        }
+    }
+}
+
+impl From<crate::sites::SitesOpError> for AccountError {
+    /// Reports a site that could not be read as a refusal to answer about the
+    /// account's suspension state, flattened for the reason the three
+    /// conversions above are: what a caller acts on is that the host could not
+    /// be observed, not which of the site area's eleven variants it was.
+    fn from(error: crate::sites::SitesOpError) -> Self {
+        Self::SiteInspection {
             reason: error.to_string(),
         }
     }

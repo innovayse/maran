@@ -15,6 +15,7 @@ import { RouterLink, useRouter } from 'vue-router'
 import UiAlert from '../../components/ui/UiAlert.vue'
 import UiButton from '../../components/ui/UiButton.vue'
 import UiEmptyState from '../../components/ui/UiEmptyState.vue'
+import UiPageHeading from '../../components/ui/UiPageHeading.vue'
 import UiSpinner from '../../components/ui/UiSpinner.vue'
 import UiTable from '../../components/ui/UiTable.vue'
 import UiTableCell from '../../components/ui/UiTableCell.vue'
@@ -56,15 +57,11 @@ onMounted(refresh)
 
 <template>
   <section class="w-full">
-    <div class="mb-4 flex flex-wrap items-end justify-between gap-4">
-      <div>
-        <h1 class="text-3xl font-semibold tracking-title text-text-primary">
-          {{ t('sites.list.heading') }}
-        </h1>
-        <p class="mt-1 text-base text-text-secondary">{{ t('sites.list.subtitle') }}</p>
-      </div>
-      <UiButton @click="goToCreate">{{ t('sites.list.createAction') }}</UiButton>
-    </div>
+    <UiPageHeading class="mb-4" :title="t('sites.list.heading')" :subtitle="t('sites.list.subtitle')">
+      <template #actions>
+        <UiButton @click="goToCreate">{{ t('sites.list.createAction') }}</UiButton>
+      </template>
+    </UiPageHeading>
 
     <UiSpinner v-if="store.loading" :label="t('sites.list.loading')" />
 
@@ -101,7 +98,7 @@ onMounted(refresh)
         <!-- The backend sends an empty version for a non-PHP site; that is an absence, and it is
              shown as one rather than as a blank cell a reader would mistake for missing data. -->
         <UiTableCell class="font-mono text-text-secondary">
-          {{ site.phpVersion.length > 0 ? site.phpVersion : t('sites.list.noPhpVersion') }}
+          {{ site.phpVersion.length > 0 ? site.phpVersion : t('common.emptyValue') }}
         </UiTableCell>
         <UiTableCell><SiteStatusBadge :status="site.status" /></UiTableCell>
         <UiTableCell class="font-mono text-text-muted">

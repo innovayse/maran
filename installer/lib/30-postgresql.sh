@@ -78,11 +78,32 @@ pg_restrict_to_unix_socket() {
     echo "30-postgresql.sh: could not locate postgresql.conf" >&2
     exit 1
   fi
+  # pg_hba.conf is validated exactly like postgresql.conf. Without this, an empty result
+  # from pg_hba_path() reaches `mv -f "$tmp" ""` and the operator's diagnostic for "the
+  # installer could not find PostgreSQL's config" is mv complaining about an empty argument.
+  if [ -z "$hba" ] || [ ! -f "$hba" ]; then
+    echo "30-postgresql.sh: could not locate pg_hba.conf" >&2
+    exit 1
+  fi
 
   if grep -q "^listen_addresses" "$conf"; then
     sed -i "s/^listen_addresses.*/listen_addresses = ''/" "$conf"
   else
     echo "listen_addresses = ''" >> "$conf"
+  fi
+
+  # This step REPLACES pg_hba.conf wholesale, which is what makes the unix-socket-only
+  # guarantee a guarantee rather than a hope: any `host` line left in place would keep a TCP
+  # grant alive. Wholesale replacement also discards anything the operator added by hand
+  # (replication lines are the usual case), so the file being replaced is preserved once —
+  # only if no preserved copy exists yet, so a re-run can never overwrite the true original
+  # with a copy of Maran's own managed file — and the operator is told where it went. Silently
+  # discarding an operator's configuration is destructive even when the outcome is idempotent.
+  if [ ! -f "${hba}.pre-maran" ]; then
+    cp -p "$hba" "${hba}.pre-maran"
+    echo "Saved the previous pg_hba.conf to ${hba}.pre-maran."
+    echo "  Maran manages pg_hba.conf: any lines you added there (replication, for example)"
+    echo "  are not carried over and must be re-applied by hand after reviewing them."
   fi
 
   tmp="$(mktemp)"
@@ -98,16 +119,39 @@ pg_restrict_to_unix_socket() {
 
 # pg_create_role_and_db: idempotent role/database creation using `IF NOT EXISTS`-style
 # checks via psql, run as the postgres OS user over the unix socket (peer auth).
+#
+# `runuser`, not `sudo`. The installer is already root (install.sh refuses to start otherwise),
+# so nothing here needs sudo's privilege escalation — only its uid switch. `sudo` is a package
+# that a minimal Debian netinst or a minimal RHEL image does not install, and this step never
+# adds it to the dependency set, so `sudo -u postgres` was a dependency the installer assumed
+# and never declared. `runuser` ships in util-linux, which is part of the base system on both
+# supported families and cannot be absent on a host that boots.
 pg_create_role_and_db() {
   local role_exists db_exists
-  role_exists="$(sudo -u postgres psql -tAc "SELECT 1 FROM pg_roles WHERE rolname='${MARAN_DB_ROLE}'")"
+  role_exists="$(runuser -u postgres -- psql -tAc "SELECT 1 FROM pg_roles WHERE rolname='${MARAN_DB_ROLE}'")"
   if [ "$role_exists" != "1" ]; then
-    sudo -u postgres psql -c "CREATE ROLE ${MARAN_DB_ROLE} LOGIN;"
+    runuser -u postgres -- psql -c "CREATE ROLE ${MARAN_DB_ROLE} LOGIN;"
   fi
 
-  db_exists="$(sudo -u postgres psql -tAc "SELECT 1 FROM pg_database WHERE datname='${MARAN_DB_NAME}'")"
+  db_exists="$(runuser -u postgres -- psql -tAc "SELECT 1 FROM pg_database WHERE datname='${MARAN_DB_NAME}'")"
   if [ "$db_exists" != "1" ]; then
-    sudo -u postgres psql -c "CREATE DATABASE ${MARAN_DB_NAME} OWNER ${MARAN_DB_ROLE};"
+    runuser -u postgres -- psql -c "CREATE DATABASE ${MARAN_DB_NAME} OWNER ${MARAN_DB_ROLE};"
+  fi
+}
+
+# pg_assert_no_tcp_listener: the observation behind the message. listen_addresses is a
+# `postmaster`-context GUC, so it is applied by a full restart and by nothing else; asking the
+# running server what it ended up with is the only way this step can claim "unix-socket only"
+# and be telling the truth. An empty listen_addresses means no TCP socket was opened at all.
+pg_assert_no_tcp_listener() {
+  local listen
+  listen="$(runuser -u postgres -- psql -tAc "SHOW listen_addresses" | tr -d '[:space:]')"
+  if [ -n "$listen" ]; then
+    echo "30-postgresql.sh: PostgreSQL is still listening on TCP (listen_addresses = '${listen}')." >&2
+    echo "  The unix-socket-only configuration was written but the running server did not adopt" >&2
+    echo "  it. Check that $(pg_conf_path) is the config file the running server loaded" >&2
+    echo "  (SHOW config_file) and that the service actually restarted. Aborting." >&2
+    exit 1
   fi
 }
 
@@ -116,7 +160,14 @@ step_postgresql() {
   pg_install
   pg_restrict_to_unix_socket
   systemctl enable --now "$(pg_service_name)"
-  systemctl reload "$(pg_service_name)" || systemctl restart "$(pg_service_name)"
+  # RESTART, not reload. listen_addresses has GUC context `postmaster`: a SIGHUP reload
+  # re-reads the file and keeps the listener the postmaster opened at startup. `reload ||
+  # restart` was worse than a no-op — the reload SUCCEEDS on both families (Debian's meta
+  # unit is `ExecReload=/bin/true`; RHEL's is `kill -HUP $MAINPID`), which short-circuits the
+  # `||` so the restart never ran, and the package-started server kept its TCP listener on
+  # 127.0.0.1:5432 while this step printed "unix-socket only".
+  systemctl restart "$(pg_service_name)"
   pg_create_role_and_db
+  pg_assert_no_tcp_listener
   echo "PostgreSQL ready: database '${MARAN_DB_NAME}', role '${MARAN_DB_ROLE}', unix-socket only."
 }

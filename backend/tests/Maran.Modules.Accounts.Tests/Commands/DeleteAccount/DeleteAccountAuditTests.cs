@@ -40,7 +40,13 @@ public sealed class DeleteAccountAuditTests : IDisposable
         var result = await DeleteAsync(new RecordingAgentAccountsClient(), new StubMessageBus(), account.Id);
 
         Assert.True(result.IsSuccess);
-        var entry = Assert.Single(_audit.Entries);
+        // The DELETION's own entry, not "the only entry": a deletion now also journals what
+        // happened to the final backup (spec §12), and those are different facts under different
+        // actions. Naming the action is what keeps this test about the deletion.
+        var entry = Assert.Single(_audit.Entries, candidate =>
+        {
+            return candidate.Action == AuditActions.AccountDeleted;
+        });
         Assert.Equal(AuditActions.AccountDeleted, entry.Action);
         Assert.Equal("acme", entry.Subject);
         Assert.True(entry.Succeeded);
@@ -63,7 +69,13 @@ public sealed class DeleteAccountAuditTests : IDisposable
 
         Assert.Equal("AgentSystemFailure", result.Error!.Code);
         Assert.Single(bus.Invoked);
-        var entry = Assert.Single(_audit.Entries);
+        // The DELETION's own entry, not "the only entry": a deletion now also journals what
+        // happened to the final backup (spec §12), and those are different facts under different
+        // actions. Naming the action is what keeps this test about the deletion.
+        var entry = Assert.Single(_audit.Entries, candidate =>
+        {
+            return candidate.Action == AuditActions.AccountDeleted;
+        });
         Assert.Equal(AuditActions.AccountDeleted, entry.Action);
         Assert.Equal("acme", entry.Subject);
         Assert.False(entry.Succeeded);
@@ -80,7 +92,13 @@ public sealed class DeleteAccountAuditTests : IDisposable
         var result = await DeleteAsync(new RecordingAgentAccountsClient(), bus, account.Id);
 
         Assert.Equal("AccountCleanupFailed", result.Error!.Code);
-        var entry = Assert.Single(_audit.Entries);
+        // The DELETION's own entry, not "the only entry": a deletion now also journals what
+        // happened to the final backup (spec §12), and those are different facts under different
+        // actions. Naming the action is what keeps this test about the deletion.
+        var entry = Assert.Single(_audit.Entries, candidate =>
+        {
+            return candidate.Action == AuditActions.AccountDeleted;
+        });
         Assert.Equal(AuditActions.AccountDeleted, entry.Action);
         Assert.Equal("acme", entry.Subject);
         Assert.False(entry.Succeeded);
@@ -95,7 +113,13 @@ public sealed class DeleteAccountAuditTests : IDisposable
         var result = await DeleteAsync(new RecordingAgentAccountsClient(), new StubMessageBus(), probed);
 
         Assert.Equal("AccountNotFound", result.Error!.Code);
-        var entry = Assert.Single(_audit.Entries);
+        // The DELETION's own entry, not "the only entry": a deletion now also journals what
+        // happened to the final backup (spec §12), and those are different facts under different
+        // actions. Naming the action is what keeps this test about the deletion.
+        var entry = Assert.Single(_audit.Entries, candidate =>
+        {
+            return candidate.Action == AuditActions.AccountDeleted;
+        });
         Assert.Equal(AuditActions.AccountDeleted, entry.Action);
         Assert.Equal(probed.ToString(), entry.Subject);
         Assert.False(entry.Succeeded);
@@ -111,7 +135,13 @@ public sealed class DeleteAccountAuditTests : IDisposable
 
         var result = await DeleteAsync(new RecordingAgentAccountsClient(), new StubMessageBus(), account.Id);
 
-        var entry = Assert.Single(_audit.Entries);
+        // The DELETION's own entry, not "the only entry": a deletion now also journals what
+        // happened to the final backup (spec §12), and those are different facts under different
+        // actions. Naming the action is what keeps this test about the deletion.
+        var entry = Assert.Single(_audit.Entries, candidate =>
+        {
+            return candidate.Action == AuditActions.AccountDeleted;
+        });
         Assert.Equal("acme", entry.Subject);
         Assert.DoesNotContain("/", entry.Subject, StringComparison.Ordinal);
         Assert.NotEqual(result.Value.ToString(System.Globalization.CultureInfo.InvariantCulture), entry.Subject);
@@ -155,7 +185,11 @@ public sealed class DeleteAccountAuditTests : IDisposable
             new AccountAuditJournal(_audit, FakeCurrentUser.Admin()),
             new RecordingTaskRecorder(),
             new StubAccountResidueAuditor(),
-            new StubCorrelationIdAccessor(null));
+            new StubCorrelationIdAccessor(null),
+
+            // No final-backup service: these fixtures compose the Accounts module alone, which is
+            // the "panel without a Backups module" arrangement, and the deletion proceeds.
+            []);
 
         return handler.HandleAsync(new DeleteAccountCommand(accountId, Ip, Client), CancellationToken.None);
     }

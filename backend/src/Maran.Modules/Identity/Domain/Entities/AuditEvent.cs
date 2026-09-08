@@ -7,6 +7,27 @@ namespace Maran.Modules.Identity.Domain.Entities;
 /// </summary>
 public sealed class AuditEvent
 {
+    /// <summary>The width of <see cref="ActorUsername"/>, in characters.</summary>
+    /// <remarks>
+    /// A login name, and long enough for one. It is NOT long enough for every value that reaches
+    /// it: a claimed name may be an email address, which the standard allows 320 characters. The
+    /// constant lives here so that the configuration and the writer that must respect it read the
+    /// same number, rather than each restating a literal that the other can outgrow.
+    /// </remarks>
+    public const int ActorUsernameMaxLength = 64;
+
+    /// <summary>The width of <see cref="Action"/>, in characters.</summary>
+    public const int ActionMaxLength = 64;
+
+    /// <summary>The width of <see cref="Subject"/>, in characters.</summary>
+    public const int SubjectMaxLength = 256;
+
+    /// <summary>The width of <see cref="IpAddress"/>, in characters: a full IPv4-mapped IPv6 text.</summary>
+    public const int IpAddressMaxLength = 45;
+
+    /// <summary>The width of <see cref="CorrelationId"/>, in characters.</summary>
+    public const int CorrelationIdMaxLength = 64;
+
     /// <summary>The event's identity.</summary>
     public Guid Id { get; private set; }
 

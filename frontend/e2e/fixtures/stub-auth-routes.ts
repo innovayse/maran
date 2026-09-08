@@ -1,5 +1,6 @@
 import type { Page } from '@playwright/test'
 import type { AuthenticatedSession, AuthenticatedUser, LoginResult, SetupState } from '../../src/types/auth'
+import { stubEmptyTasks } from './stub-tasks-routes'
 
 /** The administrator every authenticated spec signs in as. */
 const ADMINISTRATOR: AuthenticatedUser = {
@@ -44,6 +45,11 @@ const SIGNED_IN: LoginResult = { session: SIGNED_IN_SESSION }
  */
 export const stubSignedIn = async (page: Page, user: AuthenticatedUser = ADMINISTRATOR): Promise<void> => {
   await stubSetupState(page, { isComplete: true })
+
+  // The shell's tasks badge reads the listing on every authenticated screen, so an unstubbed
+  // `/api/v1/tasks` is not a tasks-spec concern — it is every spec's. Installed FIRST on purpose:
+  // Playwright matches routes newest-first, so a spec that stubs the listing itself still wins.
+  await stubEmptyTasks(page)
 
   await page.route('**/api/v1/auth/refresh', async (route) => {
     await route.fulfill({

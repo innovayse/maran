@@ -3,6 +3,7 @@ using Grpc.Net.Client;
 using Maran.Agent.Client.Channels;
 using Maran.Agent.Client.Interfaces;
 using Maran.Agent.Client.Services.AccountsService;
+using Maran.Agent.Client.Services.BackupService;
 using Maran.Agent.Client.Services.CronService;
 using Maran.Agent.Client.Services.DbService;
 using Maran.Agent.Client.Services.FilesService;
@@ -115,6 +116,13 @@ public static class DependencyInjection
                 return new AgentMonitorClient(
                     provider.GetRequiredService<GrpcChannel>(),
                     provider.GetRequiredService<ILogger<AgentMonitorClient>>());
+            });
+        services.AddSingleton<IAgentBackupClient>(
+            provider =>
+            {
+                return new AgentBackupClient(
+                    provider.GetRequiredService<GrpcChannel>(),
+                    provider.GetRequiredService<ILogger<AgentBackupClient>>());
             });
         services.AddSingleton<IAgentSystemClient>(
             provider =>

@@ -4,22 +4,27 @@ use std::sync::Arc;
 
 use maran_agent_core::validation::system::name::AccountName;
 use maran_ops::accounts::{AccountError, AccountOperations, SystemHost};
+use maran_ops::cron::CronHost;
 use maran_ops::db::DbHost;
 use maran_ops::php::PhpHost;
 use maran_ops::sftp::SftpHost;
+use maran_ops::sites::SiteHost;
 use tonic::{Request, Response, Status};
 
 use crate::proto::accounts_service_server::AccountsService;
 use crate::proto::{
     AgentError, CreateAccountOk, CreateAccountRequest, CreateAccountResponse, DeleteAccountOk,
-    DeleteAccountRequest, DeleteAccountResponse, ErrorCode, GetAccountUsageOk,
+    DeleteAccountRequest, DeleteAccountResponse, ErrorCode, GetAccountSuspensionStateOk,
+    GetAccountSuspensionStateRequest, GetAccountSuspensionStateResponse, GetAccountUsageOk,
     GetAccountUsageRequest, GetAccountUsageResponse, SetAccountQuotaOk, SetAccountQuotaRequest,
-    SetAccountQuotaResponse, SuspendAccountOk, SuspendAccountRequest, SuspendAccountResponse,
-    UnsuspendAccountOk, UnsuspendAccountRequest, UnsuspendAccountResponse, create_account_response,
-    delete_account_response, get_account_usage_response, set_account_quota_response,
+    SetAccountQuotaResponse, SftpLoginSuspensionFact, SiteSuspensionFact, SuspendAccountOk,
+    SuspendAccountRequest, SuspendAccountResponse, UnsuspendAccountOk, UnsuspendAccountRequest,
+    UnsuspendAccountResponse, create_account_response, delete_account_response,
+    get_account_suspension_state_response, get_account_usage_response, set_account_quota_response,
     suspend_account_response, unsuspend_account_response,
 };
 use crate::services::accounts::account_status::to_agent_error;
+use crate::services::accounts::to_login_password_state::to_login_password_state;
 use crate::services::wire::run_blocking::run_blocking;
 
 /// The noun phrase in the message a failed blocking task reports under.
@@ -49,7 +54,14 @@ const ACCOUNT_OPERATION: &str = "account operation";
 /// `'static`, and a borrow of `&self` is not that; the `Arc`s are what the
 /// closures move. The reference counting is not the point and is never
 /// contended — one clone per rpc against a process spawn.
-pub struct AccountsServiceImpl<H: SystemHost, P: PhpHost, D: DbHost, S: SftpHost> {
+pub struct AccountsServiceImpl<
+    H: SystemHost,
+    P: PhpHost,
+    D: DbHost,
+    S: SftpHost,
+    W: SiteHost,
+    C: CronHost,
+> {
     /// The operations, bound to whatever machine they were built against, and
     /// shared with the blocking tasks that run them.
     operations: Arc<AccountOperations<H>>,
@@ -72,18 +84,47 @@ pub struct AccountsServiceImpl<H: SystemHost, P: PhpHost, D: DbHost, S: SftpHost
     /// and because the account's home is bind-mounted into a jail that has to
     /// come down before the home does.
     sftp_host: Arc<S>,
+
+    /// The site area's machine, because a suspension the panel cannot OBSERVE
+    /// is one it must not report. Reading a vhost is the only thing this
+    /// service asks of it, and it never writes one: the vhost a suspended
+    /// account serves is written by `SitesService.DisableSite`, driven per
+    /// site by the panel, which is the only party that knows which sites the
+    /// customer had enabled.
+    site_host: Arc<W>,
+
+    /// The cron area's machine, because a suspension the panel cannot OBSERVE
+    /// is one it must not report — and cron is the subsystem where that is
+    /// sharpest. The Cron module keeps no rows at all, so the only place the
+    /// answer exists is the crontab on this host; a check that asked the panel
+    /// would be green over a firing table.
+    ///
+    /// Read-only here, exactly as `site_host` is: the crontab a suspended
+    /// account carries is written by `CronService.SetAccountCronSuspended`.
+    cron_host: Arc<C>,
 }
 
-impl<H: SystemHost, P: PhpHost, D: DbHost, S: SftpHost> AccountsServiceImpl<H, P, D, S> {
-    /// Creates the service around `operations` and the three hosts its
-    /// deletions need.
+impl<H: SystemHost, P: PhpHost, D: DbHost, S: SftpHost, W: SiteHost, C: CronHost>
+    AccountsServiceImpl<H, P, D, S, W, C>
+{
+    /// Creates the service around `operations`, the three hosts its deletions
+    /// need and the two hosts its suspension state reads.
     #[must_use]
-    pub fn new(operations: AccountOperations<H>, php_host: P, db_host: D, sftp_host: S) -> Self {
+    pub fn new(
+        operations: AccountOperations<H>,
+        php_host: P,
+        db_host: D,
+        sftp_host: S,
+        site_host: W,
+        cron_host: C,
+    ) -> Self {
         Self {
             operations: Arc::new(operations),
             php_host: Arc::new(php_host),
             db_host: Arc::new(db_host),
             sftp_host: Arc::new(sftp_host),
+            site_host: Arc::new(site_host),
+            cron_host: Arc::new(cron_host),
         }
     }
 
@@ -135,8 +176,14 @@ impl<H: SystemHost, P: PhpHost, D: DbHost, S: SftpHost> AccountsServiceImpl<H, P
 }
 
 #[tonic::async_trait]
-impl<H: SystemHost + 'static, P: PhpHost + 'static, D: DbHost + 'static, S: SftpHost + 'static>
-    AccountsService for AccountsServiceImpl<H, P, D, S>
+impl<
+    H: SystemHost + 'static,
+    P: PhpHost + 'static,
+    D: DbHost + 'static,
+    S: SftpHost + 'static,
+    W: SiteHost + 'static,
+    C: CronHost + 'static,
+> AccountsService for AccountsServiceImpl<H, P, D, S, W, C>
 {
     /// Creates the system user, its home directory and its initial quota.
     async fn create_account(
@@ -245,6 +292,63 @@ impl<H: SystemHost + 'static, P: PhpHost + 'static, D: DbHost + 'static, S: Sftp
         };
 
         Ok(Response::new(DeleteAccountResponse {
+            result: Some(result),
+        }))
+    }
+
+    /// Reports what this host can be observed to be doing for the account.
+    async fn get_account_suspension_state(
+        &self,
+        request: Request<GetAccountSuspensionStateRequest>,
+    ) -> Result<Response<GetAccountSuspensionStateResponse>, Status> {
+        let request = request.into_inner();
+        let result = match self
+            .with_account(&request.username, {
+                let operations = Arc::clone(&self.operations);
+                let site_host = Arc::clone(&self.site_host);
+                let cron_host = Arc::clone(&self.cron_host);
+                let sftp_host = Arc::clone(&self.sftp_host);
+                move |name| {
+                    operations.suspension_state(
+                        site_host.as_ref(),
+                        cron_host.as_ref(),
+                        sftp_host.as_ref(),
+                        &name,
+                    )
+                }
+            })
+            .await
+        {
+            Ok(state) => {
+                get_account_suspension_state_response::Result::Ok(GetAccountSuspensionStateOk {
+                    login_locked: state.login_locked,
+                    login_password_state: to_login_password_state(state.login_password) as i32,
+                    sites_directory_readable: state.sites_directory_readable,
+                    sites: state
+                        .sites
+                        .into_iter()
+                        .map(|fact| SiteSuspensionFact {
+                            domain: fact.domain,
+                            serving_stub: fact.serving_stub,
+                        })
+                        .collect(),
+                    cron_entries_total: state.cron.entries_total,
+                    cron_entries_suspended: state.cron.entries_suspended,
+                    cron_foreign_lines: state.cron.foreign_lines,
+                    sftp_logins: state
+                        .sftp_logins
+                        .into_iter()
+                        .map(|fact| SftpLoginSuspensionFact {
+                            username: fact.user.as_str().to_owned(),
+                            locked: fact.locked,
+                        })
+                        .collect(),
+                })
+            }
+            Err(error) => get_account_suspension_state_response::Result::Error(error),
+        };
+
+        Ok(Response::new(GetAccountSuspensionStateResponse {
             result: Some(result),
         }))
     }

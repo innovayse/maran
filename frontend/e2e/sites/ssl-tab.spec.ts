@@ -138,14 +138,38 @@ test('the certificate request names the site domain the panel addresses certific
   expect((await issued).postDataJSON()).toEqual({ domain: SITE.domain })
 })
 
-test('removing a certificate takes it off the screen once the panel confirms', async ({ page }) => {
+test('removing a certificate asks which one, then takes it off the screen', async ({ page }) => {
   await stubSslTab(page, [certificateFor(SITE.domain, 'custom')])
 
   await openSsl(page)
   await page.getByRole('button', { name: 'Remove certificate' }).click()
-  await page.getByRole('button', { name: 'Yes, do it' }).click()
+
+  const dialog = page.getByRole('dialog', { name: `Remove the certificate for ${SITE.domain}` })
+  await expect(dialog).toContainText('The site goes back to serving plain HTTP.')
+  await dialog.getByRole('button', { name: 'Yes, do it' }).click()
 
   await expect(page.getByText('No certificate installed')).toBeVisible()
+})
+
+// A certificate is what makes the site reachable over HTTPS, so a dismissed question must leave
+// it installed and must not have sent the removal.
+test('dismissing the removal keeps the certificate and sends nothing', async ({ page }) => {
+  const certificate = certificateFor(SITE.domain, 'custom')
+  await stubSslTab(page, [certificate])
+  let deleteRequests = 0
+  await page.route(`**/api/v1/certificates/${certificate.id}`, async (route) => {
+    deleteRequests += 1
+    await route.fulfill({ status: 204, body: '' })
+  })
+
+  await openSsl(page)
+  await page.getByRole('button', { name: 'Remove certificate' }).click()
+  await page.getByRole('dialog').getByRole('button', { name: 'Cancel' }).click()
+
+  await expect(page.getByRole('dialog')).toHaveCount(0)
+  expect(deleteRequests).toBe(0)
+  await expect(page.getByText('No certificate installed')).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Remove certificate' })).toBeVisible()
 })
 
 // The private key is typed, sent and forgotten. Nothing in the panel displays one, and a key held

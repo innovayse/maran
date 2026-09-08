@@ -16,6 +16,7 @@ use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
+use maran_agent_core::agent_paths::AgentPaths;
 use maran_agent_core::validation::system::name::AccountName;
 use maran_agent_core::validation::web::domain::Domain;
 use maran_agent_core::validation::web::php_version::PhpVersion;
@@ -55,6 +56,9 @@ pub(crate) struct FakeSiteHost {
     log_lines: Mutex<Vec<String>>,
     /// What the last tail was asked for — the decision a test pins.
     tailed: Mutex<Option<LogTailRequest>>,
+    /// Whether listing the vhost directory refuses, so a test can drive the
+    /// one case where an empty answer and a blind one look alike.
+    listing_refused: Mutex<bool>,
 }
 
 impl FakeSiteHost {
@@ -67,7 +71,21 @@ impl FakeSiteHost {
             writes: Mutex::new(0),
             log_lines: Mutex::new(Vec::new()),
             tailed: Mutex::new(None),
+            listing_refused: Mutex::new(false),
         }
+    }
+
+    /// Makes listing the vhost directory refuse.
+    pub(crate) fn refuse_listing(&self) {
+        *self.listing_refused.lock().unwrap() = true;
+    }
+
+    /// Puts `contents` at `path` as if a vhost were already on disk there.
+    pub(crate) fn place_config(&self, path: &Path, contents: &str) {
+        self.files
+            .lock()
+            .unwrap()
+            .insert(path.to_path_buf(), contents.to_owned());
     }
 
     /// Loads the lines a tail will replay.
@@ -103,6 +121,16 @@ impl FakeSiteHost {
 }
 
 impl SiteHost for FakeSiteHost {
+    fn list_config_paths(&self) -> Result<Vec<PathBuf>, SitesOpError> {
+        if *self.listing_refused.lock().unwrap() {
+            return Err(SitesOpError::ConfigUnreadable {
+                path: AgentPaths::NGINX_INCLUDE_DIRECTORY.to_owned(),
+            });
+        }
+
+        Ok(self.files.lock().unwrap().keys().cloned().collect())
+    }
+
     fn read_config(&self, path: &Path) -> Result<Option<String>, SitesOpError> {
         Ok(self.config(path))
     }

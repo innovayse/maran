@@ -48,6 +48,10 @@ readonly FIREWALL_STEP="${INSTALLER_LIB}/87-firewall.sh"
 # /var/log/maran it needs before it can run. Both are RUN, not read — see run_nginx_step.
 readonly NGINX_STEP="${INSTALLER_LIB}/80-nginx.sh"
 readonly USER_STEP="${INSTALLER_LIB}/40-user.sh"
+# The two steps that create the directories today's privilege-escalation fixes moved, both
+# RUN and not read: step 40 for the panel layout, the restore staging root and the bulk
+# scratch, step 50 for the release staging directory. See the block above main().
+readonly ARTIFACTS_STEP="${INSTALLER_LIB}/50-artifacts.sh"
 # SOURCED IN A CHILD, never here: see run_uninstaller. It is in this list all the same, because
 # a missing file must be a failure and not a silently skipped assertion.
 readonly UNINSTALLER="${INSTALLER_ROOT}/uninstall.sh"
@@ -96,6 +100,7 @@ require_installer_file "$PREFLIGHT_STEP" installer/lib/10-preflight.sh
 require_installer_file "$FIREWALL_STEP" installer/lib/87-firewall.sh
 require_installer_file "$NGINX_STEP" installer/lib/80-nginx.sh
 require_installer_file "$USER_STEP" installer/lib/40-user.sh
+require_installer_file "$ARTIFACTS_STEP" installer/lib/50-artifacts.sh
 require_installer_file "${INSTALLER_LIB}/85-mysql.sh" installer/lib/85-mysql.sh
 require_installer_file "${INSTALLER_LIB}/86-sftp.sh" installer/lib/86-sftp.sh
 require_installer_file "$UNINSTALLER" installer/uninstall.sh
@@ -164,6 +169,25 @@ installer_value() {
 installer_value_count() {
   local key="$1" file="$2"
   awk -v k="$key" 'index($0, k "=") == 1 { n++ } END { print n + 0 }' "$file"
+}
+
+# installer_root_trusted_log_names: the leaf names under /var/log/maran that a ROOT process
+# opens for append, read out of install.sh's MARAN_ROOT_TRUSTED_LOG_NAMES rather than repeated
+# here. One list, in the file that owns it: a fourth root-written log added there is checked by
+# the ancestor walk without anyone remembering to extend a copy in this file.
+#
+# Refuses an empty answer. The list is read out of a shell assignment by a text match, so the
+# way it goes wrong is that the assignment is renamed or reformatted and this returns nothing —
+# which would turn every assertion driven by it into a loop over no items, passing loudest at
+# the moment it stopped looking (rules/testing.md).
+installer_root_trusted_log_names() {
+  local names
+  names="$(installer_value MARAN_ROOT_TRUSTED_LOG_NAMES "$INSTALLER_ENTRY_POINT")"
+  names="${names%\"}"
+  names="${names#\"}"
+  [ -n "$names" ] \
+    || fail "install.sh no longer assigns MARAN_ROOT_TRUSTED_LOG_NAMES at the start of a line, so the list of log files root appends to cannot be read and every check driven by it would silently check nothing."
+  printf '%s\n' "$names"
 }
 
 # port_of_url: the port in a `scheme://host:port` value, or nothing.
@@ -1654,13 +1678,19 @@ assert_sftp_prerequisites() {
   getent group maran-sftp >/dev/null \
     || fail "the maran-sftp group was not created (DistroAdapter::sftp_group)"
 
-  [ -d /var/lib/maran/sftp ] \
-    || fail "the SFTP jail base directory /var/lib/maran/sftp was not created"
+  [ -d /var/lib/maran-sftp ] \
+    || fail "the SFTP jail base directory /var/lib/maran-sftp was not created"
 
   local ownership_and_mode
-  ownership_and_mode="$(stat -c '%U:%G:%a' /var/lib/maran/sftp)"
-  [ "$ownership_and_mode" = "root:root:755" ] \
-    || fail "/var/lib/maran/sftp is ${ownership_and_mode}, not root:root:755"
+  ownership_and_mode="$(stat -c '%U:%G:%a' /var/lib/maran-sftp)"
+  [ "$ownership_and_mode" = "root:root:700" ] \
+    || fail "/var/lib/maran-sftp is ${ownership_and_mode}, not root:root:700"
+
+  # The directory's OWN mode was all this used to ask, and that is precisely how the defect
+  # got past it: the base was root:root 0755 and correct, while the panel-owned
+  # /var/lib/maran above it made sshd refuse every chroot. OpenSSH walks the whole path, so
+  # the assertion has to walk it too.
+  assert_ancestors_are_root_only /var/lib/maran-sftp
 
   local blocks
   # `|| true` because `grep -c` exits 1 when it counts NOTHING, and `set -e`
@@ -1834,15 +1864,21 @@ forget_nginx_service_records() {
 # Step 80 needs exactly two things from that step: the `panel` group, because it installs the
 # panel's private key root:panel, and /var/log/maran, because the vhost names it in access_log
 # and error_log and `nginx -t` opens both. The group is created by step 40's own function. The
-# directory is made here with step 40's own user, group and mode instead of by calling
+# directory is made here with step 40's own owner, group and mode instead of by calling
 # create_directory_layout, and that is stated rather than hidden: that function also re-modes
 # /run/maran to 0750 root:panel, which this image sets 0755 on purpose for the php-pool suites,
 # and step 80 never reads it.
+#
+# `-o root` and not `-o panel`, matching step 40 since the log-directory split: the two files the
+# vhost names here are opened by the ROOT nginx master, so the directory holding them is root's
+# and the panel writes under /var/log/maran/panel instead
+# (docs/superpowers/notes/2026-09-07-installer-privileged-steps-threat-note.md). Preparing the
+# host the OLD way would leave `nginx -t` passing here against an ownership no install produces.
 prepare_host_for_the_nginx_step() {
   bash -c 'set -euo pipefail
 . "$1"
 create_panel_user >/dev/null
-install -d -o "$MARAN_USER" -g "$MARAN_GROUP" -m 0750 /var/log/maran' _ "$USER_STEP"
+install -d -o root -g "$MARAN_GROUP" -m 0750 /var/log/maran' _ "$USER_STEP"
 }
 
 # nginx_reads_configuration_file: whether nginx's own dump of the configuration it loads names
@@ -3608,6 +3644,882 @@ operator will widen with chmod instead."
   echo "the text assertion that the unit declares no RuntimeDirectory= over the same directory."
 }
 
+# --- The on-disk boundary the two privilege-escalation fixes moved ------------------------
+#
+# Everything from here to main() is about ONE question: is each directory the installer
+# creates the thing it is documented to be — a real directory, owned by the uid that is
+# supposed to own it, with exactly the mode that keeps every other uid out?
+#
+# It exists because two panel->root escalations were found and fixed in one day, and both
+# were escapes of exactly that property:
+#
+#   * release staging lived inside a `panel`-owned directory, so the api's uid could swap
+#     agent.tar.gz between the checksum verification and the extraction, and the extracted
+#     file is what maran-agent.service runs as root (installer/lib/50-artifacts.sh, and
+#     docs/superpowers/notes/2026-09-07-installer-privileged-steps-threat-note.md);
+#   * the bulk scratch lived inside `panel`-owned /var/lib/maran, so the api's uid owned an
+#     ancestor of root's staging area, could rename a level aside and leave a symlink at
+#     that name, and root would then write a customer's plaintext database dump into a
+#     panel-readable file — or truncate a root-owned one
+#     (docs/superpowers/notes/2026-09-05-backups-threat-note.md section 1).
+#
+# Both fixes are correct and both were, until this section, guarded by nothing but the
+# comments explaining them. A prose guarantee is the thing this repository has already been
+# taught to distrust: it does not fail when it stops being true.
+#
+# Why the expected owners and modes are written out here as literals, when the Dockerfile
+# comment beside `create_directory_layout` says a second copy of a mode is a copy that
+# stops matching. Those are two different jobs. The Dockerfile calls the installer so the
+# polygon's directories are made the way a real install makes them — there, a literal would
+# be a copy of a value with no opinion of its own. Here the literals ARE the opinion: a
+# check that reads its expectation out of the code it is checking agrees with that code by
+# construction and can never fail, which is precisely how a mode gets loosened without
+# anything going red. This table is a second, independent statement of the boundary, in the
+# same spirit as check-structure.sh comparing ReadWritePaths= against agent_paths.rs.
+
+# assert_the_directory_layout_is_what_it_claims: runs the installer's OWN step 40 and then
+# looks at every directory it made — is it a real directory rather than a symlink to one,
+# who owns it, what is its exact mode.
+#
+# The symlink question is asked separately from the directory question on purpose. `[ -d ]`
+# follows symlinks, so a symlink pointing at a directory answers yes to it; that is the
+# shape the scratch attack took, and a check that only asked `[ -d ]` would have watched it
+# happen. `stat` without `-L` reports the link's own mode (0777 on Linux, always) and the
+# link's owner, so neither of those would have caught it either.
+#
+# /run/maran's mode is put back afterwards. This image sets it 0755 on purpose for the
+# php-pool suites and step 40 sets 0750; the Dockerfile re-applies 0755 after its own call
+# to this function, and this restores it so the assertion cannot depend on which of the two
+# ran last.
+assert_the_directory_layout_is_what_it_claims() {
+  local run_maran_mode_before=''
+  if [ -d /run/maran ]; then
+    run_maran_mode_before="$(stat -c '%a' /run/maran)"
+  fi
+
+  bash -c 'set -euo pipefail
+. "$1"
+create_panel_user >/dev/null
+create_directory_layout' _ "$USER_STEP" \
+    || fail "step 40's create_directory_layout failed inside the polygon"
+
+  # path:expected uid:expected gid:expected mode, one per line. `panel` is resolved at
+  # check time rather than written as a number, because a system user's uid is whatever
+  # useradd picked on this host.
+  local panel_uid panel_gid
+  panel_uid="$(id -u panel)"
+  panel_gid="$(id -g panel)"
+
+  local entry
+  for entry in \
+    "/usr/local/maran:0:0:755" \
+    "/etc/maran:0:${panel_gid}:750" \
+    "/var/lib/maran:${panel_uid}:${panel_gid}:750" \
+    "/var/log/maran:0:${panel_gid}:750" \
+    "/var/log/maran/panel:${panel_uid}:${panel_gid}:750" \
+    "/var/backups/maran:0:0:700" \
+    "/home/.maran-restore:0:0:711" \
+    "/var/lib/maran-scratch:0:0:700" \
+    "/var/lib/maran-sftp:0:0:700" \
+    "/run/maran:0:${panel_gid}:750"; do
+    assert_directory_is "${entry%%:*}" "${entry#*:}"
+  done
+
+  # The scratch is a SIBLING of /var/lib/maran, never a child, and the reason is the whole
+  # fix: the owner of a directory can rename an entry inside it aside and leave a symlink
+  # at that name without ever having permission to enter it, so a root-only directory
+  # underneath a panel-owned one is not root-only. Asserted as a statement about the PATH
+  # because that is what the fix changed, and a mode check on the scratch cannot see it —
+  # the scratch was root:root 0700 while it was exploitable.
+  case "$(cd /var/lib/maran-scratch && pwd -P)" in
+    /var/lib/maran/*) fail "/var/lib/maran-scratch resolves underneath /var/lib/maran, whose owner is the panel uid — the ancestor that made this directory reachable is back" ;;
+  esac
+  # And the ancestor it does have must be root's. /var/lib is root:root 0755 on both
+  # families; if it ever were not, no mode on the scratch itself would save it.
+  assert_ancestors_are_root_only /var/lib/maran-scratch
+
+  # The SFTP jail base, for the same reason and with a second consequence the scratch does
+  # not have. Every path component of a `ChrootDirectory` must be root-owned or OpenSSH
+  # refuses the login, so a panel-owned ancestor here does not merely make the jails
+  # reachable — it makes SFTP not work at all, silently, with the reason visible only in
+  # the daemon's log. Measured on both families at the old base: `Accepted password ...`
+  # followed by `bad ownership or modes for chroot directory component "/var/lib/maran/"`.
+  case "$(cd /var/lib/maran-sftp && pwd -P)" in
+    /var/lib/maran/*) fail "/var/lib/maran-sftp resolves underneath /var/lib/maran, whose owner is the panel uid — sshd refuses a chroot with a non-root path component, so every SFTP login on this host is broken" ;;
+  esac
+  assert_ancestors_are_root_only /var/lib/maran-sftp
+
+  # The log directory, the fourth instance of this class and the only one not fixed by a
+  # relocation. Three leaf names inside /var/log/maran are opened for APPEND by root:
+  # install.sh's own install.log, and the panel vhost's nginx-access.log and nginx-error.log,
+  # which the root nginx MASTER creates and reopens on every start, reload and SIGUSR1. While
+  # step 40 made this directory panel:panel, the panel uid could unlink any of those names and
+  # leave a symbolic link — measured getting root's `tee -a` to append into a root-owned 0600
+  # file, and getting nginx to append an attacker-chosen request line into another
+  # (docs/superpowers/notes/2026-09-07-installer-privileged-steps-threat-note.md).
+  #
+  # Asserted on the LEAVES and not on the directory, because the ancestor walk is the check
+  # that can see this defect: the leaf's own mode says nothing about who may replace it, and
+  # nginx recreates these files itself, as root, so nothing else stands between the plant and
+  # the open. The names come from install.sh, one place, so a fourth root-written log added
+  # there is covered here without anyone extending a second list.
+  local trusted_log_leaf
+  for trusted_log_leaf in $(installer_root_trusted_log_names); do
+    assert_ancestors_are_root_only "/var/log/maran/${trusted_log_leaf}"
+  done
+  # And the panel's own subdirectory is NOT an ancestor of any of them — the split's whole
+  # point. If a future change moved a root-written log inside it, the walk above would fail,
+  # but this states the shape directly so the diagnosis names the design and not just a uid.
+  case "$(cd /var/log/maran/panel && pwd -P)" in
+    /var/log/maran/panel) ;;
+    *) fail "/var/log/maran/panel does not resolve to itself — the panel's writable log directory is a link somewhere else, and root writes in its parent" ;;
+  esac
+
+  if [ -n "$run_maran_mode_before" ]; then
+    chmod "$run_maran_mode_before" /run/maran
+  fi
+
+  echo "Step 40's directory layout verified: ten directories, each a real directory with its own owner and mode, and every root-written log leaf under a root-only ancestry."
+  echo "UNOBSERVED HERE: the ancestry above is the state step 40 leaves behind, not a guarantee about later. Neither of the two root writers that made this directory a defect runs in this image — install.sh's own \`tee -a\` and the root nginx master's access_log/error_log opens — and the nginx one could not be gated even where it does run, because nginx re-creates those files itself on every start, reload and SIGUSR1, after every check the installer performs. The ownership asserted above is the whole defence, not a check in front of the write."
+}
+
+# assert_directory_is: one path against `uid:gid:mode`, with the three questions asked
+# separately so the diagnosis names which one failed.
+assert_directory_is() {
+  local path="$1" expected="$2" found
+
+  [ -e "$path" ] || [ -L "$path" ] \
+    || fail "${path} was not created by the installer step that is supposed to create it"
+  if [ -L "$path" ]; then
+    fail "${path} is a SYMBOLIC LINK, not a directory. Its owner and its mode are the link's, never the target's, and root writing through it writes wherever it points."
+  fi
+  [ -d "$path" ] || fail "${path} exists but is not a directory"
+
+  found="$(stat -c '%u:%g:%a' "$path")"
+  [ "$found" = "$expected" ] \
+    || fail "${path} is uid:gid:mode ${found}, not ${expected} ($(stat -c '%U:%G' "$path") by name)"
+}
+
+# assert_ancestors_are_root_only: every directory from `$1` up to / is owned by uid 0 and
+# is not writable by group or other.
+#
+# This is the check the scratch defect needed and nothing had. A directory's own mode says
+# who may act on its CONTENTS; who may replace the directory itself is decided by its
+# parent, and by that parent's parent. Both of today's fixes are relocations — the same
+# mode, moved to a path whose ancestors are root's — so this is the assertion that actually
+# observes what changed.
+assert_ancestors_are_root_only() {
+  local path="$1" current="$1" owner mode
+  while [ "$current" != "/" ]; do
+    current="$(dirname "$current")"
+    owner="$(stat -c '%u' "$current")"
+    # The symbolic form, not the octal one: the octal is three digits on one host and four
+    # on another (a setuid or sticky bit adds a leading digit and shifts every position),
+    # so a pattern written against three characters silently stops matching the field it
+    # was aimed at. `drwxr-xr-x` puts group-write at index 5 and other-write at index 8 on
+    # every host there is.
+    mode="$(stat -c '%A' "$current")"
+    [ "$owner" -eq 0 ] \
+      || fail "${current}, an ancestor of ${path}, is owned by uid ${owner} and not by root. The owner of a directory can rename an entry inside it aside and leave a symlink in its place, so ${path} is not root-only however it is moded."
+    if [ "${mode:5:1}" = "w" ]; then
+      fail "${current}, an ancestor of ${path}, is ${mode} — GROUP-writable. Any member of that group can replace ${path} with an entry of their own."
+    fi
+    if [ "${mode:8:1}" = "w" ]; then
+      fail "${current}, an ancestor of ${path}, is ${mode} — WORLD-writable. Any uid can replace ${path} with an entry of its own."
+    fi
+  done
+}
+
+# assert_the_scratch_gate_refuses_a_directory_root_does_not_own: the inverse control for
+# step 40's `assert_root_only_directory`.
+#
+# The positive assertion above passes on a correct host and would pass just as happily if
+# that gate had been deleted — `install -d` had already made the directory right. So the
+# gate is fed, one at a time, each of the three states it exists to refuse, and must abort
+# on every one of them; then it is handed the real directory and must ACCEPT it, because a
+# gate mutated to refuse everything passes every test that only ever gives it broken input
+# (rules/testing.md).
+#
+# The gate is called directly rather than through create_directory_layout, and that is a
+# limitation worth naming rather than hiding: create_directory_layout does `rm -rf` and
+# then `install -d` BEFORE it calls the gate, so on a real host root always repairs the
+# planted state and the gate never sees it. What the gate defends against is the window
+# between those two calls, and against a host where root's own `install` did not do what
+# root asked. Neither is reachable by planting a file. What is reachable is the gate's own
+# behaviour, and that is what is measured here.
+assert_the_scratch_gate_refuses_a_directory_root_does_not_own() {
+  local scratch="/var/lib/maran-scratch" victim="/tmp/polygon-scratch-victim"
+
+  rm -rf -- "$scratch" "$victim"
+  install -d -o root -g root -m 0700 "$victim"
+  ln -s "$victim" "$scratch"
+  assert_scratch_gate_refuses "a symbolic link to a root-owned 0700 directory" 'not a real directory'
+
+  rm -f -- "$scratch"
+  install -d -o panel -g panel -m 0700 "$scratch"
+  assert_scratch_gate_refuses "a directory owned by the panel uid" 'must be owned by root'
+
+  rm -rf -- "$scratch"
+  install -d -o root -g root -m 0750 "$scratch"
+  assert_scratch_gate_refuses "a root-owned directory the panel GROUP can enter" 'must be owned by root'
+
+  rm -rf -- "$scratch"
+  install -d -o root -g root -m 0777 "$scratch"
+  assert_scratch_gate_refuses "a world-writable root-owned directory" 'must be owned by root'
+
+  # The inverse control: the state a correct install leaves behind must be ACCEPTED.
+  rm -rf -- "$scratch" "$victim"
+  install -d -o root -g root -m 0700 "$scratch"
+  bash -c 'set -euo pipefail
+. "$1"
+assert_root_only_directory "$2"' _ "$USER_STEP" "$scratch" \
+    || fail "step 40's assert_root_only_directory REFUSED a real root:root 0700 directory. A gate that refuses everything proves nothing about the four refusals above."
+
+  echo "Step 40's assert_root_only_directory refused a symlink, a panel-owned directory, a group-readable one and a world-writable one, and accepted the real thing."
+}
+
+# assert_scratch_gate_refuses: hands the planted /var/lib/maran-scratch to the installer's
+# own gate in a child process — `exit 1` inside it is only observable across a process
+# boundary, for the reason run_installer_step states at length — and requires both a
+# non-zero status and a diagnosis containing `$2`.
+#
+# The message is checked and not only the status, because a gate that aborts for the wrong
+# reason (a typo'd `stat`, an unbound variable under `set -u`) is indistinguishable from a
+# gate that caught the attack if all you look at is the exit code.
+assert_scratch_gate_refuses() {
+  local what="$1" expected_message="$2" output status=0
+  output="$(bash -c 'set -euo pipefail
+. "$1"
+assert_root_only_directory "$2"' _ "$USER_STEP" /var/lib/maran-scratch 2>&1)" || status=$?
+
+  [ "$status" -ne 0 ] \
+    || fail "step 40's assert_root_only_directory ACCEPTED ${what} at /var/lib/maran-scratch. Root stages plaintext customer database dumps there."
+  case "$output" in
+    *"$expected_message"*) ;;
+    *) fail "step 40's assert_root_only_directory refused ${what}, but its diagnosis does not contain '${expected_message}' — it said: ${output}" ;;
+  esac
+}
+
+# assert_the_ancestor_walk_refuses_a_panel_owned_ancestor: the inverse control for
+# `assert_ancestors_are_root_only` itself.
+#
+# The two positive calls above pass on a correct host, and they would pass exactly as
+# happily if the walk's body were `return 0` — /var/lib is root:root 0755 on both families,
+# so on a healthy image the loop never has anything to refuse. That is the shape this
+# assertion exists to break: the walk is the ONLY check in this file that observes what the
+# three relocations actually changed, and a check that has never once said no is a check
+# nobody has seen work.
+#
+# So it is handed, in a child process because `fail` exits, the exact state the SFTP defect
+# was — a root:root 0700 directory whose PARENT is owned by the panel uid, the shape the
+# directory's own mode cannot see — and then a group-writable ancestor and a world-writable
+# one. Each must be refused with a diagnosis naming what it found. Then the real
+# /var/lib/maran-sftp, whose ancestors are root's, must be ACCEPTED, because a walk mutated
+# to refuse everything passes every test that only ever feeds it broken input.
+assert_the_ancestor_walk_refuses_a_panel_owned_ancestor() {
+  local root="/tmp/polygon-ancestor-control"
+
+  rm -rf -- "$root"
+  install -d -o root -g root -m 0755 "$root"
+
+  install -d -o panel -g panel -m 0750 "$root/panel-owned"
+  install -d -o root -g root -m 0700 "$root/panel-owned/child"
+  assert_ancestor_walk_refuses "$root/panel-owned/child" \
+    "a root:root 0700 directory whose parent is owned by the panel uid" \
+    'is owned by uid'
+
+  install -d -o root -g root -m 0775 "$root/group-writable"
+  install -d -o root -g root -m 0700 "$root/group-writable/child"
+  assert_ancestor_walk_refuses "$root/group-writable/child" \
+    "a root-owned directory under a GROUP-writable ancestor" \
+    'GROUP-writable'
+
+  # 0757 and not 0777: the walk checks group-write BEFORE other-write, so a 0777 ancestor
+  # is refused with the GROUP diagnosis and this case would never reach the other-write
+  # branch at all. Measured — the first version of this control used 0777 and the build
+  # said so, which is the control doing its job on its own author. 0757 is world-writable
+  # and not group-writable, so it exercises the branch it names.
+  install -d -o root -g root -m 0757 "$root/world-writable"
+  install -d -o root -g root -m 0700 "$root/world-writable/child"
+  assert_ancestor_walk_refuses "$root/world-writable/child" \
+    "a root-owned directory under a WORLD-writable ancestor" \
+    'WORLD-writable'
+
+  rm -rf -- "$root"
+
+  # The inverse control: the real jail base, after the relocation, must be accepted.
+  ( assert_ancestors_are_root_only /var/lib/maran-sftp ) \
+    || fail "assert_ancestors_are_root_only REFUSED /var/lib/maran-sftp, whose ancestors are /var/lib and /. A walk that refuses everything proves nothing about the three refusals above."
+
+  echo "The ancestor walk refused a panel-owned, a group-writable and a world-writable ancestor — the SFTP defect's own shape — and accepted the relocated jail base."
+}
+
+# assert_ancestor_walk_refuses: runs the walk against a planted path in a SUBSHELL, because
+# `fail` exits the process, and requires both a non-zero status and a diagnosis containing
+# `$3`.
+#
+# The message and not only the status, for the reason assert_scratch_gate_refuses gives: a
+# walk that aborts for the wrong reason — an unbound variable under `set -u`, a `stat` that
+# could not read the path — is indistinguishable from one that caught the attack if all you
+# look at is an exit code.
+assert_ancestor_walk_refuses() {
+  local path="$1" what="$2" expected_message="$3" output status=0
+
+  output="$( assert_ancestors_are_root_only "$path" 2>&1 )" || status=$?
+
+  [ "$status" -ne 0 ] \
+    || fail "assert_ancestors_are_root_only ACCEPTED ${what}. That is the exact shape of the SFTP chroot defect, and this walk is the only check in this file that can see it."
+  case "$output" in
+    *"$expected_message"*) ;;
+    *) fail "assert_ancestors_are_root_only refused ${what}, but its diagnosis does not contain '${expected_message}' — it said: ${output}" ;;
+  esac
+}
+
+# assert_the_log_directory_gate_sees_the_defect_it_was_written_for: the inverse control for the
+# log-leaf ancestor assertions in assert_the_directory_layout_is_what_it_claims.
+#
+# Those assertions pass on a correct host and would pass just as happily if the walk could not
+# see this defect at all, so the defect is PUT BACK — /var/log/maran is chowned to the panel uid,
+# which is exactly what installer/lib/40-user.sh:29 used to do — and every root-written leaf must
+# then be refused, by name, with the ownership diagnosis. It is restored afterwards and the same
+# leaves must be ACCEPTED, because a walk that refuses everything proves nothing.
+#
+# The plant is on the REAL path and not on a stand-in tree: the generic walk control below covers
+# the walk's behaviour on synthetic ancestors, and what is unproven without this is that the walk
+# is pointed at the paths the defect actually lives on. A check aimed one directory to the side
+# would pass that control and see nothing here.
+#
+# The directory's contents are untouched: `chown` on the directory alone, both ways.
+#
+# The plant is VERIFIED TO HAVE LANDED before anything is scored, and the restore afterwards.
+# A `chown` that silently did not take — the directory already gone, a stand-in `chown` earlier
+# on PATH, a read-only layer — leaves the walk looking at a correct host, and every leaf is then
+# refused by nothing and this function reports the control as held while it measured a healthy
+# tree. Three mutations in this repository were scored BLIND that way in one day, so the plant is
+# read back with `stat` and disagreement is a failure, not a warning.
+assert_the_log_directory_gate_sees_the_defect_it_was_written_for() {
+  local leaf checked=0 panel_uid planted restored
+
+  panel_uid="$(id -u panel)"
+  chown panel:panel /var/log/maran
+  planted="$(stat -c '%u' /var/log/maran)"
+  [ "$planted" = "$panel_uid" ] \
+    || fail "the log-leaf control tried to put the defect back by chowning /var/log/maran to the panel uid (${panel_uid}) and stat still reports uid ${planted}. The plant did not land, so every refusal below would have been measured against a HEALTHY directory and this control would report itself held while checking nothing."
+
+  for leaf in $(installer_root_trusted_log_names); do
+    assert_ancestor_walk_refuses "/var/log/maran/${leaf}" \
+      "/var/log/maran/${leaf} under a PANEL-OWNED /var/log/maran — the defect exactly as step 40 used to create it" \
+      'is owned by uid'
+    checked=$((checked + 1))
+  done
+  chown root:panel /var/log/maran
+  restored="$(stat -c '%u' /var/log/maran)"
+  [ "$restored" = "0" ] \
+    || fail "the log-leaf control could not restore /var/log/maran to root (stat reports uid ${restored}). The image is being left carrying the defect this control plants, and the acceptance pass below would be measured against it."
+
+  [ "$checked" -eq 3 ] \
+    || fail "the log-leaf control planted the defect and then checked ${checked} leaves, not the three root writes install.sh, and nginx's master, actually make. A control that checks nothing passes."
+
+  for leaf in $(installer_root_trusted_log_names); do
+    ( assert_ancestors_are_root_only "/var/log/maran/${leaf}" ) \
+      || fail "assert_ancestors_are_root_only REFUSED /var/log/maran/${leaf} on a correctly installed host, whose ancestors are /var/log/maran (root:panel 0750), /var/log and /. The refusals above prove nothing if the walk refuses the real thing too."
+  done
+
+  echo "The log-leaf ancestor check was shown the original defect — /var/log/maran owned by the panel — refused all three root-written leaves by name, and accepted them again once the directory was root's. The plant and the restore were both read back with stat, so a chown that did not take fails here instead of scoring a healthy directory as a caught defect."
+  # What this control does NOT observe, in its own output rather than only in a comment above it,
+  # because a check that reads like coverage it does not have is the defect this file exists for.
+  echo "UNOBSERVED HERE: the nginx half of this defect cannot be gated by anything, here or in the installer. The root nginx MASTER creates and re-opens nginx-access.log and nginx-error.log itself, at the fixed paths installer/nginx/maran.conf names, on every start, every reload and every SIGUSR1 — always AFTER install.sh's harden_log_directory and after step 40's assertion have finished. So what is proved above is a statement about the directory's ownership at install time, which is the ENTIRE defence; there is no moment at which a check could stand between a planted symlink and nginx's open. Nothing in this image, and nothing in this repository, watches those two opens. A reviewer wanting that evidence must take it from a booted host: nginx running, its master's /proc/<pid>/fd entries resolving to regular files inside /var/log/maran, and \`ls -l\` on the two names showing root-owned regular files rather than links."
+}
+
+# assert_the_release_staging_directory_is_root_only: step 50's staging directory, the one
+# an artifact is downloaded into, checksummed in and extracted from.
+#
+# It is the highest-value directory in the whole install: the file that comes out of it is
+# /usr/local/maran/agent/maran-agent, which maran-agent.service starts as root. While it
+# lived under /var/lib/maran the api's uid owned it, and because every archive used to be
+# checksummed before ANY of them was extracted, the api could replace agent.tar.gz in that
+# window and install a root backdoor.
+#
+# Step 50 is not RUN here — it downloads over HTTPS from the release server and this build
+# has no network trust to spend on that — so `prepare_staging_dir` is called on its own.
+# That is the whole of the directory half of the fix, and it is the half a polygon can see.
+assert_the_release_staging_directory_is_root_only() {
+  # The path comes from the step's own constant, and is then held against the literal
+  # below. Two different jobs again: asking the step where it stages means a move of the
+  # directory is diagnosed as a MOVE — "step 50 now stages in X" — instead of arriving as
+  # "the directory nobody created is missing", which is what a hardcoded path alone says
+  # and is the least useful sentence a security check can produce. The literal is what
+  # makes it a check rather than a description: without it the ancestor rule below would
+  # be the only thing standing between the staging directory and a quiet relocation to
+  # somewhere that happens to satisfy it.
+  local staging
+  staging="$(run_staging_step 'printf "%s" "$MARAN_ARTIFACT_TMP"')" \
+    || fail "step 50 does not define MARAN_ARTIFACT_TMP; this check cannot see where release artifacts are staged"
+  [ "$staging" = "/var/lib/maran-artifact-staging" ] \
+    || fail "step 50 stages release artifacts in ${staging}, not /var/lib/maran-artifact-staging. That directory is where an archive is checksummed and extracted, and the file that comes out of it is the binary maran-agent.service runs as root — a move of it is a security change, not a tidy-up."
+
+  run_staging_step 'prepare_staging_dir' \
+    || fail "step 50's prepare_staging_dir failed inside the polygon"
+
+  assert_directory_is "$staging" "0:0:700"
+  assert_ancestors_are_root_only "$staging"
+
+  # It must not be under /var/lib/maran, for the reason the scratch must not be.
+  case "$(cd "$staging" && pwd -P)" in
+    /var/lib/maran/*) fail "${staging} resolves underneath /var/lib/maran, which the panel uid owns — root would be extracting a root-run binary out of a directory the api can rearrange" ;;
+  esac
+
+  # And no unit may hand it to an unprivileged process. This is a text assertion about the
+  # units and says so: nothing here boots systemd.
+  local unit
+  for unit in "$AGENT_UNIT" "$API_UNIT"; do
+    if grep '^ReadWritePaths=' "$unit" | grep -q 'maran-artifact-staging'; then
+      fail "$(basename "$unit") lists /var/lib/maran-artifact-staging in ReadWritePaths=. The release staging directory is the installer's alone; a running service that can write it can replace the agent binary before it is extracted."
+    fi
+  done
+
+  echo "Step 50's prepare_staging_dir built /var/lib/maran-artifact-staging root:root 0700 under root-only ancestors, and no unit makes it writable."
+}
+
+# run_staging_step: step 50's code in a child, the way install.sh runs it.
+#
+# SCRIPT_DIR is exported because 50-artifacts.sh resolves the release signing key against
+# it in a top-level `readonly`, and under `set -u` an unset variable would kill the source
+# before a single function was defined — a failure that looks nothing like the one this
+# check is about. It points at the installer tree this image carries; nothing below reads
+# the key, and no check here depends on it existing.
+run_staging_step() {
+  local snippet="$1" path_prefix="${2:-}"
+  local search_path="$PATH"
+  if [ -n "$path_prefix" ]; then
+    search_path="${path_prefix}:${PATH}"
+  fi
+  SCRIPT_DIR="$INSTALLER_ROOT" PATH="$search_path" bash -c 'set -euo pipefail
+. "$1"
+eval "$2"' _ "$ARTIFACTS_STEP" "$snippet"
+}
+
+# assert_the_staging_gate_refuses_what_install_left_wrong: the inverse control for the gate
+# inside prepare_staging_dir.
+#
+# It cannot be driven by planting a directory, and the reason is worth writing down because
+# it is the same reason the scratch gate needed its own entry point. prepare_staging_dir
+# does `rm -rf` and then `install -d -o root -g root -m 0700` before it looks at anything,
+# so root repairs whatever was planted and the gate is handed a correct directory every
+# time. Feeding it a violation means the CREATION, not the plant, has to go wrong — which
+# is exactly the case the gate is written for: `install -d` exits 0 on a path it did not
+# make the way it was asked.
+#
+# So an `install` stand-in goes first on the step's PATH, using the same mechanism
+# run_nginx_step already uses to put a hostile binary in front of a step. The stand-in is
+# a fixture, not a mutation of the installer: 50-artifacts.sh is byte-for-byte the shipped
+# file in every run below, and the thing being measured is whether its gate looks at the
+# result of a command instead of trusting it.
+#
+# Two states, because they fail different lines: a directory with the wrong mode, and a
+# symlink — which `install -d` follows and `[ -d ]` would call a directory.
+assert_the_staging_gate_refuses_what_install_left_wrong() {
+  local shim_dir="/tmp/polygon-staging-shim" victim="/tmp/polygon-staging-victim"
+  rm -rf -- "$shim_dir" "$victim"
+  install -d -m 0755 "$shim_dir"
+
+  # A stand-in that ignores -o/-g/-m and leaves the directory world-writable.
+  cat > "${shim_dir}/install" <<'SHIM'
+#!/usr/bin/env bash
+# Polygon fixture: an `install` that creates the directory it was asked for and then
+# ignores the ownership and mode it was asked for. It stands in for the host on which
+# root's own tools did not do what root asked, which is the only state the staging gate
+# can ever meet on a real machine.
+set -euo pipefail
+: > /tmp/polygon-staging-shim.ran
+target="${@: -1}"
+/usr/bin/install -d -m 0777 "$target"
+SHIM
+  chmod 755 "${shim_dir}/install"
+  assert_staging_gate_refuses "$shim_dir" "a world-writable staging directory" 'must be owned by root with mode 0700'
+
+  # A stand-in that leaves a symbolic link where the directory should be.
+  install -d -o root -g root -m 0700 "$victim"
+  cat > "${shim_dir}/install" <<'SHIM'
+#!/usr/bin/env bash
+# Polygon fixture: an `install` that leaves a symbolic link at the staging path instead
+# of a directory. `[ -d ]` alone answers yes to this, which is why the gate asks `[ -L ]`
+# first; this is the fixture that makes that ordering matter.
+set -euo pipefail
+: > /tmp/polygon-staging-shim.ran
+target="${@: -1}"
+ln -s /tmp/polygon-staging-victim "$target"
+SHIM
+  chmod 755 "${shim_dir}/install"
+  assert_staging_gate_refuses "$shim_dir" "a symbolic link at the staging path" 'is not a real directory'
+
+  rm -rf -- "$shim_dir" "$victim" /tmp/polygon-staging-shim.ran
+  # The inverse control: with the real `install` back on PATH the step must SUCCEED.
+  run_staging_step 'prepare_staging_dir' \
+    || fail "prepare_staging_dir refused the directory its own real install(1) had just built. A gate that refuses everything proves nothing about the two refusals above."
+  assert_directory_is /var/lib/maran-artifact-staging "0:0:700"
+
+  echo "Step 50's staging gate refused a world-writable directory and a symbolic link, and accepted the one the real install builds."
+}
+
+# assert_staging_gate_refuses: runs prepare_staging_dir with `$1` first on PATH and
+# requires a non-zero status and a diagnosis containing `$2`.
+#
+# The stand-in is checked to have actually been reached. A PATH prefix that does not take
+# effect — a stand-in that is not executable, a step that calls install by absolute path —
+# turns this into a run of the ordinary code that passes, and a negative test that passes
+# for the wrong reason is the exact failure mode this file's header is about.
+assert_staging_gate_refuses() {
+  local shim_dir="$1" what="$2" expected_message="$3" output status=0
+
+  rm -rf -- /var/lib/maran-artifact-staging /tmp/polygon-staging-shim.ran
+  output="$(run_staging_step 'prepare_staging_dir' "$shim_dir" 2>&1)" || status=$?
+
+  # The vacuity guard, on the axis that can go blind: whether the stand-in was reached at
+  # all. A PATH prefix that does not take effect turns this into an ordinary, passing run
+  # of the step, and the negative test then reports a refusal that never happened.
+  [ -f /tmp/polygon-staging-shim.ran ] \
+    || fail "the install(1) stand-in in ${shim_dir} was never executed, so prepare_staging_dir met no violation at all and the refusal below would have been about nothing"
+
+  [ "$status" -ne 0 ] \
+    || fail "step 50's prepare_staging_dir ACCEPTED ${what}. The archive extracted from that directory becomes /usr/local/maran/agent/maran-agent, which systemd runs as root."
+  case "$output" in
+    *"$expected_message"*) ;;
+    *) fail "prepare_staging_dir refused ${what}, but its diagnosis does not contain '${expected_message}' — it said: ${output}" ;;
+  esac
+}
+
+# assert_the_agent_unit_declares_its_writable_roots: the systemd half, and the limits of
+# asking a text file about a sandbox.
+#
+# Two properties, both of which a wrong answer would make invisible on a running host:
+#
+#   1. Every writable root the agent uses is named in ReadWritePaths=. This is checked in
+#      full against agent_paths.rs by `maran structure` (check 20); what is added here is
+#      the four paths today's two fixes touch, stated by name, so a build of this image
+#      fails if one of them is dropped even where the agent's constant went with it.
+#   2. EnvironmentFile= appears BEFORE Environment=PATH=. systemd applies these in file
+#      order, so that ordering is what stops a PATH= line added to /etc/maran/agent.env
+#      from winning against the deliberately empty PATH. Reverse the two lines and the
+#      unit still parses, still starts and still looks right — the protection is the
+#      ORDER, and nothing else in this repository observes it.
+assert_the_agent_unit_declares_its_writable_roots() {
+  local writable_set entry root covered
+  writable_set="$(grep '^ReadWritePaths=' "$AGENT_UNIT" | head -1 | sed 's/^ReadWritePaths=//')"
+  [ -n "$writable_set" ] \
+    || fail "$(basename "$AGENT_UNIT") has no ReadWritePaths= line — this check cannot observe the unit's writable set"
+
+  for root in \
+    /home \
+    /home/.maran-restore \
+    /var/lib/maran \
+    /var/lib/maran-scratch \
+    /var/backups/maran \
+    /run/maran; do
+    covered=0
+    for entry in $writable_set; do
+      entry="${entry#-}"
+      case "$root" in
+        "$entry"|"$entry"/*) covered=1 ;;
+      esac
+    done
+    [ "$covered" -eq 1 ] \
+      || fail "$(basename "$AGENT_UNIT") ReadWritePaths= does not cover ${root}. The agent writes there; under this sandbox it would get EROFS at runtime on a real server, with a clean install behind it."
+  done
+
+  local environment_file_line path_line
+  environment_file_line="$(grep -n '^EnvironmentFile=' "$AGENT_UNIT" | head -1 | cut -d: -f1)"
+  path_line="$(grep -n '^Environment=PATH=' "$AGENT_UNIT" | head -1 | cut -d: -f1)"
+  [ -n "$environment_file_line" ] \
+    || fail "$(basename "$AGENT_UNIT") has no EnvironmentFile= line; the agent would start with no MARAN_AGENT_ALLOW_UID and deny the API every request"
+  [ -n "$path_line" ] \
+    || fail "$(basename "$AGENT_UNIT") has no 'Environment=PATH=' line; the daemon would inherit systemd's compiled-in PATH, which begins with the directories this product installs into"
+  [ "$environment_file_line" -lt "$path_line" ] \
+    || fail "$(basename "$AGENT_UNIT") sets Environment=PATH= on line ${path_line}, BEFORE EnvironmentFile= on line ${environment_file_line}. systemd applies these in file order, so in this order a PATH= line written into /etc/maran/agent.env overrides the empty PATH the unit intends."
+
+  echo "maran-agent.service names every writable root today's fixes touch, and loads EnvironmentFile= before it empties PATH."
+  echo "UNOBSERVED HERE: this image boots no systemd. Nothing above ran ExecStartPre=, mounted a"
+  echo "ReadWritePaths= sandbox, or applied UMask=0027 — those are claims about a booted host, and the"
+  echo "two lines above are claims about a text file. What would settle them is one boot per family:"
+  echo "'systemd-analyze verify maran-agent.service', then 'systemctl show -p ReadWritePaths -p UMask"
+  echo "maran-agent.service' read back from the running manager, a file created by the daemon and"
+  echo "stat'd for 0640, a write attempted outside the set and seen to fail with EROFS, and a scratch"
+  echo "directory planted before a restart and seen to be gone after it."
+}
+
+
+# run_preflight_step: runs step 10's code THE WAY install.sh runs it — a plain command in a child
+# shell with `set -euo pipefail`, the step file sourced, and MARAN_PANEL_PORT exported first
+# because the step's `readonly MARAN_REQUIRED_PORTS="${MARAN_PANEL_PORT:?…}"` refuses to be sourced
+# without it — and hands back its status and its output.
+#
+# The port comes from install.sh, never from a literal here, for the reason
+# assert_panel_port_has_one_authority exists.
+#
+# The optional PATH prefix is how the free-space check is driven: `check_backup_space` reads the
+# host with `df`, and a container's `df` reports whatever the build host happens to have free, so
+# the only way to see BOTH of that function's branches is to control its answer. Same mechanism
+# run_nginx_step uses for a hostile nginx and the staging assertion uses for `install(1)` — the
+# STEP is the real one, unmodified; the tool it calls is the stand-in.
+run_preflight_step() {
+  local snippet="$1" path_prefix="${2:-}"
+  local search_path="$PATH"
+  [ -z "$path_prefix" ] || search_path="${path_prefix}:${PATH}"
+  MARAN_PANEL_PORT="$(installer_value MARAN_PANEL_PORT "$INSTALLER_ENTRY_POINT")" \
+    PATH="$search_path" \
+    bash -c 'set -euo pipefail
+. "$1"
+eval "$2"' _ "$PREFLIGHT_STEP" "$snippet"
+}
+
+# df_stand_in: writes, into directory `$1`, a `df` that reports `$2` MiB available and records that
+# it was reached in `$1/df.ran`.
+#
+# The marker is not decoration. A PATH prefix that failed to take effect would leave the REAL `df`
+# answering, and on a build host with little free space the "warns" case below would then pass
+# without the stand-in having run at all — a refusal that never happened, scored as one. The same
+# trap the step 50 staging assertion names.
+#
+# It prints the header line and one data line because that is what `df -P` guarantees and what the
+# step's `awk 'NR==2 { print $4 }'` reads; anything else would be this script inventing a format the
+# installer does not parse.
+df_stand_in() {
+  local directory="$1" available_mb="$2"
+  cat > "${directory}/df" <<STAND_IN
+#!/usr/bin/env bash
+touch "${directory}/df.ran"
+echo "Filesystem 1M-blocks Used Available Capacity Mounted-on"
+echo "polygon-stand-in 102400 102400 ${available_mb} 100% /"
+STAND_IN
+  chmod 0755 "${directory}/df"
+  rm -f "${directory}/df.ran"
+}
+
+# assert_preflight_warns_about_backup_space_without_refusing: step 10's backup free-space check,
+# in all three of the states it can be in, driven through the installer's own function.
+#
+# Three properties, and the third is the one that would be a defect rather than a missing feature:
+#
+#   1. Below the floor it WARNS and names the number it measured. A check that says "not enough
+#      space" without the figure is not actionable, and the plan asks for the number by name.
+#   2. Above the floor it accepts. This is the inverse control rules/testing.md requires of every
+#      refusing gate: a check mutated to warn unconditionally passes every test that only ever
+#      hands it a starved filesystem.
+#   3. It NEVER fails the install. `_PREFLIGHT_FAILED` is read back out of the child after the warn
+#      case, because a warning that quietly sets that flag is a refusal wearing a warning's words,
+#      and an operator who intends to mount a backup volume after installing would be locked out of
+#      their own server by it.
+#
+# It also runs the function against the REAL `df` on the real host, with no stand-in, to prove the
+# thing parses this family's actual `df -Pm` output — the stand-in's format is this script's belief
+# about `df`, and a belief is not the tool.
+assert_preflight_warns_about_backup_space_without_refusing() {
+  local shim_dir output
+  shim_dir="$(mktemp -d)"
+
+  # 1. Starved: one mebibyte free, far under the step's floor.
+  df_stand_in "$shim_dir" 1
+  output="$(run_preflight_step 'check_backup_space; echo "PREFLIGHT_FAILED=${_PREFLIGHT_FAILED}"' "$shim_dir" 2>&1)" \
+    || fail "check_backup_space exited non-zero on a starved filesystem; it is a warning and must never abort the step. It said: ${output}"
+  [ -f "${shim_dir}/df.ran" ] \
+    || fail "the df stand-in in ${shim_dir} was never executed, so check_backup_space measured the real host and the warning below would be about nothing"
+  case "$output" in
+    *"PREFLIGHT WARN"*) ;;
+    *) fail "check_backup_space did not warn on a filesystem with 1 MiB free. It said: ${output}" ;;
+  esac
+  case "$output" in
+    *"1 MiB free"*) ;;
+    *) fail "check_backup_space warned without naming the number it measured, which is the one thing the warning is for. It said: ${output}" ;;
+  esac
+  case "$output" in
+    *"/var/backups/maran"*) ;;
+    *) fail "check_backup_space warned without naming the backup root, so an operator cannot tell which filesystem to enlarge. It said: ${output}" ;;
+  esac
+  case "$output" in
+    *"PREFLIGHT_FAILED=0"*) ;;
+    *) fail "check_backup_space set the preflight failure flag. It is documented as a warning: an operator who plans to mount a backup volume after installing would be refused an install by this. It said: ${output}" ;;
+  esac
+
+  # 2. Ample: comfortably over the floor. The gate must ACCEPT.
+  df_stand_in "$shim_dir" 999999
+  output="$(run_preflight_step 'check_backup_space' "$shim_dir" 2>&1)" \
+    || fail "check_backup_space exited non-zero on a filesystem with plenty of space: ${output}"
+  [ -f "${shim_dir}/df.ran" ] \
+    || fail "the df stand-in in ${shim_dir} was never executed on the ample case"
+  case "$output" in
+    *"PREFLIGHT WARN"*) fail "check_backup_space warned about a filesystem with 999999 MiB free, so it warns whatever it is handed and the warning above proves nothing. It said: ${output}" ;;
+    *"PREFLIGHT OK"*) ;;
+    *) fail "check_backup_space said neither OK nor WARN on an ample filesystem: ${output}" ;;
+  esac
+
+  # 3. The real tool on the real host: whatever this build host has free, the function must parse
+  #    this family's own `df -Pm` and produce one of its two verdicts rather than an empty number.
+  output="$(run_preflight_step 'check_backup_space' 2>&1)" \
+    || fail "check_backup_space exited non-zero against this family's real df: ${output}"
+  case "$output" in
+    *"PREFLIGHT OK"*|*"PREFLIGHT WARN"*) ;;
+    *) fail "check_backup_space produced neither verdict against the real df on this family, so its awk does not read this df's output: ${output}" ;;
+  esac
+  case "$output" in
+    *": 0 MiB free"*|*"only 0 MiB free"*)
+      fail "check_backup_space read 0 MiB off this family's real df, which means its column arithmetic is wrong here rather than that the disk is full: ${output}" ;;
+  esac
+
+  rm -rf "$shim_dir"
+  echo "Step 10's backup free-space check warns with the number, accepts an ample filesystem, never fails the install, and parses this family's real df."
+  echo "UNOBSERVED HERE: three of the four cases above were answered by a df stand-in, not by a"
+  echo "filesystem. What this image cannot show is the check on a host whose backup volume is"
+  echo "mounted at /var/backups AFTER the install: step 10 runs before step 40 creates the"
+  echo "directory, so it measures the nearest existing ancestor and its number is then about the"
+  echo "wrong filesystem — labelled in the message, never corrected. What would settle it is one"
+  echo "boot per family: a real volume mounted there, an install run, and the warning read back."
+}
+
+# The account directory and the two files planted under the backup root. Named here because the
+# assertion below and its inverse control must plant and look for exactly the same things, and a
+# check that hunts for a name nothing planted is the shape that reports a protection as held.
+readonly PLANTED_BACKUP_ACCOUNT="/var/backups/maran/polykeep"
+readonly PLANTED_BACKUP_ARTIFACT="${PLANTED_BACKUP_ACCOUNT}/00000000-0000-0000-0000-0000000000ff.tar.gz"
+readonly PLANTED_BACKUP_SIDECAR="${PLANTED_BACKUP_ACCOUNT}/00000000-0000-0000-0000-0000000000ff.json"
+readonly PLANTED_BACKUP_BYTES="polygon planted artifact — a customer's only copy"
+
+# plant_a_backup_artifact: an account directory and two files under the REAL backup root, in the
+# layout ops::backup writes (<root>/<account>/<id>.tar.gz plus its sidecar) and at the modes it
+# writes them at. Real files at the real path, because the whole question is what a root process
+# running `rm -rf` by name does to them.
+plant_a_backup_artifact() {
+  install -d -o root -g root -m 0700 /var/backups/maran
+  install -d -o root -g root -m 0700 "$PLANTED_BACKUP_ACCOUNT"
+  printf '%s\n' "$PLANTED_BACKUP_BYTES" > "$PLANTED_BACKUP_ARTIFACT"
+  printf '{"id":"00000000-0000-0000-0000-0000000000ff"}\n' > "$PLANTED_BACKUP_SIDECAR"
+  chmod 0600 "$PLANTED_BACKUP_ARTIFACT" "$PLANTED_BACKUP_SIDECAR"
+  [ -f "$PLANTED_BACKUP_ARTIFACT" ] && [ -f "$PLANTED_BACKUP_SIDECAR" ] \
+    || fail "the planted backup artifact was not written, so everything below would be measuring an empty directory"
+}
+
+# backup_root_survives: runs the uninstaller at <path> the way main() runs it — the deleters, in
+# main()'s order — and answers whether the planted artifact is still there afterwards, byte for
+# byte. Prints a diagnosis and returns 1 when it is not.
+#
+# A function that RETURNS rather than one that calls fail, because it is used twice and in opposite
+# directions: once on the real uninstaller, which must survive it, and once on a copy carrying the
+# one line this whole promise is about, which must not.
+#
+# `remove_var_lib` and `remove_logs` are the two deleters that run `rm -rf` on a named directory,
+# which is where a fifth sibling would be added by whoever added it. `note_backups_kept` runs after
+# them, in main()'s order, so its count is a count taken after the deleting is done.
+backup_root_survives() {
+  local uninstaller="$1" output status=0
+  output="$(bash -c 'set -euo pipefail
+. "$1"
+remove_var_lib
+remove_logs
+note_backups_kept' _ "$uninstaller" 2>&1)" || status="$?"
+
+  if [ "$status" -ne 0 ]; then
+    printf 'the uninstaller exited %s while deleting; it said: %s\n' "$status" "$output"
+    return 1
+  fi
+  if [ ! -d "$PLANTED_BACKUP_ACCOUNT" ]; then
+    printf 'the uninstaller DELETED %s. That directory is a customer'"'"'s only copy of their files and their databases, and an uninstall is not a decommission. It said: %s\n' \
+      "$PLANTED_BACKUP_ACCOUNT" "$output"
+    return 1
+  fi
+  if [ ! -f "$PLANTED_BACKUP_ARTIFACT" ]; then
+    printf 'the uninstaller DELETED the artifact %s while leaving its directory. It said: %s\n' \
+      "$PLANTED_BACKUP_ARTIFACT" "$output"
+    return 1
+  fi
+  if ! printf '%s\n' "$PLANTED_BACKUP_BYTES" | cmp -s - "$PLANTED_BACKUP_ARTIFACT"; then
+    printf 'the artifact at %s survived the uninstall with different bytes in it\n' "$PLANTED_BACKUP_ARTIFACT"
+    return 1
+  fi
+  printf '%s' "$output"
+  return 0
+}
+
+# assert_the_uninstaller_keeps_the_backup_root: the uninstaller leaves /var/backups/maran alone,
+# says so naming the path and the count, and this assertion can tell the difference.
+#
+# The plan's words: an uninstaller that removes a customer's only copy of their data "is the worst
+# defect this product could ship, and it would be one line". Today the line is absent by omission —
+# `remove_var_lib` deletes three siblings of the backup root by name, and a fourth `rm -rf` beside
+# them would read like its neighbours and nothing in this repository would have gone red for it.
+#
+# So this is proved in both directions, which for a promise about ABSENCE is not optional: every
+# positive assertion here passes just as happily against an uninstaller that never had the promise,
+# because the deletion is what has to be caught and there is none to catch. The inverse control puts
+# that one line into a COPY of the uninstaller — verified landed with `cmp` and a grep count, since
+# a mutation that silently failed to apply is how three mutations in this repository were scored
+# blind — and requires the check above to refuse it, naming the path it lost.
+#
+# UNOBSERVED HERE: this is the uninstaller's shell functions against a planted file, not an
+# uninstall of a real install. No systemd, no maran-api, no agent, no operator at a terminal, and
+# `confirm` reaches no tty in a build layer so `remove_logs` takes its keep-the-data branch. What a
+# booted host would have to show instead is one real install, one real backup taken through the
+# panel, `bash uninstall.sh --yes`, and the artifact still on the disk afterwards with the
+# transcript naming it.
+assert_the_uninstaller_keeps_the_backup_root() {
+  local mutant output diagnosis planted_lines restored
+
+  plant_a_backup_artifact
+
+  output="$(backup_root_survives "$UNINSTALLER")" \
+    || fail "the real uninstaller did not leave the backup root alone: ${output}"
+  case "$output" in
+    *"/var/backups/maran"*) ;;
+    *) fail "the uninstaller kept the backup root but never named it. An operator finishing a decommission has to be told where the data it refused to delete is: ${output}" ;;
+  esac
+  case "$output" in
+    *"2 file(s)"*) ;;
+    *) fail "the uninstaller did not report the two planted artifacts as a count; a report that says 'backups were kept' without saying how many is not something an operator can act on: ${output}" ;;
+  esac
+
+  # The inverse control: the one line, in a copy, verified to have landed before it is scored.
+  mutant="$(mktemp)"
+  sed 's|^  rm -rf /var/lib/maran$|  rm -rf /var/lib/maran\n  rm -rf /var/backups/maran|' \
+    "$UNINSTALLER" > "$mutant"
+  planted_lines="$(grep -c '^  rm -rf /var/backups/maran$' "$mutant" || true)"
+  [ "$planted_lines" -eq 1 ] \
+    || fail "the inverse control planted ${planted_lines} deletions of the backup root instead of exactly one — the anchor line in uninstall.sh has changed, and this control would have scored a mutation that never applied"
+  if cmp -s "$UNINSTALLER" "$mutant"; then
+    fail "the inverse control's copy of the uninstaller is identical to the original, so the deletion below never applied and the refusal it asks for would be about nothing"
+  fi
+
+  if diagnosis="$(backup_root_survives "$mutant")"; then
+    rm -f "$mutant"
+    fail "an uninstaller carrying 'rm -rf /var/backups/maran' PASSED this assertion, so the assertion cannot see the deletion it exists for and its green verdict above means nothing"
+  fi
+  case "$diagnosis" in
+    *"$PLANTED_BACKUP_ACCOUNT"*) ;;
+    *) fail "the inverse control was refused, but the diagnosis does not name what was lost: ${diagnosis}" ;;
+  esac
+  rm -f "$mutant"
+
+  # Everything the mutant and the real deleters removed, put back by the installer's own steps
+  # rather than by literals here: the backup root and the panel layout from step 40, the SFTP jail
+  # base from step 86 (remove_var_lib deletes it, and the suites that follow this build need it).
+  bash -c 'set -euo pipefail
+. "$1"
+create_directory_layout' _ "$USER_STEP" >/dev/null \
+    || fail "step 40's create_directory_layout could not restore the layout this assertion's deleters removed"
+  run_installer_step 'install_sftp_prerequisites' >/dev/null \
+    || fail "step 86's install_sftp_prerequisites could not restore the SFTP jail base this assertion's deleters removed"
+  for restored in /var/backups/maran /var/lib/maran /var/lib/maran-scratch /var/lib/maran-sftp; do
+    [ -d "$restored" ] \
+      || fail "${restored} is missing after this assertion restored the layout; the image would ship without it and every suite that needs it would fail for the wrong reason"
+  done
+  rm -rf "$PLANTED_BACKUP_ACCOUNT"
+
+  echo "The uninstaller keeps /var/backups/maran, names it and counts what is in it — and an uninstaller that deletes it is refused here."
+  echo "UNOBSERVED HERE: this is the uninstaller's shell functions against a planted file, not an"
+  echo "uninstall of a real install. No systemd, no maran-api, no agent, and no operator at a"
+  echo "terminal — confirm() reaches no tty in a build layer, so remove_logs took its keep-the-data"
+  echo "branch and the delete-the-logs branch is not exercised here at all. What would settle it is"
+  echo "one real install per family, one real backup taken through the panel, bash uninstall.sh"
+  echo "--yes, and the artifact still on the disk afterwards with the transcript naming it."
+}
+
 main() {
   # First: it reads files and touches no service, so it reports the cheapest failure before
   # anything slower has a chance to fail for its own reasons.
@@ -3647,7 +4559,38 @@ main() {
   # After it, because it needs the `panel` group that assertion's prepare step creates, and because
   # it is the other assertion that installs files outside /tmp.
   assert_the_panel_socket_directory_is_built_and_then_looked_at
-  echo "Installer steps 60, 70, 80, 85, 86 and 87, and the panel port's single authority, verified inside the polygon."
+
+  # Last of all, and deliberately: these RUN step 40's create_directory_layout, which
+  # re-modes /run/maran and re-owns /var/lib/maran to the values a real install leaves.
+  # Every assertion above has finished with those directories by the time they do, and the
+  # Dockerfile's own call to the same function follows this script.
+  assert_the_directory_layout_is_what_it_claims
+  assert_the_scratch_gate_refuses_a_directory_root_does_not_own
+  assert_the_ancestor_walk_refuses_a_panel_owned_ancestor
+  assert_the_log_directory_gate_sees_the_defect_it_was_written_for
+  assert_the_release_staging_directory_is_root_only
+  assert_the_staging_gate_refuses_what_install_left_wrong
+  assert_the_agent_unit_declares_its_writable_roots
+  assert_preflight_warns_about_backup_space_without_refusing
+  # Last of everything: it runs the uninstaller's real deleters at their real paths, which takes
+  # /var/lib/maran, the scratch and the SFTP jail base with them. It puts all three back through
+  # the installer's own steps and checks they came back, but nothing above it should have to
+  # depend on that restoration having worked.
+  assert_the_uninstaller_keeps_the_backup_root
+  echo "Installer steps 40, 50, 60, 70, 80, 85, 86 and 87, the panel port's single authority, and the"
+  echo "on-disk boundary the two privilege-escalation fixes moved, verified inside the polygon."
 }
 
-main "$@"
+# Both Dockerfiles run this script with NO arguments, which is the only mode that counts: every
+# assertion, in the order main() fixes. Named arguments run only those functions, and that is a
+# DEBUGGING affordance, never a gate — a subset scored as if it were the suite is the shape
+# rules/testing.md names as the one that manufactures confidence. A run with arguments says so on
+# stdout so its output can never be mistaken for a build's.
+if [ "$#" -gt 0 ]; then
+  echo "assert-installer-steps.sh: SUBSET RUN of $* — this is not the polygon build gate."
+  for requested in "$@"; do
+    "$requested"
+  done
+else
+  main
+fi

@@ -120,4 +120,26 @@ public sealed class AgentSftpClient : IAgentSftpClient
             _ => Result<bool>.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
         };
     }
+
+    /// <inheritdoc/>
+    public async Task<Result<bool>> SetAccountLoginsLockedAsync(
+        string accountUsername,
+        bool locked,
+        CancellationToken cancellationToken)
+    {
+        var request = new SetAccountLoginsLockedRequest
+        {
+            AccountUsername = accountUsername,
+            Locked = locked,
+        };
+        var response = await _invoker.SetAccountLoginsLockedAsync(request, cancellationToken);
+
+        return response.ResultCase switch
+        {
+            SetAccountLoginsLockedResponse.ResultOneofCase.Ok => Result<bool>.Ok(true),
+            SetAccountLoginsLockedResponse.ResultOneofCase.Error => Result<bool>.Fail(
+                AgentErrorTranslator.ToError(_logger, response.Error, nameof(SetAccountLoginsLockedAsync))),
+            _ => Result<bool>.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
+        };
+    }
 }

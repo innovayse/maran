@@ -1,0 +1,45 @@
+# Committed per-target test baseline. Recorded by 'maran test --accept'; commit the diff.
+# stack<TAB>target<TAB>passed<TAB>failed<TAB>ignored
+rust	maran_agent [unittests src/lib.rs]	234	0	0
+rust	maran_agent [unittests src/main.rs]	0	0	0
+rust	account_deletion_on_a_real_host [tests/account_deletion_on_a_real_host.rs]	0	0	2
+rust	backup_on_a_real_host [tests/backup_on_a_real_host.rs]	0	0	11
+rust	binary_paths_on_a_real_host [tests/binary_paths_on_a_real_host.rs]	0	0	1
+rust	cron_on_a_real_host [tests/cron_on_a_real_host.rs]	0	0	5
+rust	databases_on_a_real_host [tests/databases_on_a_real_host.rs]	0	0	6
+rust	firewall_on_a_real_host [tests/firewall_on_a_real_host.rs]	0	0	10
+rust	handshake [tests/handshake.rs]	4	0	0
+rust	monitor_on_a_real_host [tests/monitor_on_a_real_host.rs]	0	0	5
+rust	php_pools_on_a_real_host [tests/php_pools_on_a_real_host.rs]	0	0	3
+rust	privileges_on_a_real_host [tests/privileges_on_a_real_host.rs]	0	0	15
+rust	sftp_on_a_real_host [tests/sftp_on_a_real_host.rs]	0	0	10
+rust	shutdown_signal [tests/shutdown_signal.rs]	2	0	0
+rust	sites_on_a_real_host [tests/sites_on_a_real_host.rs]	0	0	10
+rust	maran_agent_core [unittests src/lib.rs]	319	0	0
+rust	maran_distro [unittests src/lib.rs]	32	0	0
+rust	maran_ops [unittests src/lib.rs]	875	0	1
+rust	maran_templates [unittests src/lib.rs]	0	0	0
+rust	golden_test [tests/golden_test.rs]	11	0	0
+rust	doc-tests maran_agent	0	0	0
+rust	doc-tests maran_agent_core	0	0	0
+rust	doc-tests maran_distro	0	0	0
+rust	doc-tests maran_ops	0	0	0
+rust	doc-tests maran_templates	0	0	0
+backend	Maran.Agent.Client.Tests.dll	263	0	0
+backend	Maran.Modules.Backups.Tests.dll	123	0	0
+backend	Maran.SharedKernel.Tests.dll	135	0	0
+backend	Maran.Modules.Notifications.Tests.dll	48	0	0
+backend	Maran.Modules.Tasks.Tests.dll	45	0	0
+backend	Maran.Modules.Monitoring.Tests.dll	42	0	0
+backend	Maran.Modules.Sftp.Tests.dll	75	0	0
+backend	Maran.Modules.Cron.Tests.dll	177	0	0
+backend	Maran.Modules.Sites.Tests.dll	171	0	0
+backend	Maran.Modules.Firewall.Tests.dll	240	0	0
+backend	Maran.Modules.Accounts.Tests.dll	145	0	0
+backend	Maran.Modules.Databases.Tests.dll	70	0	0
+backend	Maran.Modules.Ssl.Tests.dll	158	0	0
+backend	Maran.Modules.Identity.Tests.dll	173	0	0
+backend	Maran.Sdk.Tests.dll	153	0	0
+backend	Maran.ArchitectureTests.dll	38	0	0
+backend	Maran.Host.Tests.dll	203	0	0
+backend	Maran.Host.IntegrationTests.dll	282	0	0

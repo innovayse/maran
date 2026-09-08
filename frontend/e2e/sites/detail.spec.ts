@@ -55,30 +55,58 @@ test('the site overview shows what the panel reported, including its document ro
 // The consequence, not "are you sure": an operator who believes deleting a site wipes the
 // customer's files will hesitate over a safe action, and one who believes the opposite will not
 // hesitate over a destructive one. The contract removes the vhost and leaves the files.
-test('deleting a site asks first and says the files are left on disk', async ({ page }) => {
+test('deleting a site asks in a dialog that names it and says the files are left on disk', async ({
+  page,
+}) => {
   await stubDetailDependencies(page)
 
   await page.goto(`/sites/${SITE.id}`)
   await page.getByRole('button', { name: 'Delete' }).click()
 
-  await expect(
-    page.getByText('The files in the document root are left on disk.', { exact: false }),
-  ).toBeVisible()
+  // The accessible name says which site, not "Confirm".
+  const dialog = page.getByRole('dialog', { name: `Delete site ${SITE.domain}` })
+  await expect(dialog).toBeVisible()
+  await expect(dialog).toContainText('The files in the document root are left on disk.')
   // Nothing has been sent yet: the confirmation is a question, not a progress indicator.
   await expect(page).toHaveURL(new RegExp(`/sites/${SITE.id}$`))
 
-  await page.getByRole('button', { name: 'Yes, do it' }).click()
+  await dialog.getByRole('button', { name: 'Yes, do it' }).click()
 
   await expect(page).toHaveURL(/\/sites$/)
 })
 
-test('abandoning a delete leaves the site alone', async ({ page }) => {
+// Disabling and deleting are different questions, and the dialog must ask the one the operator
+// started — a shared component that showed the last question asked would be worse than five
+// hand-written ones.
+test('disabling asks its own question, not the deletion one', async ({ page }) => {
   await stubDetailDependencies(page)
 
   await page.goto(`/sites/${SITE.id}`)
-  await page.getByRole('button', { name: 'Delete' }).click()
-  await page.getByRole('button', { name: 'Cancel' }).click()
+  await page.getByRole('button', { name: 'Disable' }).click()
 
+  const dialog = page.getByRole('dialog', { name: `Disable site ${SITE.domain}` })
+  await expect(dialog).toContainText('It keeps its vhost and answers with a suspension response.')
+  await expect(dialog).not.toContainText('left on disk')
+})
+
+test('abandoning a delete sends nothing and leaves the site alone', async ({ page }) => {
+  await stubDetailDependencies(page)
+  let deleteRequests = 0
+  await page.route(`**/api/v1/sites/${SITE.id}`, async (route) => {
+    if (route.request().method() !== 'DELETE') {
+      await route.fallback()
+      return
+    }
+    deleteRequests += 1
+    await route.fulfill({ status: 204, body: '' })
+  })
+
+  await page.goto(`/sites/${SITE.id}`)
+  await page.getByRole('button', { name: 'Delete' }).click()
+  await page.getByRole('dialog').getByRole('button', { name: 'Cancel' }).click()
+
+  await expect(page.getByRole('dialog')).toHaveCount(0)
+  expect(deleteRequests).toBe(0)
   await expect(page.getByRole('button', { name: 'Delete' })).toBeVisible()
   await expect(page).toHaveURL(new RegExp(`/sites/${SITE.id}$`))
 })

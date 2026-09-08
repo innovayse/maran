@@ -676,4 +676,79 @@ public sealed class AgentCronClientTests
     {
         return new AgentCronClient(stub, NullLogger<AgentCronClient>.Instance);
     }
+
+    /// <summary>The account-wide suspension request carries the account and the direction.</summary>
+    /// <remarks>
+    /// Both directions, because a client that hard-coded <c>true</c> would map a resume onto a second
+    /// suspension and every entry of a reactivated account would stay silent — with no row anywhere
+    /// to notice it, since this panel keeps no cron rows.
+    /// </remarks>
+    /// <param name="suspended">The direction under test.</param>
+    /// <returns>The asynchronous test.</returns>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task The_account_wide_suspension_request_carries_the_account_and_the_direction(bool suspended)
+    {
+        var stub = new StubCronService();
+
+        await Client(stub).SetAccountSuspendedAsync("alice", suspended, CancellationToken.None);
+
+        var request = Assert.IsType<SetAccountCronSuspendedRequest>(stub.LastSetAccountSuspendedRequest);
+        Assert.Equal("alice", request.AccountUsername);
+        Assert.Equal(suspended, request.Suspended);
+    }
+
+    /// <summary>The account-wide suspension names no entry, because it addresses the whole crontab.</summary>
+    /// <remarks>
+    /// The distinction this pins is the whole design of the piece: a client that reached for
+    /// <c>SetCronEntryEnabled</c> here would write the CUSTOMER's own switch, and the resume would
+    /// hand back every job they had turned off themselves.
+    /// </remarks>
+    [Fact]
+    public async Task The_account_wide_suspension_never_reaches_the_per_entry_enablement()
+    {
+        var stub = new StubCronService();
+
+        await Client(stub).SetAccountSuspendedAsync("alice", true, CancellationToken.None);
+
+        Assert.NotNull(stub.LastSetAccountSuspendedRequest);
+        Assert.Null(stub.LastSetEnabledRequest);
+    }
+
+    /// <summary>The account-wide suspension ok payload maps to success.</summary>
+    [Fact]
+    public async Task The_account_wide_suspension_ok_payload_maps_to_success()
+    {
+        var stub = new StubCronService
+        {
+            SetAccountSuspendedResponse = new SetAccountCronSuspendedResponse
+            {
+                Ok = new SetAccountCronSuspendedOk(),
+            },
+        };
+
+        var result = await Client(stub).SetAccountSuspendedAsync("alice", true, CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.True(result.Value);
+    }
+
+    /// <summary>The account-wide suspension error payload maps to a failed result with the agent code.</summary>
+    [Fact]
+    public async Task The_account_wide_suspension_error_payload_maps_to_a_failed_result_with_the_agent_code()
+    {
+        var stub = new StubCronService
+        {
+            SetAccountSuspendedResponse = new SetAccountCronSuspendedResponse
+            {
+                Error = new AgentError { Code = ErrorCode.NotFound, Message = "no such account" },
+            },
+        };
+
+        var result = await Client(stub).SetAccountSuspendedAsync("alice", true, CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("AgentNotFound", result.Error!.Code);
+    }
 }

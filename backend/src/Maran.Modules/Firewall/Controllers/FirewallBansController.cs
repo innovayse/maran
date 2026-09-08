@@ -1,7 +1,6 @@
 using Maran.Modules.Firewall.Commands.BanAddress;
 using Maran.Modules.Firewall.Commands.UnbanAddress;
 using Maran.Modules.Firewall.Common;
-using Maran.Modules.Firewall.Controllers.Requests;
 using Maran.Modules.Firewall.Queries.ListBans;
 using Maran.Sdk.Contracts;
 using Maran.Sdk.Controllers;
@@ -54,7 +53,7 @@ public sealed class FirewallBansController : BaseApiController
     }
 
     /// <summary>Bans an address, for a duration or until somebody lifts it.</summary>
-    /// <param name="request">The address to ban and how long for.</param>
+    /// <param name="command">The address to ban and how long for.</param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpPost]
     [ProducesResponseType(typeof(bool), StatusCodes.Status200OK)]
@@ -62,11 +61,10 @@ public sealed class FirewallBansController : BaseApiController
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     public async Task<IActionResult> CreateAsync(
-        [FromBody] BanAddressRequest request,
+        [FromBody] BanAddressCommand command,
         CancellationToken cancellationToken)
     {
-        var command = new BanAddressCommand(
-            request.Address, request.DurationMinutes, ClientIpAddress, UserAgent());
+        command = command with { IpAddress = ClientIpAddress, UserAgent = CallerUserAgent };
 
         return ToActionResult(await _bus.InvokeAsync<Result<bool>>(command, cancellationToken));
     }
@@ -89,14 +87,7 @@ public sealed class FirewallBansController : BaseApiController
         [FromQuery] string address,
         CancellationToken cancellationToken)
     {
-        var command = new UnbanAddressCommand(address ?? string.Empty, ClientIpAddress, UserAgent());
+        var command = new UnbanAddressCommand(address ?? string.Empty, ClientIpAddress, CallerUserAgent);
         return ToActionResult(await _bus.InvokeAsync<Result<bool>>(command, cancellationToken));
-    }
-
-    /// <summary>Reads the caller's user agent for the audit journal.</summary>
-    /// <returns>The <c>User-Agent</c> header, or the empty string when absent.</returns>
-    private string UserAgent()
-    {
-        return HttpContext.Request.Headers.UserAgent.ToString();
     }
 }

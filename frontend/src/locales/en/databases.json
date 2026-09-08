@@ -12,18 +12,16 @@
         "fullName": "Database",
         "dbUserName": "User",
         "account": "Account",
-        "createdAt": "Created",
-        "actions": "Actions"
+        "createdAt": "Created"
       },
-      "unknownAccount": "—",
       "resetPassword": "Reset password",
       "drop": "Drop",
       "confirmResetPassword": "Set a new password? The current one stops working immediately.",
       "confirmDrop": "Drop this database? Its tables and its user go with it, and nothing here can bring them back.",
-      "confirm": "Yes, do it",
-      "cancel": "Cancel",
       "working": "Working…",
-      "rowActions": "Actions for {name}"
+      "rowActions": "Actions for {name}",
+      "confirmDropTitle": "Drop database {name}",
+      "confirmResetPasswordTitle": "Reset the password for {name}"
     },
     "form": {
       "fields": {
@@ -33,7 +31,8 @@
       },
       "placeholders": {
         "name": "shop",
-        "dbUserName": "shop"
+        "dbUserName": "shop",
+        "accountId": "Choose an account"
       },
       "hint": "Lowercase letters and digits only. The account's name is added in front of both.",
       "submit": "Create database",
@@ -47,7 +46,6 @@
     },
     "credential": {
       "title": "Database password",
-      "close": "Close",
       "warning": "This password is shown once. Nothing keeps a copy of it — not this panel, not the server — so it cannot be shown again. Copy it before you close this.",
       "databaseLabel": "Database",
       "loginLabel": "User",

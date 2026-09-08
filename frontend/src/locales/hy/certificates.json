@@ -1,7 +1,5 @@
 {
   "certificates": {
-    "heading": "SSL",
-    "subtitle": "Այս կայքի TLS վկայագրերը։",
     "loading": "Վկայագրերը բեռնվում են…",
     "emptyTitle": "Վկայագիր տեղադրված չէ",
     "emptyDescription": "Քանի դեռ վկայագիր տեղադրված չէ, կայքը սպասարկվում է սովորական HTTP-ով։",
@@ -24,14 +22,13 @@
       "privateKeyPem": "Ուղարկվում է մեկ անգամ և այլևս չի ցուցադրվում։"
     },
     "submitCustom": "Տեղադրել վկայագիրը",
-    "cancel": "Չեղարկել",
     "remove": "Հեռացնել վկայագիրը",
     "confirmRemove": "Հեռացնե՞լ այս վկայագիրը։ Կայքը կվերադառնա սովորական HTTP սպասարկման։",
-    "confirm": "Այո, կատարել",
     "working": "Կատարվում է…",
     "errors": {
       "certificatePemRequired": "Վկայագրերի շղթան պարտադիր է։",
       "privateKeyPemRequired": "Գաղտնի բանալին պարտադիր է։"
-    }
+    },
+    "confirmRemoveTitle": "Ջնջել {domain}-ի վկայագիրը"
   }
 }

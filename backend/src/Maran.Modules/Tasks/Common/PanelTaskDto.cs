@@ -11,7 +11,15 @@ namespace Maran.Modules.Tasks.Common;
 /// so "the whole task" is a bounded payload by construction rather than by a page size chosen here.
 /// </remarks>
 /// <param name="Id">The task's identity, and the only identifier a request may name.</param>
-/// <param name="Kind">What kind of operation it is, from <c>TaskKinds</c>.</param>
+/// <param name="Kind">
+/// What kind of operation it is, from <c>TaskKinds</c>. Machine-stable, for a client that needs to
+/// branch on it; never what a screen prints.
+/// </param>
+/// <param name="KindDisplayName">
+/// The same kind as an operator reads it, localized for the request's culture. Present because the
+/// backend owns every user-facing name (rules/architecture.md "The backend owns the data, the SPA
+/// renders it"); equal to <paramref name="Kind"/> for a kind this build has no name for.
+/// </param>
 /// <param name="Subject">What it acts on — a domain, an account name.</param>
 /// <param name="CorrelationId">The correlation id of the request that started it, or <c>null</c>.</param>
 /// <param name="Status">Where it has got to.</param>
@@ -27,6 +35,7 @@ namespace Maran.Modules.Tasks.Common;
 public sealed record PanelTaskDto(
     Guid Id,
     string Kind,
+    string KindDisplayName,
     string Subject,
     string? CorrelationId,
     PanelTaskStatus Status,

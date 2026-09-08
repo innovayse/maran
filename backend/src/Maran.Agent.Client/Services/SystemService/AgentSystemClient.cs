@@ -52,7 +52,7 @@ public sealed class AgentSystemClient : IAgentSystemClient
     /// <param name="info">The successful handshake payload.</param>
     private static AgentInfoDto ToDto(AgentInfo info)
     {
-        return new(info.Version, info.DistroId, ToFamily(info.Family), info.ProtoVersion);
+        return new(info.Version, info.DistroId, ToFamily(info.Family), info.ProtoVersion, info.BackupRoot);
     }
 
     /// <summary>Renders a wire <see cref="DistroFamily"/> as the DTO's stable lowercase string.</summary>

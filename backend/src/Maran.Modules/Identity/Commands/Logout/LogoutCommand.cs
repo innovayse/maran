@@ -1,3 +1,6 @@
+using System.Text.Json.Serialization;
+using Microsoft.AspNetCore.Mvc.ModelBinding;
+
 namespace Maran.Modules.Identity.Commands.Logout;
 
 /// <summary>Ends the session the caller's refresh token belongs to.</summary>
@@ -7,6 +10,12 @@ namespace Maran.Modules.Identity.Commands.Logout;
 /// user reaches for it after leaving a tab open overnight.
 /// </remarks>
 /// <param name="RefreshToken">The token read from the caller's cookie.</param>
-/// <param name="IpAddress">The caller's address, recorded in the journal.</param>
-/// <param name="UserAgent">The caller's user agent, recorded in the journal.</param>
-public sealed record LogoutCommand(string RefreshToken, string IpAddress, string UserAgent);
+/// <param name="IpAddress">The caller's address, established by the server from the connection and
+/// stamped by the action. Never bound from the request body (rules/csharp.md "Server-established
+/// members of a command").</param>
+/// <param name="UserAgent">The caller's user agent, established by the server from the request
+/// headers and stamped by the action. Never bound from the request body.</param>
+public sealed record LogoutCommand(
+    string RefreshToken,
+    [property: JsonIgnore][property: BindNever][BindNever] string IpAddress = "",
+    [property: JsonIgnore][property: BindNever][BindNever] string UserAgent = "");

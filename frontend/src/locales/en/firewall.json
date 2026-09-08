@@ -25,8 +25,7 @@
       "columns": {
         "port": "Port",
         "protocol": "Protocol",
-        "source": "Source range",
-        "actions": "Actions"
+        "source": "Source range"
       },
       "form": {
         "fields": {
@@ -56,9 +55,7 @@
       "lastRuleForPort": "This leaves no rule at all for that port.",
       "sshPortUnknown": "This screen is not told which port your SSH daemon listens on: the panel holds that fact and does not send it to the browser. Read the port above before you confirm.",
       "confirmAllow": "Install the rule",
-      "confirmDeny": "Remove the rule",
-      "cancel": "Cancel",
-      "close": "Close"
+      "confirmDeny": "Remove the rule"
     },
     "bans": {
       "heading": "Bans",
@@ -67,8 +64,9 @@
       "permanent": "Until it is lifted",
       "unban": "Lift the ban",
       "confirmUnban": "Let this address back in?",
+      "confirmUnbanTitle": "Lift the ban on {address}",
       "confirm": "Yes, lift it",
-      "cancel": "Cancel",
+      "working": "Working…",
       "rowActions": "Actions for {address}",
       "emptyTitle": "Nobody is banned",
       "emptyDescription": "The brute-force detector has banned nobody, and no address has been banned by hand.",
@@ -81,8 +79,7 @@
         "reason": "Reason",
         "failures": "Failures",
         "bannedAt": "Banned",
-        "expiresAt": "Expires",
-        "actions": "Actions"
+        "expiresAt": "Expires"
       },
       "form": {
         "fields": {
@@ -108,16 +105,16 @@
       "tableCaption": "Ranges exempt from the automatic bans",
       "remove": "Remove",
       "confirmRemove": "Remove this exemption? The automatic bans can reach the range again — and if it is the range you administer from, that includes you.",
+      "confirmRemoveTitle": "Remove the exemption for {cidr}",
       "confirm": "Yes, remove it",
-      "cancel": "Cancel",
+      "working": "Working…",
       "rowActions": "Actions for {cidr}",
       "emptyTitle": "No exemptions",
       "emptyDescription": "Every address can be banned, including the one you are reading this from.",
       "columns": {
         "cidr": "Range",
         "note": "Note",
-        "createdAt": "Added",
-        "actions": "Actions"
+        "createdAt": "Added"
       },
       "form": {
         "fields": {

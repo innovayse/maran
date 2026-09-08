@@ -1,5 +1,4 @@
 using Maran.Modules.Ssl.Commands.InstallCustomCertificate;
-using Maran.Modules.Ssl.Controllers.Requests;
 using Maran.Modules.Ssl.Domain.Entities;
 using Maran.Modules.Ssl.Models;
 
@@ -34,7 +33,11 @@ public sealed class PrivateKeyRedactionTests
         Assert.DoesNotContain("BEGIN PRIVATE KEY", rendered, StringComparison.Ordinal);
     }
 
-    /// <summary>The custom install command does not render its private key.</summary>
+    /// <summary>
+    /// The custom install command does not render its private key. This is now also the type bound
+    /// straight from the HTTP body, so it is the only object a request-logging middleware or a
+    /// model-binding diagnostic can reach for on this endpoint.
+    /// </summary>
     [Fact]
     public void The_custom_install_command_does_not_render_its_private_key()
     {
@@ -44,17 +47,6 @@ public sealed class PrivateKeyRedactionTests
 
         Assert.DoesNotContain("CANARY", rendered, StringComparison.Ordinal);
         Assert.Contains("example.com", rendered, StringComparison.Ordinal);
-    }
-
-    /// <summary>The custom install request does not render its private key.</summary>
-    [Fact]
-    public void The_custom_install_request_does_not_render_its_private_key()
-    {
-        var request = new InstallCustomCertificateRequest("example.com", "cert", Key);
-
-        var rendered = $"{request}";
-
-        Assert.DoesNotContain("CANARY", rendered, StringComparison.Ordinal);
     }
 
     /// <summary>The acme account does not render its account key.</summary>

@@ -17,6 +17,7 @@ import UiButton from '../../components/ui/UiButton.vue'
 import UiCard from '../../components/ui/UiCard.vue'
 import UiForm from '../../components/ui/UiForm.vue'
 import UiInput from '../../components/ui/UiInput.vue'
+import UiPageHeading from '../../components/ui/UiPageHeading.vue'
 import UiSwitch from '../../components/ui/UiSwitch.vue'
 import { useSecurityPolicyStore } from '../../stores/securityPolicy'
 import type { SecurityPolicy } from '../../types/securityPolicy'
@@ -89,10 +90,7 @@ void policyStore.load()
 
 <template>
   <section class="w-full max-w-2xl">
-    <h1 class="text-3xl font-semibold tracking-title text-text-primary">
-      {{ t('app.securityPolicy.heading') }}
-    </h1>
-    <p class="mt-1 mb-4 text-base text-text-secondary">{{ t('app.securityPolicy.subtitle') }}</p>
+    <UiPageHeading class="mb-4" :title="t('app.securityPolicy.heading')" :subtitle="t('app.securityPolicy.subtitle')" />
 
     <UiAlert v-if="policyStore.errorMessage !== null" variant="error" class="mb-4">
       {{ policyStore.errorMessage }}

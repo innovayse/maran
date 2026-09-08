@@ -27,8 +27,13 @@ pub enum PrivError {
     /// would run as root. Refused rather than obeyed.
     #[error("account resolves to the root user")]
     RootAccount,
-    /// The account exists but its primary group is gid 0, so running "as the
-    /// customer" would run in root's group. Refused rather than obeyed.
+    /// A group that had to be entered or applied resolves to gid 0.
+    ///
+    /// Two callers reach it, and both are refusals of the same shape. An
+    /// account whose primary group is gid 0 would make running "as the
+    /// customer" run in root's group; a web server group that resolves to gid 0
+    /// would make a restored home group-owned by root
+    /// ([`GroupId::resolve`](crate::privs::group_id::GroupId::resolve)).
     ///
     /// Separate from [`PrivError::RootAccount`] because the drop would otherwise
     /// *succeed*: the child would verify correctly, having received exactly the
@@ -50,6 +55,21 @@ pub enum PrivError {
     #[error("fork failed: errno {errno}")]
     ForkFailed {
         /// The `errno` `fork` reported.
+        errno: i32,
+    },
+    /// No entry for the requested group in the system's group database.
+    ///
+    /// Its own variant beside [`PrivError::NoSuchAccount`] rather than shared
+    /// with it, because the two send an operator to different files: a missing
+    /// hosting account is a panel-state problem, and a missing web server group
+    /// is a host whose web server was removed or renamed under the agent.
+    #[error("no such group")]
+    NoSuchGroup,
+    /// The group database could not be read at all — not the same as the group
+    /// being absent, and never treated as "the group does not exist".
+    #[error("group lookup failed: errno {errno}")]
+    GroupLookupFailed {
+        /// The `errno` `getgrnam_r` reported.
         errno: i32,
     },
     /// One of `setgroups`, `setgid` or `setuid` returned an error in the child.

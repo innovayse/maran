@@ -8,7 +8,7 @@ Description=Maran SFTP jail home for acme
 # into it: the home keeps its own ownership and mode, so nginx, php-fpm and
 # every site path go on reading exactly the directory they read before.
 What=/home/acme
-Where=/var/lib/maran/sftp/acme/home
+Where=/var/lib/maran-sftp/acme/home
 Type=none
 Options=bind
 

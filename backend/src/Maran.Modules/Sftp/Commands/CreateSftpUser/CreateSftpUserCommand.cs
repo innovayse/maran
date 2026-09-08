@@ -1,3 +1,6 @@
+using System.Text.Json.Serialization;
+using Microsoft.AspNetCore.Mvc.ModelBinding;
+
 namespace Maran.Modules.Sftp.Commands.CreateSftpUser;
 
 /// <summary>
@@ -19,6 +22,16 @@ namespace Maran.Modules.Sftp.Commands.CreateSftpUser;
 /// </remarks>
 /// <param name="AccountId">The account that will own the login.</param>
 /// <param name="Name">The login name the customer asked for, without the account prefix.</param>
-/// <param name="IpAddress">The caller's address, recorded in the audit journal.</param>
-/// <param name="UserAgent">The caller's user agent, recorded in the audit journal.</param>
-public sealed record CreateSftpUserCommand(Guid AccountId, string Name, string IpAddress, string UserAgent);
+/// <param name="IpAddress">
+/// The caller's address, recorded in the audit journal. Established by the server and stamped by the
+/// action; never bound from the request, which is the thing being audited.
+/// </param>
+/// <param name="UserAgent">
+/// The caller's user agent, recorded in the audit journal. Established by the server and stamped by
+/// the action; never bound from the request.
+/// </param>
+public sealed record CreateSftpUserCommand(
+    Guid AccountId,
+    string Name,
+    [property: JsonIgnore][property: BindNever][BindNever] string IpAddress = "",
+    [property: JsonIgnore][property: BindNever][BindNever] string UserAgent = "");

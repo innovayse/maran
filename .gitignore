@@ -97,3 +97,10 @@ Thumbs.db
 
 # Local run logs written by scripts/run-dev.sh
 .dev-logs/
+
+# Live development stack artifacts: the agent socket and its root-owned scratch
+# directory, and the browser snapshots the Playwright MCP driver writes while a
+# session drives the panel by hand. Both are produced by running the product, not
+# by building it, and neither is reproducible or meaningful on another machine.
+.dev-agent/
+**/.playwright-mcp/

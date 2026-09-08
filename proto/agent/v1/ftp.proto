@@ -62,6 +62,34 @@ service SftpService {
   // deleting what it opened. Idempotent: deleting a login that is not there
   // returns NOT_FOUND.
   rpc DeleteSftpUser(DeleteSftpUserRequest) returns (DeleteSftpUserResponse);
+
+  // Locks, or unlocks, EVERY SFTP login one account holds, because the account
+  // itself was suspended or resumed.
+  //
+  // This call exists because `usermod --lock <account>` does not reach these
+  // logins at all. Each is its own passwd entry named `<account>_<name>`,
+  // created with `useradd --non-unique --uid <account uid>` so that it writes
+  // as the account — so locking the account's own entry leaves every one of
+  // them authenticating, and a suspended customer kept a working WRITE
+  // credential into their home.
+  //
+  // The logins come from the HOST's own password database rather than from a
+  // list the panel supplies, for the reason DeleteAccount gives: a list can
+  // only describe what the panel remembers creating, and a login it has
+  // forgotten is exactly the one still letting a suspended customer in.
+  //
+  // Nothing is deleted and no password is changed: locking prefixes the hash,
+  // unlocking removes that prefix, and the customer's own credential is given
+  // back unchanged by the resume. Idempotent in both directions, and an
+  // account with no logins is a success that touches nothing.
+  //
+  // One honest limit, observable through GetAccountSuspensionState: a login
+  // that has no password at all cannot be unlocked — `usermod --unlock`
+  // refuses that while still exiting zero — so such a login stays locked after
+  // a resume. Every login this agent creates is given a password at creation,
+  // so this is a hand-made login, and the panel reports it rather than hiding
+  // it.
+  rpc SetAccountLoginsLocked(SetAccountLoginsLockedRequest) returns (SetAccountLoginsLockedResponse);
 }
 
 message CreateSftpUserRequest {
@@ -78,8 +106,11 @@ message CreateSftpUserRequest {
   string password = 3;
   // 4 was `chroot_path` (removed 2026-09-01). There is no caller-supplied
   // chroot in this design and there must never be one: the jail is
-  // /var/lib/maran/sftp/<account>, created root-owned by the agent, and a
-  // request cannot name the directory it will be confined to.
+  // /var/lib/maran-sftp/<account>, created root-owned by the agent, and a
+  // request cannot name the directory it will be confined to. The base moved
+  // out of /var/lib/maran on 2026-09-07: OpenSSH refuses a ChrootDirectory
+  // whose every component is not root-owned, and that parent belongs to the
+  // panel uid, so no login worked while the jail lived under it.
   reserved 4;
   reserved "chroot_path";
 }
@@ -136,3 +167,21 @@ message DeleteSftpUserResponse {
 }
 
 message DeleteSftpUserOk {}
+
+message SetAccountLoginsLockedRequest {
+  // System username of the account whose every SFTP login is affected.
+  // Revalidated by the agent against its username allow-list regardless of
+  // prior API-side validation.
+  string account_username = 1;
+  // True to lock every login the account holds, false to unlock them.
+  bool locked = 2;
+}
+
+message SetAccountLoginsLockedResponse {
+  oneof result {
+    SetAccountLoginsLockedOk ok = 1;
+    AgentError error = 2;
+  }
+}
+
+message SetAccountLoginsLockedOk {}

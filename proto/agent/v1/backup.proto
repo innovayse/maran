@@ -35,6 +35,21 @@ service BackupService {
   // Deletes a backup's stored artifact. Idempotent: deleting a
   // non-existent backup_id returns NotFound.
   rpc DeleteBackup(DeleteBackupRequest) returns (DeleteBackupResponse);
+
+  // Asks whether a destination would serve this product's archives to
+  // anyone: the agent writes a canary object into it and fetches that object
+  // back with no credentials at all, and answers what came back. The
+  // question is only meaningful for an object store, because a local
+  // directory is root-only by the check every backup operation already makes
+  // of it.
+  //
+  // A verdict is never inferred: "the anonymous fetch could not be made" is
+  // PUBLIC_READ_VERDICT_UNPROVEN and is not "private". The agent that ships
+  // today performs no probe at all — it holds no operation that writes the
+  // canary — so this rpc answers ERROR_CODE_NOT_IMPLEMENTED for every
+  // destination rather than an optimistic verdict. The enum is here so the
+  // panel's switch is written once, against the shape it will keep.
+  rpc ProbeDestination(ProbeDestinationRequest) returns (ProbeDestinationResponse);
 }
 
 // Where a backup artifact is stored.
@@ -47,19 +62,59 @@ enum BackupDestinationKind {
 }
 
 // Where and how a backup artifact is stored or retrieved. For S3, the
-// bucket/prefix/region are structured fields, not a connection string;
-// credentials are never placed in this message — they are provisioned to
-// the agent out of band (installer/config), never sent per-call.
+// bucket/prefix/region are structured fields and not a connection string.
+//
+// CREDENTIALS TRAVEL IN THIS MESSAGE, per call. The sentence that stood here
+// said the opposite — "credentials are never placed in this message, they are
+// provisioned to the agent out of band (installer/config)" — and no such
+// provisioning exists, on either side: the agent reads no credential file and
+// holds no bucket configuration, and the panel is where an operator enters a
+// destination. Sending them per call is also what the product needs, because
+// a panel serves several destinations and an agent that held one set could
+// serve one. The consequence is stated where it belongs, on the two fields:
+// they are secrets, they are never logged and never written to disk by the
+// agent, and they live only for the call.
+//
+// The agent that ships today reaches only BACKUP_DESTINATION_KIND_LOCAL. A
+// destination naming a bucket is refused with ERROR_CODE_NOT_IMPLEMENTED and
+// is never quietly served from the local directory instead.
 message BackupDestination {
   // Storage kind this destination targets.
   BackupDestinationKind kind = 1;
-  // Local: subdirectory under the agent's backup root. S3: object key
-  // prefix.
+  // S3: the object key prefix backups are written under, "" for the bucket
+  // root.
+  //
+  // LOCAL: MUST be empty, and a non-empty value is refused with
+  // ERROR_CODE_INVALID_INPUT rather than ignored. The local root is the
+  // agent's own (`/var/backups/maran`, `LocalBackupRoot`), it is checked at
+  // every operation for being root-only, and ListBackups carries no
+  // destination at all — so a per-call subdirectory would produce backups
+  // that no listing and therefore no retention could ever see. A field the
+  // agent would ignore is a field a caller believes in.
   string path = 2;
   // S3 only: bucket name. Empty for LOCAL.
   string s3_bucket = 3;
   // S3 only: region, e.g. "eu-central-1". Empty for LOCAL.
   string s3_region = 4;
+  // S3 only: base URL of an S3-compatible provider, e.g.
+  // "https://s3.example.net". Empty means the provider's own endpoint for
+  // s3_region, which is AWS. MUST be https:// — what crosses this connection
+  // is every file in a customer's home plus a dump of every database they
+  // own, and a signature good for the rest of the bucket.
+  string s3_endpoint = 5;
+  // S3 only: access key id. A SECRET: never logged by the agent, never
+  // written to its disk, never echoed in an error message, and not retained
+  // after the call it arrived on.
+  string s3_access_key_id = 6;
+  // S3 only: secret access key. A SECRET, under exactly the rules
+  // s3_access_key_id carries: never logged, never persisted, never echoed,
+  // discarded with the call.
+  string s3_secret_access_key = 7;
+  // S3 only: address the bucket as a path segment
+  // (https://host/bucket/key) rather than as a subdomain
+  // (https://bucket.host/key). Off by default because AWS deprecated the
+  // path form; several self-hosted providers serve only it.
+  bool s3_path_style = 8;
 }
 
 message CreateBackupRequest {
@@ -83,6 +138,14 @@ message CreateBackupResponse {
 message CreateBackupOk {
   // Total size of the stored artifact, in bytes.
   uint64 size_bytes = 1;
+  // SHA-256 of the stored artifact, hex, lowercase. Taken over the finished
+  // file before it was published under its final name, so it describes the
+  // bytes a restore will read — and it is the value the panel hands back as
+  // RestoreBackupRequest.expected_sha256.
+  string sha256 = 2;
+  // How many databases the archive holds a dump of. Zero is an ordinary
+  // answer: most static sites have none.
+  uint64 database_count = 3;
 }
 
 message RestoreBackupRequest {
@@ -92,6 +155,22 @@ message RestoreBackupRequest {
   string backup_id = 2;
   // Where the backup artifact currently resides.
   BackupDestination destination = 3;
+  // SHA-256 the panel recorded for this artifact when it was created, hex,
+  // lowercase. The agent hashes the artifact on disk and refuses the restore
+  // when the two differ, BEFORE it drops a single database: what is about to
+  // be unpacked as root and loaded as the database superuser must be the
+  // bytes this panel took. An empty value is refused, not treated as "do not
+  // check" — a restore that skipped the comparison would be the one case
+  // where this field's absence mattered most.
+  string expected_sha256 = 4;
+  // Every database the panel still knows this account owns. The agent
+  // restores the intersection of this list and the archive's manifest, and
+  // refuses a manifest naming a database outside it: creating one would
+  // resurrect a database the panel has forgotten, owned by a user nothing
+  // points at. An empty list therefore restores no database at all, which is
+  // the correct answer for an account that has none and a visible one for a
+  // caller that forgot to fill it in.
+  repeated string allowed_databases = 5;
 }
 
 message RestoreBackupResponse {
@@ -102,7 +181,37 @@ message RestoreBackupResponse {
   }
 }
 
-message RestoreBackupOk {}
+// What a restore actually did. There is no `bool ok` here and no field that
+// sums the others up: a caller states a verdict by comparing
+// databases_restored against databases_total and reading files_restored
+// beside them. The agent has already been bitten by a success value that was
+// one field — an account-deletion cascade reported COMPLETED at 100% over
+// rows it never touched — and this shape is the answer to it.
+message RestoreBackupOk {
+  // Whether the account's home is now the archive's home. True only after
+  // both renames of the swap succeeded.
+  bool files_restored = 1;
+  // How many databases were dropped, re-created and loaded from the archive.
+  uint32 databases_restored = 2;
+  // How many databases the restore set out to replace — every database the
+  // manifest names, after allowed_databases has been applied. Equal to
+  // databases_restored on a whole restore and larger on every other.
+  uint32 databases_total = 3;
+  // Databases left holding neither their old contents nor the archive's.
+  //
+  // ALWAYS EMPTY ON THIS ARM, and that is a property of the operation rather
+  // than of this mapping: a restore that reaches its ok message replaced
+  // every database it dropped, so there is nothing it failed to roll back.
+  // The lists that are not empty ride on the failing path, where the agent
+  // returns an error instead of this message and names them in
+  // AgentError.message — a restore that rolled back reports which databases
+  // it put back, and one that could not reports which it could not. The
+  // field is here because a caller reading it can see, from its emptiness on
+  // every ok, that a successful restore left nothing behind; if the panel
+  // needs those names as structured data it needs a terminal message on the
+  // error side, not a fuller one here.
+  repeated string not_rolled_back = 4;
+}
 
 message ListBackupsRequest {
   // System username of the account whose backups are listed.
@@ -120,13 +229,165 @@ message ListBackupsOk {
   repeated BackupInfo backups = 1;
 }
 
+// One entry a listing reports: an artifact that exists, and either what its
+// sidecar said about it or why the sidecar could not be trusted.
+//
+// The listing reports an artifact it cannot describe rather than omitting it.
+// An entry nobody lists is an entry retention will never prune, and a backup
+// directory silently accumulating unprunable files is the failure this whole
+// area is built to refuse.
 message BackupInfo {
-  // Identifier of the backup, as passed to CreateBackup.
+  // Identifier of the backup, as passed to CreateBackup. Always a backup id:
+  // it is read from the artifact's own file name, and the agent refuses a
+  // listing whose directory holds an artifact name it could not have minted
+  // rather than reporting that name here.
   string backup_id = 1;
-  // Size of the stored artifact, in bytes.
+  // Size of the stored artifact, in bytes. Mirrors state.readable
+  // .artifact_bytes, and is 0 when state is `unreadable` — the size is a
+  // sidecar fact and an unreadable entry has no trustworthy one.
   uint64 size_bytes = 2;
-  // Creation time as Unix seconds (UTC).
+  // Creation time as Unix seconds (UTC). Mirrors
+  // state.readable.manifest.created_at_unix, and is 0 when state is
+  // `unreadable`, for the same reason.
   int64 created_at_unix = 3;
+  // SHA-256 of the stored artifact, hex, lowercase. Mirrors
+  // state.readable.artifact_sha256 and is empty when state is `unreadable`.
+  //
+  // These three flat fields are the shape this message had before the `state`
+  // oneof existed, kept because removing a field is forbidden inside v1
+  // (rules/proto.md). `state` is the authority; a reader that switches on it
+  // never has to decide what a zero here means.
+  string sha256 = 4;
+  // Whether this entry could be described, and what by. Exactly one arm is
+  // set, and a reader switches on the case rather than on a flag: a boolean
+  // beside optional fields lets an entry claim to be readable while carrying
+  // no digest, which is a comparison that silently never happens on the one
+  // value standing between a restore and bytes somebody else chose.
+  //
+  // LIMIT, stated because it is not what the oneof looks like it promises:
+  // proto3 makes the ARM exactly-one, but does not make ReadableBackup
+  // .manifest present. The guarantee is total in the agent's own types and
+  // partial on the wire, so a reader converts and refuses a `readable` arm
+  // whose manifest is absent instead of assuming the wire carried it.
+  oneof state {
+    ReadableBackup readable = 5;
+    UnreadableReason unreadable = 6;
+  }
+}
+
+// What the sidecar beside an artifact described. Every field is required in
+// the sense that a reader refuses the arm without them — see BackupInfo.state.
+message ReadableBackup {
+  // The manifest, exactly as it was written into the archive.
+  BackupManifest manifest = 1;
+  // Size of the published .tar.gz, in bytes.
+  uint64 artifact_bytes = 2;
+  // SHA-256 of the published .tar.gz, hex, lowercase.
+  string artifact_sha256 = 3;
+}
+
+// What the archive says it holds. Nothing here is a path: an archive carrying
+// the absolute paths it was made from would be a map of the host for whoever
+// downloads it.
+message BackupManifest {
+  // The layout version of this document.
+  uint32 version = 1;
+  // The account whose home and databases the archive holds.
+  string account = 2;
+  // The backup's id, which is also the artifact's file name stem.
+  string backup_id = 3;
+  // When the creation started, in seconds since the Unix epoch.
+  int64 created_at_unix = 4;
+  // The measured size of the account's home at that moment, in bytes.
+  uint64 home_bytes = 5;
+  // One entry per dumped database, in the order they were dumped.
+  repeated ManifestDatabase databases = 6;
+  // The version of the agent that wrote the archive. For the operator
+  // reading a five-month-old artifact; a restore never consults it.
+  string agent_version = 7;
+}
+
+// One database's line in a manifest.
+message ManifestDatabase {
+  // The database's full name, prefix included, exactly as it was dumped.
+  string name = 1;
+  // The size of the dump file, in bytes.
+  uint64 bytes = 2;
+  // SHA-256 of the dump file, hex, lowercase. The load-bearing field: a
+  // restore checks each extracted dump against it before loading, because
+  // the loader connects as the database superuser.
+  string sha256 = 3;
+}
+
+// Why a listed artifact could not be described.
+//
+// Three kinds and not one, because they call for three different reactions: a
+// sidecar that will not parse is probably damage, one written at a version
+// this agent does not know is probably a routine skew, and a directory or a
+// symbolic link wearing an artifact's name is neither — nothing is wrong with
+// any sidecar, the thing named is not a file that could have one.
+message UnreadableReason {
+  // Which of the three this is.
+  UnreadableKind kind = 1;
+  // The version the sidecar named, and only for
+  // UNREADABLE_KIND_UNKNOWN_VERSION; 0 for every other kind, and 0 there too
+  // when the sidecar predates the version field entirely.
+  uint32 version = 2;
+}
+
+// The kinds of unreadable entry — see UnreadableReason.
+enum UnreadableKind {
+  // Never sent: proto3 requires a zero value.
+  UNREADABLE_KIND_UNSPECIFIED = 0;
+  // The sidecar was missing, or its JSON did not parse into any shape this
+  // agent has ever written.
+  UNREADABLE_KIND_CORRUPT = 1;
+  // The sidecar parsed but named a version this agent will not read past.
+  UNREADABLE_KIND_UNKNOWN_VERSION = 2;
+  // Something wearing an artifact's name is not a regular file. Listed
+  // rather than skipped: a directory is an entry retention can never prune,
+  // and a symbolic link is one a restore would read through.
+  UNREADABLE_KIND_NOT_A_REGULAR_FILE = 3;
+}
+
+message ProbeDestinationRequest {
+  // The destination to probe. Credentials included — see BackupDestination.
+  BackupDestination destination = 1;
+}
+
+message ProbeDestinationResponse {
+  oneof result {
+    ProbeDestinationOk ok = 1;
+    AgentError error = 2;
+  }
+}
+
+message ProbeDestinationOk {
+  // What the anonymous fetch established.
+  PublicReadVerdict verdict = 1;
+  // Why the fetch could not be made, set only for
+  // PUBLIC_READ_VERDICT_UNPROVEN, and already redacted of the access key id
+  // and of any signature by the agent.
+  string unproven_reason = 2;
+}
+
+// What an anonymous fetch of a destination's own object established.
+//
+// Three states and not a boolean, because "the fetch could not be made" is not
+// "the object is private" and a boolean has nowhere to put it: it would have
+// to report a bucket as safe on the strength of a request that was never
+// answered. Only PUBLIC_READ_VERDICT_PRIVATE may save a destination.
+enum PublicReadVerdict {
+  // Never sent: proto3 requires a zero value.
+  PUBLIC_READ_VERDICT_UNSPECIFIED = 0;
+  // The fetch was made and the destination refused it.
+  PUBLIC_READ_VERDICT_PRIVATE = 1;
+  // The fetch was made and the object came back. The destination serves this
+  // product's backups to anyone with the URL.
+  PUBLIC_READ_VERDICT_PUBLICLY_READABLE = 2;
+  // The fetch could not be made or was not answered. Nothing was
+  // established; the reason is in ProbeDestinationOk.unproven_reason.
+  PUBLIC_READ_VERDICT_UNPROVEN = 3;
 }
 
 message DeleteBackupRequest {

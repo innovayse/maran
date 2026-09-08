@@ -27,6 +27,12 @@ const UNREAD_RUN_TIME: i64 = 0;
 /// turned into an error — a missing command file is a state an operator needs
 /// to see, and an entry silently absent from the panel while cron goes on
 /// running it is the worse of the two answers.
+///
+/// `enabled` and `suspended` are carried as two separate fields because they
+/// are two separate facts: the first is the customer's own switch, the second
+/// is the account's suspension. An entry runs only when it is enabled and not
+/// suspended, and the panel shows the two reasons apart so that resuming an
+/// account gives back exactly the entries the customer had running.
 #[must_use]
 pub fn listed_entry(entry: CronEntry) -> WireEntry {
     WireEntry {
@@ -40,6 +46,7 @@ pub fn listed_entry(entry: CronEntry) -> WireEntry {
         }),
         command: entry.command.unwrap_or_default(),
         enabled: entry.enabled,
+        suspended: entry.suspended,
         last_exit_code: UNREAD_EXIT_CODE,
         last_run_at_unix: UNREAD_RUN_TIME,
     }

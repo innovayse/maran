@@ -1,7 +1,6 @@
 using Maran.Modules.Firewall.Commands.AllowPort;
 using Maran.Modules.Firewall.Commands.DenyPort;
 using Maran.Modules.Firewall.Common;
-using Maran.Modules.Firewall.Controllers.Requests;
 using Maran.Modules.Firewall.Queries.ListRules;
 using Maran.Sdk.Contracts;
 using Maran.Sdk.Controllers;
@@ -64,7 +63,7 @@ public sealed class FirewallRulesController : BaseApiController
     }
 
     /// <summary>Opens a port, optionally scoped to one source range.</summary>
-    /// <param name="request">The port, protocol and source range to allow.</param>
+    /// <param name="command">The port, protocol and source range to allow.</param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpPost]
     [ProducesResponseType(typeof(bool), StatusCodes.Status200OK)]
@@ -73,17 +72,16 @@ public sealed class FirewallRulesController : BaseApiController
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
     public async Task<IActionResult> CreateAsync(
-        [FromBody] AllowPortRequest request,
+        [FromBody] AllowPortCommand command,
         CancellationToken cancellationToken)
     {
-        var command = new AllowPortCommand(
-            request.Port, request.Protocol, request.SourceCidr, ClientIpAddress, UserAgent());
+        command = command with { IpAddress = ClientIpAddress, UserAgent = CallerUserAgent };
 
         return ToActionResult(await _bus.InvokeAsync<Result<bool>>(command, cancellationToken));
     }
 
     /// <summary>Closes a port that was opened, matching the source range the allow was scoped to.</summary>
-    /// <param name="request">The port, protocol and source range to stop allowing.</param>
+    /// <param name="command">The port, protocol and source range to stop allowing.</param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpDelete]
     [ProducesResponseType(typeof(bool), StatusCodes.Status200OK)]
@@ -91,19 +89,11 @@ public sealed class FirewallRulesController : BaseApiController
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     public async Task<IActionResult> DeleteAsync(
-        [FromQuery] DenyPortRequest request,
+        [FromQuery] DenyPortCommand command,
         CancellationToken cancellationToken)
     {
-        var command = new DenyPortCommand(
-            request.Port, request.Protocol, request.SourceCidr, ClientIpAddress, UserAgent());
+        command = command with { IpAddress = ClientIpAddress, UserAgent = CallerUserAgent };
 
         return ToActionResult(await _bus.InvokeAsync<Result<bool>>(command, cancellationToken));
-    }
-
-    /// <summary>Reads the caller's user agent for the audit journal.</summary>
-    /// <returns>The <c>User-Agent</c> header, or the empty string when absent.</returns>
-    private string UserAgent()
-    {
-        return HttpContext.Request.Headers.UserAgent.ToString();
     }
 }

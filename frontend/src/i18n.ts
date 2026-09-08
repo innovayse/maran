@@ -15,6 +15,16 @@ import type { AppLocale } from './types/app'
  * features stop colliding in the same file, and a missing translation is visible as
  * a missing key in a small file instead of a line lost among hundreds.
  *
+ * One of those files is not an area: `common.json` holds the `common` namespace, the
+ * words that mean the same thing on every screen — `Cancel`, `Close`, `Actions`, the
+ * weekday names, the em dash standing for a value the server did not report. A word
+ * earns a place there only when all three locales already agree on it AND it carries
+ * no screen-specific sense; `Status` and `Created` did not qualify, because ru and hy
+ * had already translated them differently per screen, which is the evidence that they
+ * were never one concept. Sharing such a key would silently change what a Russian or
+ * Armenian customer reads, so the rule for a borderline word is to leave it where it
+ * is: a duplicate is untidy, a wrongly shared string is a defect in three languages.
+ *
  * The bundles are merged rather than nested under their file name, so a key reads
  * the same in every component regardless of which file it came from — moving a key
  * between files is a refactor of the folder, not of every call site.

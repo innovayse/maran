@@ -24,7 +24,7 @@ export interface SftpUser {
 }
 
 /**
- * Request body for `POST /api/v1/sftp-users`, mirroring the backend's `CreateSftpUserRequest`
+ * Request body for `POST /api/v1/sftp-users`, binding the backend's `CreateSftpUserCommand`
  * field-for-field.
  *
  * It has no password field and no chroot path. The panel mints the credential, and the jail is

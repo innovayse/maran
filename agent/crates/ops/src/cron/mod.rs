@@ -90,6 +90,7 @@ mod delete_cron_entry;
 mod entry_files;
 mod get_cron_entry_output;
 mod get_cron_environment;
+mod inspect_account_cron;
 // Private: the one line cron runs, and the prefix that hides it from cron.
 mod installed_line;
 mod list_cron_entries;
@@ -105,6 +106,7 @@ mod process_cron_host;
 #[cfg(test)]
 #[path = "../tests/cron/recording_cron_host.rs"]
 pub(crate) mod recording_cron_host;
+mod set_account_cron_suspended;
 mod set_cron_entry_enabled;
 mod set_cron_environment;
 mod update_cron_entry;
@@ -122,13 +124,16 @@ pub use cron_host::CronHost;
 pub use delete_cron_entry::delete_cron_entry;
 pub use get_cron_entry_output::get_cron_entry_output;
 pub use get_cron_environment::get_cron_environment;
+pub use inspect_account_cron::inspect_account_cron;
 pub use list_cron_entries::list_cron_entries;
+pub use model::account_cron_suspension::AccountCronSuspension;
 pub use model::cron_entry::CronEntry;
 pub use model::cron_entry_output::CronEntryOutput;
 pub use model::cron_environment::CronEnvironment;
 pub use model::cron_run_record::CronRunRecord;
 pub use model::crontab_document::CrontabDocument;
 pub use process_cron_host::ProcessCronHost;
+pub use set_account_cron_suspended::set_account_cron_suspended;
 pub use set_cron_entry_enabled::set_cron_entry_enabled;
 pub use set_cron_environment::set_cron_environment;
 pub use update_cron_entry::update_cron_entry;

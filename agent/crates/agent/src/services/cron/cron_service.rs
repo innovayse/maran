@@ -12,12 +12,13 @@ use crate::proto::{
     DeleteCronEntryOk, DeleteCronEntryRequest, DeleteCronEntryResponse, GetCronEntryOutputRequest,
     GetCronEntryOutputResponse, GetCronEnvironmentOk, GetCronEnvironmentRequest,
     GetCronEnvironmentResponse, ListCronEntriesOk, ListCronEntriesRequest, ListCronEntriesResponse,
+    SetAccountCronSuspendedOk, SetAccountCronSuspendedRequest, SetAccountCronSuspendedResponse,
     SetCronEntryEnabledOk, SetCronEntryEnabledRequest, SetCronEntryEnabledResponse,
     SetCronEnvironmentOk, SetCronEnvironmentRequest, SetCronEnvironmentResponse, UpdateCronEntryOk,
     UpdateCronEntryRequest, UpdateCronEntryResponse, create_cron_entry_response,
     delete_cron_entry_response, get_cron_entry_output_response, get_cron_environment_response,
-    list_cron_entries_response, set_cron_entry_enabled_response, set_cron_environment_response,
-    update_cron_entry_response,
+    list_cron_entries_response, set_account_cron_suspended_response,
+    set_cron_entry_enabled_response, set_cron_environment_response, update_cron_entry_response,
 };
 use crate::services::cron::cron_status::to_agent_error;
 use crate::services::cron::entry_output::entry_output;
@@ -226,6 +227,43 @@ impl<H: CronHost + 'static> CronService for CronServiceImpl<H> {
         };
 
         Ok(Response::new(SetCronEntryEnabledResponse {
+            result: Some(result),
+        }))
+    }
+
+    /// Suppresses, or restores, every managed entry of one account at once.
+    ///
+    /// Its own rpc and not a loop of `SetCronEntryEnabled`, because `enabled`
+    /// is the CUSTOMER's switch and this is the account's suspension. Driving
+    /// one through the other would make a resume switch back on every entry
+    /// the customer had turned off themselves, and the panel keeps no cron
+    /// rows to put them back from.
+    async fn set_account_cron_suspended(
+        &self,
+        request: Request<SetAccountCronSuspendedRequest>,
+    ) -> Result<Response<SetAccountCronSuspendedResponse>, Status> {
+        let request = request.into_inner();
+        let suspended = request.suspended;
+
+        let result = match validated_account(&request.account_username) {
+            Ok(account) => {
+                let host = Arc::clone(&self.host);
+                let distro = self.distro;
+
+                run_blocking("cron operation", to_agent_error, move || {
+                    cron::set_account_cron_suspended(host.as_ref(), distro, &account, suspended)
+                })
+                .await
+            }
+            Err(error) => Err(error),
+        };
+
+        let result = match result {
+            Ok(()) => set_account_cron_suspended_response::Result::Ok(SetAccountCronSuspendedOk {}),
+            Err(error) => set_account_cron_suspended_response::Result::Error(error),
+        };
+
+        Ok(Response::new(SetAccountCronSuspendedResponse {
             result: Some(result),
         }))
     }

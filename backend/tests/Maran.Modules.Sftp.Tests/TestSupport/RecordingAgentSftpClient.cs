@@ -55,6 +55,23 @@ public sealed class RecordingAgentSftpClient : IAgentSftpClient
         return Task.FromResult(SetPasswordResult ?? Result<bool>.Ok(true));
     }
 
+    /// <summary>Every account-wide lock change the handler asked for, in order.</summary>
+    public List<AgentAccountLockCall> AccountLocks { get; } = [];
+
+    /// <summary>What <see cref="SetAccountLoginsLockedAsync"/> answers; success by default.</summary>
+    public Result<bool>? SetAccountLoginsLockedResult { get; set; }
+
+    /// <inheritdoc/>
+    public Task<Result<bool>> SetAccountLoginsLockedAsync(
+        string accountUsername,
+        bool locked,
+        CancellationToken cancellationToken)
+    {
+        AccountLocks.Add(new AgentAccountLockCall(accountUsername, locked));
+
+        return Task.FromResult(SetAccountLoginsLockedResult ?? Result<bool>.Ok(true));
+    }
+
     /// <inheritdoc/>
     public Task<Result<bool>> DeleteAsync(
         string accountUsername,

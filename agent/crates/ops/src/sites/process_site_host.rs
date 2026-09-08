@@ -2,6 +2,7 @@
 
 use std::path::{Path, PathBuf};
 
+use maran_agent_core::agent_paths::AgentPaths;
 use maran_agent_core::privs::account_ids::AccountIds;
 use maran_agent_core::privs::fork_as_account::fork_as_account;
 use maran_agent_core::privs::priv_error::PrivError;
@@ -68,6 +69,13 @@ impl ConfigHost for ProcessSiteHost {
     }
 }
 
+/// The extension every vhost the web server includes carries.
+///
+/// Named rather than written into the filter, because it is the same fact
+/// `SitePaths::for_site` spells when it builds a vhost's name: the directory is
+/// enumerated for exactly the files this agent writes into it.
+const CONFIG_EXTENSION: &str = "conf";
+
 impl SiteHost for ProcessSiteHost {
     /// Reads the vhost, distinguishing "absent" from "unreadable".
     fn read_config(&self, path: &Path) -> Result<Option<String>, SitesOpError> {
@@ -78,6 +86,29 @@ impl SiteHost for ProcessSiteHost {
                 path: path.display().to_string(),
             }),
         }
+    }
+
+    /// Lists the `.conf` files in the agent's own nginx include directory.
+    ///
+    /// Read as root and not through `fork_as_account`: this directory is
+    /// `/etc/maran/nginx/sites`, which the agent owns outright and no customer
+    /// can write into, so there is no untrusted path to be led down. Only
+    /// regular-file entries ending in `.conf` are returned, which is what the
+    /// web server itself includes.
+    fn list_config_paths(&self) -> Result<Vec<PathBuf>, SitesOpError> {
+        let directory = Path::new(AgentPaths::NGINX_INCLUDE_DIRECTORY);
+        let entries = std::fs::read_dir(directory).map_err(|_| SitesOpError::ConfigUnreadable {
+            path: directory.display().to_string(),
+        })?;
+
+        Ok(entries
+            .filter_map(Result::ok)
+            .map(|entry| entry.path())
+            .filter(|path| {
+                path.extension()
+                    .is_some_and(|extension| extension == CONFIG_EXTENSION)
+            })
+            .collect())
     }
 
     /// Creates the directories in a forked child that has dropped to the

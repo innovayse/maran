@@ -98,6 +98,41 @@ fn a_domain_over_the_dns_length_limit_is_rejected() {
 }
 
 #[test]
+fn a_domain_of_exactly_the_dns_length_limit_is_accepted_and_one_character_more_is_not() {
+    // The boundary itself, both sides of it. The test above uses a candidate
+    // 62 characters past the limit, so every off-by-one lives inside its
+    // margin: moving the check to `> MAX_LENGTH + 1` left it green while a
+    // 254-character name parsed. A limit is only observed where it changes the
+    // answer.
+    let at_the_limit = [
+        "a".repeat(63),
+        "b".repeat(63),
+        "c".repeat(63),
+        "d".repeat(61),
+    ]
+    .join(".");
+    assert_eq!(at_the_limit.len(), 253);
+    assert_eq!(
+        Domain::parse(&at_the_limit).map(|domain| domain.as_str().len()),
+        Ok(253),
+        "the longest name DNS allows must still be a site anyone can host"
+    );
+
+    let one_over = [
+        "a".repeat(63),
+        "b".repeat(63),
+        "c".repeat(63),
+        "d".repeat(62),
+    ]
+    .join(".");
+    assert_eq!(one_over.len(), 254);
+    assert!(
+        matches!(Domain::parse(&one_over), Err(DomainError::TooLong)),
+        "one character past the limit must be refused, or the limit is 254"
+    );
+}
+
+#[test]
 fn a_domain_containing_a_null_terminated_shell_metacharacter_is_rejected() {
     // `$()`, backticks and `;` have no place in a hostname either — a domain
     // this permissive would be one template change away from command

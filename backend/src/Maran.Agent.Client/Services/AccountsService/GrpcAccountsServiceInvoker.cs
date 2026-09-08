@@ -41,6 +41,14 @@ internal sealed class GrpcAccountsServiceInvoker : IAccountsServiceInvoker
     }
 
     /// <inheritdoc/>
+    public async Task<GetAccountSuspensionStateResponse> GetAccountSuspensionStateAsync(
+        GetAccountSuspensionStateRequest request,
+        CancellationToken cancellationToken)
+    {
+        return await _client.GetAccountSuspensionStateAsync(request, cancellationToken: cancellationToken);
+    }
+
+    /// <inheritdoc/>
     public async Task<DeleteAccountResponse> DeleteAccountAsync(
         DeleteAccountRequest request,
         CancellationToken cancellationToken)

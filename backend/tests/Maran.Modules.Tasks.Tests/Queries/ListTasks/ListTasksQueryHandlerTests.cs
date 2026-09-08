@@ -21,7 +21,7 @@ public sealed class ListTasksQueryHandlerTests
 
         var admin = FakeCurrentUser.Admin();
         await using var context = TasksTestContext.Create(admin, database);
-        var handler = new ListTasksQueryHandler(context, admin);
+        var handler = new ListTasksQueryHandler(context, admin, TasksTestContext.KindNames());
 
         var result = await handler.HandleAsync(new ListTasksQuery(), CancellationToken.None);
 
@@ -50,7 +50,7 @@ public sealed class ListTasksQueryHandlerTests
 
         var customer = FakeCurrentUser.Customer();
         await using var context = TasksTestContext.Create(customer, database);
-        var handler = new ListTasksQueryHandler(context, customer);
+        var handler = new ListTasksQueryHandler(context, customer, TasksTestContext.KindNames());
 
         var result = await handler.HandleAsync(new ListTasksQuery(), CancellationToken.None);
 

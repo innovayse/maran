@@ -15,4 +15,25 @@
   <data name="TasksModuleDisplayName">
     <value>Tasks</value>
   </data>
+  <data name="TaskKindCertificateIssue">
+    <value>Issuing a certificate</value>
+  </data>
+  <data name="TaskKindCertificateRenewal">
+    <value>Renewing a certificate</value>
+  </data>
+  <data name="TaskKindAccountDeletion">
+    <value>Deleting an account</value>
+  </data>
+  <data name="TaskKindAccountSuspension">
+    <value>Suspending an account</value>
+  </data>
+  <data name="TaskKindAccountResumption">
+    <value>Reactivating an account</value>
+  </data>
+  <data name="TaskKindBackupCreate">
+    <value>Taking a backup</value>
+  </data>
+  <data name="TaskKindBackupRestore">
+    <value>Restoring a backup</value>
+  </data>
 </root>

@@ -18,6 +18,23 @@ Roadmap item 2 reads "Auth + Accounts". Those are two subsystems, not one: authe
 
 This document is authentication. The accounts lifecycle — the agent's `AccountsService` implementation, `Maran.Agent.Client`'s wrapper for it, `GET/PATCH/DELETE /api/v1/accounts/{id}`, suspension, quotas, and the plan picker in the SPA — becomes its own plan, written when this one lands. The authorization attributes this plan puts on `AccountsController` are what make that plan's IDOR tests meaningful, so the order is not arbitrary.
 
+## Superseded convention — `Controllers/Requests/` no longer exists
+
+This plan was written and executed while a module's controllers bound a per-endpoint request model
+from `Controllers/Requests/` and mapped it to a command. That layer has since been abolished
+product-wide: an action now binds its `Command` or `Query` **directly**, server-established members
+(caller address, caller user agent, caller identity, route ids) are guarded on the command and
+stamped by the action, and no module has a `Controllers/Requests/` folder. The decision and its
+reasoning are in `rules/csharp.md`, "An endpoint binds its command directly" and the module map
+above it; the twenty-seven request types this plan and its successors created were removed and the
+tree is at zero.
+
+The plan is left as the record of what was decided and built at the time, so the two `Create:` lines
+that name a request file (Task 6, Task 10) are NOT edited into something that was never planned.
+They carry an inline `SUPERSEDED` marker instead. **Do not implement them.** Anything else in this
+document that reads as if a request model exists — a mapping step, a validator on a request — is
+superseded by the same decision.
+
 ## Global Constraints
 
 Copied from the spec and `rules/`. Every task's requirements implicitly include this section.
@@ -870,7 +887,7 @@ Expected: PASS.
 **Files:**
 - Create: `backend/src/Maran.Modules/Identity/Commands/Login/{LoginCommand,LoginCommandHandler,LoginCommandValidator}.cs`
 - Create: `backend/src/Maran.Modules/Identity/Common/{LoginResultDto,AuthenticatedUserDto}.cs`
-- Create: `backend/src/Maran.Modules/Identity/Controllers/AuthController.cs`, `Controllers/Requests/LoginRequest.cs`
+- Create: `backend/src/Maran.Modules/Identity/Controllers/AuthController.cs`, ~~`Controllers/Requests/LoginRequest.cs`~~ — **SUPERSEDED**, see "Superseded convention" above: the action binds `LoginCommand` directly.
 - Create: `backend/src/Maran.Modules/Identity/Common/RefreshCookie.cs`
 - Test: `backend/tests/Maran.Modules.Identity.Tests/Commands/Login/{LoginCommandHandlerTests,LoginCommandValidatorTests}.cs`; `backend/tests/Maran.Host.IntegrationTests/AuthEndpointTests.cs`
 
@@ -1223,7 +1240,7 @@ Expected: `STRUCTURE-OK` and all green. `AccountsEndpointTests` must now authent
 - Create: `backend/src/Maran.Host/Configuration/SetupOptions.cs`
 - Create: `backend/src/Maran.Modules/Identity/Commands/CompleteSetup/{CompleteSetupCommand,CompleteSetupCommandHandler,CompleteSetupCommandValidator}.cs`
 - Create: `backend/src/Maran.Modules/Identity/Queries/GetSetupState/{GetSetupStateQuery,GetSetupStateQueryHandler}.cs`, `Common/SetupStateDto.cs`
-- Create: `backend/src/Maran.Modules/Identity/Controllers/SetupController.cs`, `Controllers/Requests/CompleteSetupRequest.cs`
+- Create: `backend/src/Maran.Modules/Identity/Controllers/SetupController.cs`, ~~`Controllers/Requests/CompleteSetupRequest.cs`~~ — **SUPERSEDED**, see "Superseded convention" above: the action binds `CompleteSetupCommand` directly.
 - Test: handler and validator tests; `backend/tests/Maran.Host.IntegrationTests/SetupEndpointTests.cs`
 
 **Interfaces:**

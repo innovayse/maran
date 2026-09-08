@@ -1,7 +1,5 @@
 {
   "certificates": {
-    "heading": "SSL",
-    "subtitle": "TLS certificates for this site.",
     "loading": "Loading certificates…",
     "emptyTitle": "No certificate installed",
     "emptyDescription": "This site is served over plain HTTP until a certificate is installed.",
@@ -24,14 +22,13 @@
       "privateKeyPem": "Sent once and never shown again."
     },
     "submitCustom": "Install certificate",
-    "cancel": "Cancel",
     "remove": "Remove certificate",
     "confirmRemove": "Remove this certificate? The site goes back to serving plain HTTP.",
-    "confirm": "Yes, do it",
     "working": "Working…",
     "errors": {
       "certificatePemRequired": "The certificate chain is required.",
       "privateKeyPemRequired": "The private key is required."
-    }
+    },
+    "confirmRemoveTitle": "Remove the certificate for {domain}"
   }
 }

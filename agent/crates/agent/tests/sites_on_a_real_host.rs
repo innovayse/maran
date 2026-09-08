@@ -35,7 +35,7 @@ use maran_distro::{DistroAdapter, adapter_for, detect};
 use maran_ops::files::{ProcessFilesHost, WriteFileInput};
 use maran_ops::php::ProcessPhpHost;
 use maran_ops::sites::{
-    CreateSiteInput, ProcessSiteHost, SiteCertificate, SiteIdentity, SiteKind, SitePaths,
+    CreateSiteInput, ProcessSiteHost, SiteCertificate, SiteHost, SiteIdentity, SiteKind, SitePaths,
     SitesOpError, create_site,
 };
 use maran_ops::ssl::{ProcessSslHost, delete_site_with_certificate, generate_self_signed};
@@ -691,4 +691,300 @@ fn deleting_a_site_takes_its_private_key_off_the_disk() {
     // and it does not announce itself — it waits for the next reload, which may
     // belong to an unrelated site. So nginx is asked now, about its whole tree.
     assert_valid_nginx_tree("after a site and its certificate were deleted");
+}
+
+/// The body a suspended account's own page would serve if the stub were not
+/// there.
+const SUSPENDED_ACCOUNT_BODY: &str = "maran-should-not-be-served";
+
+/// The fixed sentence the suspended vhost answers every other request with.
+const SUSPENSION_NOTICE: &str = "This site has been suspended.";
+
+/// The file name the ACME HTTP-01 challenge is fetched under.
+const ACME_TOKEN: &str = "maran-acme-token";
+
+/// The bytes a certificate authority would read back from that file.
+const ACME_TOKEN_BODY: &str = "maran-acme-challenge-ok";
+
+/// Writes `contents` into the account's own site directory, as the account.
+///
+/// The same file operation the panel drives, so the file's owner and mode are
+/// a customer's and not root's — a root-written file would be readable by
+/// nginx for a reason no customer's file has.
+fn write_as_account(account: &PolygonAccount, path: &str, contents: &str) {
+    let written = within("the page write", {
+        let name = account.name().clone();
+        let path = RelativePath::parse(path).expect("the page path must be valid");
+        let contents = contents.as_bytes().to_vec();
+        let length = contents.len() as u64;
+        move || {
+            (
+                maran_ops::files::write_file(
+                    &ProcessFilesHost::new(),
+                    &WriteFileInput {
+                        account: name,
+                        path,
+                        contents,
+                        mode: FileMode::parse(0o644).expect("a plain permission mode"),
+                    },
+                ),
+                length,
+            )
+        }
+    });
+
+    assert_eq!(written.0, Ok(written.1));
+}
+
+/// Creates a static site for `account` at `domain`, serving its own page.
+fn served_polygon_site(account: &PolygonAccount, domain: &Domain) -> CreateSiteInput {
+    let input = CreateSiteInput {
+        account: account.name().clone(),
+        domain: domain.clone(),
+        aliases: Vec::new(),
+        kind: SiteKind::Static,
+        certificate: None,
+    };
+    create_polygon_site(&ProcessSiteHost::new(), &input)
+        .unwrap_or_else(|error| panic!("creating a static site must succeed: {error}"));
+
+    write_as_account(
+        account,
+        &format!("sites/{}/index.html", domain.as_str()),
+        SUSPENDED_ACCOUNT_BODY,
+    );
+
+    input
+}
+
+#[test]
+#[ignore = "creates a real account and site and asks a real nginx for it: polygon only"]
+fn a_suspended_accounts_site_answers_the_stub_and_not_the_customers_page() {
+    // P1. Observed with an HTTP REQUEST and never by grepping the vhost: a
+    // directive in the wrong block reads identically and does nothing, which is
+    // the argument `sftp_on_a_real_host.rs` already makes for the chroot. The
+    // reload is real here — the polygon's systemctl stand-in turns `reload
+    // nginx` into `nginx -s reload` when a master is running, while `start` and
+    // `stop` do nothing at all, so nothing in this suite may rest on those.
+    PolygonAccount::require_polygon();
+    ensure_nginx_is_running();
+    let account = PolygonAccount::create("polysuspone");
+    let domain = Domain::parse("suspone.example.test").expect("a valid domain");
+    let input = served_polygon_site(&account, &domain);
+    let _vhost = PolygonConfigFile::at(&SitePaths::for_site(account.name(), &domain).config_path);
+
+    reload_polygon_nginx();
+    let before = fetch_until(domain.as_str(), "/", |body| {
+        body.contains(SUSPENDED_ACCOUNT_BODY)
+    });
+    // The inverse control. Without it this test would pass against a site that
+    // was never served at all, which is the state that most resembles success.
+    assert!(
+        before.contains(SUSPENDED_ACCOUNT_BODY),
+        "the site must be serving the customer's page BEFORE it is suspended:\n{before}"
+    );
+
+    maran_ops::sites::disable_site(&ProcessSiteHost::new(), polygon_distro(), &input)
+        .unwrap_or_else(|error| panic!("disabling the site must succeed: {error}"));
+
+    let after = fetch_until(domain.as_str(), "/", |body| {
+        body.contains(SUSPENSION_NOTICE)
+    });
+
+    assert!(
+        after.starts_with("HTTP/1.1 403 "),
+        "a suspended site must answer the refusal, not the account's page:\n{after}"
+    );
+    assert!(after.contains(SUSPENSION_NOTICE));
+    assert!(
+        !after.contains(SUSPENDED_ACCOUNT_BODY),
+        "the customer's own page must not be reachable while suspended:\n{after}"
+    );
+}
+
+#[test]
+#[ignore = "creates a real account and site and asks a real nginx for it: polygon only"]
+fn a_suspended_site_still_answers_the_acme_challenge_so_its_certificate_can_renew() {
+    // P2. The promise the suspended template makes, and the one that costs the
+    // customer a certificate if it is broken: a suspended account whose renewal
+    // fails comes back weeks later with an expired certificate and nothing in a
+    // log to say why. Asked over HTTP, because "the location block is in the
+    // file" and "a request under that prefix is answered" are different claims.
+    PolygonAccount::require_polygon();
+    ensure_nginx_is_running();
+    let account = PolygonAccount::create("polysusptwo");
+    let domain = Domain::parse("susptwo.example.test").expect("a valid domain");
+    let input = served_polygon_site(&account, &domain);
+    let _vhost = PolygonConfigFile::at(&SitePaths::for_site(account.name(), &domain).config_path);
+
+    let challenge_directory = SitePaths::for_site(account.name(), &domain)
+        .document_root
+        .join(".well-known")
+        .join("acme-challenge");
+    ProcessSiteHost::new()
+        .create_directories_as_account(account.name(), &[challenge_directory.as_path()])
+        .expect("the challenge directory is created as the account");
+    write_as_account(
+        &account,
+        &format!(
+            "sites/{}/.well-known/acme-challenge/{ACME_TOKEN}",
+            domain.as_str()
+        ),
+        ACME_TOKEN_BODY,
+    );
+
+    reload_polygon_nginx();
+    // The inverse control, and it is load-bearing here for a second reason: a
+    // static site answers a file under `/.well-known/` perfectly well WITHOUT
+    // being suspended, so an assertion that only fetched the challenge would
+    // pass against the site's own vhost and prove nothing about the stub. The
+    // first version of this test did exactly that and was green while the root
+    // was still serving the customer's page.
+    let before = fetch_until(domain.as_str(), "/", |body| {
+        body.contains(SUSPENDED_ACCOUNT_BODY)
+    });
+    assert!(
+        before.contains(SUSPENDED_ACCOUNT_BODY),
+        "the site must be serving before it is suspended:\n{before}"
+    );
+
+    maran_ops::sites::disable_site(&ProcessSiteHost::new(), polygon_distro(), &input)
+        .unwrap_or_else(|error| panic!("disabling the site must succeed: {error}"));
+    reload_polygon_nginx();
+
+    // The suspension has to be OBSERVED live before the challenge is asked
+    // for, or the challenge is being asked of whichever vhost the workers
+    // still hold — `nginx -s reload` returns when the master takes the signal,
+    // not when the workers answering the next connection have been replaced.
+    let root = fetch_until(domain.as_str(), "/", |body| {
+        body.contains(SUSPENSION_NOTICE)
+    });
+    assert!(
+        root.starts_with("HTTP/1.1 403 "),
+        "the stub must be live before the challenge proves anything:\n{root}"
+    );
+
+    let challenge = fetch(
+        domain.as_str(),
+        &format!("/.well-known/acme-challenge/{ACME_TOKEN}"),
+    );
+
+    assert!(
+        challenge.starts_with("HTTP/1.1 200 "),
+        "a suspended site must still answer the ACME challenge:\n{challenge}"
+    );
+    assert!(challenge.contains(ACME_TOKEN_BODY));
+}
+
+#[test]
+#[ignore = "creates a real account and two real sites: polygon only"]
+fn resuming_restores_the_site_that_was_resumed_and_leaves_the_other_one_stubbed() {
+    // P3, and it is the reversal law: suspension MUST NOT overwrite state that
+    // also expresses a customer choice. The panel re-enables only the sites
+    // whose status it recorded as Enabled, so the agent must put back exactly
+    // the site it is asked for and no other. This is the assertion that fails
+    // if anyone "simplifies" the resume into enable-everything-for-the-account.
+    PolygonAccount::require_polygon();
+    ensure_nginx_is_running();
+    let account = PolygonAccount::create("polysuspthree");
+    let resumed_domain = Domain::parse("resumed.example.test").expect("a valid domain");
+    let chosen_domain = Domain::parse("chosen.example.test").expect("a valid domain");
+    let resumed = served_polygon_site(&account, &resumed_domain);
+    let chosen = served_polygon_site(&account, &chosen_domain);
+    let _resumed_vhost =
+        PolygonConfigFile::at(&SitePaths::for_site(account.name(), &resumed_domain).config_path);
+    let _chosen_vhost =
+        PolygonConfigFile::at(&SitePaths::for_site(account.name(), &chosen_domain).config_path);
+
+    let host = ProcessSiteHost::new();
+    for input in [&resumed, &chosen] {
+        maran_ops::sites::disable_site(&host, polygon_distro(), input)
+            .unwrap_or_else(|error| panic!("disabling must succeed: {error}"));
+    }
+
+    // Only one of them is put back — the one the panel would have recorded as
+    // Enabled. The other was disabled by the customer and stays that way.
+    maran_ops::sites::enable_site(&host, polygon_distro(), &resumed)
+        .unwrap_or_else(|error| panic!("enabling must succeed: {error}"));
+    reload_polygon_nginx();
+
+    let back = fetch_until(resumed_domain.as_str(), "/", |body| {
+        body.contains(SUSPENDED_ACCOUNT_BODY)
+    });
+    assert!(
+        back.starts_with("HTTP/1.1 200 ") && back.contains(SUSPENDED_ACCOUNT_BODY),
+        "the resumed site must serve its own page again:\n{back}"
+    );
+
+    // Polled, like every other read of a freshly reloaded nginx here: asking
+    // once measures the worker-replacement race and not the site — measured,
+    // not assumed, this assertion failed against a worker that predated the
+    // second site's vhost entirely. Polling for the stub cannot tell "stayed
+    // stubbed" from "became stubbed", and does not need to: the failure this
+    // test exists to catch is a resume that put the site BACK, and a site
+    // serving its own page never becomes the stub, so the poll runs out and
+    // the assertion below reports the page it was served.
+    let still_stubbed = fetch_until(chosen_domain.as_str(), "/", |body| {
+        body.contains(SUSPENSION_NOTICE)
+    });
+    assert!(
+        still_stubbed.starts_with("HTTP/1.1 403 "),
+        "a site the customer had disabled must stay stubbed through a resume:\n{still_stubbed}"
+    );
+    assert!(!still_stubbed.contains(SUSPENDED_ACCOUNT_BODY));
+}
+
+#[test]
+#[ignore = "creates a real account and two real sites: polygon only"]
+fn the_suspension_state_answers_on_a_real_host_what_the_requests_above_observed() {
+    // P6, narrowed to the site half. The attestation must be checked against
+    // reality once, or it becomes a second thing that agrees with the code that
+    // wrote it: `inspect_account_sites` renders the suspended vhost and compares
+    // it with the file, and `disable_site` renders and writes the same text, so
+    // a unit test of the pair can only ever prove they agree with each other.
+    // What it cannot prove is that the text they agree on is the text a real
+    // nginx reads out of the real include directory — which is what this asks.
+    PolygonAccount::require_polygon();
+    let account = PolygonAccount::create("polysuspfour");
+    let stubbed_domain = Domain::parse("stubbed.example.test").expect("a valid domain");
+    let serving_domain = Domain::parse("serving.example.test").expect("a valid domain");
+    let stubbed = served_polygon_site(&account, &stubbed_domain);
+    let _serving = served_polygon_site(&account, &serving_domain);
+    let _stubbed_vhost =
+        PolygonConfigFile::at(&SitePaths::for_site(account.name(), &stubbed_domain).config_path);
+    let _serving_vhost =
+        PolygonConfigFile::at(&SitePaths::for_site(account.name(), &serving_domain).config_path);
+
+    let host = ProcessSiteHost::new();
+    maran_ops::sites::disable_site(&host, polygon_distro(), &stubbed)
+        .unwrap_or_else(|error| panic!("disabling must succeed: {error}"));
+
+    let observed = maran_ops::sites::inspect_account_sites(&host, account.name())
+        .unwrap_or_else(|error| panic!("the sites must be observable: {error}"));
+
+    assert!(
+        observed.directory_readable,
+        "the real include directory must be listable, or the answer is blind"
+    );
+    let fact = |domain: &Domain| {
+        observed
+            .sites
+            .iter()
+            .find(|fact| fact.domain == domain.as_str())
+            .unwrap_or_else(|| {
+                panic!(
+                    "the account's own vhosts must be found: {:?}",
+                    observed.sites
+                )
+            })
+    };
+
+    assert!(
+        fact(&stubbed_domain).serving_stub,
+        "the disabled site's real vhost IS the suspended render"
+    );
+    assert!(
+        !fact(&serving_domain).serving_stub,
+        "the untouched site is still serving its own content"
+    );
 }

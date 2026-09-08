@@ -9,6 +9,7 @@ use std::process::{Command, Stdio};
 
 use maran_agent_core::command_outcome::CommandOutcome;
 use maran_agent_core::privs::account_ids::AccountIds;
+use maran_agent_core::utils::apply_child_environment::apply_child_environment;
 use maran_agent_core::utils::spawn_argv::spawn_argv;
 use maran_agent_core::utils::system_accounts::system_accounts;
 use maran_agent_core::validation::system::name::AccountName;
@@ -94,7 +95,9 @@ impl SftpHost for ProcessSftpHost {
         arguments: &[&str],
         stdin: Option<&str>,
     ) -> Result<CommandOutcome, SftpError> {
-        let mut child = Command::new(program)
+        let mut command = Command::new(program);
+        apply_child_environment(&mut command);
+        let mut child = command
             .args(arguments)
             .stdin(if stdin.is_some() {
                 Stdio::piped()

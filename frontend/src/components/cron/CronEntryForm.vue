@@ -157,10 +157,10 @@ defineExpose({ reset })
 
     <div class="mt-3 flex items-center gap-2">
       <UiButton type="submit" :disabled="submitting">
-        {{ submitting ? t('cron.form.working') : isEditing ? t('cron.form.save') : t('cron.form.create') }}
+        {{ submitting ? t('common.saving') : isEditing ? t('cron.form.save') : t('cron.form.create') }}
       </UiButton>
       <UiButton v-if="isEditing" variant="secondary" @click="cancel">
-        {{ t('cron.form.cancel') }}
+        {{ t('common.cancel') }}
       </UiButton>
     </div>
   </UiForm>

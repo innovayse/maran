@@ -8,15 +8,24 @@
       "emptyDescription": "Operations that take long enough to be worth watching appear here while they run.",
       "tableCaption": "Background tasks",
       "watch": "Live view",
-      "watchTask": "Watch the task for {subject}"
+      "rowActions": "Actions for {subject}",
+      "percentValue": "{percent}%"
     },
     "columns": {
       "kind": "Operation",
       "subject": "Subject",
       "status": "Status",
       "percent": "Progress",
-      "startedAt": "Started",
-      "actions": "Actions"
+      "startedAt": "Started"
+    },
+    "kinds": {
+      "CertificateIssue": "Issuing a certificate",
+      "CertificateRenewal": "Renewing a certificate",
+      "AccountDeletion": "Deleting an account",
+      "AccountSuspension": "Suspending an account",
+      "AccountResumption": "Reactivating an account",
+      "BackupCreate": "Taking a backup",
+      "BackupRestore": "Restoring a backup"
     },
     "statuses": {
       "running": "Running",
@@ -24,7 +33,6 @@
       "failed": "Failed"
     },
     "pane": {
-      "close": "Close",
       "correlationId": "Correlation id",
       "notReported": "Not reported",
       "progressLabel": "Progress of this task",

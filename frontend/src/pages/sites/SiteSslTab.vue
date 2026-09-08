@@ -17,6 +17,9 @@ import UiAlert from '../../components/ui/UiAlert.vue'
 import UiBadge from '../../components/ui/UiBadge.vue'
 import UiButton from '../../components/ui/UiButton.vue'
 import UiCard from '../../components/ui/UiCard.vue'
+import UiConfirm from '../../components/ui/UiConfirm.vue'
+import UiDescriptionItem from '../../components/ui/UiDescriptionItem.vue'
+import UiDescriptionList from '../../components/ui/UiDescriptionList.vue'
 import UiEmptyState from '../../components/ui/UiEmptyState.vue'
 import UiForm from '../../components/ui/UiForm.vue'
 import UiSpinner from '../../components/ui/UiSpinner.vue'
@@ -51,6 +54,14 @@ const submitted: Ref<boolean> = ref(false)
 
 /** The certificate awaiting a confirmed removal, or `null` when none is. */
 const pendingRemovalId: Ref<string | null> = ref(null)
+
+/** The domain of the certificate being removed, so the dialog names what it is asking about. */
+const pendingRemovalDomain: ComputedRef<string> = computed(() => {
+  const pending = store.certificates.find((certificate) => {
+    return certificate.id === pendingRemovalId.value
+  })
+  return pending?.domain ?? props.domain
+})
 
 /** Validation message for the chain field, or `null`. */
 const certificatePemError: ComputedRef<string | null> = computed(() => {
@@ -159,10 +170,13 @@ const cancelRemove = (): void => {
  */
 const confirmRemove = async (): Promise<void> => {
   const id = pendingRemovalId.value
-  pendingRemovalId.value = null
   if (id !== null) {
     await store.remove(id)
   }
+
+  // Closed after the request settles rather than before it is sent: the dialog holds the
+  // spinner that tells the operator the panel is working.
+  pendingRemovalId.value = null
 }
 
 onMounted(load)
@@ -182,41 +196,42 @@ onMounted(load)
       />
 
       <UiCard v-for="certificate in store.certificates" :key="certificate.id">
-        <dl class="grid gap-3 sm:grid-cols-2">
-          <div>
-            <dt class="text-sm text-text-secondary">{{ t('certificates.domainLabel') }}</dt>
-            <dd class="font-mono text-base text-text-primary">{{ certificate.domain }}</dd>
-          </div>
-          <div>
-            <dt class="text-sm text-text-secondary">{{ t('certificates.sourceLabel') }}</dt>
-            <dd><UiBadge variant="info">{{ t(`certificates.source.${certificate.source}`) }}</UiBadge></dd>
-          </div>
-          <div>
-            <dt class="text-sm text-text-secondary">{{ t('certificates.issuedAtLabel') }}</dt>
-            <dd class="text-base text-text-primary">
-              {{ formatDate(certificate.issuedAt, localeStore.current) }}
-            </dd>
-          </div>
-          <div>
-            <dt class="text-sm text-text-secondary">{{ t('certificates.expiresAtLabel') }}</dt>
-            <dd class="text-base text-text-primary">
-              {{ formatDate(certificate.notAfter, localeStore.current) }}
-            </dd>
-          </div>
-        </dl>
+        <UiDescriptionList>
+          <UiDescriptionItem :term="t('certificates.domainLabel')" mono>
+            {{ certificate.domain }}
+          </UiDescriptionItem>
+          <UiDescriptionItem :term="t('certificates.sourceLabel')">
+            <UiBadge variant="info">{{ t(`certificates.source.${certificate.source}`) }}</UiBadge>
+          </UiDescriptionItem>
+          <UiDescriptionItem :term="t('certificates.issuedAtLabel')">
+            {{ formatDate(certificate.issuedAt, localeStore.current) }}
+          </UiDescriptionItem>
+          <UiDescriptionItem :term="t('certificates.expiresAtLabel')">
+            {{ formatDate(certificate.notAfter, localeStore.current) }}
+          </UiDescriptionItem>
+        </UiDescriptionList>
         <div class="mt-3 flex flex-wrap items-center gap-2">
-          <template v-if="pendingRemovalId === certificate.id">
-            <span class="text-base text-text-secondary">{{ t('certificates.confirmRemove') }}</span>
-            <UiButton variant="destructive" :disabled="store.acting" @click="confirmRemove">
-              {{ store.acting ? t('certificates.working') : t('certificates.confirm') }}
-            </UiButton>
-            <UiButton variant="secondary" @click="cancelRemove">{{ t('certificates.cancel') }}</UiButton>
-          </template>
-          <UiButton v-else variant="destructive" @click="askRemove(certificate.id)">
+          <UiButton variant="destructive" @click="askRemove(certificate.id)">
             {{ t('certificates.remove') }}
           </UiButton>
         </div>
       </UiCard>
+
+      <!-- One dialog for the whole list rather than one per card: only one removal can be
+           awaiting an answer, and a dialog rendered inside a `v-for` would be torn down by the
+           list refresh its own confirmation triggers. -->
+      <UiConfirm
+        :open="pendingRemovalId !== null"
+        :title="t('certificates.confirmRemoveTitle', { domain: pendingRemovalDomain })"
+        :question="t('certificates.confirmRemove')"
+        :confirm-label="t('common.confirm')"
+        :cancel-label="t('common.cancel')"
+        :close-label="t('common.close')"
+        :acting="store.acting"
+        :acting-label="t('certificates.working')"
+        @close="cancelRemove"
+        @confirm="confirmRemove"
+      />
 
       <div class="flex flex-wrap items-center gap-2">
         <UiButton :disabled="store.acting" @click="issue">{{ t('certificates.issue') }}</UiButton>
@@ -249,7 +264,7 @@ onMounted(load)
           </div>
           <div class="flex justify-end gap-2 border-t border-border-subtle bg-surface-2 px-4.5 py-3">
             <UiButton variant="secondary" type="button" @click="cancelUpload">
-              {{ t('certificates.cancel') }}
+              {{ t('common.cancel') }}
             </UiButton>
             <UiButton type="submit" :disabled="store.acting">{{ t('certificates.submitCustom') }}</UiButton>
           </div>

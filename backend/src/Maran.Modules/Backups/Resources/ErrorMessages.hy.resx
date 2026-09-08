@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="AccountNotFound">
+    <value>Այս հաշիվը չի գտնվել։</value>
+  </data>
+  <data name="BackupNotFound">
+    <value>Այս պահուստային պատճենը չի գտնվել։</value>
+  </data>
+  <data name="BackupStillRunning">
+    <value>Այս պահուստային պատճենը դեռ ստեղծվում է և դեռ չի կարող ջնջվել։</value>
+  </data>
+  <data name="BackupStreamDropped">
+    <value>Պահուստային պատճենի ստեղծման ընթացքում կապը սերվերի գործակալի հետ կորավ։</value>
+  </data>
+  <data name="BackupStreamIdle">
+    <value>Սերվերի գործակալը դադարեց հաղորդել պահուստավորման ընթացքի մասին։</value>
+  </data>
+  <data name="BackupTruncated">
+    <value>Սերվերի գործակալը դադարեց աշխատել՝ չհայտնելով, թե ինչով ավարտվեց պատճենումը։</value>
+  </data>
+  <data name="BackupCancelled">
+    <value>Պահուստային պատճենի ստեղծումը չեղարկվեց մինչև ավարտը։</value>
+  </data>
+  <data name="BackupInvalidOutcome">
+    <value>Սերվերի գործակալը հայտնեց պատրաստի պատճենի մասին՝ առանց այն նույնականացնող տվյալի։</value>
+  </data>
+  <data name="FinalBackupFailed">
+    <value>Հաշիվը չի ջնջվել՝ չհաջողվեց ստեղծել դրա վերջնական պահուստային պատճենը։</value>
+  </data>
+  <data name="BackupNotRestorable">
+    <value>Այս պահուստային պատճենը հնարավոր չէ վերականգնել՝ այն հաջողությամբ չի ավարտվել։</value>
+  </data>
+  <data name="RestoreConfirmationRequired">
+    <value>Վերականգնումը հաստատելու համար ճշգրիտ մուտքագրեք հաշվի օգտվողի անունը։</value>
+  </data>
+  <data name="RestoreConfirmationMismatch">
+    <value>Ձեր մուտքագրած անունը այս հաշվի օգտվողի անունը չէ։</value>
+  </data>
+  <data name="RestorePartial">
+    <value>Վերականգնումը ամբողջությամբ չի կատարվել. հաշիվը վերականգնված է միայն մասամբ։</value>
+  </data>
+  <data name="RestoreStreamDropped">
+    <value>Հաշիվը վերականգնելիս կապը սերվերի գործակալի հետ կորավ։</value>
+  </data>
+  <data name="RestoreStreamIdle">
+    <value>Հաշիվը վերականգնելիս սերվերի գործակալը դադարեց հաղորդել ընթացքի մասին։</value>
+  </data>
+  <data name="RestoreTruncated">
+    <value>Սերվերի գործակալը դադարեց՝ չհաղորդելով, թե ինչ է վերականգնվել։</value>
+  </data>
+  <data name="RestoreCancelled">
+    <value>Վերականգնումը չեղարկվեց մինչև ավարտը։</value>
+  </data>
+  <data name="RestoreInvalidOutcome">
+    <value>Սերվերի գործակալը հաղորդեց ավարտված վերականգնման մասին՝ չնշելով, թե ինչ է վերականգնվել։</value>
+  </data>
+  <data name="BackupScheduleNotFound">
+    <value>Այս սերվերը դեռ չունի կրկնօրինակման ժամանակացույց։</value>
+  </data>
+  <data name="BackupScheduleHourOutOfRange">
+    <value>Ժամը պետք է լինի 0-ից 23-ի սահմաններում։</value>
+  </data>
+  <data name="BackupScheduleRetainOutOfRange">
+    <value>Պահվող կրկնօրինակների քանակը պետք է լինի 1-ից 365-ի սահմաններում։</value>
+  </data>
+  <data name="BackupScheduleDayRequired">
+    <value>Շաբաթական ժամանակացույցի համար պետք է նշել շաբաթվա օրը։</value>
+  </data>
+  <data name="BackupScheduleDayNotAllowed">
+    <value>Օրական ժամանակացույցի համար շաբաթվա օր չի նշվում։</value>
+  </data>
+  <data name="BackupScheduledRunAborted">
+    <value>Պլանավորված կրկնօրինակումն ընդհատվեց՝ նախքան գործակալը հայտներ արդյունքը։</value>
+  </data>
+  <data name="BackupDestinationNotFound">
+    <value>Կրկնօրինակների նման պահոց գոյություն չունի։</value>
+  </data>
+  <data name="BackupDestinationNotConfigured">
+    <value>Այս սերվերը լռելյայն կրկնօրինակների պահոց չունի, ուստի կրկնօրինակում հնարավոր չէ մինչև հաջորդ գործարկումը։</value>
+  </data>
+  <data name="BackupDestinationRemoteUnsupported">
+    <value>Այս կառուցվածքը կրկնօրինակները պահում է միայն այս սերվերում։ S3-համատեղելի պահոցը հասանելի չէ։</value>
+  </data>
+  <data name="BackupDestinationLocalAlreadyDefined">
+    <value>Այս սերվերն արդեն ունի իր տեղական կրկնօրինակների պահոցը, և այն կարող է լինել միայն մեկը։</value>
+  </data>
+  <data name="BackupDestinationNameInvalid">
+    <value>Կրկնօրինակների պահոցի անունը պարտադիր է և առավելագույնը 64 նիշ։</value>
+  </data>
+  <data name="RestoreArtifactRejected">
+    <value>Ձեր սերվերը մերժեց այս պատճենը՝ դրա բովանդակությունը չի համապատասխանում այն բանին, ինչ վահանակը գրանցել է պատճենը ստեղծելիս։ Ոչինչ չի վերականգնվել, հաշիվը մնացել է անփոփոխ։ Վերականգնեք այլ պատճենից կամ դիմեք աջակցությանը՝ նույն հարցումը կրկին ուղարկելը ոչինչ չի փոխի։</value>
+  </data>
+</root>

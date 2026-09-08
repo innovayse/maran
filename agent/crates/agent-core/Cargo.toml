@@ -13,6 +13,10 @@ thiserror.workspace = true
 # libc: raw syscall bindings for src/privs/ — fork, setgroups/setgid/setuid,
 # getpwnam_r, waitpid, _exit. Raw on purpose; see the workspace manifest.
 libc.workspace = true
+# rustix: safe bindings for the syscalls that are NOT privilege changes — statvfs
+# in utils/available_bytes. Safe wrappers on purpose: the crate's unsafe budget is
+# spent in src/privs/ and nowhere else (rules/rust.md "unsafe").
+rustix.workspace = true
 
 [dev-dependencies]
 # tempfile: path containment is only meaningfully tested against a real filesystem.

@@ -26,8 +26,8 @@ export interface CronEnvironmentVariable {
 }
 
 /**
- * Request body for `PUT /api/v1/cron-environment`, mirroring the backend's
- * `SetCronEnvironmentRequest`.
+ * Request body for `PUT /api/v1/cron-environment`, binding the backend's
+ * `SetCronEnvironmentCommand`.
  *
  * `PUT`, not `PATCH`, and the verb is the warning: a name absent from {@link variables} is removed
  * from the crontab, and an empty list clears every managed assignment.

@@ -62,6 +62,18 @@ impl DistroAdapter for DebianAdapter {
         debian_packages::package_manager()
     }
 
+    fn tar_binary(&self) -> &'static str {
+        debian_services::tar_binary()
+    }
+
+    fn gzip_binary(&self) -> &'static str {
+        debian_services::gzip_binary()
+    }
+
+    fn database_dump_binary(&self) -> &'static str {
+        debian_services::database_dump_binary()
+    }
+
     fn mysql_client_binary(&self) -> &'static str {
         debian_services::mysql_client_binary()
     }
@@ -86,12 +98,20 @@ impl DistroAdapter for DebianAdapter {
         debian_services::usermod_binary()
     }
 
+    fn getent_binary(&self) -> &'static str {
+        debian_services::getent_binary()
+    }
+
     fn setquota_binary(&self) -> &'static str {
         debian_services::setquota_binary()
     }
 
     fn quota_binary(&self) -> &'static str {
         debian_services::quota_binary()
+    }
+
+    fn passwd_binary(&self) -> &'static str {
+        debian_services::passwd_binary()
     }
 
     fn id_binary(&self) -> &'static str {
@@ -128,14 +148,6 @@ impl DistroAdapter for DebianAdapter {
 
     fn nft_binary(&self) -> &'static str {
         debian_services::nft_binary()
-    }
-
-    fn nftables_include_target(&self) -> &'static str {
-        debian_paths::nftables_include_target()
-    }
-
-    fn firewall_service(&self) -> &'static str {
-        debian_services::firewall_service()
     }
 
     fn cron_service(&self) -> &'static str {

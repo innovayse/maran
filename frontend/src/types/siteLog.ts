@@ -24,7 +24,11 @@ export type SiteLogEndReason =
   | 'idle'
   /** The operation itself failed; the accompanying message says why, in the backend's words. */
   | 'failed'
-  /** The stream was cut short and lines are missing. Never to be shown as a normal end. */
+  /**
+   * The connection closed without the panel naming an ending at all — no `end` frame arrived.
+   * Lines may be missing, so this is never to be shown as a normal end. Distinct from `failed`,
+   * which is what an `end` frame naming a reason this SPA does not know becomes.
+   */
   | 'truncated'
   /** The panel stopped watching — a closed view, a navigation, an unmounted component. */
   | 'cancelled'

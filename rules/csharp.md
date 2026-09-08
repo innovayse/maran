@@ -231,21 +231,23 @@ backend/
 │           ├── <Name>Manifest.cs        # module identity: id, display-name resource key,
 │           │                            #   version, licence tier, dependencies
 │           ├── Controllers/             # thin HTTP surface (+ External/ for outward APIs)
-│           │   ├── <Resource>Controller.cs
-│           │   └── Requests/            # request models bound from HTTP, one per file
+│           │   └── <Resource>Controller.cs  # an action binds its Command or Query DIRECTLY; there
+│           │                            #   is no Requests/ folder (see "An endpoint binds its
+│           │                            #   command directly")
 │           ├── Commands/<Operation>/    # <Op>Command.cs, <Op>CommandHandler.cs, <Op>CommandValidator.cs
 │           ├── Queries/<Operation>/     # <Op>Query.cs, <Op>QueryHandler.cs (+ <Op>QueryValidator.cs)
 │           ├── Common/                  # *Dto.cs ONLY — the wire shapes, data with no logic.
 │           │                            #   FLAT, no subfolders, no methods, no factories.
-│           ├── Models/                   # data the module passes between its OWN layers and never
-│           │                            #   puts on the wire: handler outcomes, carriers, frames
-│           ├── Mappers/                  # <Thing>Mapper.cs — pure translation between a domain
-│           │                            #   value and a wire shape. Never DECIDES, only restates.
-│           │                            #   stateless pure rules over values — FLAT, no subfolders.
 │           │                            #   NOT the default folder: a file lands here only after all
 │           │                            #   four tests below say no — not shared (Utilities/), no DI
 │           │                            #   lifetime (Services/), not a domain value object
 │           │                            #   (Domain/), no effect on the HTTP surface (Controllers/)
+│           ├── Models/                  # data the module passes between its OWN layers and never
+│           │                            #   puts on the wire: handler outcomes, carriers, frames,
+│           │                            #   stream frames. FLAT, no subfolders.
+│           ├── Mappers/                 # <Thing>Mapper.cs — pure translation between a domain
+│           │                            #   value and a wire shape. Never DECIDES, only restates.
+│           │                            #   FLAT, no subfolders.
 │           ├── Interfaces/              # the module's own contracts — the seams it defines and
 │           │                            #   injects (IMailer, IAcmeClient, ISessionService). Same
 │           │                            #   place Maran.Sdk and Maran.SharedKernel put theirs;
@@ -281,9 +283,9 @@ backend/
 │           │   ├── Interceptors/        # SaveChanges interceptors (audit, timestamps)
 │           │   └── Migrations/          # EF-generated, module-scoped
 │           ├── Seeders/                 # initial data owned by this module
-│           ├── Resources/               # Messages.resx, Messages.ru.resx, Messages.hy.resx
-│           └── Resources/               # the module's resx triples; ErrorMessages.resx also
-│                                        #   DEFINES the module's error codes (see below)
+│           └── Resources/              # the module's resx triples (X.resx · X.ru.resx ·
+│                                        #   X.hy.resx); ErrorMessages.resx also DEFINES the
+│                                        #   module's error codes (see below)
 └── tests/
     ├── Maran.<Project>.Tests/            # unit — mirrors src/ folder for folder
     ├── Maran.Modules.<Name>.Tests/       # one per module, mirrors the module
@@ -291,7 +293,7 @@ backend/
     └── Maran.ArchitectureTests/          # NetArchTest boundary rules
 ```
 
-Feature-first layout (`Commands/`, `Queries/`, `Common/`, `IntegrationEvents/`, `Controllers/` + `Requests/`, `Persistence/` with `Configurations/`) applied inside module projects rather than inside shared layer projects. Two properties are non-negotiable for this product:
+Feature-first layout (`Commands/`, `Queries/`, `Common/`, `IntegrationEvents/`, `Controllers/`, `Persistence/` with `Configurations/`) applied inside module projects rather than inside shared layer projects. Two properties are non-negotiable for this product:
 
 1. **The module is the project**, not a folder inside a shared layer project. Maran sells modules, so a module must be a physical, separately buildable, separately shippable unit with an enforced boundary.
 2. **Each module owns its PostgreSQL schema and its own `DbContext`** — there is no application-wide `AppDbContext`. A module never reads another module's tables.
@@ -361,6 +363,93 @@ public sealed class AuditLogsController : BaseApiController
     }
 }
 ```
+- **An endpoint binds its command directly.** An action takes the `Command` or `Query` itself as its
+  parameter and dispatches it; there is no per-endpoint request model and no `Controllers/Requests/`
+  folder. One shape crosses the wire, is validated, and is handled, so a field cannot be added to the
+  request and forgotten in the command, and the OpenAPI schema is the thing the handler actually
+  reads.
+
+  That collapses a boundary the request model used to hold, and the collapse is dangerous, so it is
+  closed by construction rather than by care:
+
+- **Server-established members of a command.** A member the SERVER establishes — the caller's
+  address, the caller's user agent, the caller's identity from their own access token, and any id
+  that comes from the route — carries `[property: JsonIgnore][property: BindNever][BindNever]` on its
+  record parameter, takes `= ""` if it is a trailing reference type, and is written by the action from
+  `ClientIpAddress`, `CallerUserAgent`, `CurrentUser.UserId` or the action's own route parameter:
+
+  ```csharp
+  public sealed record LoginCommand(
+      string Username,
+      string Password,
+      [property: JsonIgnore][property: BindNever][BindNever] string IpAddress = "",
+      [property: JsonIgnore][property: BindNever][BindNever] string UserAgent = "");
+
+  public async Task<IActionResult> LoginAsync([FromBody] LoginCommand command, CancellationToken ct)
+  {
+      command = command with { IpAddress = ClientIpAddress, UserAgent = CallerUserAgent };
+      ...
+  }
+  ```
+
+  **Three attributes on two targets, and any one of them alone is a trap.** They close different
+  doors and none of them substitutes for another.
+
+  `[property: JsonIgnore]` closes the JSON body, and it is the only one that does. `[BindNever]` is
+  a MODEL-BINDING attribute, and a `[FromBody]` parameter never enters the model-binding pipeline —
+  it is deserialized by an input formatter calling `System.Text.Json`, which has never heard of it.
+  Measured on a net9.0 MVC app: a body of `{"ipAddress":"6.6.6.6"}` against a parameter guarded only
+  by `[BindNever]` reached the handler as `6.6.6.6`.
+
+  **The BARE, parameter-target `[BindNever]` is what closes the query string, the form and the
+  route — the `[property:]` target does not, and an earlier version of this rule said it did.** A
+  positional record has no settable properties for the binder to fill: MVC's complex-object binder
+  constructs the command through its primary CONSTRUCTOR and looks for `[BindNever]` on the
+  constructor PARAMETER, while a `[property:]` target lands on the generated property that this path
+  never consults. Measured on a net9.0 MVC app: the `LoginCommand` shape above, guarded with the two
+  property-target attributes only and bound `[FromQuery]`, returned
+  `ip=[6.6.6.6] ua=[ATTACKER-UA]`; the same record with the bare `[BindNever]` added returned both
+  members empty. Every command in the tree carried the property-target form for a while, and the
+  seventeen of them that were not spoofable were not spoofable because no route happened to bind
+  from a query string — a property of the routes, not of the guard.
+
+  **The property target is kept beside it**, not deleted: a command that is not a positional record —
+  one with settable properties, filled through the property path — is guarded by that target and not
+  by the parameter one, and a command's shape can change without anyone re-reading its guard. Two
+  cheap attributes cover both shapes; picking the one that matches today's shape is how this defect
+  was introduced.
+
+  `[ValidateNever]` is NOT part of the pattern — it does not reach the constructor parameter and does
+  not suppress the 400 that the `= ""` default suppresses.
+
+  **Why it matters more than it looks.** `IpAddress` and `UserAgent` are what a session row and an
+  audit line record — the record used to spot a break-in. Bound from the body on the sign-in
+  endpoint, every one of them would carry whatever the attacker typed. A bound `UserId` would let any
+  authenticated caller aim `two-factor/disable` at somebody else's account, and a bound `AccountId` is
+  a tenant boundary crossed in a JSON field. A bound route id lets a caller send one id in the URL and
+  a different one in the body, where which one wins is whichever the handler happens to read.
+
+  **The cost, stated so nobody meets it by surprise.** `[JsonIgnore]` removes the member from
+  OUTBOUND JSON too, so a guarded command must never travel a durable or external Wolverine queue —
+  its address, agent and caller would be silently dropped from the envelope and the far side would
+  journal a blank. Local `IMessageBus.InvokeAsync` dispatch, which is what every endpoint uses, hands
+  the object over without serializing and is unaffected. And `[JsonIgnore]` is not redaction: every
+  unguarded member, `Password` included, still serializes, and secrets stay the job of
+  `SensitiveString` and the redaction floor (rules/security.md item 8).
+
+  **An action with no body constructs rather than binds.** `DELETE /api/v1/sessions/{id:guid}` has
+  nothing to deserialize, so it builds `RevokeSessionCommand` from the route id and the token
+  directly. The guard attributes stay on the command regardless — they are a property of the TYPE, so
+  a command that becomes body-bound later is already safe.
+
+  Enforced by `BoundCommandGuardTests` in `backend/tests/Maran.ArchitectureTests`, which walks the
+  composed panel's controllers and fails naming any bound command that leaves such a member open. It
+  reads the CONSTRUCTOR parameter for the bare `[BindNever]`, never the property: reading the
+  property is exactly how the query-string hole above stayed green — with the parameter-target
+  attribute stripped from a live `[FromQuery]` command the whole suite passed on a provably
+  spoofable endpoint. It carries a planted violation as its refusing control and a fully guarded
+  `[FromQuery]` command as its accepting one, and it cannot see whether the action performs the
+  stamp — a forgotten `with` is a blank field, not a spoofed one.
 - **Operation naming is fixed**: folder `Commands/CreateSite/` holds `CreateSiteCommand.cs`, `CreateSiteCommandHandler.cs`, `CreateSiteCommandValidator.cs`; folder `Queries/GetSite/` holds `GetSiteQuery.cs`, `GetSiteQueryHandler.cs` (+ `GetSiteQueryValidator.cs` when the query takes filters worth validating). Suffixes are always full: `…CommandHandler`, `…QueryHandler`, `…CommandValidator` — never a bare `…Handler`. Operation folders read as verb + subject: `GetSite`, `ListSites`, `ExportSiteLogs`.
 - **Commands and queries are `record`s**, XML-documented with a `<param>` line for every field.
 - **DTO naming and home**: outward-facing types end in `Dto` (`SiteDto`, `SiteDetailDto`, `SiteStatsDto`) and live in the module's `Common/` folder. There is no separate `DTOs/` folder.
@@ -470,9 +559,8 @@ public sealed class AuditLogsController : BaseApiController
   A rule that forbids the only correct home does not stop the file being written; it only decides
   where the file goes wrong.
 
-  `Common/` exists for types genuinely shared across operations of that one module, and holds only
-  precisely-named types; a file named `Common.cs`, `Helpers.cs` or `Shared.cs` inside it is a review
-  reject. Anything shared by two modules moves down to `SharedKernel` or `Sdk` — never sideways
+  `Common/` holds the module's `*Dto.cs` and nothing else; a file named `Common.cs`, `Helpers.cs` or
+  `Shared.cs` inside it is a review reject, and so is any file whose name does not end in `Dto`. Anything shared by two modules moves down to `SharedKernel` or `Sdk` — never sideways
   between modules.
 - **Test projects mirror source paths exactly**: `Commands/CreateSite/CreateSiteHandlerTests.cs` sits at the same relative path as the code it covers.
 - **Namespace = path, always**: `Maran.Modules.Sites.Commands.CreateSite`. No namespace shortcuts, no folder outside the namespace.
@@ -577,9 +665,10 @@ Maran.SharedKernel/Utilities/
 A helper belongs here when it answers a **general** question the panel asks in more than one place —
 "is this a valid e-mail address", "what is the caller's address", "is this a valid host name". It stays in its module when it is
 feature-specific: a cron expression translator, a ban's time-to-live policy, an audit journal and
-every DTO are that module's business and stay in the module, however reusable they look — in its
-`Common/` if inert and nothing else claims it first (see the four tests below; the
-journal is a service, the translator and the DTO are not).
+every DTO are that module's business and stay in the module, however reusable they look. Which of
+the module's folders is a separate question the four tests below answer: the DTO is `Common/`, the
+journal is a service (`Services/`), the cron translator is a `Mappers/` file and the ban policy is
+`Domain/Policies/`.
 
 ### `Security/`, `Utilities/` and a module's `Common/`
 
@@ -589,12 +678,15 @@ helper is filed where its author happened to look first. These are the three que
 
 **1. Is its correctness defined by one module's own tables, contract or vocabulary?** Then it stays
 in that module, and no argument about how reusable it looks moves it. Which of the module's own
-folders it lands in is a **second, separate question**, answered by test 2 below: `Common/` if it is
-inert, `Services/` if it has a lifetime.
+folders it lands in is a **second, separate question**, answered by tests 2-4 below: `Services/` if
+it has a lifetime, `Domain/` if the business has rules about it, `Controllers/` if it acts on the
+HTTP surface, and otherwise the module's **inert side** — which is three folders, not one:
+`Common/` for a wire shape (`*Dto.cs`), `Mappers/` for a translation from a domain value to a wire
+shape, `Models/` for anything else the module passes between its own layers and never serialises.
 
-`Common/` is **not** a small `Utilities/`. It is the module's **inert internal furniture**: its DTOs,
-its value objects and snapshots, its profiles and pure translators, its stream frames. Not one of
-those is a utility, and the two folders share no idea beyond both being places a file can sit. Its
+`Common/` is **not** a small `Utilities/`. It is the wire-shape half of the module's **inert internal
+furniture** — its DTOs. Not one of those is a utility, and the two folders share no idea beyond both
+being places a file can sit. Its
 live counterpart is `Services/`, which holds what the container constructs — the audit journal, the
 caches, the directories and installers. It is also **flat**: it holds files, never subfolders (see
 "`Common/` is FLAT" below), so a type is never one directory deeper than the tests that judge it.
@@ -664,15 +756,22 @@ test 1 cannot tell them apart, and only test 2 can. The same failure then repeat
 |---|---|---|---|---|
 | Question | Is anything about it specific to this module? | Does it hold state or have a DI lifetime? | Is it a value object or entity of this module's domain? | Does it act on the HTTP surface? |
 | Measurement | does it read the module's entities, options, resources or `DbContext`; would it compile with the module deleted | is it registered in `<Name>Module.cs` — `AddScoped`, `AddSingleton` or `AddTransient` | does it mirror an entity's fields, take its defaults from that entity's constants, or carry domain behaviour | does it name `HttpResponse`, `HttpRequest`, `HttpContext`, `CookieOptions` or a cookie/header collection |
-| "No" means | it is a shared helper → `SharedKernel/Utilities/<Subject>/` | it is inert → `Common/` | it is a carrier, not a model → `Common/` | it computes rather than acts → `Common/` |
+| "No" means | it is a shared helper → `SharedKernel/Utilities/<Subject>/` | it is inert → the module's inert side | it is a carrier, not a model → the module's inert side | it computes rather than acts → the module's inert side |
 | "Yes" means | it is this module's business → keep it here, whatever it looks like | it is a service → `Services/` | it is domain → `Domain/` | it is HTTP behaviour → `Controllers/`, or `Maran.Host/` if panel-wide |
+
+**"The module's inert side" is three folders, and a fifth question picks between them**, because
+`Common/` is `*Dto.cs` only and the four tests above cannot say which inert folder a file belongs
+in — they only say it is inert. Does it go on the wire? `Common/`, and its name ends in `Dto`. Does
+it translate a domain value INTO one of those wire shapes? `Mappers/`. Neither? `Models/`. This
+question is why the earlier wording, which ended every "no" at `Common/`, produced a `Common/` full
+of carriers, frames and translators; the four tests were right and incomplete.
 
 > **Test 1, stated to be applied — and the refinement the `Ssl` audit added:** "would it compile
 > with the module deleted" is a proxy for the real question, "is anything about it specific to this
 > module", and a proxy can be satisfied while the thing it stands for is not. A type whose
 > **correctness is defined by an external specification that only one module is answerable for** is
 > specific to that module even when its signature is BCL-in, BCL-out and it would compile anywhere.
-> `Ssl/Common/JsonObjectValue` is the worked example: it serializes a `Dictionary<string, string>` to
+> `Ssl/Domain/Policies/JsonObjectValue` is the worked example: it serializes a `Dictionary<string, string>` to
 > a `string`, so the compile-without-the-module measurement says "generic, move it" — but what it
 > computes is not "a JSON object", it is *the exact canonical byte sequence RFC 7638 requires for a
 > JWK thumbprint*, a form the ACME protocol defines and only `Ssl` ever has occasion to produce. The
@@ -710,8 +809,12 @@ live in their module's `Services/`. `maran structure` checks this half mechanica
 A record is **not** automatically a value object, and this is the half the test gets wrong if it is
 read as "records go to `Domain/`". The question is whether the module's business has rules about the
 thing modelled, or whether the type merely carries data from one layer to the next.
-`IssuedSession` and `LoginOutcome` are carriers: a handler builds one, a controller unpacks it, and
-nothing in Identity's business is stated by their shape — they stay in `Common/`.
+`LoginOutcome` is a carrier: a handler builds one, a controller unpacks it, and nothing in Identity's
+business is stated by its shape — it is `Models/` (`Identity/Models/LoginOutcome.cs`), not `Common/`.
+`Common/` is `*Dto.cs` only, so a carrier that never goes on the wire is never the answer there.
+`IssuedSession` was listed beside it as a carrier and is not one: it is
+`Identity/Domain/ValueObjects/IssuedSession.cs`, by the same "would splitting this type lose a
+guarantee" reading that puts `AccessToken` in `Domain/` below.
 
 `AccessToken` looks like a third carrier and is not, and the difference is worth stating because a
 first reading of this test put it in the carrier list. It binds three fields — the compact JWT, its
@@ -725,7 +828,7 @@ business, not a transport detail — so it belongs in `Domain/`. The general for
 it mirror an entity" but "would splitting this type into its fields lose a guarantee?" If yes, the
 guarantee is the domain rule and the type is a value object. `SmtpProfile` is a
 carrier too: it is the decrypted material `SmtpMailer` needs, states no rule, and mirrors nothing
-(the entity holds ciphertext). `SecurityPolicySnapshot` is the other thing entirely: it mirrors the
+(the entity holds ciphertext) — so it is `Notifications/Models/SmtpProfile.cs`. `SecurityPolicySnapshot` is the other thing entirely: it mirrors the
 `SecurityPolicy` entity field for field, its `Default` is built from that entity's own constants,
 and `LockoutDuration()` is a rule about a locked account. Left in `Common/` it is a second place the
 panel's lockout policy is stated, which is exactly what `Domain/` exists to prevent. It moved.
@@ -755,34 +858,46 @@ controller that calls it. `maran structure` check 6e enforces the HTTP half of t
 
 One deliberate non-effect: emitting a structured log line through a logger the caller passes in is
 not an effect for this test. `CronAgentErrorTranslator.Translate` writes a breadcrumb and is still
-`Common/`, because a log line is observability — nothing in the program reads it back, and the
+inert for this test — `Cron/Mappers/`, not `Controllers/` — because a log line is observability — nothing in the program reads it back, and the
 method's answer to its caller is a pure function of its arguments. An `HttpResponse` mutation is the
 opposite: it *is* the program's output.
 
-**What legitimately STAYS in `Common/`, and why.** This is not a rule for emptying the folder — a
-module with an empty `Common/` has usually just moved its DTOs somewhere worse. `Common/` keeps
-everything that passes all four tests:
+**What legitimately stays in `Common/`: every `*Dto.cs`, and nothing else.** This is not a rule for
+emptying the folder — a module with an empty `Common/` has usually just moved its DTOs somewhere
+worse — but the membership test is now a file name, not a judgement, and it is measurable:
 
-- **Every `*Dto.cs`**, and the factories that are pure mappings over them
-  (`CertificateDtoFactory`, `MetricsChartDtoFactory`, `PanelTaskDtoFactory`, `SiteDescriptorFactory`).
-- **Carrier records the module passes between its own layers** — transport, not models:
-  `IssuedSession`, `LoginOutcome`, `SmtpProfile`, `SiteLogTailTarget`,
-  `MetricBucketRow`, `NetworkRate`, `IssuedCertificate`, `AcmeOrderRequest`, `AcmeRegistration`,
-  `AcmeAttempt`, `AcmeResponse`, `AcmeProblem`. Each carries data; none states a rule.
-- **Stream frames**: `SiteLogFrame`, `TaskFrame` — one element of a server-sent stream, with named
-  constructors for its two shapes. A frame is a wire shape, not a domain concept.
-- **Stateless pure rules and translators over values**: `BanTtlPolicy`, `IpAddressNormalizer`,
-  `CidrRange`, `CidrRangeNormalizer`, `FirewallRuleSubject`, `CronScheduleTranslator`,
-  `CronAgentErrorTranslator`, `NetworkRateCalculator`, `ChartWindow`. Each encodes its module's own
-  policy, so test 1 keeps it out of `SharedKernel/Utilities/`; none holds state, takes an injected
-  dependency or appears in a DI registration, so test 2 keeps it out of `Services/`; none models a
-  thing with business rules, so test 3 keeps it out of `Domain/`; and none has an effect, so test 4
-  keeps it out of `Controllers/`. `Ssl/Common/JsonObjectValue` belongs here too, by the refinement
-  above: its signature is generic (`IReadOnlyDictionary<string, string>` in, `string` out) but its
-  correctness is RFC 7638's JWK-thumbprint canonicalisation, which only `Ssl` has occasion to
-  produce — test 1 keeps it out of `SharedKernel/Utilities/` for the same reason as the rest of this
-  list, even though its measurement (would it compile with the module deleted) alone says "yes".
-  keeps it out of `Controllers/`. Same input, same output, forever.
+```
+$ find backend/src -path '*/Common/*' -name '*.cs' ! -name '*Dto.cs'
+(no output)
+```
+
+Everything the earlier wording listed here as "legitimately `Common/`" has moved, and this paragraph
+used to name the old addresses long after they stopped being true. Where each kind went, so a reader
+who remembers the old list can find it:
+
+| What it is | Where it is now | Examples |
+|---|---|---|
+| Wire shape | `Common/` | `LoginResultDto`, `SessionDto` |
+| Carrier between the module's own layers, stream frames included | `Models/` | `LoginOutcome`, `AuthenticatedOutcome`, `SmtpProfile`, `SiteLogTailTarget`, `SiteLogFrame`, `TaskFrame`, `MetricBucketRow`, `NetworkRate`, `IssuedCertificate`, `AcmeOrderRequest`, `AcmeRegistration`, `AcmeAttempt`, `AcmeResponse`, `AcmeProblem` |
+| Translation from a domain value to a wire shape | `Mappers/` | `CertificateMapper`, `MetricsChartMapper`, `PanelTaskMapper`, `AuthenticatedSessionMapper`, `SiteDescriptorMapper`, `CronScheduleTranslator`, `CronAgentErrorTranslator` |
+| A value the business has rules about | `Domain/ValueObjects/` | `AccessToken`, `IssuedSession`, `CidrRange`, `FirewallRuleSubject`, `ChartWindow`, `SecurityPolicySnapshot` |
+| A stateless rule over those values | `Domain/Policies/` | `BanTtlPolicy`, `IpAddressNormalizer`, `CidrRangeNormalizer`, `NetworkRateCalculator`, `JsonObjectValue` |
+
+The four `*DtoFactory` types the old list named — `CertificateDtoFactory`, `MetricsChartDtoFactory`,
+`PanelTaskDtoFactory`, `SiteDescriptorFactory` — do not exist under any name in `backend/src`. They
+became the `*Mapper` types above, which is what the `Mappers/` entry and "a mapper translates; it
+never decides" describe. A rule naming a file that was renamed months ago is the same defect as a
+doc comment describing behaviour the code does not have (rules/architecture.md), and it is why this
+section is now a redirect table rather than a curated list: a list of contents has to be re-audited
+every time a file moves, and it was not.
+
+`Ssl/Common/JsonObjectValue` was the worked example of the test-1 refinement above and is now
+`Ssl/Domain/Policies/JsonObjectValue.cs`. The refinement's argument is unchanged and still correct —
+its correctness is RFC 7638's JWK-thumbprint canonicalisation, which only `Ssl` has occasion to
+produce, so test 1 keeps it out of `SharedKernel/Utilities/`. What changed is only the second
+question, which folder inside `Ssl`: `Common/` holds `*Dto.cs`, and a stateless rule over values is
+`Domain/Policies/`.
+
 **`Common/` is FLAT — it has no subfolders, and the three it used to have are module-root folders
 now.** `Interfaces/`, `Options/` and `Validators/` are `<Module>/Interfaces/`, `<Module>/Options/`,
 `<Module>/Validators/`, exactly where `Maran.Sdk/Interfaces/`, `Maran.SharedKernel/Interfaces/` and
@@ -827,8 +942,8 @@ person to implement `Backups` finds `Common/Options/` already there and files in
 asking the four tests. The scaffold no longer creates them; a module grows the folder with its
 first real file.
 
-**Two modules may hold a same-named file, and that is not a collision.** `Sites/Common/SiteDescriptorFactory`
-and `Ssl/Common/SiteDescriptorFactory` both build the agent contract's `SiteDescriptor`; the name
+**Two modules may hold a same-named file, and that is not a collision.** `Sites/Mappers/SiteDescriptorMapper`
+and `Ssl/Mappers/SiteDescriptorMapper` both build the agent contract's `SiteDescriptor`; the name
 names the thing produced, which is the same thing, and the signatures differ because the *sources*
 differ — Sites owns the `Site` entity and maps from it, Ssl may only see a `SiteSnapshot` through
 the cross-module seam. Renaming either to encode its input would name the argument rather than the

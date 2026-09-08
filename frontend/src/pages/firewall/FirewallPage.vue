@@ -20,6 +20,8 @@ import { useI18n } from 'vue-i18n'
 import UiAlert from '../../components/ui/UiAlert.vue'
 import UiEmptyState from '../../components/ui/UiEmptyState.vue'
 import UiIcon from '../../components/ui/UiIcon.vue'
+import UiPageHeading from '../../components/ui/UiPageHeading.vue'
+import UiSectionHeading from '../../components/ui/UiSectionHeading.vue'
 import UiSpinner from '../../components/ui/UiSpinner.vue'
 import FirewallBanForm from '../../components/firewall/FirewallBanForm.vue'
 import FirewallBansTable from '../../components/firewall/FirewallBansTable.vue'
@@ -255,13 +257,7 @@ onMounted(refresh)
 
 <template>
   <section class="w-full">
-    <div class="mb-4">
-      <h1 class="text-3xl font-semibold tracking-title text-text-primary">
-        {{ t('firewall.heading') }}
-      </h1>
-      <p class="mt-1 text-base text-text-secondary">{{ t('firewall.subtitle') }}</p>
-      <p class="mt-1 text-sm text-text-muted">{{ t('firewall.sshNote') }}</p>
-    </div>
+    <UiPageHeading class="mb-4" :title="t('firewall.heading')" :subtitle="t('firewall.subtitle')" :note="t('firewall.sshNote')" />
 
     <UiSpinner v-if="store.loading" :label="t('firewall.loading')" />
 
@@ -270,7 +266,7 @@ onMounted(refresh)
     </UiAlert>
 
     <template v-else>
-      <h2 class="mb-2.5 text-lg font-semibold text-text-primary">{{ t('firewall.rules.heading') }}</h2>
+      <UiSectionHeading class="mb-3" :title="t('firewall.rules.heading')" />
 
       <UiAlert v-if="store.ruleErrorMessage !== null" variant="error" class="mb-4">
         {{ store.ruleErrorMessage }}
@@ -301,10 +297,11 @@ onMounted(refresh)
         @remove="removeRule"
       />
 
-      <h2 class="mt-8 mb-2.5 text-lg font-semibold text-text-primary">
-        {{ t('firewall.bans.heading') }}
-      </h2>
-      <p class="mb-2.5 text-sm text-text-muted">{{ t('firewall.bans.subtitle') }}</p>
+      <UiSectionHeading
+        class="mt-8 mb-3"
+        :title="t('firewall.bans.heading')"
+        :subtitle="t('firewall.bans.subtitle')"
+      />
 
       <UiAlert v-if="store.banErrorMessage !== null" variant="error" class="mb-4">
         {{ store.banErrorMessage }}
@@ -320,10 +317,11 @@ onMounted(refresh)
 
       <FirewallBansTable v-else :bans="store.bans" :busy="store.acting" @unban="liftBan" />
 
-      <h2 class="mt-8 mb-2.5 text-lg font-semibold text-text-primary">
-        {{ t('firewall.whitelist.heading') }}
-      </h2>
-      <p class="mb-1 text-sm text-text-muted">{{ t('firewall.whitelist.subtitle') }}</p>
+      <UiSectionHeading
+        class="mt-8 mb-1"
+        :title="t('firewall.whitelist.heading')"
+        :subtitle="t('firewall.whitelist.subtitle')"
+      />
       <!-- The seeded row is not marked as one on the wire, so the screen says what to look for
            rather than deciding for itself which row the installer left behind. -->
       <p class="mb-2.5 max-w-[70ch] text-sm text-text-muted">{{ t('firewall.whitelist.seedNote') }}</p>

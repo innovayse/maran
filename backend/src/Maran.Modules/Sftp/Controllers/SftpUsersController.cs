@@ -2,7 +2,6 @@ using Maran.Modules.Sftp.Commands.CreateSftpUser;
 using Maran.Modules.Sftp.Commands.DeleteSftpUser;
 using Maran.Modules.Sftp.Commands.ResetSftpUserPassword;
 using Maran.Modules.Sftp.Common;
-using Maran.Modules.Sftp.Controllers.Requests;
 using Maran.Modules.Sftp.Queries.GetSftpUser;
 using Maran.Modules.Sftp.Queries.ListSftpUsers;
 using Maran.Sdk.Contracts;
@@ -70,7 +69,7 @@ public sealed class SftpUsersController : BaseApiController
     /// <summary>
     /// Creates an SFTP login and returns the generated password — the only time it is ever shown.
     /// </summary>
-    /// <param name="request">The owning account and the name the customer chose.</param>
+    /// <param name="command">The owning account and the name the customer chose.</param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpPost]
     [ProducesResponseType(typeof(CreatedSftpUserDto), StatusCodes.Status201Created)]
@@ -79,10 +78,10 @@ public sealed class SftpUsersController : BaseApiController
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
     public async Task<IActionResult> CreateAsync(
-        [FromBody] CreateSftpUserRequest request,
+        [FromBody] CreateSftpUserCommand command,
         CancellationToken cancellationToken)
     {
-        var command = new CreateSftpUserCommand(request.AccountId, request.Name, ClientIpAddress, UserAgent());
+        command = command with { IpAddress = ClientIpAddress, UserAgent = CallerUserAgent };
 
         var result = await _bus.InvokeAsync<Result<CreatedSftpUserDto>>(command, cancellationToken);
         return ToCreatedActionResult(
@@ -101,7 +100,7 @@ public sealed class SftpUsersController : BaseApiController
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> ResetPasswordAsync(Guid id, CancellationToken cancellationToken)
     {
-        var command = new ResetSftpUserPasswordCommand(id, ClientIpAddress, UserAgent());
+        var command = new ResetSftpUserPasswordCommand(id, ClientIpAddress, CallerUserAgent);
         return ToActionResult(await _bus.InvokeAsync<Result<SftpUserPasswordDto>>(command, cancellationToken));
     }
 
@@ -117,14 +116,7 @@ public sealed class SftpUsersController : BaseApiController
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> DeleteAsync(Guid id, CancellationToken cancellationToken)
     {
-        var command = new DeleteSftpUserCommand(id, ClientIpAddress, UserAgent());
+        var command = new DeleteSftpUserCommand(id, ClientIpAddress, CallerUserAgent);
         return ToActionResult(await _bus.InvokeAsync<Result<bool>>(command, cancellationToken));
-    }
-
-    /// <summary>Reads the caller's user agent for the audit journal.</summary>
-    /// <returns>The <c>User-Agent</c> header, or the empty string when absent.</returns>
-    private string UserAgent()
-    {
-        return HttpContext.Request.Headers.UserAgent.ToString();
     }
 }

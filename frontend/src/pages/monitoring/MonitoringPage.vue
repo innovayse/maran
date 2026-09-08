@@ -22,6 +22,8 @@ import UiAlert from '../../components/ui/UiAlert.vue'
 import UiCard from '../../components/ui/UiCard.vue'
 import UiEmptyState from '../../components/ui/UiEmptyState.vue'
 import UiSegmentedControl, { type SegmentOption } from '../../components/ui/UiSegmentedControl.vue'
+import UiPageHeading from '../../components/ui/UiPageHeading.vue'
+import UiSectionHeading from '../../components/ui/UiSectionHeading.vue'
 import UiSpinner from '../../components/ui/UiSpinner.vue'
 import AccountDiskTable from '../../components/monitoring/AccountDiskTable.vue'
 import MonitoringCharts from '../../components/monitoring/MonitoringCharts.vue'
@@ -71,18 +73,16 @@ onMounted(() => {
 
 <template>
   <section class="flex flex-col gap-6">
-    <div class="flex flex-wrap items-end justify-between gap-3">
-      <div>
-        <h1 class="text-3xl font-semibold tracking-title text-text-primary">{{ t('monitoring.heading') }}</h1>
-        <p class="mt-1 text-base text-text-secondary">{{ t('monitoring.subtitle') }}</p>
-      </div>
-      <UiSegmentedControl
-        :model-value="store.range"
-        :options="rangeOptions"
-        :label="t('monitoring.range.label')"
-        @update:model-value="changeRange"
-      />
-    </div>
+    <UiPageHeading :title="t('monitoring.heading')" :subtitle="t('monitoring.subtitle')">
+      <template #actions>
+        <UiSegmentedControl
+          :model-value="store.range"
+          :options="rangeOptions"
+          :label="t('monitoring.range.label')"
+          @update:model-value="changeRange"
+        />
+      </template>
+    </UiPageHeading>
 
     <UiAlert v-if="store.errorMessage !== null" variant="error">{{ store.errorMessage }}</UiAlert>
 
@@ -90,7 +90,7 @@ onMounted(() => {
 
     <template v-else>
       <UiCard>
-        <h2 class="mb-3 text-lg font-semibold text-text-primary">{{ t('monitoring.services.title') }}</h2>
+        <UiSectionHeading class="mb-3" :title="t('monitoring.services.title')" />
         <UiEmptyState
           v-if="hasNoServices"
           :title="t('monitoring.services.emptyTitle')"
@@ -102,7 +102,7 @@ onMounted(() => {
       <MonitoringCharts :buckets="store.buckets" />
 
       <UiCard>
-        <h2 class="mb-3 text-lg font-semibold text-text-primary">{{ t('monitoring.disk.title') }}</h2>
+        <UiSectionHeading class="mb-3" :title="t('monitoring.disk.title')" />
         <UiAlert v-if="store.diskErrorMessage !== null" variant="error">{{ store.diskErrorMessage }}</UiAlert>
         <UiEmptyState
           v-else-if="hasNoAccounts"

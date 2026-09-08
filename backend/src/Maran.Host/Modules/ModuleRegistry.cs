@@ -1,4 +1,5 @@
 using Maran.Modules.Accounts;
+using Maran.Modules.Backups;
 using Maran.Modules.Cron;
 using Maran.Modules.Databases;
 using Maran.Modules.Firewall;
@@ -39,5 +40,6 @@ public static class ModuleRegistry
             new TasksModule(),
             new MonitoringModule(),
             new NotificationsModule(),
+            new BackupsModule(),
         ];
 }

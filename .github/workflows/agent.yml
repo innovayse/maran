@@ -115,8 +115,30 @@ jobs:
       # the `f_frsize` block-size choice are exercised for the first time
       # anywhere, and it is the only place a per-family parse runs against a
       # real kernel rather than against a committed capture.
+      # `backup_on_a_real_host` used to join this step for the same reason, and
+      # it has MOVED to the mounting step below. It gained a case that mounts a
+      # real tmpfs at the bulk scratch root to measure the per-dump ceiling
+      # against a filesystem whose size is known, and a container without
+      # `CAP_SYS_ADMIN` cannot mount anything — so the suite now belongs to the
+      # capability class this step does not have.
+      #
+      # `--no-fail-fast` is a cargo argument and belongs before the bare `--`;
+      # placed after it, libtest rejects it outright. Without it cargo stops at
+      # the first target that goes red and never runs the ones behind it, while
+      # reporting a single failure. `fail-fast: false` above governs the two
+      # families and `!cancelled()` below governs the steps; neither reaches
+      # inside one `cargo test` invocation, and nothing else here does. Measured:
+      # a planted break in the privilege drop puts one named test plus 25 further
+      # host tests red on each family, and only a run carrying this flag reports
+      # more than the first of them.
       - name: Sites, PHP pools, privileges, databases and monitoring on a real host
         run: |
+          # pipefail and an explicitly captured status: `docker run ... | tee` reports TEE's
+          # exit status, which is 0 whatever the container did. Piping without this would add a
+          # fourth exit-0 trap to a lane that already has three measured ones.
+          set -o pipefail
+          mkdir -p "$RUNNER_TEMP/polygon-logs"
+          status=0
           docker run --rm \
             -v "$PWD:/maran" \
             -w /maran/agent \
@@ -125,12 +147,40 @@ jobs:
             cargo test --test sites_on_a_real_host --test php_pools_on_a_real_host \
               --test privileges_on_a_real_host --test databases_on_a_real_host \
               --test monitor_on_a_real_host --test binary_paths_on_a_real_host \
-              -- --ignored --test-threads=1
+              --no-fail-fast \
+              -- --ignored --test-threads=1 2>&1 |
+            tee "$RUNNER_TEMP/polygon-logs/step-1.log" || status=$?
+          echo "$status" >>"$RUNNER_TEMP/polygon-logs/statuses.txt"
+          exit "$status"
 
-      # `--privileged` because these two make a real bind mount: the SFTP jail is
-      # `/var/lib/maran/sftp/<account>/home` mounted from the account's real
-      # home, and an unprivileged container cannot mount anything. GitHub's
-      # Linux runners allow it.
+      # `--privileged` because these three make a real mount, and an unprivileged
+      # container cannot mount anything. GitHub's Linux runners allow it. For the
+      # first two it is the SFTP jail: `/var/lib/maran-sftp/<account>/home`
+      # mounted from the account's real home. For `backup_on_a_real_host` it is a
+      # tmpfs of a measured size at the bulk scratch root, which is the only way
+      # `a_dump_is_refused_at_nine_tenths_of_what_the_scratch_filesystem_actually_holds`
+      # can watch the per-dump ceiling be computed from a filesystem instead of
+      # from a constant — the defect it catches is a mutant that permits 8.9× what
+      # the filesystem holds.
+      #
+      # It is here rather than in the unprivileged step with a `--cap-add
+      # SYS_ADMIN` bolted on, and the argument is the split's own: the steps are
+      # divided by capability so that a runner started wrongly is visible. The
+      # other two suites here make that visible by going RED (`JailFailed`, `nft
+      # cache initialization failed`). The backup case cannot — it detects that
+      # the mount was refused, prints `UNOBSERVED HERE` and returns green, so a
+      # step-1 run reports a passing suite with its most valuable case never
+      # executed, and the count axis sees eleven tests either way. That is a
+      # silent blind spot rather than a loud failure, which is the stronger
+      # reason to give it its capability by construction. A `--cap-add` would
+      # also invent a fourth capability class inside the step whose whole
+      # meaning is "needs none", and on a host with the docker-default AppArmor
+      # profile `CAP_SYS_ADMIN` alone still does not permit the mount.
+      #
+      # The cost, stated: the other ten cases in the suite need no privilege and
+      # now run with it. They are root in a throwaway container either way, and
+      # splitting one file across two steps to keep that pure would put the
+      # suite's identity in the workflow rather than in the file.
       #
       # `account_deletion_on_a_real_host` is the reason this step is not
       # optional. It is the ONLY thing that exercises the production password
@@ -143,16 +193,27 @@ jobs:
       # `!cancelled()` so a failure in the step above still reports these:
       # attributing a break to whichever suite happened to run first is the same
       # mistake `fail-fast: false` avoids across the matrix.
-      - name: SFTP and account deletion on a real host
+      - name: SFTP, account deletion and backups on a real host
         if: ${{ !cancelled() }}
         run: |
+          # pipefail and an explicitly captured status: `docker run ... | tee` reports TEE's
+          # exit status, which is 0 whatever the container did. Piping without this would add a
+          # fourth exit-0 trap to a lane that already has three measured ones.
+          set -o pipefail
+          mkdir -p "$RUNNER_TEMP/polygon-logs"
+          status=0
           docker run --rm --privileged \
             -v "$PWD:/maran" \
             -w /maran/agent \
             -e CARGO_TARGET_DIR=/tmp/target \
             maran-polygon-${{ matrix.image }} \
             cargo test --test sftp_on_a_real_host --test account_deletion_on_a_real_host \
-              -- --ignored --test-threads=1
+              --test backup_on_a_real_host \
+              --no-fail-fast \
+              -- --ignored --test-threads=1 2>&1 |
+            tee "$RUNNER_TEMP/polygon-logs/step-2.log" || status=$?
+          echo "$status" >>"$RUNNER_TEMP/polygon-logs/statuses.txt"
+          exit "$status"
 
       # A third step for the same reason the second one exists: these two need
       # capabilities the first step's suites do not, and merging them would make
@@ -177,10 +238,51 @@ jobs:
       - name: Cron and the firewall on a real host
         if: ${{ !cancelled() }}
         run: |
+          # pipefail and an explicitly captured status: `docker run ... | tee` reports TEE's
+          # exit status, which is 0 whatever the container did. Piping without this would add a
+          # fourth exit-0 trap to a lane that already has three measured ones.
+          set -o pipefail
+          mkdir -p "$RUNNER_TEMP/polygon-logs"
+          status=0
           docker run --rm --privileged \
             -v "$PWD:/maran" \
             -w /maran/agent \
             -e CARGO_TARGET_DIR=/tmp/target \
             maran-polygon-${{ matrix.image }} \
             cargo test --test cron_on_a_real_host --test firewall_on_a_real_host \
-              -- --ignored --test-threads=1
+              --no-fail-fast \
+              -- --ignored --test-threads=1 2>&1 |
+            tee "$RUNNER_TEMP/polygon-logs/step-3.log" || status=$?
+          echo "$status" >>"$RUNNER_TEMP/polygon-logs/statuses.txt"
+          exit "$status"
+
+      # The verdict. Everything above this step reports an EXIT CODE, and an exit code has been
+      # wrong here in every direction on one day: a `docker stop` on a running suite gave exit 0
+      # for ZERO tests executed; a container that executed nothing exited 0 printing "Finished"
+      # and naming a suite executable; a `cargo` invocation exited 0 having run nothing. So the
+      # three steps above are not the verdict — they capture what the containers SAID, and this
+      # step reads it.
+      #
+      # `maran polygon verify` is the same scoring the mutation harness uses
+      # (scripts/lib/polygon.sh), reached through the CLI rather than copied: per suite it requires
+      # a `Running tests/<suite>.rs` line, a `test result:` line, and `passed + failed` EQUAL to the
+      # `ignored` column scripts/test-baseline.txt records for that suite; over the run it requires
+      # at least one test executed, and it names every failure and reconciles the named list against
+      # the totals. It runs nothing: no docker, no root, no capabilities — which is exactly why the
+      # capability split above survives unchanged, and why the running was left where it is.
+      #
+      # The suite list it checks against is DISCOVERED from agent/crates/*/tests (a file carrying
+      # `#[ignore]`), never written down. So a `*_on_a_real_host.rs` added without being named in
+      # the `--test` lists above now fails this job by name. `maran structure` already requires such
+      # a suite to appear in docker/README.md; nothing checked this file, and this is what does.
+      #
+      # `!cancelled()` so a red step above still produces the named verdict rather than only an
+      # exit status — the same reason the steps themselves carry it.
+      - name: Polygon verdict — every suite ran, and ran its whole baselined set
+        if: ${{ !cancelled() }}
+        run: |
+          scripts/maran polygon verify \
+            --statuses "$RUNNER_TEMP/polygon-logs/statuses.txt" \
+            "$RUNNER_TEMP/polygon-logs/step-1.log" \
+            "$RUNNER_TEMP/polygon-logs/step-2.log" \
+            "$RUNNER_TEMP/polygon-logs/step-3.log"

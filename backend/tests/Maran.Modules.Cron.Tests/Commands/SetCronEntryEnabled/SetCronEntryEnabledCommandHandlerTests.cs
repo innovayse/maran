@@ -127,7 +127,7 @@ public sealed class SetCronEntryEnabledCommandHandlerTests
         {
             return await Handler.HandleAsync(
                 new SetCronEntryEnabledCommand(
-                    accountId ?? AccountId, EntryId, enabled, "203.0.113.7", "tests"),
+                    accountId ?? AccountId, enabled, EntryId, "203.0.113.7", "tests"),
                 CancellationToken.None);
         }
     }

@@ -33,6 +33,19 @@ public interface IAgentAccountsClient
     /// <returns>Success, or a typed failure.</returns>
     Task<Result<bool>> UnsuspendAsync(string username, CancellationToken cancellationToken);
 
+    /// <summary>Reads what the host can be observed to be doing for the account right now.</summary>
+    /// <remarks>
+    /// Read-only and side-effect free; safe to call on an account in any state. It is the seam that
+    /// lets a caller refuse to report a suspension it cannot see: the residue of a suspension is on
+    /// the host, so nothing in the panel's own tables can answer this question.
+    /// </remarks>
+    /// <param name="username">The account's system user name.</param>
+    /// <param name="cancellationToken">Cancellation for the call.</param>
+    /// <returns>The observed state, or a typed failure.</returns>
+    Task<Result<AccountSuspensionStateDto>> GetSuspensionStateAsync(
+        string username,
+        CancellationToken cancellationToken);
+
     /// <summary>Removes the system user and everything under its home directory.</summary>
     /// <param name="username">The account's system user name.</param>
     /// <param name="cancellationToken">Cancellation for the call.</param>

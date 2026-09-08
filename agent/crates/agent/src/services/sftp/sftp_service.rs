@@ -8,15 +8,17 @@ use tonic::{Request, Response, Status};
 use crate::proto::sftp_service_server::SftpService;
 use crate::proto::{
     CreateSftpUserOk, CreateSftpUserRequest, CreateSftpUserResponse, DeleteSftpUserOk,
-    DeleteSftpUserRequest, DeleteSftpUserResponse, SetSftpPasswordOk, SetSftpPasswordRequest,
-    SetSftpPasswordResponse, create_sftp_user_response, delete_sftp_user_response,
-    set_sftp_password_response,
+    DeleteSftpUserRequest, DeleteSftpUserResponse, SetAccountLoginsLockedOk,
+    SetAccountLoginsLockedRequest, SetAccountLoginsLockedResponse, SetSftpPasswordOk,
+    SetSftpPasswordRequest, SetSftpPasswordResponse, create_sftp_user_response,
+    delete_sftp_user_response, set_account_logins_locked_response, set_sftp_password_response,
 };
 use crate::services::sftp::sftp_status::to_agent_error;
 use crate::services::sftp::validated_creation::validated_creation;
 use crate::services::sftp::validated_password_change::validated_password_change;
 use crate::services::sftp::validated_sftp_user::validated_sftp_user;
 use crate::services::wire::run_blocking::run_blocking;
+use crate::services::wire::validated_account::validated_account;
 
 /// Serves the SFTP login operations over the wire.
 ///
@@ -152,6 +154,42 @@ impl<H: SftpHost + 'static> SftpService for SftpServiceImpl<H> {
         };
 
         Ok(Response::new(DeleteSftpUserResponse {
+            result: Some(result),
+        }))
+    }
+
+    /// Locks, or unlocks, every login the account holds, because the account
+    /// itself was suspended or resumed.
+    ///
+    /// It takes an ACCOUNT and no login name, and that is deliberate: the
+    /// logins come from the host's own password database rather than from a
+    /// list the panel supplies, because a list can only describe what the panel
+    /// remembers creating — and a login it has forgotten is exactly the one
+    /// that would keep letting a suspended customer in.
+    async fn set_account_logins_locked(
+        &self,
+        request: Request<SetAccountLoginsLockedRequest>,
+    ) -> Result<Response<SetAccountLoginsLockedResponse>, Status> {
+        let request = request.into_inner();
+        let locked = request.locked;
+
+        let result = match validated_account(&request.account_username) {
+            Ok(account) => {
+                let (host, distro) = (Arc::clone(&self.host), self.distro);
+                run_blocking("sftp operation", to_agent_error, move || {
+                    sftp::set_account_logins_locked(host.as_ref(), distro, &account, locked)
+                })
+                .await
+            }
+            Err(error) => Err(error),
+        };
+
+        let result = match result {
+            Ok(()) => set_account_logins_locked_response::Result::Ok(SetAccountLoginsLockedOk {}),
+            Err(error) => set_account_logins_locked_response::Result::Error(error),
+        };
+
+        Ok(Response::new(SetAccountLoginsLockedResponse {
             result: Some(result),
         }))
     }

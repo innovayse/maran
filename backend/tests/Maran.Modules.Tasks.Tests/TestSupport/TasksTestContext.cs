@@ -1,8 +1,12 @@
 using Maran.Modules.Tasks.Domain.Entities;
 using Maran.Modules.Tasks.Options;
 using Maran.Modules.Tasks.Persistence;
+using Maran.Modules.Tasks.Resources;
+using Maran.Modules.Tasks.Services;
 using Maran.SharedKernel.Interfaces;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Localization;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 
 namespace Maran.Modules.Tasks.Tests.TestSupport;
@@ -67,5 +71,25 @@ public static class TasksTestContext
             PollIntervalMilliseconds = pollIntervalMilliseconds,
             HeartbeatSeconds = heartbeatSeconds,
         });
+    }
+
+    /// <summary>
+    /// Builds the kind-name resolver over the module's REAL <c>DisplayNames</c> resources.
+    /// </summary>
+    /// <returns>The resolver, reading the shipped resx rather than a stub.</returns>
+    /// <remarks>
+    /// A stub localizer would prove only that the handler calls something; the thing worth checking
+    /// is that a shipped <c>TaskKinds</c> constant actually has an entry under this key scheme, and
+    /// that is only observable against the real resource files (rules/testing.md "A check must be
+    /// able to observe what it reports on").
+    /// </remarks>
+    public static TaskKindDisplayNames KindNames()
+    {
+        var factory = new ResourceManagerStringLocalizerFactory(
+            new OptionsWrapper<LocalizationOptions>(new LocalizationOptions()),
+            NullLoggerFactory.Instance);
+
+        return new TaskKindDisplayNames(
+            new StringLocalizer<DisplayNames>(factory));
     }
 }

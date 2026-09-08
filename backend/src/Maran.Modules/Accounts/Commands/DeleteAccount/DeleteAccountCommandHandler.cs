@@ -61,6 +61,19 @@ public sealed class DeleteAccountCommandHandler
     /// <summary>The current request's correlation id, recorded on the task beside its stages.</summary>
     private readonly ICorrelationIdAccessor _correlationIds;
 
+    /// <summary>
+    /// Takes the final backup before anything is released, or <c>null</c> when the panel is composed
+    /// without the Backups module.
+    /// </summary>
+    /// <remarks>
+    /// Nullable on purpose, and it is the whole reason this is an interface the container may fail
+    /// to supply rather than a message on the bus. A published message with no subscriber raises
+    /// nothing and reads exactly like a backup that succeeded — the same substitution that let a
+    /// deletion report COMPLETED over two modules that had released nothing. A null reference is a
+    /// fact this handler can branch on, an operator can be told about, and a test can set.
+    /// </remarks>
+    private readonly IAccountBackupService? _backups;
+
     /// <summary>Creates the handler.</summary>
     /// <param name="dbContext">The Accounts module's database context.</param>
     /// <param name="agent">The agent client that removes the operating-system identity.</param>
@@ -70,6 +83,20 @@ public sealed class DeleteAccountCommandHandler
     /// <param name="tasks">The panel-wide task journal.</param>
     /// <param name="residue">The audit of what the panel still stores against the account.</param>
     /// <param name="correlationIds">The current request's correlation id.</param>
+    /// <param name="backups">
+    /// The registered final-backup services: exactly one when the Backups module is composed, and
+    /// none when it is not.
+    /// </param>
+    /// <remarks>
+    /// <b>Why a collection and not <c>IAccountBackupService?</c>, which is what the shape wants.</b>
+    /// This handler is constructed by Wolverine's generated code, which emits a
+    /// <c>GetRequiredService&lt;T&gt;</c> for each constructor parameter — so an optional or nullable
+    /// parameter is not optional at all there: a panel composed without the Backups module would
+    /// fail to build the handler rather than reach the null branch, turning "no backups module" into
+    /// "accounts cannot be deleted". A collection is always resolvable and resolves to nothing, so
+    /// the absence of the module arrives as a value. It is reduced to a single nullable field
+    /// immediately below, and the rest of the handler reads against that.
+    /// </remarks>
     public DeleteAccountCommandHandler(
         AccountsDbContext dbContext,
         IAgentAccountsClient agent,
@@ -78,7 +105,8 @@ public sealed class DeleteAccountCommandHandler
         AccountAuditJournal journal,
         ITaskRecorder tasks,
         IAccountResidueAuditor residue,
-        ICorrelationIdAccessor correlationIds)
+        ICorrelationIdAccessor correlationIds,
+        IEnumerable<IAccountBackupService> backups)
     {
         _dbContext = dbContext;
         _agent = agent;
@@ -88,12 +116,26 @@ public sealed class DeleteAccountCommandHandler
         _tasks = tasks;
         _residue = residue;
         _correlationIds = correlationIds;
+
+        // Single, not First: two registrations would mean two modules claiming the same act, and a
+        // silently-chosen one is a final backup nobody can say the destination of.
+        _backups = backups.SingleOrDefault();
     }
 
     /// <summary>Removes the account, and everything any module holds against it.</summary>
     /// <remarks>
     /// <para>
-    /// <b>Three steps, and the order is the whole of the safety.</b>
+    /// <b>Four steps, and the order is the whole of the safety.</b>
+    /// </para>
+    /// <para>
+    /// 0. The FINAL BACKUP is taken (spec §12), before anything is released. It is first because a
+    /// backup taken after the cascade is a backup of nothing — the databases have been dropped and
+    /// the home is on its way out — and because this is the one step whose failure can still be
+    /// answered by doing nothing at all. A failure here REFUSES the deletion and the account is left
+    /// exactly as it was; <c>TakeFinalBackupAsync</c> below argues that choice, and names the three
+    /// exits that keep it from producing an undeletable account. The step was added with the rest of
+    /// this paragraph rather than bolted on, because a doc that still said "three steps" over four
+    /// would be the defect rules/architecture.md names.
     /// </para>
     /// <para>
     /// 1. <see cref="AccountDeleting"/> is INVOKED — inline, not published — so every module holding
@@ -132,7 +174,7 @@ public sealed class DeleteAccountCommandHandler
     /// server, with nothing left pointing at them.
     /// </para>
     /// <para>
-    /// <b>A cleanup failure aborts the deletion.</b> Either half refusing leaves the account exactly
+    /// <b>A cleanup failure aborts the deletion.</b> Any of them refusing leaves the account exactly
     /// as it was, which is the recoverable state — it can be deleted again once whatever refused is
     /// fixed. The alternative, carrying on, produces an orphan: a database or a live credential
     /// nothing in the panel points at, which no later operation can find. The exception is caught
@@ -181,9 +223,18 @@ public sealed class DeleteAccountCommandHandler
         var taskId = await _tasks.BeginAsync(
             TaskKinds.AccountDeletion, account.Name, _correlationIds.CorrelationId, cancellationToken);
 
+        // Step 0, and it is FIRST because a backup taken after the cascade is a backup of nothing:
+        // the databases have been dropped and the home is on its way out. Refusing here costs a
+        // retry; refusing later would cost the copy this step exists to make.
+        var finalBackup = await TakeFinalBackupAsync(command, account.Name, taskId, cancellationToken);
+        if (!finalBackup.IsSuccess)
+        {
+            return await FailAsync(command, account.Name, finalBackup.Error!, taskId, cancellationToken);
+        }
+
         try
         {
-            await _tasks.ReportAsync(taskId, 10, "asking every module to release what it holds", cancellationToken);
+            await _tasks.ReportAsync(taskId, 30, "asking every module to release what it holds", cancellationToken);
             await _bus.InvokeAsync(new AccountDeleting(account.Id, account.Name), cancellationToken);
         }
         catch (Exception exception)
@@ -239,6 +290,83 @@ public sealed class DeleteAccountCommandHandler
         await _tasks.CompleteAsync(taskId, cancellationToken);
 
         return Result<ulong>.Ok(removed.Value);
+    }
+
+    /// <summary>Takes the final backup spec §12 promises, or says why the deletion may go on without it.</summary>
+    /// <param name="command">The deletion being attempted, whose skip flag is read here.</param>
+    /// <param name="accountName">The account's system user name, which the backup is addressed by.</param>
+    /// <param name="taskId">The deletion's own task, which this step reports its stage onto.</param>
+    /// <param name="cancellationToken">Cancels the run.</param>
+    /// <returns>
+    /// Success — carrying the backup's id, or <see cref="Guid.Empty"/> on the two paths that took
+    /// none — or the typed failure the deletion is abandoned on.
+    /// </returns>
+    /// <remarks>
+    /// <para>
+    /// <b>A failed final backup REFUSES the deletion, and this is the argued half of the step.</b>
+    /// The two answers are not symmetric. Proceeding after a failed backup destroys the last copy of
+    /// a customer's data, silently, in the one operation that has no undo; refusing leaves the
+    /// account exactly as it was, which is the state the rest of this handler already treats as the
+    /// recoverable one, and costs an operator a second attempt after they have fixed whatever
+    /// refused. A wrong refusal is a retry. A wrong proceed is permanent. Nothing about a deletion
+    /// is urgent enough to buy the second with the first.
+    /// </para>
+    /// <para>
+    /// <b>The objection — an account nobody can delete — is real, and it is answered by exits rather
+    /// than by weakening the refusal.</b> There are three, and the refusal would not be defensible
+    /// without them: a panel with no Backups module proceeds, because it never promised a backup; an
+    /// administrator may pass <c>SkipFinalBackup</c> and is named in the journal for it; and the
+    /// failure comes back as a machine code on both the response and the task, so the operator can
+    /// see WHY — a full destination, an agent that is down — fix it and delete the account
+    /// afterwards. What remains, and is stated rather than hidden: an account whose data can never
+    /// be archived at all is deletable only through the skip flag, which is exactly what that flag
+    /// is for.
+    /// </para>
+    /// <para>
+    /// <b>Both skips are AUDITED, under different actions.</b> "The operator chose to skip" and "this
+    /// panel has no backups module" are different facts about why no copy exists, and they call for
+    /// different conversations six months later. One action for both would make them the same
+    /// observation — the mistake this whole cascade's history is a record of.
+    /// </para>
+    /// </remarks>
+    private async Task<Result<Guid>> TakeFinalBackupAsync(
+        DeleteAccountCommand command,
+        string accountName,
+        Guid taskId,
+        CancellationToken cancellationToken)
+    {
+        if (_backups is null)
+        {
+            await _tasks.ReportAsync(
+                taskId, 10, "no backups module is installed, so no final backup was taken", cancellationToken);
+            await _journal.RecordSuccessAsync(
+                AuditActions.FinalBackupSkippedNoModule, accountName, command.IpAddress, command.UserAgent, cancellationToken);
+
+            return Result<Guid>.Ok(Guid.Empty);
+        }
+
+        if (command.SkipFinalBackup)
+        {
+            await _tasks.ReportAsync(
+                taskId, 10, "the final backup was skipped at the caller's request", cancellationToken);
+            await _journal.RecordSuccessAsync(
+                AuditActions.FinalBackupSkipped, accountName, command.IpAddress, command.UserAgent, cancellationToken);
+
+            return Result<Guid>.Ok(Guid.Empty);
+        }
+
+        await _tasks.ReportAsync(taskId, 10, "taking the final backup of the account", cancellationToken);
+
+        var taken = await _backups.TakeFinalBackupAsync(command.AccountId, accountName, cancellationToken);
+        if (!taken.IsSuccess)
+        {
+            // Nothing has been destroyed at this point — not a row, not a database, not the system
+            // user — so the account is exactly as the caller found it.
+            await _journal.RecordFailureAsync(
+                AuditActions.FinalBackupTaken, accountName, command.IpAddress, command.UserAgent, cancellationToken);
+        }
+
+        return taken;
     }
 
     /// <summary>Puts the audit's own answer into one line of the operator's task log.</summary>

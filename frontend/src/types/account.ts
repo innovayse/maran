@@ -27,8 +27,8 @@ export interface Account {
 }
 
 /**
- * Request body for `POST /api/v1/accounts`, mirroring the backend's
- * `CreateAccountRequest` field-for-field.
+ * Request body for `POST /api/v1/accounts`, binding the backend's
+ * `CreateAccountCommand` field-for-field.
  */
 /**
  * A plan an account can be created against, as the panel reports it. The display
@@ -51,8 +51,8 @@ export interface Plan {
 }
 
 /**
- * Request body for `POST /api/v1/accounts`, mirroring the backend's
- * `CreateAccountRequest` field-for-field.
+ * Request body for `POST /api/v1/accounts`, binding the backend's
+ * `CreateAccountCommand` field-for-field.
  */
 export interface CreateAccountRequest {
   /** The account's unique, Linux-username-safe short name. */

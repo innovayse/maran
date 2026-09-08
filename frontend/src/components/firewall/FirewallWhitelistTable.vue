@@ -16,9 +16,9 @@
  * administer from is how an operator locks themselves out, and the screen cannot tell which range
  * that is.
  */
-import { ref, type Ref } from 'vue'
+import { computed, ref, watch, type ComputedRef, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import UiButton from '../ui/UiButton.vue'
+import UiConfirm from '../ui/UiConfirm.vue'
 import UiDropdown from '../ui/UiDropdown.vue'
 import UiDropdownItem from '../ui/UiDropdownItem.vue'
 import UiIcon from '../ui/UiIcon.vue'
@@ -31,7 +31,7 @@ import { formatDate } from '../../utils/formatDate'
 import type { WhitelistEntry } from '../../types/firewall'
 
 /** Props accepted by {@link FirewallWhitelistTable}. */
-defineProps<{
+const props = defineProps<{
   /** The exempt ranges the panel reported, oldest first. */
   entries: readonly WhitelistEntry[]
   /** Whether a change is already in flight, which disables every row's menu. */
@@ -49,6 +49,21 @@ const localeStore = useLocaleStore()
 
 /** The row whose removal is awaiting confirmation, or the empty string when none is. */
 const pendingId: Ref<string> = ref('')
+
+/** The exemption the confirmation is open for, or `null` when none is. */
+const pendingEntry: ComputedRef<WhitelistEntry | null> = computed(() => {
+  return (
+    props.entries.find((entry) => {
+      return entry.id === pendingId.value
+    }) ?? null
+  )
+})
+
+/** The confirmation's accessible name, naming the range that would stop being exempt. */
+const confirmationTitle: ComputedRef<string> = computed(() => {
+  const pending = pendingEntry.value
+  return pending === null ? '' : t('firewall.whitelist.confirmRemoveTitle', { cidr: pending.cidr })
+})
 
 /**
  * Starts the row's confirmation.
@@ -69,13 +84,31 @@ const cancel = (): void => {
 
 /**
  * Reports the confirmed removal to the page, which owns the request.
- * @param id The row to remove.
  * @returns Nothing; emits synchronously.
  */
-const confirm = (id: string): void => {
-  pendingId.value = ''
-  emit('remove', id)
+const confirm = (): void => {
+  const pending = pendingEntry.value
+  if (pending === null) {
+    return
+  }
+
+  // Closed here rather than after the request, because the request is the page's: this table is
+  // dumb, and `busy` is what tells the dialog the answer is already with the server.
+  emit('remove', pending.id)
 }
+
+// The request belongs to the page, so the dialog cannot close itself when it settles: `busy`
+// falling back to false is this table's only sight of that moment.
+watch(
+  (): boolean => {
+    return props.busy
+  },
+  (busy, wasBusy): void => {
+    if (wasBusy && !busy) {
+      pendingId.value = ''
+    }
+  },
+)
 </script>
 
 <template>
@@ -85,7 +118,7 @@ const confirm = (id: string): void => {
         <UiTableHeaderCell>{{ t('firewall.whitelist.columns.cidr') }}</UiTableHeaderCell>
         <UiTableHeaderCell>{{ t('firewall.whitelist.columns.note') }}</UiTableHeaderCell>
         <UiTableHeaderCell>{{ t('firewall.whitelist.columns.createdAt') }}</UiTableHeaderCell>
-        <UiTableHeaderCell align="end">{{ t('firewall.whitelist.columns.actions') }}</UiTableHeaderCell>
+        <UiTableHeaderCell align="end">{{ t('common.actions') }}</UiTableHeaderCell>
       </UiTableRow>
     </template>
     <UiTableRow v-for="entry in entries" :key="entry.id">
@@ -100,18 +133,8 @@ const confirm = (id: string): void => {
       </UiTableCell>
       <UiTableCell align="end">
         <div class="flex flex-wrap items-center justify-end gap-2">
-          <template v-if="pendingId === entry.id">
-            <span class="text-sm text-text-secondary">{{ t('firewall.whitelist.confirmRemove') }}</span>
-            <UiButton variant="destructive" :disabled="busy" @click="confirm(entry.id)">
-              {{ t('firewall.whitelist.confirm') }}
-            </UiButton>
-            <UiButton variant="secondary" @click="cancel">
-              {{ t('firewall.whitelist.cancel') }}
-            </UiButton>
-          </template>
           <UiDropdown
-            v-else
-            :label="t('firewall.whitelist.columns.actions')"
+            :label="t('common.actions')"
             :aria-label="t('firewall.whitelist.rowActions', { cidr: entry.cidr })"
             align="end"
             variant="bare"
@@ -129,4 +152,19 @@ const confirm = (id: string): void => {
       </UiTableCell>
     </UiTableRow>
   </UiTable>
+
+  <!-- One dialog for the whole table rather than one per row: only one removal can be awaiting an
+       answer, and the menu that opened it is already gone by the time it appears. -->
+  <UiConfirm
+    :open="pendingId.length > 0"
+    :title="confirmationTitle"
+    :question="t('firewall.whitelist.confirmRemove')"
+    :confirm-label="t('firewall.whitelist.confirm')"
+    :cancel-label="t('common.cancel')"
+    :close-label="t('common.close')"
+    :acting="busy"
+    :acting-label="t('firewall.whitelist.working')"
+    @close="cancel"
+    @confirm="confirm"
+  />
 </template>

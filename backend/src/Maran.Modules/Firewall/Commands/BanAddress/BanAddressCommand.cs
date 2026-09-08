@@ -1,3 +1,6 @@
+using System.Text.Json.Serialization;
+using Microsoft.AspNetCore.Mvc.ModelBinding;
+
 namespace Maran.Modules.Firewall.Commands.BanAddress;
 
 /// <summary>
@@ -16,10 +19,12 @@ namespace Maran.Modules.Firewall.Commands.BanAddress;
 /// than seconds because that is the unit an administrator thinks in, and the shortest ban the
 /// contract can express is a second.
 /// </param>
-/// <param name="IpAddress">The caller's address, recorded in the audit journal.</param>
-/// <param name="UserAgent">The caller's user agent, recorded in the audit journal.</param>
+/// <param name="IpAddress">The caller's address, established by the server from the connection and
+/// stamped by the action. Never bound from the request body.</param>
+/// <param name="UserAgent">The caller's user agent, established by the server from the request
+/// headers and stamped by the action. Never bound from the request body.</param>
 public sealed record BanAddressCommand(
     string Address,
     int? DurationMinutes,
-    string IpAddress,
-    string UserAgent);
+    [property: JsonIgnore][property: BindNever][BindNever] string IpAddress = "",
+    [property: JsonIgnore][property: BindNever][BindNever] string UserAgent = "");

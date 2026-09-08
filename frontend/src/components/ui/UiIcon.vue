@@ -17,6 +17,7 @@
  */
 import {
   Activity,
+  Archive,
   Bell,
   BrickWall,
   ChartLine,
@@ -115,6 +116,8 @@ export type UiIconName =
   | 'listChecks'
   /** A plotted line — the monitoring module's charts of what the server has been doing. */
   | 'chartLine'
+  /** A lidded box — the backups module, whose screen lists the copies taken of an account. */
+  | 'archive'
 
 /**
  * Every glyph the panel draws, mapped to its lucide component. The map is
@@ -153,6 +156,7 @@ const ICONS: Record<UiIconName, LucideIcon> = {
   clock: Clock,
   listChecks: ListChecks,
   chartLine: ChartLine,
+  archive: Archive,
 }
 
 /**

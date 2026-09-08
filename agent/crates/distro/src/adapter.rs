@@ -137,6 +137,64 @@ pub trait DistroAdapter: Send + Sync {
     /// through these.
     fn package_manager(&self) -> &'static str;
 
+    /// Absolute path of `tar`, for the process-execution allow-list.
+    ///
+    /// A backup archive is `tar` told which compressor to run, by the absolute
+    /// path [`Self::gzip_binary`] answers — never `--gzip`, which makes `tar`
+    /// look the compressor up on `PATH`. Both families install `tar` at
+    /// `/usr/bin/tar` — verified `command -v tar` on both polygon images, in
+    /// both cases the real file and not a symlink.
+    fn tar_binary(&self) -> &'static str;
+
+    /// Absolute path of `gzip`, and the value every backup and restore argv
+    /// carries as `tar`'s `--use-compress-program`.
+    ///
+    /// **This value is consumed, not merely recorded.** It was measured on both
+    /// polygons and for a while it was named here and used nowhere, while the
+    /// argv said `--gzip` — and `--gzip` makes `tar` resolve the compressor
+    /// through `PATH` in a child of the root daemon, which was a `PATH`-shadow
+    /// hole for as long as the measured fact went unspent (see
+    /// `ArchiveSpec::arguments`). A binary this trait names and nothing spawns
+    /// is a check that reports on nothing.
+    ///
+    /// It also lets the backup preflight assert the host has the compressor
+    /// before a scheduled backup discovers its absence at 03:00, rather than
+    /// after `tar` has already started writing. Both families install it at
+    /// `/usr/bin/gzip` — verified `command -v gzip` on both polygon images, in
+    /// both cases the real file and not a symlink.
+    fn gzip_binary(&self) -> &'static str;
+
+    /// Absolute path of the database dump client, for the process-execution
+    /// allow-list.
+    ///
+    /// **Measured, not assumed** (rules/architecture.md): both families were
+    /// suspected to disagree here — historically Debian's `mariadb-client`
+    /// shipped a real `mysqldump` while AlmaLinux 9's `mariadb` 10.5 was
+    /// expected to ship `mariadb-dump` with `mysqldump` only as a compatibility
+    /// symlink. `command -v` for BOTH names, `readlink -f` and `ls -l`,
+    /// verified on both polygon images (transcript in
+    /// `.superpowers/sdd/2026-09-05-maran-backups/task-2-report.md`), found the
+    /// two families agree after all: on Ubuntu 24.04's `mariadb-client` package
+    /// AND on AlmaLinux 9's `mariadb` package, `/usr/bin/mariadb-dump` is the
+    /// real file and `/usr/bin/mysqldump` is a symlink to it
+    /// (`dpkg -S`/`rpm -qf` both attribute the real file to the package). This
+    /// method therefore answers the REAL name, `/usr/bin/mariadb-dump`, on
+    /// both families — the symlink a future package drop could remove is never
+    /// the path this trait hands to a spawn.
+    ///
+    /// Also measured, because it decides an argv rather than a doc comment:
+    /// `--no-tablespaces` is ACCEPTED by the dump client on both families
+    /// (confirmed by contrast — an actually-unknown flag fails immediately
+    /// with `unknown option`, while `--no-tablespaces` is parsed and the
+    /// client proceeds to attempt a connection). Both polygon images run
+    /// MariaDB (10.11 on Debian, 10.5.29 on RHEL), not MySQL proper, so the
+    /// flag that MySQL 8 requires without `PROCESS` and that MariaDB's own
+    /// client was expected to reject outright turned out to be accepted by
+    /// both — this crate states the fact and leaves what `ops::backup` does
+    /// with it to that area's own argv, per rules/rust.md ("ops never names a
+    /// platform literal").
+    fn database_dump_binary(&self) -> &'static str;
+
     /// Absolute path of the `mysql` client binary, for the process-execution
     /// allow-list.
     ///
@@ -188,6 +246,43 @@ pub trait DistroAdapter: Send + Sync {
     /// Suspending and unsuspending an account lock and unlock its password with
     /// this program.
     fn usermod_binary(&self) -> &'static str;
+
+    /// Absolute path of `passwd`, for the process-execution allow-list.
+    ///
+    /// Needed for `passwd -S <user>`, which REPORTS whether a password can
+    /// authenticate a login. That is the question the suspension attestation
+    /// asks, and one letter is the whole answer.
+    ///
+    /// It is NOT the instrument for the other password question — is there a
+    /// hash behind the lock? — because it cannot answer it: a login that never
+    /// had a password and one locked over a real one both read `L` here (`LK`
+    /// on the RHEL family). `getent_binary` covers that question, one entry at
+    /// a time, and neither call opens the shadow database at large
+    /// (rules/security.md item 8).
+    ///
+    /// On the RHEL family this program comes from its OWN package (`passwd`),
+    /// separate from the `shadow-utils` package that supplies `useradd`,
+    /// `usermod`, `userdel` and `chpasswd`; on the Debian family a single
+    /// `passwd` package supplies all five. It is the only tool this adapter
+    /// declares with that shape, and a minimal RHEL host without that package
+    /// fails this call at exec time — which is why `installer/` names it.
+    fn passwd_binary(&self) -> &'static str;
+
+    /// Absolute path of `getent`, for the process-execution allow-list.
+    ///
+    /// Needed for `getent shadow <user>`, which reports ONE account's raw
+    /// shadow password field. The agent asks it exactly one question that
+    /// `passwd -S` cannot answer: is there a password hash behind the lock, or
+    /// is the login simply passwordless? Both read `L`/`LK` through `passwd
+    /// -S`, and `usermod --unlock` refuses the second one — exiting 0 on the
+    /// Debian family and 1 on the RHEL family, which is why an account could
+    /// never be reactivated there.
+    ///
+    /// One key, one line: this is not "open the shadow database". The field is
+    /// classified where it is read and the bytes are dropped, so no hash
+    /// reaches a return value, an error, a log line or the wire
+    /// (rules/security.md item 8).
+    fn getent_binary(&self) -> &'static str;
 
     /// Absolute path of `setquota`, for the process-execution allow-list.
     fn setquota_binary(&self) -> &'static str;
@@ -299,31 +394,6 @@ pub trait DistroAdapter: Send + Sync {
     /// The file the packaged nftables service reads at boot, and therefore the
     /// one file the installer wires the agent's include lines into.
     ///
-    /// The single firewall fact that differs between the families:
-    /// `/etc/nftables.conf` on the Debian family, `/etc/sysconfig/nftables.conf`
-    /// on the RHEL family, each named by that family's own `nftables.service`.
-    /// Where the RULES live does not differ — the agent renders and replaces
-    /// `AgentPaths::nftables_ruleset_path()` and `AgentPaths::nftables_bans_path()`,
-    /// which are agent-owned and identical everywhere, so they are constants
-    /// there and not two methods here answering the same literal twice.
-    ///
-    /// Boot order follows from the Debian file's own content and is the order
-    /// we want. That file carries `flush ruleset` as its first effective line
-    /// (after a `#!/usr/sbin/nft -f` shebang comment) and no `include` of its
-    /// own, so the flush runs BEFORE the include appended to the end and the
-    /// agent's tables are what survives it. The RHEL file ships with its one
-    /// sample include commented out and nothing else in it, so an include
-    /// appended there has nothing to undo it either.
-    fn nftables_include_target(&self) -> &'static str;
-
-    /// Name of the firewall service unit, for `systemctl enable`/`restart`.
-    ///
-    /// `nftables` on both families, because both ship the same upstream
-    /// service. The agreement is a fact about these two distributions and not
-    /// a rule the crate relies on: a family that persisted its rules through a
-    /// different unit would change this answer alone.
-    fn firewall_service(&self) -> &'static str;
-
     /// Name of the cron service unit.
     ///
     /// The one place the two families' cron packaging shows: `cron` on the
@@ -360,10 +430,13 @@ pub trait DistroAdapter: Send + Sync {
     ///
     /// Two absences are deliberate. php-fpm is not in the set because its unit
     /// name carries a PHP version ([`Self::php_fpm_service`]) and there is no
-    /// one unit to name; the firewall is not, because
-    /// [`Self::firewall_service`] is a unit the agent drives rather than one it
-    /// watches, and a firewall that is loaded and then `RemainAfterExit`s is
-    /// not answering the question this set asks.
+    /// one unit to name; the firewall is not, because a unit that loads a
+    /// ruleset and then `RemainAfterExit`s is not answering the question this
+    /// set asks. The firewall unit is not named by this crate at all: the agent
+    /// applies rules with [`Self::nft_binary`] and never through systemd, and
+    /// the one place a unit name and a boot-time include target ARE needed is
+    /// the installer's `installer/lib/87-firewall.sh`, which is shell and reads
+    /// nothing from here.
     ///
     /// # `is-active` on the SSH unit is NOT the question "is SSH up"
     ///

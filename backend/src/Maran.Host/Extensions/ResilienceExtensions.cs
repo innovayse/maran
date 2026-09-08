@@ -85,6 +85,10 @@ public static class ResilienceExtensions
         {
             return new ResilientAgentMonitorClient(inner, pipelines);
         });
+        Decorate<IAgentBackupClient>(services, (inner, pipelines) =>
+        {
+            return new ResilientAgentBackupClient(inner, pipelines);
+        });
 
         return services;
     }

@@ -88,4 +88,20 @@ public sealed class ResilientAgentSftpClient : IAgentSftpClient
             (Client: _inner, AccountUsername: accountUsername, SftpUsername: sftpUsername),
             cancellationToken);
     }
+
+    /// <inheritdoc/>
+    public async Task<Result<bool>> SetAccountLoginsLockedAsync(
+        string accountUsername,
+        bool locked,
+        CancellationToken cancellationToken)
+    {
+        return await _pipeline.ExecuteAsync(
+            async (state, token) =>
+            {
+                return await state.Client.SetAccountLoginsLockedAsync(
+                    state.AccountUsername, state.Locked, token);
+            },
+            (Client: _inner, AccountUsername: accountUsername, Locked: locked),
+            cancellationToken);
+    }
 }

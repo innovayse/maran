@@ -41,8 +41,9 @@ hyper-util.workspace = true
 # test performs one without writing `unsafe`.
 rustix.workspace = true
 tempfile.workspace = true
-# The bind poll needs a timer, which the production feature set does not ask for.
-tokio = { workspace = true, features = ["time"] }
+# The polygon and shutdown suites drive the clock rather than waiting on it: a
+# test that slept out a 30-second drain budget is a test nobody runs.
+tokio = { workspace = true, features = ["test-util"] }
 tower.workspace = true
 
 [build-dependencies]

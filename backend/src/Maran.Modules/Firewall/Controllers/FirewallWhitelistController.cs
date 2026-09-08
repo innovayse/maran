@@ -1,7 +1,6 @@
 using Maran.Modules.Firewall.Commands.AddWhitelistEntry;
 using Maran.Modules.Firewall.Commands.RemoveWhitelistEntry;
 using Maran.Modules.Firewall.Common;
-using Maran.Modules.Firewall.Controllers.Requests;
 using Maran.Modules.Firewall.Queries.ListWhitelist;
 using Maran.Sdk.Contracts;
 using Maran.Sdk.Controllers;
@@ -54,7 +53,7 @@ public sealed class FirewallWhitelistController : BaseApiController
     }
 
     /// <summary>Exempts a range from the automatic bans.</summary>
-    /// <param name="request">The range and the note to record.</param>
+    /// <param name="command">The range and the note to record.</param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpPost]
     [ProducesResponseType(typeof(WhitelistEntryDto), StatusCodes.Status201Created)]
@@ -63,10 +62,10 @@ public sealed class FirewallWhitelistController : BaseApiController
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
     public async Task<IActionResult> CreateAsync(
-        [FromBody] AddWhitelistEntryRequest request,
+        [FromBody] AddWhitelistEntryCommand command,
         CancellationToken cancellationToken)
     {
-        var command = new AddWhitelistEntryCommand(request.Cidr, request.Note, ClientIpAddress, UserAgent());
+        command = command with { IpAddress = ClientIpAddress, UserAgent = CallerUserAgent };
 
         var result = await _bus.InvokeAsync<Result<WhitelistEntryDto>>(command, cancellationToken);
         return ToCreatedActionResult(
@@ -91,14 +90,7 @@ public sealed class FirewallWhitelistController : BaseApiController
     [ProducesResponseType(StatusCodes.Status409Conflict)]
     public async Task<IActionResult> DeleteAsync(Guid id, CancellationToken cancellationToken)
     {
-        var command = new RemoveWhitelistEntryCommand(id, ClientIpAddress, UserAgent());
+        var command = new RemoveWhitelistEntryCommand(id, ClientIpAddress, CallerUserAgent);
         return ToActionResult(await _bus.InvokeAsync<Result<bool>>(command, cancellationToken));
-    }
-
-    /// <summary>Reads the caller's user agent for the audit journal.</summary>
-    /// <returns>The <c>User-Agent</c> header, or the empty string when absent.</returns>
-    private string UserAgent()
-    {
-        return HttpContext.Request.Headers.UserAgent.ToString();
     }
 }

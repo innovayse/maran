@@ -1,6 +1,5 @@
 using Maran.Modules.Cron.Commands.SetCronEnvironment;
 using Maran.Modules.Cron.Common;
-using Maran.Modules.Cron.Controllers.Requests;
 using Maran.Modules.Cron.Queries.GetCronEnvironment;
 using Maran.Sdk.Contracts;
 using Maran.Sdk.Controllers;
@@ -64,7 +63,7 @@ public sealed class CronEnvironmentController : BaseApiController
     /// Replaces the managed assignments with exactly the set sent. A name absent from the body is
     /// removed, and an empty list clears them all. Another customer's account answers 404, not 403.
     /// </summary>
-    /// <param name="request">The owning account and the complete new set.</param>
+    /// <param name="command">The owning account and the complete new set.</param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpPut]
     [ProducesResponseType(typeof(bool), StatusCodes.Status200OK)]
@@ -72,19 +71,11 @@ public sealed class CronEnvironmentController : BaseApiController
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> SetAsync(
-        [FromBody] SetCronEnvironmentRequest request,
+        [FromBody] SetCronEnvironmentCommand command,
         CancellationToken cancellationToken)
     {
-        var command = new SetCronEnvironmentCommand(
-            request.AccountId, request.Variables, ClientIpAddress, UserAgent());
+        command = command with { IpAddress = ClientIpAddress, UserAgent = CallerUserAgent };
 
         return ToActionResult(await _bus.InvokeAsync<Result<bool>>(command, cancellationToken));
-    }
-
-    /// <summary>Reads the caller's user agent for the audit journal.</summary>
-    /// <returns>The <c>User-Agent</c> header, or the empty string when absent.</returns>
-    private string UserAgent()
-    {
-        return HttpContext.Request.Headers.UserAgent.ToString();
     }
 }

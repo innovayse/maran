@@ -20,6 +20,7 @@ fn entry(command: Option<&str>) -> CronEntry {
         id: CronEntryId::parse(ENTRY_ID).expect("a valid entry id"),
         schedule: CronSchedule::parse("5", "6", "7", "8", "3").expect("a valid schedule"),
         enabled: true,
+        suspended: false,
         command: command.map(str::to_owned),
     }
 }

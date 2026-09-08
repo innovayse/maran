@@ -11,7 +11,6 @@
       "secretLabel": "Секрет",
       "confirmCodeLabel": "Код из приложения",
       "confirmEnrolment": "Включить",
-      "cancelEnrolment": "Отмена",
       "recoveryTitle": "Коды восстановления",
       "recoveryWarning": "Сохраните их сейчас. Каждый работает один раз, и они больше не будут показаны.",
       "copyCodes": "Скопировать коды",

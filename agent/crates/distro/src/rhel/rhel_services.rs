@@ -88,6 +88,46 @@ pub fn openssl_binary() -> &'static str {
     "/usr/bin/openssl"
 }
 
+/// Absolute path of `tar`, for the process-execution allow-list.
+///
+/// RHEL's `tar` package installs it here — verified `command -v tar` on the
+/// AlmaLinux 9 polygon, where it is the real file (`ls -l` shows no symlink),
+/// the same path the Debian family uses.
+#[must_use]
+pub fn tar_binary() -> &'static str {
+    "/usr/bin/tar"
+}
+
+/// Absolute path of `gzip`, for the process-execution allow-list.
+///
+/// RHEL's `gzip` package installs it here — verified `command -v gzip` on the
+/// AlmaLinux 9 polygon, where it is the real file and not a symlink.
+#[must_use]
+pub fn gzip_binary() -> &'static str {
+    "/usr/bin/gzip"
+}
+
+/// Absolute path of the database dump client, for the process-execution
+/// allow-list.
+///
+/// Measured on the AlmaLinux 9 polygon rather than assumed: this family was
+/// suspected to ship `mariadb-dump` as the real binary with `mysqldump` as a
+/// compatibility symlink, distinct from the Debian family — and the
+/// measurement confirms half of that and corrects the other half. RHEL's
+/// `mariadb` package (10.5.29) does install the real binary at
+/// `/usr/bin/mariadb-dump` and makes `/usr/bin/mysqldump` a symlink to it
+/// (`ls -l /usr/bin/mysqldump` shows `-> mariadb-dump`; `rpm -qf` attributes
+/// the real file to `mariadb-10.5.29`) — but so does the Debian family's
+/// `mariadb-client` package, so the two families agree rather than differ.
+/// This answers the real name so a future package that drops the
+/// compatibility symlink cannot silently break this family — see
+/// [`crate::DistroAdapter::database_dump_binary`] for the full measurement,
+/// including the `--no-tablespaces` finding.
+#[must_use]
+pub fn database_dump_binary() -> &'static str {
+    "/usr/bin/mariadb-dump"
+}
+
 /// Absolute path of the `mysql` client binary, for the process-execution
 /// allow-list.
 ///
@@ -142,6 +182,35 @@ pub fn userdel_binary() -> &'static str {
 #[must_use]
 pub fn usermod_binary() -> &'static str {
     "/usr/sbin/usermod"
+}
+
+/// Absolute path of `passwd`, for the process-execution allow-list.
+///
+/// The shadow suite installs the user-facing half of its tools in `/usr/bin`
+/// and the administrative half in `/usr/sbin`; `passwd` is the user-facing one
+/// on both families, because an ordinary user runs it to change their own
+/// password. Verified on the polygon by `binary_paths_on_a_real_host`, which
+/// stats every path this module declares.
+#[must_use]
+pub fn passwd_binary() -> &'static str {
+    "/usr/bin/passwd"
+}
+
+/// Absolute path of `getent`, for the process-execution allow-list.
+///
+/// Read-only, and the one instrument that answers a question `passwd -S`
+/// cannot: `getent shadow <name>` prints the account's RAW shadow password
+/// field, which distinguishes a login locked over a real password (`!<hash>`)
+/// from one that simply never had a password (`!` here, `!!` on the other
+/// family). `passwd -S` collapses both into `L`/`LK`, and that collapse is
+/// what made reactivation impossible on the RHEL family.
+///
+/// It belongs to the C library rather than to any user-management package —
+/// `libc-bin` on this family, `glibc-common` on the other — so unlike `passwd`
+/// it cannot be absent from a host that runs anything at all.
+#[must_use]
+pub fn getent_binary() -> &'static str {
+    "/usr/bin/getent"
 }
 
 /// Absolute path of `setquota`, for the process-execution allow-list.
@@ -251,16 +320,6 @@ pub fn nft_binary() -> &'static str {
 #[must_use]
 pub fn sh_binary() -> &'static str {
     "/bin/sh"
-}
-
-/// Name of the firewall systemd service unit.
-///
-/// The unit `nftables` ships, which loads
-/// [`crate::rhel::rhel_paths::nftables_include_target`] at boot. The Debian
-/// family registers the same name for the same upstream service.
-#[must_use]
-pub fn firewall_service() -> &'static str {
-    "nftables"
 }
 
 /// Name of the cron systemd service unit.

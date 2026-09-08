@@ -25,7 +25,8 @@ public sealed class AgentHealthProbeTests
     [Fact]
     public async Task A_reachable_agent_is_reported_as_connected()
     {
-        var probe = NewProbe(new StubAgentSystemClient(Result<AgentInfoDto>.Ok(new AgentInfoDto("1.0.0", "debian", "debian", 1))));
+        var probe = NewProbe(new StubAgentSystemClient(
+            Result<AgentInfoDto>.Ok(new AgentInfoDto("1.0.0", "debian", "debian", 1, "/var/backups/maran"))));
 
         Assert.Equal(AgentHealthProbe.Connected, await probe.ProbeAsync());
     }

@@ -101,8 +101,11 @@ impl AccountJail {
     ///
     /// A `.mount` unit is not free to be called what its author likes:
     /// systemd escapes `Where=` into a name and refuses to load a unit whose
-    /// file name is not exactly that. `/var/lib/maran/sftp/alice/home` is
-    /// therefore `var-lib-maran-sftp-alice-home.mount`, and a friendlier
+    /// file name is not exactly that. `/var/lib/maran-sftp/alice/home` is
+    /// therefore `var-lib-maran\x2dsftp-alice-home.mount` — the `-` of the
+    /// jail root's own name is NOT a path separator and is escaped, which is why
+    /// `escape_path` implements systemd's whole rule and not the substitution
+    /// this product's paths used to need — and a friendlier
     /// `maran-sftp-alice.mount` would be rejected at load time — on the host,
     /// never in a build.
     #[must_use]

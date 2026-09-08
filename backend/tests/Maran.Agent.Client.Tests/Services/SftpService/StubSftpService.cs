@@ -84,4 +84,19 @@ internal sealed class StubSftpService : ISftpServiceInvoker
         LastDeleteRequest = request;
         return Task.FromResult(DeleteResponse);
     }
+
+    /// <summary>Response returned from <see cref="SetAccountLoginsLockedAsync"/>.</summary>
+    public SetAccountLoginsLockedResponse SetLoginsLockedResponse { get; set; } = new();
+
+    /// <summary>The last account-wide lock request the stub received, for asserting the mapping.</summary>
+    public SetAccountLoginsLockedRequest? LastSetLoginsLockedRequest { get; private set; }
+
+    /// <inheritdoc/>
+    public Task<SetAccountLoginsLockedResponse> SetAccountLoginsLockedAsync(
+        SetAccountLoginsLockedRequest request,
+        CancellationToken cancellationToken)
+    {
+        LastSetLoginsLockedRequest = request;
+        return Task.FromResult(SetLoginsLockedResponse);
+    }
 }

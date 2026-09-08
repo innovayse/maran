@@ -542,8 +542,16 @@ remove_sftp_sshd_block() {
 # delete while any mount remains — is what keeps this uninstaller's promise that
 # it never touches /home.
 release_sftp_jails() {
+  # The glob carries a LITERAL backslash, and it is not decoration. A `.mount`
+  # unit's file name is systemd's escaping of its own mount point, and `-` is not
+  # a path separator: `/var/lib/maran-sftp/<account>/home` escapes to
+  # `var-lib-maran\x2dsftp-<account>-home.mount`, not to `var-lib-maran-sftp-…`.
+  # Verified against `systemd-escape -p --suffix=mount` rather than derived by
+  # hand. A glob written the readable way matches nothing, every unit survives the
+  # uninstall, and each one is a bind mount of a customer home left behind on a
+  # host the operator believes is clean.
   local unit
-  for unit in /etc/systemd/system/var-lib-maran-sftp-*.mount; do
+  for unit in /etc/systemd/system/'var-lib-maran\x2dsftp-'*.mount; do
     [ -e "$unit" ] || continue
     unit="$(basename "$unit")"
     echo "Stopping SFTP jail mount ${unit}..."
@@ -558,13 +566,13 @@ release_sftp_jails() {
     [ -n "$mount_point" ] || continue
     echo "Unmounting ${mount_point}..."
     umount "$mount_point" 2>/dev/null || true
-  done < <(awk '$2 ~ "^/var/lib/maran/sftp/" { print $2 }' /proc/self/mounts 2>/dev/null | sort -r)
+  done < <(awk '$2 ~ "^/var/lib/maran-sftp/" { print $2 }' /proc/self/mounts 2>/dev/null | sort -r)
 }
 
 # sftp_jails_still_mounted: 0 when something under the jail root is still a mount
 # point. Consulted by remove_var_lib, which must not recurse through one.
 sftp_jails_still_mounted() {
-  awk '$2 ~ "^/var/lib/maran/sftp/" { found = 1 } END { exit found ? 0 : 1 }' \
+  awk '$2 ~ "^/var/lib/maran-sftp/" { found = 1 } END { exit found ? 0 : 1 }' \
     /proc/self/mounts 2>/dev/null
 }
 
@@ -580,7 +588,7 @@ remove_sftp_group() {
   members="$(getent group maran-sftp | cut -d: -f4)"
   if [ -n "$members" ]; then
     echo "Keeping the 'maran-sftp' group: it still has members (${members})."
-    echo "Those SFTP logins and their jails under /var/lib/maran/sftp are customer accounts;"
+    echo "Those SFTP logins and their jails under /var/lib/maran-sftp are customer accounts;"
     echo "remove them through the panel before uninstalling, or by hand afterwards."
     return
   fi
@@ -667,24 +675,42 @@ remove_maran_config_directory() {
 # PostgreSQL"), so it is removed unconditionally like the binaries — leaving it behind is
 # what made a previous uninstall incomplete.
 #
-# The one exception to "everything under it is derivable": /var/lib/maran/sftp
+# The one exception to "everything under it is derivable": /var/lib/maran-sftp
 # holds the per-account jails, and each jail has the account's real home
 # bind-mounted inside it. release_sftp_jails has already unmounted them; if
 # anything is somehow still mounted, this refuses rather than deleting a
 # customer's files through a mount point.
 remove_var_lib() {
   if sftp_jails_still_mounted; then
-    echo "WARNING: something is still mounted under /var/lib/maran/sftp."
+    echo "WARNING: something is still mounted under /var/lib/maran-sftp."
     echo "         NOT deleting /var/lib/maran: an rm -rf across a bind mount would delete the"
     echo "         customer home it points at. Unmount them and remove the directory by hand."
     return
   fi
   echo "Removing api state directory (/var/lib/maran)..."
   rm -rf /var/lib/maran
+  # AgentPaths::SFTP_JAIL_ROOT, a SIBLING of the above since the chroot-ownership
+  # defect (OpenSSH refuses a chroot under a panel-owned parent), so it needs a
+  # removal of its own — while it was a child, deleting /var/lib/maran took it
+  # with it. Guarded by the same still-mounted refusal above, for the same reason:
+  # each jail has a customer's real home bind-mounted at <account>/home.
+  echo "Removing SFTP jail base directory (/var/lib/maran-sftp)..."
+  rm -rf /var/lib/maran-sftp
+  # AgentPaths::BULK_SCRATCH_ROOT, a sibling of the above rather than a child of it
+  # since the escalation in docs/superpowers/notes/2026-09-05-backups-threat-note.md.
+  # It holds nothing but a killed run's leftovers — which are plaintext copies of a
+  # customer's databases, so leaving them on an uninstalled host is the worst residue
+  # this uninstaller could leave.
+  echo "Removing agent scratch directory (/var/lib/maran-scratch)..."
+  rm -rf /var/lib/maran-scratch
 }
 
 remove_logs() {
-  if confirm "Delete install and application logs under /var/log/maran?"; then
+  # One prompt for the whole tree, both halves of it: the root-owned parent (install.log and the
+  # panel vhost's nginx logs) and the panel-owned /var/log/maran/panel the API may have been
+  # configured to write into. The split is an ownership boundary, not two separate things an
+  # operator decides about separately.
+  if confirm "Delete install and application logs under /var/log/maran (including panel/)?"; then
     rm -rf /var/log/maran
     echo "Logs removed."
   else
@@ -704,10 +730,21 @@ drop_database() {
     return
   fi
   if confirm "DROP the Maran PostgreSQL database and role? This deletes all panel data permanently."; then
-    sudo -u postgres psql -c "DROP DATABASE IF EXISTS maran;" || true
-    sudo -u postgres psql -c "DROP ROLE IF EXISTS panel;" || true
-    MARAN_DATABASE_KEPT=0
-    echo "Database and role dropped."
+    # `runuser` (util-linux, always present), not `sudo` (a package a minimal Debian or RHEL
+    # image does not have). And the failures are reported, not swallowed: `|| true` on both
+    # DROPs followed by an unconditional "Database and role dropped." is a completion message
+    # for work that may not have happened — the operator would delete the encryption key
+    # believing the data behind it was gone. MARAN_DATABASE_KEPT stays 1 unless both DROPs
+    # actually succeeded, so remove_config_and_state keeps treating the key as protecting data.
+    if runuser -u postgres -- psql -c "DROP DATABASE IF EXISTS maran;" &&
+       runuser -u postgres -- psql -c "DROP ROLE IF EXISTS panel;"; then
+      MARAN_DATABASE_KEPT=0
+      echo "Database and role dropped."
+    else
+      echo "WARNING: dropping the Maran database or role FAILED. Nothing was removed, or only" >&2
+      echo "         part of it was. The panel data is still on this host; drop it by hand with" >&2
+      echo "         psql as the postgres user once you have seen the error above." >&2
+    fi
   else
     echo "Keeping the Maran PostgreSQL database and role."
   fi
@@ -728,6 +765,41 @@ remove_panel_user() {
   fi
 }
 
+# MARAN_BACKUP_ROOT: the local backup root, the one directory in this file that is named in
+# order NOT to be deleted. It is the same literal installer/lib/40-user.sh creates and
+# LocalBackupRoot::resolve() canonicalizes; a spelling that drifted from those would make the
+# report below describe a directory nobody writes to.
+readonly MARAN_BACKUP_ROOT=/var/backups/maran
+
+# note_backups_kept: prints the backup root, how many artifacts are under it, and the fact that
+# they were left alone. It deletes nothing, and it is not behind `confirm`: there is no question
+# here to ask.
+#
+# Why this exists as a function rather than a line in the block below. `remove_var_lib` deletes
+# three sibling directories by name, and a fourth `rm -rf` beside them — of the one directory
+# holding a customer's only copy of their data — would be one line and would look exactly like
+# its neighbours. Nothing in this repository would have gone red for it. So the promise is
+# stated here in a function the polygon can run and assert against a planted artifact
+# (docker/polygon/assert-installer-steps.sh, assert_the_uninstaller_keeps_the_backup_root),
+# which is what makes it a checked promise instead of a comment.
+#
+# The count and not the names: entries are <account>.<backup id>, and an uninstall transcript
+# that enumerated them would say which customers have backups, on a terminal and in whatever
+# the operator pasted it into. `-maxdepth 2 -type f` matches the layout the agent writes —
+# <root>/<account>/<id> plus its sidecar — and `find` here does not follow symlinks, so a
+# planted link cannot make this count or stat something outside the root.
+note_backups_kept() {
+  if [ ! -d "$MARAN_BACKUP_ROOT" ]; then
+    echo "No local backup directory at ${MARAN_BACKUP_ROOT}; nothing to keep."
+    return
+  fi
+  local artifacts
+  artifacts="$(find "$MARAN_BACKUP_ROOT" -maxdepth 2 -type f 2>/dev/null | wc -l)"
+  echo "KEEPING ${MARAN_BACKUP_ROOT} (${artifacts} file(s)). Backups are customer data and this"
+  echo "        uninstaller never deletes them. Remove that directory by hand if you intend to"
+  echo "        decommission this server."
+}
+
 # note_customer_data_untouched: explicit statement of what this script never touches,
 # printed unconditionally so an operator never has to guess.
 note_customer_data_untouched() {
@@ -737,7 +809,7 @@ This uninstaller never touches:
   - Customer hosting accounts under /home/*
   - Customer sites, files, or per-account databases
   - MariaDB itself, or any database in it
-  - Backups created by the Backups module
+  - Backups under /var/backups/maran (counted above)
 
 Remove those yourself if you intend to decommission the server entirely.
 EOF
@@ -764,6 +836,7 @@ main() {
   remove_logs
   remove_sftp_group
   remove_panel_user
+  note_backups_kept
   note_customer_data_untouched
   echo "Maran uninstall complete."
 }

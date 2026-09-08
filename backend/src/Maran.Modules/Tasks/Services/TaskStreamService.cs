@@ -54,15 +54,23 @@ public sealed class TaskStreamService
     /// <summary>How often the row is re-read while the task is still running.</summary>
     private readonly TimeSpan _pollInterval;
 
+    /// <summary>Names the watched task's kind as an operator reads it, in the request's culture.</summary>
+    private readonly TaskKindDisplayNames _kindNames;
+
     /// <summary>Creates the service.</summary>
     /// <param name="dbContext">The Tasks module's database context.</param>
     /// <param name="options">The stream's settings, chiefly the poll interval.</param>
-    public TaskStreamService(TasksDbContext dbContext, IOptions<TaskStreamOptions> options)
+    /// <param name="kindNames">Names a task's kind for the culture of the request that opened the stream.</param>
+    public TaskStreamService(
+        TasksDbContext dbContext,
+        IOptions<TaskStreamOptions> options,
+        TaskKindDisplayNames kindNames)
     {
         ArgumentNullException.ThrowIfNull(options);
 
         _dbContext = dbContext;
         _pollInterval = TimeSpan.FromMilliseconds(options.Value.PollIntervalMilliseconds);
+        _kindNames = kindNames;
     }
 
     /// <summary>Settles whether the caller may watch this task, while a normal response is still possible.</summary>
@@ -103,7 +111,7 @@ public sealed class TaskStreamService
             if (task.Revision != lastRevision)
             {
                 lastRevision = task.Revision;
-                yield return TaskFrame.OfTask(PanelTaskMapper.From(task));
+                yield return TaskFrame.OfTask(PanelTaskMapper.From(task, _kindNames.Of(task.Kind)));
             }
 
             if (task.Status != PanelTaskStatus.Running)

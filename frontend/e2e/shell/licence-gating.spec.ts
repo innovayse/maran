@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { stubModules } from '../fixtures/stub-modules-route'
+import { stubModules, stubModulesUnavailable } from '../fixtures/stub-modules-route'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubAccounts } from '../fixtures/stub-accounts-route'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
@@ -169,4 +169,20 @@ test('a module the licence does not permit still shows and still leads to the up
   const locked = page.getByRole('link', { name: /SSL certificates/ })
   await expect(locked).toBeVisible()
   await expect(locked).toHaveAttribute('href', '/upgrade/ssl')
+})
+
+test('a gated route stays reachable when the module catalogue could not be loaded', async ({ page }) => {
+  // The SPA's licence gate is cosmetic; the backend checks the licence on every request. So when
+  // the catalogue call fails the guard must step aside, not refuse. It used to refuse: an empty
+  // catalogue and an unloadable one were the same state, so one 500 sent EVERY gated route to the
+  // upgrade wall and told a fully licensed operator to buy back what they already own.
+  await stubSignedIn(page)
+  await stubHealthy(page)
+  await stubModulesUnavailable(page)
+  await stubAccounts(page, [])
+
+  await page.goto('/accounts')
+
+  await expect(page).toHaveURL('/accounts')
+  await expect(page.getByRole('heading', { level: 1, name: 'Accounts' })).toBeVisible()
 })

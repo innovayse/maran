@@ -70,6 +70,17 @@ public sealed class ResilientAgentAccountsClient : IAgentAccountsClient
     }
 
     /// <inheritdoc/>
+    public Task<Result<AccountSuspensionStateDto>> GetSuspensionStateAsync(
+        string username,
+        CancellationToken cancellationToken)
+    {
+        return ExecuteAsync(token =>
+        {
+            return _inner.GetSuspensionStateAsync(username, token);
+        }, cancellationToken);
+    }
+
+    /// <inheritdoc/>
     public Task<Result<ulong>> DeleteAsync(string username, CancellationToken cancellationToken)
     {
         return ExecuteAsync(token =>

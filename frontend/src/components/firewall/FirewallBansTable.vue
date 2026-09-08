@@ -13,10 +13,10 @@
  * instant it counts from is held here and passed to the formatter, rather than read inside it, so
  * the behaviour can be driven by a test clock instead of by whatever the wall clock happens to say.
  */
-import { onBeforeUnmount, onMounted, ref, type Ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch, type ComputedRef, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import UiBadge from '../ui/UiBadge.vue'
-import UiButton from '../ui/UiButton.vue'
+import UiConfirm from '../ui/UiConfirm.vue'
 import UiDropdown from '../ui/UiDropdown.vue'
 import UiDropdownItem from '../ui/UiDropdownItem.vue'
 import UiIcon from '../ui/UiIcon.vue'
@@ -30,7 +30,7 @@ import { formatDate } from '../../utils/formatDate'
 import type { Ban } from '../../types/firewall'
 
 /** Props accepted by {@link FirewallBansTable}. */
-defineProps<{
+const props = defineProps<{
   /** The bans the panel reported, newest first. */
   bans: readonly Ban[]
   /** Whether a change is already in flight, which disables every row's menu. */
@@ -60,6 +60,21 @@ const ticker: Ref<ReturnType<typeof setInterval> | null> = ref(null)
 
 /** The ban whose lift is awaiting confirmation, or the empty string when none is. */
 const pendingId: Ref<string> = ref('')
+
+/** The ban the confirmation is open for, or `null` when none is. */
+const pendingBan: ComputedRef<Ban | null> = computed(() => {
+  return (
+    props.bans.find((ban) => {
+      return ban.id === pendingId.value
+    }) ?? null
+  )
+})
+
+/** The confirmation's accessible name, naming the address that would be let back in. */
+const confirmationTitle: ComputedRef<string> = computed(() => {
+  const pending = pendingBan.value
+  return pending === null ? '' : t('firewall.bans.confirmUnbanTitle', { address: pending.ipAddress })
+})
 
 /**
  * How long is left on a ban, or the word for one that lasts until somebody lifts it.
@@ -92,13 +107,31 @@ const cancel = (): void => {
 
 /**
  * Reports the confirmed lift to the page, which owns the request.
- * @param address The address to let back in.
  * @returns Nothing; emits synchronously.
  */
-const confirm = (address: string): void => {
-  pendingId.value = ''
-  emit('unban', address)
+const confirm = (): void => {
+  const pending = pendingBan.value
+  if (pending === null) {
+    return
+  }
+
+  // Closed when the page's request settles rather than here: this table is dumb, and `busy` is
+  // what tells the dialog the answer is already with the server.
+  emit('unban', pending.ipAddress)
 }
+
+// The request belongs to the page, so the dialog cannot close itself when it settles: `busy`
+// falling back to false is this table's only sight of that moment.
+watch(
+  (): boolean => {
+    return props.busy
+  },
+  (busy, wasBusy): void => {
+    if (wasBusy && !busy) {
+      pendingId.value = ''
+    }
+  },
+)
 
 onMounted(() => {
   ticker.value = setInterval(() => {
@@ -124,7 +157,7 @@ onBeforeUnmount(() => {
         <UiTableHeaderCell>{{ t('firewall.bans.columns.failures') }}</UiTableHeaderCell>
         <UiTableHeaderCell>{{ t('firewall.bans.columns.bannedAt') }}</UiTableHeaderCell>
         <UiTableHeaderCell>{{ t('firewall.bans.columns.expiresAt') }}</UiTableHeaderCell>
-        <UiTableHeaderCell align="end">{{ t('firewall.bans.columns.actions') }}</UiTableHeaderCell>
+        <UiTableHeaderCell align="end">{{ t('common.actions') }}</UiTableHeaderCell>
       </UiTableRow>
     </template>
     <UiTableRow v-for="ban in bans" :key="ban.id">
@@ -141,19 +174,8 @@ onBeforeUnmount(() => {
       <UiTableCell class="text-text-secondary">{{ expiry(ban) }}</UiTableCell>
       <UiTableCell align="end">
         <div class="flex flex-wrap items-center justify-end gap-2">
-          <!-- The confirmation stays inline rather than becoming a second menu item: a menu is a
-               list of things one might do, and a question already asked belongs where the answer
-               is given. -->
-          <template v-if="pendingId === ban.id">
-            <span class="text-sm text-text-secondary">{{ t('firewall.bans.confirmUnban') }}</span>
-            <UiButton variant="destructive" :disabled="busy" @click="confirm(ban.ipAddress)">
-              {{ t('firewall.bans.confirm') }}
-            </UiButton>
-            <UiButton variant="secondary" @click="cancel">{{ t('firewall.bans.cancel') }}</UiButton>
-          </template>
           <UiDropdown
-            v-else
-            :label="t('firewall.bans.columns.actions')"
+            :label="t('common.actions')"
             :aria-label="t('firewall.bans.rowActions', { address: ban.ipAddress })"
             align="end"
             variant="bare"
@@ -169,4 +191,21 @@ onBeforeUnmount(() => {
       </UiTableCell>
     </UiTableRow>
   </UiTable>
+
+  <!-- One dialog for the whole table rather than one per row: only one lift can be awaiting an
+       answer, and the menu that opened it is already gone by the time it appears. Lifting a ban is
+       not a removal, so the confirm button is not weighted as destructive. -->
+  <UiConfirm
+    :open="pendingId.length > 0"
+    :title="confirmationTitle"
+    :question="t('firewall.bans.confirmUnban')"
+    :confirm-label="t('firewall.bans.confirm')"
+    :cancel-label="t('common.cancel')"
+    :close-label="t('common.close')"
+    :acting="busy"
+    :acting-label="t('firewall.bans.working')"
+    :destructive="false"
+    @close="cancel"
+    @confirm="confirm"
+  />
 </template>

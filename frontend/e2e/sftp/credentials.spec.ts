@@ -232,8 +232,10 @@ test('resetting the password is offered on the list and shows a new one once', a
 
   const row = page.getByRole('row').filter({ hasText: 'alice_web' })
   await chooseRowAction(page, row, 'alice_web', 'Reset password')
-  await expect(row).toContainText('The current one stops working immediately.')
-  await row.getByRole('button', { name: 'Yes, do it' }).click()
+  // The question is asked in a modal now, and its accessible name says which row it is about.
+  const confirmation = page.getByRole('dialog', { name: 'Reset the password for alice_web' })
+  await expect(confirmation).toContainText('The current one stops working immediately.')
+  await confirmation.getByRole('button', { name: 'Yes, do it' }).click()
 
   await expect(page.getByTestId('sftp-password')).toHaveText(stubbedResetSftpPassword)
   await expect(page.getByRole('dialog')).toContainText('alice_web')
@@ -242,13 +244,31 @@ test('resetting the password is offered on the list and shows a new one once', a
   await expect(page.getByText(stubbedResetSftpPassword)).toHaveCount(0)
 })
 
-test('removing a login asks for confirmation before it is done', async ({ page }) => {
+test('removing a login asks in a dialog, and a dismissal removes nothing', async ({ page }) => {
   await openScreen(page, [WEB])
+  let destructiveRequests = 0
+  // Registered last, so it wins Playwright's ordering over the fixture's own route: a dismissal
+  // that merely leaves the row on screen would also pass against a removal the stub re-listed.
+  await page.route(`**/api/v1/sftp-users/${WEB.id}`, async (route) => {
+    destructiveRequests += 1
+    await route.fulfill({ status: 204, body: '' })
+  })
 
   const row = page.getByRole('row').filter({ hasText: 'alice_web' })
   await chooseRowAction(page, row, 'alice_web', 'Remove')
-  await expect(row).toContainText('nobody can sign in with this name again')
 
-  await row.getByRole('button', { name: 'Cancel' }).click()
+  const confirmation = page.getByRole('dialog', { name: 'Remove login alice_web' })
+  await expect(confirmation).toContainText('nobody can sign in with this name again')
+  // Focus moved out of the menu that opened it and into the dialog, rather than being lost
+  // between the two when the menu closed.
+  await expect(confirmation.locator(':focus')).toHaveCount(1)
+  await expect(confirmation.getByRole('button', { name: 'Yes, do it' })).not.toBeFocused()
+
+  await confirmation.getByRole('button', { name: 'Cancel' }).click()
+
+  await expect(page.getByRole('dialog')).toHaveCount(0)
+  expect(destructiveRequests).toBe(0)
   await expect(page.getByRole('row').filter({ hasText: 'alice_web' })).toBeVisible()
+  // Focus is back on the trigger the operator used, not at the top of the document.
+  await expect(row.getByRole('button', { name: 'Actions for alice_web' })).toBeFocused()
 })

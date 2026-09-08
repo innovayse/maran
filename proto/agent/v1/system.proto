@@ -38,6 +38,15 @@ message AgentInfo {
   DistroFamily family = 3;
   // Highest contract revision this agent implements (starts at 1).
   uint32 proto_version = 4;
+  // Absolute directory this agent writes account backup archives into, as the
+  // agent's own constant `AgentPaths::BACKUP_ROOT` states it, e.g.
+  // "/var/backups/maran". It is reported and never accepted: BackupDestination
+  // refuses a LOCAL destination that carries a path, so this is the panel's
+  // only way to KNOW the directory instead of restating it. Empty means the
+  // agent predates this field, and a caller that reads it MUST then say it
+  // does not know the path rather than assume a default — an assumed default
+  // shown as fact is the untruth this field exists to end.
+  string backup_root = 5;
 }
 
 // Supported distro families (spec §4).

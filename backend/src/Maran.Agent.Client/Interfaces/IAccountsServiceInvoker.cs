@@ -28,6 +28,14 @@ internal interface IAccountsServiceInvoker
     /// <returns>The raw wire response, carrying either branch of its oneof.</returns>
     Task<UnsuspendAccountResponse> UnsuspendAccountAsync(UnsuspendAccountRequest request, CancellationToken cancellationToken);
 
+    /// <summary>Invokes <c>GetAccountSuspensionState</c>.</summary>
+    /// <param name="request">The wire request.</param>
+    /// <param name="cancellationToken">Cancellation for the call.</param>
+    /// <returns>The raw wire response, carrying either branch of its oneof.</returns>
+    Task<GetAccountSuspensionStateResponse> GetAccountSuspensionStateAsync(
+        GetAccountSuspensionStateRequest request,
+        CancellationToken cancellationToken);
+
     /// <summary>Invokes <c>DeleteAccount</c>.</summary>
     /// <param name="request">The wire request.</param>
     /// <param name="cancellationToken">Cancellation for the call.</param>

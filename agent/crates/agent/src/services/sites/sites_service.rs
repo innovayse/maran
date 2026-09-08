@@ -412,7 +412,7 @@ where
             (Ok((account, domain)), Some(kind)) => {
                 let host = Arc::clone(&self.host);
                 let history = request.history_lines;
-                let mut sink = StreamLogSink::new(sender.clone());
+                let mut sink = StreamLogSink::new(sender);
 
                 tokio::task::spawn_blocking(move || {
                     let outcome = sites::tail_site_log(
@@ -429,12 +429,18 @@ where
                     // own choice sends one of these, so a stream never just
                     // stops without saying why.
                     if let Some(error) = tail_terminal(&outcome) {
-                        // Best effort by construction: a closed channel means
-                        // the client is already gone, and a stalled one may
-                        // still drain in time to see why it was dropped.
-                        let _ = sender.blocking_send(Ok(TailSiteLogResponse {
-                            result: Some(tail_site_log_response::Result::Error(error)),
-                        }));
+                        // Through the SINK, not through a second clone of the
+                        // sender, because the ending this is most often sent on
+                        // is `TailEnd::ClientStalled` — which by definition
+                        // means the channel is full and the client is not
+                        // draining it. A plain `blocking_send` there has no
+                        // bound at all and parks this blocking-pool thread
+                        // until the client finally moves, which is the exact
+                        // failure `StreamLogSink` exists to prevent.
+                        // `StreamLogSink::terminal` gives the terminal message
+                        // the same deadline a line gets, so the thread comes
+                        // back whether or not anyone was listening.
+                        sink.terminal(error);
                     }
                 });
             }

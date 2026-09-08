@@ -41,6 +41,12 @@ internal sealed class StubCronService : ICronServiceInvoker
     /// <summary>The last enablement request the stub received, for asserting the mapping.</summary>
     public SetCronEntryEnabledRequest? LastSetEnabledRequest { get; private set; }
 
+    /// <summary>Response returned from <see cref="SetAccountCronSuspendedAsync"/>.</summary>
+    public SetAccountCronSuspendedResponse SetAccountSuspendedResponse { get; set; } = new();
+
+    /// <summary>The last account-wide suspension request the stub received, for asserting the mapping.</summary>
+    public SetAccountCronSuspendedRequest? LastSetAccountSuspendedRequest { get; private set; }
+
     /// <summary>Response returned from <see cref="GetCronEntryOutputAsync"/>.</summary>
     public GetCronEntryOutputResponse OutputResponse { get; set; } = new();
 
@@ -117,6 +123,15 @@ internal sealed class StubCronService : ICronServiceInvoker
     {
         LastSetEnabledRequest = request;
         return Task.FromResult(SetEnabledResponse);
+    }
+
+    /// <inheritdoc/>
+    public Task<SetAccountCronSuspendedResponse> SetAccountCronSuspendedAsync(
+        SetAccountCronSuspendedRequest request,
+        CancellationToken cancellationToken)
+    {
+        LastSetAccountSuspendedRequest = request;
+        return Task.FromResult(SetAccountSuspendedResponse);
     }
 
     /// <inheritdoc/>

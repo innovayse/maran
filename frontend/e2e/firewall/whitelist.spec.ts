@@ -126,10 +126,17 @@ test('removing an exemption asks first, and then names the row the panel gave ba
   await row.getByRole('button', { name: `Actions for ${SEEDED.cidr}` }).click()
   await page.getByRole('menuitem', { name: 'Remove' }).click()
 
-  await expect(row).toContainText('Remove this exemption?')
+  // The question is asked by the panel's one confirmation dialog, and it is asserted on the
+  // dialog rather than on the row: the row is where the question used to live, and an assertion
+  // left there would pass on a page that had lost the confirmation entirely.
+  const dialog = page.getByRole('dialog', { name: `Remove the exemption for ${SEEDED.cidr}` })
+  await expect(dialog).toBeVisible()
+  await expect(dialog).toContainText(
+    'Remove this exemption? The automatic bans can reach the range again — and if it is the range you administer from, that includes you.',
+  )
   expect(deletes).toEqual([])
 
-  await row.getByRole('button', { name: 'Yes, remove it' }).click()
+  await dialog.getByRole('button', { name: 'Yes, remove it' }).click()
 
   await expect
     .poll(() => {
@@ -137,4 +144,124 @@ test('removing an exemption asks first, and then names the row the panel gave ba
     })
     .toHaveLength(1)
   expect(deletes[0]).toContain(`/api/v1/firewall/whitelist/${SEEDED.id}`)
+})
+
+/** Enough exemptions to push the shell's scroll container well past its own height. */
+const MANY: WhitelistEntry[] = Array.from({ length: 40 }, (_, index) => {
+  return {
+    id: `00000000-0000-0000-0000-0000000${(index + 100).toString()}`,
+    cidr: `203.0.113.${index}/32`,
+    note: `Row ${index}`,
+    createdAt: '2026-08-01T09:00:00+00:00',
+  }
+})
+
+/** The last of them: the row whose trigger sits at the very end of the scroll container. */
+const LAST: WhitelistEntry = MANY[MANY.length - 1]
+
+// A menu that closes itself is not a cosmetic defect: the row-actions menu is the only way to reach
+// the removal, and it was measured dismissing itself on a ONE PIXEL scroll of the shell's container
+// — the browser's own scroll-into-view on the freshly focused trigger — roughly one press in five
+// under load, on the last row of a long list, where the trigger sits a pixel short of the
+// container's end. The fix was to RE-PLACE the panel against a trigger still on screen instead of
+// dismissing it. Nothing in this suite simulates a scroll, so the only evidence the fix held was
+// the absence of a flake on a path pressed three times per run — which is not evidence.
+//
+// The geometry this spec sets up, deliberately, rather than hoping the browser produces it:
+// a 700px window, 40 exemptions so `<main class="overflow-y-auto">` (src/layouts/DefaultLayout.vue)
+// genuinely scrolls, the container parked ONE PIXEL short of its maximum, the last row's menu
+// opened there, and then that single pixel spent.
+test('a one-pixel scroll under an open row menu moves it instead of closing it', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 700 })
+  await openScreen(page, MANY)
+
+  const row = page.getByRole('row').filter({ hasText: LAST.cidr })
+  await expect(row).toBeVisible()
+
+  // Park the container one pixel short of its end, which is the position that produced the defect:
+  // the trigger is on screen, and exactly one pixel of scroll is still available underneath it.
+  const scrolled = await page.evaluate(() => {
+    const main = document.querySelector('main')
+    if (main === null) {
+      return null
+    }
+    main.scrollTop = main.scrollHeight
+    const max = main.scrollTop
+    main.scrollTop = max - 1
+    return { max, parked: main.scrollTop }
+  })
+  // Vacuity guard on the axis that can go blind: if the shell ever stops scrolling here, every
+  // assertion below would pass while observing nothing at all.
+  expect(scrolled).not.toBeNull()
+  expect(scrolled?.max).toBeGreaterThan(0)
+  expect(scrolled?.parked).toBe((scrolled?.max ?? 0) - 1)
+
+  await row.getByRole('button', { name: `Actions for ${LAST.cidr}` }).click()
+
+  // Positive control: the menu DID open at this geometry. Without it a menu that never opened
+  // would read the same as a menu that closed itself, and this spec would be about nothing.
+  const remove = page.getByRole('menuitem', { name: 'Remove' })
+  await expect(remove).toBeVisible()
+
+  // Spend the pixel. A real scroll event on the shell's container, which is what the browser's own
+  // scroll-into-view produced — capture-phase, because a scroll on an element does not bubble.
+  const moved = await page.evaluate(() => {
+    const main = document.querySelector('main')
+    if (main === null) {
+      return null
+    }
+    const before = main.scrollTop
+    main.scrollTop = before + 1
+    return { before, after: main.scrollTop }
+  })
+  // The second half of the guard: the provocation actually happened. A scroll that moved nothing
+  // cannot dismiss anything, and a spec that asserted survival after it would be decoration.
+  expect(moved?.after).toBe((moved?.before ?? 0) + 1)
+
+  // THE CLAIM: the menu the operator just opened is still open, and still does what it is for.
+  await expect(remove).toBeVisible()
+  await remove.click()
+  await expect(page.getByRole('dialog', { name: `Remove the exemption for ${LAST.cidr}` })).toBeVisible()
+})
+
+// A confirmation that sends the request on the way OUT is worse than no confirmation: the operator
+// answered "no" and the range lost its exemption anyway. The count is what says so — "the dialog
+// closed" is true of both outcomes.
+test('dismissing the exemption confirmation sends no request, and confirm is not the default answer', async ({
+  page,
+}) => {
+  const deletes: string[] = []
+  await openScreen(page, [SEEDED])
+  page.on('request', (request) => {
+    if (request.method() === 'DELETE' && request.url().includes('/api/v1/firewall/whitelist')) {
+      deletes.push(request.url())
+    }
+  })
+
+  const row = page.getByRole('row').filter({ hasText: SEEDED.cidr })
+  await row.getByRole('button', { name: `Actions for ${SEEDED.cidr}` }).click()
+  await page.getByRole('menuitem', { name: 'Remove' }).click()
+
+  const dialog = page.getByRole('dialog', { name: `Remove the exemption for ${SEEDED.cidr}` })
+  await expect(dialog).toBeVisible()
+
+  // Focus is inside the dialog, and NOT on the confirm button: a reflexive Enter on a dialog that
+  // appeared unexpectedly must not be the answer "yes".
+  const focus = await page.evaluate(() => {
+    const panel = document.querySelector('[role="dialog"]')
+    const active = document.activeElement
+    return {
+      inside: panel !== null && active !== null && panel.contains(active),
+      text: active?.textContent?.trim() ?? '',
+    }
+  })
+  expect(focus.inside).toBe(true)
+  expect(focus.text).not.toEqual('Yes, remove it')
+
+  await page.keyboard.press('Escape')
+  await expect(page.getByRole('dialog')).toHaveCount(0)
+  expect(deletes).toEqual([])
+
+  // And the exemption is still on the screen it was never removed from.
+  await expect(row).toBeVisible()
 })
