@@ -31,9 +31,15 @@ usage: maran <command> [arguments]
   check      toolchain preflight: is this machine able to build       (preflight.sh)
   structure  file and folder laws that no compiler can express        (check-structure.sh)
   proto      contract lint + the additive law; --accept records a change (proto-lint.sh)
+  api        SPA request bodies against the commands they bind; --accept records (api-contract.sh)
   format     every language, or one; --check verifies without writing  (format.sh)
   agent      the Rust toolchain: build|test|lint|fmt|check            (agent.sh)
+  test       whole-suite verdict: per-target totals vs a committed baseline (test-verdict.sh)
+  mutate     break a protection on purpose and score the named test      (mutate.sh)
+  lock       the tree write-lock: selftest proves it refuses AND proceeds (tree-lock-selftest.sh)
+  polygon    verify: score an already-executed polygon run from its logs (polygon-ci.sh)
   migrate    module migrations: add|apply|list|check|status|guard     (migrations.sh)
+  drift      is this database behind the migrations on disk; --apply fixes (schema-drift.sh)
   module     scaffold a new backend module                            (new-module.sh)
   handshake  agent and API over a real unix socket                    (e2e-handshake.sh)
   licenses   third-party notices; --check verifies without writing    (licenses.sh)
@@ -54,9 +60,15 @@ case "$command_name" in
   check)     exec bash "$root/scripts/lib/preflight.sh" "$@" ;;
   structure) exec bash "$root/scripts/lib/check-structure.sh" "$@" ;;
   proto)     exec bash "$root/scripts/lib/proto-lint.sh" "$@" ;;
+  api)       exec bash "$root/scripts/lib/api-contract.sh" "$@" ;;
   format)    exec bash "$root/scripts/lib/format.sh" "$@" ;;
   agent)     exec bash "$root/scripts/lib/agent.sh" "$@" ;;
+  test)      exec bash "$root/scripts/lib/test-verdict.sh" "$@" ;;
+  mutate)    exec bash "$root/scripts/lib/mutate.sh" "$@" ;;
+  lock)      exec bash "$root/scripts/lib/tree-lock-selftest.sh" "$@" ;;
+  polygon)   exec bash "$root/scripts/lib/polygon-ci.sh" "$@" ;;
   migrate)   exec bash "$root/scripts/lib/migrations.sh" "$@" ;;
+  drift)     exec bash "$root/scripts/lib/schema-drift.sh" "$@" ;;
   module)    exec bash "$root/scripts/lib/new-module.sh" "$@" ;;
   handshake) exec bash "$root/scripts/lib/e2e-handshake.sh" "$@" ;;
   licenses)  exec bash "$root/scripts/lib/licenses.sh" "$@" ;;

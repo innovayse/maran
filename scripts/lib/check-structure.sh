@@ -19,13 +19,24 @@ sources() {
 }
 
 # 1. One type per file. A file declares exactly one top-level type, and its name matches.
+#
+#    The modifier list is the whole check: a declaration whose modifiers it does not know is
+#    not "allowed", it is INVISIBLE, and an invisible declaration means the file's second type
+#    is never counted. The list used to be `sealed static abstract partial` only, so
+#    `public readonly record struct` — the shape Maran.Host/Security uses twice — was seen by
+#    neither half of this check. Measured: appending a second `public readonly record struct`
+#    to PanelPeerPolicy.cs left the whole gate at STRUCTURE-OK. `readonly`, `unsafe`, `ref`
+#    and the `file` accessibility are now known, and `record class`/`record struct` are read as
+#    the two-word keywords they are (rules/testing.md "a check must be able to observe what it
+#    reports on").
+type_declaration='^(public|internal|file)([[:space:]]+(sealed|static|abstract|partial|readonly|unsafe|ref))*[[:space:]]+(record[[:space:]]+)?(class|record|interface|enum|struct)[[:space:]]+[A-Za-z0-9_]+'
 while IFS= read -r file; do
-  count=$(grep -cE '^(public|internal)( sealed| static| abstract| partial)* (class|record|interface|enum|struct) ' "$file")
+  count=$(grep -cE "$type_declaration" "$file")
   if [ "$count" -gt 1 ]; then
     report "$file: declares $count top-level types — one type per file (rules/csharp.md)"
   fi
   if [ "$count" -eq 1 ]; then
-    declared=$(grep -oE '^(public|internal)( sealed| static| abstract| partial)* (class|record|interface|enum|struct) [A-Za-z0-9_]+' "$file" \
+    declared=$(grep -oE "$type_declaration" "$file" \
       | grep -oE '[A-Za-z0-9_]+$')
     expected=$(basename "$file" .cs)
     # `<Name>OfT.cs` is the sanctioned name for the generic half of a generic/non-generic
@@ -74,18 +85,35 @@ done < <(sources)
 
 # 5. Modules never reference each other (the architecture tests cover assemblies; this catches
 #    the source-level import before it ever compiles).
+#
+#    Matched anywhere in the file, not only after `using`. A `using` is the polite way to reach
+#    another module and it was the only way this check could see: `nameof(Maran.Modules.Sites.
+#    SitesModule)` written inline compiles, needs no directive, and passed the whole gate —
+#    measured. The file's OWN namespace names its owner and is skipped by the same comparison
+#    that skips a self-import, so the widening costs no false positive.
 while IFS= read -r file; do
   owner=$(echo "$file" | sed -E 's|backend/src/Maran.Modules/([^/]+)/.*|\1|')
   while IFS= read -r used; do
     [ "$used" = "$owner" ] && continue
-    report "$file: imports module '$used' — modules never reference each other (rules/architecture.md)"
-  done < <(grep -oE 'using Maran\.Modules\.[A-Za-z0-9_]+' "$file" | sed -E 's|using Maran\.Modules\.||' | sort -u)
+    report "$file: names module '$used' — modules never reference each other (rules/architecture.md)"
+  # Comments stripped first, and that is the inverse control this widening owed: on real code
+  # the widened pattern immediately reported Tasks/Jobs/TaskRetentionRequested.cs, whose only
+  # mention of another module is a doc comment naming Ssl's message as the parallel case. A
+  # prose reference is not a reference; only code is.
+  done < <(sed -E 's://.*$::' "$file" | grep -oE 'Maran\.Modules\.[A-Za-z0-9_]+' | sed -E 's|Maran\.Modules\.||' | sort -u)
 done < <(find backend/src/Maran.Modules -name '*.cs' -not -path '*/obj/*' -not -path '*/bin/*' 2>/dev/null)
 
 # 6. Junk-drawer names are never valid file names.
+#    The singular forms are on the list beside the plural ones, and `util`/`utilities` beside
+#    `utils`: the word list IS the check, so a word missing from it is a name the gate cannot
+#    see rather than a name it permits. `Util.cs` holding `public static class Util` satisfied
+#    check 1 (its name matches its type) and check 6 (the word was absent) at the same time —
+#    measured at STRUCTURE-OK. Kept in step with the Rust list in check 10, which had `util`
+#    when this one did not.
+junk_drawer_words='utils|util|utilities|helpers|helper|misc|common|shared|manager|managers|service|services|constants|stuff'
 while IFS= read -r file; do
   report "$file: junk-drawer name — every file states its single purpose (rules/architecture.md)"
-done < <(sources | grep -iE '/(utils|helpers|misc|common|shared|manager|service)\.cs$')
+done < <(sources | grep -iE "/($junk_drawer_words)\.cs\$")
 
 # 6b. The caller's address is spelled in exactly ONE place. SharedKernel/Utilities/Network/
 #     ClientAddress.cs owns the rendering; production code asks it. The duplicate this catches is
@@ -111,11 +139,38 @@ done < <(grep -rl 'RemoteIpAddress?\.ToString()' --include='*.cs' backend/src 2>
 #
 #     backend/src only, and the type's own file is exempt by construction: a constructor has to
 #     be called somewhere, and Sdk/Contracts/SystemAuditEntry.cs is where AuditEntry is declared.
+#
+#     Three spellings, because C# has three and the check used to know one. `new AuditEntry(` is
+#     the obvious one; `AuditEntry entry = new(…)` and `=> new(…)` from a member typed
+#     `AuditEntry` are the target-typed forms, which name the type nowhere near the `new` and so
+#     matched nothing. Measured: a file whose only content was
+#     `public static AuditEntry Build() { return new(null, …); }` passed the whole gate.
 while IFS= read -r file; do
   report "$file: builds an AuditEntry itself — write it through the module's <Module>AuditJournal (rules/csharp.md)"
-done < <(grep -rl 'new AuditEntry(' --include='*.cs' backend/src 2>/dev/null \
-  | grep -v '/obj/' | grep -v '/bin/' \
-  | grep -v 'AuditJournal\.cs$' | grep -v '/SystemAuditEntry\.cs$' | sort)
+done < <(find backend/src -name '*.cs' -not -path '*/obj/*' -not -path '*/bin/*' 2>/dev/null \
+  | grep -v 'AuditJournal\.cs$' | grep -v '/SystemAuditEntry\.cs$' | sort \
+  | while IFS= read -r file; do
+      python3 - "$file" <<'PYAUDIT'
+import re
+import sys
+
+try:
+    source = open(sys.argv[1], encoding="utf-8").read()
+except FileNotFoundError:
+    sys.exit(0)
+
+# `new AuditEntry(` — the explicit form, spacing and line breaks included.
+explicit = re.search(r"\bnew\s+AuditEntry\s*\(", source)
+# `AuditEntry x = new(` / `AuditEntry x = new (` — target-typed, on one line.
+assigned = re.search(r"\bAuditEntry\b[^;=\n]*=\s*new\s*\(", source)
+# A member whose declared return type is AuditEntry, in a file that target-types a `new`.
+returns = re.search(r"^\s*(?:(?:public|internal|private|protected|static|sealed|override|virtual)\s+)*AuditEntry\s+\w+\s*\(", source, re.M)
+target_typed_new = re.search(r"(?:=>|\breturn)\s*new\s*\(", source)
+
+if explicit or assigned or (returns and target_typed_new):
+    print(sys.argv[1])
+PYAUDIT
+    done)
 
 # 6d. A DI-registered type is a service, and services live in the module's Services/ — never
 #     anywhere under Common/. Common/ is the module's inert furniture: DTOs, value objects and pure
@@ -138,8 +193,19 @@ registered_types_in_common() {
     -not -path '*/obj/*' -not -path '*/bin/*' | sort | while IFS= read -r module_file; do
     module_dir="$(dirname "$module_file")"
     [ -d "$module_dir/Common" ] || continue
-    grep -oE 'services\.Add(Scoped|Singleton|Transient)<[^>]*>' "$module_file" \
-      | sed -E 's/.*<//; s/>$//' \
+    # Generic AND non-generic registrations. The generic form was the only one read, and the
+    # container has never required it: `services.AddSingleton(sp => new AuditEventDto())`
+    # registers the type just as firmly and names it after a `new` rather than inside angle
+    # brackets. Measured: that exact line, pointing at a type in Identity/Common/, passed the
+    # whole gate. `TryAdd*` and `AddHostedService` are registrations too and are read here for
+    # the same reason — a form this list does not hold is a form the check cannot see, not one
+    # the rule permits (rules/testing.md).
+    { grep -oE 'services\.(Try)?Add(Scoped|Singleton|Transient|HostedService)<[^>]*>' "$module_file" \
+        | sed -E 's/.*<//; s/>$//'
+      grep -E 'services\.(Try)?Add(Scoped|Singleton|Transient|HostedService)\(' "$module_file" \
+        | grep -oE '(new [A-Za-z0-9_]+|typeof\([A-Za-z0-9_]+\))' \
+        | sed -E 's/^new //; s/^typeof\(//; s/\)$//'
+    } \
       | tr ',' '\n' \
       | sed -E 's/^ *//; s/ *$//; s/<.*//' \
       | while IFS= read -r type_name; do
@@ -171,11 +237,161 @@ while IFS= read -r file; do
   report "$file: touches the HTTP surface — Common/ is inert furniture, HTTP behaviour belongs in Controllers/ (rules/csharp.md)"
 done < <(find backend/src/Maran.Modules -mindepth 3 -path '*/Common/*.cs' \
   -not -path '*/obj/*' -not -path '*/bin/*' | sort | while IFS= read -r file; do
+    #
+    #     The decisive line is the namespace, not the type list. A list of type names is a list of
+    #     the types somebody thought of: `IActionResult` and `IHttpContextAccessor` were not on it,
+    #     and `IHttpContextAccessor` could not have been caught by the `\bHttpContext\b` entry
+    #     either, because there is no word boundary after the `I`. Measured: a static class in
+    #     Identity/Common/ returning `IActionResult` and taking an `IHttpContextAccessor` passed
+    #     the whole gate. `using Microsoft.AspNetCore.` is the one observation that cannot be
+    #     spelt around — inert furniture references the web framework not at all — and the type
+    #     list stays beside it for a file reaching the surface through a global using.
     if sed -E 's://.*::g' "$file" \
-      | grep -qE '\b(HttpResponse|HttpRequest|HttpContext|CookieOptions|IHeaderDictionary|IResponseCookies|IRequestCookieCollection)\b'; then
+      | grep -qE 'using[[:space:]]+Microsoft\.AspNetCore\.|\b(HttpResponse|HttpRequest|HttpContext|IHttpContextAccessor|CookieOptions|IHeaderDictionary|IResponseCookies|IRequestCookieCollection|IActionResult|ActionResult|ControllerBase|StatusCodes)\b'; then
       printf '%s\n' "$file"
     fi
   done)
+
+# 6f. A module's Common/ holds `*Dto.cs` and nothing else. The map is unambiguous — "Common/:
+#     *Dto.cs ONLY — the wire shapes, data with no logic" (rules/csharp.md) — and the folder has
+#     still been corrected six rounds running, every round by a reviewer's eye. Checks 6d and 6e
+#     catch the two kinds of misfiling that carry a measurable symptom (a DI registration, a reach
+#     for the HTTP surface); this one needs neither, because the rule is about the NAME and the
+#     name is observable on its own. A carrier, a policy, a mapper or an interface parked here is
+#     rejected by the same line, whatever it does or does not do.
+#
+#     The subject is every file under the subtree, not just its top level, and not just `*.cs`: a
+#     folder documented as inert wire shapes holds no `.json`, no `.resx` and no `.sql` either, and
+#     scoping the check to `.cs` would have made "Common/ is DTOs" mean "the C# in Common/ is DTOs".
+#
+#     A vacuity guard sits on the axis that can go blind — the folder list. If no module has a
+#     Common/ at all, this check compared nothing, and that reads exactly like a clean run
+#     (rules/testing.md).
+common_dirs="$(find backend/src/Maran.Modules -maxdepth 2 -type d -name Common \
+  -not -path '*/obj/*' -not -path '*/bin/*' 2>/dev/null | sort)"
+if [ -z "$common_dirs" ]; then
+  report "backend/src/Maran.Modules: no module Common/ folder could be found — the 'Common/ is *Dto.cs only' check had nothing to look at (rules/testing.md)"
+fi
+while IFS= read -r file; do
+  [ -n "$file" ] || continue
+  report "$file: not a *Dto.cs — a module's Common/ holds the wire shapes and nothing else (rules/csharp.md)"
+done < <(printf '%s\n' "$common_dirs" | while IFS= read -r common_dir; do
+    [ -n "$common_dir" ] || continue
+    find "$common_dir" -type f ! -name '*Dto.cs' -not -path '*/obj/*' -not -path '*/bin/*'
+  done | sort)
+
+# 6g. No logic on a DTO (rules/csharp.md "Common/ holds *Dto.cs and nothing else, and a DTO carries
+#     no logic. No methods, no factories"). Check 6f polices the folder's file names; a file can
+#     satisfy it and still be a service wearing a Dto suffix, so this one reads inside the type.
+#
+#     Every `*Dto.cs` in backend/src is the subject, not only the ones under Common/: the rule is
+#     about the kind of type, and the agent-client DTOs are the same kind of type in a different
+#     project.
+#
+#     What it observes, after comments and string literals are stripped and the type's own header
+#     (including a positional record's parameter list) is skipped: an expression-bodied member
+#     (`=>`), a property with an accessor body (`get {`, `set {`, `init {`), and a method or
+#     constructor declaration — which is also how a static factory and a private constructor are
+#     seen, since both are declarations of that shape.
+#
+#     What it CANNOT see, stated rather than implied (rules/testing.md): logic in a `partial` half
+#     of the same DTO declared in another file; logic inside a type NESTED in the DTO, which it
+#     reads as part of the body and reports at the file rather than at the nested type; a default
+#     value in a primary-constructor parameter, which lives in the header it skips; and an
+#     extension method over the DTO written anywhere else, which is logic ABOUT the DTO but not ON
+#     it. It also cannot judge a type that does not end its file name in `Dto`.
+dto_files="$(find backend/src -name '*Dto.cs' -not -path '*/obj/*' -not -path '*/bin/*' 2>/dev/null | sort)"
+if [ -z "$dto_files" ]; then
+  report "backend/src: no *Dto.cs could be found — the 'no logic on a DTO' check read nothing (rules/testing.md)"
+fi
+while IFS="$(printf '\t')" read -r file finding; do
+  [ -n "$file" ] || continue
+  report "$file: $finding — a DTO is data; logic lives on the domain (rules/csharp.md)"
+done < <(printf '%s\n' "$dto_files" | while IFS= read -r file; do
+    [ -n "$file" ] || continue
+    python3 - "$file" <<'PYDTO'
+import re
+import sys
+
+try:
+    source = open(sys.argv[1], encoding="utf-8").read()
+except OSError:
+    sys.exit(0)
+
+# Strings first, then comments: a `//` inside a string is not a comment, and a `=>` inside
+# either is prose, not code. Raw, verbatim and ordinary literals all become empty.
+source = re.sub(r'"""(?:.|\n)*?"""', '""', source)
+source = re.sub(r'@"(?:[^"]|"")*"', '""', source)
+source = re.sub(r'"(?:\\.|[^"\\\n])*"', '""', source)
+source = re.sub(r"'(?:\\.|[^'\\\n])*'", "' '", source)
+source = re.sub(r"/\*(?:.|\n)*?\*/", " ", source)
+source = re.sub(r"//[^\n]*", "", source)
+
+declaration = re.search(
+    r"\b(record\s+class|record\s+struct|record|class|struct|interface)\s+[A-Za-z0-9_]+", source
+)
+if not declaration:
+    sys.exit(0)
+
+# Skip the header — a positional record's parameter list and any generic or base list — and
+# start reading at the opening brace of the body. A declaration ending in `;` has no body.
+index, depth, body = declaration.end(), 0, None
+while index < len(source):
+    character = source[index]
+    if character in "(<[":
+        depth += 1
+    elif character in ")>]":
+        depth -= 1
+    elif depth <= 0 and character == "{":
+        body = source[index + 1:]
+        break
+    elif depth <= 0 and character == ";":
+        break
+    index += 1
+
+if body is None:
+    sys.exit(0)
+
+findings = []
+if re.search(r"=>", body):
+    findings.append("expression-bodied member (=>)")
+if re.search(r"\b(get|set|init)\s*\{", body):
+    findings.append("property with an accessor body")
+member = re.search(
+    r"^[ \t]*(?:\[[^\]\n]*\][ \t]*)*"
+    r"(?:(?:public|internal|private|protected|static|sealed|override|virtual|abstract|extern|partial|async|new|readonly|unsafe)[ \t]+)+"
+    r"(?:[A-Za-z0-9_<>,\.\[\]\?]+[ \t]+)?[A-Za-z0-9_]+[ \t]*\(",
+    body,
+    re.M,
+)
+if member:
+    findings.append("method or constructor declaration: %s" % " ".join(member.group(0).split())[:60])
+
+if findings:
+    print("%s\t%s" % (sys.argv[1], "; ".join(findings)))
+PYDTO
+  done)
+
+# 6h. Common/, Models/ and Mappers/ are FLAT — no subfolders (rules/csharp.md, which says it of all
+#     three). The reason is not tidiness: a subfolder is where a file goes to stop being asked the
+#     questions that decide whether it belongs in the folder at all. Common/Interfaces/,
+#     Common/Options/ and Common/Validators/ existed for exactly that long, and check 6d's scope was
+#     narrowed around them until they were removed — the folder was quietly moving things IN while
+#     every review round moved something OUT.
+#
+#     Common/ is scanned here too rather than left to 6f: 6f rejects a non-DTO file wherever it
+#     sits, but an empty `Common/Options/`, or one holding only `*Dto.cs`, is a landing site nobody
+#     has used yet and is a violation before it is used.
+while IFS= read -r directory; do
+  [ -n "$directory" ] || continue
+  report "$directory: a subfolder of $(basename "$(dirname "$directory")")/ — Common/, Models/ and Mappers/ are flat (rules/csharp.md)"
+done < <(for folder in Common Models Mappers; do
+    find backend/src/Maran.Modules -maxdepth 2 -type d -name "$folder" \
+      -not -path '*/obj/*' -not -path '*/bin/*' 2>/dev/null \
+      | while IFS= read -r parent; do
+          find "$parent" -mindepth 1 -type d -not -path '*/obj/*' -not -path '*/bin/*'
+        done
+  done | sort)
 
 # 7. Rust obeys the same law as C#: exactly one public unit per file, and a crate root or
 #    mod.rs declares modules rather than defining anything (rules/rust.md). Until this check
@@ -210,8 +426,14 @@ done < <(find agent/crates -name '*.rs' -not -path '*/target/*' 2>/dev/null | so
 # 8. Tests live in their own file, never inline in the unit they test (rules/rust.md).
 #    `#[cfg(test)] #[path = "<unit>_tests.rs"] mod tests;` keeps the one-unit-per-file rule
 #    while still reaching private items, which a tests/ integration test cannot see.
+#
+#    The pattern matched the literal `mod tests {`, one space and that name exactly, so the rule
+#    it enforced was "do not call it `tests`" rather than "do not inline it". Measured:
+#    `mod tests{` — same module, brace closed up — passed the whole gate, and so would
+#    `pub mod unit_tests {`. Any module whose name contains `test` is now the subject, and the
+#    whitespace between the name and the brace is optional.
 while IFS= read -r file; do
-  if grep -qE '^\s*mod tests \{' "$file"; then
+  if grep -qE '^[[:space:]]*(pub[[:space:]]+)?mod[[:space:]]+[A-Za-z0-9_]*test[A-Za-z0-9_]*[[:space:]]*\{' "$file"; then
     report "$file: inline test module — move it to $(basename "${file%.rs}")_tests.rs (rules/rust.md)"
   fi
 done < <(find agent/crates -name '*.rs' -not -path '*/target/*' 2>/dev/null | sort)
@@ -486,18 +708,110 @@ while IFS= read -r line; do
   [ -n "$line" ] && report "$line"
 done <<< "$locale_report"
 
-# 7. Every polygon suite is named in docker/README.md's run commands. The commands pass an explicit
+# 19. Every polygon suite is named in docker/README.md's run commands. The commands pass an explicit
 #    --test list rather than running everything ignored, so a suite absent from the file is a suite
 #    nobody runs — and that is not hypothetical: the file listed six of ten for the whole of plan 5,
 #    omitting exactly the four newest (cron, firewall, monitor, binary_paths), while everyone
 #    following it believed they had run the polygon.
-for suite_file in agent/crates/*/tests/*_on_a_real_host.rs; do
+#
+#    A polygon suite is identified by what it CONTAINS, not by what it is called. The glob was
+#    `*_on_a_real_host.rs`, which made the check's subject the naming convention rather than the
+#    suite: a file named `quota_polygon.rs` holding `#[ignore]`-gated host tests was not merely
+#    unlisted, it was unseen. Measured — that file, absent from docker/README.md, passed the
+#    whole gate. `#[ignore]` is the marker that actually separates the two kinds of integration
+#    test here: every one of the eleven polygon suites carries it and neither `handshake.rs` nor
+#    `golden_test.rs` does.
+#
+#    The inverse runs too, because a refusing gate owes an accepted case and this one owes a
+#    second direction: a `--test` naming no suite is a command that errors out for everyone who
+#    copies it, and it appears the moment a suite is renamed.
+polygon_suites=""
+while IFS= read -r suite_file; do
   [ -e "$suite_file" ] || continue
+  grep -q '#\[ignore' "$suite_file" || continue
   suite="$(basename "$suite_file" .rs)"
+  polygon_suites="$polygon_suites $suite"
   if ! grep -q -- "--test $suite" docker/README.md 2>/dev/null; then
     report "docker/README.md: does not name the polygon suite '$suite' in a run command — a suite absent from that list is a suite nobody runs"
   fi
-done
+done < <(find agent/crates/*/tests -maxdepth 1 -name '*.rs' 2>/dev/null | sort)
+
+if [ -z "$polygon_suites" ] && [ -d agent/crates/agent/tests ]; then
+  report "agent/crates/*/tests: no polygon suite could be identified — this check had nothing to compare docker/README.md against (rules/testing.md)"
+fi
+
+while IFS= read -r named; do
+  [ -n "$named" ] || continue
+  case " $polygon_suites " in
+    *" $named "*) ;;
+    *) report "docker/README.md: names '--test $named', which is no suite in agent/crates/*/tests — the command it appears in cannot run" ;;
+  esac
+done < <(grep -oE -- '--test [A-Za-z0-9_]+' docker/README.md 2>/dev/null | sed 's/^--test //' | sort -u)
+
+# 20. The agent's systemd hardening and its own idea of what it writes do not drift apart.
+#     ReadWritePaths= in installer/systemd/maran-agent.service is a second, independent
+#     description of every location AgentPaths (agent/crates/agent-core/src/agent_paths.rs)
+#     names as a writable root outside /etc — /etc is not restricted by this unit's
+#     ProtectSystem=true regardless of what is listed, so an /etc-rooted constant is not
+#     checked here. A constant the unit's writable set does not cover is exactly the class
+#     of drift that let the unit go on naming /var/lib/maran as the backup destination
+#     while every backup.CreateBackup wrote to /var/backups/maran instead: nothing compiles,
+#     lints or runs this file, so only a check like this one would have caught it before a
+#     real host did.
+#
+#     The extraction is deliberately NOT filtered to a list of known prefixes. It used to
+#     select only constants under /var, /run or /home, which meant a writable root added
+#     under /opt or /srv was invisible to the very check that exists to notice a new
+#     writable root — a check blind to the thing it polices (rules/testing.md). Every
+#     absolute-path constant is now considered and only /etc is excluded, by the reason
+#     stated above rather than by an accident of which prefixes someone thought of.
+unit_file="installer/systemd/maran-agent.service"
+paths_file="agent/crates/agent-core/src/agent_paths.rs"
+if [ -f "$unit_file" ] && [ -f "$paths_file" ]; then
+  unit_line="$(grep '^ReadWritePaths=' "$unit_file" | head -1 | sed 's/^ReadWritePaths=//')"
+  if [ -z "$unit_line" ]; then
+    report "$unit_file: no ReadWritePaths= line — this check cannot observe the unit's writable set (rules/testing.md)"
+  fi
+  # Extracted in Python so a declaration wrapped across lines is still seen: the shell
+  # regex this replaced matched `pub const NAME: &'static str = "…"` on ONE line only, so
+  # a rustfmt line break would have retired the constant from the check silently.
+  writable_roots="$(python3 - "$paths_file" <<'PYPATHS'
+import re
+import sys
+
+source = open(sys.argv[1], encoding="utf-8").read()
+# `pub const NAME: &'static str = "value";` with any whitespace, newlines included.
+pattern = re.compile(
+    r"pub\s+const\s+[A-Z0-9_]+\s*:\s*&'static\s+str\s*=\s*\"([^\"]*)\"", re.S
+)
+for value in pattern.findall(source):
+    if not value.startswith("/"):
+        continue
+    if value == "/etc" or value.startswith("/etc/"):
+        continue
+    print(value)
+PYPATHS
+)"
+  # A vacuity guard on the axis that can actually go blind: the extraction. An empty
+  # result reads exactly like a clean run, so it is reported as the failure to observe
+  # that it is (rules/testing.md "a vacuity guard must be on the axis that can go blind").
+  if [ -z "$writable_roots" ]; then
+    report "$paths_file: no absolute-path constants could be read — the ReadWritePaths= comparison had nothing to compare (rules/testing.md)"
+  fi
+  while IFS= read -r writable_root; do
+    [ -n "$writable_root" ] || continue
+    covered=0
+    for entry in $unit_line; do
+      stripped="${entry#-}"
+      case "$writable_root" in
+        "$stripped"|"$stripped"/*) covered=1 ;;
+      esac
+    done
+    if [ "$covered" -eq 0 ]; then
+      report "$unit_file: ReadWritePaths= does not cover '$writable_root' ($paths_file) — a path the agent writes outside /etc must appear in the unit's writable set (rules/architecture.md)"
+    fi
+  done <<< "$writable_roots"
+fi
 
 if [ "$violations" -gt 0 ]; then
   echo

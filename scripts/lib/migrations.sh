@@ -78,13 +78,52 @@ if [ "${1:-}" = "guard" ]; then
     done
   fi
 
+  # THE FILE SET, and why it is a union of three questions rather than one diff.
+  #
+  # A migration is in scope when it is not yet part of the base the previous release was cut from —
+  # that is, when this branch adds it OR the working tree has it and no commit does. Committed
+  # history before the base is deliberately OUT of scope: it has already shipped, its shape is what
+  # the previous release reads, and re-litigating it would make the gate fail on files nobody can
+  # change without rewriting a release. So the set is:
+  #
+  #   1. `diff --name-only <merge-base>` — every migration this branch adds or edits. What CI wants.
+  #   2. `diff --name-only HEAD`         — working-tree edits to a file the branch did not add.
+  #   3. `ls-files --others`             — UNTRACKED files.
+  #
+  # (3) is the whole reason this block was rewritten. `git diff` in every form reports only paths
+  # git already knows, and `dotnet ef migrations add` writes a NEW file — so a freshly generated
+  # migration is invisible to the gate for exactly as long as it is most likely to be wrong, which
+  # is before anybody has committed it. Measured: with two untracked migrations in the tree, one of
+  # them deleting rows, this command printed MIGRATIONS-ADDITIVE having read neither.
+  #
+  # Behaviour of this set:
+  #   fresh clone  — (2) and (3) are empty; the verdict is over what the branch adds vs the base.
+  #                  On the base branch itself the set is empty and the command says so (see the
+  #                  NONE-TO-CHECK verdict below) rather than claiming additivity over nothing.
+  #   dirty tree   — the developer's just-generated, still-untracked migration is read, which is
+  #                  the case the gate exists for and the one it used to miss.
+  #   CI           — the PR checkout has origin/main, so (1) supplies the branch's migrations and
+  #                  (3) is empty; a runner that fetched no base ref degrades to (2)+(3), which is
+  #                  narrower but never silently wider, and prints the warning below.
+  #
+  # Cost is bounded by the change set, not by history: a clean tree on the base branch reads zero
+  # files, and the largest run so far reads two dozen. Duplicates across the three sources are
+  # removed by `sort -u` so a file is never reported twice.
   if [ -n "$base" ] && git -C "$root" merge-base HEAD "$base" >/dev/null 2>&1; then
     range="$(git -C "$root" merge-base HEAD "$base")"
-    changed="$(git -C "$root" diff --name-only "$range" -- '*/Persistence/Migrations/*.cs')"
+    committed="$(git -C "$root" diff --name-only "$range" -- '*/Persistence/Migrations/*.cs')"
   else
-    echo "migrate guard: no base ref found, checking uncommitted changes only" >&2
-    changed="$(git -C "$root" diff --name-only HEAD -- '*/Persistence/Migrations/*.cs')"
+    echo "migrate guard: no base ref found, checking the working tree only" >&2
+    committed=""
   fi
+
+  changed="$(
+    {
+      printf '%s\n' "$committed"
+      git -C "$root" diff --name-only HEAD -- '*/Persistence/Migrations/*.cs'
+      git -C "$root" ls-files --others --exclude-standard -- '*/Persistence/Migrations/*.cs'
+    } | sed '/^$/d' | sort -u
+  )"
 
   # The diff supplies the FILE LIST and nothing else; the check itself reads each file. That split
   # is not fussiness — it is the only way to tell `Up` from `Down`. Every `Down` drops what its own
@@ -92,11 +131,15 @@ if [ "${1:-}" = "guard" ]; then
   # check whose output is mostly noise is a check people learn to skip. Only `Up` runs on a
   # customer's database going forward, so only `Up` is read here.
   offences=""
+  offending_files=0
+  offending_statements=0
+  read_count=0
   for file in $changed; do
     case "$file" in
       *.Designer.cs|*ModelSnapshot.cs) continue ;;
     esac
     [ -r "$root/$file" ] || continue
+    read_count=$((read_count + 1))
 
     found="$(awk '
       # Remember the indentation of the Up signature: the method ends at a closing brace in that
@@ -108,24 +151,65 @@ if [ "${1:-}" = "guard" ]; then
         inside = 1
         next
       }
-      inside && $0 == closing { inside = 0; next }
+      inside && $0 == closing { inside = 0; sql = 0; next }
       inside && /migrationBuilder\.(DropColumn|DropTable|RenameColumn|RenameTable|AlterColumn)/ {
         line = $0
         sub(/^[[:space:]]*/, "", line)
         print "    " line
+      }
+
+      # RAW SQL NEEDS A LATCH, NOT A PATTERN. `migrationBuilder.Sql(` is matched by the typed
+      # builder rule above on no line at all, and a regex looking for a destructive verb ON the
+      # `Sql(` line finds nothing either: every raw statement in this repository is a `"""` block,
+      # so the call opens on one line and the verb arrives two lines later. Measured on
+      # Identity/20260906134907_PasswordResetTokenUserForeignKey.cs, whose `DELETE FROM` sits on
+      # line 21 while the call is on line 19. So the latch opens at the call and stays open until
+      # the closing `);` of the statement, and every line in between is read.
+      inside && /migrationBuilder\.Sql\(/ { sql = 1 }
+
+      # WHAT COUNTS AS DESTRUCTIVE IN RAW SQL. The verb, never the fact of a raw call. A raw
+      # `Sql(` is a normal and correct thing for a backfill to be —
+      # Sites/20260901102440_SiteHostnameClaims.cs is an `INSERT … ON CONFLICT DO NOTHING` over
+      # existing rows, it is committed, it is right, and a rule that refused raw SQL as such would
+      # refuse it. What the previous release cannot survive is a statement that REMOVES what it
+      # reads, so the match is on removal: DELETE, TRUNCATE, DROP, and an in-place ALTER COLUMN.
+      #
+      # KNOWN BLIND SPOT, stated here and in the verdict: an `UPDATE … SET` that rewrites rows in
+      # place is NOT matched. It is excluded because `ON CONFLICT DO UPDATE SET` — the ordinary
+      # shape of an idempotent backfill — would otherwise be refused on every upsert, and a gate
+      # that cries on the common correct case is a gate people route around. A migration that
+      # rewrites data in place still owes a `contract-phase:` line; that one is on the reviewer.
+      sql {
+        upper = toupper($0)
+        if (upper ~ /DELETE[[:space:]]+FROM/ ||
+            upper ~ /(^|[^A-Z_])TRUNCATE([^A-Z_]|$)/ ||
+            upper ~ /(^|[^A-Z_])DROP[[:space:]]+(TABLE|COLUMN|CONSTRAINT|INDEX|SCHEMA|VIEW|TYPE|SEQUENCE)/ ||
+            upper ~ /ALTER[[:space:]]+COLUMN/) {
+          line = $0
+          sub(/^[[:space:]]*/, "", line)
+          print "    raw SQL: " line
+        }
+        if ($0 ~ /\);[[:space:]]*$/) { sql = 0 }
       }
     ' "$root/$file")"
 
     [ -z "$found" ] && continue
     grep -q "contract-phase:" "$root/$file" && continue
 
+    offending_files=$((offending_files + 1))
+    offending_statements=$((offending_statements + $(printf '%s\n' "$found" | wc -l)))
     offences="$offences$file
 $found
 "
   done
 
+  # A COUNT, NOT AN EXIT CODE. Every verdict below names what was read and how much of it, because
+  # the failure this command has already produced once is a green printed over zero examined files —
+  # and an exit code cannot tell that apart from a green over two dozen. Every offending file is
+  # collected and every offending statement inside it is printed: the loop does not stop at the
+  # first finding, so one run tells a developer everything they have to fix.
   if [ -n "$offences" ]; then
-    echo "MIGRATIONS-DESTRUCTIVE — these migrations remove or rewrite what the previous release reads:" >&2
+    echo "MIGRATIONS-DESTRUCTIVE — $offending_statements statement(s) in $offending_files of $read_count migration(s) read remove or rewrite what the previous release reads:" >&2
     printf '%s' "$offences" >&2
     echo >&2
     echo "Expand now, contract later: add the new shape, leave the old one in place, and delete it in a" >&2
@@ -135,7 +219,18 @@ $found
     exit 1
   fi
 
-  echo "MIGRATIONS-ADDITIVE"
+  # A verdict is never claimed over nothing. Zero migrations read is an honest NONE-TO-CHECK — the
+  # ordinary state of the base branch and of any branch that touches no schema — and it is said in
+  # those words so that it can never be read, in a log or a report, as "additive".
+  if [ "$read_count" -eq 0 ]; then
+    echo "MIGRATIONS-NONE-TO-CHECK — 0 migrations in the change set; no additivity claim is made."
+    exit 0
+  fi
+
+  echo "MIGRATIONS-ADDITIVE — $read_count migration(s) read, 0 destructive statements."
+  echo "    Scanned Up() for DropColumn/DropTable/RenameColumn/RenameTable/AlterColumn and, inside"
+  echo "    migrationBuilder.Sql(...), for DELETE/TRUNCATE/DROP/ALTER COLUMN. UNOBSERVED HERE: an"
+  echo "    UPDATE ... SET that rewrites rows in place."
   exit 0
 fi
 
@@ -155,6 +250,28 @@ fi
 # Runs the pinned tool. `dotnet ef` would find whatever is installed globally instead.
 ef() {
   (cd "$root/backend" && dotnet tool run dotnet-ef "$@")
+}
+
+# strip_bom: removes the UTF-8 byte order mark from every .cs file in a directory that carries one.
+#
+# It rewrites only files that actually begin with EF BB BF, and it reports each one by name, so a
+# run that changed nothing says nothing and a run that changed something is not silent about it.
+strip_bom() {
+  local directory="$1"
+  [ -d "$directory" ] || return 0
+  python3 - "$directory" <<'PYBOM'
+"""Strips a leading UTF-8 BOM from every .cs file under a directory, naming the files it rewrote."""
+import pathlib
+import sys
+
+BOM = b"\xef\xbb\xbf"
+for path in sorted(pathlib.Path(sys.argv[1]).rglob("*.cs")):
+    data = path.read_bytes()
+    if not data.startswith(BOM):
+        continue
+    path.write_bytes(data[len(BOM):])
+    print(f"stripped the UTF-8 BOM written by the generator: {path}")
+PYBOM
 }
 
 usage() {
@@ -292,6 +409,13 @@ case "$command_name" in
     [ -z "$name" ] && usage
     ef migrations add "$name" \
       --project "$project" --context "$context" --output-dir Persistence/Migrations
+    # `dotnet ef` writes every file it generates with a UTF-8 BOM, and .editorconfig says
+    # `charset = utf-8` for this repository, so `maran format --check` reports `error CHARSET` on
+    # each one. Two of the three files here — the `.Designer.cs` and the model snapshot — are files
+    # nobody opens, so the byte order mark was being stripped by hand, one migration at a time, and
+    # whichever migration its author forgot broke the format gate for everybody. The generator is
+    # where it comes from, so the generator is where it goes.
+    strip_bom "$root/backend/src/Maran.Modules/$module/Persistence/Migrations"
     ;;
   apply)
     # The design-time factory's connection string is not the one used here: `--startup-project`

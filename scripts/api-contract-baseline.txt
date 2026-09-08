@@ -1,0 +1,186 @@
+# The panel's HTTP request contract, rendered by `maran api` from the two trees it joins.
+#
+# Left: the verb and path a controller action serves. Right: the CQRS command it binds with
+# [FromBody]. Below each: the members a JSON body may carry, in their wire spelling, as agreed
+# by the command record AND the TypeScript type the SPA passes at the call site.
+#
+# WHAT THIS CANNOT SEE: query-string and route binding. A [FromQuery] parameter and a route id
+# never reach System.Text.Json, so nothing below describes them; the calls that use them are
+# listed under "not covered" and their parameters are checked by nobody. Response bodies are
+# also out of scope — this is the REQUEST contract only. Endpoints with no SPA caller cannot be
+# joined and are listed too.
+#
+# Regenerate with `maran api --accept`, in its own reviewed commit.
+
+covered: 27 endpoints, 85 members
+
+POST /api/v1/accounts  ->  CreateAccountCommand
+  name: string
+  primaryDomain: string
+  planId: string
+POST /api/v1/auth/forgot-password  ->  RequestPasswordResetCommand
+  email: string
+POST /api/v1/auth/login  ->  LoginCommand
+  username: string
+  password: string
+POST /api/v1/auth/reset-password  ->  ResetPasswordCommand
+  token: string
+  newPassword: string
+POST /api/v1/auth/two-factor  ->  VerifyTwoFactorCommand
+  username: string
+  password: string
+  code: string
+POST /api/v1/auth/two-factor/confirm  ->  ConfirmTotpEnrolmentCommand
+  secret: string
+  code: string
+POST /api/v1/auth/two-factor/disable  ->  DisableTotpCommand
+  code: string
+PUT /api/v1/backup-schedules  ->  SaveBackupScheduleCommand
+  accountId: string?
+  destinationId: string?
+  frequency: enum(daily|weekly)
+  hourUtc: number
+  dayOfWeekUtc: enum(friday|monday|saturday|sunday|thursday|tuesday|wednesday)?
+  retainCount: number
+  enabled: boolean
+POST /api/v1/backups  ->  CreateBackupCommand
+  accountId: string
+POST /api/v1/backups/{}/restore  ->  RestoreBackupCommand
+  confirmAccountUsername: string
+POST /api/v1/certificates  ->  IssueCertificateCommand
+  domain: string
+POST /api/v1/certificates/custom  ->  InstallCustomCertificateCommand
+  domain: string
+  certificatePem: string
+  privateKeyPem: string
+POST /api/v1/cron-entries  ->  CreateCronEntryCommand
+  accountId: string
+  schedule: object
+  schedule.minute: string
+  schedule.hour: string
+  schedule.dayOfMonth: string
+  schedule.month: string
+  schedule.dayOfWeek: string
+  command: string
+PUT /api/v1/cron-entries/{}  ->  UpdateCronEntryCommand
+  accountId: string
+  schedule: object
+  schedule.minute: string
+  schedule.hour: string
+  schedule.dayOfMonth: string
+  schedule.month: string
+  schedule.dayOfWeek: string
+  command: string
+POST /api/v1/cron-entries/{}/enabled  ->  SetCronEntryEnabledCommand
+  accountId: string
+  enabled: boolean
+PUT /api/v1/cron-environment  ->  SetCronEnvironmentCommand
+  accountId: string
+  variables: object[]
+  variables[].name: string
+  variables[].value: string
+POST /api/v1/databases  ->  CreateDatabaseCommand
+  accountId: string
+  name: string
+  dbUserName: string
+POST /api/v1/firewall/bans  ->  BanAddressCommand
+  address: string
+  durationMinutes: number?
+POST /api/v1/firewall/rules  ->  AllowPortCommand
+  port: number
+  protocol: enum(tcp|udp)
+  sourceCidr: string
+POST /api/v1/firewall/whitelist  ->  AddWhitelistEntryCommand
+  cidr: string
+  note: string
+PUT /api/v1/notifications/smtp  ->  SaveSmtpSettingsCommand
+  host: string
+  port: number
+  security: enum(implicitTls|none|startTls)
+  username: string
+  password: string?
+  fromAddress: string
+  fromName: string
+  alertRecipient: string
+POST /api/v1/notifications/smtp/test  ->  SendTestMailCommand
+  recipient: string
+PUT /api/v1/security-policy  ->  SaveSecurityPolicyCommand
+  minimumPasswordLength: number
+  forceTwoFactorForAdmins: boolean
+  maxFailedLoginAttempts: number
+  lockoutMinutes: number
+POST /api/v1/setup  ->  CompleteSetupCommand
+  token: string
+  username: string
+  email: string
+  password: string
+POST /api/v1/sftp-users  ->  CreateSftpUserCommand
+  accountId: string
+  name: string
+POST /api/v1/sites  ->  CreateSiteCommand
+  accountId: string
+  domain: string
+  backendType: enum(php|reverseProxy|static)
+  aliases: string[]
+  phpVersion: string
+  proxyUpstream: string
+POST /api/v1/sites/{}/php-version  ->  ChangeSitePhpVersionCommand
+  phpVersion: string
+
+# not covered — no JSON body crosses here, so this check says nothing about it
+  DELETE /api/v1/accounts/{} — route-only call, no JSON body
+  DELETE /api/v1/backups/{} — route-only call, no JSON body
+  DELETE /api/v1/certificates/{} — route-only call, no JSON body
+  DELETE /api/v1/cron-entries/{} — query-string call, no JSON body
+  DELETE /api/v1/databases/{} — route-only call, no JSON body
+  DELETE /api/v1/firewall/bans — query-string call, no JSON body
+  DELETE /api/v1/firewall/rules — query-string call, no JSON body
+  DELETE /api/v1/firewall/whitelist/{} — route-only call, no JSON body
+  DELETE /api/v1/sessions/{} — route-only call, no JSON body
+  DELETE /api/v1/sftp-users/{} — route-only call, no JSON body
+  DELETE /api/v1/sites/{} — route-only call, no JSON body
+  POST /api/v1/accounts/{}/reactivate — route-only call, no JSON body
+  POST /api/v1/accounts/{}/suspend — route-only call, no JSON body
+  POST /api/v1/auth/logout — route-only call, no JSON body
+  POST /api/v1/auth/logout-all — route-only call, no JSON body
+  POST /api/v1/auth/refresh — route-only call, no JSON body
+  POST /api/v1/auth/two-factor/enrol — route-only call, no JSON body
+  POST /api/v1/databases/{}/password — route-only call, no JSON body
+  POST /api/v1/sftp-users/{}/password — route-only call, no JSON body
+  POST /api/v1/sites/{}/disable — route-only call, no JSON body
+  POST /api/v1/sites/{}/enable — route-only call, no JSON body
+  GET /api/v1/accounts
+  GET /api/v1/accounts/plans
+  GET /api/v1/accounts/{}
+  GET /api/v1/audit
+  GET /api/v1/backup-destinations
+  GET /api/v1/backup-schedules
+  GET /api/v1/backups
+  GET /api/v1/backups/{}
+  GET /api/v1/certificates
+  GET /api/v1/cron-entries
+  GET /api/v1/cron-entries/{}/output
+  GET /api/v1/cron-environment
+  GET /api/v1/databases
+  GET /api/v1/databases/{}
+  GET /api/v1/firewall/bans
+  GET /api/v1/firewall/rules
+  GET /api/v1/firewall/whitelist
+  GET /api/v1/monitoring/accounts-disk
+  GET /api/v1/monitoring/chart
+  GET /api/v1/monitoring/metrics
+  GET /api/v1/monitoring/services
+  GET /api/v1/notifications/smtp
+  GET /api/v1/security-policy
+  GET /api/v1/sessions
+  GET /api/v1/setup/state
+  GET /api/v1/sftp-users
+  GET /api/v1/sftp-users/{}
+  GET /api/v1/sites
+  GET /api/v1/sites/php-versions
+  GET /api/v1/sites/{}
+  GET /api/v1/sites/{}/logs
+  GET /api/v1/tasks
+  GET /api/v1/tasks/{}
+  GET /api/v1/tasks/{}/stream
+  POST /api/v1/backup-destinations (binds SaveBackupDestinationCommand, no SPA caller)
