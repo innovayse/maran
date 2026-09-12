@@ -54,7 +54,7 @@ feature branch  →  dev  →  main
 
 ## Before you open a pull request
 
-Run the gates. All of them are fast except the integration tests, and CI runs the same ones,
+Run the gates. All of them are fast except the integration tests, and CI runs these,
 so finding out here is cheaper:
 
 ```bash
@@ -62,12 +62,26 @@ maran check                                   # is this machine able to build at
 maran structure                               # file and folder laws no compiler can express
 maran format --check                          # formatting and naming
 maran proto                                   # the API-to-agent contract
+maran api                                     # SPA request bodies against the commands they bind
 maran migrate check                           # a model edited without a migration
+maran migrate guard                           # a migration that destroys what the last release reads
+maran lock selftest                           # the tree write-lock refuses AND proceeds
 maran licenses --check                        # third-party notices match the dependencies
 cd backend  && dotnet test
 cd frontend && npm run lint && npm run typecheck && npm run build && npx playwright test
 maran agent check                             # fmt, clippy -D warnings, cargo test, cargo doc
 maran handshake                               # agent and API over a real unix socket
+```
+
+This list used to say "CI runs the same ones" while being four short of it — `maran api`,
+`maran migrate guard` and `maran lock selftest` were missing, so a contributor could pass every
+gate here and still fail CI on a gate they had no way to know about. It is still not identical in
+both directions: CI also scores the suites against a committed baseline (`maran test rust`,
+`maran test backend`, `maran test spa`) and runs the container polygons, neither of which is asked
+of a contributor. What CI actually invokes, which is what settles this list:
+
+```bash
+grep -rn 'run:.*scripts/maran' .github/workflows/
 ```
 
 A toolchain error is a failure to verify, never a pass. "No tests found" is a failure too.

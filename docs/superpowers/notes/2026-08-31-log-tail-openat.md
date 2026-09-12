@@ -291,3 +291,26 @@ of a file owned by *another real account* (the tests use a synthetic uid and rea
 same branch, which is close but not identical), and anything requiring a real
 `getpwnam_r` entry — `AccountIds::resolve` is exercised only through its own failure
 path here. Those belong on a root polygon.
+
+---
+
+## Correction, 2026-09-09 — this note's premises are SUPERSEDED
+
+Added by a verification pass over every threat note on `fix/live-findings`
+(`.superpowers/sdd/threat-note-verification.md`). The reasoning below about `openat`,
+`O_NOFOLLOW`, `nlink` and the pinned directory descriptor is still exactly the code. **Three of
+its premises are not**, and they are corrected here rather than left to read as verified:
+
+- Site logs are no longer at `~/logs/<domain>.access.log`. They are at
+  `/var/log/maran/sites/<account>/<domain>.{access,error}.log`
+  (`AgentPaths::SITE_LOG_ROOT`), outside every home.
+- `tail_site_log` no longer calls `resolve_in_home(account, "logs")`. The containment is now the
+  ancestor chain, which no unprivileged uid can write to or traverse.
+- The uid the directory and the file are checked against is **root**, not the account:
+  `ops/src/sites/follow_log.rs` `const LOG_OWNER_UID: u32 = 0`.
+
+Why they moved: the nginx **master** runs as root and opened those names without `O_NOFOLLOW`, so
+a customer who owned the directory turned one `ln -s` into root code execution. That is argued,
+proved and fixed in `docs/superpowers/notes/2026-09-09-site-logs-threat-note.md`, which a reader
+of this file should read next. The checks this note argues for are now defence in depth rather
+than the primary containment, and that is said plainly in the newer note.

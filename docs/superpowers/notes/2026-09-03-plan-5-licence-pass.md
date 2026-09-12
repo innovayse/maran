@@ -396,3 +396,18 @@ both `agent/Cargo.lock` and `backend/Directory.Packages.props`) and passes (`NOT
 in the working tree per instruction. **This is a checkpoint, not a final clearance** — other agents
 are actively landing code on this branch, so `maran licenses` must be re-run immediately before
 push to catch any further drift this pass could not see.
+
+---
+
+## Correction, 2026-09-09 — the `MailKit` section's file paths, and the gate today
+
+Added by a verification pass (`.superpowers/sdd/threat-note-verification.md`). The `MailKit`
+section cites `backend/src/Maran.Modules/Monitoring/Services/SmtpMailer.cs` and
+`Monitoring/Maran.Modules.Monitoring.csproj`. Outgoing mail is now its own module: the file is
+`backend/src/Maran.Modules/Notifications/Services/SmtpMailer.cs` and the package reference lives
+in that module's `.csproj`. The licensing analysis is unaffected — the same package, the same
+terms.
+
+The note's closing condition (regenerate `THIRD-PARTY-NOTICES.md` before push) was checked on
+2026-09-09: **`maran licenses --check` answers `NOTICES-OK`** against the current working tree.
+It must be re-run immediately before push, for the reason this note already gives.

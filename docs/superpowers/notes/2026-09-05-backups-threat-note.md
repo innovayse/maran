@@ -512,3 +512,35 @@ ignored across 24 targets** against the 1374 baseline.
 4. The dump write was modelled as an `O_CREAT` open at mode `0666` — what `--result-file` does. If a
    real client opens more tightly, every row above is unchanged: the "before" rows depend on the
    attacker having made the file, and the "after" rows on the write never reaching it.
+
+---
+
+## Correction, 2026-09-09 — the scratch root moved and `ExecStartPre` is gone
+
+Added by a verification pass (`.superpowers/sdd/threat-note-verification.md`). Two facts this note
+reasons from are no longer true:
+
+- The bulk scratch is **`/var/lib/maran-scratch`** (`root:root 0700`, installed and asserted by
+  `installer/lib/40-user.sh`), not `/var/lib/maran/scratch`. This note proposed that move itself;
+  it has since happened.
+- `maran-agent.service` carries **no `ExecStartPre=`** any more. The blanket
+  `rm -rf` destroyed the per-database rollback dumps — the only copy of the pre-restore state — on
+  the very restart an operator performs to recover. The agent now reaps that tree itself before it
+  binds its socket, keeping `rollback/` sets (capped, newest first) and removing the reproducible
+  remainder. See
+  `docs/superpowers/notes/2026-09-09-restore-interruption-recovery-threat-note.md`.
+
+The `UNPROVEN:` line about whether `ExecStartPre` really runs on a booted host is therefore moot:
+there is nothing left to run.
+
+## Correction, 2026-09-11 — the service account and group are `maran`, not `panel`
+
+Added by the reviewer-packet pass (`docs/superpowers/notes/2026-09-11-reviewer-packet.md`). Every
+`panel:panel`, `root:panel` and "the `panel` user" above names an account no installed host has:
+`installer/install.sh:57-58` sets `MARAN_USER=maran` and `MARAN_GROUP=maran`, and
+`rules/security.md` item 8 says the same (`root:maran 0640`). The rename and its reasoning are in
+`docs/superpowers/notes/2026-09-09-service-account-rename-threat-note.md`.
+
+The arguments above survive the rename unchanged — a hosting account is a member of neither group —
+but a reviewer checking a table here against a real host would find no such group, which is the
+failure mode a stale name causes: it stops the next reader re-deriving the fact.

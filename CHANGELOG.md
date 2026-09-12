@@ -79,20 +79,33 @@ otherwise find out the hard way.
 - **A reverse-proxy upstream is checked for shape and not for destination**, so a site can be
   pointed at a loopback service on the same machine.
 - **`Acme:CertificateStorePath` is read by nothing**; the store path is fixed in the agent.
-- **No FTPS and no web database manager.** File access is SFTP only — there is no FTP daemon
-  installed and no second listening port — and there is no phpMyAdmin or equivalent. Both are
-  planned separately rather than partially done here; an operator who needs either does not have
-  it. FTPS is tracked as issue #20.
+- **No web database manager.** There is no phpMyAdmin or equivalent; it is planned as a separate
+  deployable with its own vhost and authentication rather than partially done here, so an operator
+  who needs one does not have it.
+- **FTPS ships, and this entry used to say it did not.** The line above read "No FTPS … File access
+  is SFTP only — there is no FTP daemon installed and no second listening port … FTPS is tracked as
+  issue #20", and every clause of it was false by the time it was read. The correction is stated
+  rather than made quietly, because an operator who believes no FTP daemon is installed does not go
+  looking for one on their own host. What is true: the installer installs vsftpd
+  (`installer/lib/89-ftps.sh`), and FTPS ships end to end — `agent/crates/ops/src/ftps/`,
+  `backend/src/Maran.Modules/Ftp/`, `backend/src/Maran.Agent.Client/Services/FtpsService/` and
+  `frontend/src/locales/{en,ru,hy}/ftp.json`. It is installed **switched off**: nothing listens, no
+  configuration is rendered, and the distribution's own `vsftpd.service` is masked until an
+  administrator turns FTPS on from the panel. `README.md` describes what "on" then means.
 - **A dropped database is not backed up first.** There is no snapshot, no recycle bin and no
-  delay: dropping is final, and the backup module that would change that is not here yet.
+  delay: dropping is final. The Backups module ships (`backend/src/Maran.Modules/Backups/`) and
+  this clause used to say it was "not here yet" — but it takes scheduled account backups, and
+  nothing in the drop path consults it: `grep -rni backup backend/src/Maran.Modules/Databases/Commands/DropDatabase/`
+  finds nothing. A database is restorable only from whatever backup already existed.
 - **Nothing re-checks sshd's configuration after the install.** The installer writes the one
   `Match Group` block that turns an SFTP account into a jailed file transfer login and is
   idempotent about it, but nothing looks again afterwards. A hand-edited or upgrade-reset
   `sshd_config` that loses the block would give every SFTP customer a full shell session and the
   panel would report every login as healthy.
-- **Account deletion writes no audit entry**, although every other mutating database and SFTP
-  operation does — so the most destructive operation in the product currently has the least
-  record.
+- ~~**Account deletion writes no audit entry.**~~ Corrected: it does, and this entry was wrong.
+  `DeleteAccountCommandHandler.cs:288` records `AuditActions.AccountDeleted` on success and
+  `:423` records the failure, alongside the final-backup outcome at `:343`, `:353` and `:366`
+  (`grep -n AuditActions backend/src/Maran.Modules/Accounts/Commands/DeleteAccount/DeleteAccountCommandHandler.cs`).
 - **An account created before this release cannot serve a site.** Creating an account now
   group-owns its home by the web server's group, at mode `0750`, so nginx can traverse into the
   document root without the home being opened to every other local user. Homes created earlier do

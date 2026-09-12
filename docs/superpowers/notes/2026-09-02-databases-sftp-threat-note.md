@@ -325,3 +325,17 @@ that copy to either. A narrowed alphabet — dropping `=` and `+` — loses entr
 silently and passes every test, because the specification test only catches
 WIDENING. `maran structure` rule 17c now compares the two literals by their
 constants' names and reports a difference as a difference.
+
+---
+
+## Correction, 2026-09-09 — the SFTP jail base has moved
+
+Added by a verification pass (`.superpowers/sdd/threat-note-verification.md`). This note puts the
+per-account jail under `/var/lib/maran/sftp/<account>/`. It is now
+**`/var/lib/maran-sftp/<account>/`**, a `root:root 0700` **sibling** of `/var/lib/maran` rather
+than a child of it (`installer/lib/40-user.sh`). The reason is the defect this note could not have
+known about: `/var/lib/maran` is owned by the unprivileged service account, and an unprivileged
+owner of an ancestor of a chroot can rename a level aside. It is argued in
+`docs/superpowers/notes/2026-09-07-installer-privileged-steps-threat-note.md`, section
+"relocating the SFTP jail base". Every argument in this note about the jail itself still holds;
+only the path is wrong. The uninstaller's refusal described at the end now guards the new path.

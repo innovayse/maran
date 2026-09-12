@@ -41,11 +41,14 @@ own pool running under its own user, with a safe subset of settings exposed to c
 **SSL** — free Let's Encrypt certificates with automatic renewal, custom certificate upload,
 self-signed fallback.
 
-**Databases** — MySQL/MariaDB databases and users with per-plan limits, with a web database
-manager available as an optional isolated module rather than bundled into the panel.
+**Databases** — MySQL/MariaDB databases and users with per-plan limits. A web database manager is
+**not** part of this release: it is planned as a separate deployable with its own vhost and
+authentication rather than bundled into the panel. This line used to read as though it were
+available.
 
-**File access** — SFTP with chroot by default (shipped), FTPS for compatibility and a browser file
-manager with uploads, an editor, archives, permissions and search (planned).
+**File access** — SFTP with chroot by default and FTPS for compatibility, installed switched off and
+turned on per server by an administrator (both shipped); a browser file manager with uploads, an
+editor, archives, permissions and search (planned).
 
 **Scheduled tasks** — per-account cron with a schedule builder, environment variables and
 last-run output.
@@ -88,9 +91,14 @@ queues stored in PostgreSQL — no message broker is installed on the server.
 
 ## Technology
 
-C# on .NET 9 (ASP.NET Core, EF Core, Wolverine) · Rust (tokio, tonic) · PostgreSQL 16 ·
+C# on .NET 9 (ASP.NET Core, EF Core, Wolverine) · Rust (tokio, tonic) · PostgreSQL ·
 Vue 3 with TypeScript, Vite, Pinia and Tailwind CSS · gRPC over unix sockets for the
 API-to-agent contract.
+
+This line used to say "PostgreSQL 16". On a server the installer installs the distribution's own
+`postgresql` package (`installer/lib/30-postgresql.sh:29,32`) and checks no version, so across the
+supported matrix the major version is whatever the distribution ships — not 16. The **development**
+stack is the pinned one: `postgres:16-alpine` in `docker/docker-compose.dev.yml:13`.
 
 ## Supported systems
 
@@ -104,8 +112,14 @@ layer in the agent, so support for further systems is additive.
 
 ## Installation
 
-Production installs are native — no containers, no extra daemons beyond PostgreSQL and the
-two panel processes:
+Production installs are native — no containers. This paragraph used to add "no extra daemons
+beyond PostgreSQL and the two panel processes", which was never true and is the kind of sentence an
+operator reasons about their own attack surface with. The installer installs and starts **nginx**
+(step 20), **PostgreSQL** (30), **MariaDB** (85) and **cron** (88), and installs **vsftpd** switched
+off (89) — `grep -n 'pkg_install' installer/lib/*.sh` names every step that installs packages. What
+the rule in `rules/architecture.md` actually says is narrower and does hold: *Maran itself* is three
+processes — `maran-api`, `maran-agent` and PostgreSQL — and the panel adds no broker and no sidecar
+of its own. The rest are the services a hosting panel exists to manage.
 
     curl -sSL https://get.maran.com | bash
 
@@ -209,8 +223,21 @@ What ships with those, said here rather than left to be discovered:
   `chgrp www-data /home/<account>` (`nginx` on the RHEL family) by hand for those.
 - **`open_basedir` is not a security boundary.** Isolation between accounts comes from the pool's
   uid; the `open_basedir` line is there against accidents, not attackers.
-- **File access is SFTP only.** No FTP daemon is installed and no second port is opened. FTPS is
-  a separate provisioning path with its own certificate story and is tracked as issue #20.
+- **An FTP daemon IS installed, and it is switched off.** This sentence used to say the opposite —
+  "no FTP daemon is installed" — and it was wrong for the whole life of `installer/lib/89-ftps.sh`,
+  which is worth stating rather than quietly correcting: an operator who believes there is no FTP
+  server on the host does not go looking for one. What the installer actually leaves behind is
+  vsftpd's package, the distribution's own `vsftpd.service` **masked** so that package cannot start
+  it, a `maran-ftps` system group, the jail base `/var/lib/maran-ftps`, `/etc/pam.d/maran-ftps`, and
+  Maran's own `maran-ftps.service` **installed, disabled and stopped**. Nothing is listening: no
+  port 21, no data port, no configuration file even rendered, until an administrator turns FTPS on
+  from the panel — which opens the ports it needs at that moment and not before. The install
+  transcript says so as it happens, and `/var/log/maran/install.log` keeps it.
+- **When FTPS is on, it is TLS-only and group-gated.** `force_local_logins_ssl` and
+  `force_local_data_ssl` are `YES`, anonymous login is off, and every login is chrooted into a jail
+  whose only entry is a bind mount of its own home. Authorization is membership of the `maran-ftps`
+  group and nothing else: `root`, the panel's own service account and every other system account are
+  refused by the PAM stack whether or not they hold a password. SFTP remains the default.
 - **There is no web database manager yet.** The phpMyAdmin-style module described above is a
   separate deployable with its own vhost and authentication, and it is not in this release.
 - **A database password is shown once and never stored.** Losing it means resetting it, not
@@ -223,7 +250,10 @@ What ships with those, said here rather than left to be discovered:
   is removed by hand or by a package upgrade, SFTP logins become full shell sessions and nothing
   in the panel would notice.
 
-Cron, backups and the firewall are the modules that follow.
+Cron, backups, the firewall and monitoring have since joined them — this line used to say they
+were "the modules that follow", which stopped being true when they landed. Each ships as a backend
+module with its own screens: `backend/src/Maran.Modules/{Cron,Backups,Firewall,Monitoring}/` and
+`frontend/src/pages/{cron,backups,firewall,monitoring}/`.
 
 Mail and DNS management, reseller accounts and central management of multiple servers are
 planned after the first release.

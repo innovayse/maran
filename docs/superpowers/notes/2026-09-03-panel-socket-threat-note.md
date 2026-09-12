@@ -366,3 +366,15 @@ here as answered rather than deleted, because the answer is the substance of §3
    refusal, and the polygon drives all three cases against a real nginx. Recorded because this
    change's vhost was validated by hand against a real nginx while that was still open, and a
    reader of the two reports should know which state the tree is in.
+
+## Correction, 2026-09-11 — the service account and group are `maran`, not `panel`
+
+Added by the reviewer-packet pass (`docs/superpowers/notes/2026-09-11-reviewer-packet.md`). Every
+`panel:panel`, `root:panel` and "the `panel` user" above names an account no installed host has:
+`installer/install.sh:57-58` sets `MARAN_USER=maran` and `MARAN_GROUP=maran`, and
+`rules/security.md` item 8 says the same (`root:maran 0640`). The rename and its reasoning are in
+`docs/superpowers/notes/2026-09-09-service-account-rename-threat-note.md`.
+
+The arguments above survive the rename unchanged — a hosting account is a member of neither group —
+but a reviewer checking a table here against a real host would find no such group, which is the
+failure mode a stale name causes: it stops the next reader re-deriving the fact.

@@ -997,3 +997,16 @@ the second lock. The residual is the warn-only TCP path recorded immediately abo
   configuration rather than fields on the `SecurityPolicy` row, so the security-policy
   screen does not show them. One decision, one source, but two places an operator has to
   look.
+
+---
+
+## Correction, 2026-09-09 — outgoing mail is its own module now
+
+Added by a verification pass (`.superpowers/sdd/threat-note-verification.md`). This note cites
+`backend/src/Maran.Modules/Monitoring/IntegrationEvents/Handlers/SendMailRequestedHandler.cs`.
+Outgoing mail moved out of Monitoring into `Maran.Modules.Notifications`, so the handler is at
+`backend/src/Maran.Modules/Notifications/IntegrationEvents/Handlers/SendMailRequestedHandler.cs`
+and the sender at `Notifications/Services/SmtpMailer.cs`, with `IMailer` staying internal to that
+module. The reason is written up as the worked example in `rules/architecture.md` ("A facility more
+than one module needs is its own module"): Identity's password reset silently depended on
+Monitoring being loaded. Nothing about this note's threat argument changes; the path does.
