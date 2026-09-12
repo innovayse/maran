@@ -37,6 +37,7 @@ use maran_templates::nftables::nftables_protocol::NftablesProtocol;
 use crate::firewall::firewall_error::FirewallError;
 use crate::firewall::firewall_host::FirewallHost;
 use crate::firewall::model::firewall_rule::FirewallRule;
+use crate::firewall::model::port_span::PortSpan;
 use crate::firewall::model::ruleset_ports::RulesetPorts;
 use crate::firewall::model::ruleset_state::RulesetState;
 
@@ -555,7 +556,16 @@ pub(crate) fn port(number: u32) -> Port {
 /// A rule open to every source.
 pub(crate) fn open_rule(number: u32, protocol: NftablesProtocol) -> FirewallRule {
     FirewallRule {
-        port: port(number),
+        ports: PortSpan::single(port(number)),
+        protocol,
+        source: SourceCidr::any_v4(),
+    }
+}
+
+/// A rule open to every source over a RANGE of ports.
+pub(crate) fn open_range(from: u32, to: u32, protocol: NftablesProtocol) -> FirewallRule {
+    FirewallRule {
+        ports: PortSpan::new(port(from), Some(port(to))).expect("a valid range"),
         protocol,
         source: SourceCidr::any_v4(),
     }
@@ -564,7 +574,7 @@ pub(crate) fn open_rule(number: u32, protocol: NftablesProtocol) -> FirewallRule
 /// A rule restricted to one source network.
 pub(crate) fn restricted_rule(number: u32, protocol: NftablesProtocol, cidr: &str) -> FirewallRule {
     FirewallRule {
-        port: port(number),
+        ports: PortSpan::single(port(number)),
         protocol,
         source: SourceCidr::parse(cidr).expect("a valid network"),
     }

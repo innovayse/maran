@@ -1,4 +1,5 @@
 using Maran.Modules.Sftp.Common;
+using Maran.Modules.Sftp.Domain.Policies;
 using Maran.Modules.Sftp.Persistence;
 
 namespace Maran.Modules.Sftp.Queries.ListSftpUsers;
@@ -52,6 +53,7 @@ public sealed class ListSftpUsersQueryHandler
                 sftpUser.AccountId,
                 sftpUser.Name,
                 sftpUser.FullName,
+                SftpProtocolName.Sftp,
                 sftpUser.CreatedAt))
             .ToListAsync(cancellationToken);
 

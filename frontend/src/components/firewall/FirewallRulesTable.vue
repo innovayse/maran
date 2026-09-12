@@ -18,6 +18,7 @@ import UiTable from '../ui/UiTable.vue'
 import UiTableCell from '../ui/UiTableCell.vue'
 import UiTableHeaderCell from '../ui/UiTableHeaderCell.vue'
 import UiTableRow from '../ui/UiTableRow.vue'
+import { portRangeLabel } from '../../utils/portRangeLabel'
 import type { FirewallRule } from '../../types/firewall'
 
 /** Props accepted by {@link FirewallRulesTable}. */
@@ -44,7 +45,7 @@ const { t } = useI18n()
 const describe = (rule: FirewallRule): string => {
   return t('firewall.rules.ruleSummary', {
     protocol: rule.protocol,
-    port: rule.port,
+    ports: portRangeLabel(rule.port, rule.portTo),
     source: rule.sourceCidr,
   })
 }
@@ -62,9 +63,11 @@ const describe = (rule: FirewallRule): string => {
     </template>
     <UiTableRow
       v-for="rule in rules"
-      :key="`${rule.protocol}-${rule.port}-${rule.sourceCidr}`"
+      :key="`${rule.protocol}-${portRangeLabel(rule.port, rule.portTo)}-${rule.sourceCidr}`"
     >
-      <UiTableCell class="font-mono font-medium">{{ rule.port }}</UiTableCell>
+      <!-- The range as one cell, not a port with a bound hidden elsewhere: what the row says is
+           what the firewall opens. -->
+      <UiTableCell class="font-mono font-medium">{{ portRangeLabel(rule.port, rule.portTo) }}</UiTableCell>
       <UiTableCell class="font-mono text-text-secondary">
         {{ t(`firewall.protocols.${rule.protocol}`) }}
       </UiTableCell>

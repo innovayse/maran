@@ -7,10 +7,21 @@
 //! process that cannot read it, instead of one that can. Direct `std::fs` on a
 //! customer path as root is forbidden (rules/rust.md "Validation first").
 //!
-//! Callers pair this with [`crate::validation::fs::path::resolve_in_home`]: that
-//! decides *which* path, this decides *as whom*. Neither is sufficient alone —
-//! containment without a dropped uid is a check an attacker races, and a dropped
-//! uid without containment writes wherever the account can reach.
+//! This decides *as whom*; something else decides *which* path, and which
+//! something depends on what the operation does. Neither half is sufficient
+//! alone — containment without a dropped uid is a check an attacker races, and a
+//! dropped uid without containment writes wherever the account can reach.
+//!
+//! **For every write, the other half is the descriptor walk below and not
+//! [`crate::validation::fs::path::resolve_in_home`].** This paragraph used to
+//! say callers pair the fork with `resolve_in_home`; measured against the
+//! workspace, no write does. `ops::files::open_parent_directory` descends from
+//! the home one component at a time with `openat`, `O_NOFOLLOW` and an ownership
+//! check at every level, and that walk is the containment — it has no window
+//! between the check and the use, because a descriptor names an inode.
+//! `resolve_in_home` is paired with the fork in exactly two read paths, which
+//! must name an entry that already exists; its own documentation says which and
+//! why.
 //!
 //! The `*_in_directory` wrappers are the third leg, and they are why a dropped
 //! uid does not have to be trusted to reach the right file. Each one takes a

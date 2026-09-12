@@ -19,9 +19,9 @@
 # the wrong one, and this file is the shape that was chosen instead. `polygon_run` runs every suite
 # in ONE `--privileged` container, deliberately: its subject is a mutant, and a capability split
 # there would mean a hard-coded group membership, which is what once left four suites unrun. CI's
-# subject is the runner, and CI splits the eleven suites across three steps by the capability each
-# group needs, so that a suite started without its capabilities fails as a runner mistake rather
-# than as `JailFailed` — which reads as a code defect. Both splits are right for their own lane.
+# subject is the runner, and CI splits the discovered suites across three steps by the capability
+# each group needs, so that a suite started without its capabilities fails as a runner mistake
+# rather than as `JailFailed` — which reads as a code defect. Both splits are right for their own lane.
 # Routing CI through `polygon_run` would discard CI's, and would additionally make CI depend on
 # `polygon_ensure_image`'s fingerprint tagging, which on a fresh runner never hits and would simply
 # build each image a second time.
@@ -41,15 +41,30 @@
 #
 # Usage:
 #   maran polygon verify [--statuses FILE] LOG [LOG ...]
+#   maran polygon stamp  FAMILY [IMAGE]
+#
+#   `stamp` is the run-time half of the image currency check, and it belongs to this command because
+#   the line it prints is what `verify` later reads. A caller emits it into the log it is about to
+#   tee a `docker run` into; it refuses, before the container starts, when the image was built from
+#   sources this tree no longer has. See polygon_stamp / polygon_currency_from_log in polygon.sh.
 #
 #   LOG          a file holding the stdout+stderr of a polygon `docker run`. Pass one per step; they
-#                are concatenated in the order given, which is how the eleven suites of a
-#                capability-split run become one observation.
+#                are concatenated in the order given, which is how the suites of a capability-split
+#                run become one observation.
 #   --statuses   a file of exit statuses, one per line, one per LOG. Optional, and reported rather
 #                than believed: see aggregate_status below for what is done with it and why.
 #
-# Exit: 0 only when every axis holds AND no test failed. Anything else is 1. The OUTPUT is the
-# verdict — named failures and totals — and the exit status exists only so that a CI job goes red.
+# Exit: three answers, because both kinds of caller exist and each is blind where the other is not.
+#   0  every axis held and no test failed          (POLYGON VERDICT: OK)
+#   1  a test went red, or the logs are not a score (POLYGON VERDICT: FAILED / ABORTED) — including
+#      a run whose own log records an image built from sources this tree no longer has
+#   2  this command REFUSED before scoring anything (POLYGON VERDICT: DID NOT RUN) — the tree's
+#      write lock is held, a killed mutation is still applied, or the parsers are blind. Nothing
+#      was measured, so it is not a pass; nothing was found, so it is not a red branch.
+# The OUTPUT is the verdict — one `POLYGON VERDICT:` line, named failures and totals — and the
+# status exists beside it so a caller that keeps no output can still tell the three apart.
+# .github/workflows/agent.yml gates on the LINE and reports the status; `maran lock selftest`
+# asserts both halves of that contract against this file.
 set -euo pipefail
 
 root="$(cd "$(dirname "$0")/../.." && pwd)"
@@ -63,11 +78,17 @@ root="$(cd "$(dirname "$0")/../.." && pwd)"
 usage() {
   cat >&2 <<'USAGE'
 usage: maran polygon verify [--statuses FILE] LOG [LOG ...]
+       maran polygon stamp  FAMILY [IMAGE]
 
   Scores an already-executed polygon run from its container logs, against the suites discovered in
   the tree and the counts committed in scripts/test-baseline.txt. Runs nothing itself.
 
   --statuses FILE   exit statuses of the runs that produced the logs, one per line
+
+  stamp prints the one line that records which image a run used, and refuses when that image was
+  built from sources this tree no longer has. Emit it into the log, before the docker run:
+
+      scripts/maran polygon stamp ubuntu24 >>"$LOGDIR/step-1.log"
 USAGE
   exit 2
 }
@@ -104,8 +125,26 @@ aggregate_status() {
 # later without changing what an existing CI step means. There is exactly one today.
 case "${1:-}" in
   verify) shift ;;
+  stamp)
+    shift
+    # A family is required and never defaulted: the fingerprint is per family, and a stamp naming
+    # the wrong one would be a sentence in a log that compares cleanly against nothing.
+    [ $# -ge 1 ] || usage
+    stamp_family="$1"
+    stamp_image="${2:-maran-polygon-$stamp_family:latest}"
+    if [ ! -r "$root/docker/polygon/$stamp_family.Dockerfile" ]; then
+      echo "REFUSED: '$stamp_family' is no polygon family — docker/polygon/$stamp_family.Dockerfile" >&2
+      echo "         does not exist, so there are no sources to fingerprint." >&2
+      exit 2
+    fi
+    if ! polygon_require_docker; then
+      exit 2
+    fi
+    polygon_stamp "$root" "$stamp_family" "$stamp_image" || exit 1
+    exit 0
+    ;;
   -h|--help|'') usage ;;
-  *) echo "REFUSED: '$1' is no polygon subcommand. The only one is 'verify'." >&2; usage ;;
+  *) echo "REFUSED: '$1' is no polygon subcommand. They are 'verify' and 'stamp'." >&2; usage ;;
 esac
 
 statuses=""
@@ -125,7 +164,8 @@ for log in "${logs[@]}"; do
   if [ ! -r "$log" ]; then
     echo "REFUSED: log '$log' is not readable. A polygon step that left no log measured nothing" >&2
     echo "         that this command can see, and an unscored lane is not a green lane." >&2
-    exit 1
+    suite_did_not_run "POLYGON VERDICT" "there is no log to score, so nothing was scored."
+    exit "$SUITE_STATUS_DID_NOT_RUN"
   fi
 done
 
@@ -140,16 +180,21 @@ done
 # Note what this probe does NOT claim: the logs were produced somewhere else, usually on a CI runner
 # against a clean checkout. UNOBSERVED HERE: whether the tree that PRODUCED these logs was clean.
 # This only refuses to score them against a tree that is dirty right now.
-tree_lock_probe "$root" || exit 1
+if ! tree_lock_probe "$root"; then
+  suite_did_not_run "POLYGON VERDICT" "a mutation run holds this tree's write lock (named above)."
+  exit "$SUITE_STATUS_DID_NOT_RUN"
+fi
 if ! tree_lock_refuse_pending "$root" readonly; then
   echo "         Nothing was scored. Recover with: maran mutate --recover" >&2
-  exit 1
+  suite_did_not_run "POLYGON VERDICT" "a killed mutation run left its mutant in this tree."
+  exit "$SUITE_STATUS_DID_NOT_RUN"
 fi
 
 baseline_file="$root/scripts/test-baseline.txt"
 if [ ! -r "$baseline_file" ]; then
   echo "REFUSED: scripts/test-baseline.txt is not readable, so no suite's count can be checked." >&2
-  exit 1
+  suite_did_not_run "POLYGON VERDICT" "there is no baseline to score against."
+  exit "$SUITE_STATUS_DID_NOT_RUN"
 fi
 
 # The suite list comes from the TREE, never from a list written down here or in the workflow. That
@@ -157,9 +202,20 @@ fi
 # what it ran, this says what exists, and a difference is a suite nobody runs.
 mapfile -t suites < <(polygon_suites "$root")
 if [ "${#suites[@]}" -eq 0 ]; then
-  echo "ABORTED: no polygon suite could be identified in agent/crates/*/tests (a suite is a"
-  echo "crate-level test file carrying #[ignore]). There was nothing to score, which is a failure,"
-  echo "not a pass."
+  echo "No polygon suite could be identified in agent/crates/*/tests (a suite is a crate-level"
+  echo "test file carrying #[ignore]), so there was nothing here to score."
+  echo
+  # The verdict LINE, which this one path used to omit while every other terminal path printed one.
+  # That mattered because the caller scores this command by GREPPING for the line
+  # (.github/workflows/agent.yml), so a path that exits without one is scored by its status alone —
+  # the exact defect this command exists to close — and because the header above promises one of
+  # four verdict lines, which rules/testing.md forbids a comment claiming when the code does not.
+  #
+  # ABORTED and not DID NOT RUN, deliberately, and the status stays 1. Nothing REFUSED here: the
+  # tree was read, the discovery ran, and its answer was "no suite exists". That is a statement
+  # about this branch, not about a peer holding a lock, and "no tests found" is a failure
+  # everywhere else in this repository rather than a run that did not happen.
+  echo "POLYGON VERDICT: ABORTED — no suite exists to score, which is a failure, not a pass."
   exit 1
 fi
 
@@ -170,7 +226,10 @@ trap 'rm -rf "$work"' EXIT
 # at the real logs. This lane scores logs it did not produce, so a parser that has gone blind here
 # reports the reassuring answer — no failures named, nothing to score against — over a container
 # that went red. rules/testing.md: a check must be able to observe what it reports on.
-suite_selftest_parsers rust || exit 1
+if ! suite_selftest_parsers rust; then
+  suite_did_not_run "POLYGON VERDICT" "the log parsers are blind, so these logs cannot be scored."
+  exit "$SUITE_STATUS_DID_NOT_RUN"
+fi
 
 cat "${logs[@]}" >"$work/combined.log"
 suite_parse rust "$work/combined.log" >"$work/observed.tsv"
@@ -185,6 +244,44 @@ echo "-- polygon suites discovered from the tree (${#suites[@]}): ${suites[*]}"
 echo "   Derived, never written down here or in the workflow. A suite added to agent/crates/*/tests"
 echo "   is required to have spoken in these logs by the next run."
 echo "-- logs scored (${#logs[@]}): ${logs[*]}"
+echo
+
+# THE IMAGE CURRENCY AXIS, and it is asked FIRST, before any count is believed.
+#
+# Every axis below this line asks whether the container said enough. None of them can ask whether the
+# container was the right container. Measured here on 2026-09-11: a shared `maran-polygon-alma9:latest`
+# built on the 9th, against a Dockerfile step added on the 10th, with no build in between — so
+# `/etc/shadow` inside it carried the mode of an older build and TWELVE tests went red over correct
+# code. The five axes below all held: every suite started, every suite finished, every count
+# reconciled. The run was a perfect measurement of a tree that no longer existed.
+#
+# The lesson that decides where this goes: AN ASSERTION INSIDE A BUILD IS BLIND TO THE ABSENCE OF THE
+# BUILD. The Dockerfile's own `stat -c %a /etc/shadow` assertion was present and correct; nothing ran
+# it. So the check cannot live in the image, and it cannot live only in the builder either — it has to
+# be asked by whatever consumes the result.
+#
+# ABORTED, not DID NOT RUN, and the distinction is the one this harness already draws: DID NOT RUN is
+# a statement about the LANE — a peer holds the lock, a toolchain is missing, nothing was read, the
+# branch is neither cleared nor accused. Here the tree WAS read, the logs WERE parsed, and the answer
+# is a statement about the artefacts scored: these logs are not a score of this tree. That is the same
+# reasoning the "no suite exists" path below was given, and it is the same verdict. What a caller does
+# with it: treat it exactly as a red lane in urgency and not at all as a red lane in diagnosis —
+# rebuild the image and run again, and do not go hunting the named failures, because they were
+# measured against sources this tree does not have. A stale image must never be able to look like a
+# pass, and it cannot look like one here: the only verdict this file prints with status 0 is OK.
+#
+# IT IS ASKED FIRST AND DECIDED LAST, and that is deliberate. A finding here does not `exit` on the
+# spot, because one axis that ends the script takes every other axis down with it: a bash error in
+# this very family of functions was measured today reporting ABORTED with an empty body while also
+# masking a red test. So the currency finding is PRINTED here, remembered, and every other axis still
+# runs and still says what it saw — the reader gets the whole picture — and the VERDICT below is
+# ABORTED regardless of what those axes concluded, because a result measured against other sources is
+# not a pass and is not a red branch either.
+currency_stale=0
+if ! currency="$(polygon_currency_from_log "$root" "$work/combined.log")"; then
+  currency_stale=1
+fi
+echo "$currency"
 echo
 
 failed=1
@@ -220,6 +317,20 @@ if [ "$lane_failed" -gt 0 ]; then
   echo "Failing tests ($lane_failed):"
   sed 's/^/  /' "$work/failures.txt"
   echo
+fi
+
+# The currency verdict, decided after every other axis has spoken. It outranks both remaining answers:
+# a red test measured against sources this tree does not have is not a finding about this branch, and
+# a clean run measured against them is certainly not a pass.
+if [ "$currency_stale" -ne 0 ]; then
+  echo "POLYGON VERDICT: ABORTED — these logs were not produced by the image this tree describes, so"
+  echo "nothing in them scores this branch (the mismatch is named above). This is not a red polygon:"
+  echo "no result here, red or green, was measured against these sources. Rebuild the image and run"
+  echo "it again."
+  exit 1
+fi
+
+if [ "$lane_failed" -gt 0 ]; then
   echo "POLYGON VERDICT: FAILED — $lane_failed test(s) went red on a real host."
   exit 1
 fi

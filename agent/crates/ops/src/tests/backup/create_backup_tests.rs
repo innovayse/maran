@@ -11,7 +11,7 @@ use maran_agent_core::utils::current_uid::current_uid;
 use maran_agent_core::validation::db::database_name::DatabaseName;
 use tempfile::TempDir;
 
-use crate::backup::backup_lock::take_account_lock;
+use crate::accounts::take_account_lock;
 use crate::backup::recording_backup_host::{
     ARCHIVE_PROGRAM, COMPRESSOR_PROGRAM, DUMP_PROGRAM, FIXED_NOW, RecordingBackupHost,
 };

@@ -52,6 +52,22 @@ test('an empty series renders the empty state, never an SVG with nothing to plot
   await expect(page.locator('svg.ui-chart-svg')).toHaveCount(0)
 })
 
+test('a flat series of zeroes labels its axis from zero upward, never below it', async ({ page }) => {
+  // An idle host's network-sent chart drew `1.00 / 0.00 / -1.00 MiB/s` and filled its area
+  // below the baseline: `computeValueRange` padded the flat series symmetrically and carried the
+  // range across zero. Minus one mebibyte per second is not a small reading, it is a false one.
+  await page.goto('/e2e/fixtures/chart-harness.html?scenario=flat-zero')
+
+  // The three vertical gridline labels, top to bottom, in the harness's own two-decimal format.
+  // The exact three values, not "none of them starts with a minus": a range that collapsed back to
+  // a single repeated `0.00` on all three rows would satisfy a sign check and still be unreadable,
+  // which is the shape the neighbouring chart already showed.
+  const axisLabels = page.locator('.ui-chart-axis-label')
+  await expect(axisLabels.nth(0)).toHaveText('1.00')
+  await expect(axisLabels.nth(1)).toHaveText('0.50')
+  await expect(axisLabels.nth(2)).toHaveText('0.00')
+})
+
 test('a single-point series draws one marker and no line, rather than a degenerate path', async ({ page }) => {
   await page.goto('/e2e/fixtures/chart-harness.html?scenario=single')
 

@@ -265,8 +265,10 @@ public sealed class BackupRunHandler
 
             await _dbContext.SaveChangesAsync(cancellationToken);
 
+            // The account, not the backup id — the same subject the task above records, and the one
+            // AuditEntry asks for: what the operation acts on, as an operator would search for it.
             await _journal.RecordScheduledAsync(
-                AuditActions.BackupCreated, backup.Id, outcome.Succeeded, cancellationToken);
+                AuditActions.BackupCreated, account.Username, outcome.Succeeded, cancellationToken);
 
             if (!outcome.Succeeded)
             {
@@ -291,7 +293,7 @@ public sealed class BackupRunHandler
             // be whichever one the agent happened to be unhappy about that night.
             LogAccountFailed(_logger, account.Id, exception);
 
-            await AbandonAsync(backup, taskId, cancellationToken);
+            await AbandonAsync(backup, account.Username, taskId, cancellationToken);
 
             return 0;
         }
@@ -299,22 +301,40 @@ public sealed class BackupRunHandler
 
     /// <summary>Closes the row and the task of a run that threw before it could report an outcome.</summary>
     /// <param name="backup">The row opened for the run.</param>
+    /// <param name="accountUsername">The account's system user name — the journal's subject.</param>
     /// <param name="taskId">The panel task opened for the run.</param>
     /// <param name="cancellationToken">Cancels the writes.</param>
     /// <remarks>
     /// <para>
-    /// Without this the row stays <c>Running</c> for ever — and a running backup may not be deleted,
-    /// by the entity's own rule, so an operator would be left with a row nothing could remove and a
-    /// screen showing a backup permanently in progress. The task would be closed at the next restart
-    /// by the startup reconciler; nothing closes the row but this.
+    /// Without this the row stays <c>Running</c> until the next restart — and a running backup may
+    /// not be deleted, by the entity's own rule, so an operator would be left with a row nothing
+    /// could remove and a screen showing a backup permanently in progress. The task would be closed
+    /// at the next restart by the Tasks module's reconciler, and the row by
+    /// <c>StartupBackupReconciler</c>; what this closes is the row WITHOUT waiting for a restart,
+    /// which is the difference between one sweep's failure and a night of refused restores.
     /// </para>
     /// <para>
     /// Its own failure is swallowed to a log line, and that is the one place in this handler where
     /// swallowing is right: this is already the failure path, and letting it throw would replace a
     /// stuck row with an abandoned sweep.
     /// </para>
+    /// <para>
+    /// <b>What it closes is the ROW, never the run.</b> The agent's creation is a detached blocking
+    /// task, so a dropped stream stops nothing: the archive very probably completes after this row
+    /// has been marked failed, and a failed row is invisible to retention. The bytes are then freed
+    /// only if an operator deletes the row by hand, and nothing HERE tells them there is anything to
+    /// delete. <c>CreateBackupCommandHandler.AbandonAsync</c> carries the same limit and the argument
+    /// for it: neither path deletes customer bytes over a stream it lost, and neither completes a row
+    /// from a digest read beside the artifact. The one pass that names such an archive is
+    /// <c>StartupBackupReconciler</c>, which asks the destination what it holds at the next start —
+    /// so the leak is reported there rather than being invisible everywhere.
+    /// </para>
     /// </remarks>
-    private async Task AbandonAsync(Backup backup, Guid taskId, CancellationToken cancellationToken)
+    private async Task AbandonAsync(
+        Backup backup,
+        string accountUsername,
+        Guid taskId,
+        CancellationToken cancellationToken)
     {
         try
         {
@@ -323,7 +343,7 @@ public sealed class BackupRunHandler
             await _tasks.FailAsync(taskId, nameof(ErrorMessages.BackupScheduledRunAborted), cancellationToken);
 
             await _journal.RecordScheduledAsync(
-                AuditActions.BackupCreated, backup.Id, succeeded: false, cancellationToken);
+                AuditActions.BackupCreated, accountUsername, succeeded: false, cancellationToken);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {

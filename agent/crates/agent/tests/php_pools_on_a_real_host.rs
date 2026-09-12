@@ -22,25 +22,17 @@
 mod polygon_account;
 #[path = "fixtures/polygon_config_file.rs"]
 mod polygon_config_file;
+#[path = "fixtures/polygon_php.rs"]
+mod polygon_php;
 
 use std::path::{Path, PathBuf};
 
-use maran_agent_core::validation::web::php_version::PhpVersion;
 use maran_distro::{DistroAdapter, adapter_for, detect};
 use maran_ops::php::{PhpOpError, PoolInput, PoolPaths, ProcessPhpHost, write_pool};
 
 use polygon_account::PolygonAccount;
 use polygon_config_file::PolygonConfigFile;
-
-/// The PHP version both polygon images install: `8.3` on Sury, `83` on Remi.
-const POLYGON_PHP_VERSION: &str = "8.3";
-
-/// The argument that makes php-fpm check its configuration instead of serving.
-///
-/// Spelled again rather than imported, for the reason the nginx suite gives: a
-/// test that took its expectation from the code under test would pass even if
-/// that code stopped passing the argument.
-const VALIDATE_ARGUMENT: &str = "-t";
+use polygon_php::PolygonPhp;
 
 /// A worker budget inside the range `write_pool` accepts.
 const POLYGON_WORKERS: u32 = 4;
@@ -59,15 +51,6 @@ fn polygon_distro() -> &'static dyn DistroAdapter {
     )
 }
 
-/// The validated version this suite writes pools for.
-///
-/// # Panics
-///
-/// Panics if the constant above stops being a valid version.
-fn polygon_version() -> PhpVersion {
-    PhpVersion::parse(POLYGON_PHP_VERSION).expect("a valid PHP version")
-}
-
 #[test]
 #[ignore = "writes a real php-fpm pool and runs the real php-fpm -t: polygon only"]
 fn the_php_fpm_binary_the_adapter_names_exists_on_this_family() {
@@ -78,13 +61,13 @@ fn the_php_fpm_binary_the_adapter_names_exists_on_this_family() {
     // validator, so a path that is merely plausible turns every pool write on
     // that family into a failure to start the validator — which the operator
     // sees as "php-fpm validation failed" with nothing to fix.
-    let binary = polygon_distro().php_fpm_binary(POLYGON_PHP_VERSION);
+    let binary = polygon_distro().php_fpm_binary(PolygonPhp::VERSION);
     assert!(
         Path::new(&binary).exists(),
         "the adapter names {binary} as this family's php-fpm and it is not there"
     );
 
-    let pools = polygon_distro().php_fpm_pool_directory(POLYGON_PHP_VERSION);
+    let pools = polygon_distro().php_fpm_pool_directory(PolygonPhp::VERSION);
     assert!(
         Path::new(&pools).is_dir(),
         "the adapter names {pools} as this family's pool directory and it is not there"
@@ -96,7 +79,7 @@ fn the_php_fpm_binary_the_adapter_names_exists_on_this_family() {
 fn a_pool_is_written_and_the_real_php_fpm_accepts_it() {
     PolygonAccount::require_polygon();
     let account = PolygonAccount::create("polypoolsone");
-    let paths = PoolPaths::for_pool(polygon_distro(), account.name(), &polygon_version());
+    let paths = PoolPaths::for_pool(polygon_distro(), account.name(), &PolygonPhp::version());
     let _pool = PolygonConfigFile::at(&paths.config_path);
 
     write_pool(
@@ -139,7 +122,7 @@ fn a_pool_is_written_and_the_real_php_fpm_accepts_it() {
     // And the claim this suite exists for: the file the agent wrote is one the
     // real php-fpm parses, in the real pool directory, alongside every other
     // pool that directory holds.
-    assert_valid_pool_tree("the pool the agent just wrote");
+    PolygonPhp::assert_tree_valid(polygon_distro(), "the pool the agent just wrote");
 }
 
 #[test]
@@ -148,7 +131,7 @@ fn a_pool_the_real_php_fpm_rejects_is_refused_by_write_pool_and_leaves_the_previ
     PolygonAccount::require_polygon();
     let account = PolygonAccount::create("polypoolstwo");
     let host = ProcessPhpHost::new();
-    let paths = PoolPaths::for_pool(polygon_distro(), account.name(), &polygon_version());
+    let paths = PoolPaths::for_pool(polygon_distro(), account.name(), &PolygonPhp::version());
     let _pool = PolygonConfigFile::at(&paths.config_path);
 
     write_pool(&host, polygon_distro(), &pool_for(&account))
@@ -160,7 +143,7 @@ fn a_pool_the_real_php_fpm_rejects_is_refused_by_write_pool_and_leaves_the_previ
     // validator refuses — and the agent's next write has to notice, put its own
     // previous content back, and say so with a typed error rather than leaving a
     // half-applied change behind.
-    let planted = PathBuf::from(polygon_distro().php_fpm_pool_directory(POLYGON_PHP_VERSION))
+    let planted = PathBuf::from(polygon_distro().php_fpm_pool_directory(PolygonPhp::VERSION))
         .join("maran-polygon-planted.conf");
     let _planted = PolygonConfigFile::at(&planted);
     std::fs::write(
@@ -195,7 +178,10 @@ fn a_pool_the_real_php_fpm_rejects_is_refused_by_write_pool_and_leaves_the_previ
     // With the planted file gone the tree is valid again, which is what an
     // operator cares about: a failed write left a php-fpm that can still start.
     drop(_planted);
-    assert_valid_pool_tree("the tree after a rejected pool write was rolled back");
+    PolygonPhp::assert_tree_valid(
+        polygon_distro(),
+        "the tree after a rejected pool write was rolled back",
+    );
 }
 
 /// The pool input this suite writes: the account, the polygon's PHP version, a
@@ -203,28 +189,8 @@ fn a_pool_the_real_php_fpm_rejects_is_refused_by_write_pool_and_leaves_the_previ
 fn pool_for(account: &PolygonAccount) -> PoolInput {
     PoolInput {
         account: account.name().clone(),
-        version: polygon_version(),
+        version: PolygonPhp::version(),
         max_children: POLYGON_WORKERS,
         overrides: Vec::new(),
     }
-}
-
-/// Runs the real `php-fpm -t` and fails the test with php-fpm's own words when
-/// it refuses.
-///
-/// # Panics
-///
-/// Panics when php-fpm cannot be run, or when it rejects the tree.
-fn assert_valid_pool_tree(what: &str) {
-    let binary = polygon_distro().php_fpm_binary(POLYGON_PHP_VERSION);
-    let output = std::process::Command::new(&binary)
-        .arg(VALIDATE_ARGUMENT)
-        .output()
-        .unwrap_or_else(|error| panic!("the polygon image installs {binary}: {error}"));
-
-    assert!(
-        output.status.success(),
-        "php-fpm -t must accept {what}:\n{}",
-        String::from_utf8_lossy(&output.stderr)
-    );
 }

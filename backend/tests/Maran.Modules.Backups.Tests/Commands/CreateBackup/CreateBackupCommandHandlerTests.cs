@@ -111,7 +111,12 @@ public sealed class CreateBackupCommandHandlerTests
 
         var entry = Assert.Single(world.Audit.Entries);
         Assert.Equal(AuditActions.BackupCreated, entry.Action);
-        Assert.Equal(result.Value.Id.ToString(), entry.Subject);
+
+        // The account, not the backup id: AuditEntry's subject is "what the operation acts on, as
+        // an operator would search for it" — the same asymmetry the tasks screen carried, measured
+        // live as `BackupCreated | <uuid>` beside `DatabaseCreated | shop`.
+        Assert.Equal(World.Username, entry.Subject);
+        Assert.NotEqual(result.Value.Id.ToString(), entry.Subject);
         Assert.True(entry.Succeeded);
 
         var task = Assert.Single(world.Tasks.Tasks);
@@ -162,6 +167,84 @@ public sealed class CreateBackupCommandHandlerTests
 
         Assert.Equal(BackupStatus.Failed, result.Value.Status);
         Assert.Equal("BackupTruncated", result.Value.FailureCode);
+    }
+
+    /// <summary>A run whose request goes away leaves a failed row, not a row stuck at running.</summary>
+    /// <remarks>
+    /// <para>
+    /// The shape this closes is reachable by any authenticated customer and needs no attacker: the
+    /// shipped nginx closes an upstream at <c>proxy_read_timeout 300s</c>, and closing the browser
+    /// tab aborts the request outright. The agent's work is a detached blocking task, so the archive
+    /// very likely finishes; what used to be lost was the panel's record of it, and both writers of a
+    /// terminal status lived downstream of the agent call.
+    /// </para>
+    /// <para>
+    /// <b>The status is the assertion, and it is asserted as a VALUE.</b> "Not completed" was true
+    /// of the stuck row too. A row left at <see cref="BackupStatus.Running"/> is not inert: it
+    /// refuses every later restore of the account, refuses its own deletion, and hides its archive
+    /// from retention, so the difference between Running and Failed here is the difference between a
+    /// customer who can restore and one who cannot.
+    /// </para>
+    /// <para>
+    /// The cancellation is raised from INSIDE the stream, which is where a torn request raises it,
+    /// and the write that follows must therefore be made on a token that is already cancelled — so
+    /// this test also pins the <see cref="CancellationToken.None"/> the recording uses. A recording
+    /// made on the request's own token would be abandoned by the same cancellation it exists to
+    /// record.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public async Task A_run_whose_request_is_abandoned_leaves_a_failed_row_naming_the_unobserved_outcome()
+    {
+        var accountId = Guid.NewGuid();
+        var world = World.Owning(
+            accountId,
+            [new BackupCreateEvent(BackupCreateEventKind.Progress, 25, "home", 0, string.Empty, 0, null)]);
+
+        using var abort = new CancellationTokenSource();
+        world.Agent.OnCreate = abort.Cancel;
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(async () =>
+        {
+            await world.Handler.HandleAsync(Command(accountId), abort.Token);
+        });
+
+        var stored = await world.Read().Backups.SingleAsync();
+        Assert.Equal(BackupStatus.Failed, stored.Status);
+        Assert.Equal("BackupOutcomeUnobserved", stored.FailureCode);
+        Assert.Equal(Now, stored.FinishedAt);
+    }
+
+    /// <summary>An abandoned run still writes its audit entry and closes its panel task.</summary>
+    /// <remarks>
+    /// Asserted apart from the row because they are three independent writes and the row is the one
+    /// that would be noticed. An operator looking for what happened reads the audit feed and the
+    /// task, and a task left at Running is what the panel showed until the next process restart.
+    /// </remarks>
+    [Fact]
+    public async Task An_abandoned_run_still_writes_its_audit_entry_and_closes_its_task()
+    {
+        var accountId = Guid.NewGuid();
+        var world = World.Owning(
+            accountId,
+            [new BackupCreateEvent(BackupCreateEventKind.Progress, 25, "home", 0, string.Empty, 0, null)]);
+
+        using var abort = new CancellationTokenSource();
+        world.Agent.OnCreate = abort.Cancel;
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(async () =>
+        {
+            await world.Handler.HandleAsync(Command(accountId), abort.Token);
+        });
+
+        var entry = Assert.Single(world.Audit.Entries);
+        Assert.Equal(AuditActions.BackupCreated, entry.Action);
+        Assert.False(entry.Succeeded);
+        Assert.Equal(World.Username, entry.Subject);
+
+        var task = Assert.Single(world.Tasks.Tasks);
+        Assert.False(task.Completed);
+        Assert.Equal("BackupOutcomeUnobserved", task.FailureCode);
     }
 
     /// <summary>Progress events reach the panel task as stages.</summary>

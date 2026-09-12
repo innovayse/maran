@@ -28,6 +28,10 @@ const MODULE_ICONS: Readonly<Record<string, NavigationIcon>> = {
   // A folder with a key rather than a second generic transfer glyph: an SFTP login opens one
   // account's directory and nothing else on the host, which is the fact worth drawing.
   sftp: 'folderKey',
+  // The FTPS module contributes no sidebar entry of its own (`router/moduleLandingRoute.ts`), so
+  // this is stated for the day it does rather than left to the neutral glyph: it is the same room
+  // as the SFTP entry, so it takes the same mark.
+  ftp: 'folderKey',
   // A course of bricks rather than a shield: the shield is already the identity module's mark, and
   // the firewall screen is the wall itself — a list of what the host lets through.
   firewall: 'brickWall',

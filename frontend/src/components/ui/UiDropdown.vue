@@ -8,12 +8,17 @@
  * `aria-haspopup="menu"`/`aria-expanded`, the panel is a `role="menu"`, and
  * real focus moves into the panel and between its items with the arrow keys
  * (unlike the listbox pattern, where focus stays on the trigger). Enter, Space
- * and Arrow Down open on the first item, Arrow Up on the last, Home and End
- * jump to the ends, Escape closes, and focus returns to the trigger on every
- * close so a keyboard user is never dropped at the top of the document.
+ * and Arrow Down open on the menu's landing item, Arrow Up on the last, Home
+ * and End jump to the ends, Escape closes, and focus returns to the trigger on
+ * every close so a keyboard user is never dropped at the top of the document.
  *
  * Items are supplied through the default slot as `UiDropdownItem` components;
  * choosing one closes the menu.
+ *
+ * The landing item is the FIRST one for a menu of commands and the CHOSEN one
+ * for a menu that picks a value — see {@link landingIndex} for why a menu of
+ * `menuitemradio` items that opened on its first item silently changed the
+ * user's setting.
  *
  * The panel picks its own vertical side: it prefers to open downwards and flips
  * upwards when the space below the trigger cannot hold it. A menu in a sidebar
@@ -261,8 +266,59 @@ const focusItemAt = (index: number): void => {
 }
 
 /**
- * Opens the panel and lands focus on one of its ends.
- * @param edge Which item to focus once the panel exists.
+ * Position the panel lands focus on when it opens forwards — the chosen item in
+ * a menu that picks a value, the first item in a menu of commands.
+ *
+ * The distinction is not cosmetic. A menu of `menuitemradio` items that opens
+ * on its first item hands the keyboard's most natural gesture — open, then
+ * confirm — the power to change a setting the user never asked to change: from
+ * a Russian interface, trigger then Enter then Enter selected `English`,
+ * because English is first in the language menu and the second Enter (a
+ * deliberate press, or one held key's repeat) activated whatever was focused.
+ * That was measured, not theorised. Opening on the chosen item makes the same
+ * gesture re-confirm the value already in force, which is a no-op.
+ *
+ * Which item is chosen is read from the items' own `aria-checked` in the DOM,
+ * not from a prop naming it and not from a roving `tabindex`:
+ *
+ * - The items arrive through a slot, so this component has no list to name an
+ *   index into — the same reason {@link items} queries the DOM rather than
+ *   keeping a registry. A prop would also duplicate a fact the caller has
+ *   already stated on the item that owns it, and two statements of one fact
+ *   drift: the tick, the announcement and the landing place would be free to
+ *   disagree.
+ * - `aria-checked` is not an approximation of the answer, it IS the answer —
+ *   it is what a screen reader announces as the current value, so a menu that
+ *   lands somewhere else is a menu that contradicts itself out loud.
+ * - A roving `tabindex` tracks the item last FOCUSED, not the item selected.
+ *   Those differ the moment a user arrows through a menu and dismisses it with
+ *   Escape, and landing on what the user last looked at rather than on what is
+ *   in force is a different defect wearing the same clothes.
+ *
+ * Two cases fall back to the first item, and both are deliberate. When nothing
+ * is chosen there is no value to preserve and no accidental change to make, so
+ * the command-menu answer is right. When the chosen item is DISABLED it is
+ * absent from {@link items} and cannot take focus at all, so landing is forced
+ * elsewhere; the first enabled item is the least surprising place, and the
+ * gesture that follows can no longer re-select the disabled value — it selects
+ * a visible neighbour, which the user can see they are on.
+ * @returns Index into {@link items} to focus, always within the list when it
+ * has any members.
+ */
+const landingIndex = (): number => {
+  // `items()` already excludes disabled items, so a chosen-but-disabled item
+  // reports -1 here and falls back with everything else that has no choice.
+  const chosen = items().findIndex((item: HTMLElement): boolean => {
+    return item.getAttribute('aria-checked') === 'true'
+  })
+  return chosen === -1 ? 0 : chosen
+}
+
+/**
+ * Opens the panel and lands focus inside it.
+ * @param edge `first` lands on {@link landingIndex} — the chosen item, or the
+ * first when nothing is chosen; `last` lands on the final item, which is what
+ * Arrow Up explicitly asks for.
  * @returns Resolves after the panel has rendered and focus has moved — the
  * items do not exist until Vue has flushed the `v-if`.
  */
@@ -284,7 +340,7 @@ const open = async (edge: 'first' | 'last'): Promise<void> => {
   // Focus cannot land on a `visibility: hidden` element, so the reveal above has
   // to reach the DOM before the item is asked to take it.
   await nextTick()
-  focusItemAt(edge === 'first' ? 0 : items().length - 1)
+  focusItemAt(edge === 'first' ? landingIndex() : items().length - 1)
 }
 
 /**
@@ -374,9 +430,9 @@ const onTriggerMouseDown = (): void => {
 }
 
 /**
- * Toggles the panel from the trigger's pointer click, landing focus on the first
- * item — the panel's only tab stop, so leaving focus on the trigger would strand
- * the next Tab outside a menu the user just opened.
+ * Toggles the panel from the trigger's pointer click, landing focus inside it —
+ * the panel is the only tab stop the menu has, so leaving focus on the trigger
+ * would strand the next Tab outside a menu the user just opened.
  * @returns Resolves once an opening panel has rendered and focus has moved.
  */
 const onTriggerClick = async (): Promise<void> => {

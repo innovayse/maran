@@ -15,6 +15,9 @@
   <data name="RulePortInvalid">
     <value>A firewall rule must name a port between 1 and 65535.</value>
   </data>
+  <data name="RulePortRangeInvalid">
+    <value>A firewall rule that opens a range of ports must end above where it starts, and inside 1 to 65535.</value>
+  </data>
   <data name="RuleProtocolInvalid">
     <value>A firewall rule applies to TCP or to UDP.</value>
   </data>

@@ -10,13 +10,13 @@ use maran_agent_core::validation::system::backup_id::BackupId;
 use maran_agent_core::validation::system::local_backup_root::LocalBackupRoot;
 use maran_agent_core::validation::system::name::AccountName;
 
+use crate::accounts::take_account_lock;
 use crate::backup::archive::archive_home::archive_home;
 use crate::backup::archive::checksum_file::checksum_file;
 use crate::backup::archive::dump_database::dump_database;
 use crate::backup::archive::measure_home::measure_home_bytes;
 use crate::backup::backup_error::BackupError;
 use crate::backup::backup_host::BackupHost;
-use crate::backup::backup_lock::take_account_lock;
 use crate::backup::backup_root::prepare_account_directory;
 use crate::backup::database_catalog::DatabaseCatalog;
 use crate::backup::model::archive_spec::ArchiveSpec;
@@ -343,8 +343,11 @@ fn assemble(
 /// delivered into an attacker-readable file, and a root-owned `0600` file
 /// truncated and overwritten — in
 /// `docs/superpowers/notes/2026-09-05-backups-threat-note.md` §1, back when
-/// [`AgentPaths::BULK_SCRATCH_ROOT`] lived inside the `panel`-owned
-/// `/var/lib/maran`.
+/// [`AgentPaths::BULK_SCRATCH_ROOT`] lived inside `/var/lib/maran`, which the
+/// panel's unprivileged service account owns (`maran:maran 0750` today; the
+/// account was called `panel` when that was measured, and naming it by its old
+/// spelling here would send a reader looking for an account no installed host
+/// has).
 ///
 /// Moving the root out of that tree is the primary fix and this check is the
 /// second one, for the same reason

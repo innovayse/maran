@@ -383,6 +383,9 @@ onMounted(refresh)
       @confirm="confirm"
     />
 
+    <!-- `v-if` because `backup` is required and `restoreTarget` is nullable; the dialog is created
+         with `open` already true, which `UiModal`s immediate open-watcher handles (focus enters,
+         Escape reaches it, focus returns to the control that opened it). -->
     <BackupRestoreDialog
       v-if="restoreTarget !== null"
       :open="restoreTarget !== null"

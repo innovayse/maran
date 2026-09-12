@@ -5,7 +5,18 @@ Normative. Security is the product's core promise — every PR is reviewed again
 ## The checklist (reviewer runs it verbatim)
 
 1. **Input:** every external input (HTTP body/query/route, provisioning API, agent rpc) validated at the boundary — FluentValidator on the C# request, revalidation in the agent. No value reaches a template, path, or SQL untouched.
-2. **Paths:** anything path-like goes through canonicalization and the `/home/<account>/` containment check (`resolve_in_home`). Never trust extension, never trust `..`-free-looking strings.
+2. **Paths:** anything path-like is contained by a descriptor walk, not by a string check. Every
+   write goes through `ops::files::open_parent_directory`, which descends with `openat` and
+   `O_NOFOLLOW`, checking ownership at each component, inside `fork_as_account` — so a component
+   swapped for a symlink between the check and the use is refused rather than followed.
+   `resolve_in_home` canonicalizes and confirms containment in `/home/<account>/`, but it is a
+   *locating* aid used by two read paths, and it contains nothing that is written: an earlier
+   version of this rule named it as the containment, which is wrong and was worth correcting,
+   because a reviewer who believes a string check is the control stops looking for the descriptor
+   one. Never trust an extension, never trust a `..`-free-looking string, and never decide
+   anything about a path by parsing its text — a customer's symlink in their own home once made
+   root create `/etc/ld.so.preload`, and the fix was to anchor on descriptors and move the target
+   out of any directory a customer owns.
 3. **Shell:** no shell strings anywhere, no string-built commands. Agent spawns processes with argv arrays only, allow-listed binaries, no `sh -c`. The API spawns nothing at all.
 4. **Config-file injection:** any caller-supplied value written into a line-oriented or
    structured config file — a crontab entry, an nginx directive, an env file, a systemd unit —
@@ -16,8 +27,15 @@ Normative. Security is the product's core promise — every PR is reviewed again
 5. **SQL:** EF Core parameterized only; approved `// raw-sql:` comments are parameterized too. String-concatenated SQL is an automatic reject + incident.
 6. **AuthZ:** every endpoint declares its permission; every tenant query is account-scoped via the
    global filters. This is no longer a thing a reviewer remembers: `TenantScopeTests` walks every
-   module's EF model and fails when an entity carrying `AccountId` has no query filter, so a new
-   tenant table — ours or a third party's — is covered without anyone extending a list. An entity
+   module's EF model and fails when an entity that is a customer's row has no query filter, so a new
+   tenant table — ours or a third party's — is covered without anyone extending a list. "A customer's
+   row" is not "spells it `AccountId`": the census follows REQUIRED relationships transitively, so an
+   entity scoped through its parent and carrying no account id of its own — `SiteHostname`, filtered
+   through `hostname.Site.AccountId` — is inside the guard rather than beside it. What the traversal
+   still cannot see is stated in `TenantScopeCensus`: an OPTIONAL foreign key is not followed (a row
+   that may exist with no owner is not an owner's row), a tenant column spelled as anything else on
+   an entity with no relationship to one is invisible, and so is an entity related only by a join
+   some handler writes and the model does not know about. An entity
    that must NOT be filtered is named in that test's exemption list with the reason it is safe, and
    an exemption for an entity that no longer exists fails too. `IgnoreQueryFilters` is a banned
    symbol in `backend/src`, so each deliberate bypass carries its reason on the line. The answer for
@@ -25,7 +43,7 @@ Normative. Security is the product's core promise — every PR is reviewed again
    row exists — and each tenant module still carries its own IDOR test proving the endpoint answers
    that way.
 7. **Configuration is documented, secrets are not committed:** every variable the product reads has an entry in an `.env.example` (repository root for development, `docker/.env.example` for the dev stack, `installer/panel.env.example` for what the installer generates on a server). The example files carry names, comments and safe placeholders — never real values. `.env` itself is git-ignored.
-8. **Secrets:** never in logs, error messages, URLs, or git. This includes anything that *acts* as a secret — a one-time setup token is permission to become the administrator, so it goes to the operator's terminal and never to a log file that outlives the install. Customer-facing errors carry no paths, versions, or tool output (role-aware error mapping). New config values with secrets go to `panel.env` (root:panel 0640), not appsettings.
+8. **Secrets:** never in logs, error messages, URLs, or git. This includes anything that *acts* as a secret — a one-time setup token is permission to become the administrator, so it goes to the operator's terminal and never to a log file that outlives the install. Customer-facing errors carry no paths, versions, or tool output (role-aware error mapping). New config values with secrets go to `panel.env` (root:maran 0640 — `maran` is the unprivileged system user and group the API runs as, named in installer/install.sh), not appsettings.
 9. **Crypto:** Argon2id for passwords; Ed25519 for licenses/artifacts; TLS everywhere external; no home-grown crypto, no MD5/SHA1 for anything security-relevant.
 10. **Surface:** no new listening ports, no new daemons, no new outbound calls (the only phone-home is the documented license lease). Anything of the kind requires a spec change first, not a PR.
 11. **Dependencies:** additions need a one-line justification in the PR; `cargo audit`/NuGet/`npm audit` clean; pinned versions.

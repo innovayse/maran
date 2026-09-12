@@ -6,6 +6,8 @@ use maran_agent_core::validation::system::name::AccountName;
 use maran_ops::accounts::{AccountError, AccountOperations, SystemHost};
 use maran_ops::cron::CronHost;
 use maran_ops::db::DbHost;
+use maran_ops::ftps::FtpsHost;
+use maran_ops::logins::LoginsHost;
 use maran_ops::php::PhpHost;
 use maran_ops::sftp::SftpHost;
 use maran_ops::sites::SiteHost;
@@ -25,6 +27,7 @@ use crate::proto::{
 };
 use crate::services::accounts::account_status::to_agent_error;
 use crate::services::accounts::to_login_password_state::to_login_password_state;
+use crate::services::accounts::to_transfer_protocol::to_transfer_protocol;
 use crate::services::wire::run_blocking::run_blocking;
 
 /// The noun phrase in the message a failed blocking task reports under.
@@ -59,8 +62,10 @@ pub struct AccountsServiceImpl<
     P: PhpHost,
     D: DbHost,
     S: SftpHost,
+    F: FtpsHost,
     W: SiteHost,
     C: CronHost,
+    L: LoginsHost,
 > {
     /// The operations, bound to whatever machine they were built against, and
     /// shared with the blocking tasks that run them.
@@ -85,6 +90,17 @@ pub struct AccountsServiceImpl<
     /// come down before the home does.
     sftp_host: Arc<S>,
 
+    /// The FTPS area's machine, because `userdel` does not touch vsftpd either
+    /// — and because the account's home is bind-mounted into a SECOND jail,
+    /// under a different root, that has to come down before the home does.
+    ///
+    /// A host of its own beside `sftp_host` rather than the same one, for the
+    /// reason `logins_host` is separate: each area enumerates the passwd
+    /// database filtered by its own jail directory, so a teardown reached
+    /// through the SFTP seam removes SFTP logins and leaves every FTPS login,
+    /// its mount and its jail standing.
+    ftps_host: Arc<F>,
+
     /// The site area's machine, because a suspension the panel cannot OBSERVE
     /// is one it must not report. Reading a vhost is the only thing this
     /// service asks of it, and it never writes one: the vhost a suspended
@@ -102,29 +118,66 @@ pub struct AccountsServiceImpl<
     /// Read-only here, exactly as `site_host` is: the crontab a suspended
     /// account carries is written by `CronService.SetAccountCronSuspended`.
     cron_host: Arc<C>,
+
+    /// The login area's machine, because the credentials a suspension has to
+    /// have turned are passwd entries of their own — and because there are two
+    /// protocols of them.
+    ///
+    /// A host of its own beside `sftp_host` rather than the same one, and the
+    /// separation is the point: an enumeration reached through the SFTP seam
+    /// answers about SFTP, so an FTPS login would be neither locked nor
+    /// reported while the attestation claimed to cover every login.
+    ///
+    /// Read-only here: the locking itself is `SftpService`'s
+    /// `SetAccountLoginsLocked`, driven by the panel.
+    logins_host: Arc<L>,
 }
 
-impl<H: SystemHost, P: PhpHost, D: DbHost, S: SftpHost, W: SiteHost, C: CronHost>
-    AccountsServiceImpl<H, P, D, S, W, C>
+impl<
+    H: SystemHost,
+    P: PhpHost,
+    D: DbHost,
+    S: SftpHost,
+    F: FtpsHost,
+    W: SiteHost,
+    C: CronHost,
+    L: LoginsHost,
+> AccountsServiceImpl<H, P, D, S, F, W, C, L>
 {
-    /// Creates the service around `operations`, the three hosts its deletions
-    /// need and the two hosts its suspension state reads.
+    /// Creates the service around `operations`, the four hosts its deletions
+    /// need and the three hosts its suspension state reads.
+    ///
+    /// Eight parameters, and they stay eight rather than being bundled into one
+    /// or two structs. Each is a distinct seam onto the machine, every one is a
+    /// different trait, and the compiler therefore refuses a swapped pair — the
+    /// hazard a long parameter list normally carries. A bundle would move the
+    /// same eight names one level down and add a type whose only purpose is to
+    /// be constructed at the one call site that builds this service
+    /// (`server.rs`), while making a host left out of the bundle a `Default`
+    /// away from silently doing nothing. The same reasoning is written out on
+    /// `ops::backup::restore_backup`, which carries this allow for the same
+    /// reason.
+    #[allow(clippy::too_many_arguments)]
     #[must_use]
     pub fn new(
         operations: AccountOperations<H>,
         php_host: P,
         db_host: D,
         sftp_host: S,
+        ftps_host: F,
         site_host: W,
         cron_host: C,
+        logins_host: L,
     ) -> Self {
         Self {
             operations: Arc::new(operations),
             php_host: Arc::new(php_host),
             db_host: Arc::new(db_host),
             sftp_host: Arc::new(sftp_host),
+            ftps_host: Arc::new(ftps_host),
             site_host: Arc::new(site_host),
             cron_host: Arc::new(cron_host),
+            logins_host: Arc::new(logins_host),
         }
     }
 
@@ -181,9 +234,11 @@ impl<
     P: PhpHost + 'static,
     D: DbHost + 'static,
     S: SftpHost + 'static,
+    F: FtpsHost + 'static,
     W: SiteHost + 'static,
     C: CronHost + 'static,
-> AccountsService for AccountsServiceImpl<H, P, D, S, W, C>
+    L: LoginsHost + 'static,
+> AccountsService for AccountsServiceImpl<H, P, D, S, F, W, C, L>
 {
     /// Creates the system user, its home directory and its initial quota.
     async fn create_account(
@@ -264,9 +319,10 @@ impl<
         let request = request.into_inner();
         let result = match self
             .with_account(&request.username, {
-                // All three hosts travel in here so the deletion can take the
-                // account's databases, its SFTP logins and jail, and its
-                // php-fpm pools with it, BEFORE `userdel` removes the user
+                // All four hosts travel in here so the deletion can take the
+                // account's databases, its SFTP logins and jail, its FTPS
+                // logins and jail, and its php-fpm pools with it, BEFORE
+                // `userdel` removes the user
                 // those things name; see `AccountOperations::delete` for why
                 // that order is the only safe one, and why leaving any of them
                 // behind is the defect that cannot be repaired afterwards.
@@ -276,11 +332,13 @@ impl<
                 let php_host = Arc::clone(&self.php_host);
                 let db_host = Arc::clone(&self.db_host);
                 let sftp_host = Arc::clone(&self.sftp_host);
+                let ftps_host = Arc::clone(&self.ftps_host);
                 move |name| {
                     operations.delete(
                         php_host.as_ref(),
                         db_host.as_ref(),
                         sftp_host.as_ref(),
+                        ftps_host.as_ref(),
                         &name,
                     )
                 }
@@ -307,12 +365,12 @@ impl<
                 let operations = Arc::clone(&self.operations);
                 let site_host = Arc::clone(&self.site_host);
                 let cron_host = Arc::clone(&self.cron_host);
-                let sftp_host = Arc::clone(&self.sftp_host);
+                let logins_host = Arc::clone(&self.logins_host);
                 move |name| {
                     operations.suspension_state(
                         site_host.as_ref(),
                         cron_host.as_ref(),
-                        sftp_host.as_ref(),
+                        logins_host.as_ref(),
                         &name,
                     )
                 }
@@ -335,14 +393,32 @@ impl<
                     cron_entries_total: state.cron.entries_total,
                     cron_entries_suspended: state.cron.entries_suspended,
                     cron_foreign_lines: state.cron.foreign_lines,
+                    // Every login the account holds, of BOTH protocols, in the
+                    // one repeated field the contract has today. Reporting only
+                    // the SFTP half would hide from the panel exactly the
+                    // credential `ops::logins` exists to make visible; the
+                    // protocol beside each name, and the count of entries this
+                    // agent does not manage, reach the wire with the field that
+                    // carries them.
                     sftp_logins: state
-                        .sftp_logins
+                        .logins
+                        .logins
                         .into_iter()
-                        .map(|fact| SftpLoginSuspensionFact {
-                            username: fact.user.as_str().to_owned(),
-                            locked: fact.locked,
+                        .map(|login| SftpLoginSuspensionFact {
+                            username: login.name,
+                            locked: login.locked,
+                            protocol: to_transfer_protocol(login.protocol) as i32,
                         })
                         .collect(),
+                    // The number the enumeration deliberately cannot speak for:
+                    // passwd entries on this account's uid whose home is NEITHER
+                    // jail. The agent locks none of them — they are not its
+                    // entries — so the attestation REPORTS the count instead of
+                    // refusing on it, which is the shape `cron_foreign_lines`
+                    // set for the same question about a crontab. A suspension
+                    // that said nothing about them would be claiming a silence
+                    // it never achieved.
+                    unmanaged_logins: state.logins.unmanaged,
                 })
             }
             Err(error) => get_account_suspension_state_response::Result::Error(error),

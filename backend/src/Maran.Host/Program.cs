@@ -63,8 +63,18 @@ public sealed class Program
         app.UseSecurityHeaders();
         app.UseCorrelationId();
         app.UsePanelRequestLogging();
-        app.UseExceptionHandling();
+        // Localisation MUST precede exception handling. Both orders look right from the request
+        // side — the culture is set before any controller runs either way — but CurrentUICulture is
+        // an async-local, and a value assigned in a nested flow does not propagate back out to the
+        // frame that catches. With the handler installed first, it resolved every error text in the
+        // parent context, where no culture had been set, and ResourceManager fell back to the
+        // neutral English resx. Silently: a fallback is what a resource manager is for. Every
+        // translation this product ships was unreachable, in every module, and `maran structure`
+        // went on requiring all three locales to carry every key. Held by
+        // Maran.Host.IntegrationTests/ErrorMessageLocalizationTests.cs, which asks two modules in
+        // three languages, because the mechanism is this pipeline and not any module's resources.
         app.UsePanelLocalization();
+        app.UseExceptionHandling();
         app.UseCsrfHeader();
         app.UsePanelAuthentication();
         app.UseRateLimiter();

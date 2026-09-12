@@ -6,6 +6,7 @@
 //! again because it runs as root and the API does not.
 
 mod account_error;
+mod account_lock;
 mod account_operations;
 pub mod model;
 mod process_system_host;
@@ -13,6 +14,7 @@ mod quota_blocks;
 mod system_host;
 
 pub use account_error::AccountError;
+pub(crate) use account_lock::take_account_lock;
 pub use account_operations::AccountOperations;
 pub use maran_agent_core::command_outcome::CommandOutcome;
 pub use model::account_suspension_state::AccountSuspensionState;

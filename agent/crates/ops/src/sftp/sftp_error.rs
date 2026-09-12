@@ -95,6 +95,24 @@ pub enum SftpError {
     #[error("the hosting account does not exist on this host")]
     AccountMissing,
 
+    /// The password was set, and the lock the login was under could not be put
+    /// back over it — so a login that could not authenticate now can.
+    ///
+    /// Its own variant, and the only one in this enum that reports a state the
+    /// operation itself produced. `chpasswd` REPLACES the shadow password field
+    /// rather than editing it, so a password change wipes the `!` a suspension
+    /// wrote; `set_sftp_password` puts it back and then reads the field again to
+    /// see that it did. This is that read disagreeing.
+    ///
+    /// It is not a [`Self::SpawnFailed`] because the tool may well have exited
+    /// zero: `usermod --lock` answers zero on a login it did nothing to, which
+    /// is exactly why a status is not evidence here. And it is not folded into
+    /// the success either — the password IS set and the login IS open, which is
+    /// the one condition in this area an operator has to act on rather than
+    /// retry.
+    #[error("the login's lock could not be restored after the password was set")]
+    SuspensionNotRestored,
+
     /// The account's jail could not be brought to the state SFTP needs.
     ///
     /// The jail directory, its mount point, or the bind-mount unit that fills
@@ -104,6 +122,30 @@ pub enum SftpError {
     /// as data loss.
     #[error("the sftp jail could not be prepared")]
     JailFailed,
+
+    /// Another operation for the hosting account is already running on this
+    /// host.
+    ///
+    /// The per-account lock (`crate::accounts::account_lock`) is taken without
+    /// waiting, so creating a login while that account is being deleted,
+    /// backed up or restored is refused rather than queued. Its own variant and
+    /// not a [`Self::JailFailed`]: nothing was prepared and nothing failed —
+    /// the operation did not start, and the panel's answer is to retry it.
+    #[error("another operation is already running for the hosting account")]
+    AccountBusy,
+
+    /// The hosting account's numeric identity changed, or the account went
+    /// away, while the login was being created.
+    ///
+    /// The uid and gid a login is created with are read from the password
+    /// database before the jail is built and re-read immediately before
+    /// `useradd`. A difference between the two reads means the account this
+    /// login was to belong to is no longer the account that was resolved, and
+    /// `useradd --non-unique --uid` would happily create a login carrying a uid
+    /// that now belongs to somebody else — which is the one outcome this
+    /// operation must never produce.
+    #[error("the hosting account's identity changed while the login was being created")]
+    AccountIdentityChanged,
 }
 
 impl SftpError {

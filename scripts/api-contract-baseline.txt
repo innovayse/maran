@@ -12,7 +12,7 @@
 #
 # Regenerate with `maran api --accept`, in its own reviewed commit.
 
-covered: 27 endpoints, 85 members
+covered: 29 endpoints, 90 members
 
 POST /api/v1/accounts  ->  CreateAccountCommand
   name: string
@@ -90,9 +90,16 @@ POST /api/v1/firewall/rules  ->  AllowPortCommand
   port: number
   protocol: enum(tcp|udp)
   sourceCidr: string
+  portTo: number?
 POST /api/v1/firewall/whitelist  ->  AddWhitelistEntryCommand
   cidr: string
   note: string
+POST /api/v1/ftp-users  ->  CreateFtpUserCommand
+  accountId: string
+  name: string
+POST /api/v1/ftps-server/enable  ->  EnableFtpsCommand
+  hostname: string
+  passiveAddress: string
 PUT /api/v1/notifications/smtp  ->  SaveSmtpSettingsCommand
   host: string
   port: number
@@ -136,6 +143,7 @@ POST /api/v1/sites/{}/php-version  ->  ChangeSitePhpVersionCommand
   DELETE /api/v1/firewall/bans — query-string call, no JSON body
   DELETE /api/v1/firewall/rules — query-string call, no JSON body
   DELETE /api/v1/firewall/whitelist/{} — route-only call, no JSON body
+  DELETE /api/v1/ftp-users/{} — route-only call, no JSON body
   DELETE /api/v1/sessions/{} — route-only call, no JSON body
   DELETE /api/v1/sftp-users/{} — route-only call, no JSON body
   DELETE /api/v1/sites/{} — route-only call, no JSON body
@@ -146,6 +154,8 @@ POST /api/v1/sites/{}/php-version  ->  ChangeSitePhpVersionCommand
   POST /api/v1/auth/refresh — route-only call, no JSON body
   POST /api/v1/auth/two-factor/enrol — route-only call, no JSON body
   POST /api/v1/databases/{}/password — route-only call, no JSON body
+  POST /api/v1/ftp-users/{}/password — route-only call, no JSON body
+  POST /api/v1/ftps-server/disable — route-only call, no JSON body
   POST /api/v1/sftp-users/{}/password — route-only call, no JSON body
   POST /api/v1/sites/{}/disable — route-only call, no JSON body
   POST /api/v1/sites/{}/enable — route-only call, no JSON body
@@ -166,6 +176,9 @@ POST /api/v1/sites/{}/php-version  ->  ChangeSitePhpVersionCommand
   GET /api/v1/firewall/bans
   GET /api/v1/firewall/rules
   GET /api/v1/firewall/whitelist
+  GET /api/v1/ftp-users
+  GET /api/v1/ftp-users/{}
+  GET /api/v1/ftps-server
   GET /api/v1/monitoring/accounts-disk
   GET /api/v1/monitoring/chart
   GET /api/v1/monitoring/metrics

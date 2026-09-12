@@ -3,6 +3,7 @@
 use maran_distro::DistroAdapter;
 
 use crate::sites::SiteCertificate;
+use crate::sites::is_suspended_vhost::is_suspended_vhost;
 use crate::sites::model::create_site_input::CreateSiteInput;
 use crate::sites::render_vhost::render_vhost;
 use crate::sites::resolved_site_paths::resolved_site_paths;
@@ -48,7 +49,9 @@ use crate::ssl::write_material::write_material;
 ///    placeholder's licence to be overwritten by the next `GenerateSelfSigned`.
 /// 5. The vhost is rewired as a SECOND call of the write protocol, so that a
 ///    certificate nginx rejects rolls back to the plain-HTTP vhost and leaves a
-///    working site rather than a broken one.
+///    working site rather than a broken one — and only when the vhost on disk
+///    is the site's own. A suspended site keeps its stub
+///    (`sites::is_suspended_vhost`).
 ///
 /// Idempotent as the contract requires (`ssl.proto`): installing byte-identical
 /// material again writes nothing and reloads nothing, and installing different
@@ -128,12 +131,22 @@ pub fn install_certificate(
         certificate: Some(certificate),
         ..site.clone()
     };
-    let wanted = render_vhost(&secured, &paths)?;
+    // A SUSPENDED site keeps its stub. The material is installed and the expiry
+    // is returned — a suspended site must still be able to renew, which is the
+    // whole reason `disable_site` keeps a vhost at all — but the site's own
+    // configuration is NOT rendered over the stub. Rendering it would put the
+    // customer's content back on the air on the strength of a certificate
+    // renewal, while the panel goes on recording the site as suspended, and the
+    // renewal scheduler runs unattended so nobody would connect the two.
+    if !is_suspended_vhost(&current, site, &paths)? {
+        let wanted = render_vhost(&secured, &paths)?;
 
-    // The second write, and skipped when there is nothing to change: the panel
-    // retries after a timeout, and a reload of nginx per retry is a storm.
-    if current != wanted {
-        write_vhost(host, distro, &paths.config_path, &wanted)?;
+        // The second write, and skipped when there is nothing to change: the
+        // panel retries after a timeout, and a reload of nginx per retry is a
+        // storm.
+        if current != wanted {
+            write_vhost(host, distro, &paths.config_path, &wanted)?;
+        }
     }
 
     Ok(expiry)

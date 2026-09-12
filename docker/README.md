@@ -19,13 +19,24 @@
     `maran handshake` runs it unprivileged on the host instead, which is why that check can prove
     the wire and nothing behind it.
   - **The panel reaches the socket with no `chown`.** In production the unit is `User=root`,
-    `Group=panel`, so the socket is `root:panel 0660`. The service sets `user: "0:<your gid>"`,
+    `Group=maran`, so the socket is `root:maran 0660`. The service sets `user: "0:<your gid>"`,
     which is the same mechanism with the developer's group: `srw-rw---- root <you>`, mode
     unchanged, no world access, and `--allow-uid` still narrows it to one uid. Two things here are
     development-only and are stated in the compose file beside the service: `privileged`, and a
     socket directory inside the working tree rather than root-owned `/run/maran`.
   - `docker/agent-entrypoint.sh` starts MariaDB inside the container (the image boots no init) and
     then `exec`s the agent, so the agent is pid 1 and a dead daemon takes the container with it.
+    It runs again on every container (re)start, so a `docker restart` brings MariaDB back — a
+    hand-started MariaDB was once lost exactly that way, and the first symptom was a misleading
+    agent error on a backup. The service's healthcheck asks for both halves inside the container
+    (`mariadb-admin ping` AND the bound socket), so `maran dev` waits on `healthy` rather than on
+    the socket file, and a MariaDB that dies later shows as `unhealthy` in `docker ps`.
+  - The service's container name and socket directory are interpolated
+    (`MARAN_AGENT_CONTAINER`, `MARAN_AGENT_SOCKET_DIR`, defaults in `docker/.env.example`) so a
+    SECOND instance can run beside the first: `maran dev --selfcheck` stands the whole stack up
+    again under its own compose project, ports and names, proves `/health` answers
+    `"agent":"connected"` by value, drives one real account creation through the API and reads it
+    back with `getent` inside the container, then tears down and asserts nothing is left.
 - **`docker-compose.dev.yml`**, database half: PostgreSQL 16 service for backend development and
   integration tests.
   - Database: `maran_dev`
@@ -50,7 +61,7 @@
   - It sources `installer/lib/85-mysql.sh` and `installer/lib/86-sftp.sh` and calls their functions — `verify_mysql_socket_auth`, `install_sftp_prerequisites`, `install_sshd_match_block` — then asserts the result: root authenticates over the unix socket, the `maran-sftp` group exists, `/var/lib/maran-sftp` is `root:root 0700` **and every ancestor of it up to `/` is root-owned and not group- or other-writable**, and sshd_config carries exactly **one** `Match Group maran-sftp` block with its four directives after the installer function has been run **twice**.
   - It also asserts the failure paths, which no positive test reaches: the gate must refuse a root with a password *and* a root with no password at all, each with the right diagnosis, and `install_sshd_match_block` must leave an invalid sshd_config untouched rather than replacing it. To do that it really does set a throwaway root password inside the build layer and really does break sshd_config, restoring both afterwards.
   - Same reasoning as the nginx include above, now for two more areas: **the installer does the work and the image proves it**. Every one of these assertions has been checked by deleting the installer step it covers and watching the image build fail naming it.
-  - It also holds the **on-disk boundary that four panel→root ownership defects were closed**. It RUNS `installer/lib/40-user.sh`'s `create_directory_layout` and `installer/lib/50-artifacts.sh`'s `prepare_staging_dir`, and then looks at every directory they made: `/usr/local/maran`, `/etc/maran`, `/var/lib/maran`, `/var/log/maran` (root's, since root and the root nginx master append to files directly inside it) and its panel-owned `panel/` subdirectory, `/var/backups/maran`, `/home/.maran-restore`, `/var/lib/maran-scratch`, `/var/lib/maran-sftp`, `/run/maran` and `/var/lib/maran-artifact-staging`. Each one is asked four separate questions — does it exist, is it a REAL directory rather than a symbolic link to one, which uid and gid own it, and what is its exact mode — and every ancestor up to `/` is required to be root-owned and not group- or other-writable. The fourth defect is the one that could not be fixed by moving anything, so the ancestor walk is aimed at the three log **leaves** root appends to — `install.log`, `nginx-access.log`, `nginx-error.log`, read out of `install.sh`'s own list — and its control puts the defect back by chowning `/var/log/maran` to the panel uid, requires all three refusals by name, restores it and requires all three acceptances. Both the plant and the restore are read back with `stat` and disagreement is a failure: a `chown` that silently did not take would leave the walk looking at a healthy directory and the control reporting itself held while it measured nothing, which is how three mutations in this repository were once scored blind.
+  - It also holds the **on-disk boundary that four panel→root ownership defects were closed**. It RUNS `installer/lib/40-user.sh`'s `create_directory_layout` and `installer/lib/50-artifacts.sh`'s `prepare_staging_dir`, and then looks at every directory they made: `/usr/local/maran`, `/etc/maran`, `/var/lib/maran`, `/var/log/maran` (root's, since root and the root nginx master append to files directly inside it), its panel-owned `panel/` subdirectory and its root-only `sites/` subdirectory (`root:root 0750` — the site-log escalation fix, whose whole defence is the ownership and mode of every ancestor), `/var/backups/maran`, `/home/.maran-restore`, `/var/lib/maran-scratch`, `/var/lib/maran-sftp`, `/run/maran` and `/var/lib/maran-artifact-staging`. Each one is asked four separate questions — does it exist, is it a REAL directory rather than a symbolic link to one, which uid and gid own it, and what is its exact mode — and every ancestor up to `/` is required to be root-owned and not group- or other-writable. The fourth defect is the one that could not be fixed by moving anything, so the ancestor walk is aimed at the three log **leaves** root appends to — `install.log`, `nginx-access.log`, `nginx-error.log`, read out of `install.sh`'s own list — and its control puts the defect back by chowning `/var/log/maran` to the panel uid, requires all three refusals by name, restores it and requires all three acceptances. Both the plant and the restore are read back with `stat` and disagreement is a failure: a `chown` that silently did not take would leave the walk looking at a healthy directory and the control reporting itself held while it measured nothing, which is how three mutations in this repository were once scored blind.
     - The symlink question is asked separately from the directory question because `[ -d ]` follows symlinks and `stat` without `-L` reports the link's own owner and mode, so a check that asked only those two would have watched the attack happen. That attack is not hypothetical: the bulk scratch used to live inside `panel`-owned `/var/lib/maran`, and the owner of a directory can rename an entry aside and leave a symlink at that name without ever having permission to enter it — measured delivering a customer's plaintext database dump into a panel-readable file. The ancestor walk is the assertion that actually observes what the fix changed, because all three fixes are relocations: the same mode, moved to a path whose ancestors are root's. The third one is the SFTP jail base. It was `/var/lib/maran/sftp`, `root:root 0755` and asserted to be exactly that — and that assertion stopped one level too early, so nothing here saw that OpenSSH refuses a chroot with any non-root path component and that **no SFTP login had ever worked on a real install**: `Accepted password …` in the daemon's log, then `bad ownership or modes for chroot directory component "/var/lib/maran/"`, then a closed connection. That is why the walk, and not another mode check, is what the jail base is now asked for.
     - The log directory is also where this file states a blind spot **in its own output**, because it has one it cannot close. Neither root writer that made `/var/log/maran` a defect runs in this image, and the nginx one could not be gated even where it does run: the root nginx master creates and re-opens `nginx-access.log` and `nginx-error.log` itself, at the fixed paths the vhost names, on every start, every reload and every `SIGUSR1` — always after `install.sh`'s `harden_log_directory` and after step 40's assertion have finished. The directory's ownership is the entire defence, not a check standing in front of the write, and the assertion prints an `UNOBSERVED HERE` block saying so and naming what a booted host would have to show instead.
     - The walk itself gets an **inverse control**, for the reason every gate here does: `/var/lib` is root-owned on both families, so on a healthy image the walk never refuses anything and would pass with its body deleted. It is handed a root-owned `0700` directory whose parent is `panel`-owned — the SFTP defect's exact shape, the one a mode check cannot see — then a group-writable ancestor and a world-writable one, and must refuse each with a diagnosis naming what it found; then it must accept the real relocated jail base.
@@ -177,17 +188,92 @@ docker compose -f docker/docker-compose.dev.yml down
 
 ## Building the Polygon Images
 
+Build through the harness, so the image records what it was built FROM. The label is what every
+currency check below reads; an image built without it cannot be shown to be current and is refused
+by name rather than believed.
+
 **Ubuntu 24.04:**
 
 ```bash
-docker build -f docker/polygon/ubuntu24.Dockerfile -t maran-polygon-ubuntu24 .
+. scripts/lib/polygon.sh
+polygon_build_labelled "$PWD" ubuntu24 "$(polygon_fingerprint "$PWD" ubuntu24)" \
+  maran-polygon-ubuntu24 /dev/stdout
 ```
 
 **AlmaLinux 9:**
 
 ```bash
-docker build -f docker/polygon/alma9.Dockerfile -t maran-polygon-alma9 .
+. scripts/lib/polygon.sh
+polygon_build_labelled "$PWD" alma9 "$(polygon_fingerprint "$PWD" alma9)" \
+  maran-polygon-alma9 /dev/stdout
 ```
+
+The equivalent by hand, if you would rather see the whole command — the label is not optional:
+
+```bash
+docker build --label "maran.polygon.fingerprint=$(polygon_fingerprint "$PWD" ubuntu24)" \
+  -f docker/polygon/ubuntu24.Dockerfile -t maran-polygon-ubuntu24 .
+```
+
+### `:latest` carries no currency guarantee — pass `--no-cache` before you score
+
+Both commands above write a FLOATING tag. A tag is a name, and nothing on a developer's machine ties
+that name to the Dockerfile that defined it, so an image built yesterday keeps answering to
+`:latest` after today's edit and a suite run against it measures the previous tree. That is not
+hypothetical here: `maran-polygon-alma9:latest` on one machine was built sixteen hours before
+`alma9.Dockerfile` gained its `chmod 0400 /etc/shadow` step, and the FTPS suite run against it
+reported **3 passed / 12 failed** — twelve reds with no code defect behind any of them.
+
+Two things follow, and neither is a new check:
+
+- **Rebuild with `--no-cache` before a scoring run, and say that you did.** The build-time assertion
+  at the end of `alma9.Dockerfile` cannot help here, and it is worth being exact about why: it
+  asserts that the file the build just prepared has the mode the Dockerfile asked for, and it holds
+  every time it runs. The failure is that no build ran at all. An assertion inside a build is blind
+  to the absence of the build, so a second one would add nothing.
+- **The currency question already has an answer in this repository, in one caller.**
+  `polygon_fingerprint` (`scripts/lib/polygon.sh`) hashes `docker/polygon/**` plus `installer/**` —
+  the images run the installer's own steps at build time, so an installer edit changes what the image
+  is — and `polygon_ensure_image` tags the image WITH that hash, so a stale image has a different
+  name and simply is not found. It prints `STALE: maran-polygon-<family>:latest exists but was built
+  from other sources` and declines to use it. That was `maran mutate --polygon` and nothing else: the
+  `:latest` pair these two commands produce, which the run commands below name and which the scoring
+  lane consumes, used to be outside it.
+
+  **It is inside it now, and the wiring is a LABEL plus a line in the log.** The build above records
+  the fingerprint in the image (`maran.polygon.fingerprint`), so an image can be asked what it was
+  built from wherever it travels. `maran polygon stamp <family> [image]` asks that question at RUN
+  time — before a container starts — and writes the answer into the run's own log:
+
+  ```bash
+  mkdir -p /tmp/polygon-logs
+  scripts/maran polygon stamp ubuntu24 | tee -a /tmp/polygon-logs/step-1.log
+  # ... then the docker run below, teeing (with -a) into the same file
+  ```
+
+  `maran polygon verify` then reads that line back at SCORING time and refuses to score logs whose
+  image was built from sources this tree no longer has — `POLYGON VERDICT: ABORTED`, never a pass.
+  Both halves exist because neither can see what the other sees: the run can inspect the image and
+  cannot know which log will be scored; the score may run days later on a machine that never held
+  the image, and can only read what the run wrote down. A log with no stamp line at all is refused
+  too, because "produced before this check existed" and "produced against an image nobody checked"
+  are the same thing to a reader.
+
+  Its own stated blind spot applies either way: a fingerprint covers the SOURCES in this tree, so
+  a matching one may still hold older upstream packages than a fresh build would install. And the
+  fingerprint covers `installer/**` entirely, comments included — an unrelated installer edit is
+  enough to make a previously built image read as stale. That is deliberate and discussed in
+  `.superpowers/sdd/polygon-currency-report.md`: the images execute the installer's own steps, so
+  nothing under it can be shown not to matter, and the remedy is a rebuild rather than an override.
+
+The suite that notices this condition is `ftps_on_a_real_host`, through one case written for it —
+`the_shadow_database_can_be_read_for_authentication_in_this_container`, which asks
+`/usr/sbin/unix_chkpwd` about a wrong password for `root` and requires a refusal rather than
+`PAM_AUTHINFO_UNAVAIL`. It is why a red alma9 polygon was read as a stale image and not as a
+regression. `sftp_on_a_real_host` needs no counterpart and has none: measured with `/etc/shadow` put
+back to `0000` inside a container of the current image, FTPS reports 12 failures and SFTP reports
+**13 passed / 0 failed**, because sshd verifies a password as an unconfined root process while
+`unix_chkpwd` is the path the host's AppArmor profile attaches to and withholds `dac_override` from.
 
 ## Running the Agent in a Polygon
 
@@ -213,13 +299,14 @@ docker run --rm \
 
 ## Running the Polygon Suites
 
-Eleven test files are `#[ignore]`d by default and run only inside a polygon:
+Thirteen test files are `#[ignore]`d by default and run only inside a polygon:
 `sites_on_a_real_host.rs`, `php_pools_on_a_real_host.rs`,
 `privileges_on_a_real_host.rs`, `databases_on_a_real_host.rs`,
 `monitor_on_a_real_host.rs`, `binary_paths_on_a_real_host.rs`,
 `sftp_on_a_real_host.rs`, `account_deletion_on_a_real_host.rs`,
-`firewall_on_a_real_host.rs`, `cron_on_a_real_host.rs` and
-`backup_on_a_real_host.rs`. They create real system accounts and real database
+`firewall_on_a_real_host.rs`, `cron_on_a_real_host.rs`,
+`backup_on_a_real_host.rs`, `restore_recovery_on_a_real_host.rs` and
+`ftps_on_a_real_host.rs`. They create real system accounts and real database
 users, write real vhosts and pools, mount real filesystems, log in to a real
 sshd and drop real privileges, so they refuse to run unless the image's
 `MARAN_POLYGON` marker is set and the process is root — asked to run anywhere
@@ -233,9 +320,25 @@ docker run --rm -v "$PWD:/maran" -w /maran/agent -e CARGO_TARGET_DIR=/tmp/target
   cargo test --test sites_on_a_real_host --test php_pools_on_a_real_host \
     --test privileges_on_a_real_host --test databases_on_a_real_host \
     --test monitor_on_a_real_host --test binary_paths_on_a_real_host \
+    --test restore_recovery_on_a_real_host \
     --no-fail-fast \
     -- --ignored --test-threads=1
 ```
+
+`restore_recovery_on_a_real_host.rs` is here rather than in the privileged
+command because it mounts nothing: it needs a real account, the image's own
+MariaDB and a real `/home`, all of which the command above already has. What it
+does need is a process it can KILL. Each of its cases re-enters this same test
+binary as a child, has the child run a real `restore_backup`, and kills that
+child with `SIGKILL` from inside the restore's own progress sink — once between
+the two renames that swap the account's home, and once after a rollback dump has
+been written. The parent then runs `ops::backup::recover_restores`, the
+reconciliation the daemon performs before it binds its socket, and asserts the
+customer's home came back with the backup's bytes and
+`<account>:<web server group>:750`, that the rollback dumps survived, and that a
+COMPLETED restore is not "recovered" by a later start. It is the proof for
+privileges audit F-2, where a kill in that window left an account with no home
+directory and nothing anywhere that would put it back.
 
 `backup_on_a_real_host.rs` is two suites in one file, and both halves need a
 real host. The first drives the archiver with a hostile `gzip` first on `PATH`
@@ -260,7 +363,7 @@ of against a constant. Run without the mount the case does not go red: it prints
 `UNOBSERVED HERE` and returns, so an unprivileged run reports a green suite whose
 most valuable case never executed.
 
-The other five run separately, because each needs `--privileged`: SFTP and
+The other six run separately, because each needs `--privileged`: SFTP, FTPS and
 account-deletion for the jail's bind mount, `backup` because one of its cases
 mounts a real tmpfs at the bulk scratch root, `firewall` because `nft` cannot
 initialise its cache without `NET_ADMIN`, and `cron` because the Debian family's
@@ -269,7 +372,8 @@ PAM stack includes `pam_loginuid`:
 ```bash
 docker run --rm --privileged -v "$PWD:/maran" -w /maran/agent -e CARGO_TARGET_DIR=/tmp/target \
   maran-polygon-ubuntu24 \
-  cargo test --test sftp_on_a_real_host --test account_deletion_on_a_real_host \
+  cargo test --test sftp_on_a_real_host --test ftps_on_a_real_host \
+    --test account_deletion_on_a_real_host \
     --test backup_on_a_real_host \
     --test firewall_on_a_real_host --test cron_on_a_real_host \
     --no-fail-fast \
@@ -319,11 +423,11 @@ exited 0 printing `Finished` and naming a suite executable; and a `cargo` invoca
 exited 0 having run nothing. Until this step existed, CI's only verdict was that exit
 code.
 
-**The privileged five are one command here and two steps in CI, deliberately.**
-`.github/workflows/agent.yml` runs `sftp` + `account_deletion` + `backup` in one
-step and `cron` + `firewall` in another, because the two groups need
+**The privileged six are one command here and two steps in CI, deliberately.**
+`.github/workflows/agent.yml` runs `sftp` + `ftps` + `account_deletion` + `backup`
+in one step and `cron` + `firewall` in another, because the two groups need
 `--privileged` for different reasons and a merged step attributes a wrongly-started
-runner to whichever suite ran first. The command above is the same eleven suites
+runner to whichever suite ran first. The command above is the same six suites
 with the same flags; it is not byte-for-byte the same invocation, so a run that is
 green here is evidence about the suites, not proof that CI's step boundaries hold.
 
@@ -350,6 +454,117 @@ cascade does not reach past the account: a neighbour named `polycascade_two`
 keeps its database, its login and its mount, which is a case no unit test could
 express, because `polycascade_two` is simultaneously a valid account name and the
 spelling of `polycascade`'s login `two`.
+
+`ftps_on_a_real_host.rs` drives a real vsftpd the agent itself configured: a
+login is refused in plain text and accepted over TLS with the same credential
+(the inverse control without which "plaintext is refused" is satisfied by a
+daemon that refuses everything), the session's own root holds the bind mount and
+nothing else, a file it uploads lands in the customer's real home owned by the
+ACCOUNT, membership of the FTPS group is the entire authorization, and a
+suspended login is refused by the daemon while a password change inside the
+suspension leaves it refused.
+
+Two of its cases are about TRUST rather than about encryption, and they are the
+only ones in the file whose client verifies anything. Every other client here
+passes `curl -k`, which is right for what those tests are about and proves nothing
+about a certificate: a daemon serving expired material, material for another name,
+or material signed by nobody would satisfy all of them.
+`a_client_that_verifies_the_chain_against_the_panels_root_is_accepted_and_a_wrong_root_is_not`
+therefore has the test own a throwaway certificate authority
+(`tests/fixtures/polygon_certificate_authority.rs`), issue a leaf for the suite's
+hostname INTO the panel's own store paths, and run `curl` with **no `-k`** and
+`--cacert` naming that authority — then run the SAME client against a second,
+unrelated authority's root, which must refuse with `SSL certificate problem`. That
+second half is the point: with verification silently switched off, the first half
+passes and only the refusal can tell. `the_daemon_serves_the_certificate_the_panel_installed_and_not_some_other_file`
+asks the running daemon what it presents (`openssl s_client -starttls ftp`) and
+requires it to be the leaf from the store file, which is the one assertion that
+would notice an agent rendering one certificate path while the unit starts the
+daemon against another.
+
+**UNOBSERVED HERE: that a PUBLIC client trusts a real server.** That is a fact
+about other people's trust stores and about a certificate no isolated container
+can obtain, and no test on this host can observe it. What is observed is the
+mechanism a publicly-issued certificate would also travel.
+
+Two of its cases do what no `curl` can, because `curl` authenticates, does one
+thing and hangs up. `an_authenticated_session_is_ended_when_the_account_is_suspended`
+holds TWO control sessions open — `openssl s_client -starttls ftp`, in
+`tests/fixtures/ftps_control_session.rs` — across a real suspension, and measures
+that the suspended account's session is GONE while the other account's session
+goes on moving bytes through the same daemon at the same moment. That second
+session is both the cross-tenant control (the cull must not reach another uid) and
+the daemon's own liveness proof (a daemon that had stopped serving everything
+would make the first assertion vacuous). A NEW session with the same credential is
+still refused, which is the half of the promise the cull must not be allowed to
+replace. **This case used to assert the opposite** —
+`an_authenticated_session_keeps_transferring_after_the_account_is_suspended`,
+which pinned the behaviour before the cull existed and said in its own failure
+message how to re-pin it.
+`a_deleted_accounts_ftps_credential_is_refused_by_the_daemon_after_the_name_is_recycled`
+is the protocol half of the cascade `account_deletion_on_a_real_host.rs` proves
+on the machine: the dead password is refused by the real daemon after the account
+name has been recycled, and the successor's own password works, which is what
+tells a refusal about the credential apart from a daemon refusing everything.
+
+`sftp_on_a_real_host.rs` carries the OTHER protocol's answer to that same
+question, and it is there because the comparison is the finding.
+`an_authenticated_sftp_session_is_ended_when_the_account_is_suspended` holds TWO
+SFTP sessions open — the image's own client in batch mode reading from a pipe, in
+`tests/fixtures/sftp_control_session.rs`, which keeps one ssh connection and one
+subsystem channel alive — across `AccountOperations::suspend` plus
+`set_account_logins_locked`, and measures that the suspended account's session is
+gone while a second account's session still transfers. **The two protocols do not
+differ**, and that is now a property of the cull rather than of the gap: the agent
+signals every process running as the suspended account's uid, which is one
+question about one uid whichever daemon was serving the session. A panel that
+closed one protocol and not the other would be keeping half of a promise. **This
+case used to assert the opposite too**
+(`an_authenticated_sftp_session_keeps_transferring_after_the_account_is_suspended`).
+
+### What suspending an account now does to an open transfer
+
+The sentence an operator needs, because this one costs the customer something:
+
+> Suspending an account now ends its open SFTP and FTPS sessions as well as
+> refusing new ones. An upload that was in flight is cut at whatever byte it had
+> reached, so the customer's home can be left holding a **partial file** — a
+> truncated archive, half a database dump, a half-written `.zip` that will not
+> open. Nothing deletes it and nothing marks it: it is a file of the customer's
+> that is shorter than it should be. If you are suspending for non-payment rather
+> than for abuse, that is the price of the access stopping immediately, and it is
+> paid in the customer's data.
+
+Nothing in the panel says this today. The cull is a privileged surface carrying an
+**outstanding second review**; what it does, how the uid is confined, and what it
+does not close are in
+`docs/superpowers/notes/2026-09-12-suspension-session-cull-threat-note.md`.
+
+On **survival** the two protocols agree, and they now agree that a suspended
+session does not survive. On the **idle bound** — what happens to a session nobody
+suspended — they still differ, and two cases added 2026-09-11 are the only things
+that observe it, one in each suite.
+`sftp_on_a_real_host.rs::the_sshd_configuration_this_product_writes_puts_no_idle_bound_on_an_sftp_session`
+asks the installed `sshd` for its effective configuration for a real SFTP login
+(`sshd -T -C user=…`, so the installer's `Match Group` block is evaluated) and
+requires `ClientAliveInterval 0` — no bound, and a distribution default rather
+than a value this repository sets anywhere. Its positive control is that the dump
+carries `forcecommand internal-sftp`, which lives only inside that block: a `-C`
+that matched nothing would report no bound and pass while reading the wrong half
+of the file. Its inverse control hands the same instrument
+`-o ClientAliveInterval=300` and requires it to report `300`.
+`ftps_on_a_real_host.rs::the_vsftpd_configuration_this_product_writes_bounds_an_idle_ftps_session_at_ten_minutes`
+reads `idle_session_timeout` out of the live `vsftpd.conf` the daemon was started
+against, taking the LAST occurrence because that is the one vsftpd obeys, and its
+inverse control appends `idle_session_timeout=0` and requires the same reader to
+see it before the re-enable puts `600` back. Both were broken on purpose and went
+red by name. The asymmetry they pin — ten minutes on FTPS, nothing on SFTP — and
+the four options for it are in
+`docs/superpowers/notes/2026-09-09-sftp-password-suspension-threat-note.md`
+("Correction, 2026-09-11 (second)"). **The cull did not make either case
+redundant and neither was changed:** they are about a session nobody suspended,
+which is the only kind the cull never touches, and `idle_session_timeout=600` is
+still the only bound this product sets on one.
 
 That is not a convenience. The suite makes a **real bind mount** of an account's
 home into its jail, which a container cannot do without `CAP_SYS_ADMIN` and an

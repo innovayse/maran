@@ -13,10 +13,10 @@ const LICENSED: PanelModule[] = [
 // A rule scoped to one office range on a high port. It is exactly the shape an SSH restriction
 // takes on a host running sshd somewhere other than 22 — and the screen cannot tell that it is one,
 // which is the whole reason the confirmation exists.
-const SSH_RESTRICTION: FirewallRule = { port: 2222, protocol: 'tcp', sourceCidr: '203.0.113.0/24' }
+const SSH_RESTRICTION: FirewallRule = { port: 2222, portTo: null, protocol: 'tcp', sourceCidr: '203.0.113.0/24' }
 
 /** An ordinary open web port, which shares no port number with the rule above. */
-const WEB: FirewallRule = { port: 80, protocol: 'tcp', sourceCidr: '0.0.0.0/0' }
+const WEB: FirewallRule = { port: 80, portTo: null, protocol: 'tcp', sourceCidr: '0.0.0.0/0' }
 
 /** How the screen names a rule — one line, the way the panel's own audit journal names it. */
 const describeRule = (rule: FirewallRule): string => {
@@ -128,8 +128,10 @@ test('adding a rule scoped to a narrower range raises the confirmation before it
 }) => {
   const changes = await openScreen(page, [])
 
-  await page.getByRole('textbox', { name: 'Port' }).fill('2222')
-  await page.getByRole('textbox', { name: 'Source range' }).fill('203.0.113.0/24')
+  // `exact`, because the rule form's optional upper bound is called "To port (optional)", whose
+  // accessible name contains "Port" and would otherwise match here too.
+  await page.getByRole('textbox', { name: 'Port', exact: true }).fill('2222')
+  await page.getByRole('textbox', { name: 'Source range', exact: true }).fill('203.0.113.0/24')
   await page.getByRole('button', { name: 'Open the port' }).click()
 
   const dialog = page.getByRole('dialog')
@@ -154,7 +156,7 @@ test('adding a rule scoped to a narrower range raises the confirmation before it
 test('adding a rule open to every source is sent without a confirmation', async ({ page }) => {
   const changes = await openScreen(page, [])
 
-  await page.getByRole('textbox', { name: 'Port' }).fill('8080')
+  await page.getByRole('textbox', { name: 'Port', exact: true }).fill('8080')
   await page.getByRole('button', { name: 'Open the port' }).click()
 
   await expect(page.getByRole('row').filter({ hasText: '8080' })).toBeVisible()

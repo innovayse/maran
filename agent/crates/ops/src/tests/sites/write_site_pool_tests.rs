@@ -35,19 +35,26 @@ fn the_pool_is_written_for_the_version_the_caller_named_not_the_one_the_site_is(
     .unwrap();
 
     let pool = php_host
-        .config(Path::new("/etc/php/8.4/fpm/pool.d/acme.conf"))
+        .config(Path::new(&format!(
+            "/etc/php/8.4/fpm/pool.d/{}.conf",
+            site.account.as_str()
+        )))
         .expect("the pool must be written into the named version's own directory");
-    assert!(pool.contains("acme-8.4.sock"), "{pool}");
+    assert!(
+        pool.contains(&format!("{}-8.4.sock", site.account.as_str())),
+        "{pool}"
+    );
 }
 
 #[test]
 fn the_plans_worker_budget_reaches_the_pool_as_pm_max_children() {
     let php_host = FakePhpHost::with_installed(&["8.3"]);
+    let site = php_input();
 
     write_site_pool(
         &php_host,
         crate::sites::fake_site_host::distro(),
-        &php_input(),
+        &site,
         &PhpVersion::parse("8.3").unwrap(),
         7,
         &[],
@@ -55,7 +62,10 @@ fn the_plans_worker_budget_reaches_the_pool_as_pm_max_children() {
     .unwrap();
 
     let pool = php_host
-        .config(Path::new("/etc/php/8.3/fpm/pool.d/acme.conf"))
+        .config(Path::new(&format!(
+            "/etc/php/8.3/fpm/pool.d/{}.conf",
+            site.account.as_str()
+        )))
         .unwrap();
     assert!(pool.contains("pm.max_children = 7"), "{pool}");
 }
@@ -67,11 +77,12 @@ fn the_customers_whitelisted_settings_are_carried_into_the_pool_not_dropped() {
     // site runs with.
     let php_host = FakePhpHost::with_installed(&["8.3"]);
     let setting = PhpOverride::parse("memory_limit", "256M").unwrap();
+    let site = php_input();
 
     write_site_pool(
         &php_host,
         crate::sites::fake_site_host::distro(),
-        &php_input(),
+        &site,
         &PhpVersion::parse("8.3").unwrap(),
         TEST_WORKERS,
         std::slice::from_ref(&setting),
@@ -79,7 +90,10 @@ fn the_customers_whitelisted_settings_are_carried_into_the_pool_not_dropped() {
     .unwrap();
 
     let pool = php_host
-        .config(Path::new("/etc/php/8.3/fpm/pool.d/acme.conf"))
+        .config(Path::new(&format!(
+            "/etc/php/8.3/fpm/pool.d/{}.conf",
+            site.account.as_str()
+        )))
         .unwrap();
     assert!(pool.contains("memory_limit"), "{pool}");
     assert!(pool.contains("256M"), "{pool}");

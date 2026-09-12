@@ -80,9 +80,20 @@ test('a row names the owning account, its status and how many databases the copy
   await page.goto('/backups')
 
   const row = page.getByRole('row').filter({ hasText: 'Completed' })
+  // The status, as its OWN element's whole text. The `hasText` filter above only SELECTS the row,
+  // and it cannot assert one: Playwright's text matching is a case-insensitive substring match, so
+  // `'Completed'` is satisfied by the wire constant `completed` just as happily as by the word the
+  // operator reads. `toHaveText` with a string is exact and case-sensitive, so the machine value
+  // fails it — which is the whole difference between a filter and an assertion here.
+  await expect(row.getByTestId('backup-status')).toHaveText('Completed')
   await expect(row).toContainText('alice')
   await expect(row).toContainText('1.5 MiB')
-  await expect(row).toContainText('2')
+  // The databases column, read as the CELL'S WHOLE TEXT rather than as "a 2 appears somewhere in
+  // this row". Containment could not fail here: the row carries `2026-09-06` in two timestamp
+  // columns, so `toContainText('2')` was satisfied by the date whatever the Databases cell held —
+  // an empty cell, the size beside it, any number at all. Column five is Databases (Account,
+  // Status, Reason, Size, Databases, Started, Finished, Actions).
+  await expect(row.getByRole('cell').nth(4)).toHaveText('2')
   // The identifier is not a fact an operator reads, and printing it where the account's name
   // belongs is what this column exists to prevent.
   await expect(row).not.toContainText(ALICE.id)
@@ -101,6 +112,9 @@ test('a failed backup shows its failure code and no size at all', async ({ page 
   await page.goto('/backups')
 
   const row = page.getByRole('row').filter({ hasText: 'Failed' })
+  // Exact and case-sensitive, for the reason spelled out on the completed row above: the raw
+  // `failed` the panel sends over the wire satisfies the filter and fails this line.
+  await expect(row.getByTestId('backup-status')).toHaveText('Failed')
   // Positive control on the probe: the row IS rendered and this locator can read it.
   await expect(row).toContainText('alice')
   await expect(row).toContainText('BackupArchiveTooLarge')

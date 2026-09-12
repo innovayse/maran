@@ -11,10 +11,12 @@ use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
 use maran_agent_core::validation::db::database_name::DatabaseName;
+use maran_agent_core::validation::system::name::AccountName;
 
 use crate::backup::archive::dump_database::dump_arguments;
 use crate::backup::backup_error::BackupError;
 use crate::backup::backup_host::BackupHost;
+use crate::backup::model::account_identity::AccountIdentity;
 use crate::backup::model::archive_part::ArchivePart;
 use crate::backup::model::archive_spec::ArchiveSpec;
 use crate::backup::model::backup_manifest::BackupManifest;
@@ -93,6 +95,17 @@ pub(crate) struct RecordingBackupHost {
     fail_archive_load_for: Mutex<Option<String>>,
     /// When set, reloading any ROLLBACK dump fails.
     fail_rollback_loads: Mutex<bool>,
+    /// The answers `account_identity` gives, one per call, and the last one
+    /// repeats for every call after them. `None` is the account not resolving
+    /// at all.
+    ///
+    /// A QUEUE and not one value, because the thing worth testing about this
+    /// seam is that the operation asks twice and compares — a fake that could
+    /// only hold one answer could not exhibit a difference between the two,
+    /// which is the whole defect.
+    identities: Mutex<Vec<Option<AccountIdentity>>>,
+    /// Every call to `account_identity`, counted.
+    identity_calls: Mutex<usize>,
 }
 
 impl RecordingBackupHost {
@@ -117,7 +130,25 @@ impl RecordingBackupHost {
             loaded: Mutex::new(Vec::new()),
             fail_archive_load_for: Mutex::new(None),
             fail_rollback_loads: Mutex::new(false),
+            // Nothing, until a test says otherwise. A fake host has no password
+            // database, and defaulting to a plausible pair would let a restore
+            // test pass while asserting nothing about the identity the home is
+            // handed to — which is the check this seam exists for. A restore
+            // test states what the account resolves to, beside the ids it puts
+            // in its `Placement`.
+            identities: Mutex::new(vec![None]),
+            identity_calls: Mutex::new(0),
         }
+    }
+
+    /// Makes `account_identity` answer these in order, the last one repeating.
+    pub(crate) fn answers_identities(&self, answers: &[Option<AccountIdentity>]) {
+        *self.identities.lock().unwrap() = answers.to_vec();
+    }
+
+    /// How many times `account_identity` has been asked.
+    pub(crate) fn identity_calls(&self) -> usize {
+        *self.identity_calls.lock().unwrap()
     }
 
     /// Makes `list_members` answer exactly these names.
@@ -192,6 +223,15 @@ impl RecordingBackupHost {
 impl BackupHost for RecordingBackupHost {
     fn now_unix(&self) -> i64 {
         FIXED_NOW
+    }
+
+    fn account_identity(&self, _account: &AccountName) -> Result<AccountIdentity, BackupError> {
+        let mut calls = self.identity_calls.lock().unwrap();
+        let answers = self.identities.lock().unwrap();
+        let index = (*calls).min(answers.len().saturating_sub(1));
+        *calls += 1;
+
+        answers[index].ok_or(BackupError::ExtractionIdentityUnavailable)
     }
 
     fn dump_database(&self, database: &DatabaseName, into: &Path) -> Result<u64, BackupError> {

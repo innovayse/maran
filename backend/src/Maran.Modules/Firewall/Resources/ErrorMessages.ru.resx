@@ -15,6 +15,9 @@
   <data name="RulePortInvalid">
     <value>Правило брандмауэра должно указывать порт от 1 до 65535.</value>
   </data>
+  <data name="RulePortRangeInvalid">
+    <value>Правило межсетевого экрана, открывающее диапазон портов, должно заканчиваться выше своего начала и укладываться в 1-65535.</value>
+  </data>
   <data name="RuleProtocolInvalid">
     <value>Правило брандмауэра применяется к TCP или к UDP.</value>
   </data>

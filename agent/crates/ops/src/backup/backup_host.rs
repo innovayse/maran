@@ -3,8 +3,10 @@
 use std::path::Path;
 
 use maran_agent_core::validation::db::database_name::DatabaseName;
+use maran_agent_core::validation::system::name::AccountName;
 
 use crate::backup::backup_error::BackupError;
+use crate::backup::model::account_identity::AccountIdentity;
 use crate::backup::model::archive_spec::ArchiveSpec;
 use crate::backup::model::extract_spec::ExtractSpec;
 
@@ -48,6 +50,32 @@ pub trait BackupHost: Send + Sync {
     /// assertion about the manifest it writes would have to be written against
     /// a value that changes on every run (rules/testing.md "Determinism").
     fn now_unix(&self) -> i64;
+
+    /// Resolves `account`'s numeric identity out of the host's password
+    /// database, as of NOW.
+    ///
+    /// Behind the seam and not a direct `AccountIds::resolve` in the operation,
+    /// for the reason `now_unix` is behind it: an operation that read the real
+    /// password database could only be tested on a machine that happened to
+    /// have the account, and the thing worth testing here is what the operation
+    /// does when the answer CHANGES between two calls.
+    ///
+    /// It is asked twice per restore on purpose — once to decide who the
+    /// staging tree is filled as, and once immediately before the home swap, to
+    /// decide whether that first answer is still true. A uid read at the start
+    /// of an operation that runs for hours is a check-then-act window an hour
+    /// wide, and the value at the end of it is what `chown` would act on.
+    ///
+    /// Unlike the other methods here this one spawns nothing, so it carries no
+    /// `spawn_blocking` obligation of its own; it is still called from inside
+    /// one, because its callers are.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`BackupError::ExtractionIdentityUnavailable`] when the password
+    /// database holds no such account or cannot be read — which, asked the
+    /// second time, is the account having been removed while the restore ran.
+    fn account_identity(&self, account: &AccountName) -> Result<AccountIdentity, BackupError>;
 
     /// Dumps `database` into the file at `into` and answers its size in bytes.
     ///

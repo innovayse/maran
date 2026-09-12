@@ -17,33 +17,36 @@
     "rules": {
       "heading": "Rules",
       "tableCaption": "Firewall rules",
-      "ruleSummary": "{protocol}/{port} from {source}",
+      "ruleSummary": "{protocol}/{ports} from {source}",
       "remove": "Remove",
       "rowActions": "Actions for {rule}",
       "emptyTitle": "No rules of your own",
       "emptyDescription": "Nothing has been opened from the panel. SSH and the panel's own port answer regardless — the agent renders those accepts itself, and they are not shown here.",
       "columns": {
-        "port": "Port",
+        "port": "Port or range",
         "protocol": "Protocol",
         "source": "Source range"
       },
       "form": {
         "fields": {
           "port": "Port",
+          "portTo": "To port (optional)",
           "protocol": "Protocol",
           "sourceCidr": "Source range"
         },
         "placeholders": {
           "port": "8080",
+          "portTo": "30099",
           "sourceCidr": "0.0.0.0/0"
         },
         "errors": {
           "portRequired": "Enter the port to open.",
           "portInvalid": "Enter a port between 1 and 65535.",
+          "portToInvalid": "Leave empty for a single port, or enter a port between 1 and 65535 above the one on the left.",
           "sourceRequired": "Enter the source range.",
           "sourceInvalid": "Enter a range in CIDR notation with no bits set below the prefix — 203.0.113.0/24, not 203.0.113.7/24."
         },
-        "hint": "0.0.0.0/0 admits every source. A narrower range is confirmed before it is installed.",
+        "hint": "0.0.0.0/0 admits every source. Leave the second port empty to open one port. A narrower range is confirmed before it is installed.",
         "submit": "Open the port"
       }
     },

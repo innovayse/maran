@@ -56,7 +56,10 @@ export const seededWhitelistNote = 'Seeded from the address this server was inst
  */
 const isSameRule = (left: FirewallRule, right: FirewallRule): boolean => {
   return (
-    left.port === right.port && left.protocol === right.protocol && left.sourceCidr === right.sourceCidr
+    left.port === right.port &&
+    left.portTo === right.portTo &&
+    left.protocol === right.protocol &&
+    left.sourceCidr === right.sourceCidr
   )
 }
 
@@ -85,6 +88,9 @@ export const stubFirewall = async (page: Page, state: StubbedFirewall): Promise<
       const query = new URL(request.url()).searchParams
       const removed: FirewallRule = {
         port: Number(query.get('port')),
+        // Absent means "a single port", as it does on the wire: a rule is matched by its whole
+        // value, so a bound read as 0 would match nothing.
+        portTo: query.has('portTo') ? Number(query.get('portTo')) : null,
         protocol: query.get('protocol') === 'udp' ? 'udp' : 'tcp',
         sourceCidr: query.get('sourceCidr') ?? '',
       }

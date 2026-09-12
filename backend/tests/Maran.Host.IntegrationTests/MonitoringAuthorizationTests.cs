@@ -190,6 +190,14 @@ public sealed class MonitoringAuthorizationTests : IAsyncLifetime
         // PascalCase member name anywhere in this document is the two-casings defect returning.
         Assert.Contains("\"service\":\"webServer\"", payload, StringComparison.Ordinal);
         Assert.Contains("\"state\":\"running\"", payload, StringComparison.Ordinal);
+
+        // The operator-facing name rides beside the machine member (rules/architecture.md "The
+        // backend owns the data"): this request states no language, so the neutral English entry
+        // answers. Dropping ServiceDisplayNames from the projection reddens this on the wire.
+        Assert.Contains("\"name\":\"Web server\"", payload, StringComparison.Ordinal);
+
+        // "Web server" and "SSH" — the two names this stub produces — contain none of the three
+        // member spellings probed for below, so the casing probes keep their teeth beside the name.
         Assert.DoesNotContain("WebServer", payload, StringComparison.Ordinal);
         Assert.DoesNotContain("Running", payload, StringComparison.Ordinal);
         Assert.DoesNotContain("Unknown", payload, StringComparison.Ordinal);

@@ -4,7 +4,7 @@
 
 use maran_agent_core::validation::system::name::AccountName;
 
-use super::{AccountJail, escape_path};
+use super::AccountJail;
 
 /// The unit directory every test here writes into.
 const UNIT_DIRECTORY: &str = "/etc/systemd/system";
@@ -51,13 +51,71 @@ fn an_underscore_in_an_account_name_survives_the_escaping_unchanged() {
     );
 }
 
-/// Anything systemd would escape is escaped, not passed through.
+/// The whole derivation is unchanged by the escaping rule moving to `logins`.
 #[test]
-fn a_character_systemd_escapes_becomes_its_hexadecimal_form() {
-    // No path this area builds contains one today. The full rule is implemented
-    // anyway, so the unit name does not quietly depend on the alphabet of a
-    // validator in another crate.
-    assert_eq!(escape_path("/var/lib/a b"), "var-lib-a\\x20b");
-    assert_eq!(escape_path("/var/lib/a-b"), "var-lib-a\\x2db");
-    assert_eq!(escape_path("/var/lib/a.b_c"), "var-lib-a.b_c");
+fn every_jail_value_is_byte_for_byte_what_it_was_before_the_escaping_rule_moved() {
+    // Frozen from this same code BEFORE `escape_path` left this file for
+    // `logins::systemd_escape`: each row was printed by the pre-refactor
+    // implementation and pasted here unedited. The refactor's promise is that
+    // the SFTP side does not move a byte, and this is the row-by-row form of
+    // that promise — a promise no diff can make, because a diff cannot say what
+    // the code produces.
+    let expected = [
+        (
+            "alice",
+            "/var/lib/maran-sftp/alice",
+            "/var/lib/maran-sftp/alice/home",
+            "var-lib-maran\\x2dsftp-alice-home.mount",
+        ),
+        (
+            "abc",
+            "/var/lib/maran-sftp/abc",
+            "/var/lib/maran-sftp/abc/home",
+            "var-lib-maran\\x2dsftp-abc-home.mount",
+        ),
+        (
+            "a_b",
+            "/var/lib/maran-sftp/a_b",
+            "/var/lib/maran-sftp/a_b/home",
+            "var-lib-maran\\x2dsftp-a_b-home.mount",
+        ),
+        (
+            "a__b",
+            "/var/lib/maran-sftp/a__b",
+            "/var/lib/maran-sftp/a__b/home",
+            "var-lib-maran\\x2dsftp-a__b-home.mount",
+        ),
+        (
+            "user_1_2",
+            "/var/lib/maran-sftp/user_1_2",
+            "/var/lib/maran-sftp/user_1_2/home",
+            "var-lib-maran\\x2dsftp-user_1_2-home.mount",
+        ),
+        (
+            "z9_",
+            "/var/lib/maran-sftp/z9_",
+            "/var/lib/maran-sftp/z9_/home",
+            "var-lib-maran\\x2dsftp-z9_-home.mount",
+        ),
+        (
+            "abcdefghij_klmnopqrst_uvwxyz12",
+            "/var/lib/maran-sftp/abcdefghij_klmnopqrst_uvwxyz12",
+            "/var/lib/maran-sftp/abcdefghij_klmnopqrst_uvwxyz12/home",
+            "var-lib-maran\\x2dsftp-abcdefghij_klmnopqrst_uvwxyz12-home.mount",
+        ),
+    ];
+
+    for (candidate, directory, mount_point, unit_name) in expected {
+        let account = AccountName::parse(candidate).expect("valid");
+
+        let jail = AccountJail::for_account(&account, UNIT_DIRECTORY);
+
+        assert_eq!(jail.directory(), directory, "directory for {candidate:?}");
+        assert_eq!(
+            jail.mount_point(),
+            mount_point,
+            "mount point for {candidate:?}"
+        );
+        assert_eq!(jail.unit_name(), unit_name, "unit name for {candidate:?}");
+    }
 }

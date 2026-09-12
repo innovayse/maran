@@ -20,8 +20,18 @@ pub fn listed_rule(rule: &FirewallRule) -> WireRule {
     };
 
     WireRule {
-        port: u32::from(rule.port.value()),
+        port: u32::from(rule.ports.lower().value()),
+        // Absent for a single port, which is what every rule written before the
+        // field existed is — and what a panel too old to read the field sees
+        // for every rule, since an unknown field is ignored rather than
+        // refused. A newer panel reading an absent bound reads "the single port
+        // `port`", which is the same rule it would have shown before.
+        port_to: rule.ports.upper().map(|upper| u32::from(upper.value())),
         protocol: protocol as i32,
         source_cidr: rule.source.to_string(),
     }
 }
+
+#[cfg(test)]
+#[path = "../../tests/services/firewall/listed_rule_tests.rs"]
+mod tests;

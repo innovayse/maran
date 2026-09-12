@@ -22,12 +22,25 @@ namespace Maran.Modules.Monitoring.Common;
 /// out of a handler's hands.
 /// </para>
 /// <para>
+/// <b>The machine code travels beside the localized name, and both are needed.</b> The interface
+/// shows a human the <paramref name="Name"/>, resolved by <c>ServiceDisplayNames</c> in the
+/// request's culture (rules/architecture.md "The backend owns the data, the SPA renders it" — the
+/// SPA holds no display text for a server-side thing). The <paramref name="Service"/> member stays
+/// on the wire as the stable identity a client keys rows by and branches on, exactly the split the
+/// panel's error contract makes between a machine <c>code</c> and its localized text.
+/// </para>
+/// <para>
 /// <b>The detail is the agent's own vocabulary and is shown only to administrators</b>, which the
 /// whole module already is. It names service-manager words, never a tool's standard error and never
 /// anything derived from a request — no call in this path accepts a unit name.
 /// </para>
 /// </remarks>
-/// <param name="Service">Which service this row describes, by the panel's own name for it.</param>
+/// <param name="Service">Which service this row describes, machine-stable, for keys and behavior.</param>
+/// <param name="Name">The same service as an operator reads it, in the request's culture.</param>
 /// <param name="State">Up, down, or not known.</param>
 /// <param name="Detail">Why, in the service manager's own words.</param>
-public sealed record ServiceStatusDto(AgentManagedService Service, AgentServiceState State, string Detail);
+public sealed record ServiceStatusDto(
+    AgentManagedService Service,
+    string Name,
+    AgentServiceState State,
+    string Detail);

@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
+import { setPersistedLocale } from '../fixtures/set-locale'
 import { stubAccounts } from '../fixtures/stub-accounts-route'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubBackupRestore, stubBackups } from '../fixtures/stub-backups-routes'
@@ -292,4 +293,106 @@ test('a copy the server could not use is not blamed on the operator typing', asy
   await expect(page.getByRole('textbox', { name: 'Account name' })).toHaveValue('')
   // Nothing was touched, so this is NOT the changed-account arm.
   await expect(page.getByText('The account has been changed')).toHaveCount(0)
+})
+
+// The counts are the operator's measure of the damage, and the failure arm is the one ending where
+// they matter most: the panel used to build them and discard them there. They now arrive as the
+// problem response's `restore` extension, and the changed-account arm shows them — the server's own
+// statement of how far it got, asserted by VALUE so a swap of restored and total cannot pass.
+test('a partial restore shows the servers own counts of the damage', async ({ page }) => {
+  const backendDetail = 'The restore replaced part of the account and rolled the rest back.'
+  await openDialog(page)
+  await stubBackupRestore(page, 500, {
+    code: 'RestorePartial',
+    title: 'Restore failed',
+    detail: backendDetail,
+    restore: { filesRestored: true, databasesRestored: 1, databasesTotal: 2 },
+  })
+
+  await page.getByRole('textbox', { name: 'Account name' }).fill('alice')
+  await page.getByRole('button', { name: 'Restore this account' }).click()
+
+  await expect(page.getByText(backendDetail)).toBeVisible()
+  await expect(page.getByText('The account has been changed')).toBeVisible()
+  // The exact sentences, not their presence class: the intro attributes the figures to the server
+  // and to the stopping moment, and the values are the stubbed 1 of 2 — nothing recomputed.
+  await expect(
+    page.getByText("The server's own count of what had been replaced when it stopped:"),
+  ).toBeVisible()
+  await expect(page.getByText('Home directory', { exact: true })).toBeVisible()
+  await expect(page.getByText('Replaced', { exact: true })).toBeVisible()
+  await expect(page.getByText('1 of 2 replaced')).toBeVisible()
+
+  // The changed arm still offers no way to try again: counts inform, they never re-arm the form.
+  await expect(page.getByRole('button', { name: 'Restore this account' })).toHaveCount(0)
+  await expect(page.getByRole('textbox', { name: 'Account name' })).toHaveCount(0)
+})
+
+// An older panel — or an ending the server measured nothing about, like a truncated stream — sends
+// no counts, and the dialog must render its plain changed-account copy rather than invent a
+// "0 of 0". The spec above is this one's positive control: same arm, and the sentences ARE there
+// when the server sent the member.
+test('a changed account without counts from the server shows none', async ({ page }) => {
+  const backendDetail = 'The restore stream ended before the agent reported an outcome.'
+  await openDialog(page)
+  await stubBackupRestore(page, 500, {
+    code: 'RestoreTruncated',
+    title: 'Restore failed',
+    detail: backendDetail,
+  })
+
+  await page.getByRole('textbox', { name: 'Account name' }).fill('alice')
+  await page.getByRole('button', { name: 'Restore this account' }).click()
+
+  // Positive control: this IS the changed-account arm, so the silences below are facts about the
+  // counts block rather than about a spec looking at the wrong screen.
+  await expect(page.getByText(backendDetail)).toBeVisible()
+  await expect(page.getByText('The account has been changed')).toBeVisible()
+
+  await expect(
+    page.getByText("The server's own count of what had been replaced when it stopped:"),
+  ).toHaveCount(0)
+  await expect(page.getByText('Home directory', { exact: true })).toHaveCount(0)
+  await expect(page.getByText('of 2 replaced')).toHaveCount(0)
+})
+
+// The same damage report in the operator's own language: the counts sentences are the panel's own
+// chrome (the message beside them stays the backend's, verbatim), so each locale carries them and
+// the Russian words are asserted literally — a key rendered as itself, or an English fallback,
+// fails here by value.
+test('a partial restore reports the counts in Russian words when the interface is Russian', async ({
+  page,
+}) => {
+  const backendDetail = 'Восстановление заменило часть аккаунта; остальное возвращено из дампов.'
+  await setPersistedLocale(page, 'ru')
+  await stubSignedIn(page)
+  await stubHealthy(page)
+  await stubModules(page, LICENSED)
+  await stubAccounts(page, [ALICE])
+  await stubBackups(page, [COMPLETED])
+  await page.goto('/backups')
+  // The screen is in Russian BEFORE anything is clicked: the heading is the cheapest proof the
+  // persisted locale took, and waiting on it keeps the row menu from being hunted for while the
+  // list is still rendering (a busy machine loses that race, and a timeout there would look like
+  // a missing translation rather than a slow build).
+  await expect(page.getByRole('heading', { name: 'Резервные копии' })).toBeVisible()
+  await page.getByRole('button', { name: 'Действия для резервной копии alice' }).click()
+  await page.getByRole('menuitem', { name: 'Восстановить', exact: true }).click()
+  await stubBackupRestore(page, 500, {
+    code: 'RestorePartial',
+    title: 'Сбой восстановления',
+    detail: backendDetail,
+    restore: { filesRestored: true, databasesRestored: 1, databasesTotal: 2 },
+  })
+
+  await page.getByRole('textbox', { name: 'Имя аккаунта' }).fill('alice')
+  await page.getByRole('button', { name: 'Восстановить аккаунт' }).click()
+
+  // The backend's own already-localized text, verbatim — and the panel's chrome around it in the
+  // language the operator chose, with the exact values.
+  await expect(page.getByText(backendDetail)).toBeVisible()
+  await expect(page.getByText('Аккаунт изменён')).toBeVisible()
+  await expect(page.getByText('Домашний каталог', { exact: true })).toBeVisible()
+  await expect(page.getByText('Заменён', { exact: true })).toBeVisible()
+  await expect(page.getByText('заменено 1 из 2')).toBeVisible()
 })

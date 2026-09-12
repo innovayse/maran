@@ -36,6 +36,39 @@ MARAN_LOG_FILE="${MARAN_LOG_DIR}/install.log"
 MARAN_ROOT_TRUSTED_LOG_NAMES="install.log nginx-access.log nginx-error.log"
 export MARAN_LOG_DIR MARAN_ROOT_TRUSTED_LOG_NAMES
 
+# --- The panel's system account ----------------------------------------------------
+# The one place the name of the unprivileged principal the API runs as is decided, in the same
+# spirit as the port and the socket path below: step 40 creates it, step 60 and step 80 give it
+# the group of /etc/maran, panel.env, the TLS key and the socket directory, step 70 writes it
+# into both units, step 30 names the PostgreSQL role after it (peer authentication matches the
+# role name to the OS user name), and step 15 renames a pre-rename installation onto it.
+#
+# It is `maran` and no longer `panel`. `panel` was the one name this product put on a host that
+# did not say whose it is, and — worse — step 40's idempotence was `id -u`, so a host that
+# already had an unrelated account of that name had it silently adopted and handed /etc/maran,
+# /var/lib/maran, the TLS key, `User=` on the api unit and an admitted uid on the root daemon's
+# socket. See docs/superpowers/notes/2026-09-09-service-account-rename-threat-note.md for the
+# argument, for why the user and the group share one name, and for why `maran-panel` was
+# rejected (`ps` truncates it, and a hyphen is not a bare SQL identifier for the peer-auth role).
+#
+# The steps read these from the environment and abort by name when they are unset, so a step
+# driven on its own — the polygon images do exactly that — fails loudly instead of expanding an
+# empty string into a `chown root:` or an `install -o`.
+MARAN_USER=maran
+MARAN_GROUP=maran
+# The account this product created before the rename, and the name step 15 migrates FROM. It is
+# never created and never adopted; it exists in this file only so that one place decides both
+# ends of the migration.
+MARAN_LEGACY_USER=panel
+MARAN_LEGACY_GROUP=panel
+# The GECOS field step 40 stamps on the account it creates, and the only evidence this installer
+# has that an account of its own name is its own. It is what makes adoption deliberate: an
+# account carrying it is a previous run of ours and is adopted silently (which is what keeps the
+# installer idempotent), an account without it stops the install. It is root-writable and is
+# therefore provenance against ACCIDENT, never authentication — see the threat note.
+MARAN_SERVICE_ACCOUNT_MARKER="Maran panel service account"
+export MARAN_USER MARAN_GROUP MARAN_LEGACY_USER MARAN_LEGACY_GROUP MARAN_SERVICE_ACCOUNT_MARKER
+
 # --- The panel's public port -------------------------------------------------------
 # The one place this number is decided. nginx listens on it, preflight refuses to install
 # when something else already holds it, and the finish step prints it in the URL handed to
@@ -124,8 +157,10 @@ MARAN_LOG_DIR_WARNINGS=""
 # because it must run before the FIRST root write, which is this script's own logging — earlier
 # than step 40 and earlier than every gate.
 #
-# The group is deliberately left alone here: on a fresh install the `panel` group does not exist
-# yet (step 40 creates it) and on an upgrade it is already the right one. Step 40 sets it.
+# The group is deliberately left alone here: on a fresh install the service group does not exist
+# yet (step 40 creates it) and on an upgrade it is already the right one — an upgrade from before
+# the rename included, because step 15 renames the group in place and a rename keeps the gid, so
+# this directory's group is still the right gid under its new name. Step 40 sets it.
 #
 # Nothing is deleted. An operator's logs are their record of every install this server has had,
 # and a planted symlink is evidence of an attempted escalation; both are kept, the link under a
@@ -143,7 +178,7 @@ harden_log_directory() {
     exit 1
   fi
   mkdir -p "$MARAN_LOG_DIR"
-  # An upgrade inherits the directory this defect created: panel:panel. Take it back.
+  # An upgrade inherits the directory this defect created: owned by the service account. Take it back.
   owner="$(stat -c '%u' "$MARAN_LOG_DIR")"
   if [ "$owner" -ne 0 ]; then
     chown root "$MARAN_LOG_DIR"
@@ -302,6 +337,12 @@ main() {
   echo "Detected: ${MARAN_OS_ID} ${MARAN_OS_VERSION_ID} (${MARAN_OS_FAMILY} family), arch ${MARAN_ARCH}"
 
   run_step 10-preflight.sh    step_preflight
+  # Before anything that names the service account, and before the packages: on a host installed
+  # before the rename this renames the account, its group and the PostgreSQL role in place, so
+  # every step after it sees exactly the state a fresh install produces. It does nothing at all
+  # on a fresh host. It stops maran-api.service, and the panel is down from here to step 70 —
+  # the step says so on the terminal before it does it.
+  run_step 15-identity.sh     step_identity
   run_step 20-dependencies.sh step_dependencies
   run_step 30-postgresql.sh   step_postgresql
   run_step 40-user.sh         step_user
@@ -309,6 +350,10 @@ main() {
   run_step 60-config.sh       step_config
   run_step 70-services.sh     step_services
   run_step 80-nginx.sh        step_nginx
+  # After 80, because it validates and reloads the tree 80 has just made complete, and before
+  # the feature steps, because every one of them can end in a site operation that reloads
+  # nginx — and until this step has run, a reload re-opens log files inside customers' homes.
+  run_step 81-site-logs.sh    step_site_logs
   # Customer-facing services, after the panel itself is standing: MariaDB for
   # customer databases (the panel's own PostgreSQL is step 30 and is untouched),
   # then the host-level pieces a chrooted SFTP login needs, then the firewall, then
@@ -320,6 +365,13 @@ main() {
   run_step 86-sftp.sh         step_sftp
   run_step 87-firewall.sh     step_firewall
   run_step 88-cron.sh         step_cron
+  # FTPS, installed and switched OFF. It comes after the firewall on purpose: the step
+  # opens no port and enables no unit, so there is nothing here for the firewall to have
+  # to know about — an administrator turns FTPS on later, and the ports are opened then,
+  # with their consequences shown first. Its very first action is to MASK the
+  # distribution's own vsftpd.service, because on the Debian family the package's postinst
+  # otherwise leaves port 21 listening with local logins in the clear.
+  run_step 89-ftps.sh         step_ftps
   run_step 90-finish.sh       step_finish
 
   echo "Maran installer finished: $(date -u '+%Y-%m-%dT%H:%M:%SZ')"

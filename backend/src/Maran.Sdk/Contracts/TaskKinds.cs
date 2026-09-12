@@ -33,8 +33,16 @@ public static class TaskKinds
     /// </summary>
     /// <remarks>
     /// It earns a task rather than being a plain request/response because the stage line is the only
-    /// place an operator is told what the suspension could NOT check — cron and the SFTP logins are
-    /// not covered by it, and a completion with no such qualification would read as a full stop.
+    /// place an operator is told what the suspension did NOT cover — the account's databases and the
+    /// panel's own web login, plus any crontab line the panel did not write and any passwd entry
+    /// sharing the account's uid that is none of its jailed logins — and a completion with no such
+    /// qualification would read as a full stop.
+    ///
+    /// The managed cron entries and the file-transfer logins ARE covered, and the same line attests
+    /// them by count. It says "file-transfer" and not "SFTP" because since FTPS shipped the count
+    /// spans both daemons: an earlier wording said "sftp logins" over a list holding FTPS ones, which
+    /// is wrong in the direction that matters — an operator reads it as the FTP credentials never
+    /// having been in scope, when in fact they were locked.
     /// </remarks>
     public const string AccountSuspension = "AccountSuspension";
 

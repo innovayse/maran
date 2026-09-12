@@ -4,7 +4,7 @@
 
 **Goal:** A customer can create a site, choose its PHP version, and serve it over HTTPS — with nginx and php-fpm configured by the agent, never by a shell string.
 
-**Architecture:** The agent owns everything that touches the host: it renders nginx vhosts and php-fpm pools from embedded askama templates through one write path (render → temp → fsync → validate → atomic rename → reload → rollback), and it writes only its own files under `/etc/maran/`, included by the distribution's nginx. The panel owns everything that decides: plan limits, ACME ordering and renewal, the audit trail, and the database of record. ACME is entirely C# — the agent only places certificate files and reloads.
+**Architecture:** The agent owns everything that touches the host: it renders nginx vhosts and php-fpm pools from embedded askama templates through one write path (render → temp → fsync → atomic rename → validate → reload → rollback — the validator has to read the file at the path nginx reads, so it runs after the swap), and it writes only its own files under `/etc/maran/`, included by the distribution's nginx. The panel owns everything that decides: plan limits, ACME ordering and renewal, the audit trail, and the database of record. ACME is entirely C# — the agent only places certificate files and reloads.
 
 **Tech Stack:** Rust (tonic, askama), C# .NET 9 (Wolverine, EF Core, PostgreSQL), Vue 3 + TypeScript + Tailwind, nginx, php-fpm.
 
@@ -18,7 +18,7 @@ Copied from the spec and `rules/`; every task inherits them.
 
 - **No shell strings, anywhere.** Processes are spawned with argv arrays against absolute paths supplied by `DistroAdapter`. There is no "run this command" RPC and there will not be one (spec §9).
 - **The agent writes only its own files:** `/etc/maran/nginx/sites/*.conf`, included by the distribution's nginx. It never edits a file it does not own (spec §9).
-- **One config write path:** render from an embedded askama template → temp file → validate (`nginx -t`) → atomic rename → reload → on failure roll back and return a typed error (spec §9).
+- **One config write path:** render from an embedded askama template → temp file → atomic rename → validate (`nginx -t`) → reload → on failure roll back and return a typed error (spec §9). The validation follows the rename because `nginx -t` reads the real tree by path and cannot see a temporary file; an earlier pass of this plan stated the two steps the other way round.
 - **Every operation is idempotent**, and every one emits an audit event (spec §9, §10).
 - **The agent distrusts the caller:** every input is re-validated inside the agent — strict name regexes, canonicalised paths, nothing outside `/home/<account>/` (spec §9).
 - **Customer file operations run under the account's uid** (fork + setuid), never as root (spec §9).
@@ -1106,9 +1106,14 @@ actually reviews. The goldens were checked by breaking one on purpose first."
   Every site, pool and certificate write in Tasks 6–9 calls this and never touches `std::fs` itself.
 
 **The protocol, verbatim from `rules/rust.md`:** render → write a temporary file **in the same
-directory** as the target → `fsync` the file **and its directory** → validate → atomically `rename`
-over the target → reload → and on any failure from validation onwards, restore the previous content
-and return a typed error. *"Partial writes are forbidden. An area that needs a variation on this
+directory** as the target → `fsync` the file **and its directory** → atomically `rename` over the
+target → **validate** → reload → and on any failure from the validation onwards, restore the
+previous content and return a typed error. **An earlier pass of this plan put the validation before
+the rename, which is not what `safe_write` does and not what it may do:** the validating tool reads
+the config tree by path (`nginx -t` globs its `include`s), so a temporary file is invisible to it
+and validating first would parse the OLD tree. The order is recoverable because nothing re-reads
+the file until the reload, and its known cost is a kill window in which unvalidated content is live
+with the rollback guard gone. *"Partial writes are forbidden. An area that needs a variation on this
 protocol extends `safe_write` — it does not write its own copy. Two implementations of a
 write-and-rollback path is how the first unrecoverable config corruption happens."*
 
@@ -1216,8 +1221,12 @@ git add agent/crates/ops
 git commit -m "feat(ops): the one path a configuration file may take
 
 Render, write a temporary beside the target, fsync the file and its directory,
-validate, rename atomically, reload, and put the old bytes back if anything
+rename atomically, validate, reload, and put the old bytes back if anything
 after the rename fails.
+
+Validation runs after the rename, not before it: nginx -t reads the tree by
+path and a temporary file matches no include glob, so validating first proves
+nothing about the new content.
 
 Each step is there for a failure: the temporary shares the directory because a
 rename across filesystems is a copy and a copy can be read half-written; the

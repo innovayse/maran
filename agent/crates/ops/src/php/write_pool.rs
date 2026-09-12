@@ -115,8 +115,65 @@ const IDLE_CEILING_DIVISOR: u32 = 3;
 /// [`PhpOpError::PoolValidation`] when `php-fpm -t` rejects the result — with
 /// the previous pool restored — [`PhpOpError::ReloadFailed`] when the reload
 /// refuses it, and [`PhpOpError::ConfigWrite`] for any other failure of the
-/// protocol, including the creation of the socket directory.
+/// protocol, including the creation of the socket directory. Returns
+/// [`PhpOpError::AccountBusy`] when another operation for this account — a
+/// deletion, a backup, a restore, an SFTP login creation or another pool write
+/// — holds the account's lock; nothing is written and nothing is reloaded.
 pub fn write_pool(
+    host: &dyn PhpHost,
+    distro: &dyn DistroAdapter,
+    input: &PoolInput,
+) -> Result<(), PhpOpError> {
+    // Taken FIRST, before the version is even looked at, and held for the whole
+    // write by living in this scope: the guard is owned, so every return below
+    // — including every `?` — releases it. Nothing this function calls takes it
+    // again, and no caller of this function holds it already (the callers are
+    // `sites::create_site` and `sites::update_site_php_version`, through
+    // `sites::write_site_pool`), so there is no nesting to refuse itself on.
+    //
+    // This is the third of the audit's C-3 interleavings, and the one the
+    // deletion's step order could only narrow: a pool written after
+    // `remove_account_pools` has run survives `userdel` naming a user that no
+    // longer resolves, and the next `php-fpm -t` on the host — any tenant's,
+    // days later — then refuses to start or reload the master at all
+    // (`crate::php::remove_pool` documents the trap this file would otherwise
+    // re-arm). The deletion holds this same lock for its whole sequence, so a
+    // write can now only be entirely before it or entirely after it, and the
+    // one that is entirely after it is refused rather than written.
+    //
+    // Wait-free, like every other taker: `rules/rust.md` ("What this agent
+    // serialises") rests its no-deadlock argument on this lock contributing no
+    // wait-for edge, so a write that finds the account busy is REFUSED. The
+    // panel retries a site creation or a version switch; a php-fpm master that
+    // will not start is not something a retry repairs.
+    //
+    // Process-local, like the other four: it serialises this agent's own rpcs
+    // and nothing else — not a second binary, not an installer step, not an
+    // operator's `userdel` by hand.
+    let _guard = crate::accounts::take_account_lock(&input.account).ok_or_else(|| {
+        PhpOpError::AccountBusy {
+            username: input.account.as_str().to_owned(),
+        }
+    })?;
+
+    write_pool_under_lock(host, distro, input)
+}
+
+/// The pool write itself, with the account's lock ALREADY held.
+///
+/// Split from [`write_pool`] for the reason `AccountOperations::delete` is
+/// split from `delete_under_lock`: the lock is a process-wide registry, and a
+/// unit test that drove the public entry would be one of dozens contending for
+/// one account name on the harness's own threads — a flaky suite whose flake
+/// says nothing about the code. The public entry is one statement, the
+/// exclusion is tested for what it is, and everything a pool CONTAINS is
+/// exercised here.
+///
+/// # Errors
+///
+/// Every variant [`write_pool`] documents except [`PhpOpError::AccountBusy`],
+/// which is the entry point's own answer.
+pub(crate) fn write_pool_under_lock(
     host: &dyn PhpHost,
     distro: &dyn DistroAdapter,
     input: &PoolInput,

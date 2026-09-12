@@ -46,7 +46,15 @@ pub trait DbHost: Send + Sync {
     ///   idempotency check survives losing a race with another writer.
     /// - [`DbError::Unparsable`] when the output is not text, or is longer than
     ///   the implementation will read into memory.
-    /// - [`DbError::ClientFailed`] for every other refusal, and for a client
-    ///   that could not be started.
+    /// - [`DbError::ClientFailed`] for every other refusal BY THE SERVER, and
+    ///   only for those: a client that never ran is one of the three variants
+    ///   below, because an implementation that folds them together leaves a
+    ///   caller unable to tell a broken host from a request the server
+    ///   answered.
+    /// - [`DbError::StatementRefused`] when the implementation's own
+    ///   single-statement check refuses the candidate, which is the obligation
+    ///   above.
+    /// - [`DbError::ClientUnavailable`] when the client could not be started.
+    /// - [`DbError::ClientKilled`] when a signal ended it mid-statement.
     fn execute(&self, statement: &str) -> Result<String, DbError>;
 }

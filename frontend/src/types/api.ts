@@ -18,6 +18,15 @@ export interface ProblemDetails {
    * when present.
    */
   detail?: string
+  /**
+   * RFC 7807 extension members: the panel's problem-extension convention puts
+   * a failure's typed facts (a partial restore's counts, above all) at the TOP
+   * level of the problem object, beside the members above. `useApi` collects
+   * everything that is not a known member into `ApiError.extensions`; a
+   * feature narrows its own member from `unknown` with a guard of its own
+   * (e.g. `src/utils/restorePartialCounts.ts`).
+   */
+  [extension: string]: unknown
 }
 
 /** How one request is described to the low-level client's internal `request` helper. */

@@ -68,7 +68,8 @@ public sealed class AccountDirectory : IAccountDirectory
                     plan.MaxSftpUsers,
                     plan.MaxCronEntries,
                     plan.MaxPhpWorkersPerPool,
-                    plan.DiskQuotaMb))
+                    plan.DiskQuotaMb,
+                    plan.MaxFtpUsers))
             .SingleOrDefaultAsync(cancellationToken);
     }
 
@@ -117,7 +118,8 @@ public sealed class AccountDirectory : IAccountDirectory
                     plan.MaxSftpUsers,
                     plan.MaxCronEntries,
                     plan.MaxPhpWorkersPerPool,
-                    plan.DiskQuotaMb))
+                    plan.DiskQuotaMb,
+                    plan.MaxFtpUsers))
             .ToListAsync(cancellationToken);
     }
 }

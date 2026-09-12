@@ -3,8 +3,8 @@ namespace Maran.Host.Modules;
 /// <summary>
 /// Publishes the module list the SPA builds its navigation and route guards from. Lives in the
 /// Host because it describes composition, not a feature: it reports what
-/// <see cref="ModuleRegistry"/> composed, each module's own declared licence tier, and its
-/// display name resolved in the request's culture.
+/// <see cref="ModuleRegistry"/> composed, each module's own declared licence tier, and both the
+/// module's and the tier's display names resolved in the request's culture.
 /// </summary>
 public static class ModulesEndpoint
 {
@@ -15,7 +15,8 @@ public static class ModulesEndpoint
     {
         endpoints.MapGet(
             "/api/v1/modules",
-            (IErrorTextProvider errorTextProvider) => Results.Ok(DescribeModules(errorTextProvider)))
+            (IErrorTextProvider errorTextProvider, LicenceTierDisplayNames tierDisplayNames) =>
+                Results.Ok(DescribeModules(errorTextProvider, tierDisplayNames)))
             // Anonymous: the SPA reads the catalogue to build its navigation before anyone has
             // signed in, and to know whether a login screen is even the right thing to show. The
             // list names the modules installed on this server and nothing about its data.
@@ -30,8 +31,11 @@ public static class ModulesEndpoint
     /// <c>IsEnabled</c>, not the contract.
     /// </summary>
     /// <param name="errorTextProvider">Resolves each module's <c>Manifest.DisplayNameKey</c> in the current request culture.</param>
+    /// <param name="tierDisplayNames">Resolves each module's licence tier into the words an operator reads.</param>
     /// <returns>One descriptor per compiled-in module, in registration order.</returns>
-    private static List<ModuleDto> DescribeModules(IErrorTextProvider errorTextProvider)
+    private static List<ModuleDto> DescribeModules(
+        IErrorTextProvider errorTextProvider,
+        LicenceTierDisplayNames tierDisplayNames)
     {
         return ModuleRegistry.All
             .Select(module =>
@@ -39,6 +43,7 @@ public static class ModulesEndpoint
                 return new ModuleDto(
                                 module.Name,
                                 module.Manifest.Tier,
+                                tierDisplayNames.Of(module.Manifest.Tier),
                                 errorTextProvider.Resolve(module.Manifest.DisplayNameKey),
                                 IsEnabled: true,
                                 module.Manifest.AgentCapabilities);

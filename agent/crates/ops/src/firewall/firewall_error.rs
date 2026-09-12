@@ -37,6 +37,25 @@ pub enum FirewallError {
     #[error("the firewall holds no such rule or ban")]
     NotFound,
 
+    /// The rule names a port range whose upper bound is not above its lower
+    /// one.
+    ///
+    /// Refused by [`PortSpan`](crate::firewall::model::port_span::PortSpan)
+    /// before anything is rendered, so nothing is written and the live
+    /// firewall is untouched. Both halves are real: an INVERTED pair is
+    /// refused by `nft` itself, and because an apply is one transaction its
+    /// refusal aborts the whole load and leaves the previous policy in place
+    /// with only `nft`'s own message to explain it; a pair whose bounds are
+    /// EQUAL is accepted by `nft` and is the worse of the two, because it is a
+    /// second spelling of a single port and a later deny for that port would
+    /// match nothing while reporting success.
+    ///
+    /// Carries nothing, like every other variant here: the two numbers came
+    /// from the caller, and a refusal that echoed them back would be a place
+    /// for a caller-supplied value to travel.
+    #[error("a port range must end above where it starts")]
+    InvalidRange,
+
     /// The file at the ruleset path was not written by this agent.
     ///
     /// Returned before anything is staged, and nothing is overwritten. The

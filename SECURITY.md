@@ -56,5 +56,5 @@ without touching a real host at all.
   for .NET, `agent/Cargo.lock` for Rust, `frontend/package-lock.json` for npm. There is no
   automatic update bot — an update to a panel that runs as root is a change somebody reads.
   `THIRD-PARTY-NOTICES.md` lists every distributed dependency and its licence.
-- Secrets never enter the repository. `/etc/maran/panel.env` is `root:panel 0640` on a server,
+- Secrets never enter the repository. `/etc/maran/panel.env` is `root:maran 0640` on a server,
   and the development values in `.env.example` are throwaways that must never reach one.

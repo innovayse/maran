@@ -258,7 +258,10 @@ public sealed class RetentionHandlerTests
 
         var entry = Assert.Single(world.Audit.Entries);
         Assert.Equal(AuditActions.BackupRetentionPruned, entry.Action);
-        Assert.Equal(rows[0].Id.ToString(), entry.Subject);
+
+        // The account, not the backup id: the line answers "whose archive did the panel destroy
+        // that night", which is the question an operator brings to it.
+        Assert.Equal(Username, entry.Subject);
         Assert.Null(entry.ActorUserId);
         Assert.Equal(SystemAuditEntry.NameFor(BackupAuditJournal.ModuleName), entry.ActorUsername);
         Assert.True(entry.Succeeded);

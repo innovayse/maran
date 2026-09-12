@@ -12,9 +12,10 @@
  * absence means "this host does not observe that service" — inventing a row for every service the
  * panel knows of would turn that into "we watched it and it was fine".
  *
- * The service's name is the agent's own machine name (`webServer`, `phpFpm`), rendered verbatim:
- * the module ships no localized display text for it, and inventing one in the SPA would be this
- * bundle holding a name for a server-side thing (rules/vue.md).
+ * The service's name is the panel's `name` field, already localized by the backend for the
+ * request's language, rendered verbatim (rules/vue.md: the SPA never holds display text for a
+ * server-side thing). The machine `service` member stays what a row is keyed by — stable across
+ * languages, which a translated name is not.
  */
 import { useI18n } from 'vue-i18n'
 import UiBadge, { type BadgeVariant } from '../ui/UiBadge.vue'
@@ -74,7 +75,9 @@ const labelOf = (state: ServiceState): string => {
       class="flex items-center gap-2 rounded-lg border border-border-subtle bg-surface-2 px-3 py-2"
       :title="status.detail"
     >
-      <span class="font-mono text-sm text-text-secondary">{{ status.service }}</span>
+      <!-- The localized name, not the machine member: `font-mono` left with the constant it was
+           chosen for — a translated phrase is prose, not code. -->
+      <span class="text-sm font-medium text-text-secondary">{{ status.name }}</span>
       <UiBadge :variant="toneOf(status.state)">{{ labelOf(status.state) }}</UiBadge>
     </div>
   </div>

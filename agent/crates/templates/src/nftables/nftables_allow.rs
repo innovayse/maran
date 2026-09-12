@@ -24,8 +24,26 @@ use crate::nftables::nftables_protocol::NftablesProtocol;
 ///    — but the operator's apply fails for a reason no message explains, so
 ///    the value is built correctly rather than caught later.
 pub struct NftablesAllow {
-    /// Destination port the rule opens.
+    /// Destination port the rule opens, or the LOWER bound when
+    /// [`Self::port_to`] is present.
     pub port: u16,
+    /// Inclusive upper bound of a port range, or `None` for a single port.
+    ///
+    /// `Some(upper)` renders `dport <port>-<upper>`; `None` renders
+    /// `dport <port>` and is byte-identical to what this type rendered before
+    /// the field existed. That is the whole compatibility claim of the field,
+    /// and the committed `ruleset.nft` golden — which carries no range — is
+    /// what holds it up.
+    ///
+    /// A third invariant the caller owns, beside the two on the type: `upper`
+    /// is strictly ABOVE `port`. Nothing here can enforce it, and both ways of
+    /// getting it wrong are silent in a different way — `nft` refuses
+    /// `dport 30099-30000` and aborts the whole transactional load, while
+    /// `dport 30000-30000` loads happily as a second spelling of a single port
+    /// that a later deny for `30000` would not match. `ops::firewall`'s
+    /// `PortSpan` is the validated type that decides both, and it is the only
+    /// thing that fills this field.
+    pub port_to: Option<u16>,
     /// Transport protocol the rule names.
     pub protocol: NftablesProtocol,
     /// The source network in CIDR form, such as `10.0.0.0/8`.

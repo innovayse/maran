@@ -34,6 +34,16 @@ namespace Maran.Modules.Sftp.IntegrationEvents.Handlers;
 /// <b>The failure is not swallowed.</b> Anything thrown here propagates to the Accounts handler,
 /// which abandons the suspension with the account left active — the recoverable direction.
 /// </para>
+/// <para>
+/// <b>And the success is not swallowed either, since the cull shipped.</b> Locking these logins also
+/// ENDS the sessions already open on them, which cuts a transfer in flight and leaves the partial file
+/// in the customer's home. The panel warns the operator of that cost before a suspension, so the
+/// count the agent answers with is written into
+/// <see cref="AccountSuspending.Report"/> for the Accounts handler to attest on — otherwise the
+/// promise made before the act has nothing after it. What is written is the host's answer unchanged,
+/// absence included: a <c>null</c> count means the host did not say, and turning it into a zero here
+/// would manufacture the completeness claim that the whole attestation exists to stop.
+/// </para>
 /// </remarks>
 public sealed class AccountSuspendingHandler
 {
@@ -47,8 +57,10 @@ public sealed class AccountSuspendingHandler
         _agent = agent;
     }
 
-    /// <summary>Locks every SFTP login the host holds for the account.</summary>
-    /// <param name="message">The account about to be suspended.</param>
+    /// <summary>Locks every SFTP login the host holds for the account, and reports the sessions ended.</summary>
+    /// <param name="message">
+    /// The account about to be suspended, and the report the cull's count is written into.
+    /// </param>
     /// <param name="cancellationToken">Cancels the operation.</param>
     /// <exception cref="InvalidOperationException">
     /// The agent refused. Thrown rather than returned, because a subscriber's only way to abort the
@@ -63,5 +75,12 @@ public sealed class AccountSuspendingHandler
             throw new InvalidOperationException(
                 $"the sftp logins of {message.Username} could not be locked: {locked.Error?.Code}");
         }
+
+        // Reported only on the success path, and that is the whole of the ordering: a refused lock
+        // throws above, so the publisher never sees a report from an operation that failed. A failed
+        // cull is one of those refusals — the agent answers an error rather than a count when some of
+        // the account's processes may have been signalled and some may not — so there is no reading of
+        // this report in which a number describes work that was not accounted for.
+        message.Report.ReportSessionCull(locked.Value!.SessionsEnded);
     }
 }

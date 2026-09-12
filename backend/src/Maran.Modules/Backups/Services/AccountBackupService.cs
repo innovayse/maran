@@ -118,17 +118,18 @@ public sealed class AccountBackupService : IAccountBackupService
 
         // The caller has no address to record — a deletion is journalled by the Accounts module
         // under its own action — so what this journal adds is the fact that the FINAL backup
-        // specifically was attempted and how it ended, keyed by the backup's own id.
+        // specifically was attempted and how it ended, against the account being destroyed: the
+        // one name that is left to search for once the deletion finishes.
         if (!outcome.Succeeded)
         {
             await _journal.RecordFailureAsync(
-                AuditActions.FinalBackupTaken, backup.Id, string.Empty, string.Empty, cancellationToken);
+                AuditActions.FinalBackupTaken, accountName, string.Empty, string.Empty, cancellationToken);
 
             return Result<Guid>.Fail(Error.Of(nameof(ErrorMessages.FinalBackupFailed), ErrorType.Failure));
         }
 
         await _journal.RecordSuccessAsync(
-            AuditActions.FinalBackupTaken, backup.Id, string.Empty, string.Empty, cancellationToken);
+            AuditActions.FinalBackupTaken, accountName, string.Empty, string.Empty, cancellationToken);
 
         return Result<Guid>.Ok(backup.Id);
     }

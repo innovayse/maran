@@ -33,7 +33,7 @@ public sealed class ListRulesQueryHandlerTests
         var agent = new RecordingAgentFirewallClient
         {
             RulesResult = Result<IReadOnlyList<AgentFirewallRule>>.Ok(
-                [new AgentFirewallRule(8080, AgentFirewallProtocol.Tcp, "0.0.0.0/0")]),
+                [new AgentFirewallRule(8080, null, AgentFirewallProtocol.Tcp, "0.0.0.0/0")]),
         };
         var handler = new ListRulesQueryHandler(agent, FirewallTestContext.Options());
 
@@ -44,6 +44,29 @@ public sealed class ListRulesQueryHandlerTests
         Assert.Equal(8080, rule.Port);
         Assert.Equal(AgentFirewallProtocol.Tcp, rule.Protocol);
         Assert.Equal("0.0.0.0/0", rule.SourceCidr);
+    }
+
+    /// <summary>A listed range keeps both of its bounds on the way to the screen.</summary>
+    [Fact]
+    public async Task A_listed_range_keeps_both_of_its_bounds_on_the_way_to_the_screen()
+    {
+        // The projection is where a bound is silently lost, and losing it shows a hundred open
+        // ports as one — with a deny button that then matches nothing.
+        var agent = new RecordingAgentFirewallClient
+        {
+            RulesResult = Result<IReadOnlyList<AgentFirewallRule>>.Ok(
+            [
+                new AgentFirewallRule(30_000, 30_099, AgentFirewallProtocol.Tcp, "0.0.0.0/0"),
+                new AgentFirewallRule(8080, null, AgentFirewallProtocol.Tcp, "0.0.0.0/0"),
+            ]),
+        };
+        var handler = new ListRulesQueryHandler(agent, FirewallTestContext.Options());
+
+        var result = await handler.HandleAsync(new ListRulesQuery(), CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(30_099, result.Value[0].PortTo);
+        Assert.Null(result.Value[1].PortTo);
     }
 
     /// <summary>An agent that cannot read the ruleset is reported rather than shown as an empty firewall.</summary>

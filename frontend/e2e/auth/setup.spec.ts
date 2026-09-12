@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test'
+import { setPersistedLocale } from '../fixtures/set-locale'
 import { stubSetupState } from '../fixtures/stub-auth-routes'
 import { stubEmptyModules } from '../fixtures/stub-modules-route'
 import { stubHealthy } from '../fixtures/stub-health-route'
@@ -14,14 +15,81 @@ test('a panel with no administrator sends every route to the setup screen', asyn
   await expect(page.getByRole('heading', { level: 2, name: 'Set up this panel' })).toBeVisible()
 })
 
-test('the setup screen prefills the token from the installer link', async ({ page }) => {
+// The three tests below replace one that asserted the opposite: the screen used to prefill the
+// token field from `?token=`. The installer stopped putting it there — a secret in a URL is written
+// to the panel's own nginx access log AND to its error log, which takes no format and cannot be
+// given one (docs/superpowers/notes/2026-09-11-setup-token-in-a-url-threat-note.md) — and a screen
+// that still honoured the query string would put it back for anyone with an old bookmark.
+//
+// The needles are deliberately long phrases rather than the word "token": getByText and
+// getByRole(name:) match case-insensitive SUBSTRINGS, so a needle like 'token' matches the 'Setup
+// token' label, the placeholder and this notice alike, and would pass against any of them.
+
+test('a token in the address is not accepted into the field, and the screen says why', async ({
+  page,
+}) => {
   await stubSetupState(page, { isComplete: false })
   await stubHealthy(page)
   await stubEmptyModules(page)
 
   await page.goto('/setup?token=one-time-token')
 
-  await expect(page.getByRole('textbox', { name: 'Setup token' })).toHaveValue('one-time-token')
+  // The vacuity guard: the form is on screen and the label rendered, so the assertions below are
+  // about a page that finished loading rather than about a shell that never got there.
+  await expect(page.getByRole('heading', { level: 2, name: 'Set up this panel' })).toBeVisible()
+
+  const field = page.getByRole('textbox', { name: 'Setup token' })
+  await expect(field).toBeVisible()
+  await expect(field).toHaveValue('')
+
+  // A real sentence telling the operator what to do, not a machine word (rules/vue.md).
+  await expect(
+    page.getByText('The setup token is not part of this link, so the field below is empty on purpose.'),
+  ).toBeVisible()
+
+  // And the secret stops travelling with this tab: the address no longer carries it, so it cannot
+  // be recopied out of the address bar or re-sent to a server that logs the request line.
+  await expect(page).toHaveURL('/setup')
+})
+
+test('the notice appears only for a visitor who arrived with a token in the address', async ({
+  page,
+}) => {
+  await stubSetupState(page, { isComplete: false })
+  await stubHealthy(page)
+  await stubEmptyModules(page)
+
+  await page.goto('/setup')
+
+  // The control for the test above. Without it, a notice rendered unconditionally on every visit
+  // would satisfy that assertion while telling an operator who did nothing wrong that they did.
+  await expect(page.getByRole('textbox', { name: 'Setup token' })).toHaveValue('')
+  await expect(
+    page.getByText('The setup token is not part of this link, so the field below is empty on purpose.'),
+  ).toHaveCount(0)
+})
+
+test('the notice is in the operator\'s own language, in all three', async ({ page }) => {
+  // The one sentence a visitor with an old bookmark reads. An English-only notice on a Russian or
+  // Armenian panel is the failure this asserts against, and it is invisible in an English run.
+  const sentences: Record<'en' | 'ru' | 'hy', string> = {
+    en: 'Paste the token the installer printed on its own line',
+    ru: 'Вставьте токен, который установщик напечатал отдельной строкой',
+    hy: 'Տեղադրեք այն կոդը, որը տեղադրիչը տպել է առանձին տողով',
+  }
+
+  for (const locale of ['en', 'ru', 'hy'] as const) {
+    await setPersistedLocale(page, locale)
+    await stubSetupState(page, { isComplete: false })
+    await stubHealthy(page)
+    await stubEmptyModules(page)
+
+    await page.goto('/setup?token=one-time-token')
+
+    // toContainText is case-SENSITIVE, unlike getByText, which is what makes a Cyrillic or
+    // Armenian needle prove the locale rather than merely prove some text is present.
+    await expect(page.getByRole('status')).toContainText(sentences[locale])
+  }
 })
 
 test('a mismatched confirmation is reported on the field before anything is sent', async ({ page }) => {
@@ -54,7 +122,9 @@ test('creating the administrator lands on the sign-in screen', async ({ page }) 
     })
   })
 
-  await page.goto('/setup?token=one-time-token')
+  await page.goto('/setup')
+  // Typed, not prefilled: the token no longer travels in the address.
+  await page.getByRole('textbox', { name: 'Setup token' }).fill('one-time-token')
   await page.getByRole('textbox', { name: 'Username' }).fill('admin')
   await page.getByRole('textbox', { name: 'Email' }).fill('admin@example.com')
   await page.getByRole('textbox', { name: 'Password', exact: true }).fill('correct horse battery staple')
@@ -81,7 +151,9 @@ test('a rejected password shows the rule the backend broke it on', async ({ page
     })
   })
 
-  await page.goto('/setup?token=one-time-token')
+  await page.goto('/setup')
+  // Typed, not prefilled: the token no longer travels in the address.
+  await page.getByRole('textbox', { name: 'Setup token' }).fill('one-time-token')
   await page.getByRole('textbox', { name: 'Username' }).fill('admin')
   await page.getByRole('textbox', { name: 'Email' }).fill('admin@example.com')
   await page.getByRole('textbox', { name: 'Password', exact: true }).fill('short')

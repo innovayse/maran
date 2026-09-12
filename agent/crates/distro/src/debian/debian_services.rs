@@ -1,5 +1,7 @@
 //! Service and binary names on the Debian family.
 
+use crate::vsftpd_tls_version_keys::VsftpdTlsVersionKeys;
+
 /// Absolute path of the nginx binary, for the process-execution allow-list.
 #[must_use]
 pub fn nginx_binary() -> &'static str {
@@ -149,6 +151,55 @@ pub fn sftp_group() -> &'static str {
     "maran-sftp"
 }
 
+/// Absolute path of the vsftpd binary, for the process-execution allow-list.
+///
+/// Measured rather than recalled: Debian's `vsftpd` package installs the real
+/// file here — `dpkg -L vsftpd` lists `/usr/sbin/vsftpd` and `dpkg -S
+/// /usr/sbin/vsftpd` answers `vsftpd`, verified in a throwaway
+/// `ubuntu:24.04` container (3.0.5-0ubuntu3.1) and again on `debian:trixie`
+/// (3.0.5-0.2), where `ls -l` shows a regular file and not a symlink. The
+/// package's file list is the documented interface, per the merged-`/usr` rule
+/// on [`crate::DistroAdapter`].
+#[must_use]
+pub fn vsftpd_binary() -> &'static str {
+    "/usr/sbin/vsftpd"
+}
+
+/// Name of the group whose membership authorizes an FTPS login.
+///
+/// The panel's own group rather than a distribution one, so membership means
+/// exactly "this login may transfer files over FTPS". The RHEL family answers
+/// the identical name deliberately: the authorization is one
+/// `pam_succeed_if.so … user ingroup <group>` line in one PAM service file, and
+/// a family disagreeing here would leave that line admitting nobody there.
+#[must_use]
+pub fn ftps_group() -> &'static str {
+    "maran-ftps"
+}
+
+/// The names of the three TLS protocol-version options a rendered
+/// `vsftpd.conf` writes, as this family's build of vsftpd spells them.
+///
+/// Measured 2026-09-09 on `ubuntu:24.04` (`vsftpd 3.0.5-0ubuntu3.1`): the
+/// binary's own option table, read with `strings`, carries `ssl_tlsv1`,
+/// `ssl_tlsv11`, `ssl_tlsv12` and `ssl_tlsv13` — no underscore between the
+/// major and the minor. Confirmed by running the daemon: a config carrying the
+/// RHEL family's spelling makes this build exit 2 printing nothing at all,
+/// while the same config with these words starts.
+///
+/// The 1.3 key exists on this family too and is deliberately not answered: the
+/// template does not write it, because the build's own default enables TLS 1.3
+/// and Task 3 observed a TLSv1.3 negotiation on this family with no 1.3 line in
+/// the file.
+#[must_use]
+pub fn vsftpd_tls_version_keys() -> VsftpdTlsVersionKeys {
+    VsftpdTlsVersionKeys {
+        tls_v1: "ssl_tlsv1",
+        tls_v1_1: "ssl_tlsv11",
+        tls_v1_2: "ssl_tlsv12",
+    }
+}
+
 /// Absolute path of `useradd`, for the process-execution allow-list.
 ///
 /// Debian's `passwd` package installs the shadow suite in `/usr/sbin`.
@@ -167,6 +218,17 @@ pub fn userdel_binary() -> &'static str {
 #[must_use]
 pub fn usermod_binary() -> &'static str {
     "/usr/sbin/usermod"
+}
+
+/// Absolute path of `pkill`, for the process-execution allow-list.
+///
+/// From the `procps` package, which is priority *important* on this family and
+/// therefore present on an ordinary host — but named here all the same, because
+/// "ordinarily present" is not "declared", and a minimal host is exactly where
+/// an undeclared tool is discovered by a suspension failing.
+#[must_use]
+pub fn pkill_binary() -> &'static str {
+    "/usr/bin/pkill"
 }
 
 /// Absolute path of `passwd`, for the process-execution allow-list.

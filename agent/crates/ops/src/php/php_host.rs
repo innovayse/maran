@@ -136,4 +136,30 @@ pub trait PhpHost: ConfigHost {
         validator: &Validator<'_>,
         reload: &Reload<'_>,
     ) -> Result<(), PhpOpError>;
+    /// Runs `validator` and then `reload`, writing nothing at all.
+    ///
+    /// The write protocol's two commands used without a swap between them,
+    /// which is what a startup pass over the pool tree already on disk needs
+    /// (`super::reload_pool_trees`). It is on this seam rather than built from
+    /// [`crate::safe_write::ConfigHost::run`] at the call site so that the
+    /// status-to-error decision — a non-zero validator is a rejected tree, a
+    /// non-zero reload is a refused reload — is stated once for this area
+    /// instead of once per caller, and so the pass is testable against the same
+    /// fake every other operation here uses.
+    ///
+    /// Nothing is rolled back on a refusal because nothing was changed: a
+    /// refusal here leaves the running configuration exactly as it was.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`PhpOpError::PoolValidation`] when `php-fpm -t` refuses the
+    /// pool tree already on disk, and [`PhpOpError::ReloadFailed`] when the
+    /// service manager refuses to reload it. Returns
+    /// [`PhpOpError::ConfigWrite`] when a command cannot be started at all,
+    /// which for this area is the missing-package case.
+    fn validate_and_reload(
+        &self,
+        validator: &Validator<'_>,
+        reload: &Reload<'_>,
+    ) -> Result<(), PhpOpError>;
 }

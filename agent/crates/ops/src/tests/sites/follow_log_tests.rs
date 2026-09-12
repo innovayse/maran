@@ -30,7 +30,6 @@ use std::path::Path;
 use std::time::Duration;
 
 use maran_agent_core::utils::current_uid::current_uid;
-use maran_agent_core::validation::system::name::AccountName;
 
 use super::{
     Window, follow_as, follow_with_patience, open_directory, open_log, read_exact_at, read_window,
@@ -106,7 +105,6 @@ impl LogSink for Refusing {
 /// A request for `LOG` in `directory`, asking for `history_lines` of history.
 fn request(directory: &Path, history_lines: u32) -> LogTailRequest {
     LogTailRequest {
-        account: AccountName::parse("acme").unwrap(),
         directory: directory.to_path_buf(),
         file_name: OsString::from(LOG),
         history_lines,

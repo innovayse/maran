@@ -1,5 +1,6 @@
 using System.Net.Sockets;
 using Maran.Agent.Client.Interfaces;
+using Maran.Agent.Client.Services.SftpService;
 using Maran.SharedKernel.Results;
 using Maran.SharedKernel.Security;
 
@@ -64,7 +65,7 @@ internal sealed class RecordingAgentSftpClient : IAgentSftpClient
     }
 
     /// <inheritdoc/>
-    public async Task<Result<bool>> SetAccountLoginsLockedAsync(
+    public async Task<Result<AccountLoginLockOutcomeDto>> SetAccountLoginsLockedAsync(
         string accountUsername,
         bool locked,
         CancellationToken cancellationToken)
@@ -73,7 +74,7 @@ internal sealed class RecordingAgentSftpClient : IAgentSftpClient
 
         await EnterAsync(cancellationToken);
 
-        return Result<bool>.Ok(true);
+        return Result<AccountLoginLockOutcomeDto>.Ok(new AccountLoginLockOutcomeDto(null));
     }
 
     /// <inheritdoc/>

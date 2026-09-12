@@ -95,7 +95,12 @@ test('the bans table names why each address is refused, and how many failures we
 
   const detected = page.getByRole('row').filter({ hasText: BRUTE_FORCE.ipAddress })
   await expect(detected).toContainText('Brute force')
-  await expect(detected).toContainText('12')
+  // The count as the failures CELL's whole text. Containment asserted a bound, not a value: `12`
+  // is contained in `120`, and it is also contained in the expiry column, which this test leaves
+  // on the real clock — "12 days ago" is a sentence this row will print by itself, and on the day
+  // it does, the old assertion could no longer fail for any value the count took. Column three is
+  // Failures (Address, Reason, Failures, Banned, Expires, Actions).
+  await expect(detected.getByRole('cell').nth(2)).toHaveText('12')
 
   const byHand = page.getByRole('row').filter({ hasText: MANUAL.ipAddress })
   await expect(byHand).toContainText('By hand')

@@ -10,7 +10,7 @@ set -euo pipefail
 readonly MARAN_RELEASE_BASE_URL="https://releases.maran.com"
 readonly MARAN_INSTALL_ROOT="/usr/local/maran"
 # MARAN_ARTIFACT_TMP: staging for downloaded archives between verification and extraction.
-# It is deliberately NOT under /var/lib/maran: that directory is created panel:panel 0750 by
+# It is deliberately NOT under /var/lib/maran: that directory is created maran:maran 0750 by
 # 40-user.sh and is in maran-api.service's ReadWritePaths=, so the unprivileged uid the api
 # runs as owns it and can place any entry inside it — a symlink or a directory of its own at
 # the staging name. Root would then download into a directory the api controls, and because

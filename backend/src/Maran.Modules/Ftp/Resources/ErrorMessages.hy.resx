@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="FtpsHostnameInvalidFormat">
+    <value>Սա վավեր հոսթի անուն չէ։ Մուտքագրեք ftp.example.com տեսքի անուն։</value>
+  </data>
+  <data name="FtpsHostnameTooLong">
+    <value>Հոսթի այս անունը չափազանց երկար է։ Հոսթի անունը կարող է պարունակել առավելագույնը 253 նիշ։</value>
+  </data>
+  <data name="FtpsPassiveAddressInvalid">
+    <value>Պասիվ հասցեն պետք է լինի սովորական գրառմամբ IPv4 հասցե, օրինակ՝ 203.0.113.7 — ոչ հոսթի անուն, ոչ IPv6 հասցե, որի համար PASV պատասխանում ձև չկա, և թվերը չպետք է սկսվեն զրոյով։ Թողեք դաշտը դատարկ, եթե ձեր սերվերը NAT-ի հետևում չէ։</value>
+  </data>
+  <data name="FtpsHostnameNotServed">
+    <value>Այս վահանակը հոսթի այս անվամբ կայք չի սպասարկում։ Նախ ավելացրեք կայքը, ապա միացրեք FTPS-ը դրա համար։</value>
+  </data>
+  <data name="FtpsCertificateMissing">
+    <value>FTPS-ը չի գործարկվի, քանի դեռ հոսթի այս անվան համար TLS վկայագիր չկա։ Ձեր մուտքագրածում սխալ բան չկա. թողարկեք կամ տեղադրեք վկայագիր SSL բաժնում, ապա նորից միացրեք FTPS-ը։</value>
+  </data>
+  <data name="FtpUserNotFound">
+    <value>Այս FTPS օգտվողը չի գտնվել։ Թարմացրեք էջը՝ ձեր առկա FTPS օգտվողներին տեսնելու համար։</value>
+  </data>
+  <data name="FtpUserNameTaken">
+    <value>FTPS օգտվողի այս անունն արդեն զբաղված է։ Ընտրեք մեկ ուրիշը։</value>
+  </data>
+  <data name="FtpUserLimitReached">
+    <value>Ձեր սակագինը թույլ չի տալիս ավելի շատ FTPS օգտվողներ։ Ջնջեք այն, որն այլևս պետք չէ, կամ անցեք ավելի մեծ սակագնի։</value>
+  </data>
+  <data name="FtpUserLimitReachedConcurrently" xml:space="preserve">
+    <value>Ձեր սակագնի FTPS օգտվողների սահմանաչափը սպառվեց նույն պահին արված մեկ այլ հարցումով, ուստի այս օգտվողը չի ստեղծվել և գաղտնաբառ չի տրվել։ Ձեր մուտքագրածում սխալ բան չկա։ Ջնջեք FTPS օգտվողին, որն այլևս պետք չէ, կամ անցեք ավելի մեծ սակագնի, ապա կրկնեք փորձը։</value>
+  </data>
+  <data name="FtpUserNameTooLong">
+    <value>FTPS օգտվողի այս անունը չափազանց երկար է։ Դրան ավելացվում է ձեր հաշվի նախածանցը, ուստի ընտրեք ավելի կարճը։</value>
+  </data>
+  <data name="FtpUserNameInvalidFormat">
+    <value>FTPS օգտվողի անունը կարող է պարունակել միայն փոքրատառ լատինական տառեր և թվեր և չի կարող դատարկ լինել։</value>
+  </data>
+  <data name="FtpUserProvisioningFailed">
+    <value>Չհաջողվեց ստեղծել FTPS օգտվողը, և գաղտնաբառ չի տրվել։ Կրկնեք փորձը։ Եթե անունն այնուհետև զբաղված նշվի, դիմեք աջակցման ծառայությանը․ հնարավոր է՝ անհրաժեշտ լինի հեռացնել մնացած օգտվողին։</value>
+  </data>
+  <data name="AccountNotFound">
+    <value>Այս հաշիվը չի գտնվել։ Թարմացրեք էջը՝ ընթացիկ վիճակը տեսնելու համար։</value>
+  </data>
+</root>

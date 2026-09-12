@@ -23,3 +23,24 @@ server {
         return 403 "This site has been suspended.";
     }
 }
+{#
+  This comment exists to give the file a SECOND trailing newline, so the render
+  ends with one.
+
+  askama drops exactly one newline at the end of a template, the way Jinja does
+  with keep_trailing_newline off. The other vhost templates end with an
+  `{% endif %}` line, which absorbs the drop by accident; this one ends with the
+  server block's own closing brace, so without this the render ended `}` with no
+  newline.
+
+  What that costs here is not cosmetic. `ops::sites::is_suspended_vhost` decides
+  whether a site is suspended by rendering this template and comparing the file
+  BYTE FOR BYTE — the rendered file is this area's only record of the
+  suspension. A file that gains a trailing newline from anything at all (an
+  editor, a restore, a `sed -i`) stops matching, the site reads as not
+  suspended, and the next certificate renewal or PHP-version change puts the
+  suspended customer's site back on the air.
+
+  A comment rather than a blank line because a blank line at the end of a file
+  is the first thing a tidy-up deletes, and its deletion would look harmless.
+#}

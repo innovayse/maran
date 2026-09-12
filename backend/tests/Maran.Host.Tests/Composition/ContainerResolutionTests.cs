@@ -217,6 +217,7 @@ public sealed class ContainerResolutionTests : IClassFixture<PanelTestFactory>
     [InlineData(typeof(IAgentFilesClient), typeof(ResilientAgentFilesClient))]
     [InlineData(typeof(IAgentDbClient), typeof(ResilientAgentDbClient))]
     [InlineData(typeof(IAgentSftpClient), typeof(ResilientAgentSftpClient))]
+    [InlineData(typeof(IAgentFtpsClient), typeof(ResilientAgentFtpsClient))]
     [InlineData(typeof(IAgentCronClient), typeof(ResilientAgentCronClient))]
     [InlineData(typeof(IAgentFirewallClient), typeof(ResilientAgentFirewallClient))]
     [InlineData(typeof(IAgentMonitorClient), typeof(ResilientAgentMonitorClient))]
@@ -229,7 +230,7 @@ public sealed class ContainerResolutionTests : IClassFixture<PanelTestFactory>
         Assert.IsType(expectedType, client);
     }
 
-    /// <summary>The database and sftp clients the container hands out apply the pipelines timeout.</summary>
+    /// <summary>The database sftp and ftps clients the container hands out apply the pipelines timeout.</summary>
     /// <remarks>
     /// The type check above says the decorator is in place; this says the decorator DOES something,
     /// which is a different question and the one this repository got wrong before. The composed
@@ -245,13 +246,14 @@ public sealed class ContainerResolutionTests : IClassFixture<PanelTestFactory>
     /// </remarks>
     /// <returns>A task that completes when both calls have been abandoned.</returns>
     [Fact]
-    public async Task The_database_and_sftp_clients_the_container_hands_out_apply_the_pipelines_timeout()
+    public async Task The_database_sftp_and_ftps_clients_the_container_hands_out_apply_the_pipelines_timeout()
     {
         using var scope = _factory.Services.CreateScope();
         var pipelines = scope.ServiceProvider.GetRequiredService<ResiliencePipelineProvider<string>>();
 
         var database = new ResilientAgentDbClient(new RecordingAgentDbClient { Hangs = true }, pipelines);
         var sftp = new ResilientAgentSftpClient(new RecordingAgentSftpClient { Hangs = true }, pipelines);
+        var ftps = new ResilientAgentFtpsClient(new RecordingAgentFtpsClient { Hangs = true }, pipelines);
 
         await Assert.ThrowsAsync<TimeoutRejectedException>(async () =>
         {
@@ -260,6 +262,10 @@ public sealed class ContainerResolutionTests : IClassFixture<PanelTestFactory>
         await Assert.ThrowsAsync<TimeoutRejectedException>(async () =>
         {
             await sftp.DeleteAsync("alice", "web", default).WaitAsync(ComposedTimeoutDeadline);
+        });
+        await Assert.ThrowsAsync<TimeoutRejectedException>(async () =>
+        {
+            await ftps.DeleteUserAsync("alice", "files", default).WaitAsync(ComposedTimeoutDeadline);
         });
     }
 

@@ -62,6 +62,24 @@ namespace Maran.Sdk.Contracts;
 /// chosen when the account was created — and re-expressing it in the agent's unit at the boundary
 /// would make the stored figure and the travelling figure two different numbers for one fact.
 /// </param>
+/// <param name="MaxFtpUsers">
+/// The plan's FTPS-login allowance, enforced by the Ftp module at creation time and before the agent
+/// is called (spec §8). Here for the same reason <paramref name="MaxSftpUsers"/> is, and it is a
+/// SEPARATE number from it rather than the same allowance seen twice: the two logins are served by
+/// different daemons out of different jails, and a host with FTPS switched off has no use for the
+/// second at all.
+///
+/// It is the one member of this record carrying a DEFAULT, and the default is the refusing value —
+/// a snapshot that does not state an FTPS allowance grants none. The reason is mechanical and
+/// temporary rather than a judgement about limits: this record is positional and is constructed at
+/// twenty-eight sites in seven modules' test projects that the change adding this member may not
+/// edit, and a required parameter would stop those projects building. Every PRODUCTION construction
+/// site — both of them, in the Accounts module's <c>AccountDirectory</c> — passes the plan's real
+/// figure, and a test proves each of them does. Making the parameter required is owed work, and
+/// until it is done a caller reading a zero here cannot tell "this plan sells no FTPS login" from
+/// "whoever built this snapshot did not say"; both refuse, which is the direction a limit is allowed
+/// to be wrong in.
+/// </param>
 public sealed record AccountSnapshot(
     Guid Id,
     string Username,
@@ -70,4 +88,5 @@ public sealed record AccountSnapshot(
     int MaxSftpUsers,
     int MaxCronEntries,
     int MaxPhpWorkersPerPool,
-    int DiskQuotaMb);
+    int DiskQuotaMb,
+    int MaxFtpUsers = 0);

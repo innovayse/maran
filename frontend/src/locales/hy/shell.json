@@ -5,6 +5,7 @@
     "nav": {
       "ariaLabel": "Հիմնական նավիգացիա",
       "systemStatus": "Համակարգի կարգավիճակ",
+      "auditJournal": "Աուդիտի մատյան",
       "lockedBadge": "Արգելափակված",
       "groups": {
         "panel": "Վահանակ"

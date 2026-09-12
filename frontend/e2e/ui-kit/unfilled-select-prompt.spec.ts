@@ -7,6 +7,7 @@ import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubModules } from '../fixtures/stub-modules-route'
 import { stubPlans } from '../fixtures/stub-plans-route'
 import { stubSftpUsers } from '../fixtures/stub-sftp-routes'
+import { runningFtpsStatus, stubFtpUsers, stubFtpsServer } from '../fixtures/stub-ftp-routes'
 import { stubPhpVersions, stubSites } from '../fixtures/stub-sites-routes'
 import type { Account } from '../../src/types/account'
 import type { PanelModule } from '../../src/types/module'
@@ -70,11 +71,14 @@ test('the account pickers of every create form prompt for a choice instead of st
   await stubAccounts(page, [ALICE])
   await stubDatabases(page, [])
   await stubSftpUsers(page, [])
+  // The SFTP screen became the merged File transfer screen, which reads the FTPS module too.
+  await stubFtpUsers(page, [])
+  await stubFtpsServer(page, runningFtpsStatus)
   await stubBackups(page, [])
   await stubSites(page, [])
   await stubPhpVersions(page, [{ version: '8.3', isDefault: true }])
 
-  for (const path of ['/databases', '/sftp-users', '/backups', '/sites/new']) {
+  for (const path of ['/databases', '/file-transfer', '/backups', '/sites/new']) {
     await page.goto(path)
 
     const picker = page.getByRole('combobox', { name: 'Account' })

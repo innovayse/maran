@@ -1,5 +1,6 @@
 using Maran.Agent.Client.Services.BackupService;
 using Maran.Modules.Backups.Commands.RestoreBackup;
+using Maran.Modules.Backups.Common;
 using Maran.Modules.Backups.Services;
 using Maran.Modules.Backups.Tests.TestSupport;
 using Maran.Sdk.Contracts;
@@ -65,6 +66,67 @@ public sealed class RestoreBackupCommandHandlerTests
         var task = Assert.Single(world.Tasks.Tasks);
         Assert.False(task.Completed);
         Assert.Equal("RestorePartial", task.FailureCode);
+    }
+
+    /// <summary>A partial restore carries the measured counts as the restore problem extension.</summary>
+    /// <remarks>
+    /// The pinned defect of this pass: the handler built the full outcome DTO and DISCARDED it on
+    /// the failure branch — the one ending where "one of two databases" is the operator's measure of
+    /// the damage. The counts now ride the failed result as the <c>restore</c> problem extension,
+    /// and the assertion is on their exact VALUES, because a swap of restored and total is the
+    /// mutation this test exists to kill.
+    /// </remarks>
+    [Fact]
+    public async Task A_partial_restore_carries_its_counts_in_the_problem_extension()
+    {
+        var world = World.Create([PartialRestore]);
+
+        var result = await world.Handler.HandleAsync(world.Command(World.Username), CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.NotNull(result.Extension);
+        Assert.Equal("restore", result.Extension.Key);
+        var counts = Assert.IsType<RestorePartialDto>(result.Extension.Value);
+        Assert.True(counts.FilesRestored);
+        Assert.Equal(1u, counts.DatabasesRestored);
+        Assert.Equal(2u, counts.DatabasesTotal);
+    }
+
+    /// <summary>An ending the agent stated nothing about carries no counts at all.</summary>
+    /// <remarks>
+    /// The other half of the extension's honesty. A truncated stream, a refusal from the agent, and
+    /// a confirmation refused before the agent was asked all have counts of ZERO that mean "nothing
+    /// was measured", not "nothing was replaced" — and publishing them would show an operator a
+    /// false <c>0 of 0</c> over an ending that touched nothing. The partial-restore test above is
+    /// the positive control proving the extension IS attached when the agent did measure.
+    /// </remarks>
+    [Fact]
+    public async Task An_ending_the_agent_stated_nothing_about_carries_no_counts()
+    {
+        var truncated = World.Create([]);
+        var refusedByAgent = World.Create([
+            new BackupRestoreEvent(
+                BackupRestoreEventKind.Failed,
+                0,
+                string.Empty,
+                null,
+                Error.Of("AgentValidationFailed", ErrorType.Validation)),
+        ]);
+        var refusedBeforeAgent = World.Create([PartialRestore]);
+
+        var truncatedResult = await truncated.Handler.HandleAsync(
+            truncated.Command(World.Username), CancellationToken.None);
+        var refusedResult = await refusedByAgent.Handler.HandleAsync(
+            refusedByAgent.Command(World.Username), CancellationToken.None);
+        var confirmationResult = await refusedBeforeAgent.Handler.HandleAsync(
+            refusedBeforeAgent.Command("someone-else"), CancellationToken.None);
+
+        Assert.False(truncatedResult.IsSuccess);
+        Assert.Null(truncatedResult.Extension);
+        Assert.False(refusedResult.IsSuccess);
+        Assert.Null(refusedResult.Extension);
+        Assert.False(confirmationResult.IsSuccess);
+        Assert.Null(confirmationResult.Extension);
     }
 
     /// <summary>A stream that ended with no terminal event is never read as a completed restore.</summary>
@@ -225,9 +287,13 @@ public sealed class RestoreBackupCommandHandlerTests
 
     /// <summary>A create in flight for the account refuses the restore, in the panels own words.</summary>
     /// <remarks>
-    /// The panel-side half of the concurrency answer. The agents per-account lock refuses it too, but
-    /// this is the refusal the customer sees, and it is the only one of the two the panel can
-    /// OBSERVE — a restore in flight writes no row, so nothing here can look for one.
+    /// The panel-side half of the concurrency answer, and it is the only one of the two the panel can
+    /// OBSERVE — a restore in flight writes no row, so nothing here can look for one. The agents
+    /// per-account lock refuses the other half, and the code asserted here is the SAME one that
+    /// refusal is now given, so a customer cannot tell from the sentence which process decided. That
+    /// is the point: what happened and what to do about it are identical, and only the deciding
+    /// process differs. The code is emphatically not BackupStillRunning, whose sentence says a
+    /// backup cannot be deleted yet and describes an operation this caller did not ask for.
     /// </remarks>
     [Fact]
     public async Task A_create_in_flight_for_the_account_refuses_the_restore()
@@ -237,7 +303,7 @@ public sealed class RestoreBackupCommandHandlerTests
         var result = await world.Handler.HandleAsync(world.Command(World.Username), CancellationToken.None);
 
         Assert.False(result.IsSuccess);
-        Assert.Equal("BackupStillRunning", result.Error!.Code);
+        Assert.Equal("AccountBackupOperationRunning", result.Error!.Code);
         Assert.Empty(world.Agent.Restores);
     }
 
@@ -317,6 +383,52 @@ public sealed class RestoreBackupCommandHandlerTests
         var entry = Assert.Single(world.Audit.Entries);
         Assert.Equal(AuditActions.BackupRestored, entry.Action);
         Assert.False(entry.Succeeded);
+    }
+
+    /// <summary>A restore whose request goes away still writes its audit entry and closes its task.</summary>
+    /// <remarks>
+    /// <para>
+    /// The panel's record of the most destructive operation it offers used to depend on the
+    /// requester's browser staying connected: every write lived downstream of the agent call, so a
+    /// torn request left no audit entry at all for an action <c>AuditActions</c> names, and a task
+    /// stuck at Running until the next process start. rules/security.md treats the audit trail as a
+    /// control rather than as telemetry.
+    /// </para>
+    /// <para>
+    /// The entry is a FAILURE and that is asserted as a value, not as "an entry exists": the panel
+    /// did not observe the outcome and must not record a success it cannot state. The agent's
+    /// restore runs to completion in a detached blocking task, so the account was in all likelihood
+    /// replaced — which is exactly why an entry saying the outcome is unknown is worth more than no
+    /// entry.
+    /// </para>
+    /// <para>
+    /// The cancellation is raised from inside the stream, where a torn request raises it, so this
+    /// also pins that the recording is made on <see cref="CancellationToken.None"/> — a recording
+    /// made on the request's own token would be abandoned by the cancellation it exists to record.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public async Task A_restore_whose_request_is_abandoned_still_writes_its_audit_entry_and_closes_its_task()
+    {
+        var world = World.Create(
+            [new BackupRestoreEvent(BackupRestoreEventKind.Progress, 20, "extracting", null, null)]);
+
+        using var abort = new CancellationTokenSource();
+        world.Agent.OnRestore = abort.Cancel;
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(async () =>
+        {
+            await world.Handler.HandleAsync(world.Command(World.Username), abort.Token);
+        });
+
+        var entry = Assert.Single(world.Audit.Entries);
+        Assert.Equal(AuditActions.BackupRestored, entry.Action);
+        Assert.False(entry.Succeeded);
+        Assert.Equal(World.Username, entry.Subject);
+
+        var task = Assert.Single(world.Tasks.Tasks);
+        Assert.False(task.Completed);
+        Assert.Equal("RestoreOutcomeUnobserved", task.FailureCode);
     }
 
     /// <summary>The handler under test assembled over doubles, plus the seeded rows.</summary>

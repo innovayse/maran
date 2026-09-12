@@ -9,12 +9,15 @@
 #
 # What lives here:
 #
+#   suite_did_not_run        prints the third verdict: this run did not happen at all
 #   suite_require_toolchain  refuses a run whose tool is absent or too old
 #   suite_refuse_concurrency refuses a run taken while another build holds the outputs
 #   suite_run                runs one stack's whole suite, unfiltered, into a log
+#   suite_free_port          a TCP port the kernel says is free (the SPA's preview server)
 #   suite_parse              renders a log as one `key<TAB>passed<TAB>failed<TAB>ignored` row per target
 #   suite_failures           names every test that went red
 #   suite_selftest_parsers   proves those two parsers can still see a PLANTED failure and total
+#   suite_selftest_compare   proves the comparison below can still see a PLANTED lost test
 #   suite_reconcile_failures refuses a run whose totals and whose named failures disagree
 #   suite_compare            compares parsed rows against a baseline and names what vanished
 #
@@ -30,6 +33,60 @@ suite_note() {
   echo "UNOBSERVED HERE: $*"
 }
 
+# The three answers this harness is allowed to give, and the exit status that carries each one.
+#
+#   0  THE RUN HAPPENED AND WAS CLEAN     every baselined target reported, nothing red.
+#   1  THE RUN HAPPENED AND FOUND A DEFECT  named failures, a vanished target, a contaminated or
+#      unreconciled run: something on this branch is wrong.
+#   2  THE RUN DID NOT HAPPEN             a peer holds the tree lock, another build is writing the
+#      outputs this run reads, the toolchain is absent, the parsers are blind. Nothing was measured,
+#      so this is not a pass; nothing was found, so it is not a defect on this branch either.
+#
+# The third state is the one this repository had been paying for. Measured here on 2026-09-09,
+# before this existed: with the tree lock held by another lane, `maran test rust` wrote NOTHING at
+# all to stdout, printed its refusal on stderr, and returned 1. A caller keeping stdout scored a
+# ZERO-BYTE log, which reads as "no findings"; a caller scoring the status could not tell a peer's
+# lock from sixteen red tests. Both readings have happened here, and seven consecutive REFUSED
+# attempts in one lane were recorded as a run.
+#
+# WHY A THIRD STATUS *AND* A THIRD VERDICT LINE, AND NOT ONE OR THE OTHER
+#
+# Because both are read, by different callers, and each is blind where the other is not. The three
+# stack lanes score on the PRINTED LINE and on nothing else (.github/workflows/{agent,backend,
+# frontend}.yml grep `^TEST VERDICT: OK`), so a new status alone would be invisible to them; the
+# polygon lane scores its verdict step by STATUS alone, with no grep at all, so a new line alone
+# would be invisible to it. A person reads the line, a shell reads `$?`, and this repository has
+# lanes of both kinds today.
+#
+# WHY 2 SPECIFICALLY, rather than a fourth number: it is already this harness's word for "refused
+# before measuring anything". `maran test --filter`, `maran mutate --filter` and every usage error
+# under scripts/lib/ exit 2, while 1 has always meant a run that produced a verdict. Nothing new is
+# invented here; the existing convention is extended to the refusals that had been borrowing the
+# failure's status.
+#
+# A refusal is still NEVER a pass. `TEST VERDICT: OK` is not printed, so every CI lane that gates on
+# that line stays red on a refusal. What changes is that the red can now say which red it is, and
+# that a caller keeping only stdout is no longer handed an empty file.
+SUITE_STATUS_DID_NOT_RUN=2
+
+# suite_did_not_run: prints the third verdict on STDOUT, under the caller's own verdict prefix.
+#
+#   suite_did_not_run "TEST VERDICT" "another lane holds this tree's write lock (see above)."
+#
+# On stdout deliberately, and not beside the refusal it follows: the refusals in this harness print
+# to stderr, and a caller that keeps only stdout gets the empty half of the output. That is exactly
+# the zero-byte log that was read here as a pass.
+#
+# It does not exit. The caller exits, with $SUITE_STATUS_DID_NOT_RUN, because only the caller knows
+# whether more stacks are still to be reported.
+suite_did_not_run() {
+  local prefix="$1"
+  shift
+  echo "$prefix: DID NOT RUN — $*"
+  echo "  Nothing was measured, so this is not a pass, and nothing was found, so it is not a red"
+  echo "  branch. The status is $SUITE_STATUS_DID_NOT_RUN — neither a clean run's 0 nor a run with findings' 1."
+}
+
 # suite_require_toolchain: proves the tool for a stack exists and is the right major version.
 #
 # This is the "exited 0 having run nothing" guard. Both halves have happened in this repository on
@@ -37,7 +94,7 @@ suite_note() {
 # net9.0 test projects. Neither produced a test-result line and neither produced a non-zero exit,
 # so a reader taking the exit code got a pass out of a run that measured nothing.
 suite_require_toolchain() {
-  local stack="$1"
+  local stack="$1" root="${2:-}"
   case "$stack" in
     rust)
       if ! command -v cargo >/dev/null 2>&1; then
@@ -71,8 +128,42 @@ suite_require_toolchain() {
         return 1
       fi
       ;;
+    spa)
+      # The SPA's only tests are the Playwright specs, so "the toolchain" here is node, the
+      # installed `@playwright/test`, and a browser. Each of the three has its own way of producing
+      # a run that measured nothing, and the first two can be answered exactly.
+      if ! command -v node >/dev/null 2>&1; then
+        echo "REFUSED: node is not on PATH — this run would measure nothing." >&2
+        echo "         source scripts/dev first, and see: maran check" >&2
+        return 1
+      fi
+      if [ -z "$root" ]; then
+        echo "REFUSED: the spa toolchain check needs the repository root as its second argument." >&2
+        return 1
+      fi
+      if [ ! -d "$root/frontend/node_modules/@playwright/test" ]; then
+        echo "REFUSED: frontend/node_modules/@playwright/test is absent — the runner is not" >&2
+        echo "         installed, so no spec would be collected. Fix: (cd frontend && npm ci)" >&2
+        return 1
+      fi
+      # The browser is a DIRECTORY PROBE, not a launch, and the difference is stated because it is
+      # the kind of gap this repository keeps paying for. A cache directory that exists is not a
+      # browser that starts; what actually protects this lane against a browser that cannot launch
+      # is that Playwright then collects nothing, the parse produces no row, and `maran test`
+      # reports ABORTED rather than a pass.
+      local browsers="${PLAYWRIGHT_BROWSERS_PATH:-$HOME/.cache/ms-playwright}"
+      if ! ls -d "$browsers"/chromium-* >/dev/null 2>&1; then
+        echo "REFUSED: no chromium under $browsers — the only project in playwright.config.ts is" >&2
+        echo "         chromium, so every spec would error before it ran." >&2
+        echo "         Fix: (cd frontend && npx playwright install --with-deps chromium)" >&2
+        return 1
+      fi
+      suite_note "the browser check above is a directory probe, not a launch. A chromium that is"
+      suite_note "present and broken is caught only downstream, by the run collecting nothing and"
+      suite_note "this command reporting ABORTED."
+      ;;
     *)
-      echo "REFUSED: unknown stack '$stack' (expected: rust, backend)" >&2
+      echo "REFUSED: unknown stack '$stack' (expected: rust, backend, spa)" >&2
       return 1
       ;;
   esac
@@ -129,6 +220,7 @@ itself runs cargo, and a detector that could not tell its own child from a stran
 every run it started.
 """
 import os
+import re
 import sys
 
 MINE, STACK, ROOT = int(sys.argv[1]), sys.argv[2], os.path.realpath(sys.argv[3])
@@ -137,9 +229,54 @@ MINE, STACK, ROOT = int(sys.argv[1]), sys.argv[2], os.path.realpath(sys.argv[3])
 # would be unusable in this repository, where several agents build at once — and an unusable gate is
 # routed around, which is worse than a narrow one. Foreign builders are reported as LOAD instead,
 # because rules/testing.md asks for the load to be stated when timing-sensitive results are quoted.
-BUILDERS = {"rust": ("cargo", "rustc"), "backend": ("dotnet", "MSBuild", "msbuild")}[STACK]
-FOREIGN = {"rust": ("dotnet", "MSBuild", "msbuild"), "backend": ("cargo", "rustc")}[STACK]
+BUILDERS = {"rust": ("cargo", "rustc"), "backend": ("dotnet", "MSBuild", "msbuild"), "spa": ()}[STACK]
+FOREIGN = {
+    "rust": ("dotnet", "MSBuild", "msbuild"),
+    "backend": ("cargo", "rustc"),
+    "spa": ("cargo", "rustc", "dotnet", "MSBuild", "msbuild"),
+}[STACK]
 NOT_A_BUILD = ("--version", "--list-sdks", "--list-runtimes")
+
+# The SPA cannot be identified by process NAME at all, and a first version of this check that tried
+# was measured refusing a real run twice over. Everything involved is `node`, and two of the node
+# processes standing on this repository right now are not builds: an `@playwright/mcp` server (whose
+# name contains "playwright", and whose `npm exec @playwright/mcp@latest` command line contains the
+# substring "test" inside "latest"), and a peer's `vite` DEV server, which serves from memory and
+# writes no `dist/` at all. Refusing either would make this gate unusable, and an unusable gate is
+# routed around — which is worse than a narrow one.
+#
+# What actually collides is a process that WRITES or SERVES `frontend/dist`, because that is the one
+# artefact two SPA runs share whatever ports they were given. The shapes below were read off a real
+# `npx playwright test` run's process table on this machine, not guessed:
+#
+#   node .../frontend/node_modules/.bin/playwright test e2e/shell --reporter=list
+#   npm exec playwright test e2e/shell --reporter=list          (npm rewrites its title to one argv)
+#   sh -c "playwright" test e2e/shell --reporter=list
+#   /bin/sh -c npm run build && npm run preview -- --port 5421 --strictPort --host 127.0.0.1
+#   npm run preview --port 5421 --strictPort --host 127.0.0.1
+#   node .../frontend/node_modules/.bin/vite preview --port 5421 --strictPort
+#   node .../frontend/node_modules/playwright/lib/worker/workerProcessEntry.js
+#
+# and the shapes that must NOT match, from the same table:
+#
+#   node .../node_modules/.bin/playwright-mcp
+#   npm exec @playwright/mcp@latest
+#   npm run dev --port 5173 --strictPort
+#   node .../frontend/node_modules/.bin/vite --port 5173 --strictPort
+PLAYWRIGHT_RUN = re.compile(r'(?:^|[\s/"])playwright"?\s+test(?:\s|$)')
+NPM_DIST = re.compile(r"(?:^|[\s;&])npm run (?:build|preview)(?:\s|$)")
+
+
+def writes_the_spa_dist(argv):
+    """Whether an argv is a process that builds or serves frontend/dist, rather than merely node."""
+    bases = [os.path.basename(part) for part in argv]
+    if "playwright" in bases and "test" in argv:
+        return True
+    if "vite" in bases and ("build" in argv or "preview" in argv):
+        return True
+    if any("/playwright/lib/worker/" in part for part in argv):
+        return True
+    return any(PLAYWRIGHT_RUN.search(part) or NPM_DIST.search(part) for part in argv)
 
 parents, commands = {}, {}
 for entry in os.listdir("/proc"):
@@ -172,7 +309,8 @@ for pid, argv in sorted(commands.items()):
     if not argv or pid == os.getpid():
         continue
     name = os.path.basename(argv[0])
-    if name not in BUILDERS and name not in FOREIGN:
+    is_builder = writes_the_spa_dist(argv) if STACK == "spa" else name in BUILDERS
+    if not is_builder and name not in FOREIGN:
         continue
     if any(flag in argv for flag in NOT_A_BUILD):
         continue
@@ -190,7 +328,7 @@ for pid, argv in sorted(commands.items()):
         why = f"cwd {where}"
     except OSError:
         shares, why = False, "cwd unreadable (another user or a container) — assumed not to share this tree"
-    kind = "BUSY" if (shares and name in BUILDERS) else "LOAD"
+    kind = "BUSY" if (shares and is_builder) else "LOAD"
     print(f"{kind}\t  pid {pid}: {' '.join(argv)[:120]}\n{kind}\t      {why}")
 PYPROCS
 )"
@@ -222,13 +360,22 @@ $others"
   suite_note "this harness classifies another build by its working directory. A build whose cwd"
   suite_note "it cannot read — another user, or a container running as root — is reported as LOAD"
   suite_note "and NOT refused, so a container writing into this tree through a bind mount would be"
-  if [ "$stack" = rust ]; then
-    suite_note "missed by the process observation — but NOT by the cargo build lock checked above,"
-    suite_note "which is taken on the shared target directory itself whoever holds it."
-  else
-    suite_note "missed entirely: dotnet takes no lock on bin/Debug, so for the backend the process"
-    suite_note "list is the ONLY observation there is, and this is its blind spot."
-  fi
+  case "$stack" in
+    rust)
+      suite_note "missed by the process observation — but NOT by the cargo build lock checked above,"
+      suite_note "which is taken on the shared target directory itself whoever holds it."
+      ;;
+    backend)
+      suite_note "missed entirely: dotnet takes no lock on bin/Debug, so for the backend the process"
+      suite_note "list is the ONLY observation there is, and this is its blind spot."
+      ;;
+    spa)
+      suite_note "missed entirely: neither Vite nor Playwright takes a lock, so for the SPA the"
+      suite_note "process list is the ONLY observation there is. Note that two SPA runs collide even"
+      suite_note "on different E2E_PORTs, because the webServer command rebuilds the SHARED"
+      suite_note "frontend/dist that both of them then serve."
+      ;;
+  esac
   return 0
 }
 
@@ -270,8 +417,53 @@ suite_run() {
     backend)
       (cd "$root/backend" && dotnet test Maran.sln) >"$log" 2>&1 || true
       ;;
+    spa)
+      # TWO reporters, and the second one is the one that is scored.
+      #
+      # `list` is what a person reads, and it is what lands in `$log` — including the webServer's
+      # own build output, which is what an ABORTED run needs to show. But the list reporter prints
+      # one line per ATTEMPT, so under `retries: 1` (which playwright.config.ts sets in CI) a flaky
+      # test contributes two lines, and a text parser counting them reports a total that never
+      # happened. `json` reports one entry per TEST with a settled `status`, plus the collection
+      # errors that no per-test line carries at all. So the numbers come from the JSON and the
+      # narrative comes from the list, and `suite_parse spa` reads `<log>.json`.
+      #
+      # If the JSON is missing — the runner died before writing it — the parse yields no row and
+      # `maran test` reports ABORTED. That is the intended answer: a run with no machine-readable
+      # result measured nothing.
+      local port
+      port="${E2E_PORT:-$(suite_free_port)}"
+      rm -f "$log.json"
+      # The port is chosen HERE rather than left to the config's 5173 default because
+      # `reuseExistingServer` is deliberately false and `--strictPort` is passed: a held 5173 makes
+      # the webServer fail to start, and this repository has already had a run that ended having
+      # executed nothing for exactly that reason. Choosing a free port removes the collision; the
+      # number is printed so a reader of the log knows which server was measured.
+      echo "harness: E2E_PORT=$port (chosen free; override by exporting E2E_PORT)" >"$log"
+      (cd "$root/frontend" &&
+        E2E_PORT="$port" PLAYWRIGHT_JSON_OUTPUT_NAME="$log.json" \
+          npx playwright test --reporter=list,json) >>"$log" 2>&1 || true
+      ;;
   esac
   return 0
+}
+
+# suite_free_port: a TCP port nothing is listening on, asked of the kernel rather than guessed.
+#
+# Binding port 0 and reading back what was assigned is the only answer that is not a guess. There is
+# an unavoidable race between closing this socket and Playwright's webServer binding it, and that is
+# stated rather than papered over: if something takes the port in between, `--strictPort` makes the
+# webServer fail LOUDLY and the run collects nothing, which this harness reports as ABORTED. The
+# failure mode being avoided is the opposite one — a port held by a peer's stack, every time.
+suite_free_port() {
+  python3 - <<'PYPORT'
+"""Prints a TCP port the kernel says is free right now."""
+import socket
+
+with socket.socket() as probe:
+    probe.bind(("127.0.0.1", 0))
+    print(probe.getsockname()[1])
+PYPORT
 }
 
 # suite_parse: renders a run's log as one row per test target: key, passed, failed, ignored.
@@ -284,12 +476,17 @@ suite_parse() {
   python3 - "$stack" "$log" <<'PYPARSE'
 """Renders a test run's log as `key<TAB>passed<TAB>failed<TAB>ignored` rows, one per target."""
 import collections
+import json
 import re
 import sys
 
 stack, path = sys.argv[1], sys.argv[2]
-with open(path, encoding="utf-8", errors="replace") as handle:
-    lines = handle.read().splitlines()
+lines = []
+if stack != "spa":
+    # The spa lane is scored from `<log>.json`, not from the text log, so it must not require the
+    # text log to be readable at all.
+    with open(path, encoding="utf-8", errors="replace") as handle:
+        lines = handle.read().splitlines()
 
 rows = []
 if stack == "rust":
@@ -353,6 +550,67 @@ elif stack == "backend":
         if match:
             failed, passed, skipped, _total, dll = match.groups()
             rows.append((dll, passed, failed, skipped))
+elif stack == "spa":
+    # One row per SPEC FILE, which is the SPA's unit of disappearance. A suite that stops collecting
+    # a file — a rename, a bad import, a `testDir` or `testMatch` change — loses every test in it at
+    # once and reports nothing, and the per-file row is what turns that into a named VANISHED
+    # finding instead of a total that merely looks a little smaller. A collected-total-only floor
+    # cannot see it at all when another file grew by as much in the same change.
+    #
+    # The key is `spec["file"]`, the path Playwright itself reports, relative to `testDir`. It is
+    # deliberately not re-rooted onto the repository: a constant prefix glued on here would keep
+    # reading plausibly if `testDir` moved, whereas the raw value changes and every row is then
+    # named as VANISHED — loud, which is the direction to fail in.
+    #
+    # `spec["tests"]` is one entry per test (per project), and `test["status"]` is the SETTLED
+    # outcome across retries. Counting `test["results"]` instead would count attempts, and a suite
+    # that retried once would report more tests than it has.
+    # A MISSING or unreadable report is not an error here, it is NO ROWS — which `maran test` then
+    # reports as ABORTED, with the text log's tail printed. This was measured, not anticipated: with
+    # a `json.load` that raised, a run whose Playwright died before writing anything ended the whole
+    # command in a Python traceback under `set -e`, so no verdict line was printed at all and, in an
+    # `all` run, the stacks after this one never ran either. The comment above `suite_run` already
+    # promised this behaviour; the code did not have it.
+    try:
+        with open(path + ".json", encoding="utf-8") as handle:
+            payload = json.load(handle)
+    except (OSError, ValueError):
+        payload = {}
+    counts = collections.defaultdict(lambda: [0, 0, 0])
+
+    def walk(node):
+        """Adds every spec under a suite node, recursing into `describe` blocks."""
+        for spec in node.get("specs", []):
+            row = counts[spec.get("file", node.get("file", "<unknown>"))]
+            for test in spec.get("tests", []):
+                status = test.get("status")
+                if status == "expected":
+                    row[0] += 1
+                elif status == "skipped":
+                    row[2] += 1
+                else:
+                    # `unexpected` and `flaky` both land here. A flake is counted as a FAILURE, not
+                    # as the pass it eventually produced, because rules/testing.md is unambiguous
+                    # that a flaky test is a P1 bug and that retry-looping one is not allowed. The
+                    # retry still does its job — it is what distinguishes `flaky` from `unexpected`,
+                    # and the two are named differently in the failure list — but a floor that
+                    # absorbed flakes silently would be decoration on exactly that axis.
+                    row[1] += 1
+        for child in node.get("suites", []):
+            walk(child)
+
+    for top in payload.get("suites", []):
+        walk(top)
+    # Collection errors have no spec file to belong to, and they are the shape that would otherwise
+    # be invisible here: a NEW spec file that fails to load produces an error and no row, nothing
+    # vanishes from the baseline, and the run looks complete. They are reported as their own target,
+    # which is a name no baseline holds — so it is named as new AND carries failures, and
+    # `maran test --accept` cannot record it, because it refuses to record a run with findings.
+    errors = len(payload.get("errors", []))
+    if errors:
+        counts["<collection>"] = [0, errors, 0]
+    for key in sorted(counts):
+        rows.append((key, *counts[key]))
 
 for key, passed, failed, ignored in rows:
     print(f"{key}\t{passed}\t{failed}\t{ignored}")
@@ -414,11 +672,60 @@ suite_failures_raw() {
       { grep -a -E '^[[:space:]]*(Failed|Error)[[:space:]]' "$log" || true; } |
         sed -nE 's/^[[:space:]]*(Failed|Error)[[:space:]]+(.*[^[:space:]])[[:space:]]+\[[^][]*\]$/\2/p'
       ;;
+    spa)
+      # Read from `<log>.json` for the same reason the totals are: the list reporter prints a line
+      # per ATTEMPT, so a retried test would be named twice and the count would then disagree with
+      # the totals — which `suite_reconcile_failures` would report as UNRECONCILED, correctly, over
+      # a run that was fine. One line per failing TEST, and the name carries the file, the line, the
+      # project and the title, so it is unique even when two projects run the same spec.
+      python3 - "$log.json" <<'PYSPAFAIL'
+"""Names every SPA test that settled as failed or flaky, one per line."""
+import json
+import sys
+
+try:
+    with open(sys.argv[1], encoding="utf-8") as handle:
+        payload = json.load(handle)
+except (OSError, ValueError):
+    # No JSON, or unreadable JSON: name nothing. The totals parser reads the same file and produces
+    # no row either, so the run is reported as ABORTED rather than as a green one.
+    sys.exit(0)
+
+
+def walk(node):
+    """Yields the names of failing tests under a suite node, recursing into `describe` blocks."""
+    for spec in node.get("specs", []):
+        where = f"{spec.get('file', '<unknown>')}:{spec.get('line', 0)}"
+        for test in spec.get("tests", []):
+            status = test.get("status")
+            if status in ("expected", "skipped"):
+                continue
+            project = test.get("projectName") or "?"
+            # The flaky marker is part of the NAME, not a suffix a reader has to infer: a test that
+            # failed and then passed on retry is a different report from one that simply failed, and
+            # both are failures here.
+            mark = " (flaky: passed on retry)" if status == "flaky" else ""
+            yield f"{where} [{project}] {spec.get('title', '')}{mark}"
+    for child in node.get("suites", []):
+        yield from walk(child)
+
+
+for top in payload.get("suites", []):
+    for name in walk(top):
+        print(name)
+# Collection errors are failures with no spec to hang on, and `suite_parse` counts each of them in
+# the `<collection>` row's failed column. They are named here so the two agree.
+for index, error in enumerate(payload.get("errors", []), start=1):
+    first = (error.get("message") or str(error)).splitlines()
+    print(f"<collection> error {index}: {first[0] if first else 'unknown'}")
+PYSPAFAIL
+      ;;
   esac
   return 0
 }
 
-# suite_selftest_parsers: the POSITIVE CONTROL for this file's two log parsers.
+# suite_selftest_parsers: the POSITIVE CONTROL for this file's two log parsers, and — through
+# suite_selftest_compare, which it calls at the end — for the baseline comparison they feed.
 #
 # Both of them are searches, and a search that has silently stopped matching reports the reassuring
 # answer: no failures named, no targets counted, GREEN. That is not hypothetical here — the backend
@@ -486,8 +793,107 @@ Selftest.Control.A_planted_theory_case(values: [1, 2])'
       expected_row='	2	3	3'
       failed_total=3
       ;;
+    spa)
+      # The SPA fixture is a Playwright JSON report, because that is the artefact the spa parsers
+      # read; the text log beside it is what a person reads and is deliberately NOT the thing
+      # scored. Four shapes are planted, and each of them is a way this parser could go blind while
+      # still printing a plausible number:
+      #
+      #   - a `describe` block, which Playwright reports as a CHILD suite. A parser that read only
+      #     the top level would silently drop every test inside every describe in the suite — the
+      #     largest possible undercount, reported as a total;
+      #   - a test with TWO results, which is a retry. `test.results` is one entry per ATTEMPT, so
+      #     counting results instead of tests reports more tests than exist, and a floor compared
+      #     against an inflated count passes over a suite that shrank;
+      #   - a `flaky` status, counted here as a FAILURE (see suite_parse). A parser treating it as
+      #     the pass it eventually produced would report green over a P1 bug;
+      #   - a file whose specs live ONLY inside nested suites, with an empty `specs` at the top,
+      #     which is what a spec file that wraps everything in one describe looks like.
+      cat >"$sample.json" <<'PYSPAFIXTURE'
+{
+  "config": {},
+  "suites": [
+    {
+      "title": "selftest/control.spec.ts",
+      "file": "selftest/control.spec.ts",
+      "specs": [
+        {"title": "a planted passing case", "file": "selftest/control.spec.ts", "line": 10,
+         "tests": [{"projectName": "chromium", "status": "expected", "results": [{"status": "passed"}]}]},
+        {"title": "a planted second passing case", "file": "selftest/control.spec.ts", "line": 14,
+         "tests": [{"projectName": "chromium", "status": "expected", "results": [{"status": "passed"}]}]},
+        {"title": "a planted failing case", "file": "selftest/control.spec.ts", "line": 18,
+         "tests": [{"projectName": "chromium", "status": "unexpected",
+                    "results": [{"status": "failed"}, {"status": "failed"}]}]},
+        {"title": "a planted flaky case", "file": "selftest/control.spec.ts", "line": 22,
+         "tests": [{"projectName": "chromium", "status": "flaky",
+                    "results": [{"status": "failed"}, {"status": "passed"}]}]}
+      ],
+      "suites": [
+        {
+          "title": "a planted describe block",
+          "specs": [
+            {"title": "a planted skipped case", "file": "selftest/control.spec.ts", "line": 27,
+             "tests": [{"projectName": "chromium", "status": "skipped", "results": []}]},
+            {"title": "a second planted skipped case", "file": "selftest/control.spec.ts", "line": 31,
+             "tests": [{"projectName": "chromium", "status": "skipped", "results": []}]},
+            {"title": "a third planted skipped case", "file": "selftest/control.spec.ts", "line": 35,
+             "tests": [{"projectName": "chromium", "status": "skipped", "results": []}]}
+          ]
+        }
+      ]
+    },
+    {
+      "title": "selftest/nested.spec.ts",
+      "file": "selftest/nested.spec.ts",
+      "specs": [],
+      "suites": [
+        {
+          "title": "an outer describe",
+          "suites": [
+            {
+              "title": "an inner describe",
+              "specs": [
+                {"title": "nested pass one", "file": "selftest/nested.spec.ts", "line": 8,
+                 "tests": [{"projectName": "chromium", "status": "expected", "results": [{}]}]},
+                {"title": "nested pass two", "file": "selftest/nested.spec.ts", "line": 12,
+                 "tests": [{"projectName": "chromium", "status": "expected", "results": [{}]}]},
+                {"title": "nested pass three", "file": "selftest/nested.spec.ts", "line": 16,
+                 "tests": [{"projectName": "chromium", "status": "expected", "results": [{}]}]},
+                {"title": "nested pass four", "file": "selftest/nested.spec.ts", "line": 20,
+                 "tests": [{"projectName": "chromium", "status": "expected", "results": [{}]}]},
+                {"title": "nested skip one", "file": "selftest/nested.spec.ts", "line": 24,
+                 "tests": [{"projectName": "chromium", "status": "skipped", "results": []}]},
+                {"title": "nested skip two", "file": "selftest/nested.spec.ts", "line": 28,
+                 "tests": [{"projectName": "chromium", "status": "skipped", "results": []}]},
+                {"title": "nested skip three", "file": "selftest/nested.spec.ts", "line": 32,
+                 "tests": [{"projectName": "chromium", "status": "skipped", "results": []}]},
+                {"title": "nested skip four", "file": "selftest/nested.spec.ts", "line": 36,
+                 "tests": [{"projectName": "chromium", "status": "skipped", "results": []}]},
+                {"title": "nested skip five", "file": "selftest/nested.spec.ts", "line": 40,
+                 "tests": [{"projectName": "chromium", "status": "skipped", "results": []}]}
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "stats": {"expected": 6, "skipped": 8, "unexpected": 1, "flaky": 1}
+}
+PYSPAFIXTURE
+      printf '%s\n' \
+        'harness: E2E_PORT=0 (planted)' \
+        '  ✘  1 [chromium] › selftest/control.spec.ts:18:1 › a planted failing case (1.0s)' \
+        '  ✓  2 [chromium] › selftest/control.spec.ts:22:1 › a planted flaky case (1.0s)' \
+        >"$sample"
+      expected_names='selftest/control.spec.ts:18 [chromium] a planted failing case
+selftest/control.spec.ts:22 [chromium] a planted flaky case (flaky: passed on retry)'
+      expected_row='	2	2	3'
+      failed_total=2
+      ;;
     *)
-      rm -f "$sample"
+      rm -f "$sample" "$sample.json"
       echo "SELF-TEST REFUSED: unknown stack '$stack'" >&2
       return 1
       ;;
@@ -497,7 +903,7 @@ Selftest.Control.A_planted_theory_case(values: [1, 2])'
   rows="$(suite_parse "$stack" "$sample")"
 
   if [ "$names" != "$expected_names" ]; then
-    rm -f "$sample"
+    rm -f "$sample" "$sample.json"
     echo "SELF-TEST FAILED: the $stack failure parser was handed $failed_total planted failure" >&2
     echo "                  line(s) and named:" >&2
     printf '                    [%s]\n' "$names" >&2
@@ -510,7 +916,7 @@ Selftest.Control.A_planted_theory_case(values: [1, 2])'
   case "$rows" in
     *"$expected_row"*) : ;;
     *)
-      rm -f "$sample"
+      rm -f "$sample" "$sample.json"
       echo "SELF-TEST FAILED: the $stack totals parser was handed a planted result line reading" >&2
       echo "                  2 passed / $failed_total failed / 3 ignored and produced [$rows]." >&2
       echo "                  It is blind, so the collected total below would be an invention." >&2
@@ -523,7 +929,7 @@ Selftest.Control.A_planted_theory_case(values: [1, 2])'
     expected="selftest_control [unittests src/lib.rs]	2	2	3
 selftest_spliced [tests/selftest_spliced.rs]	4	0	5"
     if [ "$rows" != "$expected" ]; then
-      rm -f "$sample"
+      rm -f "$sample" "$sample.json"
       echo "SELF-TEST FAILED: the rust totals parser was handed two targets, the second announced" >&2
       echo "                  by a banner spliced into the first one's test line, and produced" >&2
       echo "                  [$rows] instead of both rows in start order. A parser that loses a" >&2
@@ -531,6 +937,73 @@ selftest_spliced [tests/selftest_spliced.rs]	4	0	5"
       echo "                  which scores a real kill as ABORTED. Fix suite_parse." >&2
       return 1
     fi
+  fi
+  if [ "$stack" = spa ]; then
+    local expected
+    expected="selftest/control.spec.ts	2	2	3
+selftest/nested.spec.ts	4	0	5"
+    if [ "$rows" != "$expected" ]; then
+      rm -f "$sample" "$sample.json"
+      echo "SELF-TEST FAILED: the spa totals parser was handed two spec files — one with a" >&2
+      echo "                  describe block, a retried failure and a flake, one whose specs live" >&2
+      echo "                  only inside nested describes — and produced" >&2
+      printf '                    [%s]\n' "$rows" >&2
+      echo "                  instead of both rows. A parser that misses a nested describe" >&2
+      echo "                  undercounts silently, and one that counts retry ATTEMPTS overcounts;" >&2
+      echo "                  either way the floor below is compared against a number no run" >&2
+      echo "                  produced. Fix suite_parse." >&2
+      return 1
+    fi
+    # THE VACUITY GUARD FOR THIS LANE, and it is on the axis that can actually go blind: a report
+    # that collected NOTHING must produce NO row, so that `maran test` reports ABORTED. A parser
+    # that invented a zero row here would put a target in front of the baseline comparison and turn
+    # "the suite never ran" into "the suite ran and everything is fine".
+    #
+    # These two sub-fixtures get their OWN temporary file rather than overwriting `$sample.json`,
+    # because the reconciler self-test further down reads the main fixture again and would
+    # otherwise be scored against whichever of these was written last.
+    local aside
+    aside="$(mktemp)"
+    printf '%s' '{"suites": [], "errors": [], "stats": {"expected": 0}}' >"$aside.json"
+    local empty
+    empty="$(suite_parse spa "$aside")"
+    if [ -n "$empty" ]; then
+      rm -f "$sample" "$sample.json" "$aside" "$aside.json"
+      echo "SELF-TEST FAILED: the spa totals parser was handed a report that collected NOTHING and" >&2
+      echo "                  produced [$empty] instead of no row at all. A run that collected" >&2
+      echo "                  nothing must be ABORTED, never scored." >&2
+      return 1
+    fi
+    # And the shape a zero-row guard alone cannot see: a spec file that failed to LOAD. Playwright
+    # puts that in top-level `errors` and keeps running the files that did load, so nothing vanishes
+    # from the baseline when the broken file is a new one, and the run otherwise looks complete.
+    printf '%s' '{"suites": [], "errors": [{"message": "Error: Cannot find module ./missing"}],
+                  "stats": {"expected": 0}}' >"$aside.json"
+    local errored errored_names
+    errored="$(suite_parse spa "$aside")"
+    errored_names="$(suite_failures spa "$aside")"
+    case "$errored" in
+      '<collection>	0	1	0') : ;;
+      *)
+        rm -f "$sample" "$sample.json" "$aside" "$aside.json"
+        echo "SELF-TEST FAILED: the spa totals parser was handed a report carrying a COLLECTION" >&2
+        echo "                  error — a spec file that could not be loaded — and produced" >&2
+        echo "                  [$errored] instead of one failing <collection> row. A spec file" >&2
+        echo "                  that fails to load reports no tests and no vanished target." >&2
+        return 1
+        ;;
+    esac
+    case "$errored_names" in
+      '<collection> error 1: Error: Cannot find module ./missing') : ;;
+      *)
+        rm -f "$sample" "$sample.json" "$aside" "$aside.json"
+        echo "SELF-TEST FAILED: the spa failure parser named [$errored_names] for a collection" >&2
+        echo "                  error instead of the planted message. The totals would then carry" >&2
+        echo "                  a failure nothing names, which is an UNRECONCILED run." >&2
+        return 1
+        ;;
+    esac
+    rm -f "$aside" "$aside.json"
   fi
 
   # The reconciler is a guard, and a guard owes the same proof its parsers do: it must ACCEPT a
@@ -540,7 +1013,7 @@ selftest_spliced [tests/selftest_spliced.rs]	4	0	5"
   list="$(mktemp)"
   printf '%s\n' "$names" >"$list"
   if ! suite_reconcile_failures "$failed_total" "$list" "$stack" "$sample" >/dev/null; then
-    rm -f "$sample" "$list"
+    rm -f "$sample" "$sample.json" "$list"
     echo "SELF-TEST FAILED: the $stack reconciler REFUSED a consistent pair — $failed_total failed" >&2
     echo "                  in the totals and the same $failed_total names. A guard that refuses" >&2
     echo "                  everything passes every test that only hands it broken input, and it" >&2
@@ -549,7 +1022,7 @@ selftest_spliced [tests/selftest_spliced.rs]	4	0	5"
   fi
   : >"$list"
   if suite_reconcile_failures "$failed_total" "$list" "$stack" "$sample" >/dev/null; then
-    rm -f "$sample" "$list"
+    rm -f "$sample" "$sample.json" "$list"
     echo "SELF-TEST FAILED: the $stack reconciler ACCEPTED $failed_total failure(s) in the totals" >&2
     echo "                  against an EMPTY name list. That is the shape that reads GREEN over a" >&2
     echo "                  red suite. Fix suite_reconcile_failures." >&2
@@ -558,18 +1031,139 @@ selftest_spliced [tests/selftest_spliced.rs]	4	0	5"
   printf '%s\n' "$expected_names" | head -n 1 >"$list"
   if [ "$failed_total" -gt 1 ] &&
      suite_reconcile_failures "$failed_total" "$list" "$stack" "$sample" >/dev/null; then
-    rm -f "$sample" "$list"
+    rm -f "$sample" "$sample.json" "$list"
     echo "SELF-TEST FAILED: the $stack reconciler ACCEPTED a PARTIAL list — $failed_total failed in" >&2
     echo "                  the totals, one name given. A partial list looks like a complete one," >&2
     echo "                  so the harness would name the wrong culprit with full confidence." >&2
     echo "                  Fix suite_reconcile_failures." >&2
     return 1
   fi
-  rm -f "$sample" "$list"
+  rm -f "$sample" "$sample.json" "$list"
 
+  # And the comparison the rows are about to be fed to, proven on the same run and for the same
+  # reason. It is called from HERE rather than from each command because all three consumers of
+  # suite_compare — `maran test`, `maran mutate` and the polygon CI lane — already call this
+  # function before they measure anything, and a control that only one of them runs leaves the other
+  # two scoring against an unproven comparison. It is stack-independent: the rows it compares are
+  # the same four columns whichever runner produced them.
+  if ! suite_selftest_compare; then
+    return 1
+  fi
   echo "self-test: the $stack log parsers named every planted failure, including the shapes that"
-  echo "self-test: put text between the test name and the marker, read a planted total, and the"
+  echo "self-test: have gone silently unmatched here before, read a planted total, and the"
   echo "self-test: reconciler refused an empty list and a partial one."
+  return 0
+}
+
+# suite_selftest_compare: the POSITIVE CONTROL for suite_compare, and the INVERSE control beside it.
+#
+# The parsers have had one since a bracket expression stopped them matching anything; the comparison
+# they feed has had none, and it is the same shape of check — a search over two files whose blind
+# answer is silence, and silence here is `TEST VERDICT: OK`. Two ways it was measured going silent
+# while looking healthy: a five-field baseline row raised out of the loader, so the whole comparison
+# printed a traceback on stderr and no finding on stdout, which is the only stream `maran test`
+# reads; and a baseline holding no rows at all compared an empty set against an empty set.
+#
+# The fixtures are TSV rows in exactly the shape `suite_parse` emits, because that is what the real
+# caller hands this function, and the assertions are on the FINDING TEXT an engineer would read, not
+# on a count of lines: a comparison that names the wrong row is not a comparison that works.
+#
+# Six planted states, five of which must be named and one of which must be SILENT:
+#
+#   lost      a target that keeps its row and loses one passing test
+#   skipped   a passing test that became skipped — file present, declared total unchanged
+#   vanished  a target present in the baseline and absent from the run
+#   vacuous   a baseline with no rows: nothing compared, which must not read as nothing wrong
+#   garbled   a baseline row this loader cannot read
+#   grown     a target that GAINED a test, which must produce no finding at all, because
+#             rules/testing.md's asymmetry is deliberate: adding tests must never require a
+#             baseline edit, only losing them.
+suite_selftest_compare() {
+  local work base obs out
+  work="$(mktemp -d)"
+  base="$work/baseline.tsv"
+  obs="$work/observed.tsv"
+
+  compare_selftest_fail() {
+    echo "SELF-TEST FAILED: suite_compare was handed $1 and printed:" >&2
+    printf '                    [%s]\n' "$2" >&2
+    echo "                  It must name it: $3" >&2
+    echo "                  A comparison that cannot see a planted loss reports silence, and" >&2
+    echo "                  silence here is printed as TEST VERDICT: OK. Fix suite_compare." >&2
+    rm -rf "$work"
+    return 1
+  }
+
+  printf 'alpha\t5\t0\t0\nbeta\t3\t0\t2\n' >"$base"
+
+  printf 'alpha\t4\t0\t0\nbeta\t3\t0\t2\n' >"$obs"
+  out="$(suite_compare "$base" "$obs")"
+  case "$out" in
+    *"alpha collected 4 passed against a baseline of 5"*) : ;;
+    *) compare_selftest_fail "a target that lost one passing test (5 -> 4)" "$out" \
+         "'alpha collected 4 passed against a baseline of 5'" || return 1 ;;
+  esac
+
+  printf 'alpha\t4\t0\t1\nbeta\t3\t0\t2\n' >"$obs"
+  out="$(suite_compare "$base" "$obs")"
+  case "$out" in
+    *"alpha collected 4 passed against a baseline of 5"*"stopped RUNNING"*) : ;;
+    *) compare_selftest_fail "a passing test that became SKIPPED (5/0/0 -> 4/0/1)" "$out" \
+         "the passed fall AND that the test stopped running rather than disappearing" || return 1 ;;
+  esac
+
+  printf 'beta\t3\t0\t2\n' >"$obs"
+  out="$(suite_compare "$base" "$obs")"
+  case "$out" in
+    *"target VANISHED from the run (present in the baseline): alpha"*) : ;;
+    *) compare_selftest_fail "a target absent from the run" "$out" "'target VANISHED ... alpha'" || return 1 ;;
+  esac
+
+  printf '# a baseline holding no rows at all\n' >"$base"
+  printf 'alpha\t5\t0\t0\n' >"$obs"
+  out="$(suite_compare "$base" "$obs")"
+  case "$out" in
+    *"the baseline names NO targets"*) : ;;
+    *) compare_selftest_fail "a baseline with NO rows" "$out" \
+         "that nothing was compared, rather than staying silent" || return 1 ;;
+  esac
+
+  printf 'alpha\t5\t0\t0\nbeta\t3\t0\t2\textra\n' >"$base"
+  printf 'alpha\t5\t0\t0\nbeta\t3\t0\t2\n' >"$obs"
+  out="$(suite_compare "$base" "$obs" 2>/dev/null)"
+  case "$out" in
+    *"the baseline line 2 is not a"*) : ;;
+    *) compare_selftest_fail "a baseline row with five fields" "$out" \
+         "the unreadable row, on stdout — a traceback on stderr is read by nobody" || return 1 ;;
+  esac
+
+  # THE INVERSE CONTROL. A comparison mutated to refuse everything passes every assertion above.
+  printf 'alpha\t5\t0\t0\nbeta\t3\t0\t2\n' >"$base"
+  printf 'alpha\t6\t0\t0\nbeta\t3\t0\t3\n' >"$obs"
+  out="$(suite_compare "$base" "$obs")"
+  if [ -n "$out" ]; then
+    rm -rf "$work"
+    echo "SELF-TEST FAILED: suite_compare was handed a run that GAINED a passing test and a" >&2
+    echo "                  skipped one, and printed:" >&2
+    printf '                    [%s]\n' "$out" >&2
+    echo "                  Growth must be silent: adding tests does not require a baseline edit," >&2
+    echo "                  only losing them does, and a harness that demanded an edit for every" >&2
+    echo "                  added test would be routed around. Fix suite_compare." >&2
+    return 1
+  fi
+  printf 'alpha\t5\t0\t0\nbeta\t3\t0\t2\n' >"$obs"
+  out="$(suite_compare "$base" "$obs")"
+  if [ -n "$out" ]; then
+    rm -rf "$work"
+    echo "SELF-TEST FAILED: suite_compare printed [$out] over an UNCHANGED run. A comparison that" >&2
+    echo "                  finds something in everything finds nothing at all." >&2
+    return 1
+  fi
+
+  rm -rf "$work"
+  echo "self-test: suite_compare named a lost test, a test turned skipped, a vanished target, a"
+  echo "self-test: baseline with no rows and an unreadable baseline row — and stayed silent over an"
+  echo "self-test: unchanged run and over one that gained tests."
   return 0
 }
 
@@ -654,6 +1248,17 @@ suite_reconcile_failures() {
 # The finding that matters most is the one no exit code carries: a target present in the baseline
 # and absent from the run. A test project whose build broke does not fail the run, it DISAPPEARS
 # from it, and the surviving projects then print `Passed!` over a smaller total.
+#
+# Every line this function prints is a FINDING and nothing else. `maran test` turns each line it
+# reads into a finding verbatim, so a note, a warning or a progress line printed here would become a
+# failure with a nonsense name. What this comparison cannot see is stated by its callers instead —
+# see the UNOBSERVED lines in test-verdict.sh.
+#
+# THE BLIND SPOT, stated here for the reader of this function: both per-row axes are COUNTS, so a
+# row that loses a test and gains another in the same change is unchanged on both, and no counting
+# comparison can see it. That is the deliberate price of the asymmetry rules/testing.md asks for —
+# adding a test must not require a baseline edit — and it is bounded: the loss has to be masked
+# WITHIN one target, by a gain in the same target, in the same run.
 suite_compare() {
   local baseline="$1" observed="$2"
   python3 - "$baseline" "$observed" <<'PYCOMPARE'
@@ -661,26 +1266,64 @@ suite_compare() {
 import sys
 
 
-def load(path):
-    """Reads a `key<TAB>passed<TAB>failed<TAB>ignored` file into an ordered mapping."""
+def load(path, what, findings):
+    """Reads a `key<TAB>passed<TAB>failed<TAB>ignored` file into an ordered mapping.
+
+    A row it cannot read is a FINDING, never an exception and never a silent skip. Both halves of
+    that were measured: a five-field baseline row raised `ValueError: too many values to unpack`
+    out of this function, which printed a traceback on stderr and NOTHING on stdout — and stdout is
+    the only thing `maran test` reads, so the whole comparison disappeared and the run printed
+    `TEST VERDICT: OK` having compared nothing at all. Dropping the bad row instead would be worse
+    still: the target it names would then be reported as VANISHED or as new, which sends the reader
+    hunting a test project that is fine.
+    """
     rows = {}
     try:
         with open(path, encoding="utf-8") as handle:
-            for line in handle:
+            for number, line in enumerate(handle, start=1):
                 line = line.rstrip("\n")
                 if not line or line.startswith("#"):
                     continue
-                key, passed, failed, ignored = line.split("\t")
+                fields = line.split("\t")
+                if len(fields) != 4 or not all(part.strip("-").isdigit() for part in fields[1:]):
+                    findings.append(
+                        f"FINDING: {what} line {number} is not a "
+                        f"`key<TAB>passed<TAB>failed<TAB>ignored` row and was NOT compared: {line!r}"
+                    )
+                    continue
+                key, passed, failed, ignored = fields
                 rows[key] = (int(passed), int(failed), int(ignored))
     except FileNotFoundError:
         return None
     return rows
 
 
-baseline, observed = load(sys.argv[1]), load(sys.argv[2])
+findings = []
+baseline = load(sys.argv[1], "the baseline", findings)
+observed = load(sys.argv[2], "the observed run", findings)
+for finding in findings:
+    print(finding)
 if baseline is None:
     print("FINDING: no committed baseline — record one with `maran test --accept` and commit it")
     sys.exit(0)
+
+# THE VACUITY GUARD, on the axis that can actually go blind: a comparison with nothing on either
+# side prints nothing, and printing nothing is exactly what a clean run prints. Both shapes have a
+# real route into this function — `maran mutate` builds its baseline by grepping one stack's rows
+# out of the committed file and does not check that the grep matched anything, so a renamed stack
+# key, a lost baseline section or a truncated file would leave it comparing an empty set against an
+# empty set and calling that a score. The guard is on the SET SIZES rather than on the file
+# existing, because a file that exists and holds no rows is the case that reads green.
+if not baseline:
+    print(
+        "FINDING: the baseline names NO targets, so nothing was compared — every axis below is "
+        "vacuous. Record one with `maran test --accept` and commit it"
+    )
+if not observed:
+    print(
+        "FINDING: the run produced NO target rows, so nothing was compared — a run that measured "
+        "nothing is ABORTED, never a pass"
+    )
 
 for key in baseline:
     if key not in observed:
@@ -693,7 +1336,23 @@ for key, (passed, _failed, ignored) in baseline.items():
         continue
     seen = observed[key][0]
     if seen < passed:
-        print(f"FINDING: {key} collected {seen} passed against a baseline of {passed}")
+        # A fall in the passed column is the axis a LOST test lands on, whatever became of it: a
+        # test deleted, renamed out of the harness, no longer collected from a file that is still
+        # collected, or turned red. It is also the axis that catches the quiet one — a test that
+        # became SKIPPED keeps the file present and keeps the declared total steady, and only this
+        # column moves. That case is named as itself rather than as a bare count, because "collected
+        # 4 against 5" sends the reader looking for a deleted test when the test is still sitting
+        # there wearing a `.skip`.
+        lost = passed - seen
+        gained_ignored = observed[key][2] - ignored
+        how = ""
+        if gained_ignored > 0:
+            how = (
+                f" — {min(lost, gained_ignored)} of them stopped RUNNING rather than disappearing:"
+                f" ignored rose {ignored} -> {observed[key][2]}, which is a test that still looks"
+                f" collected and no longer proves anything"
+            )
+        print(f"FINDING: {key} collected {seen} passed against a baseline of {passed}{how}")
     # The DECLARED total — passed + failed + ignored — is the axis a polygon suite can shrink on.
     # On this host every `#[ignore]`d host test lands in the ignored column, so a row reads
     # `0 passed / 0 failed / N ignored` and the passed comparison above is blind to it: a suite

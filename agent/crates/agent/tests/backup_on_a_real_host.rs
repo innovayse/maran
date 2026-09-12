@@ -387,6 +387,7 @@ use std::process::{Command, Stdio};
 
 use maran_agent::services::backup::db_host_catalog::DbHostCatalog;
 use maran_agent_core::agent_paths::AgentPaths;
+use maran_agent_core::privs::account_ids::AccountIds;
 use maran_agent_core::privs::group_id::GroupId;
 use maran_agent_core::validation::db::database_name::DatabaseName;
 use maran_agent_core::validation::db::db_user_name::DbUserName;
@@ -394,11 +395,14 @@ use maran_agent_core::validation::secrets::password::Password;
 use maran_agent_core::validation::system::backup_id::BackupId;
 use maran_agent_core::validation::system::local_backup_root::LocalBackupRoot;
 use maran_agent_core::validation::system::name::AccountName;
+use maran_ops::accounts::{AccountError, AccountOperations, ProcessSystemHost};
 use maran_ops::backup::{
     BackupError, BackupStage, ProgressSink, RestoreSink, RestoreStage, create_backup,
     delete_backup, list_backups, restore_backup,
 };
 use maran_ops::db::{CreateDatabaseRequest, ProcessDbHost, create_database};
+use maran_ops::php::ProcessPhpHost;
+use maran_ops::sftp::ProcessSftpHost;
 
 use polygon_account::PolygonAccount;
 use polygon_mariadb::PolygonMariadb;
@@ -1315,5 +1319,197 @@ fn a_dump_is_refused_at_nine_tenths_of_what_the_scratch_filesystem_actually_hold
     assert!(
         !AgentPaths::backup_scratch_dir(&fixture_id()).exists(),
         "the scratch holding the dump outlived the refusal"
+    );
+}
+
+/// How much data the racing test plants in the home before its backup.
+///
+/// Large enough that the restore's archive extraction takes long enough to be
+/// entered deliberately, and small enough that a polygon container can hold two
+/// copies of it (the staging tree and the parked home) plus the artifact.
+/// Written as pseudo-random bytes rather than zeros, because a home of zeros
+/// compresses to nothing and the restore would be over before anything could
+/// observe it — which is the "the second operation never started" failure
+/// rules/testing.md names.
+const RACE_HOME_BYTES: usize = 48 * 1024 * 1024;
+
+/// How long the race waits for the restore to reach its staging tree.
+const RACE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(120);
+
+/// How often it looks.
+const RACE_POLL: std::time::Duration = std::time::Duration::from_millis(10);
+
+/// Fills `path` with `bytes` of pseudo-random data.
+///
+/// A linear congruential generator and not a crypto source: the only property
+/// needed is that `gzip` cannot fold it away, and a reproducible stream makes a
+/// failure reproducible too.
+///
+/// # Panics
+///
+/// Panics when the file cannot be written.
+fn plant_incompressible(path: &Path, bytes: usize) {
+    let mut state: u64 = 0x2545_F491_4F6C_DD1D;
+    let mut buffer = vec![0_u8; 1024 * 1024];
+    let mut file = std::fs::File::create(path).expect("the fixture file must be creatable");
+    let mut written = 0;
+    while written < bytes {
+        for slot in &mut buffer {
+            state = state
+                .wrapping_mul(6_364_136_223_846_793_005)
+                .wrapping_add(1_442_695_040_888_963_407);
+            *slot = (state >> 33) as u8;
+        }
+        file.write_all(&buffer).expect("the fixture write");
+        written += buffer.len();
+    }
+    file.sync_all().expect("the fixture flush");
+}
+
+/// Waits until `staging` exists, or gives up.
+///
+/// A poll with a timeout rather than a sleep of a guessed length
+/// (rules/testing.md "Determinism"). The staging tree is created by the
+/// restore's step 5 and is renamed away by step 7, so while it is on disk the
+/// restore is certainly running AND certainly holds the account's lock — it
+/// takes that lock in its first statement and holds it until it returns. Seeing
+/// this directory is therefore not evidence of a likely overlap; it is the
+/// overlap.
+///
+/// # Panics
+///
+/// Panics when the restore never got that far, because a race whose second
+/// operation never started measures nothing.
+fn wait_until_staging_exists(staging: &Path) {
+    let deadline = std::time::Instant::now() + RACE_TIMEOUT;
+    while std::time::Instant::now() < deadline {
+        if staging.exists() {
+            return;
+        }
+        std::thread::sleep(RACE_POLL);
+    }
+
+    panic!(
+        "the restore never reached its staging tree at {} within {RACE_TIMEOUT:?}: the two \
+         operations did not overlap, so this run measured nothing",
+        staging.display()
+    );
+}
+
+#[test]
+#[ignore = "restores a real account while deleting it: polygon only"]
+fn a_deletion_that_overlaps_a_restore_is_refused_and_the_home_keeps_its_own_uid() {
+    // C-4, driven rather than argued. The per-account backup lock was taken by
+    // the four backup operations and by nothing else, so `DeleteAccount`
+    // contended for it nowhere. Landing between the restore's two renames,
+    // `userdel --remove` found no home and succeeded, and the restore's second
+    // rename then CREATED `/home/<account>` chowned to the uid it had resolved
+    // an hour earlier — a uid `useradd` hands to the next account made on this
+    // host, whose own file operations would then agree that the previous
+    // customer's files are theirs.
+    let server = PolygonMariadb::start();
+    let account = PolygonAccount::create("polyracerestore");
+    let name = account.name().clone();
+    let uid_before = account.ids().uid();
+    clear_backups(&name);
+    let database = give_account_a_database(&server, &name);
+    write(account.home().join("index.html"), HOME_FILE_CONTENTS).expect("a file in the home");
+    plant_incompressible(&account.home().join("bulk.bin"), RACE_HOME_BYTES);
+
+    let summary = create_backup(
+        &ProcessBackupHost::new(polygon_distro()),
+        &catalog(),
+        &name,
+        &fixture_id(),
+        &root(),
+        &mut RecordingSink::default(),
+    )
+    .unwrap_or_else(|error| panic!("the backup must succeed: {error}"));
+    let digest = summary
+        .readable_details()
+        .expect("a completed creation describes itself")
+        .artifact_sha256
+        .clone();
+
+    remove_file(account.home().join("index.html")).ok();
+    let group = GroupId::resolve(polygon_distro().web_server_group())
+        .expect("the polygon has the web server's group")
+        .gid();
+
+    let restoring = std::thread::spawn({
+        let name = name.clone();
+        let digest = digest.clone();
+        let database = database.clone();
+        move || {
+            restore_backup(
+                &ProcessBackupHost::new(polygon_distro()),
+                &name,
+                &fixture_id(),
+                &root(),
+                std::slice::from_ref(&database),
+                &digest,
+                group,
+                &mut RecordingSink::default(),
+            )
+        }
+    });
+
+    // Entered deliberately: while this directory is on disk the restore holds
+    // the account's lock and has not yet swapped the home.
+    wait_until_staging_exists(&AgentPaths::restore_staging_dir(&name, &fixture_id()));
+
+    let deletion =
+        AccountOperations::new(ProcessSystemHost::new(polygon_distro()), polygon_distro()).delete(
+            &ProcessPhpHost::new(),
+            &ProcessDbHost::new(polygon_distro()),
+            &ProcessSftpHost::new(),
+            // The cascade's FTPS step. This account has no FTPS login and no
+            // FTPS jail, so the step touches nothing — what this test is about
+            // is the deletion being REFUSED before it reaches any of them.
+            &maran_ops::ftps::ProcessFtpsHost::new(),
+            &name,
+        );
+
+    let restored = restoring.join().expect("the restore thread must not panic");
+
+    // The corruption the audit named, asserted against the host itself and
+    // asserted FIRST: it is the subject, and a reader of a failing run should
+    // see the destroyed home rather than a refusal that did not happen.
+    assert!(
+        account.home().exists(),
+        "the account's home was removed by a deletion that overlapped its own restore: \
+         `userdel --remove` found the home while the restore had it staged, and what the \
+         restore was about to put back is now the only copy there was"
+    );
+    assert_eq!(
+        AccountIds::resolve(&name)
+            .expect("the account must still exist: its deletion was refused")
+            .uid(),
+        uid_before,
+        "the account must still hold the uid the restore was resolved against"
+    );
+    assert_eq!(
+        metadata(account.home()).expect("the home").uid(),
+        uid_before,
+        "the restored home must belong to the account's own uid, and not to a number a \
+         deletion had freed for the next account this host creates"
+    );
+
+    let outcome = restored.unwrap_or_else(|error| {
+        panic!("the restore must still succeed while a deletion is refused: {error}")
+    });
+    assert!(outcome.files_restored);
+    assert_eq!(
+        read_to_string(account.home().join("index.html")).expect("the file is back"),
+        HOME_FILE_CONTENTS
+    );
+
+    // And the refusal, which is what proves they overlapped: a deletion that
+    // had run before or after the restore would have answered success or
+    // `NotFound`, and neither says anything about exclusion.
+    assert!(
+        matches!(deletion, Err(AccountError::Busy { .. })),
+        "the deletion must be refused as busy while the restore holds the account's lock, \
+         got {deletion:?}"
     );
 }

@@ -9,7 +9,8 @@ namespace Maran.Modules.Accounts.Services;
 /// </summary>
 /// <remarks>
 /// This module's operations are the ones nothing else keeps a record of. A deletion removes the
-/// system user, the home directory, every database the account owned and every SFTP login it owned;
+/// system user, the home directory, every database the account owned and every file-transfer login it
+/// owned — SFTP and FTPS alike;
 /// once it has run, the account row is gone and the journal is the only place the account's name
 /// still exists. A suspension is the same in miniature — the customer's sites stop, and the panel
 /// afterwards shows only the state, never who moved it there or when.

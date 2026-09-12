@@ -237,6 +237,31 @@ fi
 # shellcheck disable=SC1091
 . "$root/scripts/dev"
 
+# THE THIRD ANSWER, and where it comes from. `suite.sh` owns this harness's refusal vocabulary —
+# `suite_require_toolchain`, `suite_did_not_run` and `$SUITE_STATUS_DID_NOT_RUN` (2) — and it is
+# sourced rather than reimplemented so that "DID NOT RUN" means one thing in every script and a
+# caller greps one pattern. It is a pure function library: nothing in it runs at source time.
+# shellcheck disable=SC1091
+. "$root/scripts/lib/suite.sh"
+
+# THE GUARD RUNS HERE, and the position is the whole point: after `scripts/dev` has put the pinned
+# SDK on PATH, and BEFORE the first command that touches it. Measured before this existed, in a
+# fresh subshell whose PATH held no dotnet at all:
+#
+#     $ maran migrate check
+#     scripts/lib/migrations.sh: line 248: dotnet: command not found      (on stderr)
+#     0 bytes on stdout, status 127
+#
+# 127 is none of this harness's three answers, and a caller keeping only stdout was handed an empty
+# file — the exact shape rules/testing.md records for `maran agent check` and `maran proto`. A
+# toolchain guard is not only a message: nothing above it may be allowed to kill the script first.
+if ! suite_require_toolchain backend "$root"; then
+  suite_did_not_run "MIGRATIONS VERDICT" \
+    "the .NET SDK this command needs is absent or too old, so no model, no migration file and no" \
+    "database was read. This is the environment, not the schema."
+  exit "$SUITE_STATUS_DID_NOT_RUN"
+fi
+
 # The EF Core CLI is pinned in backend/.config/dotnet-tools.json to the same version as the
 # EF Core packages, and restored locally rather than installed globally.
 #
@@ -245,7 +270,16 @@ fi
 # start ("You must install .NET to run this application"). It worked on a developer's machine
 # that happened to have both runtimes and failed on a clean CI runner, which is the definition
 # of a version that should have been written down.
-(cd "$root/backend" && dotnet tool restore >/dev/null)
+# And its failure is a REFUSAL, not a finding. `set -e` used to end the script here, which is the
+# same defect as the missing SDK one layer down: a restore that cannot reach the feed, or a manifest
+# that will not parse, says nothing about this repository's schema.
+if ! tool_restore_output="$(cd "$root/backend" && dotnet tool restore 2>&1)"; then
+  printf '%s\n' "$tool_restore_output" | sed 's/^/    /' >&2
+  suite_did_not_run "MIGRATIONS VERDICT" \
+    "the pinned EF Core CLI could not be restored (output above), so the tool every command below" \
+    "needs does not exist. Nothing was read."
+  exit "$SUITE_STATUS_DID_NOT_RUN"
+fi
 
 # Runs the pinned tool. `dotnet ef` would find whatever is installed globally instead.
 ef() {
@@ -284,8 +318,23 @@ module="${2:-}"
 [ -z "$command_name" ] && usage
 
 # `check` walks every module itself, so it is the one command that takes no module name.
+# WHY TWO COUNTERS AND NOT ONE. `COULD NOT CHECK` used to increment the same counter as
+# `MODEL CHANGED`, so both ended in `exit 1` — the command said the honest thing in words and the
+# wrong thing in its status, and a caller scoring by status could not tell a missing SDK from a
+# schema drift. Measured before this change, with the EF tool unable to start: twelve rows of
+# `COULD NOT CHECK — this is a broken toolchain, not a model change`, status 1, and no verdict line
+# of any shape.
+#
+# PRECEDENCE, argued because the mixed case is real. A module that reported MODEL CHANGED was
+# MEASURED, and what it found is a defect in this tree; a module that could not be checked was not.
+# So a finding wins: the run is red as a finding (1), and the unmeasured modules are named in the
+# same breath rather than folded into it. Only when there is no finding at all does an unmeasured
+# module decide the verdict, and then it is DID NOT RUN (2). This ordering can never turn a real
+# drift into "just the environment", and can never turn a refusal into a pass.
 if [ "$command_name" = "check" ]; then
   pending=0
+  unmeasured=0
+  unmeasured_modules=""
   for project_file in "$root"/backend/src/Maran.Modules/*/Maran.Modules.*.csproj; do
     name="$(basename "$(dirname "$project_file")")"
     printf '%-12s ' "$name"
@@ -320,12 +369,32 @@ if [ "$command_name" = "check" ]; then
       *)
         echo "COULD NOT CHECK — this is a broken toolchain, not a model change:"
         printf '%s\n' "$output" | sed 's/^/    /'
-        pending=$((pending + 1))
+        unmeasured=$((unmeasured + 1))
+        unmeasured_modules="$unmeasured_modules $name"
         ;;
     esac
   done
 
-  [ "$pending" -gt 0 ] && exit 1
+  # A LINE FOR EVERY ANSWER. The finding case used to print no summary line at all — only the
+  # per-module rows and a bare `exit 1` — so a caller that scores on a printed verdict, which is how
+  # every other gate here is scored, had nothing to read in the one case it most needed to.
+  if [ "$pending" -gt 0 ]; then
+    echo "MIGRATIONS-MODEL-CHANGED — $pending module(s) have a model that no migration records."
+    if [ "$unmeasured" -gt 0 ]; then
+      echo "    and$unmeasured_modules could not be checked at all, so this run is also INCOMPLETE:"
+      echo "    the finding above is real, and the modules just named were not measured either way."
+    fi
+    exit 1
+  fi
+
+  if [ "$unmeasured" -gt 0 ]; then
+    suite_did_not_run "MIGRATIONS VERDICT" \
+      "$unmeasured module(s) —$unmeasured_modules — could not be checked (the tool errors are" \
+      "printed above). No model was compared to any migration, so this is neither a drifted tree" \
+      "nor a clean one."
+    exit "$SUITE_STATUS_DID_NOT_RUN"
+  fi
+
   echo "MIGRATIONS-OK"
   exit 0
 fi
@@ -344,8 +413,14 @@ fi
 # `-v` is therefore not optional. Only the verbose log distinguishes "connected, nothing pending"
 # from "could not connect, here are the filenames", and this command exists precisely because the
 # second must never read as the first.
+# The same two counters, for the same reason, and the same precedence: a module the database is
+# demonstrably BEHIND on is a measured finding; a module whose database could not be reached is not.
+# Both used to end in `exit 1`, and the UNKNOWN message went to stdout while the run that produced
+# it was indistinguishable, to a caller, from a migration genuinely missing from the database.
 if [ "$command_name" = "status" ]; then
   behind=0
+  unknown=0
+  unknown_modules=""
   for project_file in "$root"/backend/src/Maran.Modules/*/Maran.Modules.*.csproj; do
     name="$(basename "$(dirname "$project_file")")"
     printf '%-12s ' "$name"
@@ -366,14 +441,16 @@ if [ "$command_name" = "status" ]; then
     if printf '%s' "$output" | grep -qE "An error occurred using the connection|Failed to connect|password authentication failed|database \"[^\"]*\" does not exist"; then
       echo "UNKNOWN — the database could not be reached, so nothing was checked:"
       printf '%s' "$output" | grep -E "Failed to connect|password authentication failed|does not exist" | head -2 | sed 's/^/    /'
-      behind=$((behind + 1))
+      unknown=$((unknown + 1))
+      unknown_modules="$unknown_modules $name"
       continue
     fi
 
     if ! printf '%s' "$output" | grep -q "Opening connection to database"; then
       echo "UNKNOWN — no evidence this run opened a connection at all:"
       printf '%s' "$output" | tail -2 | sed 's/^/    /'
-      behind=$((behind + 1))
+      unknown=$((unknown + 1))
+      unknown_modules="$unknown_modules $name"
       continue
     fi
 
@@ -388,7 +465,21 @@ if [ "$command_name" = "status" ]; then
     echo "applied"
   done
 
-  [ "$behind" -gt 0 ] && exit 1
+  if [ "$behind" -gt 0 ]; then
+    echo "MIGRATIONS-BEHIND — $behind module(s) have migrations this database has never had."
+    if [ "$unknown" -gt 0 ]; then
+      echo "    and$unknown_modules could not be reached, so this run is also INCOMPLETE."
+    fi
+    exit 1
+  fi
+
+  if [ "$unknown" -gt 0 ]; then
+    suite_did_not_run "MIGRATIONS VERDICT" \
+      "$unknown module(s) —$unknown_modules — could not be asked (the errors are printed above)." \
+      "Nothing was compared, so no module here is known to be applied or behind."
+    exit "$SUITE_STATUS_DID_NOT_RUN"
+  fi
+
   echo "MIGRATIONS-APPLIED"
   exit 0
 fi

@@ -99,6 +99,15 @@ public sealed class StubAgentBackupClient : IAgentBackupClient
         await Task.CompletedTask;
     }
 
+    /// <summary>Run at the moment a restore is asked for, before any event is replayed.</summary>
+    /// <remarks>
+    /// The restore's counterpart to <see cref="OnCreate"/>, and it exists for the same reason: the
+    /// only way to reach the panel's state DURING a run. What it is used for is the one thing a
+    /// scripted event sequence cannot express — the request going away mid-stream, which is what a
+    /// closed browser tab and the shipped nginx's upstream read timeout both produce.
+    /// </remarks>
+    public Action? OnRestore { get; set; }
+
     /// <inheritdoc />
     /// <remarks>
     /// Replays whatever it was scripted with, including a sequence with no terminal event — which is
@@ -115,6 +124,7 @@ public sealed class StubAgentBackupClient : IAgentBackupClient
     {
         Restores.Add((accountUsername, backupId, expectedSha256, allowedDatabases));
         Destinations.Add(destination);
+        OnRestore?.Invoke();
 
         foreach (var scripted in _restoreEvents)
         {
@@ -125,21 +135,36 @@ public sealed class StubAgentBackupClient : IAgentBackupClient
         await Task.CompletedTask;
     }
 
-    /// <inheritdoc />
+    /// <summary>What every listing was asked for, in order: the account, and the destination.</summary>
     /// <remarks>
-    /// The panel lists from its OWN rows, never from the agent's view of the destination:
-    /// <c>ListBackupsQueryHandler</c> is constructed from the module's database context alone and
-    /// holds no agent client, so it cannot reach this method — an arrangement stronger than a test,
-    /// because a listing rewritten to ask the agent would not compile without a new dependency.
-    /// It throws all the same, so a future caller is told at once rather than reading a scripted
-    /// answer as the destination's real contents.
+    /// The panel's SCREENS list from its own rows — <c>ListBackupsQueryHandler</c> is constructed
+    /// from the module's database context alone and holds no agent client, so it cannot reach this
+    /// method at all. The one caller is <c>StartupBackupReconciler</c>, which asks the destination
+    /// what artifacts exist rather than guessing about a row whose stream the panel lost. The calls
+    /// are recorded because which account name and which destination the reclaim pass aims at is the
+    /// thing it decides, and neither is visible in its outcome.
     /// </remarks>
+    public List<(string AccountUsername, AgentBackupDestination Destination)> Listings { get; } = [];
+
+    /// <summary>The answer <see cref="ListAsync"/> gives, or null to script a failure per test.</summary>
+    /// <remarks>
+    /// Settable rather than constructor-supplied because most tests here never list at all, and a
+    /// required parameter would have to be threaded through every existing fixture. A test that does
+    /// not set it gets an EMPTY successful listing — the destination holding nothing — which is a
+    /// real state and the one the "no artifact" arm of the reclaim pass reads.
+    /// </remarks>
+    public Result<IReadOnlyList<AgentBackupSummary>>? ListResult { get; set; }
+
+    /// <inheritdoc />
     public Task<Result<IReadOnlyList<AgentBackupSummary>>> ListAsync(
         string accountUsername,
         AgentBackupDestination destination,
         CancellationToken cancellationToken)
     {
-        throw new NotSupportedException("The panel lists backups from its own rows.");
+        Listings.Add((accountUsername, destination));
+
+        return Task.FromResult(
+            ListResult ?? Result<IReadOnlyList<AgentBackupSummary>>.Ok([]));
     }
 
     /// <inheritdoc />

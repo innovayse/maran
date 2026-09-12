@@ -1,7 +1,17 @@
 <script setup lang="ts">
 /**
  * The confirmation for the most destructive operation the panel offers: deleting a hosting account
- * together with its system user, its home directory, its databases and its SFTP logins.
+ * together with its system user, its home directory, its sites and their certificates, its databases
+ * and its SFTP and FTPS logins.
+ *
+ * **The list on screen is the list of subscribers, and it is kept that way on purpose.** Seven
+ * modules handle `AccountDeleting` — Identity, Sites, Ssl, Databases, Sftp, Ftp and Backups — and a
+ * confirmation that names only some of them reads as exhaustive while being incomplete, which is
+ * worse on an irreversible screen than saying nothing specific at all. Sites and certificates were
+ * missing here: the Sites subscriber takes the account's vhosts off the web server through the same
+ * rpc a single site deletion uses, and that rpc purges the domain's certificate material, while the
+ * Ssl subscriber drops the rows. Backups is the one subscriber whose effect is not a bullet in this
+ * list, because it is the whole section below.
  *
  * **Why a typed confirmation and not the inline "Yes, do it" this page used to show.** The restore
  * dialog argued it first and the argument holds harder here: a second click is satisfied by the
@@ -170,6 +180,8 @@ watch(
       <ul class="list-disc pl-5">
         <li>{{ t('accounts.delete.removedUser') }}</li>
         <li>{{ t('accounts.delete.removedHome') }}</li>
+        <li>{{ t('accounts.delete.removedSites') }}</li>
+        <li>{{ t('accounts.delete.removedCertificates') }}</li>
         <li>{{ t('accounts.delete.removedDatabases') }}</li>
       </ul>
 

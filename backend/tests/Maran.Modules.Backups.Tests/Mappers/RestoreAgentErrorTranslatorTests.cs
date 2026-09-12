@@ -102,4 +102,55 @@ public sealed class RestoreAgentErrorTranslatorTests
         Assert.Equal(expectedCode, failure.Code);
         Assert.Equal(ErrorType.Failure, failure.Type);
     }
+
+    /// <summary>
+    /// The agent's busy refusal is renamed to this module's account-busy code, because on a restore
+    /// stream the wire's already-exists can only be the per-account lock.
+    /// </summary>
+    /// <remarks>
+    /// The agent answers a second operation on one account with <c>BackupError::AlreadyRunning</c>
+    /// and puts it on the wire as already-exists, which the shared table renders as "this already
+    /// exists on your server, so nothing was created again". On a restore that sentence is false in
+    /// both halves and, worse, it asserts a successful idempotent convergence — so the customer
+    /// reads "already done" for an operation that did not run and never retries. The separation is
+    /// sound because <c>BackupError::AlreadyExists</c> has exactly one production site in the agent,
+    /// inside the creation path.
+    /// </remarks>
+    [Fact]
+    public void An_agent_already_exists_on_a_restore_is_named_as_the_accounts_operation_still_running()
+    {
+        var terminal = new BackupRestoreEvent(
+            BackupRestoreEventKind.Failed,
+            0,
+            string.Empty,
+            null,
+            Error.Of("AgentAlreadyExists", ErrorType.Conflict));
+
+        var failure = RestoreAgentErrorTranslator.ToFailure(terminal);
+
+        Assert.Equal("AccountBackupOperationRunning", failure.Code);
+        Assert.Equal(ErrorType.Conflict, failure.Type);
+    }
+
+    /// <summary>Every other agent failure the stream carries is passed through untouched.</summary>
+    /// <remarks>
+    /// The inverse control the renaming owes. A translator mutated to answer the busy code for
+    /// everything passes the test above and loses every distinction the stream carries — most of
+    /// all <c>RolledBack</c>, which is the most serious answer this area produces.
+    /// </remarks>
+    [Fact]
+    public void An_agent_failure_that_is_not_the_lock_keeps_the_code_it_arrived_with()
+    {
+        var terminal = new BackupRestoreEvent(
+            BackupRestoreEventKind.Failed,
+            0,
+            string.Empty,
+            null,
+            Error.Of("AgentSystemFailure", ErrorType.Failure));
+
+        var failure = RestoreAgentErrorTranslator.ToFailure(terminal);
+
+        Assert.Equal("AgentSystemFailure", failure.Code);
+        Assert.Equal(ErrorType.Failure, failure.Type);
+    }
 }

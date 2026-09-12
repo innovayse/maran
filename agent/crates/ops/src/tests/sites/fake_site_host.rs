@@ -15,6 +15,7 @@
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
+use std::sync::atomic::{AtomicU32, Ordering};
 
 use maran_agent_core::agent_paths::AgentPaths;
 use maran_agent_core::validation::system::name::AccountName;
@@ -47,6 +48,14 @@ pub(crate) struct FakeSiteHost {
     files: Mutex<BTreeMap<PathBuf, String>>,
     /// Directories the host was asked to create as an account.
     created: Mutex<Vec<PathBuf>>,
+    /// Accounts the host was asked to create a root-owned log directory for.
+    ///
+    /// A separate list from `created` on purpose: the two calls are the two
+    /// sides of the fix a test must be able to tell apart — the document root
+    /// created AS the account, and the log directory created as ROOT. One list
+    /// would let a test pass while an operation had put the log directory back
+    /// into the account's hands.
+    log_directories: Mutex<Vec<AccountName>>,
     /// `nginx -t`'s answer, and what it says when it refuses.
     validation: Mutex<(i32, String)>,
     /// How many times a write or a removal actually reached the protocol —
@@ -67,6 +76,7 @@ impl FakeSiteHost {
         Self {
             files: Mutex::new(BTreeMap::new()),
             created: Mutex::new(Vec::new()),
+            log_directories: Mutex::new(Vec::new()),
             validation: Mutex::new((0, String::new())),
             writes: Mutex::new(0),
             log_lines: Mutex::new(Vec::new()),
@@ -118,6 +128,12 @@ impl FakeSiteHost {
     pub(crate) fn created(&self) -> Vec<PathBuf> {
         self.created.lock().unwrap().clone()
     }
+
+    /// The accounts the host was asked to create a root-owned log directory
+    /// for.
+    pub(crate) fn log_directories(&self) -> Vec<AccountName> {
+        self.log_directories.lock().unwrap().clone()
+    }
 }
 
 impl SiteHost for FakeSiteHost {
@@ -166,6 +182,12 @@ impl SiteHost for FakeSiteHost {
     ) -> Result<(), SitesOpError> {
         *self.writes.lock().unwrap() += 1;
         self.files.lock().unwrap().remove(target);
+        Ok(())
+    }
+
+    /// Records the account whose root-owned log directory was asked for.
+    fn create_site_log_directory(&self, account: &AccountName) -> Result<(), SitesOpError> {
+        self.log_directories.lock().unwrap().push(account.clone());
         Ok(())
     }
 
@@ -251,10 +273,39 @@ pub(crate) fn distro() -> &'static dyn DistroAdapter {
     adapter_for(DistroFamily::Debian)
 }
 
-/// A PHP site for `acme`, with no certificate.
+/// This test's OWN account name — `acme` with a number after it.
+///
+/// Every case gets its own, and that is not cosmetic: `accounts::take_account_lock`
+/// is a process-wide registry, `php::write_pool` takes it per account for every
+/// PHP site created or switched, and the harness runs these cases on parallel
+/// threads. Measured before it was fixed: 75 tests across `sites`, `ssl` and
+/// `php` drove a pool write for the single name `acme`, and turning the pool
+/// writer into a taker of that lock failed 14 of them per run with
+/// "another operation for account `acme` is already running" — the lock doing
+/// exactly its job, and a failure that says nothing about the code.
+///
+/// One name per THREAD rather than one per call, because a case asks for its
+/// input more than once — `create_test_site(&host, &php_input())` and then
+/// `disable_site(&host, distro(), &php_input())` are the same site — and the
+/// harness gives each test its own thread. Cases that must control the name
+/// (the neighbour whose name this account prefixes) build it from this one
+/// rather than writing a second literal.
+pub(crate) fn test_account() -> AccountName {
+    thread_local! {
+        /// The name this thread's case was given the first time it asked.
+        static ACCOUNT: String = format!("acme{}", NEXT_ACCOUNT.fetch_add(1, Ordering::Relaxed));
+    }
+
+    ACCOUNT.with(|account| AccountName::parse(account).unwrap())
+}
+
+/// The source of the number in [`test_account`].
+static NEXT_ACCOUNT: AtomicU32 = AtomicU32::new(1);
+
+/// A PHP site for this test's own account, with no certificate.
 pub(crate) fn php_input() -> CreateSiteInput {
     CreateSiteInput {
-        account: AccountName::parse("acme").unwrap(),
+        account: test_account(),
         domain: Domain::parse("example.com").unwrap(),
         aliases: vec![Domain::parse("www.example.com").unwrap()],
         kind: SiteKind::Php {
@@ -271,7 +322,7 @@ pub(crate) fn php_input() -> CreateSiteInput {
 /// accidentally assert that it read one.
 pub(crate) fn php_identity() -> SiteIdentity {
     SiteIdentity {
-        account: AccountName::parse("acme").unwrap(),
+        account: test_account(),
         domain: Domain::parse("example.com").unwrap(),
     }
 }

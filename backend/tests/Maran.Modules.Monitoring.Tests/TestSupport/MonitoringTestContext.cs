@@ -1,5 +1,10 @@
 using Maran.Modules.Monitoring.Persistence;
+using Maran.Modules.Monitoring.Resources;
+using Maran.Modules.Monitoring.Services;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Localization;
+using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 
 namespace Maran.Modules.Monitoring.Tests.TestSupport;
 
@@ -20,5 +25,22 @@ public static class MonitoringTestContext
             .UseInMemoryDatabase(databaseName ?? Guid.NewGuid().ToString());
 
         return new MonitoringDbContext(builder.Options);
+    }
+
+    /// <summary>Builds the service-name resolver over this module's REAL resource files.</summary>
+    /// <returns>The resolver, reading <c>Resources/DisplayNames*.resx</c> as it does in the panel.</returns>
+    /// <remarks>
+    /// A stub localizer would prove only that a handler calls something; the thing worth checking is
+    /// that every service a row can actually carry HAS an entry under this key scheme, and that is
+    /// only observable against the real resource files (rules/testing.md "A check must be able to
+    /// observe what it reports on"). Same arrangement as the Backups module's name-resolver tests.
+    /// </remarks>
+    public static ServiceDisplayNames ServiceNames()
+    {
+        var factory = new ResourceManagerStringLocalizerFactory(
+            new OptionsWrapper<LocalizationOptions>(new LocalizationOptions()),
+            NullLoggerFactory.Instance);
+
+        return new ServiceDisplayNames(new StringLocalizer<DisplayNames>(factory));
     }
 }

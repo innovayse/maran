@@ -76,6 +76,25 @@ test('the deletion dialog says the final copy comes first, refuses on failure, a
   expect(deletes).toEqual([])
 })
 
+// Seven modules subscribe to `AccountDeleting`, and this dialog is the only place a person is told
+// what one click is about to destroy. It listed the user, the home directory, the databases and the
+// transfer logins, and said nothing about the sites it takes off the web server or the certificates
+// that go with them — an incomplete list on an irreversible screen, which reads as exhaustive.
+test('the deletion dialog names the sites and certificates it destroys, not only the files', async ({
+  page,
+}) => {
+  await openDetail(page, WITH_BACKUPS)
+
+  await page.getByRole('button', { name: 'Delete' }).click()
+
+  const removed = page.getByRole('dialog').getByRole('list').first()
+  // The home line is the control: it proves this locator is the rendered list rather than an empty
+  // element that would satisfy any `toContainText` written below it by accident.
+  await expect(removed).toContainText('The home directory and every file in it.')
+  await expect(removed).toContainText('Every site this account hosts')
+  await expect(removed).toContainText('certificates of those sites')
+})
+
 // A panel with no Backups module takes no copy, and the dialog must say the opposite thing rather
 // than a softer version of the same one — implying a safety net that does not exist is the failure
 // mode a destructive dialog cannot have.

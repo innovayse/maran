@@ -64,6 +64,31 @@ public sealed class GetSftpUserQueryHandlerTests
         Assert.Equal("alice_deploy", result.Value.FullName);
     }
 
+    /// <summary>A read states the protocol it is a login for rather than leaving the screen to guess.</summary>
+    [Fact]
+    public async Task A_read_states_the_protocol_it_is_a_login_for_rather_than_leaving_the_screen_to_guess()
+    {
+        // The literal token, not the constant that produced it. Asserting
+        // Equal(SftpProtocolName.Sftp, …) would survive a rename of the constant, and the SPA
+        // matches the spelling — so the spelling is the contract and is written out here.
+        //
+        // It is also the guard against the shape this member exists to close: a DEFAULT. An empty
+        // or absent token is read by the SPA as "this response predates the field", which resolves
+        // to sftp by construction — the same answer, arrived at by inference. A test that accepted
+        // it would pass whether the backend states the fact or not, and would measure neither.
+        var shared = Guid.NewGuid().ToString();
+        await SeedAsync(shared);
+
+        using var read = SftpTestContext.Create(FakeCurrentUser.Customer(OwnerAccountId), shared);
+        var own = await read.SftpUsers.SingleAsync();
+
+        var result = await new GetSftpUserQueryHandler(read)
+            .HandleAsync(new GetSftpUserQuery(own.Id), CancellationToken.None);
+
+        Assert.Equal("Sftp", result.Value.Protocol);
+        Assert.NotEqual(string.Empty, result.Value.Protocol);
+    }
+
     /// <summary>Seeds one login for each account and returns the stranger's identifier.</summary>
     /// <param name="databaseName">The shared in-memory database.</param>
     private static async Task<Guid> SeedAsync(string databaseName)

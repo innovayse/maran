@@ -1,6 +1,7 @@
 using Maran.Agent.Client.Interfaces;
 using Maran.Agent.Client.Services.AccountsService;
 using Maran.Modules.Accounts.Common;
+using Maran.Modules.Accounts.Domain.Policies;
 using Maran.Modules.Accounts.Persistence;
 using Maran.Modules.Accounts.Resources;
 using Maran.Modules.Accounts.Services;
@@ -101,9 +102,19 @@ public sealed class SuspendAccountCommandHandler
     /// site. Every entry in the account's crontab, suppressed by a marker ORTHOGONAL to the
     /// per-entry <c>enabled</c> flag — that flag is the customer's own choice, and reusing it would
     /// make the resume switch back on the jobs they had turned off themselves. And every
-    /// <c>&lt;account&gt;_*</c> SFTP login, locked: each is its own passwd entry sharing the
-    /// account's uid, so the <c>usermod --lock</c> above reaches none of them, and until they were
-    /// locked a suspended customer kept a working WRITE credential into their own home.
+    /// <c>&lt;account&gt;_*</c> transfer login — SFTP and FTPS alike — locked: each is its own passwd
+    /// entry sharing the account's uid, so the <c>usermod --lock</c> above reaches none of them, and
+    /// until they were locked a suspended customer kept a working WRITE credential into their own
+    /// home.
+    /// </para>
+    /// <para>
+    /// <b>And the sessions those logins already had open.</b> Locking a credential stops the next
+    /// login and not the current one, so the agent ends the account's open transfer sessions as part
+    /// of the same locking operation. It is a privileged action of a suspension, so the attestation
+    /// names it (<see cref="DescribeAttestation"/>) — and names it as an action whose result this
+    /// module cannot see: the count exists only in the agent's own log, and the rpc that carries the
+    /// lock answers with an empty message. The action and its hazards are covered by
+    /// <c>docs/superpowers/notes/2026-09-12-suspension-session-cull-threat-note.md</c>.
     /// </para>
     /// <para>
     /// <b>What it deliberately does NOT cover, stated here so nobody has to re-derive it.</b> The
@@ -111,20 +122,24 @@ public sealed class SuspendAccountCommandHandler
     /// stop a suspended customer's data being read by an application they host elsewhere, and
     /// restoring the grants exactly is a real reversal risk, so it is an open product decision. The
     /// panel's own web LOGIN still works — sign-in consults the user's lockout and the password, and
-    /// never the account's status. And FOREIGN crontab lines, which the panel did not write, keep
+    /// never the account's status. FOREIGN crontab lines, which the panel did not write, keep
     /// firing: a crontab is not the panel's file, so they are counted and reported rather than
-    /// deleted.
+    /// deleted. And any login that shares the account's uid without being one of its jailed logins
+    /// keeps authenticating, for the same reason — it is not the panel's entry, and turning a
+    /// credential nobody asked it to touch would take away access somebody deliberately arranged. It
+    /// is counted and reported too (<see cref="UnmanagedLoginPolicy"/>), because a suspension can be
+    /// honest about everything it did and still leave a working credential on the machine.
     /// </para>
     /// <para>
     /// <b>What COMPLETED is allowed to mean here.</b> Exactly this: the cascade was invoked and
     /// waited for, the agent locked the login, and the HOST was then asked what it is doing and
     /// answered that the login is locked, that every vhost it holds for this account is byte for
     /// byte the suspended one, that every managed entry of its crontab carries the suspension marker
-    /// and that no SFTP login of the account is still unlocked. It does NOT mean the account is
-    /// doing nothing on the server — the paragraph above is the standing set of exceptions, and they
-    /// are reported on the task rather than left to this comment. Suspension completes on observed
-    /// absence of service, not on the absence of an exception, which is the same standard the
-    /// deletion cascade is held to.
+    /// and that no transfer login of the account, under either daemon, is still unlocked. It does
+    /// NOT mean the account is doing nothing on the server — the paragraph above is the standing set
+    /// of exceptions, and they are reported on the task rather than left to this comment. Suspension
+    /// completes on observed absence of service, not on the absence of an exception, which is the
+    /// same standard the deletion cascade is held to.
     /// </para>
     /// <para>
     /// <b>Why the attestation is asked of the agent directly and not through an Sdk seam.</b> The
@@ -173,10 +188,18 @@ public sealed class SuspendAccountCommandHandler
         var taskId = await _tasks.BeginAsync(
             TaskKinds.AccountSuspension, account.Name, _correlationIds.CorrelationId, cancellationToken);
 
+        var cascade = new AccountSuspending(account.Id, account.Name);
+
         try
         {
             await _tasks.ReportAsync(taskId, 10, "asking every module to stop what it runs", cancellationToken);
-            await _bus.InvokeAsync(new AccountSuspending(account.Id, account.Name), cancellationToken);
+
+            // Held rather than constructed inline, because the report the subscribers write into is
+            // read after this returns. `InvokeAsync` runs the cascade INLINE on this very object —
+            // which is the same fact the paragraph above depends on when it says a handler that
+            // throws aborts the suspension — so by the time the await completes, every subscriber
+            // that exists has written what it has.
+            await _bus.InvokeAsync(cascade, cancellationToken);
         }
         catch (Exception exception)
         {
@@ -226,7 +249,8 @@ public sealed class SuspendAccountCommandHandler
                 cancellationToken);
         }
 
-        await _tasks.ReportAsync(taskId, 80, DescribeAttestation(observed.Value!), cancellationToken);
+        await _tasks.ReportAsync(
+            taskId, 80, DescribeAttestation(observed.Value!, cascade.Report), cancellationToken);
 
         account.Suspend();
         await _dbContext.SaveChangesAsync(cancellationToken);
@@ -294,23 +318,26 @@ public sealed class SuspendAccountCommandHandler
             return $"{firing} of the account's {state.CronEntriesTotal} cron entries can still be run by cron";
         }
 
-        // Enumerated from the host's password database and not from the Sftp module's rows: a login
-        // the panel has forgotten is exactly the one still letting a suspended customer write to
-        // their home, so this refuses on logins no row names. Like the vhost set, that can only fail
-        // in the safe direction.
-        var open = state.SftpLogins
+        // Enumerated from the host's password database and not from the rows of the modules that
+        // create these logins: a login the panel has forgotten is exactly the one still letting a
+        // suspended customer write to their home, so this refuses on logins no row names. Like the
+        // vhost set, that can only fail in the safe direction. The list holds both daemons' logins,
+        // so each name is printed with the daemon it belongs to — an operator sent to look at
+        // "acme_web" needs to know which client to open.
+        var open = state.FileTransferLogins
             .Where(login => { return !login.Locked; })
-            .Select(login => { return login.Username; })
-            .OrderBy(username => { return username; }, StringComparer.Ordinal)
+            .OrderBy(login => { return login.Username; }, StringComparer.Ordinal)
+            .Select(TransferLoginProtocolPolicy.Describe)
             .ToList();
 
         return open.Count > 0
-            ? $"these sftp logins still authenticate: {string.Join(", ", open)}"
+            ? $"these transfer logins still authenticate: {string.Join(", ", open)}"
             : null;
     }
 
     /// <summary>Puts the attestation's own answer, and its standing blind spots, into one task line.</summary>
     /// <param name="state">What the host answered.</param>
+    /// <param name="report">What the suspension cascade's subscribers reported back.</param>
     /// <returns>The line to report.</returns>
     /// <remarks>
     /// <para>
@@ -320,17 +347,42 @@ public sealed class SuspendAccountCommandHandler
     /// </para>
     /// <para>
     /// The qualification is not optional prose. What a suspension does not reach — the account's
-    /// databases, the panel's own login, and any crontab line the panel did not write — is named on
-    /// the line, because a completion that claimed more than it observed is the defect this whole
-    /// attestation exists to end. The foreign-line count is the one of those the host can actually
-    /// measure, so it is reported as a number rather than as a caveat.
+    /// databases, the panel's own login, any crontab line the panel did not write, and any login
+    /// sharing the account's uid that the panel did not create — is named on the line, because a
+    /// completion that claimed more than it observed is the defect this whole attestation exists to
+    /// end. The last two are the ones the host can actually measure, so they are reported as numbers
+    /// rather than as caveats; <see cref="UnmanagedLoginPolicy"/> holds the reading of the second,
+    /// which is the only figure here that can be absent as well as zero.
+    /// </para>
+    /// <para>
+    /// The locked logins are counted per DAEMON, not as one total under one daemon's name. The
+    /// host's list has carried FTPS logins beside the SFTP ones since FTPS shipped, and this sentence
+    /// said "sftp logins" about all of them — which is wrong in the direction that matters, because
+    /// an operator reading it believes the customer's FTP credentials were never in scope when in
+    /// fact they were locked. <see cref="TransferLoginProtocolPolicy"/> words the counts, and names
+    /// BOTH daemons whatever their counts: a daemon dropped for having no logins reproduced that same
+    /// misreading on every account with no logins at all, which is the commonest account there is.
+    /// </para>
+    /// <para>
+    /// One clause on this line comes from the CASCADE and not from the host's answer, and it is the
+    /// only one that does. The suspension ends the account's open transfer sessions — a privileged
+    /// action, because a transfer in flight is cut and the partial file stays — and a cull is an event
+    /// with no afterwards, so <c>GetAccountSuspensionState</c> cannot be asked about it the way every
+    /// other fact here is. The subscriber that performs it reports the agent's own count into
+    /// <see cref="AccountSuspending.Report"/>, and <see cref="SessionCullPolicy"/> words the four
+    /// readings that can arrive: a number, a measured none, a count the host did not give, and no
+    /// module having reported at all. An earlier version of this line could only say that the panel
+    /// ASKED, because the rpc's success message was empty; the operator was meanwhile warned about the
+    /// cost before confirming, so the promise had nothing after it.
     /// </para>
     /// <para>
     /// English and not localized, like every other line on a task: it is read by the operator who
     /// administers the server (rules/csharp.md).
     /// </para>
     /// </remarks>
-    private static string DescribeAttestation(AccountSuspensionStateDto state)
+    private static string DescribeAttestation(
+        AccountSuspensionStateDto state,
+        AccountSuspensionCascadeReport report)
     {
         var foreign = state.CronForeignLines == 0
             ? string.Empty
@@ -339,8 +391,10 @@ public sealed class SuspendAccountCommandHandler
 
         return $"the host shows the login locked, all {state.Sites.Count} of its vhosts for this account "
             + $"serving the suspended page, all {state.CronEntriesTotal} of its cron entries suppressed "
-            + $"and all {state.SftpLogins.Count} of its sftp logins locked; NOT covered by this "
-            + $"suspension: the account's databases and the panel's own web login{foreign}";
+            + $"and {TransferLoginProtocolPolicy.DescribeAll(state.FileTransferLogins)} locked; "
+            + SessionCullPolicy.Describe(report)
+            + $"NOT covered by this suspension: the account's databases and the panel's own web login{foreign}"
+            + UnmanagedLoginPolicy.Describe(state);
     }
 
     /// <summary>Journals a refused suspend and returns it as the typed failure.</summary>

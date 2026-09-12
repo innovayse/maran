@@ -138,6 +138,33 @@ public sealed class ListSftpUsersQueryHandlerTests
             });
     }
 
+    /// <summary>Every listed row states the protocol it is a login for.</summary>
+    [Fact]
+    public async Task Every_listed_row_states_the_protocol_it_is_a_login_for()
+    {
+        // Asked of the LISTING as well as of the single read, because the merged "File transfer"
+        // screen is built from the listing and a label present on one path and absent on the other
+        // is a table half of whose rows say what they are.
+        //
+        // The literal token, and never the constant that produced it: asserting against
+        // SftpProtocolName.Sftp would survive a rename of the constant, while the SPA matches the
+        // spelling. And never the empty string, which the SPA reads as "the response predates this
+        // field" and resolves by inference — the very thing the member exists to replace, so a test
+        // that accepted it would pass whether the fact is stated or guessed.
+        var shared = Guid.NewGuid().ToString();
+        await SeedAsync(shared);
+
+        using var context = SftpTestContext.Create(FakeCurrentUser.Admin(), shared);
+        var result = await new ListSftpUsersQueryHandler(context)
+            .HandleAsync(new ListSftpUsersQuery(), CancellationToken.None);
+
+        Assert.Equal(2, result.Value.Count);
+        Assert.All(result.Value, row =>
+        {
+            Assert.Equal("Sftp", row.Protocol);
+        });
+    }
+
     /// <summary>Seeds one login for each of the two accounts into a shared store.</summary>
     /// <param name="databaseName">The shared in-memory database.</param>
     private static async Task SeedAsync(string databaseName)

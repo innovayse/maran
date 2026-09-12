@@ -3,7 +3,7 @@
     "status": {
       "heading": "System status",
       "checking": "Checking the panel API…",
-      "ok": "All systems operational ({status})",
+      "ok": "All systems are operational.",
       "unreachable": "Could not reach the API"
     }
   }

@@ -206,6 +206,33 @@ impl PhpHost for FakePhpHost {
         self.files.lock().unwrap().remove(target);
         Ok(())
     }
+
+    fn validate_and_reload(
+        &self,
+        validator: &Validator<'_>,
+        reload: &Reload<'_>,
+    ) -> Result<(), PhpOpError> {
+        // Both commands are RECORDED even when the validator refuses, so a
+        // test can tell "validated and then refused to reload" from "never
+        // asked the validator at all" — the difference an empty recording
+        // would hide.
+        self.recording
+            .record(validator.program, validator.arguments);
+
+        let (status, stderr) = self.validation.lock().unwrap().clone();
+        if status != 0 {
+            return Err(PhpOpError::PoolValidation { stderr });
+        }
+
+        let reloaded = self.recording.record(reload.program, reload.arguments);
+        if reloaded.status != 0 {
+            return Err(PhpOpError::ReloadFailed {
+                stderr: reloaded.stderr,
+            });
+        }
+
+        Ok(())
+    }
 }
 
 /// The adapter every test in this folder runs against. Which family is

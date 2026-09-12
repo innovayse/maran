@@ -74,26 +74,28 @@ public sealed class RecordingAgentFirewallClient : IAgentFirewallClient
     /// <inheritdoc />
     public Task<Result<bool>> AllowPortAsync(
         int port,
+        int? portTo,
         AgentFirewallProtocol protocol,
         string sourceCidr,
         IReadOnlyList<int> sshPorts,
         int panelPort,
         CancellationToken cancellationToken)
     {
-        Allows.Add(new AgentRuleCall(port, protocol, sourceCidr, [.. sshPorts], panelPort));
+        Allows.Add(new AgentRuleCall(port, portTo, protocol, sourceCidr, [.. sshPorts], panelPort));
         return Task.FromResult(AllowResult);
     }
 
     /// <inheritdoc />
     public Task<Result<bool>> DenyPortAsync(
         int port,
+        int? portTo,
         AgentFirewallProtocol protocol,
         string sourceCidr,
         IReadOnlyList<int> sshPorts,
         int panelPort,
         CancellationToken cancellationToken)
     {
-        Denies.Add(new AgentRuleCall(port, protocol, sourceCidr, [.. sshPorts], panelPort));
+        Denies.Add(new AgentRuleCall(port, portTo, protocol, sourceCidr, [.. sshPorts], panelPort));
         return Task.FromResult(DenyResult);
     }
 

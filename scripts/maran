@@ -27,7 +27,7 @@ usage() {
   cat >&2 <<'USAGE'
 usage: maran <command> [arguments]
 
-  dev        run the whole stack: database, API and application       (run-dev.sh)
+  dev        the whole stack: db, agent, API, SPA; --selfcheck proves it (run-dev.sh)
   check      toolchain preflight: is this machine able to build       (preflight.sh)
   structure  file and folder laws that no compiler can express        (check-structure.sh)
   proto      contract lint + the additive law; --accept records a change (proto-lint.sh)

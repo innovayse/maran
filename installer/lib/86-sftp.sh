@@ -41,7 +41,7 @@ readonly MARAN_SFTP_GROUP="maran-sftp"
 # group- or other-writable or OpenSSH refuses the login.
 #
 # A SIBLING of /var/lib/maran, not a child of it. It used to be
-# /var/lib/maran/sftp, and step 40 creates /var/lib/maran as `panel:panel 0750`,
+# /var/lib/maran/sftp, and step 40 creates /var/lib/maran as `maran:maran 0750`,
 # so on a real install — where step 40 runs before this one — sshd refused every
 # chroot with `bad ownership or modes for chroot directory component
 # "/var/lib/maran/"` and SFTP had never worked on a real server. The directory is

@@ -12,8 +12,8 @@ use crate::backup::executable_lookup::ExecutableLookup;
 /// # Why this exists, and where it does and does not run
 ///
 /// `tar_binary`, `gzip_binary` and `database_dump_binary` are `&'static str`
-/// literals measured once, on two polygon images, on one date
-/// (`.superpowers/sdd/2026-09-05-maran-backups/task-2-report.md`). Nothing
+/// literals measured once, on two polygon images, on one date (2026-09-05).
+/// Nothing
 /// re-asks the question on a real, running host: a package removed, renamed,
 /// or a compatibility symlink an update drops changes nothing this agent has
 /// checked, so the first thing that would notice is a failed scheduled backup

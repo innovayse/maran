@@ -29,6 +29,13 @@ public static class ModuleExtensions
         // Scoped, because it resolves the module contexts from the caller's own scope.
         services.AddScoped<IAccountResidueAuditor, ModuleAccountResidueAuditor>();
 
+        // Also the Host's and no module's: a licence tier is declared in the Sdk's module contract
+        // and belongs to none of the modules that declare one, so no module's resources may name
+        // it. The catalogue endpoint resolves it per request through this (LicenceTierDisplayNames);
+        // singleton because the resolver holds only the localizer, which reads the ambient request
+        // culture at lookup time rather than at construction.
+        services.AddSingleton<LicenceTierDisplayNames>();
+
         foreach (var module in ModuleRegistry.All)
         {
             module.ConfigureServices(services, configuration);

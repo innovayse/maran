@@ -3,6 +3,7 @@
     "chart": {
       "emptyDescription": "Այս ժամանակահատվածի համար տվյալներ դեռ չկան։",
       "tableCaption": "{label} ցուցումներ, {unit}-ով",
+      "tableCaptionNoUnit": "{label} ցուցումներ",
       "columnTime": "Ժամանակ",
       "columnValue": "Արժեք"
     }

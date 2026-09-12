@@ -5,6 +5,7 @@
     "nav": {
       "ariaLabel": "Основная навигация",
       "systemStatus": "Состояние системы",
+      "auditJournal": "Журнал аудита",
       "lockedBadge": "Заблокировано",
       "groups": {
         "panel": "Панель"

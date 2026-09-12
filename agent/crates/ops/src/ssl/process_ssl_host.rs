@@ -112,6 +112,11 @@ impl SiteHost for ProcessSslHost {
     }
 
     /// Delegates to the site area's host.
+    fn create_site_log_directory(&self, account: &AccountName) -> Result<(), SitesOpError> {
+        self.sites.create_site_log_directory(account)
+    }
+
+    /// Delegates to the site area's host.
     fn create_directories_as_account(
         &self,
         account: &AccountName,
@@ -276,14 +281,25 @@ impl SslHost for ProcessSslHost {
     /// The mirror of the write order, and for the mirrored reason: what must
     /// not exist alone is a certificate whose key is gone, so the public half
     /// goes first and the secret half never outlives it.
+    ///
+    /// Each removal goes through `remove_one`, which re-asserts the file's
+    /// mode when the protocol put it back — the rollback recreates a file it
+    /// had unlinked, and a recreated file takes the umask's mode, not the one
+    /// it had.
     fn remove_material(
         &self,
         certificate: &SiteCertificate,
         validator: &Validator<'_>,
         reload: &Reload<'_>,
     ) -> Result<(), SslOpError> {
-        remove_config(self, certificate.certificate_path(), validator, reload)?;
-        remove_config(self, certificate.key_path(), validator, reload)?;
+        remove_one(
+            self,
+            certificate.certificate_path(),
+            CERTIFICATE_MODE,
+            validator,
+            reload,
+        )?;
+        remove_one(self, certificate.key_path(), KEY_MODE, validator, reload)?;
         // With the material, never after it: a marker outliving the files it
         // describes would describe whatever is written there next.
         self.remove_self_signed_marker(&self_signed_marker(certificate))?;
@@ -425,6 +441,83 @@ fn create_private_directory(directory: &Path) -> Result<(), SslOpError> {
     })?;
 
     set_mode(directory, MATERIAL_DIRECTORY_MODE)
+}
+
+/// Removes `target` through the config-write protocol and, when that protocol
+/// put the file back, restores the mode it is meant to hold.
+///
+/// # Why the mode has to be re-asserted here
+///
+/// A removal that fails validation or the reload is rolled back by
+/// `safe_write::RollbackGuard`, which writes the captured bytes to a path it
+/// has just unlinked. Creating a file that is not there takes the process
+/// umask — `0o666 & !umask`, which is `0640` under the `UMask=0027` the agent's
+/// unit sets — rather than the `0600` the key was written at. Nothing later in
+/// a removal touches the mode again, so one failed `RemoveCertificate` used to
+/// leave the private key readable by the agent's group for the rest of its
+/// life. That state needs no concurrency to reach: any `nginx -t` failure
+/// anywhere in the host's tree produces it, and the reason it needs none is that
+/// `nginx -t` carries no file argument: it answers about the WHOLE host, so one
+/// tenant's invalid file fails another tenant's validation. That property is
+/// driven on a real nginx by
+/// `a_neighbours_rejected_vhost_cannot_fail_this_tenants_valid_write` in
+/// `agent/crates/agent/tests/sites_on_a_real_host.rs`.
+///
+/// Contained by the `0700` material directory either way — that containment is
+/// the reason this is a lost defence rather than a leak — but a defence that
+/// only holds while a second one does is not one this file may drop silently.
+///
+/// The mode is restored on EVERY failure and not only on the two that roll
+/// back: re-asserting a mode a file already holds costs one `chmod` on a path
+/// that has already failed, and a caller that has to know which
+/// `SafeWriteError` variants restore is a caller that will be wrong after the
+/// next change to the protocol.
+///
+/// A failure to re-assert is logged and NOT returned: the caller is already
+/// receiving the failure that made the rollback necessary, and replacing it
+/// with a `chmod` error would hide the reason the removal did not happen.
+///
+/// # Errors
+///
+/// Returns whatever the protocol returned, unchanged.
+fn remove_one(
+    host: &dyn ConfigHost,
+    target: &Path,
+    mode: u32,
+    validator: &Validator<'_>,
+    reload: &Reload<'_>,
+) -> Result<(), SslOpError> {
+    let Err(failure) = remove_config(host, target, validator, reload) else {
+        return Ok(());
+    };
+
+    if let Err(mode_failure) = reassert_mode(target, mode) {
+        tracing::error!(
+            path = %target.display(),
+            error = %mode_failure,
+            "a removed configuration file was put back and its mode could not be restored"
+        );
+    }
+
+    Err(failure.into())
+}
+
+/// Sets `path`'s mode when `path` is there, and does nothing when it is not.
+///
+/// Absent is not a failure: a removal that committed the unlink and then failed
+/// somewhere else leaves nothing to chmod, and reporting that as an error would
+/// invent one.
+///
+/// # Errors
+///
+/// Returns [`SslOpError::MaterialWrite`] when the file exists and its mode
+/// cannot be set.
+fn reassert_mode(path: &Path, mode: u32) -> Result<(), SslOpError> {
+    if !path.exists() {
+        return Ok(());
+    }
+
+    set_mode(path, mode)
 }
 
 /// Sets `path`'s mode, reporting a failure as a material-write failure.

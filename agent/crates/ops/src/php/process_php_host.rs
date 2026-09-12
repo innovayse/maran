@@ -144,6 +144,34 @@ impl PhpHost for ProcessPhpHost {
     ) -> Result<(), PhpOpError> {
         Ok(remove_config(self, target, validator, reload)?)
     }
+
+    /// Runs the validator, then the reload, and writes nothing.
+    ///
+    /// The status-to-error decision is spelled here rather than borrowed from
+    /// `safe_write`, because `safe_write`'s own entry points all swap a file
+    /// first and there is nothing to swap: what is being asked is a question
+    /// about the tree already on disk.
+    fn validate_and_reload(
+        &self,
+        validator: &Validator<'_>,
+        reload: &Reload<'_>,
+    ) -> Result<(), PhpOpError> {
+        let checked = ConfigHost::run(self, validator.program, validator.arguments)?;
+        if checked.status != 0 {
+            return Err(PhpOpError::PoolValidation {
+                stderr: checked.stderr,
+            });
+        }
+
+        let reloaded = ConfigHost::run(self, reload.program, reload.arguments)?;
+        if reloaded.status != 0 {
+            return Err(PhpOpError::ReloadFailed {
+                stderr: reloaded.stderr,
+            });
+        }
+
+        Ok(())
+    }
 }
 
 /// Reports a failure to do work as the account.

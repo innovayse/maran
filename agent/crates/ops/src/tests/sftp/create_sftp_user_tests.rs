@@ -5,10 +5,16 @@
 
 use maran_agent_core::validation::secrets::password::Password;
 
-use crate::sftp::create_sftp_user::create_sftp_user;
+use maran_agent_core::validation::system::name::AccountName;
+use maran_agent_core::validation::system::sftp_user_name::SftpUserName;
+
+use crate::accounts::take_account_lock;
+use crate::sftp::create_sftp_user::{create_sftp_user, create_sftp_user_under_lock};
 use crate::sftp::fake_sftp_host::{
     ACCOUNT_GID, ACCOUNT_UID, FakeSftpHost, TEST_PASSWORD, distro, web_request,
 };
+use crate::sftp::model::account_ownership::AccountOwnership;
+use crate::sftp::model::sftp_user_request::SftpUserRequest;
 use crate::sftp::sftp_error::SftpError;
 
 /// The argument `useradd` was given after `flag`, if it was given one.
@@ -24,7 +30,7 @@ fn argument_after(argv: &[String], flag: &str) -> Option<String> {
 fn creating_an_sftp_user_puts_it_in_the_chroot_group_with_a_nologin_shell() {
     let host = FakeSftpHost::new();
 
-    create_sftp_user(&host, distro(), &web_request()).expect("created");
+    create_sftp_user_under_lock(&host, distro(), &web_request()).expect("created");
 
     let useradd = host.spawn_of("useradd").expect("useradd was run");
     assert_eq!(useradd.argv.last().expect("a login"), "alice_web");
@@ -53,7 +59,7 @@ fn creating_an_sftp_user_points_its_home_at_the_jail_and_forbids_useradd_from_cr
     // OpenSSH refuses to chroot into and which is where a chroot escape starts.
     let host = FakeSftpHost::new();
 
-    create_sftp_user(&host, distro(), &web_request()).expect("created");
+    create_sftp_user_under_lock(&host, distro(), &web_request()).expect("created");
 
     let useradd = host.spawn_of("useradd").expect("useradd was run");
     let home = useradd
@@ -90,7 +96,7 @@ fn creating_an_sftp_user_gives_it_the_accounts_own_user_and_group_ids() {
     // makes an uploaded file come out owned by the account.
     let host = FakeSftpHost::new();
 
-    create_sftp_user(&host, distro(), &web_request()).expect("created");
+    create_sftp_user_under_lock(&host, distro(), &web_request()).expect("created");
 
     let useradd = host.spawn_of("useradd").expect("useradd was run");
     assert_eq!(
@@ -124,7 +130,7 @@ fn creating_an_sftp_user_does_not_put_it_in_the_web_servers_group() {
     // files — the exact failure the jail exists to prevent.
     let host = FakeSftpHost::new();
 
-    create_sftp_user(&host, distro(), &web_request()).expect("created");
+    create_sftp_user_under_lock(&host, distro(), &web_request()).expect("created");
 
     let useradd = host.spawn_of("useradd").expect("useradd was run");
     let web_group = distro().web_server_group();
@@ -144,7 +150,8 @@ fn creating_an_sftp_user_for_an_unknown_account_is_refused_before_anything_is_ma
     let host = FakeSftpHost::new();
     host.forget_the_account();
 
-    let error = create_sftp_user(&host, distro(), &web_request()).expect_err("must fail");
+    let error =
+        create_sftp_user_under_lock(&host, distro(), &web_request()).expect_err("must fail");
 
     assert!(matches!(error, SftpError::AccountMissing));
     assert!(
@@ -159,7 +166,7 @@ fn creating_an_sftp_user_for_an_unknown_account_is_refused_before_anything_is_ma
 fn creating_an_sftp_user_makes_the_jail_and_its_mount_point_before_the_login() {
     let host = FakeSftpHost::new();
 
-    create_sftp_user(&host, distro(), &web_request()).expect("created");
+    create_sftp_user_under_lock(&host, distro(), &web_request()).expect("created");
 
     let directories = host.directories();
     assert_eq!(
@@ -185,7 +192,7 @@ fn creating_an_sftp_user_installs_an_enabled_bind_mount_unit_for_the_account() {
     // every boot instead.
     let host = FakeSftpHost::new();
 
-    create_sftp_user(&host, distro(), &web_request()).expect("created");
+    create_sftp_user_under_lock(&host, distro(), &web_request()).expect("created");
 
     let configs = host.configs();
     let unit = configs.first().expect("a unit was written");
@@ -220,7 +227,8 @@ fn a_jail_that_cannot_be_installed_stops_the_creation_before_the_login_is_made()
     let host = FakeSftpHost::new();
     host.refuse_config_writes();
 
-    let error = create_sftp_user(&host, distro(), &web_request()).expect_err("must fail");
+    let error =
+        create_sftp_user_under_lock(&host, distro(), &web_request()).expect_err("must fail");
 
     assert!(matches!(error, SftpError::JailFailed));
     assert!(
@@ -234,7 +242,8 @@ fn a_jail_that_cannot_be_installed_stops_the_creation_before_the_login_is_made()
 fn creating_a_user_that_already_exists_reports_already_exists() {
     let host = FakeSftpHost::with_existing("alice_web");
 
-    let error = create_sftp_user(&host, distro(), &web_request()).expect_err("must fail");
+    let error =
+        create_sftp_user_under_lock(&host, distro(), &web_request()).expect_err("must fail");
 
     assert!(matches!(error, SftpError::AlreadyExists));
 }
@@ -247,7 +256,7 @@ fn creating_a_user_that_already_exists_does_not_reset_its_password() {
     // customer was already shown.
     let host = FakeSftpHost::with_existing("alice_web");
 
-    create_sftp_user(&host, distro(), &web_request()).expect_err("must fail");
+    create_sftp_user_under_lock(&host, distro(), &web_request()).expect_err("must fail");
 
     assert!(
         host.spawn_of("chpasswd").is_none(),
@@ -272,9 +281,155 @@ fn a_refusal_carries_a_typed_variant_and_never_the_password() {
     let host = FakeSftpHost::new();
     host.refuse_password_with(1);
 
-    let error = create_sftp_user(&host, distro(), &web_request()).expect_err("must fail");
+    let error =
+        create_sftp_user_under_lock(&host, distro(), &web_request()).expect_err("must fail");
 
     assert!(matches!(error, SftpError::PasswordRejected));
     let printed = format!("{error:?} {error}");
     assert!(!printed.contains(TEST_PASSWORD));
+}
+
+/// A hosting account no other test names, so the process-wide account lock
+/// this suite takes cannot be contended by the harness's own threads.
+fn contended_request() -> SftpUserRequest {
+    SftpUserRequest {
+        account: AccountName::parse("sftpcontended").expect("the fixture name is valid"),
+        user: SftpUserName::for_account(
+            &AccountName::parse("sftpcontended").expect("the fixture name is valid"),
+            "web",
+        )
+        .expect("the fixture login is valid"),
+        password: Password::parse(TEST_PASSWORD).expect("the fixture password is valid"),
+    }
+}
+
+#[test]
+fn creating_a_login_is_refused_while_the_hosting_accounts_lock_is_held() {
+    // C-3, interleaving 2. Before this, a deletion could run entirely inside
+    // this operation — between the uid read and the `useradd` that uses it —
+    // and the login was created anyway, because `--non-unique --uid` does not
+    // care that the number is now unassigned. What was left was a passwd
+    // entry, a jail, an enabled mount unit and a password the customer had
+    // been shown, none of which `remove_account_sftp` would ever look for
+    // again.
+    let request = contended_request();
+    let held =
+        take_account_lock(&request.account).expect("the lock is free at the start of this test");
+    let host = FakeSftpHost::new();
+
+    let refusal = create_sftp_user(&host, distro(), &request);
+
+    assert!(
+        matches!(refusal, Err(SftpError::AccountBusy)),
+        "expected AccountBusy, got {refusal:?}"
+    );
+    assert!(
+        host.spawn_of("useradd").is_none(),
+        "useradd must not have run: the creation never started"
+    );
+    assert!(
+        host.directories().is_empty(),
+        "no jail must have been built: the creation never started"
+    );
+    drop(held);
+}
+
+#[test]
+fn a_creation_that_finished_leaves_the_hosting_accounts_lock_free() {
+    // The inverse control. A guard leaked by the entry point would make the
+    // refusal above pass forever and every later login for that account
+    // impossible — a worse defect than the race being closed.
+    let request = SftpUserRequest {
+        account: AccountName::parse("sftpreleases").expect("the fixture name is valid"),
+        user: SftpUserName::for_account(
+            &AccountName::parse("sftpreleases").expect("the fixture name is valid"),
+            "web",
+        )
+        .expect("the fixture login is valid"),
+        password: Password::parse(TEST_PASSWORD).expect("the fixture password is valid"),
+    };
+    let host = FakeSftpHost::new();
+
+    create_sftp_user(&host, distro(), &request).expect("created");
+
+    assert!(
+        take_account_lock(&request.account).is_some(),
+        "the creation held the hosting account's lock after returning"
+    );
+}
+
+#[test]
+fn a_hosting_account_whose_ids_move_before_useradd_gets_no_login() {
+    // The uid is read before the jail is built and used after it, and between
+    // the two sit a directory creation, a unit write, a `daemon-reload` and an
+    // `enable --now`. The lock excludes this agent's own deletion; this closes
+    // what the lock cannot see — an out-of-band `userdel` — and it must close
+    // it by refusing, because `useradd --non-unique --uid` would accept a
+    // number that now belongs to the next account on the host.
+    let host = FakeSftpHost::new();
+    host.answers_ownerships(&[
+        Some(AccountOwnership {
+            uid: ACCOUNT_UID,
+            gid: ACCOUNT_GID,
+        }),
+        Some(AccountOwnership {
+            uid: ACCOUNT_UID + 1,
+            gid: ACCOUNT_GID,
+        }),
+    ]);
+
+    let refusal = create_sftp_user_under_lock(&host, distro(), &web_request());
+
+    assert!(
+        matches!(refusal, Err(SftpError::AccountIdentityChanged)),
+        "expected AccountIdentityChanged, got {refusal:?}"
+    );
+    assert!(
+        host.spawn_of("useradd").is_none(),
+        "no login must exist: the uid it would have carried is somebody else's"
+    );
+}
+
+#[test]
+fn a_hosting_account_that_vanishes_before_useradd_gets_no_login() {
+    // The same window, entered by the account going away entirely rather than
+    // by its number moving. Told apart from the first read failing, which is
+    // already `AccountMissing` and already refuses before anything is built.
+    let host = FakeSftpHost::new();
+    host.answers_ownerships(&[
+        Some(AccountOwnership {
+            uid: ACCOUNT_UID,
+            gid: ACCOUNT_GID,
+        }),
+        None,
+    ]);
+
+    let refusal = create_sftp_user_under_lock(&host, distro(), &web_request());
+
+    assert!(
+        matches!(refusal, Err(SftpError::AccountMissing)),
+        "expected AccountMissing, got {refusal:?}"
+    );
+    assert!(host.spawn_of("useradd").is_none(), "no login must exist");
+}
+
+#[test]
+fn the_hosting_accounts_identity_is_read_again_immediately_before_useradd() {
+    // The positive control for the two refusals above. A check that is never
+    // reached refuses nothing, and a single read would leave both tests above
+    // passing against an operation that had stopped asking — the second one
+    // would still see `AccountMissing`, from the FIRST read.
+    let host = FakeSftpHost::new();
+
+    create_sftp_user_under_lock(&host, distro(), &web_request()).expect("created");
+
+    assert_eq!(
+        host.ownership_questions(),
+        2,
+        "the account's identity must be read once before the jail and once before useradd"
+    );
+    assert!(
+        host.spawn_of("useradd").is_some(),
+        "the login must really have been created: a refusal that refuses everything proves nothing"
+    );
 }

@@ -47,8 +47,16 @@ public interface IAgentFirewallClient
         int panelPort,
         CancellationToken cancellationToken);
 
-    /// <summary>Allows traffic to a port, optionally scoped to one source range.</summary>
-    /// <param name="port">The port to allow, 1-65535.</param>
+    /// <summary>Allows traffic to a port or a range of ports, optionally scoped to one source range.</summary>
+    /// <param name="port">The port to allow, or the lower bound of a range, 1-65535.</param>
+    /// <param name="portTo">
+    /// The inclusive upper bound of a range, or <c>null</c> for a single port. When present it must
+    /// be strictly above <paramref name="port"/>: an inverted pair is refused by <c>nft</c> itself —
+    /// aborting the whole transactional load and leaving the previous policy — and an EQUAL pair is
+    /// accepted by it, which is worse, because it becomes a second spelling of a single port that a
+    /// later deny for that port would not match. Refused here with <c>AgentInvalidInput</c> before
+    /// anything is sent, and refused again by the agent's own validated type.
+    /// </param>
     /// <param name="protocol">The transport protocol the rule applies to.</param>
     /// <param name="sourceCidr">The source range to scope the allow to; <c>0.0.0.0/0</c> allows any source.</param>
     /// <param name="sshPorts">
@@ -69,14 +77,21 @@ public interface IAgentFirewallClient
     /// </returns>
     Task<Result<bool>> AllowPortAsync(
         int port,
+        int? portTo,
         AgentFirewallProtocol protocol,
         string sourceCidr,
         IReadOnlyList<int> sshPorts,
         int panelPort,
         CancellationToken cancellationToken);
 
-    /// <summary>Removes an allow for a port, matching the source range it was scoped to.</summary>
-    /// <param name="port">The port to stop allowing, 1-65535.</param>
+    /// <summary>Removes an allow for a port or a range, matching the source range it was scoped to.</summary>
+    /// <param name="port">The port to stop allowing, or the lower bound of the range, 1-65535.</param>
+    /// <param name="portTo">
+    /// The inclusive upper bound of the range whose allow is being removed, or <c>null</c> for a
+    /// single port. A rule is matched by its whole value, so a deny naming only the lower bound of
+    /// an installed range matches nothing and answers <c>AgentNotFound</c> — which is the honest
+    /// answer, and the reason a listing has to report the bound in the first place.
+    /// </param>
     /// <param name="protocol">The transport protocol the rule applies to.</param>
     /// <param name="sourceCidr">The source range the original allow was scoped to.</param>
     /// <param name="sshPorts">
@@ -89,6 +104,7 @@ public interface IAgentFirewallClient
     /// <returns>Success, or a typed failure. Denying a port that is not allowed is a no-op success.</returns>
     Task<Result<bool>> DenyPortAsync(
         int port,
+        int? portTo,
         AgentFirewallProtocol protocol,
         string sourceCidr,
         IReadOnlyList<int> sshPorts,

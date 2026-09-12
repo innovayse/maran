@@ -1,0 +1,43 @@
+[Unit]
+Description=Maran FTPS (vsftpd)
+Documentation=man:vsftpd.conf(5)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# background=NO on the command line, not in the config file: the two families
+# disagree about the default (Debian NO, RHEL YES, measured 2026-09-08), and a
+# daemon that forks under Type=simple is one systemd immediately considers dead.
+#
+# The config path is Maran's own (/etc/maran/vsftpd/vsftpd.conf), never the
+# distribution's: the packaged unit is masked by installer/lib/89-ftps.sh and this
+# panel runs only this unit, against a file the agent renders through
+# ops::safe_write. That is also why the two families' differing shipped config
+# paths (/etc/vsftpd.conf against /etc/vsftpd/vsftpd.conf) reach nothing here.
+ExecStart=/usr/sbin/vsftpd /etc/maran/vsftpd/vsftpd.conf -obackground=NO
+# vsftpd's own privilege-separation directory: it must exist, be empty, and not
+# be writable by the unprivileged user the daemon drops to. RuntimeDirectory
+# gives all three and takes it away again on stop, so no stale directory can
+# outlive the daemon and be replaced by something else.
+RuntimeDirectory=maran-ftps/empty
+RuntimeDirectoryMode=0755
+Restart=on-failure
+RestartSec=2s
+
+# --- Hardening: weighed, and deliberately not prescribed ---------------------------
+# ProtectSystem=, ProtectHome=, PrivateTmp= and NoNewPrivileges= are NOT set here, and
+# the omission is a decision rather than an oversight — see
+# docs/superpowers/notes/2026-09-09-ftps-threat-note.md, "systemd hardening directives".
+# Most of them contradict what this daemon does by design: it chroots into
+# /var/lib/maran-ftps/<account> whose `home` is a bind mount of the customer's real home
+# (ProtectHome=yes would remove the only thing the daemon exists to serve), and it forks
+# children that change uid to the account (NoNewPrivileges=true breaks setuid and the
+# pam_unix helper). A unit that LOOKS hardened while contradicting its daemon is worse
+# than one that states the weighing: the first stops the next reader looking.
+#
+# RuntimeDirectory= above is the one containment property that is real here, and it is
+# kept for the reason written beside it rather than for the look of the list.
+
+[Install]
+WantedBy=multi-user.target

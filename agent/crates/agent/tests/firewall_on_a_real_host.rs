@@ -55,8 +55,8 @@ use maran_agent_core::validation::web::port::Port;
 use maran_agent_core::validation::web::source_cidr::SourceCidr;
 use maran_distro::{DistroAdapter, DistroFamily, adapter_for, detect};
 use maran_ops::firewall::{
-    FirewallError, FirewallRule, NftablesProtocol, ProcessFirewallHost, RulesetPorts, RulesetState,
-    allow_port, ban_address, deny_port, list_bans, list_rules, unban_address,
+    FirewallError, FirewallRule, NftablesProtocol, PortSpan, ProcessFirewallHost, RulesetPorts,
+    RulesetState, allow_port, ban_address, deny_port, list_bans, list_rules, unban_address,
 };
 
 use polygon_firewall::{BANS_TABLE, PolygonFirewall, RULES_TABLE};
@@ -140,7 +140,7 @@ fn ports_for(ssh_ports: &[u16]) -> RulesetPorts {
 /// One rule, built the way the service layer builds one.
 fn rule(port: u16, protocol: NftablesProtocol, source: &str) -> FirewallRule {
     FirewallRule {
-        port: Port::parse(u32::from(port)).expect("a valid port"),
+        ports: PortSpan::single(Port::parse(u32::from(port)).expect("a valid port")),
         protocol,
         source: SourceCidr::parse(source).expect("a valid source network"),
     }
@@ -250,7 +250,7 @@ fn the_ruleset_the_kernel_holds_after_an_apply_is_the_policy_the_plan_specifies(
     let recorded =
         list_rules(&ProcessFirewallHost::new(), &ports()).expect("the store must read back");
     assert_eq!(recorded.len(), 1);
-    assert_eq!(recorded[0].port.value(), REGRESSION_PORT);
+    assert_eq!(recorded[0].ports.lower().value(), REGRESSION_PORT);
 }
 
 #[test]
@@ -516,7 +516,7 @@ fn a_source_restricted_udp_allow_and_an_ipv6_allow_reach_the_kernel_as_written()
     assert!(
         recorded
             .iter()
-            .any(|held| held.port.value() == 443 && held.protocol == NftablesProtocol::Udp),
+            .any(|held| held.ports.lower().value() == 443 && held.protocol == NftablesProtocol::Udp),
         "the udp rule must survive the round trip through the file: {recorded:?}"
     );
     assert!(
@@ -835,7 +835,7 @@ fn every_ssh_port_keeps_its_own_fallback_and_a_rule_for_one_does_not_disturb_the
         1,
         "expected only the port 80 allow: {recorded:?}"
     );
-    assert_eq!(recorded[0].port.value(), 80);
+    assert_eq!(recorded[0].ports.lower().value(), 80);
 }
 
 /// The installer's include target, restored when the test ends however it ends.
@@ -1053,7 +1053,10 @@ fn the_installers_own_seeded_files_and_include_target_pass_nfts_check_and_load()
     //    agent could not parse would be a host whose first firewall change fails.
     let recorded = list_rules(&ProcessFirewallHost::new(), &ports_for(&[22, 2222]))
         .expect("the agent must read back the ruleset its own installer seeded");
-    let ports: Vec<u16> = recorded.iter().map(|rule| rule.port.value()).collect();
+    let ports: Vec<u16> = recorded
+        .iter()
+        .map(|rule| rule.ports.lower().value())
+        .collect();
     assert_eq!(
         ports,
         vec![80, 443],

@@ -144,6 +144,7 @@ public sealed class RestoreRunner
             outcome.FilesRestored,
             outcome.DatabasesRestored,
             outcome.DatabasesTotal,
+            Measured: true,
             whole ? null : Error.Of(nameof(ErrorMessages.RestorePartial), ErrorType.Failure));
     }
 
@@ -156,6 +157,6 @@ public sealed class RestoreRunner
     /// </returns>
     private static RestoreRunOutcome Failure(Error failure)
     {
-        return new RestoreRunOutcome(Whole: false, FilesRestored: false, 0, 0, failure);
+        return new RestoreRunOutcome(Whole: false, FilesRestored: false, 0, 0, Measured: false, failure);
     }
 }

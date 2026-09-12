@@ -162,8 +162,28 @@ backend/
 │   ├── Maran.Host/                  # composition only — no business logic
 │   │   ├── Program.cs                   # table of contents: Add* then Use*
 │   │   ├── GlobalUsings.cs
-│   │   ├── Modules/                     # ModuleRegistry.cs (explicit list — no assembly scanning),
-│   │   │                                 #   ModulesEndpoint.cs + ModuleDto.cs (GET /api/v1/modules)
+│   │   ├── Modules/                     # what only the composition root knows about the module set.
+│   │   │                                 #   ModuleRegistry.cs (explicit list — no assembly scanning),
+│   │   │                                 #   ModulesEndpoint.cs + ModuleDto.cs (GET /api/v1/modules),
+│   │   │                                 #   AgentCapabilityGuard.cs (refuses at composition time to
+│   │   │                                 #   load a module reaching past the agent capabilities its
+│   │   │                                 #   Manifest declares — one door to the only root process,
+│   │   │                                 #   so it is accounted for per module),
+│   │   │                                 #   ModuleAccountResidueAuditor.cs (asks every composed
+│   │   │                                 #   module what it still stores against a deleted account;
+│   │   │                                 #   it is here because a module may not reference another,
+│   │   │                                 #   so no module could ask), LicenceTierDisplayNames.cs
+│   │   │                                 #   (tier names are the backend's to produce, and the tier
+│   │   │                                 #   vocabulary belongs to no module). These three are the
+│   │   │                                 #   test for this folder: a type that needs to see ALL the
+│   │   │                                 #   modules at once, not one more module's worth of logic.
+│   │   ├── Resources/                   # the .resx tables the composition root itself owns, reached
+│   │   │                                 #   through IStringLocalizer<T> by an empty marker class per
+│   │   │                                 #   table: DisplayNames (names of things that are not
+│   │   │                                 #   failures — the licence tiers) and ErrorMessages (the
+│   │   │                                 #   host's own failures, reached by error code). Two tables
+│   │   │                                 #   and not one, so "which table does this key belong in"
+│   │   │                                 #   has an answer. Each ships en + .ru + .hy.
 │   │   ├── Configuration/               # one options class per file + its validation
 │   │   ├── Extensions/                  # EVERY *Extensions type: Add<Concern>/Use<Concern>,
 │   │   │                                #   including each middleware's Use… method
@@ -834,11 +854,21 @@ and `LockoutDuration()` is a rule about a locked account. Left in `Common/` it i
 panel's lockout policy is stated, which is exactly what `Domain/` exists to prevent. It moved.
 
 A near-empty `Domain/` beside a full `Common/` is **evidence to look, not proof of a mistake.**
-Several modules genuinely own no domain: `Cron`, `Files`, `Ftp`, `Backups`, `Provisioning` and
+Several modules genuinely own no domain: `Cron`, `Files`, `Backups`, `Provisioning` and
 `Licensing` hold no entity because the **agent** owns the state and the module only transports
 requests to it. Their `Common/` is legitimately all DTOs and translators. `Identity`, `Sites`,
-`Ssl`, `Firewall`, `Monitoring` and `Accounts` do own a domain, and those are the `Common/` folders
-to read twice.
+`Ssl`, `Firewall`, `Monitoring`, `Accounts` and `Ftp` do own a domain, and those are the `Common/`
+folders to read twice.
+
+`Ftp` moved across that line and is the worked example of the move, because the transport reading of
+it was true until the day it was not. It now owns `Domain/Entities/FtpsSettings.cs`, its own
+`FtpDbContext`, its own schema and the migration that creates it. What the row stores is an
+**intention** — what an administrator asked the host for — while what the daemon is actually doing is
+read back from the agent on every status call and never stored, which is the distinction that keeps a
+status screen from agreeing with the panel by construction. `Domain/Policies/FtpsDefaults.cs` is
+beside it because the port range and the connection ceiling have to be the same numbers the firewall
+was opened for: they are seeded into the row rather than read from the constants at every use, so a
+release that moves a default does not move a running host's range out from under it.
 
 > **Test 4, stated to be applied — and this is the sentence the first three rounds were missing:**
 > **inert means NO EFFECT, not merely no DI registration.** Test 2's measurement is a registration,

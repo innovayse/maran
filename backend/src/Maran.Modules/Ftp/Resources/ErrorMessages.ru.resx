@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="FtpsHostnameInvalidFormat">
+    <value>Это недопустимое имя хоста. Введите имя вида ftp.example.com.</value>
+  </data>
+  <data name="FtpsHostnameTooLong">
+    <value>Это имя хоста слишком длинное. Имя хоста может содержать не более 253 символов.</value>
+  </data>
+  <data name="FtpsPassiveAddressInvalid">
+    <value>Пассивный адрес должен быть адресом IPv4 в обычной записи, например 203.0.113.7 — не именем хоста, не адресом IPv6, для которого в ответе PASV нет формы, и без ведущих нулей. Оставьте поле пустым, если ваш сервер не находится за NAT.</value>
+  </data>
+  <data name="FtpsHostnameNotServed">
+    <value>На этой панели нет сайта с таким именем хоста. Сначала добавьте сайт, затем включите для него FTPS.</value>
+  </data>
+  <data name="FtpsCertificateMissing">
+    <value>FTPS не запустится, пока для этого имени хоста нет TLS-сертификата. Введённые вами данные верны: выпустите или установите сертификат в разделе SSL, затем снова включите FTPS.</value>
+  </data>
+  <data name="FtpUserNotFound">
+    <value>Пользователь FTPS не найден. Обновите страницу, чтобы увидеть имеющихся пользователей FTPS.</value>
+  </data>
+  <data name="FtpUserNameTaken">
+    <value>Это имя пользователя FTPS уже занято. Выберите другое.</value>
+  </data>
+  <data name="FtpUserLimitReached">
+    <value>Ваш тариф не позволяет создать больше пользователей FTPS. Удалите ненужного или перейдите на более крупный тариф.</value>
+  </data>
+  <data name="FtpUserLimitReachedConcurrently" xml:space="preserve">
+    <value>Лимит пользователей FTPS вашего тарифа был исчерпан другим запросом, сделанным в тот же момент, поэтому этот пользователь не создан и пароль не выдан. Введённые вами данные верны. Удалите ненужного пользователя FTPS или перейдите на более крупный тариф, затем повторите попытку.</value>
+  </data>
+  <data name="FtpUserNameTooLong">
+    <value>Это имя пользователя FTPS слишком длинное. К нему добавляется префикс вашего аккаунта, поэтому выберите более короткое.</value>
+  </data>
+  <data name="FtpUserNameInvalidFormat">
+    <value>Имя пользователя FTPS может содержать только строчные латинские буквы и цифры и не может быть пустым.</value>
+  </data>
+  <data name="FtpUserProvisioningFailed">
+    <value>Не удалось создать пользователя FTPS, пароль не выдан. Повторите попытку. Если имя окажется занято, обратитесь в поддержку: возможно, потребуется удалить оставшегося пользователя.</value>
+  </data>
+  <data name="AccountNotFound">
+    <value>Аккаунт не найден. Обновите страницу, чтобы увидеть текущее состояние.</value>
+  </data>
+</root>

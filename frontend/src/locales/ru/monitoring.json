@@ -17,10 +17,7 @@
       "load": "Средняя нагрузка, 1 мин"
     },
     "units": {
-      "percent": "%",
-      "gibibytes": "ГиБ",
-      "mebibytesPerSecond": "МиБ/с",
-      "load": "нагрузка"
+      "percent": "%"
     },
     "services": {
       "title": "Службы",

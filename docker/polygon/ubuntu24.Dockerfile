@@ -189,6 +189,13 @@ COPY installer/lib/87-firewall.sh /tmp/maran-installer/lib/87-firewall.sh
 COPY installer/uninstall.sh /tmp/maran-installer/uninstall.sh
 COPY installer/install.sh /tmp/maran-installer/install.sh
 COPY installer/nginx/maran.conf /tmp/maran-installer/nginx/maran.conf
+# The rotation policy for the PANEL'S OWN two nginx logs, which step 80 installs and which it
+# ABORTS BY NAME when the payload is missing. It is here because the assertions below run that
+# step for real: without this line step 80 refuses, every vhost assertion goes red for the wrong
+# reason, and the image build stops — which is the correct failure for a forgotten payload file,
+# and better than the alternative the step could have taken of skipping the policy quietly and
+# leaving the panel's access and error logs growing forever on a real host.
+COPY installer/logrotate/maran-panel /tmp/maran-installer/logrotate/maran-panel
 # `60-config.sh` is SOURCED: its SSH port detection is RUN against this image's
 # real sshd_config rather than described. That matters here more than anywhere
 # else, because these images ship the `Include /etc/ssh/sshd_config.d/*.conf`
@@ -206,7 +213,8 @@ COPY installer/panel.env.example /tmp/maran-installer/panel.env.example
 # build_api_socket_directory and assert_api_socket_directory, so the panel's trust boundary is
 # BUILT by this family's real systemd-tmpfiles and then stat'ed, rather than grepped for in a
 # unit file. The two greps that used to stand in for that passed while the directory came out
-# group-owned by panel on both families and nginx could not open the socket at all.
+# group-owned by the service account's own group on both families and nginx could not open
+# the socket at all.
 #
 # A check whose subject is not in the image does not skip, it fails with
 # `grep: ... No such file or directory` and then blames the unit. Every file that script reads or
@@ -218,10 +226,13 @@ COPY installer/lib/70-services.sh /tmp/maran-installer/lib/70-services.sh
 # Step 80 again — the earlier COPY was consumed by the `rm -rf /tmp/maran-installer` that ends
 # the include block above — and step 40 beside it. Both are RUN by the assert script, not read:
 # it drives the real step_nginx against this family's real nginx to prove that the vhost the
-# installer validates is the vhost nginx serves, and it takes the `panel` group step 80 needs
-# from step 40's own create_panel_user rather than making one of its own.
+# installer validates is the vhost nginx serves, and it takes the service group step 80 needs
+# from step 40's own create_service_user rather than making one of its own.
 COPY installer/lib/80-nginx.sh /tmp/maran-installer/lib/80-nginx.sh
 COPY installer/lib/40-user.sh /tmp/maran-installer/lib/40-user.sh
+# Step 15, the identity migration: assert_the_legacy_service_account_is_migrated_in_place
+# drives its rename functions against throwaway accounts and then looks at the uids.
+COPY installer/lib/15-identity.sh /tmp/maran-installer/lib/15-identity.sh
 # Step 50 beside them, for the same reason and RUN the same way: the assert script calls its
 # prepare_staging_dir directly. Step 50 as a whole downloads release artifacts over HTTPS and
 # this build spends no trust on that, but the directory that function builds is where an
@@ -229,6 +240,30 @@ COPY installer/lib/40-user.sh /tmp/maran-installer/lib/40-user.sh
 # maran-agent.service starts as root — so the directory is asserted here even though the
 # download is not.
 COPY installer/lib/50-artifacts.sh /tmp/maran-installer/lib/50-artifacts.sh
+# Step 90, the install's last message, RUN and never read: the assert script renders it at two
+# different panel ports and holds what it says about the certificate paths against step 80's own
+# variables. Until this COPY existed nothing could gate that message at all, so the two absolute
+# paths it tells an operator to put their own certificate at, and the port in the url it sends
+# them to, were literals no check could see drift in.
+COPY installer/lib/90-finish.sh /tmp/maran-installer/lib/90-finish.sh
+
+# Step 89 and what it needs, all four RUN or READ by the assert script and none of them
+# repeated by this image. The step is the FTPS installer step: it masks the distribution's
+# vsftpd.service, installs the package from its OWN `vsftpd_packages_for_family`, creates the
+# maran-ftps group, the jail base and the config directory, writes the PAM stack, and installs
+# Maran's unit and logrotate policy — all of which the assert script drives function by
+# function. So the vsftpd package arrives in this image through the installer's list and
+# through nothing else, and a package name that stops being right on this family stops this
+# build rather than a customer's install.
+#
+# 20-dependencies.sh is here because `install_vsftpd_package` calls its `pkg_install`; the
+# step refuses by name when it is undefined, which is what a forgotten COPY must look like.
+# The unit and the logrotate policy are the step's PAYLOAD: it resolves them against
+# $SCRIPT_DIR, which the assert script sets to /tmp/maran-installer.
+COPY installer/lib/89-ftps.sh /tmp/maran-installer/lib/89-ftps.sh
+COPY installer/lib/20-dependencies.sh /tmp/maran-installer/lib/20-dependencies.sh
+COPY installer/systemd/maran-ftps.service /tmp/maran-installer/systemd/maran-ftps.service
+COPY installer/logrotate/maran-ftps /tmp/maran-installer/logrotate/maran-ftps
 # A container has no init system, so the reload half of the config-write protocol
 # needs something to talk to. The stand-in explains itself and its limits.
 #
@@ -245,13 +280,58 @@ COPY installer/lib/50-artifacts.sh /tmp/maran-installer/lib/50-artifacts.sh
 # drift back into a check that cannot fail for the reason it names.
 COPY docker/polygon/systemctl-stand-in.sh /usr/bin/systemctl
 RUN chmod 755 /usr/bin/systemctl
+
+# The PAM development headers, and the agent's own copies of the three FTPS names. Both are for
+# assertions in docker/polygon/assert-installer-steps.sh, and both exist because a green gate over
+# an authentication bypass is worse than no gate.
+#
+# The headers: the assert script COMPILES docker/polygon/pam-witness.c and asks the real libpam
+# what /etc/pam.d/maran-ftps answers for a member, for a non-member holding a CORRECT password,
+# and for a non-member holding a wrong one. Grepping that file for its lines could not tell the
+# shipped stack from one with `auth sufficient pam_permit.so` prepended — same lines, every check
+# green, every account on the host admitted without a password. Only the library sees the
+# difference, and the library needs a program to call it. The witness is compiled IN the image,
+# like the agent itself, because the two families ship different libpam and different glibc.
+#
+# The five agent sources are READ, never compiled: the group name, the jail root, the PAM
+# service name and the transfer log path are each spelled on both sides of this feature, and
+# until these were copied in, each copy was asserted only against itself. If they drift, every FTPS login on every install
+# fails with every gate green — which is exactly what installer/lib/89-ftps.sh's comment used to
+# claim these images prevented.
+COPY docker/polygon/pam-witness.c /tmp/maran-polygon/pam-witness.c
+COPY agent/crates/distro/src/debian/debian_services.rs /tmp/maran-agent/crates/distro/src/debian/debian_services.rs
+COPY agent/crates/distro/src/rhel/rhel_services.rs /tmp/maran-agent/crates/distro/src/rhel/rhel_services.rs
+COPY agent/crates/agent-core/src/agent_paths.rs /tmp/maran-agent/crates/agent-core/src/agent_paths.rs
+COPY agent/crates/templates/templates/vsftpd/vsftpd.conf.j2 /tmp/maran-agent/crates/templates/templates/vsftpd/vsftpd.conf.j2
+COPY agent/crates/ops/src/ftps/enable_ftps.rs /tmp/maran-agent/crates/ops/src/ftps/enable_ftps.rs
+RUN apt-get update && apt-get install -y --no-install-recommends libpam0g-dev \
+    && rm -rf /var/lib/apt/lists/* \
+    && test -f /usr/include/security/pam_appl.h
+
+# The package index is dropped AFTER the assert script rather than before it, and that is a
+# fix rather than a tidy-up: the script installs vsftpd through step 89's own
+# `install_vsftpd_package`, and a package manager whose index has just been deleted cannot
+# resolve the name — the step would abort with "Unable to locate package vsftpd" and the family
+# would look like it had lost the package rather than the metadata.
+# The last two steps installer/install.sh runs that nothing else in this image needed. They are
+# here for assert_the_uninstaller_removes_every_drop_in_the_installer_creates, which derives its
+# step list from install.sh's own run_step lines and refuses — naming the COPY — when a step it
+# must read is not in the image. A census with an invisible member is the failure that check exists
+# for: 81-site-logs.sh is the step that installs /etc/logrotate.d/maran-sites, one of the three
+# rotation policies whose count is the whole subject.
+COPY installer/lib/30-postgresql.sh /tmp/maran-installer/lib/30-postgresql.sh
+COPY installer/lib/81-site-logs.sh /tmp/maran-installer/lib/81-site-logs.sh
+# 88-cron.sh is COPY'd again further down for the cron suite's own reasons; it is needed HERE,
+# before the assert script runs, because the census reads it too. The same duplication
+# 40-user.sh and 80-nginx.sh already carry, and for the same reason: a COPY is cheap, a step the
+# census cannot see is not.
+COPY installer/lib/88-cron.sh /tmp/maran-installer/lib/88-cron.sh
 COPY docker/polygon/assert-installer-steps.sh /tmp/maran-installer/assert-installer-steps.sh
 RUN bash -c 'set -euo pipefail; \
       export MARAN_OS_FAMILY=debian DEBIAN_FRONTEND=noninteractive; \
       . /tmp/maran-installer/lib/85-mysql.sh; \
       apt-get update; \
       apt-get install -y --no-install-recommends openssh-server openssh-client $(mysql_packages_for_family); \
-      rm -rf /var/lib/apt/lists/*; \
       getent passwd mysql >/dev/null || { echo "85-mysql.sh: mysql_packages_for_family produced no MariaDB SERVER package" >&2; exit 1; }; \
       install -d -o mysql -g mysql -m 0755 /run/mysqld; \
       ssh-keygen -A; \
@@ -259,6 +339,7 @@ RUN bash -c 'set -euo pipefail; \
       mariadbd-safe --skip-networking --skip-syslog & \
       for _ in $(seq 1 60); do mariadb-admin ping >/dev/null 2>&1 && break; sleep 1; done; \
       MARAN_OS_FAMILY=debian bash /tmp/maran-installer/assert-installer-steps.sh; \
+      rm -rf /var/lib/apt/lists/* /tmp/maran-agent /tmp/maran-polygon; \
       mariadb-admin shutdown'
 
 # The backup root, made by the installer's OWN step rather than by a literal
@@ -272,13 +353,25 @@ RUN bash -c 'set -euo pipefail; \
 # /var/backups/maran` being written out again, so the mode the suites measure
 # is the mode a real install produces; a second copy of the path or the mode in
 # this file is a copy that stops matching. The one thing put back afterwards is
-# /run/maran's mode: that function sets 0750 root:panel, and this image sets
-# 0755 on purpose for the php-pool suites (see the assert-script comment that
-# says so).
+# /run/maran's mode: that function sets 0750 root:<service group>, and this
+# image sets 0755 on purpose for the php-pool suites (see the assert-script
+# comment that says so).
+#
+# The account's name is not written here either: step 40 reads MARAN_USER,
+# MARAN_GROUP and MARAN_SERVICE_ACCOUNT_MARKER out of the environment, the way
+# install.sh gives them to it, and they are lifted from install.sh — the one
+# place that decides them — rather than spelled again in this file. A step file
+# that cannot see them aborts by name instead of expanding an empty string into
+# `install -o`.
 COPY installer/lib/40-user.sh /tmp/maran-installer/lib/40-user.sh
 RUN bash -c 'set -euo pipefail; \
+      MARAN_USER="$(sed -n "s/^MARAN_USER=//p" /tmp/maran-installer/install.sh)"; \
+      MARAN_GROUP="$(sed -n "s/^MARAN_GROUP=//p" /tmp/maran-installer/install.sh)"; \
+      MARAN_SERVICE_ACCOUNT_MARKER="$(sed -n "s/^MARAN_SERVICE_ACCOUNT_MARKER=//p" /tmp/maran-installer/install.sh | tr -d \"\\\"\")"; \
+      export MARAN_USER MARAN_GROUP MARAN_SERVICE_ACCOUNT_MARKER; \
+      test -n "$MARAN_USER" && test -n "$MARAN_GROUP" && test -n "$MARAN_SERVICE_ACCOUNT_MARKER"; \
       . /tmp/maran-installer/lib/40-user.sh; \
-      create_panel_user >/dev/null; \
+      create_service_user >/dev/null; \
       create_directory_layout; \
       chmod 0755 /run/maran; \
       test -d /var/backups/maran' \

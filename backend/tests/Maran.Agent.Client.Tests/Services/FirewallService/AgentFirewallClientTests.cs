@@ -60,8 +60,8 @@ public sealed class AgentFirewallClientTests
         var result = await Client(stub).ListRulesAsync(SshPorts, PanelPort, CancellationToken.None);
 
         Assert.True(result.IsSuccess);
-        Assert.Equal(new AgentFirewallRule(443, AgentFirewallProtocol.Tcp, AnySource), result.Value[0]);
-        Assert.Equal(new AgentFirewallRule(53, AgentFirewallProtocol.Udp, "10.0.0.0/8"), result.Value[1]);
+        Assert.Equal(new AgentFirewallRule(443, null, AgentFirewallProtocol.Tcp, AnySource), result.Value[0]);
+        Assert.Equal(new AgentFirewallRule(53, null, AgentFirewallProtocol.Udp, "10.0.0.0/8"), result.Value[1]);
     }
 
     /// <summary>A rule whose protocol this panel cannot name is refused rather than shown as tcp.</summary>
@@ -170,6 +170,7 @@ public sealed class AgentFirewallClientTests
 
         await Client(stub).AllowPortAsync(
             443,
+            null,
             AgentFirewallProtocol.Tcp,
             AnySource,
             SshPorts,
@@ -184,6 +185,150 @@ public sealed class AgentFirewallClientTests
         Assert.Equal(8443u, request.PanelPort);
     }
 
+    /// <summary>An allow over a range carries both bounds onto the wire.</summary>
+    [Fact]
+    public async Task An_allow_over_a_range_carries_both_bounds_onto_the_wire()
+    {
+        var stub = StubFirewallService.AcceptingAllow();
+
+        await Client(stub).AllowPortAsync(
+            30_000,
+            30_099,
+            AgentFirewallProtocol.Tcp,
+            AnySource,
+            SshPorts,
+            PanelPort,
+            CancellationToken.None);
+
+        var request = Assert.IsType<AllowPortRequest>(stub.LastAllowRequest);
+        Assert.Equal(30_000u, request.Port);
+        Assert.True(request.HasPortTo);
+        Assert.Equal(30_099u, request.PortTo);
+    }
+
+    /// <summary>An allow for a single port leaves the range field unset on the wire.</summary>
+    /// <remarks>
+    /// The compatibility claim in one assertion. The field is optional, so an unset one is ABSENT
+    /// rather than zero — which is what an older agent needs, and what makes the agent render the
+    /// byte-identical ruleset it rendered before ranges existed. Setting it to the port itself
+    /// would also "work" and would arrive as a range of one, which the agent refuses.
+    /// </remarks>
+    [Fact]
+    public async Task An_allow_for_a_single_port_leaves_the_range_field_unset_on_the_wire()
+    {
+        var stub = StubFirewallService.AcceptingAllow();
+
+        await Client(stub).AllowPortAsync(
+            443,
+            null,
+            AgentFirewallProtocol.Tcp,
+            AnySource,
+            SshPorts,
+            PanelPort,
+            CancellationToken.None);
+
+        Assert.False(Assert.IsType<AllowPortRequest>(stub.LastAllowRequest).HasPortTo);
+    }
+
+    /// <summary>A range that does not end above where it starts is refused here and never sent.</summary>
+    [Theory]
+    [InlineData(30_000)]
+    [InlineData(29_999)]
+    [InlineData(0)]
+    [InlineData(70_000)]
+    public async Task A_range_that_does_not_end_above_where_it_starts_is_refused_here_and_never_sent(int portTo)
+    {
+        var stub = StubFirewallService.AcceptingAllow();
+
+        var result = await Client(stub).AllowPortAsync(
+            30_000,
+            portTo,
+            AgentFirewallProtocol.Tcp,
+            AnySource,
+            SshPorts,
+            PanelPort,
+            CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("AgentInvalidInput", result.Error!.Code);
+        Assert.Null(stub.LastAllowRequest);
+    }
+
+    /// <summary>A deny over a range carries both bounds onto the wire.</summary>
+    [Fact]
+    public async Task A_deny_over_a_range_carries_both_bounds_onto_the_wire()
+    {
+        var stub = StubFirewallService.AcceptingDeny();
+
+        await Client(stub).DenyPortAsync(
+            30_000,
+            30_099,
+            AgentFirewallProtocol.Tcp,
+            AnySource,
+            SshPorts,
+            PanelPort,
+            CancellationToken.None);
+
+        var request = Assert.IsType<DenyPortRequest>(stub.LastDenyRequest);
+        Assert.Equal(30_000u, request.Port);
+        Assert.True(request.HasPortTo);
+        Assert.Equal(30_099u, request.PortTo);
+    }
+
+    /// <summary>A listing reports a range with both of its bounds, and a single port with none.</summary>
+    /// <remarks>
+    /// The other direction of the compatibility claim: an older agent has no such field to write,
+    /// so its rules arrive with it ABSENT — and absent has to mean "the single port", never a bound
+    /// of zero, which is what a defaulted read would produce.
+    /// </remarks>
+    [Fact]
+    public async Task A_listing_reports_a_range_with_both_bounds_and_a_single_port_with_none()
+    {
+        var ranged = new FirewallRule { Port = 30_000, Protocol = Protocol.Tcp, SourceCidr = AnySource };
+        ranged.PortTo = 30_099;
+        var stub = new StubFirewallService
+        {
+            ListRulesResponse = new ListRulesResponse
+            {
+                Ok = new ListRulesOk
+                {
+                    Rules =
+                    {
+                        ranged,
+                        new FirewallRule { Port = 443, Protocol = Protocol.Tcp, SourceCidr = AnySource },
+                    },
+                },
+            },
+        };
+
+        var result = await Client(stub).ListRulesAsync(SshPorts, PanelPort, CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(30_099, result.Value[0].PortTo);
+        Assert.Null(result.Value[1].PortTo);
+    }
+
+    /// <summary>A listed rule whose upper bound is not above its port is refused with the rest.</summary>
+    /// <remarks>
+    /// Such a row cannot be denied: the panel would have to send the pair back, and the agent
+    /// refuses it. Showing it would offer an administrator a button that cannot work.
+    /// </remarks>
+    [Fact]
+    public async Task A_listed_rule_whose_upper_bound_is_not_above_its_port_is_refused()
+    {
+        var broken = new FirewallRule { Port = 30_000, Protocol = Protocol.Tcp, SourceCidr = AnySource };
+        broken.PortTo = 29_999;
+        var stub = new StubFirewallService
+        {
+            ListRulesResponse = new ListRulesResponse { Ok = new ListRulesOk { Rules = { broken } } },
+        };
+
+        var result = await Client(stub).ListRulesAsync(SshPorts, PanelPort, CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("AgentInvalidResponse", result.Error!.Code);
+    }
+
     /// <summary>A udp allow reaches the wire as udp.</summary>
     [Fact]
     public async Task A_udp_allow_reaches_the_wire_as_udp()
@@ -192,6 +337,7 @@ public sealed class AgentFirewallClientTests
 
         await Client(stub).AllowPortAsync(
             53,
+            null,
             AgentFirewallProtocol.Udp,
             AnySource,
             SshPorts,
@@ -216,6 +362,7 @@ public sealed class AgentFirewallClientTests
 
         var result = await Client(stub).AllowPortAsync(
             443,
+            null,
             AgentFirewallProtocol.Tcp,
             AnySource,
             [],
@@ -240,6 +387,7 @@ public sealed class AgentFirewallClientTests
 
         await new AgentFirewallClient(StubFirewallService.AcceptingAllow(), logger).AllowPortAsync(
             443,
+            null,
             AgentFirewallProtocol.Tcp,
             AnySource,
             [],
@@ -264,6 +412,7 @@ public sealed class AgentFirewallClientTests
 
         var result = await Client(stub).AllowPortAsync(
             443,
+            null,
             AgentFirewallProtocol.Tcp,
             AnySource,
             SshPorts,
@@ -283,6 +432,7 @@ public sealed class AgentFirewallClientTests
 
         var result = await Client(stub).AllowPortAsync(
             443,
+            null,
             AgentFirewallProtocol.Tcp,
             AnySource,
             [22, 70_000],
@@ -311,6 +461,7 @@ public sealed class AgentFirewallClientTests
 
         var result = await Client(stub).AllowPortAsync(
             port,
+            null,
             AgentFirewallProtocol.Tcp,
             AnySource,
             SshPorts,
@@ -336,6 +487,7 @@ public sealed class AgentFirewallClientTests
     {
         var brokenHostFact = await Client(StubFirewallService.AcceptingAllow()).AllowPortAsync(
             443,
+            null,
             AgentFirewallProtocol.Tcp,
             AnySource,
             [],
@@ -343,6 +495,7 @@ public sealed class AgentFirewallClientTests
             CancellationToken.None);
         var badRulePort = await Client(StubFirewallService.AcceptingAllow()).AllowPortAsync(
             0,
+            null,
             AgentFirewallProtocol.Tcp,
             AnySource,
             SshPorts,
@@ -397,6 +550,7 @@ public sealed class AgentFirewallClientTests
 
         var result = await new AgentFirewallClient(stub, logger).AllowPortAsync(
             443,
+            null,
             AgentFirewallProtocol.Tcp,
             AnySource,
             SshPorts,
@@ -417,6 +571,7 @@ public sealed class AgentFirewallClientTests
 
         await Client(stub).DenyPortAsync(
             3306,
+            null,
             AgentFirewallProtocol.Tcp,
             "10.0.0.0/8",
             SshPorts,
@@ -444,6 +599,7 @@ public sealed class AgentFirewallClientTests
 
         var result = await Client(stub).DenyPortAsync(
             3306,
+            null,
             AgentFirewallProtocol.Tcp,
             AnySource,
             [],
@@ -463,6 +619,7 @@ public sealed class AgentFirewallClientTests
 
         var result = await Client(stub).DenyPortAsync(
             3306,
+            null,
             AgentFirewallProtocol.Tcp,
             AnySource,
             SshPorts,
@@ -736,6 +893,7 @@ public sealed class AgentFirewallClientTests
     {
         return await Client(stub).AllowPortAsync(
             443,
+            null,
             AgentFirewallProtocol.Tcp,
             AnySource,
             SshPorts,
@@ -750,6 +908,7 @@ public sealed class AgentFirewallClientTests
     {
         return await Client(stub).DenyPortAsync(
             3306,
+            null,
             AgentFirewallProtocol.Tcp,
             AnySource,
             SshPorts,

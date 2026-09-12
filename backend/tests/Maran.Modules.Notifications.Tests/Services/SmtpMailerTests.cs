@@ -42,6 +42,16 @@ public sealed class SmtpMailerTests
     /// <summary>The code the mailer reports when the mail server refused or could not be reached.</summary>
     private const string MailDeliveryFailedCode = "MailDeliveryFailed";
 
+    /// <summary>How long the far end of the socket is given to finish with a connection.</summary>
+    /// <remarks>
+    /// Not a timeout the assertions wait out — the wait it bounds returns as soon as the server's
+    /// accept loop is done, which on loopback is immediately. It is the ceiling at which a server
+    /// that never finishes fails this test by name instead of hanging the suite, so it is generous
+    /// on purpose: a short one would turn machine load into a red test, which is the failure this
+    /// seam exists to remove.
+    /// </remarks>
+    private static readonly TimeSpan ServerSettles = TimeSpan.FromSeconds(30);
+
     /// <summary>The instant the seeded settings row records as its save time.</summary>
     private static readonly DateTimeOffset Saved = new(2026, 9, 3, 12, 0, 0, TimeSpan.Zero);
 
@@ -61,10 +71,20 @@ public sealed class SmtpMailerTests
 
     /// <summary>Each stored security mode reaches the wire as the connection it names.</summary>
     /// <remarks>
+    /// <para>
     /// The mutation this exists for: changing <c>ToSocketOptions</c>' discard arm to
     /// <c>SecureSocketOptions.None</c>. STARTTLS then completes a plaintext transaction against a
     /// server that never offered the extension, and the delivered assertion for
     /// <see cref="SmtpSecurity.StartTls"/> goes red.
+    /// </para>
+    /// <para>
+    /// The assertions are read only after the server has finished with the connection. Three of the
+    /// four are ordered by the protocol anyway — the client cannot see the reply to <c>EHLO</c> or
+    /// the <c>250</c> after <c>DATA</c> until the server has already recorded them — but a
+    /// <c>ClientHello</c> is answered with nothing, so the TLS flag is ordered against the client's
+    /// failure by no reply at all. Reading it on return from the send was reading it at an arbitrary
+    /// moment, and it was measured too early on 26 of 300 sends.
+    /// </para>
     /// </remarks>
     /// <param name="security">The mode stored in the panel's settings.</param>
     [Theory]
@@ -79,6 +99,10 @@ public sealed class SmtpMailerTests
         var mailer = new SmtpMailer(scopes.Settings, NullLogger<SmtpMailer>.Instance);
 
         var result = await mailer.SendAsync("ops@example.com", "Subject", "Body", CancellationToken.None);
+
+        Assert.True(
+            await server.ConversationEndedWithinAsync(ServerSettles),
+            "The server never finished with the connection, so nothing it recorded can be read yet.");
 
         var expected = ExpectedFor(security);
         Assert.Equal(expected.Delivered, result.IsSuccess);

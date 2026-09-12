@@ -5,7 +5,7 @@ Spec: `docs/superpowers/specs/2026-08-29-maran-design.md`.
 
 ## System boundaries
 
-- The system is exactly three processes: `maran-api` (C#, runs as user `panel`), `maran-agent` (Rust, the ONLY root process), PostgreSQL (unix socket only). **MUST NOT** add daemons, brokers, or sidecars.
+- The system is exactly three processes: `maran-api` (C#, runs as the unprivileged system user `maran`), `maran-agent` (Rust, the ONLY root process), PostgreSQL (unix socket only). **MUST NOT** add daemons, brokers, or sidecars.
 - Only `maran-api` talks to PostgreSQL. The agent **MUST** stay stateless: no DB, no config files of its own beyond what the installer writes.
 - Only `maran-agent` mutates the system (users, configs, services). The API **MUST NOT** shell out, write system configs, or require root — ever.
 - API ↔ agent traffic goes through the gRPC contract in `proto/agent/v1/` and nothing else.
@@ -38,7 +38,7 @@ Spec: `docs/superpowers/specs/2026-08-29-maran-design.md`.
 - Every command is idempotent: repeating it converges to the same state and reports `AlreadyExists`/`NotFound` instead of failing.
 - Every input is re-validated inside the agent (names against allow-list regexes, paths canonicalized and required to stay under `/home/<account>/`) even though the API validated already.
 - File operations on customer data run under the account's UID (fork + setuid), never as root.
-- Config writes follow: render template → temp file → validate (`nginx -t` etc.) → atomic rename → reload → typed error + rollback on failure.
+- Config writes follow: render template → temp file beside the target → `fsync` file and directory → **atomic rename → validate** (`nginx -t` etc.) → reload → typed error + rollback on failure. The rename comes BEFORE the validation on purpose: the validating tool reads the config tree by path, and a `.tmpXXXXXX` file matches no `include` glob, so validating first parses the OLD tree and proves nothing about the new content. It is recoverable because nothing re-reads the file until the reload — a refusal restores the previous bytes — but the window is real: a kill between the rename and the validation leaves unvalidated content live with the in-memory rollback guard gone. Full statement and its consequences: rules/rust.md "Config writes: render → swap → validate". An earlier version of this bullet had the two steps the other way round.
 - Distro differences live only in the `distro` crate behind the `DistroAdapter` trait. `ops` code **MUST NOT** branch on distro names.
 - The agent never loads external/paid code. New operations ship compiled into the open agent and stay inert until a C# module drives them.
 

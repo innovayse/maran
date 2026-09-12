@@ -52,6 +52,7 @@
     <ProjectReference Include="..\Maran.Modules\Ssl\Maran.Modules.Ssl.csproj" />
     <ProjectReference Include="..\Maran.Modules\Databases\Maran.Modules.Databases.csproj" />
     <ProjectReference Include="..\Maran.Modules\Sftp\Maran.Modules.Sftp.csproj" />
+    <ProjectReference Include="..\Maran.Modules\Ftp\Maran.Modules.Ftp.csproj" />
     <ProjectReference Include="..\Maran.Modules\Cron\Maran.Modules.Cron.csproj" />
     <ProjectReference Include="..\Maran.Modules\Firewall\Maran.Modules.Firewall.csproj" />
     <ProjectReference Include="..\Maran.Modules\Tasks\Maran.Modules.Tasks.csproj" />
@@ -73,6 +74,20 @@
       <Generator></Generator>
     </EmbeddedResource>
     <EmbeddedResource Update="Resources\ErrorMessages.hy.resx">
+      <Generator></Generator>
+    </EmbeddedResource>
+    <!-- DisplayNames carries the names of the vocabulary the composition root owns rather than any
+         module: one entry per Maran.Sdk.Contracts.LicenceTier member, resolved by
+         LicenceTierDisplayNames for the module catalogue. A separate file from ErrorMessages
+         because a tier is not a failure, and one file per purpose (rules/csharp.md). Reached
+         through IStringLocalizer<DisplayNames>, so no designer accessor is generated. -->
+    <EmbeddedResource Update="Resources\DisplayNames.resx">
+      <Generator></Generator>
+    </EmbeddedResource>
+    <EmbeddedResource Update="Resources\DisplayNames.ru.resx">
+      <Generator></Generator>
+    </EmbeddedResource>
+    <EmbeddedResource Update="Resources\DisplayNames.hy.resx">
       <Generator></Generator>
     </EmbeddedResource>
   </ItemGroup>

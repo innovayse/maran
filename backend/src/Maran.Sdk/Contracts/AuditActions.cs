@@ -58,7 +58,8 @@ public static class AuditActions
 
     /// <summary>
     /// An account was deleted, and with it its system user, its home directory, every database it
-    /// owned and every SFTP login it owned. The most destructive operation the panel offers and the
+    /// owned and every file-transfer login it owned, of either daemon. The most destructive
+    /// operation the panel offers and the
     /// one nothing else leaves a trace of: after it, the account name is all that is left to search
     /// for. Recorded on the refusals too — a deletion that got part-way through the cascade and then
     /// failed is journalled as the failure it was.
@@ -279,9 +280,9 @@ public static class AuditActions
     /// <summary>
     /// A backup of an account was taken. Recorded on the failures too, and that half is the half
     /// that matters: a backup nobody noticed had stopped working is discovered on the day it is
-    /// needed. The subject is the backup's identifier and never a path — an entry naming where an
-    /// archive of a customer's database sits would be a permanent, searchable index of exactly that
-    /// (rules/security.md item 8).
+    /// needed. The subject is the account's name — what the backup acts on, as an operator would
+    /// search for it — and never a path: an entry naming where an archive of a customer's database
+    /// sits would be a permanent, searchable index of exactly that (rules/security.md item 8).
     /// </summary>
     public const string BackupCreated = "BackupCreated";
 

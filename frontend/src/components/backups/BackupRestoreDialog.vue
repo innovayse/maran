@@ -202,6 +202,35 @@ watch(
       <UiAlert variant="error">{{ store.restoreErrorMessage }}</UiAlert>
       <UiSectionHeading :title="t('backups.restore.changedTitle')" />
       <p>{{ t('backups.restore.changedBody') }}</p>
+      <!-- The counts, only when the server measured them. Absent on a truncated stream and from an
+           older panel, and the copy claims no more than the counts carry: how many were replaced
+           WHEN IT STOPPED, on the server's own statement — not which ones, and not that those are
+           now consistent. A restore with no databases in scope shows no databases line rather than
+           an empty "0 of 0". -->
+      <template v-if="store.restorePartial !== null">
+        <p class="text-sm">{{ t('backups.restore.changedCountsIntro') }}</p>
+        <UiDescriptionList>
+          <UiDescriptionItem :term="t('backups.restore.changedFiles')">
+            {{
+              store.restorePartial.filesRestored
+                ? t('backups.restore.changedFilesReplaced')
+                : t('backups.restore.changedFilesNotReplaced')
+            }}
+          </UiDescriptionItem>
+          <UiDescriptionItem
+            v-if="store.restorePartial.databasesTotal > 0"
+            :term="t('backups.restore.changedDatabases')"
+            mono
+          >
+            {{
+              t('backups.restore.changedDatabasesValue', {
+                restored: store.restorePartial.databasesRestored,
+                total: store.restorePartial.databasesTotal,
+              })
+            }}
+          </UiDescriptionItem>
+        </UiDescriptionList>
+      </template>
       <p class="font-medium text-text-primary">{{ t('backups.restore.changedNoRetry') }}</p>
       <p class="text-sm">{{ t('backups.restore.changedNoList') }}</p>
     </div>

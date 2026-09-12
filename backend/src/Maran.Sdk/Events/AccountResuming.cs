@@ -27,7 +27,8 @@ namespace Maran.Sdk.Events;
 /// customer choice, so resumption may only restore state suspension is known to have changed.
 /// </para>
 /// <para>
-/// <b>Where the reversal needs no selectivity.</b> Cron and the SFTP logins, both restored whole.
+/// <b>Where the reversal needs no selectivity.</b> Cron and the file-transfer logins of both
+/// daemons, all restored whole.
 /// Suspension overwrote no customer state in either: cron's marker is orthogonal to the per-entry
 /// <c>enabled</c> flag, so a job the customer had switched off comes back switched off; and locking
 /// a login prefixed its stored hash rather than replacing it, so unlocking gives back the very

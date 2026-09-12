@@ -1,6 +1,18 @@
 //! Failures of the account operations.
 
+use maran_agent_core::command_outcome::CommandOutcome;
 use maran_agent_core::validation::system::name_error::NameError;
+
+/// The most characters of a refusing tool's standard error the agent writes to
+/// its own log.
+///
+/// Bounded rather than whole, because the length of what a spawned program
+/// prints is not a number this agent chose. Characters and not bytes, so the
+/// truncation cannot fall inside a UTF-8 sequence. The tools of this area print
+/// one short sentence, so the ceiling is never reached in practice — it exists
+/// so that the one that someday does not cannot put an unbounded string into a
+/// log line.
+const LOGGED_STDERR_CHARACTERS: usize = 512;
 
 /// What can go wrong while managing an account's operating-system identity.
 #[derive(Debug, thiserror::Error)]
@@ -28,19 +40,60 @@ pub enum AccountError {
         username: String,
     },
 
+    /// Another operation for this account is already running on this host.
+    ///
+    /// The per-account lock (`crate::accounts::account_lock`) is taken without
+    /// waiting, so an operation that would overlap a backup, a restore, an SFTP
+    /// login creation or another deletion of the SAME account is refused rather
+    /// than queued. Refusing is the design and not a limitation: a deletion that
+    /// waited would hold an RPC open for the length of a twenty-gigabyte
+    /// restore, and the panel retries.
+    ///
+    /// Carries no field a tool's output could go in, for the reason
+    /// [`AccountError::CommandFailed`] carries none.
+    #[error("another operation is already running for account '{username}'")]
+    Busy {
+        /// The account both operations name.
+        username: String,
+    },
+
     /// A system command exited non-zero.
     ///
-    /// Carries the program and its stderr because an operator reading the agent's
-    /// log needs to know which tool refused and why; the text never reaches a
-    /// customer (rules/security.md item 8).
-    #[error("{program} failed with status {status}: {stderr}")]
+    /// **Carries the program and its exit status, and no field a message can go
+    /// in.** That is the point rather than an accident, and it is the shape
+    /// [`crate::db::DbError`] was given for the same reason: this is the one
+    /// `ops` area besides the database area whose tools are handed, or hand
+    /// back, credential material — `getent shadow <account>` answers with the
+    /// account's password hash, and `passwd -S` reports on the login's
+    /// credential state. A shape that cannot carry a string cannot carry what
+    /// such a tool printed, whichever stream it printed it on
+    /// (rules/security.md item 8).
+    ///
+    /// The areas whose errors DO carry tool output — `sites` (`nginx -t`) and
+    /// `firewall` (`nft`) — are not inconsistent with this. Their tools are
+    /// never handed a credential and never read one, and their output is what
+    /// an operator has to act on. The criterion is per area and is stated so
+    /// the next area can be placed on the right side of it, rather than being
+    /// left to whichever of the two shapes a new file was copied from.
+    ///
+    /// This variant used to carry the tool's trimmed standard error, which
+    /// `services/accounts/account_status.rs` copied onto the wire in
+    /// `tool_output` and which this `Display` put in `message` besides. No tool
+    /// this area runs writes a credential to standard error today, so nothing
+    /// leaked; the shape was one added spawn away from being able to.
+    ///
+    /// What an operator loses is the tool's own sentence, and what replaces it
+    /// is `AccountError::command_failed` (crate-private) writing that sentence
+    /// once to the agent's
+    /// `tracing` output. The agent is root and its log is root's; the wire error
+    /// is the panel's. The split puts the tool's words on the side that already
+    /// has root.
+    #[error("{program} failed with status {status}")]
     CommandFailed {
         /// The program that was run.
         program: String,
         /// Its exit status.
         status: i32,
-        /// Its standard error, trimmed.
-        stderr: String,
     },
 
     /// A system command could not be run at all — usually because it is not installed.
@@ -143,6 +196,72 @@ pub enum AccountError {
         /// What the SFTP area refused with.
         reason: String,
     },
+
+    /// The account's FTPS logins, jail or bind mount could not be taken away,
+    /// so the account has NOT been deleted.
+    ///
+    /// Its own variant beside [`Self::SftpRemoval`] rather than folded into it,
+    /// and the two are not interchangeable to whoever reads one. They name two
+    /// different daemons, two different jail roots under `/var/lib`, two
+    /// different mount units and two different groups; an operator told "the
+    /// sftp teardown refused" while a vsftpd jail is the thing still mounted
+    /// looks under the wrong path and finds nothing wrong there.
+    ///
+    /// The mount is the sharpest half, exactly as it is for SFTP. A bind mount
+    /// that survives the deletion is a mount of a home `userdel` is about to
+    /// remove, into a jail nothing owns any more; the uninstaller refuses to
+    /// remove the agent's state directories while any mount is left under them,
+    /// and a re-created account of the same name would land in the old jail
+    /// rather than a fresh one. An FTPS login that survives is worse still: it
+    /// is a `--non-unique` passwd entry carrying the freed uid, in the group the
+    /// FTPS PAM stack authorises, and `userdel` on the account does not touch
+    /// it.
+    #[error("the account's ftps logins could not be removed: {reason}")]
+    FtpsRemoval {
+        /// What the FTPS area refused with.
+        reason: String,
+    },
+}
+
+impl AccountError {
+    /// Builds a [`Self::CommandFailed`] and writes the tool's own words to the
+    /// agent's log on the way past.
+    ///
+    /// **The one place a refusing tool's standard error is read in this area**,
+    /// and the reason it is a constructor rather than four `AccountError::…{}`
+    /// literals: the value is being dropped here, so this is its last chance to
+    /// be recorded, and a caller that built the variant by hand would drop it
+    /// silently. One function also means one grep for "where does a tool's
+    /// output go in the account area?".
+    ///
+    /// Logged once, at the point the value ceases to exist, which is the only
+    /// boundary available to it (rules/rust.md "Logging": an error is logged
+    /// once, at the boundary that handles it). It carries the program, the
+    /// status and the trimmed, bounded stderr — no account name, because the
+    /// caller's own span already carries the command and its correlation id,
+    /// and no captured standard output, which in this area is a shadow entry.
+    #[must_use]
+    pub(crate) fn command_failed(program: &str, outcome: &CommandOutcome) -> Self {
+        let stderr: String = outcome
+            .stderr
+            .trim()
+            .chars()
+            .take(LOGGED_STDERR_CHARACTERS)
+            .collect();
+        if !stderr.is_empty() {
+            tracing::warn!(
+                program = program,
+                status = outcome.status,
+                stderr = stderr.as_str(),
+                "a system tool refused an account operation"
+            );
+        }
+
+        Self::CommandFailed {
+            program: program.to_owned(),
+            status: outcome.status,
+        }
+    }
 }
 
 impl From<crate::php::PhpOpError> for AccountError {
@@ -181,6 +300,21 @@ impl From<crate::sftp::SftpError> for AccountError {
     /// it, flattened for the same reason the two conversions above are.
     fn from(error: crate::sftp::SftpError) -> Self {
         Self::SftpRemoval {
+            reason: error.to_string(),
+        }
+    }
+}
+
+impl From<crate::ftps::FtpsError> for AccountError {
+    /// Reports an FTPS resource the account still owns as a refusal to delete
+    /// it, flattened for the same reason the three conversions above are.
+    ///
+    /// Written as its own `From` rather than reusing the SFTP one, so `?` in the
+    /// deletion cascade cannot silently label an FTPS refusal as an SFTP one:
+    /// the two areas have distinct error types, and the compiler picks the
+    /// conversion by the type it is given.
+    fn from(error: crate::ftps::FtpsError) -> Self {
+        Self::FtpsRemoval {
             reason: error.to_string(),
         }
     }

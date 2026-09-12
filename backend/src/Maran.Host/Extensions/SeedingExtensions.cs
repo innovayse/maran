@@ -24,6 +24,11 @@ public static class SeedingExtensions
         services.AddHostedService<FirewallWhitelistSeedingStartupTask>();
         services.AddHostedService<BackupDestinationSeedingStartupTask>();
 
+        // Not reference data: it records the first instant this panel ran with the installer's
+        // one-time setup token configured, which is what that token's expiry is counted from. It is
+        // here rather than in the module because only the composition root may add a hosted service.
+        services.AddHostedService<SetupTokenWindowStartupTask>();
+
         return services;
     }
 }

@@ -53,7 +53,10 @@ public sealed class DeleteBackupCommandHandlerTests
 
         var entry = Assert.Single(world.Audit.Entries);
         Assert.Equal(AuditActions.BackupDeleted, entry.Action);
-        Assert.Equal(row.Id.ToString(), entry.Subject);
+
+        // The account, not the backup id: the subject is what an operator will search the journal
+        // for once the archive is gone.
+        Assert.Equal(Username, entry.Subject);
         Assert.True(entry.Succeeded);
     }
 
@@ -94,6 +97,41 @@ public sealed class DeleteBackupCommandHandlerTests
 
         // The row survives: deleting it here would leave a customer's archive on the destination
         // with nothing naming it.
+        Assert.Single(await world.Read().Backups.IgnoreQueryFilters().ToListAsync());
+        Assert.False(Assert.Single(world.Audit.Entries).Succeeded);
+    }
+
+    /// <summary>The agent's busy refusal is named as the account's operation still running.</summary>
+    /// <remarks>
+    /// The agent's per-account lock answers a deletion issued while a backup or restore of that
+    /// account is running with <c>BackupError::AlreadyRunning</c>, which reaches the panel as the
+    /// wire's already-exists — the same code the agent uses for the idempotent outcome of a repeated
+    /// CREATION, whose shared sentence tells the customer nothing was created again. A customer told
+    /// that about a deletion believes the archive is gone and never retries, so the code is renamed
+    /// here. It is separable because the agent produces already-exists from exactly one place, the
+    /// creation path, which a deletion cannot reach.
+    ///
+    /// The row must survive, and it is asserted here rather than left to
+    /// <see cref="Any_other_agent_refusal_keeps_the_row"/>: a rename that also took the wrong branch
+    /// would delete the panel's only record of an archive that is still on the destination.
+    /// </remarks>
+    [Fact]
+    public async Task An_agent_already_exists_is_named_as_the_accounts_operation_still_running()
+    {
+        var accountId = Guid.NewGuid();
+        var row = BackupsTestContext.CompletedRow(accountId);
+        var world = await World.SeededAsync(
+            accountId,
+            row,
+            accountId,
+            Result<bool>.Fail(Error.Of("AgentAlreadyExists", ErrorType.Conflict)));
+
+        var result = await world.Handler.HandleAsync(Command(row.Id), CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("AccountBackupOperationRunning", result.Error!.Code);
+        Assert.Equal(ErrorType.Conflict, result.Error.Type);
+
         Assert.Single(await world.Read().Backups.IgnoreQueryFilters().ToListAsync());
         Assert.False(Assert.Single(world.Audit.Entries).Succeeded);
     }

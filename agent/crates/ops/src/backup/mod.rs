@@ -82,9 +82,6 @@ mod backup_host;
 // instead of after. `executable_lookup`/`real_executable_lookup` are the
 // injectable filesystem seam it is checked through.
 mod executable_lookup;
-// Private: the per-account lock. Nothing outside this area starts an operation,
-// so nothing outside it has a reason to take one.
-mod backup_lock;
 // Private: the inode check that stands between a validated configuration string
 // and a directory somebody chmodded since. Its only callers are this area's
 // operations, which is the point — it is not an inspection a caller may skip.
@@ -103,13 +100,27 @@ mod process_backup_host;
 // the file and checking its version on its own.
 mod read_sidecar;
 mod real_executable_lookup;
+// Private: the selective startup cleanup of the bulk scratch. It exists because
+// the unit's `ExecStartPre=-/bin/rm -rf` used to delete the rollback dumps —
+// the only copy of a killed restore's pre-restore database state — on the very
+// restart an operator performs to recover. Its only caller is
+// `recover_restores`, and the ordering that makes it safe is that caller's.
+mod reap_backup_scratch;
+// Public: the startup reconciliation. The daemon runs this BEFORE it binds the
+// socket, which is what makes a restore killed between its two renames a state
+// the host comes back from instead of a home nothing puts back.
 #[cfg(test)]
 #[path = "../tests/backup/recording_backup_host.rs"]
 pub(crate) mod recording_backup_host;
+mod recover_restores;
 // Private: the pre-flight refusal. The scratch filesystem is asked whether it
 // can take what is about to be written, before it is written.
 mod require_scratch_room;
 mod restore_backup;
+// Private: the marker one restore writes before it moves a home, and the only
+// thing that lets a later process say WHOSE swap was interrupted as a fact
+// rather than by parsing a directory's name.
+mod restore_marker_file;
 mod root_only_chain;
 mod s3_object_store_host;
 // Private: the live per-dump ceiling, derived from the same measurement.
@@ -137,13 +148,16 @@ pub use model::progress_sink::ProgressSink;
 pub use model::public_read_verdict::PublicReadVerdict;
 pub use model::readable_backup::ReadableBackup;
 pub use model::restore_outcome::RestoreOutcome;
+pub use model::restore_recovery::RestoreRecovery;
 pub use model::restore_sink::RestoreSink;
 pub use model::restore_stage::RestoreStage;
+pub use model::swap_state::SwapState;
 pub use model::unreadable_reason::UnreadableReason;
 pub use object_key::object_key;
 pub use object_store_host::ObjectStoreHost;
 pub use process_backup_host::ProcessBackupHost;
 pub use real_executable_lookup::RealExecutableLookup;
+pub use recover_restores::recover_restores;
 pub use restore_backup::restore_backup;
 pub use s3_object_store_host::S3ObjectStoreHost;
 pub use verify_backup_binaries::verify_backup_binaries;

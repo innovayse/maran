@@ -1,4 +1,5 @@
 using Maran.Modules.Sftp.Common;
+using Maran.Modules.Sftp.Domain.Policies;
 using Maran.Modules.Sftp.Persistence;
 using Maran.Modules.Sftp.Resources;
 
@@ -49,6 +50,7 @@ public sealed class GetSftpUserQueryHandler
             sftpUser.AccountId,
             sftpUser.Name,
             sftpUser.FullName,
+            SftpProtocolName.Sftp,
             sftpUser.CreatedAt));
     }
 }

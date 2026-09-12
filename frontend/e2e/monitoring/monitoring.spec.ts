@@ -27,11 +27,13 @@ const WEEK_BUCKETS: MetricBucket[] = [stubbedBucket(0, 91.5), stubbedBucket(1, 9
 const BUCKETS: Record<ChartRange, MetricBucket[]> = { lastDay: DAY_BUCKETS, lastWeek: WEEK_BUCKETS }
 
 // Three rows, one per state the agent reports — including the not-known one, which exists because
-// a socket-activated SSH unit is inactive from boot until the first connection.
+// a socket-activated SSH unit is inactive from boot until the first connection. The `name` is the
+// backend-localized label the panel now ships beside the machine member (English here, as the
+// suite's stubbed backend answers an English interface).
 const SERVICES: ServiceStatus[] = [
-  { service: 'webServer', state: 'running', detail: 'active (running)' },
-  { service: 'database', state: 'stopped', detail: 'inactive (dead)' },
-  { service: 'ssh', state: 'unknown', detail: 'socket-activated' },
+  { service: 'webServer', name: 'Web server', state: 'running', detail: 'active (running)' },
+  { service: 'database', name: 'Database', state: 'stopped', detail: 'inactive (dead)' },
+  { service: 'ssh', name: 'SSH', state: 'unknown', detail: 'socket-activated' },
 ]
 
 // Three accounts: one measured under its allowance, one measured over it, and one the agent did
@@ -100,17 +102,21 @@ test('the processor chart plots the stubbed buckets and reads back the newest on
 
 // The proposition: hovering the plot produces a readout formatted through the page's own
 // `formatValue` — two decimals for the load average, which the chart's one-decimal default would
-// render as "0.5". Breakable: drop the `format-value` prop and the readout reads "0.5 load"; break
-// the pointer handling and no readout appears at all.
-test('hovering the load chart shows a readout formatted by the page own formatter', async ({ page }) => {
+// render as "0.5" — and NOTHING after the number, because a load average is dimensionless. The
+// readout used to append a word ("0.50 load", "0.50 нагрузка" in Russian): a unit invented for a
+// number that has none. Breakable: drop the `format-value` prop and the readout reads "0.5";
+// reintroduce a `unit` on the load chart and the exact-match below fails on the extra token;
+// break the pointer handling and no readout appears at all.
+test('hovering the load chart shows a bare two-decimal readout, with no invented unit', async ({ page }) => {
   await openMonitoring(page)
 
   const loadChart = page.getByTestId('monitoring-charts').locator('.ui-chart').nth(5)
   await loadChart.locator('.ui-chart-svg').hover()
 
   // The readout drawn inside the plot, not the header reading and not a table cell — only the
-  // hover path produces this element at all.
-  await expect(loadChart.locator('.ui-chart-readout-value')).toHaveText('0.50 load')
+  // hover path produces this element at all. `toHaveText` matches the FULL text, so a readout of
+  // "0.50 load" (the shipped defect) fails here — the assertion is the value, not a substring.
+  await expect(loadChart.locator('.ui-chart-readout-value')).toHaveText('0.50')
 })
 
 // The proposition: the 7 d segment causes a NEW request carrying `range=lastWeek`, and the screen

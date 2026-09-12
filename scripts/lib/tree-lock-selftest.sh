@@ -38,6 +38,10 @@ set -euo pipefail
 root="$(cd "$(dirname "$0")/../.." && pwd)"
 # shellcheck disable=SC1091
 . "$root/scripts/lib/tree-lock.sh"
+# For $SUITE_STATUS_DID_NOT_RUN: the status a refusing command owes is asserted below, and asserting
+# it against a number written down here would let the two drift apart silently.
+# shellcheck disable=SC1091
+. "$root/scripts/lib/suite.sh"
 
 case "${1:-selftest}" in
   selftest) ;;
@@ -49,6 +53,11 @@ esac
 # code, is the rule from rules/testing.md: two harness defects found here in one day were
 # exit-code-invisible.
 refusal='holds the tree lock on this working tree'
+# The third verdict, which a refusing command owes ON STDOUT. Asserting the refusal message alone
+# was not enough and the gap was measured: with the lock held, `maran test rust` printed its refusal
+# on stderr, wrote NOTHING to stdout, and returned 1 — indistinguishable, to a caller keeping stdout
+# or reading `$?`, from a clean run and from a red one respectively.
+did_not_run_line='VERDICT: DID NOT RUN'
 
 passed=0
 failed=0
@@ -192,6 +201,10 @@ elif ! grep -q 'polygon suites discovered from the tree' "$work/free.out"; then
 else
   note_pass "polygon verify reached suite discovery with the lock free (status $status)"
 fi
+if grep -qF "$did_not_run_line" "$work/free.out"; then
+  note_fail "polygon verify printed a DID NOT RUN verdict with the lock FREE — a command that
+refuses unconditionally passes every refusal case above" "$(cat "$work/free.out")"
+fi
 
 # ---------------------------------------------------------------------------------------------
 # Case 2 — the REFUSAL path. The same command, the same argument, one difference: a real holder.
@@ -209,8 +222,15 @@ else
       "$(cat "$work/busy.out")"
   elif [ "$status" = 0 ]; then
     note_fail "polygon verify refused in its output but exited 0, so no CI job would go red"
+  elif ! grep -qF "$did_not_run_line" "$work/busy.out"; then
+    note_fail "polygon verify refused without printing a DID NOT RUN verdict, so a caller cannot
+tell 'a peer holds the lock' from 'this branch is red'" "$(cat "$work/busy.out")"
+  elif [ "$status" != "$SUITE_STATUS_DID_NOT_RUN" ]; then
+    note_fail "polygon verify refused but returned $status, and $SUITE_STATUS_DID_NOT_RUN is this
+harness's status for a run that did not happen — 1 is what a SCORED red run returns"
   else
-    note_pass "polygon verify refused, named the holder, and scored nothing (status $status)"
+    note_pass "polygon verify refused, named the holder, printed DID NOT RUN and returned \
+$status (not 0, and not the 1 a red run returns)"
   fi
 
   # The writer side, on the same holder: an exclusive acquire must not be granted twice. This is the
@@ -273,8 +293,15 @@ if ! grep -q 'was KILLED and its mutation is still in this tree' "$work/pending.
   note_fail "a planted pending record did not stop the reader (status $status)" "$(cat "$work/pending.out")"
 elif [ "$status" = 0 ]; then
   note_fail "the reader named the pending record and still exited 0"
+elif ! grep -qF "$did_not_run_line" "$work/pending.out"; then
+  note_fail "the reader stopped on the pending record without printing a DID NOT RUN verdict" \
+    "$(cat "$work/pending.out")"
+elif [ "$status" != "$SUITE_STATUS_DID_NOT_RUN" ]; then
+  note_fail "the reader stopped on the pending record but returned $status rather than \
+$SUITE_STATUS_DID_NOT_RUN, so it is indistinguishable from a scored red run"
 else
-  note_pass "a planted pending record stopped the reader and named the file (status $status)"
+  note_pass "a planted pending record stopped the reader, which printed DID NOT RUN and returned \
+$status"
 fi
 # The inverse control for case 4: with the record removed, the same command proceeds again.
 status="$(run_capturing "$work/pending-gone.out" bash "$root/scripts/lib/polygon-ci.sh" verify "$work/polygon.log")"

@@ -9,7 +9,8 @@ use maran_agent_core::validation::web::php_version::PhpVersion;
 
 use crate::php::fake_php_host::{FakePhpHost, distro};
 use crate::php::model::pool_input::PoolInput;
-use crate::php::{remove_account_pools, write_pool};
+use crate::php::remove_account_pools;
+use crate::php::write_pool::write_pool_under_lock;
 
 /// The account every test here cleans up after.
 fn account() -> AccountName {
@@ -18,7 +19,7 @@ fn account() -> AccountName {
 
 /// Writes `account`'s pool at `version` on `host`.
 fn write(host: &FakePhpHost, version: &str) {
-    write_pool(
+    write_pool_under_lock(
         host,
         distro(),
         &PoolInput {
@@ -72,7 +73,7 @@ fn an_account_that_never_ran_php_costs_no_reload_at_all() {
 fn another_accounts_pool_on_the_same_version_is_left_alone() {
     let host = FakePhpHost::with_installed(&["8.3"]);
     write(&host, "8.3");
-    write_pool(
+    write_pool_under_lock(
         &host,
         distro(),
         &PoolInput {

@@ -22,11 +22,24 @@ import UiTableHeaderCell from '../../components/ui/UiTableHeaderCell.vue'
 import UiTableRow from '../../components/ui/UiTableRow.vue'
 import { useAuditStore } from '../../stores/audit'
 import { useLocaleStore } from '../../stores/locale'
-import { formatDate } from '../../utils/formatDate'
+import { formatIsoTimestamp } from '../../utils/formatIsoTimestamp'
+import type { AuditEvent } from '../../types/audit'
 
 const { t } = useI18n()
 const auditStore = useAuditStore()
 const localeStore = useLocaleStore()
+
+/**
+ * The readable half of an event's action cell, or `null` when there is nothing beyond the machine
+ * constant to show: a panel older than the display name sends no name at all, and an action this
+ * build has no entry for arrives named as itself — either way one line is enough.
+ * @param event The journal row the cell is drawn for.
+ * @returns The backend-localized name, or `null` when only the constant should render.
+ */
+const actionLabel = (event: AuditEvent): string | null => {
+  const name: unknown = event.actionName
+  return typeof name === 'string' && name.length > 0 && name !== event.action ? name : null
+}
 
 onMounted(async () => {
   await auditStore.load()
@@ -62,13 +75,30 @@ onMounted(async () => {
       </template>
 
       <UiTableRow v-for="event in auditStore.events" :key="event.id">
-        <UiTableCell>{{ formatDate(event.occurredAt, localeStore.current) }}</UiTableCell>
+        <!-- The instant, not the day. `formatDate` printed only the day here, so every event
+             recorded on one day carried the identical string: two entries seconds apart were
+             indistinguishable and a day's ordering was unreadable — on the one screen in the
+             product whose whole subject is WHEN something happened. `formatIsoTimestamp` is the
+             formatter the backups tables already use for exactly this kind of value. -->
+        <UiTableCell>{{ formatIsoTimestamp(event.occurredAt, localeStore.current) }}</UiTableCell>
         <UiTableCell>{{ event.actorUsername }}</UiTableCell>
         <UiTableCell>
-          <!-- The action name comes from the backend as its own vocabulary and is shown as
-               written: inventing a translation here would let the SPA and the journal disagree
-               about what happened. -->
-          <span class="font-mono">{{ event.action }}</span>
+          <!-- Both halves of the action, and neither instead of the other. The name is the
+               backend's own, already localized for the request's language (rules/vue.md: the SPA
+               owns no text for a server outcome) — inventing a translation here would let the SPA
+               and the journal disagree about what happened. The machine constant below it is
+               stable across languages, so it is what an administrator greps a log by and quotes in
+               a ticket — kept as visible, selectable text rather than hidden in a `title`. A panel
+               older than the display name sends no name, and then the constant is the whole cell;
+               an action this build has no entry for arrives with name equal to constant, and one
+               line is enough. -->
+          <span v-if="actionLabel(event) !== null" class="block">{{ actionLabel(event) }}</span>
+          <span
+            class="block font-mono"
+            :class="actionLabel(event) !== null ? 'mt-0.5 text-xs text-text-muted' : ''"
+          >
+            {{ event.action }}
+          </span>
         </UiTableCell>
         <UiTableCell>
           <span class="block max-w-[320px] truncate">{{ event.subject }}</span>

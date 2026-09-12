@@ -18,8 +18,8 @@ namespace Maran.Agent.Client.Services.AccountsService;
 /// </remarks>
 /// <param name="LoginLocked">
 /// <c>true</c> when the account's own passwd entry is locked, as <c>passwd -S</c> reports it. This
-/// is the account's own login only; the SFTP logins are separate passwd entries with their own
-/// facts in <paramref name="SftpLogins"/>.
+/// is the account's own login only; the file-transfer logins of both daemons are separate passwd
+/// entries with their own facts in <paramref name="FileTransferLogins"/>.
 /// </param>
 /// <param name="LoginPasswordState">
 /// What the account's own shadow password field holds, as the agent classified it — the fact
@@ -54,10 +54,41 @@ namespace Maran.Agent.Client.Services.AccountsService;
 /// touch them — a crontab is not the agent's file — so they keep firing under a suspended account.
 /// Reported so the panel can say so; it does not refuse on them.
 /// </param>
-/// <param name="SftpLogins">
+/// <param name="FileTransferLogins">
 /// One fact per <c>&lt;account&gt;_*</c> login the HOST's password database holds, whether or not
 /// the panel remembers creating it. Empty is a real answer; a database that could not be
-/// enumerated is a failure of the call.
+/// enumerated is a failure of the call. Since FTPS shipped this list holds logins of BOTH transfer
+/// daemons, told apart by <see cref="FileTransferLoginSuspensionFactDto.Protocol"/>.
+///
+/// <b>This member is named for the pair; the wire field it comes from is not.</b> It is filled
+/// from the response's <c>sftp_logins</c>, which keeps its name and number under the additive law
+/// while this layer spells what it actually holds. The mapping is the one place the two spellings
+/// meet, and it says so where it happens
+/// (<see cref="AgentAccountsClient.GetSuspensionStateAsync"/>).
+/// </param>
+/// <param name="UnmanagedLogins">
+/// How many passwd entries share this account's uid WITHOUT being one of its jailed logins — an
+/// operator's own <c>useradd --non-unique</c>, or a login of a neighbouring jail that happens to
+/// share the uid. The agent locks none of them: they are not its entries, and turning a credential
+/// nobody asked it to touch would take away access somebody deliberately arranged.
+///
+/// This is the part of the attestation that says what the suspension did NOT cover, which is the
+/// only part of an attestation that can be wrong in the dangerous direction. The enumeration behind
+/// <paramref name="FileTransferLogins"/> selects by JAIL, so this is precisely the number it cannot speak
+/// for, and a panel that showed the covered count while swallowing this one would be reporting a
+/// silence the agent never claimed. It is REPORTED and never refused on — the precedent
+/// <paramref name="CronForeignLines"/> set for this exact shape: the panel shows the number and the
+/// operator decides.
+///
+/// A count and not a list, deliberately: the panel's question is whether the attestation covered
+/// everything, and a name here would be a name the panel had no business learning from a credential
+/// it does not own.
+///
+/// It carries a default for the same reason <see cref="FileTransferLoginSuspensionFactDto.Protocol"/> does,
+/// and the default is the wire's own absent value: an agent predating the field sends zero, so a
+/// caller that does not pass one reads what such an agent would have said. Zero is therefore
+/// ambiguous between "none exist" and "the agent was too old to look" — and it is the safe reading
+/// only because an agent that old also has no FTPS logins for it to have missed.
 /// </param>
 public sealed record AccountSuspensionStateDto(
     bool LoginLocked,
@@ -67,4 +98,5 @@ public sealed record AccountSuspensionStateDto(
     uint CronEntriesTotal,
     uint CronEntriesSuspended,
     uint CronForeignLines,
-    IReadOnlyList<SftpLoginSuspensionFactDto> SftpLogins);
+    IReadOnlyList<FileTransferLoginSuspensionFactDto> FileTransferLogins,
+    uint UnmanagedLogins = 0);

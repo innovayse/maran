@@ -16,9 +16,11 @@
 use maran_agent_core::validation::system::name::AccountName;
 use maran_agent_core::validation::web::domain::Domain;
 
-use crate::sites::fake_site_host::{CANONICAL_HOME_ROOT, FakeSiteHost, php_input};
+use crate::sites::fake_site_host::{CANONICAL_HOME_ROOT, FakeSiteHost};
 use crate::sites::log_sink::LogSink;
 use crate::sites::model::tail_end::TailEnd;
+use maran_agent_core::agent_paths::AgentPaths;
+
 use crate::sites::{MAXIMUM_HISTORY_LINES, SiteLogKind, tail_site_log};
 
 /// A sink that records what it was given and never asks to stop.
@@ -98,14 +100,26 @@ fn the_log_is_named_by_the_site_and_reached_through_the_resolved_directory() {
 
     let asked = host.tailed().unwrap();
     assert_eq!(asked.file_name, "example.com.error.log");
-    // The canonical root the fake resolves to, not the named `/home` one: a
-    // tail that used the named path would be reopening a path the account can
-    // swap.
+    // The root-owned tree, outside every home. It used to be the canonical home
+    // the fake resolves to — `resolve_in_home` was the containment while the
+    // logs lived in the account's home — and it is not any more, because the
+    // ROOT nginx master opened those files without `O_NOFOLLOW` and a customer
+    // who owned the directory turned that into root code execution
+    // (docs/superpowers/notes/2026-09-09-site-logs-threat-note.md). Asserted
+    // against the constant and not against a literal, so that a change of the
+    // root moves this expectation with it — and asserted NOT to be under the
+    // home, which is the half a constant comparison would not catch if the
+    // constant itself were changed back.
     assert_eq!(
         asked.directory,
-        std::path::Path::new(CANONICAL_HOME_ROOT).join("acme/logs")
+        std::path::Path::new(AgentPaths::SITE_LOG_ROOT).join("acme")
     );
-    assert_eq!(asked.account, php_input().account);
+    assert!(
+        !asked.directory.starts_with(AgentPaths::ACCOUNT_HOME_ROOT)
+            && !asked.directory.starts_with(CANONICAL_HOME_ROOT),
+        "a site's logs must not be under any home root, is {:?}",
+        asked.directory
+    );
 }
 
 #[test]

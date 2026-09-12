@@ -24,10 +24,12 @@ namespace Maran.Sdk.Events;
 /// <para>
 /// <b>What it covers, and what it still does not.</b> Four things: the account's own Linux login,
 /// every vhost of the account, every managed entry of its crontab, and every
-/// <c>&lt;account&gt;_*</c> SFTP login. Cron carries a marker ORTHOGONAL to the per-entry
+/// <c>&lt;account&gt;_*</c> file-transfer login — of BOTH daemons since FTPS shipped, because the
+/// agent serves that half out of an enumeration of the password database by jail rather than out of
+/// one protocol's area. Cron carries a marker ORTHOGONAL to the per-entry
 /// <c>enabled</c> flag, because that flag is the customer's own choice and reusing it would make a
-/// resume switch back on the jobs they had turned off themselves. The SFTP logins are locked one by
-/// one because each is its own passwd entry sharing the account's uid, so the <c>usermod --lock</c>
+/// resume switch back on the jobs they had turned off themselves. The transfer logins are locked one
+/// by one because each is its own passwd entry sharing the account's uid, so the <c>usermod --lock</c>
 /// on the account reaches none of them — a suspended customer kept a working WRITE credential into
 /// their home until this cascade grew that half.
 /// </para>
@@ -54,4 +56,23 @@ namespace Maran.Sdk.Events;
 /// an operator recognises it as. Carried rather than looked up, because a subscriber may not read
 /// the Accounts schema.
 /// </param>
-public sealed record AccountSuspending(Guid AccountId, string Username);
+public sealed record AccountSuspending(Guid AccountId, string Username)
+{
+    /// <summary>Where a subscriber records the privileged actions it took, for the publisher to attest.</summary>
+    /// <remarks>
+    /// <para>
+    /// The one thing that travels BACK along an event with no return value, and the reason it can is
+    /// that this cascade is invoked inline on the publisher's own object — the same fact the paragraph
+    /// above depends on when it says a handler that throws aborts the suspension. By the time
+    /// <c>InvokeAsync</c> returns, every subscriber that exists has run and written what it has.
+    /// </para>
+    /// <para>
+    /// It does not make the event a call, and a subscriber is never obliged to write: an untouched
+    /// report is a reading of its own (<see cref="AccountSuspensionCascadeReport.SessionCullReported"/>),
+    /// which is what keeps the paragraph above true — a subscriber that does not exist cannot throw,
+    /// and now it cannot be mistaken for one that acted either. A non-positional property so that it
+    /// is not part of the message's identity: a collector is not a value.
+    /// </para>
+    /// </remarks>
+    public AccountSuspensionCascadeReport Report { get; init; } = new();
+}

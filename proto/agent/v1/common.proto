@@ -56,6 +56,35 @@ enum ErrorCode {
   // the local path. Not retryable against the same agent — a panel that reads
   // it tells the operator, rather than backing off and asking again.
   ERROR_CODE_NOT_IMPLEMENTED = 8;
+  // Added 2026-09-12, additively. Another operation for the SAME hosting
+  // account is already running, and this one was refused so the two could not
+  // interleave. The agent holds one wait-free lock per account and takes it at
+  // the entry of every operation that makes or unmakes the account's identity
+  // on this host — account deletion, the SFTP and FTPS login operations, the
+  // suspension of an account's logins, the php-fpm pool write, and the four
+  // backup operations. A second operation does not queue behind the first: an
+  // RPC held open for the length of a twenty-gigabyte backup is measured in
+  // hours, so the refusal is deliberate and immediate.
+  //
+  // **Nothing happened.** The refusal is the first statement of the operation,
+  // before any tool runs and before any file is touched, so the account is
+  // exactly as the caller found it. That is what makes this code safe to
+  // retry: a panel reads it as "another operation on this account is running,
+  // try again in a moment" and may reissue the identical request once the
+  // first operation finishes.
+  //
+  // What it does NOT license: retrying a call that TIMED OUT or was cancelled.
+  // A cancelled call detaches the agent's blocking work rather than cancelling
+  // it, so a second attempt would run BESIDE the first rather than after it.
+  // Only this code says nothing ran; a deadline that expired says nothing
+  // about what the agent is still doing.
+  //
+  // It is narrower than "something went wrong, try later" on purpose, and a
+  // caller MUST NOT widen it: it means one thing — this account's lock was
+  // held. It is not the code for a busy host, a tool that was itself busy, a
+  // rate limit, or any other retryable fault. The agent's four other locks
+  // WAIT rather than refuse, so none of them can produce it.
+  ERROR_CODE_ACCOUNT_BUSY = 9;
 }
 
 // Streamed progress of a long-running operation (backup, restore, install).
@@ -64,4 +93,28 @@ message Progress {
   uint32 percent = 1;
   // Short machine-stable stage id (e.g. "dumping_db"), i18n happens API-side.
   string stage = 2;
+}
+
+// Which file-transfer daemon serves a login.
+//
+// Added 2026-09-09 with FTPS. Deliberately NOT called `Protocol`:
+// `firewall.proto` already declares a top-level `Protocol` in this package —
+// enums are package-scoped in proto3, so a second one of that name is a protoc
+// refusal rather than a shadowing.
+//
+// It lives here rather than in `ftp.proto` because `accounts.proto` reads it
+// too: a suspension attestation names the daemon behind every login it saw, and
+// an attestation importing the login service's file to learn a two-value enum
+// would tie the account contract to the transfer contract for no reason.
+enum TransferProtocol {
+  // The agent did not say. An old agent predating this enum sends this, and a
+  // caller MUST then read the login as SFTP: before FTPS existed every login a
+  // suspension could report was an SFTP login by construction, so that is the
+  // correct reading and not a guess.
+  TRANSFER_PROTOCOL_UNSPECIFIED = 0;
+  // Served by the host's OpenSSH daemon, jailed under /var/lib/maran-sftp.
+  TRANSFER_PROTOCOL_SFTP = 1;
+  // Served by this panel's own vsftpd instance, jailed under
+  // /var/lib/maran-ftps.
+  TRANSFER_PROTOCOL_FTPS = 2;
 }

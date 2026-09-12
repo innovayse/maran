@@ -4,11 +4,16 @@
 //!
 //! Three things shape everything in this area.
 //!
-//! **SFTP is OpenSSH, and nothing else is installed.** There is no FTP daemon,
-//! no FTPS and no second listening port: an SFTP user is a system account in
-//! the group sshd's `Match Group` block names, and that block — written once by
-//! the installer, with `ChrootDirectory %h` and `ForceCommand internal-sftp` —
-//! is what turns the account into a file transfer login rather than a shell.
+//! **SFTP is OpenSSH, and this area is about nothing else.** An SFTP user is a
+//! system account in the group sshd's `Match Group` block names, and that block
+//! — written once by the installer, with `ChrootDirectory %h` and
+//! `ForceCommand internal-sftp` — is what turns the account into a file
+//! transfer login rather than a shell. The panel's other file-transfer
+//! protocol, FTPS, is a SEPARATE daemon with its own jail base and its own
+//! area (`ops::ftps`); what the two share — the systemd escaping rule, and the
+//! enumeration a suspension acts on — lives in `ops::logins`, because an
+//! enumeration owned by one protocol answers about one protocol, which is
+//! exactly how a suspended account keeps a working credential.
 //!
 //! **The jail exists so the account's home never has to change.** OpenSSH
 //! refuses to chroot into a directory that is not root-owned or is group- or
@@ -59,25 +64,20 @@ mod delete_sftp_user;
 #[cfg(test)]
 #[path = "../tests/sftp/fake_sftp_host.rs"]
 pub(crate) mod fake_sftp_host;
-mod inspect_account_logins;
 pub mod model;
 mod process_sftp_host;
 mod remove_account_sftp;
-mod set_account_logins_locked;
 mod set_sftp_password;
 mod sftp_error;
 mod sftp_host;
 
 pub use create_sftp_user::create_sftp_user;
 pub use delete_sftp_user::delete_sftp_user;
-pub use inspect_account_logins::inspect_account_logins;
 pub use model::account_jail::AccountJail;
 pub use model::account_ownership::AccountOwnership;
-pub use model::sftp_login_suspension_fact::SftpLoginSuspensionFact;
 pub use model::sftp_user_request::SftpUserRequest;
 pub use process_sftp_host::ProcessSftpHost;
 pub use remove_account_sftp::remove_account_sftp;
-pub use set_account_logins_locked::set_account_logins_locked;
 pub use set_sftp_password::set_sftp_password;
 pub use sftp_error::SftpError;
 pub use sftp_host::SftpHost;

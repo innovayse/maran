@@ -32,7 +32,10 @@ fn disabling_replaces_the_vhost_and_keeps_the_acme_location() {
         "a suspended site must still answer the ACME challenge: {vhost}"
     );
     assert!(
-        vhost.contains("root /srv/homes/acme/sites/example.com;"),
+        vhost.contains(&format!(
+            "root /srv/homes/{}/sites/example.com;",
+            input.account.as_str()
+        )),
         "the challenge is answered from the document root, so the root must survive: {vhost}"
     );
     assert!(vhost.contains("return 403 \"This site has been suspended.\";"));

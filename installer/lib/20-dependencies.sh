@@ -76,6 +76,7 @@ base_packages_for_family() {
 #   passwd                                   passwd            passwd      <- the split
 #   setquota quota                           quota             quota
 #   tar / gzip                               tar / gzip        tar / gzip
+#   pkill                                    procps            procps-ng   <- the second split
 #   id chmod chgrp                           coreutils         coreutils-single
 #
 # The `passwd` row is the one that has already cost this project a bug. On the Debian
@@ -86,6 +87,10 @@ base_packages_for_family() {
 # suspension attestation, i.e. billing. It was missing from a polygon image for exactly
 # that reason and made every suspension on that family fail.
 #
+# The `pkill` row is the second such split, and unlike the first it is invisible on the
+# family that has it for free. `signalling_packages_for_family` below is where it is named,
+# and its own comment says what it is for and what a missing one costs.
+#
 # `crontab`, `nft` and the MariaDB client are deliberately NOT here: 88-cron.sh, 87-firewall.sh
 # and 85-mysql.sh each install their family's package beside the configuration only they know
 # how to write. `getent` is not here either, and that is not an oversight — it belongs to the
@@ -93,10 +98,56 @@ base_packages_for_family() {
 agent_tooling_packages_for_family() {
   case "$MARAN_OS_FAMILY" in
     debian)
-      echo "passwd quota tar gzip"
+      echo "passwd quota tar gzip $(signalling_packages_for_family)"
       ;;
     rhel)
-      echo "shadow-utils passwd quota tar gzip"
+      echo "shadow-utils passwd quota tar gzip $(signalling_packages_for_family)"
+      ;;
+    *)
+      echo "20-dependencies.sh: unsupported OS family '${MARAN_OS_FAMILY}'" >&2
+      exit 1
+      ;;
+  esac
+}
+
+# signalling_packages_for_family: the package supplying `pkill`, which is the ONE program
+# this installer names for the sake of a security operation rather than a feature.
+#
+# What execs it: suspending a hosting account locks its logins and then ends the sessions
+# already open, because a lock the customer's connected SFTP or FTPS client never notices is
+# a suspension in name only — `ops::logins::end_account_sessions` spawns the path
+# `DistroAdapter::pkill_binary()` declares, `/usr/bin/pkill` on both families, and never a
+# literal of its own (rules/architecture.md: no platform fact outside the `distro` crate).
+# Without the program the cull is `LoginsError::SpawnFailed`, which fails the whole
+# suspension: an account the panel says is suspended, whose open transfers keep running.
+#
+# It is its own function, and not four more words in the arm above, for two reasons. The
+# arms above are one package list per family; this is the one fact in the file with a
+# per-family SPELLING that differs while the binary path does not, so a census can read the
+# arms of one small function and say which family is missing one. And keeping it out of the
+# arms above means an image can install exactly this — the polygon does — without
+# reinstalling the quota tools over the stand-in it puts in their place.
+#
+# The two spellings, measured 2026-09-12 in the pinned polygon base images rather than read
+# off one of them:
+#
+#   Debian family (ubuntu:24.04@sha256:33ceb719…): `dpkg -S /usr/bin/pkill` -> procps, a
+#   Priority: required package, so /usr/bin/pkill (a symlink to pgrep) is already there.
+#   RHEL family (almalinux:9@sha256:d2515c76…): /usr/bin/pkill DOES NOT EXIST, procps-ng is
+#   not installed, and `dnf repoquery --whatprovides /usr/bin/pkill` answers procps-ng.
+#   Installing nginx, openssh-server, cronie, quota, passwd, shadow-utils, vsftpd, tar and
+#   gzip in that image pulls it in through no dependency of any of them.
+#
+# So this is a real gap on one family and free on the other, which is exactly the shape the
+# `passwd` row above already cost this project once: the family that has it for free can
+# never notice, and the failure on the other one is at exec time, in billing.
+signalling_packages_for_family() {
+  case "$MARAN_OS_FAMILY" in
+    debian)
+      echo "procps"
+      ;;
+    rhel)
+      echo "procps-ng"
       ;;
     *)
       echo "20-dependencies.sh: unsupported OS family '${MARAN_OS_FAMILY}'" >&2
@@ -117,7 +168,7 @@ assert_agent_tooling() {
   local binary
   for binary in /usr/sbin/useradd /usr/sbin/userdel /usr/sbin/usermod /usr/sbin/chpasswd \
                 /usr/bin/passwd /usr/sbin/setquota /usr/bin/quota /usr/bin/tar \
-                /usr/bin/gzip /usr/bin/getent; do
+                /usr/bin/gzip /usr/bin/getent /usr/bin/pkill; do
     [ -x "$binary" ] || missing="${missing} ${binary}"
   done
   if [ -n "$missing" ]; then

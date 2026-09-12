@@ -100,6 +100,19 @@ public sealed class IdentityDbContext : DbContext
         }
     }
 
+    /// <summary>
+    /// When this panel first observed the installer's one-time setup token: at most one row, keyed by
+    /// a constant. It carries a fingerprint rather than the token, and it is what the token's expiry
+    /// is measured from — see <see cref="Domain.Entities.SetupTokenWindow"/>.
+    /// </summary>
+    public DbSet<SetupTokenWindow> SetupTokenWindows
+    {
+        get
+        {
+            return Set<SetupTokenWindow>();
+        }
+    }
+
     /// <summary>Applies the schema and every entity configuration for this module.</summary>
     /// <param name="modelBuilder">The model builder supplied by EF Core.</param>
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -112,6 +125,7 @@ public sealed class IdentityDbContext : DbContext
         modelBuilder.ApplyConfiguration(new FailedLoginByIpConfiguration());
         modelBuilder.ApplyConfiguration(new SecurityPolicyConfiguration());
         modelBuilder.ApplyConfiguration(new PasswordResetTokenConfiguration());
+        modelBuilder.ApplyConfiguration(new SetupTokenWindowConfiguration());
         base.OnModelCreating(modelBuilder);
     }
 }

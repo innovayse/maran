@@ -3,6 +3,8 @@
 use maran_agent_core::agent_paths::AgentPaths;
 use maran_agent_core::validation::system::name::AccountName;
 
+use crate::logins::systemd_escape::systemd_escape;
+
 /// The directory inside the jail the account's real home is mounted at.
 ///
 /// One segment, fixed: an SFTP client that lands in the jail sees `home` and
@@ -12,14 +14,6 @@ const MOUNT_POINT_SEGMENT: &str = "home";
 
 /// The suffix systemd requires of a unit that mounts something.
 const MOUNT_UNIT_SUFFIX: &str = ".mount";
-
-/// The characters systemd leaves alone when it escapes a path into a unit name.
-///
-/// Everything else becomes `\xNN`, and `/` becomes `-`. Taken from systemd's own
-/// rule rather than from what this agent's paths happen to contain, because the
-/// name it produces has to be byte-for-byte the one systemd derives from
-/// `Where=` — see [`AccountJail::unit_name`].
-const UNESCAPED_SYMBOLS: &str = "_.";
 
 /// The root-owned chroot one account's SFTP users log in to, and the bind mount
 /// that puts the account's real home inside it.
@@ -59,7 +53,7 @@ impl AccountJail {
     pub fn for_account(account: &AccountName, unit_directory: &str) -> Self {
         let directory = format!("{}/{}", AgentPaths::SFTP_JAIL_ROOT, account.as_str());
         let mount_point = format!("{directory}/{MOUNT_POINT_SEGMENT}");
-        let unit_name = format!("{}{MOUNT_UNIT_SUFFIX}", escape_path(&mount_point));
+        let unit_name = format!("{}{MOUNT_UNIT_SUFFIX}", systemd_escape(&mount_point));
 
         Self {
             account: account.as_str().to_owned(),
@@ -104,10 +98,15 @@ impl AccountJail {
     /// file name is not exactly that. `/var/lib/maran-sftp/alice/home` is
     /// therefore `var-lib-maran\x2dsftp-alice-home.mount` — the `-` of the
     /// jail root's own name is NOT a path separator and is escaped, which is why
-    /// `escape_path` implements systemd's whole rule and not the substitution
-    /// this product's paths used to need — and a friendlier
+    /// `logins::systemd_escape` runs a general byte loop rather than the single
+    /// substitution this product's paths would otherwise need — and a friendlier
     /// `maran-sftp-alice.mount` would be rejected at load time — on the host,
     /// never in a build.
+    ///
+    /// That function is `systemd-escape --path` **for the paths this type
+    /// builds and for nothing else**, which is measured rather than assumed; the
+    /// four inputs where it deliberately differs, and why none of them can be
+    /// one of these paths, are named on `logins::systemd_escape` itself.
     #[must_use]
     pub fn unit_name(&self) -> &str {
         &self.unit_name
@@ -118,35 +117,6 @@ impl AccountJail {
     pub fn unit_path(&self) -> &str {
         &self.unit_path
     }
-}
-
-/// Escapes an absolute path the way systemd escapes one into a unit name.
-///
-/// The leading separator is dropped, every remaining `/` becomes `-`, ASCII
-/// letters, digits and [`UNESCAPED_SYMBOLS`] are kept, and every other byte
-/// becomes `\xNN` in lowercase hexadecimal.
-///
-/// The full rule is implemented although the paths this area builds — an
-/// `AccountName` under two fixed roots — contain nothing that needs escaping
-/// today. That is deliberate: writing only the substitution those paths need
-/// would make the correctness of the unit name depend on the alphabet of a
-/// validator in another crate, silently, and the next widening of that alphabet
-/// would break SFTP on the host rather than in a test.
-fn escape_path(path: &str) -> String {
-    let mut escaped = String::with_capacity(path.len());
-
-    for byte in path.trim_start_matches('/').bytes() {
-        let character = char::from(byte);
-        if byte == b'/' {
-            escaped.push('-');
-        } else if character.is_ascii_alphanumeric() || UNESCAPED_SYMBOLS.contains(character) {
-            escaped.push(character);
-        } else {
-            escaped.push_str(&format!("\\x{byte:02x}"));
-        }
-    }
-
-    escaped
 }
 
 #[cfg(test)]

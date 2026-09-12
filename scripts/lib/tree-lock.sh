@@ -8,7 +8,7 @@
 # ANOTHER run's mutation is applied does not fail, it produces a plausible verdict about code
 # nobody asked about. Reproduced here on 2026-09-08 — two `maran mutate` runs started in the same
 # second against two different files both passed every existing guard, and both mutants were live
-# in the tree at once (see .superpowers/sdd/mutate-tree-lock-report.md for the logs).
+# in the tree at once, and one published a KILLED verdict naming a test the OTHER mutant had killed.
 #
 # WHY IT IS NOT THE GUARD THAT ALREADY EXISTS
 #

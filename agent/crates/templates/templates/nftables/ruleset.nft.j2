@@ -32,8 +32,8 @@ table inet maran {
 {% else %}{% for rule in ssh.rules %}{% if rule.source_is_any %}        tcp dport {{ ssh.port }} accept
 {% else %}        tcp dport {{ ssh.port }} {{ rule.family_keyword }} saddr {{ rule.source_cidr }} accept
 {% endif %}{% endfor %}{% endif %}{% endfor %}        tcp dport {{ panel_port }} accept
-{% for allow in allows %}{% if allow.source_is_any %}        {{ allow.protocol }} dport {{ allow.port }} accept
-{% else %}        {{ allow.protocol }} dport {{ allow.port }} {{ allow.family_keyword }} saddr {{ allow.source_cidr }} accept
+{% for allow in allows %}{% if allow.source_is_any %}        {{ allow.protocol }} dport {{ allow.port }}{% if let Some(upper) = allow.port_to %}-{{ upper }}{% endif %} accept
+{% else %}        {{ allow.protocol }} dport {{ allow.port }}{% if let Some(upper) = allow.port_to %}-{{ upper }}{% endif %} {{ allow.family_keyword }} saddr {{ allow.source_cidr }} accept
 {% endif %}{% endfor %}    }
 }
 

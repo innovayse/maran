@@ -10,8 +10,10 @@ const GOOD_PASSWORD: &str = "Str0ng-pass.word=+_";
 
 #[test]
 fn the_login_is_rebuilt_under_the_account_and_the_password_is_carried_through() {
-    let (user, password) = validated_password_change("alice", "web", GOOD_PASSWORD).expect("valid");
+    let (account, user, password) =
+        validated_password_change("alice", "web", GOOD_PASSWORD).expect("valid");
 
+    assert_eq!(account.as_str(), "alice");
     assert_eq!(user.as_str(), "alice_web");
     assert_eq!(password.as_str(), GOOD_PASSWORD);
 }

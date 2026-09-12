@@ -10,6 +10,20 @@ namespace Maran.Sdk.Extensions;
 /// caller; the methods take <see cref="HttpContext"/> directly (rather than the controller) so they
 /// stay unit-testable without standing up MVC.
 /// </summary>
+/// <remarks>
+/// <b>The problem-extension convention lives here, because this is the one place a failed result
+/// becomes a problem response.</b> A failed <see cref="Result{T}"/> may carry one
+/// <see cref="ProblemExtension"/> — typed facts a caller must see beside the code, such as how far
+/// a partial operation got — and this translation publishes it as one more extension member of the
+/// problem JSON, next to the standing <c>code</c> and <c>correlationId</c>: on the wire,
+/// <c>{"code":…, "correlationId":…, "&lt;key&gt;":{&lt;the payload's camelCase fields&gt;}}</c>.
+/// The key can never shadow a standing or RFC member (<see cref="ProblemExtension.Of"/> refuses
+/// them at construction), and the payload reaches the browser verbatim, so it may carry counts and
+/// enum-like facts about the caller's own operation and never a path, tool output, a connection
+/// string or an address (rules/security.md item 8). Nothing else in the panel writes problem
+/// extensions; a handler with facts to publish attaches them with
+/// <c>Result&lt;T&gt;.Fail(error, extension)</c> and this method does the rest.
+/// </remarks>
 public static class ApiResultExtensions
 {
     /// <summary>Translates a query/read result: 200 OK with the value, or a problem response.</summary>
@@ -24,7 +38,7 @@ public static class ApiResultExtensions
             },
             onFail: error =>
             {
-                return ToProblemResult(error, httpContext);
+                return ToProblemResult(error, result.Extension, httpContext);
             });
     }
 
@@ -41,14 +55,15 @@ public static class ApiResultExtensions
             },
             onFail: error =>
             {
-                return ToProblemResult(error, httpContext);
+                return ToProblemResult(error, result.Extension, httpContext);
             });
     }
 
     /// <summary>Builds the RFC 7807 problem response for a failed <see cref="Result{T}"/>.</summary>
     /// <param name="error">The typed domain failure.</param>
+    /// <param name="extension">The failure's typed extension facts, or null when it carries none.</param>
     /// <param name="httpContext">The current request.</param>
-    private static ObjectResult ToProblemResult(Error error, HttpContext httpContext)
+    private static ObjectResult ToProblemResult(Error error, ProblemExtension? extension, HttpContext httpContext)
     {
         var correlationId = httpContext.Items.TryGetValue(CorrelationIdKeys.ItemsKey, out var item) ? item as string : null;
 
@@ -70,6 +85,14 @@ public static class ApiResultExtensions
         };
         problem.Extensions["code"] = error.Code;
         problem.Extensions["correlationId"] = correlationId;
+
+        // The convention documented on this class: a failure's typed facts become one more
+        // extension member. The key was validated at construction, so it cannot shadow the two
+        // members above or the RFC's own.
+        if (extension is not null)
+        {
+            problem.Extensions[extension.Key] = extension.Value;
+        }
 
         return new ObjectResult(problem) { StatusCode = statusCode };
     }

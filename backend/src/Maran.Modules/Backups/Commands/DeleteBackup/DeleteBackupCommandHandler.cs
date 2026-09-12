@@ -49,6 +49,17 @@ namespace Maran.Modules.Backups.Commands.DeleteBackup;
 /// </remarks>
 public sealed class DeleteBackupCommandHandler
 {
+    /// <summary>
+    /// The agent client's code for the wire's <c>ALREADY_EXISTS</c>, which on a deletion can only be
+    /// the per-account lock refusing a second operation.
+    /// </summary>
+    /// <remarks>
+    /// A literal rather than a <c>nameof</c>: the code is declared in the agent client's own resx
+    /// and this module may not reference that project's resources, the same shape
+    /// <c>CronAgentErrorTranslator</c> uses for the same reason.
+    /// </remarks>
+    private const string AgentAlreadyExistsCode = "AgentAlreadyExists";
+
     /// <summary>The Backups module's database context, and this module's tenant boundary.</summary>
     private readonly BackupsDbContext _dbContext;
 
@@ -101,18 +112,34 @@ public sealed class DeleteBackupCommandHandler
             .FirstOrDefaultAsync(row => row.Id == command.BackupId, cancellationToken);
         if (backup is null)
         {
-            return await FailAsync(command, Error.Of(nameof(ErrorMessages.BackupNotFound), ErrorType.NotFound), cancellationToken);
+            // No row is visible to this caller, so no account can be named: the trace records the
+            // identifier that was probed for, exactly so the probe stays searchable.
+            return await FailAsync(
+                command,
+                command.BackupId.ToString(),
+                Error.Of(nameof(ErrorMessages.BackupNotFound), ErrorType.NotFound),
+                cancellationToken);
         }
 
         if (!backup.MayBeDeleted())
         {
-            return await FailAsync(command, Error.Of(nameof(ErrorMessages.BackupStillRunning), ErrorType.Conflict), cancellationToken);
+            // The account's name is not established yet on this path, so the trace records the
+            // identifier the caller acted on.
+            return await FailAsync(
+                command,
+                command.BackupId.ToString(),
+                Error.Of(nameof(ErrorMessages.BackupStillRunning), ErrorType.Conflict),
+                cancellationToken);
         }
 
         var username = await ResolveAccountUsernameAsync(backup, cancellationToken);
         if (username is null)
         {
-            return await FailAsync(command, Error.Of(nameof(ErrorMessages.AccountNotFound), ErrorType.NotFound), cancellationToken);
+            return await FailAsync(
+                command,
+                command.BackupId.ToString(),
+                Error.Of(nameof(ErrorMessages.AccountNotFound), ErrorType.NotFound),
+                cancellationToken);
         }
 
         // The destination the artifact was written to, from the row. Deleting through the current
@@ -121,21 +148,23 @@ public sealed class DeleteBackupCommandHandler
         var destination = await _destinations.ResolveAsync(backup.DestinationId, cancellationToken);
         if (!destination.IsSuccess)
         {
-            return await FailAsync(command, destination.Error!, cancellationToken);
+            return await FailAsync(command, username, destination.Error!, cancellationToken);
         }
 
         var deleted = await _agent.DeleteAsync(
             username, backup.Id.ToString(), destination.Value!.Agent, cancellationToken);
         if (!deleted.IsSuccess && !IsAlreadyGone(deleted.Error!))
         {
-            return await FailAsync(command, deleted.Error!, cancellationToken);
+            return await FailAsync(command, username, Rename(deleted.Error!), cancellationToken);
         }
 
         _dbContext.Backups.Remove(backup);
         await _dbContext.SaveChangesAsync(cancellationToken);
 
+        // The account, not the backup id: the subject an operator will search for, resolved above
+        // even for a deleted account's kept backup through the name the deletion stamped on it.
         await _journal.RecordSuccessAsync(
-            AuditActions.BackupDeleted, command.BackupId, command.IpAddress, command.UserAgent, cancellationToken);
+            AuditActions.BackupDeleted, username, command.IpAddress, command.UserAgent, cancellationToken);
 
         return Result<bool>.Ok(true);
     }
@@ -186,23 +215,59 @@ public sealed class DeleteBackupCommandHandler
         return error.Type == ErrorType.NotFound;
     }
 
+    /// <summary>Gives the agent's busy refusal this module's own words, and passes everything else through.</summary>
+    /// <param name="error">The agent's typed failure.</param>
+    /// <returns>
+    /// <c>AccountBackupOperationRunning</c> where the agent refused because the account's lock was
+    /// held, otherwise <paramref name="error"/> unchanged.
+    /// </returns>
+    /// <remarks>
+    /// The agent's per-account lock answers a second operation with
+    /// <c>BackupError::AlreadyRunning</c>, which it puts on the wire as <c>ALREADY_EXISTS</c>
+    /// (<c>agent/crates/agent/src/services/backup/backup_status.rs</c>) — the same wire code as the
+    /// idempotent outcome of a repeated CREATION, whose shared sentence reads "this already exists
+    /// on your server, so nothing was created again". Told that, a customer whose deletion was
+    /// merely queued behind a running backup would believe the archive was gone and never retry.
+    ///
+    /// The two are separable on THIS call, and only because of where they are produced: the agent
+    /// raises <c>BackupError::AlreadyExists</c> in exactly one place, <c>create_backup.rs</c>, so a
+    /// deletion can never receive it and the wire code can only be the lock. Unlike
+    /// <see cref="IsAlreadyGone"/> this cannot be decided on the KIND — the idempotent creation and
+    /// the busy lock are both conflicts — so the code is compared, and the const above says why the
+    /// spelling is a literal.
+    /// </remarks>
+    private static Error Rename(Error error)
+    {
+        if (!string.Equals(error.Code, AgentAlreadyExistsCode, StringComparison.Ordinal))
+        {
+            return error;
+        }
+
+        return Error.Of(nameof(ErrorMessages.AccountBackupOperationRunning), ErrorType.Conflict);
+    }
+
     /// <summary>Journals a refused deletion and returns it as the typed failure.</summary>
-    /// <param name="command">The deletion that was refused, whose backup id is the journal's subject.</param>
+    /// <param name="command">The deletion that was refused.</param>
+    /// <param name="subject">
+    /// What the refusal is recorded against: the account's system user name where the handler had
+    /// resolved it, otherwise the identifier the caller acted on — recorded even for a backup the
+    /// caller may not see, so a probe still leaves a trace naming what was probed for.
+    /// </param>
     /// <param name="error">The typed failure to answer with, code and kind together.</param>
     /// <param name="cancellationToken">Cancels the journal write.</param>
     /// <returns>The failed result carrying <paramref name="error"/>.</returns>
     /// <remarks>
     /// The one funnel every refusal passes through, so no early return can leave the journal
-    /// unwritten — including the refusal for a backup the caller may not see, which is recorded
-    /// under the id that was probed for.
+    /// unwritten.
     /// </remarks>
     private async Task<Result<bool>> FailAsync(
         DeleteBackupCommand command,
+        string subject,
         Error error,
         CancellationToken cancellationToken)
     {
         await _journal.RecordFailureAsync(
-            AuditActions.BackupDeleted, command.BackupId, command.IpAddress, command.UserAgent, cancellationToken);
+            AuditActions.BackupDeleted, subject, command.IpAddress, command.UserAgent, cancellationToken);
 
         return Result<bool>.Fail(error);
     }

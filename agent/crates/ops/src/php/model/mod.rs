@@ -6,3 +6,5 @@ pub mod override_kind;
 pub mod php_override;
 pub mod pool_input;
 pub mod pool_paths;
+pub mod pool_tree_decision;
+pub mod pool_tree_outcome;

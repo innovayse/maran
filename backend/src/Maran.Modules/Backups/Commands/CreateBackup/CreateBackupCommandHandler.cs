@@ -2,6 +2,7 @@ using Maran.Modules.Backups.Common;
 using Maran.Modules.Backups.Domain.Entities;
 using Maran.Modules.Backups.Domain.Enums;
 using Maran.Modules.Backups.Mappers;
+using Maran.Modules.Backups.Models;
 using Maran.Modules.Backups.Persistence;
 using Maran.Modules.Backups.Resources;
 using Maran.Modules.Backups.Services;
@@ -124,8 +125,14 @@ public sealed class CreateBackupCommandHandler
         var account = await _accounts.FindAsync(command.AccountId, cancellationToken);
         if (account is null)
         {
+            // No account can be named for this caller, so the trace records the identifier that
+            // was probed for — the journal's contract for a subject nobody could establish.
             await _journal.RecordFailureAsync(
-                AuditActions.BackupCreated, Guid.Empty, command.IpAddress, command.UserAgent, cancellationToken);
+                AuditActions.BackupCreated,
+                command.AccountId.ToString(),
+                command.IpAddress,
+                command.UserAgent,
+                cancellationToken);
 
             return Result<BackupDto>.Fail(Error.Of(nameof(ErrorMessages.AccountNotFound), ErrorType.NotFound));
         }
@@ -138,7 +145,7 @@ public sealed class CreateBackupCommandHandler
         if (!destination.IsSuccess)
         {
             await _journal.RecordFailureAsync(
-                AuditActions.BackupCreated, Guid.Empty, command.IpAddress, command.UserAgent, cancellationToken);
+                AuditActions.BackupCreated, account.Username, command.IpAddress, command.UserAgent, cancellationToken);
 
             return Result<BackupDto>.Fail(destination.Error!);
         }
@@ -158,8 +165,23 @@ public sealed class CreateBackupCommandHandler
         var taskId = await _tasks.BeginAsync(
             TaskKinds.BackupCreate, account.Username, _correlationIds.CorrelationId, cancellationToken);
 
-        var outcome = await _runner.RunAsync(
-            account.Username, backup.Id, destination.Value.Agent, taskId, cancellationToken);
+        BackupRunOutcome outcome;
+        try
+        {
+            outcome = await _runner.RunAsync(
+                account.Username, backup.Id, destination.Value.Agent, taskId, cancellationToken);
+        }
+        catch
+        {
+            // Every way the answer can fail to arrive, not a list of them. A cancelled request
+            // raises one exception type, a torn gRPC stream another, and a module has no business
+            // naming the transport's; what they have in common is the only thing this branch acts
+            // on — the run's outcome was not observed, and the row must say so rather than stay
+            // Running. Rethrown unchanged, so nothing is swallowed.
+            await AbandonAsync(backup, account.Username, command, taskId);
+
+            throw;
+        }
 
         if (outcome.Succeeded)
         {
@@ -176,17 +198,95 @@ public sealed class CreateBackupCommandHandler
         // re-read, and never from "nothing threw".
         if (outcome.Succeeded)
         {
+            // The account, not the backup id — the same subject the task above records, and the one
+            // AuditEntry asks for: what the operation acts on, as an operator would search for it.
             await _journal.RecordSuccessAsync(
-                AuditActions.BackupCreated, backup.Id, command.IpAddress, command.UserAgent, cancellationToken);
+                AuditActions.BackupCreated, account.Username, command.IpAddress, command.UserAgent, cancellationToken);
             await _tasks.CompleteAsync(taskId, cancellationToken);
         }
         else
         {
             await _journal.RecordFailureAsync(
-                AuditActions.BackupCreated, backup.Id, command.IpAddress, command.UserAgent, cancellationToken);
+                AuditActions.BackupCreated, account.Username, command.IpAddress, command.UserAgent, cancellationToken);
             await _tasks.FailAsync(taskId, outcome.FailureCode, cancellationToken);
         }
 
         return Result<BackupDto>.Ok(BackupMapper.From(backup, _failureNames.Of(backup.FailureCode)));
+    }
+
+    /// <summary>Closes out a run whose answer this request will never hear.</summary>
+    /// <param name="backup">The row this request wrote Running before calling the agent.</param>
+    /// <param name="username">The account the run was for, which every record here is subject to.</param>
+    /// <param name="command">The command, for the address the attempt came from.</param>
+    /// <param name="taskId">The panel task opened for the run.</param>
+    /// <returns>Resolves once the row, the audit entry and the task have been written.</returns>
+    /// <remarks>
+    /// <para>
+    /// <b>A call the panel can no longer hear is not a call that did not happen.</b> The agent's
+    /// work is a detached <c>spawn_blocking</c>: dropping the stream cancels nothing, so the archive
+    /// is very likely finished on the destination while this request is unwinding. What is lost is
+    /// only the panel's knowledge of it, and the two ways that loss reaches the panel are ordinary —
+    /// the shipped nginx closes an upstream at <c>proxy_read_timeout 300s</c>, and a customer who
+    /// closes the tab aborts the request outright.
+    /// </para>
+    /// <para>
+    /// <b>Without this the row stays Running for ever, and a Running row is not inert.</b> Both
+    /// writers of a terminal status live downstream of the agent call, so an unwound request left
+    /// one behind that nothing would ever move: it refuses every future restore of that account
+    /// (<c>RestoreBackupCommandHandler</c>'s running-backup precondition), refuses its own deletion
+    /// (<c>Backup.MayBeDeleted</c>), and is invisible to retention, so the archive's bytes are never
+    /// reclaimed either. One timed-out backup therefore cost the customer the ability to restore
+    /// from any of their good ones, with a manual database update as the only remedy.
+    /// </para>
+    /// <para>
+    /// <b>Failed, and with its own code, rather than Completed.</b> The panel never learned the size
+    /// or the digest, and a Completed row without a digest is a backup no restore can verify — the
+    /// same reason <c>BackupRunner</c> refuses an artifact the agent could not name. The code says
+    /// what is true, which is that the outcome was not observed, and it is distinct from every code
+    /// meaning the run failed, so an operator can tell the two apart in the tasks feed.
+    /// </para>
+    /// <para>
+    /// <b><see cref="CancellationToken.None"/> throughout, deliberately.</b> The request's token is
+    /// already cancelled on the path that reaches here; passing it would abandon the write that
+    /// exists precisely because the request was abandoned.
+    /// </para>
+    /// <para>
+    /// <b>This runs only while the API process is alive, and that other half is now covered
+    /// elsewhere.</b> A run whose process is killed or restarted mid-stream never reaches this
+    /// <c>catch</c> at all, so it used to leave a Running row that nothing moved.
+    /// <see cref="StartupBackupReconciler"/> is what moves it now, at the next start: it asks the
+    /// destination through <c>IAgentBackupClient.ListAsync</c> what artifacts exist and closes the
+    /// row on the answer. What this path still owns is the row it loses INSIDE a living process,
+    /// where the answer is known without asking anybody.
+    /// </para>
+    /// <para>
+    /// <b>The ARCHIVE this row stops describing is still not reclaimed, and that is deliberate.</b>
+    /// The run finishes, so an artifact this row now calls a failure is very likely sitting on the
+    /// destination — and a Failed row is invisible to retention (<c>Backup.MayBeRetentionPruned</c>
+    /// admits only Completed ones), so nothing unattended will ever free those bytes. They are not
+    /// unreachable: a Failed row MAY be deleted, and <c>DeleteBackupCommandHandler</c> removes the
+    /// artifact through the agent before the row. Nothing here deletes customer bytes on the strength
+    /// of a stream it lost. The startup reconciler closes the same gap in visibility rather than in
+    /// disk space: when it finds such an archive it says so, by backup id, at warning level, and
+    /// records the row under a code whose text tells the reader a copy exists that the panel cannot
+    /// verify — so the leak is no longer silent even though it is still an operator's to release.
+    /// </para>
+    /// <para>
+    /// <b>Why a lost stream is never COMPLETED from the destination's own listing, on either
+    /// path.</b> The listing carries the artifact's size and its SHA-256, so a row could be completed
+    /// from it — and must not be. <see cref="Backup.Sha256"/> is the panel's independently recorded
+    /// digest precisely so that a restore does not trust a digest read from beside the bytes it
+    /// describes, and a row completed from the sidecar would be indistinguishable from one the panel
+    /// observed. So both paths fail the row; neither invents a provenance.
+    /// </para>
+    /// </remarks>
+    private async Task AbandonAsync(Backup backup, string username, CreateBackupCommand command, Guid taskId)
+    {
+        backup.Failed(nameof(ErrorMessages.BackupOutcomeUnobserved), _clock.UtcNow);
+        await _dbContext.SaveChangesAsync(CancellationToken.None);
+
+        await _journal.RecordFailureAsync(
+            AuditActions.BackupCreated, username, command.IpAddress, command.UserAgent, CancellationToken.None);
+        await _tasks.FailAsync(taskId, nameof(ErrorMessages.BackupOutcomeUnobserved), CancellationToken.None);
     }
 }

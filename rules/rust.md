@@ -123,8 +123,10 @@ agent/
     │   │       │              validated_password_change.rs · validated_sftp_user.rs.
     │   │       │              It answers `ftp.proto`, which describes SFTP and
     │   │       │              nothing else — the folder is named after what the
-    │   │       │              service IS, matching `ops/src/sftp/`. A future FTP
-    │   │       │              daemon would get its own `ftp/` beside it.
+    │   │       │              service IS, matching `ops/src/sftp/`. `ftps/` sits
+    │   │       │              beside it for the vsftpd daemon — a separate service,
+    │   │       │              not a mode of this one: different daemon, different
+    │   │       │              auth model, its own TLS material.
     │   │       ├── cron/      cron_service.rs · cron_status.rs
     │   │       ├── firewall/  firewall_service.rs · firewall_status.rs
     │   │       ├── backup/    backup_service.rs · backup_status.rs
@@ -143,10 +145,20 @@ agent/
     │   └── src/
     │       ├── agent_paths.rs AgentPaths — locations the agent owns and that are the SAME
     │       │                  on every family (nginx include dir, certificate dir, account
-    │       │                  home root, php-fpm socket dir, SFTP jail root). A path
+    │       │                  home root, php-fpm socket dir, SFTP jail root, FTPS jail
+    │       │                  root, site log root, backup root, bulk scratch root). A path
     │       │                  that differs between families is a distro fact and lives in
     │       │                  distro/, never here; one that does not differ lives here, never
     │       │                  as an adapter method repeated with the same literal.
+    │       │                  BOTH jail roots are here, and that is the row worth reading
+    │       │                  twice: the two are separate constants at sibling paths with
+    │       │                  different MODES (0700 and 0711), and the thing that separates
+    │       │                  them is not the platform — it is WHEN each daemon chroots
+    │       │                  relative to dropping privilege (see ops/ below). A reader who
+    │       │                  finds only the SFTP root named here concludes the FTPS one is
+    │       │                  a per-family fact and puts it on the DistroAdapter, where its
+    │       │                  mode and its distance from /var/lib/maran — the defect that
+    │       │                  broke every real SFTP install — stop being one decision.
     │       ├── command_outcome.rs CommandOutcome — the {status, stdout, stderr} shape of
     │       │                  having run one program. Started in one `ops` area and needed
     │       │                  by a second, which is the rule below firing: it lives here so
@@ -162,17 +174,30 @@ agent/
     │       │                  Every kind is a `<kind>.rs` + `<kind>_error.rs` pair in
     │       │                  its group; a kind used by two groups still lives in the
     │       │                  one that CREATES the object.
-    │       │   ├── system/    name · sftp_user_name · cron_schedule · cron_command ·
-    │       │   │              cron_entry_id · env_var_name · env_var_value ·
-    │       │   │              backup_id · local_backup_root — values that become
-    │       │   │              OS objects
+    │       │   ├── system/    name · sftp_user_name · ftps_user_name ·
+    │       │   │              cron_schedule · cron_command · cron_entry_id ·
+    │       │   │              env_var_name · env_var_value · backup_id ·
+    │       │   │              local_backup_root — values that become OS objects.
+    │       │   │              ftps_user_name is a SECOND prefixed login name and
+    │       │   │              not a reuse of sftp_user_name: the two names are
+    │       │   │              different system users on one host and each is
+    │       │   │              built through prefixed_name.rs, so one type per
+    │       │   │              login keeps a value from being accepted where the
+    │       │   │              other protocol's jail is what it addresses.
     │       │   ├── db/        database_name · db_user_name — values that reach MySQL
     │       │   ├── web/       domain · upstream · php_version · port · source_cidr ·
     │       │   │              ban_address · ipv4_disguise (shared predicate, no
-    │       │   │              _error) · s3_bucket · s3_region · s3_object_prefix —
-    │       │   │              values written into web-server configuration, and the
-    │       │   │              remote endpoints the agent addresses, which are the
-    │       │   │              same kind of value reaching a different writer
+    │       │   │              _error) · passive_address · s3_bucket · s3_region ·
+    │       │   │              s3_object_prefix — values written into web-server
+    │       │   │              configuration, and the remote endpoints the agent
+    │       │   │              addresses, which are the same kind of value reaching
+    │       │   │              a different writer. passive_address is here and not
+    │       │   │              beside ban_address because it is WRITTEN into
+    │       │   │              vsftpd.conf rather than matched against traffic: it
+    │       │   │              is the one FTPS value an operator types freehand,
+    │       │   │              and vsftpd.conf is line-oriented, so it refuses by
+    │       │   │              being an Ipv4Addr and nothing else — a grammar, not
+    │       │   │              a character list somebody has to keep complete
     │       │   ├── fs/        path (resolve_in_home) · relative_path · file_mode
     │       │   ├── secrets/   password (validated alphabet, injection-free by
     │       │   │              construction) — the one validated kind here; a value that
@@ -220,6 +245,16 @@ agent/
     │       ├── adapter.rs     the DistroAdapter trait, alone
     │       ├── adapter_for.rs the selector: family → adapter
     │       ├── family.rs      DistroFamily
+    │       ├── vsftpd_tls_version_keys.rs  the NAMES of the three TLS-version
+    │       │                  options a rendered vsftpd.conf writes. Flat and not
+    │       │                  under a family folder because it is the shape both
+    │       │                  adapters answer with; the two families spell the
+    │       │                  same options differently (ssl_tlsv11 vs ssl_tlsv1_1)
+    │       │                  and a wrong spelling makes vsftpd exit 2 printing
+    │       │                  nothing. All three are fields even though tls_v1 is
+    │       │                  identical on both families today — the identical one
+    │       │                  is the trap, because it is the one that reads as
+    │       │                  safe to type into the template as a literal.
     │       ├── detection/     detect.rs · detect_error.rs · distro_info.rs · os_release.rs
     │       ├── debian/        debian_adapter.rs · debian_paths.rs · debian_packages.rs ·
     │       │                  debian_services.rs
@@ -227,8 +262,16 @@ agent/
     │                          rhel_services.rs
     ├── ops/
     │   ├── src/
-    │       ├── {accounts,sites,php,db,sftp,ftp,files,cron,firewall,ssl,backup,monitor}/
-    │       │                  one folder per area; anatomy below.
+    │       ├── {accounts,sites,php,db,sftp,ftps,logins,files,cron,firewall,ssl,
+    │       │    backup,monitor}/
+    │       │                  one folder per area; anatomy below. `ftp/` is NOT
+    │       │                  one of them: it is a zero-byte skeleton left from
+    │       │                  before the protocol was chosen, and the shipped
+    │       │                  FTP is FTPS over vsftpd in `ftps/`. `logins/` is
+    │       │                  not a proto service either — it is what the two
+    │       │                  login protocols share, so the systemd
+    │       │                  path-escaping rule is stated once instead of once
+    │       │                  per protocol.
     │       │                  accounts = system users: useradd/userdel, homes, quotas
     │       │                  sftp/ is OpenSSH logins chrooted into a per-account,
     │       │                  root-owned jail with the real home bind-mounted inside;
@@ -241,7 +284,14 @@ agent/
     │       │                  account's identity, because an account home of
     │       │                  <account>:<web server group> 0750 gives an identity of
     │       │                  its own nothing at all.
-    │       │                  ftp/ stays for a future FTP daemon and holds nothing.
+    │       │                  ftps/ is vsftpd: system logins gated by a PAM group,
+    │       │                  chrooted into /var/lib/maran-ftps/<account> (0711, NOT
+    │       │                  0700 — vsftpd chdirs into the home AFTER dropping to the
+    │       │                  account's uid, where sshd chroots as root BEFORE, which
+    │       │                  is why the two jail bases beside each other must differ),
+    │       │                  with TLS forced. logins/ holds what both protocols share
+    │       │                  — the systemd path-escaping rule lives there once, not
+    │       │                  once per protocol.
     │       │                  php/ has both a service and an ops area. Installing a
     │       │                  PHP version is a host operation with no site to drive
     │       │                  it — it is done once and then bound by many sites — so
@@ -277,6 +327,10 @@ agent/
     │       │                  docs/superpowers/notes/2026-09-07-backup-object-store-seam.md).
     │       ├── safe_write/    render_validate_swap.rs · remove_config.rs ·
     │       │                  rollback_guard.rs · safe_write_error.rs ·
+    │       │                  config_tree_lock.rs (the host-wide write lock —
+    │       │                  taken inside the protocol, not by its callers,
+    │       │                  because two operations nest and an operation-level
+    │       │                  lock deadlocks on them) ·
     │       │                  config_host.rs (the injectable filesystem/reload seam) ·
     │       │                  write_config_set.rs (several files as one all-or-nothing set) ·
     │       │                  model/ (config_file.rs · reload.rs · validator.rs) — the ONE
@@ -305,7 +359,23 @@ agent/
         │                      index and locations — once, so the port-80 block and
         │                      the TLS block embed the same string instead of two
         │                      hand-kept copies that drift on the half a browser reaches. ·
-        │                      php_fpm/{pool,pool_override}.rs · vsftpd/user_config.rs ·
+        │                      php_fpm/{pool,pool_override}.rs ·
+        │                      vsftpd/vsftpd_daemon_config.rs — plus vsftpd/user_config.rs,
+        │                      which is a PLANNED home and not a file: per-login read-only
+        │                      access, bandwidth limits and quotas are deferred deliberately
+        │                      (docs/superpowers/plans/2026-09-08-maran-ftps.md, "Deferred
+        │                      deliberately"), and this row keeps naming where they would
+        │                      land so the deferral stays visible instead of becoming a
+        │                      silent gap. Nothing renders a `user_config_dir` today. The
+        │                      daemon
+        │                      config carries the TLS version keys as FIELDS, not literals,
+        │                      because the two families spell them differently
+        │                      (`ssl_tlsv12` vs `ssl_tlsv1_2`) and the wrong spelling makes
+        │                      Ubuntu's build exit 2 with NO message. The third key,
+        │                      `ssl_tlsv1`, is spelled alike today and is a field anyway:
+        │                      leaving the one identical key as a literal is the trap, and a
+        │                      golden cannot see it — the test that can renders sentinel
+        │                      spellings and requires each to appear. ·
         │                      systemd/unit.rs ·
         │                      nftables/{nftables_ruleset,nftables_bans_table,
         │                      nftables_allow,nftables_ssh_port,nftables_protocol}.rs —
@@ -444,7 +514,12 @@ One folder per proto service, three kinds of file inside:
   fourth thing, that thing belongs in `ops`.
 - `<area>_status.rs` — the single `From<XOpError> for tonic::Status` mapping for
   the area. It exists so the match never grows inside the service file, and so
-  one error variant maps to one gRPC code in one place.
+  one error variant maps to one gRPC code in one place. One per OPS AREA, which
+  is not always one per folder: `services/sftp/` holds `sftp_status.rs` and
+  `logins_status.rs` because `ops::logins` is an operation area with no proto
+  service of its own, and the rpc that drives it is served beside the SFTP rpcs
+  it was written with. A second file there is the rule holding, not bending — a
+  single mapping over two error enums is the growing match this row forbids.
 - one item-named file per decision the handler would otherwise inline — the
   request-to-input checks (`validated_site.rs`, `validated_identity.rs`,
   `validated_overrides.rs`), a sink or adapter the rpc needs
@@ -454,8 +529,10 @@ One folder per proto service, three kinds of file inside:
   a decision inlined in a handler can be deleted without a single test going
   red. Same rule as everywhere else — one unit per file, named after the unit.
 
-Streaming rpcs (`TailSiteLog`, `CreateBackup`, `ReadFile`, `WriteFile`) still
-follow this: the stream is produced by `ops` and the service only wraps it.
+Streaming rpcs (`TailSiteLog`, `CreateBackup`, `RestoreBackup`,
+`InstallPhpVersion` and the client-streaming `WriteFile`) still follow this: the
+stream is produced by `ops` and the service only wraps it. Each also states its
+cancellation class in its own doc comment — see "Async and blocking".
 
 ## Operation anatomy (`crates/ops/src/<area>/`)
 
@@ -470,11 +547,26 @@ ops/src/sites/
 ├── delete_site.rs
 ├── tail_site_log.rs
 ├── reload_web_server.rs
+├── is_suspended_vhost.rs   not an rpc: the question every re-render must ask
+│                           before writing an ENABLED vhost, because three
+│                           operations re-render a site for their own reasons
+│                           (a php version, a certificate installed, a
+│                           certificate removed) and would otherwise wake a
+│                           suspended site up as a side effect
 └── model/                  input and output types, one per file
     ├── create_site_input.rs
     ├── site_kind.rs
-    └── log_kind.rs
+    └── site_log_kind.rs    holding SiteLogKind, and the name is not free: this row
+                            read `log_kind.rs` until 2026-09-12, which is a file
+                            `maran structure` would REFUSE — it requires the file
+                            name to equal the type name, so anyone who filed by
+                            this map got a red gate and no idea why.
 ```
+
+The block above is the SHAPE of an area, not a listing of this one: `ops/src/sites/`
+holds twenty-three files, and the render/write/host seams it also carries are named
+in the canonical layout further up. Read it for the anatomy — one error enum, one
+file per rpc, non-rpc questions named, `model/` for the types — not as a census.
 
 Rules for an operation function:
 
@@ -610,6 +702,28 @@ one implementation of this protocol:
 6. Reload the service.
 7. On any failure at 5–6: restore the previous content and return a typed error.
 
+**Reading a live config back: take the LAST occurrence of a key, never the first.**
+Measured, with controls on both families: vsftpd's parser takes the last one — a
+duplicated `listen_port` of 2121 then 2122 binds 2122. An earlier draft of this
+codebase's own plan had it backwards and was corrected by measurement, so the
+mistake is easy and has already been made once.
+
+It matters far beyond tidiness. Under "first wins" an appended line is inert and
+duplicate keys are hygiene. Under "last wins" an appended
+`force_local_logins_ssl=NO` **silently switches off mandatory TLS**, and a status
+read that took the first occurrence would report the pair the panel intended while
+the daemon obeyed the pair somebody appended — a check that agrees with the
+panel's own decision whatever the host does, which is the vacuous shape this file
+exists to forbid. The same rule makes the `-o` command-line overrides ordinary
+rather than exceptional: they are read after the file, so they win.
+
+Two consequences for anything that writes or reads one of these files. A rendered
+config is **replaced whole, never appended to** — which `safe_write` already
+guarantees, so the rule is really a warning to anyone tempted to add a line
+somewhere else. And a status that reports a config value must read the bytes the
+daemon reads and resolve them the way the daemon does; reporting what was rendered
+is reporting an intention, not an observation.
+
 The rename precedes validation, not the other way round, because the validating
 tool reads the real config tree by path — `nginx -t` parses `nginx.conf` and
 everything its includes glob in, and a temporary file named `.tmpXXXXXX` matches
@@ -654,11 +768,103 @@ the same command can complete.
 - Blocking work — filesystem walks, process waits, archive extraction, database
   dumps — goes through `tokio::task::spawn_blocking`. A blocking call on a runtime
   worker stalls every other in-flight command.
-- No unbounded buffering of streamed data. `ReadFile`, `TailSiteLog`,
-  `CreateBackup` and `RestoreBackup` stream in bounded chunks; reading a
-  customer's 4 GB file into a `Vec<u8>` is a denial of service against the panel.
-- Long-running operations respect cancellation: when the client drops the stream,
-  the work stops.
+- No unbounded buffering of streamed data. The rpcs that stream today are
+  `TailSiteLog`, `CreateBackup`, `RestoreBackup` and `InstallPhpVersion`
+  (server-streaming) and `WriteFile` (client-streaming); each is bounded by a
+  channel with a ceiling, and reading a customer's 4 GB file into a `Vec<u8>`
+  is a denial of service against the panel. `ReadFile` is declared in the
+  contract and answers `UNIMPLEMENTED`, so it is named here as reserved rather
+  than as shipped behaviour — an earlier version of this line listed it among
+  the bounded-chunk streams and described code that does not exist.
+- Long-running operations answer a dropped stream deliberately, and "stop" is not
+  always the right answer. Sort each one before writing it:
+  - **Stop.** Work whose only product is the stream itself — `TailSiteLog` is the
+    example, and it is the one rpc that literally obeys the older wording of this
+    rule. The blocking loop asks whether the channel is still open and returns
+    when it is not; a dropped future cancels nothing on its own, because every
+    unit of host work runs inside `spawn_blocking`. `WriteFile` is in this class
+    for a different reason and gets it for nothing: the upload itself drives the
+    work, so a sender that disappears is refused before any file is touched.
+  - **Run to completion.** Work that mutates the host and has no safe midpoint.
+    `RestoreBackup` replaces a home directory and drops and reloads every database
+    in the copy; abandoning it half-way is exactly the unrecoverable state the
+    startup reconciler exists to repair, so a dropped client must not stop it. A
+    contributor who "fixed" this to obey a stop-always rule would reintroduce that
+    data loss, which is why the rule is written this way. `InstallPhpVersion` is
+    the same class with a milder consequence — half an `apt-get install` is a
+    broken host — and needs no reclamation, because the rpc is idempotent: the
+    panel's remedy for a stream it lost is to ask again.
+  - **Run to completion and then reclaim.** Work that finishes safely but leaves
+    something behind — `CreateBackup` writes an archive the panel will never learn
+    about if the stream died. Finishing is right; leaving the artifact and the row
+    orphaned is not. Whatever the panel would have recorded, something must
+    reconcile afterwards. Nothing does today, and the rpc's doc comment says so
+    rather than describing the reclamation as if it existed: a class name is an
+    obligation, and writing the obligation down as behaviour is how the next
+    reader stops looking (rules/architecture.md).
+  State which of the three an rpc is, in its own doc comment, and say why. All
+  five say it today — `TailSiteLog` and `WriteFile` stop, `RestoreBackup` and
+  `InstallPhpVersion` run to completion, `CreateBackup` runs to completion and
+  owes a reclamation. Nothing mechanical checks that a sixth one does, so this is
+  a review item; the sentence is what a reviewer looks for. The panel's side is
+  bound by the same sort: a call it can no longer hear is not a call that did not
+  happen.
+
+## What this agent serialises
+
+The agent serves rpcs concurrently and the panel issues them concurrently — two
+schedulers and an operator can aim three operations at one account with nothing
+between them. So every mutation of a shared host resource is serialised
+deliberately, and the whole set is listed here because a sixth lock added by
+someone who could not see the other five is how a deadlock gets built.
+
+| lock | reach | on contention |
+|---|---|---|
+| `ops::safe_write::config_tree_lock` | host-wide | waits |
+| `ops::firewall::firewall_lock` | host-wide | waits |
+| `ops::cron::cron_lock` | one account | waits |
+| `ops::accounts::account_lock` | one account | **never waits** — refuses |
+| `STDIN_IS_THE_ARTIFACT` (`ops::backup`) | host-wide | waits |
+
+Four properties hold this together, and a change that breaks any one of them owes
+a new argument in its place:
+
+- **The four waiting locks are leaves.** Nothing holding one asks for another.
+  That is what makes a wait-for cycle impossible, and it is why the config-tree
+  lock lives *inside* the `safe_write` protocol rather than at the rpc entry
+  points: two operations nest (`ssl::delete_site_with_certificate` calls
+  `sites::delete_site`, `ssl::generate_self_signed` calls
+  `ssl::install_certificate`) and an operation-level lock deadlocks on them.
+- **The account lock never blocks**, so it contributes no wait-for edge at all.
+  Several operations hold two — account deletion, `sftp::create_sftp_user`,
+  `ftps::create_ftps_user` and `php::write_pool` each take this one and then the
+  host-wide config-tree lock. That is safe for one reason and one only: **this
+  lock is always the outer one, and it never waits**, so none of those paths
+  contributes a wait-for edge. Take them in the other order, or make this one
+  wait, and the argument is gone — an earlier version of this rule said deletion
+  was the only such operation, which was already untrue when it was written.
+- **The two per-account locks are deliberately NOT merged.** Merging them would
+  inherit cron's waiting semantics and destroy the property above. They look like
+  duplication and are not.
+- **Every one of them is process-local.** They serialise this binary against
+  itself and nothing else: not a second agent, not an installer step, not an
+  operator's own `crontab -e` or `userdel`. Say so where you take one; a reader
+  who assumes host-wide exclusion from a `Mutex` is reading a promise nobody made.
+
+Choose *waits* or *refuses* by what the caller is. A refusal reaching an
+unattended scheduler is the operation silently not happening plus a message
+nobody reads — the same outcome as the race, by a politer route. A wait held by
+work that runs for minutes is a stalled panel. `backup_lock` refuses because a
+backup holds a thread for minutes; a config write holds one for a reload.
+
+Read-modify-write is one critical section, not just the write. Six cron
+operations read, parse, render and reinstall a whole crontab; taking the lock at
+the write would let one operation's install land on another's read. The guard is
+the first statement of the operation.
+
+A fact re-read after a wait is a fact that may have expired. Deletion re-asks for
+the account's uid *inside* the critical section and refuses on a mismatch, because
+a uid resolved an hour earlier belongs to whoever `useradd` has since given it to.
 
 ## unsafe
 

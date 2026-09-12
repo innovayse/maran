@@ -1,5 +1,6 @@
 import { computed, type ComputedRef } from 'vue'
 import { useRouter } from 'vue-router'
+import { useAuthStore } from '../stores/auth'
 import { useModulesStore } from '../stores/modules'
 import { NO_LANDING_ROUTE, moduleLandingRoute } from '../router/moduleLandingRoute'
 import { moduleNavigationIcon } from '../utils/moduleNavigationIcon'
@@ -11,6 +12,13 @@ import type { NavigationEntry } from '../types/navigation'
  * catalogue.
  */
 const SYSTEM_STATUS_ROUTE = 'system-status'
+
+/**
+ * Route name of the audit journal. Like system status it ships with the shell
+ * itself — the journal is the panel-wide record every module writes into — so
+ * its entry is the shell's own rather than read from the catalogue.
+ */
+const AUDIT_ROUTE = 'audit'
 
 /**
  * Route name of the upgrade prompt a locked module's entry points to.
@@ -32,6 +40,7 @@ const UPGRADE_ROUTE = 'upgrade'
  * @returns A computed list of {@link NavigationEntry} to render in order.
  */
 export const useNavigation = (): ComputedRef<NavigationEntry[]> => {
+  const authStore = useAuthStore()
   const modulesStore = useModulesStore()
   const router = useRouter()
 
@@ -85,6 +94,30 @@ export const useNavigation = (): ComputedRef<NavigationEntry[]> => {
       ]
     })
 
-    return [systemStatusEntry, ...moduleEntries]
+    // Whether to offer the administrator-only journal entry. NOT a gate — the endpoint refuses a
+    // customer whatever the sidebar shows — so on a role it does not recognise it errs PERMISSIVE
+    // and offers the entry (rules/architecture.md: the SPA is never the boundary). Asking "not a
+    // customer" rather than "is an admin" is the whole point: a role above administrator must not
+    // silently lose the journal from a menu the backend would happily serve it. The same rule, in
+    // the same spelling, as the account menu's admin entries in ShellUserBlock.
+    const showsAuditJournal = authStore.user !== null && authStore.user.role !== 'customer'
+
+    // The journal sits after the module entries: it is the shell's own record OF them — the place
+    // an operator goes after something on the screens above did not happen as expected.
+    const auditEntry: NavigationEntry[] = showsAuditJournal
+      ? [
+          {
+            key: 'audit-journal',
+            target: { name: AUDIT_ROUTE },
+            labelKey: 'app.nav.auditJournal',
+            label: null,
+            moduleName: null,
+            icon: 'scrollText',
+            locked: false,
+          },
+        ]
+      : []
+
+    return [systemStatusEntry, ...moduleEntries, ...auditEntry]
   })
 }

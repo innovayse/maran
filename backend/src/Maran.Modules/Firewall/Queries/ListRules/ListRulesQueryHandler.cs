@@ -58,7 +58,10 @@ public sealed class ListRulesQueryHandler
         var projected = rules.Value
             .Select(rule =>
             {
-                return new FirewallRuleDto(rule.Port, rule.Protocol, rule.SourceCidr);
+                // The upper bound is carried through as the agent reported it, null included: a
+                // projection that dropped it would show a hundred open ports as one, and would
+                // offer a deny button that matches nothing.
+                return new FirewallRuleDto(rule.Port, rule.PortTo, rule.Protocol, rule.SourceCidr);
             })
             .ToList();
 

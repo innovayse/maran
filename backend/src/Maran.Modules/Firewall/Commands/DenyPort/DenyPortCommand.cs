@@ -15,6 +15,11 @@ namespace Maran.Modules.Firewall.Commands.DenyPort;
 /// <param name="Port">The port to stop allowing, 1-65535.</param>
 /// <param name="Protocol">The transport protocol the rule applies to.</param>
 /// <param name="SourceCidr">The source range the original allow was scoped to.</param>
+/// <param name="PortTo">
+/// The inclusive upper bound of the range whose allow is being removed, or null for a single port.
+/// A rule is matched by its whole value, so a deny naming only the lower bound of an installed
+/// range removes nothing — which is why the listing reports the bound.
+/// </param>
 /// <param name="IpAddress">The caller's address, established by the server from the connection and
 /// stamped by the action. Never bound from the request — an audited address a caller could state is
 /// not evidence of anything. The guard is spelled with three attributes and each closes a different
@@ -29,5 +34,6 @@ public sealed record DenyPortCommand(
     int Port,
     AgentFirewallProtocol Protocol,
     string SourceCidr,
+    int? PortTo = null,
     [property: JsonIgnore][property: BindNever][BindNever] string IpAddress = "",
     [property: JsonIgnore][property: BindNever][BindNever] string UserAgent = "");

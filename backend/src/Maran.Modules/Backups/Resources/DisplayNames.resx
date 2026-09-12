@@ -57,7 +57,16 @@
   <data name="BackupFailureAgentInvalidResponse">
     <value>The server returned an answer the panel could not read</value>
   </data>
+  <data name="BackupFailureAgentAccountBusy">
+    <value>Another operation on this account was still running</value>
+  </data>
   <data name="BackupDestinationDefault">
     <value>Local storage</value>
+  </data>
+  <data name="BackupFailureBackupOutcomeUnobserved">
+    <value>The panel stopped following the run</value>
+  </data>
+  <data name="BackupFailureBackupArtifactUnvouched">
+    <value>Archive present, checksum not recorded</value>
   </data>
 </root>

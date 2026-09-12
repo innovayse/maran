@@ -104,6 +104,19 @@ impl<B: BackupHost + 'static, D: DbHost + 'static> BackupService for BackupServi
     /// error — and never with a bare gRPC status for a domain outcome. A
     /// refused input ends it immediately with that same typed refusal, so a
     /// caller handles one shape whether the work started or not.
+    ///
+    /// **Cancellation class: run to completion and then reclaim**
+    /// (rules/rust.md, "Async and blocking"). The work is a detached
+    /// `spawn_blocking` task — its handle is dropped here, and a blocking task
+    /// is not abortable — and `ChannelProgressSink` cannot observe a closed
+    /// channel, so a client that goes away does not stop the archive. That is
+    /// the safe ending; it is not the whole obligation. What is left behind is
+    /// a complete artifact and its sidecar that nobody was told about, so
+    /// whatever the panel would have recorded has to be reconciled afterwards.
+    /// **Today nothing reconciles it** — the panel's startup reconciler knows
+    /// only its own task rows — which is a defect on the panel's side and not a
+    /// reason to add a stop check here: stopping would trade an orphaned
+    /// artifact for a half-written one.
     async fn create_backup(
         &self,
         request: Request<CreateBackupRequest>,
@@ -176,6 +189,19 @@ impl<B: BackupHost + 'static, D: DbHost + 'static> BackupService for BackupServi
     /// replaced. Nothing here collapses those into a boolean: a caller states
     /// the verdict by comparing them, which is the shape `RestoreOutcome` was
     /// given after a cascade reported completion over rows it never touched.
+    ///
+    /// **Cancellation class: run to completion** (rules/rust.md, "Async and
+    /// blocking") — and of the three classes this is the one that must not be
+    /// "improved". A restore drops and reloads every database in the copy and
+    /// then renames the home twice; between any two of those steps the account
+    /// is in a state no retry reconstructs, so a dropped client must not stop
+    /// it. A contributor who added an "is anyone still listening?" check to
+    /// this work would reintroduce, from the cancellation side, exactly the
+    /// interrupted swap `ops::backup::recover_restores` exists to repair.
+    /// `ChannelRestoreSink` is deliberately unable to see the drop, so the
+    /// check cannot be added by accident. Nothing is left to reclaim: the
+    /// operation removes its own marker and releases the account lock on its
+    /// own completion path.
     async fn restore_backup(
         &self,
         request: Request<RestoreBackupRequest>,

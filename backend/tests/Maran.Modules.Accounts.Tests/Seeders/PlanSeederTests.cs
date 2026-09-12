@@ -95,6 +95,29 @@ public sealed class PlanSeederTests
         Assert.Equal(maxSftpUsers, plan.MaxSftpUsers);
     }
 
+    /// <summary>Each standard plan carries the ftps allowance it is documented with.</summary>
+    [Theory]
+    [InlineData("11111111-0000-4000-8000-000000000001", 3)]
+    [InlineData("11111111-0000-4000-8000-000000000002", 10)]
+    [InlineData("11111111-0000-4000-8000-000000000003", 100)]
+    public async Task Each_standard_plan_carries_the_ftps_allowance_it_is_documented_with(
+        string planId,
+        int maxFtpUsers)
+    {
+        // Pinned because these are the values AddPlanMaxFtpUsers backfills onto every existing
+        // installation, and the two must not drift: a seeder and a migration that disagree hand two
+        // customers on the same tier different allowances depending on when their server was built.
+        // The numbers equal each tier's SFTP allowance by decision, not by derivation — the entity
+        // keeps them separate — so this theory is also what would catch a "fix" that read one from
+        // the other.
+        await using var dbContext = CreateDbContext();
+        await new PlanSeeder(dbContext).SeedAsync(CancellationToken.None);
+
+        var plan = await dbContext.Plans.SingleAsync(p => p.Id == Guid.Parse(planId));
+
+        Assert.Equal(maxFtpUsers, plan.MaxFtpUsers);
+    }
+
     /// <summary>Asserts one seeded plan's site and worker limits.</summary>
     /// <param name="planId">The plan's fixed identity.</param>
     /// <param name="maxSites">The site allowance it must carry.</param>

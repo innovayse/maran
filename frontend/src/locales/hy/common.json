@@ -7,6 +7,9 @@
     "name": "Անուն",
     "delete": "Ջնջել",
     "saving": "Պահպանվում է…",
-    "emptyValue": "—"
+    "emptyValue": "—",
+    "copyPassword": "Պատճենել գաղտնաբառը",
+    "copied": "Պատճենված է",
+    "done": "Պատրաստ է"
   }
 }

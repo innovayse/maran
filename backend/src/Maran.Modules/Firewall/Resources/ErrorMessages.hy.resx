@@ -15,6 +15,9 @@
   <data name="RulePortInvalid">
     <value>Պատնեշի կանոնը պետք է նշի 1-ից 65535 միջակայքի պորտ։</value>
   </data>
+  <data name="RulePortRangeInvalid">
+    <value>Պորտերի միջակայք բացող պատնեշի կանոնը պետք է ավարտվի իր սկզբից բարձր և տեղավորվի 1-65535 սահմաններում։</value>
+  </data>
   <data name="RuleProtocolInvalid">
     <value>Պատնեշի կանոնը կիրառվում է TCP-ի կամ UDP-ի վրա։</value>
   </data>

@@ -2,6 +2,7 @@
 
 use std::path::Path;
 
+use crate::safe_write::config_tree_lock::config_tree_lock;
 use crate::safe_write::model::{Reload, Validator};
 use crate::safe_write::{ConfigHost, RollbackGuard, SafeWriteError};
 
@@ -18,6 +19,12 @@ use crate::safe_write::{ConfigHost, RollbackGuard, SafeWriteError};
 /// bypassing it — rules/rust.md "Config writes": *an area that needs a
 /// variation on this protocol extends `safe_write`, it does not write its own
 /// copy.*
+///
+/// Runs under `config_tree_lock` for the same reason the write does, and one
+/// of the three interleavings that lock closes is this function's: a removal
+/// that commits while another operation holds the same bytes as its own
+/// captured previous content used to be undone by that operation's rollback,
+/// which put the deleted site's vhost back.
 ///
 /// A target that is already absent is a success with nothing run: the caller
 /// has already decided whether a missing file is `NotFound` or a converged
@@ -39,6 +46,10 @@ pub fn remove_config(
     validator: &Validator<'_>,
     reload: &Reload<'_>,
 ) -> Result<(), SafeWriteError> {
+    // Held for the whole sequence below, capture included. See
+    // `config_tree_lock` for why the unit of serialisation is the host.
+    let _guard = config_tree_lock();
+
     let previous = match std::fs::read(target) {
         Ok(bytes) => bytes,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
@@ -47,7 +58,9 @@ pub fn remove_config(
 
     // Armed before the unlink, so every path out of the function below either
     // commits the removal or puts the bytes back.
-    let mut guard = RollbackGuard::new(target.to_path_buf(), Some(previous));
+    // Nothing is swapped IN by a removal, so the state the guard requires to
+    // find before it restores is an absent file.
+    let mut guard = RollbackGuard::new(target.to_path_buf(), Some(previous), None);
 
     if std::fs::remove_file(target).is_err() {
         // Nothing was removed, so there is nothing to restore.

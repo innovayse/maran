@@ -1,9 +1,21 @@
 //! What a real `maran-agent` process does when it is asked to stop.
 //!
-//! The whole subject of this suite is a signal delivered to a process, so it
-//! spawns the SHIPPED BINARY and signals it. An in-process test cannot: a
-//! `SIGTERM` raised inside the test harness kills the harness, and a test that
-//! called the shutdown future directly would be observing its own argument.
+//! The whole subject of this suite is a signal delivered to a process, so its
+//! first two cases spawn the SHIPPED BINARY and signal it: a test that called
+//! the shutdown future directly would be observing its own argument.
+//!
+//! The third case signals a process of its own, and the reason is the whole of
+//! what it asserts. This paragraph used to say such a test was impossible
+//! because "a `SIGTERM` raised inside the test harness kills the harness" —
+//! which is true only when no handler is installed, and that is precisely the
+//! condition under test. So the signal is raised inside a CHILD copy of this
+//! binary and the parent reads its exit status: a process that SURVIVES its own
+//! `SIGTERM` survives only because [`StopSignals::install`] replaced the
+//! kernel's default action at the moment it was called, rather than at the
+//! moment the wait was first polled. In a child and not in the harness because
+//! the failure has to be REPORTED — measured, an in-harness version killed the
+//! run with no `test result:` line at all and left `cargo test` waiting on a
+//! pipe the orphaned children still held.
 //!
 //! What was measured before the handler existed, and is the reason this suite
 //! is here: the agent installed no handler at all, so `SIGTERM` took its
@@ -15,10 +27,20 @@
 //!
 //! What it does NOT settle, stated so nobody reads more into a green run: the
 //! drain BUDGET — that a request still running after `shutdown::DRAIN_BUDGET`
-//! is abandoned rather than allowed to hold the daemon open — is asserted by
-//! the unit tests on `drain_deadline`, on a paused clock. Proving it end to end
-//! means holding a real `TailSiteLog` stream open for thirty seconds of wall
-//! time, which is a suite nobody would run.
+//! is abandoned — is asserted by the unit tests on `drain_deadline`, on a
+//! paused clock. Proving it end to end means holding a real `TailSiteLog`
+//! stream open for thirty seconds of wall time, which is a suite nobody would
+//! run.
+//!
+//! That sentence used to end "rather than allowed to hold the daemon open",
+//! and that half was false. The budget abandons the REQUEST; the host work
+//! behind it runs inside `spawn_blocking`, which nothing can cancel, and the
+//! runtime drop in `main` joins the blocking pool with no timeout — so an
+//! in-flight operation really does hold the process open past the budget, and
+//! the bound on a stop is the unit's `TimeoutStopSec=45`. Measured, and pinned
+//! by `the_process_cannot_exit_before_the_work_it_abandoned_returns`. Nothing
+//! in THIS suite covers it: both cases here stop an IDLE daemon, which drains
+//! in milliseconds, so a green run says nothing either way.
 
 // A failing assertion IS the reporting mechanism for a test, so the
 // workspace-wide bans on unwrap/expect/panic are lifted here only.
@@ -31,6 +53,7 @@ use std::time::{Duration, Instant};
 use hyper_util::rt::TokioIo;
 use maran_agent::proto::GetAgentInfoRequest;
 use maran_agent::proto::system_service_client::SystemServiceClient;
+use maran_agent::shutdown::StopSignals;
 use tokio::net::UnixStream;
 use tonic::transport::{Channel, Endpoint, Uri};
 use tower::service_fn;
@@ -49,6 +72,22 @@ const EXIT_TIMEOUT: Duration = Duration::from_secs(10);
 /// being waited for are a file appearing and a process reaping, and both are
 /// observable directly (rules/testing.md "Determinism").
 const POLL_INTERVAL: Duration = Duration::from_millis(20);
+
+/// How long the in-process case waits for a signal it has already raised.
+///
+/// Generous on purpose: the wait is expected to complete immediately, so this is
+/// only a bound on a hang. Reaching it means the signal was recorded by nothing,
+/// which is the defect, and a bounded failure names it where an unbounded await
+/// would hang the target.
+const SELF_SIGNAL_TIMEOUT: Duration = Duration::from_secs(5);
+
+/// Environment variable that turns a run of this binary into the child half of
+/// `a_stop_signal_raised_before_the_wait_is_polled_is_still_delivered`.
+///
+/// The child is this same binary re-executed, so the marker has to be something
+/// the parent can set and the case can read; an argument would be consumed by
+/// libtest instead.
+const STOP_SIGNAL_CHILD: &str = "MARAN_STOP_SIGNAL_CHILD";
 
 /// Authority the endpoint is built with; never resolved, because the connector
 /// below dials the socket path instead. tonic still requires a valid URI to
@@ -115,6 +154,89 @@ fn a_connected_client_does_not_hold_the_stop_open() {
         status.code(),
         Some(0),
         "an attached client must not turn a stop into a kill"
+    );
+}
+
+/// [`StopSignals::install`] replaces the kernel's default action when it is
+/// CALLED, and not when the wait it returns is first polled.
+///
+/// That is the entire reason `StopSignals` is a type rather than an `async fn`,
+/// and until this case existed nothing observed it. The two cases above do not:
+/// they see the consequence only when the scheduler happens to hold the window
+/// open long enough, which is why the defect arrived as an intermittent failure
+/// instead of a red suite — measured on this branch at 24 busy-loop processes on
+/// a 12-core host, the pre-fix ordering lost 7 of 60 runs of
+/// `a_running_agent_exits_cleanly_on_sigterm_and_takes_its_socket_with_it` and
+/// the fixed one lost 0 of 60, alternated run for run. This case fails every
+/// time, on an idle machine.
+///
+/// **UNOBSERVED HERE: where `install` is called from.** The flake was caused by
+/// installing too LATE in `server::serve` — after `UnixListener::bind` — and
+/// nothing here can see that, because this case calls `install` itself. What it
+/// holds is the property that call site depends on; a future refactor collapsing
+/// `StopSignals` back into an `async fn` is what it catches, and that is exactly
+/// the shape the defect had. The call site's ordering is held by the comment on
+/// it and by the two cases above, probabilistically.
+///
+/// The assertion runs in a CHILD copy of this test binary, the same re-entry
+/// `restore_recovery_on_a_real_host.rs` uses, because the thing being proved is
+/// that a process SURVIVES a signal whose default action would end it. Done in
+/// the harness itself, a broken `install` would kill the harness mid-run: no
+/// `test result:` line, no named failure, and `cargo test` left waiting on a
+/// pipe the orphaned children still hold — a failure that reports nothing, which
+/// rules/testing.md refuses. In a child it is an exit status the parent reads,
+/// and `None` — died by a signal — is the named failure.
+#[test]
+fn a_stop_signal_raised_before_the_wait_is_polled_is_still_delivered() {
+    if std::env::var_os(STOP_SIGNAL_CHILD).is_some() {
+        raise_a_stop_signal_at_this_process();
+        return;
+    }
+
+    let child = Command::new(std::env::current_exe().expect("the test binary must be locatable"))
+        .args([
+            "--exact",
+            "a_stop_signal_raised_before_the_wait_is_polled_is_still_delivered",
+            "--test-threads=1",
+        ])
+        .env(STOP_SIGNAL_CHILD, "1")
+        .output()
+        .expect("the test binary must be re-runnable as a child");
+
+    assert_eq!(
+        child.status.code(),
+        Some(0),
+        "a SIGTERM raised before the stop wait was first polled must still \
+         complete it, so the child must EXIT: an exit code of None means it died \
+         by the signal's default action, which is the handler not being installed \
+         by StopSignals::install at all (stderr: {})",
+        String::from_utf8_lossy(&child.stderr)
+    );
+}
+
+/// The child half of the case above: installs the handlers, signals itself
+/// before the wait has ever been polled, and requires the wait to complete.
+///
+/// The runtime is built first because `tokio::signal::unix::signal` registers
+/// with the runtime's signal driver and has no meaning outside one.
+fn raise_a_stop_signal_at_this_process() {
+    let runtime = tokio::runtime::Runtime::new().expect("a runtime must be available");
+    let signals = runtime.block_on(async { StopSignals::install() });
+
+    let raised = Command::new("kill")
+        .args(["-TERM", &std::process::id().to_string()])
+        .status()
+        .expect("kill(1) is present on every supported host");
+    assert!(raised.success(), "the signal must be delivered");
+
+    let delivered = runtime
+        .block_on(async { tokio::time::timeout(SELF_SIGNAL_TIMEOUT, signals.stopped()).await });
+
+    assert!(
+        delivered.is_ok(),
+        "the signal was handled — the process is alive — but the wait did not \
+         complete within {SELF_SIGNAL_TIMEOUT:?}, so what install registered is \
+         not what stopped() reads"
     );
 }
 

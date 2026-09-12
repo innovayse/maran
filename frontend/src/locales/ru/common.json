@@ -7,6 +7,9 @@
     "name": "Имя",
     "delete": "Удалить",
     "saving": "Сохранение…",
-    "emptyValue": "—"
+    "emptyValue": "—",
+    "copyPassword": "Скопировать пароль",
+    "copied": "Скопировано",
+    "done": "Готово"
   }
 }

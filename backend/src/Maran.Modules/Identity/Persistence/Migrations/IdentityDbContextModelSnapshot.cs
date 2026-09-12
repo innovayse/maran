@@ -239,6 +239,24 @@ namespace Maran.Modules.Identity.Persistence.Migrations
                     b.ToTable("Sessions", "identity");
                 });
 
+            modelBuilder.Entity("Maran.Modules.Identity.Domain.Entities.SetupTokenWindow", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("OpenedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("TokenFingerprint")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("SetupTokenWindow", "identity");
+                });
+
             modelBuilder.Entity("Maran.Modules.Identity.Domain.Entities.User", b =>
                 {
                     b.Property<Guid>("Id")

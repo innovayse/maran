@@ -1,6 +1,11 @@
 using Maran.Modules.Identity.Persistence;
+using Maran.Modules.Identity.Resources;
+using Maran.Modules.Identity.Services;
 using Maran.SharedKernel.Security;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Localization;
+using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 
 namespace Maran.Modules.Identity.Tests.TestSupport;
 
@@ -24,5 +29,21 @@ public static class IdentityTestContext
             .Options;
 
         return new IdentityDbContext(options, new AesGcmEncryptionService(EncryptionKey));
+    }
+
+    /// <summary>Builds the action-name resolver over this module's REAL resource files.</summary>
+    /// <returns>The resolver, reading <c>Resources/DisplayNames*.resx</c> as it does in the panel.</returns>
+    /// <remarks>
+    /// Real resources rather than a stub, deliberately: the tests over this resolver are about
+    /// whether the shipped resx triple actually names every action, which a stub would answer for
+    /// the stub. The same arrangement the Backups module's failure-name tests use.
+    /// </remarks>
+    public static AuditActionDisplayNames ActionNames()
+    {
+        var factory = new ResourceManagerStringLocalizerFactory(
+            new OptionsWrapper<LocalizationOptions>(new LocalizationOptions()),
+            NullLoggerFactory.Instance);
+
+        return new AuditActionDisplayNames(new StringLocalizer<DisplayNames>(factory));
     }
 }

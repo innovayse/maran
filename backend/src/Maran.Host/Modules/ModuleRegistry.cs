@@ -3,6 +3,7 @@ using Maran.Modules.Backups;
 using Maran.Modules.Cron;
 using Maran.Modules.Databases;
 using Maran.Modules.Firewall;
+using Maran.Modules.Ftp;
 using Maran.Modules.Identity;
 using Maran.Modules.Monitoring;
 using Maran.Modules.Notifications;
@@ -35,6 +36,7 @@ public static class ModuleRegistry
             new SslModule(),
             new DatabasesModule(),
             new SftpModule(),
+            new FtpModule(),
             new CronModule(),
             new FirewallModule(),
             new TasksModule(),

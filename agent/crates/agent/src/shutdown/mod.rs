@@ -13,9 +13,22 @@
 //! in-flight request would wait for an open log viewer — for ever — and every
 //! stop would end at `TimeoutStopSec` in a `SIGKILL` anyway. A stop that is
 //! slower AND still ends in a kill is worse than the instant death it replaced.
+//!
+//! What the bound bounds, precisely, because the sentence above reads as more
+//! than it is. It bounds how long the daemon keeps ANSWERING — not how long the
+//! process lives, and not how long root work runs. Every unit of host work runs
+//! inside `spawn_blocking`, a dropped `JoinHandle` DETACHES such a task rather
+//! than cancelling it, and no tokio API can cancel one; so when the budget
+//! expires the requests are abandoned and the `useradd`, the `rename`, the
+//! database load carry on. `main` then drops the runtime, which joins every
+//! blocking thread with no timeout, so the exit waits for exactly the work the
+//! expiry was supposed to have given up on. A stop is bounded by the unit's
+//! `TimeoutStopSec=45` and the `SIGKILL` behind it; the budget only decides how
+//! early the socket goes away. See [`DRAIN_BUDGET`] for what a kill costs per
+//! operation and what the next start does and does not repair.
 
 pub mod drain_deadline;
-pub mod shutdown_signal;
+pub mod stop_signals;
 
 pub use drain_deadline::{DRAIN_BUDGET, drain_deadline};
-pub use shutdown_signal::shutdown_signal;
+pub use stop_signals::StopSignals;

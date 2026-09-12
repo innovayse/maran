@@ -51,6 +51,22 @@ message FirewallRule {
   Protocol protocol = 2;
   // Source CIDR the rule is scoped to, e.g. "0.0.0.0/0" for any source.
   string source_cidr = 3;
+  // Inclusive upper bound of a port RANGE whose lower bound is `port`, 2-65535.
+  //
+  // ABSENT means the rule is the single port `port`, which is what every rule
+  // written before 2026-09-08 is — and what an older agent, which has no such
+  // field to write, always reports. A reader that treats the absence as a range
+  // of one port reads every one of those correctly.
+  //
+  // Strictly ABOVE `port` when present: an upper bound equal to the lower one
+  // is refused rather than accepted as a second spelling of a single port, and
+  // an inverted pair is refused outright. The agent decides both in the
+  // validated type it builds the render from, before anything reaches the
+  // rendered ruleset.
+  //
+  // Added for FTPS's passive data range: the alternative is a hundred rules for
+  // one feature, in a listing an administrator reads.
+  optional uint32 port_to = 4;
 }
 
 message ListRulesRequest {
@@ -141,6 +157,19 @@ message AllowPortRequest {
   // is listening on and no accept for the one the operator is connected
   // through, which is the exact lockout this field exists to prevent.
   repeated uint32 ssh_ports = 6;
+  // Inclusive upper bound of the range this rule opens, 2-65535. Absent means
+  // the single port `port`, which is what every caller written before
+  // 2026-09-08 sends, and what the rendered ruleset is byte-identical for.
+  //
+  // Number 7 and not 4: field 4 is reserved above, so an executor who copied
+  // FirewallRule's number here would be refused by protoc rather than shipping
+  // a contract that compiles and means the wrong thing.
+  //
+  // Refused with ERROR_CODE_INVALID_INPUT when it is not strictly above `port`,
+  // and refused for the same reason `port` is when it is outside 1-65535. The
+  // check is a validated type in `ops`, ahead of the template, so no unchecked
+  // pair can reach the grammar `nft` parses as root.
+  optional uint32 port_to = 7;
 }
 
 message AllowPortResponse {
@@ -180,6 +209,17 @@ message DenyPortRequest {
   // AllowPortRequest.ssh_ports: a deny re-renders the whole ruleset, so it can
   // lock an operator out just as thoroughly as an allow can.
   repeated uint32 ssh_ports = 6;
+  // Inclusive upper bound of the range whose allow is being removed, 2-65535.
+  // Absent means the single port `port`.
+  //
+  // Number 7 for the same reason AllowPortRequest.port_to is: field 4 is
+  // reserved in this message too.
+  //
+  // A deny matches a rule EXACTLY, this field included: a range is removed by
+  // naming both of its bounds, and a deny naming only the lower bound of a
+  // range matches no rule and answers NotFound. Refused when it is not strictly
+  // above `port`, as on the allow.
+  optional uint32 port_to = 7;
 }
 
 message DenyPortResponse {

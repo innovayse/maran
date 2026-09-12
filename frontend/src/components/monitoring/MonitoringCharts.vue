@@ -25,7 +25,12 @@ import { computed, type ComputedRef } from 'vue'
 import { useI18n } from 'vue-i18n'
 import UiChart from '../ui/UiChart.vue'
 import type { ChartPoint } from '../../utils/chartGeometry'
-import { bytesToGibibytes, bytesToMebibytes } from '../../utils/formatBytes'
+import {
+  bytesToGibibytes,
+  bytesToMebibytes,
+  GIBIBYTE_UNIT,
+  MEBIBYTES_PER_SECOND_UNIT,
+} from '../../utils/formatBytes'
 import type { MetricBucket } from '../../types/monitoring'
 
 /** Props accepted by {@link MonitoringCharts}. */
@@ -112,25 +117,25 @@ const formatFine = (value: number): string => {
 <template>
   <div class="grid grid-cols-1 gap-4 lg:grid-cols-2" data-testid="monitoring-charts">
     <UiChart :series="cpuSeries" :label="t('monitoring.charts.cpu')" :unit="t('monitoring.units.percent')" />
-    <UiChart :series="memorySeries" :label="t('monitoring.charts.memory')" :unit="t('monitoring.units.gibibytes')" />
-    <UiChart :series="diskSeries" :label="t('monitoring.charts.disk')" :unit="t('monitoring.units.gibibytes')" />
+    <!-- The byte units come from `utils/formatBytes` rather than the message bundles: IEC symbols
+         are locale-invariant notation, and the disk table on this same screen already reads them
+         from there — one authority, or the two drift (they had: `GiB` beside `ГиБ`). -->
+    <UiChart :series="memorySeries" :label="t('monitoring.charts.memory')" :unit="GIBIBYTE_UNIT" />
+    <UiChart :series="diskSeries" :label="t('monitoring.charts.disk')" :unit="GIBIBYTE_UNIT" />
     <UiChart
       :series="networkReceiveSeries"
       :label="t('monitoring.charts.networkReceive')"
-      :unit="t('monitoring.units.mebibytesPerSecond')"
+      :unit="MEBIBYTES_PER_SECOND_UNIT"
       :format-value="formatFine"
     />
     <UiChart
       :series="networkTransmitSeries"
       :label="t('monitoring.charts.networkTransmit')"
-      :unit="t('monitoring.units.mebibytesPerSecond')"
+      :unit="MEBIBYTES_PER_SECOND_UNIT"
       :format-value="formatFine"
     />
-    <UiChart
-      :series="loadSeries"
-      :label="t('monitoring.charts.load')"
-      :unit="t('monitoring.units.load')"
-      :format-value="formatFine"
-    />
+    <!-- No unit: a load average is dimensionless, and the word this slot used to carry read as
+         `2.10 нагрузка` — a unit invented in three languages for a number that has none. -->
+    <UiChart :series="loadSeries" :label="t('monitoring.charts.load')" :format-value="formatFine" />
   </div>
 </template>

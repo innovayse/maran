@@ -21,11 +21,21 @@ namespace Maran.Host.Modules;
 /// </para>
 /// <para>
 /// <b>It asks the MODEL, not a list.</b> The census walks each module's <c>DbContext.Model</c> for
-/// entities carrying an <c>AccountId</c>, exactly as <c>TenantScopeTests</c> and
-/// <c>AccountCascadeTests</c> do, so a module added later — or a marketplace module this assembly
-/// was never compiled knowing about — is audited without anybody extending anything. The one thing
-/// a maintained list would add is the ability to forget a module, which is the defect this exists
-/// for.
+/// entities carrying an <c>AccountId</c>, exactly as <c>AccountCascadeTests</c> does, so a module
+/// added later — or a marketplace module this assembly was never compiled knowing about — is audited
+/// without anybody extending anything. The one thing a maintained list would add is the ability to
+/// forget a module, which is the defect this exists for.
+/// </para>
+/// <para>
+/// <b>"What it still stores against an account" means the rows that NAME the account.</b> An entity
+/// scoped through a parent instead — <c>SiteHostname</c>, whose owner is read through its site — has
+/// no <c>AccountId</c> for this census to match, so it is not counted as residue and its absence is
+/// not proof of its absence. Nothing leaks today: such a row is removed by the database's own
+/// cascade from the parent this auditor DOES count, so a surviving child implies a surviving parent
+/// and the parent is what gets named. The narrower statement is the honest one, and it is written
+/// here because <c>TenantScopeTests</c> no longer shares this criterion: its census follows required
+/// relationships as well, and a reader who assumed all three call sites still asked the same question
+/// would credit this one with reach it does not have.
 /// </para>
 /// <para>
 /// <b>The query filters are bypassed, deliberately.</b> A filter governs what a REQUEST may see, and

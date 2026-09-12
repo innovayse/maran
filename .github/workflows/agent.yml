@@ -6,12 +6,31 @@ on:
       - 'agent/**'
       - 'proto/**'
       - 'docker/polygon/**'
+      # The installer is part of this lane too, and measurably so: each polygon Dockerfile
+      # COPYs installer/lib/*.sh and RUNS the installer's own functions at BUILD time, then
+      # docker/polygon/assert-installer-steps.sh asserts what they left behind. So an
+      # installer edit changes what this job asserts — `polygon_fingerprint`
+      # (scripts/lib/polygon.sh) already treats installer/** as an image input for exactly
+      # that reason — and no other workflow in .github/workflows/ names this path at all.
+      # Without this line the ONLY gate the installer has in CI does not run on a change to
+      # the installer, which is the one change most likely to break it.
+      - 'installer/**'
+      # The verdict harness and the committed baseline are now part of this lane: an edit to
+      # either changes what this job asserts, so it has to run when they move.
+      - 'scripts/**'
       - '.github/workflows/agent.yml'
   pull_request:
     paths:
       - 'agent/**'
       - 'proto/**'
       - 'docker/polygon/**'
+      # The installer is part of this lane too: the polygon images RUN its steps at build
+      # time and assert what they left behind (see the push filter above for the full
+      # argument). No other workflow names this path.
+      - 'installer/**'
+      # The verdict harness and the committed baseline are now part of this lane: an edit to
+      # either changes what this job asserts, so it has to run when they move.
+      - 'scripts/**'
       - '.github/workflows/agent.yml'
 
 jobs:
@@ -55,8 +74,90 @@ jobs:
       - name: Clippy
         run: cargo clippy --all-targets --all-features -- -D warnings
 
-      - name: Test
-        run: cargo test --all-features
+      # THE VERDICT, and it is not `cargo test`. It used to be, and rules/testing.md named that
+      # gap in its own text: "`maran test` is not wired into CI ... agent.yml:59 runs bare
+      # `cargo test` ... so on those two lanes the committed baseline in
+      # `scripts/test-baseline.txt` is compared against nothing." The polygon job below has had a
+      # scored verdict since it was written; this job judged by exit code.
+      #
+      # What the bare command cannot see, measured in this repository: a `cargo` invocation that
+      # exited 0 having run NOTHING because cargo was absent from PATH; a workspace run parsed as
+      # five doc-test rows and nineteen VANISHED targets when CARGO_TARGET_DIR moved; and a target
+      # that stops being built at all, which does not fail a run — it disappears from it.
+      #
+      # `maran test rust` runs `cargo test --workspace --no-fail-fast` (the flag matters:
+      # without it cargo stops at the first red target and never runs the ones behind it, so a
+      # kill in an early crate hides every later one), then parses one row per test binary and
+      # per doc-test target, names every failing test, reconciles the named list against the
+      # totals, and compares both against `scripts/test-baseline.txt`. A baselined target absent
+      # from the run is named as VANISHED and fails the lane; a run with no `test result:` line at
+      # all is ABORTED rather than passed. It self-tests both log parsers against planted
+      # fixtures — including a banner spliced into a test line, the shape that once scored a real
+      # kill as ABORTED — before it measures anything.
+      #
+      # `--all-features` is not lost by this change: no crate in this workspace declares a
+      # `[features]` table, so the flag selects exactly the targets `--workspace` does. What is
+      # gained is `--no-fail-fast` and the baseline comparison.
+      #
+      # The `*_on_a_real_host` suites are `#[ignore]`d off a polygon container, so on this runner
+      # they contribute rows of `0 passed / 0 failed / N ignored`. That is not decoration: the
+      # baseline records the declared total per target, so a host test DELETED here is a fall this
+      # lane names, without the polygon images being built.
+      #
+      # `working-directory` is overridden to the repository root — the job's default is `agent`,
+      # and the harness locates the tree from its own path and runs the whole workspace itself.
+      #
+      # `--accept` is NEVER passed: that flag RECORDS the baseline, and a check that refreshes its
+      # own baseline enforces nothing.
+      #
+      # The pass condition is the harness's printed VERDICT LINE, not its exit status. A non-zero
+      # status fails the step, and so does a status of 0 with no `TEST VERDICT: OK` printed — which
+      # is the shape every measured false pass in this repository has had. `set -o pipefail`
+      # because `... | tee` otherwise reports TEE's status, which is 0 whatever the command did.
+      - name: Test verdict — per-target totals against the committed baseline
+        working-directory: ${{ github.workspace }}
+        id: verdict
+        run: |
+          set -o pipefail
+          mkdir -p "$RUNNER_TEMP/verdict"
+          status=0
+          bash scripts/maran test rust 2>&1 |
+            tee "$RUNNER_TEMP/verdict/rust.log" || status=$?
+          echo "harness exit status: $status (recorded; the verdict is the line below, not this)"
+          if ! grep -q '^TEST VERDICT: OK' "$RUNNER_TEMP/verdict/rust.log"; then
+            echo "::error::the agent suite did not print 'TEST VERDICT: OK'. This lane passes on"
+            echo "the harness's verdict, never on an exit code, and no verdict was printed."
+            echo "--- what the run reported ---"
+            if ! grep -aE '^(TEST VERDICT|collected |ABORTED|REFUSED|CONTAMINATED|UNRECONCILED|SELF-TEST| +\w+: )' \
+              "$RUNNER_TEMP/verdict/rust.log"; then
+              # The log carried none of the shapes above, which is itself the finding: print
+              # its tail rather than an empty section. An engineer reading a red lane and
+              # finding nothing under this heading learns less than one who reads a stack trace.
+              echo "(no verdict-shaped line in the log; its last 40 lines follow)"
+              tail -40 "$RUNNER_TEMP/verdict/rust.log" || echo "(the log is empty or absent)"
+            fi
+            exit 1
+          fi
+          if [ "$status" -ne 0 ]; then
+            echo "::error::the agent suite printed 'TEST VERDICT: OK' and then exited $status."
+            echo "Those two disagree, so neither is evidence: score nothing from this run."
+            exit 1
+          fi
+
+      # The log, always — including on a red run, which is the run somebody actually needs it for.
+      # No `working-directory` here: GitHub accepts that key on `run` steps only, and the job's
+      # default (`agent`) does not reach an action either way. The path below is absolute.
+      # Conditioned on the verdict step having RUN, not merely on the job not being cancelled:
+      # with `!cancelled()` alone this step also fires when a gate ABOVE the verdict failed, and
+      # then errors on a log that was never written — a second, misleading red on a job whose real
+      # failure is somewhere else entirely.
+      - name: Keep the verdict log
+        if: ${{ !cancelled() && steps.verdict.conclusion != 'skipped' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: agent-test-verdict
+          path: ${{ runner.temp }}/verdict/rust.log
+          if-no-files-found: error
 
       # Doc comments are mandatory on every item (rules/rust.md), and a broken intra-doc link
       # means the documentation points at something that no longer exists — cheap to catch here,
@@ -95,8 +196,28 @@ jobs:
       # The image carries its family's nginx, php-fpm and a Rust toolchain: a
       # test binary built on the runner links against the runner's glibc and
       # will not start on AlmaLinux 9, so each polygon compiles its own.
-      - name: Build the polygon image
-        run: docker build -f docker/polygon/${{ matrix.image }}.Dockerfile -t maran-polygon-${{ matrix.image }} .
+      #
+      # Built through `polygon_build_labelled`, which records the sha256 of
+      # `docker/polygon/**` + `installer/**` in the image as the
+      # `maran.polygon.fingerprint` label. On this runner the image cannot be
+      # stale — it is built in the same job, from the same checkout, minutes
+      # before it is used — so the label costs nothing here and buys everything
+      # elsewhere: it is what lets the three run steps below STATE which image
+      # they used, and what lets the verdict step refuse a log produced by an
+      # image built from other sources. A workstation is where that case is the
+      # default rather than the impossible one (docker/README.md).
+      - name: Build the polygon image, recording the sources it was built from
+        run: |
+          set -euo pipefail
+          . scripts/lib/polygon.sh
+          fingerprint="$(polygon_fingerprint "$PWD" "${{ matrix.image }}")"
+          echo "fingerprint of docker/polygon/** + installer/**: $fingerprint"
+          log="$RUNNER_TEMP/polygon-build-${{ matrix.image }}.log"
+          status=0
+          polygon_build_labelled "$PWD" "${{ matrix.image }}" "$fingerprint" \
+            "maran-polygon-${{ matrix.image }}" "$log" || status=$?
+          cat "$log"
+          exit "$status"
 
       # Run as root, one test at a time, and only the ignored suites. Root
       # because the whole point is the privilege drop; serially because the
@@ -122,6 +243,29 @@ jobs:
       # `CAP_SYS_ADMIN` cannot mount anything — so the suite now belongs to the
       # capability class this step does not have.
       #
+      # `restore_recovery_on_a_real_host` belongs HERE and not with
+      # `backup_on_a_real_host`, even though it is the other half of the same
+      # module: it mounts nothing. It needs a real account, the image's own
+      # MariaDB and a real `/home` — everything this step already has — plus a
+      # process it can KILL, which is a thing any container can do to its own
+      # children. It is the proof for privileges audit F-2: each case re-enters
+      # this test binary as a child, has the child run a real `restore_backup`,
+      # and kills that child with `SIGKILL` from inside the restore's own
+      # progress sink — once between the two renames that swap the account's
+      # home, and once after a rollback dump has been written — then runs the
+      # reconciliation the daemon performs before it binds its socket and
+      # asserts the customer's home came back. Nothing else in this repository
+      # observes a restore that stops existing halfway; a kill in that window
+      # used to leave an account with NO home directory, permanently.
+      #
+      # Until this line existed the suite was in no `--test` list at all, and
+      # that was not merely "the suite does not run": `maran polygon verify`
+      # DISCOVERS its suite list from `agent/crates/*/tests` rather than being
+      # told it, so the verdict step below failed the lane by name for a missing
+      # `Running tests/restore_recovery_on_a_real_host.rs` banner. The discovery
+      # is what turned a silent gap into a red lane, which is the whole reason
+      # it is discovery and not a list.
+      #
       # `--no-fail-fast` is a cargo argument and belongs before the bare `--`;
       # placed after it, libtest rejects it outright. Without it cargo stops at
       # the first target that goes red and never runs the ones behind it, while
@@ -131,13 +275,26 @@ jobs:
       # a planted break in the privilege drop puts one named test plus 25 further
       # host tests red on each family, and only a run carrying this flag reports
       # more than the first of them.
-      - name: Sites, PHP pools, privileges, databases and monitoring on a real host
+      - name: Sites, PHP pools, privileges, databases, monitoring and restore recovery on a real host
         run: |
           # pipefail and an explicitly captured status: `docker run ... | tee` reports TEE's
           # exit status, which is 0 whatever the container did. Piping without this would add a
           # fourth exit-0 trap to a lane that already has three measured ones.
+          #
+          # `tee -a`, not `tee`: the image stamp below is written into this same file first, and a
+          # truncating tee would delete the one line that records which image produced the log —
+          # leaving the verdict step unable to tell a current image from a stale one, which is the
+          # whole point of emitting it.
           set -o pipefail
           mkdir -p "$RUNNER_TEMP/polygon-logs"
+          # Which image is about to run, written into the log this run is scored
+          # from. It refuses here — before an hour of container time — when the
+          # image was built from other sources, and the line it prints is what
+          # the verdict step re-checks against the tree. Both halves exist on
+          # purpose: this one can see the image, the verdict step cannot.
+          scripts/maran polygon stamp ${{ matrix.image }} \
+            maran-polygon-${{ matrix.image }} |
+            tee -a "$RUNNER_TEMP/polygon-logs/step-1.log"
           status=0
           docker run --rm \
             -v "$PWD:/maran" \
@@ -147,16 +304,24 @@ jobs:
             cargo test --test sites_on_a_real_host --test php_pools_on_a_real_host \
               --test privileges_on_a_real_host --test databases_on_a_real_host \
               --test monitor_on_a_real_host --test binary_paths_on_a_real_host \
+              --test restore_recovery_on_a_real_host \
               --no-fail-fast \
               -- --ignored --test-threads=1 2>&1 |
-            tee "$RUNNER_TEMP/polygon-logs/step-1.log" || status=$?
+            tee -a "$RUNNER_TEMP/polygon-logs/step-1.log" || status=$?
           echo "$status" >>"$RUNNER_TEMP/polygon-logs/statuses.txt"
           exit "$status"
 
       # `--privileged` because these three make a real mount, and an unprivileged
       # container cannot mount anything. GitHub's Linux runners allow it. For the
       # first two it is the SFTP jail: `/var/lib/maran-sftp/<account>/home`
-      # mounted from the account's real home. For `backup_on_a_real_host` it is a
+      # mounted from the account's real home, and for `ftps_on_a_real_host` it is
+      # the FTPS one, `/var/lib/maran-ftps/<account>/home`. That suite also
+      # STARTS A REAL vsftpd and logs into it over TLS, which is the only way its
+      # central claim can be observed at all: a client that will not negotiate
+      # encryption is refused. Asserting `force_local_logins_ssl=YES` appears in
+      # a file would pass on a daemon that never read that file — and vsftpd
+      # takes the LAST occurrence of a key, so one appended line switches it off
+      # on a config that still parses, still starts and still greets. For `backup_on_a_real_host` it is a
       # tmpfs of a measured size at the bulk scratch root, which is the only way
       # `a_dump_is_refused_at_nine_tenths_of_what_the_scratch_filesystem_actually_holds`
       # can watch the per-dump ceiling be computed from a filesystem instead of
@@ -193,25 +358,39 @@ jobs:
       # `!cancelled()` so a failure in the step above still reports these:
       # attributing a break to whichever suite happened to run first is the same
       # mistake `fail-fast: false` avoids across the matrix.
-      - name: SFTP, account deletion and backups on a real host
+      - name: SFTP, FTPS, account deletion and backups on a real host
         if: ${{ !cancelled() }}
         run: |
           # pipefail and an explicitly captured status: `docker run ... | tee` reports TEE's
           # exit status, which is 0 whatever the container did. Piping without this would add a
           # fourth exit-0 trap to a lane that already has three measured ones.
+          #
+          # `tee -a`, not `tee`: the image stamp below is written into this same file first, and a
+          # truncating tee would delete the one line that records which image produced the log —
+          # leaving the verdict step unable to tell a current image from a stale one, which is the
+          # whole point of emitting it.
           set -o pipefail
           mkdir -p "$RUNNER_TEMP/polygon-logs"
+          # Which image is about to run, written into the log this run is scored
+          # from. It refuses here — before an hour of container time — when the
+          # image was built from other sources, and the line it prints is what
+          # the verdict step re-checks against the tree. Both halves exist on
+          # purpose: this one can see the image, the verdict step cannot.
+          scripts/maran polygon stamp ${{ matrix.image }} \
+            maran-polygon-${{ matrix.image }} |
+            tee -a "$RUNNER_TEMP/polygon-logs/step-2.log"
           status=0
           docker run --rm --privileged \
             -v "$PWD:/maran" \
             -w /maran/agent \
             -e CARGO_TARGET_DIR=/tmp/target \
             maran-polygon-${{ matrix.image }} \
-            cargo test --test sftp_on_a_real_host --test account_deletion_on_a_real_host \
+            cargo test --test sftp_on_a_real_host --test ftps_on_a_real_host \
+              --test account_deletion_on_a_real_host \
               --test backup_on_a_real_host \
               --no-fail-fast \
               -- --ignored --test-threads=1 2>&1 |
-            tee "$RUNNER_TEMP/polygon-logs/step-2.log" || status=$?
+            tee -a "$RUNNER_TEMP/polygon-logs/step-2.log" || status=$?
           echo "$status" >>"$RUNNER_TEMP/polygon-logs/statuses.txt"
           exit "$status"
 
@@ -241,8 +420,21 @@ jobs:
           # pipefail and an explicitly captured status: `docker run ... | tee` reports TEE's
           # exit status, which is 0 whatever the container did. Piping without this would add a
           # fourth exit-0 trap to a lane that already has three measured ones.
+          #
+          # `tee -a`, not `tee`: the image stamp below is written into this same file first, and a
+          # truncating tee would delete the one line that records which image produced the log —
+          # leaving the verdict step unable to tell a current image from a stale one, which is the
+          # whole point of emitting it.
           set -o pipefail
           mkdir -p "$RUNNER_TEMP/polygon-logs"
+          # Which image is about to run, written into the log this run is scored
+          # from. It refuses here — before an hour of container time — when the
+          # image was built from other sources, and the line it prints is what
+          # the verdict step re-checks against the tree. Both halves exist on
+          # purpose: this one can see the image, the verdict step cannot.
+          scripts/maran polygon stamp ${{ matrix.image }} \
+            maran-polygon-${{ matrix.image }} |
+            tee -a "$RUNNER_TEMP/polygon-logs/step-3.log"
           status=0
           docker run --rm --privileged \
             -v "$PWD:/maran" \
@@ -252,7 +444,7 @@ jobs:
             cargo test --test cron_on_a_real_host --test firewall_on_a_real_host \
               --no-fail-fast \
               -- --ignored --test-threads=1 2>&1 |
-            tee "$RUNNER_TEMP/polygon-logs/step-3.log" || status=$?
+            tee -a "$RUNNER_TEMP/polygon-logs/step-3.log" || status=$?
           echo "$status" >>"$RUNNER_TEMP/polygon-logs/statuses.txt"
           exit "$status"
 
@@ -276,13 +468,77 @@ jobs:
       # the `--test` lists above now fails this job by name. `maran structure` already requires such
       # a suite to appear in docker/README.md; nothing checked this file, and this is what does.
       #
-      # `!cancelled()` so a red step above still produces the named verdict rather than only an
-      # exit status — the same reason the steps themselves carry it.
+      # AND THIS STEP IS NOW SCORED THE SAME WAY, which it was not. It used to invoke the scorer
+      # bare and let the step's own exit status be the verdict — the exact defect the first
+      # paragraph above describes, surviving in the step that was written to close it.
+      # `maran polygon verify` prints one of four verdict lines and returns one of three statuses:
+      #
+      #   POLYGON VERDICT: OK           / 0   every discovered suite ran its whole baselined set
+      #   POLYGON VERDICT: FAILED       / 1   a test went red on a real host
+      #   POLYGON VERDICT: ABORTED      / 1   the logs are not a score at all (a suite never spoke,
+      #                                       a container measured nothing, or the totals and the
+      #                                       named failures disagree)
+      #   POLYGON VERDICT: DID NOT RUN  / 2   it refused before scoring anything (this tree's write
+      #                                       lock is held, a killed mutation is still applied, the
+      #                                       baseline or a log is unreadable, the parsers are blind)
+      #
+      # A bare invocation collapses those four into "zero or not zero". It cannot tell a red branch
+      # from a lane that never scored, and — the reason this is a defect and not a wish — it would
+      # record a PASS for any path that ever returned 0 while refusing, which is the shape every
+      # measured false pass in this repository has had.
+      #
+      # So the pass condition is the printed `POLYGON VERDICT: OK` line and nothing else. A status
+      # of 0 with no such line fails, and the line followed by a non-zero status fails too, because
+      # the two disagree and neither is then evidence. This is the same shape as the `Test verdict`
+      # step in the job above, and the same shape `maran lock selftest` asserts this command owes.
+      # That selftest is not a comment any more: it runs as the first step of `backend.yml`, which
+      # triggers on `scripts/**` exactly as this workflow does, so an edit to the lock or to any
+      # refusing command is scored by it before either lane spends a minute.
+      #
+      # A refusal is named BEFORE the OK test, and separately, because a refusal is not a finding:
+      # nothing was scored, so the branch has been neither cleared nor accused, and reporting it as
+      # "the polygon failed" would send someone hunting a defect that was never observed. It is
+      # still red here — on a runner nothing else holds this tree's lock, so a refusal means a
+      # misconfigured lane — but the step says which of the two happened.
+      #
+      # `set -o pipefail` because `... | tee` otherwise reports TEE's status, which is 0 whatever
+      # the command did. `mkdir -p` because every step that creates this directory above is
+      # skippable, and a `tee` into a missing directory would fail this step for the wrong reason.
       - name: Polygon verdict — every suite ran, and ran its whole baselined set
         if: ${{ !cancelled() }}
         run: |
+          set -o pipefail
+          mkdir -p "$RUNNER_TEMP/polygon-logs"
+          status=0
           scripts/maran polygon verify \
             --statuses "$RUNNER_TEMP/polygon-logs/statuses.txt" \
             "$RUNNER_TEMP/polygon-logs/step-1.log" \
             "$RUNNER_TEMP/polygon-logs/step-2.log" \
-            "$RUNNER_TEMP/polygon-logs/step-3.log"
+            "$RUNNER_TEMP/polygon-logs/step-3.log" 2>&1 |
+            tee "$RUNNER_TEMP/polygon-logs/verdict.log" || status=$?
+          echo "scorer exit status: $status (recorded; the verdict is the line above, not this)"
+          if grep -qa '^POLYGON VERDICT: DID NOT RUN' "$RUNNER_TEMP/polygon-logs/verdict.log"; then
+            echo "::error::the polygon scorer REFUSED and scored nothing, so this lane has measured"
+            echo "neither a pass nor a failure — the reason it gives is printed above. It is failed"
+            echo "here because nothing on a runner should be able to refuse it, but do not read this"
+            echo "as a red polygon: no suite was judged."
+            exit 1
+          fi
+          if ! grep -qa '^POLYGON VERDICT: OK' "$RUNNER_TEMP/polygon-logs/verdict.log"; then
+            echo "::error::the polygon run did not print 'POLYGON VERDICT: OK'. This lane passes on"
+            echo "the scorer's verdict line, never on an exit code, and no such line was printed."
+            echo "--- what the scoring reported ---"
+            if ! grep -aE '^(POLYGON VERDICT|ABORTED|REFUSED|Failing tests|-- polygon suites|-- logs scored)' \
+              "$RUNNER_TEMP/polygon-logs/verdict.log"; then
+              # The output carried none of the shapes above, which is itself the finding: print its
+              # tail rather than an empty section, for the same reason the job above does.
+              echo "(no verdict-shaped line in the scoring output; its last 40 lines follow)"
+              tail -40 "$RUNNER_TEMP/polygon-logs/verdict.log" || echo "(the output is empty or absent)"
+            fi
+            exit 1
+          fi
+          if [ "$status" -ne 0 ]; then
+            echo "::error::the polygon scoring printed 'POLYGON VERDICT: OK' and then exited $status."
+            echo "Those two disagree, so neither is evidence: score nothing from this run."
+            exit 1
+          fi

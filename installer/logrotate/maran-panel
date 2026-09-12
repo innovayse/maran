@@ -1,0 +1,78 @@
+# Rotation for the nginx logs of the PANEL'S OWN vhost.
+#
+# Installed to /etc/logrotate.d/maran-panel, root:root 0644, by installer/lib/80-nginx.sh.
+#
+# There was no rotation for these two files before, on any host, ever. installer/logrotate/ held
+# policies for a customer's site logs and for the FTPS transfer log, and the panel's own access
+# and error logs — the two files installer/nginx/maran.conf names — were the pair nothing bounded.
+# Two consequences, and they are separate defects:
+#
+#   * Unbounded growth. These files record every request to the panel, and on a host whose panel
+#     is scraped, scanned or simply used by several operators that is not a small number. Nothing
+#     else on the host removes them: they are outside every home and every quota, and the
+#     maran-sites policy cannot reach them — its glob is /var/log/maran/sites/*/*.log, one
+#     directory deeper.
+#   * A line written once stayed forever. That mattered most while the installer's one-time setup
+#     token travelled in a URL and nginx's default `combined` format logged the query string: an
+#     install nobody finished left a LIVE administrator token in this file for the life of the
+#     host. That leak is closed at both ends now — the token is no longer in a URL
+#     (installer/lib/90-finish.sh) and this vhost logs no query string at all
+#     (installer/nginx/maran.conf) — so this policy is no longer load-bearing for the token. It
+#     is kept because "the file is never removed" is the property that made one mistake permanent,
+#     and the next secret to reach a log will not be this one.
+#
+# RETENTION: daily, 30 days, compressed. Chosen rather than copied, and both directions cost
+# something. This is the audit trail for administrative access to the whole server, so it is the
+# log an operator reads when they are asked "who reached the panel, from where, and when" — a
+# question that is usually asked weeks after the fact, and one an aggressive retention answers
+# with silence. Thirty days is the longest window that stays cheap: the panel is reached by a
+# handful of operators rather than by public traffic, so a day's compressed access log on a
+# typical host is kilobytes, and a month of them cannot threaten /var the way a busy customer's
+# site log can. The site-log policy keeps 14 days for the opposite reason — those files are
+# public traffic and the disk cost is real — and the difference between the two numbers is this
+# paragraph, not an oversight.
+#
+# The remaining choices are the same ones the other two policies argue, for the same reasons:
+#
+#   * The paths are two literals under /var/log/maran, which install.sh makes root-owned and 0750.
+#     No glob, and nothing that could reach under /home: logrotate runs as root, and pointing it
+#     at a directory a customer owns is the escalation that moved the site logs out of homes in
+#     the first place (docs/superpowers/notes/2026-09-09-site-logs-threat-note.md) wearing a
+#     different hat. Two names written out also means a THIRD log appearing under this directory
+#     is not silently swept into a policy written for these two.
+#   * `su root root` names the privileges explicitly instead of letting logrotate infer them from
+#     the directory's owner, so a later change of ownership cannot silently make the rotation run
+#     as whoever now owns the tree.
+#   * `create 0640 root root` gives the replacement file the same containment as the file it
+#     replaces. NOT 0644 and not the service group: the nginx master that writes these is root,
+#     nothing in the panel reads them off the disk, and the directory above them is already
+#     group-readable — a group-readable file inside it would widen the audience of the panel's
+#     access log for no reader that exists.
+#   * `kill -USR1`, NOT `copytruncate`. USR1 makes the nginx master reopen its log files, which is
+#     the supported idiom and loses no line to a race with the writer; copytruncate loses whatever
+#     is written between the copy and the truncation. The postrotate script reads nginx's own pid
+#     file and does nothing when it is absent, so a host where nginx is stopped rotates its files
+#     and does not fail the daily run.
+#   * `missingok`, because the error log legitimately does not exist on a quiet host — nginx
+#     creates it on the first message it has to write — and a daily cron error on every such host
+#     would train operators to ignore logrotate's output entirely.
+#   * NOT `notifempty`: unlike the FTPS and site logs, an EMPTY panel access log for a day is
+#     itself a fact worth keeping in sequence, and `delaycompress` plus `rotate 30` makes the cost
+#     of an empty compressed file nothing.
+
+/var/log/maran/nginx-access.log
+/var/log/maran/nginx-error.log {
+    daily
+    rotate 30
+    missingok
+    compress
+    delaycompress
+    create 0640 root root
+    su root root
+    sharedscripts
+    postrotate
+        if [ -f /run/nginx.pid ]; then
+            kill -USR1 "$(cat /run/nginx.pid)" 2>/dev/null || true
+        fi
+    endscript
+}

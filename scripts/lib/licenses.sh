@@ -29,9 +29,41 @@ root="$(cd "$(dirname "$0")/../.." && pwd)"
 # pinned rather than inherited.
 export LC_ALL=C
 
+# shellcheck disable=SC1091
+. "$root/scripts/lib/suite.sh"
+
+# THE TOOLCHAIN, before a single dependency is read — and here the stakes are unusual, because this
+# gate's subject is a LICENCE OBLIGATION. rules/testing.md: "a gate you cannot run is not a gate
+# that passed."
+#
+# Each of the three stacks is read by its own tool, and each contributes one table. A tool that is
+# absent does not make this script fail; it makes that stack's table come back EMPTY, the regenerated
+# file differ from the committed one in exactly the rows the absent tool would have supplied, and
+# `--check` report the notices as out of date. Measured on a sanitized PATH: exit 1, having printed a
+# notices table carrying the npm rows and neither the crates nor the NuGet ones. A reader is then
+# told the notices file is stale when what is actually stale is the PATH — and the repair a reader
+# would reach for is `maran licenses`, which would COMMIT the truncated file and drop real
+# attributions out of the distribution.
+#
+# `jq` keeps its own message above-style below rather than a stack's, because it is not a stack: it
+# parses what the three tools emit, and without it none of them can be read at all.
+for licences_tool in cargo dotnet npm; do
+  command -v "$licences_tool" >/dev/null 2>&1 || {
+    echo "REFUSED: $licences_tool is not on PATH — the stack it resolves would contribute an EMPTY" >&2
+    echo "         table, and this gate would report the notices file stale rather than itself" >&2
+    echo "         unable to read. Regenerating from here would DROP real attributions." >&2
+    echo "         source scripts/dev first, and see: maran check" >&2
+    suite_did_not_run "LICENSES VERDICT" "$licences_tool, which resolves one of the three dependency stacks, is not on PATH."
+    exit "$SUITE_STATUS_DID_NOT_RUN"
+  }
+done
+unset licences_tool
+
 if ! command -v jq >/dev/null 2>&1; then
-  echo "jq is required: apt-get install jq (or dnf install jq)" >&2
-  exit 1
+  echo "REFUSED: jq is not on PATH — it parses what all three dependency tools emit, so no stack" >&2
+  echo "         could be read. Install: apt-get install jq (or dnf install jq)" >&2
+  suite_did_not_run "LICENSES VERDICT" "jq, which parses every stack's metadata, is not on PATH."
+  exit "$SUITE_STATUS_DID_NOT_RUN"
 fi
 
 check_only=0

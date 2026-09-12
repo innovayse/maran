@@ -41,8 +41,9 @@
  * of the tab order.
  */
 import { computed, ref, type ComputedRef, type Ref } from 'vue'
-import { format } from 'date-fns'
 import { useI18n } from 'vue-i18n'
+import type { AppLocale } from '../../types/app'
+import { formatChartInstant } from '../../utils/formatChartInstant'
 import {
   buildAreaPath,
   buildLinePath,
@@ -80,13 +81,17 @@ const props = defineProps<{
   series: UiChartPoint[]
   /** Name of the plotted metric, already translated by the caller (e.g. "CPU"). */
   label: string
-  /** Unit the values are in, already translated/formatted by the caller (e.g. "%", "MB/s"). */
-  unit: string
+  /**
+   * Unit the values are in (e.g. "%", "MiB/s"). Omitted for a dimensionless metric — a load
+   * average is a bare number, and appending a word to it would invent a unit it does not have;
+   * the readings then render alone and the readings table says so in its caption.
+   */
+  unit?: string
   /** Optional formatter for a raw value; falls back to a plain one-decimal rounding when omitted. */
   formatValue?: (value: number) => string
 }>()
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
 
 /** Index into {@link points} the pointer is currently over; `null` when nothing is hovered. */
 const hoveredIndex: Ref<number | null> = ref(null)
@@ -175,6 +180,17 @@ const latestFormatted: ComputedRef<string | null> = computed(() => {
 })
 
 /**
+ * The readings table's caption. Two messages rather than one with an empty hole, because the
+ * grammar differs per language: dropping the unit from "Показания {label}, в {unit}" leaves a
+ * dangling "в", so a unitless chart gets its own complete sentence in each locale.
+ */
+const tableCaption: ComputedRef<string> = computed(() => {
+  return props.unit === undefined
+    ? t('app.chart.tableCaptionNoUnit', { label: props.label })
+    : t('app.chart.tableCaption', { label: props.label, unit: props.unit })
+})
+
+/**
  * The formatter used when the caller supplies none: one decimal place, with a trailing ".0"
  * dropped so a whole number reads as one.
  * @param value The raw value to format.
@@ -197,21 +213,31 @@ const formatValueLabel = (value: number): string => {
 /**
  * Formats a raw value with its unit appended — the header reading and the hover readout both
  * need the unit; the axis ticks deliberately do not, since three repeats of it down one column
- * would be noise the header already said once.
+ * would be noise the header already said once. A unitless chart renders the bare value: there is
+ * nothing true to append.
  * @param value The raw value to format.
- * @returns The formatted value followed by {@link props}'s `unit`.
+ * @returns The formatted value, followed by {@link props}'s `unit` when the metric has one.
  */
 const formatValueWithUnit = (value: number): string => {
-  return `${formatValueLabel(value)} ${props.unit}`
+  const formatted = formatValueLabel(value)
+  return props.unit === undefined ? formatted : `${formatted} ${props.unit}`
 }
 
 /**
- * Formats a bucket's instant for the axis ticks and the hover readout alike.
+ * Formats a bucket's instant for the axis ticks and the hover readout alike, in the panel's
+ * current language.
+ *
+ * The locale comes from the same i18n instance every other string in this component reads —
+ * which `stores/locale.ts` feeds (rules/vue.md: one source of truth) — so the axis can never
+ * speak a different language from the caption beside it. This component once called date-fns
+ * directly with no locale, and a Russian screen read `8 Sep` on every axis.
  * @param at Unix epoch in milliseconds.
  * @returns A short day/time label.
  */
 const formatAt = (at: number): string => {
-  return format(new Date(at), 'd MMM, HH:mm')
+  // The i18n instance is created over AppLocale and fed only from the locale store, so its
+  // current value is one of the panel's own locales by construction.
+  return formatChartInstant(at, locale.value as AppLocale)
 }
 
 /**
@@ -311,7 +337,7 @@ const onPointerLeave = (): void => {
       </svg>
 
       <table class="sr-only">
-        <caption>{{ t('app.chart.tableCaption', { label, unit }) }}</caption>
+        <caption>{{ tableCaption }}</caption>
         <thead>
           <tr>
             <th scope="col">{{ t('app.chart.columnTime') }}</th>

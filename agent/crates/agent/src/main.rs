@@ -7,7 +7,7 @@ use maran_agent::server;
 use maran_agent_core::utils::current_uid::current_uid;
 use maran_agent_core::validation::web::port::Port;
 use maran_agent_core::validation::web::source_cidr::SourceCidr;
-use maran_ops::firewall::{FirewallRule, NftablesProtocol, RulesetPorts, RulesetState};
+use maran_ops::firewall::{FirewallRule, NftablesProtocol, PortSpan, RulesetPorts, RulesetState};
 use maran_templates::nftables::nftables_bans_table::NftablesBansTable;
 
 /// Environment variable controlling the tracing filter.
@@ -130,7 +130,9 @@ fn seed_ruleset(ports: &RulesetPorts) -> Result<String, Box<dyn std::error::Erro
 
     for port in [HTTP_PORT, HTTPS_PORT] {
         state = state.with(&FirewallRule {
-            port: Port::parse(port)?,
+            // A single port, not a range: the seed opens the two web ports and
+            // nothing between them.
+            ports: PortSpan::single(Port::parse(port)?),
             protocol: NftablesProtocol::Tcp,
             source: SourceCidr::any_v4(),
         });

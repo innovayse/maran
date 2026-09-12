@@ -19,10 +19,17 @@ namespace Maran.Modules.Sftp.Common;
 /// The system login the host holds — the user name the customer actually types into their SFTP
 /// client, which is why it is on every read and not only on the one that shows the password.
 /// </param>
+/// <param name="Protocol">
+/// Which daemon accepts this login, as the backend spells it
+/// (<c>SftpProtocolName.Sftp</c>). On the wire rather than assumed by the SPA because the merged
+/// "File transfer" screen carries logins from two modules and must render a backend-supplied fact,
+/// not one inferred from which URL was called.
+/// </param>
 /// <param name="CreatedAt">The instant the login was created.</param>
 public sealed record SftpUserDto(
     Guid Id,
     Guid AccountId,
     string Name,
     string FullName,
+    string Protocol,
     DateTimeOffset CreatedAt);

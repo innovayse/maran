@@ -1,6 +1,5 @@
 //! The agent-managed rule set, read back out of the file it was rendered to.
 
-use maran_agent_core::validation::web::port::Port;
 use maran_agent_core::validation::web::source_cidr::SourceCidr;
 use maran_templates::nftables::nftables_protocol::NftablesProtocol;
 use maran_templates::nftables::nftables_ruleset::NftablesRuleset;
@@ -8,6 +7,7 @@ use maran_templates::nftables::nftables_ssh_port::NftablesSshPort;
 
 use crate::firewall::firewall_error::FirewallError;
 use crate::firewall::model::firewall_rule::FirewallRule;
+use crate::firewall::model::port_span::PortSpan;
 use crate::firewall::model::ruleset_ports::RulesetPorts;
 
 /// How many effective lines the replace idiom occupies.
@@ -286,13 +286,22 @@ impl RulesetState {
         let mut allows = Vec::new();
 
         for rule in &self.rules {
-            let ssh_group = (rule.protocol == NftablesProtocol::Tcp)
-                .then(|| {
-                    ssh_ports
-                        .iter_mut()
-                        .find(|ssh| ssh.port == rule.port.value())
-                })
-                .flatten();
+            // A RANGE is never routed into an SSH port's group, whatever its
+            // lower bound is. The template renders `{{ ssh.port }}` on every
+            // line of a port's block and never the rule's own ports, so a range
+            // that reached one would render as the single SSH port — the range
+            // silently collapsed to one port, with the operator told it was
+            // installed. It renders as an ordinary allow instead, which leaves
+            // that port's unconditional accept exactly where it was: the
+            // fail-open direction R2 asks for.
+            let ssh_group = (rule.protocol == NftablesProtocol::Tcp
+                && rule.ports.upper().is_none())
+            .then(|| {
+                ssh_ports
+                    .iter_mut()
+                    .find(|ssh| ssh.port == rule.ports.lower().value())
+            })
+            .flatten();
 
             match ssh_group {
                 Some(ssh) => ssh.rules.push(rule.to_allow()),
@@ -369,10 +378,11 @@ fn preamble_length(expected: &[&str]) -> usize {
 ///
 /// `None` for anything this agent's template does not render, which the
 /// caller turns into [`FirewallError::ForeignRuleset`]. Every value goes
-/// through its validated type — [`Port`] and [`SourceCidr`] — so a rule that
-/// comes out of this function is a rule that could be rendered back
+/// through its validated type — [`PortSpan`] and [`SourceCidr`] — so a rule
+/// that comes out of this function is a rule that could be rendered back
 /// unchanged, and the address-family keyword has to agree with the network it
-/// precedes.
+/// precedes. A range whose bounds this agent would refuse to render is refused
+/// here too, by the same constructor.
 fn parse_rule(line: &str) -> Option<FirewallRule> {
     let tokens: Vec<&str> = line.split_whitespace().collect();
 
@@ -384,7 +394,7 @@ fn parse_rule(line: &str) -> Option<FirewallRule> {
     if *tokens.get(1)? != DPORT {
         return None;
     }
-    let port = parse_port(tokens.get(2)?)?;
+    let ports = PortSpan::parse_rendered(tokens.get(2)?)?;
 
     let source = match tokens.len() {
         OPEN_RULE_TOKENS => SourceCidr::any_v4(),
@@ -407,39 +417,10 @@ fn parse_rule(line: &str) -> Option<FirewallRule> {
     }
 
     Some(FirewallRule {
-        port,
+        ports,
         protocol,
         source,
     })
-}
-
-/// Reads a rendered port number back.
-///
-/// A leading zero is refused, and that is not pedantry: `SourceCidr`, parsed
-/// three lines below this in the same rule line, deliberately refuses a
-/// leading-zero octet because a value with two spellings is a rule that can be
-/// added under one and left behind under the other. `str::parse` would accept
-/// `08443` as 8443, so one half of a rule line would enforce a single spelling
-/// and the other would not — and the file would be silently rewritten into the
-/// canonical form on the next mutation. One rule, one answer.
-///
-/// `"0"` itself needs no special case: it has no leading zero to strip, and
-/// [`Port::parse`] refuses it anyway.
-fn parse_port(token: &str) -> Option<Port> {
-    // Checked by hand rather than left to `u32::from_str`, which accepts a
-    // leading `+` — so `+8443` would be a second spelling of one port, which
-    // is the very thing the paragraph above refuses a leading zero for.
-    // `SourceCidr`'s own prefix parser folds its digits by hand for exactly
-    // this reason; this is the same guard on the other half of the line.
-    if token.is_empty() || !token.bytes().all(|byte| byte.is_ascii_digit()) {
-        return None;
-    }
-
-    if token.len() > 1 && token.starts_with('0') {
-        return None;
-    }
-
-    Port::parse(token.parse::<u32>().ok()?).ok()
 }
 
 /// Separates the operator's rules from the unconditional accepts.
@@ -491,7 +472,13 @@ fn managed_rules(
     let ssh_region = region
         .iter()
         .take_while(|rule| {
-            rule.protocol == NftablesProtocol::Tcp && ports.ssh_ports.contains(&rule.port)
+            // Single ports only, matching what `render` routes into a port's
+            // block: a range is rendered as an ordinary allow, so a range whose
+            // lower bound happens to be an SSH port must not be mistaken for
+            // that port's block and swallowed here.
+            rule.protocol == NftablesProtocol::Tcp
+                && rule.ports.upper().is_none()
+                && ports.ssh_ports.contains(&rule.ports.lower())
         })
         .count();
 
@@ -499,7 +486,7 @@ fn managed_rules(
         return Err(FirewallError::PortsDisagree);
     };
     if panel.protocol != NftablesProtocol::Tcp
-        || panel.port != ports.panel_port
+        || panel.ports != PortSpan::single(ports.panel_port)
         || !panel.is_open_to_anyone()
     {
         return Err(FirewallError::PortsDisagree);
@@ -516,7 +503,7 @@ fn managed_rules(
             .get(..ssh_region)
             .unwrap_or_default()
             .iter()
-            .filter(|rule| rule.port == *port)
+            .filter(|rule| rule.ports == PortSpan::single(*port))
             .collect();
 
         let fallback_only = block.len() == 1 && block.iter().all(|rule| rule.is_open_to_anyone());

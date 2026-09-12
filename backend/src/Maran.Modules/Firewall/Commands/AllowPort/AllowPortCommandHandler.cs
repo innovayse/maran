@@ -58,10 +58,15 @@ public sealed class AllowPortCommandHandler
     public async Task<Result<bool>> HandleAsync(AllowPortCommand command, CancellationToken cancellationToken)
     {
         var options = _options.Value;
-        var subject = FirewallRuleSubject.Describe(command.Port, command.Protocol, command.SourceCidr);
+        var subject = FirewallRuleSubject.Describe(
+            command.Port,
+            command.PortTo,
+            command.Protocol,
+            command.SourceCidr);
 
         var allowed = await _agent.AllowPortAsync(
             command.Port,
+            command.PortTo,
             command.Protocol,
             command.SourceCidr,
             options.SshPortNumbers,

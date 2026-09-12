@@ -25,7 +25,15 @@ namespace Maran.ArchitectureTests;
 /// gave its account no site and no certificate.
 /// </para>
 /// <para>
-/// <b>It asks the MODEL, like <see cref="TenantScopeTests"/> does, and for the same reason.</b> The
+/// <b>It asks the MODEL, like <see cref="TenantScopeTests"/> does — but a NARROWER question, and the
+/// difference is worth a sentence.</b> This census is <c>AccountId</c> only.
+/// <see cref="TenantScopeCensus"/> also follows required relationships, because an unfiltered child
+/// of a customer's row leaks that customer's data; a child needs no subscriber of its own, because
+/// the database cascades it away with the parent this test does require one for. So the criteria
+/// differ on purpose rather than by drift.
+/// </para>
+/// <para>
+/// <b>And it asks the model for the same reason.</b> The
 /// question "does this module own a customer's rows" is answered by the mapping, not by a list
 /// anybody maintains, so a module written after this test — or a marketplace module the open code
 /// was never compiled knowing about — is covered without being told about it.

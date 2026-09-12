@@ -2,11 +2,13 @@ import { defineStore } from 'pinia'
 import { ref, type Ref } from 'vue'
 import { useBackupsApi } from '../composables/apis/useBackupsApi'
 import { ApiError } from '../composables/useApi'
+import { restorePartialCounts } from '../utils/restorePartialCounts'
 import type {
   Backup,
   CreateBackupRequest,
   RestoreBackupRequest,
   RestoreOutcome,
+  RestorePartial,
 } from '../types/backup'
 
 /**
@@ -94,6 +96,14 @@ export const useBackupsStore = defineStore('backups', () => {
   const restoreErrorCode: Ref<string> = ref('')
 
   /**
+   * The counts a PARTIAL restore's failure carried — what the server had already replaced when it
+   * stopped — or `null` when the failure stated none: a refusal that touched nothing, a truncated
+   * stream, or an older panel that predates the counts. Read beside {@link restoreErrorCode} by
+   * the dialog's changed-account arm; the numbers are shown, never re-judged.
+   */
+  const restorePartial: Ref<RestorePartial | null> = ref(null)
+
+  /**
    * Loads the backup list, replacing what is held.
    * @returns Resolves once the request has settled, successfully or not.
    */
@@ -167,6 +177,7 @@ export const useBackupsStore = defineStore('backups', () => {
     restoreOutcome.value = null
     restoreErrorMessage.value = null
     restoreErrorCode.value = ''
+    restorePartial.value = null
   }
 
   /**
@@ -195,6 +206,9 @@ export const useBackupsStore = defineStore('backups', () => {
     } catch (error) {
       restoreErrorMessage.value = error instanceof ApiError ? error.message : null
       restoreErrorCode.value = error instanceof ApiError ? error.code : ''
+      // The counts of a measured partial ride the same rejection as its code; absent on every
+      // other ending, and the dialog renders cleanly without them.
+      restorePartial.value = error instanceof ApiError ? restorePartialCounts(error.extensions) : null
       return false
     } finally {
       restoring.value = false
@@ -213,6 +227,7 @@ export const useBackupsStore = defineStore('backups', () => {
     restoreOutcome,
     restoreErrorMessage,
     restoreErrorCode,
+    restorePartial,
     load,
     create,
     remove,

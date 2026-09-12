@@ -30,6 +30,32 @@ case "${1:-}" in
   *) echo "usage: maran proto [--accept]" >&2; exit 2 ;;
 esac
 
+# THE TOOLCHAIN, before the contract is read. rules/testing.md: "a gate you cannot run is not a
+# gate that passed". Measured with protoc off PATH, before this guard existed:
+#
+#   $ maran proto
+#   scripts/lib/proto-lint.sh: line 37: protoc: command not found
+#   $ echo $?
+#   127
+#
+# Sixty-two bytes and a status of 127 — which is none of this harness's three answers, and which a
+# caller reading a status rather than a verdict line files under "the contract check failed". It did
+# not fail; it did not happen. `PROTO-OK` is not printed either way, so a lane gating on that line
+# stayed red, but the red said the wrong thing about the wrong subject.
+#
+# `suite_did_not_run` for the wording, so this refusal reads like every other one in the harness,
+# and 2 for the status, which is what the rest of scripts/lib/ already returns for a run that
+# measured nothing.
+# shellcheck disable=SC1091
+. "$(dirname "$0")/suite.sh"
+if ! command -v protoc >/dev/null 2>&1; then
+  echo "REFUSED: protoc is not on PATH — the descriptor set this gate compares cannot be built," >&2
+  echo "         so not one line of the contract would be read." >&2
+  echo "         source scripts/dev first, and see: maran check" >&2
+  suite_did_not_run "PROTO VERDICT" "protoc, which renders the contract this gate reads, is not on PATH."
+  exit "$SUITE_STATUS_DID_NOT_RUN"
+fi
+
 baseline="proto/agent/v1/contract-baseline.txt"
 out="$(mktemp -d)"
 trap 'rm -rf "$out"' EXIT

@@ -5,6 +5,7 @@ use std::io::Write as _;
 use std::os::unix::fs::PermissionsExt as _;
 use std::path::Path;
 
+use crate::safe_write::config_tree_lock::config_tree_lock;
 use crate::safe_write::model::config_file::ConfigFile;
 use crate::safe_write::model::{Reload, Validator};
 use crate::safe_write::{ConfigHost, RollbackGuard, SafeWriteError};
@@ -30,6 +31,11 @@ use crate::safe_write::{ConfigHost, RollbackGuard, SafeWriteError};
 /// on a PEM file's syntax, and asking it for one halfway through an atomic
 /// change is the bug. It is asked once, when the set is complete.
 ///
+/// Runs under `config_tree_lock` for the whole sequence, capture included, on
+/// the same argument [`super::render_validate_swap::write_config`] makes: the
+/// validator reads the whole host's tree, so a set renamed in and not yet
+/// committed is part of every other writer's answer.
+///
 /// Extends `safe_write` rather than being written inside the area that needed it
 /// (rules/rust.md "Config writes": *an area that needs a variation on this
 /// protocol extends `safe_write` — it does not write its own copy*).
@@ -51,6 +57,10 @@ pub fn write_config_set(
     validator: &Validator<'_>,
     reload: &Reload<'_>,
 ) -> Result<(), SafeWriteError> {
+    // Held for the whole sequence below, capture included. See
+    // `config_tree_lock` for why the unit of serialisation is the host.
+    let _guard = config_tree_lock();
+
     if files.is_empty() {
         // Nothing to change, so nothing to validate and nothing to reload: a
         // reload of a live server to achieve a state it is already in is the
@@ -70,7 +80,13 @@ pub fn write_config_set(
     // all of them.
     let mut guards: Vec<RollbackGuard> = prepared
         .iter()
-        .map(|(_, file, previous)| RollbackGuard::new(file.target.to_path_buf(), previous.clone()))
+        .map(|(_, file, previous)| {
+            RollbackGuard::new(
+                file.target.to_path_buf(),
+                previous.clone(),
+                Some(file.contents.as_bytes().to_vec()),
+            )
+        })
         .collect();
 
     for (temporary, file, _) in prepared {

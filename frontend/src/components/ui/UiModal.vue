@@ -145,6 +145,24 @@ const onTab = (event: KeyboardEvent): void => {
 // Focus enters the dialog when it opens and returns to the opener when it
 // closes. Both directions are handled here so every caller gets the behaviour
 // without writing any of it.
+//
+// `immediate` is the whole of the contract for a caller that MOUNTS this
+// component already open — `v-if="x"` beside `:open="x"`, which is what a
+// dialog whose props are only valid while it is open has to write. Without it
+// the watcher never fires for such a caller at all: focus stays on the page
+// behind, `previouslyFocused` stays `null`, and because Escape is a `keydown`
+// on the backdrop element, a keystroke that never originates inside the dialog
+// never reaches `onEscape` — so **Escape does nothing** and closing by any
+// other route drops focus to `<body>`. Both destructive dialogs in the product
+// (account deletion, backup restore) were in exactly that state.
+//
+// It is safe for every OTHER caller, and provably so rather than by inspection:
+// a modal mounted closed takes the `else` arm on the immediate pass, where
+// `previouslyFocused` is still the `null` it was initialised to one statement
+// ago, so `?.focus()` cannot move focus anywhere. Fixing it here rather than at
+// the two call sites is deliberate: "focus enters when open" is this
+// component's promise, and a promise kept only for callers who mount in a
+// particular order is not one.
 watch(
   (): boolean => {
     return props.open
@@ -152,6 +170,8 @@ watch(
   async (isOpen: boolean): Promise<void> => {
     if (isOpen) {
       previouslyFocused.value = document.activeElement instanceof HTMLElement ? document.activeElement : null
+      // On the immediate pass this resolves after the mounting render flush, so
+      // the panel exists to focus into by the time it returns.
       await nextTick()
       const elements = focusableIn(panelElement.value)
       // Fall back to the panel itself (tabindex="-1") when the dialog has no
@@ -162,6 +182,7 @@ watch(
     previouslyFocused.value?.focus()
     previouslyFocused.value = null
   },
+  { immediate: true },
 )
 
 // A route change can tear the dialog down while it is still open, and the `open`

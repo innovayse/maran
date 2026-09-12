@@ -88,3 +88,38 @@ Consequences for a reviewer to weigh:
   shutdown rather than waited on. It was NOT done here: it means reaching past tonic into the
   connection layer of the root daemon, which is more surface than the problem justifies while the
   budget bounds it.
+
+---
+
+## Correction, 2026-09-09 — two statements this note makes are no longer true of the tree
+
+Added by a verification pass over every threat note on `fix/live-findings`
+(`.superpowers/sdd/threat-note-verification.md`). The argument and the addendum above stand; two
+facts do not:
+
+- **"`agent/crates/agent/src/shutdown.rs` (new)"** — there is no such file. The unit is a
+  directory: `agent/crates/agent/src/shutdown/{mod.rs, shutdown_signal.rs, drain_deadline.rs}`,
+  with `DRAIN_BUDGET` in `drain_deadline.rs`.
+- **"the rollback dumps … live under `/var/lib/maran-scratch`, which the unit's `ExecStartPre`
+  deletes on the next start"** — the unit carries no `ExecStartPre=` any more
+  (`installer/systemd/maran-agent.service`), and the agent now reaps that tree selectively at
+  startup, keeping the rollback sets. See
+  `docs/superpowers/notes/2026-09-09-restore-interruption-recovery-threat-note.md`.
+
+Also, `root:panel` above is now `root:maran`: the service account and group were renamed
+(`docs/superpowers/notes/2026-09-09-service-account-rename-threat-note.md`).
+
+## Correction, 2026-09-11 — the correction above is itself now stale
+
+Added by the reviewer-packet pass (`docs/superpowers/notes/2026-09-11-reviewer-packet.md`). The
+argument stands; the file list in the 2026-09-09 block does not.
+
+- **"`agent/crates/agent/src/shutdown/{mod.rs, shutdown_signal.rs, drain_deadline.rs}`"** —
+  `shutdown_signal.rs` has been **deleted** and replaced by `stop_signals.rs`. `ls
+  agent/crates/agent/src/shutdown/` → `drain_deadline.rs  mod.rs  stop_signals.rs`, and `git status`
+  shows ` D …/shutdown_signal.rs` beside an untracked `…/stop_signals.rs`. `DRAIN_BUDGET` is still in
+  `drain_deadline.rs`.
+
+Worth stating as more than a path fix: a correction written two days ago to repair a stale file name
+went stale in two days. A note needs a currency check every time the code under it moves, not one
+correctness pass.

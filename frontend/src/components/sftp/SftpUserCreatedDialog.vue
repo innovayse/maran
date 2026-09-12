@@ -136,9 +136,9 @@ watch(
     <template #footer>
       <UiButton variant="secondary" @click="copyPassword">
         <UiIcon name="copy" size="sm" />
-        {{ copied ? t('sftp.credential.copied') : t('sftp.credential.copy') }}
+        {{ copied ? t('common.copied') : t('common.copyPassword') }}
       </UiButton>
-      <UiButton @click="close">{{ t('sftp.credential.done') }}</UiButton>
+      <UiButton @click="close">{{ t('common.done') }}</UiButton>
     </template>
   </UiModal>
 </template>

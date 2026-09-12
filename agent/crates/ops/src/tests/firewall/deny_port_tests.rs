@@ -9,7 +9,7 @@ use maran_templates::nftables::nftables_protocol::NftablesProtocol;
 
 use crate::firewall::deny_port::deny_port;
 use crate::firewall::fake_firewall_host::{
-    FakeFirewallHost, distro, open_rule, ports, rendered, restricted_rule, ruleset_path,
+    FakeFirewallHost, distro, open_range, open_rule, ports, rendered, restricted_rule, ruleset_path,
 };
 use crate::firewall::firewall_error::FirewallError;
 
@@ -129,4 +129,33 @@ fn a_deny_never_overwrites_a_foreign_ruleset() {
 
     assert_eq!(outcome, Err(FirewallError::ForeignRuleset));
     assert_eq!(live(&host), "# somebody else's ruleset\n");
+}
+
+/// A range is removed by naming BOTH of its bounds, and a deny that names only
+/// the lower one matches nothing.
+///
+/// The two halves are one test because either alone is satisfied by the wrong
+/// implementation: a deny that ignored the upper bound would remove the range
+/// on the second half, and a deny that matched nothing at all would pass the
+/// first half's `NotFound` assertion.
+#[test]
+fn a_range_is_denied_by_naming_both_bounds_and_not_by_its_first_port() {
+    let installed = open_range(30_000, 30_099, NftablesProtocol::Tcp);
+    let host = FakeFirewallHost::with_rules(slice::from_ref(&installed));
+
+    assert_eq!(
+        deny_port(
+            &host,
+            distro(),
+            &ports(),
+            &open_rule(30_000, NftablesProtocol::Tcp)
+        ),
+        Err(FirewallError::NotFound),
+        "the range's first port is not the range"
+    );
+    assert!(live(&host).contains("tcp dport 30000-30099 accept"));
+
+    deny_port(&host, distro(), &ports(), &installed).expect("the range itself is removable");
+
+    assert!(!live(&host).contains("30000"), "the range must be gone");
 }

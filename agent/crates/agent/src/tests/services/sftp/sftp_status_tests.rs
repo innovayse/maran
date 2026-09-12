@@ -25,6 +25,7 @@ fn every_variant() -> Vec<SftpError> {
         SftpError::SpawnFailed { code: 12 },
         SftpError::PasswordRejected,
         SftpError::JailFailed,
+        SftpError::AccountBusy,
     ]
 }
 
@@ -124,4 +125,28 @@ fn no_mapped_failure_carries_a_tools_output() {
             "the mapping must not invent a message beside the variant's own"
         );
     }
+}
+
+#[test]
+fn a_login_operation_refused_because_the_account_is_busy_is_its_own_code() {
+    // It used to fall through the mapping's `_` arm onto SYSTEM_FAILURE. The
+    // refusal happens before `useradd`, `chpasswd` or the jail: nothing ran.
+    assert_eq!(
+        code_of(&SftpError::AccountBusy),
+        ErrorCode::AccountBusy as i32
+    );
+}
+
+#[test]
+fn a_busy_account_and_a_jail_that_did_not_take_effect_are_different_codes() {
+    // The inverse control. A jail that did not take effect reads to a customer
+    // as data loss and must still be a fault, not something to wait out.
+    assert_eq!(
+        code_of(&SftpError::JailFailed),
+        ErrorCode::SystemFailure as i32
+    );
+    assert_ne!(
+        code_of(&SftpError::AccountBusy),
+        code_of(&SftpError::JailFailed)
+    );
 }

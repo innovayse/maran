@@ -1,6 +1,7 @@
 using Maran.Agent.Client.Interfaces;
 using Maran.Agent.Client.Services.AccountsService;
 using Maran.Modules.Accounts.Common;
+using Maran.Modules.Accounts.Domain.Policies;
 using Maran.Modules.Accounts.Persistence;
 using Maran.Modules.Accounts.Resources;
 using Maran.Modules.Accounts.Services;
@@ -93,9 +94,10 @@ public sealed class ReactivateAccountCommandHandler
     /// </para>
     /// <para>
     /// <b>What is restored exactly as it was.</b> Every entry in the account's crontab and every
-    /// <c>&lt;account&gt;_*</c> SFTP login, both driven by their own modules from the same event.
-    /// Neither needs the selectivity sites need, and for the same reason: the suspension overwrote
-    /// no customer state to begin with. Cron's suspension is a marker orthogonal to the per-entry
+    /// <c>&lt;account&gt;_*</c> transfer login — SFTP and FTPS alike — both driven by their own
+    /// modules from the same event. Neither needs the selectivity sites need, and for the same
+    /// reason: the suspension overwrote no customer state to begin with. Cron's suspension is a
+    /// marker orthogonal to the per-entry
     /// <c>enabled</c> flag, so clearing it gives back a job the customer had switched off still
     /// switched off; and locking a login prefixed its stored hash rather than replacing it, so
     /// unlocking restores the very password the customer was shown, not a new one.
@@ -111,10 +113,11 @@ public sealed class ReactivateAccountCommandHandler
     /// marker — see <see cref="StillHeldDown"/> for why that is the question and not "is the login
     /// locked", which every hosting account answers yes to for ever — that no vhost it holds
     /// for this account is the suspended one, that no entry of its crontab still carries the
-    /// suspension marker and that no SFTP login of the account is still locked. A resumption that cannot be observed is refused and the
-    /// account stays suspended, which is the recoverable direction: it can be reactivated again once
-    /// whatever refused is fixed, whereas a customer told their service is back over a stub is the
-    /// lie in the other direction.
+    /// suspension marker and that no transfer login of the account, under either daemon, is still
+    /// locked. A resumption that cannot be observed is refused and the account stays suspended,
+    /// which is the recoverable direction: it can be reactivated again once whatever refused is
+    /// fixed, whereas a customer told their service is back over a stub is the lie in the other
+    /// direction.
     /// </para>
     /// <para>
     /// <b>The attestation's asymmetry with suspension's, stated because it is not an oversight.</b>
@@ -255,14 +258,14 @@ public sealed class ReactivateAccountCommandHandler
         // is given a password in the same operation, so this can only be a hand-made login, and
         // refusing sends an operator to look at it instead of reporting a restoration that did not
         // happen.
-        var locked = state.SftpLogins
+        var locked = state.FileTransferLogins
             .Where(login => { return login.Locked; })
-            .Select(login => { return login.Username; })
-            .OrderBy(username => { return username; }, StringComparer.Ordinal)
+            .OrderBy(login => { return login.Username; }, StringComparer.Ordinal)
+            .Select(TransferLoginProtocolPolicy.Describe)
             .ToList();
 
         return locked.Count > 0
-            ? $"these sftp logins are still locked: {string.Join(", ", locked)}"
+            ? $"these transfer logins are still locked: {string.Join(", ", locked)}"
             : null;
     }
 
@@ -270,17 +273,25 @@ public sealed class ReactivateAccountCommandHandler
     /// <param name="state">What the host answered.</param>
     /// <returns>The line to report.</returns>
     /// <remarks>
+    /// <para>
     /// It names what was NOT covered for the same reason suspension's does: the account's databases
     /// and the panel's own web login were never stopped, so a resumption reporting an unqualified
     /// restart would imply they had been. English and not localized, like every other task line
     /// (rules/csharp.md).
+    /// </para>
+    /// <para>
+    /// It does NOT carry suspension's unmanaged-login clause, and that is a decision rather than an
+    /// omission: a login the panel does not own was never locked by the suspension, so there is
+    /// nothing about it for a resumption to have failed to restore. The number belongs on the line
+    /// that claims something was stopped, which is the only place it can mislead.
+    /// </para>
     /// </remarks>
     private static string DescribeAttestation(AccountSuspensionStateDto state)
     {
         return $"the host shows the login unlocked, none of its {state.Sites.Count} vhosts for this "
             + $"account serving the suspension page, all {state.CronEntriesTotal} of its cron entries "
-            + $"free to run again and all {state.SftpLogins.Count} of its sftp logins unlocked; the "
-            + "account's databases and the panel's own web login were never stopped by the "
+            + $"free to run again and {TransferLoginProtocolPolicy.DescribeAll(state.FileTransferLogins)} "
+            + "unlocked; the account's databases and the panel's own web login were never stopped by the "
             + "suspension, so nothing here restored them";
     }
 

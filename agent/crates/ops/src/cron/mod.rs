@@ -54,6 +54,19 @@
 //! somebody tampered with is repaired by the next install rather than carried
 //! forward.
 //!
+//! **That is also why the six mutating operations are serialised per account.**
+//! Rewriting the whole table means every one of them is a read-modify-write,
+//! and two that overlap both read the same document — so the second install
+//! silently discards the first one's change, whatever that change was. The
+//! worst of those losses is a suspension: the render normalises every managed
+//! line to the document's suspension flag, so a `create_cron_entry` that read
+//! the table before a `set_account_cron_suspended` installs a table saying the
+//! account is not suspended, the suspension having already answered `Ok`. There
+//! is no second copy to notice with. `cron_lock` is
+//! taken before the read and released when the operation returns; it is
+//! process-local, and its own documentation says exactly what that does and
+//! does not cover.
+//!
 //! **The privilege split runs through the host trait.** `crontab(1)` writes the
 //! spool as root, because where that spool lives and how the daemon learns it
 //! changed are the program's business on each family. Everything under the
@@ -80,6 +93,19 @@
 mod create_cron_entry;
 mod cron_error;
 mod cron_host;
+// Crate-visible: the per-account lock the mutating crontab writers run under.
+// Every one of them is a read-parse-render-install of the WHOLE table, so two
+// that overlap both read the same document and the second install discards the
+// first one's change — including a suspension.
+//
+// Six of those writers are in this area. The SEVENTH is not: an account's
+// deletion removes the whole table (`AccountOperations::delete`), and a crontab
+// install landing between that removal and `userdel` re-creates a spool for an
+// account that is about to vanish — on a host that recycles account names, so
+// the next tenant of the name inherits a stranger's jobs. The module is
+// therefore visible to the crate rather than private to this area, and the
+// deletion takes THIS lock instead of adding a second one for the same account.
+pub(crate) mod cron_lock;
 // Private: the host's cron spool, reached through `crontab(1)`. The two
 // operations in this area that run as root, and nothing else.
 mod crontab_spool;

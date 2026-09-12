@@ -18,6 +18,21 @@ const STEP = 1024
 const UNITS = ['B', 'KiB', 'MiB', 'GiB', 'TiB', 'PiB'] as const
 
 /**
+ * The symbol beside a figure {@link bytesToGibibytes} produced, exported so a chart's unit label
+ * and this file's own suffixes are one constant. The monitoring screen once spelled it twice — the
+ * disk table read `GiB` from here while the memory chart read `ГиБ` from a message bundle — and
+ * two spellings of one unit on one screen is the drift the doc comment above predicts.
+ */
+export const GIBIBYTE_UNIT: string = UNITS[3]
+
+/**
+ * The symbol for a rate {@link bytesToMebibytes} feeds — mebibytes over the SI second. Owned here
+ * with the other IEC symbols for the same reason as {@link GIBIBYTE_UNIT}: locale-invariant
+ * notation, written once.
+ */
+export const MEBIBYTES_PER_SECOND_UNIT: string = `${UNITS[2]}/s`
+
+/**
  * Converts a byte count to a whole number of gibibytes and fractions of one.
  *
  * Used where a whole SERIES has to share one unit — a chart's y-axis cannot relabel itself per

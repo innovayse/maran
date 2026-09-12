@@ -1,45 +1,251 @@
 # Committed per-target test baseline. Recorded by 'maran test --accept'; commit the diff.
 # stack<TAB>target<TAB>passed<TAB>failed<TAB>ignored
-rust	maran_agent [unittests src/lib.rs]	234	0	0
+#
+# RECONCILED 2026-09-11 on a tree that was green on all three stacks — the first time this file
+# could be taken honestly since 2026-09-09. The digits below are not estimates: every one is a row
+# from a named run, and the reasoning per row is in
+# .superpowers/sdd/final-baseline-reconciliation.md, which is what the owner should read. A digit
+# here means nothing without its explanation there.
+#
+#   rust     — RE-MEASURED 2026-09-12 (third pass), `27 targets: 1885 passed / 0 failed / 112`, OK.
+#              All 27 rows reconciled; NOTHING FELL. One rose: maran_ops 1154->1158, the
+#              session-cull count leaving ops as its own outcome type rather than riding on a
+#              type two non-culling paths also return. Earlier: `1881 / 0 / 112`.
+#              All 27 rows reconciled against that run; NOTHING FELL. Two rose and are recorded:
+#              maran_agent 293->308 (the suspension-cull operation and its guards) and maran_ops
+#              1126->1154 (the same, plus the account-busy mapping). The rows now sum to the
+#              measured total exactly. Earlier: 2026-09-11T09:45:55Z, `1837 / 0 / 108`,
+#              TEST VERDICT: OK. Four rows moved: maran_agent 283 -> 293, shutdown_signal 2 -> 3,
+#              maran_ops 1125 -> 1126, and sftp_on_a_real_host 11 -> 12 IGNORED.
+#   backend  — RE-MEASURED 2026-09-12 (third pass), `19 targets: 3033 passed / 0 failed`, OK.
+#              All 19 rows reconciled; NOTHING FELL. Three rose: Accounts 176->186 (the
+#              attestation naming both daemons, and the cull's four readings), Agent.Client
+#              313->315 and Sftp 77->80 (the optional sessions_ended field carried from the
+#              wire to the operator). Earlier: `19 targets: 3014 passed / 0 failed`.
+#              All 19 rows reconciled against that run; NOTHING FELL. Six rose: Identity 191->203
+#              (the setup-token expiry), Backups 181->191 (the orphan-artifact reclaim pass),
+#              Host.IntegrationTests 331->335 and Ftp 105->109 (the login-limit advisory lock and
+#              its concurrency fixture), Sdk 178->181 and Host.Tests 236->237 (the ACCOUNT_BUSY
+#              code and its display name). The rows now sum to 3014 exactly.
+#              Earlier: `19 targets: 2980 passed / 0 failed`, TEST VERDICT: OK.
+#              The last +6 are ErrorMessageLocalizationTests, added after a LIVE browser pass
+#              found that no error message in any module was translated: the exception handler
+#              ran one line before the localisation middleware, so it resolved every text in a
+#              context where the request culture had never been set. Host.IntegrationTests
+#              325 -> 331.
+#              Three rows rose and none fell: Ftp.Tests 101->105 (the IPv6/canonical-spelling
+#              passive-address refusal and its inverse controls), ArchitectureTests 57->58 (the
+#              tenant census split in two), Host.IntegrationTests 324->325. Each was counted
+#              twice — statically in the source and from the run row — and made to agree.
+#              Earlier: measured 2026-09-11T10:03:08Z at `19 targets: 2965 passed / 0 failed`.
+#              Seven rows moved, +147 in total. The largest is Maran.Modules.Ftp.Tests.dll 38 -> 101:
+#              that row was recorded on 2026-09-09 from a project the FTP lane was still writing,
+#              and the earlier reconciliation flagged it as provisional at the time. It has run at
+#              101 ever since, which means 63 tests could have been deleted from that one project
+#              without this file noticing.
+#   spa      — NOT re-measured and NOT edited by this pass. The 71 rows below already sum to exactly
+#              the 357 passed / 1 ignored a quiet tree reports, so there was nothing to reconcile.
+#
+# NOT ONE TARGET FELL, on any stack. A fall is the single failure this file exists to catch and it
+# must never be baselined away; had one appeared it would have been reported as a regression rather
+# than recorded here.
+#
+# The ignored column was checked against the suites themselves, not carried forward: the thirteen
+# `*_on_a_real_host.rs` files declare 109 tests between them and maran_ops holds the one remaining
+# `#[ignore]`, which is the 110 the run reports. Every one of the thirteen is named in
+# docker/README.md and in .github/workflows/agent.yml, which `maran structure` check 19 enforces in
+# both directions.
+#
+# RE-MEASURED 2026-09-11, ftps only, reasoning in .superpowers/sdd/polygon-two-family-report.md.
+# `ftps_on_a_real_host` 12 -> 14 IGNORED: two `#[ignore]`d cases landed in that suite for the
+# certificate-trust gap (a client that VERIFIES the chain, and the daemon serving the file the panel
+# installed). The number is a count taken twice and made to agree, not a transcription: 14
+# `#[test]` attributes and 14 `#[ignore]` attributes in the file, and a polygon run executing 14
+# `passed` for that suite on BOTH families. The other twelve suites were counted the same way in the
+# same pass and every one of them is unchanged — 5/12/1/6/6/10/5/3/15/4/12/16 — so the declared
+# polygon total moves 107 -> 109 and NOTHING FELL. Had any of them fallen it would have been
+# reported as a regression instead of recorded here, which is the one rule this file has.
+#
+# RE-MEASURED 2026-09-11, ftps and sftp only, reasoning in
+# .superpowers/sdd/setup-token-log-report.md and .superpowers/sdd/sftp-suspension-bound-report.md.
+# `ftps_on_a_real_host` 14 -> 15 and `sftp_on_a_real_host` 12 -> 13 IGNORED: one `#[ignore]`d case
+# landed in each for the idle-bound asymmetry between the two protocols (the sshd configuration this
+# product writes puts NO idle bound on an SFTP session; the vsftpd configuration bounds an idle FTPS
+# session at ten minutes). Both numbers are counts taken twice and made to agree rather than
+# transcribed from the report that owed them: 15 `#[test]` and 15 `#[ignore]` attributes in
+# ftps_on_a_real_host.rs, 13 and 13 in sftp_on_a_real_host.rs, and a polygon run of both suites in a
+# `--no-cache` ubuntu24 image reporting `15 passed; 0 failed` and `13 passed; 0 failed` for them.
+# NOTHING FELL: no other suite was touched by that work, and the eleven others keep the counts the
+# reconciliation above recorded. The declared polygon total therefore moves 109 -> 111, and the rust
+# `ignored` total 110 -> 112; the one `#[ignore]` outside the thirteen polygon suites is still
+# maran_ops's.
+#
+# The setup-token lane that measured these two rows added no rust test of its own: its gate is a
+# BUILD-time assertion in docker/polygon/assert-installer-steps.sh
+# (`assert_the_panel_vhost_can_never_log_a_query_string`), which both family images run and which
+# this file does not count. Said here because a reader comparing the two reports would otherwise
+# look for a third row that does not exist.
+#
+# RE-MEASURED 2026-09-11, spa only, one row, reasoning in
+# .superpowers/sdd/token-fix-tails-report.md. `auth/setup.spec.ts` 6 -> 8 PASSED. The setup screen
+# stopped prefilling its token field from `?token=`, which is the tail the setup-token lane could
+# not reach, so the test that asserted the prefill is gone and three took its place: the field stays
+# empty and a real sentence says why, the sentence appears ONLY for a visitor who arrived with a
+# token in the address (the control, without which an unconditional notice would pass), and the
+# sentence is asserted in ru and hy as well as en with `toContainText`, which is case-sensitive
+# where `getByText` is not. Net +2, and the row is a count taken twice and made to agree rather than
+# transcribed: 8 `test(` calls in the file and `auth/setup.spec.ts  8  0  0` in a full run reporting
+# `71 targets: 359 passed / 0 failed / 1 ignored`, TEST VERDICT: OK. NOTHING FELL — no other spa row
+# moved, the target count is still 71, and the total moves 357 -> 359 by addition only.
+#
+# The split of FirewallAuthorizationTests.cs into that file plus FirewallEndpointTests.cs landed
+# between the 10:03 measurement and this edit. It moved no test: Maran.Host.IntegrationTests.dll
+# reports 321 before it and 321 after, and both runs are quoted in the report above.
+#
+#
+# RE-MEASURED 2026-09-12, two rows, by the Task 16 Step 3 pass
+# (.superpowers/sdd/task-16-final-gates.md). `handshake [tests/handshake.rs]` 5 -> 6 and
+# `Maran.Host.IntegrationTests.dll` 321 -> 324: the panel-to-agent FTPS wire-shape work landed one
+# more handshake case (`the_enable_shape_the_panel_sends_passes_the_agents_input_boundary_and_a_wrong
+# _family_passive_address_does_not`) and a new integration file. Both numbers are counts taken twice
+# and made to agree rather than transcribed: 6 `#[tokio::test]` attributes in
+# agent/crates/agent/tests/handshake.rs against a run row of `handshake ... 6 0 0` inside
+# `27 targets: 1838 passed / 0 failed / 112 ignored`, TEST VERDICT: OK; and 3 `[Fact]` attributes in
+# backend/tests/Maran.Host.IntegrationTests/PanelToAgentFtpsWireShapeTests.cs against a run row of
+# `Maran.Host.IntegrationTests.dll 324 0 0` inside `19 targets: 2969 passed / 0 failed / 0 ignored`,
+# TEST VERDICT: OK.
+#
+# NOTHING FELL. Every other row on all three stacks reported exactly what it declares: 27 rust
+# targets, 19 backend targets, 71 spa targets, no target vanished, and the spa stack re-measured
+# `71 targets: 359 passed / 0 failed / 1 ignored` against the 71 rows below without a digit moving.
+# The rust `ignored` total is still 112 and was re-counted from the suites rather than carried
+# forward: the thirteen `*_on_a_real_host.rs` files hold 5/12/1/6/6/10/15/5/3/15/4/13/16 = 111
+# `#[test]` attributes and the same number of `#[ignore]`s, plus maran_ops's one, and all thirteen
+# are still named in docker/README.md and .github/workflows/agent.yml.
+#
+# SINCE RECORDED (2026-09-12): `Maran.ArchitectureTests.dll` is now 58 below. The note that stood
+# here withheld the digit on purpose, because that project was a live lane whose files were being
+# written while the run executed, and a baseline recorded off a half-written lane is the false alarm
+# that gets a real fall dismissed. The lane has landed (the tenant census split in two, so 57 -> 58),
+# the tree is quiet, and the row was re-measured twice — statically and from the run row. The
+# reasoning is kept rather than deleted: withholding a digit measured off a moving tree was right,
+# and a reader who sees only the new number should know that a baseline BELOW the tree costs nothing
+# here, because the failure this file exists to catch is a FALL.
+#
+rust	maran_agent [unittests src/lib.rs]	308	0	0
 rust	maran_agent [unittests src/main.rs]	0	0	0
-rust	account_deletion_on_a_real_host [tests/account_deletion_on_a_real_host.rs]	0	0	2
-rust	backup_on_a_real_host [tests/backup_on_a_real_host.rs]	0	0	11
+rust	account_deletion_on_a_real_host [tests/account_deletion_on_a_real_host.rs]	0	0	5
+rust	backup_on_a_real_host [tests/backup_on_a_real_host.rs]	0	0	12
 rust	binary_paths_on_a_real_host [tests/binary_paths_on_a_real_host.rs]	0	0	1
-rust	cron_on_a_real_host [tests/cron_on_a_real_host.rs]	0	0	5
+rust	cron_on_a_real_host [tests/cron_on_a_real_host.rs]	0	0	6
 rust	databases_on_a_real_host [tests/databases_on_a_real_host.rs]	0	0	6
 rust	firewall_on_a_real_host [tests/firewall_on_a_real_host.rs]	0	0	10
-rust	handshake [tests/handshake.rs]	4	0	0
+rust	ftps_on_a_real_host [tests/ftps_on_a_real_host.rs]	0	0	15
+rust	handshake [tests/handshake.rs]	6	0	0
 rust	monitor_on_a_real_host [tests/monitor_on_a_real_host.rs]	0	0	5
 rust	php_pools_on_a_real_host [tests/php_pools_on_a_real_host.rs]	0	0	3
 rust	privileges_on_a_real_host [tests/privileges_on_a_real_host.rs]	0	0	15
-rust	sftp_on_a_real_host [tests/sftp_on_a_real_host.rs]	0	0	10
-rust	shutdown_signal [tests/shutdown_signal.rs]	2	0	0
-rust	sites_on_a_real_host [tests/sites_on_a_real_host.rs]	0	0	10
-rust	maran_agent_core [unittests src/lib.rs]	319	0	0
-rust	maran_distro [unittests src/lib.rs]	32	0	0
-rust	maran_ops [unittests src/lib.rs]	875	0	1
+rust	restore_recovery_on_a_real_host [tests/restore_recovery_on_a_real_host.rs]	0	0	4
+rust	sftp_on_a_real_host [tests/sftp_on_a_real_host.rs]	0	0	13
+rust	shutdown_signal [tests/shutdown_signal.rs]	3	0	0
+rust	sites_on_a_real_host [tests/sites_on_a_real_host.rs]	0	0	16
+rust	maran_agent_core [unittests src/lib.rs]	353	0	0
+rust	maran_distro [unittests src/lib.rs]	38	0	0
+rust	maran_ops [unittests src/lib.rs]	1158	0	1
 rust	maran_templates [unittests src/lib.rs]	0	0	0
-rust	golden_test [tests/golden_test.rs]	11	0	0
+rust	golden_test [tests/golden_test.rs]	19	0	0
 rust	doc-tests maran_agent	0	0	0
 rust	doc-tests maran_agent_core	0	0	0
 rust	doc-tests maran_distro	0	0	0
 rust	doc-tests maran_ops	0	0	0
 rust	doc-tests maran_templates	0	0	0
-backend	Maran.Agent.Client.Tests.dll	263	0	0
-backend	Maran.Modules.Backups.Tests.dll	123	0	0
-backend	Maran.SharedKernel.Tests.dll	135	0	0
+backend	Maran.Agent.Client.Tests.dll	315	0	0
+backend	Maran.Modules.Backups.Tests.dll	191	0	0
+backend	Maran.SharedKernel.Tests.dll	163	0	0
 backend	Maran.Modules.Notifications.Tests.dll	48	0	0
-backend	Maran.Modules.Tasks.Tests.dll	45	0	0
-backend	Maran.Modules.Monitoring.Tests.dll	42	0	0
-backend	Maran.Modules.Sftp.Tests.dll	75	0	0
+backend	Maran.Modules.Tasks.Tests.dll	54	0	0
+backend	Maran.Modules.Monitoring.Tests.dll	48	0	0
+backend	Maran.Modules.Sftp.Tests.dll	80	0	0
+backend	Maran.Modules.Ftp.Tests.dll	109	0	0
 backend	Maran.Modules.Cron.Tests.dll	177	0	0
 backend	Maran.Modules.Sites.Tests.dll	171	0	0
-backend	Maran.Modules.Firewall.Tests.dll	240	0	0
-backend	Maran.Modules.Accounts.Tests.dll	145	0	0
+backend	Maran.Modules.Firewall.Tests.dll	249	0	0
+backend	Maran.Modules.Accounts.Tests.dll	186	0	0
 backend	Maran.Modules.Databases.Tests.dll	70	0	0
 backend	Maran.Modules.Ssl.Tests.dll	158	0	0
-backend	Maran.Modules.Identity.Tests.dll	173	0	0
-backend	Maran.Sdk.Tests.dll	153	0	0
-backend	Maran.ArchitectureTests.dll	38	0	0
-backend	Maran.Host.Tests.dll	203	0	0
-backend	Maran.Host.IntegrationTests.dll	282	0	0
+backend	Maran.Modules.Identity.Tests.dll	203	0	0
+backend	Maran.Sdk.Tests.dll	181	0	0
+backend	Maran.ArchitectureTests.dll	58	0	0
+backend	Maran.Host.Tests.dll	237	0	0
+backend	Maran.Host.IntegrationTests.dll	335	0	0
+spa	accounts/delete.spec.ts	6	0	0
+spa	accounts/detail.spec.ts	10	0	0
+spa	accounts/form.spec.ts	7	0	0
+spa	accounts/list.spec.ts	3	0	0
+spa	admin/audit.spec.ts	3	0	0
+spa	admin/smtp-settings.spec.ts	2	0	0
+spa	audit/action-names.spec.ts	2	0	0
+spa	audit/occurred-at-time.spec.ts	1	0	0
+spa	audit/sidebar-link.spec.ts	2	0	0
+spa	auth/forgot-password.spec.ts	3	0	0
+spa	auth/login.spec.ts	7	0	0
+spa	auth/reset-password.spec.ts	2	0	0
+spa	auth/sessions.spec.ts	6	0	0
+spa	auth/setup.spec.ts	8	0	0
+spa	auth/two-factor-setup.spec.ts	2	0	0
+spa	auth/two-factor.spec.ts	5	0	0
+spa	backups/destinations.spec.ts	9	0	0
+spa	backups/list.spec.ts	14	0	0
+spa	backups/reachability.spec.ts	1	0	0
+spa	backups/restore.spec.ts	12	0	0
+spa	backups/schedule.spec.ts	7	0	0
+spa	backups/weekday-names.spec.ts	1	0	0
+spa	cron/entries.spec.ts	7	0	0
+spa	cron/environment.spec.ts	5	0	0
+spa	cron/raw-refusal.spec.ts	4	0	0
+spa	cron/schedule.spec.ts	2	0	0
+spa	databases/create.spec.ts	5	0	0
+spa	databases/credentials.spec.ts	15	0	0
+spa	databases/list.spec.ts	8	0	0
+spa	file-transfer/create.spec.ts	8	0	0
+spa	file-transfer/credentials.spec.ts	17	0	0
+spa	file-transfer/ftps-server.spec.ts	10	0	0
+spa	file-transfer/list.spec.ts	10	0	0
+spa	file-transfer/protocol.spec.ts	4	0	0
+spa	firewall/access.spec.ts	5	0	0
+spa	firewall/bans.spec.ts	6	0	0
+spa	firewall/lockout.spec.ts	6	0	0
+spa	firewall/presets.spec.ts	6	0	0
+spa	firewall/ranges.spec.ts	5	0	0
+spa	firewall/whitelist.spec.ts	7	0	0
+spa	golden-path/account-to-ssl.spec.ts	0	0	1
+spa	monitoring/monitoring.spec.ts	6	0	0
+spa	monitoring/russian-locale.spec.ts	4	0	0
+spa	shell/account-menu.spec.ts	5	0	0
+spa	shell/command-palette.spec.ts	1	0	0
+spa	shell/health-server-error.spec.ts	1	0	0
+spa	shell/health-status.spec.ts	2	0	0
+spa	shell/health-unreachable.spec.ts	1	0	0
+spa	shell/landmark.spec.ts	1	0	0
+spa	shell/licence-gating.spec.ts	11	0	0
+spa	shell/locale-persistence.spec.ts	3	0	0
+spa	shell/locale-switch.spec.ts	5	0	0
+spa	shell/locale.spec.ts	4	0	0
+spa	shell/module-landing-coverage.spec.ts	2	0	0
+spa	shell/not-found.spec.ts	1	0	0
+spa	shell/renders-title.spec.ts	1	0	0
+spa	sites/detail.spec.ts	5	0	0
+spa	sites/form.spec.ts	5	0	0
+spa	sites/list.spec.ts	5	0	0
+spa	sites/log-stream.spec.ts	7	0	0
+spa	sites/logs-tab.spec.ts	9	0	0
+spa	sites/ssl-tab.spec.ts	9	0	0
+spa	tasks/badge.spec.ts	3	0	0
+spa	tasks/list.spec.ts	7	0	0
+spa	tasks/log-fidelity.spec.ts	2	0	0
+spa	tasks/progress-unit.spec.ts	1	0	0
+spa	ui-kit/chart.spec.ts	5	0	0
+spa	ui-kit/dropdown-landing-focus.spec.ts	5	0	0
+spa	ui-kit/modal-keyboard.spec.ts	2	0	0
+spa	ui-kit/unfilled-select-prompt.spec.ts	3	0	0
+spa	upgrade/tier-name.spec.ts	3	0	0
