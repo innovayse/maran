@@ -17,10 +17,7 @@
       "load": "Load average, 1 min"
     },
     "units": {
-      "percent": "%",
-      "gibibytes": "GiB",
-      "mebibytesPerSecond": "MiB/s",
-      "load": "load"
+      "percent": "%"
     },
     "services": {
       "title": "Services",

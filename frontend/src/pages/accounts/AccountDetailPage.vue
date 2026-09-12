@@ -10,6 +10,13 @@
  * sure", because the operator is being asked to weigh a consequence, not to
  * repeat themselves.
  *
+ * **Suspension's confirmation names the transfer it interrupts.** Suspending now
+ * ends the file-transfer sessions the account already has open, as well as
+ * refusing new ones, so a transfer in flight is cut and the account's home is
+ * left holding a file shorter than it should be. Suspension itself is reversible
+ * by the control beside it and deletes nothing; that cut transfer is the one
+ * thing a resume does not give back, so it is the one thing the question adds.
+ *
  * The two reversible actions ask in {@link UiConfirm} — a modal that names the
  * account, states the consequence and takes one answer. It replaced a sentence
  * spliced into the row of buttons, which the operator could miss entirely on a
@@ -210,9 +217,11 @@ onMounted(async () => {
         </UiButton>
       </div>
 
-      <!-- `:open` is bound to a value that really changes rather than wrapped in a
-           `v-if`: a dialog created with `open` already true never runs `UiModal`s
-           open-watcher, so focus never enters it and Escape never reaches it. -->
+      <!-- `:open` is bound to a value that really changes, and this dialog needs no `v-if`: it has
+           no props that are only valid while it is open, and `UiModal` renders nothing while
+           closed. The deletion dialog below cannot say the same — its `account` prop is
+           `accountsStore.selected`, which is nullable — so it is mounted with `v-if` at the moment
+           it opens, and `UiModal`s open-watcher is `immediate` so that case works too. -->
       <UiConfirm
         :open="pending !== null"
         :title="confirmationTitle"
@@ -227,6 +236,9 @@ onMounted(async () => {
         @confirm="confirm"
       />
 
+      <!-- `v-if` because `account` is required and `accountsStore.selected` is nullable; the
+           dialog is created with `open` already true, which `UiModal`s immediate open-watcher
+           handles (focus enters, Escape reaches it, focus returns to the button that opened it). -->
       <AccountDeleteDialog
         v-if="deleting"
         :open="deleting"

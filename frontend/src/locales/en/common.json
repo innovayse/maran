@@ -7,6 +7,9 @@
     "name": "Name",
     "delete": "Delete",
     "saving": "Saving…",
-    "emptyValue": "—"
+    "emptyValue": "—",
+    "copyPassword": "Copy password",
+    "copied": "Copied",
+    "done": "Done"
   }
 }

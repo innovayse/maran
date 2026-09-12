@@ -1,8 +1,18 @@
 <script setup lang="ts">
 /**
  * First-run setup: the one screen a panel with no administrator will show, for
- * whatever route is asked for. The token is prefilled from the installer's
- * one-time link so an operator who followed it types only their own details.
+ * whatever route is asked for. The token is typed in, never read out of the
+ * address: the installer prints the link and the token as two separate lines
+ * (installer/lib/90-finish.sh) because a secret in a web address is written to
+ * the panel's own nginx logs and to the browser's history, neither of which this
+ * product can unwrite
+ * (docs/superpowers/notes/2026-09-11-setup-token-in-a-url-threat-note.md).
+ *
+ * A visitor who arrives with `?token=` anyway — an old bookmark, or the two
+ * printed lines pasted back into one address — is told so and asked to paste the
+ * token into the field, and the address is cleared. Honouring the value would
+ * put the secret back in the log the fix took it out of; ignoring it silently
+ * would leave them looking at an empty field they believe was filled.
  *
  * The strength meter is advice. The server's validator is the authority, and a
  * disagreement between them is a bug in this page, never a reason to submit.
@@ -25,8 +35,14 @@ const route = useRoute()
 const router = useRouter()
 const authStore = useAuthStore()
 
-/** The one-time token, prefilled from the installer's link. */
+/** The one-time token. Always typed or pasted by the operator; never prefilled. */
 const token: Ref<string> = ref('')
+
+/**
+ * Whether this visit arrived with a token in the address. Drives the notice that
+ * explains why the field below is empty; the value itself is discarded.
+ */
+const arrivedWithATokenInTheAddress: Ref<boolean> = ref(false)
 
 /** The administrator's login name. */
 const username: Ref<string> = ref('')
@@ -91,7 +107,19 @@ const submit = async (): Promise<void> => {
 }
 
 onMounted(() => {
-  token.value = typeof route.query.token === 'string' ? route.query.token : ''
+  // Read to decide what to SAY, never to fill the field in. A repeated key arrives as an
+  // array, which is still a token in the address, so the notice covers that shape too.
+  const inTheAddress = route.query.token
+  arrivedWithATokenInTheAddress.value = typeof inTheAddress === 'string'
+    ? inTheAddress.length > 0
+    : Array.isArray(inTheAddress)
+
+  if (arrivedWithATokenInTheAddress.value) {
+    // The history entry is already written and nothing here can unwrite it. Clearing the
+    // query stops the secret being re-copied out of the address bar, re-shared, or sent to
+    // this host again on a reload — where the panel's own web server would log the request.
+    void router.replace({ path: route.path })
+  }
 })
 </script>
 
@@ -99,6 +127,10 @@ onMounted(() => {
   <UiForm @submit="submit">
     <h2 class="text-xl font-semibold">{{ t('app.auth.setupTitle') }}</h2>
     <p class="mb-4 text-base text-text-secondary">{{ t('app.auth.setupSubtitle') }}</p>
+
+    <UiAlert v-if="arrivedWithATokenInTheAddress" class="mb-4">
+      {{ t('app.auth.setupTokenNotInTheLink') }}
+    </UiAlert>
 
     <UiAlert v-if="authStore.errorMessage !== null" variant="error" class="mb-4">
       {{ authStore.errorMessage }}

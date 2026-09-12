@@ -18,10 +18,22 @@ const POPULATED_SERIES: UiChartPoint[] = [
   { at: BASE_AT + HOUR_MS * 4, value: 60 },
 ]
 
+// An idle host's network throughput: five buckets, every one of them exactly zero. This is the
+// ordinary state of a machine nobody is talking to, not an edge case, and it is what drew a
+// `-1.00` gridline under a quantity that cannot be negative.
+const FLAT_ZERO_SERIES: UiChartPoint[] = [
+  { at: BASE_AT, value: 0 },
+  { at: BASE_AT + HOUR_MS, value: 0 },
+  { at: BASE_AT + HOUR_MS * 2, value: 0 },
+  { at: BASE_AT + HOUR_MS * 3, value: 0 },
+  { at: BASE_AT + HOUR_MS * 4, value: 0 },
+]
+
 const SCENARIOS: Record<string, UiChartPoint[]> = {
   populated: POPULATED_SERIES,
   empty: [],
   single: [{ at: BASE_AT, value: 42 }],
+  'flat-zero': FLAT_ZERO_SERIES,
 }
 
 const scenario = new URLSearchParams(window.location.search).get('scenario') ?? 'populated'

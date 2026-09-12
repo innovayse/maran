@@ -22,8 +22,22 @@ export type FirewallProtocol = 'tcp' | 'udp'
  * `FirewallLockoutDialog`).
  */
 export interface FirewallRule {
-  /** The port the rule names, 1-65535. */
+  /** The port the rule names, or the lower bound of a range, 1-65535. */
   port: number
+  /**
+   * The inclusive upper bound when the rule opens a RANGE of ports, and `null` when it names a
+   * single port.
+   *
+   * Null is what every rule created before the panel learned about ranges is, and what an agent too
+   * old to report the bound sends for every rule — the field is optional on the wire, so its
+   * absence arrives as null rather than as a zero. It must be strictly above `port` when present:
+   * an equal pair would be a second spelling of one port, and a removal naming that port would
+   * match nothing while reporting success.
+   *
+   * It is part of the rule's identity, like the source range: a removal sends it back exactly as
+   * the listing reported it.
+   */
+  portTo: number | null
   /** The transport protocol it applies to. */
   protocol: FirewallProtocol
   /**

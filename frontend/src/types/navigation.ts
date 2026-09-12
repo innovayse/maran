@@ -32,6 +32,8 @@ export type NavigationIcon =
   | 'chartLine'
   /** The backups module, whose screen lists the copies taken of an account. */
   | 'archive'
+  /** The shell's own audit journal entry — the panel's append-only record of who did what. */
+  | 'scrollText'
 
 /**
  * One entry in the authenticated shell's sidebar navigation, as built by

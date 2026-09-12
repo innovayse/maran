@@ -100,7 +100,10 @@ const submit = (): void => {
     @close="close"
   >
     <UiSpinner v-if="acting" :label="actingLabel" />
-    <p v-else>{{ question }}</p>
+    <!-- Carries a test id because the consequence text is the whole point of this dialog: an
+         end-to-end check has to be able to assert the WHOLE sentence, and a substring match on the
+         dialog would also pass on copy that had quietly lost a clause. -->
+    <p v-else data-testid="confirm-message">{{ question }}</p>
 
     <template #footer>
       <!-- Cancel first, and confirm last, so the destructive answer is the one

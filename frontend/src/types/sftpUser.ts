@@ -19,6 +19,17 @@ export interface SftpUser {
    * {@link name} and types that instead simply cannot log in.
    */
   fullName: string
+  /**
+   * Which daemon accepts this login, as the panel spells it, or absent on a panel that predates the
+   * field.
+   *
+   * Optional because it IS optional today: `SftpUserDto` on the server carries no protocol member
+   * yet. Absence has exactly one correct reading and it is not a guess — this endpoint has only ever
+   * returned SFTP logins — so the merged screen resolves it through
+   * `utils/fileTransferProtocolOf.ts` with `sftp` as the by-construction answer, and refuses a token
+   * it does not recognise instead of falling back to that answer.
+   */
+  protocol?: string
   /** The instant the login was created, as an ISO-8601 string. */
   createdAt: string
 }

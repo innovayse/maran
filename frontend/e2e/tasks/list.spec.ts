@@ -112,7 +112,11 @@ test('a task that failed shows the code it failed with', async ({ page }) => {
   await page.getByRole('menuitem', { name: 'Live view' }).click()
 
   await expect(page.getByText('SitesPhpVersionUnavailable', { exact: false })).toBeVisible()
-  await expect(page.getByText('Failed').first()).toBeVisible()
+  // Exact, because `failed` is the status on the wire and `Failed` is the badge's translated label:
+  // a loose `getByText` matches a substring case-insensitively and would read the raw constant as
+  // the fix. Nothing else in this test observes the wording — the code assertion above it is about
+  // `errorCode`, which is machine-stable and untranslated by design.
+  await expect(page.getByText('Failed', { exact: true }).first()).toBeVisible()
 })
 
 // rules/vue.md: the backend owns its error text, and the module's answer to a caller this surface

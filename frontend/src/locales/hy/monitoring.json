@@ -17,10 +17,7 @@
       "load": "Միջին բեռնվածություն, 1 րոպե"
     },
     "units": {
-      "percent": "%",
-      "gibibytes": "ԳիԲ",
-      "mebibytesPerSecond": "ՄիԲ/վ",
-      "load": "բեռնվածություն"
+      "percent": "%"
     },
     "services": {
       "title": "Ծառայություններ",

@@ -92,11 +92,29 @@ export const sortChartSeries = (series: ChartPoint[]): ChartPoint[] => {
 }
 
 /**
- * Computes the vertical range a series scales against. Never zero-width: a flat series (including
- * the single-value case, where min and max are the same number by construction) would otherwise
- * divide by zero when converting a value to a pixel row, and that is exactly how a `NaN` reaches a
- * path's `d` attribute. A small symmetric pad is fabricated instead, so a flat line draws at the
- * plot's vertical middle rather than collapsing.
+ * Computes the vertical range a series scales against.
+ *
+ * Two separate things happen here, and each handles one case:
+ *
+ * **The pad** exists for a zero-width range. A flat series — including the single-value case, where
+ * min and max are the same number by construction — would divide by zero in {@link valueToY}, and
+ * that is exactly how a `NaN` reaches a path's `d` attribute. So a range is fabricated around the
+ * value rather than collapsing onto it.
+ *
+ * **The floor** exists for the SIGN of that fabricated range, and it is not cosmetic. An idle
+ * host's network chart is a series of exact zeroes; padded symmetrically it became `-1 … 1`, and
+ * {@link computeYTicks} then labelled the bottom gridline `-1.00 MiB/s` while the filled area drew
+ * below the baseline. There is no such quantity: a throughput of minus one mebibyte per second is
+ * not a small number, it is a false statement about the machine. A series with no negative value in
+ * it therefore keeps a floor at zero, and a flat-zero series scales `0 … 1` and reads `1.00 / 0.50
+ * / 0.00` — true, and legible.
+ *
+ * The clamp is on the padded branch alone, deliberately. On the other branch `min` is a value the
+ * series actually contains, so it already has the series' own sign and clamping it could only lie
+ * about real data — and a guard that cannot fire is decoration, not protection (rules/testing.md).
+ * A genuinely negative series keeps its symmetric pad; nothing this panel plots today is one
+ * (percentages, byte counts, byte rates, load average are all non-negative by construction), but
+ * this module is pure geometry and does not get to assume that.
  * @param values The plotted values alone, in any order.
  * @returns The range to scale against; `{ min: 0, max: 1 }` for an empty series.
  */
@@ -108,7 +126,8 @@ export const computeValueRange = (values: number[]): ChartValueRange => {
   const min = Math.min(...values)
   if (max === min) {
     const pad = Math.max(Math.abs(max) * 0.1, 1)
-    return { min: max - pad, max: max + pad }
+    const padded = min - pad
+    return { min: min < 0 ? padded : Math.max(0, padded), max: max + pad }
   }
   return { min, max }
 }

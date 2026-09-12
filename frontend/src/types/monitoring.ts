@@ -81,11 +81,16 @@ export type ServiceState = 'running' | 'stopped' | 'unknown'
 export interface ServiceStatus {
   /**
    * Which service the row describes, by the agent's own machine name (`webServer`, `phpFpm`, …),
-   * camelCase like every other enum member on this API. Not localized by the panel — the module
-   * ships no display text for it — so it is rendered verbatim, the same honest fallback the
-   * sidebar uses for a module it has no label for.
+   * camelCase like every other enum member on this API. Machine-stable — the row's key, never its
+   * label: the panel localizes the label separately, in {@link ServiceStatus.name}.
    */
   service: string
+  /**
+   * The same service as a person reads it, produced and localized by the panel in the request's
+   * language (rules/vue.md: data comes from the backend; the SPA only displays it). Rendered
+   * verbatim — this SPA holds no display text for a server-side thing.
+   */
+  name: string
   /** Up, down, or not known. */
   state: ServiceState
   /** Why, in the service manager's own words. Administrators only, which this whole screen is. */

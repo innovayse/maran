@@ -17,6 +17,21 @@ const CSRF_HEADER = 'X-Maran-Request'
 const REFRESH_PATH = '/api/v1/auth/refresh'
 
 /**
+ * Problem members that are NOT feature extensions: RFC 7807's own five plus the two the backend
+ * writes on every failure. Everything else in a problem body is an extension member and is handed
+ * to callers on `ApiError.extensions`.
+ */
+const STANDARD_PROBLEM_MEMBERS: readonly string[] = [
+  'type',
+  'title',
+  'status',
+  'detail',
+  'instance',
+  'code',
+  'correlationId',
+]
+
+/**
  * Error thrown by {@link useApi} when the server responds with a non-2xx
  * status. Carries the backend's own already-localized `title`/`detail` text as
  * `message` (rules/vue.md: "the backend owns their text") so callers render it
@@ -37,12 +52,28 @@ export class ApiError extends Error {
   readonly status: number
 
   /**
+   * The problem's RFC 7807 extension members beyond the standard ones — the panel's
+   * problem-extension convention delivers a failure's typed facts here (a partial restore's
+   * counts, above all), each under its own key at the top level of the problem JSON. Values are
+   * `unknown` on purpose: the feature that knows a member's shape narrows it with its own guard
+   * (e.g. `src/utils/restorePartialCounts.ts`), and everything else ignores the map entirely.
+   * Empty when the server sent none.
+   */
+  readonly extensions: Readonly<Record<string, unknown>>
+
+  /**
    * Builds an error from a problem+json payload.
    * @param status HTTP status code of the failed response.
    * @param code Machine-stable problem code, or `'unknown'` if absent.
    * @param message Backend-localized message (`detail`, falling back to `title`, falling back to the HTTP status text).
+   * @param extensions The problem's extension members beyond the standard ones; empty when none came.
    */
-  constructor(status: number, code: string, message: string) {
+  constructor(
+    status: number,
+    code: string,
+    message: string,
+    extensions: Readonly<Record<string, unknown>> = {},
+  ) {
     super(message)
     // Name the error explicitly: minifiers/transpilers can otherwise drop
     // the constructor name, which would break `error.name === 'ApiError'`
@@ -50,6 +81,7 @@ export class ApiError extends Error {
     this.name = 'ApiError'
     this.code = code
     this.status = status
+    this.extensions = extensions
   }
 }
 
@@ -83,10 +115,25 @@ export const useApi = (): ApiClient => {
     const problem = (await response.json().catch(() => {
       return {}
     })) as ProblemDetails
+
+    // Everything beyond the standard members is a feature's typed extension data (the panel's
+    // problem-extension convention); it travels on the error so a store can read it without this
+    // client knowing any feature's shape. The plain-object check keeps a proxy's non-object JSON
+    // body (a bare string or array still parses) from being walked as if it had members.
+    const extensions: Record<string, unknown> = {}
+    if (typeof problem === 'object' && problem !== null && !Array.isArray(problem)) {
+      for (const [member, value] of Object.entries(problem)) {
+        if (!STANDARD_PROBLEM_MEMBERS.includes(member)) {
+          extensions[member] = value
+        }
+      }
+    }
+
     throw new ApiError(
       response.status,
       problem.code ?? 'unknown',
       problem.detail ?? problem.title ?? response.statusText,
+      extensions,
     )
   }
 

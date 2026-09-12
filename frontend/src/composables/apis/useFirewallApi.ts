@@ -44,11 +44,20 @@ export const useFirewallApi = (): FirewallApi => {
    * @returns The encoded query string, without its leading `?`.
    */
   const ruleQuery = (rule: FirewallRule): string => {
-    return new URLSearchParams({
+    const query = new URLSearchParams({
       port: String(rule.port),
       protocol: rule.protocol,
       sourceCidr: rule.sourceCidr,
-    }).toString()
+    })
+
+    // Sent only for a range. An empty `portTo=` binds as a zero rather than as absent, and a
+    // removal is matched against the whole rule — so a single port's removal must carry no bound at
+    // all, exactly as it did before ranges existed.
+    if (rule.portTo !== null) {
+      query.set('portTo', String(rule.portTo))
+    }
+
+    return query.toString()
   }
 
   /**

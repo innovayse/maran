@@ -49,5 +49,11 @@ const label: ComputedRef<string> = computed(() => {
 </script>
 
 <template>
-  <UiBadge :variant="variant">{{ label }}</UiBadge>
+  <!-- `data-testid` because a spec has no other stable way to read THIS cell's text. The suite used
+       to select a row with `filter({ hasText: 'Completed' })`, and Playwright's text matching is a
+       case-insensitive SUBSTRING match — so that filter is satisfied by the wire constant
+       `completed` exactly as happily as by the translated word, and the whole screen could regress
+       to machine text without a single assertion moving. A hook here lets a spec assert the badge's
+       own text, which is the value the operator reads. -->
+  <UiBadge :variant="variant" data-testid="backup-status">{{ label }}</UiBadge>
 </template>

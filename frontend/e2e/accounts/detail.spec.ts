@@ -2,6 +2,7 @@ import { expect, test, type Page } from '@playwright/test'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubModules } from '../fixtures/stub-modules-route'
+import { setPersistedLocale } from '../fixtures/set-locale'
 import type { Account } from '../../src/types/account'
 
 /** The account under test, active to begin with. */
@@ -58,8 +59,58 @@ test('suspending asks in a dialog that names the account and what will happen', 
   await expect(page.getByRole('dialog', { name: 'Suspend account acme' })).toBeVisible()
   // Not "are you sure": the operator is being asked to weigh a consequence their
   // customer sees within seconds.
-  await expect(page.getByRole('dialog')).toContainText(
-    'Its sites stop serving and its user can no longer sign in.',
+  const dialog = page.getByRole('dialog')
+  await expect(dialog).toContainText('Its sites stop serving and its user can no longer sign in.')
+  // The consequence the panel added last and the only irreversible one: suspending ends the
+  // transfer sessions the customer already has open, so a running upload is cut and what it had
+  // written stays behind, shorter than it should be. `toContainText` is used because it is
+  // case-sensitive — `getByText` and `hasText` match case-insensitive substrings, so a needle
+  // shorter than this sentence would pass against copy that no longer says it.
+  await expect(dialog).toContainText(
+    'A file transfer running now is cut off, and the partial file it wrote stays in the account.',
+  )
+  // Vacuity guard on the axis that can go blind: the assertions above are substring matches, so
+  // they would also hold on a dialog that had grown a second paragraph, and they say nothing about
+  // the sentence being ALL the dialog says. This pins the whole consequence text, so copy that
+  // silently gains or reorders a clause fails here rather than passing quietly.
+  await expect(dialog.getByTestId('confirm-message')).toHaveText(
+    'Suspend this account? Its sites stop serving and its user can no longer sign in. A file transfer running now is cut off, and the partial file it wrote stays in the account.',
+  )
+})
+
+// This defect was invisible for exactly one reason: nobody opened the dialog in a browser, and the
+// locale files are three separate sentences that no gate compares for MEANING — `maran structure`
+// only proves the key exists in all three. So the cost is asserted in Russian too, as a value.
+test('the Russian confirmation names the interrupted transfer as well', async ({ page }) => {
+  await setPersistedLocale(page, 'ru')
+  await stubDetail(page, ACTIVE)
+
+  await page.goto(`/accounts/${ACTIVE.id}`)
+  await page.getByRole('button', { name: 'Приостановить' }).click()
+
+  const dialog = page.getByRole('dialog', { name: 'Приостановить аккаунт acme' })
+  await expect(dialog).toBeVisible()
+  await expect(dialog.getByTestId('confirm-message')).toHaveText(
+    'Приостановить аккаунт? Его сайты перестанут отвечать, а пользователь не сможет войти. Идущая передача файлов прервётся, а недописанный файл останется в аккаунте.',
+  )
+})
+
+// And in Armenian, for the same reason and with one more: the Armenian clause was written with a
+// construction that appeared nowhere else in this repository, and no gate here compares locales for
+// MEANING — so the only thing that can hold the sentence still is its value, asserted. It now uses
+// only vocabulary the other Armenian strings already use, and this is what fails if an unsourced
+// term is put back.
+test('the Armenian confirmation names the interrupted transfer as well', async ({ page }) => {
+  await setPersistedLocale(page, 'hy')
+  await stubDetail(page, ACTIVE)
+
+  await page.goto(`/accounts/${ACTIVE.id}`)
+  await page.getByRole('button', { name: 'Կասեցնել' }).click()
+
+  const dialog = page.getByRole('dialog', { name: 'Կասեցնել acme հաշիվը' })
+  await expect(dialog).toBeVisible()
+  await expect(dialog.getByTestId('confirm-message')).toHaveText(
+    'Կասեցնե՞լ հաշիվը։ Կայքերը կդադարեն աշխատել, օգտատերը չի կարողանա մուտք գործել։ Ընթացիկ ֆայլերի փոխանցումը կընդհատվի, և արդեն գրվածը կմնա հաշվում։',
   )
 })
 
@@ -98,7 +149,11 @@ test('escaping the confirmation suspends nothing and gives the button its focus 
   expect(suspendRequests).toBe(0)
   // Back on the control that opened it, not at the top of the document.
   await expect(page.getByRole('button', { name: 'Suspend' })).toBeFocused()
-  await expect(page.getByText('Active')).toBeVisible()
+  // `exact: true`: the badge translates the status through a key built from it, and the English
+  // label is the machine constant with a capital letter. A loose `getByText` is a
+  // case-insensitive substring match, so it reads a badge that had regressed to printing `active` as a pass — the assertion
+  // would say the state is still shown while saying nothing about it being shown in words.
+  await expect(page.getByText('Active', { exact: true })).toBeVisible()
 })
 
 test('a confirmed suspension shows the new state without a reload', async ({ page }) => {
@@ -112,7 +167,11 @@ test('a confirmed suspension shows the new state without a reload', async ({ pag
   await page.getByRole('dialog').getByRole('button', { name: 'Yes, do it' }).click()
 
   await expect(page.getByRole('dialog')).toHaveCount(0)
-  await expect(page.getByText('Suspended')).toBeVisible()
+  // Exact for the same reason as the sibling above: `suspended` is what the panel sends and
+  // `Suspended` is what an operator must read, and only a case-sensitive whole-text match can tell
+  // the two apart. The `Reactivate` button below follows the STATE, not its wording, so it cannot
+  // stand in for this — without `exact` nothing in this test observed the label at all.
+  await expect(page.getByText('Suspended', { exact: true })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Reactivate' })).toBeVisible()
 })
 

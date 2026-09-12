@@ -11,8 +11,13 @@ export interface AuditEvent {
   occurredAt: string
   /** The login name of whoever performed it. */
   actorUsername: string
-  /** What was done, as the backend's own action name. */
+  /** What was done, as the backend's machine-stable action name — what an operator greps a log by. */
   action: string
+  /**
+   * The action as an operator reads it, localized by the backend for the request's language.
+   * Falls back to the machine name on the server for an action this panel has no entry for.
+   */
+  actionName: string
   /** What it was done to. Never carries a secret — the backend is responsible for that. */
   subject: string
   /** The address the request came from. */

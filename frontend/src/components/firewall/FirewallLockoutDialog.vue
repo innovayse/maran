@@ -26,6 +26,7 @@ import { computed, type ComputedRef } from 'vue'
 import { useI18n } from 'vue-i18n'
 import UiButton from '../ui/UiButton.vue'
 import UiModal from '../ui/UiModal.vue'
+import { portRangeLabel } from '../../utils/portRangeLabel'
 import type { FirewallRule, FirewallRuleChange } from '../../types/firewall'
 
 /** Props accepted by {@link FirewallLockoutDialog}. */
@@ -86,7 +87,7 @@ const confirmLabel: ComputedRef<string> = computed(() => {
 const describe = (rule: FirewallRule): string => {
   return t('firewall.rules.ruleSummary', {
     protocol: rule.protocol,
-    port: rule.port,
+    ports: portRangeLabel(rule.port, rule.portTo),
     source: rule.sourceCidr,
   })
 }
@@ -101,7 +102,7 @@ const describe = (rule: FirewallRule): string => {
   >
     <div class="flex flex-col gap-3">
       <ul class="flex flex-col gap-1 rounded-lg border border-border-subtle bg-surface-2 p-3">
-        <li v-for="rule in rules" :key="`${rule.protocol}-${rule.port}-${rule.sourceCidr}`" class="font-mono text-sm text-text-primary">
+        <li v-for="rule in rules" :key="`${rule.protocol}-${portRangeLabel(rule.port, rule.portTo)}-${rule.sourceCidr}`" class="font-mono text-sm text-text-primary">
           {{ describe(rule) }}
         </li>
       </ul>

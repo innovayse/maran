@@ -74,12 +74,12 @@ test('the web preset opens exactly 80 and 443, open to every source, in that ord
     .toHaveLength(2)
   expect(changes[0]).toEqual({
     method: 'POST',
-    body: { port: 80, protocol: 'tcp', sourceCidr: '0.0.0.0/0' },
+    body: { port: 80, portTo: null, protocol: 'tcp', sourceCidr: '0.0.0.0/0' },
     query: {},
   })
   expect(changes[1]).toEqual({
     method: 'POST',
-    body: { port: 443, protocol: 'tcp', sourceCidr: '0.0.0.0/0' },
+    body: { port: 443, portTo: null, protocol: 'tcp', sourceCidr: '0.0.0.0/0' },
     query: {},
   })
   await expect(page.getByRole('row').filter({ hasText: '443' })).toBeVisible()
@@ -89,7 +89,7 @@ test('the web preset opens exactly 80 and 443, open to every source, in that ord
 // an operator could act on (`FirewallPresetButtons`'s own reasoning) — so only the missing port may
 // be requested.
 test('the web preset does not re-request a port the host already has open', async ({ page }) => {
-  const changes = await openScreen(page, [{ port: 80, protocol: 'tcp', sourceCidr: '0.0.0.0/0' }])
+  const changes = await openScreen(page, [{ port: 80, portTo: null, protocol: 'tcp', sourceCidr: '0.0.0.0/0' }])
 
   await page.getByRole('button', { name: 'Open the web ports (80 and 443)' }).click()
 
@@ -100,7 +100,7 @@ test('the web preset does not re-request a port the host already has open', asyn
     .toHaveLength(1)
   expect(changes[0]).toEqual({
     method: 'POST',
-    body: { port: 443, protocol: 'tcp', sourceCidr: '0.0.0.0/0' },
+    body: { port: 443, portTo: null, protocol: 'tcp', sourceCidr: '0.0.0.0/0' },
     query: {},
   })
 })
@@ -110,8 +110,8 @@ test('the web preset does not re-request a port the host already has open', asyn
 // because it worked".
 test('the web preset is disabled once both ports are already open', async ({ page }) => {
   const changes = await openScreen(page, [
-    { port: 80, protocol: 'tcp', sourceCidr: '0.0.0.0/0' },
-    { port: 443, protocol: 'tcp', sourceCidr: '0.0.0.0/0' },
+    { port: 80, portTo: null, protocol: 'tcp', sourceCidr: '0.0.0.0/0' },
+    { port: 443, portTo: null, protocol: 'tcp', sourceCidr: '0.0.0.0/0' },
   ])
 
   await expect(page.getByRole('button', { name: 'Open the web ports (80 and 443)' })).toBeDisabled()
@@ -132,7 +132,7 @@ test('turning the MySQL toggle on sends exactly the rule it advertises', async (
     .toHaveLength(1)
   expect(changes[0]).toEqual({
     method: 'POST',
-    body: { port: 3306, protocol: 'tcp', sourceCidr: '0.0.0.0/0' },
+    body: { port: 3306, portTo: null, protocol: 'tcp', sourceCidr: '0.0.0.0/0' },
     query: {},
   })
   await expect(page.getByRole('switch', { name: 'MySQL reachable from outside (3306)' })).toHaveAttribute(
@@ -147,7 +147,7 @@ test('turning the MySQL toggle on sends exactly the rule it advertises', async (
 test('turning the MySQL toggle off asks first, then sends exactly the rule the panel is running', async ({
   page,
 }) => {
-  const changes = await openScreen(page, [{ port: 3306, protocol: 'tcp', sourceCidr: '0.0.0.0/0' }])
+  const changes = await openScreen(page, [{ port: 3306, portTo: null, protocol: 'tcp', sourceCidr: '0.0.0.0/0' }])
 
   await page.getByRole('switch', { name: 'MySQL reachable from outside (3306)' }).click()
 
@@ -178,8 +178,8 @@ test('turning the MySQL toggle off removes every rule open on that port, each na
   page,
 }) => {
   const changes = await openScreen(page, [
-    { port: 3306, protocol: 'tcp', sourceCidr: '0.0.0.0/0' },
-    { port: 3306, protocol: 'tcp', sourceCidr: '203.0.113.0/24' },
+    { port: 3306, portTo: null, protocol: 'tcp', sourceCidr: '0.0.0.0/0' },
+    { port: 3306, portTo: null, protocol: 'tcp', sourceCidr: '203.0.113.0/24' },
   ])
 
   await page.getByRole('switch', { name: 'MySQL reachable from outside (3306)' }).click()

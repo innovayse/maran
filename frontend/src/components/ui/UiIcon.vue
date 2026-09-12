@@ -40,6 +40,7 @@ import {
   LogOut,
   Menu,
   Moon,
+  ScrollText,
   Search,
   Server,
   ShieldCheck,
@@ -118,6 +119,8 @@ export type UiIconName =
   | 'chartLine'
   /** A lidded box — the backups module, whose screen lists the copies taken of an account. */
   | 'archive'
+  /** A written scroll — the audit journal, the panel's append-only record of who did what. */
+  | 'scrollText'
 
 /**
  * Every glyph the panel draws, mapped to its lucide component. The map is
@@ -157,6 +160,7 @@ const ICONS: Record<UiIconName, LucideIcon> = {
   listChecks: ListChecks,
   chartLine: ChartLine,
   archive: Archive,
+  scrollText: ScrollText,
 }
 
 /**

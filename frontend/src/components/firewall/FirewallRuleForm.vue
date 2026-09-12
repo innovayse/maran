@@ -52,6 +52,17 @@ const { t } = useI18n()
 /** The port the operator typed, held as text so a half-typed number is not silently coerced. */
 const port: Ref<string> = ref('')
 
+/**
+ * The upper bound of a range, or an empty string for a rule that names one port.
+ *
+ * Empty is the ordinary case and the one every rule written before ranges existed is in, so the
+ * field starts empty and stays optional. When it is filled it must end ABOVE the port beside it:
+ * `nft` refuses an inverted pair and ACCEPTS an equal one, and the equal one is the dangerous half —
+ * it becomes a second spelling of a single port, which a later removal naming that port would not
+ * match.
+ */
+const portTo: Ref<string> = ref('')
+
 /** The transport protocol the rule applies to. */
 const protocol: Ref<FirewallProtocol> = ref('tcp')
 
@@ -89,6 +100,24 @@ const portError: ComputedRef<string | null> = computed(() => {
     : null
 })
 
+/**
+ * Validation message for the range's upper bound, or `null`.
+ *
+ * It mirrors the panel's `PortRange`, which mirrors the agent's own validated type — read, not
+ * guessed (rules/vue.md "Forms"). The server remains the authority: whatever this lets through is
+ * refused there and its localized message is what the operator reads.
+ */
+const portToError: ComputedRef<string | null> = computed(() => {
+  if (!submitted.value || portTo.value.length === 0) {
+    return null
+  }
+  const parsed = Number(portTo.value)
+  const usable = DECIMAL.test(portTo.value) && parsed >= MIN_PORT && parsed <= MAX_PORT
+  return usable && parsed > Number(port.value)
+    ? null
+    : t('firewall.rules.form.errors.portToInvalid')
+})
+
 /** Validation message for the source range, or `null`. */
 const sourceError: ComputedRef<string | null> = computed(() => {
   if (!submitted.value) {
@@ -102,7 +131,7 @@ const sourceError: ComputedRef<string | null> = computed(() => {
 
 /** Whether every field currently passes the client's own mirror of the panel's rules. */
 const isValid: ComputedRef<boolean> = computed(() => {
-  return portError.value === null && sourceError.value === null
+  return portError.value === null && portToError.value === null && sourceError.value === null
 })
 
 /**
@@ -126,7 +155,15 @@ const submit = (): void => {
   if (!isValid.value || props.submitting) {
     return
   }
-  emit('submit', { port: Number(port.value), protocol: protocol.value, sourceCidr: sourceCidr.value })
+  // An empty upper bound is null, never the port itself: a range of one port is refused by both
+  // the panel and the agent, and null is what "this rule names one port" has to look like all the
+  // way down to the wire.
+  emit('submit', {
+    port: Number(port.value),
+    portTo: portTo.value.length === 0 ? null : Number(portTo.value),
+    protocol: protocol.value,
+    sourceCidr: sourceCidr.value,
+  })
 }
 
 /**
@@ -142,6 +179,7 @@ const submit = (): void => {
  */
 const reset = (): void => {
   port.value = ''
+  portTo.value = ''
   sourceCidr.value = ANY_IPV4_SOURCE
   submitted.value = false
 }
@@ -152,13 +190,19 @@ defineExpose({ reset })
 <template>
   <div class="rounded-xl border border-border-subtle bg-surface-1">
     <UiForm @submit="submit">
-      <div class="grid gap-3.5 p-4.5 sm:grid-cols-3">
+      <div class="grid gap-3.5 p-4.5 sm:grid-cols-4">
         <UiInput
           v-model="port"
           :label="t('firewall.rules.form.fields.port')"
           :placeholder="t('firewall.rules.form.placeholders.port')"
           :error="portError"
           required
+        />
+        <UiInput
+          v-model="portTo"
+          :label="t('firewall.rules.form.fields.portTo')"
+          :placeholder="t('firewall.rules.form.placeholders.portTo')"
+          :error="portToError"
         />
         <UiSelect
           :model-value="protocol"

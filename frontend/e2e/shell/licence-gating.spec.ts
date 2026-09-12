@@ -38,13 +38,24 @@ test('visiting the upgrade page for a locked module names the module and its lic
 }) => {
   await stubSignedIn(page)
   await stubHealthy(page)
-  await stubModules(page, [{ name: 'backups', tier: 'business', isEnabled: false }])
+  // `tierDisplayName` is the tier in the backend's own words; the SPA owns no list of tiers, so a
+  // catalogue without it makes the page say nothing about the tier (e2e/upgrade/tier-name.spec.ts).
+  await stubModules(page, [
+    { name: 'backups', tier: 'business', tierDisplayName: 'Business', isEnabled: false },
+  ])
 
   await page.goto('/upgrade/backups')
 
   await expect(page.getByRole('heading', { level: 1, name: 'Upgrade required' })).toBeVisible()
   await expect(page.getByText('The "backups" module is not included in your current licence.')).toBeVisible()
-  await expect(page.getByText('It is available on the business tier.')).toBeVisible()
+  // `exact: true`, and the reason is the whole of what this line asserts. `getByText` matches a
+  // SUBSTRING, CASE-INSENSITIVELY, unless told otherwise — so the defect this line exists to catch,
+  // the wire constant `business` reaching the screen where `tierDisplayName` belongs, rendered
+  // "Licence tier: business." and matched the loose form perfectly. The line read as a locale check
+  // and could not see a locale defect (rules/testing.md: a check must be able to observe what it
+  // reports on). Exact matching is case-sensitive and reads the element's whole text, which is the
+  // sentence `UiEmptyState` renders in its own `<p>`.
+  await expect(page.getByText('Licence tier: Business.', { exact: true })).toBeVisible()
 })
 
 test('deep link to a gated route whose module the licence does not cover lands on the upgrade page', async ({

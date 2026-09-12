@@ -132,6 +132,25 @@ export interface RestoreOutcome {
 }
 
 /**
+ * What a restore that stopped partway had already replaced, mirroring the backend's
+ * `RestorePartialDto` field for field.
+ *
+ * It arrives on the FAILURE response — the `restore` extension member of the problem JSON, decoded
+ * onto `ApiError.extensions` — because a partial restore is a rejection and a rejection has no
+ * body of its own. Absent entirely when the server measured nothing (a refusal that touched
+ * nothing, a truncated stream) and from an older panel that does not send counts, so a screen must
+ * render cleanly without it and must never invent a `0 of 0`.
+ */
+export interface RestorePartial {
+  /** Whether the account's home was already the archive's home when the run stopped. */
+  filesRestored: boolean
+  /** How many databases had been dropped, re-created and loaded when it stopped. */
+  databasesRestored: number
+  /** How many the restore set out to replace. */
+  databasesTotal: number
+}
+
+/**
  * Typed access to the backups endpoints.
  *
  * Five calls, matching the five routes `BackupsController` publishes. `restore` is one of them:

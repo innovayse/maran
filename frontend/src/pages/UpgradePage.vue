@@ -36,6 +36,30 @@ const catalogueEntry: ComputedRef<PanelModule | undefined> = computed(() => {
     return module.name === props.module
   })
 })
+
+/**
+ * The module as an operator reads it: the backend-localized `displayName` when the catalogue
+ * carries one, and the machine name only when it does not (an unknown module, or a panel older
+ * than the field). The SPA never translates it — a module is a server-side concept and a
+ * marketplace module is unknown when this bundle is built (rules/vue.md).
+ */
+const moduleName: ComputedRef<string> = computed(() => {
+  return catalogueEntry.value?.displayName ?? props.module
+})
+
+/**
+ * The sentence naming the licence tier, or `undefined` when there is none to name.
+ *
+ * It is built from `tierDisplayName` — the backend's own words — and NOT from `tier`, which is the
+ * machine constant the panel keys on: interpolating that produced "Он доступен в тарифе addOn." on
+ * a Russian panel. A catalogue that carries no `tierDisplayName` yields no sentence at all, because
+ * showing nothing is honest and showing the constant is not.
+ */
+const tierSentence: ComputedRef<string | undefined> = computed(() => {
+  const tierName = catalogueEntry.value?.tierDisplayName
+
+  return tierName === undefined ? undefined : t('app.upgrade.tier', { tier: tierName })
+})
 </script>
 
 <template>
@@ -43,8 +67,8 @@ const catalogueEntry: ComputedRef<PanelModule | undefined> = computed(() => {
     <UiPageHeading class="mb-4" :title="t('app.upgrade.heading')" :subtitle="t('app.upgrade.subtitle')" />
 
     <UiEmptyState
-      :title="t('app.upgrade.module', { module })"
-      :description="catalogueEntry ? t('app.upgrade.tier', { tier: catalogueEntry.tier }) : undefined"
+      :title="t('app.upgrade.module', { module: moduleName })"
+      :description="tierSentence"
     >
       <UiNavLink :to="{ name: 'system-status' }">{{ t('app.upgrade.backHome') }}</UiNavLink>
     </UiEmptyState>

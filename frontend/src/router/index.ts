@@ -13,7 +13,7 @@ import DatabasesPage from '../pages/databases/DatabasesPage.vue'
 import BackupDestinationsPage from '../pages/backups/BackupDestinationsPage.vue'
 import BackupSchedulePage from '../pages/backups/BackupSchedulePage.vue'
 import BackupsPage from '../pages/backups/BackupsPage.vue'
-import SftpUsersPage from '../pages/sftp/SftpUsersPage.vue'
+import FileTransferPage from '../pages/ftp/FileTransferPage.vue'
 import FirewallPage from '../pages/firewall/FirewallPage.vue'
 import CronPage from '../pages/cron/CronPage.vue'
 import TasksPage from '../pages/tasks/TasksPage.vue'
@@ -127,12 +127,22 @@ export const createAppRouter = (): Router => {
         ],
       },
       {
-        // One route, for the same reason as `/databases`.
-        path: '/sftp-users',
+        // One route, for the same reason as `/databases`: a login has no detail to open — the row
+        // IS the login. It is guarded by the `sftp` module rather than by `ftp` on purpose: SFTP is
+        // the half that is always there, and gating the merged screen on the FTPS module would take
+        // the SFTP logins away from a panel whose licence does not include FTPS.
+        path: '/file-transfer',
         component: DefaultLayout,
         children: [
-          { path: '', name: 'sftp-users', component: SftpUsersPage, meta: { module: 'sftp' } },
+          { path: '', name: 'file-transfer', component: FileTransferPage, meta: { module: 'sftp' } },
         ],
+      },
+      {
+        // The screen this replaced. A customer's bookmark and every link the panel has ever
+        // rendered point here, so the path stays and forwards rather than turning into a 404 on the
+        // day the merged screen shipped.
+        path: '/sftp-users',
+        redirect: { name: 'file-transfer' },
       },
       {
         // One route, for the same reason as `/databases`: nothing on this screen has a detail to

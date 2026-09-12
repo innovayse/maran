@@ -44,7 +44,7 @@ const MYSQL_PORT = 3306
 
 /** The rules the web preset installs, open to every source as a public web server must be. */
 const WEB_RULES: FirewallRule[] = WEB_PORTS.map((port) => {
-  return { port, protocol: 'tcp', sourceCidr: ANY_IPV4_SOURCE }
+  return { port, portTo: null, protocol: 'tcp', sourceCidr: ANY_IPV4_SOURCE }
 })
 
 const { t } = useI18n()
@@ -53,7 +53,10 @@ const { t } = useI18n()
 const missingWebRules: ComputedRef<FirewallRule[]> = computed(() => {
   return WEB_RULES.filter((candidate) => {
     return !props.rules.some((rule) => {
-      return rule.protocol === 'tcp' && rule.port === candidate.port
+      // `portTo === null` and not merely a matching port: a range that happens to start at 80
+      // is a different rule, and treating it as this preset's would offer a toggle that removes
+      // something else.
+      return rule.protocol === 'tcp' && rule.port === candidate.port && rule.portTo === null
     })
   })
 })
@@ -67,7 +70,7 @@ const missingWebRules: ComputedRef<FirewallRule[]> = computed(() => {
  */
 const mysqlRules: ComputedRef<FirewallRule[]> = computed(() => {
   return props.rules.filter((rule) => {
-    return rule.protocol === 'tcp' && rule.port === MYSQL_PORT
+    return rule.protocol === 'tcp' && rule.port === MYSQL_PORT && rule.portTo === null
   })
 })
 
@@ -95,7 +98,7 @@ const applyWebPreset = (): void => {
  */
 const toggleMysql = (open: boolean): void => {
   if (open) {
-    emit('allow', [{ port: MYSQL_PORT, protocol: 'tcp', sourceCidr: ANY_IPV4_SOURCE }])
+    emit('allow', [{ port: MYSQL_PORT, portTo: null, protocol: 'tcp', sourceCidr: ANY_IPV4_SOURCE }])
     return
   }
   emit('deny', [...mysqlRules.value])

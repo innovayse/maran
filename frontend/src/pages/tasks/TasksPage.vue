@@ -33,7 +33,7 @@ import TaskStatusBadge from '../../components/tasks/TaskStatusBadge.vue'
 import { useTaskKindLabel } from '../../composables/useTaskKindLabel'
 import { useLocaleStore } from '../../stores/locale'
 import { useTasksStore } from '../../stores/tasks'
-import { formatDate } from '../../utils/formatDate'
+import { formatIsoTimestamp } from '../../utils/formatIsoTimestamp'
 
 const { t } = useI18n()
 const store = useTasksStore()
@@ -70,11 +70,15 @@ const close = (): void => {
 
 /**
  * Renders when a task started, in the operator's language.
+ *
+ * The instant, not the day: `formatDate` printed `3 Sep 2026` for every task started on that day,
+ * so a list of a morning's provisioning runs said nothing about which ran when. A task is a thing
+ * that happened at a moment, and the panel already owns the formatter for one.
  * @param startedAt The instant, as the module sent it.
- * @returns The formatted date.
+ * @returns The formatted instant, date and time of day.
  */
 const started = (startedAt: string): string => {
-  return formatDate(startedAt, localeStore.current)
+  return formatIsoTimestamp(startedAt, localeStore.current)
 }
 
 onMounted(refresh)
