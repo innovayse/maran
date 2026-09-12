@@ -56,6 +56,14 @@ pub fn to_agent_error(error: &FirewallError) -> AgentError {
         // The variant's own message carries the recovery, because this is the
         // one firewall state no rpc gets out of.
         FirewallError::PortsDisagree => (ErrorCode::ValidationFailed, String::new()),
+        // INVALID_INPUT and not VALIDATION_FAILED, which is the opposite call
+        // from the one above and for the reason that distinction exists: no
+        // fact about the host is involved. Two numbers arrived on the request
+        // and the second is not above the first, which the caller can see from
+        // its own request and fix by retyping — the panel refuses the same pair
+        // before it sends it, and this is the agent's own boundary check saying
+        // the same thing (rules/architecture.md "Agent").
+        FirewallError::InvalidRange => (ErrorCode::InvalidInput, String::new()),
         // Faults of this machine or of its state, not of the request.
         // ForeignRuleset is the narrowest: the file at the ruleset path was not
         // written by this agent at all — a different first line, a missing

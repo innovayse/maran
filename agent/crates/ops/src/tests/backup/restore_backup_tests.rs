@@ -10,6 +10,7 @@ use sha2::{Digest as _, Sha256};
 use tempfile::TempDir;
 
 use crate::backup::MANIFEST_VERSION;
+use crate::backup::model::account_identity::AccountIdentity;
 use crate::backup::model::backup_summary::BackupSummary;
 use crate::backup::model::extract_identity::ExtractIdentity;
 use crate::backup::recording_backup_host::{
@@ -199,6 +200,24 @@ impl Fixture {
             .join(format!("alice.previous.{}", backup_id().as_str()))
     }
 
+    /// Where this run writes the marker that lets a later process finish the
+    /// swap it started.
+    fn marker(&self) -> PathBuf {
+        self.staging_root
+            .path()
+            .join(format!("alice.{}.swap", backup_id().as_str()))
+    }
+
+    /// The identity the account resolves to for this fixture — the same pair
+    /// the placement is built from, which is what makes a run under it the
+    /// UNCHANGED case rather than an accident.
+    fn identity(&self) -> AccountIdentity {
+        AccountIdentity {
+            uid: current_uid().unwrap(),
+            gid: self.homes.path().symlink_metadata().unwrap().gid(),
+        }
+    }
+
     /// The placement one run uses, owned by ids a test can really apply.
     fn placement(&self) -> Placement {
         Placement {
@@ -209,6 +228,7 @@ impl Fixture {
             scratch_owner: current_uid().unwrap(),
             staging: self.staging(),
             previous: self.previous(),
+            marker: self.marker(),
             owner: current_uid().unwrap(),
             account_group: self.homes.path().symlink_metadata().unwrap().gid(),
             group: self.homes.path().symlink_metadata().unwrap().gid(),
@@ -217,9 +237,14 @@ impl Fixture {
 }
 
 /// A host whose archive carries `count` databases and a manifest describing
-/// them.
-fn host_with(count: usize) -> RecordingBackupHost {
+/// them, and which resolves the account to the ids `fixture` places.
+fn host_with(fixture: &Fixture, count: usize) -> RecordingBackupHost {
     let host = RecordingBackupHost::new();
+    // Stated, never defaulted: a restore re-asks the account's identity
+    // immediately before it swaps the home, and a fake that answered something
+    // plausible on its own would let every test below pass without any test
+    // ever saying what the account is supposed to resolve to.
+    host.answers_identities(&[Some(fixture.identity())]);
     host.holds_manifest(manifest(count));
     for database in databases(count) {
         host.holds_dump(database.as_str(), &dump_of(&database));
@@ -266,7 +291,7 @@ fn rollback_loads(host: &RecordingBackupHost) -> Vec<String> {
 #[test]
 fn a_whole_restore_swaps_the_home_and_replaces_every_database() {
     let fixture = Fixture::new(2);
-    let host = host_with(2);
+    let host = host_with(&fixture, 2);
 
     let outcome = run(&fixture, &host, &databases(2), &mut sink()).unwrap();
 
@@ -284,7 +309,7 @@ fn a_whole_restore_swaps_the_home_and_replaces_every_database() {
 #[test]
 fn a_hostile_archive_member_outside_home_and_databases_is_refused_before_anything_is_touched() {
     let fixture = Fixture::new(1);
-    let host = host_with(1);
+    let host = host_with(&fixture, 1);
     host.holds_members(&[
         "manifest.json",
         "home/",
@@ -315,7 +340,7 @@ fn a_hostile_archive_member_outside_home_and_databases_is_refused_before_anythin
 #[test]
 fn an_archive_whose_checksum_does_not_match_is_refused_before_the_pre_restore_backup() {
     let fixture = Fixture::new(1);
-    let host = host_with(1);
+    let host = host_with(&fixture, 1);
 
     let error = restore_in(
         &fixture.placement(),
@@ -339,7 +364,7 @@ fn an_archive_whose_checksum_does_not_match_is_refused_before_the_pre_restore_ba
 #[test]
 fn a_manifest_that_disagrees_with_the_sidecar_is_refused() {
     let fixture = Fixture::new(1);
-    let host = host_with(1);
+    let host = host_with(&fixture, 1);
     let mut edited = manifest(1);
     edited.databases.clear();
     fixture.publish_sidecar(&edited);
@@ -361,7 +386,7 @@ fn a_manifest_that_disagrees_with_the_sidecar_is_refused() {
 #[test]
 fn a_sidecar_naming_an_unknown_version_is_refused_even_when_it_otherwise_agrees() {
     let fixture = Fixture::new(1);
-    let host = host_with(1);
+    let host = host_with(&fixture, 1);
     let unknown_version = crate::backup::model::backup_summary::SUMMARY_VERSION + 1;
 
     let agreeing_but_unknown_version = serde_json::json!({
@@ -391,7 +416,7 @@ fn a_sidecar_naming_an_unknown_version_is_refused_even_when_it_otherwise_agrees(
 #[test]
 fn a_sidecar_at_the_current_version_still_restores() {
     let fixture = Fixture::new(1);
-    let host = host_with(1);
+    let host = host_with(&fixture, 1);
 
     let outcome = run(&fixture, &host, &databases(1), &mut sink()).unwrap();
 
@@ -404,7 +429,7 @@ fn a_sidecar_at_the_current_version_still_restores() {
 #[test]
 fn a_database_the_panel_does_not_know_is_refused_and_never_created() {
     let fixture = Fixture::new(2);
-    let host = host_with(2);
+    let host = host_with(&fixture, 2);
 
     // The panel knows only the first of the two the archive carries.
     let error = run(&fixture, &host, &databases(1), &mut sink()).unwrap_err();
@@ -469,7 +494,7 @@ fn a_failure_before_the_first_drop_leaves_the_home_and_every_database_untouched(
 #[test]
 fn a_scratch_too_small_for_the_rollback_dumps_is_refused_before_any_database_is_dropped() {
     let fixture = Fixture::new(2);
-    let host = host_with(2);
+    let host = host_with(&fixture, 2);
     let mut enormous = manifest(2);
     for database in &mut enormous.databases {
         database.bytes = u64::MAX / 2;
@@ -497,7 +522,7 @@ fn a_scratch_too_small_for_the_rollback_dumps_is_refused_before_any_database_is_
 #[test]
 fn a_failure_after_the_first_drop_reloads_every_rollback_dump_in_reverse_order() {
     let fixture = Fixture::new(3);
-    let host = host_with(3);
+    let host = host_with(&fixture, 3);
     host.fail_archive_load_for("alice_shop2");
 
     let error = run(&fixture, &host, &databases(3), &mut sink()).unwrap_err();
@@ -533,7 +558,7 @@ fn a_failure_after_the_first_drop_reloads_every_rollback_dump_in_reverse_order()
 #[test]
 fn a_rollback_that_itself_fails_names_the_databases_it_could_not_restore() {
     let fixture = Fixture::new(3);
-    let host = host_with(3);
+    let host = host_with(&fixture, 3);
     host.fail_archive_load_for("alice_shop2");
     host.fail_rollback_loads();
 
@@ -590,7 +615,7 @@ fn a_failed_second_rename_reverses_the_first_and_the_account_has_its_home_back()
 #[test]
 fn a_restore_that_loses_a_database_reports_failed_not_completed() {
     let fixture = Fixture::new(3);
-    let host = host_with(3);
+    let host = host_with(&fixture, 3);
     host.fail_archive_load_for("alice_shop1");
 
     let answer = run(&fixture, &host, &databases(3), &mut sink());
@@ -602,7 +627,7 @@ fn a_restore_that_loses_a_database_reports_failed_not_completed() {
     // And the whole restore, which is the only thing that may report an
     // outcome, reports counts that are equal.
     let whole = Fixture::new(3);
-    let outcome = run(&whole, &host_with(3), &databases(3), &mut sink()).unwrap();
+    let outcome = run(&whole, &host_with(&whole, 3), &databases(3), &mut sink()).unwrap();
     assert_eq!(outcome.databases_restored, outcome.databases_total);
 }
 
@@ -611,7 +636,7 @@ fn a_restore_that_loses_a_database_reports_failed_not_completed() {
 #[test]
 fn the_home_is_extracted_inside_fork_as_account_and_the_dumps_are_not() {
     let fixture = Fixture::new(1);
-    let host = host_with(1);
+    let host = host_with(&fixture, 1);
 
     run(&fixture, &host, &databases(1), &mut sink()).unwrap();
 
@@ -630,7 +655,7 @@ fn the_home_is_extracted_inside_fork_as_account_and_the_dumps_are_not() {
 #[test]
 fn every_step_that_is_recoverable_by_doing_nothing_is_reported_as_verifying() {
     let fixture = Fixture::new(2);
-    let host = host_with(2);
+    let host = host_with(&fixture, 2);
     let mut sink = sink();
 
     run(&fixture, &host, &databases(2), &mut sink).unwrap();
@@ -774,4 +799,98 @@ fn a_restore_scratch_chain_owned_by_somebody_else_is_refused() {
     );
 
     assert!(matches!(refusal, Err(BackupError::ScratchUnusable)));
+}
+
+/// The account's identity, asked again immediately before the swap, is what
+/// decides — not the pair read when the operation started.
+#[test]
+fn a_restore_whose_account_uid_moved_refuses_before_it_touches_the_home() {
+    // C-4. `AccountIds` used to be resolved once, at the top, and carried in
+    // `Placement` for the whole operation — hours, for a large account. A
+    // `DeleteAccount` landing between the two renames made `userdel --remove`
+    // succeed and the second rename CREATE the home, chowned to that
+    // remembered uid — which `useradd` gives to the next account made on the
+    // host, so one customer's files end up under another customer's identity
+    // and the agent's own ownership check agrees they belong there.
+    let fixture = Fixture::new(1);
+    let host = host_with(&fixture, 1);
+    let moved = AccountIdentity {
+        uid: fixture.identity().uid + 1,
+        gid: fixture.identity().gid,
+    };
+    // One answer, not two: these tests drive `restore_in`, and the read the
+    // ENTRY POINT does before building the placement is outside it. So the
+    // single answer here IS the re-read taken immediately before the swap, and
+    // it disagrees with the ids the placement was built from — which is
+    // exactly the state a `userdel` during a long restore produces.
+    host.answers_identities(&[Some(moved)]);
+
+    let error = run(&fixture, &host, &databases(1), &mut sink()).expect_err("must refuse");
+
+    assert!(
+        matches!(error, BackupError::AccountIdentityChanged),
+        "expected AccountIdentityChanged, got {error:?}"
+    );
+    // Before the first rename, which is the recoverable side of the line: the
+    // home the account had is still the home it has.
+    assert!(
+        fixture.home().join("live.txt").is_file(),
+        "the account's own home must be untouched"
+    );
+    assert!(
+        !fixture.previous().exists(),
+        "nothing must have been parked: the swap never started"
+    );
+    assert!(
+        !fixture.staging().exists(),
+        "the staging tree is cleaned up"
+    );
+}
+
+/// The same window, entered by the account going away rather than by its
+/// number moving.
+#[test]
+fn a_restore_whose_account_vanished_refuses_before_it_touches_the_home() {
+    let fixture = Fixture::new(1);
+    let host = host_with(&fixture, 1);
+    host.answers_identities(&[None]);
+
+    let error = run(&fixture, &host, &databases(1), &mut sink()).expect_err("must refuse");
+
+    assert!(
+        matches!(error, BackupError::ExtractionIdentityUnavailable),
+        "expected ExtractionIdentityUnavailable, got {error:?}"
+    );
+    assert!(
+        fixture.home().join("live.txt").is_file(),
+        "the account's own home must be untouched"
+    );
+}
+
+/// The positive control for both refusals above: the identity really is asked
+/// a second time, and a restore whose answer did not move really does swap.
+#[test]
+fn the_accounts_identity_is_asked_again_before_the_home_is_swapped() {
+    // Without this, an operation that had stopped asking would pass both
+    // refusals above by refusing nothing at all — and a check that is never
+    // reached refuses nothing, which is what makes this control the thing that
+    // gives the other two their meaning.
+    //
+    // UNOBSERVED HERE: the entry point's own first read. These tests drive
+    // `restore_in`, and `restore_backup` — which resolves the ids, builds the
+    // `Placement` and takes the account lock — is one statement above it. What
+    // this file can see is that the second read happens and that a disagreement
+    // between the two refuses.
+    let fixture = Fixture::new(1);
+    let host = host_with(&fixture, 1);
+
+    let outcome = run(&fixture, &host, &databases(1), &mut sink()).expect("the restore succeeds");
+
+    assert_eq!(
+        host.identity_calls(),
+        1,
+        "the re-read immediately before the swap must really happen"
+    );
+    assert!(outcome.files_restored);
+    assert!(fixture.home().join("public").join("index.php").is_file());
 }

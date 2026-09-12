@@ -24,7 +24,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use std::collections::{BTreeMap, VecDeque};
-use std::sync::Mutex;
+use std::sync::{Arc, Condvar, Mutex};
 use std::time::{Duration, UNIX_EPOCH};
 
 use maran_agent_core::agent_paths::AgentPaths;
@@ -57,6 +57,83 @@ pub(crate) const ABSENT_ID: &str = "99999999-9999-4999-8999-999999999999";
 /// The ids the fake hands out, in order, before it runs out.
 const DEFAULT_IDS: [&str; 2] = [FIRST_ID, SECOND_ID];
 
+/// How long the first caller to reach the crontab read waits for a second one.
+///
+/// It is only ever paid when the lock is doing its job: the partner never
+/// arrives, because it is parked on the account's lock. With the lock REMOVED
+/// the partner arrives at once and nothing waits at all, so a build without it
+/// interleaves in microseconds and only the passing run pays. A quarter of a
+/// second is orders of magnitude more than a spawned thread needs to reach the
+/// gate, so an unlocked build cannot escape by being slow.
+const ARRIVAL_BUDGET: Duration = Duration::from_millis(250);
+
+/// A rendezvous the fake makes the first caller of `read_crontab` wait at.
+///
+/// It exists to make the race REPRODUCIBLE. Two threads that merely start at
+/// the same time may or may not interleave, and a concurrency test that depends
+/// on which one wins reports "serialised" for a build that is not — the
+/// direction that manufactures confidence. Parking the first caller between its
+/// read and its install is exactly the window the lock exists to close, so the
+/// unlocked build loses the race every time.
+struct ArrivalGate {
+    /// How many callers have arrived so far.
+    arrived: Mutex<usize>,
+    /// Signalled by the second arrival.
+    partner: Condvar,
+    /// Whether the first caller's wait ended on the budget rather than on a
+    /// partner turning up.
+    ///
+    /// This is the axis that says which lock is in force, and the arrival COUNT
+    /// alone cannot: a count of two is reached either way, because a caller
+    /// parked on a lock still arrives once the lock is released. A rendezvous
+    /// that completed means both callers were inside the read-modify-write at
+    /// once; a rendezvous that timed out means the second was held outside it.
+    timed_out: Mutex<bool>,
+}
+
+impl ArrivalGate {
+    /// A gate nobody has arrived at yet.
+    fn new() -> Self {
+        Self {
+            arrived: Mutex::new(0),
+            partner: Condvar::new(),
+            timed_out: Mutex::new(false),
+        }
+    }
+
+    /// Blocks the first caller until a second arrives, or until the budget runs
+    /// out. Later callers pass straight through.
+    fn arrive(&self) {
+        let mut arrived = self.arrived.lock().unwrap();
+        *arrived += 1;
+
+        if *arrived >= 2 {
+            self.partner.notify_all();
+
+            return;
+        }
+
+        let (_arrived, outcome) = self
+            .partner
+            .wait_timeout(arrived, ARRIVAL_BUDGET)
+            .expect("the gate's own mutex is never poisoned");
+        if outcome.timed_out() {
+            *self.timed_out.lock().unwrap() = true;
+        }
+    }
+
+    /// How many callers have reached the gate in total.
+    fn arrivals(&self) -> usize {
+        *self.arrived.lock().unwrap()
+    }
+
+    /// Whether the first caller waited out the budget instead of meeting a
+    /// partner.
+    fn timed_out(&self) -> bool {
+        *self.timed_out.lock().unwrap()
+    }
+}
+
 /// A [`CronHost`] that keeps a crontab and a directory of entry files in
 /// memory.
 pub(crate) struct RecordingCronHost {
@@ -82,6 +159,8 @@ pub(crate) struct RecordingCronHost {
     remove_refuses: Mutex<bool>,
     /// Whether the host can mint an id at all.
     ids_unavailable: Mutex<bool>,
+    /// The rendezvous `read_crontab` waits at, when a test installed one.
+    gate: Mutex<Option<Arc<ArrivalGate>>>,
 }
 
 impl RecordingCronHost {
@@ -99,7 +178,49 @@ impl RecordingCronHost {
             entry_read_refuses: Mutex::new(false),
             remove_refuses: Mutex::new(false),
             ids_unavailable: Mutex::new(false),
+            gate: Mutex::new(None),
         }
+    }
+
+    /// Makes the first caller of `read_crontab` wait for a second one.
+    ///
+    /// The rendezvous sits AFTER the crontab has been handed back, so the
+    /// waiting caller is holding a document it read from a table a second
+    /// caller may still change. That is the interleaving the lock exists to
+    /// prevent, and gating it is what makes the race happen on every run rather
+    /// than on the runs where the scheduler cooperates.
+    pub(crate) fn with_arrival_gate(self) -> Self {
+        *self.gate.lock().unwrap() = Some(Arc::new(ArrivalGate::new()));
+
+        self
+    }
+
+    /// How many callers reached the arrival gate.
+    ///
+    /// The positive control for a race test: an assertion that the suspension
+    /// survived proves nothing if the second operation never entered the
+    /// critical section at all, and this is what says it did.
+    pub(crate) fn arrivals(&self) -> usize {
+        self.gate
+            .lock()
+            .unwrap()
+            .as_ref()
+            .map_or(0, |gate| gate.arrivals())
+    }
+
+    /// Whether the two callers met at the gate or the first waited out its
+    /// budget alone.
+    ///
+    /// `true` means the second caller was held OUTSIDE the crontab
+    /// read-modify-write while the first was inside it — which is the lock
+    /// working. `false` means both were inside at once, which for one account
+    /// is the race and for two accounts is the point.
+    pub(crate) fn rendezvous_timed_out(&self) -> bool {
+        self.gate
+            .lock()
+            .unwrap()
+            .as_ref()
+            .is_some_and(|gate| gate.timed_out())
     }
 
     /// A host whose account already has the crontab `text`.
@@ -185,7 +306,19 @@ impl CronHost for RecordingCronHost {
             return Err(CronError::CrontabRefused { code });
         }
 
-        Ok(self.crontab.lock().unwrap().clone())
+        let text = self.crontab.lock().unwrap().clone();
+
+        // After the read and before the caller can install: the window the
+        // per-account lock closes. The gate is cloned OUT of its mutex before
+        // the wait, so a parked caller holds no lock of the fake's own — a
+        // rendezvous that waited while holding one would serialise the two
+        // callers itself and answer "no race" for a build that has one.
+        let gate = self.gate.lock().unwrap().clone();
+        if let Some(gate) = gate {
+            gate.arrive();
+        }
+
+        Ok(text)
     }
 
     fn install_crontab(&self, _account: &AccountName, contents: &str) -> Result<(), CronError> {

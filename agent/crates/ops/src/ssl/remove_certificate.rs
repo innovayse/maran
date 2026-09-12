@@ -3,6 +3,7 @@
 use maran_distro::DistroAdapter;
 
 use crate::sites::SiteCertificate;
+use crate::sites::is_suspended_vhost::is_suspended_vhost;
 use crate::sites::model::create_site_input::CreateSiteInput;
 use crate::sites::render_vhost::render_vhost;
 use crate::sites::resolved_site_paths::resolved_site_paths;
@@ -20,6 +21,10 @@ use crate::ssl::ssl_op_error::SslOpError;
 /// nginx does not start again after the next reboot. Rewiring first means the
 /// worst case is a site back on plain HTTP with its material still on disk,
 /// which the same command removes when it is run again.
+///
+/// A suspended site is the one case where the first step writes nothing: its
+/// vhost is the stub, which names no certificate, so the material is simply
+/// taken away and the suspension is left standing.
 ///
 /// Idempotent as the contract requires (`ssl.proto`): removing when no
 /// certificate is installed is [`SslOpError::NotFound`], and a removal
@@ -63,13 +68,19 @@ pub fn remove_certificate(
     // The site as it will be: no certificate, so the site area renders the
     // plain-HTTP vhost — the same text `create_site` writes for a site that
     // never had one.
-    let plain = CreateSiteInput {
-        certificate: None,
-        ..site.clone()
-    };
-    let wanted = render_vhost(&plain, &paths)?;
-    if current != wanted {
-        write_vhost(host, distro, &paths.config_path, &wanted)?;
+    // A SUSPENDED site keeps its stub. The stub names no certificate at all, so
+    // there is nothing to rewire and the material below can go; rendering the
+    // site's own plain-HTTP vhost over the stub would un-suspend it
+    // (`sites::is_suspended_vhost`).
+    if !is_suspended_vhost(&current, site, &paths)? {
+        let plain = CreateSiteInput {
+            certificate: None,
+            ..site.clone()
+        };
+        let wanted = render_vhost(&plain, &paths)?;
+        if current != wanted {
+            write_vhost(host, distro, &paths.config_path, &wanted)?;
+        }
     }
 
     remove_material(host, distro, &certificate)

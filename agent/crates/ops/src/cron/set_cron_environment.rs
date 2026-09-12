@@ -5,6 +5,7 @@ use maran_distro::DistroAdapter;
 
 use crate::cron::cron_error::CronError;
 use crate::cron::cron_host::CronHost;
+use crate::cron::cron_lock::cron_lock;
 use crate::cron::model::cron_environment::CronEnvironment;
 use crate::cron::model::crontab_document::CrontabDocument;
 
@@ -41,6 +42,12 @@ pub fn set_cron_environment(
     account: &AccountName,
     environment: Vec<CronEnvironment>,
 ) -> Result<(), CronError> {
+    // Held from before the read to after the install, because the two are one
+    // decision: a table rendered from a document read outside the lock would
+    // still overwrite whatever landed in between. Per account, process-local —
+    // see `cron_lock` for the whole argument.
+    let _crontab = cron_lock(account);
+
     let existing = host.read_crontab(account)?.unwrap_or_default();
     let mut document = CrontabDocument::parse(&existing);
 

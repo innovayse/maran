@@ -178,7 +178,7 @@ fn the_bulk_scratch_is_outside_every_directory_the_panel_uid_owns() {
     // The escalation this pins, measured in
     // docs/superpowers/notes/2026-09-05-backups-threat-note.md §1: the scratch
     // used to be /var/lib/maran/scratch, and /var/lib/maran is created
-    // panel:panel 0750 by installer/lib/40-user.sh. The panel uid owned the
+    // maran:maran 0750 by installer/lib/40-user.sh. The panel uid owned the
     // parent, so it could rename the leaf aside and leave a symlink at that
     // name — which needs write permission on the parent only — and root's next
     // dump write followed it. Two measured outcomes: a customer's plaintext
@@ -246,4 +246,39 @@ fn the_two_restore_paths_share_one_parent_so_the_swap_is_a_rename() {
         previous,
         Path::new("/home/.maran-restore").join(format!("acme.previous.{id}"))
     );
+}
+
+#[test]
+fn the_ftps_jail_root_is_not_inside_the_panel_owned_state_root() {
+    // The escalation that made every SFTP login on every real install fail, and
+    // that this constant is placed to avoid repeating: /var/lib/maran is
+    // created maran:maran 0750 by installer/lib/40-user.sh, so an unprivileged
+    // uid owning an ancestor of a chroot can rename a level aside and leave an
+    // entry of its own at the name every customer's jail hangs under — without
+    // ever having permission to enter it. It is also what OpenSSH refuses
+    // outright, walking every component of the chroot path.
+    assert!(!Path::new(AgentPaths::FTPS_JAIL_ROOT).starts_with("/var/lib/maran/"));
+    assert_ne!(
+        Path::new(AgentPaths::FTPS_JAIL_ROOT),
+        Path::new("/var/lib/maran")
+    );
+    assert_eq!(AgentPaths::FTPS_JAIL_ROOT, "/var/lib/maran-ftps");
+
+    // The inverse control on the same axis: the refusals above are satisfied by
+    // a jail root anywhere at all, /home included — which every account can
+    // write. It is under /var/lib, whose own mode is root:root 0755 on both
+    // families, so every component above the base belongs to root.
+    assert!(Path::new(AgentPaths::FTPS_JAIL_ROOT).starts_with("/var/lib"));
+}
+
+#[test]
+fn the_two_jail_roots_are_separate_directories_and_neither_contains_the_other() {
+    // The two protocols' jails have different lifetimes: an account may hold
+    // logins of one and none of the other, and removing the last login of one
+    // must not unmount the other's bind mount out from under a live customer.
+    // Nesting one root inside the other would make a recursive teardown of
+    // either reach the other's mounts.
+    assert_ne!(AgentPaths::FTPS_JAIL_ROOT, AgentPaths::SFTP_JAIL_ROOT);
+    assert!(!Path::new(AgentPaths::FTPS_JAIL_ROOT).starts_with(AgentPaths::SFTP_JAIL_ROOT));
+    assert!(!Path::new(AgentPaths::SFTP_JAIL_ROOT).starts_with(AgentPaths::FTPS_JAIL_ROOT));
 }

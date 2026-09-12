@@ -4,8 +4,9 @@
 // by an `#[allow]` further down, so adding unsafe here does not compile at all.
 #![forbid(unsafe_code)]
 //! maran-ops — the agent's domain operations, one module per area
-//! (`accounts/`, `sites/`, `php/`, `db/`, `sftp/`, `files/`, `cron/`,
-//! `firewall/`, `ssl/`, `backup/`, `monitor/`). Every operation is
+//! (`accounts/`, `sites/`, `php/`, `db/`, `sftp/`, `ftps/`, `files/`, `cron/`,
+//! `firewall/`, `ssl/`, `backup/`, `monitor/`), plus `logins/` for what the two
+//! login areas share. Every operation is
 //! idempotent and re-validates its inputs via `maran-agent-core`
 //! (rules/rust.md "Validation first"). Modules land with their backend
 //! counterparts, starting with Plan 2.
@@ -22,6 +23,8 @@ pub mod cron;
 pub mod db;
 pub mod files;
 pub mod firewall;
+pub mod ftps;
+pub mod logins;
 pub mod monitor;
 pub mod php;
 pub mod safe_write;

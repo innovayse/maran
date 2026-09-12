@@ -9,7 +9,7 @@ use maran_templates::nftables::nftables_protocol::NftablesProtocol;
 
 use crate::firewall::allow_port::allow_port;
 use crate::firewall::fake_firewall_host::{
-    FakeFirewallHost, distro, open_rule, ports, rendered, restricted_rule, ruleset_path,
+    FakeFirewallHost, distro, open_range, open_rule, ports, rendered, restricted_rule, ruleset_path,
 };
 use crate::firewall::firewall_error::FirewallError;
 
@@ -223,4 +223,90 @@ fn a_ruleset_that_cannot_be_read_is_not_replaced() {
 
     assert_eq!(outcome, Err(FirewallError::RulesetUnreadable));
     assert!(host.applies().is_empty());
+}
+
+/// A range reaches the file as ONE nftables range line, with both of its
+/// bounds.
+///
+/// Asserted as the rendered line rather than as "a rule was installed": a
+/// range that silently collapsed to its first port would install a rule and
+/// pass that weaker assertion, while leaving ninety-nine ports closed and the
+/// operator told they were open.
+#[test]
+fn an_allow_over_a_range_renders_one_line_carrying_both_bounds() {
+    let host = FakeFirewallHost::with_rules(&[]);
+
+    allow_port(
+        &host,
+        distro(),
+        &ports(),
+        &open_range(30_000, 30_099, NftablesProtocol::Tcp),
+    )
+    .expect("allowed");
+
+    let file = live(&host);
+    assert!(
+        file.contains("tcp dport 30000-30099 accept"),
+        "the range must render as one line: {file}"
+    );
+    assert!(
+        !file.contains("tcp dport 30000 accept"),
+        "the lower bound must not also render as a rule of its own: {file}"
+    );
+    assert_eq!(host.applies(), vec![ruleset_path()]);
+}
+
+/// A range whose lower bound is one of the host's SSH ports does NOT take that
+/// port's block, so the unconditional accept that keeps the operator's session
+/// alive is still rendered.
+///
+/// The template renders a port's own number on every line of its block and
+/// never the rule's, so a range routed there would render as the single SSH
+/// port: the range collapsed AND the fallback replaced, from one rule.
+#[test]
+fn a_range_that_starts_at_an_ssh_port_leaves_that_port_s_fallback_alone() {
+    let host = FakeFirewallHost::with_rules(&[]);
+
+    allow_port(
+        &host,
+        distro(),
+        &ports(),
+        &open_range(22, 30, NftablesProtocol::Tcp),
+    )
+    .expect("allowed");
+
+    let file = live(&host);
+    assert!(
+        file.contains("tcp dport 22 accept"),
+        "the ssh fallback must survive a range that spans it: {file}"
+    );
+    assert!(
+        file.contains("tcp dport 22-30 accept"),
+        "the range must render as a range: {file}"
+    );
+}
+
+/// An identical range is the idempotent answer, and a range that merely
+/// overlaps an installed one is not the same rule.
+#[test]
+fn an_identical_range_reports_already_exists_and_a_different_one_does_not() {
+    let installed = open_range(30_000, 30_099, NftablesProtocol::Tcp);
+    let host = FakeFirewallHost::with_rules(slice::from_ref(&installed));
+
+    assert_eq!(
+        allow_port(&host, distro(), &ports(), &installed),
+        Err(FirewallError::AlreadyExists)
+    );
+
+    // A rule has no identity beyond its own value here, so a range with a
+    // different upper bound is a different rule — not an update of this one.
+    allow_port(
+        &host,
+        distro(),
+        &ports(),
+        &open_range(30_000, 30_050, NftablesProtocol::Tcp),
+    )
+    .expect("a different range is a different rule");
+
+    assert!(live(&host).contains("tcp dport 30000-30050 accept"));
 }

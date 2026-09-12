@@ -37,7 +37,9 @@ use maran_agent_core::validation::fs::file_mode::FileMode;
 use maran_agent_core::validation::fs::relative_path::RelativePath;
 use maran_agent_core::validation::web::domain::Domain;
 use maran_ops::files::{DeleteEntryInput, FilesOpError, ProcessFilesHost, WriteFileInput};
-use maran_ops::sites::{LogSink, ProcessSiteHost, SiteLogKind, SitesOpError, TailEnd};
+use maran_ops::sites::{
+    LogSink, ProcessSiteHost, SiteHost, SiteLogKind, SitePaths, SitesOpError, TailEnd,
+};
 
 use polygon_account::PolygonAccount;
 
@@ -389,18 +391,37 @@ fn a_site_log_owned_by_another_real_account_is_refused() {
     let domain = Domain::parse("logs.example.test").expect("a valid domain");
 
     // The log lives at the path the owner's tail would open, and belongs to a
-    // different real account — a hardlink to somebody else's file, planted
-    // where the customer's own log goes. Every path check passes; only the
+    // real account instead of to root — a file somebody else's uid owns, sitting
+    // at the exact name the tail asks for. Every path check passes; only the
     // inode's uid says no.
-    let logs = owner.home().join("logs");
-    std::fs::create_dir_all(&logs).expect("the log directory must be creatable");
-    // The DIRECTORY must belong to the owner, or the tail refuses at the
-    // directory check and never looks at the file — the refusal would then be
-    // the right answer for the wrong reason, and the owner check on the log
-    // itself would be untested while looking tested.
-    chown_to(&logs, &owner);
+    //
+    // That path is `/var/log/maran/sites/<owner>` and no longer
+    // `/home/<owner>/logs`. The move is the F-1 fix: the root nginx master opens
+    // these files without `O_NOFOLLOW`, so while the directory was inside the
+    // home the customer owned it and a symbolic link there made root create and
+    // append to any path on the host
+    // (docs/superpowers/notes/2026-09-09-site-logs-threat-note.md). The uid this
+    // test plants is therefore the STRANGER's on a file the tail now expects
+    // root to own — which is the same proposition it always tested, one owner
+    // along: a log the expected uid does not own is refused.
+    // Created through the AGENT'S OWN operation and not with `std::fs::create_dir_all`,
+    // which was the first version of this line and was wrong in a way only the whole
+    // polygon lane could see. `create_dir_all` takes the default 0777 masked by the
+    // process umask, so it left `/var/log/maran/sites` at 0755 — and because every
+    // polygon suite shares one container, the sites suite, which runs later
+    // alphabetically and asserts that directory is 0750, then failed on a mode this
+    // fixture had set. Asking the production code for the directory means a test
+    // cannot manufacture a layout the product would never produce.
+    let logs = SitePaths::log_directory_for(owner.name());
+    ProcessSiteHost::new()
+        .create_site_log_directory(owner.name())
+        .expect("the agent must be able to create its own log directory");
+    // The DIRECTORY must be root's, or the tail refuses at the directory check
+    // and never looks at the file — the refusal would then be the right answer
+    // for the wrong reason, and the owner check on the log itself would be
+    // untested while looking tested.
     let log = logs.join(format!("{}.access.log", domain.as_str()));
-    std::fs::write(&log, b"a line the owner never wrote\n").expect("the log must be writable");
+    std::fs::write(&log, b"a line root never wrote\n").expect("the log must be writable");
     chown_to(&log, &stranger);
 
     let name = owner.name().clone();
@@ -424,7 +445,7 @@ fn a_site_log_owned_by_another_real_account_is_refused() {
 
     assert!(
         matches!(refusal, Err(SitesOpError::LogUnreadable { .. })),
-        "a log owned by another account must be refused, got {refusal:?}"
+        "a log owned by an account rather than by root must be refused, got {refusal:?}"
     );
     assert_eq!(
         delivered, 0,

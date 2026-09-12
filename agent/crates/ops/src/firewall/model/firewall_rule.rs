@@ -1,9 +1,10 @@
 //! One "let this in" rule of the agent-managed firewall.
 
-use maran_agent_core::validation::web::port::Port;
 use maran_agent_core::validation::web::source_cidr::SourceCidr;
 use maran_templates::nftables::nftables_allow::NftablesAllow;
 use maran_templates::nftables::nftables_protocol::NftablesProtocol;
+
+use crate::firewall::model::port_span::PortSpan;
 
 /// The address-family keyword `nft` expects before `saddr` for an IPv4
 /// network.
@@ -13,8 +14,8 @@ const IPV4_KEYWORD: &str = "ip";
 /// network.
 const IPV6_KEYWORD: &str = "ip6";
 
-/// One port the operator has opened: a port, a protocol, and the source
-/// network it is open to.
+/// One thing the operator has opened: a port or a range of ports, a protocol,
+/// and the source network it is open to.
 ///
 /// Every field is a validated type and none of them is a `String`, which is
 /// this area's whole injection defence. The rendered ruleset is a grammar
@@ -35,8 +36,13 @@ const IPV6_KEYWORD: &str = "ip6";
 /// traffic and nothing else.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FirewallRule {
-    /// The destination port the rule opens.
-    pub port: Port,
+    /// The destination ports the rule opens: one port, or a range.
+    ///
+    /// A [`PortSpan`] and not a pair of numbers, because a range is refused or
+    /// accepted by that type's constructor and there is no other way to build
+    /// one — so a rule that exists has bounds this agent could render and read
+    /// back unchanged.
+    pub ports: PortSpan,
     /// The transport protocol the rule opens it for.
     pub protocol: NftablesProtocol,
     /// The source network the rule is open to; `0.0.0.0/0` means every
@@ -66,7 +72,8 @@ impl FirewallRule {
         let open_to_anyone = self.is_open_to_anyone();
 
         NftablesAllow {
-            port: self.port.value(),
+            port: self.ports.lower().value(),
+            port_to: self.ports.upper().map(|upper| upper.value()),
             protocol: self.protocol,
             source_cidr: if open_to_anyone {
                 String::new()

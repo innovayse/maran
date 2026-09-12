@@ -5,12 +5,12 @@ use std::os::unix::fs::{DirBuilderExt as _, PermissionsExt as _, chown};
 use std::path::{Path, PathBuf};
 
 use maran_agent_core::agent_paths::AgentPaths;
-use maran_agent_core::privs::account_ids::AccountIds;
 use maran_agent_core::validation::db::database_name::DatabaseName;
 use maran_agent_core::validation::system::backup_id::BackupId;
 use maran_agent_core::validation::system::local_backup_root::LocalBackupRoot;
 use maran_agent_core::validation::system::name::AccountName;
 
+use crate::accounts::take_account_lock;
 use crate::backup::archive::checksum_file::checksum_file;
 use crate::backup::archive::dump_database::dump_database;
 use crate::backup::archive::extract_databases_as_root::{
@@ -22,7 +22,6 @@ use crate::backup::archive::replace_database::replace_database;
 use crate::backup::archive::scan_members::{refused_member_name, scan_members};
 use crate::backup::backup_error::BackupError;
 use crate::backup::backup_host::BackupHost;
-use crate::backup::backup_lock::take_account_lock;
 use crate::backup::backup_root::prepare_account_directory;
 use crate::backup::model::backup_manifest::BackupManifest;
 use crate::backup::model::manifest_database::ManifestDatabase;
@@ -32,6 +31,9 @@ use crate::backup::model::restore_stage::RestoreStage;
 use crate::backup::object_key::{artifact_file_name, sidecar_file_name};
 use crate::backup::read_sidecar::read_sidecar;
 use crate::backup::require_scratch_room::require_scratch_room;
+use crate::backup::restore_marker_file::{
+    remove_restore_marker, restore_marker_path, write_restore_marker,
+};
 use crate::backup::root_only_chain::{MissingLevels, SCRATCH_MODE, require_root_only_chain};
 use crate::backup::scratch_dump_ceiling::scratch_dump_ceiling;
 
@@ -97,6 +99,11 @@ struct Placement {
     staging: PathBuf,
     /// Where the home being replaced is parked until the restore has finished.
     previous: PathBuf,
+    /// The document written immediately before the first rename of the swap and
+    /// removed after the last step, so that a process which never saw this
+    /// request can finish what a killed one started. See
+    /// `crate::backup::recover_restores`.
+    marker: PathBuf,
     /// The uid the restored home root must end up owned by, and the uid the
     /// staging tree is handed to before it is filled.
     owner: u32,
@@ -227,7 +234,11 @@ pub fn restore_backup(
     let guard = take_account_lock(account).ok_or(BackupError::AlreadyRunning)?;
 
     let directory = prepare_account_directory(root, account)?;
-    let ids = AccountIds::resolve(account).map_err(|_| BackupError::ExtractionIdentityUnavailable);
+    // Asked through the host seam rather than through `AccountIds::resolve`
+    // directly, because it is asked a SECOND time inside `perform` and the two
+    // answers are compared. A question asked twice has to be askable of a
+    // test.
+    let ids = host.account_identity(account);
     let outcome = ids.and_then(|ids| {
         let placement = Placement {
             home_root: PathBuf::from(AgentPaths::ACCOUNT_HOME_ROOT),
@@ -237,8 +248,9 @@ pub fn restore_backup(
             scratch_owner: ROOT_UID,
             staging: AgentPaths::restore_staging_dir(account, backup_id),
             previous: AgentPaths::restore_previous_dir(account, backup_id),
-            owner: ids.uid(),
-            account_group: ids.gid(),
+            marker: restore_marker_path(account, backup_id),
+            owner: ids.uid,
+            account_group: ids.gid,
             group: home_group,
         };
 
@@ -308,7 +320,7 @@ fn restore_in(
         }
     };
 
-    let outcome = perform(placement, host, account, &planned, sink);
+    let outcome = perform(placement, host, account, backup_id, &planned, sink);
 
     let _ = remove_dir_all(&placement.staging);
     let _ = remove_dir_all(&placement.scratch);
@@ -416,14 +428,59 @@ fn perform(
     placement: &Placement,
     host: &dyn BackupHost,
     account: &AccountName,
+    backup_id: &BackupId,
     planned: &Planned,
     sink: &mut dyn RestoreSink,
 ) -> Result<RestoreOutcome, BackupError> {
     let total = u32::try_from(planned.databases.len()).unwrap_or(u32::MAX);
     let restored = replace_databases(placement, host, planned, sink)?;
 
+    // The account's identity, asked again — and this is the last moment at
+    // which asking it is worth anything, because the next three statements
+    // write a marker naming a uid, rename a home into place, and chown it.
+    //
+    // The uid in `placement` was read when this operation started, which for a
+    // large account was hours ago. It is a fact about that moment: `userdel`
+    // frees a uid and `useradd` hands the lowest free one to the next account
+    // created on this host, so a home chowned to a remembered number can land
+    // under a DIFFERENT customer — and the agent's own ownership check compares
+    // uids, so every later file operation would agree that the new tenant owns
+    // the old one's files.
+    //
+    // The account lock this operation holds excludes this agent's own
+    // deletion, so what this catches is what the lock cannot see: a `userdel`
+    // an operator ran by hand, or a second agent binary. It refuses BEFORE the
+    // marker and before the first rename, which is the recoverable side of the
+    // line — the staging tree is removed by the cleanup the caller runs
+    // unconditionally, and the account's home has not been touched.
+    let current = host.account_identity(account)?;
+    if current.uid != placement.owner || current.gid != placement.account_group {
+        return Err(BackupError::AccountIdentityChanged);
+    }
+
+    // Written here and nowhere else: AFTER every database has been replaced and
+    // BEFORE the first rename. Its position is what gives it its meaning — a
+    // marker on the disk is the fact that step 6 finished, which is why a
+    // startup reconciliation finishing the swap FORWARD is completing the
+    // operation the customer asked for rather than guessing at one. See
+    // `recover_restores` and the threat note it names.
+    write_restore_marker(
+        &placement.marker,
+        account,
+        backup_id,
+        placement.owner,
+        placement.group,
+        HOME_MODE,
+    )?;
+
     swap_home(placement, account, sink)?;
     finalise(placement, account, sink)?;
+
+    // Last, and only on the fully successful path. Removing it earlier would
+    // hand the window back to the defect this whole marker exists to close; not
+    // removing it at all is harmless, because the next start classifies the
+    // swap as `Completed` and removes it then.
+    remove_restore_marker(&placement.marker);
 
     Ok(RestoreOutcome {
         files_restored: true,
@@ -616,6 +673,24 @@ fn swap_home(
 
     let home = placement.home_root.join(account.as_str());
     rename(&home, &placement.previous).map_err(|_| BackupError::StagingUnusable)?;
+
+    // The one report that falls BETWEEN the two renames, and the only point in
+    // the whole operation at which the account has no home. It is reported for
+    // the reason every other stage boundary is: a fixed span is what makes a
+    // stall legible, and an operation stuck at the start of `restoring_files`
+    // and one stuck between the renames are two very different states for an
+    // operator to walk into — the second one has a home parked under
+    // `RESTORE_STAGING_ROOT`. `percent_through` rather than a literal, so no
+    // call site writes a percentage down (see `RestoreStage`).
+    //
+    // It is also the seam the polygon suite kills the process through, which is
+    // stated rather than left for a reader to discover: a test that has to
+    // interrupt this window needs a real moment inside it, and this is the
+    // agent's own report rather than a hook added for a test.
+    sink.report(
+        RestoreStage::RestoringFiles,
+        RestoreStage::RestoringFiles.percent_through(1, 2),
+    );
 
     if rename(&placement.staging, &home).is_err() {
         // Immediately, and before anything else is attempted: every microsecond

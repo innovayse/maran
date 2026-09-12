@@ -72,6 +72,16 @@ impl<H: FilesHost + 'static> FilesService for FilesServiceImpl<H> {
     type ReadFileStream = ReadStream;
 
     /// Writes one file inside the account's home, as the account.
+    ///
+    /// **Cancellation class: stop** (rules/rust.md, "Async and blocking"), and
+    /// it is the only one of the five that gets it for free. This is the one
+    /// client-streaming rpc, so the upload IS what drives the work: a sender
+    /// that disappears makes the next message an error, `validated_write`
+    /// refuses, and no filesystem work has happened yet — an upload whose
+    /// sender is gone is incomplete by definition and must not be written. The
+    /// drop after the drain is a different question and is answered by
+    /// `run_blocking` like every unary rpc: one small already-validated write
+    /// finishes rather than being torn in half.
     async fn write_file(
         &self,
         request: Request<Streaming<WriteFileRequest>>,
@@ -134,6 +144,15 @@ impl<H: FilesHost + 'static> FilesService for FilesServiceImpl<H> {
 
     /// Not built: this agent implements `WriteFile` and `DeleteEntry` only,
     /// so this answers `UNIMPLEMENTED` (see `proto/agent/v1/files.proto`).
+    ///
+    /// **It therefore has no cancellation class** (rules/rust.md, "Async and
+    /// blocking"), and that is worth one line because the contract declares it
+    /// server-streaming and two readings of this tree have counted it as a live
+    /// streaming rpc. It refuses before any host work exists, so there is
+    /// nothing a dropped client could stop, finish or orphan. Whoever
+    /// implements it inherits the obligation: a bounded-chunk read of a
+    /// customer's file is pure observation, so it will be the **stop** class,
+    /// alongside `TailSiteLog`.
     async fn read_file(
         &self,
         _request: Request<ReadFileRequest>,

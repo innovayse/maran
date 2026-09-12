@@ -268,3 +268,95 @@ fn a_config_that_validates_replaces_the_previous_one_and_reloads_once() {
         )
     );
 }
+
+/// A [`ConfigHost`] that reads the target at the instant the validator is
+/// invoked, which is exactly the midpoint the kill exposes.
+///
+/// Not a stand-in for a process that kills itself: killing the WRITER from
+/// inside a test would take the test binary with it, and killing the validator
+/// child proves nothing, because the child is not what holds the
+/// `RollbackGuard`. What can be observed honestly, and is the whole content of
+/// the exposure, is the state of the real path DURING the window — so this host
+/// samples it there and the test below asserts it.
+struct MidpointHost {
+    target: std::path::PathBuf,
+    /// What was live at the target when the validator was asked, and whether
+    /// the validator had been asked at all.
+    seen_at_validation: Mutex<Option<Vec<u8>>>,
+}
+
+impl MidpointHost {
+    /// A host that samples `target` when its validator runs, then refuses.
+    fn new(target: &std::path::Path) -> Self {
+        Self {
+            target: target.to_path_buf(),
+            seen_at_validation: Mutex::new(None),
+        }
+    }
+}
+
+impl ConfigHost for MidpointHost {
+    fn run(&self, _program: &str, _arguments: &[&str]) -> Result<CommandOutcome, SafeWriteError> {
+        let mut seen = self
+            .seen_at_validation
+            .lock()
+            .expect("the fixture lock is never poisoned");
+        if seen.is_none() {
+            *seen = Some(std::fs::read(&self.target).expect("the target exists at the midpoint"));
+        }
+
+        Ok(CommandOutcome {
+            status: 1,
+            stdout: String::new(),
+            stderr: "refused after the swap".to_owned(),
+        })
+    }
+}
+
+/// Between the rename and the verdict the NEW, unvalidated content is live at
+/// the real path — the window a `SIGKILL` freezes, and the reason a startup
+/// re-validation has to exist at all.
+///
+/// This is the break for the whole midpoint argument: if the rename ever moved
+/// back behind the validation, the validator would sample the OLD bytes here and
+/// this test would fail, saying so by name.
+#[test]
+fn the_new_unvalidated_content_is_live_at_the_target_while_the_validator_runs() {
+    let directory = tempfile::tempdir().unwrap();
+    let target = directory.path().join("site.conf");
+    std::fs::write(&target, b"old\n").unwrap();
+    let host = MidpointHost::new(&target);
+
+    let written = write_config(&host, &target, "new\n", &validator(), &reload());
+
+    assert!(matches!(
+        written,
+        Err(SafeWriteError::ValidationFailed { .. })
+    ));
+    assert_eq!(
+        host.seen_at_validation
+            .lock()
+            .expect("the fixture lock is never poisoned")
+            .clone(),
+        Some(b"new\n".to_vec()),
+        "the validator must read the NEW content from the real path: if it sampled the old \
+         bytes the swap has moved back behind the validation and the validator is proving \
+         nothing about what it accepted"
+    );
+}
+
+/// The inverse control for the window: the refusal this process DID survive
+/// restores the previous bytes, so the exposure is the kill and not the
+/// protocol. A test that only asserted the midpoint would not distinguish
+/// "unvalidated content is live for a moment" from "unvalidated content stays".
+#[test]
+fn the_same_refusal_this_process_survives_leaves_the_previous_bytes_live() {
+    let directory = tempfile::tempdir().unwrap();
+    let target = directory.path().join("site.conf");
+    std::fs::write(&target, b"old\n").unwrap();
+    let host = MidpointHost::new(&target);
+
+    let _ = write_config(&host, &target, "new\n", &validator(), &reload());
+
+    assert_eq!(std::fs::read(&target).unwrap(), b"old\n");
+}

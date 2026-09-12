@@ -1,5 +1,6 @@
 //! The [`SiteHost`] that actually touches this machine.
 
+use std::os::unix::fs::DirBuilderExt as _;
 use std::path::{Path, PathBuf};
 
 use maran_agent_core::agent_paths::AgentPaths;
@@ -76,6 +77,15 @@ impl ConfigHost for ProcessSiteHost {
 /// enumerated for exactly the files this agent writes into it.
 const CONFIG_EXTENSION: &str = "conf";
 
+/// The mode every level of a site's log directory is created with.
+///
+/// `0750` and owned by root, matching `/var/log/maran/sites` itself. Group
+/// `root`, so the PANEL uid — which can traverse `/var/log/maran` because it is
+/// in the `maran` group — stops here: it matches `other`, which is `---`.
+/// Nothing but root ever opens a path beneath this, and the one reader that
+/// does (`follow_log`, on behalf of `TailSiteLog`) is the root daemon itself.
+const SITE_LOG_DIRECTORY_MODE: u32 = 0o750;
+
 impl SiteHost for ProcessSiteHost {
     /// Reads the vhost, distinguishing "absent" from "unreadable".
     fn read_config(&self, path: &Path) -> Result<Option<String>, SitesOpError> {
@@ -109,6 +119,41 @@ impl SiteHost for ProcessSiteHost {
                     .is_some_and(|extension| extension == CONFIG_EXTENSION)
             })
             .collect())
+    }
+
+    /// Creates `/var/log/maran/sites/<account>` as root, `0750`, if it is not
+    /// already there.
+    ///
+    /// `DirBuilder` with an explicit `mode`, not `create_dir_all`: the mode of
+    /// a directory the root daemon creates must be the mode this code chose,
+    /// not whatever the daemon's inherited umask happens to be. `recursive`
+    /// covers a host where `/var/log/maran/sites` itself is missing — a manual
+    /// upgrade that skipped the installer step — and every level it creates
+    /// gets the same explicit mode.
+    ///
+    /// `AlreadyExists` is success. Every operation that renders a vhost calls
+    /// this, so the common case is a directory that has been there since the
+    /// account's first site.
+    ///
+    /// There is no ownership check here and none is needed for containment:
+    /// `/var/log/maran` is `root:maran 0750` and `/var/log/maran/sites` is
+    /// `root:root 0750`, both created and asserted by the installer, so no uid
+    /// but root can put anything at this name in the first place. The installer
+    /// is where that claim is checked, once, rather than on every site
+    /// operation.
+    fn create_site_log_directory(&self, account: &AccountName) -> Result<(), SitesOpError> {
+        let directory = AgentPaths::account_site_log_dir(account);
+
+        match std::fs::DirBuilder::new()
+            .recursive(true)
+            .mode(SITE_LOG_DIRECTORY_MODE)
+            .create(&directory)
+        {
+            Ok(()) => Ok(()),
+            Err(error) => Err(SitesOpError::LogDirectory {
+                reason: format!("{}: {error}", directory.display()),
+            }),
+        }
     }
 
     /// Creates the directories in a forked child that has dropped to the

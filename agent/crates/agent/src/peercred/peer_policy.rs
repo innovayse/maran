@@ -7,7 +7,12 @@
 /// panel user never reaches a handler, whatever it asks for.
 #[derive(Debug, Clone, Copy)]
 pub struct PeerPolicy {
-    /// The single uid allowed to connect — the `panel` user in production.
+    /// The single uid allowed to connect — the `maran` user in production.
+    ///
+    /// That is the unprivileged system user `maran-api` runs as, created by
+    /// `installer/lib/40-user.sh`. It was called `panel` until the rename, and
+    /// a doc naming the old account is worse than none: a reader grepping for
+    /// the admitted uid finds a name no installed host has.
     allow_uid: u32,
 }
 

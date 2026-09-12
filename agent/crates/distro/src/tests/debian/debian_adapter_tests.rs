@@ -30,6 +30,28 @@ fn the_debian_family_chroots_sftp_accounts_through_the_panel_group() {
     assert_eq!(DebianAdapter.sftp_group(), "maran-sftp");
 }
 
+/// The Debian family spawns the FTPS daemon from the path its `vsftpd` package installs it at.
+#[test]
+fn the_debian_family_names_the_ftp_daemon_where_the_package_puts_it() {
+    assert_eq!(DebianAdapter.vsftpd_binary(), "/usr/sbin/vsftpd");
+}
+
+/// The Debian family authorizes FTPS logins through the panel's own group.
+#[test]
+fn the_debian_family_authorizes_ftps_logins_through_the_panel_group() {
+    assert_eq!(DebianAdapter.ftps_group(), "maran-ftps");
+}
+
+/// The Debian family spells the TLS version options with no underscore before the minor.
+#[test]
+fn the_debian_family_spells_the_tls_version_options_without_underscores() {
+    let keys = DebianAdapter.vsftpd_tls_version_keys();
+
+    assert_eq!(keys.tls_v1, "ssl_tlsv1");
+    assert_eq!(keys.tls_v1_1, "ssl_tlsv11");
+    assert_eq!(keys.tls_v1_2, "ssl_tlsv12");
+}
+
 /// The Debian family runs cron under the unit its `cron` package registers.
 #[test]
 fn the_debian_family_runs_cron_through_the_cron_unit() {
@@ -76,9 +98,10 @@ fn the_debian_family_reports_exactly_the_four_units_the_panel_manages() {
 /// `sh` is in the table for the same reason and not because the agent spawns it
 /// — it never does — but because the path is written into a crontab line, where
 /// a wrong one is a cron entry that silently never runs.
-const EXPECTED_BINARIES: [(&str, &str); 16] = [
+const EXPECTED_BINARIES: [(&str, &str); 17] = [
     ("useradd", "/usr/sbin/useradd"),
     ("usermod", "/usr/sbin/usermod"),
+    ("pkill", "/usr/bin/pkill"),
     ("userdel", "/usr/sbin/userdel"),
     ("chpasswd", "/usr/sbin/chpasswd"),
     ("setquota", "/usr/sbin/setquota"),
@@ -96,10 +119,11 @@ const EXPECTED_BINARIES: [(&str, &str); 16] = [
 ];
 
 /// The adapter's answer for each tool, in the order of [`EXPECTED_BINARIES`].
-fn actual_binaries() -> [&'static str; 16] {
+fn actual_binaries() -> [&'static str; 17] {
     [
         DebianAdapter.useradd_binary(),
         DebianAdapter.usermod_binary(),
+        DebianAdapter.pkill_binary(),
         DebianAdapter.userdel_binary(),
         DebianAdapter.chpasswd_binary(),
         DebianAdapter.setquota_binary(),

@@ -2,11 +2,15 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use std::slice;
+
 use maran_templates::nftables::nftables_bans_table::NftablesBansTable;
 use maran_templates::nftables::nftables_protocol::NftablesProtocol;
 
 use crate::firewall::ensure_bans_table::{BANNED_V4_SET, BANNED_V6_SET, BANS_TABLE, TABLE_FAMILY};
-use crate::firewall::fake_firewall_host::{open_rule, ports, rendered, restricted_rule};
+use crate::firewall::fake_firewall_host::{
+    open_range, open_rule, ports, rendered, restricted_rule,
+};
 use crate::firewall::firewall_error::FirewallError;
 use crate::firewall::model::ruleset_state::RulesetState;
 
@@ -173,7 +177,7 @@ fn the_unconditional_ssh_accept_is_not_reported_as_a_rule() {
         !state
             .rules()
             .iter()
-            .any(|rule| ports().ssh_ports.contains(&rule.port)),
+            .any(|rule| ports().ssh_ports.contains(&rule.ports.lower())),
         "the ssh fallback must not be reported as an operator rule"
     );
 }
@@ -232,4 +236,40 @@ fn the_bans_table_and_set_names_match_the_template() {
             "the bans template must declare `{declared}`"
         );
     }
+}
+
+/// A range survives the round trip through the file with both bounds intact.
+///
+/// The rule store IS the rendered file, so a bound that is written and not read
+/// back is a rule that changes meaning on the next mutation — the range would
+/// come back as a single port and be re-rendered as one.
+#[test]
+fn a_range_is_read_back_out_of_the_file_with_both_of_its_bounds() {
+    let rule = open_range(30_000, 30_099, NftablesProtocol::Tcp);
+    let text = rendered(slice::from_ref(&rule));
+
+    let state = RulesetState::parse(&text, &ports()).expect("our own render parses");
+
+    assert_eq!(state.rules(), &[rule]);
+    assert_eq!(
+        state.render(&ports()).unwrap(),
+        text,
+        "parse and render are inverses"
+    );
+}
+
+/// A range whose lower bound is an SSH port is an ordinary rule, not that
+/// port's block — so it is reported as a rule AND the fallback is still not.
+#[test]
+fn a_range_that_starts_at_an_ssh_port_is_a_rule_and_the_fallback_is_still_not() {
+    let rule = open_range(22, 30, NftablesProtocol::Tcp);
+    let text = rendered(slice::from_ref(&rule));
+
+    let state = RulesetState::parse(&text, &ports()).expect("our own render parses");
+
+    assert_eq!(
+        state.rules(),
+        &[rule],
+        "the range is the only rule: the ssh fallback and the panel accept are not rules"
+    );
 }

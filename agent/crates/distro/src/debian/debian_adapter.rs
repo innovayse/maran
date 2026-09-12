@@ -3,6 +3,7 @@
 use crate::DistroAdapter;
 use crate::debian::{debian_packages, debian_paths, debian_services};
 use crate::family::DistroFamily;
+use crate::vsftpd_tls_version_keys::VsftpdTlsVersionKeys;
 
 /// Implements the agent's operations the Debian way: apt, `sites-available`,
 /// `www-data`. Stateless, so [`crate::adapter_for()`] can hand out one shared
@@ -86,6 +87,18 @@ impl DistroAdapter for DebianAdapter {
         debian_services::sftp_group()
     }
 
+    fn vsftpd_binary(&self) -> &'static str {
+        debian_services::vsftpd_binary()
+    }
+
+    fn ftps_group(&self) -> &'static str {
+        debian_services::ftps_group()
+    }
+
+    fn vsftpd_tls_version_keys(&self) -> VsftpdTlsVersionKeys {
+        debian_services::vsftpd_tls_version_keys()
+    }
+
     fn useradd_binary(&self) -> &'static str {
         debian_services::useradd_binary()
     }
@@ -108,6 +121,10 @@ impl DistroAdapter for DebianAdapter {
 
     fn quota_binary(&self) -> &'static str {
         debian_services::quota_binary()
+    }
+
+    fn pkill_binary(&self) -> &'static str {
+        debian_services::pkill_binary()
     }
 
     fn passwd_binary(&self) -> &'static str {

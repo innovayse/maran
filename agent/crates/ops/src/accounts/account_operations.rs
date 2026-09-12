@@ -1,21 +1,23 @@
 //! The account operations themselves, over whatever [`SystemHost`] they are given.
 
+use maran_agent_core::agent_paths::AgentPaths;
 use maran_agent_core::validation::system::name::AccountName;
 
 use maran_distro::DistroAdapter;
 
+use crate::accounts::account_lock::take_account_lock;
 use crate::accounts::quota_blocks::QuotaBlocks;
 use crate::accounts::{
     AccountError, AccountSuspensionState, AccountUsage, CreatedAccount, StoredPassword, SystemHost,
 };
+use crate::cron::cron_lock::cron_lock;
 use crate::cron::{CronHost, NO_CRONTAB_MARKER, inspect_account_cron};
 use crate::db::{DbHost, drop_account_databases};
+use crate::ftps::{FtpsHost, remove_account_ftps};
+use crate::logins::{LoginsHost, account_logins};
 use crate::php::{PhpHost, remove_account_pools};
-use crate::sftp::{SftpHost, inspect_account_logins, remove_account_sftp};
+use crate::sftp::{SftpHost, remove_account_sftp};
 use crate::sites::{SiteHost, inspect_account_sites};
-
-/// Where every account's home directory lives.
-const HOME_ROOT: &str = "/home";
 
 /// The argument that makes `passwd` REPORT a login's state instead of changing
 /// it.
@@ -99,9 +101,19 @@ impl<H: SystemHost> AccountOperations<H> {
     }
 
     /// The absolute home directory of an account.
+    ///
+    /// Rooted at [`AgentPaths::ACCOUNT_HOME_ROOT`] and never at a literal of
+    /// this area's own. `AgentPaths` is the single inventory of the locations
+    /// the agent owns, and its own doc states why: it is what makes "the path
+    /// this operation built" and "the path the check approved" the same path.
+    /// This area used to keep a second constant with the same value, which made
+    /// that promise true only for as long as nobody edited one of them —
+    /// `resolve_in_home` roots its containment at `AgentPaths`, so a drift here
+    /// would have been an operation building under a root the check does not
+    /// approve.
     #[must_use]
     pub fn home_directory(name: &AccountName) -> String {
-        format!("{HOME_ROOT}/{}", name.as_str())
+        format!("{}/{}", AgentPaths::ACCOUNT_HOME_ROOT, name.as_str())
     }
 
     /// Creates the system user and its home directory, then applies `quota_bytes`.
@@ -278,6 +290,12 @@ impl<H: SystemHost> AccountOperations<H> {
     /// one area answering about another's files, and the answer is worth
     /// exactly as much as the seam it came through.
     ///
+    /// The third of them is the LOGIN host and not the SFTP one, because the
+    /// question is "which credentials into this home exist" and an SFTP host
+    /// can only answer about SFTP — which is how an FTPS login would have gone
+    /// unlocked and unreported under a suspension that claimed to cover
+    /// everything.
+    ///
     /// # What it does not observe
     ///
     /// The account's databases, the panel's own web login, and the FOREIGN
@@ -295,7 +313,10 @@ impl<H: SystemHost> AccountOperations<H> {
     ///   empty one: that is the answer that reads as "nothing is firing".
     /// - [`AccountError::SftpInspection`] when the password database cannot be
     ///   enumerated, or `passwd -S` refuses or prints something unreadable for
-    ///   one of the account's logins.
+    ///   one of the account's logins. The variant is named for the area the
+    ///   enumeration used to live in and now covers both protocols; renaming it
+    ///   is a wire-visible change and belongs with the task that widens the
+    ///   contract.
     /// - [`AccountError::CommandFailed`] or
     ///   [`AccountError::UnreadableOutput`] when `passwd -S` refuses or prints
     ///   something this agent cannot read for the account's OWN login.
@@ -303,7 +324,7 @@ impl<H: SystemHost> AccountOperations<H> {
         &self,
         site_host: &dyn SiteHost,
         cron_host: &dyn CronHost,
-        sftp_host: &dyn SftpHost,
+        logins_host: &dyn LoginsHost,
         name: &AccountName,
     ) -> Result<AccountSuspensionState, AccountError> {
         let username = self.require_existing(name)?;
@@ -317,12 +338,11 @@ impl<H: SystemHost> AccountOperations<H> {
                 reason: error.to_string(),
             }
         })?;
-        let sftp_logins =
-            inspect_account_logins(sftp_host, self.distro, name).map_err(|error| {
-                AccountError::SftpInspection {
-                    reason: error.to_string(),
-                }
-            })?;
+        let logins = account_logins(logins_host, self.distro, name).map_err(|error| {
+            AccountError::SftpInspection {
+                reason: error.to_string(),
+            }
+        })?;
 
         Ok(AccountSuspensionState {
             login_locked: self.login_locked(&username)?,
@@ -330,7 +350,7 @@ impl<H: SystemHost> AccountOperations<H> {
             sites_directory_readable: sites.directory_readable,
             sites: sites.sites,
             cron,
-            sftp_logins,
+            logins,
         })
     }
 
@@ -338,13 +358,14 @@ impl<H: SystemHost> AccountOperations<H> {
     /// account itself.
     ///
     /// The databases and their users, the SFTP logins with the account's jail
-    /// and the bind mount that filled it, every php-fpm pool, and finally the
+    /// and the bind mount that filled it, the FTPS logins with their own
+    /// separate jail and mount, the crontab, every php-fpm pool, and finally the
     /// system user with everything under its home directory. Measures the tree
     /// before removing it, so the caller can report what was freed.
     ///
     /// # Why all of it happens here, and not in the panel one call at a time
     ///
-    /// `userdel` touches neither MySQL nor sshd. An account deletion that
+    /// `userdel` touches neither MySQL, nor sshd, nor vsftpd. An account deletion that
     /// removed only the system user therefore left every `<account>_*` database
     /// on the server and every `<account>_*` login in the password database —
     /// and system user names are RECYCLED, so an account created again under
@@ -400,6 +421,20 @@ impl<H: SystemHost> AccountOperations<H> {
     /// That second ordering is not hypothetical for the pools: it is the state
     /// the agent shipped in, because nothing removed a pool at all.
     ///
+    /// # The order is only a guarantee while nothing else is writing
+    ///
+    /// Every argument above is an argument about the order of THIS function's
+    /// steps, and each of them was silently conditional on no other operation
+    /// touching the account meanwhile. It was not: a `write_pool` landing
+    /// between `remove_account_pools` and `userdel` puts back exactly the pool
+    /// the ordering exists to prevent, and a `create_sftp_user` spanning
+    /// `remove_account_sftp` and `userdel` leaves a login, a jail and a live
+    /// password that nothing will ever look for again. So the sequence runs
+    /// under the account's lock (`crate::accounts::account_lock`), which the
+    /// pool writer, the SFTP login creation and the four backup operations take
+    /// too. The order stays the order; the lock is what makes the order a
+    /// statement about the host rather than about this function.
+    ///
     /// **No step is best-effort.** The first refusal aborts the deletion with
     /// the account still present, which is the recoverable half: an account that
     /// is still there can be deleted again once whatever refused is fixed,
@@ -411,12 +446,19 @@ impl<H: SystemHost> AccountOperations<H> {
     /// - [`AccountError::NotFound`] when the account does not exist.
     /// - [`AccountError::DatabaseRemoval`] when a database or a database user
     ///   could not be dropped.
-    /// - [`AccountError::SftpRemoval`] when a login, the bind mount, the jail or
-    ///   its unit could not be taken away.
+    /// - [`AccountError::SftpRemoval`] when an SFTP login, its bind mount, its
+    ///   jail or its unit could not be taken away.
+    /// - [`AccountError::FtpsRemoval`] when an FTPS login, its bind mount, its
+    ///   jail or its unit could not be taken away. Its own variant, because the
+    ///   two protocols have different jail roots and an operator sent to the
+    ///   wrong one finds nothing wrong there.
     /// - [`AccountError::PoolRemoval`] when one of its pools could not be taken
     ///   away.
     /// - [`AccountError::CommandFailed`] when `crontab` refused to remove the
     ///   account's table for any reason other than there not being one.
+    /// - [`AccountError::Busy`] when another operation for this account — a
+    ///   backup, a restore, an SFTP login creation, a pool write or another
+    ///   deletion — is already running on this host.
     ///
     /// In every one of those cases `userdel` has NOT been run.
     pub fn delete(
@@ -424,6 +466,41 @@ impl<H: SystemHost> AccountOperations<H> {
         php_host: &dyn PhpHost,
         db_host: &dyn DbHost,
         sftp_host: &dyn SftpHost,
+        ftps_host: &dyn FtpsHost,
+        name: &AccountName,
+    ) -> Result<u64, AccountError> {
+        // Taken FIRST, before a single thing is read, and held for the whole
+        // sequence by living in this scope: the guard is owned, so every return
+        // below — including every `?` — releases it. Nothing the sequence calls
+        // takes it again (`crate::accounts::account_lock` names the callers), so
+        // there is no nesting to deadlock on.
+        let _guard = take_account_lock(name).ok_or_else(|| AccountError::Busy {
+            username: name.as_str().to_owned(),
+        })?;
+
+        self.delete_under_lock(php_host, db_host, sftp_host, ftps_host, name)
+    }
+
+    /// The deletion sequence itself, with the account's lock ALREADY held.
+    ///
+    /// Split from [`AccountOperations::delete`] for the reason
+    /// `restore_backup`'s body is split from its entry point: the lock is a
+    /// process-wide static, and a unit test that drove the public entry would
+    /// be one of a dozen tests contending for one account name on the
+    /// harness's own threads — a flaky suite whose flake says nothing about the
+    /// code. The public entry is one statement, the exclusion is tested for
+    /// what it is, and everything else is exercised here.
+    ///
+    /// # Errors
+    ///
+    /// Every variant [`AccountOperations::delete`] documents except
+    /// [`AccountError::Busy`], which is the entry point's own answer.
+    fn delete_under_lock(
+        &self,
+        php_host: &dyn PhpHost,
+        db_host: &dyn DbHost,
+        sftp_host: &dyn SftpHost,
+        ftps_host: &dyn FtpsHost,
         name: &AccountName,
     ) -> Result<u64, AccountError> {
         let username = self.require_existing(name)?;
@@ -434,8 +511,76 @@ impl<H: SystemHost> AccountOperations<H> {
 
         drop_account_databases(db_host, name)?;
         remove_account_sftp(sftp_host, self.distro, name)?;
+
+        // Directly after the SFTP teardown, and before `userdel`, because it is
+        // the same class of resource with the same failure and the same fix:
+        // a `--non-unique` login carrying this account's uid, a bind mount of
+        // this account's home, and a systemd unit that re-establishes that mount
+        // on every boot. `userdel` takes none of the three, and `userdel
+        // --remove` on an account whose home is still bind-mounted inside a jail
+        // deletes the customer's files from inside that jail.
+        //
+        // Beside the SFTP step rather than merged with it, because the two are
+        // blind to each other by construction: each enumerates the passwd
+        // database filtered by ITS OWN jail directory, so neither can revoke the
+        // other's logins or unmount the other's jail. An account may hold logins
+        // of both kinds, and on most hosts it holds neither FTPS login nor FTPS
+        // jail — which is why this step is a no-op that touches nothing when
+        // FTPS was never enabled, rather than a refusal.
+        //
+        // Its own `AccountError::FtpsRemoval`, so a refusal here does not send
+        // an operator to look at sshd's jail root while a vsftpd one is what is
+        // still mounted. Like every other step it is NOT best-effort: the first
+        // refusal aborts the deletion with the account still present, which is
+        // the recoverable half.
+        remove_account_ftps(ftps_host, self.distro, name)?;
+
+        {
+            // The SEVENTH writer of this account's crontab, and the only one
+            // outside `ops::cron`. The other six take `cron_lock`; a deletion
+            // that did not would be a removal racing an install, and an install
+            // landing between it and `userdel` re-creates a spool for an
+            // account that is about to stop existing. `userdel` does not remove
+            // a spool file — measured on both families — and cron keys that
+            // file by NAME on a host that recycles names, so the survivor is
+            // handed whole to the next tenant of this name.
+            //
+            // It is `ops::cron`'s lock and not a second one for the same
+            // account: two locks over one spool file are two locks and no
+            // exclusion.
+            //
+            // Scoped to this statement rather than held to the end of the
+            // deletion, because it WAITS. A guard held across `userdel` would
+            // make every cron operation for this account wait on a `userdel`
+            // that has nothing to do with the crontab, and the removal is the
+            // only part of the sequence that touches one.
+            let _crontab = cron_lock(name);
+            self.remove_crontab(&username)?;
+        }
+
+        // LAST of the pre-`userdel` steps, and its position is still the point,
+        // even now that the window it narrowed is closed. A pool written by
+        // another operation after this sweep would survive `userdel` naming a
+        // user that no longer resolves, which is the trap
+        // `crate::php::remove_pool` exists to close and which takes PHP down
+        // for every tenant on the host. `crate::php::write_pool` now takes the
+        // same account lock this sequence holds, so such a write can only be
+        // entirely before this deletion or refused with
+        // `PhpOpError::AccountBusy`; the ordering stays because the sweep's own
+        // `php-fpm -t` has to run while the account still exists — after
+        // `userdel` every remaining pool of this account names a user that no
+        // longer resolves, and the removal protocol validates AFTER unlinking,
+        // so it would put the file back.
         remove_account_pools(php_host, self.distro, name)?;
-        self.remove_crontab(&username)?;
+
+        // Asked again, immediately before the irreversible step. The lock above
+        // excludes every operation of this agent that could have removed the
+        // account since the first check, so what this catches is the one thing
+        // the lock cannot see: a `userdel` an operator ran by hand, or a second
+        // agent binary. A validated `AccountName` proves the name is well
+        // formed; it has never proved the account is still there, and the
+        // sequence between the two checks is several process spawns long.
+        let _ = self.require_existing(name)?;
 
         self.expect_success(self.distro.userdel_binary(), &["--remove", &username])?;
 
@@ -492,7 +637,15 @@ impl<H: SystemHost> AccountOperations<H> {
         // panel has no way to explain to the customer.
         self.expect_success(
             self.distro.setquota_binary(),
-            &["-u", username, &blocks, &blocks, "0", "0", HOME_ROOT],
+            &[
+                "-u",
+                username,
+                &blocks,
+                &blocks,
+                "0",
+                "0",
+                AgentPaths::ACCOUNT_HOME_ROOT,
+            ],
         )
     }
 
@@ -581,11 +734,7 @@ impl<H: SystemHost> AccountOperations<H> {
         let program = self.distro.getent_binary();
         let outcome = self.host.run(program, &[SHADOW_DATABASE, username])?;
         if outcome.status != 0 {
-            return Err(AccountError::CommandFailed {
-                program: program.to_owned(),
-                status: outcome.status,
-                stderr: outcome.stderr.trim().to_owned(),
-            });
+            return Err(AccountError::command_failed(program, &outcome));
         }
 
         let mut fields = outcome
@@ -609,11 +758,7 @@ impl<H: SystemHost> AccountOperations<H> {
             .host
             .run(program, &[PASSWORD_STATUS_ARGUMENT, username])?;
         if outcome.status != 0 {
-            return Err(AccountError::CommandFailed {
-                program: program.to_owned(),
-                status: outcome.status,
-                stderr: outcome.stderr.trim().to_owned(),
-            });
+            return Err(AccountError::command_failed(program, &outcome));
         }
 
         let mut fields = outcome
@@ -681,30 +826,24 @@ impl<H: SystemHost> AccountOperations<H> {
             return Ok(());
         }
 
-        Err(AccountError::CommandFailed {
-            program: program.to_owned(),
-            status: outcome.status,
-            stderr: outcome.stderr.trim().to_owned(),
-        })
+        Err(AccountError::command_failed(program, &outcome))
     }
 
     /// Runs a program and turns a non-zero exit into an error.
     ///
     /// # Errors
     ///
-    /// Returns [`AccountError::CommandFailed`] carrying the program's own stderr,
-    /// which is what tells an operator which tool refused and why.
+    /// Returns [`AccountError::CommandFailed`], which names the program and its
+    /// exit status. The tool's own sentence does not travel in the error — it is
+    /// written to the agent's log by `AccountError::command_failed`, for the
+    /// reason that variant sets out.
     fn expect_success(&self, program: &str, arguments: &[&str]) -> Result<(), AccountError> {
         let outcome = self.host.run(program, arguments)?;
         if outcome.status == 0 {
             return Ok(());
         }
 
-        Err(AccountError::CommandFailed {
-            program: program.to_owned(),
-            status: outcome.status,
-            stderr: outcome.stderr.trim().to_owned(),
-        })
+        Err(AccountError::command_failed(program, &outcome))
     }
 
     /// Makes the account's home traversable by the web server, and by nothing else.

@@ -1,6 +1,7 @@
 //! The [`DbHost`] that actually runs the database client on this machine.
 
 use std::io::{Read as _, Write as _};
+use std::os::unix::process::ExitStatusExt as _;
 use std::process::{Command, Stdio};
 
 use maran_agent_core::utils::apply_child_environment::apply_child_environment;
@@ -106,10 +107,21 @@ impl DbHost for ProcessDbHost {
     ///
     /// - [`DbError::Unparsable`] when the output is not UTF-8, or exceeds
     ///   the ceiling above.
-    /// - `DbError::client_unavailable` when the statement is refused by the
-    ///   guard above, when the client could not be started, or when its input
-    ///   could not be delivered.
+    /// - [`DbError::StatementRefused`] when the guard above refuses the
+    ///   statement, in which case nothing is spawned at all.
+    /// - [`DbError::ClientUnavailable`] when the client could not be started,
+    ///   or its input could not be delivered.
+    /// - [`DbError::ClientKilled`] when a signal ended the client before it
+    ///   answered.
     /// - Whatever `DbError::from_client` makes of a non-zero exit.
+    ///
+    /// The first three were one value — `ClientFailed { code: -1 }` — until the
+    /// flake in this area's own tests was attributed to the wrong one of them
+    /// twice. They are told apart by the VARIANT and never by a message: no
+    /// variant of [`DbError`] can hold a string, because the string available
+    /// here is the client's own output and the client quotes back what it
+    /// refused, which on two paths is a customer's password
+    /// (rules/security.md item 8).
     fn execute(&self, statement: &str) -> Result<String, DbError> {
         run_client(&self.client_binary, statement)
     }
@@ -130,7 +142,7 @@ impl DbHost for ProcessDbHost {
 /// As documented on [`ProcessDbHost::execute`].
 fn run_client(client_binary: &str, statement: &str) -> Result<String, DbError> {
     if !is_single_statement(statement) {
-        return Err(DbError::client_unavailable());
+        return Err(DbError::StatementRefused);
     }
 
     let mut command = Command::new(client_binary);
@@ -141,13 +153,13 @@ fn run_client(client_binary: &str, statement: &str) -> Result<String, DbError> {
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
-        .map_err(|_| DbError::client_unavailable())?;
+        .map_err(|_| DbError::ClientUnavailable)?;
 
     let Some(mut stdin) = child.stdin.take() else {
         let _ = child.kill();
         let _ = child.wait();
 
-        return Err(DbError::client_unavailable());
+        return Err(DbError::ClientUnavailable);
     };
 
     // A trailing newline, and the handle dropped straight after: the client
@@ -162,14 +174,14 @@ fn run_client(client_binary: &str, statement: &str) -> Result<String, DbError> {
         let _ = child.kill();
         let _ = child.wait();
 
-        return Err(DbError::client_unavailable());
+        return Err(DbError::ClientUnavailable);
     }
 
     let Some(stdout) = child.stdout.take() else {
         let _ = child.kill();
         let _ = child.wait();
 
-        return Err(DbError::client_unavailable());
+        return Err(DbError::ClientUnavailable);
     };
 
     // One byte past the ceiling, so that hitting it is distinguishable from
@@ -194,13 +206,20 @@ fn run_client(client_binary: &str, statement: &str) -> Result<String, DbError> {
     // statement was sent.
     let finished = child
         .wait_with_output()
-        .map_err(|_| DbError::client_unavailable())?;
+        .map_err(|_| DbError::ClientUnavailable)?;
 
     if !finished.status.success() {
+        // A status that is not an exit code is a signal, and the two are
+        // different answers to the operator's question: an exit code means the
+        // client ran and the server replied, a signal means something on this
+        // machine killed it mid-statement and nobody knows whether the
+        // statement took effect. They used to be folded onto the same number.
+        let Some(code) = finished.status.code() else {
+            return Err(DbError::client_killed(finished.status.signal()));
+        };
+
         return Err(DbError::from_client(
-            // -1 for a process killed by a signal: it did not exit, and
-            // reporting 0 would read as success to every caller.
-            finished.status.code().unwrap_or(-1),
+            code,
             &String::from_utf8_lossy(&finished.stderr),
         ));
     }

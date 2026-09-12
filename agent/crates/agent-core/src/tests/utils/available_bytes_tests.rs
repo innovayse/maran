@@ -3,8 +3,7 @@
 //! PARTLY RECONSTRUCTED 2026-09-07. The original 88-line file was deleted in
 //! error by a session that mistook this uncommitted work for landed code, and
 //! could not be recovered — it had never been committed. What the original
-//! covered is known from its own author's write-up
-//! (`.superpowers/sdd/2026-09-05-maran-backups/scratch-ceiling-report.md` §5):
+//! covered is known from its own author's write-up, dated 2026-09-05:
 //! three running tests (a real directory answers with room; a missing path is
 //! an `Err` and never a generous default; the answer is the path's OWN mount
 //! and not a parent's) plus one `#[ignore]`d `df` control, which was the only

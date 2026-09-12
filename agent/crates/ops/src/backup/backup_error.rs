@@ -353,6 +353,25 @@ pub enum BackupError {
     #[error("the account's identity could not be entered for the extraction")]
     ExtractionIdentityUnavailable,
 
+    /// The account's numeric identity changed while the restore was running.
+    ///
+    /// A restore resolves the account's uid and gid at its start, fills a
+    /// staging tree as that identity, and hours later renames the tree into
+    /// place and chowns the result. Those ids are re-read immediately before
+    /// the swap and compared; a difference means the account this restore is
+    /// for is no longer the account those numbers name.
+    ///
+    /// Refused rather than carried on with, because the alternative is the one
+    /// outcome a hosting panel must never produce: `userdel` frees a uid,
+    /// `useradd` gives the lowest free one to the next account, and a home
+    /// chowned to a remembered number is one customer's files under another
+    /// customer's identity. The refusal lands BEFORE the first rename, so
+    /// nothing has been swapped, the staging tree is removed with the rest, and
+    /// the account's databases have already been replaced — which is why this
+    /// is a system failure and not a validation refusal.
+    #[error("the account's identity changed while the restore was running")]
+    AccountIdentityChanged,
+
     /// A restore failed after the point of no return, and every database it had
     /// already replaced was put back from its rollback dump.
     ///

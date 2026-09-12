@@ -44,6 +44,12 @@ pub fn to_agent_error(error: &SftpError) -> AgentError {
         // customer as data loss, so the panel must report a fault rather than a
         // success.
         SftpError::JailFailed | SftpError::SpawnFailed { .. } => ErrorCode::SystemFailure,
+        // The hosting account's wait-free lock was held by another operation,
+        // so this one was refused before `useradd`, `chpasswd` or the jail ran.
+        // ACCOUNT_BUSY rather than SYSTEM_FAILURE: the login is exactly as the
+        // caller found it and the same request may be reissued in a moment
+        // (`common.proto`, `ERROR_CODE_ACCOUNT_BUSY`).
+        SftpError::AccountBusy => ErrorCode::AccountBusy,
         // SftpError is #[non_exhaustive] (rules/rust.md), so a variant added in
         // the ops crate lands here rather than failing this build. It maps to a
         // system failure: the panel then reports a fault instead of silently

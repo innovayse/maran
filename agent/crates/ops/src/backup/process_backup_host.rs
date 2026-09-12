@@ -12,6 +12,7 @@ use maran_agent_core::privs::priv_error::PrivError;
 use maran_agent_core::utils::apply_child_environment::apply_child_environment;
 use maran_agent_core::utils::spawn_argv::spawn_argv;
 use maran_agent_core::validation::db::database_name::DatabaseName;
+use maran_agent_core::validation::system::name::AccountName;
 use maran_distro::DistroAdapter;
 use rustix::io::dup;
 use rustix::stdio::{dup2_stdin, stdin};
@@ -19,6 +20,7 @@ use rustix::stdio::{dup2_stdin, stdin};
 use crate::backup::archive::dump_database::dump_arguments;
 use crate::backup::backup_error::{BackupError, PROGRAM_UNAVAILABLE};
 use crate::backup::backup_host::BackupHost;
+use crate::backup::model::account_identity::AccountIdentity;
 use crate::backup::model::archive_spec::ArchiveSpec;
 use crate::backup::model::extract_identity::ExtractIdentity;
 use crate::backup::model::extract_spec::ExtractSpec;
@@ -84,7 +86,7 @@ const ARCHIVER_REFUSED_UNDER_ACCOUNT: i32 = -2;
 /// above 2 before it runs any work.
 ///
 /// Descriptor 0 is process-wide, and backups are serialised PER ACCOUNT
-/// (`backup_lock`), so two accounts can be restored at once. Without this lock
+/// (the per-account lock in `crate::accounts`), so two accounts can be restored at once. Without this lock
 /// the second restore's `dup2` would land inside the first one's window and one
 /// customer's `tar` would be reading the other's artifact. The lock makes that
 /// window one-at-a-time; it is held for a fork and a wait, which is the length
@@ -157,6 +159,22 @@ impl BackupHost for ProcessBackupHost {
             .ok()
             .and_then(|elapsed| i64::try_from(elapsed.as_secs()).ok())
             .unwrap_or_default()
+    }
+
+    /// Resolves the account out of the real password database, through
+    /// `getpwnam_r`.
+    ///
+    /// The one implementation of this method, and it is deliberately the whole
+    /// of it: the decision this seam exists for — whether the answer changed
+    /// since the last time it was asked — belongs to the operation, not here.
+    fn account_identity(&self, account: &AccountName) -> Result<AccountIdentity, BackupError> {
+        let ids =
+            AccountIds::resolve(account).map_err(|_| BackupError::ExtractionIdentityUnavailable)?;
+
+        Ok(AccountIdentity {
+            uid: ids.uid(),
+            gid: ids.gid(),
+        })
     }
 
     /// Spawns the dump client with `dump_arguments` and measures what it
@@ -330,7 +348,7 @@ impl BackupHost for ProcessBackupHost {
                     .map_err(|_| BackupError::ExtractionIdentityUnavailable)?;
                 let program = self.tar_binary.clone();
 
-                // Poison recovery rather than propagation, as `backup_lock`
+                // Poison recovery rather than propagation, as the per-account lock
                 // argues for its own registry: this lock guards a window, not
                 // an invariant, and the window is closed by the time any panic
                 // could be observed here.

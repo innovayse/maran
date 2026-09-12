@@ -89,10 +89,12 @@ fn deleting_leaves_the_customers_files_alone() {
 fn deleting_the_accounts_last_site_on_a_version_takes_that_pool_with_it() {
     let host = FakeSiteHost::passing();
     let php_host = FakePhpHost::with_installed(&["8.3"]);
-    create_test_site(&host, &php_input()).unwrap();
+    let input = php_input();
+    create_test_site(&host, &input).unwrap();
     // Written onto the host this test reads back: `create_test_site` supplies a
     // PHP host of its own, so the pool creation wrote is not on this one.
-    let pool = std::path::Path::new("/etc/php/8.3/fpm/pool.d/acme.conf");
+    let pool_path = format!("/etc/php/8.3/fpm/pool.d/{}.conf", input.account.as_str());
+    let pool = std::path::Path::new(&pool_path);
     crate::php::write_pool(
         &php_host,
         distro(),

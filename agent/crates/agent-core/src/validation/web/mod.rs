@@ -7,6 +7,8 @@ pub mod ban_address_error;
 pub mod domain;
 pub mod domain_error;
 pub(crate) mod ipv4_disguise;
+pub mod passive_address;
+pub mod passive_address_error;
 pub mod php_version;
 pub mod php_version_error;
 pub mod port;

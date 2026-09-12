@@ -3,6 +3,7 @@
 use crate::DistroAdapter;
 use crate::family::DistroFamily;
 use crate::rhel::{rhel_packages, rhel_paths, rhel_services};
+use crate::vsftpd_tls_version_keys::VsftpdTlsVersionKeys;
 
 /// Implements the agent's operations the RHEL way: dnf, `conf.d`, `nginx` user,
 /// SELinux contexts. Stateless, so [`crate::adapter_for()`] can hand out one shared
@@ -86,6 +87,18 @@ impl DistroAdapter for RhelAdapter {
         rhel_services::sftp_group()
     }
 
+    fn vsftpd_binary(&self) -> &'static str {
+        rhel_services::vsftpd_binary()
+    }
+
+    fn ftps_group(&self) -> &'static str {
+        rhel_services::ftps_group()
+    }
+
+    fn vsftpd_tls_version_keys(&self) -> VsftpdTlsVersionKeys {
+        rhel_services::vsftpd_tls_version_keys()
+    }
+
     fn useradd_binary(&self) -> &'static str {
         rhel_services::useradd_binary()
     }
@@ -108,6 +121,10 @@ impl DistroAdapter for RhelAdapter {
 
     fn quota_binary(&self) -> &'static str {
         rhel_services::quota_binary()
+    }
+
+    fn pkill_binary(&self) -> &'static str {
+        rhel_services::pkill_binary()
     }
 
     fn passwd_binary(&self) -> &'static str {

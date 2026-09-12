@@ -10,10 +10,25 @@ use crate::php::write_pool;
 use crate::sites::fake_site_host::{FakeSiteHost, create_test_site, distro, php_input};
 use crate::sites::model::php_switch::PhpSwitch;
 use crate::sites::model::site_paths::SitePaths;
-use crate::sites::{SitesOpError, update_site_php_version};
+use crate::sites::{SitesOpError, disable_site, update_site_php_version};
 
 /// The worker budget the plan would supply; immaterial to these decisions.
 const WORKERS: u32 = 10;
+
+/// Where this case's own account's pool for `version` lives.
+///
+/// Built from the site rather than written out, because every case here has its
+/// own account name (`fake_site_host::test_account`) and a literal would name
+/// somebody else's.
+fn pool_of(
+    site: &crate::sites::model::create_site_input::CreateSiteInput,
+    version: &str,
+) -> String {
+    format!(
+        "/etc/php/{version}/fpm/pool.d/{}.conf",
+        site.account.as_str()
+    )
+}
 
 #[test]
 fn switching_versions_repoints_the_vhost_at_the_new_socket() {
@@ -39,8 +54,9 @@ fn switching_versions_repoints_the_vhost_at_the_new_socket() {
     let vhost = site_host
         .config(&SitePaths::for_site(&site.account, &site.domain).config_path)
         .unwrap();
-    assert!(vhost.contains("acme-8.4.sock"), "{vhost}");
-    assert!(!vhost.contains("acme-8.3.sock"), "{vhost}");
+    let account = site.account.as_str();
+    assert!(vhost.contains(&format!("{account}-8.4.sock")), "{vhost}");
+    assert!(!vhost.contains(&format!("{account}-8.3.sock")), "{vhost}");
 }
 
 #[test]
@@ -153,7 +169,7 @@ fn the_customers_settings_survive_the_version_switch() {
     .unwrap();
 
     let pool = php_host
-        .config(std::path::Path::new("/etc/php/8.4/fpm/pool.d/acme.conf"))
+        .config(std::path::Path::new(&pool_of(&site, "8.4")))
         .expect("no pool was written for the new version");
     assert!(pool.contains("php_value[memory_limit] = 256M"), "{pool}");
 }
@@ -215,13 +231,13 @@ fn switching_away_from_a_version_the_account_no_longer_uses_removes_its_pool() {
 
     assert!(
         php_host
-            .config(std::path::Path::new("/etc/php/8.3/fpm/pool.d/acme.conf"))
+            .config(std::path::Path::new(&pool_of(&site, "8.3")))
             .is_none(),
         "the version the site left must not keep a pool and a set of idle workers"
     );
     assert!(
         php_host
-            .config(std::path::Path::new("/etc/php/8.4/fpm/pool.d/acme.conf"))
+            .config(std::path::Path::new(&pool_of(&site, "8.4")))
             .is_some(),
         "the version it moved to must keep its pool"
     );
@@ -297,8 +313,57 @@ fn the_old_pool_stays_when_the_account_still_has_another_site_on_it() {
 
     assert!(
         php_host
-            .config(std::path::Path::new("/etc/php/8.3/fpm/pool.d/acme.conf"))
+            .config(std::path::Path::new(&pool_of(&site, "8.3")))
             .is_some(),
         "the account's other sites are still served by this pool"
+    );
+}
+
+#[test]
+fn switching_versions_on_a_suspended_site_writes_the_pool_and_leaves_the_stub() {
+    // C-1 interleaving 2: this operation re-rendered the site's OWN vhost from
+    // the panel-supplied input, which knows nothing about suspension, so a
+    // version switch landing on a just-suspended site put the customer's site
+    // back on the air while the panel went on recording it as suspended.
+    let site_host = FakeSiteHost::passing();
+    let php_host = FakePhpHost::with_installed(&["8.3", "8.4"]);
+    let site = php_input();
+    create_test_site(&site_host, &site).unwrap();
+    disable_site(&site_host, distro(), &site).unwrap();
+    let vhost_path = SitePaths::for_site(&site.account, &site.domain).config_path;
+    let suspended = site_host.config(&vhost_path).unwrap();
+    let writes_before = site_host.writes();
+
+    update_site_php_version(
+        &site_host,
+        &php_host,
+        distro(),
+        &site,
+        &PhpSwitch {
+            version: &PhpVersion::parse("8.4").unwrap(),
+            max_children: WORKERS,
+            overrides: &[],
+            remove_previous_pool: false,
+        },
+    )
+    .unwrap();
+
+    assert_eq!(
+        site_host.config(&vhost_path).unwrap(),
+        suspended,
+        "a version switch must not un-suspend a site"
+    );
+    assert_eq!(
+        site_host.writes(),
+        writes_before,
+        "the suspended vhost must not be rewritten at all"
+    );
+    // The pool IS written, because it is what the site needs the moment it is
+    // resumed on the version it was switched to.
+    assert!(
+        php_host
+            .config(std::path::Path::new(&pool_of(&site, "8.4")))
+            .is_some(),
+        "the new version's pool must be written even while the site is suspended"
     );
 }

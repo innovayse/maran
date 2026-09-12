@@ -181,3 +181,33 @@ fn the_message_is_the_failures_own_display_and_never_a_sentence_invented_here() 
 
     assert_eq!(to_agent_error(&error).message, error.to_string());
 }
+
+#[test]
+fn a_pool_write_refused_because_the_account_is_busy_is_its_own_code() {
+    // It used to fall through the mapping's `_` arm onto SYSTEM_FAILURE. The
+    // refusal happens before the pool file is rendered, staged or validated, so
+    // nothing changed and no tool ran to leave an output behind.
+    let wire = to_agent_error(&PhpOpError::AccountBusy {
+        username: "acme".to_owned(),
+    });
+
+    assert_eq!(wire.code, ErrorCode::AccountBusy as i32);
+    assert_eq!(wire.tool_output, "");
+}
+
+#[test]
+fn a_busy_account_and_a_reload_this_host_refused_are_different_codes() {
+    // The inverse control. A php-fpm that would not reload must still be a
+    // fault carrying the tool's own words for the operator.
+    let fault = PhpOpError::ReloadFailed {
+        stderr: "job for php8.3-fpm.service failed".to_owned(),
+    };
+
+    assert_eq!(code_of(&fault), ErrorCode::SystemFailure as i32);
+    assert_ne!(
+        code_of(&fault),
+        code_of(&PhpOpError::AccountBusy {
+            username: "acme".to_owned(),
+        })
+    );
+}

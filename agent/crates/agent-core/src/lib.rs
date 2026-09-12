@@ -1,6 +1,8 @@
 #![warn(missing_docs)]
 //! maran-agent-core — security primitives shared by the agent's crates:
-//! input validation (account names, path containment via `resolve_in_home`)
+//! input validation (account names, and the path resolution `resolve_in_home`
+//! performs for the two read paths that need it — the containment of a WRITE is
+//! `ops::files::open_parent_directory`'s descriptor walk, not this crate)
 //! in `validation/`, the agent-owned filesystem locations every area shares
 //! (`agent_paths`), and the workspace's ONLY permitted home of `unsafe`
 //! syscall/setuid wrappers in `privs/` (rules/rust.md "unsafe").

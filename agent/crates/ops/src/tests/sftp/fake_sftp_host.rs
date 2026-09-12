@@ -40,6 +40,19 @@ const NAME_IN_USE: i32 = 9;
 /// `userdel`'s exit status for a user that is not there.
 const NO_SUCH_USER: i32 = 6;
 
+/// `getent`'s exit status for a key it does not hold.
+const KEY_NOT_FOUND: i32 = 2;
+
+/// The character a locked shadow password field begins with.
+const LOCK_MARKER: &str = "!";
+
+/// What the fake's shadow entries carry where a real one carries a hash.
+///
+/// Shaped like a real crypt string so that a classification which looked at the
+/// shape rather than at the marker would still be exercised, and deliberately
+/// not a plausible hash of anything: nothing here is a credential.
+const FAKE_HASH: &str = "$6$fakesalt$fakehashfakehashfakehash";
+
 /// The user id the fake's password database holds for the test account.
 ///
 /// Outside the system range, as a real hosting account's is, and different from
@@ -135,11 +148,26 @@ pub(crate) struct FakeSftpHost {
     passwordless: Mutex<Vec<String>>,
     /// The status `usermod` exits with, when a test installed a refusal.
     usermod_status: Mutex<i32>,
+    /// Whether `usermod --lock` does nothing while still exiting zero.
+    ///
+    /// The shape of a tool that answered success and changed nothing, which is
+    /// the one thing an exit status cannot rule out — and therefore the only way
+    /// to exercise a caller that reads the field back instead of trusting it.
+    lock_ignored: Mutex<bool>,
     /// The status `passwd` exits with, when a test installed a refusal.
     passwd_status: Mutex<i32>,
     /// What `passwd -S` prints instead of its ordinary line, when a test
     /// installed something unreadable.
     passwd_output: Mutex<Option<String>>,
+    /// The answers `account_ownership` gives, one per call, the last repeating.
+    ///
+    /// A QUEUE and not one pair, because the thing worth testing about this
+    /// method is that a creation asks it TWICE and compares: a fake with one
+    /// answer could not exhibit a difference between the two reads, which is
+    /// the whole window the audit measured.
+    ownerships: Mutex<Vec<Option<AccountOwnership>>>,
+    /// How many times `account_ownership` has been asked.
+    ownership_questions: Mutex<usize>,
 }
 
 impl FakeSftpHost {
@@ -159,9 +187,25 @@ impl FakeSftpHost {
             locked: Mutex::new(Vec::new()),
             passwordless: Mutex::new(Vec::new()),
             usermod_status: Mutex::new(0),
+            lock_ignored: Mutex::new(false),
             passwd_status: Mutex::new(0),
             passwd_output: Mutex::new(None),
+            ownerships: Mutex::new(vec![Some(AccountOwnership {
+                uid: ACCOUNT_UID,
+                gid: ACCOUNT_GID,
+            })]),
+            ownership_questions: Mutex::new(0),
         }
+    }
+
+    /// Makes `account_ownership` answer these in order, the last repeating.
+    pub(crate) fn answers_ownerships(&self, answers: &[Option<AccountOwnership>]) {
+        *self.ownerships.lock().unwrap() = answers.to_vec();
+    }
+
+    /// How many times the "password database" was asked about the account.
+    pub(crate) fn ownership_questions(&self) -> usize {
+        *self.ownership_questions.lock().unwrap()
     }
 
     /// Marks `name`'s password as already locked on the "host".
@@ -183,19 +227,9 @@ impl FakeSftpHost {
         self.locked.lock().unwrap().iter().any(|held| held == name)
     }
 
-    /// Makes `usermod` refuse with `status`.
-    pub(crate) fn refuse_usermod_with(&self, status: i32) {
-        *self.usermod_status.lock().unwrap() = status;
-    }
-
-    /// Makes `passwd` refuse with `status`.
-    pub(crate) fn refuse_passwd_with(&self, status: i32) {
-        *self.passwd_status.lock().unwrap() = status;
-    }
-
-    /// Makes `passwd -S` print `text` instead of its ordinary line.
-    pub(crate) fn passwd_prints(&self, text: &str) {
-        *self.passwd_output.lock().unwrap() = Some(text.to_owned());
+    /// Makes `usermod --lock` change nothing while still exiting zero.
+    pub(crate) fn ignore_locking(&self) {
+        *self.lock_ignored.lock().unwrap() = true;
     }
 
     /// Puts `path` on the "host", so `path_exists` finds it and a removal has
@@ -263,6 +297,23 @@ impl FakeSftpHost {
         self
     }
 
+    /// Adds the login `name` to the "host", homed at `home`.
+    ///
+    /// The escape hatch the two helpers above do not cover: a passwd entry
+    /// whose home is neither this account's jail nor `/home/<name>` — the FTPS
+    /// login of the same account, or a login inside a NEIGHBOURING account's
+    /// jail. The home is the only thing that tells those apart from this
+    /// account's own logins, so a fake that could not express one could not
+    /// test the check that reads it.
+    pub(crate) fn with_foreign_login(self, name: &str, home: &str) -> Self {
+        self.users.lock().unwrap().push(PasswdEntry {
+            name: name.to_owned(),
+            home: home.to_owned(),
+        });
+
+        self
+    }
+
     /// Makes `chpasswd` exit with `status`.
     pub(crate) fn refuse_password_with(&self, status: i32) {
         *self.chpasswd_status.lock().unwrap() = status;
@@ -281,11 +332,6 @@ impl FakeSftpHost {
     /// Every spawn the fake was asked to perform, in order.
     pub(crate) fn spawns(&self) -> Vec<RecordedSpawn> {
         self.spawns.lock().unwrap().clone()
-    }
-
-    /// The last spawn, or `None` if nothing was spawned.
-    pub(crate) fn last_spawn(&self) -> Option<RecordedSpawn> {
-        self.spawns.lock().unwrap().last().cloned()
     }
 
     /// The first spawn whose program's file name is `program`.
@@ -345,7 +391,7 @@ impl FakeSftpHost {
         let mut locked = self.locked.lock().unwrap();
         match arguments.first().copied() {
             Some("--lock") => {
-                if !locked.contains(&name) {
+                if !*self.lock_ignored.lock().unwrap() && !locked.contains(&name) {
                     locked.push(name);
                 }
             }
@@ -361,6 +407,58 @@ impl FakeSftpHost {
         CommandOutcome {
             status: 0,
             stdout: String::new(),
+            stderr: String::new(),
+        }
+    }
+
+    /// Answers as `getent shadow <login>` does: the entry, or nothing.
+    ///
+    /// The password field is composed from the two facts the fake already holds
+    /// rather than stored a third time, so a test that locks a login and a test
+    /// that reads its field cannot disagree:
+    ///
+    /// ```text
+    /// no password at all      !            (markers only — nothing to unlock)
+    /// locked over a password  !<hash>
+    /// a usable password       <hash>
+    /// ```
+    ///
+    /// A login the "host" does not hold exits [`KEY_NOT_FOUND`], which is what
+    /// the real tool does and what tells "this login is not here" from "the
+    /// name service would not answer".
+    fn shadow_entry(&self, arguments: &[&str]) -> CommandOutcome {
+        let name = arguments.last().copied().unwrap_or_default();
+        if !self
+            .users
+            .lock()
+            .unwrap()
+            .iter()
+            .any(|entry| entry.name == name)
+        {
+            return CommandOutcome {
+                status: KEY_NOT_FOUND,
+                stdout: String::new(),
+                stderr: String::new(),
+            };
+        }
+
+        let field = if self
+            .passwordless
+            .lock()
+            .unwrap()
+            .iter()
+            .any(|held| held == name)
+        {
+            LOCK_MARKER.to_owned()
+        } else if self.is_locked(name) {
+            format!("{LOCK_MARKER}{FAKE_HASH}")
+        } else {
+            FAKE_HASH.to_owned()
+        };
+
+        CommandOutcome {
+            status: 0,
+            stdout: format!("{name}:{field}:20000:0:99999:7:::\n"),
             stderr: String::new(),
         }
     }
@@ -441,7 +539,29 @@ impl SftpHost for FakeSftpHost {
                 NO_SUCH_USER
             }
         } else if program.ends_with("chpasswd") {
-            *self.chpasswd_status.lock().unwrap()
+            let status = *self.chpasswd_status.lock().unwrap();
+            if status == 0 {
+                // The real tool REPLACES the shadow password field rather than
+                // editing it, so the `!` a suspension wrote is gone and a login
+                // that had no password now has one. Modelled here because it is
+                // the defect: a fake that left the lock in place would agree
+                // with an implementation that assumed `chpasswd` respected it.
+                let name = stdin
+                    .unwrap_or_default()
+                    .split(':')
+                    .next()
+                    .unwrap_or_default()
+                    .to_owned();
+                self.locked.lock().unwrap().retain(|held| *held != name);
+                self.passwordless
+                    .lock()
+                    .unwrap()
+                    .retain(|held| *held != name);
+            }
+
+            status
+        } else if program.ends_with("getent") {
+            return Ok(self.shadow_entry(arguments));
         } else if program.ends_with("systemctl") {
             *self.systemctl_status.lock().unwrap()
         } else if program.ends_with("usermod") {
@@ -466,10 +586,12 @@ impl SftpHost for FakeSftpHost {
             return Err(SftpError::AccountMissing);
         }
 
-        Ok(AccountOwnership {
-            uid: ACCOUNT_UID,
-            gid: ACCOUNT_GID,
-        })
+        let mut asked = self.ownership_questions.lock().unwrap();
+        let answers = self.ownerships.lock().unwrap();
+        let index = (*asked).min(answers.len().saturating_sub(1));
+        *asked += 1;
+
+        answers[index].ok_or(SftpError::AccountMissing)
     }
 
     /// Records the directory and its mode.

@@ -37,6 +37,8 @@
 // workspace-wide bans on unwrap/expect/panic are lifted here only.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+#[path = "fixtures/gated_cron_host.rs"]
+mod gated_cron_host;
 #[path = "fixtures/polygon_account.rs"]
 mod polygon_account;
 #[path = "fixtures/polygon_cron.rs"]
@@ -45,6 +47,8 @@ mod polygon_cron;
 use std::os::unix::fs::MetadataExt as _;
 use std::path::PathBuf;
 use std::process::Command;
+use std::sync::Arc;
+use std::thread;
 use std::time::{Duration, SystemTime};
 
 use maran_agent_core::agent_paths::AgentPaths;
@@ -59,6 +63,7 @@ use maran_ops::cron::{
     update_cron_entry,
 };
 
+use gated_cron_host::GatedCronHost;
 use polygon_account::PolygonAccount;
 use polygon_cron::{CRON_TICK_DEADLINE, PolygonCron};
 
@@ -696,4 +701,186 @@ fn suspending_the_account_stops_its_entries_and_resuming_gives_back_only_what_wa
         1,
         "the customer's own switch must come back exactly as they left it"
     );
+}
+
+#[test]
+#[ignore = "races two real crontab installs and lets a real cron daemon decide: polygon only"]
+fn a_creation_racing_a_suspension_leaves_the_account_suspended_and_its_jobs_silent() {
+    // The C-2 race, driven against the real spool. Every mutating operation in
+    // this area reads the whole table, changes one thing in memory and hands
+    // `crontab(1)` a freshly rendered WHOLE table — and the render normalises
+    // every managed line to the document's suspension flag. So a creation that
+    // read the table before the suspension installed writes `suspended = false`
+    // back over the entire account, while the suspension has already answered
+    // `Ok` and the panel has already recorded the account as suspended.
+    //
+    // **Observed as the sentinel file's absence, never as the crontab's text.**
+    // A prefix in the table proves that the agent wrote a prefix; the question
+    // the audit asked is whether the customer's jobs still fire, and only a
+    // real daemon answers that.
+    PolygonCron::require_polygon();
+    let account = PolygonAccount::create("polycronrace");
+    let neighbour = PolygonAccount::create("polycronctrl");
+    clear_crontab(account.name());
+    clear_crontab(neighbour.name());
+
+    // Two lines the ACCOUNT wrote itself — a comment and an entry — installed
+    // before the race. The product's position on foreign lines is that they are
+    // carried across untouched, in
+    // their original position, and COUNTED so a suspension can say what it did
+    // not silence (`AccountCronSuspension::foreign_lines`). Serialising the
+    // operations must not move that position by one byte, so it is asserted on
+    // the far side of the race rather than assumed.
+    let foreign = "# the account's own note\n45 5 * * * /bin/true\n";
+    let staged = std::env::temp_dir().join("maran-polygon-race-crontab");
+    std::fs::write(&staged, foreign).expect("a table to install");
+    let seeded = Command::new(polygon_distro().crontab_binary())
+        .args(["-u", account.name().as_str()])
+        .arg(&staged)
+        .output()
+        .expect("the polygon image installs crontab");
+    assert!(
+        seeded.status.success(),
+        "the foreign table must install: {}",
+        String::from_utf8_lossy(&seeded.stderr)
+    );
+
+    let raced = sentinel_path(account.name(), "raced.sentinel");
+    let control = sentinel_path(neighbour.name(), "control.sentinel");
+
+    // THE POSITIVE CONTROL for the daemon, and the assertion below is worth
+    // nothing without it: "the suspended entry did not run" is satisfied
+    // perfectly by a host where cron never ran at all. This entry belongs to an
+    // account nothing suspends and fires on the same tick.
+    install(
+        neighbour.name(),
+        &format!("echo ran > {}", control.display()),
+    );
+
+    // The two operations, overlapped on purpose. The gated host parks whichever
+    // reaches `read_crontab` first until the other arrives, so the interleaving
+    // is not left to the scheduler.
+    let host = Arc::new(GatedCronHost::new(polygon_distro()));
+    let creating = {
+        let host = Arc::clone(&host);
+        let account = account.name().clone();
+        let command = format!("echo ran > {}", raced.display());
+
+        thread::spawn(move || {
+            create_cron_entry(
+                host.as_ref(),
+                polygon_distro(),
+                &account,
+                &every_minute(),
+                &CronCommand::parse(&command).expect("a valid command"),
+            )
+        })
+    };
+    let suspending = {
+        let host = Arc::clone(&host);
+        let account = account.name().clone();
+
+        thread::spawn(move || {
+            set_account_cron_suspended(host.as_ref(), polygon_distro(), &account, true)
+        })
+    };
+
+    let created = creating
+        .join()
+        .expect("the creating thread finished")
+        .unwrap_or_else(|error| panic!("the creation must succeed: {error}"));
+    suspending
+        .join()
+        .expect("the suspending thread finished")
+        .unwrap_or_else(|error| panic!("the suspension must succeed: {error}"));
+
+    // The controls on the race itself, before anything is claimed about the
+    // outcome. Both operations really ran — each answered `Ok`, and the
+    // creation returned an id — and both really entered the read-modify-write,
+    // which is what the arrival count says. The rendezvous TIMING OUT is what
+    // says the second was held outside that section while the first was in it;
+    // a completed rendezvous is the race itself, and the count alone cannot
+    // tell the two apart because a caller parked on a lock still arrives one
+    // release later.
+    assert_eq!(
+        host.arrivals(),
+        2,
+        "both operations must have entered the crontab read-modify-write; \
+         one arrival means the race never happened and nothing was measured"
+    );
+
+    // What the real spool now holds, read back through the program that wrote
+    // it rather than off the renderer's return value.
+    let table = installed_table(account.name());
+    assert!(
+        table.contains(&format!("# maran-entry: {}", created.as_str())),
+        "the creation answered Ok with an id, so its entry must be in the \
+         installed table:\n{table}"
+    );
+    assert!(
+        table.contains("#susp# "),
+        "the created entry must carry the suspension prefix:\n{table}"
+    );
+
+    // The agent's own attestation about the same crontab — the answer the panel
+    // reads before it records an account as suspended.
+    let observed = inspect_account_cron(&ProcessCronHost::new(polygon_distro()), account.name())
+        .expect("the crontab must be readable");
+    assert_eq!(observed.entries_total, 1);
+    assert_eq!(
+        observed.entries_suspended, 1,
+        "the entry created during the suspension must be suspended too:\n{table}"
+    );
+    assert_eq!(
+        observed.foreign_lines, 2,
+        "both of the account's own lines — the comment and the entry — must \
+         still be counted as foreign:\n{table}"
+    );
+
+    // The foreign line kept its bytes AND its position above the managed
+    // region, which for a line that could be an environment assignment is its
+    // meaning. Serialising the operations changed neither.
+    let note = table
+        .find("# the account's own note")
+        .expect("the account's comment survives");
+    let own = table
+        .find("45 5 * * *")
+        .expect("the account's entry survives");
+    let banner = table.find("# maran:").expect("the managed region is there");
+    assert!(
+        note < own && own < banner,
+        "the account's own lines must keep their order and stay above the \
+         managed region:\n{table}"
+    );
+
+    // And now the only assertion the audit's finding is actually about.
+    let _tick = PolygonCron::start();
+
+    assert!(
+        PolygonCron::wait_for(&control),
+        "the control entry must run within {CRON_TICK_DEADLINE:?}, or nothing below \
+         distinguishes a suspension from a cron that never ticked.\n{}\nthe daemon said:\n{}",
+        entry_directory(neighbour.name()),
+        PolygonCron::log()
+    );
+    assert!(
+        !raced.exists(),
+        "the suspension answered Ok, so the entry created against it must not \
+         run: {} was written.\n{}",
+        raced.display(),
+        entry_directory(account.name())
+    );
+
+    // The mechanism control, last because it is about HOW the outcome was
+    // reached rather than what it was: the rendezvous timing out is what says
+    // the second operation was held outside the read-modify-write while the
+    // first was inside it. The arrival count above cannot say so on its own —
+    // a caller parked on a lock still arrives, one release later.
+    assert!(
+        host.rendezvous_timed_out(),
+        "the second operation must have been held outside the read-modify-write \
+         while the first was inside it"
+    );
+
+    let _ = std::fs::remove_file(&staged);
 }

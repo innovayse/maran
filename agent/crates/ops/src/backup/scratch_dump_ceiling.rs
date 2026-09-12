@@ -49,6 +49,34 @@ pub(crate) fn scratch_dump_ceiling(directory: &Path, cap: u64) -> Result<u64, Ba
     let available =
         available_bytes(directory).map_err(|_error| BackupError::ScratchUnmeasurable)?;
 
+    narrow_to_room(available, cap)
+}
+
+/// The smaller of `cap` and the spendable share of `available`.
+///
+/// The arithmetic of [`scratch_dump_ceiling`], with the number a parameter
+/// instead of a reading of the machine this runs on. It is a separate function
+/// for the reason rules/testing.md gives for `resolve_under`'s injectable home
+/// root: the exact figure is the part worth asserting, and it cannot be
+/// asserted exactly against a filesystem whose free space moves between the
+/// agent's reading and a test's own. A test that recomputed the expectation
+/// from a second reading of the same live filesystem was measuring the host
+/// rather than this code, and failed 7 times in 60 whole-suite runs on nothing
+/// but that jitter — a few kilobytes of drift on a filesystem with 170 GiB
+/// free. Stated here, the nine tenths are checked and nothing about the host
+/// can move under the check.
+///
+/// What is left outside it — that the number handed in is a live reading of
+/// the directory the dump lands in — is the one thing this split cannot
+/// observe, and its caller's live tests are what hold that half up.
+///
+/// # Errors
+///
+/// - [`BackupError::ScratchTooSmall`] when the spendable share rounds to
+///   nothing, which is any filesystem with fewer than
+///   [`SPENDABLE_DENOMINATOR`] bytes left after integer division. Refused here
+///   rather than at `ENOSPC` halfway through a customer's database.
+fn narrow_to_room(available: u64, cap: u64) -> Result<u64, BackupError> {
     let spendable = available / SPENDABLE_DENOMINATOR * SPENDABLE_NUMERATOR;
     if spendable == 0 {
         return Err(BackupError::ScratchTooSmall {

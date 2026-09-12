@@ -8,7 +8,8 @@ use maran_agent_core::validation::system::name::AccountName;
 use maran_agent_core::validation::web::php_version::PhpVersion;
 
 use crate::php::fake_php_host::{FakePhpHost, distro, pool_input};
-use crate::php::{PhpOpError, remove_pool, write_pool};
+use crate::php::write_pool::write_pool_under_lock;
+use crate::php::{PhpOpError, remove_pool};
 
 /// The pool file the fixtures write, in the version's own directory.
 const POOL: &str = "/etc/php/8.3/fpm/pool.d/acme.conf";
@@ -26,7 +27,7 @@ fn version() -> PhpVersion {
 #[test]
 fn a_written_pool_is_taken_away_again() {
     let host = FakePhpHost::with_installed(&["8.3"]);
-    write_pool(&host, distro(), &pool_input(Vec::new())).unwrap();
+    write_pool_under_lock(&host, distro(), &pool_input(Vec::new())).unwrap();
     assert!(host.config(Path::new(POOL)).is_some());
 
     remove_pool(&host, distro(), &account(), &version()).unwrap();
@@ -58,7 +59,7 @@ fn a_pool_the_real_php_fpm_would_refuse_to_lose_is_put_back() {
     // validation refuses, so a refusal must leave the pool exactly where it was
     // rather than half-removed.
     let host = FakePhpHost::with_installed(&["8.3"]);
-    write_pool(&host, distro(), &pool_input(Vec::new())).unwrap();
+    write_pool_under_lock(&host, distro(), &pool_input(Vec::new())).unwrap();
     host.reject_validation("something else in the tree needs this pool");
 
     let refusal = remove_pool(&host, distro(), &account(), &version());

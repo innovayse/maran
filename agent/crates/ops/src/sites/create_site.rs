@@ -35,6 +35,13 @@ use crate::sites::{SiteHost, SitesOpError};
 /// symlink planted where the directory was going passes any check made against
 /// the path text, and fails the one made against the filesystem.
 ///
+/// The site's two logs do NOT live in the home and their directory is created
+/// as root, in `/var/log/maran/sites/<account>`. The web server's master
+/// process runs as root and opens those files without `O_NOFOLLOW`, so a
+/// directory the customer owned was a root compromise one symlink away; see
+/// [`SitePaths`] and
+/// `docs/superpowers/notes/2026-09-09-site-logs-threat-note.md`.
+///
 /// # Errors
 ///
 /// Returns [`SitesOpError::AlreadyExists`] when a vhost for the domain is
@@ -43,7 +50,9 @@ use crate::sites::{SiteHost, SitesOpError};
 /// because that reading would overwrite a live vhost. Returns
 /// [`SitesOpError::DocumentRoot`] when the directories cannot be created as
 /// the account and [`SitesOpError::UnsafeDocumentRoot`] when the created root
-/// resolves outside the home. Returns [`SitesOpError::Render`] when a template
+/// resolves outside the home, and [`SitesOpError::LogDirectory`] when the
+/// root-owned log directory cannot be created — which is fatal rather than
+/// cosmetic, because `nginx -t` opens the error-log target. Returns [`SitesOpError::Render`] when a template
 /// fails, [`SitesOpError::PhpVersionNotInstalled`] when a PHP site names a
 /// version this host does not have — refused before any vhost is written, so
 /// nothing is left half-created — [`SitesOpError::NginxValidation`] when
@@ -70,13 +79,14 @@ pub fn create_site(
         });
     }
 
-    // Both directories, in one drop to the account: the log directory is as
-    // much a customer path as the document root, and nginx will open the log
-    // files it names before it serves the first request.
-    host.create_directories_as_account(
-        &input.account,
-        &[&named.document_root, &named.log_directory],
-    )?;
+    // The document root, and only the document root, in a drop to the account:
+    // it is a customer path and root must not touch it. The site's LOG
+    // directory used to be created in this same call, which is exactly what
+    // made it the customer's — and the root nginx master then opened files in
+    // it without `O_NOFOLLOW`. It is created as root, outside every home, by
+    // `resolved_site_paths` below
+    // (`docs/superpowers/notes/2026-09-09-site-logs-threat-note.md`).
+    host.create_directories_as_account(&input.account, &[&named.document_root])?;
 
     // Now that it exists, ask the filesystem where it really is, and render
     // the vhost with THAT path rather than with the one we asked for — through

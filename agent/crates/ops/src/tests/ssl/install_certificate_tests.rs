@@ -5,7 +5,7 @@
 use maran_agent_core::validation::web::domain::Domain;
 
 use crate::sites::fake_site_host::{create_test_site, distro, php_input};
-use crate::sites::{SiteCertificate, SitePaths};
+use crate::sites::{SiteCertificate, SitePaths, disable_site};
 use crate::ssl::fake_ssl_host::{
     EXPIRY_UNIX, Event, FakeSslHost, KEY_PEM, matching_material, mismatched_material,
 };
@@ -253,4 +253,41 @@ fn a_marker_removal_that_failed_once_is_retried_by_the_next_install() {
     install_certificate(&host, distro(), &input, &matching_material()).unwrap();
 
     assert!(!host.has_marker(&self_signed_marker(&certificate)));
+}
+
+#[test]
+fn installing_a_certificate_on_a_suspended_site_places_the_material_and_leaves_the_stub() {
+    // C-1 interleaving 2's other half: the renewal scheduler runs unattended,
+    // so a certificate installation that re-rendered the site's own vhost put a
+    // suspended customer's content back on the air and nothing said so. The
+    // material still lands — a suspended site must be able to renew, which is
+    // why `disable_site` keeps a vhost at all — but the stub stays.
+    let host = host_with_site();
+    let input = php_input();
+    disable_site(&host, distro(), &input).unwrap();
+    let suspended = host
+        .config(&SitePaths::for_site(&input.account, &input.domain).config_path)
+        .unwrap();
+    let writes_before = host.vhost_writes();
+    let certificate = SiteCertificate::for_domain(&input.domain);
+
+    let expiry = install_certificate(&host, distro(), &input, &matching_material()).unwrap();
+
+    assert_eq!(expiry, EXPIRY_UNIX);
+    assert_eq!(
+        host.stored(certificate.certificate_path()).unwrap(),
+        matching_material().certificate_pem(),
+        "a suspended site must still receive its renewed material"
+    );
+    assert_eq!(
+        host.config(&SitePaths::for_site(&input.account, &input.domain).config_path)
+            .unwrap(),
+        suspended,
+        "a certificate installation must not un-suspend a site"
+    );
+    assert_eq!(
+        host.vhost_writes(),
+        writes_before,
+        "the suspended vhost must not be rewritten at all"
+    );
 }

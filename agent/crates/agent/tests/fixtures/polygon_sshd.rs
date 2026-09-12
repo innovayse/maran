@@ -48,11 +48,11 @@ const POLYGON_MARKER: &str = "MARAN_POLYGON";
 const SSHD_BINARY: &str = "/usr/sbin/sshd";
 
 /// The port the suite's own daemon listens on.
-const SSHD_PORT: &str = "22022";
+pub const SSHD_PORT: &str = "22022";
 
 /// The address the suite connects to. Loopback only: nothing here should be
 /// reachable from outside the container even by accident.
-const SSHD_ADDRESS: &str = "127.0.0.1";
+pub const SSHD_ADDRESS: &str = "127.0.0.1";
 
 /// How long the fixture waits for the daemon to accept a connection.
 const START_TIMEOUT: Duration = Duration::from_secs(20);
@@ -284,7 +284,7 @@ impl PolygonSshd {
     /// # Panics
     ///
     /// Panics when the helper cannot be written.
-    fn askpass(password: &str) -> PathBuf {
+    pub fn askpass(password: &str) -> PathBuf {
         let directory = std::env::temp_dir().join("maran-polygon-askpass");
         std::fs::create_dir_all(&directory).expect("a temporary directory");
         std::fs::set_permissions(&directory, std::fs::Permissions::from_mode(0o700))

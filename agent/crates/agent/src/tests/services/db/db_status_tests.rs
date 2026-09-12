@@ -1,8 +1,11 @@
 //! Tests for the wire code every database failure travels as.
 //!
-//! One assertion per variant of `DbError`, because the codes are a CONTRACT —
-//! `db.proto` names them to callers — and because `rules/testing.md` requires
-//! every typed error variant to appear in at least one test.
+//! One assertion per variant of `DbError` that this area classifies by name,
+//! because the codes are a CONTRACT — `db.proto` names them to callers — and
+//! because `rules/testing.md` requires every typed error variant to appear in
+//! at least one test. The variants that reach the mapping's wildcard arm carry
+//! no named assertion of their own; they are covered by the two loops at the
+//! end, over `every_variant`, which is the list this file must keep honest.
 //!
 //! The last test is about the claim `db_status.rs` makes that nothing it
 //! produces can carry the database client's output. It pins the half of that
@@ -18,11 +21,37 @@ use super::to_agent_error;
 use crate::proto::ErrorCode;
 
 /// Every variant this area can produce.
+///
+/// Hand-written, and it cannot be made unable to fall behind from this crate.
+/// It already did: `StatementRefused`, `ClientUnavailable` and `ClientKilled`
+/// were split out of `ClientFailed` in the ops crate and were missing here, so
+/// both loops below silently covered five variants while claiming to cover
+/// every one — a decay with no failing test to announce it.
+///
+/// The usual guard, a `match` with no wildcard arm so that a new variant is a
+/// compile error, is not available here. [`DbError`] is `#[non_exhaustive]` and
+/// is defined in another crate, and rustc REFUSES an exhaustive match on it
+/// from outside that crate: `error[E0004]: non-exhaustive patterns: `&_` not
+/// covered … `DbError` is marked as non-exhaustive, so a wildcard `_` is
+/// necessary to match exhaustively` (measured on a two-crate reduction of this
+/// exact shape). The required wildcard arm is reached only at run time, and
+/// nothing in this crate can construct a variant it does not know about, so no
+/// test can reach it either. A guard would have to live beside the enum in
+/// `ops`, where a match is exhaustive by default — which is the same reason
+/// `to_agent_error` carries a `_` arm.
 fn every_variant() -> Vec<DbError> {
     vec![
         DbError::AlreadyExists,
         DbError::NotFound,
         DbError::ClientFailed { code: 1064 },
+        // The three that were missing. They are the failures where no server
+        // answered — a statement this host refused to send, a client that could
+        // not be started, and a client the machine killed — and they reach
+        // `to_agent_error` through its wildcard arm, which is precisely the arm
+        // no reader can check by eye.
+        DbError::StatementRefused,
+        DbError::ClientUnavailable,
+        DbError::ClientKilled { signal: 9 },
         DbError::Unparsable,
         DbError::AccessDenied,
     ]

@@ -4,6 +4,7 @@ use std::fs::File;
 use std::io::Write as _;
 use std::path::Path;
 
+use crate::safe_write::config_tree_lock::config_tree_lock;
 use crate::safe_write::model::{Reload, Validator};
 use crate::safe_write::{ConfigHost, RollbackGuard, SafeWriteError};
 
@@ -27,6 +28,50 @@ use crate::safe_write::{ConfigHost, RollbackGuard, SafeWriteError};
 /// server has not, so a failed validation is still fully recoverable by
 /// restoring the previous content — nothing in the running process needs to
 /// be undone.
+///
+/// # The midpoint that argument does not cover
+///
+/// That recovery is a property of a FAILURE, not of a KILL. Between the rename
+/// and the commit below, the target holds content no validator has accepted,
+/// and the only thing that would undo it is the [`RollbackGuard`] — which
+/// lives in this process's memory and dies with it. A `SIGKILL` there (the
+/// kernel's, after the unit's `TimeoutStopSec`) therefore leaves unvalidated
+/// content live at the real path with no writer left to undo it. What looks at
+/// the next start is a closed list: `agent::server::serve` reconciles
+/// interrupted restores, the web tree (`nginx -t`, then a reload when it
+/// passes) and the php-fpm pool trees (`php-fpm<version> -t` per installed
+/// version, then that version's reload) — and nothing else. The tree is never
+/// torn — the temporary file is written and `fsync`ed whole before the rename —
+/// so what is live is the caller's complete render; the exposure is that it may
+/// be a render the tree rejects, which wedges every later config write on the
+/// host and fails `nginx.service` at the next reboot.
+///
+/// Three trees remain uncovered, and the reason is a property of their
+/// validators rather than an omission: the two systemd jail-mount trees and
+/// `vsftpd.conf` pass a MUTATING command as their [`Validator`] — `systemctl
+/// daemon-reload` and `systemctl restart` — so a startup pass that re-ran the
+/// validator to ask "is what is on disk valid?" would restart FTPS and drop
+/// every live session in order to ask a question. Closing that costs a PURE
+/// validator per tree and there is none to write: `vsftpd` has no `-t` mode at
+/// all, and a systemd unit file has no check-without-load. The php-fpm tree was
+/// the fourth and is closed: it needed only a version enumeration
+/// (`php::list_php_versions`) in front of a validator that was already pure.
+/// [`super::model::Validator`]'s own doc comment carries the count and the
+/// argument, `validator_tests.rs` DISCOVERS the four mutating sites from this
+/// crate's source so the count cannot go stale, and
+/// `agent::server::reconcile_web_tree` carries the same remaining list in its
+/// doc comment and in its log line with a test holding the two together. The
+/// argued ruling on the three, and the one adapter method that would close two of
+/// them, are stated in full on [`Validator`] itself.
+///
+/// The whole sequence runs under `config_tree_lock`, from the capture of the
+/// previous content to the commit or the rollback. It has to: the validator
+/// reads the whole host's config tree, so between the rename and the commit
+/// this function's content is part of every other writer's answer, and the
+/// rollback is an undo of a file another writer may since have changed. See
+/// that lock for the three interleavings this closes, for why the unit of
+/// serialisation is the host, and for the `spawn_blocking` requirement it
+/// places on every caller.
 ///
 /// # Errors
 ///
@@ -52,6 +97,12 @@ pub fn write_config(
     validator: &Validator<'_>,
     reload: &Reload<'_>,
 ) -> Result<(), SafeWriteError> {
+    // Held for the whole sequence below, and released when this function
+    // returns. Taken BEFORE the capture, because a capture taken outside it is
+    // a capture of a state another writer can have replaced by the time this
+    // one renames over it.
+    let _guard = config_tree_lock();
+
     // Capture what is there now, before anything is touched. Nothing after
     // this line is allowed to lose the ability to answer "what was here
     // before".
@@ -80,7 +131,11 @@ pub fn write_config(
     // From here on the target is about to be mutated, so the guard is armed:
     // every exit past this point either commits it (full success) or lets it
     // put the previous content back.
-    let mut guard = RollbackGuard::new(target.to_path_buf(), previous);
+    let mut guard = RollbackGuard::new(
+        target.to_path_buf(),
+        previous,
+        Some(contents.as_bytes().to_vec()),
+    );
 
     // Atomically rename the temporary file over the target. This happens
     // BEFORE validation — see the doc comment above for why that is the safe

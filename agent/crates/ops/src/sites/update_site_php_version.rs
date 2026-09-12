@@ -3,6 +3,7 @@
 use maran_distro::DistroAdapter;
 
 use crate::php::{PhpHost, is_installed};
+use crate::sites::is_suspended_vhost::is_suspended_vhost;
 use crate::sites::model::create_site_input::CreateSiteInput;
 use crate::sites::model::php_switch::PhpSwitch;
 use crate::sites::model::site_kind::SiteKind;
@@ -28,6 +29,11 @@ use crate::sites::{SiteHost, SitesOpError};
 /// re-supplies because the new version's pool is written from scratch: the old
 /// version's pool file is a different file in a different directory and
 /// nothing carries its contents forward.
+///
+/// A SUSPENDED site keeps its stub. The pool is still written, so resuming the
+/// site finds the version it was switched to; the vhost is left alone, because
+/// re-rendering the site's own configuration over the stub would un-suspend it
+/// (`sites::is_suspended_vhost`).
 ///
 /// Refuses a version that is not installed rather than installing it: the
 /// contract makes that `VALIDATION_FAILED`, and installing takes minutes and
@@ -58,11 +64,11 @@ pub fn update_site_php_version(
     } = *switch;
     let paths = resolved_site_paths(host, &input.account, &input.domain)?;
 
-    if host.read_config(&paths.config_path)?.is_none() {
+    let Some(current) = host.read_config(&paths.config_path)? else {
         return Err(SitesOpError::NotFound {
             domain: input.domain.as_str().to_owned(),
         });
-    }
+    };
 
     if !is_installed(php_host, distro, version) {
         return Err(SitesOpError::PhpVersionNotInstalled {
@@ -83,15 +89,22 @@ pub fn update_site_php_version(
 
     write_site_pool(php_host, distro, input, version, max_children, overrides)?;
 
-    let switched = CreateSiteInput {
-        kind: SiteKind::Php {
-            version: version.clone(),
-        },
-        ..input.clone()
-    };
-    let contents = render_vhost(&switched, &paths)?;
+    // The pool is written for a suspended site too — it is what the site will
+    // need the moment it is resumed — but the VHOST is not touched, because a
+    // suspended site's vhost is the stub and re-rendering the site's own over
+    // it would put the customer's content back on the air while the panel goes
+    // on recording the site as suspended.
+    if !is_suspended_vhost(&current, input, &paths)? {
+        let switched = CreateSiteInput {
+            kind: SiteKind::Php {
+                version: version.clone(),
+            },
+            ..input.clone()
+        };
+        let contents = render_vhost(&switched, &paths)?;
 
-    write_vhost(host, distro, &paths.config_path, &contents)?;
+        write_vhost(host, distro, &paths.config_path, &contents)?;
+    }
 
     // LAST, and only after the vhost is on the new socket and nginx has
     // reloaded. The whole sequence is written so that the site is servable at

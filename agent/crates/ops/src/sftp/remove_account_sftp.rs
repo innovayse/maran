@@ -5,7 +5,7 @@ use std::path::Path;
 use maran_agent_core::validation::system::name::AccountName;
 use maran_distro::DistroAdapter;
 
-use crate::sftp::delete_sftp_user::delete_sftp_user;
+use crate::sftp::delete_sftp_user::delete_sftp_user_under_lock;
 use crate::sftp::model::account_jail::AccountJail;
 use crate::sftp::sftp_error::SftpError;
 use crate::sftp::sftp_host::SftpHost;
@@ -30,7 +30,7 @@ const DAEMON_RELOAD: &str = "daemon-reload";
 /// # Why the account's SFTP resources are removed as a set
 ///
 /// An account may hold several logins, and a jail is shared by all of them —
-/// which is why [`delete_sftp_user`] deliberately unmounts nothing. Taking the
+/// which is why [`delete_sftp_user`](crate::sftp::delete_sftp_user) deliberately unmounts nothing. Taking the
 /// jail down belongs to the moment the ACCOUNT goes, and that is here.
 ///
 /// The logins come from the HOST's own password database rather than from a
@@ -87,7 +87,7 @@ pub fn remove_account_sftp(
     let jail = AccountJail::for_account(account, distro.systemd_unit_directory());
 
     for user in host.account_logins(distro.passwd_database(), account, jail.directory())? {
-        match delete_sftp_user(host, distro, &user) {
+        match delete_sftp_user_under_lock(host, distro, &user) {
             // The listing and the removal are two operations with a gap between
             // them, and a login removed inside that gap is the state this
             // function wanted anyway.

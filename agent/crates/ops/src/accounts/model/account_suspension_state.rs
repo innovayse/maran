@@ -2,7 +2,7 @@
 
 use crate::accounts::StoredPassword;
 use crate::cron::AccountCronSuspension;
-use crate::sftp::SftpLoginSuspensionFact;
+use crate::logins::AccountLoginSet;
 use crate::sites::SiteSuspensionFact;
 
 /// The evidence a caller needs before it may report an account as suspended.
@@ -23,6 +23,10 @@ use crate::sites::SiteSuspensionFact;
 ///   COUNTED — [`AccountCronSuspension::foreign_lines`] — rather than silently
 ///   left out, because a suspension that said nothing about them would be
 ///   claiming a silence it did not achieve.
+/// - **Logins this panel did not create.** A passwd entry sharing the account's
+///   uid whose home is neither of the account's two jails is not locked, for
+///   the same reason a foreign cron line is not deleted, and it is counted the
+///   same way — [`AccountLoginSet::unmanaged`].
 /// - **The panel's own web login.** Nothing here observes it; it is not on
 ///   this host.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -30,8 +34,8 @@ pub struct AccountSuspensionState {
     /// True when the account's own passwd entry is locked, as `passwd -S`
     /// reports it.
     ///
-    /// The account's own login and no other; its SFTP logins are separate
-    /// passwd entries, reported separately in [`Self::sftp_logins`].
+    /// The account's own login and no other; its file-transfer logins are
+    /// separate passwd entries, reported separately in [`Self::logins`].
     pub login_locked: bool,
 
     /// What the account's own shadow password field actually holds.
@@ -69,7 +73,9 @@ pub struct AccountSuspensionState {
     /// which is this whole type's defect wearing different clothes.
     pub cron: AccountCronSuspension,
 
-    /// One entry per SFTP login this host holds for the account.
+    /// Every file-transfer login this host holds for the account — SFTP and
+    /// FTPS alike — and how many entries on the account's uid were not among
+    /// them.
     ///
     /// Separate from [`Self::login_locked`], and that separation is the point:
     /// these are their own passwd entries sharing the account's uid, so the
@@ -77,8 +83,12 @@ pub struct AccountSuspensionState {
     /// Until they were observed here, a suspended customer kept a working
     /// write credential into their home.
     ///
-    /// Empty means the account holds no SFTP login, which is a suspended state.
-    /// A password database that could not be enumerated is an error, never an
-    /// empty list.
-    pub sftp_logins: Vec<SftpLoginSuspensionFact>,
+    /// **Both protocols in one field, deliberately.** A caller that had to ask
+    /// twice is a caller that can ask once and believe the answer, which is the
+    /// same defect one protocol later.
+    ///
+    /// An empty [`AccountLoginSet::logins`] means the account holds no
+    /// file-transfer login, which is a suspended state. A password database
+    /// that could not be enumerated is an error, never an empty list.
+    pub logins: AccountLoginSet,
 }

@@ -7,8 +7,8 @@ use maran_agent_core::validation::system::backup_id::BackupId;
 use maran_agent_core::validation::system::local_backup_root::LocalBackupRoot;
 use maran_agent_core::validation::system::name::AccountName;
 
+use crate::accounts::take_account_lock;
 use crate::backup::backup_error::BackupError;
-use crate::backup::backup_lock::take_account_lock;
 use crate::backup::backup_root::open_account_directory;
 use crate::backup::object_key::{artifact_file_name, sidecar_file_name};
 

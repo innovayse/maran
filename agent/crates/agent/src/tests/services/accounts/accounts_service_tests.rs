@@ -27,20 +27,26 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
 
+use maran_agent_core::utils::system_account::SystemAccount;
 use maran_agent_core::validation::system::cron_command::CronCommand;
 use maran_agent_core::validation::system::cron_entry_id::CronEntryId;
+use maran_agent_core::validation::system::ftps_user_name::FtpsUserName;
 use maran_agent_core::validation::system::name::AccountName;
 use maran_agent_core::validation::system::sftp_user_name::SftpUserName;
+use maran_agent_core::validation::web::domain::Domain;
 use maran_distro::{DistroFamily, adapter_for};
 use maran_ops::accounts::{AccountError, AccountOperations, CommandOutcome, SystemHost};
 use maran_ops::cron::model::cron_run_record::CronRunRecord;
 use maran_ops::cron::{CronError, CronHost};
 use maran_ops::db::{DbError, DbHost};
+use maran_ops::ftps::{CandidateOutcome, FtpsError, FtpsHost};
+use maran_ops::logins::{LoginsError, LoginsHost};
 use maran_ops::php::{PhpHost, PhpOpError};
 use maran_ops::safe_write::model::{Reload, Validator};
 use maran_ops::safe_write::{CommandOutcome as SafeWriteOutcome, ConfigHost, SafeWriteError};
 use maran_ops::sftp::{AccountOwnership, SftpError, SftpHost};
 use maran_ops::sites::{SiteHost, SitesOpError};
+use maran_ops::ssl::CertificateState;
 use tonic::Request;
 
 use crate::proto::accounts_service_server::AccountsService;
@@ -193,6 +199,16 @@ impl PhpHost for UnusedPhpHost {
     ) -> Result<(), PhpOpError> {
         unreachable!("no rpc in this file reaches the php host")
     }
+
+    /// Unreachable: see [`UnusedPhpHost`]. The startup pool-tree pass calls this,
+    /// and no rpc does.
+    fn validate_and_reload(
+        &self,
+        _validator: &Validator<'_>,
+        _reload: &Reload<'_>,
+    ) -> Result<(), PhpOpError> {
+        unreachable!("no rpc in this file reaches the php host")
+    }
 }
 
 /// The database host the service holds for the deletion cascade.
@@ -273,6 +289,148 @@ impl SftpHost for UnusedSftpHost {
     }
 }
 
+/// The FTPS host the service holds for the deletion cascade.
+///
+/// Every method is `unreachable!`: no rpc driven in this file deletes an
+/// account, which is the only operation that reaches this host. The service
+/// holds it so that a deletion can take the account's FTPS logins, jail and
+/// bind mount with it, and that path has its own tests in `ops`.
+struct UnusedFtpsHost;
+
+impl FtpsHost for UnusedFtpsHost {
+    /// Unreachable: see [`UnusedFtpsHost`].
+    fn run(&self, _program: &str, _arguments: &[&str]) -> Result<CommandOutcome, FtpsError> {
+        unreachable!("no rpc in this file reaches the ftps host")
+    }
+
+    /// Unreachable: see [`UnusedFtpsHost`].
+    fn read_config(&self, _target: &Path) -> Result<Option<String>, FtpsError> {
+        unreachable!("no rpc in this file reaches the ftps host")
+    }
+
+    /// Unreachable: see [`UnusedFtpsHost`].
+    fn write_config(
+        &self,
+        _target: &Path,
+        _contents: &str,
+        _validator: &Validator<'_>,
+        _reload: &Reload<'_>,
+    ) -> Result<(), FtpsError> {
+        unreachable!("no rpc in this file reaches the ftps host")
+    }
+
+    /// Unreachable: see [`UnusedFtpsHost`].
+    fn run_candidate(
+        &self,
+        _program: &str,
+        _contents: &str,
+        _arguments: &[&str],
+        _deadline: Duration,
+    ) -> Result<CandidateOutcome, FtpsError> {
+        unreachable!("no rpc in this file reaches the ftps host")
+    }
+
+    /// Unreachable: see [`UnusedFtpsHost`].
+    fn ephemeral_port(&self) -> Result<u16, FtpsError> {
+        unreachable!("no rpc in this file reaches the ftps host")
+    }
+
+    /// Unreachable: see [`UnusedFtpsHost`].
+    fn bind_ipv6_listener(&self) -> std::io::Result<()> {
+        unreachable!("no rpc in this file reaches the ftps host")
+    }
+
+    /// Unreachable: see [`UnusedFtpsHost`].
+    fn control_port_greeting(&self, _port: u16) -> Option<String> {
+        unreachable!("no rpc in this file reaches the ftps host")
+    }
+
+    /// Unreachable: see [`UnusedFtpsHost`].
+    fn certificate_state(&self, _domain: &Domain) -> Result<CertificateState, FtpsError> {
+        unreachable!("no rpc in this file reaches the ftps host")
+    }
+
+    /// Unreachable: see [`UnusedFtpsHost`].
+    fn run_with_stdin(
+        &self,
+        _program: &str,
+        _arguments: &[&str],
+        _stdin: &str,
+    ) -> Result<CommandOutcome, FtpsError> {
+        unreachable!("no rpc in this file reaches the ftps host")
+    }
+
+    /// Unreachable: see [`UnusedFtpsHost`].
+    fn account_ownership(&self, _account: &AccountName) -> Result<AccountOwnership, FtpsError> {
+        unreachable!("no rpc in this file reaches the ftps host")
+    }
+
+    /// Unreachable: see [`UnusedFtpsHost`].
+    fn create_directory(&self, _path: &Path, _mode: u32) -> Result<(), FtpsError> {
+        unreachable!("no rpc in this file reaches the ftps host")
+    }
+
+    /// Unreachable: see [`UnusedFtpsHost`].
+    fn account_logins(
+        &self,
+        _passwd_database: &str,
+        _account: &AccountName,
+        _jail_directory: &str,
+    ) -> Result<Vec<FtpsUserName>, FtpsError> {
+        unreachable!("no rpc in this file reaches the ftps host")
+    }
+
+    /// Unreachable: see [`UnusedFtpsHost`].
+    fn path_exists(&self, _path: &Path) -> bool {
+        unreachable!("no rpc in this file reaches the ftps host")
+    }
+
+    /// Unreachable: see [`UnusedFtpsHost`].
+    fn remove_file(&self, _path: &Path) -> Result<(), FtpsError> {
+        unreachable!("no rpc in this file reaches the ftps host")
+    }
+
+    /// Unreachable: see [`UnusedFtpsHost`].
+    fn remove_directory(&self, _path: &Path) -> Result<(), FtpsError> {
+        unreachable!("no rpc in this file reaches the ftps host")
+    }
+}
+
+/// The login host the service holds for the suspension state.
+///
+/// It answers with a password database holding the accounts this file drives
+/// and no file-transfer login at all — an OBSERVED nothing, not a refusal to
+/// look. Its `read_passwd` is not `unreachable!` like its neighbour's methods:
+/// the suspension state enumerates the account's logins, and what this file
+/// pins is the mapping of an answer onto the wire, not how the answer is
+/// computed — `account_logins` has its own tests for that.
+struct UnusedLoginsHost;
+
+impl LoginsHost for UnusedLoginsHost {
+    /// The two accounts this file drives, each with a home under `/home` and
+    /// no login of either protocol beside it.
+    fn read_passwd(&self, _passwd_database: &str) -> Result<Vec<SystemAccount>, LoginsError> {
+        Ok([SLOW_ACCOUNT, FAST_ACCOUNT]
+            .into_iter()
+            .enumerate()
+            .map(|(index, name)| {
+                let id = 1001 + u32::try_from(index).unwrap_or_default();
+                SystemAccount {
+                    name: name.to_owned(),
+                    uid: id,
+                    gid: id,
+                    home: format!("/home/{name}"),
+                }
+            })
+            .collect())
+    }
+
+    /// Unreachable: an account with no login is asked about none.
+    fn run(&self, _program: &str, _arguments: &[&str]) -> Result<CommandOutcome, LoginsError> {
+        unreachable!("no login exists in this file, so none is asked about")
+    }
+}
+
 /// The site host the service holds for the suspension state.
 ///
 /// It serves NOTHING and says so readably, which is the one shape this file
@@ -289,6 +447,11 @@ impl SiteHost for UnusedSiteHost {
 
     /// Unreachable: see [`UnusedSiteHost`].
     fn read_config(&self, _path: &Path) -> Result<Option<String>, SitesOpError> {
+        unreachable!("no rpc in this file reaches the site host")
+    }
+
+    /// Unreachable: see [`UnusedSiteHost`].
+    fn create_site_log_directory(&self, _account: &AccountName) -> Result<(), SitesOpError> {
         unreachable!("no rpc in this file reaches the site host")
     }
 
@@ -410,8 +573,10 @@ type ServiceUnderTest = AccountsServiceImpl<
     UnusedPhpHost,
     UnusedDbHost,
     UnusedSftpHost,
+    UnusedFtpsHost,
     UnusedSiteHost,
     UnusedCronHost,
+    UnusedLoginsHost,
 >;
 
 /// Builds the service the way `server.rs` builds it, over the blocking host.
@@ -428,8 +593,10 @@ fn service() -> (Arc<ServiceUnderTest>, Arc<Mutex<Option<Instant>>>) {
             UnusedPhpHost,
             UnusedDbHost,
             UnusedSftpHost,
+            UnusedFtpsHost,
             UnusedSiteHost,
             UnusedCronHost,
+            UnusedLoginsHost,
         )),
         blocking_began,
     )

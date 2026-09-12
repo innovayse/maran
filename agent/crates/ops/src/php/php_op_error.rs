@@ -149,6 +149,21 @@ pub enum PhpOpError {
         /// The service manager's standard error, for an operator's log.
         stderr: String,
     },
+    /// Another operation for this account holds the account's lock, so the
+    /// pool was not written.
+    ///
+    /// The refusal is the point rather than a wait. A pool write that landed
+    /// between a deletion's pool sweep and its `userdel` would leave a file
+    /// naming a user that no longer resolves, which is the state
+    /// [`super::remove_pool`] exists to prevent and which takes php-fpm down
+    /// for every tenant on the host at the next reload. The panel retries a
+    /// site creation or a version switch after a timeout; nothing retries a
+    /// host whose php-fpm master will not start.
+    #[error("another operation for account `{username}` is already running")]
+    AccountBusy {
+        /// The account whose lock was held.
+        username: String,
+    },
 }
 
 impl From<SafeWriteError> for PhpOpError {

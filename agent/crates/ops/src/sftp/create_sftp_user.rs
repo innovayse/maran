@@ -5,10 +5,11 @@ use std::path::Path;
 use maran_distro::DistroAdapter;
 use maran_templates::systemd::unit::MountUnit;
 
+use crate::accounts::take_account_lock;
 use crate::safe_write::model::{Reload, Validator};
 use crate::sftp::model::account_jail::AccountJail;
 use crate::sftp::model::sftp_user_request::SftpUserRequest;
-use crate::sftp::set_sftp_password::set_sftp_password;
+use crate::sftp::set_sftp_password::write_password;
 use crate::sftp::sftp_error::SftpError;
 use crate::sftp::sftp_host::SftpHost;
 
@@ -131,7 +132,43 @@ const START_NOW: &str = "--now";
 /// - [`SftpError::PasswordRejected`] when `chpasswd` refuses the password.
 /// - [`SftpError::SpawnFailed`] when `useradd` refuses for any other reason, or
 ///   could not be run at all.
+/// - [`SftpError::AccountBusy`] when another operation for the hosting account
+///   — a deletion, a backup, a restore or a pool write — is already running.
+/// - [`SftpError::AccountIdentityChanged`] when the account's uid or gid moved,
+///   or the account went away, between the first read and `useradd`. The jail
+///   built by this call is left in place in that case: it is a root-owned
+///   directory and a mount unit, with no login and no credential in it, and
+///   `remove_account_sftp` takes both away the next time an account of this
+///   name is deleted.
 pub fn create_sftp_user(
+    host: &dyn SftpHost,
+    distro: &dyn DistroAdapter,
+    request: &SftpUserRequest,
+) -> Result<(), SftpError> {
+    // Taken before the account's identity is read, and held until this function
+    // returns: everything between the read and `useradd` is the window the
+    // concurrency audit measured, and the account's deletion is what used to be
+    // able to run inside it. Owned guard, so the lock is released by every path
+    // out of the call below.
+    let _guard = take_account_lock(&request.account).ok_or(SftpError::AccountBusy)?;
+
+    create_sftp_user_under_lock(host, distro, request)
+}
+
+/// The creation itself, with the hosting account's lock ALREADY held.
+///
+/// Split from [`create_sftp_user`] for the reason `restore_backup`'s body is
+/// split from its entry point: the lock is a process-wide static, and a dozen
+/// unit tests driving the public entry for one account name on the harness's
+/// own threads would refuse each other — a flaky suite whose flake says nothing
+/// about the code. The exclusion is tested for what it is, once; everything
+/// else about a creation is exercised here.
+///
+/// # Errors
+///
+/// Every variant [`create_sftp_user`] documents except
+/// [`SftpError::AccountBusy`], which is the entry point's own answer.
+pub(crate) fn create_sftp_user_under_lock(
     host: &dyn SftpHost,
     distro: &dyn DistroAdapter,
     request: &SftpUserRequest,
@@ -140,6 +177,18 @@ pub fn create_sftp_user(
 
     let jail = AccountJail::for_account(&request.account, distro.systemd_unit_directory());
     ensure_jail(host, distro, &jail)?;
+
+    // Asked AGAIN, immediately before the login is created, and compared with
+    // what was read before the jail work. The lock above excludes this agent's
+    // own deletion, so what this catches is what the lock cannot see: a
+    // `userdel` an operator ran by hand, or a second agent binary. Without it,
+    // `useradd --non-unique --uid` would create a login carrying a uid the host
+    // may have handed to the next account — `--non-unique` does not care that
+    // the number is now somebody else's, which is exactly why it cannot be the
+    // thing that decides.
+    if host.account_ownership(&request.account)? != ownership {
+        return Err(SftpError::AccountIdentityChanged);
+    }
 
     // Formatted into owned strings that outlive the argv slice below. They are
     // numbers this process read out of the password database, never anything a
@@ -170,7 +219,12 @@ pub fn create_sftp_user(
         return Err(SftpError::from_useradd(outcome.status));
     }
 
-    set_sftp_password(host, distro, &request.user, &request.password)
+    // `write_password` and not `set_sftp_password`: the entry point takes this
+    // account's lock, which is already held here and never waits, and it
+    // re-asserts the state it finds — which for a login `useradd` made a moment
+    // ago is `!`, so it would lock the credential this operation exists to hand
+    // out. A login that did not exist has no prior state worth restoring.
+    write_password(host, distro, &request.user, &request.password)
 }
 
 /// Brings `jail` to the state an SFTP login needs, whether or not it was there.

@@ -104,6 +104,10 @@ pub use list_bans::list_bans;
 pub use list_rules::list_rules;
 pub use model::active_ban::ActiveBan;
 pub use model::firewall_rule::FirewallRule;
+// Re-exported for the same reason as the protocol below: a service that builds
+// a `FirewallRule` has to be able to name what it opens, and the range refusal
+// lives in this type rather than in the handler that receives the two numbers.
+pub use model::port_span::PortSpan;
 // Re-exported rather than left for a caller to reach into `maran-templates`
 // for. `FirewallRule` carries its protocol as this enum, so a service that
 // builds one has to be able to name it — and the agent crate translates, it

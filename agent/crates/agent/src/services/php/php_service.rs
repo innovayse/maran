@@ -129,6 +129,14 @@ impl<H: PhpHost + 'static> PhpService for PhpServiceImpl<H> {
     /// The stream always ends with exactly one terminal message — the ok or
     /// the error — and never with a bare gRPC status for a domain outcome.
     ///
+    /// **Cancellation class: run to completion** (rules/rust.md, "Async and
+    /// blocking"), with nothing to reclaim afterwards. A package manager
+    /// stopped part-way is a broken host, and the rpc is idempotent, so the
+    /// panel's remedy for a stream it lost is to ask again rather than for the
+    /// agent to undo anything. The next paragraph is the other half of that
+    /// choice: work that outlives its client must still leave nothing
+    /// accumulating on its behalf.
+    ///
     /// It is bounded: the channel has a ceiling, and a client that drops the
     /// stream closes it, after which each remaining send fails immediately
     /// rather than blocking. The package manager itself is not interrupted —

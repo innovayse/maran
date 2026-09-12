@@ -1,12 +1,13 @@
 //! Failures of the database operations.
 
-/// The `code` reported when the client could not be started at all.
+/// The signal reported when a client died of one the platform would not name.
 ///
-/// Negative so it can never collide with a MySQL error number, every one of
-/// which is positive — an operator reading `ClientFailed { code: -1 }` in a log
-/// knows the server was never reached, rather than hunting for error -1 in the
-/// server's manual.
-const CLIENT_UNAVAILABLE: i32 = -1;
+/// It cannot happen on the systems this agent supports — a status that is not
+/// an exit code is a signal, and Linux hands the number back — but a root
+/// daemon does not panic to say so, and reporting a killed client as a client
+/// that was never started would be the very confusion this file has just
+/// removed.
+const UNKNOWN_SIGNAL: i32 = 0;
 
 /// The prefix the client puts in front of the number it failed with.
 ///
@@ -88,11 +89,58 @@ pub enum DbError {
     ///
     /// Carries the server's error number and nothing else — see the note on the
     /// enum for why there is no room for the message beside it.
+    ///
+    /// **It always means the client ran and answered.** It used to mean three
+    /// further things as well, all of them wearing `code: -1`: a statement this
+    /// host refused to send, a client that could never be started, and a client
+    /// killed by a signal. Those are [`Self::StatementRefused`],
+    /// [`Self::ClientUnavailable`] and [`Self::ClientKilled`] now, one variant
+    /// each, because an operator reading one number cannot tell a broken host
+    /// from a refused request from a machine killing processes — and neither
+    /// could the sessions that spent two lanes attributing a flake in this very
+    /// area to the wrong one of the three.
     #[error("the database client failed with error {code}")]
     ClientFailed {
-        /// The server's error number, or `-1` when the client
-        /// could not be started and there is no server answer at all.
+        /// The server's error number when it printed one, and the client's own
+        /// exit status when it did not. Never negative: a client that produced
+        /// no status at all is one of the three variants above.
         code: i32,
+    },
+
+    /// The statement was refused by this host before any client was started.
+    ///
+    /// The server was never asked, and nothing was spawned. It is a fault of
+    /// the agent's own caller — the only statements that can reach the refusal
+    /// are ones carrying a second statement or exceeding the size the client's
+    /// pipe is guaranteed to take — so it is deliberately not shaped like a
+    /// server answer: there is no number to look up, because no server saw it.
+    #[error("the database client was never asked: the statement was refused")]
+    StatementRefused,
+
+    /// The client could not be started, or its input could not be delivered.
+    ///
+    /// The server was never reached. The two halves are one variant on purpose:
+    /// both mean the process this host needs is not usable on this machine —
+    /// the binary is missing or not executable, the fork failed, or the pipe
+    /// broke before the statement was through — and an operator's next step is
+    /// the same for all of them. What matters is that this is no longer
+    /// indistinguishable from a server that answered.
+    #[error("the database client could not be started")]
+    ClientUnavailable,
+
+    /// The client was killed by a signal before it could answer.
+    ///
+    /// Its own variant because it is the one condition here that is a statement
+    /// about the MACHINE and not about the server or the request: the kernel's
+    /// out-of-memory killer, an operator, or a systemd stop reached the client
+    /// mid-statement. Reported as an exit code it was indistinguishable from a
+    /// client that never started, and the panel would have retried a statement
+    /// that may well have been executed.
+    #[error("the database client was killed by signal {signal}")]
+    ClientKilled {
+        /// The signal number, which is a number and not a name for the reason
+        /// the enum's own note gives: no variant here has anywhere to put text.
+        signal: i32,
     },
 
     /// The client's answer was not in the shape this operation reads.
@@ -141,10 +189,15 @@ impl DbError {
         }
     }
 
-    /// The error for a client that could not be started at all.
-    pub(crate) fn client_unavailable() -> Self {
-        Self::ClientFailed {
-            code: CLIENT_UNAVAILABLE,
+    /// The error for a client the platform reported as killed.
+    ///
+    /// `signal` is what the operating system said, and [`UNKNOWN_SIGNAL`] is
+    /// what is reported when it said nothing — the caller has already
+    /// established that the client produced no exit code, which on every
+    /// supported system means a signal.
+    pub(crate) fn client_killed(signal: Option<i32>) -> Self {
+        Self::ClientKilled {
+            signal: signal.unwrap_or(UNKNOWN_SIGNAL),
         }
     }
 }

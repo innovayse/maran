@@ -11,15 +11,18 @@ use std::path::Path;
 
 use maran_agent_core::validation::system::name::AccountName;
 
-use crate::sites::fake_site_host::{FakeSiteHost, create_test_site, distro, php_input};
+use crate::sites::fake_site_host::{
+    FakeSiteHost, create_test_site, distro, php_input, test_account,
+};
 use crate::sites::{disable_site, inspect_account_sites};
 
 /// The vhost every test here acts on.
 const VHOST: &str = "/etc/maran/nginx/sites/example.com.conf";
 
-/// The account every test here asks about.
+/// The account every test here asks about: this case's own, the same one
+/// [`php_input`] builds its site for.
 fn account() -> AccountName {
-    AccountName::parse("acme").unwrap()
+    test_account()
 }
 
 #[test]
@@ -56,11 +59,16 @@ fn a_site_that_is_still_serving_its_own_content_is_not_reported_as_stubbed() {
 }
 
 #[test]
-fn a_vhost_that_names_another_accounts_home_is_not_reported() {
+fn a_vhost_that_names_another_accounts_logs_is_not_reported() {
+    // Membership is decided by the LOG directory the vhost names and no longer
+    // by the home it roots at: a vhost's `root` carries the CANONICAL home, so
+    // on a host where `/home` is a symlink or the homes are bind-mounted the
+    // literal `/home/<account>/` is not in the file at all. See
+    // `inspect_account_sites`' own doc comment.
     let host = FakeSiteHost::passing();
     host.place_config(
         Path::new("/etc/maran/nginx/sites/other.example.conf"),
-        "server {\n    root /home/other/sites/other.example;\n}\n",
+        "server {\n    access_log /var/log/maran/sites/other/other.example.access.log;\n}\n",
     );
 
     let observed = inspect_account_sites(&host, &account()).unwrap();
@@ -70,13 +78,18 @@ fn a_vhost_that_names_another_accounts_home_is_not_reported() {
 
 #[test]
 fn a_neighbour_whose_name_this_account_prefixes_is_not_reported() {
-    // `acme` is a prefix of `acmecorp`, and a membership test written without
-    // the trailing separator would claim the neighbour's site as this
-    // account's — and then report a suspension that never touched it.
+    // This account's name is a prefix of the neighbour's — the neighbour is
+    // built from it, so the case still tests a prefix whatever name this thread
+    // was given — and a membership test written without the trailing separator
+    // would claim the neighbour's site as this account's, and then report a
+    // suspension that never touched it.
     let host = FakeSiteHost::passing();
     host.place_config(
         Path::new("/etc/maran/nginx/sites/corp.example.conf"),
-        "server {\n    root /home/acmecorp/sites/corp.example;\n}\n",
+        &format!(
+            "server {{\n    access_log /var/log/maran/sites/{}corp/corp.example.access.log;\n}}\n",
+            account().as_str()
+        ),
     );
 
     let observed = inspect_account_sites(&host, &account()).unwrap();
@@ -111,7 +124,10 @@ fn a_vhost_with_no_server_name_line_is_not_reported_as_stubbed() {
     let host = FakeSiteHost::passing();
     host.place_config(
         Path::new(VHOST),
-        "server {\n    root /home/acme/sites/example.com;\n}\n",
+        &format!(
+            "server {{\n    access_log /var/log/maran/sites/{}/example.com.access.log;\n}}\n",
+            account().as_str()
+        ),
     );
 
     let observed = inspect_account_sites(&host, &account()).unwrap();

@@ -47,7 +47,15 @@ pub fn to_agent_error(error: &BackupError) -> AgentError {
         // A second operation is running for this account. Not a fault of
         // either: the panel retries, and a stream held open for the length of
         // the first backup is what the refusal exists to avoid.
-        BackupError::AlreadyRunning => ErrorCode::AlreadyExists,
+        //
+        // ACCOUNT_BUSY, and it used to be ALREADY_EXISTS — which was the one
+        // code in this area that meant two things. ALREADY_EXISTS is the
+        // idempotency outcome three lines above it: "the archive you asked for
+        // is already there, treat the creation as done". A caller that read
+        // both as that outcome would mark a backup complete that had never
+        // been taken, because this refusal happens before anything is dumped.
+        // The account's lock was held; nothing ran; retry.
+        BackupError::AlreadyRunning => ErrorCode::AccountBusy,
         // Everything else is this machine failing at something it was asked to
         // do — including the two rollback variants, which are the most serious
         // answers this area produces and are system failures with a message

@@ -393,6 +393,17 @@ where
     /// — so a client that stops reading applies backpressure, and a client
     /// that drops the stream closes the channel, which the operation's
     /// callback reports as "stop" on the very next line.
+    ///
+    /// **Cancellation class: stop** (rules/rust.md, "Async and blocking"), and
+    /// this is the one rpc in this agent that stops. The stream IS the product:
+    /// a tail mutates nothing, so a reader who is gone is the whole reason to
+    /// run, and continuing would hold a blocking-pool thread and a pinned
+    /// directory descriptor for as long as a closed browser tab lasts. The
+    /// stopping is cooperative and polled rather than a dropped future: every
+    /// unit of host work here runs inside `spawn_blocking`, which cannot be
+    /// aborted from outside, so `ops::sites::follow_log` asks the sink whether
+    /// anyone is still listening on each poll — and gives up on its own idle
+    /// clock for the client that stops reading without closing.
     async fn tail_site_log(
         &self,
         request: Request<TailSiteLogRequest>,

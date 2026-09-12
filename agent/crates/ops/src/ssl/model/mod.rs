@@ -2,5 +2,6 @@
 //! (rules/rust.md "Operation anatomy").
 
 pub mod certificate_material;
+pub mod certificate_state;
 pub mod key_tool_outcome;
 pub mod self_signed_request;

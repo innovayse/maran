@@ -5,6 +5,7 @@
 //! the implementation.
 
 use crate::family::DistroFamily;
+use crate::vsftpd_tls_version_keys::VsftpdTlsVersionKeys;
 
 /// Behaviour that differs between distribution families.
 ///
@@ -172,8 +173,7 @@ pub trait DistroAdapter: Send + Sync {
     /// shipped a real `mysqldump` while AlmaLinux 9's `mariadb` 10.5 was
     /// expected to ship `mariadb-dump` with `mysqldump` only as a compatibility
     /// symlink. `command -v` for BOTH names, `readlink -f` and `ls -l`,
-    /// verified on both polygon images (transcript in
-    /// `.superpowers/sdd/2026-09-05-maran-backups/task-2-report.md`), found the
+    /// verified on both polygon images on 2026-09-05, found the
     /// two families agree after all: on Ubuntu 24.04's `mariadb-client` package
     /// AND on AlmaLinux 9's `mariadb` package, `/usr/bin/mariadb-dump` is the
     /// real file and `/usr/bin/mysqldump` is a symlink to it
@@ -229,6 +229,73 @@ pub trait DistroAdapter: Send + Sync {
     /// to the two literals happening to agree.
     fn sftp_group(&self) -> &'static str;
 
+    /// Absolute path of the vsftpd binary, for the process-execution
+    /// allow-list.
+    ///
+    /// This is an `argv[0]` the agent is permitted to spawn, and that is the
+    /// whole of what this method decides. The daemon itself is started and
+    /// stopped by the service manager, never by the agent; what the agent runs
+    /// this program for is to ask it about a candidate configuration file
+    /// before that file is swapped into place, which is the same
+    /// render-validate-swap discipline every other config in this workspace
+    /// goes through.
+    ///
+    /// Both families answer `/usr/sbin/vsftpd`, and the agreement is between
+    /// two packages rather than a rule: it is the path in each `vsftpd`
+    /// package's own file list — `dpkg -L` on the Debian family, `rpm -ql` on
+    /// the RHEL family — which is the documented interface the merged-`/usr`
+    /// rule on [`DistroAdapter`] says to answer. It is asked of the adapter all
+    /// the same, because a binary is spawnable only because this trait named
+    /// it, and `ops` names no absolute path of its own.
+    fn vsftpd_binary(&self) -> &'static str;
+
+    /// Name of the group whose membership is the entire authorization to use
+    /// FTPS.
+    ///
+    /// The panel's own group rather than a distribution one, so membership
+    /// means exactly "this login may transfer files over FTPS" and nothing a
+    /// package created can drift into it. It is a group and not a file of
+    /// names because the check that reads it is a PAM line, and PAM asks about
+    /// group membership.
+    ///
+    /// The name is the same on both families ON PURPOSE, for the reason
+    /// [`Self::sftp_group`] is: the authorization is one `pam_succeed_if.so …
+    /// user ingroup <group>` line in one PAM service file, so a family
+    /// answering a different name would leave that line admitting nobody
+    /// there. Each family's own adapter test pins the literal, so a drift on
+    /// either side is a named failure rather than two values quietly ceasing
+    /// to agree.
+    fn ftps_group(&self) -> &'static str;
+
+    /// The names of the three TLS protocol-version options a rendered
+    /// `vsftpd.conf` writes.
+    ///
+    /// What the value is FOR: the agent renders one `vsftpd.conf` per host, and
+    /// three of its lines are `<key>=YES`/`<key>=NO` where `<key>` is a word
+    /// this method supplies verbatim. `maran-templates` receives the three
+    /// words as plain strings and never learns which family it is rendering
+    /// for, which is what keeps the platform fact inside this crate.
+    ///
+    /// It is a method and not a constant because the two families' builds of
+    /// the same vsftpd version spell the family of options differently:
+    /// `ssl_tlsv11`/`ssl_tlsv12` on the Debian family, `ssl_tlsv1_1`/
+    /// `ssl_tlsv1_2` on the RHEL family. Each family's spelling is pinned by a
+    /// literal in that family's own adapter test, so a copy-paste of one
+    /// implementation into the other is a named failure rather than a config
+    /// that renders and does not start.
+    ///
+    /// # What the wrong spelling costs
+    ///
+    /// The two failures are not equally readable, and the worse one is the
+    /// reason this is an adapter method rather than a comment. On the RHEL
+    /// family an unknown option is reported: `500 OOPS: unrecognised variable
+    /// in config file: <key>`. On the Debian family **vsftpd exits 2 and prints
+    /// nothing at all** — a daemon that never starts and never says why, which
+    /// gives an operator nothing to read. Both measured 2026-09-09; see
+    /// [`crate::vsftpd_tls_version_keys::VsftpdTlsVersionKeys`] for the images
+    /// and package versions the words themselves came off.
+    fn vsftpd_tls_version_keys(&self) -> VsftpdTlsVersionKeys;
+
     /// Absolute path of `useradd`, for the process-execution allow-list.
     ///
     /// The SFTP area creates a system login with it. Asked of the adapter for
@@ -246,6 +313,24 @@ pub trait DistroAdapter: Send + Sync {
     /// Suspending and unsuspending an account lock and unlock its password with
     /// this program.
     fn usermod_binary(&self) -> &'static str;
+
+    /// Absolute path of `pkill`, for the process-execution allow-list.
+    ///
+    /// The login area signals every process running as a suspended account's
+    /// uid with it (`pkill --signal KILL --count --uid <uid>`), so that a
+    /// suspension ends the transfer sessions the account already has open
+    /// rather than only refusing new logins. It is asked of the adapter for the
+    /// reason [`Self::useradd_binary`] is, and with one extra edge here: an
+    /// unattributed hunk naming this exact path as a literal in `ops` has
+    /// already appeared in this tree, and `maran structure` rejects it.
+    ///
+    /// It comes from `procps` on the Debian family and `procps-ng` on the RHEL
+    /// family — two package names for one tool, which is why the path is a
+    /// per-family answer even though both families currently agree on it.
+    /// `agent/crates/agent/tests/binary_paths_on_a_real_host.rs` stats what this
+    /// returns on a host of each family, so a family that stops shipping it
+    /// fails by name rather than at exec time on a customer's server.
+    fn pkill_binary(&self) -> &'static str;
 
     /// Absolute path of `passwd`, for the process-execution allow-list.
     ///

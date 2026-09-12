@@ -6,6 +6,7 @@ pub mod cron;
 pub mod db;
 pub mod files;
 pub mod firewall;
+pub mod ftps;
 pub mod monitor;
 pub mod php;
 pub mod sftp;

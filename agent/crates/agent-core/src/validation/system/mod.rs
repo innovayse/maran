@@ -13,6 +13,8 @@ pub mod env_var_name;
 pub mod env_var_name_error;
 pub mod env_var_value;
 pub mod env_var_value_error;
+pub mod ftps_user_name;
+pub mod ftps_user_name_error;
 pub mod local_backup_root;
 pub mod local_backup_root_error;
 pub mod name;

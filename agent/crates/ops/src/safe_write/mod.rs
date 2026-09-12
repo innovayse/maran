@@ -15,6 +15,7 @@
 //! into place first, and only then validated and reloaded, once.
 
 mod config_host;
+mod config_tree_lock;
 pub mod model;
 mod remove_config;
 mod render_validate_swap;

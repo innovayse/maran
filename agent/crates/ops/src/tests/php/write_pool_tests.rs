@@ -13,10 +13,13 @@ use maran_agent_core::agent_paths::AgentPaths;
 use maran_agent_core::validation::system::name::AccountName;
 use maran_agent_core::validation::web::php_version::PhpVersion;
 
+use crate::accounts::take_account_lock;
 use crate::php::fake_php_host::{FakePhpHost, distro, pool_input};
 use crate::php::model::php_override::PhpOverride;
+use crate::php::model::pool_input::PoolInput;
 use crate::php::model::pool_paths::PoolPaths;
-use crate::php::{PhpHost, PhpOpError, write_pool};
+use crate::php::write_pool::{write_pool, write_pool_under_lock};
+use crate::php::{PhpHost, PhpOpError};
 
 use crate::sites::fake_site_host::{FakeSiteHost, create_test_site, php_input};
 use crate::sites::model::site_paths::SitePaths;
@@ -38,7 +41,7 @@ fn the_pool_runs_as_the_account_and_never_as_root() {
     // account's PHP.
     let host = FakePhpHost::with_installed(&["8.3"]);
 
-    write_pool(&host, distro(), &pool_input(Vec::new())).unwrap();
+    write_pool_under_lock(&host, distro(), &pool_input(Vec::new())).unwrap();
 
     let pool = written(&host);
     assert!(pool.contains("user = acme"), "{pool}");
@@ -55,7 +58,7 @@ fn the_pool_listens_on_exactly_the_socket_the_vhost_connects_to() {
     let host = FakePhpHost::with_installed(&["8.3"]);
     let input = pool_input(Vec::new());
 
-    write_pool(&host, distro(), &input).unwrap();
+    write_pool_under_lock(&host, distro(), &input).unwrap();
 
     let expected = format!(
         "{}/{}-{}.sock",
@@ -76,7 +79,7 @@ fn the_socket_directory_is_created_before_the_pool_is_written() {
     // into a missing directory fails to bind on the next restart.
     let host = FakePhpHost::with_installed(&["8.3"]);
 
-    write_pool(&host, distro(), &pool_input(Vec::new())).unwrap();
+    write_pool_under_lock(&host, distro(), &pool_input(Vec::new())).unwrap();
 
     assert!(host.directory_exists(Path::new(AgentPaths::PHP_FPM_SOCKET_DIRECTORY)));
 }
@@ -95,7 +98,7 @@ fn disable_functions_survives_an_override_attempting_to_unset_it() {
     let host = FakePhpHost::with_installed(&["8.3"]);
     let overrides = vec![PhpOverride::parse("memory_limit", "256M").unwrap()];
 
-    write_pool(&host, distro(), &pool_input(overrides)).unwrap();
+    write_pool_under_lock(&host, distro(), &pool_input(overrides)).unwrap();
 
     let pool = written(&host);
     assert!(
@@ -123,7 +126,7 @@ fn the_pool_grants_no_access_to_the_shared_tmp() {
     // theft between customers from inside the pool meant to prevent it.
     let host = FakePhpHost::with_installed(&["8.3"]);
 
-    write_pool(&host, distro(), &pool_input(Vec::new())).unwrap();
+    write_pool_under_lock(&host, distro(), &pool_input(Vec::new())).unwrap();
 
     let pool = written(&host);
     let basedir = pool
@@ -144,7 +147,7 @@ fn sessions_and_uploads_are_written_inside_the_account_home() {
     // back to a shared location — which is the whole point of closing /tmp.
     let host = FakePhpHost::with_installed(&["8.3"]);
 
-    write_pool(&host, distro(), &pool_input(Vec::new())).unwrap();
+    write_pool_under_lock(&host, distro(), &pool_input(Vec::new())).unwrap();
 
     let pool = written(&host);
     assert!(
@@ -165,7 +168,7 @@ fn the_session_and_upload_directories_are_created_as_the_account() {
     // which is the exact condition that sends PHP back to /tmp.
     let host = FakePhpHost::with_installed(&["8.3"]);
 
-    write_pool(&host, distro(), &pool_input(Vec::new())).unwrap();
+    write_pool_under_lock(&host, distro(), &pool_input(Vec::new())).unwrap();
 
     let created = host.created_as_account();
     assert!(
@@ -186,7 +189,7 @@ fn the_socket_directory_gets_an_explicit_mode() {
     // reaches the wrong customer's PHP.
     let host = FakePhpHost::with_installed(&["8.3"]);
 
-    write_pool(&host, distro(), &pool_input(Vec::new())).unwrap();
+    write_pool_under_lock(&host, distro(), &pool_input(Vec::new())).unwrap();
 
     assert_eq!(
         host.mode(Path::new(AgentPaths::PHP_FPM_SOCKET_DIRECTORY)),
@@ -204,7 +207,7 @@ fn the_session_and_upload_directories_are_readable_only_by_the_account() {
     // listing instead.
     let host = FakePhpHost::with_installed(&["8.3"]);
 
-    write_pool(&host, distro(), &pool_input(Vec::new())).unwrap();
+    write_pool_under_lock(&host, distro(), &pool_input(Vec::new())).unwrap();
 
     assert_eq!(
         host.mode(Path::new("/home/acme/.maran/sessions")),
@@ -222,7 +225,7 @@ fn a_stuck_request_is_reclaimed_by_php_fpms_own_timer() {
     // reach it.
     let host = FakePhpHost::with_installed(&["8.3"]);
 
-    write_pool(&host, distro(), &pool_input(Vec::new())).unwrap();
+    write_pool_under_lock(&host, distro(), &pool_input(Vec::new())).unwrap();
 
     assert!(
         written(&host).contains("request_terminate_timeout = 330s"),
@@ -236,7 +239,7 @@ fn a_shorter_execution_limit_shortens_the_hard_timeout_too() {
     let host = FakePhpHost::with_installed(&["8.3"]);
     let overrides = vec![PhpOverride::parse("max_execution_time", "30").unwrap()];
 
-    write_pool(&host, distro(), &pool_input(overrides)).unwrap();
+    write_pool_under_lock(&host, distro(), &pool_input(overrides)).unwrap();
 
     assert!(
         written(&host).contains("request_terminate_timeout = 60s"),
@@ -256,7 +259,7 @@ fn php_reports_a_fatal_error_before_php_fpm_kills_the_worker() {
     let host = FakePhpHost::with_installed(&["8.3"]);
     let overrides = vec![PhpOverride::parse("max_execution_time", "45").unwrap()];
 
-    write_pool(&host, distro(), &pool_input(overrides)).unwrap();
+    write_pool_under_lock(&host, distro(), &pool_input(overrides)).unwrap();
 
     let pool = written(&host);
     let terminate: u32 = pool
@@ -285,7 +288,7 @@ fn disable_functions_covers_the_published_ld_preload_escape() {
     // actually hold.
     let host = FakePhpHost::with_installed(&["8.3"]);
 
-    write_pool(&host, distro(), &pool_input(Vec::new())).unwrap();
+    write_pool_under_lock(&host, distro(), &pool_input(Vec::new())).unwrap();
 
     let pool = written(&host);
     let disabled = pool
@@ -310,7 +313,7 @@ fn disable_functions_covers_the_published_ld_preload_escape() {
 fn with_workers(host: &FakePhpHost, max_children: u32) -> Result<(), PhpOpError> {
     let mut input = pool_input(Vec::new());
     input.max_children = max_children;
-    write_pool(host, distro(), &input)
+    write_pool_under_lock(host, distro(), &input)
 }
 
 #[test]
@@ -386,7 +389,7 @@ fn the_worker_budget_from_the_plan_is_what_the_pool_gets() {
     let mut input = pool_input(Vec::new());
     input.max_children = 40;
 
-    write_pool(&host, distro(), &input).unwrap();
+    write_pool_under_lock(&host, distro(), &input).unwrap();
 
     let pool = written(&host);
     assert!(pool.contains("pm.max_children = 40"), "{pool}");
@@ -403,7 +406,7 @@ fn a_version_that_is_not_installed_is_refused_before_anything_is_written() {
     // who has to work out that a package is missing.
     let host = FakePhpHost::empty();
 
-    match write_pool(&host, distro(), &pool_input(Vec::new())) {
+    match write_pool_under_lock(&host, distro(), &pool_input(Vec::new())) {
         Err(PhpOpError::PhpVersionNotInstalled { version }) => assert_eq!(version, "8.3"),
         other => panic!("expected PhpVersionNotInstalled, got {other:?}"),
     }
@@ -417,7 +420,7 @@ fn an_unsupported_version_is_refused_by_the_agent() {
     input.version = PhpVersion::parse("9.9").unwrap();
 
     assert!(matches!(
-        write_pool(&host, distro(), &input),
+        write_pool_under_lock(&host, distro(), &input),
         Err(PhpOpError::UnsupportedVersion { .. })
     ));
 }
@@ -427,7 +430,7 @@ fn a_pool_php_fpm_refuses_is_not_left_behind() {
     let host = FakePhpHost::with_installed(&["8.3"]);
     host.reject_validation("unknown entry 'pm.foo'");
 
-    match write_pool(&host, distro(), &pool_input(Vec::new())) {
+    match write_pool_under_lock(&host, distro(), &pool_input(Vec::new())) {
         Err(PhpOpError::PoolValidation { stderr }) => assert!(stderr.contains("pm.foo")),
         other => panic!("expected PoolValidation, got {other:?}"),
     }
@@ -444,11 +447,18 @@ fn the_vhost_connects_to_the_socket_this_pool_listens_on() {
     let php_host = FakePhpHost::with_installed(&["8.3"]);
     let site_host = FakeSiteHost::passing();
     let site = php_input();
+    // The pool is written for the SITE's account, which is this case's own name
+    // and not the php fixtures' shared one: the two ends being compared have to
+    // be two ends of one account's socket.
+    let mut pool = pool_input(Vec::new());
+    pool.account = site.account.clone();
 
-    write_pool(&php_host, distro(), &pool_input(Vec::new())).unwrap();
+    write_pool_under_lock(&php_host, distro(), &pool).unwrap();
     create_test_site(&site_host, &site).unwrap();
 
-    let listen = written(&php_host)
+    let listen = php_host
+        .config(&PoolPaths::for_pool(distro(), &site.account, &pool.version).config_path)
+        .expect("write_pool wrote no pool file")
         .lines()
         .find_map(|line| line.strip_prefix("listen = ").map(str::to_owned))
         .expect("the pool declares no listen");
@@ -474,4 +484,86 @@ fn the_pool_file_lands_in_the_directory_the_adapter_names() {
 
     assert_eq!(paths.config_path.display().to_string(), POOL_PATH);
     assert_eq!(paths.pool_name, "acme-8.3");
+}
+
+// The exclusion tests below name their OWN accounts, and that is not cosmetic:
+// `take_account_lock` is a process-wide registry, `write_pool` takes it per
+// account, and the harness runs these cases on parallel threads. Two cases
+// sharing a name make one of them answer `AccountBusy` — the lock doing exactly
+// its job, and a failure that says nothing about the code. It is the reason
+// every case above drives `write_pool_under_lock` instead: only the three cases
+// that are ABOUT the exclusion touch the registry, and each of them owns a name
+// nothing else in the workspace uses.
+
+/// A pool for `account` at 8.3, with no overrides.
+fn pool_for(account: &str) -> PoolInput {
+    PoolInput {
+        account: AccountName::parse(account).expect("the fixture name is valid"),
+        version: PhpVersion::parse("8.3").unwrap(),
+        max_children: 10,
+        overrides: Vec::new(),
+    }
+}
+
+#[test]
+fn a_pool_write_for_an_account_another_operation_holds_is_refused_and_writes_nothing() {
+    let host = FakePhpHost::with_installed(&["8.3"]);
+    let input = pool_for("poolcontended");
+    let held =
+        take_account_lock(&input.account).expect("the lock is free at the start of this test");
+
+    let refusal = write_pool(&host, distro(), &input);
+
+    // The refusal ARRIVED, which is the wait-free property this lock's
+    // no-deadlock argument rests on: a taker that queued would still be inside
+    // `write_pool` here, holding this thread until the harness timed the whole
+    // suite out.
+    match refusal {
+        Err(PhpOpError::AccountBusy { username }) => assert_eq!(username, "poolcontended"),
+        other => panic!("expected AccountBusy, got {other:?}"),
+    }
+    // And it wrote nothing at all — not the pool, not the socket directory,
+    // not the account's session tree. A refusal that had already written the
+    // file would be the poisoned pool this lock exists to prevent, reported as
+    // a failure.
+    assert_eq!(host.writes(), 0);
+    assert_eq!(host.created_as_account().len(), 0);
+
+    // The positive control: the same write against the same host succeeds the
+    // moment the lock is free, so the refusal above was the lock and not a
+    // version, a budget or a validator saying no.
+    drop(held);
+    write_pool(&host, distro(), &input).unwrap();
+    assert_eq!(host.writes(), 1);
+}
+
+#[test]
+fn a_pool_write_releases_the_accounts_lock_when_it_returns() {
+    let host = FakePhpHost::with_installed(&["8.3"]);
+    let input = pool_for("poolreleases");
+
+    write_pool(&host, distro(), &input).unwrap();
+
+    assert!(
+        take_account_lock(&input.account).is_some(),
+        "the guard must be released by the return, or one site creation would \
+         refuse every later operation for that account for the life of the daemon"
+    );
+}
+
+#[test]
+fn a_pool_write_that_fails_still_releases_the_accounts_lock() {
+    let host = FakePhpHost::with_installed(&["8.3"]);
+    host.reject_validation("unknown entry 'pm.foo'");
+    let input = pool_for("poolreleasesonerror");
+
+    assert!(matches!(
+        write_pool(&host, distro(), &input),
+        Err(PhpOpError::PoolValidation { .. })
+    ));
+
+    // The error path is the one a hand-written unlock forgets, and the pool
+    // writer is the operation most likely to take it: `php-fpm -t` refuses
+    // whenever anything else on the host is already broken.
+    assert!(take_account_lock(&input.account).is_some());
 }

@@ -120,6 +120,10 @@ pub(crate) struct FakeSslHost {
     /// Whether removing the material fails — the branch a real host reaches
     /// when the store is read-only, or an unlink races another operation.
     removal_fails: Mutex<bool>,
+    /// Paths whose read fails, as a file that is there but cannot be opened.
+    /// The state a real host reaches on an I/O error, and the one a caller must
+    /// never be allowed to read as "there is nothing here".
+    unreadable: Mutex<BTreeSet<PathBuf>>,
 }
 
 impl FakeSslHost {
@@ -143,6 +147,7 @@ impl FakeSslHost {
             refusal: Mutex::new(None),
             removal_fails: Mutex::new(false),
             marker_removals_to_fail: Mutex::new(0),
+            unreadable: Mutex::new(BTreeSet::new()),
         }
     }
 
@@ -166,6 +171,11 @@ impl FakeSslHost {
         *self.subject_and_issuer.lock().unwrap() =
             "subject=CN = example.com\nissuer=CN = Some Authority R3\n".to_owned();
         self
+    }
+
+    /// Makes reading `path` fail, as a file that exists but cannot be opened.
+    pub(crate) fn fail_read(&self, path: &Path) {
+        self.unreadable.lock().unwrap().insert(path.to_path_buf());
     }
 
     /// Makes the next marker removal fail, and only that one.
@@ -231,6 +241,18 @@ impl FakeSslHost {
     /// Puts a marker at `path`, as an earlier `generate_self_signed` would have.
     pub(crate) fn premark(&self, path: &Path) {
         self.markers.lock().unwrap().insert(path.to_path_buf());
+    }
+
+    /// Puts `contents` at `path` in the store, whatever `path` is.
+    ///
+    /// For a file the agent's own methods do not write: a marker holding
+    /// something the agent never put in one, which is the case that proves the
+    /// decision is the file's EXISTENCE and not anything inside it.
+    pub(crate) fn plant(&self, path: &Path, contents: &str) {
+        self.material
+            .lock()
+            .unwrap()
+            .insert(path.to_path_buf(), contents.to_owned());
     }
 
     /// Drops one file from the store, as an interrupted write would leave it.
@@ -300,6 +322,10 @@ impl SiteHost for FakeSslHost {
 
     fn read_config(&self, path: &Path) -> Result<Option<String>, SitesOpError> {
         self.sites.read_config(path)
+    }
+
+    fn create_site_log_directory(&self, account: &AccountName) -> Result<(), SitesOpError> {
+        self.sites.create_site_log_directory(account)
     }
 
     fn create_directories_as_account(
@@ -374,6 +400,12 @@ impl SslHost for FakeSslHost {
     }
 
     fn read_material(&self, path: &Path) -> Result<Option<String>, SslOpError> {
+        if self.unreadable.lock().unwrap().contains(path) {
+            return Err(SslOpError::MaterialWrite {
+                reason: "input/output error".to_owned(),
+            });
+        }
+
         if self.has_marker(path) {
             return Ok(Some("placeholder\n".to_owned()));
         }

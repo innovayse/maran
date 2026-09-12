@@ -75,6 +75,24 @@ pub enum SitesOpError {
         reason: String,
     },
 
+    /// The root-owned directory a site's logs live in could not be created.
+    ///
+    /// Separate from [`SitesOpError::DocumentRoot`] and deliberately so: that
+    /// one is a failure to do work AS the account, and this one is a failure of
+    /// work root does on its own, in a tree
+    /// (`AgentPaths::account_site_log_dir`) no account can reach. An operator
+    /// reads them differently — a document-root failure points at the account's
+    /// home or its uid, this one points at `/var/log/maran`.
+    ///
+    /// It is not a cosmetic failure. `nginx -t` OPENS the error-log target, so
+    /// a vhost naming a directory that does not exist is refused by the
+    /// validator and the whole site operation fails with it.
+    #[error("could not create the site log directory: {reason}")]
+    LogDirectory {
+        /// What the filesystem reported.
+        reason: String,
+    },
+
     /// The document root resolved outside the account's home.
     ///
     /// Reached when the path exists but a symlink on the way to it leaves the

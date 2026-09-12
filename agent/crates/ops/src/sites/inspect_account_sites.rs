@@ -29,14 +29,35 @@ const SERVER_NAME_DIRECTIVE: &str = "    server_name ";
 /// serves. The vhost the panel has FORGOTTEN is exactly the one still serving
 /// a suspended customer's site, so this enumerates the vhost directory and
 /// decides membership from the file's own text: every vhost this agent renders
-/// names `/home/<account>/` in its document root and in both of its log paths,
-/// and a name is not a prefix of another because the marker carries the
+/// names `/var/log/maran/sites/<account>/` in both of its log directives, and
+/// one account's marker is not a prefix of another's because it carries the
 /// trailing separator.
 ///
+/// # Why the marker is the LOG directory and not the home
+///
+/// It was `/home/<account>/`, and that was wrong for a reason nothing observed
+/// until the logs moved out of the home. A vhost names the account's home in
+/// its `root` directive — but it names the **canonical** one, because
+/// `resolved_site_paths` renders what `resolve_in_home` reports rather than
+/// what was asked for. On a host where `/home` is a symlink or the homes are
+/// bind-mounted — both perfectly ordinary — that text is not `/home/<account>/`
+/// at all. The literal `/home/<account>/` in those files was coming from the
+/// two log paths, which were NAMED rather than resolved. Removing the logs from
+/// the home therefore made this enumeration return nothing on exactly those
+/// hosts: an account whose sites are all still serving would have been reported
+/// as serving none, which is the answer that certifies a suspension that never
+/// happened.
+///
+/// The log directory is the better marker on its own merits, not merely the
+/// available one: it is outside every home, so no home layout can change its
+/// text; it is named and never resolved, because it is root-owned all the way
+/// up and there is nothing to canonicalize away; and it appears in every vhost
+/// this agent renders, serving and suspended alike.
+///
 /// The bound, stated rather than left to be discovered: a vhost that serves
-/// the account's files without naming its home anywhere — a hand-written one,
-/// or one whose root was pointed somewhere else entirely — is invisible here.
-/// Nothing this panel writes has that shape.
+/// the account's files without naming its log directory — a hand-written one,
+/// or one whose logging was pointed somewhere else entirely — is invisible
+/// here. Nothing this panel writes has that shape.
 ///
 /// # Why "stubbed" is a byte comparison and not a marker
 ///
@@ -61,7 +82,11 @@ pub fn inspect_account_sites(
         return Ok(AccountSiteSuspension::default());
     };
 
-    let marker = format!("{}/{}/", AgentPaths::ACCOUNT_HOME_ROOT, account.as_str());
+    let marker = format!(
+        "{}{}",
+        AgentPaths::account_site_log_dir(account).display(),
+        "/"
+    );
     let mut sites = Vec::new();
 
     for path in paths {

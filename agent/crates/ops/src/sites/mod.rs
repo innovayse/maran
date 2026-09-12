@@ -29,6 +29,7 @@ mod enable_site;
 pub(crate) mod fake_site_host;
 mod follow_log;
 mod inspect_account_sites;
+pub(crate) mod is_suspended_vhost;
 pub mod model;
 mod process_site_host;
 mod reload_web_server;

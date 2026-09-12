@@ -1,6 +1,7 @@
 //! Turning a `SetSftpPassword` request into the values the operation takes.
 
 use maran_agent_core::validation::secrets::password::Password;
+use maran_agent_core::validation::system::name::AccountName;
 use maran_agent_core::validation::system::sftp_user_name::SftpUserName;
 
 use crate::proto::AgentError;
@@ -11,10 +12,15 @@ use crate::services::sftp::validated_sftp_user::validated_sftp_user;
 ///
 /// One bundle per request shape rather than two checks chained in the handler,
 /// so the handler stays the three steps and nothing else (rules/rust.md
-/// "Service anatomy"). The account is dropped here on purpose: setting a
-/// password touches nothing the account owns — no jail, no mount, no home — so
-/// there is nothing left for the operation to want it for, and passing it on
-/// would suggest otherwise.
+/// "Service anatomy"). The account is CARRIED rather than dropped, and it used
+/// to be dropped on the argument that setting a password touches nothing the
+/// account owns. It touches two things: the account's per-account lock, which is
+/// what keeps a password change from landing inside a suspension, and the
+/// account's jail, which is what tells this login from a neighbouring account's
+/// login of the same spelling. Neither can be recovered from the login name —
+/// `<account>_<name>` has no unique decomposition when account names may carry
+/// the separator — so the account the panel authorised is passed on, and stays
+/// the source of truth.
 ///
 /// The two checks are the ones that make this rpc safe to expose at all. The
 /// login name is REBUILT from the account rather than taken off the wire, so a
@@ -35,11 +41,11 @@ pub fn validated_password_change(
     account_username: &str,
     sftp_username: &str,
     password: &str,
-) -> Result<(SftpUserName, Password), AgentError> {
-    let (_, user) = validated_sftp_user(account_username, sftp_username)?;
+) -> Result<(AccountName, SftpUserName, Password), AgentError> {
+    let (account, user) = validated_sftp_user(account_username, sftp_username)?;
     let password = validated_credential(password)?;
 
-    Ok((user, password))
+    Ok((account, user, password))
 }
 
 #[cfg(test)]

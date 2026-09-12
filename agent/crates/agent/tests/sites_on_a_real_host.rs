@@ -27,6 +27,9 @@ use std::path::Path;
 use std::sync::mpsc;
 use std::time::Duration;
 
+use maran_agent_core::agent_paths::AgentPaths;
+use maran_agent_core::privs::fork_as_account::fork_as_account;
+use maran_agent_core::privs::priv_error::PrivError;
 use maran_agent_core::validation::fs::file_mode::FileMode;
 use maran_agent_core::validation::fs::relative_path::RelativePath;
 use maran_agent_core::validation::web::domain::Domain;
@@ -987,4 +990,765 @@ fn the_suspension_state_answers_on_a_real_host_what_the_requests_above_observed(
         !fact(&serving_domain).serving_stub,
         "the untouched site is still serving its own content"
     );
+}
+
+// --------------------------------------------------------------------------
+// F-1: the web server's logs, and the escalation that came of putting them in
+// a directory the customer owns.
+//
+// These four tests are the attack, not a restatement of the fix. A site's
+// access and error logs used to be `/home/<account>/logs/<domain>.access.log`,
+// in a directory created by a child that had dropped to the account — so the
+// CUSTOMER owned it. nginx's master process runs as root and opens every
+// `access_log`/`error_log` target `O_WRONLY|O_APPEND|O_CREAT` with no
+// `O_NOFOLLOW`, so a symbolic link planted there made root create and append to
+// any path on the host, with content the customer chose (a log line embeds the
+// request target). It was proved against `/etc/ld.so.preload`, after which the
+// dynamic loader honoured an attacker-chosen path in every process started
+// afterwards. See docs/superpowers/notes/2026-09-09-site-logs-threat-note.md.
+// --------------------------------------------------------------------------
+
+/// The file the attack tries to make root create.
+///
+/// `/etc/ld.so.preload` is what the original probe used and what a real attacker
+/// would use, and it is deliberately NOT what these tests use. A run that fails
+/// — which is the run this suite exists to produce against unfixed code — would
+/// leave a live `ld.so.preload` behind in the polygon image, naming a path
+/// inside a deleted account's home, and every process started in that container
+/// afterwards would carry the loader's complaint. The escalation is proved by
+/// root creating a file it had no business creating; WHICH file is irrelevant to
+/// the proof and very relevant to the blast radius of a red test.
+///
+/// Under `/etc` because that is where the real targets live: it must be a
+/// directory root can write and the account cannot, so that the file appearing
+/// can only be root's doing.
+const LOG_ESCALATION_WITNESS: &str = "/etc/maran-site-log-escalation-witness";
+
+/// The witness for the second half of the attack: a link planted at the NEW
+/// location, which only root can do.
+const TAIL_ESCALATION_WITNESS: &str = "/etc/maran-site-log-tail-witness";
+
+/// The mode every level of the site-log tree must carry.
+const SITE_LOG_TREE_MODE: u32 = 0o750;
+
+/// Removes a path when the test ends, whether it passed or panicked.
+///
+/// Not [`PolygonConfigFile`], which reports a removal failure and moves on:
+/// these paths are the OUTCOME of an attack, and a test that left one behind
+/// would hand the next test in this shared tree a file whose presence means
+/// "root was tricked". A missing file is success here, so the removal is
+/// allowed to find nothing.
+struct PolygonPath {
+    /// The path to take away again.
+    path: std::path::PathBuf,
+}
+
+impl PolygonPath {
+    /// Takes responsibility for `path`, and removes anything already there.
+    ///
+    /// The removal at construction is the point: every assertion below is "this
+    /// path does not exist", which a leftover from a previous run would make
+    /// FAIL rather than silently pass — the safe direction, but a confusing
+    /// one. Starting from a known-absent path means the only thing that can
+    /// create it is the run under way.
+    ///
+    /// # Panics
+    ///
+    /// Panics when a leftover exists and cannot be removed, since every later
+    /// assertion in the test would then be meaningless.
+    fn claim(path: impl AsRef<Path>) -> Self {
+        let path = path.as_ref().to_path_buf();
+        match std::fs::remove_file(&path) {
+            Ok(()) => {}
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => panic!("a leftover at {path:?} must be removable: {error}"),
+        }
+        // `symlink_metadata`, so a symbolic link is seen as present rather than
+        // followed to a target that may not exist.
+        assert!(
+            std::fs::symlink_metadata(&path).is_err(),
+            "the witness {path:?} must not exist before the attack runs"
+        );
+        Self { path }
+    }
+
+    /// Takes responsibility for `path` WITHOUT removing what is there.
+    ///
+    /// The other constructor exists to guarantee a path is absent before a test
+    /// asserts that nothing created it; this one exists for the opposite case —
+    /// a path the test has just deliberately planted something at. Using
+    /// [`Self::claim`] for that removes the plant, and the test then observes a
+    /// tail finding no log at all: a silent pass on a `LogUnreadable`
+    /// assertion, or — as it actually did here — a thirty-second timeout while
+    /// the follow loop politely waited for a file that would never appear.
+    fn guard(path: impl AsRef<Path>) -> Self {
+        Self {
+            path: path.as_ref().to_path_buf(),
+        }
+    }
+
+    /// The path, for the assertions.
+    fn path(&self) -> &Path {
+        &self.path
+    }
+}
+
+impl Drop for PolygonPath {
+    /// Removes the path, tolerating its absence, which is the expected state.
+    fn drop(&mut self) {
+        let _ = std::fs::remove_file(&self.path);
+    }
+}
+
+/// Plants a symbolic link at `link` pointing to `target`, AS `account`.
+///
+/// Through `fork_as_account`, which is the agent's own privilege drop, so what
+/// this proves is precisely what an unprivileged hosting customer can do with a
+/// shell: nothing here runs as root after the fork. Planting the link as root
+/// with `std::os::unix::fs::symlink` would prove nothing about the attack, only
+/// about the reader.
+///
+/// # Panics
+///
+/// Panics when the drop or the `symlink` call fails.
+fn symlink_as_account(account: &PolygonAccount, target: &str, link: std::path::PathBuf) {
+    let ids = account.ids();
+    let target = target.to_owned();
+    let planted = within("the customer's symlink", move || {
+        fork_as_account(&ids, || {
+            // The customer's own directory, made by the customer: exactly the
+            // state `create_site` used to leave behind, and the state a customer
+            // can restore at any time with one `mkdir`.
+            if let Some(parent) = link.parent() {
+                std::fs::create_dir_all(parent).map_err(|_| PrivError::WorkFailed)?;
+            }
+            let _ = std::fs::remove_file(&link);
+            std::os::unix::fs::symlink(&target, &link).map_err(|_| PrivError::WorkFailed)
+        })
+    });
+
+    planted.expect("an unprivileged account can always symlink inside its own home");
+}
+
+/// Fails the test unless `path` is a real directory owned by root with
+/// [`SITE_LOG_TREE_MODE`].
+///
+/// `symlink_metadata` and not `metadata`: a symbolic link to a root-owned `0750`
+/// directory would satisfy every check made on the followed target while being
+/// exactly the thing this whole change exists to refuse.
+///
+/// # Panics
+///
+/// Panics when the path is missing, is not a directory, or has the wrong owner
+/// or mode.
+fn assert_root_owned_directory(path: &Path) {
+    let metadata = std::fs::symlink_metadata(path)
+        .unwrap_or_else(|error| panic!("{path:?} must exist: {error}"));
+
+    assert!(
+        metadata.is_dir(),
+        "{path:?} must be a real directory and not a symbolic link to one"
+    );
+    assert_eq!(
+        std::os::unix::fs::MetadataExt::uid(&metadata),
+        0,
+        "{path:?} must be owned by root: the nginx master appends to files below it"
+    );
+    assert_eq!(
+        std::os::unix::fs::MetadataExt::gid(&metadata),
+        0,
+        "{path:?} must be group root, so even the panel uid matches only `other`"
+    );
+    assert_eq!(
+        metadata.permissions().mode() & 0o777,
+        SITE_LOG_TREE_MODE,
+        "{path:?} must be 0{SITE_LOG_TREE_MODE:o}"
+    );
+}
+
+/// A sink that keeps what it was handed and always claims to be listening.
+#[derive(Default)]
+struct CollectingSink {
+    /// Every line delivered.
+    lines: Vec<String>,
+}
+
+impl maran_ops::sites::LogSink for CollectingSink {
+    /// Keeps the line and accepts it.
+    fn line(&mut self, line: &str, _historical: bool) -> Result<(), maran_ops::sites::TailEnd> {
+        self.lines.push(line.to_owned());
+        Ok(())
+    }
+
+    /// Always listening: nothing here decides to stop a tail.
+    fn is_listening(&mut self) -> bool {
+        true
+    }
+}
+
+#[test]
+#[ignore = "plants a real symlink as a real account and reloads a real nginx: polygon only"]
+fn a_customers_symlink_where_the_logs_used_to_live_no_longer_reaches_root() {
+    PolygonAccount::require_polygon();
+    ensure_nginx_is_running();
+    let witness = PolygonPath::claim(LOG_ESCALATION_WITNESS);
+    let account = PolygonAccount::create("polysitelogone");
+    let domain = Domain::parse("logattack.example.test").expect("a valid domain");
+
+    let input = served_polygon_site(&account, &domain);
+    let paths = SitePaths::for_site(account.name(), &domain);
+    let _vhost = PolygonConfigFile::at(&paths.config_path);
+    let old_directory = account.home().join("logs");
+
+    // THE ATTACK. As the account, unprivileged, in the account's own home:
+    // re-create the directory `create_site` used to make for it and point the
+    // name the root nginx master used to open at a file only root can create.
+    symlink_as_account(
+        &account,
+        witness.path().to_str().expect("the witness path is UTF-8"),
+        old_directory.join(format!("{}.access.log", domain.as_str())),
+    );
+
+    // The trigger a customer actually has: any site operation, on any tenant,
+    // ends in a reload of the one nginx that serves them all. A second site is
+    // the most ordinary one there is.
+    let second = Domain::parse("logattack-two.example.test").expect("a valid domain");
+    let second_paths = SitePaths::for_site(account.name(), &second);
+    let _second_vhost = PolygonConfigFile::at(&second_paths.config_path);
+    create_polygon_site(
+        &ProcessSiteHost::new(),
+        &served_site_input(&account, &second),
+    )
+    .unwrap_or_else(|error| panic!("the second site must be created: {error}"));
+    reload_polygon_nginx();
+
+    // A request, so the master has something to write. This is also half of the
+    // positive control: a 200 carrying the page proves the RUNNING master is
+    // serving the vhost under test, which is the only way to know the reload
+    // above was a reload and not a no-op. `nginx -T` would not do — it starts a
+    // NEW nginx to dump the configuration and says nothing about what the
+    // master already running has loaded.
+    let served = fetch_until(domain.as_str(), "/", |response| {
+        response.contains(SUSPENDED_ACCOUNT_BODY)
+    });
+    assert!(
+        served.contains(SUSPENDED_ACCOUNT_BODY),
+        "the running nginx must be serving this vhost, or nothing below is observing a reload; \
+         nginx answered:\n{served}"
+    );
+
+    // THE CLAIM, and it is asserted FIRST among the three that follow.
+    //
+    // The order is deliberate and was arrived at by getting it wrong. The vhost
+    // assertions below used to come before the attack, on the reasoning that a
+    // failure there reads as "the paths did not move" rather than leaving the
+    // reader to infer it. What that actually bought was a test that, against
+    // unfixed code, panicked on a rendered string and NEVER PERFORMED THE
+    // ATTACK — so the run that was supposed to demonstrate the escalation
+    // demonstrated a text mismatch instead. A regression test for a privilege
+    // escalation must fail by exhibiting the escalation; anything else is a
+    // check on a template.
+    assert!(
+        std::fs::symlink_metadata(witness.path()).is_err(),
+        "root created {:?} by following a symbolic link a hosting customer planted in their own \
+         home. This is the F-1 escalation: the customer chooses the target and, because a log \
+         line embeds the request target, its contents.",
+        witness.path()
+    );
+
+    // The other half of the positive control: root DID write a log, at the new
+    // location. Without this, "the witness was not created" is equally
+    // explained by nginx never writing a log line at all — which is exactly how
+    // a test that proves nothing passes. It comes AFTER the claim so that a
+    // failing run names the escalation first, and it is not weakened by the
+    // order: both assertions run in every passing run.
+    let written = read_until_non_empty(&paths.access_log);
+    assert!(
+        written.contains("GET /"),
+        "the access log at {:?} must carry the request that was just served, has:\n{written}",
+        paths.access_log
+    );
+
+    // The fix as the vhost states it, and the ancestor chain the containment
+    // actually rests on.
+    let rendered = std::fs::read_to_string(&paths.config_path).expect("the vhost must be readable");
+    assert!(
+        !rendered.contains(&old_directory.display().to_string()),
+        "no directive may name a log directory inside the account's home:\n{rendered}"
+    );
+    assert!(
+        rendered.contains(&format!("access_log {};", paths.access_log.display())),
+        "the vhost must write its access log under the root-owned tree:\n{rendered}"
+    );
+    assert!(
+        paths.access_log.starts_with(AgentPaths::SITE_LOG_ROOT),
+        "the access log must be under {}, is {:?}",
+        AgentPaths::SITE_LOG_ROOT,
+        paths.access_log
+    );
+    assert_root_owned_directory(Path::new(AgentPaths::SITE_LOG_ROOT));
+    assert_root_owned_directory(&paths.log_directory);
+    drop(input);
+}
+
+/// The input for a static site that serves its own page, without creating it.
+///
+/// Split out of [`served_polygon_site`] so a test can name a second site's input
+/// and create it itself; that function both builds and creates, which is what
+/// most callers want and not what the attack above needs.
+fn served_site_input(account: &PolygonAccount, domain: &Domain) -> CreateSiteInput {
+    CreateSiteInput {
+        account: account.name().clone(),
+        domain: domain.clone(),
+        aliases: Vec::new(),
+        kind: SiteKind::Static,
+        certificate: None,
+    }
+}
+
+/// How long to wait for nginx to flush a log line before giving up.
+const LOG_DEADLINE: Duration = Duration::from_secs(10);
+
+/// Reads `path` until it has content or the deadline passes, returning whatever
+/// it last saw.
+///
+/// Bounded and non-panicking, for the reason [`fetch_until`] is: an empty result
+/// must produce the assertion at the call site, with the path named, rather than
+/// a timeout message that says nothing about what was or was not written.
+fn read_until_non_empty(path: &Path) -> String {
+    let deadline = std::time::Instant::now() + LOG_DEADLINE;
+    let mut last = std::fs::read_to_string(path).unwrap_or_default();
+
+    while last.is_empty() && std::time::Instant::now() < deadline {
+        std::thread::sleep(SERVE_POLL_INTERVAL);
+        last = std::fs::read_to_string(path).unwrap_or_default();
+    }
+
+    last
+}
+
+#[test]
+#[ignore = "creates a real account and inspects the real log tree: polygon only"]
+fn every_directory_the_site_log_tree_is_made_of_belongs_to_root() {
+    PolygonAccount::require_polygon();
+    ensure_nginx_is_running();
+    let account = PolygonAccount::create("polysitelogtwo");
+    let domain = Domain::parse("logmodes.example.test").expect("a valid domain");
+
+    let paths = SitePaths::for_site(account.name(), &domain);
+    let _vhost = PolygonConfigFile::at(&paths.config_path);
+    create_polygon_site(
+        &ProcessSiteHost::new(),
+        &served_site_input(&account, &domain),
+    )
+    .unwrap_or_else(|error| panic!("creating the site must succeed: {error}"));
+
+    // Both levels the fix creates, and the mode is asserted rather than assumed
+    // from the umask the daemon happened to inherit — which is the whole reason
+    // the implementation uses `DirBuilder::mode` and not `create_dir_all`.
+    assert_root_owned_directory(Path::new(AgentPaths::SITE_LOG_ROOT));
+    assert_root_owned_directory(&paths.log_directory);
+
+    // The account, which is what the containment is against, owns nothing here.
+    let owned = std::fs::symlink_metadata(&paths.log_directory).expect("the directory must exist");
+    assert_ne!(
+        std::os::unix::fs::MetadataExt::uid(&owned),
+        account.ids().uid(),
+        "the account must not own the directory the root nginx master writes into"
+    );
+    assert_ne!(
+        std::os::unix::fs::MetadataExt::gid(&owned),
+        account.ids().gid(),
+        "nor may its group reach it"
+    );
+
+    // And the document root is still the account's: the fix moved the logs and
+    // must not have moved anything else out of the home.
+    let root = std::fs::metadata(&paths.document_root).expect("the document root must exist");
+    assert_eq!(
+        std::os::unix::fs::MetadataExt::uid(&root),
+        account.ids().uid(),
+        "the document root is still a customer path, created as the customer"
+    );
+    assert!(
+        paths.document_root.starts_with(account.home()),
+        "the document root must still be inside the account's home"
+    );
+}
+
+#[test]
+#[ignore = "plants a real symlink at the root-owned log path: polygon only"]
+fn a_symlink_planted_at_the_new_log_location_is_refused_by_the_tail() {
+    PolygonAccount::require_polygon();
+    ensure_nginx_is_running();
+    let witness = PolygonPath::claim(TAIL_ESCALATION_WITNESS);
+    let account = PolygonAccount::create("polysitelogthree");
+    let domain = Domain::parse("logtail.example.test").expect("a valid domain");
+
+    let paths = SitePaths::for_site(account.name(), &domain);
+    let _vhost = PolygonConfigFile::at(&paths.config_path);
+    create_polygon_site(
+        &ProcessSiteHost::new(),
+        &served_site_input(&account, &domain),
+    )
+    .unwrap_or_else(|error| panic!("creating the site must succeed: {error}"));
+
+    // Planted as ROOT, and the fact that it has to be is the point: the tree is
+    // `root:root 0750`, so no hosting account can reach this name at all. What
+    // is under test is the tail's own `O_NOFOLLOW`, which is now defence in
+    // depth rather than the containment — and defence in depth that no test can
+    // observe is decoration, so the test manufactures the only state that
+    // exercises it.
+    let _ = std::fs::remove_file(&paths.access_log);
+    std::os::unix::fs::symlink(witness.path(), &paths.access_log)
+        .expect("root may plant a link in its own directory");
+    // `guard`, NOT `claim`: `claim` would remove the link that was just planted
+    // and leave the tail with no log at all, which is not a refusal — it is the
+    // ordinary state of a site that has served no request, and the follow loop
+    // would wait for one.
+    let _planted = PolygonPath::guard(&paths.access_log);
+
+    let name = account.name().clone();
+    let tailed = domain.clone();
+    // Bounded, for the reason the privileges suite bounds its tail: a refusal
+    // that stopped happening would make this call wait out the follow loop's
+    // five-minute idle ceiling instead of failing.
+    let (refusal, delivered) = within("the tail of a planted symlink", move || {
+        let mut sink = CollectingSink::default();
+        let outcome = maran_ops::sites::tail_site_log(
+            &ProcessSiteHost::new(),
+            &name,
+            &tailed,
+            maran_ops::sites::SiteLogKind::Access,
+            10,
+            &mut sink,
+        );
+        (outcome, sink.lines.len())
+    });
+
+    assert!(
+        matches!(refusal, Err(SitesOpError::LogUnreadable { .. })),
+        "a symbolic link at the log's own name must be refused, got {refusal:?}"
+    );
+    assert_eq!(delivered, 0, "not one line may come back through a symlink");
+    assert!(
+        std::fs::symlink_metadata(witness.path()).is_err(),
+        "the tail must not have created {:?} by following the link",
+        witness.path()
+    );
+}
+
+#[test]
+#[ignore = "writes a real suspended vhost: polygon only"]
+fn a_suspended_sites_logs_move_with_the_serving_ones() {
+    PolygonAccount::require_polygon();
+    ensure_nginx_is_running();
+    let account = PolygonAccount::create("polysitelogfour");
+    let domain = Domain::parse("logsuspend.example.test").expect("a valid domain");
+
+    let paths = SitePaths::for_site(account.name(), &domain);
+    let _vhost = PolygonConfigFile::at(&paths.config_path);
+    let input = served_polygon_site(&account, &domain);
+
+    maran_ops::sites::disable_site(&ProcessSiteHost::new(), polygon_distro(), &input)
+        .unwrap_or_else(|error| panic!("suspending the site must succeed: {error}"));
+
+    // The suspended render is a DIFFERENT template with the same two directives,
+    // and the only thing keeping the two in step is that both take their paths
+    // from one `SitePaths`. That is the property worth asserting: a future
+    // change that duplicated the derivation would leave this vhost pointing into
+    // the home while every serving vhost had moved.
+    let rendered = std::fs::read_to_string(&paths.config_path).expect("the vhost must be readable");
+    assert!(
+        rendered.contains(SUSPENSION_NOTICE),
+        "this must be the suspended render:\n{rendered}"
+    );
+    assert!(
+        !rendered.contains(&account.home().join("logs").display().to_string()),
+        "a suspended site must not log into the account's home either:\n{rendered}"
+    );
+    assert!(
+        rendered.contains(&format!("access_log {};", paths.access_log.display())),
+        "the suspended vhost must log where the serving one did:\n{rendered}"
+    );
+    assert_valid_nginx_tree("the suspended vhost with the moved logs");
+    assert_nginx_loads(&paths.config_path);
+}
+
+/// A [`SiteHost`] that does exactly what the real one does, with one hook
+/// around the vhost write so two operations can be made to overlap on purpose.
+///
+/// Every method delegates to [`ProcessSiteHost`]; the only addition is
+/// `before_write`, run immediately before the config-write protocol is
+/// entered. That is the one point where the two racing threads have to be
+/// lined up: it is after everything an operation does on its own (the document
+/// root, the log directory, the render) and before the moment the protocol
+/// makes the tree everyone's.
+struct RacingSiteHost {
+    inner: ProcessSiteHost,
+    before_write: Box<dyn Fn() + Send + Sync>,
+}
+
+impl SiteHost for RacingSiteHost {
+    fn read_config(&self, path: &Path) -> Result<Option<String>, SitesOpError> {
+        self.inner.read_config(path)
+    }
+
+    fn list_config_paths(&self) -> Result<Vec<std::path::PathBuf>, SitesOpError> {
+        self.inner.list_config_paths()
+    }
+
+    fn create_site_log_directory(
+        &self,
+        account: &maran_agent_core::validation::system::name::AccountName,
+    ) -> Result<(), SitesOpError> {
+        self.inner.create_site_log_directory(account)
+    }
+
+    fn create_directories_as_account(
+        &self,
+        account: &maran_agent_core::validation::system::name::AccountName,
+        directories: &[&Path],
+    ) -> Result<(), SitesOpError> {
+        self.inner
+            .create_directories_as_account(account, directories)
+    }
+
+    fn write_config(
+        &self,
+        target: &Path,
+        contents: &str,
+        validator: &maran_ops::safe_write::model::Validator<'_>,
+        reload: &maran_ops::safe_write::model::Reload<'_>,
+    ) -> Result<(), SitesOpError> {
+        (self.before_write)();
+        self.inner.write_config(target, contents, validator, reload)
+    }
+
+    fn remove_config(
+        &self,
+        target: &Path,
+        validator: &maran_ops::safe_write::model::Validator<'_>,
+        reload: &maran_ops::safe_write::model::Reload<'_>,
+    ) -> Result<(), SitesOpError> {
+        self.inner.remove_config(target, validator, reload)
+    }
+
+    fn resolve_in_account_home(
+        &self,
+        account: &maran_agent_core::validation::system::name::AccountName,
+        relative: &Path,
+    ) -> Result<std::path::PathBuf, SitesOpError> {
+        self.inner.resolve_in_account_home(account, relative)
+    }
+}
+
+/// How long the victim thread waits to be told the interfering write has
+/// entered the protocol.
+///
+/// Generous, because it is not a timing assertion: it is the budget for one
+/// thread to reach one function call. The test fails loudly if it expires,
+/// rather than proceeding with two operations that never overlapped.
+const RACE_BUDGET: Duration = Duration::from_secs(30);
+
+/// A static site owned by `account` at `domain`.
+///
+/// Static and not PHP on purpose: a PHP site writes its pool through the same
+/// protocol, so it enters the config-write protocol twice, and the hook this
+/// race lines the threads up on would fire on the wrong one.
+fn static_site(account: &PolygonAccount, domain: &Domain) -> CreateSiteInput {
+    CreateSiteInput {
+        account: account.name().clone(),
+        domain: domain.clone(),
+        aliases: Vec::new(),
+        kind: SiteKind::Static,
+        certificate: None,
+    }
+}
+
+/// Creates a static site through `host` — the real php host is still handed
+/// over, because a static site must not touch it and this proves it does not.
+fn create_racing_site(
+    host: &RacingSiteHost,
+    input: &CreateSiteInput,
+) -> Result<maran_ops::sites::CreatedSite, SitesOpError> {
+    create_site(
+        host,
+        &ProcessPhpHost::new(),
+        polygon_distro(),
+        input,
+        POLYGON_WORKERS,
+        &[],
+    )
+}
+
+#[test]
+#[ignore = "runs two real vhost writes against one real nginx at the same time: polygon only"]
+fn a_neighbours_rejected_vhost_cannot_fail_this_tenants_valid_write() {
+    // The first of the three interleavings `ops::safe_write::config_tree_lock`
+    // documents, driven rather than described. `nginx -t` carries no
+    // file argument, so it answers about the WHOLE host: while one tenant's
+    // rejected vhost is renamed in and not yet rolled back, an unrelated
+    // tenant's valid write used to validate at exit 1, be rolled back, and be
+    // reported to its owner as invalid.
+    PolygonAccount::require_polygon();
+    ensure_nginx_is_running();
+
+    let neighbour = PolygonAccount::create("polyracenbr");
+    let tenant = PolygonAccount::create("polyracetnt");
+
+    // The interferer's domain is entirely legitimate to the panel — 253
+    // characters in labels of up to 63 — and the real nginx refuses it,
+    // because a `server_name` longer than its `server_names_hash_bucket_size`
+    // cannot be hashed. So its content really is live and really is invalid
+    // for the length of one real `nginx -t`.
+    let refused_domain = Domain::parse(&format!("{}.{}.race.test", "a".repeat(63), "b".repeat(63)))
+        .expect("a long domain is still a valid domain");
+    let refused_vhost = SitePaths::for_site(neighbour.name(), &refused_domain).config_path;
+
+    let good_domain = Domain::parse("racewinner.example.test").expect("a valid domain");
+    let good_vhost = SitePaths::for_site(tenant.name(), &good_domain).config_path;
+    let _good = PolygonConfigFile::at(&good_vhost);
+
+    let (entered, entry) = mpsc::channel();
+    let entry = std::sync::Mutex::new(entry);
+    let overlapped = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+
+    let neighbour_input = static_site(&neighbour, &refused_domain);
+    let neighbour_thread = std::thread::spawn(move || {
+        let host = RacingSiteHost {
+            inner: ProcessSiteHost::new(),
+            before_write: Box::new(move || {
+                entered
+                    .send(())
+                    .expect("the victim thread is still listening");
+            }),
+        };
+        create_racing_site(&host, &neighbour_input)
+    });
+
+    let tenant_input = static_site(&tenant, &good_domain);
+    let tenant_thread = {
+        let overlapped = std::sync::Arc::clone(&overlapped);
+        std::thread::spawn(move || {
+            let host = RacingSiteHost {
+                inner: ProcessSiteHost::new(),
+                before_write: Box::new(move || {
+                    // Behind a mutex only because the hook is a `Fn` shared
+                    // across threads by its type; one thread ever calls it.
+                    let heard = entry
+                        .lock()
+                        .expect("the fixture lock is never poisoned")
+                        .recv_timeout(RACE_BUDGET)
+                        .is_ok();
+                    overlapped.store(heard, std::sync::atomic::Ordering::SeqCst);
+                }),
+            };
+            create_racing_site(&host, &tenant_input)
+        })
+    };
+
+    let neighbour_result = neighbour_thread.join().expect("the neighbour must finish");
+    let tenant_result = tenant_thread.join().expect("the tenant must finish");
+
+    // The positive control, and it is two claims, not one. First: the
+    // interferer really ran and really produced the state this test is about —
+    // the real nginx really refused its vhost. A run in which that write
+    // succeeded, or never happened, would make every assertion below vacuous.
+    assert!(
+        matches!(neighbour_result, Err(SitesOpError::NginxValidation { .. })),
+        "the interfering write must be refused by the real nginx, got {neighbour_result:?}"
+    );
+    // Second: the two really overlapped. The tenant's write entered the
+    // protocol only AFTER the neighbour's had, which is the interleaving; a
+    // test where the second operation never started proves nothing.
+    assert!(
+        overlapped.load(std::sync::atomic::Ordering::SeqCst),
+        "the tenant's write must have started after the neighbour's entered the protocol"
+    );
+
+    // The finding itself: the valid write is accepted, on a host where an
+    // invalid vhost belonging to a different customer was in flight.
+    let created = tenant_result
+        .unwrap_or_else(|error| panic!("a valid write must not be failed by a neighbour: {error}"));
+    assert_eq!(
+        std::path::Path::new(&created.config_path),
+        good_vhost.as_path()
+    );
+    assert!(good_vhost.exists(), "the tenant's vhost must be on disk");
+
+    // And the neighbour's rejected content is gone, so the tree it briefly
+    // made invalid is valid again and nginx really reads the tenant's file.
+    assert!(
+        !refused_vhost.exists(),
+        "a refused site must leave no vhost behind at {refused_vhost:?}"
+    );
+    assert_valid_nginx_tree("the tree after the race");
+    assert_nginx_loads(&good_vhost);
+}
+
+#[test]
+#[ignore = "writes a real vhost and real certificate material: polygon only"]
+fn installing_a_certificate_on_a_suspended_site_leaves_the_real_nginx_serving_the_stub() {
+    // C-1 interleaving 2's harm, asked of a real nginx over HTTP. The renewal
+    // scheduler runs unattended, so a certificate installation that re-rendered
+    // the site's own vhost put a suspended customer's page back on the air with
+    // nothing to say so — and "the vhost file says stub" and "a request is
+    // answered by the stub" are different claims.
+    PolygonAccount::require_polygon();
+    ensure_nginx_is_running();
+    let account = PolygonAccount::create("polysuspcert");
+    let domain = Domain::parse("suspcert.example.test").expect("a valid domain");
+    let input = served_polygon_site(&account, &domain);
+    let vhost = SitePaths::for_site(account.name(), &domain).config_path;
+    let _vhost = PolygonConfigFile::at(&vhost);
+
+    // The inverse control: the site really is serving the customer's page
+    // before any of this, so the stub below is a change and not a starting
+    // state.
+    reload_polygon_nginx();
+    let before = fetch_until(domain.as_str(), "/", |body| {
+        body.contains(SUSPENDED_ACCOUNT_BODY)
+    });
+    assert!(
+        before.contains(SUSPENDED_ACCOUNT_BODY),
+        "the site must be serving the customer's page before it is suspended:\n{before}"
+    );
+
+    maran_ops::sites::disable_site(&ProcessSiteHost::new(), polygon_distro(), &input)
+        .unwrap_or_else(|error| panic!("suspending the site must succeed: {error}"));
+    let suspended = std::fs::read_to_string(&vhost).expect("the stub must be readable");
+
+    // Real openssl, real material, through the same operation the renewal
+    // scheduler drives.
+    let ssl_host = ProcessSslHost::new();
+    generate_self_signed(&ssl_host, polygon_distro(), &input).unwrap_or_else(|error| {
+        panic!("issuing material for a suspended site must succeed: {error}")
+    });
+
+    let material = SiteCertificate::for_domain(&domain);
+    assert!(
+        material.certificate_path().exists(),
+        "the material must still be placed, so a suspended site can renew"
+    );
+    assert_eq!(
+        std::fs::read_to_string(&vhost).expect("the stub must still be readable"),
+        suspended,
+        "a certificate installation must not rewrite a suspended site's vhost"
+    );
+
+    assert_valid_nginx_tree("the tree after a certificate landed on a suspended site");
+    let after = fetch_until(domain.as_str(), "/", |body| {
+        body.contains(SUSPENSION_NOTICE)
+    });
+    assert!(
+        after.starts_with("HTTP/1.1 403 "),
+        "a suspended site must still answer the refusal after a renewal:\n{after}"
+    );
+    assert!(
+        !after.contains(SUSPENDED_ACCOUNT_BODY),
+        "a certificate renewal must not put a suspended customer's page back on the air:\n{after}"
+    );
+
+    maran_ops::ssl::purge_certificate(&ssl_host, polygon_distro(), &domain);
 }

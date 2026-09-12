@@ -13,6 +13,7 @@
 
 use std::path::{Path, PathBuf};
 
+use maran_agent_core::agent_paths::AgentPaths;
 use maran_agent_core::validation::web::domain::Domain;
 use maran_agent_core::validation::web::upstream::Upstream;
 
@@ -39,34 +40,80 @@ fn a_php_site_is_written_with_its_own_fastcgi_pass() {
 
     let created = create_test_site(&host, &input).unwrap();
 
-    assert_eq!(created.document_root, "/srv/homes/acme/sites/example.com");
+    assert_eq!(
+        created.document_root,
+        format!("/srv/homes/{}/sites/example.com", input.account.as_str())
+    );
     assert_eq!(
         created.config_path,
         "/etc/maran/nginx/sites/example.com.conf"
     );
     let vhost = host.config(Path::new(&created.config_path)).unwrap();
     assert!(
-        vhost.contains("fastcgi_pass unix:/run/maran/php/acme-8.3.sock;"),
+        vhost.contains(&format!(
+            "fastcgi_pass unix:/run/maran/php/{}-8.3.sock;",
+            input.account.as_str()
+        )),
         "the vhost must point at this account's pool for this version: {vhost}"
     );
     assert!(vhost.contains("server_name example.com www.example.com;"));
 }
 
 #[test]
-fn a_site_creates_its_document_root_and_log_directory_as_the_account() {
+fn a_site_creates_only_its_document_root_as_the_account() {
     let host = FakeSiteHost::passing();
+    let input = php_input();
 
-    create_test_site(&host, &php_input()).unwrap();
+    create_test_site(&host, &input).unwrap();
 
-    // Both are inside the customer's home, so both are created by the
-    // privilege-dropping seam and never by the root daemon
-    // (rules/security.md).
+    // The document root is inside the customer's home, so it is created by the
+    // privilege-dropping seam and never by the root daemon (rules/security.md).
+    //
+    // The LOG directory is NOT in this list, and its absence is the F-1 fix
+    // rather than an omission. It used to be here, which is exactly what made
+    // it the customer's: a child dropped to the account created it, so the
+    // account owned it — and the root nginx master then opened files in it with
+    // no `O_NOFOLLOW`, so one `ln -s` had root create and append to any path on
+    // the host (docs/superpowers/notes/2026-09-09-site-logs-threat-note.md).
+    // A regression that put it back here would be that escalation again, so
+    // this list is asserted whole and not searched for the entry that matters.
     assert_eq!(
         host.created(),
-        vec![
-            PathBuf::from("/home/acme/sites/example.com"),
-            PathBuf::from("/home/acme/logs"),
-        ]
+        vec![PathBuf::from(format!(
+            "/home/{}/sites/example.com",
+            input.account.as_str()
+        ))]
+    );
+}
+
+#[test]
+fn a_site_creates_its_log_directory_as_root_and_outside_every_home() {
+    let host = FakeSiteHost::passing();
+    let input = php_input();
+
+    create_test_site(&host, &input).unwrap();
+
+    // The other side of the test above: the log directory IS created, and
+    // through the seam that runs as root. Asserting only that it is missing
+    // from `created()` would pass equally well on a build that had stopped
+    // creating it at all — after which `nginx -t`, which opens the error-log
+    // target, would refuse every site on the host.
+    assert_eq!(host.log_directories(), vec![input.account.clone()]);
+
+    // And it is genuinely out of the home, which is where the containment comes
+    // from. A check that only compared against the new constant would still
+    // pass if that constant were moved back under `/home`.
+    let paths = crate::sites::model::site_paths::SitePaths::for_site(&input.account, &input.domain);
+    assert!(
+        !paths
+            .log_directory
+            .starts_with(AgentPaths::ACCOUNT_HOME_ROOT),
+        "a site's logs must not be under any account home, are at {:?}",
+        paths.log_directory
+    );
+    assert_eq!(
+        paths.log_directory,
+        PathBuf::from(AgentPaths::SITE_LOG_ROOT).join(input.account.as_str())
     );
 }
 
@@ -137,21 +184,33 @@ fn a_site_with_a_certificate_serves_the_same_body_on_both_ports() {
     // block without one serves from nginx's compiled-in default.
     let ssl_block = vhost.split("listen 443 ssl;").nth(1).unwrap();
     assert!(
-        ssl_block.contains("root /srv/homes/acme/sites/example.com;"),
+        ssl_block.contains(&format!(
+            "root /srv/homes/{}/sites/example.com;",
+            input.account.as_str()
+        )),
         "the TLS block must serve the same root: {ssl_block}"
     );
-    assert!(ssl_block.contains("fastcgi_pass unix:/run/maran/php/acme-8.3.sock;"));
+    assert!(ssl_block.contains(&format!(
+        "fastcgi_pass unix:/run/maran/php/{}-8.3.sock;",
+        input.account.as_str()
+    )));
     // The logs are the same seam one directive higher: port 80 only redirects,
     // so a log declared there records nothing and every real request lands in
     // nginx's shared, root-owned default file — one file holding every
     // tenant's HTTPS traffic, in a product whose isolation story is per-account
     // ownership.
     assert!(
-        ssl_block.contains("access_log /home/acme/logs/example.com.access.log;"),
+        ssl_block.contains(&format!(
+            "access_log /var/log/maran/sites/{}/example.com.access.log;",
+            input.account.as_str()
+        )),
         "the TLS block must write the site's own access log: {ssl_block}"
     );
     assert!(
-        ssl_block.contains("error_log /home/acme/logs/example.com.error.log;"),
+        ssl_block.contains(&format!(
+            "error_log /var/log/maran/sites/{}/example.com.error.log;",
+            input.account.as_str()
+        )),
         "the TLS block must write the site's own error log: {ssl_block}"
     );
 }
@@ -189,7 +248,13 @@ fn a_static_site_and_a_proxied_site_render_their_own_shapes() {
     // location, which exists so a certificate can still be issued and renewed.
     assert!(!proxy_vhost.contains("index "));
     assert_eq!(
-        occurrences(&proxy_vhost, "root /srv/homes/acme/sites/app.example;"),
+        occurrences(
+            &proxy_vhost,
+            &format!(
+                "root /srv/homes/{}/sites/app.example;",
+                proxied.account.as_str()
+            )
+        ),
         1
     );
 }
@@ -210,14 +275,23 @@ fn a_new_php_site_gets_the_pool_its_own_vhost_points_at() {
 
     let vhost = host.config(Path::new(&created.config_path)).unwrap();
     let pool = php_host
-        .config(Path::new("/etc/php/8.3/fpm/pool.d/acme.conf"))
+        .config(Path::new(&format!(
+            "/etc/php/8.3/fpm/pool.d/{}.conf",
+            input.account.as_str()
+        )))
         .expect("creating a PHP site must write the pool its vhost will point at");
     assert!(
-        vhost.contains("fastcgi_pass unix:/run/maran/php/acme-8.3.sock;"),
+        vhost.contains(&format!(
+            "fastcgi_pass unix:/run/maran/php/{}-8.3.sock;",
+            input.account.as_str()
+        )),
         "{vhost}"
     );
     assert!(
-        pool.contains("listen = /run/maran/php/acme-8.3.sock"),
+        pool.contains(&format!(
+            "listen = /run/maran/php/{}-8.3.sock",
+            input.account.as_str()
+        )),
         "the pool must listen on exactly the socket the vhost names: {pool}"
     );
 }
@@ -227,10 +301,15 @@ fn a_new_php_sites_pool_carries_the_plans_worker_budget() {
     let host = FakeSiteHost::passing();
     let php_host = FakePhpHost::with_installed(&["8.3"]);
 
-    create_site(&host, &php_host, distro(), &php_input(), 3, &[]).unwrap();
+    let input = php_input();
+
+    create_site(&host, &php_host, distro(), &input, 3, &[]).unwrap();
 
     let pool = php_host
-        .config(Path::new("/etc/php/8.3/fpm/pool.d/acme.conf"))
+        .config(Path::new(&format!(
+            "/etc/php/8.3/fpm/pool.d/{}.conf",
+            input.account.as_str()
+        )))
         .unwrap();
     assert!(pool.contains("pm.max_children = 3"), "{pool}");
 }

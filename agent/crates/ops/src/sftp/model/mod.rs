@@ -3,5 +3,4 @@
 
 pub mod account_jail;
 pub mod account_ownership;
-pub mod sftp_login_suspension_fact;
 pub mod sftp_user_request;

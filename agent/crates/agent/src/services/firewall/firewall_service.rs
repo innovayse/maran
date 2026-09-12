@@ -117,6 +117,7 @@ impl<H: FirewallHost + 'static> FirewallService for FirewallServiceImpl<H> {
 
         let result = match validated_rule(
             request.port,
+            request.port_to,
             request.protocol,
             &request.source_cidr,
             &request.ssh_ports,
@@ -153,6 +154,7 @@ impl<H: FirewallHost + 'static> FirewallService for FirewallServiceImpl<H> {
 
         let result = match validated_rule(
             request.port,
+            request.port_to,
             request.protocol,
             &request.source_cidr,
             &request.ssh_ports,

@@ -1,5 +1,7 @@
 //! Service and binary names on the RHEL family.
 
+use crate::vsftpd_tls_version_keys::VsftpdTlsVersionKeys;
+
 /// Absolute path of the nginx binary, for the process-execution allow-list.
 #[must_use]
 pub fn nginx_binary() -> &'static str {
@@ -163,6 +165,55 @@ pub fn sftp_group() -> &'static str {
     "maran-sftp"
 }
 
+/// Absolute path of the vsftpd binary, for the process-execution allow-list.
+///
+/// Measured rather than recalled: RHEL's `vsftpd` package installs the real
+/// file here — `rpm -ql vsftpd` lists `/usr/sbin/vsftpd` and `rpm -qf
+/// /usr/sbin/vsftpd` answers `vsftpd`, verified in a throwaway `almalinux:9`
+/// container (3.0.5-8.el9) and again on `almalinux:10` (3.0.5-12.el10), where
+/// `ls -l` shows a regular file and not a symlink. The Debian family installs
+/// it at the same path — an agreement between two packages rather than a rule,
+/// asked of the adapter all the same.
+#[must_use]
+pub fn vsftpd_binary() -> &'static str {
+    "/usr/sbin/vsftpd"
+}
+
+/// Name of the group whose membership authorizes an FTPS login.
+///
+/// The panel's own group rather than a distribution one, so membership means
+/// exactly "this login may transfer files over FTPS". The Debian family answers
+/// the identical name deliberately: the authorization is one
+/// `pam_succeed_if.so … user ingroup <group>` line in one PAM service file, and
+/// a family disagreeing here would leave that line admitting nobody there.
+#[must_use]
+pub fn ftps_group() -> &'static str {
+    "maran-ftps"
+}
+
+/// The names of the three TLS protocol-version options a rendered
+/// `vsftpd.conf` writes, as this family's build of vsftpd spells them.
+///
+/// Measured 2026-09-09 on `almalinux:9` (`vsftpd 3.0.5-8.el9`): the binary's
+/// own option table, read with `strings`, carries `ssl_tlsv1`, `ssl_tlsv1_1`,
+/// `ssl_tlsv1_2` and `ssl_tlsv1_3` — an underscore between the major and the
+/// minor, which is where this family parts company with the Debian one.
+/// Confirmed by running the daemon: the Debian spelling is reported here as
+/// `500 OOPS: unrecognised variable in config file: <key>`.
+///
+/// The 1.3 key exists on this family too and is deliberately not answered: the
+/// template does not write it, because the build's own default enables TLS 1.3
+/// and Task 3 observed a TLSv1.3 negotiation on this family with no 1.3 line in
+/// the file.
+#[must_use]
+pub fn vsftpd_tls_version_keys() -> VsftpdTlsVersionKeys {
+    VsftpdTlsVersionKeys {
+        tls_v1: "ssl_tlsv1",
+        tls_v1_1: "ssl_tlsv1_1",
+        tls_v1_2: "ssl_tlsv1_2",
+    }
+}
+
 /// Absolute path of `useradd`, for the process-execution allow-list.
 ///
 /// RHEL's `shadow-utils` package installs the suite in `/usr/sbin`, the same
@@ -182,6 +233,17 @@ pub fn userdel_binary() -> &'static str {
 #[must_use]
 pub fn usermod_binary() -> &'static str {
     "/usr/sbin/usermod"
+}
+
+/// Absolute path of `pkill`, for the process-execution allow-list.
+///
+/// From the `procps-ng` package — a different package name from the Debian
+/// family's `procps` for the same tool, which is the whole reason this is a
+/// per-family answer and not a shared constant, even though the two families
+/// install it at the same path today.
+#[must_use]
+pub fn pkill_binary() -> &'static str {
+    "/usr/bin/pkill"
 }
 
 /// Absolute path of `passwd`, for the process-execution allow-list.

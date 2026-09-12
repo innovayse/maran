@@ -8,14 +8,20 @@ use maran_agent_core::validation::system::name::AccountName;
 use maran_agent_core::validation::web::php_version::PhpVersion;
 
 use crate::php::fake_php_host::{FakePhpHost, distro, pool_input};
-use crate::php::write_pool;
+use crate::php::write_pool::write_pool_under_lock;
 use crate::sites::SitesOpError;
 use crate::sites::remove_site_pool::remove_site_pool;
+
+// The pool these cases remove is seeded through `write_pool_under_lock` rather
+// than `write_pool`: the public entry takes the account's lock, and the php
+// area's own fixture account (`acme`) is shared with every other case that
+// seeds a pool this way. What is under test here is the removal, not the
+// exclusion — the exclusion has its own cases in `php::write_pool`'s tests.
 
 #[test]
 fn the_pool_is_removed_for_the_account_and_version_the_caller_named() {
     let host = FakePhpHost::with_installed(&["8.3"]);
-    write_pool(&host, distro(), &pool_input(Vec::new())).unwrap();
+    write_pool_under_lock(&host, distro(), &pool_input(Vec::new())).unwrap();
 
     remove_site_pool(
         &host,
@@ -36,7 +42,7 @@ fn the_php_areas_refusal_is_reported_as_this_areas_own() {
     // A caller in the sites area must not have to follow a chain of `#[from]`s
     // into another area to find out what happened.
     let host = FakePhpHost::with_installed(&["8.3"]);
-    write_pool(&host, distro(), &pool_input(Vec::new())).unwrap();
+    write_pool_under_lock(&host, distro(), &pool_input(Vec::new())).unwrap();
     host.reject_validation("php-fpm says no");
 
     let refusal = remove_site_pool(

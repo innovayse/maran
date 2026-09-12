@@ -8,7 +8,7 @@ use crate::sites::model::log_tail_request::LogTailRequest;
 use crate::sites::model::site_log_kind::SiteLogKind;
 use crate::sites::model::site_paths::SitePaths;
 use crate::sites::model::tail_end::TailEnd;
-use crate::sites::{SiteHost, SiteMaintenanceHost, SitesOpError};
+use crate::sites::{SiteMaintenanceHost, SitesOpError};
 
 /// The most historical lines a tail will ever send, whatever was asked for.
 ///
@@ -41,46 +41,59 @@ pub const MAXIMUM_HISTORY_LINES: u32 = 1000;
 /// allows; the follow stops when the sink refuses a line, when it reports
 /// nobody is listening, or when it has been idle too long.
 ///
-/// The log directory is resolved inside the account's home and handed to the
-/// host as a directory to hold open, with the file named separately by
-/// [`SitePaths`]: no request can name a path, and no swap of the `logs`
-/// directory can redirect a tail that is already running.
+/// The log directory is `/var/log/maran/sites/<account>` — **outside every
+/// home** — and is handed to the host as a directory to hold open, with the
+/// file named separately by [`SitePaths`]: no request can name a path, and no
+/// swap of an intermediate component can redirect a tail that is already
+/// running.
+///
+/// There is no `resolve_in_home` call here any more, and its absence is the
+/// point rather than an omission. These files used to live in the account's
+/// home, where the containment that mattered was "is this still inside the
+/// home?"; the root nginx master opened them there without `O_NOFOLLOW`, which
+/// a customer turned into root code execution with one `ln -s`
+/// (`docs/superpowers/notes/2026-09-09-site-logs-threat-note.md`). Their
+/// containment now comes from an ancestor chain no unprivileged uid can write
+/// to or traverse — `/var/log/maran` is `root:maran 0750`,
+/// `/var/log/maran/sites` and each account's directory below it are `root:root
+/// 0750` — so asking whether the path is inside a home would answer a question
+/// nobody is asking. What the host still does, unchanged, is pin the directory
+/// descriptor and prove ownership and file kind on the inode; those checks now
+/// guard ROOT's files.
 ///
 /// # Errors
 ///
-/// Returns [`SitesOpError::UnsafeDocumentRoot`] when the account's log
-/// directory is gone or no longer resolves inside its home, and
-/// [`SitesOpError::LogUnreadable`] when the log is not a regular file the
-/// account owns, or cannot be read.
-pub fn tail_site_log<H>(
-    host: &H,
+/// Returns [`SitesOpError::LogUnreadable`] when the log directory is missing or
+/// is not a directory root owns, and when the log is not a regular file root
+/// owns with a single link, or cannot be read.
+pub fn tail_site_log(
+    host: &dyn SiteMaintenanceHost,
     account: &AccountName,
     domain: &Domain,
     kind: SiteLogKind,
     history_lines: u32,
     sink: &mut dyn LogSink,
-) -> Result<TailEnd, SitesOpError>
-where
-    // One host and two seams, because tailing needs both halves: the
-    // containment check that `SiteHost` owns, and the read that
-    // `SiteMaintenanceHost` owns. A `&dyn` cannot name two traits, so this is
-    // generic rather than a pair of parameters the caller could pass two
-    // different hosts to.
-    H: SiteHost + SiteMaintenanceHost + ?Sized,
-{
+) -> Result<TailEnd, SitesOpError> {
+    // One seam, not two. This used to be generic over `SiteHost +
+    // SiteMaintenanceHost` because the tail needed the home-containment check
+    // that `SiteHost` owns as well as the read that `SiteMaintenanceHost` owns.
+    // The logs are no longer in a home, so the containment check is gone and
+    // with it the reason to name two traits — and a bound nothing uses is worse
+    // than none, because it tells the next reader this function reaches the
+    // filesystem in a way it no longer does.
     let named = SitePaths::for_site(account, domain);
     let log = match kind {
         SiteLogKind::Access => named.access_log,
         SiteLogKind::Error => named.error_log,
     };
 
-    // Resolved as a directory rather than as the file: a site that has served
-    // no request yet has no access log, and requiring the file to exist would
-    // make "no traffic" indistinguishable from "path escaped the home". The
-    // host holds this directory OPEN for the life of the tail and reaches the
-    // log through that descriptor, which is what stops the path being swapped
+    // Named as a directory rather than as the file: a site that has served no
+    // request yet has no access log, and requiring the file to exist would make
+    // "no traffic" indistinguishable from a path the host must refuse. The host
+    // holds this directory OPEN for the life of the tail and reaches the log
+    // through that descriptor, which is what stops the path being swapped
     // between two polls.
-    let directory = host.resolve_in_account_home(account, &SitePaths::log_directory_in_home())?;
+    let directory = SitePaths::log_directory_for(account);
 
     let file_name = match log.file_name() {
         Some(name) => name.to_owned(),
@@ -96,7 +109,6 @@ where
 
     host.tail_log(
         &LogTailRequest {
-            account: account.clone(),
             directory,
             file_name,
             // Clamped HERE and not in the service, so the ceiling cannot be

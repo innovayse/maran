@@ -96,10 +96,45 @@ fn code_of(error: &BackupError) -> i32 {
 }
 
 #[test]
-fn a_repeated_creation_and_a_busy_account_are_already_exists() {
-    for error in [BackupError::AlreadyExists, BackupError::AlreadyRunning] {
-        assert_eq!(code_of(&error), ErrorCode::AlreadyExists as i32);
-    }
+fn a_repeated_creation_is_already_exists() {
+    assert_eq!(
+        code_of(&BackupError::AlreadyExists),
+        ErrorCode::AlreadyExists as i32
+    );
+}
+
+#[test]
+fn an_account_another_operation_is_holding_is_busy_and_never_already_exists() {
+    // These two used to be asserted together as ALREADY_EXISTS, which made one
+    // code mean two things. ALREADY_EXISTS is the idempotency outcome: the
+    // archive is there, treat the creation as done. AlreadyRunning is the
+    // account's lock being held BEFORE anything was dumped, so a caller that
+    // read it as the idempotency outcome would mark a backup complete that was
+    // never taken.
+    assert_eq!(
+        code_of(&BackupError::AlreadyRunning),
+        ErrorCode::AccountBusy as i32
+    );
+    assert_ne!(
+        code_of(&BackupError::AlreadyRunning),
+        code_of(&BackupError::AlreadyExists),
+        "a refusal that dumped nothing and an archive that is already there \
+         must not be one code"
+    );
+}
+
+#[test]
+fn a_busy_account_and_a_genuine_fault_of_this_host_are_different_codes() {
+    // The inverse control: a dump this host could not take must still read as a
+    // fault, or the busy code above was bought by relabelling the area.
+    assert_eq!(
+        code_of(&BackupError::DumpFailed { status: 2 }),
+        ErrorCode::SystemFailure as i32
+    );
+    assert_ne!(
+        code_of(&BackupError::AlreadyRunning),
+        code_of(&BackupError::DumpFailed { status: 2 })
+    );
 }
 
 #[test]

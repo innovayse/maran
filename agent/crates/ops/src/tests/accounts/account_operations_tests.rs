@@ -24,14 +24,24 @@ use crate::accounts::{
     AccountError, AccountOperations, CommandOutcome, StoredPassword, SystemHost,
 };
 use std::path::Path;
+use std::sync::Arc;
 
+use crate::accounts::account_lock::take_account_lock;
+use crate::cron::cron_lock::cron_lock;
 use crate::cron::recording_cron_host::RecordingCronHost;
 use crate::db::create_database;
 use crate::db::fake_db_host::FakeDbHost;
 use crate::db::model::create_database_request::CreateDatabaseRequest;
+use crate::ftps::fake_ftps_host::FakeFtpsHost;
 use crate::php::fake_php_host::FakePhpHost;
 use crate::php::model::pool_input::PoolInput;
-use crate::php::write_pool;
+// The pools these cases seed are written through the under-lock entry: the
+// public `write_pool` takes the account's lock, and every case here that seeds
+// one does it for this file's shared fixture name. What is under test is the
+// deletion's sweep, not the exclusion — the exclusion has its own cases, each
+// with its own account name.
+use crate::logins::fake_logins_host::FakeLoginsHost;
+use crate::php::write_pool::write_pool_under_lock;
 use crate::sftp::fake_sftp_host::FakeSftpHost;
 use crate::sftp::model::account_jail::AccountJail;
 use crate::sites::disable_site;
@@ -61,6 +71,13 @@ struct RecordingHost {
     shadow: Mutex<Option<String>>,
     stderr: Mutex<String>,
     size: u64,
+    /// How many times the host has been asked whether a user exists.
+    ///
+    /// Counted because the deletion asks TWICE — once at the start and once
+    /// immediately before `userdel` — and `user_exists` is a trait method
+    /// rather than a spawn, so the recorded argv cannot see it. A test that
+    /// asserted on the argv would be blind to exactly the check it is about.
+    existence_questions: Mutex<usize>,
 }
 
 impl RecordingHost {
@@ -73,6 +90,7 @@ impl RecordingHost {
             shadow: Mutex::new(None),
             stderr: Mutex::new("refused\n".to_owned()),
             size: 0,
+            existence_questions: Mutex::new(0),
         }
     }
 
@@ -132,6 +150,14 @@ impl RecordingHost {
         self.recording.calls()
     }
 
+    /// How many times this host was asked whether a user exists.
+    fn existence_questions(&self) -> usize {
+        *self
+            .existence_questions
+            .lock()
+            .expect("the fixture lock is never poisoned")
+    }
+
     fn called(&self, program: &str) -> Vec<Vec<String>> {
         self.recording.calls_to(program)
     }
@@ -180,6 +206,10 @@ impl SystemHost for RecordingHost {
     }
 
     fn user_exists(&self, username: &str) -> Result<bool, AccountError> {
+        *self
+            .existence_questions
+            .lock()
+            .expect("the fixture lock is never poisoned") += 1;
         Ok(self
             .existing
             .lock()
@@ -212,8 +242,27 @@ fn no_databases() -> FakeDbHost {
 }
 
 /// A host this account has no SFTP login, jail or mount unit on.
+/// A password database holding the test account and no login of any protocol.
+///
+/// The account's OWN row and not an empty database: the enumeration reads the
+/// account's uid from it, and a host that does not hold the account is a
+/// refusal rather than an empty answer.
+fn quiet_logins_host() -> FakeLoginsHost {
+    FakeLoginsHost::with_passwd(&[("acme", 1001, "/home/acme")])
+}
+
 fn no_sftp() -> FakeSftpHost {
     FakeSftpHost::new()
+}
+
+/// A host this account has no FTPS login, jail or mount unit on.
+///
+/// The ordinary state of a host that never enabled FTPS, which is what makes
+/// the new cascade step a no-op in every test that is not about it: the
+/// enumeration answers an empty list and the jail teardown finds no unit file,
+/// so nothing is asked of the service manager.
+fn no_ftps() -> FakeFtpsHost {
+    FakeFtpsHost::for_account(name().as_str(), 1001, 1001)
 }
 
 #[test]
@@ -270,25 +319,33 @@ fn creating_an_account_that_already_exists_is_refused_and_touches_nothing() {
 }
 
 #[test]
-fn a_useradd_that_refuses_is_reported_with_its_own_stderr() {
+fn a_useradd_that_refuses_is_reported_by_program_and_status_and_carries_no_tool_output() {
     let operations = debian(RecordingHost::new().failing_next(9));
 
     let error = operations
         .create(&name(), 0)
         .expect_err("a refusing useradd fails");
 
-    match error {
-        AccountError::CommandFailed {
-            program,
-            status,
-            stderr,
-        } => {
-            assert_eq!(program, tool_path(&operations, "useradd"));
-            assert_eq!(status, 9);
-            assert_eq!(stderr, "refused");
+    match &error {
+        AccountError::CommandFailed { program, status } => {
+            assert_eq!(*program, tool_path(&operations, "useradd"));
+            assert_eq!(*status, 9);
         }
         other => panic!("expected a command failure, got {other:?}"),
     }
+
+    // The other half of the seam, and the half a shape change could silently
+    // lose: the tool's own words must not be anywhere in what crosses to the
+    // panel. `RecordingHost` puts `refused` on standard error, so there is a
+    // string to find if the error carried one.
+    assert!(
+        !format!("{error}").contains("refused"),
+        "the tool's stderr reached the error's Display: {error}"
+    );
+    assert!(
+        !format!("{error:?}").contains("refused"),
+        "the tool's stderr reached the error's Debug: {error:?}"
+    );
 }
 
 #[test]
@@ -526,7 +583,7 @@ fn a_locked_login_is_observed_as_locked_rather_than_assumed_from_the_suspend_cal
         .suspension_state(
             &FakeSiteHost::passing(),
             &quiet_cron_host(),
-            &FakeSftpHost::new(),
+            &quiet_logins_host(),
             &name(),
         )
         .expect("the state is readable");
@@ -567,7 +624,7 @@ fn the_rhel_familys_own_spelling_of_a_locked_password_is_recognised() {
         .suspension_state(
             &FakeSiteHost::passing(),
             &quiet_cron_host(),
-            &FakeSftpHost::new(),
+            &quiet_logins_host(),
             &name(),
         )
         .expect("the state is readable");
@@ -594,7 +651,7 @@ fn the_rhel_familys_own_spelling_of_a_usable_password_is_not_read_as_locked() {
         .suspension_state(
             &FakeSiteHost::passing(),
             &quiet_cron_host(),
-            &FakeSftpHost::new(),
+            &quiet_logins_host(),
             &name(),
         )
         .expect("the state is readable");
@@ -616,7 +673,7 @@ fn a_login_with_a_usable_password_is_not_reported_as_locked() {
         .suspension_state(
             &FakeSiteHost::passing(),
             &quiet_cron_host(),
-            &FakeSftpHost::new(),
+            &quiet_logins_host(),
             &name(),
         )
         .expect("the state is readable");
@@ -642,7 +699,7 @@ fn a_login_with_no_password_at_all_is_not_reported_as_locked() {
         .suspension_state(
             &FakeSiteHost::passing(),
             &quiet_cron_host(),
-            &FakeSftpHost::new(),
+            &quiet_logins_host(),
             &name(),
         )
         .expect("the state is readable");
@@ -665,7 +722,7 @@ fn a_password_status_line_naming_another_login_is_refused_rather_than_believed()
         .suspension_state(
             &FakeSiteHost::passing(),
             &quiet_cron_host(),
-            &FakeSftpHost::new(),
+            &quiet_logins_host(),
             &name(),
         )
         .expect_err("a line about another login says nothing about this one");
@@ -685,7 +742,7 @@ fn a_password_status_that_cannot_be_read_is_an_error_and_never_an_open_login() {
         .suspension_state(
             &FakeSiteHost::passing(),
             &quiet_cron_host(),
-            &FakeSftpHost::new(),
+            &quiet_logins_host(),
             &name(),
         )
         .expect_err("an unreadable status line is not an answer");
@@ -701,7 +758,7 @@ fn the_suspension_state_of_an_account_that_does_not_exist_is_not_found() {
         .suspension_state(
             &FakeSiteHost::passing(),
             &quiet_cron_host(),
-            &FakeSftpHost::new(),
+            &quiet_logins_host(),
             &name(),
         )
         .expect_err("there is no such account");
@@ -718,7 +775,14 @@ fn the_suspension_state_carries_the_sites_the_host_actually_serves() {
             .with_shadow_field("!"),
     );
     let site_host = FakeSiteHost::passing();
-    let input = php_input();
+    // The site is created for THIS FILE's fixture account rather than for the
+    // site fixtures' per-case one, because the state being read is that
+    // account's and every line the recording host answers with names it. That
+    // makes this the one case in the workspace that writes a pool for `acme`
+    // through the locking entry point, which is safe precisely because it is
+    // the only one: two would refuse each other on the harness's own threads.
+    let mut input = php_input();
+    input.account = name();
     create_test_site(&site_host, &input).expect("the site is created");
     disable_site(&site_host, site_distro(), &input).expect("the site is disabled");
 
@@ -726,7 +790,7 @@ fn the_suspension_state_carries_the_sites_the_host_actually_serves() {
         .suspension_state(
             &site_host,
             &quiet_cron_host(),
-            &FakeSftpHost::new(),
+            &quiet_logins_host(),
             &name(),
         )
         .expect("the state is readable");
@@ -758,7 +822,13 @@ fn deleting_removes_the_home_tree_and_reports_what_it_freed() {
     let operations = debian(RecordingHost::new().with_user("acme").with_size(4096));
 
     let freed = operations
-        .delete(&FakePhpHost::empty(), &no_databases(), &no_sftp(), &name())
+        .delete_under_lock(
+            &FakePhpHost::empty(),
+            &no_databases(),
+            &no_sftp(),
+            &no_ftps(),
+            &name(),
+        )
         .expect("deletion succeeds");
 
     assert_eq!(freed, 4096);
@@ -963,7 +1033,7 @@ fn deleting_an_account_takes_its_php_pools_with_it() {
     // took PHP down for every tenant on the server at the next unrelated
     // reload, hours or days later.
     let php_host = FakePhpHost::with_installed(&["8.3"]);
-    write_pool(
+    write_pool_under_lock(
         &php_host,
         adapter_for(DistroFamily::Debian),
         &PoolInput {
@@ -977,7 +1047,7 @@ fn deleting_an_account_takes_its_php_pools_with_it() {
     let operations = debian(RecordingHost::new().with_user("acme"));
 
     operations
-        .delete(&php_host, &no_databases(), &no_sftp(), &name())
+        .delete_under_lock(&php_host, &no_databases(), &no_sftp(), &no_ftps(), &name())
         .expect("deletion succeeds");
 
     assert!(
@@ -1005,7 +1075,7 @@ fn a_pool_that_cannot_be_removed_stops_the_deletion_rather_than_orphaning_the_po
     // account that is gone with its pool left behind cannot be repaired by any
     // operation this agent has.
     let php_host = FakePhpHost::with_installed(&["8.3"]);
-    write_pool(
+    write_pool_under_lock(
         &php_host,
         adapter_for(DistroFamily::Debian),
         &PoolInput {
@@ -1019,7 +1089,8 @@ fn a_pool_that_cannot_be_removed_stops_the_deletion_rather_than_orphaning_the_po
     php_host.reject_validation("php-fpm will not have it");
     let operations = debian(RecordingHost::new().with_user("acme"));
 
-    let refusal = operations.delete(&php_host, &no_databases(), &no_sftp(), &name());
+    let refusal =
+        operations.delete_under_lock(&php_host, &no_databases(), &no_sftp(), &no_ftps(), &name());
 
     assert!(
         matches!(refusal, Err(AccountError::PoolRemoval { .. })),
@@ -1040,7 +1111,7 @@ fn deleting_an_account_that_never_ran_php_reloads_nothing() {
     let operations = debian(RecordingHost::new().with_user("acme"));
 
     operations
-        .delete(&php_host, &no_databases(), &no_sftp(), &name())
+        .delete_under_lock(&php_host, &no_databases(), &no_sftp(), &no_ftps(), &name())
         .expect("deletion succeeds");
 
     assert_eq!(php_host.removals(), 0);
@@ -1092,7 +1163,13 @@ fn deleting_an_account_takes_its_databases_with_it() {
     let operations = debian(RecordingHost::new().with_user("acme"));
 
     operations
-        .delete(&FakePhpHost::empty(), &db_host, &no_sftp(), &name())
+        .delete_under_lock(
+            &FakePhpHost::empty(),
+            &db_host,
+            &no_sftp(),
+            &no_ftps(),
+            &name(),
+        )
         .expect("deletion succeeds");
 
     assert!(db_host.databases().is_empty());
@@ -1109,7 +1186,13 @@ fn a_database_that_cannot_be_dropped_stops_the_deletion_rather_than_orphaning_it
     let db_host = FakeDbHost::failing_with(2013, "Lost connection to server");
     let operations = debian(RecordingHost::new().with_user("acme"));
 
-    let refusal = operations.delete(&FakePhpHost::empty(), &db_host, &no_sftp(), &name());
+    let refusal = operations.delete_under_lock(
+        &FakePhpHost::empty(),
+        &db_host,
+        &no_sftp(),
+        &no_ftps(),
+        &name(),
+    );
 
     assert!(
         matches!(refusal, Err(AccountError::DatabaseRemoval { .. })),
@@ -1130,7 +1213,13 @@ fn deleting_an_account_takes_its_sftp_logins_and_its_jail_with_it() {
     let operations = debian(RecordingHost::new().with_user("acme"));
 
     operations
-        .delete(&FakePhpHost::empty(), &no_databases(), &sftp_host, &name())
+        .delete_under_lock(
+            &FakePhpHost::empty(),
+            &no_databases(),
+            &sftp_host,
+            &no_ftps(),
+            &name(),
+        )
         .expect("deletion succeeds");
 
     assert!(sftp_host.users().is_empty());
@@ -1151,7 +1240,13 @@ fn a_jail_that_cannot_be_taken_down_stops_the_deletion_before_userdel_removes_th
     let sftp_host = sftp_of_acme().refuse_removal_of(acme_jail().mount_point());
     let operations = debian(RecordingHost::new().with_user("acme"));
 
-    let refusal = operations.delete(&FakePhpHost::empty(), &no_databases(), &sftp_host, &name());
+    let refusal = operations.delete_under_lock(
+        &FakePhpHost::empty(),
+        &no_databases(),
+        &sftp_host,
+        &no_ftps(),
+        &name(),
+    );
 
     assert!(
         matches!(refusal, Err(AccountError::SftpRemoval { .. })),
@@ -1160,6 +1255,170 @@ fn a_jail_that_cannot_be_taken_down_stops_the_deletion_before_userdel_removes_th
     assert!(
         operations_calls(&operations, "userdel").is_empty(),
         "userdel must NOT have run while the account's home is still mounted into its jail"
+    );
+}
+
+/// A host holding this account's FTPS login, jail, mount unit and a live bind
+/// mount.
+fn ftps_of_acme() -> FakeFtpsHost {
+    FakeFtpsHost::for_account(name().as_str(), 1001, 1001)
+        .with_jail_still_mounted()
+        .with_existing_login("acme_files")
+}
+
+#[test]
+fn deleting_an_account_takes_its_ftps_logins_and_its_jail_with_it() {
+    // The second daemon's half of the same claim. `userdel` touches vsftpd no
+    // more than it touches sshd: an FTPS login is a `--non-unique` passwd entry
+    // carrying the account's uid, its jail holds a bind mount of the account's
+    // home, and its unit re-establishes that mount on every boot. Left behind,
+    // all three are inherited by a re-created account of the same name.
+    let ftps_host = ftps_of_acme();
+    let operations = debian(RecordingHost::new().with_user("acme"));
+
+    operations
+        .delete_under_lock(
+            &FakePhpHost::empty(),
+            &no_databases(),
+            &no_sftp(),
+            &ftps_host,
+            &name(),
+        )
+        .expect("deletion succeeds");
+
+    assert!(ftps_host.login_names().is_empty());
+    assert!(!ftps_host.is_mounted());
+    assert!(!ftps_host.directory_still_exists(ftps_host.jail().directory()));
+    assert!(!ftps_host.unit_file_exists(ftps_host.jail().unit_path()));
+}
+
+#[test]
+fn an_ftps_jail_that_cannot_be_taken_down_stops_the_deletion_before_userdel_removes_the_home() {
+    // The order proven rather than asserted, half one: the FTPS step runs BEFORE
+    // `userdel`. A step that ran after `userdel` could not prevent it, so a
+    // refusal here that leaves the account standing is a fact about the order
+    // and not a timeline three separate fakes have no shared clock to record.
+    let ftps_host = ftps_of_acme().with_a_mount_that_will_not_come_down();
+    let operations = debian(RecordingHost::new().with_user("acme"));
+
+    let refusal = operations.delete_under_lock(
+        &FakePhpHost::empty(),
+        &no_databases(),
+        &no_sftp(),
+        &ftps_host,
+        &name(),
+    );
+
+    assert!(
+        matches!(refusal, Err(AccountError::FtpsRemoval { .. })),
+        "expected FtpsRemoval — its own variant, so an operator is not sent to \
+         look under the SFTP jail root while a vsftpd mount is what is still \
+         up — got {refusal:?}"
+    );
+    assert!(
+        operations_calls(&operations, "userdel").is_empty(),
+        "userdel must NOT have run while the account's home is still bind-mounted \
+         into its FTPS jail: --remove would delete the customer's files from \
+         inside that mount"
+    );
+}
+
+#[test]
+fn the_sftp_teardown_still_runs_and_runs_before_the_ftps_one() {
+    // The order proven rather than asserted, half two: the FTPS step is added
+    // AFTER the SFTP one and neither replaces the other. The SFTP host is made
+    // to refuse, and what is asserted is that the FTPS host was never asked
+    // anything — a question it could only have been asked before the refusal.
+    let sftp_host = sftp_of_acme().refuse_removal_of(acme_jail().mount_point());
+    let ftps_host = ftps_of_acme();
+    let operations = debian(RecordingHost::new().with_user("acme"));
+
+    let refusal = operations.delete_under_lock(
+        &FakePhpHost::empty(),
+        &no_databases(),
+        &sftp_host,
+        &ftps_host,
+        &name(),
+    );
+
+    assert!(
+        matches!(refusal, Err(AccountError::SftpRemoval { .. })),
+        "expected SftpRemoval, got {refusal:?}"
+    );
+    assert_eq!(
+        ftps_host.login_enumerations(),
+        0,
+        "the FTPS teardown must not have started: it comes after the SFTP one"
+    );
+    assert_eq!(
+        ftps_host.login_names(),
+        vec!["acme_files".to_owned()],
+        "and nothing of the account's FTPS resources was touched"
+    );
+}
+
+#[test]
+fn an_ftps_teardown_that_refuses_leaves_the_sftp_teardown_already_done() {
+    // The other side of the same subsequence, and the reason it is asserted
+    // separately: a cascade that had REPLACED the SFTP step with the FTPS one
+    // would pass every assertion above. Here the FTPS step refuses, and what is
+    // asserted is that the SFTP teardown has already happened by then.
+    let sftp_host = sftp_of_acme();
+    let ftps_host = ftps_of_acme().with_a_mount_that_will_not_come_down();
+    let operations = debian(RecordingHost::new().with_user("acme"));
+
+    let refusal = operations.delete_under_lock(
+        &FakePhpHost::empty(),
+        &no_databases(),
+        &sftp_host,
+        &ftps_host,
+        &name(),
+    );
+
+    assert!(
+        matches!(refusal, Err(AccountError::FtpsRemoval { .. })),
+        "expected FtpsRemoval, got {refusal:?}"
+    );
+    assert!(
+        sftp_host.users().is_empty(),
+        "the SFTP teardown must still run, and must run first"
+    );
+    assert!(
+        sftp_host.paths().is_empty(),
+        "including its jail and unit: {:?}",
+        sftp_host.paths()
+    );
+}
+
+#[test]
+fn an_account_with_no_ftps_at_all_is_deleted_without_the_new_step_refusing() {
+    // The inverse control the whole set needs. Every test above feeds the new
+    // step something to remove or something to refuse over; this one feeds it
+    // the ordinary host — FTPS never enabled, no jail, no unit, no login — and
+    // requires the deletion to succeed. Without it, a teardown mutated to refuse
+    // unconditionally would pass every assertion above.
+    let ftps_host = FakeFtpsHost::for_account(name().as_str(), 1001, 1001);
+    let operations = debian(RecordingHost::new().with_user("acme"));
+
+    operations
+        .delete_under_lock(
+            &FakePhpHost::empty(),
+            &no_databases(),
+            &no_sftp(),
+            &ftps_host,
+            &name(),
+        )
+        .expect("an account with no FTPS must still be deletable");
+
+    assert_eq!(
+        ftps_host.login_enumerations(),
+        1,
+        "the step really ran: it asked the host what the account held"
+    );
+    assert_eq!(
+        operations_calls(&operations, "userdel").len(),
+        1,
+        "and the deletion reached userdel"
     );
 }
 
@@ -1199,11 +1458,17 @@ fn every_program_the_accounts_area_runs_is_named_by_an_absolute_path() {
     let _ = existing.suspension_state(
         &FakeSiteHost::passing(),
         &quiet_cron_host(),
-        &FakeSftpHost::new(),
+        &quiet_logins_host(),
         &name(),
     );
     existing
-        .delete(&FakePhpHost::empty(), &no_databases(), &no_sftp(), &name())
+        .delete_under_lock(
+            &FakePhpHost::empty(),
+            &no_databases(),
+            &no_sftp(),
+            &no_ftps(),
+            &name(),
+        )
         .expect("deletion succeeds");
 
     let mut calls = creating.host().calls();
@@ -1234,7 +1499,13 @@ fn deleting_an_account_takes_its_crontab_with_it_before_userdel_runs() {
     let operations = debian(RecordingHost::new().with_user("acme"));
 
     operations
-        .delete(&FakePhpHost::empty(), &no_databases(), &no_sftp(), &name())
+        .delete_under_lock(
+            &FakePhpHost::empty(),
+            &no_databases(),
+            &no_sftp(),
+            &no_ftps(),
+            &name(),
+        )
         .expect("deletion succeeds");
 
     assert_eq!(
@@ -1282,7 +1553,13 @@ fn an_account_that_never_had_a_crontab_is_still_deleted() {
     );
 
     operations
-        .delete(&FakePhpHost::empty(), &no_databases(), &no_sftp(), &name())
+        .delete_under_lock(
+            &FakePhpHost::empty(),
+            &no_databases(),
+            &no_sftp(),
+            &no_ftps(),
+            &name(),
+        )
         .expect("an account with no crontab is deleted normally");
 
     assert!(
@@ -1299,17 +1576,18 @@ fn a_crontab_that_cannot_be_removed_stops_the_deletion_before_userdel() {
     // repaired by any operation this agent has — nothing points at it any more.
     let operations = debian(RecordingHost::new().with_user("acme").failing_next(15));
 
-    let refusal = operations.delete(&FakePhpHost::empty(), &no_databases(), &no_sftp(), &name());
+    let refusal = operations.delete_under_lock(
+        &FakePhpHost::empty(),
+        &no_databases(),
+        &no_sftp(),
+        &no_ftps(),
+        &name(),
+    );
 
     match refusal {
-        Err(AccountError::CommandFailed {
-            program,
-            status,
-            stderr,
-        }) => {
+        Err(AccountError::CommandFailed { program, status }) => {
             assert_eq!(program, tool_path(&operations, "crontab"));
             assert_eq!(status, 15);
-            assert_eq!(stderr, "refused");
         }
         other => panic!("expected a refusing crontab to fail the deletion, got {other:?}"),
     }
@@ -1334,7 +1612,13 @@ fn the_absent_crontab_sentence_is_believed_only_on_the_stream_the_account_cannot
             .failing_next(1),
     );
 
-    let refusal = operations.delete(&FakePhpHost::empty(), &no_databases(), &no_sftp(), &name());
+    let refusal = operations.delete_under_lock(
+        &FakePhpHost::empty(),
+        &no_databases(),
+        &no_sftp(),
+        &no_ftps(),
+        &name(),
+    );
 
     assert!(
         matches!(refusal, Err(AccountError::CommandFailed { .. })),
@@ -1354,4 +1638,203 @@ fn the_absent_crontab_sentence_is_believed_only_on_the_stream_the_account_cannot
 /// the state every account has before the panel installs anything.
 fn quiet_cron_host() -> RecordingCronHost {
     RecordingCronHost::new()
+}
+
+/// The lock a deletion refuses on, taken for an account no other test names.
+///
+/// Its own name because the registry is process-wide and cargo runs these
+/// tests on several threads at once: a lock test that used `acme` would refuse
+/// whichever of the dozen other deletion tests happened to be running, and the
+/// flake would say nothing about the code.
+fn contended() -> AccountName {
+    AccountName::parse("deletecontended").expect("the fixture name is valid")
+}
+
+#[test]
+fn a_deletion_is_refused_while_another_operation_holds_the_accounts_lock() {
+    // C-4: a restore of this account is exactly the other holder, and before
+    // this the deletion did not contend for that lock at all — it ran between
+    // the restore's two renames, `userdel --remove` succeeded, and the restore
+    // then recreated the home chowned to a uid the host was free to hand to
+    // somebody else.
+    let held = take_account_lock(&contended()).expect("the lock is free at the start of this test");
+    let operations = debian(RecordingHost::new().with_user(contended().as_str()));
+
+    let refusal = operations.delete(
+        &FakePhpHost::empty(),
+        &no_databases(),
+        &no_sftp(),
+        &no_ftps(),
+        &contended(),
+    );
+
+    assert!(
+        matches!(refusal, Err(AccountError::Busy { ref username }) if username == "deletecontended"),
+        "expected Busy, got {refusal:?}"
+    );
+    assert!(
+        operations_calls(&operations, "userdel").is_empty(),
+        "userdel must not have run: the deletion never started"
+    );
+    drop(held);
+}
+
+#[test]
+fn a_deletion_that_finished_leaves_the_accounts_lock_free_for_the_next_one() {
+    // The inverse control the refusal above needs. A guard that leaked would
+    // make the assertion above pass forever and every later deletion of that
+    // account impossible, which is a worse defect than the one being fixed.
+    let account = AccountName::parse("deletereleases").expect("the fixture name is valid");
+    let operations = debian(RecordingHost::new().with_user(account.as_str()));
+
+    operations
+        .delete(
+            &FakePhpHost::empty(),
+            &no_databases(),
+            &no_sftp(),
+            &no_ftps(),
+            &account,
+        )
+        .expect("deletion succeeds");
+
+    assert!(
+        take_account_lock(&account).is_some(),
+        "the deletion held the account's lock after returning"
+    );
+}
+
+#[test]
+fn the_account_is_confirmed_to_still_exist_immediately_before_userdel() {
+    // The check-then-act closure. The first lookup is several process spawns
+    // old by the time `userdel --remove` runs — a database drop, an SFTP
+    // teardown with a `systemctl` call in it, a crontab removal and a pool
+    // sweep — and a validated `AccountName` proves the name is well formed,
+    // never that the account is still there.
+    let account = AccountName::parse("deleterecheck").expect("the fixture name is valid");
+    let operations = debian(RecordingHost::new().with_user(account.as_str()));
+
+    operations
+        .delete(
+            &FakePhpHost::empty(),
+            &no_databases(),
+            &no_sftp(),
+            &no_ftps(),
+            &account,
+        )
+        .expect("deletion succeeds");
+
+    assert_eq!(
+        operations.host().existence_questions(),
+        2,
+        "the deletion must confirm the account twice: once at the start and once before userdel"
+    );
+}
+
+#[test]
+fn the_pool_sweep_runs_after_the_crontab_and_before_userdel() {
+    // Its position is what it is for. A pool written by another operation
+    // AFTER this sweep survives `userdel` naming a user that no longer
+    // resolves, and the next `php-fpm -t` — any tenant's, days later —
+    // refuses, so the master will not reload or start. Sweeping last is what
+    // makes that window one process spawn wide instead of three.
+    //
+    // Observed by making the sweep refuse: the crontab removal is recorded on
+    // this host and the pool removal is not, so a refusal that already has a
+    // `crontab` call behind it and no `userdel` in front of it pins the sweep
+    // between them. Asserting the two orders directly is not possible — they
+    // are recorded by two different fakes with no shared clock — and a test
+    // that pretended otherwise would be reporting on something it cannot see.
+    let account = AccountName::parse("deletepoolorder").expect("the fixture name is valid");
+    let php_host = FakePhpHost::with_installed(&["8.3"]);
+    write_pool_under_lock(
+        &php_host,
+        adapter_for(DistroFamily::Debian),
+        &PoolInput {
+            account: account.clone(),
+            version: PhpVersion::parse("8.3").expect("a supported version"),
+            max_children: 5,
+            overrides: Vec::new(),
+        },
+    )
+    .expect("the fixture pool is written");
+    php_host.reject_validation("php-fpm will not have it");
+    let operations = debian(RecordingHost::new().with_user(account.as_str()));
+
+    let refusal = operations.delete(&php_host, &no_databases(), &no_sftp(), &no_ftps(), &account);
+
+    assert!(
+        matches!(refusal, Err(AccountError::PoolRemoval { .. })),
+        "expected PoolRemoval, got {refusal:?}"
+    );
+    assert!(
+        !operations_calls(&operations, "crontab").is_empty(),
+        "the crontab must already have been removed when the pool sweep refused"
+    );
+    assert!(
+        operations_calls(&operations, "userdel").is_empty(),
+        "userdel must not have run: the account stays, which is the state that can be retried"
+    );
+}
+
+#[test]
+fn a_deletion_waits_for_the_accounts_crontab_lock_before_removing_its_table() {
+    // The seventh writer of a crontab, and the only one outside `ops::cron`.
+    // Without this, a crontab install landing between the deletion's removal
+    // and its `userdel` re-creates a spool for an account that is about to
+    // vanish — `userdel` removes neither family's spool file, and cron keys it
+    // by NAME on a host that recycles names, so the next tenant of the name is
+    // handed a stranger's schedule.
+    //
+    // Observed by holding the cron lock on another thread and watching the
+    // deletion NOT reach its crontab removal until it is released. A poll with
+    // a deadline, never a sleep of a guessed length.
+    let account = AccountName::parse("deletecronlock").expect("the fixture name is valid");
+    let operations = Arc::new(debian(RecordingHost::new().with_user(account.as_str())));
+    let held = cron_lock(&account);
+
+    let deleting = std::thread::spawn({
+        let operations = Arc::clone(&operations);
+        let account = account.clone();
+        move || {
+            operations.delete(
+                &FakePhpHost::empty(),
+                &FakeDbHost::new(),
+                &FakeSftpHost::new(),
+                &FakeFtpsHost::for_account(account.as_str(), 1001, 1001),
+                &account,
+            )
+        }
+    });
+
+    // It must get as far as the SFTP step — which is before the crontab — and
+    // stop there. That it got that far is what makes the next assertion a
+    // statement about the crontab lock and not about a thread that never
+    // started.
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+    while operations.host().existence_questions() == 0 {
+        assert!(
+            std::time::Instant::now() < deadline,
+            "the deletion never started: this test measured nothing"
+        );
+        std::thread::sleep(std::time::Duration::from_millis(1));
+    }
+    assert!(
+        operations_calls(&operations, "crontab").is_empty(),
+        "the deletion removed the crontab while another operation held the account's \
+         crontab lock"
+    );
+
+    drop(held);
+    let deleted = deleting.join().expect("the deletion thread must not panic");
+
+    // The inverse control: once the lock is free the deletion finishes, so the
+    // assertion above is about waiting and not about a deletion that refuses.
+    assert!(
+        deleted.is_ok(),
+        "the deletion must finish once released: {deleted:?}"
+    );
+    assert!(
+        !operations_calls(&operations, "crontab").is_empty(),
+        "the crontab must really have been removed"
+    );
 }

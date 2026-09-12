@@ -62,14 +62,46 @@ pub trait SiteHost: Send + Sync {
     /// account serves nothing".
     fn list_config_paths(&self) -> Result<Vec<PathBuf>, SitesOpError>;
 
+    /// Creates the root-owned directory `account`'s site logs live in,
+    /// `AgentPaths::account_site_log_dir`, `root:root 0750`.
+    ///
+    /// **As root, and NOT through [`Self::create_directories_as_account`].**
+    /// That reverses this area's usual rule — a customer path is touched under
+    /// the account's uid or not at all — and the reversal is the whole fix this
+    /// method exists for. The rule is there so root never follows a symlink a
+    /// customer planted; this directory is outside every home, under an
+    /// ancestor chain (`/var/log/maran`, `root:maran 0750`) no unprivileged uid
+    /// can write to or even traverse, so there is nothing for a customer to
+    /// plant. While these logs lived at `/home/<account>/logs` the customer
+    /// owned the directory and the ROOT nginx master opened files in it without
+    /// `O_NOFOLLOW`, which was a proved root compromise: see
+    /// `docs/superpowers/notes/2026-09-09-site-logs-threat-note.md`.
+    ///
+    /// Idempotent: an existing directory is success, which is what lets every
+    /// vhost-rendering operation call it unconditionally.
+    ///
+    /// Implementations MUST set the mode explicitly rather than inherit a
+    /// umask, and MUST create it as root.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SitesOpError::LogDirectory`] when the directory cannot be
+    /// created or its mode cannot be set. This is fatal to the calling
+    /// operation and not a warning: `nginx -t` opens the error-log target, so a
+    /// vhost naming a missing directory is refused by the validator.
+    fn create_site_log_directory(&self, account: &AccountName) -> Result<(), SitesOpError>;
+
     /// Creates `directories`, and every missing parent, running as `account`.
     ///
-    /// The document root and the log directory are inside a customer's home,
-    /// so they are created by a process that has dropped to the account's uid
-    /// and gid — never by the root daemon (rules/security.md: *direct
-    /// `std::fs` on customer paths as root is forbidden*). A symlink already
-    /// planted in the home therefore reaches a process that cannot follow it
-    /// anywhere interesting.
+    /// The document root is inside a customer's home, so it is created by a
+    /// process that has dropped to the account's uid and gid — never by the
+    /// root daemon (rules/security.md: *direct `std::fs` on customer paths as
+    /// root is forbidden*). A symlink already planted in the home therefore
+    /// reaches a process that cannot follow it anywhere interesting.
+    ///
+    /// The site's LOG directory is deliberately not among these any more; it is
+    /// [`Self::create_site_log_directory`]'s, and the reason is that method's
+    /// doc comment.
     ///
     /// Implementations MUST be called from `tokio::task::spawn_blocking`: the
     /// underlying `fork_as_account` forks and blocks in `waitpid`, which on a

@@ -73,7 +73,7 @@ impl AgentPaths {
     /// reason, as [`Self::BULK_SCRATCH_ROOT`]. OpenSSH does not merely require
     /// the chroot directory to be root-owned; it walks EVERY component of the
     /// path and refuses the login if any one of them is owned by another uid or
-    /// is group- or other-writable. `/var/lib/maran` is created `panel:panel
+    /// is group- or other-writable. `/var/lib/maran` is created `maran:maran
     /// 0750` by `installer/lib/40-user.sh`, and step 40 runs before the SFTP
     /// step, so while the base was `/var/lib/maran/sftp` every SFTP login on
     /// every real install was refused. Measured on both supported families:
@@ -97,12 +97,109 @@ impl AgentPaths {
     /// The `-` in the name is not free: a `.mount` unit's file name is
     /// systemd's escaping of its `Where=`, and `-` is the escaping of `/`, so
     /// the account's mount unit is `var-lib-maran\x2dsftp-<account>-home.mount`
-    /// and not the readable spelling. `AccountJail` derives it with systemd's
-    /// full rule, so nothing here has to be spelled twice.
+    /// and not the readable spelling. `AccountJail` derives it through
+    /// `ops::logins::systemd_escape`, so nothing here has to be spelled twice.
+    /// That function is byte-identical to `systemd-escape --path` for every path
+    /// these jails can produce — measured over all of them against the real tool
+    /// — and it deliberately does NOT implement systemd's whole rule: four cases
+    /// outside that domain differ, and they are named where it is defined. An
+    /// account name is `[a-z][a-z0-9_]{2,29}`, so none of the four is reachable.
     ///
     /// An agent decision that is identical on every family, so it belongs here
     /// and not on the `DistroAdapter` as the same literal written twice.
     pub const SFTP_JAIL_ROOT: &'static str = "/var/lib/maran-sftp";
+
+    /// Base directory holding one root-owned FTPS jail per account.
+    ///
+    /// The chroot an FTPS login lands in is `<this>/<account>`, and the
+    /// account's real home is bind-mounted at `<this>/<account>/home` — the
+    /// same shape as [`Self::SFTP_JAIL_ROOT`] and for the same reason: an
+    /// account's home is `<account>:<web server group> 0750`, an ownership
+    /// every site, vhost and php-fpm pool depends on, so the jail is a
+    /// directory of the agent's own rather than the home itself.
+    ///
+    /// A SEPARATE base from the SFTP one, not a subdirectory of it and not
+    /// shared with it. The two protocols' jails have different lifetimes: an
+    /// account may hold logins of one and none of the other, and removing the
+    /// last login of one must not unmount the other's bind mount out from
+    /// under a live customer.
+    ///
+    /// Directly under `/var/lib`, and deliberately NOT under `/var/lib/maran`,
+    /// which `installer/lib/40-user.sh` creates `maran:maran 0750`. That is the
+    /// defect that made every SFTP login on every real install fail, and it is
+    /// an escalation as well as a refusal: while the panel uid owned an
+    /// ancestor of this directory it could rename a level aside and leave an
+    /// entry of its own at the name every customer's chroot hangs under,
+    /// without ever having permission to enter it. `/var/lib` is `root:root
+    /// 0755` on both families, so at the sibling every component belongs to
+    /// root.
+    ///
+    /// # The mode is `0711`, and the reason is not the one the SFTP jail has
+    ///
+    /// `installer/lib/89-ftps.sh` creates this directory `root:root 0711`:
+    /// traversable by everyone, listable by nobody but root. `0700` does not
+    /// work here even though the directory is root's, because **vsftpd
+    /// `chdir()`s into the login's home AFTER dropping to the account's uid**,
+    /// unlike sshd, which chroots while it is still root. Every component of
+    /// the jail path must therefore be traversable by an unprivileged uid.
+    /// Measured on a polygon host, both ways, with TLS switched off so the
+    /// daemon's own message was readable:
+    ///
+    /// ```text
+    /// 0700 -> 500 OOPS: cannot change directory:/var/lib/maran-ftps/<account>
+    /// 0711 -> 226 Directory send OK.
+    /// ```
+    ///
+    /// Under forced TLS the customer's symptom is worse than that message: the
+    /// connection simply breaks, because vsftpd writes the 500 in the clear on
+    /// a channel the client is reading as TLS. `0711` grants traversal and
+    /// nothing else — the directory cannot be listed, so no account learns the
+    /// name of another account's jail from it — and it is the mode step 40
+    /// already gives `/home/.maran-restore` for the same reason.
+    ///
+    /// The `-` in the name is not free: a `.mount` unit's file name is
+    /// systemd's escaping of its `Where=`, and `-` is the escaping of `/`, so
+    /// the account's mount unit is `var-lib-maran\x2dftps-<account>-home.mount`
+    /// and not the readable spelling. `ops::ftps::FtpsJail` derives it through
+    /// `ops::logins::systemd_escape` — the same function `AccountJail` calls, so
+    /// nothing here has to be spelled twice, and one edit reaches both protocols.
+    /// It is byte-identical to `systemd-escape --path` for every path these jails
+    /// can produce, and deliberately not for four cases outside that domain,
+    /// which an account name cannot express.
+    ///
+    /// An agent decision that is identical on every family, so it belongs here
+    /// and not on the `DistroAdapter` as the same literal written twice.
+    pub const FTPS_JAIL_ROOT: &'static str = "/var/lib/maran-ftps";
+
+    /// The one `vsftpd.conf` this panel's FTPS daemon is started against.
+    ///
+    /// Maran's own file, never the distribution's. The two families disagree
+    /// about where a packaged vsftpd keeps its configuration —
+    /// `/etc/vsftpd.conf` on one, `/etc/vsftpd/vsftpd.conf` on the other — and
+    /// neither of those paths is read by anything here: `installer/lib/89-ftps.sh`
+    /// masks the packaged unit, and `installer/systemd/maran-ftps.service` names
+    /// this path on its `ExecStart` line. Because the path the daemon reads is
+    /// the agent's own decision rather than a fact about the platform, it
+    /// belongs here and not on the `DistroAdapter`.
+    ///
+    /// The file is written WHOLE, through `ops::safe_write`, and never appended
+    /// to or merged into. vsftpd's parser takes the **LAST** occurrence of a
+    /// key, so an appended `force_local_logins_ssl=NO` does not sit inert below
+    /// the rendered `YES` — it replaces it, on a file that still parses and a
+    /// daemon that still starts.
+    pub const VSFTPD_CONFIG_PATH: &'static str = "/etc/maran/vsftpd/vsftpd.conf";
+
+    /// The systemd unit the FTPS daemon runs as.
+    ///
+    /// `installer/systemd/maran-ftps.service`, which is `Type=simple` and runs
+    /// vsftpd in the foreground with `-obackground=NO`. That shape is why
+    /// starting the unit is not on its own evidence that the daemon is up: a
+    /// `Type=simple` start succeeds as soon as the process has been forked, so
+    /// the unit's own `is-active` — and then the control port's greeting — are
+    /// separate questions, asked separately (`ops::ftps::get_ftps_status`).
+    ///
+    /// An agent decision identical on every family, so it belongs here.
+    pub const FTPS_UNIT: &'static str = "maran-ftps.service";
 
     /// Root-owned directory the agent stages temporary files whose size is the
     /// CUSTOMER's, not the agent's, in.
@@ -119,7 +216,7 @@ impl AgentPaths {
     ///
     /// Directly under `/var/lib`, and deliberately NOT under `/var/lib/maran`,
     /// which is where it used to live. `/var/lib/maran` is created
-    /// `panel:panel 0750` by the installer, because the API — an unprivileged
+    /// `maran:maran 0750` by the installer, because the API — an unprivileged
     /// process and the largest attack surface this product exposes — writes its
     /// own state there. Staging root-only data inside a directory an
     /// unprivileged uid OWNS is not a boundary at all, whatever the modes on
@@ -153,6 +250,65 @@ impl AgentPaths {
     /// every exit path, success and failure alike — the unit is the second of
     /// two locks, for the run that was killed rather than returned from.
     pub const BULK_SCRATCH_ROOT: &'static str = "/var/lib/maran-scratch";
+
+    /// Base directory holding one root-owned log directory per account, for the
+    /// logs the web server writes on that account's sites.
+    ///
+    /// `root:root 0750`, inside `/var/log/maran` — which is itself `root:maran
+    /// 0750` — so the leaf a customer's site names has an ancestor chain of
+    /// `/` `0755`, `/var` `0755`, `/var/log` `0755`, `/var/log/maran` `0750
+    /// root:maran`, and this directory `0750 root:root`. A hosting account is a
+    /// member of its own group and of nothing else, so from `/var/log/maran`
+    /// downwards it matches neither owner nor group and its permission bits are
+    /// `---`: it cannot create an entry, rename one, or so much as `stat` a
+    /// path below that point. Even the PANEL uid stops here, at the `root:root`
+    /// group of this directory.
+    ///
+    /// **These logs used to be `/home/<account>/logs/<domain>.access.log`, and
+    /// that was a root compromise any customer could perform.** nginx's MASTER
+    /// process runs as root and is what opens every `access_log`/`error_log`
+    /// target, `O_WRONLY|O_APPEND|O_CREAT` and **without `O_NOFOLLOW`**. A
+    /// customer who owns the directory replaces the file with a symbolic link
+    /// to any path root can write — `/etc/ld.so.preload` was the one actually
+    /// proved — and the next reload has root create that file and append a line
+    /// whose content the customer chooses, because an access-log line embeds
+    /// the request target. Every `CreateSite`, `EnableSite`, `DisableSite`,
+    /// `DeleteSite`, `InstallCertificate` and `UpdateSitePhpVersion` ends in a
+    /// reload, and one nginx serves every tenant, so any other customer's site
+    /// action was enough to spring it. See
+    /// `docs/superpowers/notes/2026-09-09-site-logs-threat-note.md` for the
+    /// probe transcript.
+    ///
+    /// `chown root` on the old directory would NOT have fixed it: the account
+    /// owns its home, so it renames `logs` aside and puts its own directory at
+    /// that name. The containment has to come from the path being outside the
+    /// home entirely — the same lesson as [`Self::BULK_SCRATCH_ROOT`] and
+    /// [`Self::SFTP_JAIL_ROOT`], and the reason those are siblings of
+    /// `/var/lib/maran` rather than children of it.
+    ///
+    /// Inside `/var/log/maran` and NOT a fourth root-only sibling, because that
+    /// tree was already split along exactly this line one release ago: root
+    /// owns the directory and writes the install log and the panel vhost's
+    /// nginx logs directly in it, and the panel gets one subdirectory of its
+    /// own (`/var/log/maran/panel`, `maran:maran 0750`). A second root-owned
+    /// subdirectory continues that scheme instead of inventing another one, and
+    /// an operator's `grep -r /var/log/maran` still finds everything.
+    pub const SITE_LOG_ROOT: &'static str = "/var/log/maran/sites";
+
+    /// The directory holding one account's site logs:
+    /// `<site log root>/<account>`.
+    ///
+    /// `root:root 0750`, created by the root daemon with an explicit mode and
+    /// deliberately NOT through `fork_as_account`. That reverses this area's
+    /// usual rule — customer paths are touched under the account's uid — and
+    /// the reversal is the point: this is no longer a customer path. The rule
+    /// exists so root never follows a link a customer planted, and in a tree no
+    /// customer can write to there is no link to follow. The document root is
+    /// unchanged and is still created as the account.
+    #[must_use]
+    pub fn account_site_log_dir(account: &AccountName) -> PathBuf {
+        PathBuf::from(Self::SITE_LOG_ROOT).join(account.as_str())
+    }
 
     /// Directory the agent keeps certificate material in.
     ///

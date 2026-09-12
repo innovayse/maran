@@ -3,7 +3,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::sites::fake_site_host::{create_test_site, distro, php_input};
-use crate::sites::{SiteCertificate, SitePaths};
+use crate::sites::{SiteCertificate, SitePaths, disable_site};
 use crate::ssl::fake_ssl_host::{Event, FakeSslHost, matching_material};
 use crate::ssl::install_certificate::install_certificate;
 use crate::ssl::remove_certificate::remove_certificate;
@@ -96,4 +96,33 @@ fn a_removal_for_a_site_that_does_not_exist_is_refused() {
     let failure = remove_certificate(&host, distro(), &input).unwrap_err();
 
     assert!(matches!(failure, SslOpError::SiteNotFound { .. }));
+}
+
+#[test]
+fn removing_a_certificate_from_a_suspended_site_takes_the_material_and_leaves_the_stub() {
+    // The stub names no certificate, so there is nothing to rewire — and
+    // rendering the site's own plain-HTTP vhost over it would un-suspend the
+    // site on the strength of a certificate removal.
+    let host = FakeSslHost::passing();
+    let input = php_input();
+    create_test_site(&host, &input).unwrap();
+    let certificate = SiteCertificate::for_domain(&input.domain);
+    host.preinstall(&certificate, &matching_material());
+    disable_site(&host, distro(), &input).unwrap();
+    let suspended = host
+        .config(&SitePaths::for_site(&input.account, &input.domain).config_path)
+        .unwrap();
+    let writes_before = host.vhost_writes();
+
+    remove_certificate(&host, distro(), &input).unwrap();
+
+    assert_eq!(host.stored(certificate.certificate_path()), None);
+    assert_eq!(host.stored(certificate.key_path()), None);
+    assert_eq!(
+        host.config(&SitePaths::for_site(&input.account, &input.domain).config_path)
+            .unwrap(),
+        suspended,
+        "a certificate removal must not un-suspend a site"
+    );
+    assert_eq!(host.vhost_writes(), writes_before);
 }
