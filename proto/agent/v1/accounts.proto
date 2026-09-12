@@ -333,6 +333,26 @@ message GetAccountSuspensionStateOk {
   // caller MUST then fall back to `login_locked`, which is today's behaviour
   // and is conservative in both directions.
   LoginPasswordState login_password_state = 8;
+
+  // How many passwd entries share this account's uid without being one of its
+  // jailed logins.
+  //
+  // Entries this panel did not create and does not lock: an operator's own
+  // `useradd --non-unique`, or a login of a neighbouring account's jail that
+  // happens to share the uid. The enumeration above selects by JAIL, so this is
+  // the number it deliberately cannot speak for, and an attestation that did
+  // not say so would be claiming a silence it never achieved.
+  //
+  // Reported rather than refused on, which is the precedent `cron_foreign_lines`
+  // set for exactly this shape: the panel shows the number and the operator
+  // decides. Zero is the ordinary answer. This agent locks none of them — they
+  // are not its entries, and turning a credential nobody asked it to touch would
+  // take away access somebody deliberately arranged.
+  //
+  // A COUNT and not a list, deliberately: the panel's question is whether the
+  // attestation covered everything, and a name here would be a name the panel
+  // had no business learning from a credential it does not own.
+  uint32 unmanaged_logins = 9;
 }
 
 // The four states an account's shadow password field can be in.
@@ -372,6 +392,18 @@ message SftpLoginSuspensionFact {
   // entries are what `usermod --lock <account>` does not reach, so inferring
   // would reproduce exactly the defect the field exists to detect.
   bool locked = 2;
+
+  // Which daemon serves this login, derived from the jail its passwd home is.
+  //
+  // Added 2026-09-09 with FTPS. Derived and never inferred from the name:
+  // `alice_web` is a valid login name under either protocol, and the two are
+  // told apart only by the jail root their home sits under — a value this agent
+  // itself wrote.
+  //
+  // TRANSFER_PROTOCOL_UNSPECIFIED means the agent predates this field, and an
+  // old caller reading an absent value as SFTP reads it correctly: every fact
+  // in this list before FTPS existed was an SFTP login by construction.
+  TransferProtocol protocol = 3;
 }
 
 message SiteSuspensionFact {
