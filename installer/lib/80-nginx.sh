@@ -14,6 +14,16 @@
 # for why the swap precedes the validation.
 set -euo pipefail
 
+# require_service_group: the group that may read the panel's TLS private key must be in the
+# environment before the key is written. It is the service account's group — the api terminates
+# no TLS itself, but the key must not be world-readable. Decided in install.sh, read here.
+#
+# Checked inside the function that writes rather than at file scope, so sourcing this file has no
+# side effect: the polygon drives this step's functions one at a time.
+require_service_group() {
+  : "${MARAN_GROUP:?80-nginx.sh: MARAN_GROUP is unset; it is set by install.sh and must be in the environment}"
+}
+
 readonly MARAN_TLS_DIR="/etc/maran/tls"
 readonly MARAN_CERT_PATH="${MARAN_TLS_DIR}/panel.crt"
 readonly MARAN_KEY_PATH="${MARAN_TLS_DIR}/panel.key"
@@ -34,6 +44,12 @@ readonly MARAN_CERTIFICATES_DIR="/etc/maran/certificates"
 # line, where appending twice leaves two), it is removable by deleting one file, and the
 # agent's rule of never touching files it does not own applies to the installer too.
 readonly MARAN_NGINX_INCLUDE_CONF="/etc/nginx/conf.d/maran-sites.conf"
+
+# Where the rotation policy for the PANEL'S OWN two logs lands. This step installs it rather
+# than step 81, which owns the customers' site logs, because the two files it bounds are named
+# by the vhost THIS step renders: whoever changes those paths must change the policy in the same
+# edit, and a policy naming a log nothing writes any more is the failure mode to avoid.
+readonly MARAN_PANEL_LOGROTATE_DEST="/etc/logrotate.d/maran-panel"
 
 # The two names the panel's own vhost passes through for the length of one install: the
 # rendered candidate before it is swapped in, and the copy of whatever was there before,
@@ -148,10 +164,14 @@ nginx_conf_dest() {
 
 # generate_self_signed_cert: a 10-year self-signed cert scoped to the machine's
 # hostname, generated once. It exists only so the panel is reachable over TLS
-# immediately after install; the operator can point a real hostname at Let's Encrypt
-# later per the design's update path. Skipped if a cert already exists (idempotent;
+# immediately after install, and no browser trusts it. Replacing it is a MANUAL act
+# today, which is what 90-finish.sh tells the operator: the panel's ACME issuance
+# (backend/src/Maran.Modules/Ssl) issues for a SITE the caller owns and installs into
+# /etc/maran/certificates, and nothing in this repository writes the two paths below
+# except this function — so an operator with a real hostname puts their own certificate
+# and key here and reloads nginx. Skipped if a cert already exists (idempotent;
 # re-running the installer must not silently invalidate a cert an operator already
-# swapped in, e.g. after enabling Let's Encrypt).
+# swapped in).
 #
 # A SYMLINK AT EITHER PATH IS "already present", and it is checked BEFORE `[ -f ]` for the same
 # reason vhost_is_ours checks `[ ! -L ]` first and the gates in install_validated_vhost ask
@@ -183,14 +203,15 @@ certificate." >&2
     echo "TLS certificate already present, leaving it in place."
     return
   fi
-  install -d -o root -g panel -m 0750 "$MARAN_TLS_DIR"
+  require_service_group
+  install -d -o root -g "$MARAN_GROUP" -m 0750 "$MARAN_TLS_DIR"
   local hostname
   hostname="$(hostname -f 2>/dev/null || hostname)"
   openssl req -x509 -nodes -newkey ed25519 \
     -keyout "$MARAN_KEY_PATH" -out "$MARAN_CERT_PATH" \
     -days 3650 -subj "/CN=${hostname}" \
     -addext "subjectAltName=DNS:${hostname}"
-  chown root:panel "$MARAN_KEY_PATH" "$MARAN_CERT_PATH"
+  chown "root:${MARAN_GROUP}" "$MARAN_KEY_PATH" "$MARAN_CERT_PATH"
   chmod 0640 "$MARAN_KEY_PATH"
   chmod 0644 "$MARAN_CERT_PATH"
 }
@@ -1063,6 +1084,27 @@ ${previous} and ${adopted} before restarting nginx." >&2
   exit 1
 }
 
+# install_panel_logrotate_policy: install /etc/logrotate.d/maran-panel.
+#
+# There was no rotation for the panel's own nginx access and error logs before this change, on
+# any host, ever — installer/logrotate/ carried policies for a customer's site logs and for the
+# FTPS transfer log, and these two were the pair nothing bounded. Every retention and security
+# choice is argued inside the shipped file, because that file is what an operator edits and this
+# script is not.
+#
+# The payload path is spelled `${LIB_DIR}/../logrotate/...`, the same way render_vhost reaches
+# the vhost template: this step is sourced with LIB_DIR set and SCRIPT_DIR is install.sh's own
+# variable, so a step that read SCRIPT_DIR would work in an install and abort under `set -u`
+# anywhere the step is driven on its own — which is how the polygon drives it.
+install_panel_logrotate_policy() {
+  local source="${LIB_DIR}/../logrotate/maran-panel"
+  if [ ! -r "$source" ]; then
+    echo "80-nginx.sh: ${source} is missing from the installer payload. Aborting." >&2
+    exit 1
+  fi
+  install -D -o root -g root -m 0644 "$source" "$MARAN_PANEL_LOGROTATE_DEST"
+}
+
 step_nginx() {
   echo "Installing nginx vhost on port ${MARAN_PANEL_PORT}..."
   # First, so that the validation below parses a tree that already includes the agent's
@@ -1079,6 +1121,11 @@ step_nginx() {
   # so this line is what cleans up after the successful one.
   install_validated_vhost "$tmp" "$dest"
   rm -f "$tmp"
+
+  # After the vhost is installed and validated, not before: the policy names the two files that
+  # vhost tells nginx to open, so installing it over a vhost that was refused would leave a
+  # rotation policy for logs this host never writes.
+  install_panel_logrotate_policy
 
   # AFTER install_validated_vhost has returned, and nowhere else. A reload between the rename and
   # the end of the validation is the one way unvalidated configuration reaches a running server,

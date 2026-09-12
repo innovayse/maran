@@ -1,22 +1,100 @@
 #!/usr/bin/env bash
-# Step 40: create the unprivileged `panel` system user that maran-api runs as
+# Step 40: create the unprivileged system user that maran-api runs as
 # (rules/architecture.md: the API is never root), and the on-disk directory layout
 # with correct ownership and modes. The agent runs as root and needs no dedicated user.
 set -euo pipefail
 
-readonly MARAN_USER="panel"
-readonly MARAN_GROUP="panel"
+# The name of that account and of its group, and the marker that says an account of that name
+# is ours. All three are decided in install.sh, the one place that decides them, and are read
+# here rather than re-spelled: a step driven on its own (the polygon images do that) must fail
+# by name rather than expand an empty string into `install -o` or `chown root:`.
+: "${MARAN_USER:?40-user.sh: MARAN_USER is unset; it is set by install.sh and must be in the environment}"
+: "${MARAN_GROUP:?40-user.sh: MARAN_GROUP is unset; it is set by install.sh and must be in the environment}"
+: "${MARAN_SERVICE_ACCOUNT_MARKER:?40-user.sh: MARAN_SERVICE_ACCOUNT_MARKER is unset; it is set by install.sh and must be in the environment}"
 
-# create_panel_user: a system account with no login shell and no home directory of its
-# own under /home (it must never be confused with a customer hosting account). Idempotent:
-# useradd is skipped if the user already exists.
-create_panel_user() {
+# service_account_gecos: the GECOS (comment) field of the account named as `$1`, or the empty
+# string when there is no such account. `getent passwd` is the resolver's own answer, so an
+# account that comes from anywhere but /etc/passwd is seen too.
+service_account_gecos() {
+  getent passwd "$1" | cut -d: -f5
+}
+
+# create_service_user: a system account with no login shell and no home directory of its own
+# under /home (it must never be confused with a customer hosting account), stamped with the
+# marker that lets a later run recognise it as ours.
+#
+# WHAT REPLACED WHAT, because this is the whole point of the function. It used to be idempotent
+# by `id -u` alone: if an account of the name existed, it was used. On a host that already had
+# an account called `panel` — another control panel, a local service, a deploy user — the
+# installer printed "already exists" and then gave THAT account /etc/maran, /var/lib/maran, the
+# panel's TLS key, `User=` on the api unit and an admitted uid on the root daemon's socket. The
+# name changed for that reason as much as for readability, but a new name does not fix the
+# mechanism: `maran` is rarer than `panel`, not impossible. So the mechanism is fixed here.
+#
+# Three states, and only one of them creates anything:
+#
+#   1. Neither the account nor its group exists — create both, stamping the marker.
+#   2. The account exists and its GECOS is EXACTLY the marker — it is a previous run of this
+#      installer, adopt it silently. This is what keeps the installer idempotent, and it is the
+#      difference that matters: idempotence now comes from RECOGNISING our own account instead
+#      of from a name collision being assumed benign.
+#   3. The account (or a group of that name with no such account) exists and carries no marker —
+#      refuse and stop the install, printing whose account it appears to be. Adoption is still
+#      possible, but only as a deliberate act: MARAN_ADOPT_EXISTING_USER=1 in the environment,
+#      which prints the identity it is adopting first.
+#
+# The group is checked separately because `useradd --user-group` fails late and confusingly when
+# the group already exists, and because a pre-existing GROUP of this name is the same grant
+# problem in miniature: everyone in it would gain read on panel.env and on the agent socket.
+#
+# docs/superpowers/notes/2026-09-09-service-account-rename-threat-note.md carries the argument,
+# including why the marker is provenance against accident and not authentication.
+create_service_user() {
+  local gecos uid shell home
   if id -u "$MARAN_USER" >/dev/null 2>&1; then
-    echo "User '${MARAN_USER}' already exists."
-  else
-    useradd --system --no-create-home --shell /usr/sbin/nologin --user-group "$MARAN_USER"
-    echo "Created system user '${MARAN_USER}'."
+    gecos="$(service_account_gecos "$MARAN_USER")"
+    if [ "$gecos" = "$MARAN_SERVICE_ACCOUNT_MARKER" ]; then
+      echo "System user '${MARAN_USER}' already exists and is this installer's own; adopting it."
+      return 0
+    fi
+    uid="$(id -u "$MARAN_USER")"
+    shell="$(getent passwd "$MARAN_USER" | cut -d: -f7)"
+    home="$(getent passwd "$MARAN_USER" | cut -d: -f6)"
+    if [ "${MARAN_ADOPT_EXISTING_USER:-}" = "1" ]; then
+      echo "MARAN_ADOPT_EXISTING_USER=1: adopting the EXISTING account '${MARAN_USER}'"
+      echo "  uid ${uid}, home ${home}, shell ${shell}, comment '${gecos}'."
+      echo "  It will own /var/lib/maran, read /etc/maran/panel.env and the panel's TLS key, run"
+      echo "  the api, and be the uid the root agent admits on its socket."
+      usermod -c "$MARAN_SERVICE_ACCOUNT_MARKER" "$MARAN_USER"
+      return 0
+    fi
+    echo "40-user.sh: an account named '${MARAN_USER}' already exists on this host and this" >&2
+    echo "  installer did not create it (uid ${uid}, home ${home}, shell ${shell}, comment" >&2
+    echo "  '${gecos}')." >&2
+    echo "  Continuing would give it /var/lib/maran, read access to /etc/maran/panel.env and to" >&2
+    echo "  the panel's TLS private key, User= on maran-api.service, and an admitted uid on the" >&2
+    echo "  root agent's socket. Refusing." >&2
+    echo "  Rename that account, or re-run with MARAN_ADOPT_EXISTING_USER=1 to hand it to Maran" >&2
+    echo "  deliberately. Aborting." >&2
+    exit 1
   fi
+  if getent group "$MARAN_GROUP" >/dev/null 2>&1; then
+    if [ "${MARAN_ADOPT_EXISTING_USER:-}" != "1" ]; then
+      echo "40-user.sh: a group named '${MARAN_GROUP}' (gid $(getent group "$MARAN_GROUP" | cut -d: -f3))" >&2
+      echo "  already exists while no account of that name does, so this installer did not create" >&2
+      echo "  it. Every member of that group would gain read on /etc/maran/panel.env, on the" >&2
+      echo "  panel's TLS private key and on the root agent's socket. Refusing." >&2
+      echo "  Rename that group, or re-run with MARAN_ADOPT_EXISTING_USER=1. Aborting." >&2
+      exit 1
+    fi
+    echo "MARAN_ADOPT_EXISTING_USER=1: creating '${MARAN_USER}' inside the EXISTING group '${MARAN_GROUP}'."
+    useradd --system --no-create-home --shell /usr/sbin/nologin \
+      --gid "$MARAN_GROUP" --comment "$MARAN_SERVICE_ACCOUNT_MARKER" "$MARAN_USER"
+  else
+    useradd --system --no-create-home --shell /usr/sbin/nologin --user-group \
+      --comment "$MARAN_SERVICE_ACCOUNT_MARKER" "$MARAN_USER"
+  fi
+  echo "Created system user '${MARAN_USER}'."
 }
 
 # create_directory_layout: every path Maran owns, with the tightest mode that still
@@ -26,7 +104,7 @@ create_directory_layout() {
   install -d -o root  -g root         -m 0755 /usr/local/maran
   install -d -o root  -g "$MARAN_GROUP" -m 0750 /etc/maran
   install -d -o "$MARAN_USER" -g "$MARAN_GROUP" -m 0750 /var/lib/maran
-  # /var/log/maran is ROOT's, with the panel group able to read and traverse it — not the
+  # /var/log/maran is ROOT's, with the service group able to read and traverse it — not the
   # panel's. Two root processes create and append to files directly inside it: install.sh's
   # `tee -a install.log`, which is the first thing an install does, and the nginx MASTER
   # process, which opens the panel vhost's `nginx-access.log` and `nginx-error.log`
@@ -59,6 +137,28 @@ create_directory_layout() {
   # Any future change that makes a ROOT process write inside this subdirectory reopens the
   # defect above one level down.
   install -d -o "$MARAN_USER" -g "$MARAN_GROUP" -m 0750 /var/log/maran/panel
+  # AgentPaths::SITE_LOG_ROOT. The second root-owned subdirectory of this tree, holding one
+  # directory per hosting account for the logs the ROOT nginx master writes on that account's
+  # sites. root:root and not root:<service group> like its parent: the panel process has no business
+  # reading a customer's access log off the disk — it asks the agent, which streams it — and a
+  # group of root means the panel uid matches only `other`, which is `---` at 0750.
+  #
+  # These logs used to be /home/<account>/logs/<domain>.access.log, created by a child that had
+  # dropped to the account, so the CUSTOMER owned the directory. The nginx master runs as root
+  # and opens every access_log/error_log target O_WRONLY|O_APPEND|O_CREAT with no O_NOFOLLOW, so
+  # a customer replaced the file with a symbolic link and the next reload — any tenant's site
+  # action, since one nginx serves them all — had root create and append to the target. Proved
+  # on a polygon image against /etc/ld.so.preload, with the loader then honouring an
+  # attacker-chosen path in every process started afterwards
+  # (docs/superpowers/notes/2026-09-09-site-logs-threat-note.md).
+  #
+  # chown root on the old directory would not have fixed it: the account owns its home and can
+  # rename `logs` aside. The containment has to come from the path being outside every home,
+  # which is what this directory is. The per-account directories BELOW it are created by the
+  # agent as root (SiteHost::create_site_log_directory), not here, because the installer does
+  # not know the accounts and an account created later must get one anyway.
+  install -d -o root -g root -m 0750 /var/log/maran/sites
+  assert_root_only_directory_with_mode /var/log/maran/sites 750
   # AgentPaths::BACKUP_ROOT (agent/crates/agent-core/src/agent_paths.rs), root:root 0700:
   # outside every home and document root, owned by root because the agent writes backup
   # archives here as root, never under an account's uid. Must exist before the first
@@ -102,7 +202,7 @@ create_directory_layout() {
   assert_root_only_directory_with_mode /home/.maran-restore 711
   # AgentPaths::BULK_SCRATCH_ROOT, root:root 0700, and deliberately NOT under
   # /var/lib/maran. The agent stages full plaintext dumps of a customer's databases
-  # here while a backup or a restore runs. /var/lib/maran is created panel:panel
+  # here while a backup or a restore runs. /var/lib/maran is created maran:maran
   # above, so while the scratch lived inside it the panel uid owned an ancestor of
   # root's staging area — enough to rename a level aside and leave a symlink at that
   # name without ever entering it, which was measured delivering a customer's dump
@@ -232,7 +332,7 @@ assert_root_only_directory() {
 
 step_user() {
   echo "Creating '${MARAN_USER}' system user and directory layout..."
-  create_panel_user
+  create_service_user
   create_directory_layout
   echo "User and directories ready."
 }

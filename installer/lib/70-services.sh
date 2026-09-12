@@ -52,10 +52,14 @@ refuse_unsubstituted_placeholder() {
 # must not. See render_api_runtime_dir.
 render_api_unit() {
   local out="$1" socket_dir
+  : "${MARAN_USER:?must be set by install.sh before this step is sourced}"
+  : "${MARAN_GROUP:?must be set by install.sh before this step is sourced}"
   socket_dir="$(api_socket_directory)"
   sed \
     -e "s#__MARAN_API_SOCKET_DIR__#${socket_dir}#g" \
     -e "s#__MARAN_API_SOCKET__#${MARAN_API_SOCKET_PATH}#g" \
+    -e "s#__MARAN_USER__#${MARAN_USER}#g" \
+    -e "s#__MARAN_GROUP__#${MARAN_GROUP}#g" \
     "${LIB_DIR}/../systemd/maran-api.service" > "$out"
   refuse_unsubstituted_placeholder "$out" maran-api.service
 }
@@ -72,11 +76,27 @@ render_api_runtime_dir() {
   local out="$1" socket_dir
   : "${MARAN_WEB_SERVER_GROUP:?must be set by install.sh before this step is sourced}"
   socket_dir="$(api_socket_directory)"
+  : "${MARAN_USER:?must be set by install.sh before this step is sourced}"
   sed \
     -e "s#__MARAN_API_SOCKET_DIR__#${socket_dir}#g" \
     -e "s#__MARAN_WEB_GROUP__#${MARAN_WEB_SERVER_GROUP}#g" \
+    -e "s#__MARAN_USER__#${MARAN_USER}#g" \
     "${LIB_DIR}/../systemd/maran-api.tmpfiles.conf" > "$out"
   refuse_unsubstituted_placeholder "$out" maran-api.tmpfiles.conf
+}
+
+# render_agent_unit: substitutes the agent unit's one placeholder, the service GROUP.
+#
+# The agent runs as root, and the group of the root process is what the unix socket it creates
+# inherits — so this one word is what lets the api reach the only root process on the server. The
+# unit used to be installed unrendered because it named nothing an installer decides; it names the
+# service group now, and that name is decided in install.sh like the port and the socket path.
+render_agent_unit() {
+  local out="$1"
+  : "${MARAN_GROUP:?must be set by install.sh before this step is sourced}"
+  sed -e "s#__MARAN_GROUP__#${MARAN_GROUP}#g" \
+    "${LIB_DIR}/../systemd/maran-agent.service" > "$out"
+  refuse_unsubstituted_placeholder "$out" maran-agent.service
 }
 
 install_units() {
@@ -87,8 +107,9 @@ install_units() {
   render_api_runtime_dir "$tmp"
   install -d -m 0755 "$MARAN_TMPFILES_DIR"
   install -m 0644 "$tmp" "${MARAN_TMPFILES_DIR}/${MARAN_API_TMPFILES_NAME}"
+  render_agent_unit "$tmp"
+  install -m 0644 "$tmp" "${MARAN_UNIT_DIR}/maran-agent.service"
   rm -f "$tmp"
-  install -m 0644 "${LIB_DIR}/../systemd/maran-agent.service" "${MARAN_UNIT_DIR}/maran-agent.service"
 }
 
 # build_api_socket_directory: apply the tmpfiles snippet now, rather than waiting for a reboot.
@@ -105,14 +126,16 @@ build_api_socket_directory() {
 #
 # This is the one host fact the whole peer-credential design rests on, and it is the fact an
 # earlier version of this step got wrong while every text-level check went on passing: the
-# directory must be 2710 owned panel:<web server group>. 0710 has no permissions for "other", so a
+# directory must be 2710 owned <service account>:<web server group>. 0710 has no permissions for
+# "other", so a
 # customer's uid cannot resolve a path inside it; the group is what lets nginx traverse it at all.
 # Checked here, on the real directory, because nothing else in the product can see it — a grep over
 # a unit file is not evidence about a directory.
 assert_api_socket_directory() {
   local socket_dir observed expected
   socket_dir="$(api_socket_directory)"
-  expected="2710 panel ${MARAN_WEB_SERVER_GROUP}"
+  : "${MARAN_USER:?must be set by install.sh before this step is sourced}"
+  expected="2710 ${MARAN_USER} ${MARAN_WEB_SERVER_GROUP}"
   observed="$(stat -c '%a %U %G' "$socket_dir" 2>/dev/null || true)"
   if [ "$observed" != "$expected" ]; then
     cat >&2 <<EOF
@@ -139,7 +162,8 @@ EOF
 # operator a panel that answers 502 and a log line saying everything went well.
 wait_for_api_socket() {
   local expected observed attempt=0
-  expected="660 panel ${MARAN_WEB_SERVER_GROUP}"
+  : "${MARAN_USER:?must be set by install.sh before this step is sourced}"
+  expected="660 ${MARAN_USER} ${MARAN_WEB_SERVER_GROUP}"
   while [ "$attempt" -lt 60 ]; do
     if [ -S "$MARAN_API_SOCKET_PATH" ]; then
       observed="$(stat -c '%a %U %G' "$MARAN_API_SOCKET_PATH" 2>/dev/null || true)"

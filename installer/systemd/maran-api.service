@@ -15,8 +15,11 @@ StartLimitBurst=5
 # sd_notify(READY=1), so Type=notify would leave systemd waiting past NotifyAccess
 # timeouts. Health is instead observed via /health, proxied through nginx.
 Type=simple
-User=panel
-Group=panel
+# The unprivileged principal the api runs as. Substituted by installer/lib/70-services.sh from
+# MARAN_USER/MARAN_GROUP in install.sh, the one place the name is decided — a systemd unit
+# interpolates no shell variable, and a placeholder that survives substitution aborts the install.
+User=__MARAN_USER__
+Group=__MARAN_GROUP__
 EnvironmentFile=/etc/maran/panel.env
 ExecStart=/usr/local/maran/api/Maran.Host
 Restart=on-failure
@@ -39,7 +42,8 @@ PrivateTmp=true
 # THE SOCKET DIRECTORY IS DELIBERATELY NOT A RuntimeDirectory=, AND THAT IS THE WHOLE POINT.
 #
 # The directory holding the panel's listening socket is the panel's trust boundary: at 2710 owned
-# panel:<web server group> it has no permissions for "other", so a uid that is neither panel nor a
+# <service account>:<web server group> it has no permissions for "other", so a uid that is neither
+# the panel's nor a
 # member of the web server's group cannot resolve a path inside it and connect(2) fails at path
 # resolution — before any socket permission is consulted, before a byte is sent, before the panel
 # is involved. That ownership is set by installer/systemd/maran-api.tmpfiles.conf, installed as
@@ -50,8 +54,9 @@ PrivateTmp=true
 # unit's User=/Group= to RuntimeDirectory=. An earlier version of this file set the group with
 # `ExecStartPre=+/usr/bin/chgrp <web group>`; measured on booted systemd on both families (255 on
 # the Debian family, 252 on the RHEL family), the chgrp took effect inside its own invocation and
-# was undone before the next one, so ExecStart always saw panel:panel, the socket inherited the
-# group panel, `connect(2)` from the web server's uid returned EACCES and every API call answered
+# was undone before the next one, so ExecStart always saw the directory owned by the service
+# account and ITS OWN group, the socket inherited that group, `connect(2)` from the web server's
+# uid returned EACCES and every API call answered
 # 502. systemd offers no per-RuntimeDirectory group setting, so the group must come from something
 # the unit's own command invocations do not re-apply. systemd-tmpfiles is that: it runs before this
 # unit (systemd-tmpfiles-setup.service is Before=sysinit.target and every ordinary unit is ordered
@@ -85,7 +90,7 @@ ExecStopPost=-/usr/bin/rm -f __MARAN_API_SOCKET__
 # leave a symbolic link for root to follow. That was measured working, against a root-owned
 # 0600 file, on both writers
 # (docs/superpowers/notes/2026-09-07-installer-privileged-steps-threat-note.md, the
-# "/var/log/maran" section). The parent is now root:panel 0750, so the panel still READS the
+# "/var/log/maran" section). The parent is now root:<service group> 0750, so the panel still READS the
 # install log and the vhost logs — through the sandbox's read-only view of the filesystem,
 # which needs no entry here — and writes only in the subdirectory installer/lib/40-user.sh
 # creates for it. Nothing writes files there today (the api logs to stdout and journald takes

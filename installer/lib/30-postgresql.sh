@@ -2,14 +2,22 @@
 # Step 30: install and initialise PostgreSQL, configured to accept connections over
 # the unix socket ONLY (rules/architecture.md: "Only maran-api talks to PostgreSQL").
 # TCP listening is disabled outright rather than firewalled, so there is no network
-# attack surface to misconfigure later. Creates the panel role and database.
+# attack surface to misconfigure later. Creates the panel's role and database.
 set -euo pipefail
 
 readonly MARAN_DB_NAME="maran"
-# The role is named after the unprivileged OS user ("panel") rather than the product,
+# The role is named after the unprivileged OS user rather than being given a name of its own,
 # so PostgreSQL's peer auth (unix-socket connections are authenticated by matching OS
-# username to role name) works with no pg_ident.conf mapping to maintain.
-readonly MARAN_DB_ROLE="panel"
+# username to role name) works with no pg_ident.conf mapping to maintain. That is also why the
+# account's name has no hyphen in it: this name is interpolated into CREATE ROLE, CREATE
+# DATABASE ... OWNER, ALTER ROLE ... RENAME TO and DROP ROLE unquoted, and a hyphen is not a
+# bare SQL identifier (installer/install.sh, "The panel's system account").
+#
+# A host installed before the rename reaches this step with its role ALREADY renamed: step 15
+# runs first and does `ALTER ROLE panel RENAME TO maran` in place, so nothing here has a branch
+# for the old name and the checks below simply find the role present.
+: "${MARAN_USER:?30-postgresql.sh: MARAN_USER is unset; it is set by install.sh and must be in the environment}"
+readonly MARAN_DB_ROLE="$MARAN_USER"
 
 # pg_install: installs the PostgreSQL server package for the current family. RHEL-family
 # distros ship PostgreSQL as modular/appstream packages needing an explicit `postgresql-setup
@@ -68,8 +76,16 @@ pg_hba_path() {
 
 # pg_restrict_to_unix_socket: forces listen_addresses='' (no TCP at all) and rewrites
 # pg_hba.conf to only allow local (unix socket) peer/trust-by-role connections. Written
-# via a temp file + atomic mv so a crash mid-write never leaves a half-written config,
-# matching the agent's own "render -> validate -> atomic rename" discipline.
+# via a temp file + mv so a crash mid-write never leaves a half-written config. Two
+# honest differences from the agent's own protocol (rules/rust.md "Config writes:
+# render -> swap -> validate"), stated because a comment claiming a discipline it does
+# not follow is what stops the next reader looking. First, the agent's order is
+# rename-THEN-validate -- the validator has to read the file at the path the daemon
+# reads, which a temp file is not -- and this step has no validator at all: what it
+# writes is checked afterwards, by observation, in pg_assert_no_tcp_listener below.
+# Second, `mktemp` puts the temporary file in $TMPDIR (/tmp by default), not in the
+# target's directory, so this `mv` is an atomic rename only while the two share a
+# filesystem and a copy otherwise.
 pg_restrict_to_unix_socket() {
   local conf hba tmp
   conf="$(pg_conf_path)"

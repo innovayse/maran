@@ -1,0 +1,52 @@
+# Rotation for the nginx logs of hosting customers' sites.
+#
+# Installed to /etc/logrotate.d/maran-sites, root:root 0644, by installer/lib/81-site-logs.sh.
+#
+# There was no rotation for these files before. While they lived inside the account's home
+# (/home/<account>/logs/<domain>.access.log) the account's disk quota was the only thing that
+# ever bounded them. They now live at /var/log/maran/sites/<account>/, outside every home and
+# outside every quota, so this file is not housekeeping — it is the replacement for the quota,
+# and without it a customer with traffic fills the operator's /var.
+#
+# They were moved because the nginx MASTER runs as root and opens every access_log/error_log
+# target without O_NOFOLLOW: a customer who owned the directory replaced the file with a
+# symbolic link and had root create and append to any path on the host. That was proved. See
+# docs/superpowers/notes/2026-09-09-site-logs-threat-note.md.
+#
+# Every choice below is deliberate, and each one is a way this file could otherwise have
+# reintroduced the very defect the move closed:
+#
+#   * The glob is anchored at /var/log/maran/sites. It never reaches under /home. logrotate
+#     runs as root; pointing it at a directory a customer owns is this defect wearing a
+#     different hat, and it would be a worse instance than the original, because logrotate
+#     also creates, renames and chowns.
+#   * `su root root` names the privileges explicitly instead of letting logrotate infer them
+#     from the directory's owner. If somebody later changes the ownership of these
+#     directories, rotation must not silently start running as whoever now owns them.
+#   * `create 0640 root root` gives the replacement file the same containment as the file it
+#     replaces. Not 0644: nothing but root and the agent's own tail ever reads these.
+#   * `kill -USR1`, NOT `copytruncate`. USR1 makes the nginx master reopen its log files,
+#     which is the supported idiom, loses no lines to a race with the writer, and keeps
+#     nlink == 1 true for the live file — the invariant the agent's tail asserts on the inode
+#     (ops::sites::follow_log::open_log). copytruncate would break both. The tail already
+#     handles a reopen: it sees the file shorter than its offset and restarts from the new
+#     beginning.
+#   * The postrotate script reads nginx's own pid file and does nothing if it is absent, so a
+#     host where nginx is stopped rotates its files and does not fail the daily run.
+
+/var/log/maran/sites/*/*.log {
+    daily
+    rotate 14
+    missingok
+    notifempty
+    compress
+    delaycompress
+    create 0640 root root
+    su root root
+    sharedscripts
+    postrotate
+        if [ -f /run/nginx.pid ]; then
+            kill -USR1 "$(cat /run/nginx.pid)" 2>/dev/null || true
+        fi
+    endscript
+}

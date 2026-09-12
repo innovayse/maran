@@ -11,6 +11,22 @@ if [ "$(id -u)" -ne 0 ]; then
   exit 1
 fi
 
+# The service account and group this product creates, the names it used before the rename, and
+# the PostgreSQL role (which is the account's name, because peer authentication matches them).
+#
+# Spelled here as well as in install.sh because the uninstaller is its own entry point and sources
+# nothing from the installer — sourcing install.sh would RUN it. The two files are held together
+# by an assertion in docker/polygon/assert-installer-steps.sh, which fails the image build when
+# they disagree, in place of a hope that both get edited at once.
+MARAN_USER=maran
+MARAN_GROUP=maran
+MARAN_LEGACY_USER=panel
+# The GECOS install.sh stamps on the account it creates. The uninstaller removes an account of its
+# own name ONLY when it carries this marker: on a host where the operator refused the rename and
+# adopted their own account, or where somebody else's `maran` outlived a failed install, deleting
+# it would destroy a principal this product never created.
+MARAN_SERVICE_ACCOUNT_MARKER="Maran panel service account"
+
 MARAN_ASSUME_YES=0
 for arg in "$@"; do
   case "$arg" in
@@ -670,6 +686,77 @@ remove_maran_config_directory() {
   maran_firewall_includers | sed 's/^/    /'
 }
 
+# remove_ftps: take back everything installer/lib/89-ftps.sh added to this host, and
+# nothing else.
+#
+# What goes: Maran's own unit (stopped and disabled first), the PAM service that is this
+# daemon's entire authorization boundary, the rotation policy and the agent's config
+# directory. The distribution's own vsftpd.service is UNMASKED, because the mask is
+# Maran's edit to a unit Maran does not own — leaving a /dev/null symlink behind would
+# leave the operator with a package they cannot start and no clue why.
+#
+# What deliberately STAYS, and why each is a decision rather than an omission:
+#
+#   /var/lib/maran-ftps  the per-account jails. Each one has a customer's real home
+#                        bind-mounted at <account>/home, and an `rm -rf` across a live
+#                        bind mount deletes the home it points at. This uninstaller has
+#                        no unmount for them — the mount units are the agent's, named
+#                        per account — so it says what is left and how to finish by hand,
+#                        exactly as installer/lib/86-sftp.sh's report_legacy_jails does.
+#   the FTPS logins      they are rows in /etc/passwd carrying the ACCOUNT's uid
+#                        (`useradd --non-unique`), and the accounts under /home are
+#                        customer data this script never touches. Deleting a login here
+#                        would also be deleting a uid that still owns files.
+#   the maran-ftps group those logins are members of it. A group removed while passwd
+#                        rows still name its gid leaves dangling numeric ownership, and
+#                        the group is worthless on its own: with the PAM service gone,
+#                        membership authorizes nothing.
+#
+# The vsftpd PACKAGE is not removed either. It may have been on the host before Maran,
+# and uninstalling a package an operator may be using elsewhere is not this script's
+# call to make.
+remove_ftps() {
+  echo "Removing FTPS (installer/lib/89-ftps.sh)..."
+  systemctl stop maran-ftps.service 2>/dev/null || true
+  systemctl disable maran-ftps.service 2>/dev/null || true
+  rm -f /etc/systemd/system/maran-ftps.service
+  rm -f /etc/pam.d/maran-ftps
+  # And the staging name install_ftps_pam_service renders into before the rename. A PAM stack is
+  # staged and `mv -f`'d so no authenticator can read it half written, which means an install that
+  # dies between those two lines leaves /etc/pam.d/maran-ftps.maran-staging on the host — and this
+  # uninstaller would have left it there for good. It is inert (libpam resolves a service by its
+  # NAME, and nothing names that one), so nothing would ever have reported it. The same choice the
+  # nginx half already makes for its own .candidate/.previous/.adopted staging names.
+  rm -f /etc/pam.d/maran-ftps.maran-staging
+  rm -f /etc/logrotate.d/maran-ftps
+  # Removed by name as well as by the /etc/maran sweep further down, so that an
+  # uninstall which KEEPS /etc/maran (an nftables include still names a file in it)
+  # does not leave this daemon's configuration directory behind.
+  rm -rf /etc/maran/vsftpd
+  # The mask is Maran's, so it goes with Maran. `systemctl unmask` on both families,
+  # then the link itself if no working systemd client answered — the mask is a symbolic
+  # link to /dev/null and nothing else, so this removes exactly what was added.
+  systemctl unmask vsftpd.service 2>/dev/null || true
+  if [ "$(readlink -- /etc/systemd/system/vsftpd.service 2>/dev/null || true)" = "/dev/null" ]; then
+    rm -f /etc/systemd/system/vsftpd.service
+  fi
+  systemctl daemon-reload 2>/dev/null || true
+
+  if [ -d /var/lib/maran-ftps ]; then
+    echo "NOTE: the FTPS jails under /var/lib/maran-ftps are NOT removed, and neither are the"
+    echo "      FTPS logins in /etc/passwd or the 'maran-ftps' group."
+    echo "      Each jail has a hosting account's real home BIND-MOUNTED at <account>/home:"
+    echo "      an rm -rf across one deletes the customer's files, not a copy of them."
+    echo "      To finish by hand, per account:"
+    echo "        1. systemctl disable --now <that account's var-lib-maran\\x2dftps-*.mount unit>"
+    echo "        2. rm -f /etc/systemd/system/<that unit>  &&  systemctl daemon-reload"
+    echo "        3. confirm nothing under /var/lib/maran-ftps appears in /proc/self/mounts"
+    echo "        4. userdel each FTPS login (they share the account's uid, so the account's"
+    echo "           own files are untouched), then groupdel maran-ftps"
+    echo "      Only when step 3 reports nothing mounted: rm -rf /var/lib/maran-ftps"
+  fi
+}
+
 # remove_var_lib: the api's own state directory, created by installer/lib/40-user.sh.
 # Everything under it is derivable and rebuildable (rules/architecture.md: "Truth lives in
 # PostgreSQL"), so it is removed unconditionally like the binaries — leaving it behind is
@@ -706,15 +793,33 @@ remove_var_lib() {
 }
 
 remove_logs() {
-  # One prompt for the whole tree, both halves of it: the root-owned parent (install.log and the
-  # panel vhost's nginx logs) and the panel-owned /var/log/maran/panel the API may have been
-  # configured to write into. The split is an ownership boundary, not two separate things an
-  # operator decides about separately.
-  if confirm "Delete install and application logs under /var/log/maran (including panel/)?"; then
+  # The rotation policies go unconditionally, before the prompt. They are Maran's files, not the
+  # operator's data, and a policy left behind for a directory that may be about to disappear is
+  # a daily cron error on a host that no longer runs this product. `missingok` in the policy
+  # means it would not actually fail, which is exactly why leaving it would go unnoticed for
+  # years.
+  rm -f /etc/logrotate.d/maran-sites
+  # The panel's own vhost logs — /var/log/maran/nginx-access.log and nginx-error.log, the pair
+  # the prompt below names. Removed by the same literal that installed it
+  # (MARAN_PANEL_LOGROTATE_DEST in installer/lib/80-nginx.sh), so this deletes our own payload
+  # and nothing an operator put there under another name. It carries `missingok` exactly like
+  # maran-sites, so leaving it would be the same silent daily rule pointing at nothing.
+  rm -f /etc/logrotate.d/maran-panel
+
+  # One prompt for the whole tree, all three parts of it: the root-owned parent (install.log and
+  # the panel vhost's nginx logs), the panel-owned /var/log/maran/panel the API may have been
+  # configured to write into, and the root-owned /var/log/maran/sites holding one directory per
+  # hosting account of the logs nginx wrote for that account's sites. The split is an ownership
+  # boundary, not three separate things an operator decides about separately.
+  #
+  # The site logs are a customer-facing record — what each of their domains served — so the
+  # prompt names them: an operator decommissioning a server may well want to keep them, and
+  # they are the one part of this tree that is not about the install itself.
+  if confirm "Delete install, panel and per-account site logs under /var/log/maran?"; then
     rm -rf /var/log/maran
     echo "Logs removed."
   else
-    echo "Keeping /var/log/maran."
+    echo "Keeping /var/log/maran (including per-account site logs under sites/)."
   fi
 }
 
@@ -725,8 +830,24 @@ remove_logs() {
 # remove_config_and_state knows the encryption key still has data to protect. Defaults to
 # "kept" because a psql-less host reaches neither branch below and never lost the data.
 MARAN_DATABASE_KEPT=1
+# database_role_to_drop: the role that owns this host's Maran database, which is the account's
+# name after the rename and `panel` on a host that was never upgraded. Asked of PostgreSQL rather
+# than assumed, so an uninstall on a pre-rename host drops the role it actually has and an
+# uninstall on a shared server never drops a role that owns nothing of ours. Empty when the
+# database is absent, in which case there is nothing to drop.
+database_role_to_drop() {
+  runuser -u postgres -- psql -tAc \
+    "SELECT pg_catalog.pg_get_userbyid(datdba) FROM pg_database WHERE datname='maran'" 2>/dev/null \
+    | tr -d '[:space:]'
+}
 drop_database() {
   if ! command -v psql >/dev/null 2>&1; then
+    return
+  fi
+  local MARAN_ROLE_TO_DROP
+  MARAN_ROLE_TO_DROP="$(database_role_to_drop)"
+  if [ -z "$MARAN_ROLE_TO_DROP" ]; then
+    echo "No 'maran' database on this host; nothing to drop."
     return
   fi
   if confirm "DROP the Maran PostgreSQL database and role? This deletes all panel data permanently."; then
@@ -737,7 +858,7 @@ drop_database() {
     # believing the data behind it was gone. MARAN_DATABASE_KEPT stays 1 unless both DROPs
     # actually succeeded, so remove_config_and_state keeps treating the key as protecting data.
     if runuser -u postgres -- psql -c "DROP DATABASE IF EXISTS maran;" &&
-       runuser -u postgres -- psql -c "DROP ROLE IF EXISTS panel;"; then
+       runuser -u postgres -- psql -c "DROP ROLE IF EXISTS ${MARAN_ROLE_TO_DROP};"; then
       MARAN_DATABASE_KEPT=0
       echo "Database and role dropped."
     else
@@ -750,19 +871,54 @@ drop_database() {
   fi
 }
 
-# remove_panel_user: the system account Maran created for the api. Never touches
+# remove_service_user: the system account Maran created for the api. Never touches
 # customer hosting accounts under /home — those are a separate, unrelated namespace
 # this uninstaller does not enumerate or manage.
-remove_panel_user() {
-  if ! id -u panel >/dev/null 2>&1; then
-    return
+#
+# Two names, because a host installed before the rename and never upgraded still carries the old
+# one: the current account and, separately, the legacy one. Neither is removed on its name alone.
+# The current account must carry the marker install.sh stamps — an account of that name this
+# product did not create is somebody else's principal, and an uninstaller that deletes it does
+# more damage than the install ever did. The legacy account has no marker to carry (the release
+# that made it stamped none), so the evidence there is that it OWNED this product's state
+# directory, which is the same evidence step 15 migrates on. That directory is deleted earlier in
+# main(), so the answer is taken before anything is removed — see MARAN_LEGACY_USER_IS_OURS.
+remove_service_user() {
+  local gecos
+  if id -u "$MARAN_USER" >/dev/null 2>&1; then
+    gecos="$(getent passwd "$MARAN_USER" | cut -d: -f5)"
+    if [ "$gecos" != "$MARAN_SERVICE_ACCOUNT_MARKER" ]; then
+      echo "Keeping the '${MARAN_USER}' system user: it carries no marker of this installer, so"
+      echo "  this product did not create it."
+    elif confirm "Remove the '${MARAN_USER}' system user (its own home/state, not customer accounts)?"; then
+      userdel "$MARAN_USER" 2>/dev/null || true
+      echo "'${MARAN_USER}' system user removed."
+    else
+      echo "Keeping the '${MARAN_USER}' system user."
+    fi
   fi
-  if confirm "Remove the 'panel' system user (its own home/state, not customer accounts)?"; then
-    userdel panel 2>/dev/null || true
-    echo "'panel' system user removed."
-  else
-    echo "Keeping the 'panel' system user."
+  if [ "${MARAN_LEGACY_USER_IS_OURS:-0}" -eq 1 ] && id -u "$MARAN_LEGACY_USER" >/dev/null 2>&1; then
+    if confirm "Remove the legacy '${MARAN_LEGACY_USER}' system user this product created before it was renamed?"; then
+      userdel "$MARAN_LEGACY_USER" 2>/dev/null || true
+      echo "'${MARAN_LEGACY_USER}' system user removed."
+    else
+      echo "Keeping the '${MARAN_LEGACY_USER}' system user."
+    fi
   fi
+}
+
+# MARAN_LEGACY_USER_IS_OURS: whether the pre-rename account exists AND owns /var/lib/maran, which
+# is the only evidence available that it is this product's (that release stamped no marker).
+# Recorded at the START of main, because the directory that carries the evidence is deleted
+# halfway through it — reading it later would answer "no" for every host and quietly leave the
+# account behind on exactly the hosts that have one.
+MARAN_LEGACY_USER_IS_OURS=0
+record_legacy_service_user() {
+  local state="/var/lib/maran"
+  id -u "$MARAN_LEGACY_USER" >/dev/null 2>&1 || return 0
+  [ -d "$state" ] && [ ! -L "$state" ] || return 0
+  [ "$(stat -c '%u' "$state")" = "$(id -u "$MARAN_LEGACY_USER")" ] || return 0
+  MARAN_LEGACY_USER_IS_OURS=1
 }
 
 # MARAN_BACKUP_ROOT: the local backup root, the one directory in this file that is named in
@@ -817,6 +973,9 @@ EOF
 
 main() {
   echo "Uninstalling Maran..."
+  # Before anything is deleted: /var/lib/maran's owner is the only evidence that a pre-rename
+  # account belongs to this product, and it does not survive remove_var_lib.
+  record_legacy_service_user
   stop_and_disable_services
   remove_systemd_units
   remove_nginx_vhost
@@ -826,6 +985,11 @@ main() {
   # so that nothing further down can recurse through a bind mount into a home.
   remove_sftp_sshd_block
   release_sftp_jails
+  # FTPS next, and before the binaries: it unmasks the distribution's vsftpd.service,
+  # removes the PAM service that authorizes an FTPS login and takes Maran's own unit
+  # away — while deliberately leaving the jails, the logins and the group, each of
+  # which still names customer data. See remove_ftps for the argument.
+  remove_ftps
   remove_binaries
   # The database question comes before /etc/maran is deleted: keeping the data while
   # silently destroying the key that decrypts it is the one unrecoverable mistake this
@@ -835,7 +999,7 @@ main() {
   remove_var_lib
   remove_logs
   remove_sftp_group
-  remove_panel_user
+  remove_service_user
   note_backups_kept
   note_customer_data_untouched
   echo "Maran uninstall complete."
