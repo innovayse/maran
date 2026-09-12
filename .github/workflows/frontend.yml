@@ -4,10 +4,16 @@ on:
   push:
     paths:
       - 'frontend/**'
+      # The verdict harness and the committed baseline are part of this lane now: an edit to
+      # either changes what this job asserts, so it has to run when they move. Without this path
+      # a change to `scripts/lib/suite.sh` or to `scripts/test-baseline.txt` would alter the SPA
+      # floor with no SPA job ever running — which is the same shape as having no floor.
+      - 'scripts/**'
       - '.github/workflows/frontend.yml'
   pull_request:
     paths:
       - 'frontend/**'
+      - 'scripts/**'
       - '.github/workflows/frontend.yml'
 
 defaults:
@@ -20,6 +26,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Node 24, and deliberately NOT pinned to an exact patch the way `backend.yml` pins the .NET
+      # SDK. The reason the SDK is pinned there is that the committed baseline is a count taken on
+      # one compiler, and a different compiler is a different suite. Here the component that decides
+      # what gets collected is `@playwright/test`, and that is already pinned to an exact version by
+      # `frontend/package-lock.json` and installed by `npm ci` below — the runtime's patch level does
+      # not decide which spec files `testMatch` finds. The versions actually used are printed by the
+      # step below, so the log records them either way.
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
@@ -27,10 +40,179 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
 
       - run: npm ci
-      - run: npm run lint
+
+      # For the record, in the log, before anything is measured: which node and which Playwright
+      # this run used. This is not a gate — it makes no assertion and claims none. It exists because
+      # when the collected total moves, the first question is whether the runner moved under it, and
+      # nothing in this repository would otherwise be able to answer that after the fact.
+      - name: Record the runner's versions
+        run: |
+          echo "node:       $(node --version)"
+          echo "npm:        $(npm --version)"
+          echo "playwright: $(npx playwright --version)"
+
+      # These three stay exactly as they were, and that is a decision rather than an omission.
+      # They are a DIFFERENT gate from counting tests: `lint` (oxlint + eslint + the locale-key and
+      # page-route checks), `typecheck` (vue-tsc) and `build` assert that the SPA is well-formed,
+      # and none of them can observe whether a spec file stopped being collected. The reverse is
+      # true too — the Playwright suite runs against `preview`, so a type error that vue-tsc would
+      # catch reaches the suite only if it also breaks the build the webServer performs. The backend
+      # lane kept its Release build beside the verdict step for the same reason. They also fail
+      # faster and with a far more specific message than a suite that collapses downstream.
+      # `npm run lint` now prints its own collected verdict — `LINT VERDICT: OK|FAIL —
+      # N checks declared, N run, N passed, N failed` — because its four sub-checks used to
+      # be chained with `&&`, so the first failure silenced the rest and an engineer reading
+      # a red lane could not tell that a whole gate had been skipped. Gate on the line, and
+      # fail when the line and the exit status disagree: that is the same shape the backend
+      # and agent lanes use, and it is the last exit-code-only gate in this workflow.
+      - name: Lint, gated on the printed verdict
+        id: lint
+        shell: bash
+        run: |
+          set -o pipefail
+          mkdir -p "$RUNNER_TEMP/verdict"
+          status=0
+          npm run lint 2>&1 | tee "$RUNNER_TEMP/verdict/lint.log" || status=$?
+          echo "lint exit status: $status (recorded; the verdict is the line below, not this)"
+          if ! grep -q '^LINT VERDICT: OK' "$RUNNER_TEMP/verdict/lint.log"; then
+            echo "::error::the SPA lint gate did not print 'LINT VERDICT: OK'. This step passes"
+            echo "on the printed verdict, never on an exit code, and no verdict was printed."
+            if ! grep -aE '^(LINT VERDICT|lint: |check-locale-keys|check-page-routes)' \
+              "$RUNNER_TEMP/verdict/lint.log"; then
+              echo "(no verdict-shaped line in the log; its last 40 lines follow)"
+              tail -40 "$RUNNER_TEMP/verdict/lint.log" || echo "(the log is empty or absent)"
+            fi
+            exit 1
+          fi
+          if [ "$status" -ne 0 ]; then
+            echo "::error::the SPA lint gate printed 'LINT VERDICT: OK' and then exited $status."
+            echo "Those two disagree, so neither is evidence: score nothing from this run."
+            exit 1
+          fi
       - run: npm run typecheck
       - run: npm run build
+
+      # Playwright needs a real browser, and the harness's toolchain check REFUSES to measure
+      # without one (it probes `$PLAYWRIGHT_BROWSERS_PATH` or `~/.cache/ms-playwright` for a
+      # `chromium-*` directory). Kept exactly as it was found: `--with-deps` also installs the
+      # system libraries chromium links against, which a bare runner does not have.
+      #
+      # NOT cached, and left that way on purpose rather than by oversight. A browser cache keyed on
+      # anything but the exact Playwright version can serve a chromium build that does not match the
+      # runner — and the failure that produces is the silent kind: the browser is present, so the
+      # harness's directory probe passes, the browser then fails to launch, and the suite collects
+      # nothing. That IS caught downstream (the parse yields no row and the harness reports ABORTED,
+      # never a pass), but trading a slow, correct install for a fast one that needs a downstream
+      # net to catch it is not a trade worth making here. `chromium` alone is the only project in
+      # `playwright.config.ts`, so this is already the small install, not the three-browser one.
       - run: npx playwright install --with-deps chromium
-      - run: npm run test:e2e
+
+      # THE VERDICT, and it is not `npm run test:e2e`. It used to be, and that is the gap
+      # rules/testing.md named by file: "`.github/workflows/frontend.yml` still runs bare
+      # `npm run test:e2e`, so in CI the SPA floor is compared against nothing, exactly as the
+      # backend and agent lanes were."
+      #
+      # What the bare command cannot see — and every one of these leaves it exiting 0:
+      #   - a spec file that stops being COLLECTED. A rename, a bad import that Playwright reports
+      #     as a load error, a `testMatch` that no longer matches: the file simply disappears from
+      #     the run. `npm run test:e2e` then passes over a smaller suite and says nothing.
+      #   - a collected total that fell while the file list held steady — a `describe` block deleted,
+      #     a test commented out.
+      #   - a total that held steady because another file grew by as much as this one shrank. This
+      #     is why the baseline is keyed ONE ROW PER SPEC FILE (64 rows) rather than on the grand
+      #     total: a per-file floor names the file that moved, a total floor cannot.
+      #   - a FLAKY test. `playwright.config.ts` sets `retries: 1` under CI, so a test that fails and
+      #     then passes leaves the process green. rules/testing.md: "a flaky test is a P1 bug: fix or
+      #     delete-and-file, never retry-loop it." The harness scores `flaky` as a FAILURE and names
+      #     it as such.
+      #
+      # `maran test spa` runs the WHOLE suite (there is no scope parameter — narrowing it means
+      # editing `suite_run` in front of a reviewer), scores it from Playwright's JSON reporter rather
+      # than the `list` reporter (the list reporter prints one line per ATTEMPT, so under `retries: 1`
+      # a text parser would report a total no run produced), parses one row per spec file, names
+      # every failing test, reconciles the named list against the totals, and compares both against
+      # `scripts/test-baseline.txt`. A baselined spec file absent from the run is named as VANISHED
+      # and fails the lane; a collected total below the baseline fails; a run with no machine-readable
+      # result at all is ABORTED rather than passed, because "no tests found" is a failure. A
+      # collection error surfaces as its own `<collection>` row carrying the module or file that
+      # would not load. It self-tests its own parsers against planted fixtures before it measures
+      # anything.
+      #
+      # PORTS. `playwright.config.ts` binds 5173 with `reuseExistingServer: false` and `--strictPort`,
+      # which locally has already produced a run that exited 0 having executed nothing, because a
+      # dev server held the port. That cannot happen here for two independent reasons, and the second
+      # is the one being relied on: (1) a GitHub-hosted runner is a fresh VM with nothing bound;
+      # (2) the harness does not use the config's default at all — `suite_run` asks the KERNEL for a
+      # free port (bind 0, read back the assignment), exports it as `E2E_PORT`, and prints it into
+      # the log. So `E2E_PORT` is deliberately NOT set here: setting it would replace a measured free
+      # port with a guessed one. And if the port were taken in the race between the probe and the
+      # webServer binding it, `--strictPort` makes the server fail loudly, the suite collects
+      # nothing, and the harness reports ABORTED — the failure is loud in either direction.
+      #
+      # `working-directory` is overridden to the repository root — the job's default is `frontend`,
+      # and the harness locates the tree from its own path and runs the SPA suite itself.
+      #
+      # `CI: 'true'` is kept explicitly even though GitHub sets it: `playwright.config.ts` reads it
+      # to turn on `forbidOnly`, `retries: 1` and `workers: 1`, and this lane should not depend on an
+      # implicit runner variable for a setting that changes what the suite asserts.
+      #
+      # `--accept` is NEVER passed: that flag RECORDS the baseline, and a check that refreshes its
+      # own baseline enforces nothing.
+      #
+      # The pass condition is the harness's printed VERDICT LINE, not its exit status. A non-zero
+      # status fails the step, and so does a status of 0 with no `TEST VERDICT: OK` printed — which
+      # is the shape every measured false pass in this repository has had. `set -o pipefail` because
+      # `... | tee` otherwise reports TEE's status, which is 0 whatever the command did.
+      - name: Test verdict — per-spec-file totals against the committed baseline
+        working-directory: ${{ github.workspace }}
+        id: verdict
         env:
           CI: 'true'
+        run: |
+          set -o pipefail
+          mkdir -p "$RUNNER_TEMP/verdict"
+          status=0
+          bash scripts/maran test spa 2>&1 |
+            tee "$RUNNER_TEMP/verdict/spa.log" || status=$?
+          echo "harness exit status: $status (recorded; the verdict is the line below, not this)"
+          if ! grep -q '^TEST VERDICT: OK' "$RUNNER_TEMP/verdict/spa.log"; then
+            echo "::error::the SPA suite did not print 'TEST VERDICT: OK'. This lane passes on"
+            echo "the harness's verdict, never on an exit code, and no verdict was printed."
+            echo "--- what the run reported ---"
+            # The fallback is not decoration, and it was added because a demonstration exposed the
+            # gap: when the harness dies BEFORE printing any of the lines below — killed, a shell
+            # error, a stub that prints only its per-target rows — this grep matches nothing, `|| true`
+            # swallows it, and the engineer reads an EMPTY "what the run reported" section under an
+            # error that says the verdict is missing. The whole log is in the artifact either way, but
+            # the step's own output should never be blank at the exact moment it is reporting a
+            # failure it cannot characterise.
+            if ! grep -aE '^(TEST VERDICT|collected |ABORTED|REFUSED|CONTAMINATED|UNRECONCILED|SELF-TEST| +spa: )' \
+              "$RUNNER_TEMP/verdict/spa.log"; then
+              echo "(no verdict, finding or abort line in the log at all — its last 40 lines:)"
+              tail -40 "$RUNNER_TEMP/verdict/spa.log" || true
+            fi
+            exit 1
+          fi
+          if [ "$status" -ne 0 ]; then
+            echo "::error::the SPA suite printed 'TEST VERDICT: OK' and then exited $status."
+            echo "Those two disagree, so neither is evidence: score nothing from this run."
+            exit 1
+          fi
+
+      # The log, always — including on a red run, which is the run somebody actually needs it for.
+      # It carries the per-spec-file rows and the named failures; the step above prints only the
+      # lines that decide the verdict.
+      # No `working-directory` here: GitHub accepts that key on `run` steps only, and the job's
+      # default (`frontend`) does not reach an action either way. The path below is absolute.
+      # Conditioned on the verdict step having RUN, not merely on the job not being cancelled: with
+      # `!cancelled()` alone this step also fires when a gate ABOVE the verdict failed — a red
+      # `npm run lint`, a browser install that could not reach the CDN — and then errors on a log
+      # that was never written, a second and misleading red on a job whose real failure is somewhere
+      # else entirely.
+      - name: Keep the verdict log
+        if: ${{ !cancelled() && steps.verdict.conclusion != 'skipped' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-test-verdict
+          path: ${{ runner.temp }}/verdict/spa.log
+          if-no-files-found: error

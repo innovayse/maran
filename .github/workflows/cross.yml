@@ -62,8 +62,51 @@ jobs:
       # The check neither side's own suite can make: the backend tests stub the agent and the
       # agent tests have no API, so a contract that compiles on both sides and disagrees on the
       # wire would pass both and fail only here.
+      #
+      # Scored on the PRINTED VERDICT, like `maran format --check` and `maran migrate check` in
+      # backend.yml and for the same measured reason. Before the harness change on this branch, this
+      # command on a PATH without `cargo` printed `building the agent` on stdout, `HANDSHAKE-FAILED:
+      # the agent did not build` on **stderr**, and returned 1 — so this step, which read `$?` alone,
+      # recorded a broken toolchain on the runner as a contract that does not hold on the wire, and
+      # sent the reader to the proto files. The same shape hid behind "the api never answered" for a
+      # missing .NET SDK and behind "the agent did not build" for a missing protoc.
+      #
+      # The three answers are kept apart. A refusal is still FAILED here — every tool this command
+      # needs is installed by a step above, so one that has gone missing is a broken lane — but it is
+      # failed under its OWN message, because nothing was asked of the seam.
       - name: Handshake over a unix socket
-        run: bash scripts/maran handshake
+        run: |
+          set -o pipefail
+          mkdir -p "$RUNNER_TEMP/handshake"
+          status=0
+          bash scripts/maran handshake 2>&1 |
+            tee "$RUNNER_TEMP/handshake/run.log" || status=$?
+          echo "harness exit status: $status (recorded; the verdict is the line above, not this)"
+          if grep -qa '^HANDSHAKE VERDICT: DID NOT RUN' "$RUNNER_TEMP/handshake/run.log"; then
+            echo "::error::the handshake REFUSED and exercised nothing, so this lane has measured"
+            echo "neither a contract that holds nor one that does not — the reason it gives is"
+            echo "printed above. It is failed here because every toolchain and the database are set"
+            echo "up by the steps above, but do NOT read this as a contract finding: neither the"
+            echo "agent nor the API was started, and no rpc crossed the socket."
+            exit 1
+          fi
+          if ! grep -qa '^HANDSHAKE VERDICT: OK' "$RUNNER_TEMP/handshake/run.log"; then
+            echo "::error::the handshake did not print 'HANDSHAKE VERDICT: OK'. This lane passes on"
+            echo "the harness's verdict line, never on an exit code, and no such line was printed."
+            echo "--- what the handshake reported ---"
+            if ! grep -aE '^(HANDSHAKE VERDICT|HANDSHAKE-|REFUSED)' "$RUNNER_TEMP/handshake/run.log"; then
+              # No verdict-shaped line at all is itself the finding — that is the near-empty stdout
+              # this step was rewritten for — so print the tail rather than an empty section.
+              echo "(no verdict-shaped line in the output; its last 60 lines follow)"
+              tail -60 "$RUNNER_TEMP/handshake/run.log" || echo "(the output is empty or absent)"
+            fi
+            exit 1
+          fi
+          if [ "$status" -ne 0 ]; then
+            echo "::error::the handshake printed 'HANDSHAKE VERDICT: OK' and then exited $status."
+            echo "Those two disagree, so neither is evidence: score nothing from this run."
+            exit 1
+          fi
         env:
           # The panel refuses to boot without an encryption key (rules/security.md). This one is
           # a throwaway for a job whose database is destroyed with the runner.
