@@ -42,6 +42,9 @@
   <data name="SetupAlreadyCompletedForbidden">
     <value>This panel has already been set up.</value>
   </data>
+  <data name="SetupTokenExpiredUnauthorized" xml:space="preserve">
+    <value>This setup token has expired, so no administrator was created: for safety the installer's one-time token stops working a set time after the panel is installed. Nothing you entered is wrong. To claim this server, set a new setup token in the panel's environment configuration, restart the panel, and enter that new token here.</value>
+  </data>
   <data name="SetupTokenInvalidUnauthorized">
     <value>This setup link is not valid.</value>
   </data>

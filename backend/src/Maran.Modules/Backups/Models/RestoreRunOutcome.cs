@@ -43,6 +43,13 @@ namespace Maran.Modules.Backups.Models;
 /// <param name="FilesRestored">Whether the account's home is now the archive's home.</param>
 /// <param name="DatabasesRestored">How many databases were dropped, re-created and loaded.</param>
 /// <param name="DatabasesTotal">How many the restore set out to replace, after the allowed list.</param>
+/// <param name="Measured">
+/// Whether the three figures above are the AGENT'S OWN statement — a terminal outcome it reported —
+/// rather than the zeros of a run that stated nothing (a refusal, a dropped stream, an outcome-less
+/// terminal event). The handler publishes a partial restore's counts to the caller only when this
+/// is <c>true</c>: zeros that mean "unknown" must never reach an operator dressed as "nothing was
+/// replaced".
+/// </param>
 /// <param name="Failure">
 /// What went wrong — the machine-stable code AND its kind — or <c>null</c> when
 /// <paramref name="Whole"/>. A PARTIAL restore carries one too: it is not a success, and a caller
@@ -53,4 +60,5 @@ public sealed record RestoreRunOutcome(
     bool FilesRestored,
     uint DatabasesRestored,
     uint DatabasesTotal,
+    bool Measured,
     Error? Failure);

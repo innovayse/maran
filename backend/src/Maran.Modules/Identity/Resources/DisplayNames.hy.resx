@@ -15,4 +15,205 @@
   <data name="IdentityModuleDisplayName">
     <value>Օգտվողներ և մուտք</value>
   </data>
+  <data name="AuditActionLoginSucceeded">
+    <value>Մուտքը կատարվեց</value>
+  </data>
+  <data name="AuditActionLoginFailed">
+    <value>Մուտքը մերժվեց</value>
+  </data>
+  <data name="AuditActionLoggedOut">
+    <value>Դուրս եկավ համակարգից</value>
+  </data>
+  <data name="AuditActionLoggedOutEverywhere">
+    <value>Դուրս եկավ բոլոր սարքերից</value>
+  </data>
+  <data name="AuditActionSessionRevoked">
+    <value>Սեսիան չեղարկվեց</value>
+  </data>
+  <data name="AuditActionRefreshTokenReuseDetected">
+    <value>Հայտնաբերվեց թարմացման թոքենի կրկնակի օգտագործում</value>
+  </data>
+  <data name="AuditActionTwoFactorEnabled">
+    <value>Երկքայլ ստուգումը միացվեց</value>
+  </data>
+  <data name="AuditActionTwoFactorDisabled">
+    <value>Երկքայլ ստուգումն անջատվեց</value>
+  </data>
+  <data name="AuditActionRecoveryCodeUsed">
+    <value>Օգտագործվեց վերականգնման կոդ</value>
+  </data>
+  <data name="AuditActionPasswordChanged">
+    <value>Գաղտնաբառը փոխվեց</value>
+  </data>
+  <data name="AuditActionAdministratorCreated">
+    <value>Ստեղծվեց ադմինիստրատոր</value>
+  </data>
+  <data name="AuditActionAccountCreated">
+    <value>Ստեղծվեց հաշիվ</value>
+  </data>
+  <data name="AuditActionAccountSuspended">
+    <value>Հաշիվը կասեցվեց</value>
+  </data>
+  <data name="AuditActionAccountReactivated">
+    <value>Հաշիվը վերագործարկվեց</value>
+  </data>
+  <data name="AuditActionAccountDeleted">
+    <value>Հաշիվը ջնջվեց</value>
+  </data>
+  <data name="AuditActionBackupRestored">
+    <value>Հաշիվը վերականգնվեց պահուստային պատճենից</value>
+  </data>
+  <data name="AuditActionFinalBackupTaken">
+    <value>Վերցվեց վերջին պահուստային պատճենը</value>
+  </data>
+  <data name="AuditActionFinalBackupSkipped">
+    <value>Վերջին պահուստային պատճենը բաց թողնվեց</value>
+  </data>
+  <data name="AuditActionFinalBackupSkippedNoModule">
+    <value>Վերջին պատճենը բաց թողնվեց՝ պահուստավորման մոդուլ չկա</value>
+  </data>
+  <data name="AuditActionSiteCreated">
+    <value>Ստեղծվեց կայք</value>
+  </data>
+  <data name="AuditActionSitePhpVersionChanged">
+    <value>Փոխվեց կայքի PHP տարբերակը</value>
+  </data>
+  <data name="AuditActionSiteEnabled">
+    <value>Կայքը միացվեց</value>
+  </data>
+  <data name="AuditActionSiteDisabled">
+    <value>Կայքն անջատվեց</value>
+  </data>
+  <data name="AuditActionSiteDeleted">
+    <value>Կայքը ջնջվեց</value>
+  </data>
+  <data name="AuditActionSiteLogTailed">
+    <value>Բացվեց կայքի մատյանը</value>
+  </data>
+  <data name="AuditActionDatabaseCreated">
+    <value>Ստեղծվեց տվյալների բազա</value>
+  </data>
+  <data name="AuditActionDatabaseDropped">
+    <value>Տվյալների բազան ջնջվեց</value>
+  </data>
+  <data name="AuditActionDatabasePasswordReset">
+    <value>Վերակայվեց տվյալների բազայի գաղտնաբառը</value>
+  </data>
+  <data name="AuditActionSftpUserCreated">
+    <value>Ստեղծվեց SFTP մուտք</value>
+  </data>
+  <data name="AuditActionSftpUserDeleted">
+    <value>SFTP մուտքը ջնջվեց</value>
+  </data>
+  <data name="AuditActionSftpUserPasswordReset">
+    <value>Վերակայվեց SFTP գաղտնաբառը</value>
+  </data>
+  <data name="AuditActionFtpsEnabled">
+    <value>FTPS ծառայությունը միացվեց</value>
+  </data>
+  <data name="AuditActionFtpsDisabled">
+    <value>FTPS ծառայությունն անջատվեց</value>
+  </data>
+  <data name="AuditActionFtpsTlsReloaded">
+    <value>Վերաբեռնվեց FTPS վկայագիրը</value>
+  </data>
+  <data name="AuditActionFtpUserCreated">
+    <value>Ստեղծվեց FTPS մուտք</value>
+  </data>
+  <data name="AuditActionFtpUserDeleted">
+    <value>FTPS մուտքը ջնջվեց</value>
+  </data>
+  <data name="AuditActionFtpUserPasswordReset">
+    <value>Վերակայվեց FTPS գաղտնաբառը</value>
+  </data>
+  <data name="AuditActionCertificateIssued">
+    <value>Տրվեց վկայագիր</value>
+  </data>
+  <data name="AuditActionCertificateInstalled">
+    <value>Տեղադրվեց վկայագիր</value>
+  </data>
+  <data name="AuditActionCertificateRemoved">
+    <value>Վկայագիրը հեռացվեց</value>
+  </data>
+  <data name="AuditActionCertificateRenewed">
+    <value>Վկայագիրը երկարաձգվեց</value>
+  </data>
+  <data name="AuditActionCronEntryCreated">
+    <value>Ստեղծվեց cron գրառում</value>
+  </data>
+  <data name="AuditActionCronEntryUpdated">
+    <value>Փոխվեց cron գրառումը</value>
+  </data>
+  <data name="AuditActionCronEntryDeleted">
+    <value>Ջնջվեց cron գրառումը</value>
+  </data>
+  <data name="AuditActionCronEntryEnabledChanged">
+    <value>Cron գրառումը միացվեց կամ անջատվեց</value>
+  </data>
+  <data name="AuditActionCronEnvironmentChanged">
+    <value>Փոխվեց cron միջավայրը</value>
+  </data>
+  <data name="AuditActionFirewallRuleAllowed">
+    <value>Բացվեց firewall-ի պորտ</value>
+  </data>
+  <data name="AuditActionFirewallRuleDenied">
+    <value>Փակվեց firewall-ի պորտ</value>
+  </data>
+  <data name="AuditActionAddressBanned">
+    <value>Հասցեն արգելափակվեց</value>
+  </data>
+  <data name="AuditActionAddressUnbanned">
+    <value>Հասցեի արգելափակումը հանվեց</value>
+  </data>
+  <data name="AuditActionFirewallWhitelistChanged">
+    <value>Փոխվեց firewall-ի սպիտակ ցուցակը</value>
+  </data>
+  <data name="AuditActionFirewallWhitelistSeeded">
+    <value>Սպիտակ ցուցակը ստեղծվեց տեղադրիչի կողմից</value>
+  </data>
+  <data name="AuditActionBanSkippedWhitelisted">
+    <value>Արգելափակումը բաց թողնվեց՝ հասցեն սպիտակ ցուցակում է</value>
+  </data>
+  <data name="AuditActionSmtpSettingsSaved">
+    <value>Պահպանվեցին փոստի կարգավորումները</value>
+  </data>
+  <data name="AuditActionTestMailSent">
+    <value>Ուղարկվեց փորձնական նամակ</value>
+  </data>
+  <data name="AuditActionMailSkippedNoSmtp">
+    <value>Նամակը չուղարկվեց՝ SMTP կարգավորումներ չկան</value>
+  </data>
+  <data name="AuditActionMailSendFailed">
+    <value>Չհաջողվեց ուղարկել նամակը</value>
+  </data>
+  <data name="AuditActionAlertRaised">
+    <value>Բարձրացվեց ահազանգ</value>
+  </data>
+  <data name="AuditActionAlertResolved">
+    <value>Ահազանգը հանվեց</value>
+  </data>
+  <data name="AuditActionPasswordResetRequested">
+    <value>Պահանջվեց գաղտնաբառի վերակայում</value>
+  </data>
+  <data name="AuditActionPasswordResetRefused">
+    <value>Մերժվեց գաղտնաբառի վերակայման թոքենը</value>
+  </data>
+  <data name="AuditActionSecurityPolicySaved">
+    <value>Պահպանվեց անվտանգության քաղաքականությունը</value>
+  </data>
+  <data name="AuditActionBackupCreated">
+    <value>Վերցվեց պահուստային պատճեն</value>
+  </data>
+  <data name="AuditActionBackupDeleted">
+    <value>Պահուստային պատճենը ջնջվեց</value>
+  </data>
+  <data name="AuditActionBackupScheduleSaved">
+    <value>Պահպանվեց պահուստավորման ժամանակացույցը</value>
+  </data>
+  <data name="AuditActionBackupRetentionPruned">
+    <value>Հին պատճենը հեռացվեց պահպանման ժամկետով</value>
+  </data>
+  <data name="AuditActionBackupDestinationSaved">
+    <value>Պահանջվեց պահուստավորման պահեստ</value>
+  </data>
 </root>

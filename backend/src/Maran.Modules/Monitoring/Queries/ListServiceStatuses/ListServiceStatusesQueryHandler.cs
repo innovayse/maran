@@ -1,5 +1,6 @@
 using Maran.Agent.Client.Interfaces;
 using Maran.Modules.Monitoring.Common;
+using Maran.Modules.Monitoring.Services;
 
 namespace Maran.Modules.Monitoring.Queries.ListServiceStatuses;
 
@@ -25,17 +26,28 @@ namespace Maran.Modules.Monitoring.Queries.ListServiceStatuses;
 /// read that as "not known", which is exactly what a missing row says. Fabricating a row for every
 /// member of the enum would turn "we do not watch this" into "we watched it and it was fine".
 /// </para>
+/// <para>
+/// <b>The row carries its operator-facing name, resolved here.</b> The backend owns every display
+/// name the interface shows (rules/architecture.md), so the projection asks
+/// <see cref="ServiceDisplayNames"/> for each service's name in the request's culture and ships it
+/// beside the machine-stable member — the interface renders the name and keys on the member.
+/// </para>
 /// </remarks>
 public sealed class ListServiceStatusesQueryHandler
 {
     /// <summary>The agent, which is the only thing in the system that can reach the service manager.</summary>
     private readonly IAgentMonitorClient _agent;
 
+    /// <summary>Resolves each service's operator-facing name in the request's culture.</summary>
+    private readonly ServiceDisplayNames _names;
+
     /// <summary>Creates the handler.</summary>
     /// <param name="agent">The agent client that reads the service statuses.</param>
-    public ListServiceStatusesQueryHandler(IAgentMonitorClient agent)
+    /// <param name="names">The resolver for each service's operator-facing name.</param>
+    public ListServiceStatusesQueryHandler(IAgentMonitorClient agent, ServiceDisplayNames names)
     {
         _agent = agent;
+        _names = names;
     }
 
     /// <summary>Returns one row per service the agent watches.</summary>
@@ -56,7 +68,7 @@ public sealed class ListServiceStatusesQueryHandler
         var projected = statuses.Value
             .Select(status =>
             {
-                return new ServiceStatusDto(status.Service, status.State, status.Detail);
+                return new ServiceStatusDto(status.Service, _names.Of(status.Service), status.State, status.Detail);
             })
             .ToList();
 

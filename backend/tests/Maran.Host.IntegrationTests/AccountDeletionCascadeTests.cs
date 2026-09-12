@@ -385,18 +385,25 @@ public sealed class AccountDeletionCascadeTests : IAsyncLifetime
     private static async Task MigrateAsync(WebApplicationFactory<Program> factory, bool includeDatabases = true)
     {
         using var scope = factory.Services.CreateScope();
-        await scope.ServiceProvider.GetRequiredService<IdentityDbContext>().Database.MigrateAsync();
-        await scope.ServiceProvider.GetRequiredService<AccountsDbContext>().Database.MigrateAsync();
-        await scope.ServiceProvider.GetRequiredService<SftpDbContext>().Database.MigrateAsync();
-        await scope.ServiceProvider.GetRequiredService<SitesDbContext>().Database.MigrateAsync();
-        await scope.ServiceProvider.GetRequiredService<SslDbContext>().Database.MigrateAsync();
-        await scope.ServiceProvider.GetRequiredService<TasksDbContext>().Database.MigrateAsync();
 
-        // The Backups module joined the composed host, so its schema is part of what an account
-        // deletion has to be able to reach. Left unmigrated, its cascade handler throws and the
-        // residue audit reports the module as UNCHECKED rather than clean — which is what these
-        // fixtures measured before this line existed.
-        await scope.ServiceProvider.GetRequiredService<BackupsDbContext>().Database.MigrateAsync();
+        // Derived from ModuleRegistry, not written down here: the cascade and the residue audit are
+        // properties of the COMPOSED panel, so the set of schemas a deletion has to reach is the
+        // registry's set and nothing smaller. A hand-written list broke this fixture when Backups
+        // joined and again when Ftp joined, each time by reporting the new module as UNCHECKED, and
+        // each time it was repaired by appending one line. Now the next module joins by
+        // construction.
+        //
+        // The single exclusion: the Databases module's schema, left uncreated so its subscriber
+        // really fails against real PostgreSQL, which is how the abort test manufactures a failing
+        // module. An exclusion the registry no longer declares fails by name.
+        if (includeDatabases)
+        {
+            await ModuleSchemas.MigrateAsync(scope.ServiceProvider);
+        }
+        else
+        {
+            await ModuleSchemas.MigrateAsync(scope.ServiceProvider, typeof(DatabasesDbContext));
+        }
 
         // The default backup destination, which a real server has because the installer migrates
         // before the panel boots and the reconciliation runs at boot. In this fixture the order is
@@ -407,11 +414,6 @@ public sealed class AccountDeletionCascadeTests : IAsyncLifetime
         // nowhere to put the copy, and the wrong fixture for measuring the cascade.
         await scope.ServiceProvider.GetRequiredService<DefaultBackupDestinationSeeder>()
             .SeedAsync(CancellationToken.None);
-
-        if (includeDatabases)
-        {
-            await scope.ServiceProvider.GetRequiredService<DatabasesDbContext>().Database.MigrateAsync();
-        }
     }
 
     /// <summary>Seeds one account with a database row and an SFTP login row.</summary>

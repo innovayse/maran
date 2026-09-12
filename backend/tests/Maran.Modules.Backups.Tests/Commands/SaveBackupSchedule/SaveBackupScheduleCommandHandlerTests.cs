@@ -41,7 +41,10 @@ public sealed class SaveBackupScheduleCommandHandlerTests
 
         var entry = Assert.Single(world.Audit.Entries);
         Assert.Equal(AuditActions.BackupScheduleSaved, entry.Action);
-        Assert.Equal(stored.Id.ToString(), entry.Subject);
+
+        // Empty, not the schedule's row id: the host-wide schedule acts on no one account, and the
+        // action already names what was saved. An account-scoped save records that account's name.
+        Assert.Equal(string.Empty, entry.Subject);
         Assert.True(entry.Succeeded);
     }
 

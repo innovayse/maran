@@ -1,7 +1,17 @@
 namespace Maran.Agent.Client.Services.FirewallService;
 
 /// <summary>One port rule currently installed in the host's firewall.</summary>
-/// <param name="Port">The port the rule names, 1-65535.</param>
+/// <param name="Port">The port the rule names, or the lower bound of a range, 1-65535.</param>
+/// <param name="PortTo">
+/// The inclusive upper bound when the rule opens a RANGE of ports, and <c>null</c> when it names a
+/// single port. Null is what every rule written before the agent learned about ranges is, and what
+/// every rule of an older agent looks like — that agent has no such field to send, and an absent
+/// optional field arrives as null rather than as a zero.
+///
+/// A required positional member with no default, sitting beside the port it bounds rather than
+/// trailing the record: a defaulted trailing member is one a projection can silently forget, and
+/// forgetting THIS one turns a hundred open ports into one on a screen an administrator reads.
+/// </param>
 /// <param name="Protocol">The transport protocol the rule applies to.</param>
 /// <param name="SourceCidr">
 /// The source range the rule is scoped to, e.g. <c>0.0.0.0/0</c> for any source.
@@ -17,4 +27,8 @@ namespace Maran.Agent.Client.Services.FirewallService;
 /// The source is the canonical spelling the firewall is actually running, not an echo of whatever
 /// a caller once sent, so it is the value to send back to deny the rule again.
 /// </remarks>
-public sealed record AgentFirewallRule(int Port, AgentFirewallProtocol Protocol, string SourceCidr);
+public sealed record AgentFirewallRule(
+    int Port,
+    int? PortTo,
+    AgentFirewallProtocol Protocol,
+    string SourceCidr);

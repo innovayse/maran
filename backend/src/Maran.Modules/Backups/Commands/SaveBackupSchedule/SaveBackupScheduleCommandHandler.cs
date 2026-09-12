@@ -76,14 +76,21 @@ public sealed class SaveBackupScheduleCommandHandler
     {
         ArgumentNullException.ThrowIfNull(command);
 
+        // The journal's subject: the account whose backups the schedule governs, as an operator
+        // would search for it, or empty for the server-wide default — that schedule acts on no one
+        // account, and the action name already says what was saved (the same "otherwise empty"
+        // convention the Identity journal documents).
+        var subject = string.Empty;
         if (command.AccountId is not null)
         {
             var account = await _accounts.FindAsync(command.AccountId.Value, cancellationToken);
             if (account is null)
             {
+                // No account can be named for this caller, so the trace records the identifier
+                // that was probed for.
                 await _journal.RecordFailureAsync(
                     AuditActions.BackupScheduleSaved,
-                    Guid.Empty,
+                    command.AccountId.Value.ToString(),
                     command.IpAddress,
                     command.UserAgent,
                     cancellationToken);
@@ -91,6 +98,8 @@ public sealed class SaveBackupScheduleCommandHandler
                 return Result<BackupScheduleDto>.Fail(
                     Error.Of(nameof(ErrorMessages.AccountNotFound), ErrorType.NotFound));
             }
+
+            subject = account.Username;
         }
 
         var schedule = await _dbContext.BackupSchedules
@@ -126,7 +135,7 @@ public sealed class SaveBackupScheduleCommandHandler
 
         await _journal.RecordSuccessAsync(
             AuditActions.BackupScheduleSaved,
-            schedule.Id,
+            subject,
             command.IpAddress,
             command.UserAgent,
             cancellationToken);

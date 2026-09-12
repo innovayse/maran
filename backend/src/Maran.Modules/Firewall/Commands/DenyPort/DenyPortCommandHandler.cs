@@ -49,10 +49,15 @@ public sealed class DenyPortCommandHandler
     public async Task<Result<bool>> HandleAsync(DenyPortCommand command, CancellationToken cancellationToken)
     {
         var options = _options.Value;
-        var subject = FirewallRuleSubject.Describe(command.Port, command.Protocol, command.SourceCidr);
+        var subject = FirewallRuleSubject.Describe(
+            command.Port,
+            command.PortTo,
+            command.Protocol,
+            command.SourceCidr);
 
         var denied = await _agent.DenyPortAsync(
             command.Port,
+            command.PortTo,
             command.Protocol,
             command.SourceCidr,
             options.SshPortNumbers,

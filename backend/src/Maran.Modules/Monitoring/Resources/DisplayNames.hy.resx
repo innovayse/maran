@@ -15,4 +15,25 @@
   <data name="MonitoringModuleDisplayName">
     <value>Մոնիտորինգ</value>
   </data>
+  <data name="ServiceUnspecified">
+    <value>Անհայտ ծառայություն</value>
+  </data>
+  <data name="ServiceWebServer">
+    <value>Վեբ սերվեր</value>
+  </data>
+  <data name="ServicePhpFpm">
+    <value>PHP-FPM</value>
+  </data>
+  <data name="ServiceDatabase">
+    <value>Տվյալների բազա</value>
+  </data>
+  <data name="ServiceFtp">
+    <value>FTP</value>
+  </data>
+  <data name="ServiceCron">
+    <value>Cron</value>
+  </data>
+  <data name="ServiceSsh">
+    <value>SSH</value>
+  </data>
 </root>

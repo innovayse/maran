@@ -71,6 +71,40 @@ public sealed class AllowPortCommandHandlerTests
         Assert.True(entry.Succeeded);
     }
 
+    /// <summary>An allow over a range sends both bounds and journals both.</summary>
+    [Fact]
+    public async Task An_allow_over_a_range_sends_both_bounds_and_journals_both()
+    {
+        // Both halves by VALUE. "an allow was sent" and "an entry was written" both pass against a
+        // range that silently collapsed to its first port, which is a hundred ports an
+        // administrator believes are open and one that is.
+        var world = new World();
+
+        await world.AllowAsync(30_000, AgentFirewallProtocol.Tcp, "0.0.0.0/0", 30_099);
+
+        var call = Assert.Single(world.Agent.Allows);
+        Assert.Equal(30_000, call.Port);
+        Assert.Equal(30_099, call.PortTo);
+
+        var entry = Assert.Single(world.Audit.Entries);
+        Assert.Equal("tcp/30000-30099 from 0.0.0.0/0", entry.Subject);
+    }
+
+    /// <summary>An allow for a single port sends no upper bound at all.</summary>
+    [Fact]
+    public async Task An_allow_for_a_single_port_sends_no_upper_bound_at_all()
+    {
+        // The compatibility claim, at the panel's end: a rule that names one port must reach the
+        // agent exactly as it did before ranges existed — and be journalled under the same subject,
+        // so the entries bracketing an old rule's life are still found by one search.
+        var world = new World();
+
+        await world.AllowAsync(8080);
+
+        Assert.Null(Assert.Single(world.Agent.Allows).PortTo);
+        Assert.Equal("tcp/8080 from 0.0.0.0/0", Assert.Single(world.Audit.Entries).Subject);
+    }
+
     /// <summary>An allow the agent refuses is journalled as a failure and returns its code.</summary>
     [Fact]
     public async Task An_allow_the_agent_refuses_is_journalled_as_a_failure_and_returns_its_code()
@@ -128,13 +162,15 @@ public sealed class AllowPortCommandHandlerTests
         /// <param name="port">The port to allow.</param>
         /// <param name="protocol">The protocol the rule applies to.</param>
         /// <param name="sourceCidr">The source range to allow from.</param>
+        /// <param name="portTo">The range's upper bound, or null for a single port.</param>
         public async Task<Result<bool>> AllowAsync(
             int port,
             AgentFirewallProtocol protocol = AgentFirewallProtocol.Tcp,
-            string sourceCidr = "0.0.0.0/0")
+            string sourceCidr = "0.0.0.0/0",
+            int? portTo = null)
         {
             return await _handler.HandleAsync(
-                new AllowPortCommand(port, protocol, sourceCidr, "198.51.100.1", "curl"),
+                new AllowPortCommand(port, protocol, sourceCidr, portTo, "198.51.100.1", "curl"),
                 CancellationToken.None);
         }
     }

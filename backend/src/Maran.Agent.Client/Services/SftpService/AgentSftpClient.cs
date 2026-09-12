@@ -122,7 +122,7 @@ public sealed class AgentSftpClient : IAgentSftpClient
     }
 
     /// <inheritdoc/>
-    public async Task<Result<bool>> SetAccountLoginsLockedAsync(
+    public async Task<Result<AccountLoginLockOutcomeDto>> SetAccountLoginsLockedAsync(
         string accountUsername,
         bool locked,
         CancellationToken cancellationToken)
@@ -136,10 +136,18 @@ public sealed class AgentSftpClient : IAgentSftpClient
 
         return response.ResultCase switch
         {
-            SetAccountLoginsLockedResponse.ResultOneofCase.Ok => Result<bool>.Ok(true),
-            SetAccountLoginsLockedResponse.ResultOneofCase.Error => Result<bool>.Fail(
+            // `HasSessionsEnded` and not `SessionsEnded != 0`: the field is an `optional uint32`, so
+            // the generated message can tell an agent that counted nothing from one that predates the
+            // field, and this is the one line where that distinction can still be lost. Reading the
+            // value alone would hand the panel a zero for both and make the attestation claim the
+            // agent looked.
+            SetAccountLoginsLockedResponse.ResultOneofCase.Ok => Result<AccountLoginLockOutcomeDto>.Ok(
+                new AccountLoginLockOutcomeDto(
+                    response.Ok.HasSessionsEnded ? response.Ok.SessionsEnded : null)),
+            SetAccountLoginsLockedResponse.ResultOneofCase.Error => Result<AccountLoginLockOutcomeDto>.Fail(
                 AgentErrorTranslator.ToError(_logger, response.Error, nameof(SetAccountLoginsLockedAsync))),
-            _ => Result<bool>.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
+            _ => Result<AccountLoginLockOutcomeDto>.Fail(
+                Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
         };
     }
 }

@@ -14,7 +14,17 @@ namespace Maran.Host.Modules;
 /// hand-picked string so the wire shape can never drift from the enum modules actually declare.
 /// Serialized as its member name (<c>"included"</c>, <c>"addOn"</c>, <c>"planGated"</c>) via the
 /// panel-wide <see cref="System.Text.Json.Serialization.JsonStringEnumConverter"/> so the SPA
-/// never has to track numeric enum values across releases.
+/// never has to track numeric enum values across releases. The words an operator reads are
+/// <paramref name="TierDisplayName"/>; this member is for keys and behaviour only.
+/// </param>
+/// <param name="TierDisplayName">
+/// The same tier as an operator reads it, resolved server-side in the request's culture by
+/// <see cref="LicenceTierDisplayNames"/>. It travels beside the machine value for the same reason
+/// <paramref name="DisplayName"/> travels beside <paramref name="Name"/>: the SPA owns no words for
+/// a server-side concept (rules/vue.md "Data comes from the backend; the SPA only displays it" —
+/// "no client-side lists of plans, statuses, tiers or limits"). Before this member existed the
+/// upgrade screen interpolated <paramref name="Tier"/> into a translated sentence, so a Russian
+/// panel read "Он доступен в тарифе addOn."
 /// </param>
 /// <param name="DisplayName">
 /// The module's human-readable name, resolved server-side in the request's culture from the
@@ -42,6 +52,7 @@ namespace Maran.Host.Modules;
 public sealed record ModuleDto(
     string Name,
     LicenceTier Tier,
+    string TierDisplayName,
     string DisplayName,
     bool IsEnabled,
     IReadOnlyList<AgentCapability> AgentCapabilities);

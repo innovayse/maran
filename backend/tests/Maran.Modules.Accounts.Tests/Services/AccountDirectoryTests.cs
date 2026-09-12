@@ -37,6 +37,31 @@ public sealed class AccountDirectoryTests
         // other number on the plan, so a projection that dropped it — or picked up its neighbour —
         // fails here rather than showing up as a limit that refuses the wrong customer.
         Assert.Equal(13, snapshot.MaxCronEntries);
+
+        // The FTPS allowance travels for the same reason and is a SEPARATE number from the SFTP one:
+        // 17 is unlike every other integer on this plan, so a projection that dropped it reads 0 —
+        // the record's default — and a projection that picked up its neighbour reads 3 or 11.
+        Assert.Equal(17, snapshot.MaxFtpUsers);
+    }
+
+    /// <summary>Every account in the host wide list carries its plans ftps allowance.</summary>
+    /// <remarks>
+    /// The second production construction site of <see cref="Maran.Sdk.Contracts.AccountSnapshot"/>,
+    /// and it needs its own assertion: the record's new member carries a default, so a list projection
+    /// that simply omits it compiles, runs, and answers zero for every account on the host.
+    /// </remarks>
+    [Fact]
+    public async Task Every_account_in_the_host_wide_list_carries_its_plans_ftps_allowance()
+    {
+        await using var dbContext = CreateDbContext();
+        await SeedAsync(dbContext, "acme");
+
+        var snapshots = await new AccountDirectory(dbContext, FakeCurrentUser.Admin())
+            .ListAsync(CancellationToken.None);
+
+        var snapshot = Assert.Single(snapshots);
+        Assert.Equal("acme", snapshot.Username);
+        Assert.Equal(17, snapshot.MaxFtpUsers);
     }
 
     /// <summary>A customer cannot read another tenants snapshot.</summary>
@@ -152,7 +177,7 @@ public sealed class AccountDirectoryTests
         {
             dbContext.Plans.Add(new Plan(
                 PlanId, "PlanStarterName", diskQuotaMb: 5_120, maxSites: 7, maxDatabases: 2, maxSftpUsers: 3,
-                maxCronEntries: 13, maxPhpWorkersPerPool: 11));
+                maxCronEntries: 13, maxPhpWorkersPerPool: 11, maxFtpUsers: 17));
         }
 
         var account = new Account(

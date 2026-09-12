@@ -45,12 +45,13 @@ public sealed class ResilientAgentFirewallClientTests
         var inner = new RecordingAgentFirewallClient { FailuresBeforeSuccess = 1 };
 
         var result = await Decorate(inner)
-            .AllowPortAsync(443, AgentFirewallProtocol.Tcp, "0.0.0.0/0", SshPorts, 8443, default)
+            .AllowPortAsync(443, null, AgentFirewallProtocol.Tcp, "0.0.0.0/0", SshPorts, 8443, default)
             .WaitAsync(TestTimeout);
 
         Assert.True(result.IsSuccess);
         Assert.Equal(2, inner.Calls);
         Assert.Equal(443, inner.LastPort);
+        Assert.Null(inner.LastPortTo);
         Assert.Equal(AgentFirewallProtocol.Tcp, inner.LastProtocol);
         Assert.Equal("0.0.0.0/0", inner.LastSourceCidr);
         Assert.Same(SshPorts, inner.LastSshPorts);
@@ -64,12 +65,18 @@ public sealed class ResilientAgentFirewallClientTests
         var inner = new RecordingAgentFirewallClient { FailuresBeforeSuccess = 1 };
 
         var result = await Decorate(inner)
-            .DenyPortAsync(3306, AgentFirewallProtocol.Udp, "10.0.0.0/8", SshPorts, 8443, default)
+            .DenyPortAsync(3306, 3310, AgentFirewallProtocol.Udp, "10.0.0.0/8", SshPorts, 8443, default)
             .WaitAsync(TestTimeout);
 
         Assert.True(result.IsSuccess);
         Assert.Equal(2, inner.Calls);
         Assert.Equal(3306, inner.LastPort);
+
+        // The decorator forwards the range's upper bound too. A decorator that dropped it would
+        // remove a DIFFERENT rule from the one the administrator asked to remove — the single port
+        // 3306 rather than the range that starts there — and every other assertion here would
+        // still pass.
+        Assert.Equal(3310, inner.LastPortTo);
         Assert.Equal(AgentFirewallProtocol.Udp, inner.LastProtocol);
         Assert.Equal("10.0.0.0/8", inner.LastSourceCidr);
         Assert.Same(SshPorts, inner.LastSshPorts);

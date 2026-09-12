@@ -118,6 +118,7 @@ public sealed class AgentFirewallClient : IAgentFirewallClient
     /// <inheritdoc/>
     public async Task<Result<bool>> AllowPortAsync(
         int port,
+        int? portTo,
         AgentFirewallProtocol protocol,
         string sourceCidr,
         IReadOnlyList<int> sshPorts,
@@ -125,6 +126,7 @@ public sealed class AgentFirewallClient : IAgentFirewallClient
         CancellationToken cancellationToken)
     {
         var refusal = RefuseUnusableRulePort(nameof(AllowPortAsync), port)
+            ?? RefuseUnusableRange(nameof(AllowPortAsync), port, portTo)
             ?? RefuseUnusableHostPorts(nameof(AllowPortAsync), sshPorts, panelPort);
         if (refusal is not null)
         {
@@ -138,6 +140,15 @@ public sealed class AgentFirewallClient : IAgentFirewallClient
             SourceCidr = sourceCidr,
             PanelPort = (uint)panelPort,
         };
+
+        // Set only when the caller asked for a range: the field is `optional` on
+        // the wire, and leaving it unset is what makes a single-port request
+        // byte-identical to the one this panel sent before ranges existed.
+        if (portTo is not null)
+        {
+            request.PortTo = (uint)portTo.Value;
+        }
+
         AddSshPorts(request.SshPorts, sshPorts);
 
         var response = await _invoker.AllowPortAsync(request, cancellationToken);
@@ -154,6 +165,7 @@ public sealed class AgentFirewallClient : IAgentFirewallClient
     /// <inheritdoc/>
     public async Task<Result<bool>> DenyPortAsync(
         int port,
+        int? portTo,
         AgentFirewallProtocol protocol,
         string sourceCidr,
         IReadOnlyList<int> sshPorts,
@@ -161,6 +173,7 @@ public sealed class AgentFirewallClient : IAgentFirewallClient
         CancellationToken cancellationToken)
     {
         var refusal = RefuseUnusableRulePort(nameof(DenyPortAsync), port)
+            ?? RefuseUnusableRange(nameof(DenyPortAsync), port, portTo)
             ?? RefuseUnusableHostPorts(nameof(DenyPortAsync), sshPorts, panelPort);
         if (refusal is not null)
         {
@@ -174,6 +187,15 @@ public sealed class AgentFirewallClient : IAgentFirewallClient
             SourceCidr = sourceCidr,
             PanelPort = (uint)panelPort,
         };
+
+        // Set only when the caller asked for a range: the field is `optional` on
+        // the wire, and leaving it unset is what makes a single-port request
+        // byte-identical to the one this panel sent before ranges existed.
+        if (portTo is not null)
+        {
+            request.PortTo = (uint)portTo.Value;
+        }
+
         AddSshPorts(request.SshPorts, sshPorts);
 
         var response = await _invoker.DenyPortAsync(request, cancellationToken);
@@ -250,6 +272,38 @@ public sealed class AgentFirewallClient : IAgentFirewallClient
                 AgentErrorTranslator.ToError(_logger, response.Error, nameof(ListBansAsync))),
             _ => Result<IReadOnlyList<AgentFirewallBan>>.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
         };
+    }
+
+    /// <summary>Refuses a port range this panel will not send.</summary>
+    /// <param name="operation">The call being refused, for the log line.</param>
+    /// <param name="port">The lower bound, already checked as a port.</param>
+    /// <param name="portTo">The upper bound the caller asked for, or null for a single port.</param>
+    /// <returns>The error to answer with, or null when there is nothing to refuse.</returns>
+    /// <remarks>
+    /// A bad argument rather than a broken host, so it answers <c>AgentInvalidInput</c> and logs at
+    /// warning — the same split the two existing refusals draw. The agent refuses the same pair in
+    /// its own validated type; refusing here as well means the panel never sends a request whose
+    /// outcome depends on the peer behaving, which is what every refusal in this file is for.
+    /// </remarks>
+    private Error? RefuseUnusableRange(string operation, int port, int? portTo)
+    {
+        if (portTo is null)
+        {
+            return null;
+        }
+
+        if (!IsUsablePort(portTo.Value) || portTo.Value <= port)
+        {
+            LogRefusedArgument(
+                _logger,
+                operation,
+                "a port range must end above where it starts and inside 1-65535",
+                null);
+
+            return Error.Of(nameof(ErrorMessages.AgentInvalidInput), ErrorType.Validation);
+        }
+
+        return null;
     }
 
     /// <summary>Whether a number can be a port at all.</summary>
@@ -365,7 +419,21 @@ public sealed class AgentFirewallClient : IAgentFirewallClient
                     Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure));
             }
 
-            rules.Add(new AgentFirewallRule((int)rule.Port, protocol.Value, rule.SourceCidr));
+            // A rule whose upper bound is unusable is refused with the rest: it cannot be shown
+            // honestly and cannot be sent back to deny the rule, exactly as an unnameable protocol
+            // cannot. `HasPortTo` is false for every rule an older agent sends and for every single
+            // port, and that is the case that maps to null rather than to a bound of zero.
+            if (rule.HasPortTo && (rule.PortTo <= rule.Port || rule.PortTo > HighestPort))
+            {
+                return Result<IReadOnlyList<AgentFirewallRule>>.Fail(
+                    Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure));
+            }
+
+            rules.Add(new AgentFirewallRule(
+                (int)rule.Port,
+                rule.HasPortTo ? (int)rule.PortTo : null,
+                protocol.Value,
+                rule.SourceCidr));
         }
 
         return Result<IReadOnlyList<AgentFirewallRule>>.Ok(rules);

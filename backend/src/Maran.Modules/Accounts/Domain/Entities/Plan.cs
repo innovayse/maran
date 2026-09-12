@@ -2,9 +2,10 @@ namespace Maran.Modules.Accounts.Domain.Entities;
 
 /// <summary>
 /// A plan an <see cref="Account"/> is created against: the resource limits spec §8 requires — disk
-/// quota and counts for sites, databases, SFTP logins and cron entries. Plans are reference data the panel ships
-/// with (seeded by <see cref="Seeders.PlanSeeder"/>) and are read-only from every module's
-/// perspective in this pass; nothing here mutates a plan after creation.
+/// quota and counts for sites, databases, SFTP logins, FTPS logins and cron entries. Plans are
+/// reference data the panel ships with (seeded by <see cref="Seeders.PlanSeeder"/>) and are
+/// read-only from every module's perspective in this pass; nothing here mutates a plan after
+/// creation.
 /// </summary>
 /// <remarks>
 /// <see cref="MaxSftpUsers"/> was called <c>MaxFtpUsers</c> until the file-transfer allowance was
@@ -14,6 +15,13 @@ namespace Maran.Modules.Accounts.Domain.Entities;
 /// them is a plan where the answer to "how many logins may I have" depends on which module you ask.
 /// The column was renamed rather than added beside, so every seeded and operator-edited value
 /// carried over unchanged.
+///
+/// <see cref="MaxFtpUsers"/> then re-introduced that spelling for a DIFFERENT allowance, and the
+/// history is why this paragraph stays: the panel now does install an FTP daemon, and an FTPS login
+/// is a second kind of file-transfer login served by a different daemon out of a different jail. Two
+/// counts are correct here where one was correct before — an operator who sells SFTP access and an
+/// operator who sells FTPS access are selling different things — and the old column's rename is not
+/// a decision this reverses.
 /// </remarks>
 public sealed class Plan
 {
@@ -34,6 +42,15 @@ public sealed class Plan
 
     /// <summary>The maximum number of SFTP logins the account may create.</summary>
     public int MaxSftpUsers { get; private set; }
+
+    /// <summary>The maximum number of FTPS logins the account may create.</summary>
+    /// <remarks>
+    /// Separate from <see cref="MaxSftpUsers"/> and never derived from it: the two logins are served
+    /// by different daemons out of different jails, and a host that has FTPS switched off entirely
+    /// is the ordinary case rather than the exception. Zero is a coherent product — "this tier does
+    /// not include FTPS" — and is what an operator's own plan holds until they decide otherwise.
+    /// </remarks>
+    public int MaxFtpUsers { get; private set; }
 
     /// <summary>The maximum number of cron entries the account may keep in its crontab.</summary>
     /// <remarks>
@@ -93,10 +110,24 @@ public sealed class Plan
     /// positive: it becomes <c>pm.max_children</c>, and php-fpm refuses to start a pool with a
     /// non-positive one, so a zero here is a plan that cannot serve PHP at all.
     /// </param>
+    /// <param name="maxFtpUsers">
+    /// The maximum number of FTPS logins the account may create. Zero is ACCEPTED, for the reason
+    /// <paramref name="maxCronEntries"/> gives and one more of its own: FTPS is off on a fresh host
+    /// until an operator turns it on, so a plan that includes no FTPS login is the ordinary starting
+    /// state rather than a broken plan. Negative is refused.
+    ///
+    /// It is the one parameter here carrying a DEFAULT, and the default is the refusing value. The
+    /// reason is mechanical rather than a judgement about limits: this constructor is called from
+    /// fifteen fixtures in <c>Maran.Host.IntegrationTests</c>, a project this change may not edit
+    /// while other work is in flight against it, and a required parameter would stop that project
+    /// building. A plan that does not state an FTPS allowance therefore sells none, which is the
+    /// direction a limit is allowed to be wrong in — and every plan this panel ships states one
+    /// (<see cref="Seeders.PlanSeeder"/>). Making it required is owed work, not a settled shape.
+    /// </param>
     /// <exception cref="ArgumentOutOfRangeException">
     /// Thrown when <paramref name="maxDatabases"/>, <paramref name="maxSftpUsers"/> or
     /// <paramref name="maxPhpWorkersPerPool"/> is not positive, or when
-    /// <paramref name="maxCronEntries"/> is negative.
+    /// <paramref name="maxCronEntries"/> or <paramref name="maxFtpUsers"/> is negative.
     /// </exception>
     public Plan(
         Guid id,
@@ -106,12 +137,14 @@ public sealed class Plan
         int maxDatabases,
         int maxSftpUsers,
         int maxCronEntries,
-        int maxPhpWorkersPerPool)
+        int maxPhpWorkersPerPool,
+        int maxFtpUsers = 0)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxDatabases);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxSftpUsers);
         ArgumentOutOfRangeException.ThrowIfNegative(maxCronEntries);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxPhpWorkersPerPool);
+        ArgumentOutOfRangeException.ThrowIfNegative(maxFtpUsers);
 
         Id = id;
         DisplayNameKey = displayNameKey;
@@ -121,6 +154,7 @@ public sealed class Plan
         MaxSftpUsers = maxSftpUsers;
         MaxCronEntries = maxCronEntries;
         MaxPhpWorkersPerPool = maxPhpWorkersPerPool;
+        MaxFtpUsers = maxFtpUsers;
     }
 
     /// <summary>Parameterless constructor required by EF Core materialization.</summary>

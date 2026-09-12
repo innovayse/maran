@@ -15,4 +15,25 @@
   <data name="MonitoringModuleDisplayName">
     <value>Monitoring</value>
   </data>
+  <data name="ServiceUnspecified">
+    <value>Unknown service</value>
+  </data>
+  <data name="ServiceWebServer">
+    <value>Web server</value>
+  </data>
+  <data name="ServicePhpFpm">
+    <value>PHP-FPM</value>
+  </data>
+  <data name="ServiceDatabase">
+    <value>Database</value>
+  </data>
+  <data name="ServiceFtp">
+    <value>FTP</value>
+  </data>
+  <data name="ServiceCron">
+    <value>Cron</value>
+  </data>
+  <data name="ServiceSsh">
+    <value>SSH</value>
+  </data>
 </root>

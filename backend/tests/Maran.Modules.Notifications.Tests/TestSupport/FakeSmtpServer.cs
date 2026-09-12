@@ -44,6 +44,24 @@ public sealed class FakeSmtpServer : IDisposable
     /// <summary>The accept loop, kept so disposal can wait for it to unwind.</summary>
     private readonly Task _serving;
 
+    /// <summary>Completes when the first accepted connection's conversation has ended.</summary>
+    /// <remarks>
+    /// The seam that makes this server's record of a connection readable at a defined moment. A test
+    /// runs on the client's thread and returns from its send the instant the client gives up, while
+    /// everything this type records happens on the accept loop. Most of what is recorded is safe to
+    /// read anyway, because the client saw a reply that the server could only send after recording
+    /// it — <c>EHLO</c> is in <see cref="Commands"/> before its <c>250</c> goes out, and
+    /// <see cref="AcceptedMessages"/> is incremented before <c>250 queued</c>. The TLS flag is the
+    /// one exception: the server answers a <c>ClientHello</c> with nothing at all, so no reply
+    /// orders the recording against the client's failure, and reading the flag on return from the
+    /// send is reading it at an arbitrary moment. Measured here, that moment was too early on 26 of
+    /// 300 sends, by up to 1.3 ms. Awaiting the end of the conversation orders it: every path out of
+    /// <c>ConverseAsync</c> — the TLS opening, a client that hangs up, <c>QUIT</c>, a faulted
+    /// socket — completes this only after the flag has been set or definitively not set.
+    /// </remarks>
+    private readonly TaskCompletionSource _conversationEnded =
+        new(TaskCreationOptions.RunContinuationsAsynchronously);
+
     /// <summary>Whether a client opened with a TLS record rather than waiting for the greeting.</summary>
     private volatile bool _sawTlsHandshake;
 
@@ -97,6 +115,30 @@ public sealed class FakeSmtpServer : IDisposable
         }
     }
 
+    /// <summary>Waits until the first connection's conversation has ended, so its record can be read.</summary>
+    /// <param name="timeout">How long to wait before giving up on the conversation ending.</param>
+    /// <returns>
+    /// <c>true</c> once the conversation has ended; <c>false</c> if the timeout elapsed first, which
+    /// is a failure for the caller to report rather than something to read past.
+    /// </returns>
+    /// <remarks>
+    /// A bounded wait on an event, not a delay: it returns as soon as the accept loop is done with
+    /// the connection, which in every case this suite drives is immediately. The timeout exists only
+    /// so a server that never finishes fails a test instead of hanging it.
+    /// </remarks>
+    public async Task<bool> ConversationEndedWithinAsync(TimeSpan timeout)
+    {
+        try
+        {
+            await _conversationEnded.Task.WaitAsync(timeout);
+            return true;
+        }
+        catch (TimeoutException)
+        {
+            return false;
+        }
+    }
+
     /// <summary>Stops the listener and waits for the accept loop to unwind.</summary>
     public void Dispose()
     {
@@ -112,6 +154,7 @@ public sealed class FakeSmtpServer : IDisposable
             // A socket torn down mid-read faults the loop; that is what disposal asked for.
         }
 
+        _conversationEnded.TrySetResult();
         _stopping.Dispose();
     }
 
@@ -160,6 +203,13 @@ public sealed class FakeSmtpServer : IDisposable
                 catch (Exception)
                 {
                     // A client that vanishes mid-conversation is one of the outcomes under test.
+                }
+                finally
+                {
+                    // In the finally rather than after the call, because a faulted conversation has
+                    // ended too, and a waiter that only ever heard about clean endings would hang on
+                    // exactly the connection whose record a test most wants to read.
+                    _conversationEnded.TrySetResult();
                 }
             }
         }

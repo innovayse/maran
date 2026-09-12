@@ -8,13 +8,15 @@ namespace Maran.Modules.Firewall.Tests.TestSupport;
 /// about: the agent re-renders the whole ruleset from them under a drop policy, so a call that
 /// arrived without them is a locked-out server.
 /// </remarks>
-/// <param name="Port">The port the rule names.</param>
+/// <param name="Port">The port the rule names, or the lower bound of a range.</param>
+/// <param name="PortTo">The inclusive upper bound of a range, or null for a single port.</param>
 /// <param name="Protocol">The transport protocol it applies to.</param>
 /// <param name="SourceCidr">The source range it is scoped to.</param>
 /// <param name="SshPorts">Every SSH port the panel told the agent about.</param>
 /// <param name="PanelPort">The panel port the panel told the agent about.</param>
 public sealed record AgentRuleCall(
     int Port,
+    int? PortTo,
     AgentFirewallProtocol Protocol,
     string SourceCidr,
     IReadOnlyList<int> SshPorts,

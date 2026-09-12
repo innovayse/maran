@@ -65,6 +65,23 @@ public sealed class DenyPortCommandHandlerTests
         Assert.False(Assert.Single(world.Audit.Entries).Succeeded);
     }
 
+    /// <summary>A deny for a range sends both bounds, so it removes the rule that exists.</summary>
+    [Fact]
+    public async Task A_deny_for_a_range_sends_both_bounds()
+    {
+        // A rule is matched by its whole value, so a deny that forwarded only the lower bound would
+        // ask the agent to remove the single port 30000 — which is not installed. The agent would
+        // answer NotFound, and the range would stay open while the screen said it was removed.
+        var world = new World();
+
+        await world.DenyAsync(30_000, AgentFirewallProtocol.Tcp, "0.0.0.0/0", 30_099);
+
+        var call = Assert.Single(world.Agent.Denies);
+        Assert.Equal(30_000, call.Port);
+        Assert.Equal(30_099, call.PortTo);
+        Assert.Equal("tcp/30000-30099 from 0.0.0.0/0", Assert.Single(world.Audit.Entries).Subject);
+    }
+
     /// <summary>The agent double, the journal and the handler under test.</summary>
     private sealed class World
     {
@@ -90,13 +107,15 @@ public sealed class DenyPortCommandHandlerTests
         /// <param name="port">The port to close.</param>
         /// <param name="protocol">The protocol the rule applies to.</param>
         /// <param name="sourceCidr">The source range the allow was scoped to.</param>
+        /// <param name="portTo">The range's upper bound, or null for a single port.</param>
         public async Task<Result<bool>> DenyAsync(
             int port,
             AgentFirewallProtocol protocol = AgentFirewallProtocol.Tcp,
-            string sourceCidr = "0.0.0.0/0")
+            string sourceCidr = "0.0.0.0/0",
+            int? portTo = null)
         {
             return await _handler.HandleAsync(
-                new DenyPortCommand(port, protocol, sourceCidr, "198.51.100.1", "curl"),
+                new DenyPortCommand(port, protocol, sourceCidr, portTo, "198.51.100.1", "curl"),
                 CancellationToken.None);
         }
     }

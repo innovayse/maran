@@ -1,21 +1,15 @@
 using Maran.Host.IntegrationTests.Fixtures;
 using Maran.Modules.Accounts.Domain.Entities;
 using Maran.Modules.Accounts.Persistence;
-using Maran.Modules.Backups.Persistence;
 using Maran.Modules.Databases.Persistence;
-using Maran.Modules.Identity.Persistence;
-using Maran.Modules.Sftp.Persistence;
 using Maran.Modules.Sites.Domain.Entities;
 using Maran.Modules.Sites.Domain.Enums;
 using Maran.Modules.Sites.Persistence;
-using Maran.Modules.Ssl.Persistence;
-using Maran.Modules.Tasks.Persistence;
 using Maran.Sdk.Contracts;
 using Maran.Sdk.Interfaces;
 using Maran.SharedKernel.Interfaces;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Maran.Host.IntegrationTests;
@@ -161,22 +155,23 @@ public sealed class AccountResidueAuditTests : IAsyncLifetime
     private static async Task MigrateAsync(WebApplicationFactory<Program> factory, bool includeDatabases = true)
     {
         using var scope = factory.Services.CreateScope();
-        await scope.ServiceProvider.GetRequiredService<IdentityDbContext>().Database.MigrateAsync();
-        await scope.ServiceProvider.GetRequiredService<AccountsDbContext>().Database.MigrateAsync();
-        await scope.ServiceProvider.GetRequiredService<SftpDbContext>().Database.MigrateAsync();
-        await scope.ServiceProvider.GetRequiredService<SitesDbContext>().Database.MigrateAsync();
-        await scope.ServiceProvider.GetRequiredService<SslDbContext>().Database.MigrateAsync();
-        await scope.ServiceProvider.GetRequiredService<TasksDbContext>().Database.MigrateAsync();
 
-        // The Backups module joined the composed host, so its schema is part of what an account
-        // deletion has to be able to reach. Left unmigrated, its cascade handler throws and the
-        // residue audit reports the module as UNCHECKED rather than clean — which is what these
-        // fixtures measured before this line existed.
-        await scope.ServiceProvider.GetRequiredService<BackupsDbContext>().Database.MigrateAsync();
-
+        // Derived from ModuleRegistry, not written down here: the auditor under test reads the same
+        // registry, so a module composed into the panel joins this fixture by construction. Both
+        // this suite and the cascade suite previously kept a hand-written list and both broke, in
+        // the same way, each time a module was added (Backups, then Ftp) — the fixture reported the
+        // new module as UNCHECKED and was repaired by appending one line.
+        //
+        // The single exclusion: the Databases module's schema, left uncreated so its count really
+        // fails against real PostgreSQL. That is how the unchecked test manufactures a module the
+        // audit cannot read; an exclusion the registry no longer declares fails by name.
         if (includeDatabases)
         {
-            await scope.ServiceProvider.GetRequiredService<DatabasesDbContext>().Database.MigrateAsync();
+            await ModuleSchemas.MigrateAsync(scope.ServiceProvider);
+        }
+        else
+        {
+            await ModuleSchemas.MigrateAsync(scope.ServiceProvider, typeof(DatabasesDbContext));
         }
     }
 

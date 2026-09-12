@@ -1,3 +1,4 @@
+using System.Globalization;
 using Maran.Modules.Identity.Domain.Entities;
 using Maran.Modules.Identity.Persistence;
 using Maran.Modules.Identity.Queries.ListAuditEvents;
@@ -19,11 +20,16 @@ public sealed class ListAuditEventsQueryHandlerTests : IDisposable
         _context.Dispose();
     }
 
-    private async Task WriteAsync(DateTimeOffset at, string subject)
+    private async Task WriteAsync(DateTimeOffset at, string subject, string action = AuditActions.LoginSucceeded)
     {
         _context.AuditEvents.Add(new AuditEvent(
-            Guid.NewGuid(), at, null, "admin", AuditActions.LoginSucceeded, subject, "203.0.113.7", "agent", true, null));
+            Guid.NewGuid(), at, null, "admin", action, subject, "203.0.113.7", "agent", true, null));
         await _context.SaveChangesAsync();
+    }
+
+    private ListAuditEventsQueryHandler Handler()
+    {
+        return new ListAuditEventsQueryHandler(_context, IdentityTestContext.ActionNames());
     }
 
     /// <summary>Listing returns the most recent events first.</summary>
@@ -33,7 +39,7 @@ public sealed class ListAuditEventsQueryHandlerTests : IDisposable
         await WriteAsync(Now, "first");
         await WriteAsync(Now.AddMinutes(1), "second");
 
-        var result = await new ListAuditEventsQueryHandler(_context).HandleAsync(new ListAuditEventsQuery(50), CancellationToken.None);
+        var result = await Handler().HandleAsync(new ListAuditEventsQuery(50), CancellationToken.None);
 
         Assert.Equal(["second", "first"], result.Value.Select(e =>
         {
@@ -48,7 +54,7 @@ public sealed class ListAuditEventsQueryHandlerTests : IDisposable
         await WriteAsync(Now, "first");
         await WriteAsync(Now.AddMinutes(1), "second");
 
-        var result = await new ListAuditEventsQueryHandler(_context).HandleAsync(new ListAuditEventsQuery(1), CancellationToken.None);
+        var result = await Handler().HandleAsync(new ListAuditEventsQuery(1), CancellationToken.None);
 
         Assert.Single(result.Value);
     }
@@ -57,9 +63,55 @@ public sealed class ListAuditEventsQueryHandlerTests : IDisposable
     [Fact]
     public async Task An_empty_journal_lists_nothing_rather_than_failing()
     {
-        var result = await new ListAuditEventsQueryHandler(_context).HandleAsync(new ListAuditEventsQuery(50), CancellationToken.None);
+        var result = await Handler().HandleAsync(new ListAuditEventsQuery(50), CancellationToken.None);
 
         Assert.True(result.IsSuccess);
         Assert.Empty(result.Value);
+    }
+
+    /// <summary>A row's action reaches the caller named in the request's language beside the machine code.</summary>
+    /// <remarks>
+    /// The pinned defect: the audit screen showed <c>BackupRestored</c> verbatim in a Russian
+    /// interface. The Russian VALUE is asserted, not "some name came back" — and the machine code
+    /// stays on the wire beside it, because that constant is what an administrator greps a log by.
+    /// </remarks>
+    [Fact]
+    public async Task A_rows_action_is_named_in_the_requests_language_beside_the_machine_code()
+    {
+        await WriteAsync(Now, "livecust", AuditActions.BackupRestored);
+
+        var previous = CultureInfo.CurrentUICulture;
+        try
+        {
+            CultureInfo.CurrentUICulture = new CultureInfo("ru");
+
+            var result = await Handler().HandleAsync(new ListAuditEventsQuery(50), CancellationToken.None);
+
+            var row = Assert.Single(result.Value);
+            Assert.Equal("BackupRestored", row.Action);
+            Assert.Equal("Аккаунт восстановлен из резервной копии", row.ActionName);
+        }
+        finally
+        {
+            CultureInfo.CurrentUICulture = previous;
+        }
+    }
+
+    /// <summary>An action this build has no name for reaches the caller as itself, twice.</summary>
+    /// <remarks>
+    /// The marketplace contract carried through the query: the name falls back to the constant, and
+    /// the constant is still on the wire — so an unknown action renders exactly as it did before
+    /// names existed, never as a resx key.
+    /// </remarks>
+    [Fact]
+    public async Task An_action_with_no_name_reaches_the_caller_as_the_machine_code()
+    {
+        await WriteAsync(Now, "livecust", "SomeMarketplaceModuleAction");
+
+        var result = await Handler().HandleAsync(new ListAuditEventsQuery(50), CancellationToken.None);
+
+        var row = Assert.Single(result.Value);
+        Assert.Equal("SomeMarketplaceModuleAction", row.Action);
+        Assert.Equal("SomeMarketplaceModuleAction", row.ActionName);
     }
 }

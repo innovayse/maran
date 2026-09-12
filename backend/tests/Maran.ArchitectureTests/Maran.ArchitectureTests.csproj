@@ -27,11 +27,13 @@
     <ProjectReference Include="..\..\src\Maran.Modules\Identity\Maran.Modules.Identity.csproj" />
     <ProjectReference Include="..\..\src\Maran.Modules\Sites\Maran.Modules.Sites.csproj" />
     <ProjectReference Include="..\..\src\Maran.Modules\Ssl\Maran.Modules.Ssl.csproj" />
+    <ProjectReference Include="..\..\src\Maran.Modules\Backups\Maran.Modules.Backups.csproj" />
     <ProjectReference Include="..\..\src\Maran.Modules\Databases\Maran.Modules.Databases.csproj" />
     <ProjectReference Include="..\..\src\Maran.Modules\Sftp\Maran.Modules.Sftp.csproj" />
     <ProjectReference Include="..\..\src\Maran.Modules\Firewall\Maran.Modules.Firewall.csproj" />
     <ProjectReference Include="..\..\src\Maran.Modules\Cron\Maran.Modules.Cron.csproj" />
     <ProjectReference Include="..\..\src\Maran.Modules\Tasks\Maran.Modules.Tasks.csproj" />
+    <ProjectReference Include="..\..\src\Maran.Modules\Ftp\Maran.Modules.Ftp.csproj" />
   </ItemGroup>
 
 </Project>

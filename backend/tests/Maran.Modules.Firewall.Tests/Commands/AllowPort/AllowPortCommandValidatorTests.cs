@@ -67,12 +67,46 @@ public sealed class AllowPortCommandValidatorTests
         Assert.True(Validate(8080, "::/0").IsValid);
     }
 
+    /// <summary>A range that does not end above where it starts is refused.</summary>
+    [Theory]
+    [InlineData(30_000)]
+    [InlineData(29_999)]
+    [InlineData(0)]
+    [InlineData(70_000)]
+    public void A_range_that_does_not_end_above_where_it_starts_is_refused(int portTo)
+    {
+        // Equal bounds are in this list because `nft` ACCEPTS them: they would become a second
+        // spelling of the single port 30000, and a later deny naming that port would match nothing
+        // and report success while the port stayed open.
+        var result = Validate(30_000, "0.0.0.0/0", portTo);
+
+        Assert.False(result.IsValid);
+        Assert.Contains(result.Errors, error =>
+        {
+            return error.ErrorMessage == "RulePortRangeInvalid";
+        });
+    }
+
+    /// <summary>A range that ends above where it starts is accepted, and so is no range at all.</summary>
+    [Fact]
+    public void A_range_that_ends_above_where_it_starts_is_accepted_and_so_is_no_range_at_all()
+    {
+        // The inverse control (rules/testing.md): a rule that refused everything would pass every
+        // test above and nothing here.
+        Assert.True(Validate(30_000, "0.0.0.0/0", 30_099).IsValid);
+        Assert.True(Validate(30_000, "0.0.0.0/0").IsValid);
+    }
+
     /// <summary>Runs the validator over one candidate rule.</summary>
     /// <param name="port">The port the rule names.</param>
     /// <param name="sourceCidr">The source range it is scoped to.</param>
-    private static FluentValidation.Results.ValidationResult Validate(int port, string sourceCidr)
+    /// <param name="portTo">The range's upper bound, or null for a single port.</param>
+    private static FluentValidation.Results.ValidationResult Validate(
+        int port,
+        string sourceCidr,
+        int? portTo = null)
     {
         return new AllowPortCommandValidator().Validate(
-            new AllowPortCommand(port, AgentFirewallProtocol.Tcp, sourceCidr, "198.51.100.1", "curl"));
+            new AllowPortCommand(port, AgentFirewallProtocol.Tcp, sourceCidr, portTo, "198.51.100.1", "curl"));
     }
 }

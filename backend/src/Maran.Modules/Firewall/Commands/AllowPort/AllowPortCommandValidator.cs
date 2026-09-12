@@ -31,6 +31,15 @@ public sealed class AllowPortCommandValidator : AbstractValidator<AllowPortComma
             .Must(FirewallOptions.IsUsablePort)
             .WithMessage(nameof(ErrorMessages.RulePortInvalid));
 
+        // Checked as a PAIR rather than as a lone member, because "is this a port"
+        // cannot answer "does this range end above where it starts".
+        RuleFor(command => command)
+            .Must(command =>
+            {
+                return PortRange.IsUsable(command.Port, command.PortTo);
+            })
+            .WithMessage(nameof(ErrorMessages.RulePortRangeInvalid));
+
         RuleFor(command => command.Protocol)
             .IsInEnum()
             .WithMessage(nameof(ErrorMessages.RuleProtocolInvalid));

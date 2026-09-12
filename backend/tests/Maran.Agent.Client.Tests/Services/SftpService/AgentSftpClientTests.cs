@@ -309,7 +309,49 @@ public sealed class AgentSftpClientTests
         var result = await new AgentSftpClient(stub, NullLogger<AgentSftpClient>.Instance).SetAccountLoginsLockedAsync("alice", true, CancellationToken.None);
 
         Assert.True(result.IsSuccess);
-        Assert.True(result.Value);
+        Assert.Null(result.Value!.SessionsEnded);
+    }
+
+    /// <summary>A session count the agent stated survives the mapping as a number.</summary>
+    [Fact]
+    public async Task A_session_count_the_agent_stated_survives_the_mapping()
+    {
+        var stub = new StubSftpService
+        {
+            SetLoginsLockedResponse = new SetAccountLoginsLockedResponse
+            {
+                Ok = new SetAccountLoginsLockedOk { SessionsEnded = 4 },
+            },
+        };
+
+        var result = await new AgentSftpClient(stub, NullLogger<AgentSftpClient>.Instance).SetAccountLoginsLockedAsync("alice", true, CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(4u, result.Value!.SessionsEnded);
+    }
+
+    /// <summary>
+    /// A count of zero the agent STATED is carried as zero and not as absence, which is this mapping's
+    /// vacuity guard: the two differ only in the optional field's presence, so a test that passed in
+    /// both states would measure neither. Reading the value alone — rather than
+    /// <c>HasSessionsEnded</c> — collapses them, and the direction it collapses in is the one that
+    /// manufactures a completeness claim.
+    /// </summary>
+    [Fact]
+    public async Task A_stated_zero_is_carried_as_a_measured_none_and_not_as_an_absent_count()
+    {
+        var stub = new StubSftpService
+        {
+            SetLoginsLockedResponse = new SetAccountLoginsLockedResponse
+            {
+                Ok = new SetAccountLoginsLockedOk { SessionsEnded = 0 },
+            },
+        };
+
+        var result = await new AgentSftpClient(stub, NullLogger<AgentSftpClient>.Instance).SetAccountLoginsLockedAsync("alice", true, CancellationToken.None);
+
+        Assert.Equal(0u, result.Value!.SessionsEnded);
+        Assert.NotNull(result.Value.SessionsEnded);
     }
 
     /// <summary>The account-wide lock error payload maps to a failed result with the agent code.</summary>

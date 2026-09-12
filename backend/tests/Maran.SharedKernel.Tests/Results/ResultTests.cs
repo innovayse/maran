@@ -29,6 +29,42 @@ public sealed class ResultTests
         });
     }
 
+    /// <summary>A failed result may carry a problem extension, and hands it back untouched.</summary>
+    [Fact]
+    public void Failed_result_may_carry_a_problem_extension()
+    {
+        var extension = ProblemExtension.Of("restore", new { DatabasesRestored = 1u });
+
+        var result = Result<int>.Fail(Error.Of("RestorePartial", ErrorType.Failure), extension);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("RestorePartial", result.Error!.Code);
+        Assert.Same(extension, result.Extension);
+    }
+
+    /// <summary>A failure built without an extension carries none.</summary>
+    /// <remarks>
+    /// The negative half of the seat: most failures have nothing to publish, and the pipeline reads
+    /// null as "write only the standing members" — so a phantom extension here would put an empty
+    /// member on every failure response in the panel.
+    /// </remarks>
+    [Fact]
+    public void Failed_result_without_an_extension_carries_none()
+    {
+        var result = Result<int>.Fail(Error.Of("SitesDomainTaken", ErrorType.Conflict));
+
+        Assert.Null(result.Extension);
+    }
+
+    /// <summary>A success never carries an extension; the facts of a success ride the value.</summary>
+    [Fact]
+    public void Ok_result_carries_no_extension()
+    {
+        var result = Result<int>.Ok(42);
+
+        Assert.Null(result.Extension);
+    }
+
     /// <summary>Match routes to the correct branch.</summary>
     [Fact]
     public void Match_routes_to_the_correct_branch()

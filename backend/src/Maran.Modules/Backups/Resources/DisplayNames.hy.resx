@@ -57,7 +57,16 @@
   <data name="BackupFailureAgentInvalidResponse">
     <value>Սերվերը վերադարձրեց պատասխան, որը վահանակը չկարողացավ կարդալ</value>
   </data>
+  <data name="BackupFailureAgentAccountBusy">
+    <value>Այս հաշվի վրա մեկ այլ գործողություն դեռ ընթանում էր</value>
+  </data>
   <data name="BackupDestinationDefault">
     <value>Տեղական պահոց</value>
+  </data>
+  <data name="BackupFailureBackupOutcomeUnobserved">
+    <value>Վահանակը դադարեց հետևել կատարմանը</value>
+  </data>
+  <data name="BackupFailureBackupArtifactUnvouched">
+    <value>Պատճենը կա, ստուգիչ գումարը գրանցված չէ</value>
   </data>
 </root>

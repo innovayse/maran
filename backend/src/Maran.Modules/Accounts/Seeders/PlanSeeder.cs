@@ -16,13 +16,19 @@ namespace Maran.Modules.Accounts.Seeders;
 /// per worker, 5/10/20 is 250&#160;MB, 500&#160;MB and 1&#160;GB of resident memory per pool.
 /// <list type="bullet">
 /// <item><b>Starter</b> — 5&#160;120&#160;MB (5&#160;GB) disk, 5 sites, 2 databases, 3 SFTP logins,
-/// 5 cron entries. A single small site or two, the smallest useful account.</item>
+/// 3 FTPS logins, 5 cron entries. A single small site or two, the smallest useful account.</item>
 /// <item><b>Business</b> — 25&#160;600&#160;MB (25&#160;GB) disk, 25 sites, 10 databases, 10 SFTP
-/// logins, 20 cron entries. An agency running several client sites.</item>
+/// logins, 10 FTPS logins, 20 cron entries. An agency running several client sites.</item>
 /// <item><b>Unlimited</b> — 1&#160;048&#160;576&#160;MB (1&#160;TB) disk, 500 sites, 500 databases,
-/// 100 SFTP logins, 200 cron entries. High enough that no real customer hits it in practice, without
-/// pretending the server has infinite resources.</item>
+/// 100 SFTP logins, 100 FTPS logins, 200 cron entries. High enough that no real customer hits it in
+/// practice, without pretending the server has infinite resources.</item>
 /// </list>
+///
+/// The FTPS allowance of each tier equals its SFTP one, and that is a product decision rather than a
+/// derivation: the two are separate limits on separate daemons (<see cref="Plan.MaxFtpUsers"/>), and
+/// nothing stops an operator selling different numbers. Equal is what the shipped tiers mean —
+/// "this many file-transfer logins, over whichever protocol you prefer" — and it is the choice that
+/// surprises nobody who reads the plan's SFTP figure first.
 /// </summary>
 public sealed class PlanSeeder
 {
@@ -73,15 +79,15 @@ public sealed class PlanSeeder
             new Plan(
                 StarterPlanId, "PlanStarterName",
                 diskQuotaMb: 5_120, maxSites: 5, maxDatabases: 2, maxSftpUsers: 3, maxCronEntries: 5,
-                maxPhpWorkersPerPool: 5),
+                maxPhpWorkersPerPool: 5, maxFtpUsers: 3),
             new Plan(
                 BusinessPlanId, "PlanBusinessName",
                 diskQuotaMb: 25_600, maxSites: 25, maxDatabases: 10, maxSftpUsers: 10, maxCronEntries: 20,
-                maxPhpWorkersPerPool: 10),
+                maxPhpWorkersPerPool: 10, maxFtpUsers: 10),
             new Plan(
                 UnlimitedPlanId, "PlanUnlimitedName",
                 diskQuotaMb: 1_048_576, maxSites: 500, maxDatabases: 500, maxSftpUsers: 100, maxCronEntries: 200,
-                maxPhpWorkersPerPool: 20),
+                maxPhpWorkersPerPool: 20, maxFtpUsers: 100),
         ];
     }
 }

@@ -50,6 +50,20 @@ public enum AgentCapability
     /// <summary>The host firewall's rules and bans: <c>IAgentFirewallClient</c>.</summary>
     Firewall,
 
+    /// <summary>
+    /// This panel's own FTPS daemon — its configuration, its observed state, and the logins it
+    /// authorises: <c>IAgentFtpsClient</c>.
+    /// </summary>
+    /// <remarks>
+    /// Separate from <see cref="Sftp"/> because the two clients drive different daemons, and an
+    /// administrator judging a module wants to know which one it will touch: an OpenSSH the operator
+    /// already runs, or a vsftpd this panel installs, configures and starts. It is also separate
+    /// from <see cref="Firewall"/> on purpose — the module that manages FTPS does NOT open the
+    /// passive port range, it reports which range an operator would have to open — and from
+    /// <see cref="Ssl"/>, because nothing behind this capability ever writes certificate material.
+    /// </remarks>
+    Ftps,
+
     /// <summary>Host metrics and service states: <c>IAgentMonitorClient</c>.</summary>
     Monitor,
 
@@ -57,6 +71,16 @@ public enum AgentCapability
     Php,
 
     /// <summary>SFTP logins: <c>IAgentSftpClient</c>.</summary>
+    /// <remarks>
+    /// Named for the daemon whose logins it creates, changes and removes, which is what an
+    /// administrator is judging when they read it. One member of that client reaches further and is
+    /// stated here rather than left to be discovered: <c>SetAccountLoginsLockedAsync</c> locks and
+    /// unlocks EVERY file-transfer login the account holds, FTPS ones included, because the agent
+    /// serves it out of an enumeration of the password database rather than out of one protocol's
+    /// area — a per-protocol lock would walk past the other daemon's login and report success. So a
+    /// module declaring only this capability can suspend and resume an account's FTPS credentials,
+    /// though it can neither create, repassword nor delete one; that needs <see cref="Ftps"/>.
+    /// </remarks>
     Sftp,
 
     /// <summary>Web server virtual hosts and site logs: <c>IAgentSitesClient</c>.</summary>

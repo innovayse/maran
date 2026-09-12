@@ -13,6 +13,24 @@ using Microsoft.Extensions.Options;
 namespace Maran.Modules.Identity.Commands.CompleteSetup;
 
 /// <summary>Handles <see cref="CompleteSetupCommand"/> by creating the panel's first administrator.</summary>
+/// <remarks>
+/// <para>
+/// <b>Three gates, in this order, and each answers a different question.</b> Whether the panel
+/// already HAS an owner (state, not a spent-flag); whether the token is the configured one (a
+/// constant-time comparison); and whether that token is still inside its window. The order matters
+/// for what a caller learns: a panel that is already claimed says so without the token being
+/// examined at all, so a stranger probing a live server cannot distinguish a wrong token from a
+/// right one there.
+/// </para>
+/// <para>
+/// <b>The window is the answer to an install nobody finished.</b> Until it existed, this handler
+/// gated on "does any user exist" alone, so a server installed and abandoned kept a live token — 192
+/// bits of permission to own it — for as long as the file holding it existed. The window's length,
+/// where its clock comes from, and what an operator does when it has closed are all documented on
+/// <see cref="SetupTokenWindowKeeper"/>; the refusal names the remedy, because a dead end here is a
+/// server nobody can claim.
+/// </para>
+/// </remarks>
 public sealed class CompleteSetupCommandHandler
 {
     /// <summary>The module's database context.</summary>
@@ -24,6 +42,9 @@ public sealed class CompleteSetupCommandHandler
     /// <summary>Records the creation.</summary>
     private readonly IdentityAuditJournal _journal;
 
+    /// <summary>The authority on whether the configured token is still inside its window.</summary>
+    private readonly SetupTokenWindowKeeper _windowKeeper;
+
     /// <summary>The panel's clock.</summary>
     private readonly IClock _clock;
 
@@ -34,18 +55,21 @@ public sealed class CompleteSetupCommandHandler
     /// <param name="dbContext">The module's database context.</param>
     /// <param name="passwordHasher">Hashes the chosen password.</param>
     /// <param name="journal">Records the creation.</param>
+    /// <param name="windowKeeper">Decides whether the configured token is still inside its window.</param>
     /// <param name="clock">The panel's clock.</param>
     /// <param name="setupOptions">The bound <see cref="SetupOptions"/>, carrying the installer's token.</param>
     public CompleteSetupCommandHandler(
         IdentityDbContext dbContext,
         IPasswordHasher passwordHasher,
         IdentityAuditJournal journal,
+        SetupTokenWindowKeeper windowKeeper,
         IClock clock,
         IOptions<SetupOptions> setupOptions)
     {
         _dbContext = dbContext;
         _passwordHasher = passwordHasher;
         _journal = journal;
+        _windowKeeper = windowKeeper;
         _clock = clock;
         _configuredToken = setupOptions.Value.Token;
     }
@@ -70,6 +94,13 @@ public sealed class CompleteSetupCommandHandler
         if (!TokenMatches(command.Token))
         {
             return Result<AuthenticatedUserDto>.Fail(Error.Of(nameof(ErrorMessages.SetupTokenInvalidUnauthorized), ErrorType.Unauthorized));
+        }
+
+        // Last, and only once the token is known to be the right one: an expiry reported to a caller
+        // who guessed wrong would tell them the token they guessed was otherwise acceptable.
+        if (await _windowKeeper.HasExpiredAsync(command.Token, cancellationToken))
+        {
+            return Result<AuthenticatedUserDto>.Fail(Error.Of(nameof(ErrorMessages.SetupTokenExpiredUnauthorized), ErrorType.Unauthorized));
         }
 
         var user = new User(

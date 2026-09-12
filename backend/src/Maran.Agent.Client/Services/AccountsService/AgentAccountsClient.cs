@@ -125,9 +125,34 @@ public sealed class AgentAccountsClient : IAgentAccountsClient
                     response.Ok.CronEntriesTotal,
                     response.Ok.CronEntriesSuspended,
                     response.Ok.CronForeignLines,
+                    // The seam where two vocabularies meet, and it is NOT a bug: the wire field is
+                    // sftp_logins and the message SftpLoginSuspensionFact, names they keep for ever
+                    // because the contract evolves additively (rules/architecture.md) and they
+                    // predate FTPS. The list itself has carried logins of BOTH transfer daemons
+                    // since FTPS shipped, so this project's own DTO is named for the pair —
+                    // FileTransferLogins / FileTransferLoginSuspensionFactDto. Renaming what the
+                    // panel received is what a DTO layer is for; renaming what was sent is not.
                     response.Ok.SftpLogins
-                        .Select(login => { return new SftpLoginSuspensionFactDto(login.Username, login.Locked); })
-                        .ToList())),
+                        .Select(login =>
+                        {
+                            return new FileTransferLoginSuspensionFactDto(
+                                login.Username,
+                                login.Locked,
+
+                                // By NUMBER and with the same guard the password state gets: a
+                                // protocol a newer agent knows and this build does not must read as
+                                // Unspecified, which a caller resolves to SFTP, rather than as a
+                                // cast to an enum member that does not exist.
+                                Enum.IsDefined(typeof(LoginTransferProtocol), (int)login.Protocol)
+                                    ? (LoginTransferProtocol)(int)login.Protocol
+                                    : LoginTransferProtocol.Unspecified);
+                        })
+                        .ToList(),
+
+                    // The count of what the enumeration above deliberately could not speak for.
+                    // Carried rather than dropped: an attestation is worth what it says about its
+                    // own gaps, and this is the only field that says anything about them.
+                    response.Ok.UnmanagedLogins)),
             GetAccountSuspensionStateResponse.ResultOneofCase.Error => Result<AccountSuspensionStateDto>.Fail(
                 AgentErrorTranslator.ToError(_logger, response.Error, nameof(GetSuspensionStateAsync))),
             _ => Result<AccountSuspensionStateDto>.Fail(

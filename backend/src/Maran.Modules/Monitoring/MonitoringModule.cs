@@ -62,6 +62,10 @@ public sealed class MonitoringModule : IPanelModule
         services.AddScoped<MonitoringAuditJournal>();
         services.AddScoped<AlertEvaluator>();
 
+        // Scoped, like the Tasks and Backups name resolvers it mirrors: the localizer it holds
+        // resolves the CURRENT request's culture, which is per-request state.
+        services.AddScoped<ServiceDisplayNames>();
+
         // Registered rather than left for the message bus to construct, so the nightly retention pass
         // is resolvable — and therefore drivable by a test — exactly as the Tasks module's equivalent
         // is. A handler only the bus can build is a handler only a booted bus can exercise.

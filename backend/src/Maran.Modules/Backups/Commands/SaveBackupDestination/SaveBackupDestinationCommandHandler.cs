@@ -61,9 +61,12 @@ public sealed class SaveBackupDestinationCommandHandler
     {
         ArgumentNullException.ThrowIfNull(command);
 
+        // The subject is the label the administrator asked to record — the one thing about the
+        // refused destination they can search for. No account is involved, and the entry's whole
+        // point is which storage was asked for and refused.
         await _journal.RecordFailureAsync(
             AuditActions.BackupDestinationSaved,
-            Guid.Empty,
+            command.Name,
             command.IpAddress,
             command.UserAgent,
             cancellationToken);

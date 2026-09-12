@@ -102,4 +102,16 @@
   <data name="RestoreArtifactRejected">
     <value>Your server refused this copy: what it holds is not what the panel recorded when the copy was made. Nothing was restored and the account is unchanged. Restore from another copy, or contact support — this cannot be resolved by submitting the same request again.</value>
   </data>
+  <data name="AccountBackupOperationRunning">
+    <value>Your server is still working on another backup or restore for this account. Nothing was changed. Try again once that operation has finished.</value>
+  </data>
+  <data name="BackupOutcomeUnobserved">
+    <value>The panel stopped following this backup before your server reported a result, so it cannot say whether the copy was finished. It is recorded as failed and is not offered for restore. Start a new backup, and contact support if this keeps happening.</value>
+  </data>
+  <data name="RestoreOutcomeUnobserved">
+    <value>The panel stopped following this restore before your server reported a result, so it cannot say how far it got. The account may already have been replaced: check its files and databases before starting another restore, and contact support if you are unsure.</value>
+  </data>
+  <data name="BackupArtifactUnvouched">
+    <value>The panel stopped following this backup before your server reported a result. A copy of that backup IS on your server, but the panel never recorded its checksum, so it cannot verify the copy and will not offer it for restore. It is recorded as failed and the copy was not deleted — ask support to release the space, or start a new backup.</value>
+  </data>
 </root>

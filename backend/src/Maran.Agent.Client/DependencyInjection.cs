@@ -8,6 +8,7 @@ using Maran.Agent.Client.Services.CronService;
 using Maran.Agent.Client.Services.DbService;
 using Maran.Agent.Client.Services.FilesService;
 using Maran.Agent.Client.Services.FirewallService;
+using Maran.Agent.Client.Services.FtpsService;
 using Maran.Agent.Client.Services.MonitorService;
 using Maran.Agent.Client.Services.PhpService;
 using Maran.Agent.Client.Services.SftpService;
@@ -95,6 +96,13 @@ public static class DependencyInjection
                 return new AgentSftpClient(
                     provider.GetRequiredService<GrpcChannel>(),
                     provider.GetRequiredService<ILogger<AgentSftpClient>>());
+            });
+        services.AddSingleton<IAgentFtpsClient>(
+            provider =>
+            {
+                return new AgentFtpsClient(
+                    provider.GetRequiredService<GrpcChannel>(),
+                    provider.GetRequiredService<ILogger<AgentFtpsClient>>());
             });
         services.AddSingleton<IAgentCronClient>(
             provider =>

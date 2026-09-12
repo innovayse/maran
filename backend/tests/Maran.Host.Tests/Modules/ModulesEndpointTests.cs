@@ -95,7 +95,31 @@ public sealed class ModulesEndpointTests : IClassFixture<PanelTestFactory>
             return m.GetProperty("name").GetString() == name;
         });
         Assert.Equal("included", module.GetProperty("tier").GetString());
+        Assert.Equal("Included", module.GetProperty("tierDisplayName").GetString());
         Assert.True(module.GetProperty("isEnabled").GetBoolean());
         Assert.False(string.IsNullOrWhiteSpace(module.GetProperty("displayName").GetString()));
+    }
+
+    /// <summary>The catalogue names the licence tier in the callers language beside the machine value.</summary>
+    /// <remarks>
+    /// The defect this asserts against, in full: the tier travelled as <c>addOn</c> alone, and the
+    /// upgrade screen interpolated it into a Russian sentence, so an operator read
+    /// "Он доступен в тарифе addOn." The assertion is on the exact Russian VALUE and in a
+    /// NON-English locale, because a Russian operator reading an English constant is the whole of
+    /// what was broken — and the machine value is asserted to be still on the wire beside it, since
+    /// the SPA keys and branches on that and a fix that replaced it would break the panel instead.
+    /// </remarks>
+    [Fact]
+    public async Task Module_catalogue_names_the_licence_tier_in_russian_beside_the_machine_value()
+    {
+        using var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Add("Accept-Language", "ru");
+
+        var response = await client.GetAsync("/api/v1/modules");
+
+        using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        var module = body.RootElement.EnumerateArray().First();
+        Assert.Equal("included", module.GetProperty("tier").GetString());
+        Assert.Equal("Входит в поставку", module.GetProperty("tierDisplayName").GetString());
     }
 }

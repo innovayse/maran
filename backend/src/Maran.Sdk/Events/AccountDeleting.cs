@@ -22,7 +22,8 @@ namespace Maran.Sdk.Events;
 /// </para>
 /// <para>
 /// <b>What it is not.</b> It is not the thing that cleans up the HOST. The agent's own account
-/// deletion drops the databases, revokes the SFTP logins and takes the jail's bind mount down,
+/// deletion drops the databases, revokes the file-transfer logins of both daemons and takes each
+/// jail's bind mount down,
 /// asking the machine what is there rather than being handed a list — because a list can only
 /// describe what the panel remembers creating. This event removes the panel's ROWS, which is a
 /// different job with a different failure mode: a row left behind is a customer's database shown in

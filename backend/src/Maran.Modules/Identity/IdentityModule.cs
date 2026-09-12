@@ -3,6 +3,7 @@ using Maran.Modules.Identity.Authorization;
 using Maran.Modules.Identity.Interfaces;
 using Maran.Modules.Identity.Options;
 using Maran.Modules.Identity.Persistence;
+using Maran.Modules.Identity.Seeders;
 using Maran.Modules.Identity.Services;
 using Maran.Sdk.Contracts;
 using Maran.Sdk.Interfaces;
@@ -71,8 +72,15 @@ public sealed class IdentityModule : IPanelModule
             .ValidateDataAnnotations()
             .ValidateOnStart();
 
+        // Scoped, like every service here that writes through the request's own context. It is
+        // resolved by the first-run setup handler and by the startup seeder that starts the setup
+        // token's clock.
+        services.AddScoped<SetupTokenWindowKeeper>();
+        services.AddScoped<SetupTokenWindowSeeder>();
+
         services.AddScoped<IAuditWriter, DatabaseAuditWriter>();
         services.AddScoped<IdentityAuditJournal>();
+        services.AddScoped<AuditActionDisplayNames>();
 
         // Singleton: it holds one row for the life of the process and is read on the sign-in path,
         // the token-issuing path and every password validator. It resolves its scoped DbContext

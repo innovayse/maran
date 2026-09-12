@@ -1,4 +1,5 @@
 using Maran.Agent.Client.Interfaces;
+using Maran.Agent.Client.Services.SftpService;
 using Maran.SharedKernel.Results;
 using Maran.SharedKernel.Security;
 
@@ -59,17 +60,24 @@ public sealed class RecordingAgentSftpClient : IAgentSftpClient
     public List<AgentAccountLockCall> AccountLocks { get; } = [];
 
     /// <summary>What <see cref="SetAccountLoginsLockedAsync"/> answers; success by default.</summary>
-    public Result<bool>? SetAccountLoginsLockedResult { get; set; }
+    /// <remarks>
+    /// The default carries NO count, which is the answer of an agent predating the wire field — so a
+    /// test that wants a number has to say so, and one that forgets cannot accidentally assert on a
+    /// zero this double invented.
+    /// </remarks>
+    public Result<AccountLoginLockOutcomeDto>? SetAccountLoginsLockedResult { get; set; }
 
     /// <inheritdoc/>
-    public Task<Result<bool>> SetAccountLoginsLockedAsync(
+    public Task<Result<AccountLoginLockOutcomeDto>> SetAccountLoginsLockedAsync(
         string accountUsername,
         bool locked,
         CancellationToken cancellationToken)
     {
         AccountLocks.Add(new AgentAccountLockCall(accountUsername, locked));
 
-        return Task.FromResult(SetAccountLoginsLockedResult ?? Result<bool>.Ok(true));
+        return Task.FromResult(
+            SetAccountLoginsLockedResult
+                ?? Result<AccountLoginLockOutcomeDto>.Ok(new AccountLoginLockOutcomeDto(null)));
     }
 
     /// <inheritdoc/>

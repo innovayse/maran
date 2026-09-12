@@ -48,6 +48,51 @@ public sealed class BackupsModuleTests
             BackupsManifest.Instance.AgentCapabilities);
     }
 
+    /// <summary>
+    /// The one hosted service this module carries is the backup reclaimer, and it is exactly one.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>This test replaces one that asserted the GAP.</b> Until the reclaimer landed, the check
+    /// here was <c>No_type_in_this_module_reclaims_a_backup_the_panel_lost_track_of</c>: it asserted
+    /// that NOTHING in this assembly implemented <c>IHostedService</c>, so that the doc-comment notes
+    /// describing the unreclaimed backup could not outlive the gap. The gap is closed, so that
+    /// assertion is gone and this one stands in its place — by name, so that deleting
+    /// <c>StartupBackupReconciler</c> or quietly renaming it is as red as leaving the gap was.
+    /// </para>
+    /// <para>
+    /// <b>Both directions are asserted deliberately.</b> The name pins that the reclaimer is here;
+    /// the count of one pins that a SECOND unattended pass has not appeared in this module without
+    /// somebody saying so — a hosted service is work that runs with no caller behind it, and this is
+    /// the assembly whose unattended work deletes and fails customer records.
+    /// </para>
+    /// <para>
+    /// <b>The registration is NOT asserted here and cannot be.</b> A module may not register its own
+    /// hosted service (the schedule is Host composition), so the line that makes this class actually
+    /// run lives in <c>Maran.Host/Extensions/BackgroundWorkExtensions.cs</c> and is asserted by the
+    /// Host's own tests. That split is why an unregistered reclaimer would still pass every test in
+    /// THIS project, and why this remark says so rather than leaving the next reader to assume
+    /// otherwise.
+    /// </para>
+    /// <para>
+    /// It is asserted by full type name rather than by referencing the hosting package, so the test
+    /// project gains no dependency in order to observe the shape.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void The_only_hosted_service_in_this_module_is_the_backup_reclaimer()
+    {
+        var hosted = Array.FindAll(typeof(BackupsModule).Assembly.GetTypes(), type =>
+        {
+            return Array.Exists(type.GetInterfaces(), contract =>
+            {
+                return contract.FullName == "Microsoft.Extensions.Hosting.IHostedService";
+            });
+        });
+
+        Assert.Equal([typeof(Maran.Modules.Backups.Services.StartupBackupReconciler)], hosted);
+    }
+
     /// <summary>Builds a provider from the module's own registrations.</summary>
     /// <returns>The built provider.</returns>
     private static ServiceProvider Provider()

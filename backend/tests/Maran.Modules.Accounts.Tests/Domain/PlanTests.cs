@@ -109,6 +109,44 @@ public sealed class PlanTests
         Assert.Equal(0, plan.MaxCronEntries);
     }
 
+    /// <summary>A plan with a negative ftps allowance cannot be created.</summary>
+    [Fact]
+    public void A_plan_with_a_negative_ftps_allowance_cannot_be_created()
+    {
+        // Nonsense rather than a smaller allowance, and it would compare as "under the limit" against
+        // an account that already holds logins — the direction that lets one through.
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+        {
+            return new Plan(Guid.NewGuid(), "PlanStarterName", 5_120, 5, 2, 3, 5, 5, -1);
+        });
+    }
+
+    /// <summary>A plan with a zero ftps allowance is created because a tier may include no ftps login.</summary>
+    [Fact]
+    public void A_plan_with_a_zero_ftps_allowance_is_created_because_a_tier_may_include_no_ftps_login()
+    {
+        // The inverse control for the refusal above, and a real product: FTPS is off on a fresh host
+        // until an operator turns it on, so a tier that includes no FTPS login is the ordinary
+        // starting state rather than a broken plan. It is also the value every plan an operator wrote
+        // themselves carries after the migration that added the column.
+        var plan = new Plan(Guid.NewGuid(), "PlanStarterName", 5_120, 5, 2, 3, 0, 5, 0);
+
+        Assert.Equal(0, plan.MaxFtpUsers);
+    }
+
+    /// <summary>A plan carries the ftps allowance it was created with.</summary>
+    [Fact]
+    public void A_plan_carries_the_ftps_allowance_it_was_created_with()
+    {
+        // 8 is unlike every other integer passed here, so an argument list that fed this property
+        // from a neighbour — the SFTP allowance most of all, which it must never be derived from —
+        // fails rather than passing on a number that happens to look plausible.
+        var plan = new Plan(Guid.NewGuid(), "PlanStarterName", 5_120, 5, 4, 6, 9, 7, 8);
+
+        Assert.Equal(8, plan.MaxFtpUsers);
+        Assert.Equal(6, plan.MaxSftpUsers);
+    }
+
     /// <summary>A plan carries the cron allowance it was created with.</summary>
     [Fact]
     public void A_plan_carries_the_cron_allowance_it_was_created_with()

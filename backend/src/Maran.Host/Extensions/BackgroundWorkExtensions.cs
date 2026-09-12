@@ -1,4 +1,5 @@
 using Maran.Host.BackgroundServices;
+using Maran.Modules.Backups.Services;
 using Maran.Modules.Firewall.Services;
 using Maran.Modules.Monitoring.Services;
 using Maran.Modules.Tasks.Services;
@@ -61,6 +62,18 @@ public static class BackgroundWorkExtensions
         // SWEEP (which schedules are due, what a run writes, what retention prunes) and this owns how
         // often it is asked.
         services.AddHostedService<BackupScheduleScheduler>();
+
+        // A one-off, and the third of that shape here — but the only one that ASKS the host a
+        // question instead of reading the panel's own rows. The agent's CreateBackup runs to
+        // completion on a detached task, so a panel process killed mid-stream leaves a Running
+        // backup row that nothing moves, and such a row refuses every restore of that account for
+        // ever. The Backups module owns the PASS — it reads its own rows and calls ListBackups on
+        // its own agent client to observe what is really on the destination — and this owns the
+        // fact that it runs at startup. Registered here and not in BackupsModule for the reason
+        // stated at the top of this file, and its absence would be the worst kind of nothing: the
+        // class would exist, the doc comments would describe a reclamation, and no backup would
+        // ever be reclaimed.
+        services.AddHostedService<StartupBackupReconciler>();
 
         return services;
     }

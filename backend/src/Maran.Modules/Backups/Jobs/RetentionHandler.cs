@@ -170,7 +170,7 @@ public sealed class RetentionHandler
                 LogRefused(_logger, backup.Id, deleted.Error!.Code, null);
 
                 await _journal.RecordScheduledAsync(
-                    AuditActions.BackupRetentionPruned, backup.Id, succeeded: false, cancellationToken);
+                    AuditActions.BackupRetentionPruned, account.Username, succeeded: false, cancellationToken);
 
                 break;
             }
@@ -178,8 +178,10 @@ public sealed class RetentionHandler
             _dbContext.Backups.Remove(backup);
             await _dbContext.SaveChangesAsync(cancellationToken);
 
+            // The account, not the backup id: the line says whose archive the panel destroyed that
+            // night, which is the question an operator brings to it.
             await _journal.RecordScheduledAsync(
-                AuditActions.BackupRetentionPruned, backup.Id, succeeded: true, cancellationToken);
+                AuditActions.BackupRetentionPruned, account.Username, succeeded: true, cancellationToken);
 
             pruned++;
         }

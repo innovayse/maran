@@ -1,3 +1,4 @@
+using Maran.Agent.Client.Services.SftpService;
 using Maran.Modules.Sftp.IntegrationEvents.Handlers;
 using Maran.Modules.Sftp.Tests.TestSupport;
 using Maran.Sdk.Events;
@@ -102,13 +103,82 @@ public sealed class AccountSuspensionCascadeTests
         Assert.Equal([Username], agent.AccountLocks.Select(call => { return call.AccountUsername; }));
     }
 
+    /// <summary>The count the agent answered with is reported onto the cascade for the publisher.</summary>
+    /// <remarks>
+    /// The Accounts handler renders the operator's attestation and cannot ask the host about a cull —
+    /// a cull is an event with no afterwards to observe — so this write is the only path the number
+    /// has. A handler that locked correctly and reported nothing would satisfy every other test in
+    /// this class.
+    /// </remarks>
+    [Fact]
+    public async Task The_count_the_agent_answered_with_is_reported_onto_the_cascade()
+    {
+        var agent = new RecordingAgentSftpClient
+        {
+            SetAccountLoginsLockedResult = Result<AccountLoginLockOutcomeDto>.Ok(
+                new AccountLoginLockOutcomeDto(2)),
+        };
+        var message = new AccountSuspending(Account, Username);
+
+        await new AccountSuspendingHandler(agent).HandleAsync(message, CancellationToken.None);
+
+        Assert.True(message.Report.SessionCullReported);
+        Assert.Equal(2u, message.Report.SessionsEnded);
+    }
+
+    /// <summary>
+    /// A count the host did not give is passed through as an absence, and the report still records
+    /// that a subscriber answered. This is the axis that goes blind: substituting zero here would make
+    /// the attestation state a completeness claim over an answer the host never gave.
+    /// </summary>
+    [Fact]
+    public async Task A_count_the_host_did_not_give_is_reported_as_an_absence_and_not_as_zero()
+    {
+        var agent = new RecordingAgentSftpClient
+        {
+            SetAccountLoginsLockedResult = Result<AccountLoginLockOutcomeDto>.Ok(
+                new AccountLoginLockOutcomeDto(null)),
+        };
+        var message = new AccountSuspending(Account, Username);
+
+        await new AccountSuspendingHandler(agent).HandleAsync(message, CancellationToken.None);
+
+        Assert.True(message.Report.SessionCullReported);
+        Assert.Null(message.Report.SessionsEnded);
+    }
+
+    /// <summary>
+    /// The inverse control, and the one that keeps the publisher honest: a refused lock reports
+    /// NOTHING onto the cascade, so an aborted suspension can never leave a report the publisher would
+    /// read as a cull that ran.
+    /// </summary>
+    [Fact]
+    public async Task A_refused_lock_reports_nothing_onto_the_cascade()
+    {
+        var agent = new RecordingAgentSftpClient
+        {
+            SetAccountLoginsLockedResult = Result<AccountLoginLockOutcomeDto>.Fail(
+                Error.Of("AgentUnavailable", ErrorType.Failure)),
+        };
+        var message = new AccountSuspending(Account, Username);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+        {
+            await new AccountSuspendingHandler(agent).HandleAsync(message, CancellationToken.None);
+        });
+
+        Assert.False(message.Report.SessionCullReported);
+        Assert.Null(message.Report.SessionsEnded);
+    }
+
     /// <summary>A refusal from the agent aborts the suspension instead of being swallowed.</summary>
     [Fact]
     public async Task A_refused_suspension_aborts_rather_than_being_swallowed()
     {
         var agent = new RecordingAgentSftpClient
         {
-            SetAccountLoginsLockedResult = Result<bool>.Fail(Error.Of("AgentUnavailable", ErrorType.Failure)),
+            SetAccountLoginsLockedResult = Result<AccountLoginLockOutcomeDto>.Fail(
+                Error.Of("AgentUnavailable", ErrorType.Failure)),
         };
 
         await Assert.ThrowsAsync<InvalidOperationException>(async () =>
@@ -124,7 +194,8 @@ public sealed class AccountSuspensionCascadeTests
     {
         var agent = new RecordingAgentSftpClient
         {
-            SetAccountLoginsLockedResult = Result<bool>.Fail(Error.Of("AgentUnavailable", ErrorType.Failure)),
+            SetAccountLoginsLockedResult = Result<AccountLoginLockOutcomeDto>.Fail(
+                Error.Of("AgentUnavailable", ErrorType.Failure)),
         };
 
         await Assert.ThrowsAsync<InvalidOperationException>(async () =>

@@ -142,9 +142,9 @@ public sealed class DeleteAccountCommandHandler
     /// rows against this account removes them first. It is invoked rather than published because a
     /// published message is handled later, by which time the account would already be gone and a
     /// subscriber's failure could no longer stop anything. <c>userdel</c> touches neither MySQL nor
-    /// sshd, so before this cascade existed a deleted account left its database rows and its SFTP
-    /// login rows behind — and system user names are recycled, so an account created again under
-    /// the same name inherited them.
+    /// sshd or vsftpd, so before this cascade existed a deleted account left its database rows and
+    /// its transfer-login rows — the Sftp module's and the Ftp module's alike — behind, and system
+    /// user names are recycled, so an account created again under the same name inherited them.
     /// </para>
     /// <para>
     /// 1a. The cascade's effect is AUDITED. A subscriber that does not exist cannot throw, so an
@@ -163,8 +163,9 @@ public sealed class DeleteAccountCommandHandler
     /// is qualified by the same facts this comment is.
     /// </para>
     /// <para>
-    /// 2. The agent removes what is on the HOST: the databases, the SFTP logins, the jail's bind
-    /// mount, the php-fpm pools, and only then the system user. It asks the machine what is there
+    /// 2. The agent removes what is on the HOST: the databases, the transfer logins of BOTH daemons
+    /// (each enumerated under its own jail, so neither step can reach the other's logins), the jail's
+    /// bind mount, the php-fpm pools, and only then the system user. It asks the machine what is there
     /// rather than being handed this panel's list, which is why step 1 running first is safe — a row
     /// this panel has already forgotten is still found and removed by name.
     /// </para>
@@ -186,7 +187,7 @@ public sealed class DeleteAccountCommandHandler
     /// <b>Where the audit entry goes follows from that.</b> The SUCCESS entry is written last, after
     /// the row is gone, because only then is every one of the three steps known to have finished —
     /// and this cascade can fail after it has already destroyed things. A deletion that dropped the
-    /// account's databases and its SFTP logins and then had the agent refuse must NOT read as
+    /// account's databases and its transfer logins and then had the agent refuse must NOT read as
     /// "AccountDeleted, succeeded": an operator searching for why a customer's data vanished would
     /// find an entry claiming a clean removal of an account that is still there. That case takes a
     /// FAILURE entry instead, on the same action and the same account name, which is the honest

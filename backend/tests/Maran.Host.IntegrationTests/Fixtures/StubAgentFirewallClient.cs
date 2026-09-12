@@ -25,6 +25,19 @@ public sealed class StubAgentFirewallClient : IAgentFirewallClient
     /// <summary>The panel port the panel told the agent about on the last call, if any.</summary>
     public int? PanelPort { get; private set; }
 
+    /// <summary>
+    /// The ports the last allow or deny named: the rule's port and its upper bound, which is null
+    /// when the rule names a single port.
+    /// </summary>
+    /// <remarks>
+    /// Recorded because nothing else observes it. <c>maran api</c> compares the SPA's request BODY
+    /// against the command an endpoint binds and prints its own blind spot — query-string and route
+    /// binding — and the removal names its rule entirely in the query string. So whether
+    /// <c>?portTo=</c> actually reaches the agent is a question only a test over real HTTP can
+    /// answer, and a bound dropped there would remove nothing while answering success.
+    /// </remarks>
+    public (int Port, int? PortTo)? RulePorts { get; private set; }
+
     /// <summary>Every address the panel asked to ban, in order.</summary>
     public List<string> Bans { get; } = [];
 
@@ -50,6 +63,7 @@ public sealed class StubAgentFirewallClient : IAgentFirewallClient
     /// <inheritdoc />
     public Task<Result<bool>> AllowPortAsync(
         int port,
+        int? portTo,
         AgentFirewallProtocol protocol,
         string sourceCidr,
         IReadOnlyList<int> sshPorts,
@@ -57,12 +71,14 @@ public sealed class StubAgentFirewallClient : IAgentFirewallClient
         CancellationToken cancellationToken)
     {
         Record(sshPorts, panelPort);
+        RulePorts = (port, portTo);
         return Task.FromResult(MutationResult);
     }
 
     /// <inheritdoc />
     public Task<Result<bool>> DenyPortAsync(
         int port,
+        int? portTo,
         AgentFirewallProtocol protocol,
         string sourceCidr,
         IReadOnlyList<int> sshPorts,
@@ -70,6 +86,7 @@ public sealed class StubAgentFirewallClient : IAgentFirewallClient
         CancellationToken cancellationToken)
     {
         Record(sshPorts, panelPort);
+        RulePorts = (port, portTo);
         return Task.FromResult(MutationResult);
     }
 

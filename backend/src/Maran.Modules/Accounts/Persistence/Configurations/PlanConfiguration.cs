@@ -31,6 +31,9 @@ public sealed class PlanConfiguration : IEntityTypeConfiguration<Plan>
         builder.Property(p => p.MaxSftpUsers)
             .IsRequired();
 
+        builder.Property(p => p.MaxFtpUsers)
+            .IsRequired();
+
         builder.Property(p => p.MaxCronEntries)
             .IsRequired();
 

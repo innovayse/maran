@@ -85,6 +85,9 @@ namespace Maran.Modules.Accounts.Persistence.Migrations
                     b.Property<int>("MaxDatabases")
                         .HasColumnType("integer");
 
+                    b.Property<int>("MaxFtpUsers")
+                        .HasColumnType("integer");
+
                     b.Property<int>("MaxPhpWorkersPerPool")
                         .HasColumnType("integer");
 

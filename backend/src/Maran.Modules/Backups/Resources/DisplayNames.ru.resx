@@ -57,7 +57,16 @@
   <data name="BackupFailureAgentInvalidResponse">
     <value>Сервер вернул ответ, который панель не смогла прочитать</value>
   </data>
+  <data name="BackupFailureAgentAccountBusy">
+    <value>Другая операция по этому аккаунту ещё выполнялась</value>
+  </data>
   <data name="BackupDestinationDefault">
     <value>Локальное хранилище</value>
+  </data>
+  <data name="BackupFailureBackupOutcomeUnobserved">
+    <value>Панель перестала следить за выполнением</value>
+  </data>
+  <data name="BackupFailureBackupArtifactUnvouched">
+    <value>Копия есть, контрольная сумма не записана</value>
   </data>
 </root>

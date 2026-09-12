@@ -13,10 +13,19 @@ namespace Maran.Modules.Firewall.Common;
 /// has to tell the agent what those ports are. Showing them would offer an administrator a "deny"
 /// button for the rule holding their session open.
 /// </remarks>
-/// <param name="Port">The port the rule names.</param>
+/// <param name="Port">The port the rule names, or the lower bound of a range.</param>
+/// <param name="PortTo">
+/// The inclusive upper bound when the rule opens a RANGE of ports, and <c>null</c> when it names a
+/// single port — which is what every rule an older agent reports looks like, since that agent has
+/// no such field to send.
+/// </param>
 /// <param name="Protocol">The transport protocol it applies to.</param>
 /// <param name="SourceCidr">
 /// The source range it is scoped to, as the firewall is actually running it — the value to send
 /// back to remove the rule again.
 /// </param>
-public sealed record FirewallRuleDto(int Port, AgentFirewallProtocol Protocol, string SourceCidr);
+public sealed record FirewallRuleDto(
+    int Port,
+    int? PortTo,
+    AgentFirewallProtocol Protocol,
+    string SourceCidr);

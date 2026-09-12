@@ -43,9 +43,20 @@ public sealed class AgentAccountsClientSuspensionStateTests
                     CronForeignLines = 3,
                     SftpLogins =
                     {
-                        new SftpLoginSuspensionFact { Username = "alice_web", Locked = true },
-                        new SftpLoginSuspensionFact { Username = "alice_deploy", Locked = false },
+                        new SftpLoginSuspensionFact
+                        {
+                            Username = "alice_web",
+                            Locked = true,
+                            Protocol = TransferProtocol.Sftp,
+                        },
+                        new SftpLoginSuspensionFact
+                        {
+                            Username = "alice_deploy",
+                            Locked = false,
+                            Protocol = TransferProtocol.Ftps,
+                        },
                     },
+                    UnmanagedLogins = 2,
                 },
             },
         };
@@ -64,8 +75,115 @@ public sealed class AgentAccountsClientSuspensionStateTests
         Assert.Equal(5u, state.CronEntriesSuspended);
         Assert.Equal(3u, state.CronForeignLines);
         Assert.Equal(
-            [("alice_web", true), ("alice_deploy", false)],
-            state.SftpLogins.Select(login => { return (login.Username, login.Locked); }));
+            [
+                ("alice_web", true, LoginTransferProtocol.Sftp),
+                ("alice_deploy", false, LoginTransferProtocol.Ftps),
+            ],
+            state.FileTransferLogins.Select(login => { return (login.Username, login.Locked, login.Protocol); }));
+        Assert.Equal(2u, state.UnmanagedLogins);
+    }
+
+    /// <summary>The count of logins the suspension could not cover survives the trip to the panel.</summary>
+    /// <remarks>
+    /// Its own test beside the field-by-field one, because this is the number an operator is owed and
+    /// the one this mapping was measured to be dropping — the panel showed the covered count and
+    /// swallowed the uncovered one, which is an attestation claiming a silence it never achieved.
+    ///
+    /// The value is deliberately not equal to any other count in the answer, and the counts around it
+    /// are populated so that a mapping reading the wrong field lands on a DIFFERENT number rather than
+    /// on a coincidence. Zero as an expected value would have proved nothing here: it is also what an
+    /// unread field yields.
+    /// </remarks>
+    [Fact]
+    public async Task The_count_of_logins_the_suspension_did_not_cover_reaches_the_panel()
+    {
+        var stub = new StubAccountsService
+        {
+            SuspensionStateResponse = new GetAccountSuspensionStateResponse
+            {
+                Ok = new GetAccountSuspensionStateOk
+                {
+                    CronEntriesTotal = 7,
+                    CronEntriesSuspended = 5,
+                    CronForeignLines = 3,
+                    UnmanagedLogins = 11,
+                },
+            },
+        };
+
+        var result = await Client(stub).GetSuspensionStateAsync("alice", CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(11u, result.Value!.UnmanagedLogins);
+        Assert.Equal(3u, result.Value.CronForeignLines);
+    }
+
+    /// <summary>A login the agent reported without a protocol reads as unspecified rather than as ftps.</summary>
+    /// <remarks>
+    /// Version skew downwards: an agent predating the field sends nothing, and the caller resolves
+    /// that to SFTP because before FTPS existed every reported login was an SFTP one by construction.
+    /// What must never happen is the absent value landing on a concrete protocol HERE, which would
+    /// make the panel state a daemon the agent never named.
+    /// </remarks>
+    [Fact]
+    public async Task A_login_reported_without_a_protocol_reads_as_unspecified()
+    {
+        var stub = new StubAccountsService
+        {
+            SuspensionStateResponse = new GetAccountSuspensionStateResponse
+            {
+                Ok = new GetAccountSuspensionStateOk
+                {
+                    SftpLogins = { new SftpLoginSuspensionFact { Username = "alice_web", Locked = true } },
+                },
+            },
+        };
+
+        var result = await Client(stub).GetSuspensionStateAsync("alice", CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        var login = Assert.Single(result.Value!.FileTransferLogins);
+        Assert.Equal(LoginTransferProtocol.Unspecified, login.Protocol);
+
+        // Positive control: the record around the protocol did carry its other fields, so the
+        // unspecified above is the mapping's answer and not an empty entry.
+        Assert.Equal("alice_web", login.Username);
+        Assert.True(login.Locked);
+    }
+
+    /// <summary>A protocol this build has never heard of reads as unspecified.</summary>
+    /// <remarks>
+    /// Version skew upwards, the same shape as the password state's: a NEWER agent naming a third
+    /// daemon. The mapping is by number, so an unknown number must land on
+    /// <see cref="LoginTransferProtocol.Unspecified"/> rather than on whatever the cast produced —
+    /// a value no switch in the panel has an arm for, and one that would print as a number.
+    /// </remarks>
+    [Fact]
+    public async Task A_protocol_this_build_does_not_know_reads_as_unspecified()
+    {
+        var stub = new StubAccountsService
+        {
+            SuspensionStateResponse = new GetAccountSuspensionStateResponse
+            {
+                Ok = new GetAccountSuspensionStateOk
+                {
+                    SftpLogins =
+                    {
+                        new SftpLoginSuspensionFact
+                        {
+                            Username = "alice_web",
+                            Locked = true,
+                            Protocol = (TransferProtocol)99,
+                        },
+                    },
+                },
+            },
+        };
+
+        var result = await Client(stub).GetSuspensionStateAsync("alice", CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(LoginTransferProtocol.Unspecified, Assert.Single(result.Value!.FileTransferLogins).Protocol);
     }
 
     /// <summary>A password state this build has never heard of reads as unspecified.</summary>

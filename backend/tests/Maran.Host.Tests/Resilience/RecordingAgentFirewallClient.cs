@@ -30,6 +30,9 @@ internal sealed class RecordingAgentFirewallClient : IAgentFirewallClient
     /// <summary>The rule port of the last call that named one.</summary>
     public int? LastPort { get; private set; }
 
+    /// <summary>The range's upper bound of the last call that named one, null for a single port.</summary>
+    public int? LastPortTo { get; private set; }
+
     /// <summary>The protocol of the last call that named one.</summary>
     public AgentFirewallProtocol? LastProtocol { get; private set; }
 
@@ -65,6 +68,7 @@ internal sealed class RecordingAgentFirewallClient : IAgentFirewallClient
     /// <inheritdoc/>
     public async Task<Result<bool>> AllowPortAsync(
         int port,
+        int? portTo,
         AgentFirewallProtocol protocol,
         string sourceCidr,
         IReadOnlyList<int> sshPorts,
@@ -72,6 +76,7 @@ internal sealed class RecordingAgentFirewallClient : IAgentFirewallClient
         CancellationToken cancellationToken)
     {
         LastPort = port;
+        LastPortTo = portTo;
         LastProtocol = protocol;
         LastSourceCidr = sourceCidr;
         LastSshPorts = sshPorts;
@@ -85,6 +90,7 @@ internal sealed class RecordingAgentFirewallClient : IAgentFirewallClient
     /// <inheritdoc/>
     public async Task<Result<bool>> DenyPortAsync(
         int port,
+        int? portTo,
         AgentFirewallProtocol protocol,
         string sourceCidr,
         IReadOnlyList<int> sshPorts,
@@ -92,6 +98,7 @@ internal sealed class RecordingAgentFirewallClient : IAgentFirewallClient
         CancellationToken cancellationToken)
     {
         LastPort = port;
+        LastPortTo = portTo;
         LastProtocol = protocol;
         LastSourceCidr = sourceCidr;
         LastSshPorts = sshPorts;

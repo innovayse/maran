@@ -73,6 +73,10 @@ public static class ResilienceExtensions
         {
             return new ResilientAgentSftpClient(inner, pipelines);
         });
+        Decorate<IAgentFtpsClient>(services, (inner, pipelines) =>
+        {
+            return new ResilientAgentFtpsClient(inner, pipelines);
+        });
         Decorate<IAgentCronClient>(services, (inner, pipelines) =>
         {
             return new ResilientAgentCronClient(inner, pipelines);

@@ -56,6 +56,7 @@ public sealed class ResilientAgentFirewallClient : IAgentFirewallClient
     /// <inheritdoc/>
     public async Task<Result<bool>> AllowPortAsync(
         int port,
+        int? portTo,
         AgentFirewallProtocol protocol,
         string sourceCidr,
         IReadOnlyList<int> sshPorts,
@@ -66,10 +67,17 @@ public sealed class ResilientAgentFirewallClient : IAgentFirewallClient
             async (state, token) =>
             {
                 return await state.Client.AllowPortAsync(
-                    state.Port, state.Protocol, state.SourceCidr, state.SshPorts, state.PanelPort, token);
+                    state.Port,
+                    state.PortTo,
+                    state.Protocol,
+                    state.SourceCidr,
+                    state.SshPorts,
+                    state.PanelPort,
+                    token);
             },
             (Client: _inner,
              Port: port,
+             PortTo: portTo,
              Protocol: protocol,
              SourceCidr: sourceCidr,
              SshPorts: sshPorts,
@@ -80,6 +88,7 @@ public sealed class ResilientAgentFirewallClient : IAgentFirewallClient
     /// <inheritdoc/>
     public async Task<Result<bool>> DenyPortAsync(
         int port,
+        int? portTo,
         AgentFirewallProtocol protocol,
         string sourceCidr,
         IReadOnlyList<int> sshPorts,
@@ -90,10 +99,17 @@ public sealed class ResilientAgentFirewallClient : IAgentFirewallClient
             async (state, token) =>
             {
                 return await state.Client.DenyPortAsync(
-                    state.Port, state.Protocol, state.SourceCidr, state.SshPorts, state.PanelPort, token);
+                    state.Port,
+                    state.PortTo,
+                    state.Protocol,
+                    state.SourceCidr,
+                    state.SshPorts,
+                    state.PanelPort,
+                    token);
             },
             (Client: _inner,
              Port: port,
+             PortTo: portTo,
              Protocol: protocol,
              SourceCidr: sourceCidr,
              SshPorts: sshPorts,
