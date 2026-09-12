@@ -15,6 +15,24 @@ fi
 export PATH="$HOME/.dotnet:$HOME/.cargo/bin:$HOME/.local/bin:$PATH"
 export DOTNET_ROOT="$HOME/.dotnet"
 
+# WHAT THIS FILE GUARANTEES, and what it does not — stated because a reader who assumes the list is
+# complete draws the wrong conclusion about a gate that refused. Guaranteed, at the three paths
+# above: the dotnet SDK, cargo and rustc, protoc. NOT guaranteed: **node and npm**, and
+# deliberately. They are installed per-version here (a version manager's
+# `~/.nvm/versions/node/<exact version>/bin`) and by `actions/setup-node` in CI, so the only way to
+# name them from this file would be to hard-code one machine's version — which would work here,
+# break on the next developer's machine and, worse, break invisibly in CI by putting a directory
+# that does not exist ahead of the one the runner set up. A path that is true in only one place is
+# worse than no path. The developer's own profile supplies them; every gate that needs them refuses
+# by name when it cannot find them (scripts/lib/suite.sh `suite_require_toolchain`, and the guards
+# in api-contract.sh, format.sh and licenses.sh), which is the honest half of this arrangement.
+#
+# Nor is `DOTNET_ROOT` above a thing CI wants. On a runner `setup-dotnet` installs the SDK
+# elsewhere and prepends its own PATH, so exporting this would point .NET at a directory that does
+# not exist. That is exactly why the counting gates — test-verdict.sh, mutate.sh — do NOT source
+# this file and prove their toolchain instead: sourcing it would have to be right in two
+# environments, and proving it only has to be right in one.
+
 # This repository's own toolbox, so `maran <command>` works from any directory inside it rather
 # than only from the root as `./scripts/maran`. Resolved from this file's location and not from
 # the current directory: sourcing happens once, and the shell keeps the value long after the
@@ -47,10 +65,20 @@ unset MARAN_ROOT
 #
 # THE ENVIRONMENT WINS OVER THE FILE. A value already set in the caller's environment is left
 # alone; only names this file has not yet supplied are exported. That is standard dotenv
-# semantics, and here it closes a real defect: every `maran` command sources this file, so
+# semantics, and here it closes a real defect: the `maran` commands that need a toolchain source
+# this file themselves, `maran migrate` among them, so
 # `Database__Database=maran_scratch maran migrate apply Accounts` had its override silently
 # replaced by `.env`'s value on the next line, and the migration landed in the configured
 # database instead — measured writing into another session's database.
+#
+# "The commands that need one", not every command: this used to read "every `maran` command sources
+# this file" and that was never true, which matters because it is the sentence a reader would use
+# to conclude that `maran test` inherits the pinned dotnet. It does not. Eight scripts source this
+# file — agent.sh, e2e-handshake.sh, format.sh, licenses.sh, migrations.sh, preflight.sh,
+# run-dev.sh, schema-drift.sh — and the rest run on whatever PATH the caller had. What protects the
+# ones that do not is `suite_require_toolchain` (scripts/lib/suite.sh), which refuses rather than
+# measuring with the wrong compiler: a bare-PATH `dotnet` here is the 8.0 snap at /snap/bin/dotnet,
+# and two lanes lost their counts to `NETSDK1045` before that guard existed.
 #
 # MARAN_ENV_APPLIED remembers which names came from the file, so re-sourcing after an edit still
 # picks the edit up (the file may overwrite its own earlier value) while a genuine override from

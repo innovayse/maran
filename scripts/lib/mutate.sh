@@ -162,10 +162,25 @@ while [ $# -gt 0 ]; do
   esac
 done
 
+# did_not_run: this command's third answer, for a run that never started.
+#
+# A mutation run has always had three possible outcomes and only two statuses. KILLED, SURVIVED,
+# NOT A KILL and ABORTED are all answers about a suite that RAN; a lock held by a peer, an absent
+# toolchain, a blind parser or a mutant that does not compile are answers about a run that never
+# happened, and returning 1 for those made them indistinguishable from "the suite went red and the
+# named test did not die" — the one verdict a reader acts on. The vocabulary and the status come
+# from scripts/lib/suite.sh, so `maran test`, `maran mutate` and `maran polygon verify` all say it
+# the same way.
+did_not_run() {
+  suite_did_not_run "VERDICT" "$*"
+  exit "$SUITE_STATUS_DID_NOT_RUN"
+}
+
 # --recover is its own command: it takes the same tree lock as a run, so it cannot fight a live one,
 # and everything it finds afterwards therefore belongs to a run that is no longer alive.
 if [ "$recover" = 1 ]; then
-  tree_lock_acquire "$root" "$wait_for" "recovery" || exit 1
+  tree_lock_acquire "$root" "$wait_for" "recovery" ||
+    did_not_run "the tree lock is held by a live run (named above)."
   trap tree_lock_release EXIT INT TERM
   tree_lock_recover "$root"
   exit $?
@@ -218,17 +233,18 @@ fi
 # behind somebody's ten-minute suite.
 #
 # It is not the concurrency guard below and does not replace it: that one observes BUILDS, and it
-# was measured blind to a second mutation run twice on 2026-09-08 (report:
-# .superpowers/sdd/mutate-tree-lock-report.md). Two `maran mutate` runs started in the same second
+# was measured blind to a second mutation run twice on 2026-09-08. Two `maran mutate` runs started in the same second
 # both passed it, both applied a mutant to this tree, and one of them published a KILLED verdict
 # naming a test the OTHER agent's mutant had killed. See scripts/lib/tree-lock.sh for why the lock
 # is per-tree, why it is an flock, and why a killed holder leaves no stale lock.
-tree_lock_acquire "$root" "$wait_for" "mutate $file" || exit 1
+tree_lock_acquire "$root" "$wait_for" "mutate $file" ||
+  did_not_run "the tree lock is held by another run (named above)."
 trap tree_lock_release EXIT INT TERM
 
 # Under the lock, no other mutation run can be alive — so anything still recorded as pending was
 # left by a run that was KILLED, and its mutation is still in these files. Refuse rather than score.
-tree_lock_refuse_pending "$root" || exit 1
+tree_lock_refuse_pending "$root" ||
+  did_not_run "a killed run left its mutant in this tree (named above)."
 
 # The backup lives outside the working tree. A `.orig` beside the source is litter that outlives the
 # run that made it — this repository has been cleaned of exactly that — and worse, an interrupted
@@ -346,17 +362,21 @@ if [ "$polygon" = 1 ]; then
 fi
 echo
 
-suite_require_toolchain "$stack" || exit 1
+suite_require_toolchain "$stack" ||
+  did_not_run "the toolchain cannot run the $stack suite (see above)."
 # The parsers that will produce this run's verdict are proven able to see a failure BEFORE the
 # suite runs, not after: a blind parser answers GREEN, and GREEN is the verdict an author quotes
 # when arguing a check can be deleted.
-suite_selftest_parsers "$stack" || exit 1
+suite_selftest_parsers "$stack" ||
+  did_not_run "the log parsers are blind, so no score would mean anything."
 if [ "$polygon" = 1 ]; then
-  polygon_require_docker || exit 1
+  polygon_require_docker ||
+    did_not_run "docker is not usable here, so the polygon lanes cannot run."
   export CARGO_TARGET_DIR="$host_target"
   mkdir -p "$host_target"
 fi
-suite_refuse_concurrency "$stack" "$work_root" || exit 1
+suite_refuse_concurrency "$stack" "$work_root" ||
+  did_not_run "another build is writing the outputs this run would score."
 if [ "$polygon" = 1 ]; then
   polygon_note "in polygon mode this concurrency check is asked about the SNAPSHOT, not the tree:"
   polygon_note "no lane reads or writes agent/target, so another agent's cargo build cannot corrupt"
@@ -438,13 +458,16 @@ esac
 
 if [ "$compiled" = 0 ]; then
   echo
-  echo "VERDICT: REFUSED — THE MUTANT DOES NOT COMPILE. Nothing was measured."
-  echo "This is NOT a kill and NOT a survivor. Compiler output:"
+  echo "THE MUTANT DOES NOT COMPILE. This is NOT a kill and NOT a survivor. Compiler output:"
   grep -E '^(error|error\[|.*: error )' "$work/build.log" | head -20 || tail -20 "$work/build.log"
   echo
   echo "If the protection cannot be removed without a compiler error, that is a STRONGER"
   echo "arrangement than a test — but say so in those words. It is not a test result."
-  exit 1
+  echo
+  # The DID NOT RUN status, deliberately, and not the failure status this used to return: a mutant
+  # that does not compile asked no suite anything, and 1 is what `NOT A KILL` returns — a verdict
+  # about a suite that ran.
+  did_not_run "the mutant does not compile, so no suite was ever asked about it."
 fi
 echo "the mutant compiles."
 echo

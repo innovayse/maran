@@ -580,10 +580,53 @@ done < <(find frontend/src \( -name '*.vue' -o -name '*.ts' \) 2>/dev/null | sor
 #     Subject-named files are the documented exception (rules/rust.md names them explicitly in
 #     the canonical layout), so they are listed here rather than inferred — an inferred
 #     exception is a rule that quietly stops applying.
-subject_named='adapter|adapter_for|detect|distro_info|os_release|family|path|name|domain|port|ip_address'
-subject_named="$subject_named|cron_expression|directory|current_uid|unit|pool|user_config|error|server"
+subject_named='adapter|adapter_for|detect|distro_info|os_release|family|path|name|domain|port'
+subject_named="$subject_named|directory|current_uid|unit|pool|error|server"
 subject_named="$subject_named|agent_options|options_error|peer_policy|peer_guard|render_validate_swap|rollback_guard"
 subject_named="$subject_named|debian_paths|debian_packages|debian_services|rhel_paths|rhel_packages|rhel_services"
+
+# 16b. Every name in that list still has a file. An exemption for a file that does not exist is
+#      not harmless housekeeping: it is a named hole, and the day somebody adds a file of that
+#      name check 16 waves through whatever public item it holds -- which is the exact failure
+#      check 16 was written for (`adapter_selector.rs` came to hold `adapter_for`).
+#
+#      rules/security.md item 6: "an exemption for an entity that no longer exists fails too".
+#      The C# gates apply that three times over
+#      (AccountCascadeTests.Every_exemption_still_names_a_module_that_owns_tenant_rows,
+#      AuditActionDisplayNameTests.Every_excused_journal_constant_still_names_a_member_that_exists,
+#      and the audit-name census beside it); this list was the one exemption list in the tree
+#      with no such guard, and it had already gone stale by three -- `ip_address`,
+#      `cron_expression` and `user_config` named no file in `agent/crates` when this was added.
+#
+#      The search domain is check 16's own domain, character for character: an exemption is only
+#      ever consulted for a file check 16 visits, so a guard searching anywhere else would report
+#      on a population the exemption cannot apply to.
+#      One traversal, not one per name: the population is read once into a set of bare file
+#      names and every exemption is looked up in it.
+subject_named_files="$(find agent/crates -name '*.rs' -not -path '*/target/*' -not -path '*/tests/*' 2>/dev/null |
+                       sed -E 's|.*/||; s|\.rs$||' | sort -u)"
+subject_named_count=0
+while IFS= read -r exempt_name; do
+  [ -n "$exempt_name" ] || continue
+  subject_named_count=$((subject_named_count + 1))
+  if ! printf '%s\n' "$subject_named_files" | grep -qxF "$exempt_name"; then
+    report "scripts/lib/check-structure.sh: check 16 exempts '$exempt_name' from the file-name law and no agent/crates/**/$exempt_name.rs exists -- an exemption for a file that does not exist is a hole the next file of that name falls into (rules/security.md)"
+  fi
+done < <(printf '%s\n' "$subject_named" | tr '|' '\n')
+# The vacuity guard, on the axis that can go blind: the list itself. If `subject_named` were
+# renamed, emptied or split on the wrong character, the loop above would iterate over nothing and
+# report nothing -- which reads exactly like a clean list (rules/testing.md, "a vacuity guard must
+# be on the axis that can go blind").
+if [ "$subject_named_count" -eq 0 ]; then
+  report "scripts/lib/check-structure.sh: check 16's subject-named exemption list read as empty, so the staleness guard examined no exemption at all -- that is a failure to observe and not a clean list (rules/testing.md)"
+fi
+# And the other half of the same axis: the population. An empty file set would make EVERY
+# exemption look stale, which is a loud failure rather than a silent one, but it would blame the
+# exemptions for a traversal that found nothing. Named as what it is instead.
+if [ -z "$subject_named_files" ]; then
+  report "scripts/lib/check-structure.sh: no .rs files were found under agent/crates for check 16's staleness guard to look an exemption up in, so nothing below is a statement about the exemptions (rules/testing.md)"
+fi
+
 while IFS= read -r file; do
   base="$(basename "$file" .rs)"
   case "$base" in
@@ -719,8 +762,19 @@ done <<< "$locale_report"
 #    suite: a file named `quota_polygon.rs` holding `#[ignore]`-gated host tests was not merely
 #    unlisted, it was unseen. Measured — that file, absent from docker/README.md, passed the
 #    whole gate. `#[ignore]` is the marker that actually separates the two kinds of integration
-#    test here: every one of the eleven polygon suites carries it and neither `handshake.rs` nor
-#    `golden_test.rs` does.
+#    test here: every polygon suite in this tree carries it, and `handshake.rs`,
+#    `shutdown_signal.rs` and `golden_test.rs` do not.
+#
+#    No COUNT is written down in this comment, and that is deliberate. It used to say "the eleven
+#    polygon suites" while the tree held thirteen, and nothing could notice: this rule gates the
+#    suite NAMES in docker/README.md in both directions, and gates no numeral beside them, so a
+#    reader met gated names and an ungated number in one paragraph with nothing to tell them apart.
+#    The count is derivable — `find agent/crates/*/tests -maxdepth 1 -name '*.rs' | xargs grep -l
+#    '#\[ignore'` is what the loop below does — so the honest form is to derive it where it is
+#    needed and never to record it here. A numeral in prose cannot be gated in general anyway: a
+#    checker cannot tell a claim about today from a record of one measured run, and this repository
+#    has both ("three of eleven suites announced themselves as ...", scripts/lib/suite.sh, which
+#    must NOT be rewritten when a suite is added).
 #
 #    The inverse runs too, because a refusing gate owes an accepted case and this one owes a
 #    second direction: a `--test` naming no suite is a command that errors out for everyone who
@@ -811,6 +865,47 @@ PYPATHS
       report "$unit_file: ReadWritePaths= does not cover '$writable_root' ($paths_file) — a path the agent writes outside /etc must appear in the unit's writable set (rules/architecture.md)"
     fi
   done <<< "$writable_roots"
+fi
+
+# 21. No source file cites `.superpowers/`. That directory's own .gitignore is the single line `*`
+#     and `git ls-files .superpowers` returns nothing, so EVERY path under it is absent from every
+#     clone: a doc comment that sends a reader there sends them nowhere, and rules/architecture.md
+#     makes a comment describing what the code does not do a defect of the same severity as the
+#     behaviour. The worst instance was operator-facing — a red polygon assertion told whoever was
+#     reading it to "read the options in .superpowers/sdd/ftps-real-host-report.md", which was also
+#     the wrong file. Twenty-three such citations existed in nineteen files.
+#
+#     Why a grep for one literal rather than a general "does this cited path exist" check: the
+#     general form is not decidable cheaply. Comments carry globs, `<placeholder>` segments, system
+#     paths, prose fragments and paths of files that are legitimately untracked — on this very
+#     branch most of the landed tree is untracked — so an index lookup would be mostly false
+#     positives, which is a gate nobody keeps green. This directory is different: it is ignored BY
+#     CONSTRUCTION, so any citation of it is dangling with no judgement required.
+#
+#     UNOBSERVED HERE: a citation of a path that exists but says something ELSE. The FTPS pin above
+#     cited a real scratch file that held no options at all, and no mechanical check can see that.
+#     Also unobserved: `.txt` and `.md` files. scripts/test-baseline.txt still carries five such
+#     citations and is operator-facing; widening the -name list below is the one-word change that
+#     covers it, once they are gone. And THIS file is excluded, because a check has to name the
+#     thing it forbids in order to forbid it — measured: without that exclusion the gate reported
+#     itself and nothing else. The cost of that exclusion is that a citation added to this one file
+#     is invisible to it, which is the narrowest hole available and is stated rather than hidden.
+while IFS= read -r file; do
+  hits="$(grep -n '\.superpowers' "$file" || true)"
+  if [ -n "$hits" ]; then
+    line="$(printf '%s' "$hits" | head -1 | cut -d: -f1)"
+    report "$file:$line: cites .superpowers/, which no clone contains (its .gitignore is \`*\`) — put the argument in the doc comment, a threat note under docs/superpowers/notes/, or rules/ (rules/architecture.md)"
+  fi
+done < <(find agent backend frontend installer scripts docker rules \
+           \( -name '*.rs' -o -name '*.cs' -o -name '*.sh' \) \
+           -not -path '*/target/*' -not -path '*/obj/*' -not -path '*/bin/*' \
+           -not -path '*/node_modules/*' -not -name 'check-structure.sh' 2>/dev/null | sort)
+
+# The vacuity guard, on the axis that can go blind: the file list. An empty sweep reads exactly
+# like a clean one (rules/testing.md).
+if [ "$(find agent backend scripts docker \( -name '*.rs' -o -name '*.cs' -o -name '*.sh' \) \
+          -not -path '*/target/*' -not -path '*/obj/*' -not -path '*/bin/*' 2>/dev/null | wc -l)" -lt 100 ]; then
+  report "scripts/lib/check-structure.sh: check 21 swept fewer than 100 source files, so it is not a statement about citations (rules/testing.md)"
 fi
 
 if [ "$violations" -gt 0 ]; then
