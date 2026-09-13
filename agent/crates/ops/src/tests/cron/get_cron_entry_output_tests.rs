@@ -19,6 +19,7 @@ fn host_with_one_entry() -> RecordingCronHost {
         &account(),
         &every_five_minutes(),
         &command("echo one"),
+        None,
     )
     .expect("created");
 

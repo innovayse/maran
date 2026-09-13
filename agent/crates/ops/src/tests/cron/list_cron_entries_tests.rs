@@ -30,6 +30,7 @@ fn listing_returns_each_entrys_command_from_its_file() {
         &account(),
         &every_five_minutes(),
         &command("echo one"),
+        None,
     )
     .expect("created");
     create_cron_entry(
@@ -38,6 +39,7 @@ fn listing_returns_each_entrys_command_from_its_file() {
         &account(),
         &schedule("0", "3", "*", "*", "*"),
         &command("echo two"),
+        None,
     )
     .expect("created");
 
@@ -66,6 +68,7 @@ fn an_entry_whose_command_file_is_missing_is_listed_without_one() {
         &account(),
         &every_five_minutes(),
         &command("echo one"),
+        None,
     )
     .expect("created");
     host.take_file(&cmd_path(&account(), &entry_id(FIRST_ID)));
@@ -96,6 +99,7 @@ fn a_disabled_entry_is_listed_as_disabled() {
         &account(),
         &every_five_minutes(),
         &command("echo one"),
+        None,
     )
     .expect("created");
     crate::cron::set_cron_entry_enabled::set_cron_entry_enabled(

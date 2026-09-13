@@ -20,7 +20,18 @@
 //!   until a server parses it; the test that matters is another tenant's
 //!   database being refused to the user this one created;
 //! - that a repeat leaves the existing credential alone, checked by logging in
-//!   with the ORIGINAL password after a second create asked for a different one.
+//!   with the ORIGINAL password after a second create asked for a different one;
+//! - that the grant's database name is a PATTERN and not an identifier, which is
+//!   a fact about the server's grammar that no fake can hold an opinion about.
+//!   `_` matches any single character there and backtick-quoting does not turn it
+//!   off, so `polydbgrant_ne_shop` unescaped reaches `polydbgrantone_shop`. That
+//!   is
+//!   `a_grant_for_an_account_whose_name_holds_the_separator_cannot_reach_a_same_length_neighbours_database`,
+//!   and the two account names it uses are a matched pair whose GEOMETRY is
+//!   asserted before anything is created — see
+//!   `the_geometry_that_makes_a_collision_possible`. The case directly above it
+//!   asks the same question of two names of DIFFERENT lengths, where a single-`_`
+//!   pattern cannot reach, so it passed for the whole life of the defect.
 
 // A failing assertion IS the reporting mechanism for a test, so the
 // workspace-wide bans on unwrap/expect/panic are lifted here only.
@@ -419,4 +430,263 @@ fn a_reset_password_authenticates_and_the_previous_one_stops_working() {
     );
 
     clear(&server, account.name());
+}
+
+/// The victim account of the colliding-geometry case below.
+///
+/// **This name and [`COLLIDING_ATTACKER_ACCOUNT`] are a matched pair, and the
+/// test is worthless if the pair is broken.** Do not rename either one without
+/// reading `the_geometry_that_makes_a_collision_possible` below, which asserts
+/// the relationship between them and fails loudly rather than quietly passing.
+const COLLIDING_VICTIM_ACCOUNT: &str = "polydbgrantone";
+
+/// The attacker account, whose name is the victim's with one character replaced
+/// by the separator.
+///
+/// `polydbgrant_ne` against `polydbgrantone`: the same fourteen characters long,
+/// differing only at index eleven, where this one holds `_`.
+const COLLIDING_ATTACKER_ACCOUNT: &str = "polydbgrant_ne";
+
+/// The row planted in the victim's database, which no grant names the attacker on.
+const VICTIM_SECRET: &str = "VICTIM-CARD-4111111111111111";
+
+/// Asserts that the two account names above can actually collide under a
+/// single-`_` pattern, and says in full why that is the whole test.
+///
+/// **This is the guard against the defect that hid the original bug through four
+/// reviews, and it is the reason a renamed fixture can no longer destroy this
+/// case silently.** In MySQL and MariaDB the database name of a database-level
+/// `GRANT` is a LIKE-style pattern, where `_` matches any **single** character.
+/// A pattern whose only metacharacter is `_` therefore matches only strings of
+/// **its own length**. So two account names of different lengths cannot collide
+/// whatever the server does, and a test built on such a pair passes identically
+/// whether the grant is escaped or not.
+///
+/// That is exactly what happened to
+/// `the_created_db_user_can_connect_with_the_generated_password_and_see_only_its_own_database`
+/// above: `polydbstwo_shop` is fifteen characters and `polydbsthree_shop` is
+/// seventeen, so its real assertion against a real server could not have failed
+/// on either side of the behaviour it claimed to distinguish. Measured on
+/// MariaDB 10.11.14: an unescaped grant on the fifteen-character pattern is
+/// refused on the seventeen-character name.
+///
+/// The three conditions below are therefore the test's premise, not decoration.
+/// Should somebody rename either constant — for tidiness, for a suffix clash,
+/// for a length limit — and break any of them, this assertion fails by name and
+/// says what was lost, instead of the case going green over a geometry in which
+/// the wildcard is invisible.
+///
+/// # Panics
+///
+/// Panics when the two names can no longer collide under a single-`_` pattern.
+fn the_geometry_that_makes_a_collision_possible() {
+    let victim = COLLIDING_VICTIM_ACCOUNT;
+    let attacker = COLLIDING_ATTACKER_ACCOUNT;
+
+    assert_eq!(
+        victim.len(),
+        attacker.len(),
+        "the two account names must be the SAME LENGTH ({victim} is {} and \
+         {attacker} is {}). A `_` in a GRANT pattern matches exactly one \
+         character, so names of different lengths cannot collide and this test \
+         would pass with the defect present — which is how the original bug \
+         survived four reviews.",
+        victim.len(),
+        attacker.len()
+    );
+
+    let differences: Vec<usize> = victim
+        .bytes()
+        .zip(attacker.bytes())
+        .enumerate()
+        .filter(|(_, (v, a))| v != a)
+        .map(|(index, _)| index)
+        .collect();
+    assert_eq!(
+        differences.len(),
+        1,
+        "the two account names must differ at EXACTLY ONE position, and they \
+         differ at {differences:?}. Every differing position needs its own `_` \
+         in the attacker's name to be covered, so a second difference that is \
+         not an underscore makes the collision impossible."
+    );
+
+    let position = differences[0];
+    assert_eq!(
+        attacker.as_bytes()[position],
+        b'_',
+        "at the one differing position ({position}) the attacker's name must \
+         hold the separator `_`, which is the character the server reads as a \
+         wildcard. It holds {:?}.",
+        attacker.as_bytes()[position] as char
+    );
+    assert_ne!(
+        victim.as_bytes()[position],
+        b'_',
+        "the victim must hold a literal character where the attacker holds the \
+         wildcard, or the two names are the same name and there is no boundary \
+         to cross."
+    );
+}
+
+#[test]
+#[ignore = "creates two colliding real accounts and real databases on a real MariaDB: polygon only"]
+fn a_grant_for_an_account_whose_name_holds_the_separator_cannot_reach_a_same_length_neighbours_database()
+ {
+    // The premise first, before a single system account is made: if the two
+    // names cannot collide, nothing below this line measures anything.
+    the_geometry_that_makes_a_collision_possible();
+
+    let server = PolygonMariadb::start();
+    let victim = PolygonAccount::create(COLLIDING_VICTIM_ACCOUNT);
+    let attacker = PolygonAccount::create(COLLIDING_ATTACKER_ACCOUNT);
+    clear(&server, victim.name());
+    clear(&server, attacker.name());
+
+    let host = ProcessDbHost::new(polygon_distro());
+    create_database(&host, &request_for(victim.name(), CUSTOMER_PASSWORD))
+        .unwrap_or_else(|error| panic!("the victim's database must be created: {error}"));
+    create_database(&host, &request_for(attacker.name(), CUSTOMER_PASSWORD))
+        .unwrap_or_else(|error| panic!("the attacker's database must be created: {error}"));
+
+    let victim_login = format!("{}_shop", victim.name().as_str());
+    let attacker_login = format!("{}_shop", attacker.name().as_str());
+    let victim_database = victim_login.clone();
+    let attacker_database = attacker_login.clone();
+
+    // A real secret in the victim's database, so the refusal below is about
+    // DATA and not about a table that happens not to exist. Planted by root,
+    // which no grant is involved in.
+    server.run(&format!(
+        "CREATE TABLE `{victim_database}`.customers (id INT, secret VARCHAR(64))"
+    ));
+    server.run(&format!(
+        "INSERT INTO `{victim_database}`.customers VALUES (1, '{VICTIM_SECRET}')"
+    ));
+
+    // POSITIVE CONTROL for the probe itself, on the axis that can go blind: the
+    // statement the attacker will be refused must be one that SUCCEEDS and
+    // returns the secret for somebody. Run as the victim's own user, it does.
+    // Without this, a mistyped table name, an empty table or a database that was
+    // never created would produce the same refusal and prove nothing at all.
+    let owner_reads = server.run_as(
+        &victim_login,
+        CUSTOMER_PASSWORD,
+        &format!("SELECT secret FROM `{victim_database}`.customers"),
+    );
+    assert!(
+        owner_reads.status.success(),
+        "the victim's own user must be able to read the planted row, or the \
+         refusal measured below is not about access:\n{}",
+        String::from_utf8_lossy(&owner_reads.stderr)
+    );
+    assert!(
+        String::from_utf8_lossy(&owner_reads.stdout).contains(VICTIM_SECRET),
+        "the probe must be able to see the secret when it is allowed to, or it \
+         could not see it when it is not"
+    );
+
+    // 1. THE FINDING. With the grant written unescaped this SELECT succeeds and
+    //    returns the victim's row: `polydbgrant_ne_shop` as a pattern is
+    //    `polydbgrant?ne?shop`, which matches `polydbgrantone_shop` character
+    //    for character. Measured on MariaDB 10.11.14 with the escape removed.
+    let refused = server.run_as(
+        &attacker_login,
+        CUSTOMER_PASSWORD,
+        &format!("SELECT secret FROM `{victim_database}`.customers"),
+    );
+    assert!(
+        !refused.status.success(),
+        "the attacker's user reached the victim's database. The GRANT's database \
+         name is a LIKE pattern, so an unescaped `_` in it matches any single \
+         character; this is a cross-tenant read of another customer's data."
+    );
+    let complaint = String::from_utf8_lossy(&refused.stderr);
+    assert!(
+        complaint.contains("denied"),
+        "the refusal must be the server DENYING access rather than any other \
+         failure — a missing table or an unstarted server would refuse too, and \
+         would prove nothing:\n{complaint}"
+    );
+    assert!(
+        !String::from_utf8_lossy(&refused.stdout).contains(VICTIM_SECRET),
+        "the victim's row must not appear in the attacker's output"
+    );
+
+    // 2. Nor may the attacker write, which is the half that destroys data rather
+    //    than reading it. A pattern grant is ALL PRIVILEGES, `DROP TABLE`
+    //    included.
+    let written = server.run_as(
+        &attacker_login,
+        CUSTOMER_PASSWORD,
+        &format!("INSERT INTO `{victim_database}`.customers VALUES (99, 'attacker')"),
+    );
+    assert!(
+        !written.status.success(),
+        "the attacker must not be able to write into the victim's table"
+    );
+
+    // 3. Nor see that the victim exists at all.
+    let visible = server.run_as(&attacker_login, CUSTOMER_PASSWORD, "SHOW DATABASES");
+    let names = String::from_utf8_lossy(&visible.stdout);
+    assert!(
+        !names.lines().any(|line| line.trim() == victim_database),
+        "the attacker must not see the victim's database:\n{names}"
+    );
+
+    // 4. INVERSE CONTROL, and it is mandatory rather than thorough: the escape
+    //    must scope the grant, not destroy it. An escaped name that matched
+    //    NOTHING would pass every assertion above while breaking every
+    //    customer's own application — a worse defect than the one being fixed.
+    let own = server.run_as(
+        &attacker_login,
+        CUSTOMER_PASSWORD,
+        &format!("CREATE TABLE `{attacker_database}`.orders (id INT)"),
+    );
+    assert!(
+        own.status.success(),
+        "the attacker's user must still hold full privileges on its OWN \
+         database — an escape that also broke the legitimate grant would be the \
+         worse defect:\n{}",
+        String::from_utf8_lossy(&own.stderr)
+    );
+    let own_insert = server.run_as(
+        &attacker_login,
+        CUSTOMER_PASSWORD,
+        &format!("INSERT INTO `{attacker_database}`.orders VALUES (5)"),
+    );
+    assert!(
+        own_insert.status.success(),
+        "the owner must be able to write its own data:\n{}",
+        String::from_utf8_lossy(&own_insert.stderr)
+    );
+    assert!(
+        names.lines().any(|line| line.trim() == attacker_database),
+        "the owner must see its own database:\n{names}"
+    );
+
+    // 5. And the reach is not only into databases that already exist: grants are
+    //    stored as patterns in `mysql.db` and matched when a connection asks for
+    //    a database, so a database created AFTER the grant is inside an
+    //    unescaped pattern's reach. Another same-length name matching the
+    //    attacker's pattern, made now.
+    let later = format!("{}xne_shop", &COLLIDING_VICTIM_ACCOUNT[..11]);
+    server.run(&format!("DROP DATABASE IF EXISTS `{later}`"));
+    server.run(&format!("CREATE DATABASE `{later}`"));
+    server.run(&format!("CREATE TABLE `{later}`.later (id INT)"));
+    let future = server.run_as(
+        &attacker_login,
+        CUSTOMER_PASSWORD,
+        &format!("SELECT COUNT(*) FROM `{later}`.later"),
+    );
+    assert!(
+        !future.status.success(),
+        "a database created after the grant must be out of reach too: patterns \
+         are matched at connection time, so an unescaped grant claims names that \
+         did not exist when it was issued"
+    );
+    server.run(&format!("DROP DATABASE IF EXISTS `{later}`"));
+
+    clear(&server, victim.name());
+    clear(&server, attacker.name());
 }

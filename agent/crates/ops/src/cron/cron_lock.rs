@@ -64,6 +64,20 @@ static ACCOUNT_LOCKS: Mutex<Option<HashMap<String, Arc<AsyncMutex<()>>>>> = Mute
 ///   wins, and the loser's file stays in the customer's home forever, since the
 ///   file is only taken away again when the install was REFUSED.
 ///
+/// # What else the span buys, and why the panel depends on it
+///
+/// A fourth thing rides inside this lock, and it is not a loss avoided but a
+/// guarantee the panel cannot make anywhere else. Every other countable plan
+/// allowance in the product is enforced by counting rows and inserting inside
+/// one database transaction; cron keeps no rows, so the panel's only way to
+/// count is a separate `list_cron_entries` call, and two of its requests
+/// interleave between that call and the creation. The count this lock protects
+/// — `create_cron_entry`'s own `read_crontab`, the first statement after the
+/// lock is taken — is therefore the only count in the system that cannot be
+/// stale by the time the entry is installed. That is why the panel sends the
+/// allowance with the creation rather than checking it alone; see
+/// `create_cron_entry`'s `max_entries`.
+///
 /// # Why the whole read-modify-write, and not just the install
 ///
 /// The lock is taken as the first statement of each operation, before

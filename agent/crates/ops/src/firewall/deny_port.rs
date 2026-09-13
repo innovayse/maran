@@ -58,6 +58,9 @@ use crate::firewall::model::ruleset_ports::RulesetPorts;
 ///   not written by this agent. Nothing is overwritten.
 /// - [`FirewallError::RulesetUnreadable`] when that file is there and will
 ///   not be read.
+/// - [`FirewallError::PortsDisagree`] when that file was rendered for other
+///   ports than `ports` names, which is the read this operation begins with
+///   refusing. Nothing is written.
 /// - [`FirewallError::RuleRefusedByNft`] when `nft --check` rejects the
 ///   rendered ruleset, carrying its standard error. The live firewall is
 ///   untouched.

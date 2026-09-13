@@ -22,6 +22,7 @@ fn deleting_removes_the_block_and_both_run_files() {
         &account,
         &every_five_minutes(),
         &command("echo one"),
+        None,
     )
     .expect("created");
     // As a run of the entry would have left them.
@@ -65,6 +66,7 @@ fn a_refused_install_leaves_the_entrys_files_alone() {
         &account,
         &every_five_minutes(),
         &command("echo one"),
+        None,
     )
     .expect("created");
     host.refuse_install_with(1);
@@ -87,6 +89,7 @@ fn files_that_cannot_be_removed_are_reported_after_the_entry_is_out_of_the_table
         &account,
         &every_five_minutes(),
         &command("echo one"),
+        None,
     )
     .expect("created");
     host.refuse_removals();

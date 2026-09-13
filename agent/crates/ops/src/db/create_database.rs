@@ -23,6 +23,18 @@ const COLLATION: &str = "utf8mb4_unicode_ci";
 /// reaches the database over the network.
 const USER_HOST: &str = "localhost";
 
+/// The one character a database-level `GRANT` reads as a wildcard that a
+/// [`DatabaseName`](maran_agent_core::validation::db::database_name::DatabaseName)
+/// can actually hold.
+///
+/// `_` — matching any single character — and it is in every name this agent
+/// grants on, because it is the separator between an account and the suffix its
+/// customer asked for, and because an account name may contain it too.
+const GRANT_SINGLE_CHARACTER_WILDCARD: char = '_';
+
+/// What that character has to be written as to mean itself.
+const ESCAPED_SINGLE_CHARACTER_WILDCARD: &str = "\\_";
+
 /// Creates `request`'s database and the user that owns it.
 ///
 /// # How these statements are built, and why interpolation is correct here
@@ -40,6 +52,15 @@ const USER_HOST: &str = "localhost";
 /// `CREATE USER 'user'@'localhost' IDENTIFIED BY '<password>'` **cannot**
 /// inject: there is nothing in any of them for an interpolation to break out
 /// with.
+///
+/// **Injection is not the only axis, and the alphabet answers only that one.**
+/// The `GRANT` below takes its database name as a LIKE-style PATTERN rather than
+/// as an identifier, where the `_` that every one of these names carries matches
+/// any single character — so a name that cannot break out of its quotes can still
+/// name databases it does not own. That is `grant_pattern_for`'s job below, and it is
+/// separate from this paragraph's on purpose: one is about what a value can do to
+/// the statement, the other about what the statement does with a well-formed
+/// value.
 ///
 /// That sentence is here because the next reader will see interpolation next to
 /// SQL and reach for a fix. The fix that suggests itself — accept a wider
@@ -92,14 +113,55 @@ pub fn create_database(host: &dyn DbHost, request: &CreateDatabaseRequest) -> Re
 
     // Scoped to this one database, never `ON *.*`: the user exists to serve one
     // customer's application, and a server-wide grant would let it read every
-    // other tenant's data on the host.
+    // other tenant's data on the host. The name is escaped, not merely quoted —
+    // see `grant_pattern_for`, which is where the scoping actually happens.
     host.execute(&format!(
         "GRANT ALL PRIVILEGES ON `{}`.* TO '{}'@'{USER_HOST}'",
-        request.database.as_str(),
+        grant_pattern_for(request.database.as_str()),
         request.user.as_str()
     ))?;
 
     Ok(())
+}
+
+/// Writes `database` as a `GRANT` pattern that matches that database and nothing
+/// else.
+///
+/// **The database name of a database-level `GRANT` is a pattern, not an
+/// identifier**, and this is the only place in this agent where that is true. In
+/// MySQL and MariaDB `_` matches any single character there and `%` any
+/// sequence; backtick-quoting does not turn it off, which is why the server's own
+/// manual tells you to escape the character instead — the escaped form is what
+/// stops the grantee "being able to access additional databases matching the
+/// wildcard pattern".
+///
+/// It is not a theoretical difference here, because every name this agent grants
+/// on holds the character. A name is `<account>_<suffix>`, so it carries the
+/// separator at least; and an account name may itself contain underscores, which
+/// is what turns one grant into a claim on other accounts' databases. Account
+/// `h_stco` asking for `main` produces `h_stco_main`, and that name unescaped is
+/// the pattern `h?stco?main`, which matches account `hostco`'s `hostco_main`
+/// exactly. Patterns are stored in `mysql.db` and matched when a connection asks
+/// for a database, so the reach extends to databases created after the grant.
+///
+/// `%` is deliberately NOT escaped, and that is a statement about the alphabet
+/// rather than an oversight: a `DatabaseName` is built only by
+/// `DatabaseName::for_account`, whose account half is `[a-z0-9_]` and whose
+/// requested half is `[a-z0-9]`, so `%` cannot be in one. An escape for a
+/// character that cannot arrive is a defensive call that cannot fail, which
+/// rules/testing.md says to delete rather than label — so this comment carries
+/// the reason instead, and the day that alphabet widens, this function is where
+/// the second character goes.
+///
+/// The escape belongs here and NOT in `DatabaseName`: `CREATE DATABASE` and
+/// `DROP DATABASE` take the name as an identifier, where a backslash is part of
+/// the name, so escaping upstream would create a database that is actually called
+/// `h\_stco\_main`.
+fn grant_pattern_for(database: &str) -> String {
+    database.replace(
+        GRANT_SINGLE_CHARACTER_WILDCARD,
+        ESCAPED_SINGLE_CHARACTER_WILDCARD,
+    )
 }
 
 #[cfg(test)]

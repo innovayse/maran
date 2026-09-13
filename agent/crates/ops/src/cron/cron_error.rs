@@ -104,6 +104,24 @@ pub enum CronError {
     #[error("the entry's files could not be removed")]
     EntryFileUnremovable,
 
+    /// The account already holds every managed entry the caller's stated
+    /// allowance permits, so nothing was written and nothing was installed.
+    ///
+    /// The allowance is the caller's number and this crate holds no policy: the
+    /// operation compares what the request stated against what it counted in
+    /// the crontab it had just read. A caller that states no allowance can
+    /// never see this variant.
+    ///
+    /// Its own variant rather than part of [`Self::AlreadyExists`], because the
+    /// two are opposite answers to the customer. `AlreadyExists` says the entry
+    /// they asked for is already there and is the idempotent success-shaped
+    /// refusal; this one says the entry is not there and will not be until
+    /// something else changes. It carries no numbers: the count and the
+    /// allowance are both the caller's own knowledge, and repeating them here
+    /// would put them on a path where only the caller can localise them.
+    #[error("the account's cron entry allowance is already used up")]
+    EntryLimitReached,
+
     /// No entry id could be minted, because the host's randomness source could
     /// not be read.
     ///

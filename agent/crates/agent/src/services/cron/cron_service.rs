@@ -103,13 +103,21 @@ impl<H: CronHost + 'static> CronService for CronServiceImpl<H> {
             &request.account_username,
             request.schedule.as_ref(),
             &request.command,
+            request.max_entries,
         ) {
-            Ok((account, schedule, command)) => {
+            Ok((account, schedule, command, max_entries)) => {
                 let host = Arc::clone(&self.host);
                 let distro = self.distro;
 
                 run_blocking("cron operation", to_agent_error, move || {
-                    cron::create_cron_entry(host.as_ref(), distro, &account, &schedule, &command)
+                    cron::create_cron_entry(
+                        host.as_ref(),
+                        distro,
+                        &account,
+                        &schedule,
+                        &command,
+                        max_entries,
+                    )
                 })
                 .await
             }

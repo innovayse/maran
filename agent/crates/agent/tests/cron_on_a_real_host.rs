@@ -106,6 +106,7 @@ fn install(account: &AccountName, command: &str) -> CronEntryId {
         account,
         &every_minute(),
         &CronCommand::parse(command).expect("a valid command"),
+        None,
     )
     .unwrap_or_else(|error| panic!("installing a cron entry must succeed: {error}"))
 }
@@ -773,6 +774,7 @@ fn a_creation_racing_a_suspension_leaves_the_account_suspended_and_its_jobs_sile
                 &account,
                 &every_minute(),
                 &CronCommand::parse(&command).expect("a valid command"),
+                None,
             )
         })
     };

@@ -34,6 +34,7 @@ fn two_entries_one_customer_disabled() -> RecordingCronHost {
         &account(),
         &every_five_minutes(),
         &command("echo one"),
+        None,
     )
     .expect("the first entry is created");
     create_cron_entry(
@@ -42,6 +43,7 @@ fn two_entries_one_customer_disabled() -> RecordingCronHost {
         &account(),
         &schedule("7", "*", "*", "*", "*"),
         &command("echo two"),
+        None,
     )
     .expect("the second entry is created");
     set_cron_entry_enabled(&host, distro(), &account(), &entry_id(SECOND_ID), false)
@@ -184,6 +186,7 @@ fn an_account_with_no_crontab_still_records_the_suspension() {
         &account(),
         &every_five_minutes(),
         &command("echo late"),
+        None,
     )
     .expect("the entry is created");
 

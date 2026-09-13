@@ -78,6 +78,7 @@ fn a_creation_that_overlaps_a_suspension_cannot_unsuspend_the_account() {
                 &account,
                 &every_five_minutes(),
                 &command("echo racing"),
+                None,
             )
         })
     };

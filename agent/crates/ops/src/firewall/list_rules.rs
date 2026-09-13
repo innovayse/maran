@@ -43,6 +43,12 @@ use crate::firewall::model::ruleset_state::RulesetState;
 ///
 /// - [`FirewallError::ForeignRuleset`] when the file at the ruleset path was
 ///   not written by this agent, or cannot be read back as one it wrote.
+/// - [`FirewallError::PortsDisagree`] when the file IS one this agent rendered
+///   but was rendered for other ports than `ports` names — an SSH port removed
+///   from the panel's configuration, or the panel's own port moved, with the
+///   ruleset file left as it was. It is listed here because it is the one
+///   firewall state no rpc recovers from (see the variant), and a reader who
+///   takes this list for the whole of it concludes a READ cannot produce it.
 /// - [`FirewallError::RulesetUnreadable`] when the file is there and will not
 ///   be read.
 /// - [`FirewallError::RenderFailed`] when this agent's own ruleset template —

@@ -28,6 +28,7 @@ fn every_variant() -> Vec<CronError> {
         CronError::EntryFileUnreadable,
         CronError::EntryFileUnremovable,
         CronError::EntryIdUnavailable,
+        CronError::EntryLimitReached,
     ]
 }
 
@@ -47,6 +48,31 @@ fn an_entry_that_is_already_there_is_an_idempotency_outcome_not_a_fault() {
 #[test]
 fn an_entry_this_account_does_not_own_is_reported_as_not_found() {
     assert_eq!(code_of(&CronError::NotFound), ErrorCode::NotFound as i32);
+}
+
+#[test]
+fn an_allowance_the_account_has_already_used_up_is_its_own_code() {
+    // Its own code, and neither of the two it is closest to. Not ALREADY_EXISTS,
+    // which the panel answers "you already have that entry" with — the entry is
+    // NOT there. Not ACCOUNT_BUSY, whose whole contract is that the caller may
+    // reissue the identical request, which here would loop: the answer stays the
+    // same until the account holds fewer entries or the allowance is raised.
+    assert_eq!(
+        code_of(&CronError::EntryLimitReached),
+        ErrorCode::LimitReached as i32
+    );
+    assert_ne!(
+        code_of(&CronError::EntryLimitReached),
+        ErrorCode::AccountBusy as i32,
+        "ERROR_CODE_ACCOUNT_BUSY means only that the lock was held and a caller \
+         reading it retries; this refusal is not retryable"
+    );
+    assert_ne!(
+        code_of(&CronError::EntryLimitReached),
+        ErrorCode::SystemFailure as i32,
+        "a plan limit is not a fault of the host, and reported as one it reaches \
+         the customer as an actionless 'something went wrong on your server'"
+    );
 }
 
 #[test]
