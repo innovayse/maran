@@ -6,6 +6,7 @@ using Maran.Modules.Sites.Tests.TestSupport;
 using Maran.Sdk.Contracts;
 using Maran.SharedKernel.Results;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Maran.Modules.Sites.Tests.Commands.CreateSite;
 
@@ -461,6 +462,13 @@ public sealed class CreateSiteCommandHandlerTests
         /// <summary>The audit journal double.</summary>
         public RecordingAuditWriter Audit { get; } = new();
 
+        /// <summary>The slot gate the handler claims through, without the real one's advisory lock.</summary>
+        /// <remarks>
+        /// A test sets <see cref="LocklessSiteSlotGate.RefuseNextClaim"/> to reach the handler's late
+        /// refusal, which in production is a concurrent commit and is not reachable on this provider.
+        /// </remarks>
+        public LocklessSiteSlotGate SlotGate { get; }
+
         /// <summary>The principal the context and the handler share.</summary>
         public FakeCurrentUser CurrentUser { get; }
 
@@ -482,6 +490,7 @@ public sealed class CreateSiteCommandHandlerTests
             Database = Guid.NewGuid().ToString();
             CurrentUser = asAdministrator ? FakeCurrentUser.Admin() : FakeCurrentUser.Customer(accountId);
             DbContext = SitesTestContext.Create(CurrentUser, Database);
+            SlotGate = new LocklessSiteSlotGate(DbContext);
             Agent = agentFailure is null ? new RecordingAgentSitesClient() : new RecordingAgentSitesClient(agentFailure);
             Php = phpFailure is null
                 ? new RecordingAgentPhpClient(installedPhp ?? ["8.3"])
@@ -501,7 +510,14 @@ public sealed class CreateSiteCommandHandlerTests
         public CreateSiteCommandHandler Handler()
         {
             return new CreateSiteCommandHandler(
-                DbContext, Accounts, Agent, Php, new SiteAuditJournal(Audit, CurrentUser), new FakeClock(Now));
+                DbContext,
+                Accounts,
+                Agent,
+                Php,
+                SlotGate,
+                new SiteAuditJournal(Audit, CurrentUser),
+                new FakeClock(Now),
+                NullLogger<CreateSiteCommandHandler>.Instance);
         }
     }
 }

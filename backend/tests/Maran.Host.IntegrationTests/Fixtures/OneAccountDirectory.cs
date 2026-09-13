@@ -20,14 +20,28 @@ public sealed class OneAccountDirectory : IAccountDirectory
     /// <param name="accountId">The account's identity.</param>
     /// <param name="username">The account's Linux system user name.</param>
     /// <param name="maxFtpUsers">How many FTPS logins the account's plan allows.</param>
-    public OneAccountDirectory(Guid accountId, string username, int maxFtpUsers)
+    /// <param name="maxSites">How many sites the account's plan allows.</param>
+    /// <param name="maxDatabases">How many databases the account's plan allows.</param>
+    /// <param name="maxSftpUsers">How many SFTP logins the account's plan allows.</param>
+    /// <remarks>
+    /// Every allowance but the FTPS one defaults to 1 and is named by a caller that cares about it.
+    /// One per limit rather than one shared number, because a race test's whole subject is ONE
+    /// allowance and a shared figure would make a test that measured the wrong one look correct.
+    /// </remarks>
+    public OneAccountDirectory(
+        Guid accountId,
+        string username,
+        int maxFtpUsers = 1,
+        int maxSites = 1,
+        int maxDatabases = 1,
+        int maxSftpUsers = 1)
     {
         _snapshot = new AccountSnapshot(
             accountId,
             username,
-            MaxSites: 1,
-            MaxDatabases: 1,
-            MaxSftpUsers: 1,
+            MaxSites: maxSites,
+            MaxDatabases: maxDatabases,
+            MaxSftpUsers: maxSftpUsers,
             MaxCronEntries: 1,
             MaxPhpWorkersPerPool: 1,
             DiskQuotaMb: 1024,

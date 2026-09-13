@@ -21,6 +21,9 @@
   <data name="SiteLimitReached">
     <value>Your plan does not allow any more sites.</value>
   </data>
+  <data name="SiteLimitReachedConcurrently" xml:space="preserve">
+    <value>Your plan's site limit was reached by another request made at the same moment, so this site was not created. Nothing you entered is wrong. Delete a site you no longer need, or ask for a larger plan, then try again.</value>
+  </data>
   <data name="PhpVersionNotInstalled">
     <value>This PHP version is not installed on the server.</value>
   </data>

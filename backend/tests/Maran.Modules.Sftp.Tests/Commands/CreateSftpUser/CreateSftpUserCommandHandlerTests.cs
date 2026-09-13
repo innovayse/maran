@@ -346,6 +346,13 @@ public sealed class CreateSftpUserCommandHandlerTests
         /// <summary>The journal every entry lands in.</summary>
         public RecordingAuditWriter Audit { get; } = new();
 
+        /// <summary>The slot gate the handler claims through, without the real one's advisory lock.</summary>
+        /// <remarks>
+        /// A test sets <see cref="LocklessSftpUserSlotGate.RefuseNextClaim"/> to reach the handler's late
+        /// refusal, which in production is a concurrent commit and is not reachable on this provider.
+        /// </remarks>
+        public LocklessSftpUserSlotGate SlotGate { get; }
+
         /// <summary>The handler under test.</summary>
         public CreateSftpUserCommandHandler Handler { get; }
 
@@ -362,10 +369,12 @@ public sealed class CreateSftpUserCommandHandlerTests
         {
             var currentUser = FakeCurrentUser.Customer(AccountId);
             Context = SftpTestContext.Create(currentUser, databaseName, saveFailure);
+            SlotGate = new LocklessSftpUserSlotGate(Context);
             Handler = new CreateSftpUserCommandHandler(
                 Context,
                 new StubAccountDirectory(new AccountSnapshot(AccountId, username, 5, 5, maxSftpUsers, 5, 5, 1_024)),
                 Agent,
+                SlotGate,
                 new SftpAuditJournal(Audit, currentUser),
                 new FakeClock(Now),
                 NullLogger<CreateSftpUserCommandHandler>.Instance);

@@ -31,11 +31,37 @@ namespace Maran.Modules.Cron.Commands.CreateCronEntry;
 /// would turn an agent outage into an unlimited plan.
 /// </para>
 /// <para>
-/// KNOWN RACE, deliberately not solved, exactly as the Sites, Databases and Sftp modules record:
-/// this is count-then-create with no lock, so two concurrent creations can both read N. Being one
-/// entry over a plan limit is a billing discrepancy an operator can see and correct, not a tenancy
-/// or availability failure — and no lock the panel could take would cover the customer editing
-/// their own crontab anyway.
+/// <b>THE RACE, and why the second check is not a duplicate of the first.</b> The count above and
+/// the creation below are two separate agent calls, so two requests interleave between them and both
+/// read N. Sites, Databases, Sftp and Ftp close that window with a per-account advisory lock taken
+/// inside the panel's own transaction — count, insert, commit — and this module cannot: it keeps no
+/// rows, so there is no table to count, no <c>DbContext</c> to lock, and no insert to be the atomic
+/// act. A panel lock held across the agent round trip is what those gates refuse to do, and
+/// inventing it here would be a second, worse shape.
+/// </para>
+/// <para>
+/// So the allowance travels with the creation. <see cref="IAgentCronClient.CreateEntryAsync"/> carries
+/// <c>maxEntries</c>, and the agent refuses inside the per-account cron lock it already holds across
+/// the read of the crontab and the install of the new table — the one place in the system where this
+/// count and this write are one indivisible act. A creation that loses the race arrives back as
+/// <c>CronEntryLimitReachedConcurrently</c>, a DIFFERENT code from the refusal below, so an operator
+/// can tell a plan that is simply full from a race that was lost.
+/// </para>
+/// <para>
+/// The pre-check below therefore STAYS, and the two are not one check written twice. They answer
+/// different questions and neither can answer the other's. This one refuses the ordinary full-plan
+/// request without touching the host at all — no root process, no privileged work — and it is where
+/// the plan lives, since the agent holds no plan and never will (rules/architecture.md: the agent
+/// MUST stay stateless). The agent's one closes a window measured in the length of a round trip,
+/// which is the only thing the panel cannot close from here. It is the same relationship every other
+/// agent input already has: validated at the boundary, re-checked inside the agent
+/// (rules/security.md item 1), and enforcement authority still on the backend, because the number the
+/// agent compares against is the number this handler sent it.
+/// </para>
+/// <para>
+/// What neither check covers, and no lock could: the account owns its crontab and can add entries
+/// over SFTP. The limit is true about what the panel installs and about what the host held when the
+/// agent last looked; it is not a quota the kernel enforces.
 /// </para>
 /// <para>
 /// Every failure is journalled and none of them carries the command (RULING 31): the subject is the
@@ -78,9 +104,11 @@ public sealed class CreateCronEntryCommandHandler
     /// <param name="command">The validated parameters; see <see cref="CreateCronEntryCommandValidator"/>.</param>
     /// <param name="cancellationToken">Cancels the operation.</param>
     /// <returns>
-    /// The installed entry — or <c>AccountNotFound</c>, <c>CronEntryLimitReached</c>,
-    /// <c>CronEntryAlreadyExists</c> when the agent already holds this exact schedule and command,
-    /// or <c>CronOperationFailed</c>.
+    /// The installed entry — or <c>AccountNotFound</c>, <c>CronEntryLimitReached</c> when the plan is
+    /// already full before the host is touched, <c>CronEntryLimitReachedConcurrently</c> when it
+    /// became full between the count and the install and the agent refused under its own lock,
+    /// <c>CronEntryAlreadyExists</c> when the agent already holds this exact schedule and command, or
+    /// <c>CronOperationFailed</c>.
     /// </returns>
     public async Task<Result<CronEntryDto>> HandleAsync(
         CreateCronEntryCommand command,
@@ -110,10 +138,16 @@ public sealed class CreateCronEntryCommandHandler
             return await FailAsync(command, Error.Of(nameof(ErrorMessages.CronEntryLimitReached), ErrorType.Conflict), cancellationToken);
         }
 
+        // The allowance goes WITH the creation, and this is the only enforcement of it that cannot be
+        // stale: the agent compares it against a count it takes under the per-account cron lock it
+        // holds across the install. The check above has already refused the ordinary full plan
+        // without touching the host; what is left for this to catch is another request that got
+        // between the two.
         var created = await _agent.CreateEntryAsync(
             account.Username,
             CronScheduleTranslator.ToAgentSchedule(command.Schedule),
             command.Command,
+            AllowanceOf(account),
             cancellationToken);
         if (!created.IsSuccess)
         {
@@ -131,6 +165,27 @@ public sealed class CreateCronEntryCommandHandler
         // separate operation and a separate audit action.
         return Result<CronEntryDto>.Ok(new CronEntryDto(
             created.Value, command.AccountId, command.Schedule, command.Command, Enabled: true));
+    }
+
+    /// <summary>The account's cron entry allowance, as the agent's contract states one.</summary>
+    /// <param name="account">The owning account, carrying its plan's allowance.</param>
+    /// <returns>The allowance, clamped at zero.</returns>
+    /// <remarks>
+    /// Always a stated allowance and never <c>null</c>: this panel knows the number, so withholding
+    /// it would leave the agent enforcing nothing and the window this whole arrangement exists to
+    /// close still open. <c>null</c> is on the contract for a caller that does NOT know — an older
+    /// panel, or any other client — and that is the case the agent's optional field is shaped for,
+    /// not this one.
+    ///
+    /// A negative plan value cannot come from the database (the column is constrained) but the CLR
+    /// type is <c>int</c>, so the conversion states what it does with one rather than throwing inside
+    /// a request: it becomes zero, which refuses every creation. Erring toward refusal is the correct
+    /// direction for an allowance — the permissive reading of a nonsense limit is the one that costs
+    /// the operator money.
+    /// </remarks>
+    private static uint AllowanceOf(AccountSnapshot account)
+    {
+        return account.MaxCronEntries <= 0 ? 0u : (uint)account.MaxCronEntries;
     }
 
     /// <summary>The identifier a refused creation is recorded and logged against.</summary>

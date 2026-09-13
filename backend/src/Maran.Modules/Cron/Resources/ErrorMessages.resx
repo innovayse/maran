@@ -54,4 +54,7 @@
   <data name="CronOperationFailed">
     <value>This scheduled task could not be changed. Nothing was altered; please try again.</value>
   </data>
+  <data name="CronEntryLimitReachedConcurrently">
+    <value>Your plan's limit on scheduled tasks was reached by another request made at the same moment, so this task was not created. Nothing you entered is wrong. Delete a scheduled task you no longer need, or ask for a larger plan, then try again.</value>
+  </data>
 </root>

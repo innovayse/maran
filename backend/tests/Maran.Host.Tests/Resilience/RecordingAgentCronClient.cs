@@ -40,6 +40,9 @@ internal sealed class RecordingAgentCronClient : IAgentCronClient
     /// <summary>The environment of the last call that carried one.</summary>
     public IReadOnlyList<AgentCronEnvVar>? LastVariables { get; private set; }
 
+    /// <summary>The plan allowance the last creation carried, or <c>null</c> when it carried none.</summary>
+    public uint? LastMaxEntries { get; private set; }
+
     /// <inheritdoc/>
     public async Task<Result<IReadOnlyList<AgentCronEntry>>> ListEntriesAsync(
         string accountUsername,
@@ -57,11 +60,13 @@ internal sealed class RecordingAgentCronClient : IAgentCronClient
         string accountUsername,
         AgentCronSchedule schedule,
         string command,
+        uint? maxEntries,
         CancellationToken cancellationToken)
     {
         LastAccountUsername = accountUsername;
         LastSchedule = schedule;
         LastCommand = command;
+        LastMaxEntries = maxEntries;
 
         await EnterAsync(cancellationToken);
 

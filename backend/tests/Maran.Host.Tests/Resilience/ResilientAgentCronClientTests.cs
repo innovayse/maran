@@ -39,7 +39,7 @@ public sealed class ResilientAgentCronClientTests
         var inner = new RecordingAgentCronClient { FailuresBeforeSuccess = 1 };
 
         var result = await Decorate(inner)
-            .CreateEntryAsync("alice", Schedule, "/usr/bin/true", default)
+            .CreateEntryAsync("alice", Schedule, "/usr/bin/true", 7u, default)
             .WaitAsync(TestTimeout);
 
         Assert.True(result.IsSuccess);
@@ -47,6 +47,11 @@ public sealed class ResilientAgentCronClientTests
         Assert.Equal("alice", inner.LastAccountUsername);
         Assert.Same(Schedule, inner.LastSchedule);
         Assert.Equal("/usr/bin/true", inner.LastCommand);
+
+        // The allowance is asserted with the rest because it is the argument whose loss is silent:
+        // a decorator that dropped it would forward a creation the agent then enforces no limit on,
+        // and every other observation of this call would be unchanged.
+        Assert.Equal(7u, inner.LastMaxEntries);
     }
 
     /// <summary>Update retries a transport failure through the pipeline and forwards every argument.</summary>

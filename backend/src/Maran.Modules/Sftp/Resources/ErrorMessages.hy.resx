@@ -21,6 +21,9 @@
   <data name="SftpUserLimitReached">
     <value>Ձեր սակագինը թույլ չի տալիս ավելի շատ SFTP օգտվողներ։</value>
   </data>
+  <data name="SftpUserLimitReachedConcurrently" xml:space="preserve">
+    <value>Ձեր սակագնի SFTP օգտվողների սահմանաչափը սպառվեց նույն պահին արված մեկ այլ հարցումով, ուստի այս օգտվողը չի ստեղծվել և գաղտնաբառ չի տրվել։ Ձեր մուտքագրածում սխալ բան չկա։ Ջնջեք SFTP օգտվողին, որն այլևս պետք չէ, կամ անցեք ավելի մեծ սակագնի, ապա կրկնեք փորձը։</value>
+  </data>
   <data name="SftpUserNameTooLong">
     <value>Այս անունը չափազանց երկար է ձեր հաշվի նախածանցի հետ միասին։</value>
   </data>

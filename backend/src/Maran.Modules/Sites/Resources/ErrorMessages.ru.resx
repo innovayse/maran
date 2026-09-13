@@ -21,6 +21,9 @@
   <data name="SiteLimitReached">
     <value>Ваш тариф не позволяет создать больше сайтов.</value>
   </data>
+  <data name="SiteLimitReachedConcurrently" xml:space="preserve">
+    <value>Лимит сайтов вашего тарифа был исчерпан другим запросом, сделанным в тот же момент, поэтому этот сайт не создан. Введённые вами данные верны. Удалите ненужный сайт или перейдите на более крупный тариф, затем повторите попытку.</value>
+  </data>
   <data name="PhpVersionNotInstalled">
     <value>Эта версия PHP не установлена на сервере.</value>
   </data>

@@ -21,12 +21,24 @@ namespace Maran.Modules.Cron.Mappers;
 /// are enough to find the entry without carrying what the entry runs.
 /// </para>
 /// <para>
-/// Two agent outcomes carry meaning a customer needs and are mapped to their own codes: a missing
+/// Three agent outcomes carry meaning a customer needs and are mapped to their own codes: a missing
 /// entry (404, and the same answer another tenant's entry gets — never a 403 that would confirm it
-/// exists) and a duplicate the agent refused to install twice (409). Everything else — invalid
+/// exists), a duplicate the agent refused to install twice (409), and the plan allowance the agent
+/// found already met when it took the count under its own lock (409). Everything else — invalid
 /// input the panel's own validators should already have caught, a validation failure, a system
 /// failure, an answer the client could not read — collapses to one code, because the difference
 /// between them is an operator's question and the log line is where an operator reads it.
+/// </para>
+/// <para>
+/// <b>The allowance refusal gets its own sentence and not the generic one, which is the whole point
+/// of mapping it here.</b> It is the CONCURRENT loser: the customer had room when the panel looked,
+/// and did not by the time the agent installed. Left on the default arm it would reach them as
+/// "something went wrong on your server" — an answer that is both untrue and actionless, about the
+/// one refusal they can actually act on. So it says what happened, that nothing they typed was
+/// wrong, and what to do, exactly as the Sites, Databases, Sftp and Ftp modules say it for their own
+/// losers. It is a DIFFERENT code from <c>CronEntryLimitReached</c>, the ordinary full-plan refusal
+/// the panel makes before the host is touched, so an operator reading a journal can tell a plan that
+/// is simply full from a race that was lost.
 /// </para>
 /// <para>
 /// The agent codes are matched as string literals because <c>Maran.Agent.Client</c>'s generated
@@ -42,6 +54,12 @@ public static class CronAgentErrorTranslator
 
     /// <summary>The agent's code for an entry it refused to install a second time.</summary>
     private const string AgentAlreadyExistsCode = "AgentAlreadyExists";
+
+    /// <summary>
+    /// The agent's code for a creation it refused because the allowance the request stated was
+    /// already met.
+    /// </summary>
+    private const string AgentLimitReachedCode = "AgentLimitReached";
 
     /// <summary>
     /// Pre-compiled log delegate for a cron call the agent refused. Source-generated because an
@@ -92,6 +110,7 @@ public static class CronAgentErrorTranslator
         {
             AgentNotFoundCode => Error.Of(nameof(ErrorMessages.CronEntryNotFound), ErrorType.NotFound),
             AgentAlreadyExistsCode => Error.Of(nameof(ErrorMessages.CronEntryAlreadyExists), ErrorType.Conflict),
+            AgentLimitReachedCode => Error.Of(nameof(ErrorMessages.CronEntryLimitReachedConcurrently), ErrorType.Conflict),
             _ => Error.Of(nameof(ErrorMessages.CronOperationFailed), ErrorType.Failure),
         };
     }

@@ -21,6 +21,9 @@
   <data name="SftpUserLimitReached">
     <value>Your plan does not allow any more SFTP users.</value>
   </data>
+  <data name="SftpUserLimitReachedConcurrently" xml:space="preserve">
+    <value>Your plan's SFTP user limit was reached by another request made at the same moment, so this user was not created and no password was issued. Nothing you entered is wrong. Delete an SFTP user you no longer need, or ask for a larger plan, then try again.</value>
+  </data>
   <data name="SftpUserNameTooLong">
     <value>This name is too long once your account prefix is added.</value>
   </data>

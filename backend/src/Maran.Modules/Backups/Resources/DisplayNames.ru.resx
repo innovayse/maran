@@ -60,6 +60,9 @@
   <data name="BackupFailureAgentAccountBusy">
     <value>Другая операция по этому аккаунту ещё выполнялась</value>
   </data>
+  <data name="BackupFailureAgentLimitReached">
+    <value>Лимит тарифа по этому аккаунту уже был исчерпан</value>
+  </data>
   <data name="BackupDestinationDefault">
     <value>Локальное хранилище</value>
   </data>

@@ -60,6 +60,9 @@
   <data name="BackupFailureAgentAccountBusy">
     <value>Այս հաշվի վրա մեկ այլ գործողություն դեռ ընթանում էր</value>
   </data>
+  <data name="BackupFailureAgentLimitReached">
+    <value>Այս հաշվի սակագնային սահմանաչափն արդեն սպառված էր</value>
+  </data>
   <data name="BackupDestinationDefault">
     <value>Տեղական պահոց</value>
   </data>

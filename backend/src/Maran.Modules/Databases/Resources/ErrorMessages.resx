@@ -24,6 +24,9 @@
   <data name="DatabaseLimitReached">
     <value>Your plan does not allow any more databases.</value>
   </data>
+  <data name="DatabaseLimitReachedConcurrently" xml:space="preserve">
+    <value>Your plan's database limit was reached by another request made at the same moment, so this database was not created and no password was issued. Nothing you entered is wrong. Delete a database you no longer need, or ask for a larger plan, then try again.</value>
+  </data>
   <data name="DatabaseNameTooLong">
     <value>This name is too long once your account prefix is added.</value>
   </data>

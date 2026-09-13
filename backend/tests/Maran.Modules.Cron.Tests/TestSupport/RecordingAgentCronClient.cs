@@ -92,9 +92,10 @@ public sealed class RecordingAgentCronClient : IAgentCronClient
         string accountUsername,
         AgentCronSchedule schedule,
         string command,
+        uint? maxEntries,
         CancellationToken cancellationToken)
     {
-        Creates.Add(new AgentCreateEntryCall(accountUsername, schedule, command));
+        Creates.Add(new AgentCreateEntryCall(accountUsername, schedule, command, maxEntries));
 
         return Task.FromResult(CreateEntryResult ?? Result<string>.Ok(MintedEntryId));
     }

@@ -39,4 +39,7 @@
   <data name="AgentFirewallPortsMisconfigured">
     <value>The firewall was not changed, because this panel does not know which ports must stay open on your server. Nothing was changed. Please contact support.</value>
   </data>
+  <data name="AgentLimitReached">
+    <value>Your plan's limit for this kind of item was already reached, so nothing was created. Delete one you no longer need, or ask for a larger plan, then try again.</value>
+  </data>
 </root>

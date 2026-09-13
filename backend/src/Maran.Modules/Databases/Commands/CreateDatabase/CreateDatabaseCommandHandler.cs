@@ -1,6 +1,7 @@
 using Maran.Agent.Client.Interfaces;
 using Maran.Modules.Databases.Common;
 using Maran.Modules.Databases.Domain.Entities;
+using Maran.Modules.Databases.Interfaces;
 using Maran.Modules.Databases.Persistence;
 using Maran.Modules.Databases.Resources;
 using Maran.Modules.Databases.Services;
@@ -25,6 +26,28 @@ namespace Maran.Modules.Databases.Commands.CreateDatabase;
 /// row because the two stores can disagree either way and this order decides which: a database with
 /// no row is invisible and, as of the compensation below, short-lived, while a row with no database
 /// is a customer told they have a database whose connection string does not work.
+/// </para>
+/// <para>
+/// <b>The limit is checked twice, and the SECOND check is the one that holds.</b> The pre-agent check
+/// is count-then-insert with nothing behind the count, so on its own two concurrent creations both
+/// read N-1 and both succeed, leaving the account one database over its plan. It is kept because it
+/// refuses the ordinary over-limit request before the server is touched at all. What closes the window
+/// is <see cref="IDatabaseSlotGate"/>: the row is written under a per-account advisory lock, with the
+/// count re-taken inside it, so the second of two simultaneous creations sees the first one's
+/// committed row and is refused. The gate's own documentation says what each rejected alternative —
+/// a unique index, an insert carrying the count, a serializable transaction, a counter column — is
+/// blind to, and why the agent contributes nothing here.
+/// </para>
+/// <para>
+/// <b>The loser pays for it on the server, which is why the pre-check stays.</b> The gate runs after
+/// the agent has made the database, so a request refused there leaves a database nothing owns and it
+/// is compensated exactly as a failed write is. That is the trade this order buys: the frequent
+/// refusal (a plan that is simply full) costs nothing, and the rare one (two requests inside the same
+/// millisecond) costs a create and a drop on the server. The customer is told which of the two
+/// happened, because "your plan is full" and "your plan filled up while this was being created" are
+/// different sentences and only the second one is worth retrying after deleting something. The drop
+/// is safe in this one case and in no other: the database it removes is the one THIS request just
+/// made, and it holds no data, because nobody has ever been given its credentials.
 /// </para>
 /// <para>
 /// <b>And the row failing is not the harmless half here, which is why the compensation exists.</b>
@@ -109,6 +132,9 @@ public sealed class CreateDatabaseCommandHandler
     /// <summary>The agent, which owns everything that exists on the MySQL server.</summary>
     private readonly IAgentDbClient _agent;
 
+    /// <summary>The atomic claim on the account's last free slot; see the race paragraph above.</summary>
+    private readonly IDatabaseSlotGate _slotGate;
+
     /// <summary>This module's audit journal.</summary>
     private readonly DatabaseAuditJournal _journal;
 
@@ -122,6 +148,7 @@ public sealed class CreateDatabaseCommandHandler
     /// <param name="dbContext">The Databases module's database context.</param>
     /// <param name="accounts">The owning account's system user name and plan allowance.</param>
     /// <param name="agent">The agent client that provisions the database.</param>
+    /// <param name="slotGate">Takes the account's last free slot atomically when the row is written.</param>
     /// <param name="journal">This module's audit journal.</param>
     /// <param name="clock">The injected time source used to stamp the new row.</param>
     /// <param name="logger">Where a failed compensation is reported.</param>
@@ -129,6 +156,7 @@ public sealed class CreateDatabaseCommandHandler
         DatabasesDbContext dbContext,
         IAccountDirectory accounts,
         IAgentDbClient agent,
+        IDatabaseSlotGate slotGate,
         DatabaseAuditJournal journal,
         IClock clock,
         ILogger<CreateDatabaseCommandHandler> logger)
@@ -136,6 +164,7 @@ public sealed class CreateDatabaseCommandHandler
         _dbContext = dbContext;
         _accounts = accounts;
         _agent = agent;
+        _slotGate = slotGate;
         _journal = journal;
         _clock = clock;
         _logger = logger;
@@ -146,7 +175,8 @@ public sealed class CreateDatabaseCommandHandler
     /// <param name="cancellationToken">Cancels the operation.</param>
     /// <returns>
     /// The new database and its password, shown once — or <c>AccountNotFound</c>,
-    /// <c>DatabaseLimitReached</c>, <c>DatabaseNameTaken</c>, <c>DatabaseUserNameTaken</c>,
+    /// <c>DatabaseLimitReached</c>, <c>DatabaseLimitReachedConcurrently</c>,
+    /// <c>DatabaseNameTaken</c>, <c>DatabaseUserNameTaken</c>,
     /// <c>DatabaseNameTooLong</c>, <c>DatabaseUserNameTooLong</c>,
     /// <c>DatabaseProvisioningFailed</c>, or the agent's own typed failure.
     /// </returns>
@@ -166,10 +196,12 @@ public sealed class CreateDatabaseCommandHandler
         // agent is called — a database the plan refuses must never reach the server, or the panel
         // has made something it then has to remember to remove.
         //
-        // KNOWN RACE, deliberately not solved here, exactly as the Sites module records: this is
-        // count-then-insert with no constraint behind it, so two concurrent creations can both read
-        // N. Being one database over a plan limit is a billing discrepancy an operator can see and
-        // correct, not a tenancy or availability failure.
+        // This check is count-then-insert with nothing behind the count, so on its own two
+        // concurrent creations both read N-1 and both succeed. It is kept because it refuses the
+        // ordinary over-limit request before the server is touched at all; what CLOSES the window is
+        // IDatabaseSlotGate, which re-takes the count under a per-account advisory lock at the moment
+        // the row is written. See the paragraph on the type, and the gate's own documentation for
+        // what each rejected alternative is blind to.
         var existing = await _dbContext.Databases
             .CountAsync(database => database.AccountId == command.AccountId, cancellationToken);
         if (existing >= account.MaxDatabases)
@@ -258,9 +290,8 @@ public sealed class CreateDatabaseCommandHandler
             command.DbUserName,
             _clock.UtcNow);
 
-        _dbContext.Databases.Add(database);
-
-        var recorded = await RecordAsync(database, account.Username, command, cancellationToken);
+        var recorded = await RecordAsync(
+            database, account.Username, account.MaxDatabases, command, cancellationToken);
         if (!recorded.IsSuccess)
         {
             return Result<CreatedDatabaseDto>.Fail(recorded.Error!);
@@ -300,20 +331,36 @@ public sealed class CreateDatabaseCommandHandler
     /// <summary>Writes the row for a database the agent has already made, compensating if it cannot.</summary>
     /// <param name="database">The row to write.</param>
     /// <param name="accountUsername">The owning account's system user name, which addresses the compensating drop.</param>
+    /// <param name="allowance">How many databases the account's plan allows, re-checked inside the gate.</param>
     /// <param name="command">The creation being recorded, for the journal's subject.</param>
     /// <param name="cancellationToken">Cancels the write.</param>
     /// <returns>Success, or the typed failure the customer is answered with.</returns>
     private async Task<Result<bool>> RecordAsync(
         Database database,
         string accountUsername,
+        int allowance,
         CreateDatabaseCommand command,
         CancellationToken cancellationToken)
     {
         try
         {
-            await _dbContext.SaveChangesAsync(cancellationToken);
+            if (await _slotGate.TryTakeAsync(database, allowance, cancellationToken))
+            {
+                return Result<bool>.Ok(true);
+            }
 
-            return Result<bool>.Ok(true);
+            // The gate refused, which means another creation committed the account's last slot while
+            // this one was on the server. Nothing owns the database this request made and nobody has
+            // its credentials, so it goes — the same compensation a failed write gets, for the same
+            // reason — and the refusal says the plan filled up rather than that the name was taken,
+            // because the name is not the problem and deleting a database the customer no longer
+            // needs is what unblocks them.
+            await CompensateAsync(accountUsername, command, cancellationToken);
+
+            return Result<bool>.Fail(await FailedErrorAsync(
+                command,
+                Error.Of(nameof(ErrorMessages.DatabaseLimitReachedConcurrently), ErrorType.Conflict),
+                cancellationToken));
         }
         catch (DbUpdateException exception)
         {
