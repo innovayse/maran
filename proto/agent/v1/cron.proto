@@ -180,6 +180,39 @@ message CreateCronEntryRequest {
   // CronEntry.command: `%` and `#` are ordinary characters, control
   // characters and anything over 4096 bytes are refused.
   string command = 3;
+  // How many managed entries this account's plan allows in total, stated by
+  // the caller. When present and the account's crontab already holds at least
+  // this many managed entries, the agent installs nothing and answers
+  // ERROR_CODE_LIMIT_REACHED.
+  //
+  // **Why the allowance travels with the creation instead of being checked by
+  // the caller alone.** The count lives in the crontab, on this host, behind
+  // this rpc — the panel keeps no cron rows, so it cannot count and install in
+  // one transaction the way it does for sites, databases, SFTP and FTPS users.
+  // Its only way to count is ListCronEntries, a separate rpc, and two requests
+  // interleaving between that call and this one both pass. Inside the agent the
+  // two are already one act: CreateCronEntry takes the account's cron lock and
+  // then reads the whole crontab, so the count is taken under the same lock
+  // that guards the install. Sending the number is what lets the comparison
+  // happen there.
+  //
+  // The agent holds no plan and no policy. This number is the panel's, is
+  // re-checked rather than trusted for its SHAPE only, and the caller is
+  // expected to refuse a full plan itself before making this call at all — that
+  // refusal touches no host. This field closes the window between those two
+  // rpcs and nothing else.
+  //
+  // **Explicitly optional, not a sentinel, and the difference matters in one
+  // direction.** Absent means "the caller stated no allowance", and the agent
+  // then enforces none — which is exactly what an older panel, or any caller
+  // predating this field, needs, and is the behaviour this rpc had before it.
+  // A bare uint32 could not express that: proto3's default would arrive as 0,
+  // and 0 as an allowance means "allow nothing", so a newer agent would refuse
+  // every cron entry every older panel on the host ever asked for. Presence is
+  // therefore a fact on the wire rather than a value reserved out of the range,
+  // which also leaves 0 usable as the real allowance of a plan that permits no
+  // scheduled tasks at all.
+  optional uint32 max_entries = 4;
 }
 
 message CreateCronEntryResponse {

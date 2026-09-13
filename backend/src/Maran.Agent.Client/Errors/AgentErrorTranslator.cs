@@ -115,6 +115,7 @@ internal static partial class AgentErrorTranslator
             ErrorCode.ValidationFailed => ErrorType.Validation,
             ErrorCode.SystemFailure => ErrorType.Failure,
             ErrorCode.NotImplemented => ErrorType.Failure,
+            ErrorCode.LimitReached => ErrorType.Conflict,
             _ => ErrorType.Failure,
         };
     }
@@ -136,6 +137,16 @@ internal static partial class AgentErrorTranslator
     /// <see cref="ErrorType.Failure"/> rather than <see cref="ErrorType.Validation"/>: the caller
     /// asked for something reasonable and the server cannot do it, so blaming the request would be
     /// both wrong and a dead end for the operator.
+    ///
+    /// <see cref="ErrorCode.LimitReached"/> is the agent refusing an operation whose request stated
+    /// a plan allowance the account has already reached. Its kind is
+    /// <see cref="ErrorType.Conflict"/>, the same 409 the panel answers its own full-plan refusals
+    /// with: the request is well formed and the state of the account is what says no. Without an arm
+    /// it would take the unspecified default and tell a customer "something went wrong on your
+    /// server" about a plan limit they can act on. A module that wants to say more than the generic
+    /// sentence here — that this was the CONCURRENT loser rather than the ordinary refusal — maps
+    /// this code again in its own translator, which is what
+    /// <c>Maran.Modules.Cron.Mappers.CronAgentErrorTranslator</c> does.
     /// </remarks>
     public static string ToErrorCode(ErrorCode code)
     {
@@ -148,6 +159,7 @@ internal static partial class AgentErrorTranslator
             ErrorCode.ValidationFailed => nameof(ErrorMessages.AgentValidationFailed),
             ErrorCode.SystemFailure => nameof(ErrorMessages.AgentSystemFailure),
             ErrorCode.NotImplemented => nameof(ErrorMessages.AgentNotImplemented),
+            ErrorCode.LimitReached => nameof(ErrorMessages.AgentLimitReached),
             _ => nameof(ErrorMessages.AgentUnspecified),
         };
     }

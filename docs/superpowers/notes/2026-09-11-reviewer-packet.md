@@ -40,6 +40,56 @@ Each is a decision. No check in this repository can turn any of them green.
    suspension does not say so. *For the human:* accept an unbounded window, or require an
    `ClientAliveInterval` and a session cull. *This is new since the 2026-09-09 pass, which recorded
    the FTPS half only.*
+
+   > **CORRECTION, 2026-09-13. "Nothing anywhere kills a live session" is WRONG, and the grep that
+   > established it could not have found the thing it was looking for.** The pattern
+   > `"pkill|kill_sessions|terminate_session|loginctl"` was handed to a **basic**-regex grep, where
+   > `|` is a literal character and not alternation — so the command matches the one 46-character
+   > string and nothing else. It returns `0` under every grep on this machine, which is why it was
+   > believed. Add `-E` and the tree answers:
+   >
+   > ```
+   > $ grep          -rn  "pkill|kill_sessions|terminate_session|loginctl" agent/crates/ops/src | wc -l   -> 0
+   > $ /usr/bin/grep -rn  "pkill|kill_sessions|terminate_session|loginctl" agent/crates/ops/src | wc -l   -> 0
+   > $ /usr/bin/grep -rnE "pkill|kill_sessions|terminate_session|loginctl" agent/crates/ops/src \
+   >     | awk -F: '{print $1}' | sort | uniq -c | sort -rn
+   >      13 agent/crates/ops/src/logins/end_account_sessions.rs
+   >      11 agent/crates/ops/src/tests/logins/fake_logins_host.rs
+   >       5 agent/crates/ops/src/tests/logins/set_account_logins_locked_tests.rs
+   >       5 agent/crates/ops/src/tests/logins/end_account_sessions_tests.rs
+   >       2 agent/crates/ops/src/logins/set_account_logins_locked.rs
+   >       2 agent/crates/ops/src/logins/logins_error.rs
+   >       1 agent/crates/ops/src/logins/model/account_lock_outcome.rs
+   > ```
+   >
+   > `ops/src/logins/end_account_sessions.rs` — *"Ending the transfer sessions a suspended account
+   > already has open"* — signals every process running as the account's real uid and answers with
+   > how many there were; `set_account_logins_locked.rs:233` calls it, so locking an account's
+   > logins culls its live sessions. Its own `KILL_SIGNAL` doc says *"a session that survives a
+   > suspension is the entire defect this operation exists to close"*.
+   >
+   > It was not stale when written, which is the uncomfortable part: the cull landed **two minutes
+   > before** this packet, in the same hand-off. `git log --pretty='%h %ad %s' --date=iso` gives
+   > `52b5a0f 2026-09-13 01:08:48` for `end_account_sessions.rs` and `bbd5473 2026-09-13 01:11:07`
+   > for this file.
+   >
+   > **What a reviewer should actually rule on, restated.** The cull half is built; do not authorise
+   > it again. What remains genuinely open is the half this item got right: there is still no idle
+   > bound on SFTP (`grep -rn "ClientAlive" installer/ agent/crates/templates/templates/` → `0`
+   > under `/usr/bin/grep` too, re-measured 2026-09-13), so a session opened before a suspension and
+   > kept active is ended only when a suspension actually runs. The question for the human is
+   > therefore narrower: is a cull-on-suspension enough, or does SFTP also owe an
+   > `ClientAliveInterval` the way FTPS owes `idle_session_timeout=600`? And the safety property
+   > `rules/security.md` item 12 asks of any cull — that it cannot reach a uid outside the account —
+   > is `end_account_sessions.rs`'s own `ROOT_UID`/`--uid` argument, which is where to read it.
+   >
+   > The lesson for this file, and it is the reason the correction is this long: **a conclusion drawn
+   > from a search is only as good as the tool and the flags that ran it.** Two of the five
+   > alternation patterns quoted in this packet are wrong for the grep they were given (this item, and
+   > §2.1's setup-token search — both corrected in place), and one names no file at all (§2.2's
+   > `grep -n "SHA|algorithm|HMAC"`, whose conclusion survives re-measurement anyway). Cited by
+   > section rather than by line number, because the corrections moved the lines. A negative search result is a claim, and it owes the command that
+   > produced it in a form the next reader can paste — `-E` included.
 2. **A group's membership.** `2026-09-09-ftps-threat-note.md:164` — "Membership of `maran-ftps` is
    the whole authorization"; `2026-09-09-group-id-threat-note.md` §1 — who is in the web server's
    group decides who reads a restored home at `0750`. No test can assert who is in a group on a
@@ -95,6 +145,17 @@ bar — browser history, and any URL-handling telemetry. The argument for it exi
 comment** (`:36`), not as a note. `grep -rn "setup?token|setup_url" docs/superpowers/notes/` →
 **no hits**, unchanged from the 2026-09-09 pass that first flagged it. *For the human:* rule on
 whether this clears the bar for token handling; if yes, the comment should become a note.
+
+> **CORRECTION, 2026-09-13, about the COMMAND rather than the conclusion.** That grep could not have
+> found a note either: `setup?token|setup_url` is a basic-regex pattern, so `|` is a literal and `?`
+> quantifies nothing useful. `/usr/bin/grep -rn "setup?token|setup_url" docs/superpowers/notes/`
+> returns `1` (this line). With `-E` and an escaped `?` it returns three files:
+> `2026-09-11-setup-token-in-a-url-threat-note.md`,
+> `2026-09-07-installer-privileged-steps-threat-note.md`, and this packet —
+> `/usr/bin/grep -rlnE "setup.?token|setup_url" docs/superpowers/notes/`. The first of those is a
+> dedicated note on this exact surface, so "not as a note" no longer holds; the CORRECTION block
+> below already names it, and the reviewer requirement it records is still OUTSTANDING. Nothing about
+> the ruling asked for changes — only the evidence line does.
 
 > **CORRECTION, 2026-09-11 (later the same day).** "What is safe, verified: it never reaches a log"
 > above is WRONG, and it was the second pass on this branch to say so. It is true of

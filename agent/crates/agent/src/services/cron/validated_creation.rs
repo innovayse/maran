@@ -10,9 +10,9 @@ use crate::services::cron::validated_schedule::validated_schedule;
 use crate::services::wire::invalid_input::invalid_input;
 use crate::services::wire::validated_account::validated_account;
 
-/// Builds the three values `CreateCronEntry` needs from what it carries.
+/// Builds the four values `CreateCronEntry` needs from what it carries.
 ///
-/// Every one of them is a validated type and none is a `String`. That is this
+/// The three the customer supplies are validated types and none is a `String`. That is this
 /// area's injection defence: a crontab is line-oriented, so a newline anywhere
 /// in a value the agent writes would let one entry inject further entries,
 /// schedules or environment assignments into the account's table
@@ -25,6 +25,22 @@ use crate::services::wire::validated_account::validated_account;
 /// would refuse `date +%s` and a trailing comment for a hazard that does not
 /// exist in this design.
 ///
+/// The fourth, `max_entries`, is passed through as the `Option<u32>` the wire
+/// carried and is deliberately NOT turned into a validated type. It is not
+/// customer input and it reaches no file: it is the PANEL's own allowance for
+/// the account, and the only thing done with it is a comparison against a count
+/// the operation takes for itself. There is no value of a `u32` this agent must
+/// refuse — a huge one enforces nothing, `Some(0)` refuses everything for that
+/// account, and both are answers the panel is entitled to ask for. Wrapping it
+/// would manufacture a validated type whose `parse` could never fail, which is
+/// the shape rules/rust.md calls a defensive call that cannot fail.
+///
+/// Its ABSENCE is the load-bearing case and is preserved exactly: `None` means
+/// no caller stated an allowance, and the operation then enforces none. That is
+/// what keeps the field additive — a caller predating it, or any caller that
+/// does not set it, gets the behaviour this rpc had before it existed, rather
+/// than the zero a bare `uint32` would have delivered.
+///
 /// # Errors
 ///
 /// Returns the wire error for an account name the agent will not accept, for an
@@ -34,10 +50,15 @@ pub fn validated_creation(
     account_username: &str,
     schedule: Option<&WireSchedule>,
     command: &str,
-) -> Result<(AccountName, CronSchedule, CronCommand), AgentError> {
+    max_entries: Option<u32>,
+) -> Result<(AccountName, CronSchedule, CronCommand, Option<u32>), AgentError> {
     let account = validated_account(account_username)?;
     let schedule = validated_schedule(schedule)?;
     let command = CronCommand::parse(command).map_err(|error| invalid_input(error.to_string()))?;
 
-    Ok((account, schedule, command))
+    Ok((account, schedule, command, max_entries))
 }
+
+#[cfg(test)]
+#[path = "../../tests/services/cron/validated_creation_tests.rs"]
+mod tests;

@@ -31,6 +31,13 @@ pub fn to_agent_error(error: &CronError) -> AgentError {
         // and updating, toggling or reading the output of one the account does
         // not own is the same shape of answer.
         CronError::NotFound => ErrorCode::NotFound,
+        // `common.proto`: the request stated an allowance and the account has
+        // already reached it. Its own code and NOT `AlreadyExists`, which the
+        // panel answers 409 "you already have that entry" with, and not
+        // `AccountBusy`, whose whole contract is that the caller may retry the
+        // identical request — this one will answer the same until the account
+        // holds fewer entries or the allowance is raised.
+        CronError::EntryLimitReached => ErrorCode::LimitReached,
         // Faults of this machine, not of the request. Every one of them leaves
         // the account's live crontab exactly as it was: `crontab(1)` installs a
         // table or it does not, an entry file writes or it does not, and there

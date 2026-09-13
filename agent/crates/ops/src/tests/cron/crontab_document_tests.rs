@@ -46,6 +46,7 @@ fn rendered_with_one_entry(command_text: &str) -> String {
         &account(),
         &every_five_minutes(),
         &command(command_text),
+        None,
     )
     .expect("created");
 
@@ -164,6 +165,7 @@ fn a_foreign_crontab_line_survives_every_mutation_byte_for_byte() {
         &account,
         &every_five_minutes(),
         &command("echo one"),
+        None,
     )
     .expect("created");
     assert_foreign_survived(&host, "after a creation");
@@ -218,6 +220,7 @@ fn a_foreign_env_assignment_stays_above_the_managed_region_and_below_nothing_new
         &account(),
         &every_five_minutes(),
         &command("echo one"),
+        None,
     )
     .expect("created");
 

@@ -57,6 +57,7 @@ public sealed class StubAgentCronClient : IAgentCronClient
         string accountUsername,
         AgentCronSchedule schedule,
         string command,
+        uint? maxEntries,
         CancellationToken cancellationToken)
     {
         AddressedAccounts.Add(accountUsername);

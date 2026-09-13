@@ -159,7 +159,7 @@ public sealed class AgentCronClientTests
     {
         var stub = new StubCronService();
 
-        await Client(stub).CreateEntryAsync("alice", NightlySchedule, BackupCommand, CancellationToken.None);
+        await Client(stub).CreateEntryAsync("alice", NightlySchedule, BackupCommand, null, CancellationToken.None);
 
         var request = Assert.IsType<CreateCronEntryRequest>(stub.LastCreateRequest);
         Assert.Equal("alice", request.AccountUsername);
@@ -169,6 +169,71 @@ public sealed class AgentCronClientTests
         Assert.Equal("*", request.Schedule.Month);
         Assert.Equal("*", request.Schedule.DayOfWeek);
         Assert.Equal(BackupCommand, request.Command);
+    }
+
+    /// <summary>A stated allowance is sent on the request as a present field.</summary>
+    [Fact]
+    public async Task A_stated_allowance_is_sent_on_the_request_as_a_present_field()
+    {
+        var stub = new StubCronService();
+
+        await Client(stub).CreateEntryAsync("alice", NightlySchedule, BackupCommand, 4u, CancellationToken.None);
+
+        var request = Assert.IsType<CreateCronEntryRequest>(stub.LastCreateRequest);
+        Assert.True(request.HasMaxEntries);
+        Assert.Equal(4u, request.MaxEntries);
+    }
+
+    /// <summary>An allowance of zero is sent as a stated allowance rather than left absent.</summary>
+    [Fact]
+    public async Task An_allowance_of_zero_is_sent_as_a_stated_allowance_rather_than_left_absent()
+    {
+        // The case a sentinel could not express. Zero is a real allowance — a plan permitting no
+        // scheduled tasks at all — and the agent must read it as one, not as "no allowance stated".
+        var stub = new StubCronService();
+
+        await Client(stub).CreateEntryAsync("alice", NightlySchedule, BackupCommand, 0u, CancellationToken.None);
+
+        var request = Assert.IsType<CreateCronEntryRequest>(stub.LastCreateRequest);
+        Assert.True(request.HasMaxEntries);
+        Assert.Equal(0u, request.MaxEntries);
+    }
+
+    /// <summary>No allowance leaves the field absent rather than sending a zero that means allow nothing.</summary>
+    [Fact]
+    public async Task No_allowance_leaves_the_field_absent_rather_than_sending_a_zero_that_means_allow_nothing()
+    {
+        // The skew case the field's explicit presence exists for. Sending `maxEntries ?? 0` would
+        // state an allowance of zero, and an agent reading it would refuse every entry.
+        var stub = new StubCronService();
+
+        await Client(stub).CreateEntryAsync("alice", NightlySchedule, BackupCommand, null, CancellationToken.None);
+
+        var request = Assert.IsType<CreateCronEntryRequest>(stub.LastCreateRequest);
+        Assert.False(request.HasMaxEntries);
+    }
+
+    /// <summary>An allowance the agent found already met maps to its own conflict code.</summary>
+    [Fact]
+    public async Task An_allowance_the_agent_found_already_met_maps_to_its_own_conflict_code()
+    {
+        var stub = new StubCronService
+        {
+            CreateResponse = new CreateCronEntryResponse
+            {
+                Error = new AgentError { Code = ErrorCode.LimitReached, Message = "allowance used up" },
+            },
+        };
+
+        var result = await Client(stub)
+            .CreateEntryAsync("alice", NightlySchedule, BackupCommand, 1u, CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("AgentLimitReached", result.Error!.Code);
+
+        // Not the unspecified default, which would reach the customer as an actionless "something
+        // went wrong on your server" about the one refusal they can act on.
+        Assert.NotEqual("AgentUnspecified", result.Error!.Code);
     }
 
     /// <summary>Creation ok payload maps to the identifier the agent assigned.</summary>
@@ -184,7 +249,7 @@ public sealed class AgentCronClientTests
         };
 
         var result = await Client(stub)
-            .CreateEntryAsync("alice", NightlySchedule, BackupCommand, CancellationToken.None);
+            .CreateEntryAsync("alice", NightlySchedule, BackupCommand, null, CancellationToken.None);
 
         Assert.True(result.IsSuccess);
         Assert.Equal("e7", result.Value);
@@ -203,7 +268,7 @@ public sealed class AgentCronClientTests
         };
 
         var result = await Client(stub)
-            .CreateEntryAsync("alice", NightlySchedule, BackupCommand, CancellationToken.None);
+            .CreateEntryAsync("alice", NightlySchedule, BackupCommand, null, CancellationToken.None);
 
         Assert.False(result.IsSuccess);
         Assert.Equal("AgentAlreadyExists", result.Error!.Code);
@@ -214,7 +279,7 @@ public sealed class AgentCronClientTests
     public async Task A_creation_response_with_neither_branch_set_is_refused_rather_than_read_as_success()
     {
         var result = await Client(new StubCronService())
-            .CreateEntryAsync("alice", NightlySchedule, BackupCommand, CancellationToken.None);
+            .CreateEntryAsync("alice", NightlySchedule, BackupCommand, null, CancellationToken.None);
 
         Assert.False(result.IsSuccess);
         Assert.Equal("AgentInvalidResponse", result.Error!.Code);

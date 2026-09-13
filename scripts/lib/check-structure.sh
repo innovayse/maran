@@ -884,12 +884,19 @@ fi
 #
 #     UNOBSERVED HERE: a citation of a path that exists but says something ELSE. The FTPS pin above
 #     cited a real scratch file that held no options at all, and no mechanical check can see that.
-#     Also unobserved: `.txt` and `.md` files. scripts/test-baseline.txt still carries five such
-#     citations and is operator-facing; widening the -name list below is the one-word change that
-#     covers it, once they are gone. And THIS file is excluded, because a check has to name the
+#     `.md` and `.txt` are now swept too: the five citations in scripts/test-baseline.txt and the one
+#     in docker/README.md that blocked this widening were replaced with committed sources, and a
+#     citation in an operator-facing text file is worse than one in a doc comment, not better,
+#     because the reader is likelier to try the path. TWO files are excluded, for the same reason
+#     rather than two: a document that must NAME this defect in order to teach it cannot also be
+#     forbidden from naming it. THIS file is excluded, because a check has to name the
 #     thing it forbids in order to forbid it — measured: without that exclusion the gate reported
 #     itself and nothing else. The cost of that exclusion is that a citation added to this one file
 #     is invisible to it, which is the narrowest hole available and is stated rather than hidden.
+#     rules/testing.md is excluded on the same ground: its "a negative search is a check" bullet
+#     quotes `grep -rn 'owed' .superpowers/sdd` -> 0 beside /usr/bin/grep -> 587, which is the
+#     measurement that bullet exists to teach. The cost of both exclusions is that a citation added
+#     to either file is invisible here; the alternative is a rule that cannot show its own evidence.
 while IFS= read -r file; do
   hits="$(grep -n '\.superpowers' "$file" || true)"
   if [ -n "$hits" ]; then
@@ -897,9 +904,10 @@ while IFS= read -r file; do
     report "$file:$line: cites .superpowers/, which no clone contains (its .gitignore is \`*\`) — put the argument in the doc comment, a threat note under docs/superpowers/notes/, or rules/ (rules/architecture.md)"
   fi
 done < <(find agent backend frontend installer scripts docker rules \
-           \( -name '*.rs' -o -name '*.cs' -o -name '*.sh' \) \
+           \( -name '*.rs' -o -name '*.cs' -o -name '*.sh' -o -name '*.md' -o -name '*.txt' \) \
            -not -path '*/target/*' -not -path '*/obj/*' -not -path '*/bin/*' \
-           -not -path '*/node_modules/*' -not -name 'check-structure.sh' 2>/dev/null | sort)
+           -not -path '*/node_modules/*' -not -path '*/dist/*' \
+           -not -name 'check-structure.sh' -not -path 'rules/testing.md' 2>/dev/null | sort)
 
 # The vacuity guard, on the axis that can go blind: the file list. An empty sweep reads exactly
 # like a clean one (rules/testing.md).

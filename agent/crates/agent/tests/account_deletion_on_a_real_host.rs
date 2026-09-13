@@ -332,6 +332,7 @@ fn provision(server: &PolygonMariadb, account: &AccountName) {
         account,
         &CronSchedule::parse("*", "*", "*", "*", "*").expect("a valid schedule"),
         &CronCommand::parse(CUSTOMER_CRON_COMMAND).expect("a valid command"),
+        None,
     )
     .unwrap_or_else(|error| panic!("giving the account a cron entry must succeed: {error}"));
 }

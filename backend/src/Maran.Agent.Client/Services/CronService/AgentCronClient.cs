@@ -67,6 +67,7 @@ public sealed class AgentCronClient : IAgentCronClient
         string accountUsername,
         AgentCronSchedule schedule,
         string command,
+        uint? maxEntries,
         CancellationToken cancellationToken)
     {
         var request = new CreateCronEntryRequest
@@ -75,6 +76,16 @@ public sealed class AgentCronClient : IAgentCronClient
             Schedule = ToWireSchedule(schedule),
             Command = command,
         };
+
+        // Set only when the caller stated one, because ABSENCE is a value on this field and not a
+        // missing zero: the agent reads an unset max_entries as "no allowance stated" and enforces
+        // nothing, which is what it must do for any caller predating the field. Assigning
+        // `maxEntries ?? 0` would instead state an allowance of zero and refuse every entry.
+        if (maxEntries is { } allowance)
+        {
+            request.MaxEntries = allowance;
+        }
+
         var response = await _invoker.CreateCronEntryAsync(request, cancellationToken);
 
         return response.ResultCase switch

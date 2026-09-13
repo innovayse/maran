@@ -60,6 +60,9 @@
   <data name="BackupFailureAgentAccountBusy">
     <value>Another operation on this account was still running</value>
   </data>
+  <data name="BackupFailureAgentLimitReached">
+    <value>A plan allowance for this account was already used up</value>
+  </data>
   <data name="BackupDestinationDefault">
     <value>Local storage</value>
   </data>

@@ -59,6 +59,7 @@ fn setting_the_environment_leaves_every_entry_installed() {
         &account(),
         &every_five_minutes(),
         &command("echo one"),
+        None,
     )
     .expect("created");
 

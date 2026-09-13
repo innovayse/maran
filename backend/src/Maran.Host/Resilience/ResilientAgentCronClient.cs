@@ -52,18 +52,20 @@ public sealed class ResilientAgentCronClient : IAgentCronClient
         string accountUsername,
         AgentCronSchedule schedule,
         string command,
+        uint? maxEntries,
         CancellationToken cancellationToken)
     {
         return await _pipeline.ExecuteAsync(
             async (state, token) =>
             {
                 return await state.Client.CreateEntryAsync(
-                    state.AccountUsername, state.Schedule, state.Command, token);
+                    state.AccountUsername, state.Schedule, state.Command, state.MaxEntries, token);
             },
             (Client: _inner,
              AccountUsername: accountUsername,
              Schedule: schedule,
-             Command: command),
+             Command: command,
+             MaxEntries: maxEntries),
             cancellationToken);
     }
 

@@ -1,4 +1,5 @@
 using System.Resources;
+using Maran.Modules.Sftp.Interfaces;
 using Maran.Modules.Sftp.Persistence;
 using Maran.Modules.Sftp.Services;
 using Maran.Sdk.Contracts;
@@ -56,6 +57,10 @@ public sealed class SftpModule : IPanelModule
 
         // Scoped, because it reads the request's own ICurrentUser for the journal's actor.
         services.AddScoped<SftpAuditJournal>();
+
+        // Scoped, because it takes a transaction on the request's own DbContext connection: the
+        // advisory lock it holds is scoped to that transaction and must be released by its commit.
+        services.AddScoped<ISftpUserSlotGate, SftpUserSlotGate>();
 
         // The shared resource pool the panel-wide ResxErrorTextProvider resolves error codes and
         // Manifest.DisplayNameKey against. Module-internal lookups inject IStringLocalizer<T>

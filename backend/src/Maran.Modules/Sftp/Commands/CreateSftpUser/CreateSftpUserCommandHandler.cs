@@ -1,6 +1,7 @@
 using Maran.Agent.Client.Interfaces;
 using Maran.Modules.Sftp.Common;
 using Maran.Modules.Sftp.Domain.Entities;
+using Maran.Modules.Sftp.Interfaces;
 using Maran.Modules.Sftp.Persistence;
 using Maran.Modules.Sftp.Resources;
 using Maran.Modules.Sftp.Services;
@@ -25,6 +26,27 @@ namespace Maran.Modules.Sftp.Commands.CreateSftpUser;
 /// because the two stores can disagree either way and this order decides which: a login with no row
 /// is invisible and, as of the compensation below, short-lived, while a row with no login is a
 /// customer told they have an SFTP account whose credentials are refused at the door.
+/// </para>
+/// <para>
+/// <b>The limit is checked twice, and the SECOND check is the one that holds.</b> The pre-agent check
+/// is count-then-insert with nothing behind the count, so on its own two concurrent creations both
+/// read N-1 and both succeed, leaving the account one login over its plan. It is kept because it
+/// refuses the ordinary over-limit request before the host is touched at all. What closes the window
+/// is <see cref="ISftpUserSlotGate"/>: the row is written under a per-account advisory lock, with the
+/// count re-taken inside it, so the second of two simultaneous creations sees the first one's
+/// committed row and is refused. The gate's own documentation says what each rejected alternative —
+/// a unique index, an insert carrying the count, a serializable transaction, a counter column — is
+/// blind to, why the agent's own per-account lock does not close this, and what the lock itself
+/// cannot see.
+/// </para>
+/// <para>
+/// <b>The loser pays for it on the host, which is why the pre-check stays.</b> The gate runs after the
+/// agent has made the login, so a request refused there leaves a login nothing owns and it is
+/// compensated exactly as a failed write is. That is the trade this order buys: the frequent refusal
+/// (a plan that is simply full) costs nothing, and the rare one (two requests inside the same
+/// millisecond) costs a create and a delete on the host. The customer is told which of the two
+/// happened, because "your plan is full" and "your plan filled up while this was being created" are
+/// different sentences and only the second one is worth retrying after deleting something.
 /// </para>
 /// <para>
 /// <b>And the row failing is not the harmless half here, which is why the compensation exists.</b>
@@ -101,6 +123,9 @@ public sealed class CreateSftpUserCommandHandler
     /// <summary>The agent, which owns everything that exists on the host.</summary>
     private readonly IAgentSftpClient _agent;
 
+    /// <summary>The atomic claim on the account's last free slot; see the race paragraph above.</summary>
+    private readonly ISftpUserSlotGate _slotGate;
+
     /// <summary>This module's audit journal.</summary>
     private readonly SftpAuditJournal _journal;
 
@@ -114,6 +139,7 @@ public sealed class CreateSftpUserCommandHandler
     /// <param name="dbContext">The Sftp module's database context.</param>
     /// <param name="accounts">The owning account's system user name and plan allowance.</param>
     /// <param name="agent">The agent client that provisions the login.</param>
+    /// <param name="slotGate">Takes the account's last free slot atomically when the row is written.</param>
     /// <param name="journal">This module's audit journal.</param>
     /// <param name="clock">The injected time source used to stamp the new row.</param>
     /// <param name="logger">Where a failed compensation is reported.</param>
@@ -121,6 +147,7 @@ public sealed class CreateSftpUserCommandHandler
         SftpDbContext dbContext,
         IAccountDirectory accounts,
         IAgentSftpClient agent,
+        ISftpUserSlotGate slotGate,
         SftpAuditJournal journal,
         IClock clock,
         ILogger<CreateSftpUserCommandHandler> logger)
@@ -128,6 +155,7 @@ public sealed class CreateSftpUserCommandHandler
         _dbContext = dbContext;
         _accounts = accounts;
         _agent = agent;
+        _slotGate = slotGate;
         _journal = journal;
         _clock = clock;
         _logger = logger;
@@ -138,7 +166,8 @@ public sealed class CreateSftpUserCommandHandler
     /// <param name="cancellationToken">Cancels the operation.</param>
     /// <returns>
     /// The new login and its password, shown once — or <c>AccountNotFound</c>,
-    /// <c>SftpUserLimitReached</c>, <c>SftpUserNameTaken</c>, <c>SftpUserNameTooLong</c>,
+    /// <c>SftpUserLimitReached</c>, <c>SftpUserLimitReachedConcurrently</c>,
+    /// <c>SftpUserNameTaken</c>, <c>SftpUserNameTooLong</c>,
     /// <c>SftpUserProvisioningFailed</c>, or the agent's own typed failure.
     /// </returns>
     public async Task<Result<CreatedSftpUserDto>> HandleAsync(
@@ -157,10 +186,12 @@ public sealed class CreateSftpUserCommandHandler
         // agent is called — a login the plan refuses must never reach the host, or the panel has
         // made something it then has to remember to remove.
         //
-        // KNOWN RACE, deliberately not solved here, exactly as the Sites and Databases modules
-        // record: this is count-then-insert with no constraint behind it, so two concurrent
-        // creations can both read N. Being one login over a plan limit is a billing discrepancy an
-        // operator can see and correct, not a tenancy or availability failure.
+        // This check is count-then-insert with nothing behind the count, so on its own two
+        // concurrent creations both read N-1 and both succeed. It is kept because it refuses the
+        // ordinary over-limit request before the host is touched at all; what CLOSES the window is
+        // ISftpUserSlotGate, which re-takes the count under a per-account advisory lock at the moment
+        // the row is written. See the paragraph on the type, and the gate's own documentation for
+        // what each rejected alternative is blind to.
         var existing = await _dbContext.SftpUsers
             .CountAsync(sftpUser => sftpUser.AccountId == command.AccountId, cancellationToken);
         if (existing >= account.MaxSftpUsers)
@@ -220,9 +251,8 @@ public sealed class CreateSftpUserCommandHandler
         var sftpUser = new SftpUser(
             Guid.NewGuid(), command.AccountId, command.Name, provisioned.Value, _clock.UtcNow);
 
-        _dbContext.SftpUsers.Add(sftpUser);
-
-        var recorded = await RecordAsync(sftpUser, account.Username, command, cancellationToken);
+        var recorded = await RecordAsync(
+            sftpUser, account.Username, account.MaxSftpUsers, command, cancellationToken);
         if (!recorded.IsSuccess)
         {
             return Result<CreatedSftpUserDto>.Fail(recorded.Error!);
@@ -243,20 +273,35 @@ public sealed class CreateSftpUserCommandHandler
     /// <summary>Writes the row for a login the agent has already made, compensating if it cannot.</summary>
     /// <param name="sftpUser">The row to write.</param>
     /// <param name="accountUsername">The owning account's system user name, which addresses the compensating delete.</param>
+    /// <param name="allowance">How many logins the account's plan allows, re-checked inside the gate.</param>
     /// <param name="command">The creation being recorded, for the journal's subject.</param>
     /// <param name="cancellationToken">Cancels the write.</param>
     /// <returns>Success, or the typed failure the customer is answered with.</returns>
     private async Task<Result<bool>> RecordAsync(
         SftpUser sftpUser,
         string accountUsername,
+        int allowance,
         CreateSftpUserCommand command,
         CancellationToken cancellationToken)
     {
         try
         {
-            await _dbContext.SaveChangesAsync(cancellationToken);
+            if (await _slotGate.TryTakeAsync(sftpUser, allowance, cancellationToken))
+            {
+                return Result<bool>.Ok(true);
+            }
 
-            return Result<bool>.Ok(true);
+            // The gate refused, which means another creation committed the account's last slot while
+            // this one was on the host. Nothing owns the login this request made, so it goes — the
+            // same compensation a failed write gets, for the same reason — and the refusal says the
+            // plan filled up rather than that the name was taken, because the name is not the
+            // problem and deleting a login the customer no longer needs is what unblocks them.
+            await CompensateAsync(accountUsername, command, cancellationToken);
+
+            return Result<bool>.Fail(await FailedErrorAsync(
+                command,
+                Error.Of(nameof(ErrorMessages.SftpUserLimitReachedConcurrently), ErrorType.Conflict),
+                cancellationToken));
         }
         catch (DbUpdateException exception)
         {

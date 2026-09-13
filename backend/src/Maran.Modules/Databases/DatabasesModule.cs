@@ -1,4 +1,5 @@
 using System.Resources;
+using Maran.Modules.Databases.Interfaces;
 using Maran.Modules.Databases.Persistence;
 using Maran.Modules.Databases.Services;
 using Maran.Sdk.Contracts;
@@ -56,6 +57,10 @@ public sealed class DatabasesModule : IPanelModule
 
         // Scoped, because it reads the request's own ICurrentUser for the journal's actor.
         services.AddScoped<DatabaseAuditJournal>();
+
+        // Scoped, because it takes a transaction on the request's own DbContext connection: the
+        // advisory lock it holds is scoped to that transaction and must be released by its commit.
+        services.AddScoped<IDatabaseSlotGate, DatabaseSlotGate>();
 
         // The one window another module reads this schema through: names only, tenant-scoped by the
         // context's own filter (rules/architecture.md "A shared facility's contract").

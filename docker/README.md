@@ -263,8 +263,10 @@ Two things follow, and neither is a new check:
   a matching one may still hold older upstream packages than a fresh build would install. And the
   fingerprint covers `installer/**` entirely, comments included — an unrelated installer edit is
   enough to make a previously built image read as stale. That is deliberate and discussed in
-  `.superpowers/sdd/polygon-currency-report.md`: the images execute the installer's own steps, so
-  nothing under it can be shown not to matter, and the remedy is a rebuild rather than an override.
+  the fingerprint's own doc comment in `scripts/lib/polygon.sh`: the images execute the installer's
+  own steps, so nothing under it can be shown not to matter, and the remedy is a rebuild rather than
+  an override. Narrowing the hash would need a hand-maintained second model of what matters, which
+  would drift; making rebuilds cheap is the direction that cannot go quietly wrong.
 
 The suite that notices this condition is `ftps_on_a_real_host`, through one case written for it —
 `the_shadow_database_can_be_read_for_authentication_in_this_container`, which asks
@@ -454,6 +456,34 @@ cascade does not reach past the account: a neighbour named `polycascade_two`
 keeps its database, its login and its mount, which is a case no unit test could
 express, because `polycascade_two` is simultaneously a valid account name and the
 spelling of `polycascade`'s login `two`.
+
+`databases_on_a_real_host.rs` is seven cases against the image's own MariaDB, and
+one of them is there because of a geometry the other six cannot reach.
+`a_grant_for_an_account_whose_name_holds_the_separator_cannot_reach_a_same_length_neighbours_database`
+exists because the database-name position of a database-level `GRANT` is a
+LIKE-style **pattern** and not an identifier: `_` matches any single character
+there and backtick-quoting does not turn it off, so account `polydbgrant_ne`'s
+grant on `polydbgrant_ne_shop` is the pattern `polydbgrant?ne?shop` and reaches
+account `polydbgrantone`'s `polydbgrantone_shop`. That is a fact about the
+server's grammar which no `DbHost` fake can hold an opinion about, so only a real
+MariaDB can settle it, and it was measured here: with the escape removed the
+attacker's own credential reads and writes the victim's table and reaches
+databases created after the grant, and with `_` written as `\_` the server answers
+`ERROR 1142 ... SELECT command denied` while the owner's own grant keeps working.
+
+**A pattern whose only metacharacter is `_` matches only strings of its OWN
+length, and that is the trap this case is built around.** The suite's other
+cross-tenant case uses `polydbstwo_shop` (fifteen characters) and
+`polydbsthree_shop` (seventeen), which cannot collide whatever the server does —
+so it passed for the whole life of the defect while looking exactly like the
+assertion that would have caught it. The colliding case therefore calls
+`the_geometry_that_makes_a_collision_possible` as its FIRST statement, before a
+single account exists: it asserts that the two account-name constants are the same
+length, differ at exactly one position, and that the attacker holds `_` there
+while the victim does not. Renaming either constant without preserving all three
+fails that assertion by name instead of quietly restoring the geometry in which
+the wildcard is invisible. The background is
+`docs/superpowers/notes/2026-09-13-grant-pattern-threat-note.md`.
 
 `ftps_on_a_real_host.rs` drives a real vsftpd the agent itself configured: a
 login is refused in plain text and accepted over TLS with the same credential

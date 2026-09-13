@@ -31,20 +31,53 @@ public interface IAgentCronClient
         string accountUsername,
         CancellationToken cancellationToken);
 
-    /// <summary>Appends a new cron entry to an account's crontab.</summary>
+    /// <summary>Appends a new cron entry to an account's crontab, within a stated allowance.</summary>
     /// <param name="accountUsername">System username of the owning account.</param>
     /// <param name="schedule">When the entry is to run.</param>
     /// <param name="command">The command line to install, verbatim.</param>
+    /// <param name="maxEntries">
+    /// How many managed entries the account's plan allows in total, or <c>null</c> to state no
+    /// allowance. When stated and the crontab already holds at least this many, the agent installs
+    /// nothing and answers <c>AgentLimitReached</c>.
+    /// </param>
     /// <param name="cancellationToken">Cancellation for the call.</param>
     /// <returns>
     /// The agent's identifier for the created entry, or a typed failure — <c>AgentAlreadyExists</c>
     /// when an entry with the same schedule and command is already installed, which the agent
-    /// answers rather than duplicating it.
+    /// answers rather than duplicating it, and <c>AgentLimitReached</c> when
+    /// <paramref name="maxEntries"/> is stated and already met.
     /// </returns>
+    /// <remarks>
+    /// <para>
+    /// <b>The allowance is sent rather than only checked here, and cron is the one call in this
+    /// client that needs that.</b> Every other countable plan limit in the panel is made atomic by
+    /// counting rows and inserting inside one database transaction. This module keeps no rows: the
+    /// count lives in the crontab on the host, so the panel's only way to take it is
+    /// <see cref="ListEntriesAsync"/> — a second call — and two requests interleaving between that
+    /// call and this one both install. Inside the agent the two are already one act: the operation
+    /// takes the account's cron lock and then reads the whole crontab, so the count it takes cannot
+    /// be stale by the time it installs. Sending the number is what lets the comparison happen
+    /// there.
+    /// </para>
+    /// <para>
+    /// This does not move the policy to the agent, and a caller must not read it that way. The agent
+    /// holds no plan and invents no limit; it compares the number this call carried. Deciding what
+    /// the account is allowed, and refusing a full plan before the host is touched at all, stay
+    /// where <c>rules/security.md</c> puts them — in the panel.
+    /// </para>
+    /// <para>
+    /// <c>null</c> means no allowance is stated and the agent enforces none, which is the behaviour
+    /// this call had before the parameter existed. It is nullable rather than a zero sentinel because
+    /// zero is a real allowance — a plan permitting no scheduled tasks at all — and because a bare
+    /// count would arrive at an agent as proto3's default of 0 from any caller that did not set it,
+    /// which as an allowance means "allow nothing".
+    /// </para>
+    /// </remarks>
     Task<Result<string>> CreateEntryAsync(
         string accountUsername,
         AgentCronSchedule schedule,
         string command,
+        uint? maxEntries,
         CancellationToken cancellationToken);
 
     /// <summary>Replaces the schedule and the command of an existing entry.</summary>

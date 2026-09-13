@@ -25,6 +25,23 @@ public sealed class CronAgentErrorTranslatorTests
         Assert.Equal("CronEntryAlreadyExists", Translate("AgentAlreadyExists").Code);
     }
 
+    /// <summary>An allowance the agent found already met becomes the concurrent losers own code.</summary>
+    [Fact]
+    public void An_allowance_the_agent_found_already_met_becomes_the_concurrent_losers_own_code()
+    {
+        // Not the generic code below, which is what the default arm would give it: this is the one
+        // agent refusal a customer can act on, and reported as "something went wrong on your server"
+        // it is both untrue and actionless. Not CronEntryLimitReached either — that is the ordinary
+        // full-plan refusal the panel makes before the host is touched, and an operator reading a
+        // journal must be able to tell the two apart.
+        var translated = Translate("AgentLimitReached");
+
+        Assert.Equal("CronEntryLimitReachedConcurrently", translated.Code);
+        Assert.Equal(ErrorType.Conflict, translated.Type);
+        Assert.NotEqual("CronOperationFailed", translated.Code);
+        Assert.NotEqual("CronEntryLimitReached", translated.Code);
+    }
+
     /// <summary>Every other agent failure collapses to one operator facing code.</summary>
     [Theory]
     [InlineData("AgentUnspecified")]
@@ -43,6 +60,7 @@ public sealed class CronAgentErrorTranslatorTests
     [Theory]
     [InlineData("AgentNotFound")]
     [InlineData("AgentAlreadyExists")]
+    [InlineData("AgentLimitReached")]
     [InlineData("AgentSystemFailure")]
     [InlineData("SomethingTheAgentGrewLater")]
     public void No_agent_code_is_ever_forwarded_to_the_caller_unchanged(string agentCode)

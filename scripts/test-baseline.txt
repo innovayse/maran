@@ -4,10 +4,14 @@
 # RECONCILED 2026-09-11 on a tree that was green on all three stacks — the first time this file
 # could be taken honestly since 2026-09-09. The digits below are not estimates: every one is a row
 # from a named run, and the reasoning per row is in
-# .superpowers/sdd/final-baseline-reconciliation.md, which is what the owner should read. A digit
+# recorded beside each row below, which is what the owner should read. A digit
 # here means nothing without its explanation there.
 #
-#   rust     — RE-MEASURED 2026-09-12 (third pass), `27 targets: 1885 passed / 0 failed / 112`, OK.
+#   rust     — RE-MEASURED 2026-09-13, `27 targets: 1896 passed / 0 failed / 113 ignored`, OK.
+#              All 27 rows reconciled; NOTHING FELL. maran_agent 308->312 and maran_ops 1158->1165:
+#              the cron allowance refused inside the lock that already holds the count, and the
+#              GRANT pattern escape. The ignored row rose by one real-host case that reproduces a
+#              cross-tenant read against a live MariaDB. Earlier: `1885 / 0 / 112`.
 #              All 27 rows reconciled; NOTHING FELL. One rose: maran_ops 1154->1158, the
 #              session-cull count leaving ops as its own outcome type rather than riding on a
 #              type two non-culling paths also return. Earlier: `1881 / 0 / 112`.
@@ -17,7 +21,16 @@
 #              measured total exactly. Earlier: 2026-09-11T09:45:55Z, `1837 / 0 / 108`,
 #              TEST VERDICT: OK. Four rows moved: maran_agent 283 -> 293, shutdown_signal 2 -> 3,
 #              maran_ops 1125 -> 1126, and sftp_on_a_real_host 11 -> 12 IGNORED.
-#   backend  — RE-MEASURED 2026-09-12 (third pass), `19 targets: 3033 passed / 0 failed`, OK.
+#   backend  — RE-MEASURED 2026-09-13 (second pass), `19 targets: 3059 passed / 0 failed`, OK.
+#              All 19 rows reconciled; NOTHING FELL. Agent.Client 315->319, Cron 177->181 and
+#              Sdk 184->186: the fifth and last plan-allowance race, closed in the agent because
+#              cron keeps no rows, so no panel transaction could have been the atomic act.
+#              Earlier: `19 targets: 3049 passed / 0 failed`.
+#              Two rows rose and none fell: Host.IntegrationTests 335->348 and Sdk.Tests
+#              181->184. Three more count-then-insert races on plan allowances were closed the
+#              way the FTPS one was — sites, databases and sftp logins — each with a
+#              concurrency test that can actually lose, and each loser's refusal carrying its
+#              own code. Earlier: `19 targets: 3033 passed / 0 failed`.
 #              All 19 rows reconciled; NOTHING FELL. Three rose: Accounts 176->186 (the
 #              attestation naming both daemons, and the cull's four readings), Agent.Client
 #              313->315 and Sftp 77->80 (the optional sessions_ended field carried from the
@@ -56,7 +69,7 @@
 # docker/README.md and in .github/workflows/agent.yml, which `maran structure` check 19 enforces in
 # both directions.
 #
-# RE-MEASURED 2026-09-11, ftps only, reasoning in .superpowers/sdd/polygon-two-family-report.md.
+# RE-MEASURED 2026-09-11, ftps only; the reasoning is the per-lane note in scripts/lib/polygon.sh.
 # `ftps_on_a_real_host` 12 -> 14 IGNORED: two `#[ignore]`d cases landed in that suite for the
 # certificate-trust gap (a client that VERIFIES the chain, and the daemon serving the file the panel
 # installed). The number is a count taken twice and made to agree, not a transcription: 14
@@ -67,7 +80,7 @@
 # reported as a regression instead of recorded here, which is the one rule this file has.
 #
 # RE-MEASURED 2026-09-11, ftps and sftp only, reasoning in
-# .superpowers/sdd/setup-token-log-report.md and .superpowers/sdd/sftp-suspension-bound-report.md.
+# docs/superpowers/notes/2026-09-11-setup-token-in-a-url-threat-note.md and the sftp suspension note.
 # `ftps_on_a_real_host` 14 -> 15 and `sftp_on_a_real_host` 12 -> 13 IGNORED: one `#[ignore]`d case
 # landed in each for the idle-bound asymmetry between the two protocols (the sshd configuration this
 # product writes puts NO idle bound on an SFTP session; the vsftpd configuration bounds an idle FTPS
@@ -87,7 +100,7 @@
 # look for a third row that does not exist.
 #
 # RE-MEASURED 2026-09-11, spa only, one row, reasoning in
-# .superpowers/sdd/token-fix-tails-report.md. `auth/setup.spec.ts` 6 -> 8 PASSED. The setup screen
+# the setup-token note under docs/superpowers/notes/. `auth/setup.spec.ts` 6 -> 8 PASSED. The setup screen
 # stopped prefilling its token field from `?token=`, which is the tail the setup-token lane could
 # not reach, so the test that asserted the prefill is gone and three took its place: the field stays
 # empty and a real sentence says why, the sentence appears ONLY for a visitor who arrived with a
@@ -104,7 +117,7 @@
 #
 #
 # RE-MEASURED 2026-09-12, two rows, by the Task 16 Step 3 pass
-# (.superpowers/sdd/task-16-final-gates.md). `handshake [tests/handshake.rs]` 5 -> 6 and
+# (Task 16 Step 2's own status block in the ftps plan). `handshake [tests/handshake.rs]` 5 -> 6 and
 # `Maran.Host.IntegrationTests.dll` 321 -> 324: the panel-to-agent FTPS wire-shape work landed one
 # more handshake case (`the_enable_shape_the_panel_sends_passes_the_agents_input_boundary_and_a_wrong
 # _family_passive_address_does_not`) and a new integration file. Both numbers are counts taken twice
@@ -132,13 +145,13 @@
 # and a reader who sees only the new number should know that a baseline BELOW the tree costs nothing
 # here, because the failure this file exists to catch is a FALL.
 #
-rust	maran_agent [unittests src/lib.rs]	308	0	0
+rust	maran_agent [unittests src/lib.rs]	312	0	0
 rust	maran_agent [unittests src/main.rs]	0	0	0
 rust	account_deletion_on_a_real_host [tests/account_deletion_on_a_real_host.rs]	0	0	5
 rust	backup_on_a_real_host [tests/backup_on_a_real_host.rs]	0	0	12
 rust	binary_paths_on_a_real_host [tests/binary_paths_on_a_real_host.rs]	0	0	1
 rust	cron_on_a_real_host [tests/cron_on_a_real_host.rs]	0	0	6
-rust	databases_on_a_real_host [tests/databases_on_a_real_host.rs]	0	0	6
+rust	databases_on_a_real_host [tests/databases_on_a_real_host.rs]	0	0	7
 rust	firewall_on_a_real_host [tests/firewall_on_a_real_host.rs]	0	0	10
 rust	ftps_on_a_real_host [tests/ftps_on_a_real_host.rs]	0	0	15
 rust	handshake [tests/handshake.rs]	6	0	0
@@ -151,7 +164,7 @@ rust	shutdown_signal [tests/shutdown_signal.rs]	3	0	0
 rust	sites_on_a_real_host [tests/sites_on_a_real_host.rs]	0	0	16
 rust	maran_agent_core [unittests src/lib.rs]	353	0	0
 rust	maran_distro [unittests src/lib.rs]	38	0	0
-rust	maran_ops [unittests src/lib.rs]	1158	0	1
+rust	maran_ops [unittests src/lib.rs]	1165	0	1
 rust	maran_templates [unittests src/lib.rs]	0	0	0
 rust	golden_test [tests/golden_test.rs]	19	0	0
 rust	doc-tests maran_agent	0	0	0
@@ -159,7 +172,7 @@ rust	doc-tests maran_agent_core	0	0	0
 rust	doc-tests maran_distro	0	0	0
 rust	doc-tests maran_ops	0	0	0
 rust	doc-tests maran_templates	0	0	0
-backend	Maran.Agent.Client.Tests.dll	315	0	0
+backend	Maran.Agent.Client.Tests.dll	319	0	0
 backend	Maran.Modules.Backups.Tests.dll	191	0	0
 backend	Maran.SharedKernel.Tests.dll	163	0	0
 backend	Maran.Modules.Notifications.Tests.dll	48	0	0
@@ -167,17 +180,17 @@ backend	Maran.Modules.Tasks.Tests.dll	54	0	0
 backend	Maran.Modules.Monitoring.Tests.dll	48	0	0
 backend	Maran.Modules.Sftp.Tests.dll	80	0	0
 backend	Maran.Modules.Ftp.Tests.dll	109	0	0
-backend	Maran.Modules.Cron.Tests.dll	177	0	0
+backend	Maran.Modules.Cron.Tests.dll	181	0	0
 backend	Maran.Modules.Sites.Tests.dll	171	0	0
 backend	Maran.Modules.Firewall.Tests.dll	249	0	0
 backend	Maran.Modules.Accounts.Tests.dll	186	0	0
 backend	Maran.Modules.Databases.Tests.dll	70	0	0
 backend	Maran.Modules.Ssl.Tests.dll	158	0	0
 backend	Maran.Modules.Identity.Tests.dll	203	0	0
-backend	Maran.Sdk.Tests.dll	181	0	0
+backend	Maran.Sdk.Tests.dll	186	0	0
 backend	Maran.ArchitectureTests.dll	58	0	0
 backend	Maran.Host.Tests.dll	237	0	0
-backend	Maran.Host.IntegrationTests.dll	335	0	0
+backend	Maran.Host.IntegrationTests.dll	348	0	0
 spa	accounts/delete.spec.ts	6	0	0
 spa	accounts/detail.spec.ts	10	0	0
 spa	accounts/form.spec.ts	7	0	0

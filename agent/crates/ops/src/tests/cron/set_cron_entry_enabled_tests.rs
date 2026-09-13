@@ -34,6 +34,7 @@ fn a_disabled_entry_keeps_its_files_but_cron_cannot_run_it() {
         &account,
         &every_five_minutes(),
         &command("echo one"),
+        None,
     )
     .expect("created");
     host.put_file(&log_path(&account, &id), "the last run said this\n");
@@ -70,6 +71,7 @@ fn re_enabling_an_entry_restores_the_line_cron_reads() {
         &account(),
         &every_five_minutes(),
         &command("echo one"),
+        None,
     )
     .expect("created");
     let enabled = host.crontab().expect("a table was installed");
@@ -102,6 +104,7 @@ fn a_refused_install_leaves_the_entry_enabled() {
         &account(),
         &every_five_minutes(),
         &command("echo one"),
+        None,
     )
     .expect("created");
     let before = host.crontab().expect("a table was installed");

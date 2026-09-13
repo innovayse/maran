@@ -69,6 +69,47 @@ public sealed class CreateCronEntryCommandHandlerTests
         Assert.Single(world.Agent.Creates);
     }
 
+    /// <summary>The creation carries the plans allowance so the agent can refuse under its own lock.</summary>
+    [Fact]
+    public async Task The_creation_carries_the_plans_allowance_so_the_agent_can_refuse_under_its_own_lock()
+    {
+        // The one thing this module's concurrency protection rests on, and the one thing no other
+        // observation of this call would notice. The count above and the creation below are two
+        // separate agent calls, so two requests interleave between them and both pass the check
+        // above; the agent closes that window by comparing this number against a count it takes
+        // under the per-account cron lock it holds across the install. A handler that stopped
+        // sending it would still pass every other test in this file.
+        var world = new World(maxCronEntries: 4);
+        world.Agent.ListEntriesResult = Result<IReadOnlyList<AgentCronEntry>>.Ok([Installed("aaaa1111-0000-4000-8000-000000000001")]);
+
+        var result = await world.HandleAsync();
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(4u, Assert.Single(world.Agent.Creates).MaxEntries);
+    }
+
+    /// <summary>A creation the agent refuses on the allowance is answered as the concurrent loser.</summary>
+    [Fact]
+    public async Task A_creation_the_agent_refuses_on_the_allowance_is_answered_as_the_concurrent_loser()
+    {
+        // The operator's message, and why it is a different code from the refusal above. The customer
+        // had room when this handler looked and did not by the time the agent installed, so the
+        // answer must say that nothing they typed was wrong and what to do — not the generic
+        // "something went wrong on your server" the default arm would give them, about the one
+        // refusal they can actually act on. A different code from CronEntryLimitReached, so an
+        // operator reading a journal can tell a plan that is simply full from a race that was lost.
+        var world = new World(maxCronEntries: 4);
+        world.Agent.ListEntriesResult = Result<IReadOnlyList<AgentCronEntry>>.Ok([Installed("aaaa1111-0000-4000-8000-000000000001")]);
+        world.Agent.CreateEntryResult = Result<string>.Fail(Error.Of("AgentLimitReached", ErrorType.Conflict));
+
+        var result = await world.HandleAsync();
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("CronEntryLimitReachedConcurrently", result.Error!.Code);
+        Assert.NotEqual("CronEntryLimitReached", result.Error!.Code);
+        Assert.NotEqual("CronOperationFailed", result.Error!.Code);
+    }
+
     /// <summary>A listing the agent refuses is not read as an empty crontab.</summary>
     [Fact]
     public async Task A_listing_the_agent_refuses_is_not_read_as_an_empty_crontab()

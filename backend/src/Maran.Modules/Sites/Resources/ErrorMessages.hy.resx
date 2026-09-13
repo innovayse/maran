@@ -21,6 +21,9 @@
   <data name="SiteLimitReached">
     <value>Ձեր սակագինը թույլ չի տալիս ավելի շատ կայքեր ստեղծել։</value>
   </data>
+  <data name="SiteLimitReachedConcurrently" xml:space="preserve">
+    <value>Ձեր սակագնի կայքերի սահմանաչափը սպառվեց նույն պահին արված մեկ այլ հարցումով, ուստի այս կայքը չի ստեղծվել։ Ձեր մուտքագրածում սխալ բան չկա։ Ջնջեք կայքը, որն այլևս պետք չէ, կամ անցեք ավելի մեծ սակագնի, ապա կրկնեք փորձը։</value>
+  </data>
   <data name="PhpVersionNotInstalled">
     <value>PHP-ի այս տարբերակը տեղադրված չէ սերվերում։</value>
   </data>

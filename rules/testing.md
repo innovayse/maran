@@ -139,6 +139,38 @@ So, concretely:
   the probe FINDS it — is the only guard that ages well.
 - **A refusing gate needs an inverse control.** Feed it something it must ACCEPT. A gate mutated to
   refuse everything passes every test that only ever hands it broken input.
+- **A SEARCH that found nothing is a check, and it owes the same proof.** "Nothing references this",
+  "no workflow invokes it", "this string appears nowhere" — every one of those is an assertion whose
+  failure mode is silent and whose output is identical whether the search looked or not. So a
+  negative search result that anything is written on top of owes three things, together: **the exact
+  command**, pasteable, flags included; **the tool that ran it**, whenever it was not
+  `/usr/bin/grep`; and a **positive control** — the same pattern against something it must match, so
+  the reader can see the search was capable of a hit. Without the control it is the vacuity problem
+  this section already names, just spelled in a shell instead of a test.
+
+  Every one of these has produced a false finding here, and none of them announces itself:
+
+  - **An alternation handed to a basic-regex grep.** `grep -rn "pkill|kill_sessions|loginctl" …`
+    searches for one literal 28-character string and returns `0` on every machine. That `0` was
+    written into a committed threat note as *"nothing anywhere kills a live session"*, two minutes
+    after `ops/src/logins/end_account_sessions.rs` landed to do exactly that. Use `-E`, or GNU BRE's
+    `\|`; and prefer `-E` in a document, because the reader who re-runs it may not be using GNU grep.
+  - **A `grep` that is not `/usr/bin/grep`.** A shell may define `grep` as a function or alias —
+    a repository-aware wrapper that honours `.gitignore` is the common one — and it fails by
+    narrowing its own scope with no message. Measured on a workstation here:
+    `grep -rn 'owed' .superpowers/sdd` → `0` against `/usr/bin/grep -rn 'owed' .superpowers/sdd` →
+    `587`, because that directory carries a `.gitignore` of `*`. Such a wrapper reads ignore files at
+    or below the search root only, so the same pattern can answer differently depending on which
+    directory the search was rooted at, and a named file is always read. `type grep` says whether you
+    have one; a negative result over any ignored or generated path (`bin/`, `obj/`, `target/`,
+    `node_modules/`, `dist/`, generated `*.g.cs`, session scratch) must name the tool.
+  - **`grep -c` where the question was "where".** A count cannot distinguish a hit inside real work
+    from a hit inside the sentence reporting it, and a document that quotes its own search term
+    falsifies that search on the next read. Use `grep -n` and read the line numbers.
+
+  A count or an absence in a rule, a threat note, a doc comment or a plan is a map of the tree, so
+  the standing rule from rules/architecture.md applies: write the command beside the number, and the
+  claim rots harmlessly because the next reader can regenerate it in one paste.
 
 ### Mutation harnesses — every defect in one manufactures false confidence
 

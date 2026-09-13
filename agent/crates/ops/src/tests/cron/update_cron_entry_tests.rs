@@ -22,6 +22,7 @@ fn updating_an_entry_rewrites_its_schedule_and_its_command_file() {
         &account,
         &every_five_minutes(),
         &command("echo one"),
+        None,
     )
     .expect("created");
 
@@ -79,6 +80,7 @@ fn a_refused_install_leaves_the_command_file_untouched() {
         &account,
         &every_five_minutes(),
         &command("echo one"),
+        None,
     )
     .expect("created");
     let before = host.crontab().expect("a table was installed");
@@ -112,6 +114,7 @@ fn a_command_file_that_cannot_be_written_is_reported_after_the_schedule_landed()
         &account(),
         &every_five_minutes(),
         &command("echo one"),
+        None,
     )
     .expect("created");
     host.refuse_writes();

@@ -360,6 +360,13 @@ public sealed class CreateDatabaseCommandHandlerTests
         /// <summary>The journal every entry lands in.</summary>
         public RecordingAuditWriter Audit { get; } = new();
 
+        /// <summary>The slot gate the handler claims through, without the real one's advisory lock.</summary>
+        /// <remarks>
+        /// A test sets <see cref="LocklessDatabaseSlotGate.RefuseNextClaim"/> to reach the handler's late
+        /// refusal, which in production is a concurrent commit and is not reachable on this provider.
+        /// </remarks>
+        public LocklessDatabaseSlotGate SlotGate { get; }
+
         /// <summary>The handler under test.</summary>
         public CreateDatabaseCommandHandler Handler { get; }
 
@@ -376,10 +383,12 @@ public sealed class CreateDatabaseCommandHandlerTests
         {
             var currentUser = FakeCurrentUser.Customer(AccountId);
             Context = DatabasesTestContext.Create(currentUser, databaseName, saveFailure);
+            SlotGate = new LocklessDatabaseSlotGate(Context);
             Handler = new CreateDatabaseCommandHandler(
                 Context,
                 new StubAccountDirectory(new AccountSnapshot(AccountId, username, 5, maxDatabases, 5, 5, 5, 1_024)),
                 Agent,
+                SlotGate,
                 new DatabaseAuditJournal(Audit, currentUser),
                 new FakeClock(Now),
                 NullLogger<CreateDatabaseCommandHandler>.Instance);

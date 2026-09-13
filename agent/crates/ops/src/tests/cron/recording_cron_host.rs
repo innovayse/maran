@@ -51,6 +51,9 @@ pub(crate) const FIRST_ID: &str = "11111111-1111-4111-8111-111111111111";
 /// The second id the fake mints when a test has not queued one.
 pub(crate) const SECOND_ID: &str = "22222222-2222-4222-8222-222222222222";
 
+/// A third id, for a test that needs more entries than the default two.
+pub(crate) const THIRD_ID: &str = "33333333-3333-4333-8333-333333333333";
+
 /// An id no test ever creates, for asking about an entry that is not there.
 pub(crate) const ABSENT_ID: &str = "99999999-9999-4999-8999-999999999999";
 
@@ -221,6 +224,21 @@ impl RecordingCronHost {
             .unwrap()
             .as_ref()
             .is_some_and(|gate| gate.timed_out())
+    }
+
+    /// Replaces the queue of ids the host will mint, in order.
+    ///
+    /// The default queue holds two, which is one per entry a test installs. A
+    /// test that installs an entry and then RACES two more needs three, and a
+    /// race whose loser was refused before it asked for an id must still find
+    /// one waiting: without a spare, a build in which the refusal stopped
+    /// happening would panic inside the fake instead of failing the assertion,
+    /// and a mutation run would score a harness panic rather than the
+    /// protection it was measuring.
+    pub(crate) fn with_ids(self, ids: &[&str]) -> Self {
+        *self.ids.lock().unwrap() = ids.iter().map(|id| (*id).to_owned()).collect();
+
+        self
     }
 
     /// A host whose account already has the crontab `text`.
