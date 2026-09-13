@@ -3277,6 +3277,33 @@ maran polygon build && maran polygon run && maran polygon verify
 >   deliberate change needs `--accept` against `scripts/api-contract-baseline.txt`, in its own commit,
 >   the way `maran proto --accept` is handled in Task 10 Step 1.
 > - **`maran test` appears nowhere either** (`grep -n 'maran test' <this file>` → no hits).
+>
+>   > **CORRECTION, 2026-09-13. "Appears nowhere" is false for both, and the second one is false in a
+>   > way that matters.** Re-measured with `/usr/bin/grep` (the shim agrees — a tracked plan file is
+>   > fully visible to both):
+>   >
+>   > ```
+>   > $ /usr/bin/grep -n 'maran api'  <this file> | cut -d: -f1   ->  14 3210 3272 3286 3297   (the last two are this block)
+>   > $ /usr/bin/grep -n 'maran test' <this file> | cut -d: -f1   ->  18 19 20 996 2602 3135 3217 3220 3221 3279 3287 3290 3291 3307 3309
+>   > ```
+>   >
+>   > **`maran test` is named by a TASK**, at `:996` — Task 5 Step 1's `Run: source scripts/dev &&
+>   > maran test`, with `Expected: the identical rows and totals as the committed baseline`. So the
+>   > claim that a required counting gate is absent from this plan's instructions was wrong when it was
+>   > written, and the bullet below it — that the plan's bare `dotnet test Maran.sln` and
+>   > `npx playwright test` "produce numbers a human then has to reconcile by hand" — is true of those
+>   > two Steps and not of the plan as a whole.
+>   >
+>   > **`maran api` survives in the narrower form only.** Its four hits are the checkbox-status header
+>   > at `:14`, the DoD verification block at `:3210`, and this hazard block's own two — so no TASK
+>   > names it, which is the real gap and the one the owner still has to rule on. Adding a gate to a
+>   > task's list is adding work and is still not done here.
+>   >
+>   > Why the original said otherwise: both figures were taken with `grep -c` rather than `grep -n`,
+>   > which cannot distinguish a hit in a task from a hit in the sentence reporting it, and one of them
+>   > was evidently taken before `:996` existed and never re-derived. This is the plan's own rule
+>   > about counts, turned on the audit that wrote it: **cite the command AND read its output — a
+>   > count with no line numbers is not a measurement of where a thing is.**
 >   `rules/testing.md`: `backend.yml` runs `maran test backend` and `agent.yml` runs `maran test rust`,
 >   *"each gated on the harness's printed `TEST VERDICT: OK` line rather than on a status"*, and
 >   `frontend.yml` runs `maran test spa`. The bare `dotnet test Maran.sln` and `npx playwright test`
