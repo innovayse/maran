@@ -85,6 +85,35 @@ enum ErrorCode {
   // rate limit, or any other retryable fault. The agent's four other locks
   // WAIT rather than refuse, so none of them can produce it.
   ERROR_CODE_ACCOUNT_BUSY = 9;
+  // Added 2026-09-13, additively. The request stated a countable allowance for
+  // the account and the account has already reached it, so the operation was
+  // refused. The allowance is the PANEL's number: the agent holds no plan and
+  // invents no limit, it only compares the number the request carried against
+  // what it counted under the lock it already holds for that account.
+  //
+  // It exists because one countable limit in this product cannot be made
+  // atomic in the panel. Every other one is closed by counting rows and
+  // inserting inside one transaction; cron keeps no rows at all, so the only
+  // place where the count and the write are one indivisible act is inside the
+  // agent's per-account cron lock. The panel therefore states the allowance and
+  // the agent enforces it there. See `CreateCronEntryRequest.max_entries`.
+  //
+  // **Nothing happened.** Like ERROR_CODE_ACCOUNT_BUSY the refusal is decided
+  // before anything is written, so the account is exactly as the caller found
+  // it. Unlike it, this is NOT retryable: the answer will be the same until the
+  // account holds fewer entries or the operator raises the allowance. A panel
+  // that reads it tells the operator which of those two to do; a panel that
+  // retried it would loop.
+  //
+  // A request that states no allowance can never produce this code, which is
+  // what keeps the field additive: an older panel that says nothing about a
+  // limit gets exactly the behaviour it had before this code existed.
+  //
+  // It is NOT the code for a busy account, a full disk, or a quota the host
+  // itself enforces. A caller MUST NOT widen it, and in particular MUST NOT
+  // reach for ERROR_CODE_ACCOUNT_BUSY instead: that code means the lock was
+  // held and says nothing about a limit, and a panel reading it retries.
+  ERROR_CODE_LIMIT_REACHED = 10;
 }
 
 // Streamed progress of a long-running operation (backup, restore, install).
