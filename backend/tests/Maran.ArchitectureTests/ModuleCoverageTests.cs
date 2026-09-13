@@ -1,5 +1,6 @@
 using System.Reflection;
 using System.Text.RegularExpressions;
+using Maran.ArchitectureTests.Fixtures;
 
 namespace Maran.ArchitectureTests;
 
@@ -15,6 +16,7 @@ public sealed class ModuleCoverageTests
     private static readonly Regex ModuleProjectPattern =
         new(@"""(Maran\.Modules\.[A-Za-z0-9.]+)""", RegexOptions.Compiled);
 
+    /// <summary>Every module project in the solution is referenced by the architecture tests.</summary>
     [Fact]
     public void Every_module_project_in_the_solution_is_referenced_by_the_architecture_tests()
     {
@@ -48,6 +50,7 @@ public sealed class ModuleCoverageTests
             + "Add a ProjectReference for each.");
     }
 
+    /// <summary>Isolation rules run against the projects they claim to cover.</summary>
     [Fact]
     public void Isolation_rules_run_against_the_projects_they_claim_to_cover()
     {
@@ -99,31 +102,18 @@ public sealed class ModuleCoverageTests
     }
 
     /// <summary>
-    /// Loads every Maran assembly sitting next to the test binary. Reading the compiler's
-    /// reference list is not enough: the C# compiler drops a ProjectReference whose types are never
-    /// used, so a referenced-but-unused module would stay invisible to NetArchTest. Scanning the
-    /// output directory sees what actually shipped into the test run.
+    /// The product assemblies that shipped into this test run, from the one place that knows how to
+    /// find them.
     /// </summary>
+    /// <remarks>
+    /// Reading the compiler's reference list is not enough — it drops a <c>ProjectReference</c> whose
+    /// types are never used, so a referenced-but-unused module would stay invisible to NetArchTest.
+    /// <see cref="ModuleAssemblies"/> scans the output directory instead, and it is shared with the
+    /// tenant census so the two cannot disagree about what "the modules" means.
+    /// </remarks>
     /// <returns>All loaded assemblies belonging to this product.</returns>
     private static List<Assembly> LoadAllReferencedAssemblies()
     {
-        foreach (var path in Directory.EnumerateFiles(AppContext.BaseDirectory, "Maran.*.dll"))
-        {
-            try
-            {
-                Assembly.LoadFrom(path);
-            }
-            catch (BadImageFormatException)
-            {
-                // Native or mixed-mode files matching the pattern are not managed assemblies.
-            }
-        }
-
-        return AppDomain.CurrentDomain.GetAssemblies()
-            .Where(assembly =>
-            {
-                return assembly.GetName().Name?.StartsWith("Maran", StringComparison.Ordinal) == true;
-            })
-            .ToList();
+        return ModuleAssemblies.All();
     }
 }

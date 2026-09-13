@@ -13,6 +13,7 @@ public sealed class HealthEndpointTests : IClassFixture<PanelTestFactory>
         _factory = factory;
     }
 
+    /// <summary>Health endpoint returns ok.</summary>
     [Fact]
     public async Task Health_endpoint_returns_ok()
     {
@@ -24,6 +25,7 @@ public sealed class HealthEndpointTests : IClassFixture<PanelTestFactory>
         Assert.Contains("ok", await response.Content.ReadAsStringAsync());
     }
 
+    /// <summary>Liveness endpoint returns 200 with no dependencies configured at all.</summary>
     [Fact]
     public async Task Liveness_endpoint_returns_200_with_no_dependencies_configured_at_all()
     {
@@ -38,6 +40,7 @@ public sealed class HealthEndpointTests : IClassFixture<PanelTestFactory>
         Assert.Contains("ok", await response.Content.ReadAsStringAsync());
     }
 
+    /// <summary>Readiness endpoint does not require the agent to be reachable.</summary>
     [Fact]
     public async Task Readiness_endpoint_does_not_require_the_agent_to_be_reachable()
     {

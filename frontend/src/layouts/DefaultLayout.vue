@@ -285,10 +285,15 @@ const toggleTheme = (): void => {
 
     <div class="flex min-h-0 min-w-0 flex-1 flex-col">
       <ShellHeader :entries="entries" :navigation-open="drawerOpen" @open-navigation="openDrawer" />
-      <!-- The content inset lives here rather than in each page: the design gives every
-           screen the same 20px/22px/40px wrapper, and four pages repeating it is four
-           chances for one to drift. Pages render their own content flush inside it. -->
-      <main class="min-h-0 flex-1 overflow-y-auto px-5.5 pt-5 pb-10">
+      <!-- The content inset lives here rather than in each page: every screen gets the same
+           wrapper, and four pages repeating it is four chances for one to drift. Pages render
+           their own content flush inside it.
+           It grows with the viewport rather than being one fixed value. The panel is an
+           operator's tool that lives on a wide screen for hours, and the original flat 22px
+           left every page crowded against the chrome there while still being right on a
+           laptop. Small screens keep a modest inset because horizontal space is the scarce
+           thing; from `lg` up the window has room to spare and the content should breathe. -->
+      <main class="min-h-0 flex-1 overflow-y-auto px-6 pt-6 pb-12 sm:px-8 sm:pt-7 lg:px-10 lg:pt-8 xl:px-12">
         <!-- RouterView, not a slot: this layout is a route component with child routes, so the
              page for the active child renders here. A <slot/> would silently render nothing. -->
         <RouterView />

@@ -1,0 +1,34 @@
+{
+  "certificates": {
+    "loading": "Загрузка сертификатов…",
+    "emptyTitle": "Сертификат не установлен",
+    "emptyDescription": "Пока сертификат не установлен, сайт обслуживается по обычному HTTP.",
+    "source": {
+      "acme": "Выпущен панелью",
+      "custom": "Загружен"
+    },
+    "domainLabel": "Домен",
+    "sourceLabel": "Источник",
+    "issuedAtLabel": "Выпущен",
+    "expiresAtLabel": "Истекает",
+    "issue": "Запросить сертификат",
+    "issueHint": "Панель проверит домен по HTTP и установит результат. Домен уже должен указывать на этот сервер.",
+    "installCustom": "Установить свой сертификат",
+    "fields": {
+      "certificatePem": "Цепочка сертификатов (PEM)",
+      "privateKeyPem": "Приватный ключ (PEM)"
+    },
+    "hints": {
+      "privateKeyPem": "Отправляется один раз и больше не показывается."
+    },
+    "submitCustom": "Установить сертификат",
+    "remove": "Удалить сертификат",
+    "confirmRemove": "Удалить этот сертификат? Сайт вернётся к обслуживанию по обычному HTTP.",
+    "working": "Выполняется…",
+    "errors": {
+      "certificatePemRequired": "Цепочка сертификатов обязательна.",
+      "privateKeyPemRequired": "Приватный ключ обязателен."
+    },
+    "confirmRemoveTitle": "Удалить сертификат для {domain}"
+  }
+}

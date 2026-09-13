@@ -79,7 +79,7 @@ const onClick = (event: MouseEvent): void => {
   <button
     :type="type"
     :disabled="disabled"
-    class="inline-flex items-center justify-center gap-1.5 rounded-lg px-3 py-1.5 text-xs transition-colors focus-visible:border-accent focus-visible:shadow-focus focus-visible:outline-none disabled:cursor-not-allowed disabled:border-border-subtle disabled:bg-surface-2 disabled:text-text-muted disabled:opacity-65 disabled:shadow-none"
+    class="inline-flex items-center justify-center gap-1.5 rounded-lg px-4 py-2 text-base transition-colors focus-visible:border-accent focus-visible:shadow-focus focus-visible:outline-none disabled:cursor-not-allowed disabled:border-border-subtle disabled:bg-surface-2 disabled:text-text-muted disabled:opacity-65 disabled:shadow-none"
     :class="variantClasses"
     @click="onClick"
   >

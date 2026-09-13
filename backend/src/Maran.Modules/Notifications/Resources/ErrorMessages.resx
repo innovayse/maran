@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="SmtpNotConfigured">
+    <value>The panel has no outgoing mail settings yet, so nothing was sent.</value>
+  </data>
+  <data name="MailDeliveryFailed">
+    <value>The mail server refused the message or could not be reached.</value>
+  </data>
+  <data name="SmtpHostInvalid">
+    <value>The mail server's name is required and must be a single line of ordinary text.</value>
+  </data>
+  <data name="SmtpPortInvalid">
+    <value>The mail server's port must be between 1 and 65535.</value>
+  </data>
+  <data name="SmtpSecurityInvalid">
+    <value>Choose one of the offered ways to protect the connection.</value>
+  </data>
+  <data name="SmtpUsernameInvalid">
+    <value>The submission user name must be a single line of ordinary text.</value>
+  </data>
+  <data name="SmtpPasswordInvalid">
+    <value>The submission password is longer than this panel accepts.</value>
+  </data>
+  <data name="SmtpFromAddressInvalid">
+    <value>The sender must be one plain e-mail address, with no display name.</value>
+  </data>
+  <data name="SmtpFromNameInvalid">
+    <value>The sender's display name must be a single line of ordinary text.</value>
+  </data>
+  <data name="SmtpAlertRecipientInvalid">
+    <value>The alert recipient must be one plain e-mail address, with no display name.</value>
+  </data>
+  <data name="MailRecipientInvalid">
+    <value>The recipient must be one plain e-mail address, with no display name.</value>
+  </data>
+</root>

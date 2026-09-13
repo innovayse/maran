@@ -7,6 +7,7 @@ namespace Maran.Host.Tests.Middleware;
 /// <summary>Behavioral contract of <see cref="Host.Middleware.RequestLocalizationMiddleware"/>.</summary>
 public sealed class RequestLocalizationMiddlewareTests
 {
+    /// <summary>Supported accept language selects that culture.</summary>
     [Theory]
     [InlineData("ru", "ru")]
     [InlineData("hy", "hy")]
@@ -18,6 +19,7 @@ public sealed class RequestLocalizationMiddlewareTests
         Assert.Equal(expectedCulture, observedCulture.Name);
     }
 
+    /// <summary>Unsupported or absent accept language falls back to english.</summary>
     [Theory]
     [InlineData("fr")]
     [InlineData("de-DE")]
@@ -29,6 +31,7 @@ public sealed class RequestLocalizationMiddlewareTests
         Assert.Equal("en", observedCulture.Name);
     }
 
+    /// <summary>Quality ordered header prefers the highest ranked supported culture.</summary>
     [Fact]
     public async Task Quality_ordered_header_prefers_the_highest_ranked_supported_culture()
     {

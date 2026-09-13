@@ -68,7 +68,7 @@ const moveFocus = (index: number, step: number): void => {
 
 <template>
   <div
-    class="flex items-center gap-0.5 rounded-lg border border-border-subtle bg-surface-2 p-0.5"
+    class="flex items-center gap-0.5 rounded-lg border border-border-subtle bg-surface-2 p-1"
     role="group"
     :aria-label="label"
   >
@@ -77,7 +77,7 @@ const moveFocus = (index: number, step: number): void => {
       :key="option.value"
       ref="optionButtons"
       type="button"
-      class="flex items-center gap-1.5 rounded-sm px-2 py-0.5 font-mono text-xs transition-colors focus-visible:shadow-focus focus-visible:outline-none"
+      class="flex items-center gap-1.5 rounded-md px-3 py-1 font-mono text-base transition-colors focus-visible:shadow-focus focus-visible:outline-none"
       :class="
         modelValue === option.value
           ? 'bg-surface-1 font-semibold text-text-primary'

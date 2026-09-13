@@ -7,5 +7,82 @@ version.workspace = true
 edition.workspace = true
 publish.workspace = true
 
+[dependencies]
+# Platform facts — paths, package names, service names — come from the adapter, never from
+# a literal in an operation (rules/rust.md "Distro adapter").
+maran-distro = { path = "../distro" }
+# The validated AccountName: this crate turns one into a system user, so it takes the
+# proof of validation rather than a string (rules/rust.md "Validation first").
+maran-agent-core = { path = "../agent-core" }
+# The askama render types for every config this crate writes. An operation
+# renders through them and never builds config text itself: a template is the
+# reviewable artifact, and its golden is the diff (rules/rust.md "Template
+# anatomy").
+maran-templates = { path = "../templates" }
+thiserror.workspace = true
+# One constant, and no `unsafe`: `O_NOFOLLOW` for the log tail, which opens a
+# file inside a customer's home from the root daemon. Written as `libc::O_NOFOLLOW`
+# rather than as its numeric value because the number differs by architecture,
+# and a platform literal outside `crates/distro` is a build failure
+# (rules/rust.md "Distro adapter").
+libc.workspace = true
+# The one dependency this crate has on an observability crate, and it earns its
+# place on a single path: a certificate cleanup that fails leaves a private key
+# for a deleted site on disk, which nobody learns about unless it is logged
+# (rules/rust.md "Logging": `tracing` only, and never a secret in it).
+tracing.workspace = true
+# safe_write's temporary file must live in the target's own directory so the
+# later rename is atomic; `NamedTempFile` gives that plus RAII cleanup on any
+# path that returns before the file is persisted.
+tempfile.workspace = true
+# One call, and no `unsafe`: `statvfs`, which is how the monitoring area asks how
+# full the root filesystem is. There is no answer to that question in `/proc` and
+# none in `std`, and the two alternatives are both worse — a raw `libc::statvfs`
+# needs `unsafe`, which this crate forbids outright, and spawning `df` would put a
+# second parser between the panel and a number the kernel already has. Already in
+# the lockfile, so no new code enters the tree.
+# `stdio` on top of the workspace features, for `dup2_stdin`: a restore hands the
+# account's archiver its artifact on descriptor 0, which is the only descriptor
+# that survives `fork_as_account`'s sweep, and putting an open file there needs a
+# `dup2`. The alternative is `libc::dup2`, which needs `unsafe` — forbidden in
+# this crate — so the safe wrapper of a crate already in the lockfile is what
+# keeps the `unsafe` exception confined to `agent-core::privs`.
+rustix = { workspace = true, features = ["stdio"] }
+# `nft -j list set` answers in JSON, and the firewall's ban list is read out of
+# it. Named in the plan and expected by the licence pass; the version lives in
+# the workspace manifest with every other shared one.
+serde_json.workspace = true
+# The manifest is written and read back through derive: see the workspace
+# manifest for why the backup area does not hand-roll that JSON.
+serde = { workspace = true }
+# SHA-256 over each dump and over the finished artifact. rules/security.md item
+# 9 forbids MD5/SHA1 for anything security-relevant, and a restore's integrity
+# check is exactly that.
+sha2 = { workspace = true }
+# `sync` and `rt`, and nothing else. `sync` is the process-wide `Mutex` every
+# `ops::firewall` mutation is serialised by; the operations themselves are
+# synchronous like every other area's, and are called from
+# `tokio::task::spawn_blocking` by the service layer — which is exactly the
+# situation `Mutex::blocking_lock` exists for. `rt` is the `Handle` the S3
+# object store bridges over: `object_store`'s API is async, this area's is not,
+# and the bridge is one documented `Handle::block_on` inside a blocking task
+# rather than an async colouring of every operation above it. Declared here
+# rather than in the workspace root because tokio's version already lives
+# there.
+tokio = { workspace = true, features = ["rt", "sync"] }
+# The S3-compatible transport behind `ObjectStoreHost`. See the workspace
+# manifest for why this is a dependency and not a signer of our own
+# (rules/security.md item 9). Nothing outside `backup/s3_object_store_host.rs`
+# names this crate: the rest of the area speaks to the seam.
+object_store = { workspace = true }
+
 [lints]
 workspace = true
+
+[dev-dependencies]
+# The backup area's S3 transport bridges an async client on a runtime handle, so
+# its tests need a real runtime to hand it — and the local HTTP stub they drive
+# it against needs the IO driver turned while `Handle::block_on` waits, which is
+# what the multi-threaded flavour does. Production code needs only `rt`, so the
+# flavour is declared here rather than widening the shipped dependency.
+tokio = { workspace = true, features = ["rt-multi-thread"] }

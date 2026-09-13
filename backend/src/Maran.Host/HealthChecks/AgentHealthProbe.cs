@@ -1,4 +1,7 @@
 using Maran.Agent.Client.Interfaces;
+using Maran.Host.Resilience;
+using Polly;
+using Polly.Registry;
 
 namespace Maran.Host.HealthChecks;
 
@@ -15,20 +18,25 @@ public sealed class AgentHealthProbe
     /// <summary>Reported for any failure, timeout, or missing agent.</summary>
     public const string Unavailable = "unavailable";
 
-    /// <summary>
-    /// How long the handshake may take. Deliberately short: the panel must report its own state
-    /// quickly even when the agent is missing or unresponsive.
-    /// </summary>
-    private static readonly TimeSpan ProbeTimeout = TimeSpan.FromSeconds(2);
-
     /// <summary>The client used to reach the agent's system service.</summary>
     private readonly IAgentSystemClient _agentClient;
 
-    /// <summary>Creates the probe around the agent client.</summary>
+    /// <summary>The named probe pipeline, which carries the configured timeout.</summary>
+    private readonly ResiliencePipeline _pipeline;
+
+    /// <summary>Creates the probe around the agent client and its pipeline.</summary>
     /// <param name="agentClient">Client used to perform the handshake.</param>
-    public AgentHealthProbe(IAgentSystemClient agentClient)
+    /// <param name="pipelines">The registry the named probe pipeline is resolved from.</param>
+    /// <remarks>
+    /// The timeout comes from <see cref="AgentCallPipeline"/>, not from a constant here. It was a
+    /// hard-coded two seconds, which made <c>Agent:ProbeTimeoutSeconds</c> configuration that
+    /// nothing read: the pipeline honouring it was registered and resolved by nobody, and this
+    /// probe ignored it. Both halves of that gap are now one.
+    /// </remarks>
+    public AgentHealthProbe(IAgentSystemClient agentClient, ResiliencePipelineProvider<string> pipelines)
     {
         _agentClient = agentClient;
+        _pipeline = pipelines.GetPipeline(AgentCallPipeline.Name);
     }
 
     /// <summary>Performs the handshake and reports connectivity.</summary>
@@ -37,8 +45,11 @@ public sealed class AgentHealthProbe
     {
         try
         {
-            using var cts = new CancellationTokenSource(ProbeTimeout);
-            var result = await _agentClient.GetInfoAsync(cts.Token);
+            var result = await _pipeline.ExecuteAsync(async token =>
+            {
+                return await _agentClient.GetInfoAsync(token);
+            });
+
             return result.IsSuccess ? Connected : Unavailable;
         }
         catch (Exception)

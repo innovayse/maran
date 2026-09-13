@@ -23,8 +23,4 @@ public interface IPanelModule
     /// <param name="services">The Host's DI container to add the module's services to.</param>
     /// <param name="configuration">The Host's configuration, for reading module-specific settings.</param>
     void ConfigureServices(IServiceCollection services, IConfiguration configuration);
-
-    /// <summary>Maps the module's HTTP endpoints.</summary>
-    /// <param name="endpoints">The Host's endpoint route builder to map routes onto.</param>
-    void MapEndpoints(IEndpointRouteBuilder endpoints);
 }

@@ -1,0 +1,117 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="AccountNotFound">
+    <value>Аккаунт не найден.</value>
+  </data>
+  <data name="BackupNotFound">
+    <value>Резервная копия не найдена.</value>
+  </data>
+  <data name="BackupStillRunning">
+    <value>Резервная копия ещё создаётся и пока не может быть удалена.</value>
+  </data>
+  <data name="BackupStreamDropped">
+    <value>Связь с агентом сервера была потеряна во время создания резервной копии.</value>
+  </data>
+  <data name="BackupStreamIdle">
+    <value>Агент сервера перестал сообщать о ходе создания резервной копии.</value>
+  </data>
+  <data name="BackupTruncated">
+    <value>Агент сервера завершил работу, не сообщив, чем закончилось создание копии.</value>
+  </data>
+  <data name="BackupCancelled">
+    <value>Создание резервной копии было отменено до завершения.</value>
+  </data>
+  <data name="BackupInvalidOutcome">
+    <value>Агент сервера сообщил о готовой копии, но не указал, чем её опознать.</value>
+  </data>
+  <data name="FinalBackupFailed">
+    <value>Аккаунт не был удалён: не удалось создать его финальную резервную копию.</value>
+  </data>
+  <data name="BackupNotRestorable">
+    <value>Эту резервную копию нельзя восстановить: она не была создана успешно.</value>
+  </data>
+  <data name="RestoreConfirmationRequired">
+    <value>Введите имя пользователя аккаунта в точности, чтобы подтвердить восстановление.</value>
+  </data>
+  <data name="RestoreConfirmationMismatch">
+    <value>Введённое имя не совпадает с именем пользователя этого аккаунта.</value>
+  </data>
+  <data name="RestorePartial">
+    <value>Восстановление выполнено не полностью; аккаунт восстановлен лишь частично.</value>
+  </data>
+  <data name="RestoreStreamDropped">
+    <value>Связь с агентом сервера была потеряна во время восстановления аккаунта.</value>
+  </data>
+  <data name="RestoreStreamIdle">
+    <value>Агент сервера перестал сообщать о ходе восстановления аккаунта.</value>
+  </data>
+  <data name="RestoreTruncated">
+    <value>Агент сервера остановился, не сообщив, что именно было восстановлено.</value>
+  </data>
+  <data name="RestoreCancelled">
+    <value>Восстановление было отменено до завершения.</value>
+  </data>
+  <data name="RestoreInvalidOutcome">
+    <value>Агент сервера сообщил о завершении восстановления, не указав, что было восстановлено.</value>
+  </data>
+  <data name="BackupScheduleNotFound">
+    <value>На этом сервере ещё нет расписания резервного копирования.</value>
+  </data>
+  <data name="BackupScheduleHourOutOfRange">
+    <value>Час должен быть от 0 до 23.</value>
+  </data>
+  <data name="BackupScheduleRetainOutOfRange">
+    <value>Количество хранимых копий должно быть от 1 до 365.</value>
+  </data>
+  <data name="BackupScheduleDayRequired">
+    <value>Для еженедельного расписания нужно указать день недели.</value>
+  </data>
+  <data name="BackupScheduleDayNotAllowed">
+    <value>Для ежедневного расписания день недели не указывается.</value>
+  </data>
+  <data name="BackupScheduledRunAborted">
+    <value>Запланированное копирование прервалось до того, как агент сообщил результат.</value>
+  </data>
+  <data name="BackupDestinationNotFound">
+    <value>Такого места хранения резервных копий не существует.</value>
+  </data>
+  <data name="BackupDestinationNotConfigured">
+    <value>На сервере нет места хранения резервных копий по умолчанию, поэтому резервное копирование невозможно до следующего запуска.</value>
+  </data>
+  <data name="BackupDestinationRemoteUnsupported">
+    <value>Эта сборка хранит резервные копии только на этом сервере. Хранилище, совместимое с S3, недоступно.</value>
+  </data>
+  <data name="BackupDestinationLocalAlreadyDefined">
+    <value>На сервере уже есть локальное место хранения резервных копий, и оно может быть только одно.</value>
+  </data>
+  <data name="BackupDestinationNameInvalid">
+    <value>Имя места хранения резервных копий обязательно и не длиннее 64 символов.</value>
+  </data>
+  <data name="RestoreArtifactRejected">
+    <value>Ваш сервер отклонил эту копию: её содержимое не соответствует тому, что панель записала при её создании. Ничего не восстановлено, аккаунт не изменён. Восстановите из другой копии или обратитесь в поддержку — повторная отправка того же запроса ничего не изменит.</value>
+  </data>
+  <data name="AccountBackupOperationRunning">
+    <value>На вашем сервере ещё выполняется другая операция резервного копирования или восстановления для этого аккаунта. Ничего не изменено. Повторите попытку, когда она завершится.</value>
+  </data>
+  <data name="BackupOutcomeUnobserved">
+    <value>Панель перестала следить за созданием этой копии до того, как сервер сообщил результат, поэтому неизвестно, была ли копия завершена. Копия помечена как неудачная и не предлагается для восстановления. Создайте новую копию, а если это повторяется — обратитесь в поддержку.</value>
+  </data>
+  <data name="RestoreOutcomeUnobserved">
+    <value>Панель перестала следить за этим восстановлением до того, как сервер сообщил результат, поэтому неизвестно, насколько оно продвинулось. Данные аккаунта могли быть уже заменены: проверьте файлы и базы данных, прежде чем запускать восстановление снова, а если сомневаетесь — обратитесь в поддержку.</value>
+  </data>
+  <data name="BackupArtifactUnvouched">
+    <value>Панель перестала следить за этой резервной копией до того, как сервер сообщил результат. Копия ЕСТЬ на сервере, но панель не записала её контрольную сумму, поэтому не может её проверить и не предлагает для восстановления. Копия помечена как неудачная и не удалена — обратитесь в поддержку, чтобы освободить место, или создайте новую резервную копию.</value>
+  </data>
+</root>

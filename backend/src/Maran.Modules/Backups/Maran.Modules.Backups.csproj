@@ -1,0 +1,72 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- The resx triples' neutral file is English (rules/csharp.md "The backend owns all
+         user-facing message text"). Declaring it lets the runtime skip probing for an "en"
+         satellite assembly that will never exist, and satisfies CA1824. -->
+    <NeutralLanguage>en</NeutralLanguage>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- A module is a plain class library (not Microsoft.NET.Sdk.Web): it contributes
+         controllers into the Host's ASP.NET Core pipeline but never hosts its own web server
+         (rules/architecture.md "Backend: modular monolith"). -->
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- A module references only the Sdk and the SharedKernel — never another module
+         (rules/architecture.md "Backend: modular monolith"). In particular this project does NOT
+         reference Maran.Modules.Accounts: the system user name every agent call is addressed by is
+         read through Maran.Sdk's IAccountDirectory, which is also what makes the read tenant-scoped. -->
+    <!-- The agent client: every byte of a backup is read, written and deleted by the agent. The
+         panel decides that a backup should exist and records that it does; it never touches the
+         host's filesystem itself (rules/architecture.md "Only maran-agent mutates the system"). -->
+    <ProjectReference Include="..\..\Maran.Agent.Client\Maran.Agent.Client.csproj" />
+    <ProjectReference Include="..\..\Maran.Sdk\Maran.Sdk.csproj" />
+    <ProjectReference Include="..\..\Maran.SharedKernel\Maran.SharedKernel.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Npgsql.EntityFrameworkCore.PostgreSQL: the module owns its PostgreSQL schema and
+         DbContext (rules/architecture.md). WolverineFx: command/query dispatch. FluentValidation:
+         command validators. Options.DataAnnotations: BackupOptions is bound and validated at
+         startup, because a silently defaulted backup root is the failure mode Decision 3 of the
+         plan spends a section on. -->
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" />
+    <PackageReference Include="WolverineFx" />
+    <PackageReference Include="FluentValidation" />
+    <PackageReference Include="Microsoft.Extensions.Options.DataAnnotations" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Resx-backed user-facing message text (rules/csharp.md "The backend owns all
+         user-facing message text"), one file per purpose rather than one catch-all. ErrorMessages
+         is strongly typed so Error.Of(nameof(ErrorMessages.BackupNotFound)) fails to compile when
+         the key is absent — the codes ARE the resx keys, with no second declaration. -->
+    <EmbeddedResource Update="Resources\ErrorMessages.resx">
+      <Generator>MSBuild:Compile</Generator>
+      <StronglyTypedLanguage>CSharp</StronglyTypedLanguage>
+      <StronglyTypedNamespace>Maran.Modules.Backups.Resources</StronglyTypedNamespace>
+      <StronglyTypedClassName>ErrorMessages</StronglyTypedClassName>
+      <StronglyTypedFileName>$(IntermediateOutputPath)ErrorMessages.Designer.cs</StronglyTypedFileName>
+    </EmbeddedResource>
+    <EmbeddedResource Update="Resources\ErrorMessages.ru.resx">
+      <Generator></Generator>
+    </EmbeddedResource>
+    <EmbeddedResource Update="Resources\ErrorMessages.hy.resx">
+      <Generator></Generator>
+    </EmbeddedResource>
+    <EmbeddedResource Update="Resources\DisplayNames.resx">
+      <Generator></Generator>
+    </EmbeddedResource>
+    <EmbeddedResource Update="Resources\DisplayNames.ru.resx">
+      <Generator></Generator>
+    </EmbeddedResource>
+    <EmbeddedResource Update="Resources\DisplayNames.hy.resx">
+      <Generator></Generator>
+    </EmbeddedResource>
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="FtpsHostnameInvalidFormat">
+    <value>This is not a valid host name. Enter a name such as ftp.example.com.</value>
+  </data>
+  <data name="FtpsHostnameTooLong">
+    <value>This host name is too long. A host name may be at most 253 characters.</value>
+  </data>
+  <data name="FtpsPassiveAddressInvalid">
+    <value>The passive address must be an IPv4 address written plainly, such as 203.0.113.7 — not a host name, not an IPv6 address, which the PASV reply has no form for, and no leading zeros. Leave it blank if your server is not behind NAT.</value>
+  </data>
+  <data name="FtpsHostnameNotServed">
+    <value>This panel does not serve a site for this host name. Add the site first, then enable FTPS for it.</value>
+  </data>
+  <data name="FtpsCertificateMissing">
+    <value>FTPS cannot start until a TLS certificate exists for this host name. Nothing you entered is wrong: issue or install a certificate for it in the SSL section, then enable FTPS again.</value>
+  </data>
+  <data name="FtpUserNotFound">
+    <value>This FTPS user could not be found. Refresh the page to see the FTPS users you have.</value>
+  </data>
+  <data name="FtpUserNameTaken">
+    <value>This FTPS user name is already taken. Please choose another one.</value>
+  </data>
+  <data name="FtpUserLimitReached">
+    <value>Your plan does not allow any more FTPS users. Delete one you no longer need, or ask for a larger plan.</value>
+  </data>
+  <data name="FtpUserLimitReachedConcurrently" xml:space="preserve">
+    <value>Your plan's FTPS user limit was reached by another request made at the same moment, so this user was not created and no password was issued. Nothing you entered is wrong. Delete an FTPS user you no longer need, or ask for a larger plan, then try again.</value>
+  </data>
+  <data name="FtpUserNameTooLong">
+    <value>This FTPS user name is too long. Your account prefix is added to it, so choose a shorter one.</value>
+  </data>
+  <data name="FtpUserNameInvalidFormat">
+    <value>An FTPS user name may only contain lowercase letters and digits, and may not be empty.</value>
+  </data>
+  <data name="FtpUserProvisioningFailed">
+    <value>This FTPS user could not be created and no password was issued. Please try again. If the name is then reported as already taken, contact support: a leftover login may have to be removed.</value>
+  </data>
+  <data name="AccountNotFound">
+    <value>This account could not be found. Refresh the page to see its current state.</value>
+  </data>
+</root>

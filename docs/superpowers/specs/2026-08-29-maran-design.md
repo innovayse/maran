@@ -50,7 +50,7 @@ Maran — панель управления веб-хостингом класс
                      Innovayse Cloud (лицензии, маркетплейс, обновления)
                                    ▲ https (единственный исходящий вызов)
 ┌─ Сервер клиента ─────────────────┼─────────────────────────────┐
-│  Vue 3 SPA ──REST/SSE──► maran-api (C#, под юзером panel)  │
+│  Vue 3 SPA ──REST/SSE──► maran-api (C#, под юзером maran)  │
 │  hostpanel ──REST(Provisioning)──┤   EF Core ──► PostgreSQL    │
 │                                  ▼ gRPC, unix socket           │
 │                     maran-agent (Rust, root)               │
@@ -174,7 +174,7 @@ rules/
 
 ## 9. Rust-агент: контракт и безопасность
 
-- **Транспорт:** gRPC (tonic) на `/run/maran/agent.sock`; сокет `root:panel 0660` + проверка `SO_PEERCRED` (только UID юзера `panel`). Абстракция транспорта — задел под TCP+mTLS для Fleet.
+- **Транспорт:** gRPC (tonic) на `/run/maran/agent.sock`; сокет `root:maran 0660` + проверка `SO_PEERCRED` (только UID юзера `maran`). Абстракция транспорта — задел под TCP+mTLS для Fleet.
 - **Контракт:** proto по модулям, package `maran.agent.v1`, только аддитивные изменения; handshake `GetAgentInfo` (версия, дистрибутив) при коннекте. **Команды «выполнить shell-строку» не существует** — класс RCE-уязвимостей aaPanel/CWP устранён конструктивно.
 - **Недоверие к вызывающему (defense in depth):** повторная валидация всех входов в агенте — строгие regex имён, канонизация путей, пути только внутри `/home/<account>/`.
 - **Файловые операции клиентов — под UID аккаунта** (fork + setuid), не под root: symlink-атака через файловый менеджер не достаёт `/etc/shadow`.
@@ -193,7 +193,7 @@ rules/
 - **API-ключи** (для hostpanel): отдельный механизм, скоупы прав, привязка к IP, в БД — только хеш.
 - **Веб-гигиена:** строгий CSP, security headers, CSRF = SameSite + обязательный кастомный заголовок.
 - **Аудит:** append-only журнал всех входов и мутаций (кто/когда/что/откуда) с экраном в админке.
-- **Секреты:** `/etc/maran/panel.env` `root:panel 0640`; ключи DataProtection с правами `panel`; пароли клиентских сервисов в открытом виде не хранятся.
+- **Секреты:** `/etc/maran/panel.env` `root:maran 0640`; ключи DataProtection с правами `maran`; пароли клиентских сервисов в открытом виде не хранятся.
 
 ## 11. Модули v1 — поведение
 
@@ -234,7 +234,7 @@ REST `/api/provisioning/v1/…`; auth — скоупированные API-кл�
 
 ## 14. Установщик, обновления, CLI
 
-**Установка:** `curl -sSL https://get.maran.com | bash`; скрипт тонкий — качает версионированные артефакты с проверкой Ed25519-подписи манифеста. Preflight до первого изменения: ОС/архитектура, RAM/диск, порты, чужие панели → честный отказ. Шаги идемпотентны: deps → PgSQL (unix-socket only) → юзер `panel` → бинарники `/usr/local/maran/` → hardened systemd-юниты (`NoNewPrivileges`, `ProtectSystem=strict`, `PrivateTmp` для api) → nginx-vhost 8443 self-signed → миграции → сервисы. **Первый админ — в браузере по одноразовому setup-токену** (пароль не попадает в логи/history). Полный лог установки; честный `uninstall.sh`; офлайн-tarball для энтерпрайза.
+**Установка:** `curl -sSL https://get.maran.com | bash`; скрипт тонкий — качает версионированные артефакты с проверкой Ed25519-подписи манифеста. Preflight до первого изменения: ОС/архитектура, RAM/диск, порты, чужие панели → честный отказ. Шаги идемпотентны: deps → PgSQL (unix-socket only) → юзер `maran` → бинарники `/usr/local/maran/` → hardened systemd-юниты (`NoNewPrivileges`, `ProtectSystem=strict`, `PrivateTmp` для api) → nginx-vhost 8443 self-signed → миграции → сервисы. **Первый админ — в браузере по одноразовому setup-токену** (пароль не попадает в логи/history). Полный лог установки; честный `uninstall.sh`; офлайн-tarball для энтерпрайза.
 
 **Обновления:** каналы stable/beta; манифесты подписаны; один клик из UI или `maran update`. Порядок: скачать+проверить всё → автоматический `pg_dump` → blue/green-каталоги + переключение симлинка → рестарт → агент последним (handshake + аддитивный proto покрывают окно). `maran rollback` — откат симлинка + дамп как страховка. Автообновление только security-патчей (по умолчанию вкл, отключаемо).
 

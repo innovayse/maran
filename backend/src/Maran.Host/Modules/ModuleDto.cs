@@ -14,7 +14,17 @@ namespace Maran.Host.Modules;
 /// hand-picked string so the wire shape can never drift from the enum modules actually declare.
 /// Serialized as its member name (<c>"included"</c>, <c>"addOn"</c>, <c>"planGated"</c>) via the
 /// panel-wide <see cref="System.Text.Json.Serialization.JsonStringEnumConverter"/> so the SPA
-/// never has to track numeric enum values across releases.
+/// never has to track numeric enum values across releases. The words an operator reads are
+/// <paramref name="TierDisplayName"/>; this member is for keys and behaviour only.
+/// </param>
+/// <param name="TierDisplayName">
+/// The same tier as an operator reads it, resolved server-side in the request's culture by
+/// <see cref="LicenceTierDisplayNames"/>. It travels beside the machine value for the same reason
+/// <paramref name="DisplayName"/> travels beside <paramref name="Name"/>: the SPA owns no words for
+/// a server-side concept (rules/vue.md "Data comes from the backend; the SPA only displays it" —
+/// "no client-side lists of plans, statuses, tiers or limits"). Before this member existed the
+/// upgrade screen interpolated <paramref name="Tier"/> into a translated sentence, so a Russian
+/// panel read "Он доступен в тарифе addOn."
 /// </param>
 /// <param name="DisplayName">
 /// The module's human-readable name, resolved server-side in the request's culture from the
@@ -27,4 +37,22 @@ namespace Maran.Host.Modules;
 /// Whether the running licence currently permits it. False renders the module's entries as locked
 /// rather than hiding the product's existence.
 /// </param>
-public sealed record ModuleDto(string Name, LicenceTier Tier, string DisplayName, bool IsEnabled);
+/// <param name="AgentCapabilities">
+/// The parts of the root agent this module is permitted to drive, from its own
+/// <see cref="Manifest"/>. It is on the wire so that the answer to "what does this module reach"
+/// is available to the interface — the question that matters for a module bought from a
+/// marketplace, where the description is otherwise the only evidence. No screen renders it yet;
+/// the one that does arrives with the install flow, and it will not need an API change to do it,
+/// which is the point of carrying it now. Serialized as member names by the
+/// panel-wide <see cref="System.Text.Json.Serialization.JsonStringEnumConverter"/>, for the same
+/// reason <paramref name="Tier"/> is. This is a disclosure, never the enforcement:
+/// <c>AgentCapabilityGuard</c> refuses the module at composition, before any request exists to
+/// check (rules/security.md item 13).
+/// </param>
+public sealed record ModuleDto(
+    string Name,
+    LicenceTier Tier,
+    string TierDisplayName,
+    string DisplayName,
+    bool IsEnabled,
+    IReadOnlyList<AgentCapability> AgentCapabilities);

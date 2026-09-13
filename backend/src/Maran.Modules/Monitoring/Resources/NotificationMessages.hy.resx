@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="AlertDiskUsageRaisedSubject">
+    <value>Սկավառակի տեղը սպառվում է՝ {0}</value>
+  </data>
+  <data name="AlertDiskUsageRaisedBody">
+    <value>{0} ֆայլային համակարգը լցված է {1}%-ով և տասը հաջորդական ստուգումների ընթացքում մնում է շեմից բարձր։ Ազատեք տեղ, մինչև գրառումները ձախողվեն։</value>
+  </data>
+  <data name="AlertDiskUsageResolvedSubject">
+    <value>Սկավառակի տեղը վերականգնվել է՝ {0}</value>
+  </data>
+  <data name="AlertDiskUsageResolvedBody">
+    <value>{0} ֆայլային համակարգը կրկին շեմից ցածր է՝ լցված {1}%-ով։</value>
+  </data>
+  <data name="AlertServiceStoppedRaisedSubject">
+    <value>{0} ծառայությունը կանգ է առել</value>
+  </data>
+  <data name="AlertServiceStoppedRaisedBody">
+    <value>{0} ծառայությունը տասը հաջորդական ստուգումների ընթացքում հաղորդվում է որպես կանգնեցված։ Ծառայությունների կառավարիչն ասում է՝ {1}</value>
+  </data>
+  <data name="AlertServiceStoppedResolvedSubject">
+    <value>{0} ծառայությունը կրկին աշխատում է</value>
+  </data>
+  <data name="AlertServiceStoppedResolvedBody">
+    <value>{0} ծառայությունը կրկին աշխատում է։ Ծառայությունների կառավարիչն ասում է՝ {1}</value>
+  </data>
+</root>

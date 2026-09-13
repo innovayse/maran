@@ -22,6 +22,7 @@ namespace Maran.Host.Tests.RateLimiting;
 /// </summary>
 public sealed class LoginRateLimitPolicyTests
 {
+    /// <summary>Attempt beyond the configured budget is rejected with 429 and problem body.</summary>
     [Fact]
     public async Task Attempt_beyond_the_configured_budget_is_rejected_with_429_and_problem_body()
     {
@@ -70,6 +71,7 @@ public sealed class LoginRateLimitPolicyTests
         Assert.True(rejected.Headers.Contains("Retry-After"));
     }
 
+    /// <summary>Attempts within the configured budget all succeed.</summary>
     [Fact]
     public async Task Attempts_within_the_configured_budget_all_succeed()
     {
@@ -84,8 +86,18 @@ public sealed class LoginRateLimitPolicyTests
         }
     }
 
+    /// <summary>Changing the request cannot buy the caller a fresh budget.</summary>
+    /// <remarks>
+    /// This test used to assert the opposite, and the policy used to satisfy it: the partition key
+    /// mixed in the <c>username</c> QUERY value, while the login endpoint authenticates the
+    /// username in the request BODY. An attacker could post the real account's name in the body
+    /// and a different random query value every time, landing each attempt in its own partition —
+    /// unlimited guesses against one account from one address, with the limiter reporting itself
+    /// as working. A budget the caller can reset is not a budget, so the key is now the address
+    /// alone and this test names the property that actually matters.
+    /// </remarks>
     [Fact]
-    public async Task Distinct_partitions_do_not_share_a_budget()
+    public async Task Changing_the_request_cannot_buy_the_caller_a_fresh_budget()
     {
         using var host = await BuildHostAsync(maxAttempts: 1);
         using var client = host.GetTestClient();
@@ -94,7 +106,7 @@ public sealed class LoginRateLimitPolicyTests
         var second = await client.GetAsync($"/login-probe?username=user-{Guid.NewGuid():N}");
 
         Assert.Equal(HttpStatusCode.OK, first.StatusCode);
-        Assert.Equal(HttpStatusCode.OK, second.StatusCode);
+        Assert.Equal(HttpStatusCode.TooManyRequests, second.StatusCode);
     }
 
     /// <summary>Builds a minimal test host wiring the real login policy behind a probe endpoint.</summary>

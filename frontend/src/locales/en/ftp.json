@@ -1,0 +1,102 @@
+{
+  "ftp": {
+    "list": {
+      "heading": "File transfer",
+      "subtitle": "Every login that reaches one account's files, and which protocol it speaks.",
+      "prefixNote": "SFTP and FTPS logins are separate users on this server. Every login carries the owning account's name as a prefix, and the names below are exactly what the server holds — sign in with them as they are.",
+      "loading": "Loading logins…",
+      "emptyTitle": "No file transfer logins yet",
+      "emptyDescription": "Create the first login above. Its password is shown once, when it is created.",
+      "tableCaption": "SFTP and FTPS logins",
+      "columns": {
+        "fullName": "Login",
+        "protocol": "Protocol",
+        "account": "Account",
+        "createdAt": "Created"
+      },
+      "resetPassword": "Reset password",
+      "remove": "Remove",
+      "confirmResetPassword": "Set a new password? The current one stops working immediately.",
+      "confirmRemove": "Remove this login? The account's files stay where they are, but nobody can sign in with this name again.",
+      "working": "Working…",
+      "rowActions": "Actions for {name}",
+      "confirmRemoveTitle": "Remove login {name}",
+      "confirmResetPasswordTitle": "Reset the password for {name}"
+    },
+    "protocols": {
+      "sftp": "SFTP",
+      "ftps": "FTPS"
+    },
+    "form": {
+      "fields": {
+        "accountId": "Account",
+        "protocol": "Protocol",
+        "name": "Login name"
+      },
+      "placeholders": {
+        "name": "web",
+        "accountId": "Choose an account"
+      },
+      "hint": "Lowercase letters and digits only. The account's name is added in front of it.",
+      "ftpsOffNote": "FTPS is turned off on this server, so no FTPS login can be created yet. An administrator turns the service on; SFTP is unaffected.",
+      "submit": "Create login",
+      "errors": {
+        "accountRequired": "Choose the account that will own the login.",
+        "nameRequired": "Login name is required.",
+        "nameInvalid": "Use lowercase letters and digits only, up to 30 characters."
+      }
+    },
+    "credential": {
+      "title": "FTPS password",
+      "warning": "This password is shown once. Nothing keeps a copy of it — not this panel, not the server — so it cannot be shown again. Copy it before you close this.",
+      "hostLabel": "Host",
+      "portLabel": "Port",
+      "protocolLabel": "Protocol",
+      "protocolValue": "FTPS — explicit TLS",
+      "loginLabel": "Login",
+      "passwordLabel": "Password",
+      "hostNote": "Connect to this host name exactly as written. The server's certificate is issued for it, and a client pointed at any other name — including your own domain — will report a name mismatch.",
+      "hostUndisclosed": "This panel does not disclose the transfer host to your account. Ask your administrator which host name and port to connect to.",
+      "selfSignedNote": "The server's certificate is a placeholder the panel generated for itself. Clients will warn about it until a real certificate is issued for this host.",
+      "resetHint": "If it is lost, reset the password from the list. That is the only way back — there is nothing to recover."
+    },
+    "server": {
+      "heading": "FTPS service",
+      "description": "One daemon for the whole server. Everything below was measured on the host, not recalled from this panel's settings.",
+      "fields": {
+        "state": "Panel setting",
+        "running": "Service",
+        "hostname": "Host name",
+        "controlPort": "Control port",
+        "passiveRange": "Passive ports",
+        "forcedTls": "Encryption",
+        "certificate": "Certificate file"
+      },
+      "states": {
+        "enabled": "Turned on",
+        "disabled": "Turned off",
+        "running": "Running",
+        "stopped": "Stopped",
+        "tlsForced": "TLS required for logins and transfers",
+        "tlsUnknown": "Not confirmed as required"
+      },
+      "ipv4Only": "This host has no IPv6 address, so the daemon is bound to IPv4 only.",
+      "selfSigned": "The certificate is a placeholder this panel generated. Every client will warn until a real one is issued for this host name.",
+      "warnings": {
+        "unreachable": "The service is answering on this host, but no firewall rule lets its ports through. Nobody outside the server can connect.",
+        "openPorts": "Open the FTPS ports",
+        "lingering": "FTPS is turned off and its ports are still open in the firewall. Stopping a service does not close a port.",
+        "closePorts": "Close the FTPS ports"
+      },
+      "form": {
+        "hostname": "Host name to serve",
+        "hostnamePlaceholder": "panel.example.com",
+        "passiveAddress": "Passive address (only behind NAT)",
+        "passiveAddressPlaceholder": "203.0.113.10",
+        "enable": "Turn FTPS on",
+        "disable": "Turn FTPS off",
+        "note": "Customers connect to this host name, because the server presents one certificate for the whole panel. Turning the service on does not open the firewall — that is offered separately, so a new listening port is never a surprise."
+      }
+    }
+  }
+}

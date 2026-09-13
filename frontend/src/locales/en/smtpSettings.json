@@ -1,0 +1,31 @@
+{
+  "app": {
+    "smtp": {
+      "heading": "Outgoing mail",
+      "subtitle": "The mail server this panel sends alerts and password-reset links through.",
+      "hostLabel": "Mail server",
+      "portLabel": "Port",
+      "securityLabel": "Connection security",
+      "security": {
+        "none": "None",
+        "startTls": "STARTTLS",
+        "implicitTls": "Implicit TLS"
+      },
+      "usernameLabel": "User name",
+      "passwordLabel": "Password",
+      "passwordPlaceholder": "Leave empty to keep the saved one",
+      "hasPassword": "A password is saved. Type one here only to replace it.",
+      "noPassword": "No password is saved.",
+      "fromAddressLabel": "Sender address",
+      "fromNameLabel": "Sender name",
+      "alertRecipientLabel": "Send alerts to",
+      "save": "Save mail settings",
+      "saved": "The mail settings have been saved.",
+      "testTitle": "Send a test message",
+      "testDescription": "Sends one message with the settings as they are saved, and reports what the mail server answered.",
+      "testRecipientLabel": "Send the test to",
+      "sendTest": "Send test message",
+      "testSent": "The mail server accepted the test message."
+    }
+  }
+}

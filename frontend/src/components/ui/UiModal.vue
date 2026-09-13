@@ -8,15 +8,17 @@
  * It carries the full dialog contract so screens do not have to:
  * `role="dialog"` with `aria-modal`, an accessible name taken from the
  * rendered title, a focus trap that cycles Tab and Shift+Tab inside the
- * panel, Escape and backdrop-click dismissal, and focus restored to whatever
- * element opened it. The dialog is teleported to `<body>` so no ancestor's
- * `overflow` or stacking context can clip it.
+ * panel, Escape and backdrop-click dismissal (both suppressed together by
+ * `:dismissible="false"` for a dialog whose content cannot be recovered), and
+ * focus restored to whatever element opened it. The dialog is teleported to
+ * `<body>` so no ancestor's `overflow` or stacking context can clip it.
  *
  * The caller owns the open state: this component reports `close` and never
  * closes itself behind the caller's back.
  */
 import { nextTick, onBeforeUnmount, ref, watch, useId, type Ref } from 'vue'
 import { focusableElements as focusableIn } from '../../utils/focusableElements'
+import UiIcon from './UiIcon.vue'
 
 /** Props accepted by {@link UiModal}. */
 const props = withDefaults(
@@ -27,10 +29,22 @@ const props = withDefaults(
     title: string
     /** Accessible name for the close button, already translated by the caller. */
     closeLabel: string
-    /** Whether a click on the backdrop dismisses the dialog; turn it off for a step the user must answer. */
-    dismissOnBackdrop?: boolean
+    /**
+     * Whether the user may dismiss the dialog themselves — by clicking the
+     * backdrop or pressing Escape. Turn it OFF for a dialog whose content
+     * cannot be recovered once it is gone: the credential dialogs show a
+     * password that exists nowhere else in the product, so a mis-aimed click
+     * beside the panel or a reflexive Escape would destroy it with no way
+     * back. Such a dialog still closes through its own explicit control and
+     * through the close button in the header.
+     *
+     * Both gestures are governed by this ONE prop rather than two, because a
+     * dialog that refuses a backdrop click while still answering Escape is
+     * protected against the accident nobody makes and open to the one they do.
+     */
+    dismissible?: boolean
   }>(),
-  { dismissOnBackdrop: true },
+  { dismissible: true },
 )
 
 /** Events emitted by {@link UiModal}. */
@@ -61,17 +75,33 @@ const requestClose = (): void => {
 }
 
 /**
- * Dismisses on a backdrop click, ignoring clicks that started inside the panel
- * and bubbled out.
+ * Dismisses on a backdrop click, unless the caller has declared the dialog
+ * undismissable, and ignoring clicks that started inside the panel and bubbled out.
  * @param event The native mouse event on the backdrop.
  * @returns Nothing; emits synchronously.
  */
 const onBackdropClick = (event: MouseEvent): void => {
-  if (!props.dismissOnBackdrop) {
+  if (!props.dismissible) {
     return
   }
   const target = event.target
   if (target instanceof Node && panelElement.value?.contains(target) === true) {
+    return
+  }
+  requestClose()
+}
+
+/**
+ * Dismisses on Escape, unless the caller has declared the dialog undismissable.
+ *
+ * Escape is guarded for the same reason the backdrop is, and it is the likelier
+ * of the two accidents: it is one keystroke, it is muscle memory, and on a
+ * dialog showing a value that exists nowhere else it destroys that value with
+ * nothing to undo it.
+ * @returns Nothing; emits synchronously when dismissal is allowed.
+ */
+const onEscape = (): void => {
+  if (!props.dismissible) {
     return
   }
   requestClose()
@@ -115,11 +145,33 @@ const onTab = (event: KeyboardEvent): void => {
 // Focus enters the dialog when it opens and returns to the opener when it
 // closes. Both directions are handled here so every caller gets the behaviour
 // without writing any of it.
+//
+// `immediate` is the whole of the contract for a caller that MOUNTS this
+// component already open — `v-if="x"` beside `:open="x"`, which is what a
+// dialog whose props are only valid while it is open has to write. Without it
+// the watcher never fires for such a caller at all: focus stays on the page
+// behind, `previouslyFocused` stays `null`, and because Escape is a `keydown`
+// on the backdrop element, a keystroke that never originates inside the dialog
+// never reaches `onEscape` — so **Escape does nothing** and closing by any
+// other route drops focus to `<body>`. Both destructive dialogs in the product
+// (account deletion, backup restore) were in exactly that state.
+//
+// It is safe for every OTHER caller, and provably so rather than by inspection:
+// a modal mounted closed takes the `else` arm on the immediate pass, where
+// `previouslyFocused` is still the `null` it was initialised to one statement
+// ago, so `?.focus()` cannot move focus anywhere. Fixing it here rather than at
+// the two call sites is deliberate: "focus enters when open" is this
+// component's promise, and a promise kept only for callers who mount in a
+// particular order is not one.
 watch(
-  (): boolean => props.open,
+  (): boolean => {
+    return props.open
+  },
   async (isOpen: boolean): Promise<void> => {
     if (isOpen) {
       previouslyFocused.value = document.activeElement instanceof HTMLElement ? document.activeElement : null
+      // On the immediate pass this resolves after the mounting render flush, so
+      // the panel exists to focus into by the time it returns.
       await nextTick()
       const elements = focusableIn(panelElement.value)
       // Fall back to the panel itself (tabindex="-1") when the dialog has no
@@ -130,6 +182,7 @@ watch(
     previouslyFocused.value?.focus()
     previouslyFocused.value = null
   },
+  { immediate: true },
 )
 
 // A route change can tear the dialog down while it is still open, and the `open`
@@ -148,12 +201,15 @@ onBeforeUnmount((): void => {
          Focus on <body> is outside the trap, and the Escape and Tab handlers below
          never fire for it. Only the backdrop itself is suppressed, so presses
          inside the panel still focus and select normally. -->
+    <!-- z-[60] is above UiDropdown's panel, which is also teleported to body and
+         sits at z-50. Two teleported siblings at the SAME z resolve by mount
+         order, which is not a rule anyone can read off the page. -->
     <div
       v-if="open"
-      class="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-5 backdrop-blur-[2px]"
+      class="fixed inset-0 z-[60] flex items-center justify-center bg-black/55 p-6 backdrop-blur-[2px]"
       @mousedown.self.prevent
       @click="onBackdropClick"
-      @keydown.esc.prevent="requestClose"
+      @keydown.esc.prevent="onEscape"
       @keydown.tab="onTab"
     >
       <div
@@ -162,30 +218,34 @@ onBeforeUnmount((): void => {
         aria-modal="true"
         :aria-labelledby="titleId"
         tabindex="-1"
-        class="ui-modal-panel w-full max-w-[460px] overflow-hidden rounded-xl border border-border-strong bg-surface-1 shadow-[0_24px_64px_rgb(0_0_0/0.5)] focus-visible:outline-none"
+        class="ui-modal-panel flex max-h-full w-full max-w-[460px] flex-col overflow-hidden rounded-xl border border-border-strong bg-surface-1 shadow-[0_24px_64px_rgb(0_0_0/0.5)] focus-visible:outline-none"
       >
-        <div class="flex items-start justify-between gap-4 px-4.5 pt-4 pb-3.5">
-          <h2 :id="titleId" class="text-[15px] font-semibold text-text-primary">{{ title }}</h2>
+        <div class="flex shrink-0 items-start justify-between gap-4 px-6 pt-5 pb-4">
+          <h2 :id="titleId" class="text-lg font-semibold text-text-primary">{{ title }}</h2>
           <button
             type="button"
             class="inline-flex size-6 shrink-0 items-center justify-center rounded-md text-text-muted transition-colors hover:bg-surface-3 hover:text-text-primary focus-visible:shadow-focus focus-visible:outline-none"
             @click="requestClose"
           >
             <!-- Decorative glyph: the button's accessible name comes from the caller-translated label. -->
-            <svg class="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
-              <path d="M6 6l12 12M18 6L6 18" stroke-width="2" stroke-linecap="round" />
-            </svg>
+            <UiIcon name="x" size="sm" />
             <span class="sr-only">{{ closeLabel }}</span>
           </button>
         </div>
-        <div class="px-4.5 pb-4 text-xs leading-normal text-text-secondary">
+        <!-- The body scrolls, the header and the footer do not. A dialog taller than the
+             viewport otherwise clips its own footer: the panel is centred and hidden past its
+             edges, so the confirm button sits off-screen with nothing to scroll it into view —
+             which turns "the user must read this before acting" into "the user cannot act". Found
+             on the backup restore dialog, whose body states what a restore replaces and what it
+             does not, and is long because it has to be. -->
+        <div class="min-h-0 flex-1 overflow-y-auto px-6 pb-5 text-base leading-normal text-text-secondary">
           <slot />
         </div>
         <!-- The design seats the actions on the raised surface, which is what
              separates them from the body without a second full-width rule. -->
         <div
           v-if="$slots.footer"
-          class="flex justify-end gap-2 border-t border-border-subtle bg-surface-2 px-4.5 py-2.5"
+          class="flex shrink-0 justify-end gap-2 border-t border-border-subtle bg-surface-2 px-6 py-4"
         >
           <slot name="footer" />
         </div>

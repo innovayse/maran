@@ -1,0 +1,42 @@
+# Rotation for the FTPS daemon's transfer log.
+#
+# Installed to /etc/logrotate.d/maran-ftps, root:root 0644, by installer/lib/89-ftps.sh.
+#
+# It is not housekeeping. `vsftpd_log_file=/var/log/maran/ftps.log` is the one file this
+# product writes for FTPS, the installer configures no rotation for it anywhere else, and
+# nothing else bounds it: it records one line per login and one per transfer, from every
+# customer, forever. Left alone it fills the operator's /var, and it does so fastest on
+# exactly the host where FTPS is being used most.
+#
+# Every choice below is deliberate:
+#
+#   * The path is a single file under /var/log/maran, which install.sh makes root-owned and
+#     0750. logrotate runs as root; a glob that reached under /home would be the escalation
+#     that moved the site logs out of customers' homes in the first place
+#     (docs/superpowers/notes/2026-09-09-site-logs-threat-note.md), wearing a different hat.
+#   * `su root root` names the privileges explicitly instead of letting logrotate infer them
+#     from the directory's owner, so a later change of ownership cannot silently make the
+#     rotation run as whoever now owns the tree.
+#   * `create 0640 root root` gives the replacement file the same containment as the file it
+#     replaces. The log names accounts and the files they moved; nothing but root reads it.
+#   * `missingok`, because FTPS ships OFF: on the overwhelming majority of hosts this file
+#     never exists, and a daily cron error on every one of them would train operators to
+#     ignore logrotate's output.
+#   * `notifempty`, so a host where the daemon is enabled and idle does not accumulate
+#     52 empty compressed files a year.
+#   * There is NO postrotate script, and that is not an omission. vsftpd opens its log file
+#     per session rather than holding one descriptor for the life of the daemon, so it has
+#     no reopen signal to send — and `copytruncate` is not needed either: a session already
+#     running keeps writing into the rotated inode until it ends, which loses no line.
+#     Sending a signal to a daemon that does not define one would be decoration.
+
+/var/log/maran/ftps.log {
+    weekly
+    rotate 4
+    missingok
+    notifempty
+    compress
+    delaycompress
+    create 0640 root root
+    su root root
+}

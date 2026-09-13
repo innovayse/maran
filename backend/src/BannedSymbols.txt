@@ -1,0 +1,5 @@
+# APIs banned in PRODUCTION code only (backend/src). Tests use them to prove the rules hold, so
+# backend/BannedSymbols.txt — which applies everywhere — is not the place for these.
+# Format: symbol ; message. The signature is written out in full because a symbol id without its
+# parameter list does not match a generic extension method; the short form silently bans nothing.
+M:Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.IgnoreQueryFilters``1(System.Linq.IQueryable{``0}); Tenant scoping is the global query filter (rules/security.md item 6). Bypassing it is legitimate only for unattended work with no principal — renewal, retention, reconciliation, account deletion, a server-wide uniqueness check — and each such line must say why: suppress RS0030 at the call with the reason.

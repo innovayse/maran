@@ -1,0 +1,53 @@
+name: codeql
+
+# Static analysis for the two ecosystems CodeQL understands here. Rust is not covered — its
+# equivalent is `cargo clippy -D warnings` plus the rule that `unsafe` exists in exactly one
+# module, which the agent workflow and `maran structure` enforce.
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+    branches: [main, dev]
+  schedule:
+    # Weekly, because a query that finds nothing today can find something after the query pack
+    # is updated, with no change of ours at all.
+    - cron: '17 4 * * 1'
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [csharp, javascript-typescript]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        if: matrix.language == 'csharp'
+        with:
+          dotnet-version: '9.0.x'
+
+      - name: Install protoc
+        if: matrix.language == 'csharp'
+        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
+
+      - uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+          queries: security-and-quality
+
+      - name: Build the backend
+        if: matrix.language == 'csharp'
+        run: dotnet build backend --configuration Release
+
+      - uses: github/codeql-action/autobuild@v3
+        if: matrix.language != 'csharp'
+
+      - uses: github/codeql-action/analyze@v3
+        with:
+          category: /language:${{ matrix.language }}

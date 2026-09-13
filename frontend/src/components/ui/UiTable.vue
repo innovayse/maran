@@ -23,7 +23,7 @@ defineProps<{
        the horizontal scroll lives on the inner element. -->
   <div class="overflow-hidden rounded-xl border border-border-subtle bg-surface-1">
     <div class="overflow-x-auto">
-      <table class="w-full border-collapse text-left text-xs">
+      <table class="w-full border-collapse text-left text-base">
         <caption class="sr-only">
           {{
             caption

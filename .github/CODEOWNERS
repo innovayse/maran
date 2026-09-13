@@ -1,0 +1,33 @@
+# Who is asked to review what.
+#
+# `main` requires one approval, and rules/security.md requires a SECOND reviewer for the four
+# areas below. This file is what turns that rule into a request GitHub sends, instead of
+# something a reviewer has to remember. Ownership here is about who must look, not about who
+# may change: anyone may open the pull request.
+
+# Everything, by default.
+*                                   @edgar2031
+
+# Authentication, sessions and tokens. A mistake here is not a bug that shows up as an
+# exception — it is a caller silently treated as somebody else.
+/backend/src/Maran.Modules/Identity/ @edgar2031
+/backend/src/Maran.Host/Security/    @edgar2031
+/backend/src/Maran.Host/Authorization/ @edgar2031
+/backend/src/Maran.Host/RateLimiting/  @edgar2031
+/backend/src/Maran.SharedKernel/Security/ @edgar2031
+
+# The agent runs as root. `privs` is the only place `unsafe` is allowed, and the ordering
+# there (fork, then drop; setgroups, setgid, setuid) is easy to get wrong and fatal when it is.
+/agent/crates/agent-core/src/privs/  @edgar2031
+/agent/crates/agent/src/peercred/    @edgar2031
+
+# The contract between the panel and a root daemon. Additive changes only.
+/proto/                              @edgar2031
+
+# Privileged installation steps, and the secrets they generate.
+/installer/                          @edgar2031
+
+# The rules themselves, and the gates that enforce them.
+/rules/                              @edgar2031
+/scripts/                            @edgar2031
+/.github/                            @edgar2031

@@ -1,0 +1,17 @@
+# Rendered by Maran. Do not edit: this file is replaced whenever the account's
+# SFTP access changes.
+[Unit]
+Description=Maran SFTP jail home for {{ account }}
+
+[Mount]
+# The account's real home, mounted into its root-owned jail rather than copied
+# into it: the home keeps its own ownership and mode, so nginx, php-fpm and
+# every site path go on reading exactly the directory they read before.
+What={{ source_directory }}
+Where={{ mount_point }}
+Type=none
+Options=bind
+
+[Install]
+WantedBy=multi-user.target
+

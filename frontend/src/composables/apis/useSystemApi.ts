@@ -14,7 +14,9 @@ export const useSystemApi = (): SystemApi => {
    * Calls `GET /health` through the shared API client.
    * @returns The backend's reported health status.
    */
-  const getHealth = (): Promise<HealthResponse> => api.get<HealthResponse>('/health')
+  const getHealth = (): Promise<HealthResponse> => {
+    return api.get<HealthResponse>('/health')
+  }
 
   return { getHealth }
 }

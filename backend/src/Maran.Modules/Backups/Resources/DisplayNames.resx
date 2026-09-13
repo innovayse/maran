@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="BackupsModuleDisplayName">
+    <value>Backups</value>
+  </data>
+  <data name="BackupFailureBackupStreamDropped">
+    <value>Connection to the server was lost</value>
+  </data>
+  <data name="BackupFailureBackupStreamIdle">
+    <value>The server stopped responding</value>
+  </data>
+  <data name="BackupFailureBackupTruncated">
+    <value>The server never reported an outcome</value>
+  </data>
+  <data name="BackupFailureBackupCancelled">
+    <value>Cancelled</value>
+  </data>
+  <data name="BackupFailureBackupInvalidOutcome">
+    <value>The server reported an archive it could not name</value>
+  </data>
+  <data name="BackupFailureBackupScheduledRunAborted">
+    <value>The scheduled run was interrupted</value>
+  </data>
+  <data name="BackupFailureAgentUnspecified">
+    <value>The server did not say why</value>
+  </data>
+  <data name="BackupFailureAgentInvalidInput">
+    <value>The server would not accept this request</value>
+  </data>
+  <data name="BackupFailureAgentAlreadyExists">
+    <value>The server already holds a backup under this identifier</value>
+  </data>
+  <data name="BackupFailureAgentNotFound">
+    <value>The server could not find what it needed</value>
+  </data>
+  <data name="BackupFailureAgentValidationFailed">
+    <value>The server rejected this request as invalid</value>
+  </data>
+  <data name="BackupFailureAgentSystemFailure">
+    <value>The server could not complete the backup</value>
+  </data>
+  <data name="BackupFailureAgentNotImplemented">
+    <value>The server does not support this destination</value>
+  </data>
+  <data name="BackupFailureAgentInvalidResponse">
+    <value>The server returned an answer the panel could not read</value>
+  </data>
+  <data name="BackupFailureAgentAccountBusy">
+    <value>Another operation on this account was still running</value>
+  </data>
+  <data name="BackupFailureAgentLimitReached">
+    <value>A plan allowance for this account was already used up</value>
+  </data>
+  <data name="BackupDestinationDefault">
+    <value>Local storage</value>
+  </data>
+  <data name="BackupFailureBackupOutcomeUnobserved">
+    <value>The panel stopped following the run</value>
+  </data>
+  <data name="BackupFailureBackupArtifactUnvouched">
+    <value>Archive present, checksum not recorded</value>
+  </data>
+</root>

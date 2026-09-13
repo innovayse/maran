@@ -4,6 +4,16 @@
 // "/home/<account>/" (containment check), regardless of what the caller
 // already validated. All operations run under the account's UID, never
 // as root.
+//
+// Implementation status, stated here because a contract that does not say
+// which of its rpcs exist is one a caller discovers by getting UNIMPLEMENTED
+// in production. The agent implements WriteFile and DeleteEntry — the two an
+// ACME HTTP-01 challenge needs, and no more: the agent's command set is
+// closed, and an rpc nobody calls is a surface nobody reviews. The remaining
+// seven answer UNIMPLEMENTED and land with the task that has a caller for
+// them. Their messages stay declared either way: removing them would be a
+// breaking change under the additive-only rule, and both sides already
+// generate types from them.
 syntax = "proto3";
 
 package maran.agent.v1;
@@ -26,10 +36,41 @@ service FilesService {
   // leaves a partial file at the destination path. Idempotent: writing
   // identical content twice leaves the same end state; the response
   // carries the final size for the caller to verify.
+  //
+  // Missing parent directories are created, as the account, mode 0755. The
+  // caller does not call CreateDirectory first: an ACME challenge lives in
+  // ".well-known/acme-challenge/", which does not exist until the first
+  // issuance asks for it, and a two-rpc dance would leave a half-built tree
+  // behind whenever the second call failed. A directory that already exists
+  // is left exactly as it is — its mode is never changed.
+  //
+  // The header belongs on the FIRST message of the stream and there is exactly
+  // one of it: a header arriving later, or a second one, is refused with
+  // INVALID_INPUT rather than being allowed to redirect a write already under
+  // way.
+  //
+  // The agent buffers the whole body before writing it, so the stream is
+  // capped: a body over 1 MiB is refused with INVALID_INPUT rather than
+  // truncated. `mode` is plain permission bits only; setuid, setgid and the
+  // sticky bit are refused with INVALID_INPUT, never masked away.
+  //
+  // INVALID_INPUT and not VALIDATION_FAILED for both, because neither looks at
+  // the filesystem: they are refusals of the request as sent, which is the
+  // distinction rules/proto.md draws between the two codes. VALIDATION_FAILED
+  // is what a path that resolves outside the home gets, and what a level of the
+  // account's own tree that is not a directory it owns gets — those are answers
+  // the agent can only give after looking.
   rpc WriteFile(stream WriteFileRequest) returns (WriteFileResponse);
 
   // Deletes a file or, when recursive is set, a directory and its
   // contents. Idempotent: deleting a non-existent path returns NotFound.
+  //
+  // The agent implements the file case only: a request with recursive set is
+  // refused with INVALID_INPUT, because recursive removal inside a customer's
+  // home is a far larger operation than the challenge cleanup this rpc was
+  // built for and it will be written by the task that needs it. The entry
+  // must be a regular file the account owns with a single link; a symlink, a
+  // FIFO, a device or a hardlink at that name is refused rather than removed.
   rpc DeleteEntry(DeleteEntryRequest) returns (DeleteEntryResponse);
 
   // Moves or renames a file or directory within the same account home.

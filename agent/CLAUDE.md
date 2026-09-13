@@ -1,0 +1,188 @@
+# Maran agent (Rust) — instructions for AI sessions
+
+Binding rules: `rules/rust.md` (layout, naming, privileges), `rules/security.md`
+(the reviewer's checklist), `rules/testing.md` (where tests live).
+Read `rules/rust.md` before writing any Rust in this tree.
+
+## The one-line summary
+
+`agent` translates, `ops` decides, `agent-core` validates, `distro` knows the
+platform, `templates` renders. A file that does two of these is in the wrong
+crate.
+
+## Where a new file goes
+
+Answer these in order; the first "yes" is the destination.
+
+1. Does it turn a proto message into a call, or an error into a `tonic::Status`?
+   → `crates/agent/src/services/<service>/`
+2. Does it change the system (users, configs, services, files)?
+   → `crates/ops/src/<area>/`
+3. Does it answer "is this input safe?" or "run this as that user"?
+   → `crates/agent-core/src/`
+4. Does it differ between Debian and RHEL? → `crates/distro/src/`
+5. Does it produce config file text? → `crates/templates/`
+
+If none fit, it is a NEW kind of file: add its named place to
+`rules/rust.md` first, in the same PR. Never file it "wherever it fits".
+
+Tables below mark planned homes as *(planned)*. A planned row is the address a
+future file must use — it is not a claim that the file exists today.
+
+## Crate map
+
+### `crates/agent/` — the daemon, binary + library
+
+The only crate that knows gRPC exists. Library plus a thin `main`, so integration
+tests can start a real server in-process on a temporary socket.
+
+| Path | Purpose |
+|---|---|
+| `src/main.rs` | tracing setup, flag parsing, start. Nothing else. |
+| `src/lib.rs` | module declarations; includes generated proto once for the crate. |
+| `src/server.rs` | socket preparation, permissions, service registry. |
+| `src/error.rs` | `StartupError` — fatal startup failures only. |
+| `src/config/` | command-line and environment parsing: `invocation.rs` (what the command line asked for — run the daemon, print usage, or render one of the two firewall files the installer seeds from; refuses an argument this binary does not define, and matches a subcommand at the first position only), `agent_options.rs` (the answer it carries), `options_error.rs`. |
+| `src/peercred/` | who may connect at all. `peer_policy.rs` = the rule, `peer_guard.rs` = the check. Authorisation starts below the RPC layer. |
+| `src/services/<service>/` | one folder per proto service. `<service>_service.rs` = the tonic trait impl, `<area>_status.rs` = the error → gRPC code mapping, `validated_*.rs` = one proto-to-input bundle per request shape. Today: `system/`, `accounts/`, `sites/`, `ssl/`, `php/`, `files/`, `db/`, `sftp/`, `ftps/`, `cron/`, `firewall/`, `backup/`, `monitor/`. A folder is one PROTO SERVICE, not one ops area, so `sftp/` also holds `logins_status.rs`: the rpc that locks an account's logins is served beside the SFTP rpcs it was written with, and `ops::logins` has no service of its own to map from. |
+| `src/services/wire/` | NOT a service: the proto ↔ domain boundary every service shares. `invalid_input.rs` and `system_failure.rs` (the two wire-error constructors), `validated_account.rs` (the agent's own re-check of the account name an rpc carries), `run_blocking.rs` (the one `spawn_blocking` wrapper — every process wait leaves the async workers through it, and the failure message stays caller-chosen so no operator-facing text moved). Services import from here, never from each other's folders. |
+| `src/tests/` | unit tests, mirroring `src/`. |
+| `tests/` | integration tests over a real unix socket (`handshake.rs`), plus `fixtures/`. |
+| `build.rs` | compiles `proto/agent/v1/` via tonic-build. Generated code is never committed. |
+
+A service method does exactly three things: proto → validated input, one `ops`
+call, result → response. Business branching, filesystem access and process
+spawning in a service file are review rejects.
+
+### `crates/agent-core/` — validation, privileges, and what is global
+
+The security primitives every other crate depends on. No gRPC, no distro
+knowledge, no system mutation.
+
+| Path | Purpose |
+|---|---|
+| `src/agent_paths.rs` | `AgentPaths`: directories the agent owns that are identical on every family (nginx include dir, certificate dir, account home root, php-fpm socket dir, **both** jail roots — SFTP at 0700 and FTPS at 0711 — site log root, backup root, bulk scratch root). A path that differs per family is a `distro` fact instead. The two jail roots are named together on purpose: what separates them is not the platform but when each daemon chroots relative to dropping privilege (`ops/src/ftps/` below), so a reader who finds only the SFTP one here puts the FTPS root on the `DistroAdapter` and its mode stops travelling with it. |
+| `src/secret_string.rs` | `SecretString`: a string whose `Debug` **and** `Display` print `«redacted»`, so a credential carried in a `#[derive(Debug)]` request struct cannot reach a log line — that, and not a deliberate `{secret:?}`, is how one actually does. It validates nothing, so it is not under `validation/`. `expose` is the only reader and is named to be greppable. |
+| `src/validation/` | grouped by the domain the value ends up in: `system/` (name, sftp_user_name, ftps_user_name — a second prefixed login name and not a reuse of the first, because the two are different system users on one host — cron_schedule, cron_command, cron_entry_id, env_var_name, env_var_value, backup_id, local_backup_root), `db/` (database_name, db_user_name), `web/` (domain, upstream, php_version, port, source_cidr, ban_address, ipv4_disguise — shared predicate, no _error — passive_address, s3_bucket, s3_region, s3_object_prefix), `fs/` (path — `resolve_in_home` — relative_path, file_mode), `secrets/` (password — the one validated kind; a value that only needs hiding is `secret_string.rs` above, not here). One type per input kind, each with its own `*_error.rs` beside it. A constructed value is a valid value. Beside the groups, `prefixed_name.rs` + `prefix_problem.rs` hold the crate-internal core the three account-prefixed names are built from and the one separator their `decode` methods split at — construction and its inverse cannot drift apart. |
+| `src/utils/` | helpers that belong to no single area and answer a question about the host, not about a feature: `directory.rs` (recursive size), `current_uid.rs`, `system_account.rs` (one row of the local password database), `system_accounts.rs` (parsing a whole database into rows) `spawn_argv.rs` (the one argv spawn every process host runs), `available_bytes.rs` (free space on the filesystem the given directory itself sits on, never its parent's) and `apply_child_environment.rs` (the COMPLETE environment every spawn in this workspace gives a child — cleared, then two declared entries; the spawns that cannot use `spawn_argv` because they pipe stdin still use this). A helper only one area calls belongs to that area, not here. |
+| `src/privs/` | the ONLY place `unsafe` is allowed. `fork_as_account.rs` is the single entry point for doing work as a customer; `account_ids.rs` resolves uid/gid via `getpwnam_r`; `group_id.rs` resolves the numeric id of a group the AGENT names (never a caller) via `getgrnam_r`; the `*_in_directory.rs` family (`open`, `create_file`, `make_directory`, `remove_file`, `rename`) plus `directory_entry_name.rs` are the `*at`-syscall wrappers that keep a name-based operation inside a directory already held open; `priv_error.rs` types the failures. Threat note: `docs/superpowers/notes/2026-08-30-privs-threat-note.md`. |
+
+`privs` rules that are easy to get wrong: fork first, then drop (setuid is
+process-wide, not thread-scoped, so it must not be called inside the tokio
+runtime); order is `setgroups` → `setgid` → `setuid`; the child re-reads and
+verifies its ids before touching anything. Changes here need a second reviewer.
+
+### `crates/distro/` — the only crate that may name a distribution
+
+Every `if debian` in the codebase belongs here and nowhere else. No other crate
+may contain a platform literal — a path, a package name, a shell — and
+`maran structure` fails the build when one appears in `ops`.
+
+| Path | Purpose |
+|---|---|
+| `src/detection/` | what host is this? `os_release.rs` parses, `detect.rs` decides, `distro_info.rs` carries the answer, `detect_error.rs` refuses unsupported hosts. |
+| `src/adapter.rs` | the `DistroAdapter` trait, alone in its file. |
+| `src/adapter_for.rs` | family → adapter. The branch on family happens exactly once, here. |
+| `src/family.rs` | `DistroFamily`. |
+| `src/vsftpd_tls_version_keys.rs` | the NAMES of the three TLS-version options a rendered `vsftpd.conf` writes. Flat rather than inside a family folder because it is the shape BOTH adapters answer with; the families spell the same options differently (`ssl_tlsv11` against `ssl_tlsv1_1`) and the wrong spelling makes vsftpd exit 2 printing nothing. All three are carried even though `ssl_tlsv1` is identical on both today — the identical one is the trap, being the one that reads as safe to type into the template as a literal. |
+| `src/debian/debian_adapter.rs`, `src/rhel/rhel_adapter.rs` | paths, package names, service names per family. |
+| `src/tests/` | unit tests, mirroring `src/`. |
+
+Adding a family = one new folder + one arm in `adapter_for`. Nothing else changes.
+
+### `crates/ops/` — what the agent actually does
+
+One folder per area, one file per proto RPC, named as the RPC in snake_case:
+`CreateSite` → `sites/create_site.rs`. The mapping is mechanical so the code for
+an RPC is found without searching.
+
+| Path | Purpose |
+|---|---|
+| `src/accounts/` | system users: useradd/userdel, homes, quotas, usage. |
+| `src/sites/` | nginx vhosts: create, enable/disable, delete, php version, log tail, reload. |
+| `src/php/` | pools and versions. No proto service of its own — driven by sites and accounts. |
+| `src/db/` | MySQL/MariaDB databases and the dedicated user each one is created with. The agent holds no database credential: it connects over the local socket as root, authenticated by the connecting uid. |
+| `src/files/` | customer file operations. Every one goes through `resolve_in_home` and runs under the account's uid. |
+| `src/sftp/` | OpenSSH SFTP logins, each chrooted into a per-account root-owned jail with the account's real home bind-mounted inside. `model/account_jail.rs` derives every jail path AND the systemd mount unit's escaped name from one `AccountName`. The login is created with the ACCOUNT's own uid and gid (`model/account_ownership.rs`): a home of `<account>:<web server group> 0750` gives a separate identity nothing at all. |
+| `src/ftps/` | vsftpd: system logins gated by a PAM group, chrooted into `/var/lib/maran-ftps/<account>` at mode 0711 and NOT 0700 — vsftpd chdirs into the home AFTER dropping to the account's uid where sshd chroots as root BEFORE, which is why the two jail bases beside each other must differ — with TLS forced. |
+| `src/logins/` | what both file-transfer protocols share, so it is stated once instead of once per protocol: enumerating an account's logins, locking them, and the systemd path-escaping rule. Not a proto service — the rpc that drives it is served from `services/sftp/`. |
+| `src/ftp/` | a zero-byte `.gitkeep` skeleton from before the protocol was chosen, and NOT an area. The shipped FTP is FTPS, in `src/ftps/` above. |
+| `src/cron/` | per-account crontab entries. |
+| `src/firewall/` | nftables rules and bans. |
+| `src/ssl/` | certificate install, removal, self-signed. |
+| `src/backup/` | create, restore, list, delete. One artifact per backup: a gzip-compressed `tar` of the account's home plus one SQL dump per database, with a manifest inside it. `archive/` holds the steps one artifact is physically made of, in both directions — the dump, the manifest-and-archive run, the home measurement, the SHA-256, the member scan, and the two extracts and the database replace a restore reads them back with — each crate-private, because they are steps and not operations. `root_only_chain.rs` holds the scratch tree's inode discipline beside BOTH bulk callers rather than inside either: create and restore stage into the same tree, and a boundary enforced by one of them is not a boundary. `backup_root.rs` is the inode check that stands between the validated configuration string and a directory whose ownership or mode has drifted since. `database_catalog.rs` is a second seam, so this area never imports `ops::db`. |
+| `src/monitor/` | host metrics, service statuses, per-account disk usage. |
+| `src/safe_write/` | the ONE implementation of render → temp → fsync → **atomic rename → validate** → reload → rollback. Validation follows the rename because the validator reads the config tree by path (`nginx -t` globs `include`s; a temp file matches none), so validating before the swap would parse the old tree — and it is safe because nothing re-reads the file until the reload, so a refusal restores the previous bytes. What that costs, and is not a shortcut to be "fixed": a kill between rename and validation leaves unvalidated content live with the rollback guard gone (rules/rust.md "Config writes: render → swap → validate"). Areas call it; they never write their own copy. |
+| `src/tests/support/` | test-only, mounted once from `lib.rs` under `#[cfg(test)]`: helpers whose users are fakes in different areas. `recording_commands.rs` is the record-the-argv, answer-a-configured-outcome core that the fakes sharing that shape hold in a field and delegate to. A fake that answers per-argv (ssl) or per-unit (monitor) is a different kind of fake and keeps its own body. |
+
+Inside an area: `mod.rs` (declarations only), `<area>_error.rs` (one error enum
+for the area), one file per operation, and `model/` for its input and output
+types — `accounts/` is the worked example, down to `system_host.rs` (the trait
+that keeps process spawning injectable) and `process_system_host.rs` (its real
+implementation). A type needed by two areas moves to `agent-core`; areas never
+import each other.
+
+Every operation is idempotent: repeating it converges, and it reports
+`AlreadyExists`/`NotFound` rather than failing. This is why retries are safe and
+why no cleanup scripts exist.
+
+### `crates/templates/` — config text
+
+| Path | Purpose |
+|---|---|
+| `src/nginx/`, `src/php_fpm/`, `src/systemd/`, `src/vsftpd/`, `src/nftables/` | one askama render type per config artifact. **Every render must end with a newline, and a byte-exact golden cannot check that** — the golden is generated from the render, so it agrees with whatever the last byte is, and five templates shipped without one while their own goldens stayed green. `every_golden_ends_with_a_newline` walks all of them instead. The cost of getting it wrong differs by artifact: an appended line in `vsftpd.conf` merges into the key above it and the daemon exits 2 printing nothing, while `nginx/suspended_site.conf` is compared byte-for-byte against a fresh render to decide whether a site is suspended, so one extra byte puts a suspended customer's site back on the air. `nftables/` renders the firewall's applied policy — the ruleset and the runtime-ban table as two separate files/tables, so re-applying a re-rendered ruleset never drops a live ban. |
+| `templates/<target>/` | the template sources, mirroring the render types. |
+| `tests/golden/<target>/` | byte-exact expected renders. Names are derived from the render type, never invented. |
+
+A template change without its golden update fails CI; the golden diff is the
+review artifact.
+
+## Standing constraints
+
+- Never `unwrap`, `expect` or `panic!` outside tests and build scripts. A root
+  process returns typed errors.
+- No shell, ever. Processes are spawned with argv arrays against an allow-list of
+  absolute paths from the distro adapter. No RPC runs caller-supplied code.
+- Doc comments on every item, private included. `# Errors` names the conditions,
+  not just the type.
+- One file = one public unit, and the file is named after it (`adapter.rs` holds
+  `DistroAdapter`, `debian_adapter.rs` holds `DebianAdapter`). Errors get their
+  own `*_error.rs`. `mod.rs` and crate roots declare and re-export, never define.
+- Blocking work goes through `spawn_blocking`. Streams stay bounded — never read a
+  customer file into memory whole.
+- A streaming rpc states its cancellation class — stop, run to completion, or run
+  to completion and then reclaim — in its own doc comment, and why. A dropped
+  future cancels nothing here, because every unit of host work is inside
+  `spawn_blocking`, so "it stops when the client leaves" is a claim that has to be
+  implemented and therefore written down (`rules/rust.md`, "Async and blocking").
+- Never log secrets or customer file contents, at any level.
+
+## Verification — everything runs through `maran`
+
+There is one entry point to this repository's tooling. Source `scripts/dev`
+once per shell: it puts the toolchains AND `scripts/` on PATH, so `maran` is
+typed as a global command rather than as a path.
+
+```bash
+source scripts/dev            # must be SOURCED — a subprocess cannot set your PATH
+maran                         # the whole toolbox, with what each command is for
+```
+
+Then, for this tree:
+
+```bash
+maran check                   # toolchain preflight: can this machine build at all
+maran agent check             # fmt --check, clippy -D warnings, cargo test, and cargo doc
+maran structure               # the file and folder laws above, as a merge gate
+maran proto                   # lint the API-to-agent contract
+maran handshake               # agent and API over a real unix socket
+```
+
+`maran agent` also takes `build`, `test`, `lint` and `fmt` separately when a
+full `check` is more than the moment needs. It uses a native `cargo` when one is
+installed and falls back to the pinned `rust:<version>-slim` container
+otherwise, so the same command works on a machine with no Rust toolchain.
+
+Never call the scripts under `scripts/lib/` directly: they are implementations,
+and `maran` is the documented surface. A toolchain error is a failure to verify,
+never a pass. "No tests found" is a failure too.

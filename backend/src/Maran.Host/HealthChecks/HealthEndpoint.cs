@@ -15,7 +15,10 @@ public static class HealthEndpoint
     {
         // Liveness must never depend on a dependency: if it did, a database outage would make
         // systemd kill a perfectly healthy process and turn an outage into a restart loop.
-        endpoints.MapGet("/health/live", () => Results.Ok(new { status = "ok" }));
+        // Anonymous, all three: a readiness probe that needed a token could never tell systemd
+        // the panel is up, and the process would be restarted forever for want of a login. The
+        // reports carry no data a caller could not obtain by watching the panel answer at all.
+        endpoints.MapGet("/health/live", () => Results.Ok(new { status = "ok" })).AllowAnonymous();
 
         endpoints.MapGet("/health/ready", async (AgentHealthProbe agent, DatabaseHealthProbe database) =>
         {
@@ -27,10 +30,11 @@ public static class HealthEndpoint
             return databaseStatus == DatabaseHealthProbe.Reachable
                 ? Results.Ok(report)
                 : Results.Json(report, statusCode: StatusCodes.Status503ServiceUnavailable);
-        });
+        }).AllowAnonymous();
 
         endpoints.MapGet("/health", async (AgentHealthProbe agent, DatabaseHealthProbe database) =>
-            Results.Ok(new PanelHealthReport("ok", await agent.ProbeAsync(), await database.ProbeAsync())));
+            Results.Ok(new PanelHealthReport("ok", await agent.ProbeAsync(), await database.ProbeAsync())))
+            .AllowAnonymous();
 
         return endpoints;
     }

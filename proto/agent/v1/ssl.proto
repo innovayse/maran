@@ -8,6 +8,7 @@ package maran.agent.v1;
 option csharp_namespace = "Maran.Agent.V1";
 
 import "agent/v1/common.proto";
+import "agent/v1/sites.proto";
 
 service SslService {
   // Installs a certificate/key pair for a domain: writes both files under
@@ -17,15 +18,29 @@ service SslService {
   // installing different material for the same domain replaces it.
   rpc InstallCertificate(InstallCertificateRequest) returns (InstallCertificateResponse);
 
-  // Removes a domain's certificate files and reverts its vhost to the
-  // self-signed fallback, then reloads. Idempotent: removing when no
-  // certificate is installed returns NotFound.
+  // Removes a domain's certificate files and reverts its vhost to plain
+  // HTTP, then reloads. Idempotent: removing when no certificate is
+  // installed returns NotFound.
+  //
+  // Plain HTTP and not a self-signed fallback, deliberately. A fallback
+  // keeps 443 answering and gives every visitor a full-page interstitial —
+  // and where the real certificate had set HSTS, no click-through at all.
+  // That turns "HTTPS is off" into "this site is warning you it may be
+  // attacked", for a certificate the operator chose to remove. A caller that
+  // wants 443 to keep answering calls GenerateSelfSigned afterwards: the
+  // fallback is a separately-callable state, and folding it in here would
+  // put key generation on the failure path of a delete.
   rpc RemoveCertificate(RemoveCertificateRequest) returns (RemoveCertificateResponse);
 
   // Generates and installs a self-signed certificate for a domain, for use
   // before a real certificate is available. Idempotent: regenerating
-  // replaces the existing self-signed certificate; it never overwrites a
-  // real, caller-installed certificate (returns ALREADY_EXISTS instead).
+  // replaces a placeholder this panel itself wrote — recognised by the
+  // OU=maran-self-signed marker in its subject — and never overwrites any
+  // other certificate (returns ALREADY_EXISTS instead). That includes a
+  // self-signed certificate the customer installed themselves: self-signed
+  // alone does not mean "ours", and overwriting theirs would destroy their
+  // key with no warning. A caller that means to replace calls
+  // InstallCertificate.
   rpc GenerateSelfSigned(GenerateSelfSignedRequest) returns (GenerateSelfSignedResponse);
 }
 
@@ -40,6 +55,12 @@ message InstallCertificateRequest {
   // PEM-encoded private key, matching certificate_pem. Never logged or
   // echoed back in error output.
   string private_key_pem = 4;
+  // What the site is, so the TLS vhost this writes is byte-identical to the
+  // one CreateSite would have written for a site that already had a
+  // certificate. Added 2026-08-31; required — see SiteSpec in sites.proto for
+  // why a newly-required field was acceptable on these rpcs and would not be
+  // on a live one.
+  SiteSpec site = 5;
 }
 
 message InstallCertificateResponse {
@@ -60,6 +81,9 @@ message RemoveCertificateRequest {
   string account_username = 1;
   // Domain whose certificate is removed.
   string domain = 2;
+  // What the site is, so the plain-HTTP vhost it reverts to is the site's
+  // own. Added 2026-08-31; required.
+  SiteSpec site = 3;
 }
 
 message RemoveCertificateResponse {
@@ -74,8 +98,11 @@ message RemoveCertificateOk {}
 message GenerateSelfSignedRequest {
   // System username of the owning account.
   string account_username = 1;
-  // Domain the self-signed certificate is generated for.
+  // Domain the self-signed certificate is generated for. The placeholder
+  // also covers the aliases in `site`.
   string domain = 2;
+  // What the site is. Added 2026-08-31; required.
+  SiteSpec site = 3;
 }
 
 message GenerateSelfSignedResponse {

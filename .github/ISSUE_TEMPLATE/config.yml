@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/innovayse/maran/security/policy
+    about: Do not open an issue. Report privately — see SECURITY.md.
+  - name: Contributing guide
+    url: https://github.com/innovayse/maran/blob/dev/CONTRIBUTING.md
+    about: How to set up, which gates to run, and which changes need a threat note.

@@ -1,0 +1,185 @@
+{
+  "backups": {
+    "list": {
+      "heading": "Backups",
+      "subtitle": "Copies of an account's files and the contents of its databases.",
+      "storageNote": "Every copy is written to this server and stays on it. Restoring from one replaces the account's home directory and every database the copy holds, and nothing else.",
+      "loading": "Loading backups…",
+      "emptyTitle": "No backups yet",
+      "emptyDescription": "Take the first one above. It holds the account's files and a dump of each of its databases.",
+      "tableCaption": "Backups taken of this panel's accounts",
+      "rowActions": "Actions for the backup of {account}",
+      "failureCode": "Code: {code}",
+      "columns": {
+        "account": "Account",
+        "status": "Status",
+        "kind": "Reason",
+        "size": "Size",
+        "databases": "Databases",
+        "startedAt": "Started",
+        "finishedAt": "Finished"
+      },
+      "confirmDelete": "Delete this backup? The copy is gone, and nothing here can bring it back.",
+      "confirmDeleteTitle": "Delete the backup of {account} from {startedAt}",
+      "confirm": "Yes, delete it",
+      "working": "Working…",
+      "scheduleLink": "Backup schedule",
+      "destinationsLink": "Backup destinations"
+    },
+    "status": {
+      "running": "Running",
+      "completed": "Completed",
+      "failed": "Failed"
+    },
+    "kind": {
+      "manual": "Asked for",
+      "scheduled": "Scheduled",
+      "preDeletion": "Before deletion",
+      "preRestore": "Before restore"
+    },
+    "form": {
+      "fields": {
+        "accountId": "Account"
+      },
+      "hint": "The copy is taken now, and this page waits for it — a large account can take several minutes.",
+      "submit": "Take a backup",
+      "submitting": "Taking the backup…",
+      "errors": {
+        "accountRequired": "Choose the account to back up."
+      },
+      "placeholders": {
+        "accountId": "Choose an account"
+      }
+    },
+    "restore": {
+      "action": "Restore",
+      "title": "Restore {account}",
+      "takenAt": "This replaces the account with the copy taken {taken}.",
+      "lostSince": "Everything written since then — files and database rows alike — is gone.",
+      "replacedHeading": "What is replaced",
+      "replacedHome": "The home directory is swapped for the one in the copy.",
+      "replacedDatabases": "Each of the {databases} databases in the copy is dropped, re-created and loaded again.",
+      "keptHeading": "What is not touched",
+      "keptSites": "Sites, their web-server configuration and their certificates.",
+      "keptOwnership": "Scheduled tasks, firewall rules, and SFTP and FTPS logins.",
+      "keptExplanation": "A restore replaces what the copy holds and nothing else. It is not an undo: an account restored from a two-week-old copy is a two-week-old home under today's site configuration.",
+      "pointOfNoReturn": "The point of no return is the first database that is dropped. Up to there nothing has been touched; after it, a database comes back only by loading a dump taken moments earlier, and that can itself fail.",
+      "noSafetyCopy": "No copy is taken of the account as it stands now. The panel does not back up before it restores, so today's state is not recoverable once this starts.",
+      "confirmLabel": "Account name",
+      "confirmHint": "Type {name} exactly to confirm. It is not filled in for you.",
+      "confirmHintUnknown": "This panel does not hold a name for the account this copy belongs to. Type the account's system user name; the server is what checks it.",
+      "submit": "Restore this account",
+      "working": "Replacing {account}. This can take several minutes — do not close this page.",
+      "doneTitle": "{account} was replaced",
+      "doneFiles": "Home directory",
+      "doneFilesReplaced": "Replaced",
+      "doneFilesUntouched": "Not replaced",
+      "doneDatabases": "Databases",
+      "doneDatabasesValue": "{restored} of {total} replaced",
+      "doneNote": "The panel reports a restore as done only when it replaced everything it set out to, so this is the whole of it.",
+      "untouchedConfirmation": "Nothing on the account was changed. Correct the confirmation and try again, or close this.",
+      "untouchedCopy": "Nothing on the account was changed and nothing was restored from this copy. Retyping the confirmation will not change the answer: the message above is the server's, and it is the copy or the server that has to be dealt with.",
+      "changedTitle": "The account has been changed",
+      "changedBody": "This restore stopped after it had begun replacing the account. The account is in neither the state it was in nor the state it was going to be in.",
+      "changedCountsIntro": "The server's own count of what had been replaced when it stopped:",
+      "changedFiles": "Home directory",
+      "changedFilesReplaced": "Replaced",
+      "changedFilesNotReplaced": "Not replaced",
+      "changedDatabases": "Databases",
+      "changedDatabasesValue": "{restored} of {total} replaced",
+      "changedNoRetry": "Do not restore over it again. A second attempt on a half-replaced account can destroy what this one left usable. Read the task the panel recorded for this account, and the server's own log, before anything else is done to it.",
+      "changedNoList": "The panel cannot list which databases were put back and which were not: the agent reports those names only in the log it writes on the server, and nothing carries them to the browser."
+    },
+    "schedule": {
+      "heading": "Backup schedule",
+      "subtitle": "When this server takes backups on its own, and how many copies it keeps.",
+      "utcNote": "Times are in UTC, not in this server's local time zone.",
+      "loading": "Loading the schedule…",
+      "saved": "The schedule was saved.",
+      "unscheduled": "Nothing is scheduled here. This server takes no backup of its own accord for this scope until a schedule is saved below.",
+      "scope": {
+        "label": "Applies to",
+        "hostWide": "Every account — the host-wide policy",
+        "hostWideHint": "This is the policy every account without a schedule of its own is backed up by.",
+        "overrideHint": "This account's own schedule. It replaces the host-wide policy for this account only."
+      },
+      "frequency": {
+        "daily": "Every day",
+        "weekly": "Every week"
+      },
+      "summary": {
+        "heading": "What the server holds",
+        "state": "Schedule",
+        "on": "Running",
+        "off": "Saved, but switched off",
+        "lastRun": "Last run started",
+        "neverRan": "Never run"
+      },
+      "form": {
+        "heading": "Cadence and retention",
+        "subtitle": "The server checks every hour, and takes the backup in the hour named here.",
+        "frequencyLabel": "How often",
+        "frequencyPlaceholder": "Choose how often",
+        "dayLabel": "Day of the week",
+        "dayPlaceholder": "Choose a day",
+        "hourLabel": "Hour of the day (UTC)",
+        "hourPlaceholder": "0 to 23",
+        "retainLabel": "Copies to keep",
+        "retainPlaceholder": "1 to 365",
+        "enabledLabel": "Run this schedule",
+        "enabledHint": "Switching it off keeps the cadence and the retention where they can be read and turned back on. There is no way to delete a schedule, and nothing here removes the copies it has already taken.",
+        "submit": "Save schedule"
+      },
+      "errors": {
+        "frequencyRequired": "Choose how often the backup is taken.",
+        "hourRequired": "Name the hour, in UTC, the backup is taken at.",
+        "retainRequired": "Say how many copies to keep.",
+        "dayRequired": "Choose the day of the week a weekly backup is taken on."
+      },
+      "retention": {
+        "heading": "What keeping copies does and does not mean",
+        "cadence": "Old copies are pruned by a pass that runs every five minutes, not at the moment a backup is taken. A copy over the number kept here can therefore still be on the disk for a few minutes.",
+        "neverBlind": "A copy is only ever forgotten once its archive has been watched leaving the disk. A place the server cannot reach is skipped and counted, and any refusal other than \"it is already gone\" leaves the copy listed and stops that account's pass.",
+        "preDeletion": "The copy taken before an account is deleted is never pruned by this number. It stays until an administrator deletes it by hand.",
+        "storage": "Copies are written to this server and stay on it, and they are not encrypted at rest."
+      }
+    },
+    "destinations": {
+      "heading": "Backup destinations",
+      "subtitle": "Where this server records that its copies live.",
+      "readOnlyNote": "This screen reads. The panel publishes no way to add or remove a destination, so nothing here can be changed.",
+      "loading": "Loading destinations…",
+      "emptyTitle": "Nothing recorded yet",
+      "emptyDescription": "The panel writes down its default destination when it starts. A server that answers with none has not finished starting, or was started with no backup storage configured.",
+      "default": "Default",
+      "defaultHint": "Every backup that names no destination is written here, including every copy taken so far.",
+      "fields": {
+        "kind": "Kind of storage",
+        "path": "Directory on this server",
+        "recordedAt": "Recorded",
+        "storedName": "Stored name"
+      },
+      "pathUnestablished": "Not established — the agent could not be asked where it writes. This is not a sign the backups moved.",
+      "kindsHeading": "Kinds of storage",
+      "kindsSubtitle": "What this panel can describe, and what it can actually write to.",
+      "available": "In use",
+      "unavailable": "Not on this build",
+      "kinds": {
+        "local": {
+          "label": "This server's disk",
+          "description": "A directory the agent owns and writes to. The agent decides that directory itself and refuses to be told another, which is why no path can be typed anywhere in the panel."
+        },
+        "s3": {
+          "label": "S3-compatible storage",
+          "description": "A bucket on an object store. The panel can name this kind, and refuses it: this build stores nothing remotely, so asking for it is answered rather than silently accepted."
+        }
+      },
+      "aboutHeading": "What this does not cover",
+      "about": {
+        "notEditable": "The agent decides the directory and refuses to be told another. The panel asks it and shows the answer; it keeps no copy.",
+        "notEncrypted": "The copies are not encrypted where they rest. Anyone who can read that directory can read them.",
+        "adminOnly": "Only an administrator can read this screen. Anyone else is refused by the panel, in their own language."
+      }
+    }
+  }
+}

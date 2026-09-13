@@ -1,0 +1,9 @@
+{
+  "app": {
+    "notFound": {
+      "heading": "Page not found",
+      "description": "The page you requested does not exist.",
+      "backHome": "Back to system status"
+    }
+  }
+}

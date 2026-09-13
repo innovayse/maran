@@ -1,0 +1,46 @@
+{
+  "tasks": {
+    "list": {
+      "heading": "Фоновые задачи",
+      "subtitle": "Длительные операции, которые панель выполняет или недавно выполнила — новые сверху.",
+      "loading": "Загрузка задач…",
+      "emptyTitle": "Задач пока нет",
+      "emptyDescription": "Операции, за которыми есть смысл наблюдать, появляются здесь во время выполнения.",
+      "tableCaption": "Фоновые задачи",
+      "watch": "Наблюдать",
+      "rowActions": "Действия для {subject}",
+      "percentValue": "{percent}%"
+    },
+    "columns": {
+      "kind": "Операция",
+      "subject": "Объект",
+      "status": "Статус",
+      "percent": "Прогресс",
+      "startedAt": "Начало"
+    },
+    "kinds": {
+      "CertificateIssue": "Выпуск сертификата",
+      "CertificateRenewal": "Обновление сертификата",
+      "AccountDeletion": "Удаление аккаунта",
+      "AccountSuspension": "Приостановка аккаунта",
+      "AccountResumption": "Возобновление аккаунта",
+      "BackupCreate": "Создание резервной копии",
+      "BackupRestore": "Восстановление из копии"
+    },
+    "statuses": {
+      "running": "Выполняется",
+      "completed": "Завершена",
+      "failed": "Не удалась"
+    },
+    "pane": {
+      "correlationId": "Идентификатор запроса",
+      "notReported": "Не сообщено",
+      "progressLabel": "Прогресс этой задачи",
+      "failedWith": "Операция завершилась ошибкой с кодом {code}.",
+      "noLog": "Пока ничего не сообщено."
+    },
+    "badge": {
+      "label": "Выполняется фоновых задач: {count}"
+    }
+  }
+}

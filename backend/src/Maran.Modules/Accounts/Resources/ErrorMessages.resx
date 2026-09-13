@@ -24,4 +24,19 @@
   <data name="PlanNotFound">
     <value>This plan could not be found.</value>
   </data>
+  <data name="AccountCleanupFailed">
+    <value>The account was not deleted: something it owns could not be removed first. Nothing has been changed; please try again.</value>
+  </data>
+  <data name="AccountSuspensionFailed">
+    <value>The account was not suspended: something it runs could not be stopped first. Nothing has been changed; please try again.</value>
+  </data>
+  <data name="AccountSuspensionNotObserved">
+    <value>The account was not suspended: the server could not be observed to have stopped it. Nothing has been changed; please try again.</value>
+  </data>
+  <data name="AccountResumptionFailed">
+    <value>The account was not reactivated: something it runs could not be started again. Nothing has been changed; please try again.</value>
+  </data>
+  <data name="AccountResumptionNotObserved">
+    <value>The account was not reactivated: the server could not be observed to have started it again. Nothing has been changed; please try again.</value>
+  </data>
 </root>

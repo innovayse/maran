@@ -2,6 +2,10 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.Resilience" />
+    <!-- The HTTP arm of the same library: it is what attaches a named resilience pipeline to a
+         named HttpClient, which is how the ACME client is governed without the Ssl module having to
+         know about Polly at all. -->
+    <PackageReference Include="Microsoft.Extensions.Http.Resilience" />
     <!-- Serilog: structured logs to stdout, which systemd captures into the journal. -->
     <PackageReference Include="Serilog.AspNetCore" />
     <!-- Npgsql: the readiness probe opens a real connection to prove the database answers. -->
@@ -13,11 +17,48 @@
     <PackageReference Include="WolverineFx.Postgresql" />
   </ItemGroup>
 
+  <!-- Internal/Generated holds the handler types Wolverine writes AT RUNTIME, and .gitignore
+       excludes them because they are build output rather than source. They were still being
+       compiled, by the SDK's default glob, and that made two different problems at once.
+
+       A stale one wins. TypeLoadMode.Auto prefers a handler type it already finds over generating
+       a fresh one, so a type compiled into the assembly hours ago silently masks a handler added
+       since — which happened twice in one day, each time presenting as "the new handler does
+       nothing" with a green build. An in-place upgrade would do the same to an operator.
+
+       And a fresh clone built something else. The directory is git-ignored, so CI compiles the
+       source without it while a developer's tree compiles 73 extra files. Two machines, two
+       assemblies, one commit.
+
+       Excluding them costs a first-boot generation pass and makes the build's inputs equal to the
+       repository's. -->
+  <ItemGroup>
+    <Compile Remove="Internal/Generated/**/*.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" />
+    <PackageReference Include="WolverineFx.FluentValidation" />
+    <PackageReference Include="FluentValidation.DependencyInjectionExtensions" />
+  </ItemGroup>
+
   <ItemGroup>
     <ProjectReference Include="..\Maran.Sdk\Maran.Sdk.csproj" />
     <ProjectReference Include="..\Maran.SharedKernel\Maran.SharedKernel.csproj" />
     <ProjectReference Include="..\Maran.Agent.Client\Maran.Agent.Client.csproj" />
     <ProjectReference Include="..\Maran.Modules\Accounts\Maran.Modules.Accounts.csproj" />
+    <ProjectReference Include="..\Maran.Modules\Identity\Maran.Modules.Identity.csproj" />
+    <ProjectReference Include="..\Maran.Modules\Sites\Maran.Modules.Sites.csproj" />
+    <ProjectReference Include="..\Maran.Modules\Ssl\Maran.Modules.Ssl.csproj" />
+    <ProjectReference Include="..\Maran.Modules\Databases\Maran.Modules.Databases.csproj" />
+    <ProjectReference Include="..\Maran.Modules\Sftp\Maran.Modules.Sftp.csproj" />
+    <ProjectReference Include="..\Maran.Modules\Ftp\Maran.Modules.Ftp.csproj" />
+    <ProjectReference Include="..\Maran.Modules\Cron\Maran.Modules.Cron.csproj" />
+    <ProjectReference Include="..\Maran.Modules\Firewall\Maran.Modules.Firewall.csproj" />
+    <ProjectReference Include="..\Maran.Modules\Tasks\Maran.Modules.Tasks.csproj" />
+    <ProjectReference Include="..\Maran.Modules\Monitoring\Maran.Modules.Monitoring.csproj" />
+    <ProjectReference Include="..\Maran.Modules\Notifications\Maran.Modules.Notifications.csproj" />
+    <ProjectReference Include="..\Maran.Modules\Backups\Maran.Modules.Backups.csproj" />
   </ItemGroup>
 
   <ItemGroup>
@@ -33,6 +74,20 @@
       <Generator></Generator>
     </EmbeddedResource>
     <EmbeddedResource Update="Resources\ErrorMessages.hy.resx">
+      <Generator></Generator>
+    </EmbeddedResource>
+    <!-- DisplayNames carries the names of the vocabulary the composition root owns rather than any
+         module: one entry per Maran.Sdk.Contracts.LicenceTier member, resolved by
+         LicenceTierDisplayNames for the module catalogue. A separate file from ErrorMessages
+         because a tier is not a failure, and one file per purpose (rules/csharp.md). Reached
+         through IStringLocalizer<DisplayNames>, so no designer accessor is generated. -->
+    <EmbeddedResource Update="Resources\DisplayNames.resx">
+      <Generator></Generator>
+    </EmbeddedResource>
+    <EmbeddedResource Update="Resources\DisplayNames.ru.resx">
+      <Generator></Generator>
+    </EmbeddedResource>
+    <EmbeddedResource Update="Resources\DisplayNames.hy.resx">
       <Generator></Generator>
     </EmbeddedResource>
   </ItemGroup>

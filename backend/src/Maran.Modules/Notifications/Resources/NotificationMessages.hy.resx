@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="TestMailSubject">
+    <value>Փորձնական նամակ ձեր կառավարման վահանակից</value>
+  </data>
+  <data name="TestMailBody">
+    <value>Այս նամակը հաստատում է, որ վահանակը կարող է փոստ ուղարկել ձեր պահպանած կարգավորումներով։ Այլ բան պետք չէ։</value>
+  </data>
+</root>

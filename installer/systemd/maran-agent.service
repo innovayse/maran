@@ -12,19 +12,103 @@ Type=simple
 # api's behalf. Its own operations then drop to the target account's UID for any
 # customer file I/O (fork + setuid, done in-process, not by this unit).
 User=root
-# Group=panel, on a root process: the socket the agent creates inherits the process's
-# group, which is what actually grants maran-api (User=panel) access to it. Without
-# this the socket is root:root and the API cannot connect at all — the 0660 mode below
-# would be describing a group nobody is in.
-Group=panel
-# The uid allowed to use the agent, written by the installer once the panel user exists
+# The service group, on a root process: the socket the agent creates inherits the process's
+# group, which is what actually grants maran-api (which runs as that account) access to it.
+# Without this the socket is root:root and the API cannot connect at all — the 0660 mode below
+# would be describing a group nobody is in. Substituted by installer/lib/70-services.sh from
+# MARAN_GROUP in install.sh, the one place the name is decided.
+Group=__MARAN_GROUP__
+# The uid allowed to use the agent, written by the installer once the service account exists
 # (installer/lib/60-config.sh). systemd expands this without a shell. It is not optional:
-# with no value the agent falls back to its own uid, which is root, and every request
-# from the API is denied.
+# with an empty value systemd drops the argument entirely, the agent falls back to its own uid —
+# root — and denies the API every request; with a value that is not a number it refuses to start
+# at all. Neither is a working panel.
 EnvironmentFile=/etc/maran/agent.env
+# There is deliberately NO ExecStartPre= here any more, and the deletion it used to
+# do now happens inside the daemon. This paragraph is the argument, because removing
+# a cleanup looks like a regression and was not one.
+#
+# What was here: ExecStartPre=-/bin/rm -rf /var/lib/maran-scratch.
+# AgentPaths::BULK_SCRATCH_ROOT (/var/lib/maran-scratch) is where a backup and a
+# restore stage database dumps, and it holds a full copy of a customer's data while
+# they run. It used to be under /run, which a reboot emptied for free; it is on real
+# storage now, because /run is a tmpfs sized at 10% of RAM and a dump staged there is
+# resident kernel memory on a live server rather than a file on a disk. The operations
+# remove their own subdirectory on every path they RETURN from, and the line covered
+# the run that was KILLED instead — a power cut, an OOM kill, a `systemctl kill` —
+# whose leftovers would otherwise be a copy of the customer's databases on the disk
+# with nobody watching it, and disk nobody reclaims. All of that is still true and is
+# still done.
+#
+# What it did NOT consider: a restore writes a rollback dump of each database into
+# <scratch>/backup/<id>/rollback/ immediately before it drops that database, and that
+# dump is the ONLY copy of the database's pre-restore state. A restore killed partway
+# through step 6 leaves some databases replaced and some not, and the dumps are the
+# material a recovery needs — so this line destroyed them on the very restart an
+# operator performs in order to recover. That is unrecoverable customer data loss
+# reachable by ordinary bad luck, and it is finding F-2 of the privileges audit.
+#
+# Why the fix is not a narrower rm: the paths that must go and the paths that must
+# stay are siblings under a per-backup id, so a narrowing needs a glob
+# (/var/lib/maran-scratch/backup/*/databases). ExecStartPre= runs with no shell and
+# does no globbing, and rules/security.md item 3 forbids introducing one anywhere in
+# this product — a `sh -c` in the unit of the only root daemon is not on the table.
+# The agent is also the only party that knows which half is reproducible.
+#
+# So `ops::backup::recover_restores` does it, called from `server::serve` BEFORE the
+# socket is bound, on every start. It removes everything under the root that is not
+# `backup/`; inside each `backup/<id>/` it removes everything except `rollback/`; it
+# removes any `<id>/` with no rollback dumps in it entirely; and it keeps at most four
+# rollback sets, newest first, logging each survivor by path and by the dumps in it so
+# an operator is told which databases were left half-replaced and where their
+# pre-restore state is. The bulk — the archive's extracted dumps — is therefore still
+# deleted on every single start, exactly as this line did.
+#
+# The same call also finishes a restore that was killed between the two renames that
+# swap an account's home, which is the other half of F-2. Threat note:
+# docs/superpowers/notes/2026-09-09-restore-interruption-recovery-threat-note.md.
 ExecStart=/usr/local/maran/agent/maran-agent --allow-uid ${MARAN_AGENT_ALLOW_UID}
+# The daemon's own search path, emptied deliberately, and AFTER EnvironmentFile= so
+# that a PATH= line added to /etc/maran/agent.env cannot win. systemd's compiled-in
+# default begins /usr/local/sbin:/usr/local/bin — the directories this product itself
+# installs into and the ones a third-party package or an operator writes to — and the
+# agent inherited it.
+#
+# What this is and is not worth. The agent starts every program by an absolute path
+# from the distro adapter, and since `apply_child_environment` every child's
+# environment is CLEARED and rebuilt from a declared list, so nothing the agent spawns
+# reads this value at all. It is therefore not the fix; it is the second wall behind
+# it. What it buys: a spawn added in future that forgets the shared environment helper
+# gets no PATH rather than a PATH beginning with /usr/local, so a bare program name
+# fails loudly here instead of silently resolving to whatever is in an unmanaged
+# directory. An empty value and not a curated one, because a curated one would be a
+# second, drifting copy of the list `apply_child_environment` already owns.
+Environment=PATH=
 Restart=on-failure
 RestartSec=2
+# How long systemd waits for the daemon to stop before it sends SIGKILL. Stated
+# rather than inherited: the compiled-in default is 90s and nothing here said so,
+# which meant nobody reading this unit could tell whether the kill that ends a
+# `systemctl stop` was systemd's timeout or the process's own exit.
+#
+# 45s, and the number is derived from the agent, not chosen: `shutdown::DRAIN_BUDGET`
+# gives in-flight requests 30s once SIGTERM lands, and this must stay comfortably
+# ABOVE it or systemd's SIGKILL arrives first and the drain is decoration. The
+# slack is for the exit itself on a loaded host.
+#
+# What it deliberately is NOT: long enough for a backup or a restore, which run
+# for minutes to hours. A stop during one of those still ends in a kill. That is
+# a design decision and not an oversight — an operator's `systemctl stop` that
+# could block for an hour is not a stop, and the operations are written to
+# survive a kill instead (an artifact published by rename after a full write, a
+# staging tree the account cannot see). The one part that does NOT survive is a
+# restore between its first DROP DATABASE and its last load; no TimeoutStopSec
+# closes that, because a power cut does the same thing to it.
+#
+# KillMode is left at its default, control-group: the agent forks setuid children
+# to touch customer files, and they must die with it rather than keep writing into
+# a home whose daemon is gone.
+TimeoutStopSec=45
 
 # --- Hardening ------------------------------------------------------------------
 # A root daemon is the highest-value target on the box, so it gets the same sandbox
@@ -59,29 +143,39 @@ ProtectSystem=true
 ProtectHome=false
 PrivateTmp=true
 # Its gRPC socket, created here with the exact ownership the API needs to connect
-# (root:panel 0660 + SO_PEERCRED check in-process — see rules §9): the directory itself
+# (root:<service group> 0660 + SO_PEERCRED check in-process — see rules §9): the directory itself
 # is systemd-managed so it is recreated with correct permissions on every start,
 # never relying on a stale directory from a previous boot.
 RuntimeDirectory=maran
 RuntimeDirectoryMode=0750
-# /run/maran must be group-owned by panel so the API can traverse it to reach the
+# /run/maran must be group-owned by the service group so the API can traverse it to reach the
 # socket, and 0750 above keeps every other account out. There is no
 # RuntimeDirectoryGroup= directive — `systemd-analyze verify` rejects it as an unknown
 # key and ignores the line, so a unit relying on it would silently get root:root.
-# The group comes from Group=panel at the top of this section instead; that setting is
-# what makes both the directory and the socket group-owned by panel, and it is the
+# The group comes from Group= at the top of this section instead; that setting is
+# what makes both the directory and the socket group-owned by the service group, and it is the
 # reason Group= is set on a root process at all.
 # Writable set, one entry per reason. /etc is covered by ProtectSystem=true above and
 # is deliberately absent here; the per-tree entries it used to carry (/etc/nginx,
 # /etc/maran) would now be redundant, so they are gone rather than left as decoration.
 # Every remaining entry is a path OUTSIDE /usr and the boot loader dirs that some rpc
-# in proto/agent/v1/ must write:
+# in proto/agent/v1/ must write. NOTE what ProtectSystem=true above actually restricts:
+# only /usr and the boot loader (/boot, /efi). It does not touch /home, /var or /run at
+# all, so none of the entries below are exceptions to a restriction that exists — they
+# are the writable set stated as a decision, not enforcement being carved back open.
+# The value of writing them down anyway: if ProtectSystem= is ever tightened (e.g. to
+# "strict", which DOES lock the whole tree), this list is what keeps working and what
+# does not is exactly what is missing from it — so every path a *_paths.rs constant
+# names as agent-writable belongs here even though nothing forces the omission to fail
+# loudly today. `maran structure` checks that this list and agent_paths.rs agree.
 #
 #   /home            accounts.CreateAccount/DeleteAccount (the account home itself and
 #                    its quota file), every files.* rpc, sites.CreateSite document
 #                    roots under /home/<acc>/sites/<domain>/, backups reading account
-#                    data, ftp chroot directories. Written under the account's UID via
-#                    fork+setuid, never as root. Both distro families.
+#                    data, ftp chroot directories, and AgentPaths::RESTORE_STAGING_ROOT
+#                    (/home/.maran-restore) for a restore's staging/previous swap.
+#                    Written under the account's UID via fork+setuid, never as root.
+#                    Both distro families.
 #   /var/spool/cron  cron.CreateCronEntry/UpdateCronEntry/DeleteCronEntry. One entry
 #                    covers both families on purpose: Debian/Ubuntu keep per-user
 #                    crontabs in /var/spool/cron/crontabs/<user>, AlmaLinux/Rocky in
@@ -89,21 +183,110 @@ RuntimeDirectoryMode=0750
 #                    "-" because the spool only exists once a cron implementation is
 #                    installed, and a missing ReadWritePaths= entry is a start failure,
 #                    not a warning.
-#   /var/lib/maran   the agent's own state root, including the local backup destination
-#                    (backup.CreateBackup with BACKUP_DESTINATION_KIND_LOCAL writes
-#                    archives here; RestoreBackup and DeleteBackup read/unlink them).
-#   /var/log/maran   the panel's log tree; sites.TailSiteLog reads from it and site
-#                    teardown removes a deleted site's logs.
-#   /run/maran       the gRPC socket directory, created by RuntimeDirectory= below.
-#                    /run is a tmpfs and is not covered by ProtectSystem= at all, so
-#                    this entry is belt-and-braces rather than load-bearing.
+#   /var/lib/maran-sftp  AgentPaths::SFTP_JAIL_ROOT, root:root 0700, holding every
+#                    account's chroot and the mount point its home is bind-mounted
+#                    at. A SIBLING of /var/lib/maran for a reason that was MEASURED
+#                    on both families: OpenSSH refuses a chroot with any path
+#                    component that is not root-owned, so while the base was
+#                    /var/lib/maran/sftp the panel-owned parent made sshd log
+#                    `bad ownership or modes for chroot directory component
+#                    "/var/lib/maran/"` and close the connection after accepting
+#                    the password — every SFTP login on every real install. The
+#                    same relocation also removes the escalation shape the scratch
+#                    was moved for: the panel uid owning an ancestor of a directory
+#                    root trusts.
+#   /var/lib/maran-scratch  AgentPaths::BULK_SCRATCH_ROOT, root:root 0700, where
+#                    backup.CreateBackup and RestoreBackup stage database dumps before
+#                    they are archived or loaded. A SIBLING of /var/lib/maran and not a
+#                    child of it: while it was a child, the panel uid owned an ancestor
+#                    of root's staging area, and the owner of a directory can rename an
+#                    entry aside and leave a symlink at that name without ever having
+#                    permission to enter it. Measured, both directions — a customer's
+#                    plaintext dump delivered into a panel-readable file, and a
+#                    root-owned 0600 file truncated and overwritten by root's next dump
+#                    write — in docs/superpowers/notes/2026-09-05-backups-threat-note.md
+#                    section 1. /var/lib itself is root:root 0755, so no unprivileged uid
+#                    can place an entry at this name. The scratch is emptied by the
+#                    agent itself, selectively, before it binds its socket — see the
+#                    long paragraph where ExecStartPre= used to be. A reboot did that
+#                    for free while it lived under /run.
+#   /var/backups/maran  AgentPaths::BACKUP_ROOT. backup.CreateBackup with
+#                    BACKUP_DESTINATION_KIND_LOCAL writes archives and sidecars here
+#                    (root:root 0700, one subdirectory per account); RestoreBackup and
+#                    DeleteBackup read/unlink them. `local_object_store_host.rs` creates
+#                    this tree itself on first use, so the installer does not have to.
+#   /run/maran       the gRPC socket directory, created by RuntimeDirectory= below, and
+#                    AgentPaths::PHP_FPM_SOCKET_DIRECTORY (/run/maran/php) and
+#                    AgentPaths::agent_scratch_dir() (/run/maran/scratch), which holds
+#                    only files whose size is bounded by something other than a
+#                    customer's data — a rendered crontab table is kilobytes. Anything
+#                    proportional to what an account stores goes to
+#                    /var/lib/maran-scratch instead, because /run is a tmpfs: its
+#                    capacity is a slice of RAM (10% of it), so filling it is an
+#                    out-of-memory condition on the host rather than a full disk.
+#                    /run is not covered by ProtectSystem= at all, so this entry is
+#                    belt-and-braces rather than load-bearing.
 #
 # Paths deliberately NOT listed, so the omission reads as a decision and not an
 # oversight: /var/lib/mysql (db.* rpcs go through the MySQL client protocol, the agent
-# never touches the datadir), /var/www (document roots live under /home), and anything
+# never touches the datadir), /var/www (document roots live under /home), anything
 # under /usr (the agent installs packages through the distro package manager, which
-# runs as its own unprivileged-of-this-sandbox process, not inside ours).
-ReadWritePaths=/home -/var/spool/cron /var/lib/maran /var/log/maran /run/maran
+# runs as its own unprivileged-of-this-sandbox process, not inside ours), and the two
+# below, each of which is a path this unit ONCE listed:
+#
+#   /var/lib/maran   the PANEL's state root, not the agent's, and it sat in the writable
+#                    set above until the set was read back against the code. Nothing in
+#                    agent/crates/*/src builds or writes a path under it: the constant
+#                    that used to (the SFTP jail base) and the one that nearly did (the
+#                    bulk scratch) were both MOVED OUT to root-owned siblings, and
+#                    rules/architecture.md holds the agent stateless — "no DB, no config
+#                    files of its own beyond what the installer writes". What the entry
+#                    actually granted was the ONE root process in this product write
+#                    access to a directory the unprivileged panel uid OWNS (owned by
+#                    the service account and its group at 0750,
+#                    installer/lib/40-user.sh), which is the exact shape both of
+#                    those relocations were made to escape: the owner of a directory can
+#                    rename an entry aside and leave a symlink at that name without ever
+#                    having permission to enter it, and root's next write lands wherever
+#                    the symlink points — measured, both directions, in
+#                    docs/superpowers/notes/2026-09-05-backups-threat-note.md section 1.
+#                    A grant for a path nobody writes is a permanent one, because nothing
+#                    ever brings a reader back to it, so it is deleted rather than kept
+#                    against a future need: the day something of the agent's does belong
+#                    under /var/lib it gets a root-owned sibling, exactly as the other two
+#                    did. Removing it changes nothing at runtime today — see the note
+#                    above about what ProtectSystem=true does and does not restrict — and
+#                    that is the point: this list is what would keep working if
+#                    ProtectSystem= were ever tightened, and an unearned entry in it would
+#                    survive that tightening unnoticed.
+#   /var/log/maran   the PARENT, and it is not a substitute for the one subdirectory that
+#                    IS listed above. The agent daemon never writes to the parent: it logs
+#                    to stdout, which journald captures, and the parent's own writers
+#                    (`install.sh`'s install.log, and nginx's access/error logs for the
+#                    PANEL vhost — a separate process this unit does not sandbox) are
+#                    outside this daemon. What the agent does write is
+#                    /var/log/maran/sites/<account> (AgentPaths::SITE_LOG_ROOT), created
+#                    as root at site-create time, which is why the narrow entry and not
+#                    this one is in the set. maran-api.service likewise names
+#                    /var/log/maran/panel — a subdirectory, never this parent, which is
+#                    root's precisely because the two writers just named are root and the
+#                    panel uid owning their directory was an escalation
+#                    (docs/superpowers/notes/2026-09-07-installer-privileged-steps-threat-note.md).
+#                    Two earlier versions of this paragraph were wrong about who writes
+#                    what, and both are recorded because each stopped a reader looking:
+#                    one said "the API DOES write there", true of the unit's old entry and
+#                    never of the code (the panel's Serilog has a console sink only); the
+#                    other said site logs live under /home/<account>/logs, which stopped
+#                    being true when they moved out of the homes. They moved because
+#                    nginx's root master opens every access_log O_WRONLY|O_APPEND|O_CREAT
+#                    and WITHOUT O_NOFOLLOW, so a log target inside a directory the
+#                    customer owns was a root compromise any customer could perform
+#                    (docs/superpowers/notes/2026-09-09-site-logs-threat-note.md).
+#
+# AgentPaths::NGINX_INCLUDE_DIRECTORY and ::CERTIFICATE_DIRECTORY live under /etc, which
+# ProtectSystem=true never protects (only "full"/"strict" would), so they need no entry
+# here either.
+ReadWritePaths=/home -/var/spool/cron /var/lib/maran-sftp /var/lib/maran-ftps /var/lib/maran-scratch /var/backups/maran /var/log/maran/sites /run/maran
 # What /etc still may not become: the agent has no rpc that grants sudo rights, so the
 # one tree it can be permanently denied without losing a capability is the sudoers
 # configuration. This is a small, honest restriction on an otherwise writable /etc, not

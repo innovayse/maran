@@ -1,0 +1,219 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="IdentityModuleDisplayName">
+    <value>Пользователи и доступ</value>
+  </data>
+  <data name="AuditActionLoginSucceeded">
+    <value>Вход выполнен</value>
+  </data>
+  <data name="AuditActionLoginFailed">
+    <value>Вход отклонён</value>
+  </data>
+  <data name="AuditActionLoggedOut">
+    <value>Выход выполнен</value>
+  </data>
+  <data name="AuditActionLoggedOutEverywhere">
+    <value>Выход выполнен на всех устройствах</value>
+  </data>
+  <data name="AuditActionSessionRevoked">
+    <value>Сессия отозвана</value>
+  </data>
+  <data name="AuditActionRefreshTokenReuseDetected">
+    <value>Обнаружено повторное использование токена обновления</value>
+  </data>
+  <data name="AuditActionTwoFactorEnabled">
+    <value>Двухфакторная проверка включена</value>
+  </data>
+  <data name="AuditActionTwoFactorDisabled">
+    <value>Двухфакторная проверка отключена</value>
+  </data>
+  <data name="AuditActionRecoveryCodeUsed">
+    <value>Использован код восстановления</value>
+  </data>
+  <data name="AuditActionPasswordChanged">
+    <value>Пароль изменён</value>
+  </data>
+  <data name="AuditActionAdministratorCreated">
+    <value>Создан администратор</value>
+  </data>
+  <data name="AuditActionAccountCreated">
+    <value>Создан аккаунт</value>
+  </data>
+  <data name="AuditActionAccountSuspended">
+    <value>Аккаунт приостановлен</value>
+  </data>
+  <data name="AuditActionAccountReactivated">
+    <value>Аккаунт возобновлён</value>
+  </data>
+  <data name="AuditActionAccountDeleted">
+    <value>Аккаунт удалён</value>
+  </data>
+  <data name="AuditActionBackupRestored">
+    <value>Аккаунт восстановлен из резервной копии</value>
+  </data>
+  <data name="AuditActionFinalBackupTaken">
+    <value>Снята финальная резервная копия</value>
+  </data>
+  <data name="AuditActionFinalBackupSkipped">
+    <value>Финальная резервная копия пропущена</value>
+  </data>
+  <data name="AuditActionFinalBackupSkippedNoModule">
+    <value>Финальная копия пропущена: нет модуля резервных копий</value>
+  </data>
+  <data name="AuditActionSiteCreated">
+    <value>Создан сайт</value>
+  </data>
+  <data name="AuditActionSitePhpVersionChanged">
+    <value>Изменена версия PHP сайта</value>
+  </data>
+  <data name="AuditActionSiteEnabled">
+    <value>Сайт включён</value>
+  </data>
+  <data name="AuditActionSiteDisabled">
+    <value>Сайт отключён</value>
+  </data>
+  <data name="AuditActionSiteDeleted">
+    <value>Сайт удалён</value>
+  </data>
+  <data name="AuditActionSiteLogTailed">
+    <value>Открыт журнал сайта</value>
+  </data>
+  <data name="AuditActionDatabaseCreated">
+    <value>Создана база данных</value>
+  </data>
+  <data name="AuditActionDatabaseDropped">
+    <value>База данных удалена</value>
+  </data>
+  <data name="AuditActionDatabasePasswordReset">
+    <value>Сброшен пароль базы данных</value>
+  </data>
+  <data name="AuditActionSftpUserCreated">
+    <value>Создан SFTP-доступ</value>
+  </data>
+  <data name="AuditActionSftpUserDeleted">
+    <value>SFTP-доступ удалён</value>
+  </data>
+  <data name="AuditActionSftpUserPasswordReset">
+    <value>Сброшен пароль SFTP</value>
+  </data>
+  <data name="AuditActionFtpsEnabled">
+    <value>Служба FTPS включена</value>
+  </data>
+  <data name="AuditActionFtpsDisabled">
+    <value>Служба FTPS отключена</value>
+  </data>
+  <data name="AuditActionFtpsTlsReloaded">
+    <value>Перезагружен сертификат FTPS</value>
+  </data>
+  <data name="AuditActionFtpUserCreated">
+    <value>Создан FTPS-доступ</value>
+  </data>
+  <data name="AuditActionFtpUserDeleted">
+    <value>FTPS-доступ удалён</value>
+  </data>
+  <data name="AuditActionFtpUserPasswordReset">
+    <value>Сброшен пароль FTPS</value>
+  </data>
+  <data name="AuditActionCertificateIssued">
+    <value>Выпущен сертификат</value>
+  </data>
+  <data name="AuditActionCertificateInstalled">
+    <value>Установлен сертификат</value>
+  </data>
+  <data name="AuditActionCertificateRemoved">
+    <value>Сертификат удалён</value>
+  </data>
+  <data name="AuditActionCertificateRenewed">
+    <value>Сертификат продлён</value>
+  </data>
+  <data name="AuditActionCronEntryCreated">
+    <value>Создана запись cron</value>
+  </data>
+  <data name="AuditActionCronEntryUpdated">
+    <value>Изменена запись cron</value>
+  </data>
+  <data name="AuditActionCronEntryDeleted">
+    <value>Удалена запись cron</value>
+  </data>
+  <data name="AuditActionCronEntryEnabledChanged">
+    <value>Запись cron включена или отключена</value>
+  </data>
+  <data name="AuditActionCronEnvironmentChanged">
+    <value>Изменено окружение cron</value>
+  </data>
+  <data name="AuditActionFirewallRuleAllowed">
+    <value>Открыт порт брандмауэра</value>
+  </data>
+  <data name="AuditActionFirewallRuleDenied">
+    <value>Закрыт порт брандмауэра</value>
+  </data>
+  <data name="AuditActionAddressBanned">
+    <value>Адрес заблокирован</value>
+  </data>
+  <data name="AuditActionAddressUnbanned">
+    <value>Адрес разблокирован</value>
+  </data>
+  <data name="AuditActionFirewallWhitelistChanged">
+    <value>Изменён белый список брандмауэра</value>
+  </data>
+  <data name="AuditActionFirewallWhitelistSeeded">
+    <value>Белый список создан установщиком</value>
+  </data>
+  <data name="AuditActionBanSkippedWhitelisted">
+    <value>Блокировка пропущена: адрес в белом списке</value>
+  </data>
+  <data name="AuditActionSmtpSettingsSaved">
+    <value>Сохранены настройки почты</value>
+  </data>
+  <data name="AuditActionTestMailSent">
+    <value>Отправлено тестовое письмо</value>
+  </data>
+  <data name="AuditActionMailSkippedNoSmtp">
+    <value>Письмо не отправлено: нет настроек SMTP</value>
+  </data>
+  <data name="AuditActionMailSendFailed">
+    <value>Не удалось отправить письмо</value>
+  </data>
+  <data name="AuditActionAlertRaised">
+    <value>Сработало оповещение</value>
+  </data>
+  <data name="AuditActionAlertResolved">
+    <value>Оповещение снято</value>
+  </data>
+  <data name="AuditActionPasswordResetRequested">
+    <value>Запрошен сброс пароля</value>
+  </data>
+  <data name="AuditActionPasswordResetRefused">
+    <value>Отклонён токен сброса пароля</value>
+  </data>
+  <data name="AuditActionSecurityPolicySaved">
+    <value>Сохранена политика безопасности</value>
+  </data>
+  <data name="AuditActionBackupCreated">
+    <value>Снята резервная копия</value>
+  </data>
+  <data name="AuditActionBackupDeleted">
+    <value>Резервная копия удалена</value>
+  </data>
+  <data name="AuditActionBackupScheduleSaved">
+    <value>Сохранено расписание резервных копий</value>
+  </data>
+  <data name="AuditActionBackupRetentionPruned">
+    <value>Старая копия удалена по сроку хранения</value>
+  </data>
+  <data name="AuditActionBackupDestinationSaved">
+    <value>Запрошено хранилище резервных копий</value>
+  </data>
+</root>

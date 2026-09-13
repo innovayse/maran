@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="AlertDiskUsageRaisedSubject">
+    <value>Disk space is running out on {0}</value>
+  </data>
+  <data name="AlertDiskUsageRaisedBody">
+    <value>The filesystem {0} is {1}% full and has stayed above the threshold for ten consecutive checks. Free some space before writes start failing.</value>
+  </data>
+  <data name="AlertDiskUsageResolvedSubject">
+    <value>Disk space has recovered on {0}</value>
+  </data>
+  <data name="AlertDiskUsageResolvedBody">
+    <value>The filesystem {0} is back below the threshold, at {1}% full.</value>
+  </data>
+  <data name="AlertServiceStoppedRaisedSubject">
+    <value>The service {0} has stopped</value>
+  </data>
+  <data name="AlertServiceStoppedRaisedBody">
+    <value>The service {0} has been reported stopped for ten consecutive checks. The service manager says: {1}</value>
+  </data>
+  <data name="AlertServiceStoppedResolvedSubject">
+    <value>The service {0} is running again</value>
+  </data>
+  <data name="AlertServiceStoppedResolvedBody">
+    <value>The service {0} is running again. The service manager says: {1}</value>
+  </data>
+</root>

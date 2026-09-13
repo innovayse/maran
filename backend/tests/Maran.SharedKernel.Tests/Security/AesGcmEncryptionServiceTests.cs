@@ -10,6 +10,7 @@ public sealed class AesGcmEncryptionServiceTests
     /// <summary>A throwaway base64-encoded 256-bit key, valid only for these tests.</summary>
     private const string ValidKey = "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=";
 
+    /// <summary>Encrypted value decrypts back to the original plain text.</summary>
     [Fact]
     public void Encrypted_value_decrypts_back_to_the_original_plain_text()
     {
@@ -21,6 +22,7 @@ public sealed class AesGcmEncryptionServiceTests
         Assert.Equal("super-secret-api-key", plainText);
     }
 
+    /// <summary>Tampered ciphertext fails to decrypt.</summary>
     [Fact]
     public void Tampered_ciphertext_fails_to_decrypt()
     {
@@ -38,6 +40,7 @@ public sealed class AesGcmEncryptionServiceTests
         });
     }
 
+    /// <summary>Construction with a short key is rejected.</summary>
     [Fact]
     public void Construction_with_a_short_key_is_rejected()
     {
@@ -49,6 +52,7 @@ public sealed class AesGcmEncryptionServiceTests
         });
     }
 
+    /// <summary>Construction with malformed base64 is rejected.</summary>
     [Fact]
     public void Construction_with_malformed_base64_is_rejected()
     {
@@ -58,6 +62,7 @@ public sealed class AesGcmEncryptionServiceTests
         });
     }
 
+    /// <summary>Construction with an empty key is rejected.</summary>
     [Fact]
     public void Construction_with_an_empty_key_is_rejected()
     {

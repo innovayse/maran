@@ -1,0 +1,46 @@
+# Rendered by Maran. Do not edit: this file is replaced whenever the site changes.
+server {
+    listen 80;
+    listen [::]:80;
+    server_name {{ domain }}{% for alias in aliases %} {{ alias }}{% endfor %};
+
+    access_log {{ access_log }};
+    error_log {{ error_log }};
+
+    # A suspended account's certificate still renews on schedule (sites.proto:
+    # the vhost is kept on disable "so SSL renewal and SEO are not disrupted"),
+    # so the ACME HTTP-01 challenge must stay reachable even though everything
+    # else on the site answers with the fixed refusal below.
+    location ^~ /.well-known/acme-challenge/ {
+        root {{ document_root }};
+        default_type "text/plain";
+    }
+
+    # A suspended account keeps its vhost — so the domain still resolves to a
+    # clear answer instead of a connection refusal — but serves nothing of the
+    # account's own.
+    location / {
+        return 403 "This site has been suspended.";
+    }
+}
+{#
+  This comment exists to give the file a SECOND trailing newline, so the render
+  ends with one.
+
+  askama drops exactly one newline at the end of a template, the way Jinja does
+  with keep_trailing_newline off. The other vhost templates end with an
+  `{% endif %}` line, which absorbs the drop by accident; this one ends with the
+  server block's own closing brace, so without this the render ended `}` with no
+  newline.
+
+  What that costs here is not cosmetic. `ops::sites::is_suspended_vhost` decides
+  whether a site is suspended by rendering this template and comparing the file
+  BYTE FOR BYTE — the rendered file is this area's only record of the
+  suspension. A file that gains a trailing newline from anything at all (an
+  editor, a restore, a `sed -i`) stops matching, the site reads as not
+  suspended, and the next certificate renewal or PHP-version change puts the
+  suspended customer's site back on the air.
+
+  A comment rather than a blank line because a blank line at the end of a file
+  is the first thing a tidy-up deletes, and its deletion would look harmless.
+#}

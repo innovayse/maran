@@ -1,0 +1,46 @@
+{
+  "tasks": {
+    "list": {
+      "heading": "Ֆոնային առաջադրանքներ",
+      "subtitle": "Երկար գործողություններ, որոնք վահանակը կատարում է կամ վերջերս կատարել է՝ նորերը վերևում։",
+      "loading": "Առաջադրանքները բեռնվում են…",
+      "emptyTitle": "Առաջադրանքներ դեռ չկան",
+      "emptyDescription": "Գործողությունները, որոնց արժե հետևել, հայտնվում են այստեղ կատարման ընթացքում։",
+      "tableCaption": "Ֆոնային առաջադրանքներ",
+      "watch": "Դիտել",
+      "rowActions": "Գործողություններ {subject}-ի համար",
+      "percentValue": "{percent}%"
+    },
+    "columns": {
+      "kind": "Գործողություն",
+      "subject": "Օբյեկտ",
+      "status": "Կարգավիճակ",
+      "percent": "Առաջընթաց",
+      "startedAt": "Սկիզբ"
+    },
+    "kinds": {
+      "CertificateIssue": "Վկայագրի տրամադրում",
+      "CertificateRenewal": "Վկայագրի թարմացում",
+      "AccountDeletion": "Հաշվի ջնջում",
+      "AccountSuspension": "Հաշվի կասեցում",
+      "AccountResumption": "Հաշվի վերականգնում",
+      "BackupCreate": "Պահուստի ստեղծում",
+      "BackupRestore": "Պահուստից վերականգնում"
+    },
+    "statuses": {
+      "running": "Կատարվում է",
+      "completed": "Ավարտված",
+      "failed": "Ձախողված"
+    },
+    "pane": {
+      "correlationId": "Հարցման նույնացուցիչ",
+      "notReported": "Չի հաղորդվել",
+      "progressLabel": "Այս առաջադրանքի առաջընթացը",
+      "failedWith": "Գործողությունը ձախողվեց {code} կոդով։",
+      "noLog": "Դեռ ոչինչ չի հաղորդվել։"
+    },
+    "badge": {
+      "label": "Կատարվող ֆոնային առաջադրանքներ՝ {count}"
+    }
+  }
+}

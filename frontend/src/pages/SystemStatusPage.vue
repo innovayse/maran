@@ -12,6 +12,7 @@ import { onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import UiAlert from '../components/ui/UiAlert.vue'
 import UiCard from '../components/ui/UiCard.vue'
+import UiPageHeading from '../components/ui/UiPageHeading.vue'
 import UiSpinner from '../components/ui/UiSpinner.vue'
 import { useSystemStore } from '../stores/system'
 
@@ -31,13 +32,19 @@ onMounted(refresh)
 
 <template>
   <section class="w-full">
-    <h1 class="mb-4 text-xl font-semibold tracking-title text-text-primary">
-      {{ t('app.status.heading') }}
-    </h1>
+    <UiPageHeading class="mb-4" :title="t('app.status.heading')" />
 
-    <!-- Healthy: the backend answered; interpolate its reported status. -->
+    <!-- Healthy: the backend answered at all. The sentence says so and stops there.
+         It used to interpolate the answer's `status` field, which put an English machine token —
+         `(ok)` — inside a Russian sentence on the first screen after login, in all three
+         languages, as the only line on the page. The parenthesis also
+         carried nothing: `/health` constructs its report with the literal `"ok"`
+         (`Maran.Host/HealthChecks/HealthEndpoint.cs`), and any answer that is not a 2xx takes one
+         of the branches below, so the slot could never hold a second value. A degraded state, if
+         the panel ever reports one, needs a branch of its own with its own translated sentence —
+         not a raw field shown to a customer. -->
     <UiCard v-if="store.status !== null">
-      <p>{{ t('app.status.ok', { status: store.status }) }}</p>
+      <p>{{ t('app.status.ok') }}</p>
     </UiCard>
 
     <!-- Backend answered with an error: its text is already localized

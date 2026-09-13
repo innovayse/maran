@@ -21,7 +21,7 @@ defineProps<{
 </script>
 
 <template>
-  <span role="status" class="inline-flex items-center gap-2 text-xs text-text-secondary">
+  <span role="status" class="inline-flex items-center gap-2 text-base text-text-secondary">
     <span
       class="ui-spinner-arc size-3 animate-[spin_0.8s_linear_infinite] rounded-full border-2 border-border-strong border-t-accent"
       aria-hidden="true"

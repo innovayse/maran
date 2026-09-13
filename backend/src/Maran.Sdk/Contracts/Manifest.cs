@@ -17,9 +17,15 @@ namespace Maran.Sdk.Contracts;
 /// <param name="Version">Semantic version of this module build.</param>
 /// <param name="Tier">The licence tier this module ships under.</param>
 /// <param name="Dependencies">Ids of other modules this module requires to be loaded first.</param>
+/// <param name="AgentCapabilities">
+/// The areas of the agent's contract this module may drive, and the only ones the panel will let it
+/// reach (<see cref="AgentCapability"/>). Empty for a module that never talks to the agent, which is
+/// the honest declaration for most of them — Identity, Notifications and Tasks each hold none.
+/// </param>
 public sealed record Manifest(
     string Id,
     string DisplayNameKey,
     string Version,
     LicenceTier Tier,
-    IReadOnlyList<string> Dependencies);
+    IReadOnlyList<string> Dependencies,
+    IReadOnlyList<AgentCapability> AgentCapabilities);

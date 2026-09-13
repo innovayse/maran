@@ -78,6 +78,15 @@ export default tseslint.config(
     rules: {
       // --- Arrow-only style ---
       'func-style': ['error', 'expression'],
+
+      // Every body is a block, including a one-line arrow. A concise body reads fine
+      // until somebody adds a second statement to it, at which point the diff is the
+      // rewrite of the whole function rather than one added line — and the reviewer is
+      // reading a restructure where a change was meant. The backend has the same rule
+      // (rules/csharp.md: no expression-bodied members), and a repository whose two
+      // halves disagree about so basic a shape teaches nobody anything.
+      'arrow-body-style': ['error', 'always'],
+      curly: ['error', 'all'],
       'no-restricted-syntax': [
         'error',
         {
@@ -215,6 +224,12 @@ export default tseslint.config(
       'vuejs-accessibility/label-has-for': ['error', { required: { every: ['id'] } }],
       'vuejs-accessibility/mouse-events-have-key-events': 'error',
       'vuejs-accessibility/no-autofocus': 'error',
+      // Icons are aria-hidden by default (UiIcon), so the moment one is put on a
+      // focusable element the control disappears from the accessibility tree while
+      // still taking a tab stop. This plugin has no rule that can see a missing
+      // accessible name on an icon-only button — that one is guarded end-to-end,
+      // by a Playwright spec resolving the control BY its name.
+      'vuejs-accessibility/no-aria-hidden-on-focusable': 'error',
       'vuejs-accessibility/role-has-required-aria-props': 'error',
 
       // --- Cleanliness ---
@@ -305,6 +320,19 @@ export default tseslint.config(
       '@typescript-eslint/explicit-function-return-type': 'off',
       'jsdoc/require-jsdoc': 'off',
     },
+  },
+
+  // Repository check scripts are plain Node ESM, deliberately outside the app's TypeScript
+  // projects: they run with bare `node` in the lint gate, before anything is compiled. The
+  // type-aware rules need a tsconfig that owns the file and there is none, so they are turned
+  // off here rather than by widening an app tsconfig to include tooling it never ships.
+  // (`node:process` is imported explicitly there, so no Node globals are declared.)
+  {
+    // The spread comes last on purpose: `disableTypeChecked` carries its own `languageOptions`
+    // clearing `projectService`, and that is the half that matters here — a config that set
+    // `languageOptions` after it would restore the project service and fail to parse the file.
+    files: ['scripts/**/*.mjs'],
+    ...tseslint.configs.disableTypeChecked,
   },
 
   // Must be last: turns off stylistic rules that would conflict with a

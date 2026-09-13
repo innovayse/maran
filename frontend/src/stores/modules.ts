@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { ref, type Ref  } from 'vue'
+import { ref, type Ref } from 'vue'
 import { useModulesApi } from '../composables/apis/useModulesApi'
 import { ApiError } from '../composables/useApi'
 import type { PanelModule } from '../types/module'
@@ -53,8 +53,11 @@ export const useModulesStore = defineStore('modules', () => {
    * @param name Machine name of the module (`sites`, `backups`…).
    * @returns True when the module exists in the catalogue and is enabled.
    */
-  const isEnabled = (name: string): boolean =>
-    modules.value.some((module) => module.name === name && module.isEnabled)
+  const isEnabled = (name: string): boolean => {
+    return modules.value.some((module) => {
+      return module.name === name && module.isEnabled
+    })
+  }
 
   /**
    * Whether a module exists but the licence does not permit it — the case that deserves an
@@ -62,8 +65,11 @@ export const useModulesStore = defineStore('modules', () => {
    * @param name Machine name of the module.
    * @returns True when the module is known but disabled.
    */
-  const isLocked = (name: string): boolean =>
-    modules.value.some((module) => module.name === name && !module.isEnabled)
+  const isLocked = (name: string): boolean => {
+    return modules.value.some((module) => {
+      return module.name === name && !module.isEnabled
+    })
+  }
 
   return { modules, loading, errorMessage, isLoaded, load, isEnabled, isLocked }
 })

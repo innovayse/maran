@@ -32,29 +32,56 @@ public sealed class Program
         builder.Host.AddPanelObservability();
         builder.Host.AddPanelMessaging(connectionString);
 
+        builder.Services.AddPanelForwardedHeaders();
         builder.Services.AddPanelConfiguration(builder.Configuration);
         builder.Services.AddPanelLocalization();
         builder.Services.AddSharedKernel();
         builder.Services.AddPanelSecurity();
+        builder.Services.AddPanelAuthentication(builder.Configuration);
         builder.Services.AddAgentClient(ResolveAgentSocketPath(builder.Configuration));
         builder.Services.AddPanelHealthChecks(connectionString);
         builder.Services.AddPanelResilience();
         builder.Services.AddPanelRateLimiting();
         builder.Services.AddPanelJsonSerialization();
         builder.Services.AddPanelModules(builder.Configuration);
+        builder.Services.AddPanelBackgroundWork();
+        builder.Services.AddPanelSeeding();
 
         var app = builder.Build();
 
+        // Before the pipeline serves anything: the panel's listening socket is its trust boundary,
+        // and Kestrel creates it world-connectable.
+        app.UsePanelListenSocketGuard();
+
+        // First two in the pipeline, before anything reads an address: the rate limiter partitions
+        // on it, the audit journal records it, and both must see the caller rather than nginx.
+        // The order of this pair is load-bearing — UsePanelPeerAddress feeds UseForwardedHeaders
+        // the peer address it compares against KnownProxies, and over a unix socket there is no
+        // such address until it does.
+        app.UsePanelPeerAddress();
+        app.UseForwardedHeaders();
+        app.UseSecurityHeaders();
         app.UseCorrelationId();
         app.UsePanelRequestLogging();
-        app.UseExceptionHandling();
+        // Localisation MUST precede exception handling. Both orders look right from the request
+        // side — the culture is set before any controller runs either way — but CurrentUICulture is
+        // an async-local, and a value assigned in a nested flow does not propagate back out to the
+        // frame that catches. With the handler installed first, it resolved every error text in the
+        // parent context, where no culture had been set, and ResourceManager fell back to the
+        // neutral English resx. Silently: a fallback is what a resource manager is for. Every
+        // translation this product ships was unreachable, in every module, and `maran structure`
+        // went on requiring all three locales to carry every key. Held by
+        // Maran.Host.IntegrationTests/ErrorMessageLocalizationTests.cs, which asks two modules in
+        // three languages, because the mechanism is this pipeline and not any module's resources.
         app.UsePanelLocalization();
+        app.UseExceptionHandling();
+        app.UseCsrfHeader();
+        app.UsePanelAuthentication();
         app.UseRateLimiter();
 
         app.MapPanelHealth();
         app.MapModuleCatalogue();
         app.MapControllers();
-        app.MapPanelModules();
 
         app.Run();
     }

@@ -1,0 +1,117 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="AccountNotFound">
+    <value>This account could not be found.</value>
+  </data>
+  <data name="BackupNotFound">
+    <value>This backup could not be found.</value>
+  </data>
+  <data name="BackupStillRunning">
+    <value>This backup is still being made and cannot be deleted yet.</value>
+  </data>
+  <data name="BackupStreamDropped">
+    <value>The connection to the server agent was lost while the backup was being made.</value>
+  </data>
+  <data name="BackupStreamIdle">
+    <value>The server agent stopped reporting progress while the backup was being made.</value>
+  </data>
+  <data name="BackupTruncated">
+    <value>The server agent stopped without saying how the backup ended.</value>
+  </data>
+  <data name="BackupCancelled">
+    <value>The backup was cancelled before it finished.</value>
+  </data>
+  <data name="BackupInvalidOutcome">
+    <value>The server agent reported a finished backup with nothing to identify it by.</value>
+  </data>
+  <data name="FinalBackupFailed">
+    <value>The account was not deleted: its final backup could not be made.</value>
+  </data>
+  <data name="BackupNotRestorable">
+    <value>This backup cannot be restored: it did not finish successfully.</value>
+  </data>
+  <data name="RestoreConfirmationRequired">
+    <value>Type the account's user name exactly to confirm the restore.</value>
+  </data>
+  <data name="RestoreConfirmationMismatch">
+    <value>The name you typed is not this account's user name.</value>
+  </data>
+  <data name="RestorePartial">
+    <value>The restore did not replace everything it set out to; the account is only partly restored.</value>
+  </data>
+  <data name="RestoreStreamDropped">
+    <value>The connection to the server agent was lost while the account was being restored.</value>
+  </data>
+  <data name="RestoreStreamIdle">
+    <value>The server agent stopped reporting progress while the account was being restored.</value>
+  </data>
+  <data name="RestoreTruncated">
+    <value>The server agent stopped without saying what the restore had done.</value>
+  </data>
+  <data name="RestoreCancelled">
+    <value>The restore was cancelled before it finished.</value>
+  </data>
+  <data name="RestoreInvalidOutcome">
+    <value>The server agent reported a finished restore without saying what it restored.</value>
+  </data>
+  <data name="BackupScheduleNotFound">
+    <value>This server has no backup schedule yet.</value>
+  </data>
+  <data name="BackupScheduleHourOutOfRange">
+    <value>The hour must be between 0 and 23.</value>
+  </data>
+  <data name="BackupScheduleRetainOutOfRange">
+    <value>The number of backups to keep must be between 1 and 365.</value>
+  </data>
+  <data name="BackupScheduleDayRequired">
+    <value>A weekly schedule must name the day of the week it runs on.</value>
+  </data>
+  <data name="BackupScheduleDayNotAllowed">
+    <value>A daily schedule cannot name a day of the week.</value>
+  </data>
+  <data name="BackupScheduledRunAborted">
+    <value>The scheduled backup stopped before the server agent reported how it ended.</value>
+  </data>
+  <data name="BackupDestinationNotFound">
+    <value>That backup destination does not exist.</value>
+  </data>
+  <data name="BackupDestinationNotConfigured">
+    <value>This server has no default backup destination, so nothing can be backed up until it is reconciled at the next start.</value>
+  </data>
+  <data name="BackupDestinationRemoteUnsupported">
+    <value>This build stores backups on this server only. S3-compatible storage is not available.</value>
+  </data>
+  <data name="BackupDestinationLocalAlreadyDefined">
+    <value>This server already has its local backup destination, and it can have only one.</value>
+  </data>
+  <data name="BackupDestinationNameInvalid">
+    <value>A backup destination needs a name of at most 64 characters.</value>
+  </data>
+  <data name="RestoreArtifactRejected">
+    <value>Your server refused this copy: what it holds is not what the panel recorded when the copy was made. Nothing was restored and the account is unchanged. Restore from another copy, or contact support — this cannot be resolved by submitting the same request again.</value>
+  </data>
+  <data name="AccountBackupOperationRunning">
+    <value>Your server is still working on another backup or restore for this account. Nothing was changed. Try again once that operation has finished.</value>
+  </data>
+  <data name="BackupOutcomeUnobserved">
+    <value>The panel stopped following this backup before your server reported a result, so it cannot say whether the copy was finished. It is recorded as failed and is not offered for restore. Start a new backup, and contact support if this keeps happening.</value>
+  </data>
+  <data name="RestoreOutcomeUnobserved">
+    <value>The panel stopped following this restore before your server reported a result, so it cannot say how far it got. The account may already have been replaced: check its files and databases before starting another restore, and contact support if you are unsure.</value>
+  </data>
+  <data name="BackupArtifactUnvouched">
+    <value>The panel stopped following this backup before your server reported a result. A copy of that backup IS on your server, but the panel never recorded its checksum, so it cannot verify the copy and will not offer it for restore. It is recorded as failed and the copy was not deleted — ask support to release the space, or start a new backup.</value>
+  </data>
+</root>

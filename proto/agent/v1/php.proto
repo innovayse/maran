@@ -1,0 +1,95 @@
+// Installed PHP runtimes, and installing new ones. Multi-PHP is a host-level
+// concern: a version is installed once and then bound to any number of sites,
+// so it is not driven by a single site's lifecycle.
+syntax = "proto3";
+
+package maran.agent.v1;
+
+option csharp_namespace = "Maran.Agent.V1";
+
+import "agent/v1/common.proto";
+
+service PhpService {
+  // Lists the PHP versions installed on this host, newest first. Read-only.
+  // The panel needs this before it can offer a version for a site: binding a
+  // site to a version that is not installed fails VALIDATION_FAILED, so the
+  // choice must be made from what exists rather than from a hardcoded list.
+  rpc ListPhpVersions(ListPhpVersionsRequest) returns (ListPhpVersionsResponse);
+
+  // Installs a PHP version and its FPM runtime from the family's repository
+  // (Sury on the Debian family, Remi on the RHEL family), streaming progress.
+  // Idempotent: installing a version that is already present completes
+  // immediately with a success terminal message.
+  rpc InstallPhpVersion(InstallPhpVersionRequest) returns (stream InstallPhpVersionResponse);
+}
+
+// Request for ListPhpVersions. Carries no parameters: the list is always
+// scoped to the host the agent runs on.
+message ListPhpVersionsRequest {}
+
+// Response for ListPhpVersions.
+message ListPhpVersionsResponse {
+  oneof result {
+    ListPhpVersionsOk ok = 1;
+    AgentError error = 2;
+  }
+}
+
+// Terminal success payload for ListPhpVersions.
+message ListPhpVersionsOk {
+  // The installed versions, newest first.
+  repeated PhpVersion versions = 1;
+}
+
+// A single PHP runtime installed on this host.
+message PhpVersion {
+  // Two-component version as the packages name it, e.g. "8.3".
+  string version = 1;
+  // Absolute path to the FPM service's unix socket directory for this
+  // version, so a site's vhost can be pointed at the right pool.
+  string fpm_socket_directory = 2;
+  // True when this version is the host's default CLI PHP. Explicit presence
+  // (changed 2026-08-31, wire-compatible: same number, same type): the agent
+  // does not currently establish which version is the default, and an unset
+  // field says that, where `false` would be a claim the caller cannot
+  // distinguish from "not known".
+  optional bool is_default = 3;
+}
+
+// One php.ini setting a customer has asked for. The agent checks the name
+// against its own whitelist and the value against that name's bounds; a name
+// that is not on the list is refused, never dropped.
+message PhpSetting {
+  // The setting name, e.g. "memory_limit".
+  string name = 1;
+  // The value as php.ini writes it, e.g. "256M". Control characters are
+  // refused: pool.conf is line-oriented.
+  string value = 2;
+}
+
+// Request for InstallPhpVersion.
+message InstallPhpVersionRequest {
+  // Two-component version to install, e.g. "8.4". Validated against the
+  // versions this agent supports (7.4 through 8.4); anything else is
+  // INVALID_INPUT rather than a package manager error.
+  string version = 1;
+}
+
+// Streamed response for InstallPhpVersion.
+message InstallPhpVersionResponse {
+  oneof result {
+    // Emitted repeatedly while the installation runs.
+    Progress progress = 1;
+    // Terminal success.
+    InstallPhpVersionOk ok = 2;
+    // Terminal failure.
+    AgentError error = 3;
+  }
+}
+
+// Terminal success payload for InstallPhpVersion.
+message InstallPhpVersionOk {
+  // The version now installed, echoed back so a caller that retried a
+  // cancelled stream can confirm what it got.
+  string version = 1;
+}

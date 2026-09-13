@@ -1,0 +1,32 @@
+name: branch policy
+
+# GitHub can require a pull request into `main`, but it cannot require WHERE that pull request
+# comes from. Without this, a branch could be merged straight into the release branch and skip
+# integration entirely — the rule would exist in CONTRIBUTING.md and nowhere else.
+on:
+  pull_request_target:
+    types: [opened, edited, reopened, synchronize]
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  source-branch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: main takes nothing but dev
+        env:
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+          BASE_REPO: ${{ github.repository }}
+        run: |
+          if [ "$HEAD_REPO" != "$BASE_REPO" ] || [ "$HEAD_REF" != "dev" ]; then
+            echo "This pull request targets main from '$HEAD_REF' ($HEAD_REPO)."
+            echo
+            echo "main is the release branch and takes only 'dev' from this repository."
+            echo "Open the pull request against dev instead; main receives dev when a release"
+            echo "is cut. See CONTRIBUTING.md."
+            exit 1
+          fi
+          echo "Source is dev. Fine."

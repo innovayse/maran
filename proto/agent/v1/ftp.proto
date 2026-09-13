@@ -1,6 +1,49 @@
-// FTP/FTPS virtual users. Each FTP user maps onto an account's uid and is
-// chrooted to a directory inside that account's home; the agent never
-// creates a real system login for FTP access.
+// File-transfer logins for a hosting account. Two daemons, one shape: a real
+// system account in one group, chrooted into a root-owned jail with the
+// account's real home bind-mounted inside it. `SftpService` serves the OpenSSH
+// half; `FtpsService`, added 2026-09-09, serves this panel's own vsftpd
+// instance and the daemon that runs it.
+//
+// Reshaped 2026-09-01. This file used to describe FTPS virtual users mapped
+// onto an account's uid by a separate FTP daemon, each chrooted to a
+// caller-supplied `chroot_path` under the account home. Every part of that
+// framing is retired, and each retirement is a decision worth keeping:
+//
+// - **No virtual users, and no plain FTP.** The retired design kept a second
+//   credential store of its own and let a password cross the wire. What is
+//   shipped instead is a real passwd entry on the account's uid, authorised by
+//   one group membership through the panel's own PAM stack, on a daemon that
+//   refuses a login that will not negotiate TLS. The cost the old header
+//   weighed against SFTP — a second listening service, a second set of passive
+//   data ports through the firewall — is real and is paid deliberately: an
+//   operator whose customers use FTP clients has that need, and the panel now
+//   answers it with encryption forced rather than by leaving them to install
+//   an unmanaged daemon beside it.
+// - **No `chroot_path`, and it can never come back.** The jail is derived from
+//   the validated account name, is created and owned by root, and is not
+//   nameable by a request. That deletes the entire chroot-escape class of bug
+//   by construction rather than by a containment check that has to be right
+//   every time. The field number and name are `reserved` below so that protoc
+//   itself refuses a future re-introduction — a comment saying "do not add
+//   this" is advice, a `reserved` is a build failure.
+// - **The retired names are still not reused, and the daemon that arrived did
+//   not take them.** `FtpService`, `CreateFtpUser`, `UpdateFtpUser` and
+//   `DeleteFtpUser` are gone from this file rather than renamed. The header
+//   used to hold them for "a real FTP daemon ... in its own service"; that
+//   daemon has now arrived, and it is deliberately called `FtpsService` with
+//   `CreateFtpsUser`, `SetFtpsPassword` and `DeleteFtpsUser` — one letter of
+//   difference, so that a reader diffing this file's history is never looking
+//   at two different messages under one name. The retired names stay retired.
+//
+// The rpcs below are additions in the sense rules/proto.md allows ("new rpcs
+// are always allowed"): no field number, name or type of anything that survives
+// has changed, and no released caller can have bound to what was removed —
+// nothing has ever implemented or generated against the FTPS shape.
+//
+// Passwords are always caller-supplied and no copy is kept anywhere: the panel
+// mints one, shows it once and forgets it; the agent hands it to `chpasswd` on
+// standard input and forgets it; the host's shadow file holds the only hash.
+// No message here carries a password back, and none may be added.
 syntax = "proto3";
 
 package maran.agent.v1;
@@ -9,79 +52,518 @@ option csharp_namespace = "Maran.Agent.V1";
 
 import "agent/v1/common.proto";
 
-service FtpService {
-  // Creates a virtual FTP user mapped to the account's uid, chrooted to
-  // chroot_path (relative to the account home; containment enforced by
-  // the agent). Idempotent: creating with the same username and identical
-  // settings returns AlreadyExists.
-  rpc CreateFtpUser(CreateFtpUserRequest) returns (CreateFtpUserResponse);
+service SftpService {
+  // Creates an SFTP login for an account: the account's jail if it is not
+  // there yet, then a system user with a nologin shell, membership of the
+  // chroot group, and its passwd home set to that jail. Idempotent: a login
+  // that already exists returns ALREADY_EXISTS and — deliberately — its
+  // password is NOT changed, so retrying a creation whose response was lost
+  // cannot reset the credential the customer was already shown.
+  rpc CreateSftpUser(CreateSftpUserRequest) returns (CreateSftpUserResponse);
 
-  // Updates a virtual FTP user's password and/or chroot path. Idempotent:
-  // applying the same settings twice is a no-op success.
-  rpc UpdateFtpUser(UpdateFtpUserRequest) returns (UpdateFtpUserResponse);
+  // Sets an existing login's password. This is the ONLY way to change one:
+  // there is nothing else about an SFTP login that is settable, because
+  // everything else about it — its home, its jail, its shell, its group — is
+  // derived from the account rather than chosen by the caller.
+  rpc SetSftpPassword(SetSftpPasswordRequest) returns (SetSftpPasswordResponse);
 
-  // Removes a virtual FTP user. Idempotent: deleting a non-existent user
-  // returns NotFound.
-  rpc DeleteFtpUser(DeleteFtpUserRequest) returns (DeleteFtpUserResponse);
+  // Removes an SFTP login, and only the login. The account's files are NOT
+  // touched: the login's passwd home is the jail, the account's real home is
+  // bind-mounted inside it, and removing a login means revoking a key, never
+  // deleting what it opened. Idempotent: deleting a login that is not there
+  // returns NOT_FOUND.
+  rpc DeleteSftpUser(DeleteSftpUserRequest) returns (DeleteSftpUserResponse);
+
+  // Locks, or unlocks, EVERY SFTP login one account holds, because the account
+  // itself was suspended or resumed.
+  //
+  // This call exists because `usermod --lock <account>` does not reach these
+  // logins at all. Each is its own passwd entry named `<account>_<name>`,
+  // created with `useradd --non-unique --uid <account uid>` so that it writes
+  // as the account — so locking the account's own entry leaves every one of
+  // them authenticating, and a suspended customer kept a working WRITE
+  // credential into their home.
+  //
+  // The logins come from the HOST's own password database rather than from a
+  // list the panel supplies, for the reason DeleteAccount gives: a list can
+  // only describe what the panel remembers creating, and a login it has
+  // forgotten is exactly the one still letting a suspended customer in.
+  //
+  // Nothing is deleted and no password is changed: locking prefixes the hash,
+  // unlocking removes that prefix, and the customer's own credential is given
+  // back unchanged by the resume. Idempotent in both directions, and an
+  // account with no logins is a success that touches nothing.
+  //
+  // One honest limit, observable through GetAccountSuspensionState: a login
+  // that has no password at all cannot be unlocked — `usermod --unlock`
+  // refuses that while still exiting zero — so such a login stays locked after
+  // a resume. Every login this agent creates is given a password at creation,
+  // so this is a hand-made login, and the panel reports it rather than hiding
+  // it.
+  rpc SetAccountLoginsLocked(SetAccountLoginsLockedRequest) returns (SetAccountLoginsLockedResponse);
 }
 
-message CreateFtpUserRequest {
-  // System username of the account this FTP user is mapped to; the FTP
-  // user inherits its uid so file ownership matches account files.
+message CreateSftpUserRequest {
+  // System username of the hosting account this login belongs to. The jail,
+  // the mount point and the bind-mount unit's name are all derived from it.
   string account_username = 1;
-  // FTP login name, validated against the agent's identifier allow-list.
-  string ftp_username = 2;
-  // Plaintext password for the FTP login, supplied by the caller. Never
+  // Login name suffix chosen by the customer, validated against the agent's
+  // identifier allow-list. The agent namespaces it under the account, so the
+  // created login is "<account_username>_<sftp_username>"; a suffix naming
+  // another tenant is impossible rather than merely refused.
+  string sftp_username = 2;
+  // Plaintext password for the new login, supplied by the caller. Never
   // logged; not echoed back in any response or error.
   string password = 3;
-  // Chroot directory, relative to the account's home directory, e.g.
-  // "sites/example.com". Canonicalized and required to resolve inside the
-  // account home; ".." components are rejected.
-  string chroot_path = 4;
+  // 4 was `chroot_path` (removed 2026-09-01). There is no caller-supplied
+  // chroot in this design and there must never be one: the jail is
+  // /var/lib/maran-sftp/<account>, created root-owned by the agent, and a
+  // request cannot name the directory it will be confined to. The base moved
+  // out of /var/lib/maran on 2026-09-07: OpenSSH refuses a ChrootDirectory
+  // whose every component is not root-owned, and that parent belongs to the
+  // panel uid, so no login worked while the jail lived under it.
+  reserved 4;
+  reserved "chroot_path";
 }
 
-message CreateFtpUserResponse {
+message CreateSftpUserResponse {
   oneof result {
-    CreateFtpUserOk ok = 1;
+    CreateSftpUserOk ok = 1;
     AgentError error = 2;
   }
 }
 
-message CreateFtpUserOk {}
+message CreateSftpUserOk {
+  // Fully-qualified login name as created, e.g. "acc12345_web".
+  string sftp_username = 1;
+}
 
-message UpdateFtpUserRequest {
+message SetSftpPasswordRequest {
   // System username of the owning account.
   string account_username = 1;
-  // FTP login name to update.
-  string ftp_username = 2;
-  // New plaintext password. Empty string means "leave unchanged".
+  // Login name suffix, namespaced under the account exactly as it was at
+  // creation. The fully-qualified name is never accepted off the wire, so a
+  // request cannot name another tenant's login.
+  string sftp_username = 2;
+  // New plaintext password. There is no "leave unchanged" here: setting a
+  // password is the whole rpc, and an empty value is refused as invalid input
+  // rather than treated as a no-op.
   string password = 3;
-  // New chroot directory, relative to the account home. Empty string
-  // means "leave unchanged".
-  string chroot_path = 4;
+  // 4 was `chroot_path` (removed 2026-09-01). See CreateSftpUserRequest.
+  reserved 4;
+  reserved "chroot_path";
 }
 
-message UpdateFtpUserResponse {
+message SetSftpPasswordResponse {
   oneof result {
-    UpdateFtpUserOk ok = 1;
+    SetSftpPasswordOk ok = 1;
     AgentError error = 2;
   }
 }
 
-message UpdateFtpUserOk {}
+message SetSftpPasswordOk {}
 
-message DeleteFtpUserRequest {
+message DeleteSftpUserRequest {
   // System username of the owning account.
   string account_username = 1;
-  // FTP login name to delete.
-  string ftp_username = 2;
+  // Login name suffix, namespaced under the account as at creation.
+  string sftp_username = 2;
 }
 
-message DeleteFtpUserResponse {
+message DeleteSftpUserResponse {
   oneof result {
-    DeleteFtpUserOk ok = 1;
+    DeleteSftpUserOk ok = 1;
     AgentError error = 2;
   }
 }
 
-message DeleteFtpUserOk {}
+message DeleteSftpUserOk {}
+
+message SetAccountLoginsLockedRequest {
+  // System username of the account whose every SFTP login is affected.
+  // Revalidated by the agent against its username allow-list regardless of
+  // prior API-side validation.
+  string account_username = 1;
+  // True to lock every login the account holds, false to unlock them.
+  bool locked = 2;
+}
+
+message SetAccountLoginsLockedResponse {
+  oneof result {
+    SetAccountLoginsLockedOk ok = 1;
+    AgentError error = 2;
+  }
+}
+
+message SetAccountLoginsLockedOk {
+  // How many of the account's processes the lock direction signalled: the figure
+  // `pkill --count --signal KILL --uid <account uid>` reported. Present only on
+  // the locking direction, because unlocking ends no session and has nothing to
+  // count; zero means the agent culled and matched no process, which is a
+  // measurement and not a silence.
+  //
+  // `optional` and not a bare `uint32`, deliberately. An agent predating this
+  // field sends no value, and a bare `uint32` would deliver that as 0 —
+  // indistinguishable from an agent that culled and found nothing. That is the
+  // exact defect `unmanaged_logins` (accounts.proto) already cost this contract:
+  // the panel has to INFER "measured" there from an unrelated field of the same
+  // answer, and the inference reads the commonest account as unknown. Here
+  // absence is a fact of the wire, so the panel reads presence instead of
+  // guessing at it.
+  //
+  // A failed cull is never a number: the agent answers `error` with
+  // ERROR_CODE_SYSTEM_FAILURE, because some of the account's processes may have
+  // been signalled and some may not, and a suspension it cannot account for is
+  // reported as failed rather than as a count.
+  optional uint32 sessions_ended = 1;
+}
+
+// This panel's own FTPS daemon: the service that configures it, observes it,
+// and issues the logins it authorises.
+//
+// A second service beside `SftpService` rather than more rpcs on it, because
+// the two answer about different daemons: the SFTP half drives an OpenSSH the
+// operator already runs, and this half owns a vsftpd this panel installed,
+// configured and starts. Purely additive — nothing above changes.
+//
+// Every rpc here is idempotent, and the daemon rpcs all answer with the SAME
+// nine-field observation of the running daemon, so a panel that has just
+// enabled, disabled or reloaded needs no second call to learn what it did.
+service FtpsService {
+  // Renders, validates and applies the FTPS daemon's configuration, then
+  // brings it up. Idempotent: an unchanged configuration writes nothing and
+  // does not restart a running daemon, which matters because a nightly
+  // reconcile that re-applied the same file would bounce every live session on
+  // the server once a day.
+  //
+  // Refuses with NOT_FOUND when no certificate material exists for `hostname`,
+  // naming the path it looked at. This service NEVER creates certificate
+  // material: `ssl.proto`'s service owns that store, its pairing check and its
+  // self-signed marker, and a second writer of that directory is how a
+  // customer's private key gets destroyed.
+  rpc EnableFtps(EnableFtpsRequest) returns (EnableFtpsResponse);
+
+  // Stops the daemon and takes it out of the boot sequence. Logins are NOT
+  // removed: disabling a service is not revoking credentials, and an operator
+  // who re-enables it expects the same customers to be able to log in.
+  // Idempotent.
+  rpc DisableFtps(DisableFtpsRequest) returns (DisableFtpsResponse);
+
+  // Reports what the daemon is doing: whether the unit is active, whether the
+  // control port answered a greeting, whether certificate material exists for
+  // the hostname and whether it is the agent's own self-signed placeholder,
+  // the passive range in force, whether the live configuration still forces
+  // TLS, and which listen mode it carries.
+  //
+  // Every configuration fact here is read back out of the file the daemon is
+  // started against, resolving duplicate keys the way vsftpd's own parser
+  // does — the LAST occurrence wins. Reporting what the panel rendered would
+  // be reporting an intention: an appended `force_local_logins_ssl=NO` leaves a
+  // configuration that still parses, still starts and still greets, and a
+  // status that agreed with the panel's own decision would certify it.
+  rpc GetFtpsStatus(GetFtpsStatusRequest) returns (GetFtpsStatusResponse);
+
+  // Restarts the daemon so it picks up certificate material that has been
+  // replaced underneath it. vsftpd loads its certificate once, at start, so
+  // this is a restart and it aborts transfers in flight; the panel calls it
+  // only when the SSL module reports new material for the FTPS hostname. A
+  // daemon that is not running is left alone and reported as it is.
+  rpc ReloadFtpsTls(ReloadFtpsTlsRequest) returns (ReloadFtpsTlsResponse);
+
+  // Creates an FTPS login: the account's jail and bind mount if they are not
+  // there yet, then a system login on the ACCOUNT's uid with a nologin shell
+  // and membership of the FTPS group and of nothing else. Idempotent: an
+  // existing login returns ALREADY_EXISTS and its password is deliberately NOT
+  // changed, so retrying a creation whose response was lost cannot reset the
+  // credential the customer was already shown.
+  rpc CreateFtpsUser(CreateFtpsUserRequest) returns (CreateFtpsUserResponse);
+
+  // Sets an existing login's password. The only thing about an FTPS login that
+  // is settable: everything else — its home, its jail, its shell, its group —
+  // is derived from the account rather than chosen by the caller.
+  //
+  // It takes the ACCOUNT as well as the login, and neither field is optional.
+  // The agent checks that the named login belongs to that account (its passwd
+  // home is exactly that account's jail) before it writes anything, because
+  // `<account>_<name>` has no unique decomposition when account names may
+  // carry the separator — so without the account a request authorised for one
+  // tenant could re-credential another tenant's login. The agent also restores
+  // a suspension it finds: `chpasswd` REPLACES the shadow password field, so a
+  // suspended customer changing their password would otherwise unlock their
+  // own login while the panel went on reporting them suspended.
+  rpc SetFtpsPassword(SetFtpsPasswordRequest) returns (SetFtpsPasswordResponse);
+
+  // Removes a login, and only the login. The account's files are untouched —
+  // the login's passwd home is the jail and the account's real home is
+  // bind-mounted inside it — and the jail stays for the account's other
+  // logins. Idempotent: a login that is not there returns NOT_FOUND.
+  rpc DeleteFtpsUser(DeleteFtpsUserRequest) returns (DeleteFtpsUserResponse);
+}
+
+message EnableFtpsRequest {
+  // The hostname the daemon serves, and the name its certificate material is
+  // filed under. Revalidated by the agent as a domain.
+  string hostname = 1;
+  // Lowest port of the passive data range, inclusive.
+  //
+  // Filled by the PANEL from its own defaults, never by the agent: the agent
+  // must not own a product default, and the range has to be the same number the
+  // panel opened in the firewall. Refused outside 1-65535, and refused when it
+  // is above `passive_port_max`.
+  uint32 passive_port_min = 2;
+  // Highest port of the passive data range, inclusive. Same rules.
+  uint32 passive_port_max = 3;
+  // The address to advertise in the PASV reply, for a host behind NAT whose
+  // public address is not the one the socket is bound to. Empty means the key
+  // is not written at all and the daemon answers with the address the control
+  // connection arrived on, which is the ordinary host.
+  string passive_address = 4;
+  // The daemon's concurrent-session ceiling. A panel value like the range.
+  uint32 max_clients = 5;
+}
+
+message EnableFtpsResponse {
+  oneof result {
+    EnableFtpsOk ok = 1;
+    AgentError error = 2;
+  }
+}
+
+message EnableFtpsOk {
+  // True when the service manager reports the FTPS unit active.
+  bool running = 1;
+  // True when a TCP connect to the control port, made ON THE HOST ITSELF,
+  // returned a `220` greeting. A LOCAL probe: it bypasses the firewall, so
+  // "answering here" and "unreachable from outside" are compatible. The panel
+  // composes this with the Firewall module's rule list to say which; nothing
+  // in this service reads a firewall.
+  bool control_port_answered = 2;
+  // Whether certificate material exists for the requested hostname, and
+  // whether it is the agent's own self-signed placeholder — the marker file's
+  // existence beside the material, never a parse of the certificate.
+  bool certificate_present = 3;
+  bool certificate_is_self_signed = 4;
+  // Where the material lives, or would have to be placed, so an operator
+  // message can name the path. Operator-facing; never shown to a customer.
+  string certificate_path = 5;
+  // The passive data range the LIVE configuration carries. Zero when the
+  // daemon has no configuration on this host yet.
+  uint32 passive_port_min = 6;
+  uint32 passive_port_max = 7;
+  // True when the live configuration is the IPv4-only fallback: the enable
+  // path's probe found the kernel refusing an IPv6 listening bind and wrote
+  // listen=YES/listen_ipv6=NO. False is the dual-stack default, and false is
+  // also what a host with no configuration yet reports. The screen states it;
+  // nothing decides on it.
+  bool ipv4_only = 8;
+  // True when the LIVE configuration still forces TLS on both the control and
+  // the data channel — the two `force_local_*_ssl` keys, resolved the way
+  // vsftpd resolves them, LAST occurrence wins.
+  //
+  // The reason this is on the wire and not left as an internal fact: one
+  // appended `force_local_logins_ssl=NO` switches forced TLS off on a
+  // configuration that still parses, still starts and still answers `220` — so
+  // every other field here reads healthy while the daemon takes passwords in
+  // the clear. A status screen that could not say this would show green for
+  // exactly that host, which is the vacuous shape this contract exists to
+  // avoid.
+  //
+  // FALSE is the answer whenever the agent cannot say otherwise: no live
+  // configuration, a file it could not resolve, or an agent predating this
+  // field. That direction is deliberate — an unknown must never read as
+  // "encryption is enforced".
+  bool forced_tls = 9;
+}
+
+message DisableFtpsRequest {}
+
+message DisableFtpsResponse {
+  oneof result {
+    DisableFtpsOk ok = 1;
+    AgentError error = 2;
+  }
+}
+
+// The same nine facts `EnableFtpsOk` carries, field for field and number for
+// number. Every field's meaning is that message's; they are repeated as their
+// own message rather than nested because a response is the shape the contract
+// gives it, and all four are built from one observation in the agent.
+message DisableFtpsOk {
+  bool running = 1;
+  bool control_port_answered = 2;
+  bool certificate_present = 3;
+  bool certificate_is_self_signed = 4;
+  string certificate_path = 5;
+  uint32 passive_port_min = 6;
+  uint32 passive_port_max = 7;
+  bool ipv4_only = 8;
+  // True when the LIVE configuration still forces TLS on both the control and
+  // the data channel — the two `force_local_*_ssl` keys, resolved the way
+  // vsftpd resolves them, LAST occurrence wins.
+  //
+  // The reason this is on the wire and not left as an internal fact: one
+  // appended `force_local_logins_ssl=NO` switches forced TLS off on a
+  // configuration that still parses, still starts and still answers `220` — so
+  // every other field here reads healthy while the daemon takes passwords in
+  // the clear. A status screen that could not say this would show green for
+  // exactly that host, which is the vacuous shape this contract exists to
+  // avoid.
+  //
+  // FALSE is the answer whenever the agent cannot say otherwise: no live
+  // configuration, a file it could not resolve, or an agent predating this
+  // field. That direction is deliberate — an unknown must never read as
+  // "encryption is enforced".
+  bool forced_tls = 9;
+}
+
+message GetFtpsStatusRequest {
+  // The hostname whose certificate material the answer describes. EMPTY means
+  // "report the daemon and range facts only", so a panel with no hostname
+  // persisted yet still gets an answer instead of an error.
+  string hostname = 1;
+}
+
+message GetFtpsStatusResponse {
+  oneof result {
+    GetFtpsStatusOk ok = 1;
+    AgentError error = 2;
+  }
+}
+
+// The same nine facts `EnableFtpsOk` carries. With an empty `hostname` the
+// three certificate fields are absent-valued (false, false, empty) because
+// nothing was asked about, which is not the same as "no material exists" — a
+// caller that did not name a hostname must not read them as an answer.
+message GetFtpsStatusOk {
+  bool running = 1;
+  bool control_port_answered = 2;
+  bool certificate_present = 3;
+  bool certificate_is_self_signed = 4;
+  string certificate_path = 5;
+  uint32 passive_port_min = 6;
+  uint32 passive_port_max = 7;
+  bool ipv4_only = 8;
+  // True when the LIVE configuration still forces TLS on both the control and
+  // the data channel — the two `force_local_*_ssl` keys, resolved the way
+  // vsftpd resolves them, LAST occurrence wins.
+  //
+  // The reason this is on the wire and not left as an internal fact: one
+  // appended `force_local_logins_ssl=NO` switches forced TLS off on a
+  // configuration that still parses, still starts and still answers `220` — so
+  // every other field here reads healthy while the daemon takes passwords in
+  // the clear. A status screen that could not say this would show green for
+  // exactly that host, which is the vacuous shape this contract exists to
+  // avoid.
+  //
+  // FALSE is the answer whenever the agent cannot say otherwise: no live
+  // configuration, a file it could not resolve, or an agent predating this
+  // field. That direction is deliberate — an unknown must never read as
+  // "encryption is enforced".
+  bool forced_tls = 9;
+}
+
+message ReloadFtpsTlsRequest {}
+
+message ReloadFtpsTlsResponse {
+  oneof result {
+    ReloadFtpsTlsOk ok = 1;
+    AgentError error = 2;
+  }
+}
+
+// The same nine facts `EnableFtpsOk` carries.
+message ReloadFtpsTlsOk {
+  bool running = 1;
+  bool control_port_answered = 2;
+  bool certificate_present = 3;
+  bool certificate_is_self_signed = 4;
+  string certificate_path = 5;
+  uint32 passive_port_min = 6;
+  uint32 passive_port_max = 7;
+  bool ipv4_only = 8;
+  // True when the LIVE configuration still forces TLS on both the control and
+  // the data channel — the two `force_local_*_ssl` keys, resolved the way
+  // vsftpd resolves them, LAST occurrence wins.
+  //
+  // The reason this is on the wire and not left as an internal fact: one
+  // appended `force_local_logins_ssl=NO` switches forced TLS off on a
+  // configuration that still parses, still starts and still answers `220` — so
+  // every other field here reads healthy while the daemon takes passwords in
+  // the clear. A status screen that could not say this would show green for
+  // exactly that host, which is the vacuous shape this contract exists to
+  // avoid.
+  //
+  // FALSE is the answer whenever the agent cannot say otherwise: no live
+  // configuration, a file it could not resolve, or an agent predating this
+  // field. That direction is deliberate — an unknown must never read as
+  // "encryption is enforced".
+  bool forced_tls = 9;
+}
+
+message CreateFtpsUserRequest {
+  // System username of the hosting account this login belongs to. The jail,
+  // the mount point and the bind-mount unit's name are all derived from it.
+  string account_username = 1;
+  // Login name suffix chosen by the customer, validated against the agent's
+  // identifier allow-list. The agent namespaces it under the account, so the
+  // created login is "<account_username>_<ftps_username>"; a suffix naming
+  // another tenant is impossible rather than merely refused. There is no
+  // chroot field here, now or ever — see CreateSftpUserRequest's `reserved 4`.
+  string ftps_username = 2;
+  // Plaintext password for the new login, supplied by the caller. Never
+  // logged; not echoed back in any response or error.
+  string password = 3;
+}
+
+message CreateFtpsUserResponse {
+  oneof result {
+    CreateFtpsUserOk ok = 1;
+    AgentError error = 2;
+  }
+}
+
+message CreateFtpsUserOk {
+  // Fully-qualified login name as created, e.g. "acc12345_web".
+  string ftps_username = 1;
+}
+
+message SetFtpsPasswordRequest {
+  // System username of the owning account. Load-bearing rather than
+  // informational: it is what the agent checks the login's jail against, and
+  // what its per-account lock is taken on.
+  string account_username = 1;
+  // Login name suffix, namespaced under the account exactly as it was at
+  // creation. The fully-qualified name is never accepted off the wire, so a
+  // request cannot name another tenant's login.
+  string ftps_username = 2;
+  // New plaintext password. There is no "leave unchanged" here: setting a
+  // password is the whole rpc, and an empty value is refused as invalid input
+  // rather than treated as a no-op — a silent no-op would report success for a
+  // credential that was never rotated.
+  string password = 3;
+}
+
+message SetFtpsPasswordResponse {
+  oneof result {
+    SetFtpsPasswordOk ok = 1;
+    AgentError error = 2;
+  }
+}
+
+message SetFtpsPasswordOk {}
+
+message DeleteFtpsUserRequest {
+  // System username of the owning account.
+  string account_username = 1;
+  // Login name suffix, namespaced under the account as at creation.
+  string ftps_username = 2;
+}
+
+message DeleteFtpsUserResponse {
+  oneof result {
+    DeleteFtpsUserOk ok = 1;
+    AgentError error = 2;
+  }
+}
+
+message DeleteFtpsUserOk {}

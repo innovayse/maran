@@ -1,0 +1,55 @@
+{% if upstream.is_some() %}    access_log {{ access_log }};
+    error_log {{ error_log }};
+
+    location / {
+        proxy_pass http://{{ upstream.unwrap() }};
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+{% else if fpm_socket.is_some() %}    access_log {{ access_log }};
+    error_log {{ error_log }};
+
+    root {{ document_root }};
+    index index.php index.html;
+
+    location / {
+        try_files $uri $uri/ /index.php?$query_string;
+    }
+
+    location ~ \.php$ {
+        # Refuses PATH_INFO requests like /uploads/evil.jpg/x.php before
+        # fastcgi_pass is reached: with cgi.fix_pathinfo left at its PHP
+        # default, php-fpm would otherwise walk back up the path looking for
+        # something it can execute and run the uploaded file as PHP. The pool
+        # also sets cgi.fix_pathinfo=0 itself — this line and that setting are
+        # two independent stops on the same hole, not one relying on the other.
+        try_files $uri =404;
+        include fastcgi_params;
+        fastcgi_pass unix:{{ fpm_socket.unwrap() }};
+        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+        fastcgi_hide_header X-Powered-By;
+    }
+
+    # Everything under a dot is denied, including .env, .git and the challenge
+    # directory's neighbours. The ACME location above is matched first by ^~.
+    location ~ /\. {
+        deny all;
+    }
+{% else %}    access_log {{ access_log }};
+    error_log {{ error_log }};
+
+    root {{ document_root }};
+    index index.html index.htm;
+
+    location / {
+        try_files $uri $uri/ =404;
+    }
+
+    # Everything under a dot is denied, including .env, .git and the challenge
+    # directory's neighbours. The ACME location above is matched first by ^~.
+    location ~ /\. {
+        deny all;
+    }
+{% endif %}

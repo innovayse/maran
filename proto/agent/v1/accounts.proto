@@ -17,21 +17,108 @@ service AccountsService {
   // is left untouched and reported as AlreadyExists (caller decides).
   rpc CreateAccount(CreateAccountRequest) returns (CreateAccountResponse);
 
-  // Suspends an account: login shell disabled, all owned services (sites,
-  // cron) paused, data retained. Idempotent: suspending an already
+  // Locks the account's own login: `usermod --lock` on its password hash and
+  // the nologin shell, so neither a password nor an SSH key already in place
+  // authenticates it. Data is retained. Idempotent: suspending an already
   // suspended account is a no-op success.
+  //
+  // Corrected 2026-09-07, comment only. This used to say "all owned services
+  // (sites, cron) paused". That was never true of this call and is still not:
+  // it runs `usermod` twice and touches nothing else. A suspended customer's
+  // websites kept serving and their cron kept firing, and this sentence — on
+  // the contract surface both sides generate from — is what stopped anybody
+  // re-deriving it.
+  //
+  // What actually pauses an account's services is the PANEL, which drives one
+  // subsystem at a time and then verifies the result with
+  // GetAccountSuspensionState below. Three subsystems are covered, each by its
+  // own call and each observed by its own field on that answer:
+  //   - SITES. Every vhost of the account is replaced by the suspended one
+  //     through SitesService.DisableSite.
+  //   - CRON. Every managed entry is suppressed through
+  //     CronService.SetAccountCronSuspended, by a marker ORTHOGONAL to the
+  //     per-entry `enabled` flag — that flag is the CUSTOMER's own choice, and
+  //     reusing it would make a resume switch back on the entries they had
+  //     turned off themselves.
+  //   - SFTP LOGINS. Every `<account>_*` passwd entry is locked through
+  //     SftpService.SetAccountLoginsLocked. They are separate passwd entries
+  //     sharing the account's uid, so the `usermod --lock` this call performs
+  //     reaches none of them, and until that call existed a suspended customer
+  //     kept a working WRITE credential into their home.
+  //
+  // What is still NOT covered, stated rather than left to be discovered: the
+  // account's DATABASES keep accepting connections, its FOREIGN crontab lines
+  // — lines the panel did not write — keep firing, and the panel's own web
+  // login still works. The first and the last are open product decisions; the
+  // middle one is reported as a count by GetAccountSuspensionState so the
+  // panel can say what it did not silence.
   rpc SuspendAccount(SuspendAccountRequest) returns (SuspendAccountResponse);
 
-  // Reverses SuspendAccount: login shell restored, owned services resumed.
+  // Reverses SuspendAccount: `usermod --unlock` and the nologin shell again.
   // Idempotent: unsuspending an already-active account is a no-op success.
+  //
+  // Corrected 2026-09-07, comment only, with SuspendAccount above: this used
+  // to say "owned services resumed", which this call has never done either.
+  //
+  // The reversal of the SITE half is the panel's, and it is deliberately not
+  // the agent's: putting a site back means re-enabling exactly the sites the
+  // customer had ENABLED, and a site the customer disabled themselves must
+  // stay stubbed. Only the panel holds that choice, so an agent-side
+  // "resume everything" would silently undo a customer's own decision. The
+  // law this expresses: suspension MUST NOT overwrite state that also
+  // expresses a customer choice.
   rpc UnsuspendAccount(UnsuspendAccountRequest) returns (UnsuspendAccountResponse);
 
-  // Permanently removes the system user, its home directory and all data
-  // under it (files, mail spool if any). Databases and FTP users owned by
-  // the account are NOT removed by this call — the caller (backend) drops
-  // them explicitly first via DbService/FtpService so each deletion is
-  // independently audited. Idempotent: deleting a non-existent account
-  // returns NotFound, not an error the caller must special-case away.
+  // Reports what this HOST can be observed to be doing for the account right
+  // now, so the panel can refuse to report a suspension it cannot see.
+  //
+  // Read-only: it changes nothing. It exists because suspension's residue is
+  // on the host — a vhost still serving, a login still unlocked — and not in
+  // the panel's own rows, so the DB-based residue audit that verifies deletion
+  // cannot verify this. A check that reports on the host by reading the
+  // panel's tables would be green over a serving site.
+  //
+  // Deliberately NOT a marker file. `serving_stub` below is decided by
+  // comparing the vhost on disk, byte for byte, with the text the suspended
+  // template renders for that site — the same definition DisableSite already
+  // uses to be idempotent. A marker beside the config can outlive the config
+  // it claims to describe, and then "suspended" is a fact about the marker
+  // rather than about what nginx serves.
+  //
+  // Idempotent and side-effect free; safe to call on an account in any state.
+  rpc GetAccountSuspensionState(GetAccountSuspensionStateRequest) returns (GetAccountSuspensionStateResponse);
+
+  // Permanently removes EVERYTHING on this host that belongs to the account:
+  // its databases and their dedicated users, its SFTP logins together with the
+  // account's jail and the bind mount that filled it, its php-fpm pools, and
+  // finally the system user with its home directory and all data under it.
+  //
+  // Corrected 2026-09-02, comment and behaviour. This used to say databases and
+  // FTP users were NOT removed here and that the caller dropped them first. That
+  // was the contract and it was not safe: `userdel` touches neither MySQL nor
+  // sshd, so anything the panel had forgotten — or never recorded — stayed on the
+  // host, and system user names are RECYCLED. An account created again under the
+  // same name inherited the previous tenant's live databases and a working
+  // credential into them. The agent now asks the machine what is there instead of
+  // being handed the panel's list, because a list can only describe what the
+  // panel remembers creating.
+  //
+  // The panel still removes its OWN rows first, and each of its own deletions is
+  // still independently audited; this call is the host-side cleanup, not a
+  // replacement for that.
+  //
+  // Ordering is part of the contract: everything above precedes `userdel`. A pool
+  // outliving its account cannot be removed at all (php-fpm refuses to validate a
+  // pool naming a user that no longer resolves), and a bind mount outliving its
+  // account points at a home that has just been deleted.
+  //
+  // NOT best-effort: the first refusal aborts the deletion with the account still
+  // present, reported as SYSTEM_FAILURE. That is the recoverable half — an account
+  // that is still there can be deleted again, while an orphaned database or a live
+  // credential cannot be found by any later operation.
+  //
+  // Idempotent: deleting a non-existent account returns NotFound, not an error the
+  // caller must special-case away.
   rpc DeleteAccount(DeleteAccountRequest) returns (DeleteAccountResponse);
 
   // Sets (replaces) the disk quota for an account. Idempotent: setting the
@@ -142,4 +229,193 @@ message GetAccountUsageOk {
   uint64 used_bytes = 1;
   // Quota currently in effect, in bytes.
   uint64 quota_bytes = 2;
+}
+
+message GetAccountSuspensionStateRequest {
+  // System username of the account to observe. Revalidated by the agent
+  // against its username allow-list regardless of prior API-side validation.
+  string username = 1;
+}
+
+message GetAccountSuspensionStateResponse {
+  oneof result {
+    GetAccountSuspensionStateOk ok = 1;
+    AgentError error = 2;
+  }
+}
+
+message GetAccountSuspensionStateOk {
+  // True when the account's own passwd entry is locked, as `passwd -S` reports
+  // it: the state SuspendAccount leaves behind. False means a password can
+  // still match, whatever the panel believes it asked for.
+  //
+  // This covers the ACCOUNT's own login only. Its `<account>_*` SFTP logins are
+  // separate passwd entries and are reported separately, in `sftp_logins`.
+  bool login_locked = 1;
+
+  // One entry per vhost this host serves for the account, whether or not the
+  // panel remembers creating it. Asked of the machine and not taken from a
+  // list, because a list can only describe what the panel remembers — and a
+  // vhost it has forgotten is exactly the one still serving a suspended
+  // customer's site.
+  //
+  // Empty means the account has no vhost at all on this host, which is a
+  // suspended state and not a failure to look. `sites_directory_readable`
+  // below is what tells those two apart.
+  repeated SiteSuspensionFact sites = 2;
+
+  // True when the agent could read the directory it enumerates vhosts from.
+  //
+  // Present because `sites` going empty is the way this answer can silently
+  // stop observing anything: an unreadable directory and an account with no
+  // sites produce the same empty list, and the empty list is the one that
+  // reads as "everything is suspended". The panel MUST refuse a suspension
+  // when this is false.
+  bool sites_directory_readable = 3;
+
+  // How many entries the panel manages in this account's crontab, and how many
+  // of those carry the suspension marker.
+  //
+  // Read out of the crontab itself, which is the only truth there is: the Cron
+  // module keeps no rows at all, so a database-side check would answer green
+  // over a firing crontab — the same defect this whole rpc exists to close, in
+  // a new place.
+  //
+  // Suspended means the marker is on the installed line, which is what stops
+  // cron reading the schedule. It is deliberately NOT the per-entry `enabled`
+  // flag: an entry the customer disabled themselves is counted here as
+  // unsuspended, because resuming the account must give that entry back
+  // exactly as they left it.
+  //
+  // Both zero is what an account with no managed entries looks like, and that
+  // IS a suspended crontab rather than a failure to look: a crontab the agent
+  // could not read is an error on this rpc, never an empty count.
+  uint32 cron_entries_total = 4;
+  uint32 cron_entries_suspended = 5;
+
+  // How many lines the account's crontab holds that the panel did not write.
+  //
+  // Suspension does not touch them and this agent will not rewrite them — a
+  // crontab is not this agent's file. They keep firing under a suspended
+  // account, so the count is reported: a suspension that says nothing about
+  // them would be claiming a silence it did not achieve. Zero is the ordinary
+  // answer, and the panel shows the number rather than refusing on it.
+  uint32 cron_foreign_lines = 6;
+
+  // One entry per SFTP login this host holds for the account, whether or not
+  // the panel remembers creating it — asked of the password database, for the
+  // reason DeleteAccount gives.
+  //
+  // Empty means the account has no SFTP login at all, which is a suspended
+  // state and not a failure to look: enumerating them reads the password
+  // database, and a database that cannot be read is an error on this rpc.
+  repeated SftpLoginSuspensionFact sftp_logins = 7;
+
+  // What the account's own shadow password field actually holds.
+  //
+  // Added because `login_locked` above cannot answer the question REACTIVATION
+  // asks. `passwd -S` reports `L` (Debian) / `LK` (RHEL) both for a login
+  // locked over a password AND for one that never had a password at all, and
+  // every hosting account is the second kind — the agent sets no password on an
+  // account's own entry, so `useradd`'s `!` / `!!` is the whole field for its
+  // life. So `login_locked` is true for such an account for ever, before a
+  // suspension, during it and after it. Suspension asks "can a password
+  // authenticate this login" and gets a correct answer; reactivation asks
+  // "is something of the customer's still held down" and gets the other
+  // question's answer, which refuses every hosting account.
+  //
+  // The raw shadow field makes exactly that distinction, identically on both
+  // families, which is why this is read from it and not from `passwd -S`.
+  // No hash and no field bytes cross this wire: the agent classifies at the
+  // point of reading and drops them.
+  //
+  // LOGIN_PASSWORD_STATE_UNSPECIFIED means the agent predates this field. A
+  // caller MUST then fall back to `login_locked`, which is today's behaviour
+  // and is conservative in both directions.
+  LoginPasswordState login_password_state = 8;
+
+  // How many passwd entries share this account's uid without being one of its
+  // jailed logins.
+  //
+  // Entries this panel did not create and does not lock: an operator's own
+  // `useradd --non-unique`, or a login of a neighbouring account's jail that
+  // happens to share the uid. The enumeration above selects by JAIL, so this is
+  // the number it deliberately cannot speak for, and an attestation that did
+  // not say so would be claiming a silence it never achieved.
+  //
+  // Reported rather than refused on, which is the precedent `cron_foreign_lines`
+  // set for exactly this shape: the panel shows the number and the operator
+  // decides. Zero is the ordinary answer. This agent locks none of them — they
+  // are not its entries, and turning a credential nobody asked it to touch would
+  // take away access somebody deliberately arranged.
+  //
+  // A COUNT and not a list, deliberately: the panel's question is whether the
+  // attestation covered everything, and a name here would be a name the panel
+  // had no business learning from a credential it does not own.
+  uint32 unmanaged_logins = 9;
+}
+
+// The four states an account's shadow password field can be in.
+//
+// Not a boolean, and not two booleans: "no password at all" and "locked over a
+// password" are opposite facts about what a resumption has to restore, and
+// "empty" is a third that is neither — it is an open door, and it is what
+// `passwd -u -f` leaves behind on the RHEL family, which is why that command is
+// not used anywhere in this product.
+enum LoginPasswordState {
+  // Never sent by an agent that knows this field; means "this agent predates
+  // it". Callers fall back to GetAccountSuspensionStateOk.login_locked.
+  LOGIN_PASSWORD_STATE_UNSPECIFIED = 0;
+  // The field is empty: the login authenticates with NO password. A suspension
+  // must never leave a login here.
+  LOGIN_PASSWORD_STATE_EMPTY = 1;
+  // The field holds lock markers only (`!`, `!!`, `*`) and no hash. Nothing can
+  // authenticate against it and there is nothing to restore. This is how every
+  // account this agent creates begins and ends its life.
+  LOGIN_PASSWORD_STATE_ABSENT = 2;
+  // A real password hash behind a leading `!`: locked, and reversible. The only
+  // state in which anything of the customer's is actually held down, and the
+  // only one in which `usermod --unlock` has work to do.
+  LOGIN_PASSWORD_STATE_LOCKED = 3;
+  // A real password hash with no lock marker: the login can authenticate.
+  LOGIN_PASSWORD_STATE_USABLE = 4;
+}
+
+message SftpLoginSuspensionFact {
+  // The login's full system name, `<account>_<name>` as the password database
+  // spells it.
+  string username = 1;
+
+  // True when that passwd entry is locked, as `passwd -S` reports it.
+  //
+  // Observed per login and never inferred from the account's own state: these
+  // entries are what `usermod --lock <account>` does not reach, so inferring
+  // would reproduce exactly the defect the field exists to detect.
+  bool locked = 2;
+
+  // Which daemon serves this login, derived from the jail its passwd home is.
+  //
+  // Added 2026-09-09 with FTPS. Derived and never inferred from the name:
+  // `alice_web` is a valid login name under either protocol, and the two are
+  // told apart only by the jail root their home sits under — a value this agent
+  // itself wrote.
+  //
+  // TRANSFER_PROTOCOL_UNSPECIFIED means the agent predates this field, and an
+  // old caller reading an absent value as SFTP reads it correctly: every fact
+  // in this list before FTPS existed was an SFTP login by construction.
+  TransferProtocol protocol = 3;
+}
+
+message SiteSuspensionFact {
+  // The site's primary domain, as the vhost's file name spells it.
+  string domain = 1;
+
+  // True when the vhost on disk is BYTE FOR BYTE what the suspended template
+  // renders for this site.
+  //
+  // False also when the agent could not render the comparison text at all —
+  // an unresolvable document root, a vhost whose `server_name` line it cannot
+  // read. Unobservable is reported as not stubbed, which refuses a suspension
+  // rather than certifying one.
+  bool serving_stub = 2;
 }

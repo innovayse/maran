@@ -1,5 +1,12 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
+  <PropertyGroup>
+    <!-- The resx triples' neutral file is English (rules/csharp.md "The backend owns all
+         user-facing message text"). Declaring it lets the runtime skip probing for an "en"
+         satellite assembly that will never exist, and satisfies CA1824. -->
+    <NeutralLanguage>en</NeutralLanguage>
+  </PropertyGroup>
+
   <ItemGroup>
     <PackageReference Include="Google.Protobuf" />
     <!-- DI.Abstractions: only for the AddAgentClient registration entry point (DependencyInjection.cs). -->
@@ -16,7 +23,11 @@
          agent failure code this project produces. Strongly-typed generation is not needed — the
          keys are looked up by code through IErrorTextProvider, never by a designer accessor. -->
     <EmbeddedResource Update="Resources\ErrorMessages.resx">
-      <Generator></Generator>
+      <Generator>MSBuild:Compile</Generator>
+      <StronglyTypedLanguage>CSharp</StronglyTypedLanguage>
+      <StronglyTypedNamespace>Maran.Agent.Client.Resources</StronglyTypedNamespace>
+      <StronglyTypedClassName>ErrorMessages</StronglyTypedClassName>
+      <StronglyTypedFileName>$(IntermediateOutputPath)ErrorMessages.Designer.cs</StronglyTypedFileName>
     </EmbeddedResource>
     <EmbeddedResource Update="Resources\ErrorMessages.ru.resx">
       <Generator></Generator>

@@ -31,5 +31,82 @@ services:
       retries: 5
       start_period: 10s
 
+  # The Rust agent, development-only, behind the `agent` profile so that plain
+  # `docker compose up -d` keeps starting the database alone as it always has.
+  #
+  # WHY IT RUNS IN A CONTAINER AND NOT ON THE HOST. The agent is the product's only root process
+  # (rules/architecture.md). It creates system accounts, writes vhosts into /etc/nginx, drops
+  # databases, mounts SFTP jails and writes /var/backups/maran. Running that on a developer's own
+  # machine means either giving it root over the workstation — where every one of those actions is
+  # destructive and permanent — or running it unprivileged, which is what `maran handshake` does
+  # and why that check can prove the wire and nothing behind it. The polygon image is already a
+  # real host, built by running the installer's own steps, so it is the composition to extend
+  # rather than a new one to invent.
+  #
+  # WHY THE PANEL REACHES THE SOCKET WITH NO `chown`. In production the agent is `User=root` with
+  # `Group=maran` (installer/systemd/maran-agent.service, rendered there from `__MARAN_GROUP__`),
+  # so the socket it binds is `root:maran 0660` and the panel process reaches it because it is in
+  # that group. `user: "0:<gid>"` here is that same mechanism with the developer's gid in place of
+  # `maran`'s: the process is still uid 0, the socket is still 0660 with no world access, and the
+  # group that may open it is still exactly one. Nothing is loosened — SOCKET_MODE in
+  # agent/crates/agent/src/server.rs is untouched and no `chown` runs anywhere. `--allow-uid`
+  # narrows it further, to a single uid, the same way the installer passes the panel user's.
+  #
+  # WHY IT IS SAFE FOR DEVELOPMENT ONLY. Two things here belong nowhere near a server: `privileged`
+  # (the SFTP bind mounts and quota calls need it, as docker/README.md already records for the
+  # polygon suites) and a socket directory inside the working tree, which is owned by a normal
+  # user. On a server the socket lives in root-owned /run/maran and the group is a service account
+  # that owns nothing else. Production is never composed by this file: the installer sets every
+  # process up natively.
+  agent:
+    profiles: ["agent"]
+    image: maran-polygon-ubuntu24:latest
+    build:
+      # The repository root, not docker/: the image copies files out of installer/.
+      context: ..
+      dockerfile: docker/polygon/ubuntu24.Dockerfile
+    # Interpolated so that a SECOND instance of this service can exist beside the first: the
+    # self-check lane of `maran dev --selfcheck` runs the same service under another compose
+    # project with its own container name and socket directory, so it can prove the bring-up
+    # while a real stack keeps running. A fixed name here would make the check and the stack
+    # mutually exclusive — which is how three "live" passes ran against no agent at all.
+    # run-dev.sh sets both variables; the defaults are the plain `maran dev` stack.
+    container_name: ${MARAN_AGENT_CONTAINER:-maran-agent-dev}
+    privileged: true
+    # uid 0 with the developer's gid — the Group=maran model, see above. MARAN_DEV_GID and
+    # MARAN_DEV_UID are exported by scripts/lib/run-dev.sh; the fallbacks are the first login
+    # account on a Linux workstation.
+    user: "0:${MARAN_DEV_GID:-1000}"
+    environment:
+      MARAN_AGENT_SOCKET: /run/maran-dev/agent.sock
+      MARAN_AGENT_ALLOW_UID: ${MARAN_DEV_UID:-1000}
+    entrypoint: ["/usr/local/maran-dev/agent-entrypoint.sh"]
+    volumes:
+      # The binary is built on the host and mounted, as docker/README.md explains for the polygon
+      # suites: the host and this image share a glibc, and a binary built inside the container
+      # would not be the one the developer is editing.
+      - ../agent/target/debug/maran-agent:/usr/local/bin/maran-agent:ro
+      - ./agent-entrypoint.sh:/usr/local/maran-dev/agent-entrypoint.sh:ro
+      # Mounted at /run/maran-dev and NOT at /run/maran: the image's own /run/maran carries the
+      # php-fpm socket directory the installer step created, and a bind mount over it would hide
+      # that and break every php pool the agent writes. The host side is interpolated for the
+      # same second-instance reason as the container name above.
+      - ${MARAN_AGENT_SOCKET_DIR:-../.dev-agent}:/run/maran-dev
+    # What "the agent service is up" actually means: MariaDB answers (every database and backup
+    # rpc needs it — yesterday a container restart silently lost a hand-started MariaDB and the
+    # first symptom was a misleading agent error on a backup) AND the socket is bound. Both are
+    # asked inside the container, where they are observable; run-dev.sh waits for `healthy`
+    # instead of merely waiting for the socket file to exist, and a MariaDB that dies mid-life
+    # turns the container `unhealthy` in `docker ps` instead of staying invisible.
+    # The socket path is the same literal the `environment:` block above fixes.
+    healthcheck:
+      test: ["CMD-SHELL", "mariadb-admin ping --silent && test -S /run/maran-dev/agent.sock"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    # The agent is pid 1 and stops on SIGTERM; five seconds is plenty and keeps `--stop` quick.
+    stop_grace_period: 5s
+
 volumes:
   pgdata:

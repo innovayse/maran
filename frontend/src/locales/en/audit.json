@@ -1,0 +1,20 @@
+{
+  "app": {
+    "audit": {
+      "heading": "Audit journal",
+      "subtitle": "Every sign-in and every change, as the panel recorded it.",
+      "loading": "Loading the journal…",
+      "emptyTitle": "Nothing recorded yet",
+      "emptyDescription": "Actions appear here as they happen.",
+      "tableCaption": "Recent audit entries",
+      "whenColumn": "When",
+      "actorColumn": "Who",
+      "actionColumn": "Action",
+      "subjectColumn": "Subject",
+      "addressColumn": "From",
+      "outcomeColumn": "Outcome",
+      "succeeded": "Succeeded",
+      "failed": "Failed"
+    }
+  }
+}

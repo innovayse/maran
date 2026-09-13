@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="TasksModuleDisplayName">
+    <value>Задачи</value>
+  </data>
+  <data name="TaskKindCertificateIssue">
+    <value>Выпуск сертификата</value>
+  </data>
+  <data name="TaskKindCertificateRenewal">
+    <value>Продление сертификата</value>
+  </data>
+  <data name="TaskKindAccountDeletion">
+    <value>Удаление аккаунта</value>
+  </data>
+  <data name="TaskKindAccountSuspension">
+    <value>Приостановка аккаунта</value>
+  </data>
+  <data name="TaskKindAccountResumption">
+    <value>Возобновление аккаунта</value>
+  </data>
+  <data name="TaskKindBackupCreate">
+    <value>Создание резервной копии</value>
+  </data>
+  <data name="TaskKindBackupRestore">
+    <value>Восстановление из резервной копии</value>
+  </data>
+</root>

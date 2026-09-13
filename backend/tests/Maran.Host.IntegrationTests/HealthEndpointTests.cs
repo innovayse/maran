@@ -1,7 +1,7 @@
 using System.Net;
+using Maran.Host.IntegrationTests.Fixtures;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
-using Testcontainers.PostgreSql;
 
 namespace Maran.Host.IntegrationTests;
 
@@ -10,22 +10,31 @@ namespace Maran.Host.IntegrationTests;
 /// <c>Maran.Host.Tests</c> project covers the unreachable/not-configured cases without the
 /// cost of a container.
 /// </summary>
+[Collection(SharedDatabase.Name)]
 public sealed class HealthEndpointTests : IAsyncLifetime
 {
-    private readonly PostgreSqlContainer _pg = new PostgreSqlBuilder("postgres:16-alpine").Build();
+    private readonly TestDatabase _pg;
+
+    /// <summary>Binds this test to the PostgreSQL server the assembly shares.</summary>
+    /// <param name="postgres">The shared server, injected by the collection fixture.</param>
+    public HealthEndpointTests(PostgresFixture postgres)
+    {
+        _pg = new TestDatabase(postgres);
+    }
 
     /// <inheritdoc />
     public Task InitializeAsync()
     {
-        return _pg.StartAsync();
+        return _pg.CreateAsync();
     }
 
     /// <inheritdoc />
     public Task DisposeAsync()
     {
-        return _pg.DisposeAsync().AsTask();
+        return Task.CompletedTask;
     }
 
+    /// <summary>Readiness endpoint returns 200 when the database is reachable.</summary>
     [Fact]
     public async Task Readiness_endpoint_returns_200_when_the_database_is_reachable()
     {
@@ -39,6 +48,14 @@ public sealed class HealthEndpointTests : IAsyncLifetime
                 builder.UseSetting(setting.Key, setting.Value);
             }
             builder.UseSetting("Security:EncryptionKey", "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=");
+            builder.UseSetting("Jwt:SigningKey", "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=");
+
+            // Startup validation refuses to boot without the host's SSH ports and the panel's
+            // public port: a defaulted one is a locked-out server (rules/security.md).
+            foreach (var setting in FirewallSettings.Required())
+            {
+                builder.UseSetting(setting.Key, setting.Value);
+            }
         });
 
         using var client = factory.CreateClient();

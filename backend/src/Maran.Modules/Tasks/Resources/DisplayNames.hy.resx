@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="TasksModuleDisplayName">
+    <value>Առաջադրանքներ</value>
+  </data>
+  <data name="TaskKindCertificateIssue">
+    <value>Վկայագրի թողարկում</value>
+  </data>
+  <data name="TaskKindCertificateRenewal">
+    <value>Վկայագրի երկարաձգում</value>
+  </data>
+  <data name="TaskKindAccountDeletion">
+    <value>Հաշվի ջնջում</value>
+  </data>
+  <data name="TaskKindAccountSuspension">
+    <value>Հաշվի կասեցում</value>
+  </data>
+  <data name="TaskKindAccountResumption">
+    <value>Հաշվի վերականգնում</value>
+  </data>
+  <data name="TaskKindBackupCreate">
+    <value>Պահուստային պատճենի ստեղծում</value>
+  </data>
+  <data name="TaskKindBackupRestore">
+    <value>Վերականգնում պահուստային պատճենից</value>
+  </data>
+</root>

@@ -13,8 +13,9 @@ public static class AccountsManifest
     /// <summary>The Accounts module's published identity.</summary>
     public static Manifest Instance { get; } = new(
         Id: "accounts",
-        DisplayNameKey: "ModuleDisplayName",
+        DisplayNameKey: "AccountsModuleDisplayName",
         Version: "1.0.0",
         Tier: LicenceTier.Included,
-        Dependencies: []);
+        Dependencies: [],
+        AgentCapabilities: [AgentCapability.Accounts]);
 }

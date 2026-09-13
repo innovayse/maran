@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="SmtpNotConfigured">
+    <value>Настройки исходящей почты ещё не заданы, письмо не отправлено.</value>
+  </data>
+  <data name="MailDeliveryFailed">
+    <value>Почтовый сервер отклонил сообщение или недоступен.</value>
+  </data>
+  <data name="SmtpHostInvalid">
+    <value>Имя почтового сервера обязательно и должно быть одной строкой обычного текста.</value>
+  </data>
+  <data name="SmtpPortInvalid">
+    <value>Порт почтового сервера должен быть от 1 до 65535.</value>
+  </data>
+  <data name="SmtpSecurityInvalid">
+    <value>Выберите один из предложенных способов защиты соединения.</value>
+  </data>
+  <data name="SmtpUsernameInvalid">
+    <value>Имя пользователя должно быть одной строкой обычного текста.</value>
+  </data>
+  <data name="SmtpPasswordInvalid">
+    <value>Пароль длиннее, чем принимает панель.</value>
+  </data>
+  <data name="SmtpFromAddressInvalid">
+    <value>Отправитель должен быть одним обычным адресом электронной почты, без отображаемого имени.</value>
+  </data>
+  <data name="SmtpFromNameInvalid">
+    <value>Отображаемое имя отправителя должно быть одной строкой обычного текста.</value>
+  </data>
+  <data name="SmtpAlertRecipientInvalid">
+    <value>Получатель оповещений должен быть одним обычным адресом электронной почты, без отображаемого имени.</value>
+  </data>
+  <data name="MailRecipientInvalid">
+    <value>Получатель должен быть одним обычным адресом электронной почты, без отображаемого имени.</value>
+  </data>
+</root>

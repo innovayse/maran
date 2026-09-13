@@ -14,6 +14,7 @@ public sealed class CorrelationIdMiddlewareTests : IClassFixture<PanelTestFactor
         _factory = factory;
     }
 
+    /// <summary>Incoming correlation id is echoed back unchanged.</summary>
     [Fact]
     public async Task Incoming_correlation_id_is_echoed_back_unchanged()
     {
@@ -27,6 +28,7 @@ public sealed class CorrelationIdMiddlewareTests : IClassFixture<PanelTestFactor
         Assert.Equal("caller-supplied-id", response.Headers.GetValues(CorrelationIdKeys.HeaderName).Single());
     }
 
+    /// <summary>Missing correlation id is minted and returned.</summary>
     [Fact]
     public async Task Missing_correlation_id_is_minted_and_returned()
     {
@@ -40,6 +42,7 @@ public sealed class CorrelationIdMiddlewareTests : IClassFixture<PanelTestFactor
         Assert.True(Guid.TryParse(minted, out _));
     }
 
+    /// <summary>Every response carries the correlation id header.</summary>
     [Fact]
     public async Task Every_response_carries_the_correlation_id_header()
     {

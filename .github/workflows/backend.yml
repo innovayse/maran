@@ -5,13 +5,13 @@ on:
     paths:
       - 'backend/**'
       - 'proto/**'
-      - 'scripts/check-structure.sh'
+      - 'scripts/**'
       - '.github/workflows/backend.yml'
   pull_request:
     paths:
       - 'backend/**'
       - 'proto/**'
-      - 'scripts/check-structure.sh'
+      - 'scripts/**'
       - '.github/workflows/backend.yml'
 
 jobs:
@@ -19,10 +19,101 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Full history, because `maran migrate guard` compares this branch against its merge
+          # point with the default branch. At the default depth of 1 there is no merge base, the
+          # guard falls back to "uncommitted changes only" — of which CI has none — and the check
+          # passes without having looked at anything.
+          fetch-depth: 0
 
+      # THE TREE LOCK'S OWN SELFTEST, first, because it is the cheapest gate in this repository
+      # and because everything below it inherits its answer. It needs no SDK, no node, no cargo and
+      # no container — bash, python3 and a few seconds — so it sits ahead of `setup-dotnet` and
+      # fails fast.
+      #
+      # WHY IT IS IN CI AT ALL. The tree lock is what lets `maran format`, `maran test`,
+      # `maran mutate`, `maran agent` and `maran polygon verify` say "I did not run" instead of
+      # inventing an answer about somebody else's mutant, and this selftest is the ONLY thing that
+      # asserts that contract: seven cases, each pairing a refusal with an INVERSE CONTROL, each
+      # requiring the `VERDICT: DID NOT RUN` line on stdout AND the status 2 that carries it. Until
+      # this step existed the check ran nowhere, and a check that runs nowhere protects nothing.
+      # It also observes the 855-second wedge directly — hold the lock, SIGKILL the holder, require
+      # the lock free with nothing cleared by hand — which is a property of the kernel and of
+      # O_CLOEXEC/PR_SET_PDEATHSIG, not of any stack, so no per-language job owns it.
+      #
+      # WHY HERE AND NOT IN agent.yml. This workflow already carries the harness-and-structure
+      # gates (`maran structure`, `maran format --check`), and `maran format` is one of the two
+      # exclusive WRITERS the lock exists to serialise. agent.yml triggers on `scripts/**` too, so
+      # a second copy there would buy nothing but a second five seconds.
+      #
+      # WHAT IT CANNOT SEE, stated rather than implied — the selftest prints these itself:
+      #   - the expensive halves of the commands it drives. Its inverse controls prove a command
+      #     got PAST the lock, not that `dotnet format`, cargo or a polygon container then worked.
+      #   - a descriptor leaking into a BUILD TOOL specifically. Case 3 kills a plain shell;
+      #     O_CLOEXEC is the property under test, and an MSBuild daemon is the same defect seen
+      #     through a different child.
+      #   - `scripts/lib/format.sh` and `scripts/lib/test-verdict.sh` as SUBJECTS. Every case
+      #     drives `scripts/lib/polygon-ci.sh verify` as the representative refusing command, so
+      #     this step proves the lock and the three-answer contract, not that each individual
+      #     command still honours it. The format gate's own three answers are demonstrated in the
+      #     "Format check" step below by the verdict line it must print.
+      #   - anything about a CONCURRENT holder that is not its own: on a runner nothing else holds
+      #     this tree's lock, and the selftest refuses outright if something does.
+      - name: Tree lock selftest — the refusal contract every gate below rests on
+        run: bash scripts/maran lock selftest
+
+      # The EXACT patch, not `9.0.x`. A floating band is resolved by the action at run time, so
+      # the SDK that builds a release is whichever one was current that morning, and nothing in
+      # this repository records which. `scripts/test-baseline.txt` is a count taken on 9.0.317;
+      # a different compiler is a different suite, and a total that moved would be attributed to
+      # the branch rather than to the toolchain. There is no `global.json` in this tree to pin it
+      # from, so the pin lives here and the step below proves it took.
       - uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '9.0.x'
+          dotnet-version: '9.0.317'
+
+      # The SDK guard, and it is here because the failure it catches is SILENT. Measured on a
+      # developer machine in this repository: a bare-PATH `dotnet` that is an 8.0 snap, asked to
+      # build net9.0 projects, prints 32 x NETSDK1045, builds nothing, and the run around it
+      # reports success. `dotnet --version` is the only thing that would have said so, and nothing
+      # asked it. Asked here, before anything is built, and printed whether it passes or fails so
+      # the log carries the number a later reader needs.
+      #
+      # `--list-sdks` as well as `--version`: the first is what MSBuild will actually select
+      # (it honours PATH and DOTNET_ROOT), the second is the whole set installed on the runner.
+      # A mismatch between them is exactly how a pinned install ends up unused.
+      - name: The SDK is the one this repository is built and baselined against
+        run: |
+          want=9.0.317
+          # The status is captured separately and the output trimmed to ONE line. Measured while
+          # writing this: when `dotnet --version` cannot resolve an SDK it prints a multi-line
+          # diagnostic INCLUDING an SDK listing, on stdout — so a bare `have="$(dotnet --version)"`
+          # assigns that whole listing to `have` and the failure message names an SDK nobody asked
+          # for. A guard that cannot say which version it saw is half a guard.
+          if ! version_output="$(dotnet --version 2>&1)"; then
+            echo "::error::'dotnet --version' itself failed, so no SDK is usable on this runner."
+            printf '%s\n' "$version_output"
+            exit 1
+          fi
+          have="$(printf '%s\n' "$version_output" | head -1)"
+          echo "dotnet --version -> $have"
+          echo "installed SDKs:"
+          dotnet --list-sdks
+          if [ "$have" != "$want" ]; then
+            echo "::error::dotnet SDK is '$have', and this repository builds and baselines on $want."
+            echo "The pin in setup-dotnet resolved to something else, or PATH is finding another"
+            echo "SDK first. Nothing below this line would be a measurement of this repository:"
+            echo "an SDK older than 9.0 emits NETSDK1045 for every net9.0 project, builds none of"
+            echo "them, and a test run over the result reports no failures because it ran no tests."
+            exit 1
+          fi
+          # The version SELECTED is not on its own proof that the version INSTALLED is the one the
+          # step asked for: `dotnet --version` answers for the resolution, `--list-sdks` for the
+          # disk. They can disagree, and this is the axis a silent-wrong-SDK run travels on.
+          if ! dotnet --list-sdks | grep -q "^$want "; then
+            echo "::error::$want is not in 'dotnet --list-sdks'. The pinned install did not take."
+            exit 1
+          fi
 
       - name: Install protoc
         run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
@@ -31,14 +122,200 @@ jobs:
       # type name, *Extensions in Extensions/, interfaces in Interfaces/, no cross-module
       # imports, no junk-drawer file names (rules/csharp.md, rules/architecture.md).
       - name: Structure check
-        run: bash scripts/check-structure.sh
+        run: bash scripts/maran structure
+
+      # Formatting and naming: the .editorconfig style, applied rather than argued about in
+      # review. This ran nowhere for a long time, and the tree quietly reached 418 violations
+      # before anyone looked — a gate that is not in CI is not a gate.
+      #
+      # And it is scored on the harness's printed VERDICT LINE, not on its exit status, for the
+      # reason every other verdict step in this repository is. Measured on this branch before the
+      # change: with a holder on the tree lock, `maran format --check` printed ZERO BYTES on stdout
+      # and returned 1 — the same status a genuine formatting finding returns — and with `dotnet`
+      # off PATH it printed `FORMAT FAILED — backend`, a finding about source it had never read.
+      # A step reading `$?` alone recorded both as "this branch is unformatted", and would have
+      # recorded a refusal that ever exited 0 as a clean tree.
+      #
+      # The three answers are kept apart here. A refusal is FAILED on a runner — nothing on a
+      # runner should be able to hold this tree's lock, so one that does is a misconfigured lane —
+      # but it is failed under its own message, because a refusal has found no defect and reading
+      # it as one sends somebody looking for formatting errors that do not exist.
+      - name: Format check
+        run: |
+          set -o pipefail
+          mkdir -p "$RUNNER_TEMP/format"
+          status=0
+          bash scripts/maran format --check backend 2>&1 |
+            tee "$RUNNER_TEMP/format/backend.log" || status=$?
+          echo "harness exit status: $status (recorded; the verdict is the line above, not this)"
+          if grep -qa '^FORMAT VERDICT: DID NOT RUN' "$RUNNER_TEMP/format/backend.log"; then
+            echo "::error::the format gate REFUSED and checked nothing, so this lane has measured"
+            echo "neither a formatted tree nor an unformatted one — the reason it gives is printed"
+            echo "above. It is failed here because nothing on a runner should be able to refuse it,"
+            echo "but do not read this as a formatting finding: no file was read."
+            exit 1
+          fi
+          if ! grep -qa '^FORMAT VERDICT: OK' "$RUNNER_TEMP/format/backend.log"; then
+            echo "::error::the format check did not print 'FORMAT VERDICT: OK'. This lane passes on"
+            echo "the harness's verdict line, never on an exit code, and no such line was printed."
+            echo "--- what the check reported ---"
+            if ! grep -aE '^(FORMAT VERDICT|REFUSED|Diff in |backend  |frontend |agent    )' \
+              "$RUNNER_TEMP/format/backend.log"; then
+              # None of the shapes above appeared, which is itself the finding: print the tail
+              # rather than an empty section, for the same reason the verdict step below does.
+              echo "(no verdict-shaped line in the output; its last 40 lines follow)"
+              tail -40 "$RUNNER_TEMP/format/backend.log" || echo "(the output is empty or absent)"
+            fi
+            exit 1
+          fi
+          if [ "$status" -ne 0 ]; then
+            echo "::error::the format check printed 'FORMAT VERDICT: OK' and then exited $status."
+            echo "Those two disagree, so neither is evidence: score nothing from this run."
+            exit 1
+          fi
 
       # Warnings are errors, unused usings are errors, banned APIs are errors — the build
       # itself is the first quality gate (backend/Directory.Build.props).
       - name: Build
         run: dotnet build backend --configuration Release
 
-      # Includes the architecture tests (module isolation + the guard that stops them
-      # passing vacuously) and the Testcontainers-backed integration tests.
-      - name: Test
-        run: dotnet test backend --configuration Release --no-build
+      # An entity edited without a migration is not an error until a real database is involved,
+      # and then it surfaces as a confusing query failure instead of as what actually happened.
+      #
+      # Scored on the PRINTED VERDICT, like the format step above and for the same measured reason.
+      # Before the harness change on this branch, `maran migrate check` on a PATH without the .NET
+      # SDK printed ZERO BYTES on stdout and returned 127 — dying at `dotnet tool restore`, above
+      # its own check loop — and with the SDK present but the pinned EF tool unable to start it
+      # printed `COULD NOT CHECK — this is a broken toolchain, not a model change` for every module
+      # and returned 1, the same status a genuine schema drift returns. A step reading `$?` alone
+      # recorded both as "this branch has a model nobody migrated", and sent the reader to write a
+      # migration for a defect that was not there.
+      #
+      # The three answers are kept apart. A refusal is FAILED on a runner — `setup-dotnet` ran above
+      # this step, so an SDK that has gone missing here is a broken lane and not a fact about the
+      # schema — but it is failed under its own message, because nothing was compared.
+      - name: Migrations match the model
+        run: |
+          set -o pipefail
+          mkdir -p "$RUNNER_TEMP/migrate"
+          status=0
+          bash scripts/maran migrate check 2>&1 |
+            tee "$RUNNER_TEMP/migrate/check.log" || status=$?
+          echo "harness exit status: $status (recorded; the verdict is the line above, not this)"
+          if grep -qa '^MIGRATIONS VERDICT: DID NOT RUN' "$RUNNER_TEMP/migrate/check.log"; then
+            echo "::error::the migration check REFUSED and compared nothing, so this lane has"
+            echo "measured neither a drifted model nor a matching one — the reason it gives is"
+            echo "printed above. It is failed here because the SDK is installed by the step above,"
+            echo "but do NOT read this as a schema finding: no model was compared to any migration."
+            exit 1
+          fi
+          if ! grep -qa '^MIGRATIONS-OK' "$RUNNER_TEMP/migrate/check.log"; then
+            echo "::error::the migration check did not print 'MIGRATIONS-OK'. This lane passes on"
+            echo "the harness's verdict line, never on an exit code, and no such line was printed."
+            echo "--- what the check reported ---"
+            if ! grep -aE '^(MIGRATIONS-|MIGRATIONS VERDICT|REFUSED|[A-Za-z]+ +(MODEL CHANGED|COULD NOT CHECK))' \
+              "$RUNNER_TEMP/migrate/check.log"; then
+              # No verdict-shaped line at all is itself the finding — that is the zero-byte 127 this
+              # step was rewritten for — so print the tail rather than an empty section.
+              echo "(no verdict-shaped line in the output; its last 40 lines follow)"
+              tail -40 "$RUNNER_TEMP/migrate/check.log" || echo "(the output is empty or absent)"
+            fi
+            exit 1
+          fi
+          if [ "$status" -ne 0 ]; then
+            echo "::error::the migration check printed 'MIGRATIONS-OK' and then exited $status."
+            echo "Those two disagree, so neither is evidence: score nothing from this run."
+            exit 1
+          fi
+
+      # Expand-contract: no migration on this branch destroys or renames what the previous
+      # release still reads. The installer promises an update is reversible by restoring a dump,
+      # and that promise is only keepable while the old code runs against the new schema.
+      - name: Migrations are additive
+        run: bash scripts/maran migrate guard
+
+      # THE VERDICT, and it is not `dotnet test`. It used to be, and that is the gap
+      # rules/testing.md named in its own text: "`maran test` is not wired into CI ... so on those
+      # two lanes the committed baseline in `scripts/test-baseline.txt` is compared against
+      # nothing." Everything that file spends a section arguing about was therefore uncaught here.
+      #
+      # What the bare command could not see, all of it measured in this repository:
+      #   - `dotnet test` exiting 0 with sixteen failures;
+      #   - `dotnet test` exiting 0 while a project whose build had broken never ran AT ALL — 1508
+      #     collected against a 1683 baseline, and 1138 against 1725 in a second instance. A broken
+      #     test project does not fail the run, it DISAPPEARS from it, and the projects that
+      #     survive then print `Passed!` over a smaller total;
+      #   - `dotnet test` returning 143 having completed 13 of 15 projects, because the kernel
+      #     killed it under load.
+      # None of those move `$?` in the direction a reader expects, and all of them are loud in the
+      # numbers. So this step reads the numbers.
+      #
+      # `maran test backend` runs the WHOLE solution (it cannot express a subset — `--filter` is
+      # refused by the command itself), parses one row per test dll, names every failing test,
+      # reconciles the named list against the totals, and compares both against
+      # `scripts/test-baseline.txt`. A target in the baseline and absent from the run is named as
+      # VANISHED and fails; a collected total below the baseline fails; a run with no
+      # test-result line at all is ABORTED rather than passed, because "no tests found" is a
+      # failure. It also self-tests its own two log parsers against planted fixtures before it
+      # measures anything — the backend failure matcher once contained a bracket expression with
+      # an escaped `]` and named ZERO failures on every run ever taken.
+      #
+      # It runs its own Debug build of the solution rather than reusing the Release binaries above.
+      # That is a second compile, deliberately not optimised away: `suite_run` is the single
+      # definition of "the suite" that `maran test`, `maran mutate` and the polygon scorer all
+      # share, and a lane that passed its own configuration would be measuring something no other
+      # lane measures. The Release build above keeps its own job — it is the warnings-as-errors,
+      # banned-API and unused-using gate, and it fails before this step is reached.
+      #
+      # `--accept` is NEVER passed here. That flag RECORDS the baseline, and a check that
+      # refreshes its own baseline enforces nothing; recording is a developer's deliberate act,
+      # committed as a diff and reviewed.
+      #
+      # The pass condition is the harness's own printed VERDICT LINE, not its exit status. The
+      # status is captured and reported, and a non-zero one still fails the step — but a run that
+      # exits 0 without having printed `TEST VERDICT: OK` fails too, which is the exact shape
+      # every measured false pass above had. `set -o pipefail` because `... | tee` otherwise
+      # reports TEE's status, which is 0 whatever the command did.
+      - name: Test verdict — per-project totals against the committed baseline
+        id: verdict
+        run: |
+          set -o pipefail
+          mkdir -p "$RUNNER_TEMP/verdict"
+          status=0
+          bash scripts/maran test backend 2>&1 |
+            tee "$RUNNER_TEMP/verdict/backend.log" || status=$?
+          echo "harness exit status: $status (recorded; the verdict is the line below, not this)"
+          if ! grep -q '^TEST VERDICT: OK' "$RUNNER_TEMP/verdict/backend.log"; then
+            echo "::error::the backend suite did not print 'TEST VERDICT: OK'. This lane passes on"
+            echo "the harness's verdict, never on an exit code, and no verdict was printed."
+            echo "--- what the run reported ---"
+            if ! grep -aE '^(TEST VERDICT|collected |ABORTED|REFUSED|CONTAMINATED|UNRECONCILED|SELF-TEST| +\w+: )' \
+              "$RUNNER_TEMP/verdict/backend.log"; then
+              # The log carried none of the shapes above, which is itself the finding: print
+              # its tail rather than an empty section. An engineer reading a red lane and
+              # finding nothing under this heading learns less than one who reads a stack trace.
+              echo "(no verdict-shaped line in the log; its last 40 lines follow)"
+              tail -40 "$RUNNER_TEMP/verdict/backend.log" || echo "(the log is empty or absent)"
+            fi
+            exit 1
+          fi
+          if [ "$status" -ne 0 ]; then
+            echo "::error::the backend suite printed 'TEST VERDICT: OK' and then exited $status."
+            echo "Those two disagree, so neither is evidence: score nothing from this run."
+            exit 1
+          fi
+
+      # The log, always — including on a red run, which is the run somebody actually needs it for.
+      # It carries the per-project rows and the named failures; the step above prints only the
+      # lines that decide the verdict.
+      # Conditioned on the verdict step having RUN, not merely on the job not being cancelled:
+      # with `!cancelled()` alone this step also fires when a gate ABOVE the verdict failed, and
+      # then errors on a log that was never written — a second, misleading red on a job whose real
+      # failure is somewhere else entirely.
+      - name: Keep the verdict log
+        if: ${{ !cancelled() && steps.verdict.conclusion != 'skipped' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-test-verdict
+          path: ${{ runner.temp }}/verdict/backend.log
+          if-no-files-found: error

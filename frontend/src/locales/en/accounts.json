@@ -1,0 +1,87 @@
+{
+  "accounts": {
+    "status": {
+      "active": "Active",
+      "suspended": "Suspended"
+    },
+    "list": {
+      "heading": "Accounts",
+      "subtitle": "Hosting accounts on this server.",
+      "createAction": "New account",
+      "searchLabel": "Filter accounts",
+      "searchPlaceholder": "Filter by name or domain…",
+      "searchClear": "Clear the filter",
+      "resultCount": "{shown} of {total} accounts",
+      "loading": "Loading accounts…",
+      "emptyTitle": "No accounts yet",
+      "emptyDescription": "Create the first hosting account to get started.",
+      "noMatchesTitle": "No accounts match “{query}”",
+      "noMatchesDescription": "Try a different name or domain, or clear the filter to see every account.",
+      "clearSearch": "Clear filter",
+      "tableCaption": "Hosting accounts",
+      "columns": {
+        "primaryDomain": "Primary domain",
+        "status": "Status",
+        "createdAt": "Created"
+      }
+    },
+    "form": {
+      "heading": "New account",
+      "subtitle": "The panel checks these values before sending them, and the server checks them again.",
+      "fields": {
+        "primaryDomain": "Primary domain",
+        "planId": "Plan ID"
+      },
+      "placeholders": {
+        "name": "example",
+        "primaryDomain": "example.com",
+        "planId": "Choose a plan"
+      },
+      "submit": "Create account",
+      "errors": {
+        "nameRequired": "Name is required.",
+        "nameInvalid": "Name must be a lowercase, Linux-username-safe identifier (letters, digits, hyphen, underscore, starting with a letter, 3-32 characters).",
+        "primaryDomainRequired": "Primary domain is required.",
+        "primaryDomainInvalid": "Primary domain must be a valid domain name.",
+        "planIdRequired": "Plan ID is required."
+      },
+      "planOption": "{name} — {disk} MB, {sites} sites"
+    },
+    "detail": {
+      "loading": "Loading the account…",
+      "notFoundTitle": "Account not found",
+      "notFoundDescription": "It may have been deleted since this link was made.",
+      "primaryDomainLabel": "Primary domain",
+      "statusLabel": "Status",
+      "createdAtLabel": "Created",
+      "backToList": "Back to accounts",
+      "suspend": "Suspend",
+      "reactivate": "Reactivate",
+      "confirmSuspend": "Suspend this account? Its sites stop serving and its user can no longer sign in. A file transfer running now is cut off, and the partial file it wrote stays in the account.",
+      "confirmReactivate": "Reactivate this account?",
+      "working": "Working…",
+      "confirmSuspendTitle": "Suspend account {account}",
+      "confirmReactivateTitle": "Reactivate account {account}"
+    },
+    "delete": {
+      "title": "Delete {account}",
+      "working": "Deleting {account}…",
+      "refusedNote": "Nothing was deleted. The account is exactly as it was, and it can be deleted again once whatever refused has been dealt with.",
+      "removedHeading": "What is removed",
+      "removedUser": "The system user and its login.",
+      "removedHome": "The home directory and every file in it.",
+      "removedSites": "Every site this account hosts, and its web-server configuration.",
+      "removedCertificates": "The certificates of those sites, and their private keys on this server.",
+      "removedDatabases": "Every database this account owns, and its SFTP and FTPS logins.",
+      "backupHeading": "The final backup",
+      "backupFirst": "A final copy of the account is taken first, before anything is removed.",
+      "backupRefuses": "If that copy cannot be made, the deletion is refused and the account is left exactly as it is.",
+      "backupOutlives": "The copy stays on this server after the account is gone, listed under the name the account had.",
+      "backupNoModule": "This panel has no backups module, so no final copy is taken. Once this account is gone, nothing here holds what it had.",
+      "pointOfNoReturn": "After the copy is taken, nothing here can bring the account back.",
+      "confirmLabel": "Type the account name to confirm",
+      "confirmHint": "Type {name} exactly, including its capitalisation.",
+      "submit": "Delete this account"
+    }
+  }
+}

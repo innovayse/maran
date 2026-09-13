@@ -15,6 +15,7 @@ namespace Maran.Host.Tests.Middleware;
 /// </summary>
 public sealed class ExceptionMiddlewareTests
 {
+    /// <summary>Unhandled exception becomes a 500 problem response with the correlation id.</summary>
     [Fact]
     public async Task Unhandled_exception_becomes_a_500_problem_response_with_the_correlation_id()
     {
@@ -36,6 +37,7 @@ public sealed class ExceptionMiddlewareTests
         Assert.Equal("HostUnexpectedError", body.RootElement.GetProperty("code").GetString());
     }
 
+    /// <summary>Unhandled exception becomes problem response without stack trace or exception text.</summary>
     [Fact]
     public async Task Unhandled_exception_becomes_problem_response_without_stack_trace_or_exception_text()
     {
@@ -59,6 +61,7 @@ public sealed class ExceptionMiddlewareTests
         Assert.DoesNotContain(".cs:line", raw, StringComparison.Ordinal);
     }
 
+    /// <summary>Response already started is left untouched.</summary>
     [Fact]
     public async Task Response_already_started_is_left_untouched()
     {

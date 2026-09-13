@@ -9,7 +9,16 @@ set -euo pipefail
 
 readonly MARAN_RELEASE_BASE_URL="https://releases.maran.com"
 readonly MARAN_INSTALL_ROOT="/usr/local/maran"
-readonly MARAN_ARTIFACT_TMP="/var/lib/maran/artifact-staging"
+# MARAN_ARTIFACT_TMP: staging for downloaded archives between verification and extraction.
+# It is deliberately NOT under /var/lib/maran: that directory is created maran:maran 0750 by
+# 40-user.sh and is in maran-api.service's ReadWritePaths=, so the unprivileged uid the api
+# runs as owns it and can place any entry inside it — a symlink or a directory of its own at
+# the staging name. Root would then download into a directory the api controls, and because
+# every archive is checksummed before ANY of them is extracted, the api could swap
+# agent.tar.gz in that window; the extracted file becomes /usr/local/maran/agent/maran-agent,
+# which maran-agent.service runs as root. Staging lives directly under /var/lib instead
+# (root:root 0755), where no unprivileged uid can create an entry at all.
+readonly MARAN_ARTIFACT_TMP="/var/lib/maran-artifact-staging"
 
 # MARAN_RELEASE_PUBLIC_KEY_PEM: the Ed25519 public key that signs release manifests,
 # baked into the installer itself (never fetched at install time — an attacker who can
@@ -34,6 +43,32 @@ fetch() {
   curl --fail --silent --show-error --location --output "$dest" "$url"
 }
 
+# prepare_staging_dir: creates the staging directory as a fresh, root-owned, root-only
+# directory, and refuses to continue if it is anything else. `mkdir -p` was not enough on its
+# own: it exits 0 on an existing path, following a symlink and checking neither owner nor
+# mode, so it silently accepts a directory an attacker put there first. The leading `rm -rf`
+# removes a stale directory or a planted symlink (removing a symlink unlinks the link, never
+# its target), `install -d` then creates a real directory, and the gate below is what makes
+# this a refusal rather than a hope: a staging path that is a symlink, is not a directory, is
+# not owned by uid 0, or is group/other-accessible aborts the install instead of being used.
+prepare_staging_dir() {
+  local owner mode
+  rm -rf -- "$MARAN_ARTIFACT_TMP"
+  install -d -o root -g root -m 0700 "$MARAN_ARTIFACT_TMP"
+  if [ -L "$MARAN_ARTIFACT_TMP" ] || [ ! -d "$MARAN_ARTIFACT_TMP" ]; then
+    echo "50-artifacts.sh: staging path ${MARAN_ARTIFACT_TMP} is not a real directory. Aborting." >&2
+    exit 1
+  fi
+  owner="$(stat -c '%u' "$MARAN_ARTIFACT_TMP")"
+  mode="$(stat -c '%a' "$MARAN_ARTIFACT_TMP")"
+  if [ "$owner" -ne 0 ] || [ "$mode" != "700" ]; then
+    echo "50-artifacts.sh: staging directory ${MARAN_ARTIFACT_TMP} must be owned by root with mode 0700" >&2
+    echo "  (found owner uid ${owner}, mode ${mode}). Refusing to stage release artifacts in a" >&2
+    echo "  directory another uid can write to. Aborting." >&2
+    exit 1
+  fi
+}
+
 # verify_manifest_signature: checks the manifest's Ed25519 signature against the baked-in
 # public key using openssl's raw pkeyutl verifier. Aborts the entire install on any
 # failure — a bad signature is treated identically to a network error: install stops.
@@ -51,7 +86,7 @@ verify_manifest_signature() {
     echo "50-artifacts.sh: manifest signature verification FAILED. Aborting install." >&2
     echo "  The release manifest's Ed25519 signature does not match the trusted key." >&2
     echo "  This can mean a corrupted download or a compromised mirror. Do not retry" >&2
-    echo "  blindly; verify you are downloading from https://get.maran.com and" >&2
+    echo "  blindly; verify you are downloading from ${MARAN_RELEASE_BASE_URL} and" >&2
     echo "  contact Innovayse support if the problem persists." >&2
     exit 1
   fi
@@ -93,7 +128,7 @@ verify_artifact_checksum() {
 # download_and_verify_online: the default path — fetch manifest + signature, verify,
 # then fetch and checksum-verify each component before any of it is unpacked.
 download_and_verify_online() {
-  mkdir -p "$MARAN_ARTIFACT_TMP"
+  prepare_staging_dir
   local manifest="${MARAN_ARTIFACT_TMP}/manifest.json"
   local sig="${MARAN_ARTIFACT_TMP}/manifest.json.sig"
 
@@ -126,7 +161,7 @@ use_offline_tarball() {
     echo "50-artifacts.sh: offline tarball not found: ${bundle}" >&2
     exit 1
   fi
-  mkdir -p "$MARAN_ARTIFACT_TMP"
+  prepare_staging_dir
   tar -xzf "$bundle" -C "$MARAN_ARTIFACT_TMP"
 
   local manifest="${MARAN_ARTIFACT_TMP}/manifest.json"
@@ -154,9 +189,24 @@ use_offline_tarball() {
 # unpack_artifacts: only reached once every archive has passed signature+checksum
 # verification. Unpacks each component into its own subdirectory under the install
 # root; nothing here executes downloaded content, it only extracts files.
+#
+# Each archive's sha256 is checked AGAIN here, immediately before its own extraction, against
+# the same Ed25519-signed manifest. The earlier check verifies all three archives in one loop
+# and extraction happens afterwards, so the first check authenticates the bytes at check time
+# and says nothing about the bytes tar actually reads. The staging directory is root-only, so
+# nothing should be able to change them in between — this second check is what turns "should"
+# into an observation, and it is the difference between the install ABORTING and root
+# extracting a swapped maran-agent that maran-agent.service then runs as root.
 unpack_artifacts() {
-  local component
+  local component checksum
+  local manifest="${MARAN_ARTIFACT_TMP}/manifest.json"
   for component in api agent frontend; do
+    checksum="$(manifest_field "$manifest" "$component" "sha256")"
+    if [ -z "$checksum" ]; then
+      echo "50-artifacts.sh: no sha256 for ${component}-${MARAN_ARCH} at extraction time. Aborting." >&2
+      exit 1
+    fi
+    verify_artifact_checksum "${MARAN_ARTIFACT_TMP}/${component}.tar.gz" "$checksum"
     install -d -m 0755 "${MARAN_INSTALL_ROOT}/${component}"
     tar -xzf "${MARAN_ARTIFACT_TMP}/${component}.tar.gz" -C "${MARAN_INSTALL_ROOT}/${component}"
   done

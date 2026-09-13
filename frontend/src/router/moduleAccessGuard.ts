@@ -28,10 +28,23 @@ declare module 'vue-router' {
  * routed component in, so the current view (or, on first load, nothing yet)
  * stays on screen for the brief wait rather than the destination rendering
  * blank-then-populated — there is no separate loading UI to build for this.
- * A failed load leaves the catalogue empty and `isLoaded` false; every
- * gated route then still resolves (`canUse` is false for an unknown module,
- * so the guard sends the user to the upgrade page rather than throwing or
- * hanging navigation).
+ *
+ * **When the catalogue could not be loaded, this guard steps aside.** It used
+ * to do the opposite: a failed load left the catalogue empty, `canUse` was
+ * false for every module, and so EVERY gated route — sites, databases,
+ * firewall, cron — redirected to the upgrade page. One unreachable panel or
+ * one 500 therefore told a fully licensed operator to buy back the product
+ * they already own, and did it on every screen at once. That is the failure
+ * this rule exists to prevent: the SPA's licence gate is cosmetic, the backend
+ * checks the licence on every request independently (rules/architecture.md,
+ * rules/vue.md "the frontend gate is cosmetic only"), so when the SPA does not
+ * KNOW it must let the navigation through and let the server answer. The same
+ * choice `auth.loadSetupState` already makes for the same reason: an
+ * unreachable panel is not an un-set-up one.
+ *
+ * A catalogue that loaded and simply does not list the module is a different
+ * question with a real answer — the panel said it has no such module — and
+ * that one still lands on the upgrade page.
  *
  * @returns A Vue Router navigation guard to register with `router.beforeEach`.
  */
@@ -47,6 +60,13 @@ export const createModuleAccessGuard = (): NavigationGuard => {
       // First gated navigation of the session: block until the catalogue is
       // known so the guard below judges real data, not an empty default.
       await modulesStore.load()
+    }
+
+    if (!modulesStore.isLoaded) {
+      // The load above failed, so the SPA holds no opinion about this module.
+      // Err permissive: the backend is the licence boundary and will refuse the
+      // requests this screen makes if it must.
+      return true
     }
 
     const access = useModuleAccess()

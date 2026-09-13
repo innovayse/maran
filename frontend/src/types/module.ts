@@ -1,3 +1,5 @@
+import type { ComputedRef } from 'vue'
+
 /**
  * A module as the panel reports it to the interface: what it is, which licence tier it belongs
  * to, and whether the running licence currently permits it.
@@ -17,6 +19,14 @@ export interface PanelModule {
   displayName?: string
   /** Licence tier: `included` ships with every plan, other values name the plan that unlocks it. */
   tier: string
+  /**
+   * The same tier in the words an operator reads, already localized by the backend in the
+   * request's language. Optional so a panel older than the field degrades to showing no tier
+   * sentence rather than to printing `tier` — the machine constant — inside translated text, which
+   * is the defect this field was added to end. The frontend never translates it: tiers are
+   * server-side concepts and the SPA holds no list of them (rules/vue.md).
+   */
+  tierDisplayName?: string
   /** Whether the running licence permits using it right now. */
   isEnabled: boolean
 }

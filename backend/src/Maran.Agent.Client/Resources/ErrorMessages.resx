@@ -30,7 +30,16 @@
   <data name="AgentSystemFailure">
     <value>This operation could not be completed on your server and nothing was changed. Please try again in a few minutes, and contact support if it keeps happening.</value>
   </data>
+  <data name="AgentNotImplemented">
+    <value>Your server does not support this option yet, so nothing was done. Choose another option, or contact support to find out when it will be available.</value>
+  </data>
   <data name="AgentInvalidResponse">
     <value>Your server did not return a usable answer. Please try again in a few minutes, and contact support if it keeps happening.</value>
+  </data>
+  <data name="AgentFirewallPortsMisconfigured">
+    <value>The firewall was not changed, because this panel does not know which ports must stay open on your server. Nothing was changed. Please contact support.</value>
+  </data>
+  <data name="AgentLimitReached">
+    <value>Your plan's limit for this kind of item was already reached, so nothing was created. Delete one you no longer need, or ask for a larger plan, then try again.</value>
   </data>
 </root>

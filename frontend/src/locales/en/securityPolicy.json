@@ -1,0 +1,15 @@
+{
+  "app": {
+    "securityPolicy": {
+      "heading": "Security policy",
+      "subtitle": "The rules this panel enforces for every account on it.",
+      "minimumPasswordLengthLabel": "Minimum password length",
+      "forceTwoFactorLabel": "Require two-step verification for administrators",
+      "forceTwoFactorWarning": "Turn this on only once you can complete enrolment. An administrator without a second factor is held on the enrolment screen and can reach nothing else, so an account that cannot enrol is locked out until someone with access to the server intervenes.",
+      "maxFailedLoginAttemptsLabel": "Failed sign-ins before an account locks",
+      "lockoutMinutesLabel": "How long an account stays locked, in minutes",
+      "save": "Save policy",
+      "saved": "The policy has been saved."
+    }
+  }
+}

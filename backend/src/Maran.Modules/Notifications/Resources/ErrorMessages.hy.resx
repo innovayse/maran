@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="SmtpNotConfigured">
+    <value>Ելքային փոստի կարգավորումները դեռ սահմանված չեն, ուստի ոչինչ չի ուղարկվել։</value>
+  </data>
+  <data name="MailDeliveryFailed">
+    <value>Փոստային սերվերը մերժեց նամակը կամ հասանելի չէ։</value>
+  </data>
+  <data name="SmtpHostInvalid">
+    <value>Փոստային սերվերի անունը պարտադիր է և պետք է լինի սովորական տեքստի մեկ տող։</value>
+  </data>
+  <data name="SmtpPortInvalid">
+    <value>Փոստային սերվերի պորտը պետք է լինի 1-ից 65535-ի սահմաններում։</value>
+  </data>
+  <data name="SmtpSecurityInvalid">
+    <value>Ընտրեք կապի պաշտպանության առաջարկվող եղանակներից մեկը։</value>
+  </data>
+  <data name="SmtpUsernameInvalid">
+    <value>Օգտվողի անունը պետք է լինի սովորական տեքստի մեկ տող։</value>
+  </data>
+  <data name="SmtpPasswordInvalid">
+    <value>Գաղտնաբառն ավելի երկար է, քան վահանակն ընդունում է։</value>
+  </data>
+  <data name="SmtpFromAddressInvalid">
+    <value>Ուղարկողը պետք է լինի մեկ պարզ էլ․ փոստի հասցե՝ առանց ցուցադրվող անվան։</value>
+  </data>
+  <data name="SmtpFromNameInvalid">
+    <value>Ուղարկողի ցուցադրվող անունը պետք է լինի սովորական տեքստի մեկ տող։</value>
+  </data>
+  <data name="SmtpAlertRecipientInvalid">
+    <value>Ծանուցումների ստացողը պետք է լինի մեկ պարզ էլ․ փոստի հասցե՝ առանց ցուցադրվող անվան։</value>
+  </data>
+  <data name="MailRecipientInvalid">
+    <value>Ստացողը պետք է լինի մեկ պարզ էլ․ փոստի հասցե՝ առանց ցուցադրվող անվան։</value>
+  </data>
+</root>

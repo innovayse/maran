@@ -15,7 +15,7 @@
 
 <template>
   <div
-    class="rounded-xl border border-border-subtle bg-surface-1 p-3.5 transition-colors hover:border-border-strong"
+    class="rounded-xl border border-border-subtle bg-surface-1 p-5 transition-colors hover:border-border-strong"
   >
     <slot />
   </div>

@@ -39,7 +39,7 @@ public sealed class DatabaseOptions
     /// <summary>Role the panel connects as.</summary>
     [Required]
     [MinLength(1)]
-    public string Username { get; set; } = "panel";
+    public string Username { get; set; } = "maran";
 
     /// <summary>
     /// Password. Empty in production, where the panel connects over the unix socket and PostgreSQL

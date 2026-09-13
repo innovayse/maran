@@ -1,0 +1,16 @@
+# Build context for the polygon images (docker/README.md). The context is the
+# REPOSITORY ROOT rather than docker/polygon, because the images obtain their nginx
+# include by running the installer's own step file — an image that performed that edit
+# itself would be asserting a precondition it had manufactured, which is exactly how a
+# missing installer step once survived the whole suite.
+#
+# Everything below is either build output or a dependency tree: none of it is copied
+# into any image, and sending it would make the context gigabytes for two small files.
+**/target/
+**/node_modules/
+**/bin/
+**/obj/
+**/dist/
+.git/
+frontend/test-results/
+frontend/playwright-report/

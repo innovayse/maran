@@ -1,0 +1,15 @@
+{
+  "common": {
+    "cancel": "Cancel",
+    "actions": "Actions",
+    "close": "Close",
+    "confirm": "Yes, do it",
+    "name": "Name",
+    "delete": "Delete",
+    "saving": "Saving…",
+    "emptyValue": "—",
+    "copyPassword": "Copy password",
+    "copied": "Copied",
+    "done": "Done"
+  }
+}

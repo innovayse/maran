@@ -1,0 +1,219 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="IdentityModuleDisplayName">
+    <value>Users and access</value>
+  </data>
+  <data name="AuditActionLoginSucceeded">
+    <value>Signed in</value>
+  </data>
+  <data name="AuditActionLoginFailed">
+    <value>Sign-in refused</value>
+  </data>
+  <data name="AuditActionLoggedOut">
+    <value>Signed out</value>
+  </data>
+  <data name="AuditActionLoggedOutEverywhere">
+    <value>Signed out everywhere</value>
+  </data>
+  <data name="AuditActionSessionRevoked">
+    <value>Session revoked</value>
+  </data>
+  <data name="AuditActionRefreshTokenReuseDetected">
+    <value>Refresh token reuse detected</value>
+  </data>
+  <data name="AuditActionTwoFactorEnabled">
+    <value>Two-factor enabled</value>
+  </data>
+  <data name="AuditActionTwoFactorDisabled">
+    <value>Two-factor disabled</value>
+  </data>
+  <data name="AuditActionRecoveryCodeUsed">
+    <value>Recovery code used</value>
+  </data>
+  <data name="AuditActionPasswordChanged">
+    <value>Password changed</value>
+  </data>
+  <data name="AuditActionAdministratorCreated">
+    <value>Administrator created</value>
+  </data>
+  <data name="AuditActionAccountCreated">
+    <value>Account created</value>
+  </data>
+  <data name="AuditActionAccountSuspended">
+    <value>Account suspended</value>
+  </data>
+  <data name="AuditActionAccountReactivated">
+    <value>Account reactivated</value>
+  </data>
+  <data name="AuditActionAccountDeleted">
+    <value>Account deleted</value>
+  </data>
+  <data name="AuditActionBackupRestored">
+    <value>Account restored from a backup</value>
+  </data>
+  <data name="AuditActionFinalBackupTaken">
+    <value>Final backup taken</value>
+  </data>
+  <data name="AuditActionFinalBackupSkipped">
+    <value>Final backup skipped</value>
+  </data>
+  <data name="AuditActionFinalBackupSkippedNoModule">
+    <value>Final backup skipped: no Backups module</value>
+  </data>
+  <data name="AuditActionSiteCreated">
+    <value>Site created</value>
+  </data>
+  <data name="AuditActionSitePhpVersionChanged">
+    <value>Site PHP version changed</value>
+  </data>
+  <data name="AuditActionSiteEnabled">
+    <value>Site enabled</value>
+  </data>
+  <data name="AuditActionSiteDisabled">
+    <value>Site disabled</value>
+  </data>
+  <data name="AuditActionSiteDeleted">
+    <value>Site deleted</value>
+  </data>
+  <data name="AuditActionSiteLogTailed">
+    <value>Site log opened</value>
+  </data>
+  <data name="AuditActionDatabaseCreated">
+    <value>Database created</value>
+  </data>
+  <data name="AuditActionDatabaseDropped">
+    <value>Database dropped</value>
+  </data>
+  <data name="AuditActionDatabasePasswordReset">
+    <value>Database password reset</value>
+  </data>
+  <data name="AuditActionSftpUserCreated">
+    <value>SFTP login created</value>
+  </data>
+  <data name="AuditActionSftpUserDeleted">
+    <value>SFTP login deleted</value>
+  </data>
+  <data name="AuditActionSftpUserPasswordReset">
+    <value>SFTP password reset</value>
+  </data>
+  <data name="AuditActionFtpsEnabled">
+    <value>FTPS enabled</value>
+  </data>
+  <data name="AuditActionFtpsDisabled">
+    <value>FTPS disabled</value>
+  </data>
+  <data name="AuditActionFtpsTlsReloaded">
+    <value>FTPS certificate reloaded</value>
+  </data>
+  <data name="AuditActionFtpUserCreated">
+    <value>FTPS login created</value>
+  </data>
+  <data name="AuditActionFtpUserDeleted">
+    <value>FTPS login deleted</value>
+  </data>
+  <data name="AuditActionFtpUserPasswordReset">
+    <value>FTPS password reset</value>
+  </data>
+  <data name="AuditActionCertificateIssued">
+    <value>Certificate issued</value>
+  </data>
+  <data name="AuditActionCertificateInstalled">
+    <value>Certificate installed</value>
+  </data>
+  <data name="AuditActionCertificateRemoved">
+    <value>Certificate removed</value>
+  </data>
+  <data name="AuditActionCertificateRenewed">
+    <value>Certificate renewed</value>
+  </data>
+  <data name="AuditActionCronEntryCreated">
+    <value>Cron entry created</value>
+  </data>
+  <data name="AuditActionCronEntryUpdated">
+    <value>Cron entry updated</value>
+  </data>
+  <data name="AuditActionCronEntryDeleted">
+    <value>Cron entry deleted</value>
+  </data>
+  <data name="AuditActionCronEntryEnabledChanged">
+    <value>Cron entry switched on or off</value>
+  </data>
+  <data name="AuditActionCronEnvironmentChanged">
+    <value>Cron environment changed</value>
+  </data>
+  <data name="AuditActionFirewallRuleAllowed">
+    <value>Firewall port opened</value>
+  </data>
+  <data name="AuditActionFirewallRuleDenied">
+    <value>Firewall port closed</value>
+  </data>
+  <data name="AuditActionAddressBanned">
+    <value>Address banned</value>
+  </data>
+  <data name="AuditActionAddressUnbanned">
+    <value>Address unbanned</value>
+  </data>
+  <data name="AuditActionFirewallWhitelistChanged">
+    <value>Firewall whitelist changed</value>
+  </data>
+  <data name="AuditActionFirewallWhitelistSeeded">
+    <value>Whitelist seeded by the installer</value>
+  </data>
+  <data name="AuditActionBanSkippedWhitelisted">
+    <value>Ban skipped: address whitelisted</value>
+  </data>
+  <data name="AuditActionSmtpSettingsSaved">
+    <value>Mail settings saved</value>
+  </data>
+  <data name="AuditActionTestMailSent">
+    <value>Test mail sent</value>
+  </data>
+  <data name="AuditActionMailSkippedNoSmtp">
+    <value>Mail skipped: no SMTP settings</value>
+  </data>
+  <data name="AuditActionMailSendFailed">
+    <value>Mail delivery failed</value>
+  </data>
+  <data name="AuditActionAlertRaised">
+    <value>Alert raised</value>
+  </data>
+  <data name="AuditActionAlertResolved">
+    <value>Alert resolved</value>
+  </data>
+  <data name="AuditActionPasswordResetRequested">
+    <value>Password reset requested</value>
+  </data>
+  <data name="AuditActionPasswordResetRefused">
+    <value>Password reset token refused</value>
+  </data>
+  <data name="AuditActionSecurityPolicySaved">
+    <value>Security policy saved</value>
+  </data>
+  <data name="AuditActionBackupCreated">
+    <value>Backup taken</value>
+  </data>
+  <data name="AuditActionBackupDeleted">
+    <value>Backup deleted</value>
+  </data>
+  <data name="AuditActionBackupScheduleSaved">
+    <value>Backup schedule saved</value>
+  </data>
+  <data name="AuditActionBackupRetentionPruned">
+    <value>Old backup removed by retention</value>
+  </data>
+  <data name="AuditActionBackupDestinationSaved">
+    <value>Backup destination requested</value>
+  </data>
+</root>
