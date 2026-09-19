@@ -105,4 +105,39 @@ public interface IAgentDbClient
         string accountUsername,
         string databaseName,
         CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Reads this server's whole database-level grant table and narrows every row this panel issued
+    /// whose stored name became a wildcard pattern, or reports what it would narrow and changes
+    /// nothing.
+    /// </summary>
+    /// <param name="reportOnly">
+    /// True to classify every row and send no statement — the pass an operator reads before anything
+    /// changes. False to perform the rewrite.
+    /// </param>
+    /// <param name="cancellationToken">Cancellation for the call.</param>
+    /// <returns>The census of the grant table, or the agent's own typed failure.</returns>
+    /// <remarks>
+    /// <para>
+    /// <b>The one member here that is not scoped to an account, and the only one that takes no
+    /// name.</b> Every other call on this interface acts on a suffix under one account's prefix; this
+    /// one acts on rows nobody asked about, host-wide, for every customer on the server at once. The
+    /// panel therefore gates it on an administrator rather than on tenant scoping, which has nothing
+    /// to scope here: see <c>DatabaseGrantsController</c>.
+    /// </para>
+    /// <para>
+    /// <b>It returns other tenants' identifiers.</b> A refused row carries the server's raw
+    /// <c>Host</c>, <c>Db</c> and <c>User</c> columns, and a row is refused precisely because this
+    /// panel did not write it — so the names can be another customer's, or an operator's own
+    /// hand-made credential. Nothing may hand this result to a customer.
+    /// </para>
+    /// <para>
+    /// <b>It settles nothing about exploitation.</b> A repaired row says only that the reach is
+    /// closed going forward
+    /// (docs/superpowers/notes/2026-09-13-grant-repair-threat-note.md).
+    /// </para>
+    /// </remarks>
+    Task<Result<GrantRepairReportDto>> RepairGrantsAsync(
+        bool reportOnly,
+        CancellationToken cancellationToken);
 }

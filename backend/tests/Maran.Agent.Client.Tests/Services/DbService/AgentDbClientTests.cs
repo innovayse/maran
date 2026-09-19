@@ -443,6 +443,101 @@ public sealed class AgentDbClientTests
             CancellationToken.None);
     }
 
+    /// <summary>The grant repair sends the report only flag it was given and nothing else.</summary>
+    /// <remarks>
+    /// The flag is the whole of the request, and it is the difference between reading the host's grant
+    /// table and rewriting every customer's database access on it. A client that dropped it would send
+    /// proto3's default — <c>false</c>, which means ACT — so an inspection would silently become a
+    /// repair, and every assertion about the response shape would still pass. Both values are driven,
+    /// because a client that hard-coded either one would satisfy a single-value test.
+    /// </remarks>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task The_grant_repair_sends_the_report_only_flag_it_was_given_and_nothing_else(bool reportOnly)
+    {
+        var stub = new StubDbService
+        {
+            RepairGrantsResponse = new RepairDatabaseGrantsResponse { Ok = new RepairDatabaseGrantsOk() },
+        };
+        var client = new AgentDbClient(stub, NullLogger<AgentDbClient>.Instance);
+
+        await client.RepairGrantsAsync(reportOnly, CancellationToken.None);
+
+        var request = Assert.IsType<RepairDatabaseGrantsRequest>(stub.LastRepairGrantsRequest);
+        Assert.Equal(reportOnly, request.ReportOnly);
+    }
+
+    /// <summary>The grant repair census keeps its four buckets apart and its exposure list intact.</summary>
+    /// <remarks>
+    /// Four buckets that sum to the number examined are what make the report a census of the grant table
+    /// rather than a list of what happened to be interesting, so a mapping that merged "would repair"
+    /// into "repaired" would make an inspection indistinguishable from an action. The exposure list is
+    /// asserted for the same reason it exists: it is the only evidence this operation can produce, and
+    /// a projection that dropped it would leave the panel with nothing to say about reach.
+    /// </remarks>
+    [Fact]
+    public async Task The_grant_repair_census_keeps_its_four_buckets_apart_and_its_exposure_list_intact()
+    {
+        var ok = new RepairDatabaseGrantsOk { ExaminedGrants = 4, AlreadyCorrect = 1 };
+        ok.Repaired.Add(new RepairedGrant { DatabaseName = "a_one", DbUsername = "a_one" });
+        var planned = new RepairedGrant { DatabaseName = "a_two", DbUsername = "a_two" };
+        planned.AlsoMatchedDatabases.Add("axtwo");
+        ok.WouldRepair.Add(planned);
+        ok.Refused.Add(new RefusedGrant
+        {
+            GrantHost = "10.0.0.5",
+            DatabaseName = @"b\_three",
+            DbUsername = "reporting_tool",
+            Reason = GrantRepairRefusal.HostIsNotLocalhost,
+        });
+        var stub = new StubDbService
+        {
+            RepairGrantsResponse = new RepairDatabaseGrantsResponse { Ok = ok },
+        };
+        var client = new AgentDbClient(stub, NullLogger<AgentDbClient>.Instance);
+
+        var result = await client.RepairGrantsAsync(reportOnly: false, CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(4u, result.Value.ExaminedGrants);
+        Assert.Equal(1u, result.Value.AlreadyCorrect);
+        Assert.Equal("a_one", Assert.Single(result.Value.Repaired).DatabaseName);
+        Assert.Equal(["axtwo"], Assert.Single(result.Value.WouldRepair).AlsoMatchedDatabases);
+
+        // The raw columns, verbatim: a row is refused precisely because it is not a value this panel
+        // could have produced, so a tidied name would hide the evidence an operator has to read.
+        var refused = Assert.Single(result.Value.Refused);
+        Assert.Equal("10.0.0.5", refused.GrantHost);
+        Assert.Equal(@"b\_three", refused.DatabaseName);
+        Assert.Equal("reporting_tool", refused.DbUsername);
+        Assert.Equal("HostIsNotLocalhost", refused.Reason);
+    }
+
+    /// <summary>The grant repair error payload maps to a failed result with the agent code.</summary>
+    /// <remarks>
+    /// An unreachable server must not read as a host whose grant table is empty: that answer is a
+    /// census of nothing presented as a census of the server, and it is the reading that would let an
+    /// operator conclude their host had nothing wrong with it.
+    /// </remarks>
+    [Fact]
+    public async Task The_grant_repair_error_payload_maps_to_a_failed_result_with_the_agent_code()
+    {
+        var stub = new StubDbService
+        {
+            RepairGrantsResponse = new RepairDatabaseGrantsResponse
+            {
+                Error = new AgentError { Code = ErrorCode.SystemFailure, Message = "mysql socket refused" },
+            },
+        };
+        var client = new AgentDbClient(stub, NullLogger<AgentDbClient>.Instance);
+
+        var result = await client.RepairGrantsAsync(reportOnly: true, CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("AgentSystemFailure", result.Error!.Code);
+    }
+
     /// <summary>Calls the production creation path with fixed arguments.</summary>
     /// <param name="stub">The transport stub to drive.</param>
     /// <param name="logger">The logger the client writes the agent's text to.</param>

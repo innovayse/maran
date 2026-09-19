@@ -55,4 +55,12 @@ internal sealed class GrpcDbServiceInvoker : IDbServiceInvoker
     {
         return await _client.GetDatabaseSizeAsync(request, cancellationToken: cancellationToken);
     }
+
+    /// <inheritdoc/>
+    public async Task<RepairDatabaseGrantsResponse> RepairDatabaseGrantsAsync(
+        RepairDatabaseGrantsRequest request,
+        CancellationToken cancellationToken)
+    {
+        return await _client.RepairDatabaseGrantsAsync(request, cancellationToken: cancellationToken);
+    }
 }

@@ -156,4 +156,15 @@ public sealed class BarrierDbAgent : IAgentDbClient
     {
         throw new NotSupportedException("This double answers database creation and dropping only.");
     }
+
+    /// <summary>Not exercised by a database creation.</summary>
+    /// <param name="reportOnly">Ignored.</param>
+    /// <param name="cancellationToken">Ignored.</param>
+    /// <returns>Never returns.</returns>
+    public Task<Result<GrantRepairReportDto>> RepairGrantsAsync(
+        bool reportOnly,
+        CancellationToken cancellationToken)
+    {
+        throw new NotSupportedException("This double answers database creation and dropping only.");
+    }
 }
