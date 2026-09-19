@@ -175,6 +175,10 @@ impl DistroAdapter for RhelAdapter {
         rhel_services::ssh_service()
     }
 
+    fn sshd_config_path(&self) -> &'static str {
+        rhel_services::sshd_config_path()
+    }
+
     fn managed_units(&self) -> [&'static str; 4] {
         rhel_services::managed_units()
     }

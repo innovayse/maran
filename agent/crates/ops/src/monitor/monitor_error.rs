@@ -65,6 +65,16 @@ pub enum MonitorError {
     /// empty list would read to the panel as "every account was deleted".
     #[error("the password database could not be read")]
     AccountsUnavailable,
+
+    /// The OpenSSH server's main configuration file could not be read.
+    ///
+    /// Its own variant rather than [`Self::AccountsUnavailable`], even though
+    /// both come from a file read: the panel has to tell "no accounts could be
+    /// listed" from "the sftp jail's configuration could not be inspected", and
+    /// an operator chasing either looks in a different place — the password
+    /// database against `/etc/ssh/sshd_config` and whatever replaced it.
+    #[error("the sshd configuration could not be read")]
+    SshdConfigUnavailable,
 }
 
 impl MonitorError {

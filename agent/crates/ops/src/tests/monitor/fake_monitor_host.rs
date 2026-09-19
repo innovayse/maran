@@ -112,6 +112,11 @@ pub(crate) struct FakeMonitorHost {
     service_manager: Mutex<Result<i32, MonitorError>>,
     /// The password database's text, or `None` for a file that cannot be read.
     passwd: Mutex<Option<String>>,
+    /// The sshd configuration's text, or `None` for a file that cannot be read.
+    sshd_config: Mutex<Option<String>>,
+    /// The path `read_sshd_config` was last asked to read, so a test can assert the operation
+    /// asked for exactly the file the adapter names rather than one of its own choosing.
+    sshd_config_path_requested: Mutex<Option<String>>,
     /// What each directory measures; a directory absent here measures zero.
     sizes: Mutex<BTreeMap<PathBuf, u64>>,
     /// Every command the host was asked to spawn, as `program` plus its argv.
@@ -136,6 +141,8 @@ impl FakeMonitorHost {
             units: Mutex::new(BTreeMap::new()),
             service_manager: Mutex::new(Ok(0)),
             passwd: Mutex::new(Some(String::new())),
+            sshd_config: Mutex::new(Some(String::new())),
+            sshd_config_path_requested: Mutex::new(None),
             sizes: Mutex::new(BTreeMap::new()),
             commands: Mutex::new(Vec::new()),
         }
@@ -209,6 +216,23 @@ impl FakeMonitorHost {
     pub(crate) fn with_unreadable_passwd(self) -> Self {
         *self.passwd.lock().unwrap() = None;
         self
+    }
+
+    /// Gives the host an sshd configuration.
+    pub(crate) fn with_sshd_config(self, config: &str) -> Self {
+        *self.sshd_config.lock().unwrap() = Some(config.to_owned());
+        self
+    }
+
+    /// Makes the sshd configuration unreadable.
+    pub(crate) fn with_unreadable_sshd_config(self) -> Self {
+        *self.sshd_config.lock().unwrap() = None;
+        self
+    }
+
+    /// The path `read_sshd_config` was last asked to read, or `None` if it was never called.
+    pub(crate) fn sshd_config_path_requested(&self) -> Option<String> {
+        self.sshd_config_path_requested.lock().unwrap().clone()
     }
 
     /// Says how big the tree at `path` is.
@@ -332,6 +356,23 @@ impl MonitorHost for FakeMonitorHost {
             .unwrap()
             .clone()
             .ok_or(MonitorError::AccountsUnavailable)
+    }
+
+    /// Answers the configured sshd configuration, or reports it unreadable.
+    ///
+    /// Unlike `read_password_database`, the path is RECORDED rather than
+    /// ignored: whether `get_sftp_jail_status` asks for the exact path the
+    /// `DistroAdapter` names is itself a property this crate's tests must be
+    /// able to check, and a fake that discarded the argument could never see
+    /// a caller that read a different, wrong path instead.
+    fn read_sshd_config(&self, path: &str) -> Result<String, MonitorError> {
+        *self.sshd_config_path_requested.lock().unwrap() = Some(path.to_owned());
+
+        self.sshd_config
+            .lock()
+            .unwrap()
+            .clone()
+            .ok_or(MonitorError::SshdConfigUnavailable)
     }
 
     /// Answers what the test said this tree measures; anything it did not

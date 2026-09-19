@@ -47,8 +47,8 @@ use std::process::Command;
 
 use maran_distro::{DistroAdapter, adapter_for, detect};
 use maran_ops::monitor::{
-    ProcessMonitorHost, ServiceState, ServiceStatus, get_accounts_disk_usage, get_host_metrics,
-    get_service_statuses,
+    ProcessMonitorHost, ServiceState, ServiceStatus, SftpJailStatus, get_accounts_disk_usage,
+    get_host_metrics, get_service_statuses, get_sftp_jail_status,
 };
 
 use polygon_account::PolygonAccount;
@@ -411,4 +411,91 @@ fn each_hosting_account_is_reported_with_what_it_occupies_and_nothing_else_is() 
             "{name} is not a hosting account and must not be reported"
         );
     }
+}
+
+/// The polygon image's real `/etc/ssh/sshd_config` is exactly what
+/// `installer/lib/86-sftp.sh` wrote when the image was built (see the module
+/// doc on `sftp_on_a_real_host.rs`), so this is the one place the check reads
+/// a file this project did not compose for the test itself.
+#[test]
+#[ignore = "reads this host's real /etc/ssh/sshd_config: polygon only"]
+fn the_installer_written_block_is_intact_on_a_real_host() {
+    PolygonAccount::require_polygon();
+
+    let status = get_sftp_jail_status(&ProcessMonitorHost::new(), polygon_distro())
+        .unwrap_or_else(|error| panic!("the real sshd_config must be readable: {error}"));
+
+    assert_eq!(
+        status,
+        SftpJailStatus::Intact,
+        "the installer's own block, freshly written when this image was built, must read as intact"
+    );
+}
+
+/// **The failing direction, on the real file the daemon this host runs would
+/// itself read.** Every other case for this logic is exercised in
+/// `ops::monitor::model::sftp_jail_status`'s unit tests against text the test
+/// composed; this is the one place the REMOVAL is done to the file a real
+/// `sshd` on a real supported family actually has, which is the closest this
+/// project's test suites come to reproducing the README's defect end to end.
+///
+/// The file is restored with a plain `cp`, never a rename, so a second run of
+/// this suite in the same container starts from the installer's own content
+/// rather than from whatever the previous run left as a temporary path.
+#[test]
+#[ignore = "rewrites this host's real /etc/ssh/sshd_config: polygon only"]
+fn removing_the_block_by_hand_is_noticed_and_restoring_it_clears_the_finding() {
+    PolygonAccount::require_polygon();
+
+    let path = polygon_distro().sshd_config_path();
+    let original =
+        std::fs::read_to_string(path).expect("the real sshd_config must be readable to back it up");
+
+    let intact = get_sftp_jail_status(&ProcessMonitorHost::new(), polygon_distro())
+        .expect("the real sshd_config must be readable");
+    assert_eq!(
+        intact,
+        SftpJailStatus::Intact,
+        "the suite must start from the installer's own intact block"
+    );
+
+    // The exact defect the README describes: the WHOLE block gone, by hand,
+    // with nothing else in the file touched. Removed as one contiguous span
+    // from its own begin marker line to its own end marker line — a partial
+    // removal that left the indented directives outside any `Match` would
+    // turn them into GLOBAL settings and break every other login on this
+    // container, which would not be testing this check any more.
+    let begin_at = original
+        .find("# BEGIN Maran SFTP")
+        .expect("the installer's begin marker must be in the image's real sshd_config");
+    let end_at = original[begin_at..]
+        .find("# END Maran SFTP")
+        .map(|offset| begin_at + offset)
+        .expect("the installer's end marker must be in the image's real sshd_config");
+    let end_of_line = original[end_at..]
+        .find('\n')
+        .map_or(original.len(), |offset| end_at + offset + 1);
+    let without_block = format!("{}{}", &original[..begin_at], &original[end_of_line..]);
+    std::fs::write(path, &without_block).expect("the config must be writable as root");
+
+    let drifted = get_sftp_jail_status(&ProcessMonitorHost::new(), polygon_distro());
+    // Restore FIRST: a failed assertion below must not leave this container's
+    // sshd_config broken for the next test in the binary.
+    std::fs::write(path, &original).expect("the original config must be restorable");
+
+    let SftpJailStatus::Drifted { missing } = drifted.expect("the config remains readable") else {
+        panic!("removing the block by hand must be reported as drifted, not intact");
+    };
+    assert!(
+        !missing.is_empty(),
+        "a drifted finding must name at least one missing thing"
+    );
+
+    let restored = get_sftp_jail_status(&ProcessMonitorHost::new(), polygon_distro())
+        .expect("the restored config must be readable");
+    assert_eq!(
+        restored,
+        SftpJailStatus::Intact,
+        "restoring the installer's exact content must clear the finding"
+    );
 }

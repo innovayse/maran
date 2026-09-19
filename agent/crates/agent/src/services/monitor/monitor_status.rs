@@ -29,7 +29,8 @@ pub fn to_agent_error(error: &MonitorError) -> AgentError {
         MonitorError::HostStatisticsUnavailable
         | MonitorError::FilesystemUnavailable
         | MonitorError::ServiceManagerUnavailable { .. }
-        | MonitorError::AccountsUnavailable => ErrorCode::SystemFailure,
+        | MonitorError::AccountsUnavailable
+        | MonitorError::SshdConfigUnavailable => ErrorCode::SystemFailure,
         // MonitorError is #[non_exhaustive] (rules/rust.md), so a variant added
         // in the ops crate lands here rather than failing this build. It maps to
         // a system failure, which is what every variant here already is.

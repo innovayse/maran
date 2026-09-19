@@ -398,6 +398,18 @@ pub fn ssh_service() -> &'static str {
     "ssh"
 }
 
+/// Absolute path of the OpenSSH server's main configuration file.
+///
+/// The `openssh-server` package installs it here on every Debian-family
+/// release this product supports; see
+/// [`crate::DistroAdapter::sshd_config_path`] for why this is an adapter
+/// method rather than a literal in `ops` even though the RHEL family answers
+/// the identical path.
+#[must_use]
+pub fn sshd_config_path() -> &'static str {
+    "/etc/ssh/sshd_config"
+}
+
 /// The closed set of units whose state the panel reports, in the order the
 /// trait fixes: web server, database, cron, OpenSSH.
 ///

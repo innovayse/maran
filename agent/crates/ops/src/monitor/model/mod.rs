@@ -10,4 +10,5 @@ pub mod memory_usage;
 pub mod network_counters;
 pub mod service_state;
 pub mod service_status;
+pub mod sftp_jail_status;
 pub mod unit_report;

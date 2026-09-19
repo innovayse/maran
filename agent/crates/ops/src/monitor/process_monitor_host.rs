@@ -172,6 +172,15 @@ impl MonitorHost for ProcessMonitorHost {
         fs::read_to_string(path).map_err(|_| MonitorError::AccountsUnavailable)
     }
 
+    /// Reads the OpenSSH server's main configuration file, verbatim.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`MonitorError::SshdConfigUnavailable`] when it cannot be read.
+    fn read_sshd_config(&self, path: &str) -> Result<String, MonitorError> {
+        fs::read_to_string(path).map_err(|_| MonitorError::SshdConfigUnavailable)
+    }
+
     /// Walks the tree and sums it, through the one implementation of that walk.
     ///
     /// Symlinks count as zero and are never followed, which is what keeps a

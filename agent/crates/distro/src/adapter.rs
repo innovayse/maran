@@ -500,6 +500,22 @@ pub trait DistroAdapter: Send + Sync {
     /// completely healthy host.
     fn ssh_service(&self) -> &'static str;
 
+    /// Absolute path of the OpenSSH server's main configuration file.
+    ///
+    /// `/etc/ssh/sshd_config` on both supported families — the OpenSSH package
+    /// installs it at the identical path everywhere, so this method answers the
+    /// same literal on every arm. It is still asked of the adapter rather than
+    /// written as a literal in `ops`, for the same reason [`Self::service_manager`]
+    /// is: a value this crate names once is a value that cannot drift out of
+    /// step between two call sites, and the day a family's packaging DOES
+    /// diverge, one arm changes and nothing outside this crate has to know.
+    ///
+    /// This is the file the installer's `installer/lib/86-sftp.sh` appends its
+    /// `Match Group` block to — at the end of the MAIN file, never into a
+    /// drop-in — so a reader that wants to find that block reads exactly this
+    /// path and no `Include` target.
+    fn sshd_config_path(&self) -> &'static str;
+
     /// The closed set of units whose state the panel reports, in this fixed
     /// order: web server, database, cron, OpenSSH.
     ///

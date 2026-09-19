@@ -3,16 +3,17 @@
 use std::sync::Arc;
 
 use maran_distro::DistroAdapter;
-use maran_ops::monitor::{self, MonitorHost};
+use maran_ops::monitor::{self, MonitorHost, SftpJailStatus};
 use tonic::{Request, Response, Status};
 
 use crate::proto::monitor_service_server::MonitorService;
 use crate::proto::{
     AccountDiskUsage, GetAccountsDiskUsageOk, GetAccountsDiskUsageRequest,
     GetAccountsDiskUsageResponse, GetHostMetricsRequest, GetHostMetricsResponse,
-    GetServiceStatusesOk, GetServiceStatusesRequest, GetServiceStatusesResponse, HostMetrics,
-    ServiceStatus, get_accounts_disk_usage_response, get_host_metrics_response,
-    get_service_statuses_response,
+    GetServiceStatusesOk, GetServiceStatusesRequest, GetServiceStatusesResponse,
+    GetSftpJailStatusOk, GetSftpJailStatusRequest, GetSftpJailStatusResponse, HostMetrics,
+    ServiceStatus, SftpJailState, get_accounts_disk_usage_response, get_host_metrics_response,
+    get_service_statuses_response, get_sftp_jail_status_response,
 };
 use crate::services::monitor::managed_service::managed_service;
 use crate::services::monitor::monitor_status::to_agent_error;
@@ -170,6 +171,41 @@ impl<H: MonitorHost + 'static> MonitorService for MonitorServiceImpl<H> {
         };
 
         Ok(Response::new(GetAccountsDiskUsageResponse {
+            result: Some(result),
+        }))
+    }
+
+    /// Reports whether the installer's `Match Group` block — the block that
+    /// jails every SFTP login — is still present and intact in the live
+    /// `sshd_config`.
+    async fn get_sftp_jail_status(
+        &self,
+        _request: Request<GetSftpJailStatusRequest>,
+    ) -> Result<Response<GetSftpJailStatusResponse>, Status> {
+        let host = Arc::clone(&self.host);
+        let distro = self.distro;
+        let result = run_blocking("monitoring reading", to_agent_error, move || {
+            monitor::get_sftp_jail_status(host.as_ref(), distro)
+        })
+        .await;
+
+        let result = match result {
+            Ok(SftpJailStatus::Intact) => {
+                get_sftp_jail_status_response::Result::Ok(GetSftpJailStatusOk {
+                    state: SftpJailState::Intact as i32,
+                    missing: Vec::new(),
+                })
+            }
+            Ok(SftpJailStatus::Drifted { missing }) => {
+                get_sftp_jail_status_response::Result::Ok(GetSftpJailStatusOk {
+                    state: SftpJailState::Drifted as i32,
+                    missing,
+                })
+            }
+            Err(error) => get_sftp_jail_status_response::Result::Error(error),
+        };
+
+        Ok(Response::new(GetSftpJailStatusResponse {
             result: Some(result),
         }))
     }
