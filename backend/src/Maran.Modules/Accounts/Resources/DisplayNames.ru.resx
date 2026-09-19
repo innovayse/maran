@@ -24,4 +24,46 @@
   <data name="PlanUnlimitedName">
     <value>Безлимитный</value>
   </data>
+  <data name="HomeGroupRepairRefusalHomeNotAtExpectedPath">
+    <value>Домашний каталог не там, где его создаёт панель</value>
+  </data>
+  <data name="HomeGroupRepairAdviceHomeNotAtExpectedPath">
+    <value>Записанный домашний каталог этого аккаунта не совпадает с путём, по которому эта панель создаёт домашние каталоги аккаунтов, поэтому панель оставила его точно таким, каким нашла. Ничего не изменено. Выясните, почему каталог был перемещён, прежде чем трогать его вручную.</value>
+  </data>
+  <data name="HomeGroupRepairRefusalHomeMissing">
+    <value>Домашний каталог не существует</value>
+  </data>
+  <data name="HomeGroupRepairAdviceHomeMissing">
+    <value>Путь, по которому эта панель создала бы домашний каталог, не существует, поэтому нечего изменять группу. Ничего не изменено. Проверьте, был ли домашний каталог удалён или никогда не создавался.</value>
+  </data>
+  <data name="HomeGroupRepairRefusalSymlink">
+    <value>Домашний каталог является символической ссылкой</value>
+  </data>
+  <data name="HomeGroupRepairAdviceSymlink">
+    <value>Путь является символической ссылкой, а не самим домашним каталогом, поэтому изменение группы не затронуло бы то, на что она указывает, и могло быть небезопасно. Ничего не изменено. Выясните, что создало эту ссылку, прежде чем трогать её.</value>
+  </data>
+  <data name="HomeGroupRepairRefusalNotADirectory">
+    <value>Не является каталогом</value>
+  </data>
+  <data name="HomeGroupRepairAdviceNotADirectory">
+    <value>Путь существует, но не является каталогом, поэтому он не может быть домашним каталогом аккаунта. Ничего не изменено. Выясните, что находится по этому пути, прежде чем трогать его.</value>
+  </data>
+  <data name="HomeGroupRepairRefusalDifferentMount">
+    <value>На другой файловой системе</value>
+  </data>
+  <data name="HomeGroupRepairAdviceDifferentMount">
+    <value>Путь находится на другой файловой системе, чем корень домашних каталогов аккаунтов, а такое эта панель никогда не создаёт. Ничего не изменено. Проверьте, не смонтировано ли туда что-то ещё.</value>
+  </data>
+  <data name="HomeGroupRepairRefusalOwnerMismatch">
+    <value>Принадлежит не этому аккаунту</value>
+  </data>
+  <data name="HomeGroupRepairAdviceOwnerMismatch">
+    <value>Путь не принадлежит собственному системному пользователю аккаунта, поэтому это может быть не его домашний каталог. Ничего не изменено. Проверьте, кому он принадлежит, прежде чем трогать его вручную.</value>
+  </data>
+  <data name="HomeGroupRepairRefusalUnspecified">
+    <value>Причина не указана</value>
+  </data>
+  <data name="HomeGroupRepairAdviceUnspecified">
+    <value>Агент отклонил этот аккаунт по причине, которую эта версия панели не распознаёт; обычно это значит, что агент новее панели. Ничего не изменено. Обновите панель и запустите отчёт снова.</value>
+  </data>
 </root>

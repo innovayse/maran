@@ -102,6 +102,9 @@
   <data name="AuditActionDatabaseGrantsRepaired">
     <value>Сужены права доступа к базам данных</value>
   </data>
+  <data name="AuditActionAccountHomeGroupsRepaired">
+    <value>Восстановлены группы домашних каталогов учётных записей</value>
+  </data>
   <data name="AuditActionSftpUserCreated">
     <value>Создан SFTP-доступ</value>
   </data>

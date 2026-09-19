@@ -102,6 +102,9 @@
   <data name="AuditActionDatabaseGrantsRepaired">
     <value>Նեղացվեցին տվյալների բազաների իրավունքները</value>
   </data>
+  <data name="AuditActionAccountHomeGroupsRepaired">
+    <value>Վերականգնվեցին հաշիվների տնային պանակների խմբերը</value>
+  </data>
   <data name="AuditActionSftpUserCreated">
     <value>Ստեղծվեց SFTP մուտք</value>
   </data>

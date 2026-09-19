@@ -102,6 +102,9 @@
   <data name="AuditActionDatabaseGrantsRepaired">
     <value>Database grants narrowed</value>
   </data>
+  <data name="AuditActionAccountHomeGroupsRepaired">
+    <value>Account home groups repaired</value>
+  </data>
   <data name="AuditActionSftpUserCreated">
     <value>SFTP login created</value>
   </data>

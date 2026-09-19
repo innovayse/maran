@@ -142,6 +142,38 @@ public sealed class RecordingAgentAccountsClient : IAgentAccountsClient
             : Result<AccountUsageDto>.Fail(_failure));
     }
 
+    /// <summary>How many report-only vs acting home-group repair passes were made, in order.</summary>
+    public List<bool> HomeGroupRepairPasses { get; } = [];
+
+    /// <summary>What a report-only pass answers; an empty census by default.</summary>
+    public Result<HomeGroupRepairReportDto>? HomeGroupReportResult { get; set; }
+
+    /// <summary>
+    /// What an acting pass answers; an empty census by default. Separate from
+    /// <see cref="HomeGroupReportResult"/> so a test can make the two passes DISAGREE, which is the
+    /// only way to see whether a handler reported the pass it performed or the pass it planned.
+    /// </summary>
+    public Result<HomeGroupRepairReportDto>? HomeGroupRepairResult { get; set; }
+
+    /// <inheritdoc/>
+    public Task<Result<HomeGroupRepairReportDto>> RepairHomeGroupsAsync(
+        bool reportOnly,
+        CancellationToken cancellationToken)
+    {
+        HomeGroupRepairPasses.Add(reportOnly);
+        Calls.Add($"repair-home-groups:{reportOnly}");
+
+        var configured = reportOnly ? HomeGroupReportResult : HomeGroupRepairResult;
+        if (configured is not null)
+        {
+            return Task.FromResult(configured);
+        }
+
+        return Task.FromResult(_failure is null
+            ? Result<HomeGroupRepairReportDto>.Ok(new HomeGroupRepairReportDto(0, 0, [], [], []))
+            : Result<HomeGroupRepairReportDto>.Fail(_failure));
+    }
+
     /// <summary>The configured answer for a call returning nothing but success.</summary>
     private Result<bool> Answer()
     {

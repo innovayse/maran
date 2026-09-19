@@ -39,4 +39,10 @@
   <data name="AccountResumptionNotObserved">
     <value>The account was not reactivated: the server could not be observed to have started it again. Nothing has been changed; please try again.</value>
   </data>
+  <data name="AccountHomeGroupRepairPlanChanged">
+    <value>The host's home directories no longer match the report you read, so nothing was repaired and nothing was changed. Read a fresh report and confirm its figures before repairing.</value>
+  </data>
+  <data name="AccountHomeGroupRepairCountInvalid">
+    <value>The number of homes to repair cannot be negative. Read the report again and confirm the figure it gives.</value>
+  </data>
 </root>

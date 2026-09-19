@@ -24,4 +24,46 @@
   <data name="PlanUnlimitedName">
     <value>Unlimited</value>
   </data>
+  <data name="HomeGroupRepairRefusalHomeNotAtExpectedPath">
+    <value>Home not where this panel creates it</value>
+  </data>
+  <data name="HomeGroupRepairAdviceHomeNotAtExpectedPath">
+    <value>This account's recorded home is not the path this panel creates account homes at, so the panel left it exactly as it found it. Nothing was changed. Find out why the home was moved before you touch it by hand.</value>
+  </data>
+  <data name="HomeGroupRepairRefusalHomeMissing">
+    <value>Home directory does not exist</value>
+  </data>
+  <data name="HomeGroupRepairAdviceHomeMissing">
+    <value>The path this panel would have created the home at does not exist, so there is nothing to re-group. Nothing was changed. Check whether the account's home was removed or never created.</value>
+  </data>
+  <data name="HomeGroupRepairRefusalSymlink">
+    <value>Home is a symlink</value>
+  </data>
+  <data name="HomeGroupRepairAdviceSymlink">
+    <value>The path is a symlink rather than the home directory itself, so re-grouping it would not touch what it points to and could be unsafe. Nothing was changed. Find out what created the symlink before you touch it.</value>
+  </data>
+  <data name="HomeGroupRepairRefusalNotADirectory">
+    <value>Not a directory</value>
+  </data>
+  <data name="HomeGroupRepairAdviceNotADirectory">
+    <value>The path exists but is not a directory, so it cannot be a hosting account's home. Nothing was changed. Find out what is at this path before you touch it.</value>
+  </data>
+  <data name="HomeGroupRepairRefusalDifferentMount">
+    <value>On a different filesystem</value>
+  </data>
+  <data name="HomeGroupRepairAdviceDifferentMount">
+    <value>The path sits on a different filesystem than the account home root, which this panel never creates. Nothing was changed. Check whether something else is mounted there.</value>
+  </data>
+  <data name="HomeGroupRepairRefusalOwnerMismatch">
+    <value>Not owned by this account</value>
+  </data>
+  <data name="HomeGroupRepairAdviceOwnerMismatch">
+    <value>The path is not owned by the account's own system user, so it may not be this account's home at all. Nothing was changed. Check who owns it before you touch it by hand.</value>
+  </data>
+  <data name="HomeGroupRepairRefusalUnspecified">
+    <value>Reason not stated</value>
+  </data>
+  <data name="HomeGroupRepairAdviceUnspecified">
+    <value>The agent refused this account for a reason this version of the panel does not recognise, which usually means the agent is newer than the panel. Nothing was changed. Update the panel, then run the report again.</value>
+  </data>
 </root>
