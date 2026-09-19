@@ -130,6 +130,43 @@ public sealed class ResilientAgentDbClientTests
         });
     }
 
+    /// <summary>The grant repair goes through the pipeline and forwards the pass it was asked for.</summary>
+    /// <remarks>
+    /// The member with most to lose by being left undecorated: it reads the whole of the database
+    /// server's grant table, so a wedged socket here hangs an administrator's request with no bound at
+    /// all. The forwarded flag is asserted beside the retry, because a decorator that wrapped the call
+    /// and passed the wrong pass would turn an inspection into a host-wide rewrite while every retry
+    /// assertion stayed green.
+    /// </remarks>
+    [Fact]
+    public async Task The_grant_repair_goes_through_the_pipeline_and_forwards_the_pass_it_was_asked_for()
+    {
+        var inner = new RecordingAgentDbClient { FailuresBeforeSuccess = 1 };
+
+        var result = await Decorate(inner).RepairGrantsAsync(true, default).WaitAsync(TestTimeout);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(2, inner.Calls);
+        Assert.True(inner.LastReportOnly);
+    }
+
+    /// <summary>A grant repair that never returns is abandoned by the pipelines timeout.</summary>
+    /// <remarks>
+    /// The behaviour the decorator exists for, asserted on this member too rather than inferred from
+    /// the listing's case: the two are separate call sites, and the defect this file was written
+    /// against was one member quietly left undecorated while the class looked wired.
+    /// </remarks>
+    [Fact]
+    public async Task A_grant_repair_that_never_returns_is_abandoned_by_the_pipelines_timeout()
+    {
+        var inner = new RecordingAgentDbClient { Hangs = true };
+
+        await Assert.ThrowsAsync<TimeoutRejectedException>(async () =>
+        {
+            await Decorate(inner).RepairGrantsAsync(false, default).WaitAsync(TestTimeout);
+        });
+    }
+
     /// <summary>Wraps the recording client in the decorator under the real pipeline.</summary>
     /// <param name="inner">The recording client to wrap.</param>
     /// <returns>The decorated client.</returns>

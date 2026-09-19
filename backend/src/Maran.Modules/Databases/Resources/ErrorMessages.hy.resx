@@ -45,4 +45,10 @@
   <data name="AccountNotFound">
     <value>Այս հաշիվը չի գտնվել։</value>
   </data>
+  <data name="DatabaseGrantRepairPlanChanged">
+    <value>Սերվերի իրավունքներն այլևս չեն համապատասխանում ձեր կարդացած հաշվետվությանը, ուստի ոչինչ չի ուղղվել և ոչինչ չի փոփոխվել։ Ստացեք նոր հաշվետվություն և հաստատեք նրա թվերը՝ նախքան ուղղելը։</value>
+  </data>
+  <data name="DatabaseGrantRepairCountInvalid">
+    <value>Ուղղվող իրավունքների թիվը չի կարող բացասական լինել։ Նորից կարդացեք հաշվետվությունը և հաստատեք նրանում նշված թիվը։</value>
+  </data>
 </root>

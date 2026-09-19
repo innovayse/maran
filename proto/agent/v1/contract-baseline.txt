@@ -2,6 +2,7 @@ enum maran.agent.v1.ArchiveFormat
 enum maran.agent.v1.BackupDestinationKind
 enum maran.agent.v1.DistroFamily
 enum maran.agent.v1.ErrorCode
+enum maran.agent.v1.GrantRepairRefusal
 enum maran.agent.v1.LoginPasswordState
 enum maran.agent.v1.ManagedService
 enum maran.agent.v1.Protocol
@@ -22,6 +23,7 @@ enum-value maran.agent.v1.DistroFamily 1 DISTRO_FAMILY_DEBIAN
 enum-value maran.agent.v1.DistroFamily 2 DISTRO_FAMILY_RHEL
 enum-value maran.agent.v1.ErrorCode 0 ERROR_CODE_UNSPECIFIED
 enum-value maran.agent.v1.ErrorCode 1 ERROR_CODE_INVALID_INPUT
+enum-value maran.agent.v1.ErrorCode 10 ERROR_CODE_LIMIT_REACHED
 enum-value maran.agent.v1.ErrorCode 2 ERROR_CODE_ALREADY_EXISTS
 enum-value maran.agent.v1.ErrorCode 3 ERROR_CODE_NOT_FOUND
 enum-value maran.agent.v1.ErrorCode 4 ERROR_CODE_VALIDATION_FAILED
@@ -30,6 +32,11 @@ enum-value maran.agent.v1.ErrorCode 6 ERROR_CODE_STREAM_DROPPED
 enum-value maran.agent.v1.ErrorCode 7 ERROR_CODE_STREAM_IDLE
 enum-value maran.agent.v1.ErrorCode 8 ERROR_CODE_NOT_IMPLEMENTED
 enum-value maran.agent.v1.ErrorCode 9 ERROR_CODE_ACCOUNT_BUSY
+enum-value maran.agent.v1.GrantRepairRefusal 0 GRANT_REPAIR_REFUSAL_UNSPECIFIED
+enum-value maran.agent.v1.GrantRepairRefusal 1 GRANT_REPAIR_REFUSAL_HOST_IS_NOT_LOCALHOST
+enum-value maran.agent.v1.GrantRepairRefusal 2 GRANT_REPAIR_REFUSAL_NOT_THE_PANELS_NAMING
+enum-value maran.agent.v1.GrantRepairRefusal 3 GRANT_REPAIR_REFUSAL_UNRECOGNISED_PRIVILEGES
+enum-value maran.agent.v1.GrantRepairRefusal 4 GRANT_REPAIR_REFUSAL_PARTIALLY_OR_UNFAMILIARLY_ESCAPED
 enum-value maran.agent.v1.LoginPasswordState 0 LOGIN_PASSWORD_STATE_UNSPECIFIED
 enum-value maran.agent.v1.LoginPasswordState 1 LOGIN_PASSWORD_STATE_EMPTY
 enum-value maran.agent.v1.LoginPasswordState 2 LOGIN_PASSWORD_STATE_ABSENT
@@ -148,6 +155,7 @@ field maran.agent.v1.CreateCronEntryOk 1 entry_id TYPE_STRING LABEL_OPTIONAL typ
 field maran.agent.v1.CreateCronEntryRequest 1 account_username TYPE_STRING LABEL_OPTIONAL type_name=- oneof=-
 field maran.agent.v1.CreateCronEntryRequest 2 schedule TYPE_MESSAGE LABEL_OPTIONAL type_name=.maran.agent.v1.CronSchedule oneof=-
 field maran.agent.v1.CreateCronEntryRequest 3 command TYPE_STRING LABEL_OPTIONAL type_name=- oneof=-
+field maran.agent.v1.CreateCronEntryRequest 4 max_entries TYPE_UINT32 LABEL_OPTIONAL type_name=- oneof=_max_entries
 field maran.agent.v1.CreateCronEntryResponse 1 ok TYPE_MESSAGE LABEL_OPTIONAL type_name=.maran.agent.v1.CreateCronEntryOk oneof=result
 field maran.agent.v1.CreateCronEntryResponse 2 error TYPE_MESSAGE LABEL_OPTIONAL type_name=.maran.agent.v1.AgentError oneof=result
 field maran.agent.v1.CreateDatabaseOk 1 database_name TYPE_STRING LABEL_OPTIONAL type_name=- oneof=-
@@ -441,6 +449,10 @@ field maran.agent.v1.ReadFileResponse 2 error TYPE_MESSAGE LABEL_OPTIONAL type_n
 field maran.agent.v1.ReadableBackup 1 manifest TYPE_MESSAGE LABEL_OPTIONAL type_name=.maran.agent.v1.BackupManifest oneof=-
 field maran.agent.v1.ReadableBackup 2 artifact_bytes TYPE_UINT64 LABEL_OPTIONAL type_name=- oneof=-
 field maran.agent.v1.ReadableBackup 3 artifact_sha256 TYPE_STRING LABEL_OPTIONAL type_name=- oneof=-
+field maran.agent.v1.RefusedGrant 1 grant_host TYPE_STRING LABEL_OPTIONAL type_name=- oneof=-
+field maran.agent.v1.RefusedGrant 2 database_name TYPE_STRING LABEL_OPTIONAL type_name=- oneof=-
+field maran.agent.v1.RefusedGrant 3 db_username TYPE_STRING LABEL_OPTIONAL type_name=- oneof=-
+field maran.agent.v1.RefusedGrant 4 reason TYPE_ENUM LABEL_OPTIONAL type_name=.maran.agent.v1.GrantRepairRefusal oneof=-
 field maran.agent.v1.ReloadFtpsTlsOk 1 running TYPE_BOOL LABEL_OPTIONAL type_name=- oneof=-
 field maran.agent.v1.ReloadFtpsTlsOk 2 control_port_answered TYPE_BOOL LABEL_OPTIONAL type_name=- oneof=-
 field maran.agent.v1.ReloadFtpsTlsOk 3 certificate_present TYPE_BOOL LABEL_OPTIONAL type_name=- oneof=-
@@ -459,6 +471,17 @@ field maran.agent.v1.RemoveCertificateRequest 2 domain TYPE_STRING LABEL_OPTIONA
 field maran.agent.v1.RemoveCertificateRequest 3 site TYPE_MESSAGE LABEL_OPTIONAL type_name=.maran.agent.v1.SiteSpec oneof=-
 field maran.agent.v1.RemoveCertificateResponse 1 ok TYPE_MESSAGE LABEL_OPTIONAL type_name=.maran.agent.v1.RemoveCertificateOk oneof=result
 field maran.agent.v1.RemoveCertificateResponse 2 error TYPE_MESSAGE LABEL_OPTIONAL type_name=.maran.agent.v1.AgentError oneof=result
+field maran.agent.v1.RepairDatabaseGrantsOk 1 examined_grants TYPE_UINT32 LABEL_OPTIONAL type_name=- oneof=-
+field maran.agent.v1.RepairDatabaseGrantsOk 2 already_correct TYPE_UINT32 LABEL_OPTIONAL type_name=- oneof=-
+field maran.agent.v1.RepairDatabaseGrantsOk 3 repaired TYPE_MESSAGE LABEL_REPEATED type_name=.maran.agent.v1.RepairedGrant oneof=-
+field maran.agent.v1.RepairDatabaseGrantsOk 4 would_repair TYPE_MESSAGE LABEL_REPEATED type_name=.maran.agent.v1.RepairedGrant oneof=-
+field maran.agent.v1.RepairDatabaseGrantsOk 5 refused TYPE_MESSAGE LABEL_REPEATED type_name=.maran.agent.v1.RefusedGrant oneof=-
+field maran.agent.v1.RepairDatabaseGrantsRequest 1 report_only TYPE_BOOL LABEL_OPTIONAL type_name=- oneof=-
+field maran.agent.v1.RepairDatabaseGrantsResponse 1 ok TYPE_MESSAGE LABEL_OPTIONAL type_name=.maran.agent.v1.RepairDatabaseGrantsOk oneof=result
+field maran.agent.v1.RepairDatabaseGrantsResponse 2 error TYPE_MESSAGE LABEL_OPTIONAL type_name=.maran.agent.v1.AgentError oneof=result
+field maran.agent.v1.RepairedGrant 1 database_name TYPE_STRING LABEL_OPTIONAL type_name=- oneof=-
+field maran.agent.v1.RepairedGrant 2 db_username TYPE_STRING LABEL_OPTIONAL type_name=- oneof=-
+field maran.agent.v1.RepairedGrant 3 also_matched_databases TYPE_STRING LABEL_REPEATED type_name=- oneof=-
 field maran.agent.v1.RestoreBackupOk 1 files_restored TYPE_BOOL LABEL_OPTIONAL type_name=- oneof=-
 field maran.agent.v1.RestoreBackupOk 2 databases_restored TYPE_UINT32 LABEL_OPTIONAL type_name=- oneof=-
 field maran.agent.v1.RestoreBackupOk 3 databases_total TYPE_UINT32 LABEL_OPTIONAL type_name=- oneof=-
@@ -480,6 +503,7 @@ field maran.agent.v1.SetAccountCronSuspendedRequest 1 account_username TYPE_STRI
 field maran.agent.v1.SetAccountCronSuspendedRequest 2 suspended TYPE_BOOL LABEL_OPTIONAL type_name=- oneof=-
 field maran.agent.v1.SetAccountCronSuspendedResponse 1 ok TYPE_MESSAGE LABEL_OPTIONAL type_name=.maran.agent.v1.SetAccountCronSuspendedOk oneof=result
 field maran.agent.v1.SetAccountCronSuspendedResponse 2 error TYPE_MESSAGE LABEL_OPTIONAL type_name=.maran.agent.v1.AgentError oneof=result
+field maran.agent.v1.SetAccountLoginsLockedOk 1 sessions_ended TYPE_UINT32 LABEL_OPTIONAL type_name=- oneof=_sessions_ended
 field maran.agent.v1.SetAccountLoginsLockedRequest 1 account_username TYPE_STRING LABEL_OPTIONAL type_name=- oneof=-
 field maran.agent.v1.SetAccountLoginsLockedRequest 2 locked TYPE_BOOL LABEL_OPTIONAL type_name=- oneof=-
 field maran.agent.v1.SetAccountLoginsLockedResponse 1 ok TYPE_MESSAGE LABEL_OPTIONAL type_name=.maran.agent.v1.SetAccountLoginsLockedOk oneof=result
@@ -729,6 +753,7 @@ message maran.agent.v1.ReadFileChunk
 message maran.agent.v1.ReadFileRequest
 message maran.agent.v1.ReadFileResponse
 message maran.agent.v1.ReadableBackup
+message maran.agent.v1.RefusedGrant
 message maran.agent.v1.ReloadFtpsTlsOk
 message maran.agent.v1.ReloadFtpsTlsRequest
 message maran.agent.v1.ReloadFtpsTlsResponse
@@ -738,6 +763,10 @@ message maran.agent.v1.ReloadWebServerResponse
 message maran.agent.v1.RemoveCertificateOk
 message maran.agent.v1.RemoveCertificateRequest
 message maran.agent.v1.RemoveCertificateResponse
+message maran.agent.v1.RepairDatabaseGrantsOk
+message maran.agent.v1.RepairDatabaseGrantsRequest
+message maran.agent.v1.RepairDatabaseGrantsResponse
+message maran.agent.v1.RepairedGrant
 message maran.agent.v1.RestoreBackupOk
 message maran.agent.v1.RestoreBackupRequest
 message maran.agent.v1.RestoreBackupResponse
@@ -825,6 +854,7 @@ rpc maran.agent.v1.DbService CreateDatabase in=.maran.agent.v1.CreateDatabaseReq
 rpc maran.agent.v1.DbService DropDatabase in=.maran.agent.v1.DropDatabaseRequest out=.maran.agent.v1.DropDatabaseResponse client_streaming=false server_streaming=false
 rpc maran.agent.v1.DbService GetDatabaseSize in=.maran.agent.v1.GetDatabaseSizeRequest out=.maran.agent.v1.GetDatabaseSizeResponse client_streaming=false server_streaming=false
 rpc maran.agent.v1.DbService ListDatabases in=.maran.agent.v1.ListDatabasesRequest out=.maran.agent.v1.ListDatabasesResponse client_streaming=false server_streaming=false
+rpc maran.agent.v1.DbService RepairDatabaseGrants in=.maran.agent.v1.RepairDatabaseGrantsRequest out=.maran.agent.v1.RepairDatabaseGrantsResponse client_streaming=false server_streaming=false
 rpc maran.agent.v1.DbService SetDatabasePassword in=.maran.agent.v1.SetDatabasePasswordRequest out=.maran.agent.v1.SetDatabasePasswordResponse client_streaming=false server_streaming=false
 rpc maran.agent.v1.FilesService ChangePermissions in=.maran.agent.v1.ChangePermissionsRequest out=.maran.agent.v1.ChangePermissionsResponse client_streaming=false server_streaming=false
 rpc maran.agent.v1.FilesService CreateArchive in=.maran.agent.v1.CreateArchiveRequest out=.maran.agent.v1.CreateArchiveResponse client_streaming=false server_streaming=false

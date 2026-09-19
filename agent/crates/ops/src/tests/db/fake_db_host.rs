@@ -50,6 +50,16 @@ pub(crate) struct FakeDbHost {
     failure: Mutex<Option<(i32, String)>>,
     /// What the size query answers with.
     size: Mutex<String>,
+    /// The `mysql.db` rows the "server" holds, as `(Host, Db, User)`.
+    ///
+    /// Kept as the three raw columns rather than as a parsed grant, because the
+    /// repair's whole job is deciding what a raw row means and a fake that had
+    /// already decided would be agreeing with the code it judges.
+    grant_rows: Mutex<Vec<(String, String, String)>>,
+    /// What `SHOW GRANTS` answers for each user, line by line.
+    rendered_grants: Mutex<HashMap<String, Vec<String>>>,
+    /// What the grant-table query answers with, when a test overrode it.
+    grant_rows_output: Mutex<Option<String>>,
 }
 
 impl FakeDbHost {
@@ -63,6 +73,9 @@ impl FakeDbHost {
             statements: Mutex::new(Vec::new()),
             failure: Mutex::new(None),
             size: Mutex::new(DEFAULT_SIZE_BYTES.to_string()),
+            grant_rows: Mutex::new(Vec::new()),
+            rendered_grants: Mutex::new(HashMap::new()),
+            grant_rows_output: Mutex::new(None),
         }
     }
 
@@ -92,6 +105,62 @@ impl FakeDbHost {
         *host.failure.lock().unwrap() = Some((code, stderr.to_owned()));
 
         host
+    }
+
+    /// Gives the "server" one `mysql.db` row, with the privileges it renders.
+    ///
+    /// `database` is the `Db` column exactly as the server stores it, escapes
+    /// included, and `rendered` is the line `SHOW GRANTS` answers with — both
+    /// given by the test rather than derived here, so a test can install a row
+    /// whose privileges do not match its name.
+    pub(crate) fn add_grant_row(
+        &self,
+        grant_host: &str,
+        database: &str,
+        user: &str,
+        rendered: &str,
+    ) {
+        self.grant_rows.lock().unwrap().push((
+            grant_host.to_owned(),
+            database.to_owned(),
+            user.to_owned(),
+        ));
+        self.rendered_grants
+            .lock()
+            .unwrap()
+            .entry(user.to_owned())
+            .or_default()
+            .push(rendered.to_owned());
+    }
+
+    /// Makes the grant-table query answer `printed` instead of listing rows.
+    ///
+    /// The only way to reach the parsing branch of that read: a real server
+    /// prints three tab-separated fields and so does the fake, so a test of what
+    /// happens when it does not has to install the answer.
+    pub(crate) fn set_grant_rows_output(&self, printed: &str) {
+        *self.grant_rows_output.lock().unwrap() = Some(printed.to_owned());
+    }
+
+    /// The `Db` column of every row the "server" holds, in order.
+    pub(crate) fn granted_databases(&self) -> Vec<String> {
+        self.grant_rows
+            .lock()
+            .unwrap()
+            .iter()
+            .map(|(_, database, _)| database.clone())
+            .collect()
+    }
+
+    /// A field as the real client prints it in batch output.
+    ///
+    /// The client escapes a backslash on the way out, so a `Db` stored as
+    /// `alice\_shop` is printed `alice\\_shop`. The fake reproduces that rather
+    /// than printing the stored bytes, because a reader that forgot it would see
+    /// every repaired row as escaped twice — and a fake that printed the tidy
+    /// form would never let that mistake fail.
+    fn batch_escaped(field: &str) -> String {
+        field.replace('\\', "\\\\")
     }
 
     /// Makes the size query answer `printed`.
@@ -245,7 +314,79 @@ impl DbHost for FakeDbHost {
             return Ok(self.size.lock().unwrap().clone());
         }
 
+        if statement == "SELECT Host, Db, User FROM mysql.db" {
+            if let Some(printed) = self.grant_rows_output.lock().unwrap().clone() {
+                return Ok(printed);
+            }
+
+            return Ok(self
+                .grant_rows
+                .lock()
+                .unwrap()
+                .iter()
+                .map(|(grant_host, database, user)| {
+                    format!(
+                        "{}\t{}\t{}",
+                        Self::batch_escaped(grant_host),
+                        Self::batch_escaped(database),
+                        Self::batch_escaped(user)
+                    )
+                })
+                .collect::<Vec<String>>()
+                .join("\n"));
+        }
+
+        if statement.starts_with("SHOW GRANTS FOR ") {
+            let asked = Self::quoted(statement, '\'');
+
+            return Ok(self
+                .rendered_grants
+                .lock()
+                .unwrap()
+                .get(&asked)
+                .map(|lines| {
+                    lines
+                        .iter()
+                        .map(|line| Self::batch_escaped(line))
+                        .collect::<Vec<String>>()
+                        .join("\n")
+                })
+                .unwrap_or_default());
+        }
+
         if statement.starts_with("GRANT ") {
+            // A grant BECOMES a row, so a second pass over the fake sees what the
+            // first one wrote instead of being told the answer.
+            let pattern = Self::quoted(statement, '`');
+            let user = Self::nth_quoted(statement, '\'', 1);
+            self.add_grant_row(
+                "localhost",
+                &pattern,
+                &user,
+                &format!("GRANT ALL PRIVILEGES ON `{pattern}`.* TO `{user}`@`localhost`"),
+            );
+
+            return Ok(String::new());
+        }
+
+        if statement.starts_with("REVOKE ") {
+            let revoked = Self::quoted(statement, '`');
+            let user = Self::nth_quoted(statement, '\'', 1);
+            // Matched literally on the `Db` column, exactly as the server does:
+            // the escaped pattern and the unescaped one are different rows, and a
+            // fake that matched them together would hide the whole reason the
+            // grant is issued before the revoke.
+            self.grant_rows
+                .lock()
+                .unwrap()
+                .retain(|(_, database, holder)| *database != revoked || *holder != user);
+            self.rendered_grants
+                .lock()
+                .unwrap()
+                .entry(user)
+                .or_default()
+                .retain(|line| !line.contains(&format!("`{revoked}`.*")));
+
             return Ok(String::new());
         }
 

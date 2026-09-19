@@ -15,4 +15,34 @@
   <data name="DatabasesModuleDisplayName">
     <value>Базы данных</value>
   </data>
+  <data name="GrantRepairRefusalHostIsNotLocalhost">
+    <value>Выдано для другого хоста</value>
+  </data>
+  <data name="GrantRepairAdviceHostIsNotLocalhost">
+    <value>Это право позволяет подключаться не только с этого сервера, поэтому панель оставила запись точно такой, какой нашла — что от неё зависит, знаете только вы. Ничего не изменено. Широкий шаблон в имени остался. Откройте таблицу прав самого сервера баз данных и сузьте или удалите запись вручную.</value>
+  </data>
+  <data name="GrantRepairRefusalNotThePanelsNaming">
+    <value>Не пара, созданная этой панелью</value>
+  </data>
+  <data name="GrantRepairAdviceNotThePanelsNaming">
+    <value>Имя базы данных и имя пользователя не разбираются в один аккаунт этой панели, значит право выдано вне панели. Ничего не изменено. Оставьте его, если вы или ваш администратор баз данных создали его намеренно; иначе выясните, кто это сделал, прежде чем что-то менять.</value>
+  </data>
+  <data name="GrantRepairRefusalUnrecognisedPrivileges">
+    <value>Права уже, чем выдаёт панель</value>
+  </data>
+  <data name="GrantRepairAdviceUnrecognisedPrivileges">
+    <value>Это право даёт меньше, чем полный набор, который выдаёт панель, поэтому повторная выдача РАСШИРИЛА бы чей-то доступ. Ничего не изменено. Оставьте его, если оно сделано вручную намеренно; если широкий шаблон в имени для вас важен, сузьте имя вручную.</value>
+  </data>
+  <data name="GrantRepairRefusalPartiallyOrUnfamiliarlyEscaped">
+    <value>Экранировано способом, которого панель не применяет</value>
+  </data>
+  <data name="GrantRepairAdvicePartiallyOrUnfamiliarlyEscaped">
+    <value>Сохранённое имя экранировано так, как эта панель никогда не пишет, поэтому повторное экранирование могло бы разрушить работающее право. Ничего не изменено. Сравните его с правом, выданным панелью, и исправьте вручную, если оно неверно.</value>
+  </data>
+  <data name="GrantRepairRefusalUnspecified">
+    <value>Причина не указана</value>
+  </data>
+  <data name="GrantRepairAdviceUnspecified">
+    <value>Агент сервера отклонил эту запись по причине, которую эта версия панели не распознаёт; обычно это значит, что агент новее панели. Ничего не изменено. Обновите панель и запустите отчёт снова.</value>
+  </data>
 </root>

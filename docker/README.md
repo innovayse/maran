@@ -457,8 +457,8 @@ keeps its database, its login and its mount, which is a case no unit test could
 express, because `polycascade_two` is simultaneously a valid account name and the
 spelling of `polycascade`'s login `two`.
 
-`databases_on_a_real_host.rs` is seven cases against the image's own MariaDB, and
-one of them is there because of a geometry the other six cannot reach.
+`databases_on_a_real_host.rs` is eight cases against the image's own MariaDB, and
+two of them are there because of a geometry the other six cannot reach.
 `a_grant_for_an_account_whose_name_holds_the_separator_cannot_reach_a_same_length_neighbours_database`
 exists because the database-name position of a database-level `GRANT` is a
 LIKE-style **pattern** and not an identifier: `_` matches any single character
@@ -484,6 +484,26 @@ while the victim does not. Renaming either constant without preserving all three
 fails that assertion by name instead of quietly restoring the geometry in which
 the wildcard is invisible. The background is
 `docs/superpowers/notes/2026-09-13-grant-pattern-threat-note.md`.
+
+The eighth case,
+`the_repair_narrows_a_wildcard_grant_an_older_agent_issued_and_touches_nothing_else`,
+is the other half of that story: the escape was forward-only, so every host that
+created a database before it carries an unescaped row in `mysql.db` that is still
+matched at every connection. It seeds exactly that state — with the CLIENT and not
+with the code under test, so the fixture is not the thing being measured — runs
+`repair_grants`, and then asks the server four questions: the colliding credential
+is denied, both owners still reach their own databases, a second run leaves the
+grant table byte-identical, and a grant the panel did not issue is still stored
+exactly as the operator wrote it while being reported as refused with its reason.
+A positive control runs BEFORE the repair and asserts the seeded grant really does
+return the victim's planted row — without it a mistyped seed would produce the
+same "denied" afterwards and measure a repair of nothing.
+
+**It carries its own colliding pair, and its own geometry:** `polydbrepairone` and
+`polydbrepair_ne`, both FIFTEEN characters, differing at index twelve where the
+attacker holds `_`. Two cases in one binary run in parallel and cannot share a
+system account, so the geometry assertion is parameterised over the pair and both
+cases call it with their own constants before creating anything.
 
 `ftps_on_a_real_host.rs` drives a real vsftpd the agent itself configured: a
 login is refused in plain text and accepted over TLS with the same credential

@@ -117,6 +117,8 @@ public static class ExpectedErrorStatuses
             ["CronEnvironmentValueInvalid"] = ErrorType.Validation,
             ["CronOperationFailed"] = ErrorType.Failure,
             ["CronScheduleInvalid"] = ErrorType.Validation,
+            ["DatabaseGrantRepairCountInvalid"] = ErrorType.Validation,
+            ["DatabaseGrantRepairPlanChanged"] = ErrorType.Conflict,
             ["DatabaseLimitReached"] = ErrorType.Conflict,
             ["DatabaseLimitReachedConcurrently"] = ErrorType.Conflict,
             ["DatabaseNameInvalidFormat"] = ErrorType.Validation,

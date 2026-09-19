@@ -4,6 +4,7 @@ import {
   type LocaleMessageValue,
   type VueMessageType,
 } from 'vue-i18n'
+import { pluralRules } from './pluralRules'
 import type { AppLocale } from './types/app'
 
 /**
@@ -75,6 +76,10 @@ const i18nOptions = {
     ru: loadMessages('ru'),
     hy: loadMessages('hy'),
   },
+  // Russian and Armenian do not choose plural forms the way vue-i18n's default rule
+  // assumes; english does, so it is deliberately not listed (see `pluralRules`). Without
+  // this the first counted sentence in the panel read `для 1 прав(а)` on screen.
+  pluralRules,
 }
 
 /**

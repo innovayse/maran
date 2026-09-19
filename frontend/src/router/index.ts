@@ -10,6 +10,7 @@ import SitesListPage from '../pages/sites/SitesListPage.vue'
 import SiteFormPage from '../pages/sites/SiteFormPage.vue'
 import SiteDetailPage from '../pages/sites/SiteDetailPage.vue'
 import DatabasesPage from '../pages/databases/DatabasesPage.vue'
+import DatabaseGrantRepairPage from '../pages/databases/DatabaseGrantRepairPage.vue'
 import BackupDestinationsPage from '../pages/backups/BackupDestinationsPage.vue'
 import BackupSchedulePage from '../pages/backups/BackupSchedulePage.vue'
 import BackupsPage from '../pages/backups/BackupsPage.vue'
@@ -87,13 +88,26 @@ export const createAppRouter = (): Router => {
         ],
       },
       {
-        // One route, no `:id` child: a database has no detail to open — the row is the database,
-        // and both of its actions live on it. A deep link to a single one would lead to a page
-        // that could only repeat the row it came from.
+        // Two routes, and no `:id` child: a database has no detail to open — the row is the
+        // database, and both of its actions live on it. A deep link to a single one would lead to a
+        // page that could only repeat the row it came from.
         path: '/databases',
         component: DefaultLayout,
         children: [
           { path: '', name: 'databases', component: DatabasesPage, meta: { module: 'databases' } },
+          // Administrators only, and the endpoint is what says so: a customer who types this URL
+          // gets the panel's own refusal rendered on the page as a sentence about who may run it.
+          // No route guard duplicates that rule — a second copy of an authorization decision is a
+          // second place for it to be wrong, and the client's copy is the one that cannot be
+          // trusted. It sits under `/databases` rather than under `/settings` because its subject
+          // is this server's database grants, which is the Databases module's, and because a panel
+          // whose licence excludes that module has no grants of ours to repair.
+          {
+            path: 'grant-repair',
+            name: 'database-grant-repair',
+            component: DatabaseGrantRepairPage,
+            meta: { module: 'databases' },
+          },
         ],
       },
       {

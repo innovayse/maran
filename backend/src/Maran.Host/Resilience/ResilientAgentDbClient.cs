@@ -128,4 +128,26 @@ public sealed class ResilientAgentDbClient : IAgentDbClient
             (Client: _inner, AccountUsername: accountUsername, DatabaseName: databaseName),
             cancellationToken);
     }
+
+    /// <inheritdoc/>
+    /// <remarks>
+    /// Decorated like the rest, and it is the member with most to lose by not being: it reads the
+    /// whole of the database server's grant table, so a stuck unix socket here would hang an
+    /// administrator's request with no timeout at all. The timeout is
+    /// <c>AgentOptions.OperationTimeout</c>, the same bound every other agent call answers to — which
+    /// is stated because a host with an unusually large grant table would meet it as a timeout rather
+    /// than as a partial report, and a partial report is the outcome that must never happen.
+    /// </remarks>
+    public async Task<Result<GrantRepairReportDto>> RepairGrantsAsync(
+        bool reportOnly,
+        CancellationToken cancellationToken)
+    {
+        return await _pipeline.ExecuteAsync(
+            async (state, token) =>
+            {
+                return await state.Client.RepairGrantsAsync(state.ReportOnly, token);
+            },
+            (Client: _inner, ReportOnly: reportOnly),
+            cancellationToken);
+    }
 }

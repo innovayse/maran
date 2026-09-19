@@ -41,6 +41,12 @@ internal sealed class StubDbService : IDbServiceInvoker
     /// <summary>The last size request the stub received, for asserting the mapping.</summary>
     public GetDatabaseSizeRequest? LastSizeRequest { get; private set; }
 
+    /// <summary>Response returned from <see cref="RepairDatabaseGrantsAsync"/>.</summary>
+    public RepairDatabaseGrantsResponse RepairGrantsResponse { get; set; } = new();
+
+    /// <summary>The last grant-repair request the stub received, for asserting the report-only flag.</summary>
+    public RepairDatabaseGrantsRequest? LastRepairGrantsRequest { get; private set; }
+
     /// <summary>Builds a stub whose creation call fails with the agent's own words.</summary>
     /// <param name="code">The failure category the agent reports.</param>
     /// <param name="message">The agent's operator-facing sentence.</param>
@@ -114,5 +120,14 @@ internal sealed class StubDbService : IDbServiceInvoker
     {
         LastSizeRequest = request;
         return Task.FromResult(SizeResponse);
+    }
+
+    /// <inheritdoc/>
+    public Task<RepairDatabaseGrantsResponse> RepairDatabaseGrantsAsync(
+        RepairDatabaseGrantsRequest request,
+        CancellationToken cancellationToken)
+    {
+        LastRepairGrantsRequest = request;
+        return Task.FromResult(RepairGrantsResponse);
     }
 }

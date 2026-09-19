@@ -22,6 +22,7 @@
  */
 import { computed, onBeforeUnmount, onMounted, ref, useTemplateRef, type ComputedRef, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { RouterLink } from 'vue-router'
 import UiAlert from '../../components/ui/UiAlert.vue'
 import UiConfirm from '../../components/ui/UiConfirm.vue'
 import UiDropdown from '../../components/ui/UiDropdown.vue'
@@ -175,7 +176,24 @@ onBeforeUnmount(dismissCredential)
 
 <template>
   <section class="w-full">
-    <UiPageHeading class="mb-4" :title="t('databases.list.heading')" :subtitle="t('databases.list.subtitle')" :note="t('databases.list.prefixNote')" />
+    <UiPageHeading
+      class="mb-4"
+      :title="t('databases.list.heading')"
+      :subtitle="t('databases.list.subtitle')"
+      :note="t('databases.list.prefixNote')"
+    >
+      <template #actions>
+        <!-- The grant repair is administrators-only and this link is not the gate: it is offered to
+             whoever is looking, and the page behind it renders the panel's own refusal to anyone who
+             may not read it. A client-side check here would be a second copy of an authorization
+             decision, and the copy that cannot be trusted (rules/vue.md). -->
+        <RouterLink
+          class="rounded-lg border border-border-subtle px-3 py-2 text-base text-text-secondary transition-colors hover:text-text-primary focus-visible:shadow-focus focus-visible:outline-none"
+          :to="{ name: 'database-grant-repair' }"
+          >{{ t('databases.list.grantRepairLink') }}</RouterLink
+        >
+      </template>
+    </UiPageHeading>
 
     <UiAlert v-if="store.createErrorMessage !== null" variant="error" class="mb-4">
       {{ store.createErrorMessage }}

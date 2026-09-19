@@ -45,4 +45,10 @@
   <data name="AccountNotFound">
     <value>This account could not be found.</value>
   </data>
+  <data name="DatabaseGrantRepairPlanChanged">
+    <value>The server's grants no longer match the report you read, so nothing was repaired and nothing was changed. Read a fresh report and confirm its figures before repairing.</value>
+  </data>
+  <data name="DatabaseGrantRepairCountInvalid">
+    <value>The number of grants to repair cannot be negative. Read the report again and confirm the figure it gives.</value>
+  </data>
 </root>

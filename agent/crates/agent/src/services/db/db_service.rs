@@ -10,15 +10,17 @@ use crate::proto::{
     CreateDatabaseOk, CreateDatabaseRequest, CreateDatabaseResponse, DatabaseInfo, DropDatabaseOk,
     DropDatabaseRequest, DropDatabaseResponse, GetDatabaseSizeOk, GetDatabaseSizeRequest,
     GetDatabaseSizeResponse, ListDatabasesOk, ListDatabasesRequest, ListDatabasesResponse,
-    SetDatabasePasswordOk, SetDatabasePasswordRequest, SetDatabasePasswordResponse,
-    create_database_response, drop_database_response, get_database_size_response,
-    list_databases_response, set_database_password_response,
+    RepairDatabaseGrantsRequest, RepairDatabaseGrantsResponse, SetDatabasePasswordOk,
+    SetDatabasePasswordRequest, SetDatabasePasswordResponse, create_database_response,
+    drop_database_response, get_database_size_response, list_databases_response,
+    repair_database_grants_response, set_database_password_response,
 };
 use crate::services::db::db_status::to_agent_error;
 use crate::services::db::validated_creation::validated_creation;
 use crate::services::db::validated_database::validated_database;
 use crate::services::db::validated_password_change::validated_password_change;
 use crate::services::db::validated_removal::validated_removal;
+use crate::services::db::wire_grant_repair_report::wire_grant_repair_report;
 use crate::services::wire::run_blocking::run_blocking;
 use crate::services::wire::validated_account::validated_account;
 
@@ -248,6 +250,38 @@ impl<H: DbHost + 'static> DbService for DbServiceImpl<H> {
         };
 
         Ok(Response::new(GetDatabaseSizeResponse {
+            result: Some(result),
+        }))
+    }
+
+    /// Rewrites the grants an older agent issued as wildcard patterns.
+    ///
+    /// The one rpc in this file that takes no account name, because the row set
+    /// it repairs belongs to the server rather than to a tenant — `db.proto` says
+    /// why a per-account pass would be the wrong shape. There is nothing to
+    /// re-validate: the request carries a single boolean, and every name the
+    /// operation acts on is read from the server and decoded by the validated
+    /// types themselves.
+    async fn repair_database_grants(
+        &self,
+        request: Request<RepairDatabaseGrantsRequest>,
+    ) -> Result<Response<RepairDatabaseGrantsResponse>, Status> {
+        let report_only = request.into_inner().report_only;
+        let host = Arc::clone(&self.host);
+
+        let result = run_blocking("database operation", to_agent_error, move || {
+            db::repair_grants(host.as_ref(), report_only)
+        })
+        .await;
+
+        let result = match result {
+            Ok(report) => {
+                repair_database_grants_response::Result::Ok(wire_grant_repair_report(report))
+            }
+            Err(error) => repair_database_grants_response::Result::Error(error),
+        };
+
+        Ok(Response::new(RepairDatabaseGrantsResponse {
             result: Some(result),
         }))
     }

@@ -37,6 +37,24 @@ public sealed class RecordingAgentDbClient : IAgentDbClient
     /// <summary>What <see cref="SetPasswordAsync"/> answers; success by default.</summary>
     public Result<bool>? SetPasswordResult { get; set; }
 
+    /// <summary>
+    /// Every grant-repair pass this client was asked for, in order, each recorded as its
+    /// <c>reportOnly</c> flag. The ORDER is load-bearing: the repair command is required to read a
+    /// report-only pass before it acts, so <c>[true, false]</c> and <c>[false]</c> are the difference
+    /// between an inspected repair and a blind one.
+    /// </summary>
+    public List<bool> GrantRepairPasses { get; } = [];
+
+    /// <summary>What a report-only pass answers; an empty census by default.</summary>
+    public Result<GrantRepairReportDto>? ReportResult { get; set; }
+
+    /// <summary>
+    /// What an acting pass answers; an empty census by default. Separate from
+    /// <see cref="ReportResult"/> so a test can make the two passes DISAGREE, which is the only way to
+    /// see whether a handler reported the pass it performed or the pass it planned.
+    /// </summary>
+    public Result<GrantRepairReportDto>? RepairResult { get; set; }
+
     /// <inheritdoc/>
     public Task<Result<CreatedDatabaseDto>> CreateAsync(
         string accountUsername,
@@ -97,5 +115,18 @@ public sealed class RecordingAgentDbClient : IAgentDbClient
         SizeCalls++;
 
         return Task.FromResult(Result<ulong>.Ok(4096));
+    }
+
+    /// <inheritdoc/>
+    public Task<Result<GrantRepairReportDto>> RepairGrantsAsync(
+        bool reportOnly,
+        CancellationToken cancellationToken)
+    {
+        GrantRepairPasses.Add(reportOnly);
+
+        var configured = reportOnly ? ReportResult : RepairResult;
+
+        return Task.FromResult(configured ?? Result<GrantRepairReportDto>.Ok(
+            new GrantRepairReportDto(0, 0, [], [], [])));
     }
 }

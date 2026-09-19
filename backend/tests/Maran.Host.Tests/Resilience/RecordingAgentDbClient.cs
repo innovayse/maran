@@ -29,6 +29,9 @@ internal sealed class RecordingAgentDbClient : IAgentDbClient
     /// <summary>The database name of the last call.</summary>
     public string? LastDatabaseName { get; private set; }
 
+    /// <summary>Which pass the decorator last forwarded, or null when the repair was never asked for.</summary>
+    public bool? LastReportOnly { get; private set; }
+
     /// <summary>The database username of the last call.</summary>
     public string? LastDbUsername { get; private set; }
 
@@ -109,6 +112,21 @@ internal sealed class RecordingAgentDbClient : IAgentDbClient
         await EnterAsync(cancellationToken);
 
         return Result<ulong>.Ok(4096);
+    }
+
+    /// <summary>Counts the call like every other, so the pipeline is observed around this member too.</summary>
+    /// <param name="reportOnly">Recorded, so a test can see which pass the decorator forwarded.</param>
+    /// <param name="cancellationToken">The token the pipeline's timeout cancels.</param>
+    /// <returns>An empty census once the call may return.</returns>
+    public async Task<Result<GrantRepairReportDto>> RepairGrantsAsync(
+        bool reportOnly,
+        CancellationToken cancellationToken)
+    {
+        LastReportOnly = reportOnly;
+
+        await EnterAsync(cancellationToken);
+
+        return Result<GrantRepairReportDto>.Ok(new GrantRepairReportDto(0, 0, [], [], []));
     }
 
     /// <summary>Counts the call and applies whichever misbehaviour the test asked for.</summary>

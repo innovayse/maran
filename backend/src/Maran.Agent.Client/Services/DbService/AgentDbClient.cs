@@ -188,4 +188,67 @@ public sealed class AgentDbClient : IAgentDbClient
 
         return summaries;
     }
+
+    /// <inheritdoc/>
+    public async Task<Result<GrantRepairReportDto>> RepairGrantsAsync(
+        bool reportOnly,
+        CancellationToken cancellationToken)
+    {
+        var request = new RepairDatabaseGrantsRequest { ReportOnly = reportOnly };
+        var response = await _invoker.RepairDatabaseGrantsAsync(request, cancellationToken);
+
+        return response.ResultCase switch
+        {
+            RepairDatabaseGrantsResponse.ResultOneofCase.Ok => Result<GrantRepairReportDto>.Ok(
+                ToReport(response.Ok)),
+            RepairDatabaseGrantsResponse.ResultOneofCase.Error => Result<GrantRepairReportDto>.Fail(
+                AgentErrorTranslator.ToError(_logger, response.Error, nameof(RepairGrantsAsync))),
+            _ => Result<GrantRepairReportDto>.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
+        };
+    }
+
+    /// <summary>Projects the wire census onto the panel's DTOs.</summary>
+    /// <param name="ok">The success payload of <c>RepairDatabaseGrants</c>.</param>
+    /// <returns>
+    /// The same four buckets and the same two counts, in the order the agent sent them. Nothing is
+    /// merged and nothing is dropped: the four buckets sum to <c>examined_grants</c>, and a mapping
+    /// that folded "would repair" into "repaired" would make a report-only pass indistinguishable
+    /// from one that acted.
+    /// </returns>
+    private static GrantRepairReportDto ToReport(RepairDatabaseGrantsOk ok)
+    {
+        return new GrantRepairReportDto(
+            ok.ExaminedGrants,
+            ok.AlreadyCorrect,
+            ok.Repaired.Select(ToRepaired).ToList(),
+            ok.WouldRepair.Select(ToRepaired).ToList(),
+            ok.Refused.Select(ToRefused).ToList());
+    }
+
+    /// <summary>Projects one repaired — or would-be-repaired — row.</summary>
+    /// <param name="grant">The wire row.</param>
+    /// <returns>The panel's carrier for it, exposure list included.</returns>
+    private static RepairedGrantDto ToRepaired(RepairedGrant grant)
+    {
+        return new RepairedGrantDto(
+            grant.DatabaseName,
+            grant.DbUsername,
+            grant.AlsoMatchedDatabases.ToList());
+    }
+
+    /// <summary>Projects one refused row, reason included.</summary>
+    /// <param name="grant">The wire row.</param>
+    /// <returns>
+    /// The panel's carrier for it. The three names are carried through UNCHANGED — a refused row is
+    /// refused because it is not a value this panel could have produced, so tidying it here would hide
+    /// the very thing an operator has to look at.
+    /// </returns>
+    private static RefusedGrantDto ToRefused(RefusedGrant grant)
+    {
+        return new RefusedGrantDto(
+            grant.GrantHost,
+            grant.DatabaseName,
+            grant.DbUsername,
+            grant.Reason.ToString());
+    }
 }

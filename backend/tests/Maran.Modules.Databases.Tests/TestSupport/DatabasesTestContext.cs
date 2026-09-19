@@ -1,7 +1,12 @@
 using Maran.Modules.Databases.Domain.Entities;
 using Maran.Modules.Databases.Persistence;
+using Maran.Modules.Databases.Resources;
+using Maran.Modules.Databases.Services;
 using Maran.SharedKernel.Interfaces;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Localization;
+using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 
 namespace Maran.Modules.Databases.Tests.TestSupport;
 
@@ -50,5 +55,19 @@ public static class DatabasesTestContext
             $"{username}_{userSuffix}",
             userSuffix,
             new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero));
+    }
+
+    /// <summary>Builds the refusal-text resolver over this module's REAL resource files.</summary>
+    /// <returns>
+    /// The resolver, reading the module assembly's embedded <c>Resources/DisplayNames*.resx</c> exactly
+    /// as the panel does. A stub localizer would let a test assert a sentence this build does not ship,
+    /// which is the failure the module's resx suite exists to catch.
+    /// </returns>
+    public static GrantRepairRefusalDisplayNames RefusalText()
+    {
+        return new GrantRepairRefusalDisplayNames(new StringLocalizer<DisplayNames>(
+            new ResourceManagerStringLocalizerFactory(
+                new OptionsWrapper<LocalizationOptions>(new LocalizationOptions()),
+                NullLoggerFactory.Instance)));
     }
 }

@@ -15,4 +15,34 @@
   <data name="DatabasesModuleDisplayName">
     <value>Տվյալների բազաներ</value>
   </data>
+  <data name="GrantRepairRefusalHostIsNotLocalhost">
+    <value>Տրված է այլ հոսթի համար</value>
+  </data>
+  <data name="GrantRepairAdviceHostIsNotLocalhost">
+    <value>Այս իրավունքը թույլ է տալիս միանալ ոչ միայն այս սերվերից, ուստի վահանակը գրառումը թողել է հենց այնպես, ինչպես գտել է․ ինչ է կախված դրանից, գիտեք միայն դուք։ Ոչինչ չի փոփոխվել։ Անվան մեջ լայն նմուշը մնացել է։ Բացեք տվյալների բազայի սերվերի իրավունքների աղյուսակը և ձեռքով նեղացրեք կամ հեռացրեք գրառումը։</value>
+  </data>
+  <data name="GrantRepairRefusalNotThePanelsNaming">
+    <value>Այս վահանակի ստեղծած զույգ չէ</value>
+  </data>
+  <data name="GrantRepairAdviceNotThePanelsNaming">
+    <value>Տվյալների բազայի անունը և օգտվողի անունը չեն վերծանվում այս վահանակի մեկ հաշվի, ուստի իրավունքը տրված է վահանակից դուրս։ Ոչինչ չի փոփոխվել։ Թողեք այն, եթե դուք կամ ձեր տվյալների բազայի ադմինիստրատորը դիտավորյալ եք ստեղծել․ հակառակ դեպքում նախ պարզեք, թե ով է ստեղծել։</value>
+  </data>
+  <data name="GrantRepairRefusalUnrecognisedPrivileges">
+    <value>Իրավունքներն ավելի նեղ են, քան վահանակը տալիս է</value>
+  </data>
+  <data name="GrantRepairAdviceUnrecognisedPrivileges">
+    <value>Այս իրավունքը տալիս է ավելի քիչ, քան վահանակի տրվող ամբողջ փաթեթը, ուստի կրկին տրամադրելը ԿԸՆԴԼԱՅՆԵՐ ինչ-որ մեկի մուտքը։ Ոչինչ չի փոփոխվել։ Թողեք այն, եթե ձեռքով է ստեղծված դիտավորյալ․ եթե անվան լայն նմուշը ձեզ համար կարևոր է, ձեռքով նեղացրեք անունը։</value>
+  </data>
+  <data name="GrantRepairRefusalPartiallyOrUnfamiliarlyEscaped">
+    <value>Պաշտպանված է ձևով, որը վահանակը չի կիրառում</value>
+  </data>
+  <data name="GrantRepairAdvicePartiallyOrUnfamiliarlyEscaped">
+    <value>Պահված անունը պաշտպանված է այնպես, ինչպես այս վահանակը երբեք չի գրում, ուստի կրկին պաշտպանելը կարող էր քանդել աշխատող իրավունքը։ Ոչինչ չի փոփոխվել։ Համեմատեք այն վահանակի տրված իրավունքի հետ և ձեռքով ուղղեք, եթե սխալ է։</value>
+  </data>
+  <data name="GrantRepairRefusalUnspecified">
+    <value>Պատճառը նշված չէ</value>
+  </data>
+  <data name="GrantRepairAdviceUnspecified">
+    <value>Սերվերի գործակալը մերժել է այս գրառումը պատճառով, որը վահանակի այս տարբերակը չի ճանաչում․ սովորաբար դա նշանակում է, որ գործակալը վահանակից նոր է։ Ոչինչ չի փոփոխվել։ Թարմացրեք վահանակը և նորից գործարկեք հաշվետվությունը։</value>
+  </data>
 </root>

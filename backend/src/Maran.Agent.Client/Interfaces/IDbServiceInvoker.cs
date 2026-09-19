@@ -49,4 +49,12 @@ internal interface IDbServiceInvoker
     Task<GetDatabaseSizeResponse> GetDatabaseSizeAsync(
         GetDatabaseSizeRequest request,
         CancellationToken cancellationToken);
+
+    /// <summary>Invokes <c>RepairDatabaseGrants</c>.</summary>
+    /// <param name="request">The wire request, carrying the report-only switch.</param>
+    /// <param name="cancellationToken">Cancellation for the call.</param>
+    /// <returns>The raw wire response, carrying either branch of its oneof.</returns>
+    Task<RepairDatabaseGrantsResponse> RepairDatabaseGrantsAsync(
+        RepairDatabaseGrantsRequest request,
+        CancellationToken cancellationToken);
 }
