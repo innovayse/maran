@@ -32,6 +32,15 @@
 //!   `the_geometry_that_makes_a_collision_possible`. The case directly above it
 //!   asks the same question of two names of DIFFERENT lengths, where a single-`_`
 //!   pattern cannot reach, so it passed for the whole life of the defect.
+//! - that a grant an OLDER agent issued as a pattern can be rewritten on a live
+//!   server without anybody losing access, which is the only place the repair
+//!   means anything either. The pre-fix state is SEEDED with the client rather
+//!   than produced by the code under test, a positive control proves the seeded
+//!   grant really does reach the victim's data before the repair runs, and a
+//!   grant the panel did not issue is planted beside it and asserted untouched.
+//!   That is
+//!   `the_repair_narrows_a_wildcard_grant_an_older_agent_issued_and_touches_nothing_else`,
+//!   on its own fifteen-character colliding pair.
 
 // A failing assertion IS the reporting mechanism for a test, so the
 // workspace-wide bans on unwrap/expect/panic are lifted here only.
@@ -54,8 +63,8 @@ use maran_agent_core::validation::secrets::password::Password;
 use maran_agent_core::validation::system::name::AccountName;
 use maran_distro::{DistroAdapter, adapter_for, detect};
 use maran_ops::db::{
-    CreateDatabaseRequest, DbError, ProcessDbHost, create_database, database_size, drop_database,
-    list_databases, set_database_password,
+    CreateDatabaseRequest, DbError, GrantRepairRefusal, ProcessDbHost, create_database,
+    database_size, drop_database, list_databases, repair_grants, set_database_password,
 };
 
 use polygon_account::PolygonAccount;
@@ -450,8 +459,14 @@ const COLLIDING_ATTACKER_ACCOUNT: &str = "polydbgrant_ne";
 /// The row planted in the victim's database, which no grant names the attacker on.
 const VICTIM_SECRET: &str = "VICTIM-CARD-4111111111111111";
 
-/// Asserts that the two account names above can actually collide under a
-/// single-`_` pattern, and says in full why that is the whole test.
+/// Asserts that `victim` and `attacker` can actually collide under a single-`_`
+/// pattern, and says in full why that is the whole test.
+///
+/// Parameterised over the pair rather than reading the constants directly,
+/// because a SECOND case below — the repair of a grant an older agent issued —
+/// needs its own accounts (two tests in one binary run in parallel and cannot
+/// share a system account) and the same premise. One body, two pairs; a copy of
+/// these three assertions would be a second answer to what a collision is.
 ///
 /// **This is the guard against the defect that hid the original bug through four
 /// reviews, and it is the reason a renamed fixture can no longer destroy this
@@ -479,10 +494,7 @@ const VICTIM_SECRET: &str = "VICTIM-CARD-4111111111111111";
 /// # Panics
 ///
 /// Panics when the two names can no longer collide under a single-`_` pattern.
-fn the_geometry_that_makes_a_collision_possible() {
-    let victim = COLLIDING_VICTIM_ACCOUNT;
-    let attacker = COLLIDING_ATTACKER_ACCOUNT;
-
+fn the_geometry_that_makes_a_collision_possible(victim: &str, attacker: &str) {
     assert_eq!(
         victim.len(),
         attacker.len(),
@@ -535,7 +547,10 @@ fn a_grant_for_an_account_whose_name_holds_the_separator_cannot_reach_a_same_len
  {
     // The premise first, before a single system account is made: if the two
     // names cannot collide, nothing below this line measures anything.
-    the_geometry_that_makes_a_collision_possible();
+    the_geometry_that_makes_a_collision_possible(
+        COLLIDING_VICTIM_ACCOUNT,
+        COLLIDING_ATTACKER_ACCOUNT,
+    );
 
     let server = PolygonMariadb::start();
     let victim = PolygonAccount::create(COLLIDING_VICTIM_ACCOUNT);
@@ -687,6 +702,280 @@ fn a_grant_for_an_account_whose_name_holds_the_separator_cannot_reach_a_same_len
     );
     server.run(&format!("DROP DATABASE IF EXISTS `{later}`"));
 
+    clear(&server, victim.name());
+    clear(&server, attacker.name());
+}
+
+/// The victim account of the repair case below.
+///
+/// **A second matched pair, and a second geometry.** `polydbrepairone` and
+/// [`REPAIR_ATTACKER_ACCOUNT`] are both FIFTEEN characters and differ at exactly
+/// one position — index twelve — where the attacker holds `_`. It is a separate
+/// pair from the collision case's fourteen-character one because two tests in one
+/// binary run in parallel and cannot share a system account, and the premise is
+/// asserted for this pair in its own right by
+/// `the_geometry_that_makes_a_collision_possible`, before anything is created.
+const REPAIR_VICTIM_ACCOUNT: &str = "polydbrepairone";
+
+/// The attacker account of the repair case, holding the separator where the
+/// victim holds a literal `o`.
+const REPAIR_ATTACKER_ACCOUNT: &str = "polydbrepair_ne";
+
+/// A database nothing in this panel created, granted with an unescaped pattern.
+///
+/// It decodes as a database name this agent COULD have created — account
+/// `polyrepair`, suffix `foreign` — on purpose. Its user does not, so the pair
+/// does not, and that is the axis the repair must refuse on: a row that merely
+/// looks familiar is not one this panel issued.
+const FOREIGN_DATABASE: &str = "polyrepair_foreign";
+
+/// The user of that foreign grant.
+///
+/// It carries a separator and decodes perfectly well **on its own** — account
+/// `reporting`, suffix `tool` — which is the point: what refuses this row is that
+/// the user's account is not the DATABASE's account, and `create_database` only
+/// ever pairs an account's own database with that account's own user. A fixture
+/// whose user simply had no separator would be refused by a weaker predicate too,
+/// and would not notice a classifier that read each half against its own name.
+const FOREIGN_USER: &str = "reporting_tool";
+
+/// The password the foreign user is created with.
+const FOREIGN_PASSWORD: &str = "Foreign-1.password";
+
+/// The `Db` column of every grant the server holds for `user`.
+///
+/// Read with the client directly rather than through the code under test, and
+/// unescaped by hand: `--batch` prints a stored `a\_b` as `a\\_b`.
+fn stored_patterns(server: &PolygonMariadb, user: &str) -> Vec<String> {
+    let printed = server.run(&format!(
+        "SELECT Db FROM mysql.db WHERE User = '{user}' ORDER BY Db"
+    ));
+    assert!(
+        printed.status.success(),
+        "the grant table must be readable:\n{}",
+        String::from_utf8_lossy(&printed.stderr)
+    );
+
+    String::from_utf8_lossy(&printed.stdout)
+        .lines()
+        .map(|line| line.trim().replace("\\\\", "\\"))
+        .filter(|line| !line.is_empty())
+        .collect()
+}
+
+#[test]
+#[ignore = "rewrites real grants on a real MariaDB: polygon only"]
+fn the_repair_narrows_a_wildcard_grant_an_older_agent_issued_and_touches_nothing_else() {
+    // The premise first, for THIS pair: if the two names cannot collide, the
+    // seeded defect below is not a defect and nothing here measures anything.
+    the_geometry_that_makes_a_collision_possible(REPAIR_VICTIM_ACCOUNT, REPAIR_ATTACKER_ACCOUNT);
+
+    let server = PolygonMariadb::start();
+    let victim = PolygonAccount::create(REPAIR_VICTIM_ACCOUNT);
+    let attacker = PolygonAccount::create(REPAIR_ATTACKER_ACCOUNT);
+    clear(&server, victim.name());
+    clear(&server, attacker.name());
+    server.run(&format!("DROP DATABASE IF EXISTS `{FOREIGN_DATABASE}`"));
+    server.run(&format!("DROP USER IF EXISTS '{FOREIGN_USER}'@'localhost'"));
+
+    let host = ProcessDbHost::new(polygon_distro());
+    create_database(&host, &request_for(victim.name(), CUSTOMER_PASSWORD))
+        .unwrap_or_else(|error| panic!("the victim's database must be created: {error}"));
+    create_database(&host, &request_for(attacker.name(), CUSTOMER_PASSWORD))
+        .unwrap_or_else(|error| panic!("the attacker's database must be created: {error}"));
+
+    let victim_login = format!("{}_shop", victim.name().as_str());
+    let attacker_login = format!("{}_shop", attacker.name().as_str());
+    let victim_database = victim_login.clone();
+    let attacker_database = attacker_login.clone();
+
+    // SEEDING THE PRE-FIX STATE, with the client and not with the code under
+    // test: exactly the two statements a host that created this database before
+    // the escape existed would be carrying. The revoke of the escaped row first,
+    // so the result is a host with ONE grant and that grant a pattern.
+    server.run(&format!(
+        "REVOKE ALL PRIVILEGES ON `{}`.* FROM '{attacker_login}'@'localhost'",
+        attacker_database.replace('_', "\\_")
+    ));
+    server.run(&format!(
+        "GRANT ALL PRIVILEGES ON `{attacker_database}`.* TO '{attacker_login}'@'localhost'"
+    ));
+
+    // A grant this panel did NOT issue, at risk in exactly the same way, which
+    // must come out of the pass untouched.
+    server.run(&format!("CREATE DATABASE `{FOREIGN_DATABASE}`"));
+    server.run(&format!(
+        "CREATE USER '{FOREIGN_USER}'@'localhost' IDENTIFIED BY '{FOREIGN_PASSWORD}'"
+    ));
+    server.run(&format!(
+        "GRANT ALL PRIVILEGES ON `{FOREIGN_DATABASE}`.* TO '{FOREIGN_USER}'@'localhost'"
+    ));
+    server.run(&format!("CREATE TABLE `{FOREIGN_DATABASE}`.rows (id INT)"));
+
+    server.run(&format!(
+        "CREATE TABLE `{victim_database}`.customers (id INT, secret VARCHAR(64))"
+    ));
+    server.run(&format!(
+        "INSERT INTO `{victim_database}`.customers VALUES (1, '{VICTIM_SECRET}')"
+    ));
+
+    // POSITIVE CONTROL on the axis that can go blind: the seeded state must
+    // really be exploitable. If this read were refused — a mistyped seed, a
+    // geometry that cannot collide, a server that ignored the pattern — then the
+    // refusal asserted after the repair would prove nothing at all.
+    let before = server.run_as(
+        &attacker_login,
+        CUSTOMER_PASSWORD,
+        &format!("SELECT secret FROM `{victim_database}`.customers"),
+    );
+    assert!(
+        before.status.success() && String::from_utf8_lossy(&before.stdout).contains(VICTIM_SECRET),
+        "the seeded pre-fix grant must actually reach the victim's data, or this \
+         test measures a repair of nothing:\n{}",
+        String::from_utf8_lossy(&before.stderr)
+    );
+
+    // A report-only pass must change NOTHING. Asserted by the attacker still
+    // reaching the victim afterwards, which is the strongest form of "nothing
+    // changed" available here.
+    let planned = repair_grants(&host, true).unwrap_or_else(|error| panic!("report-only: {error}"));
+    assert!(
+        planned.repaired.is_empty(),
+        "a report-only pass must rewrite nothing"
+    );
+    assert!(
+        planned
+            .would_repair
+            .iter()
+            .any(|grant| grant.database.as_str() == attacker_database),
+        "a report-only pass must name the row it would rewrite: {:?}",
+        planned.would_repair
+    );
+    let still_open = server.run_as(
+        &attacker_login,
+        CUSTOMER_PASSWORD,
+        &format!("SELECT secret FROM `{victim_database}`.customers"),
+    );
+    assert!(
+        still_open.status.success(),
+        "a report-only pass must not have taken the wildcard away"
+    );
+
+    // THE REPAIR.
+    let report = repair_grants(&host, false).unwrap_or_else(|error| panic!("the repair: {error}"));
+    assert!(
+        report
+            .repaired
+            .iter()
+            .any(|grant| grant.database.as_str() == attacker_database),
+        "the pass must report the row it rewrote: {:?}",
+        report.repaired
+    );
+
+    // (a) The colliding credential is now DENIED on the victim's data.
+    let refused = server.run_as(
+        &attacker_login,
+        CUSTOMER_PASSWORD,
+        &format!("SELECT secret FROM `{victim_database}`.customers"),
+    );
+    assert!(
+        !refused.status.success(),
+        "after the repair the attacker's credential must no longer reach the \
+         victim's database"
+    );
+    let complaint = String::from_utf8_lossy(&refused.stderr);
+    assert!(
+        complaint.contains("denied"),
+        "the refusal must be the server DENYING access rather than any other \
+         failure:\n{complaint}"
+    );
+    assert!(
+        !String::from_utf8_lossy(&refused.stdout).contains(VICTIM_SECRET),
+        "the victim's row must not appear in the attacker's output"
+    );
+
+    // (b) INVERSE CONTROL, mandatory: both owners still reach their OWN
+    //     databases. A repair that revoked and failed to re-grant would pass
+    //     every assertion above while taking every customer's application
+    //     offline — the worse defect.
+    for (login, database) in [
+        (&attacker_login, &attacker_database),
+        (&victim_login, &victim_database),
+    ] {
+        let own = server.run_as(
+            login,
+            CUSTOMER_PASSWORD,
+            &format!("CREATE TABLE `{database}`.after_repair (id INT)"),
+        );
+        assert!(
+            own.status.success(),
+            "{login} must still hold full privileges on its own database after \
+             the repair:\n{}",
+            String::from_utf8_lossy(&own.stderr)
+        );
+    }
+
+    // (c) A second run changes nothing: the stored patterns are identical and
+    //     the pass reports no repair at all.
+    let after_first = stored_patterns(&server, &attacker_login);
+    let again =
+        repair_grants(&host, false).unwrap_or_else(|error| panic!("the second run: {error}"));
+    assert!(
+        again.repaired.is_empty(),
+        "a second run must rewrite nothing: {:?}",
+        again.repaired
+    );
+    assert!(
+        !again.refused.iter().any(|row| row.user == attacker_login),
+        "a second run must RECOGNISE the row it wrote itself rather than \
+         reporting it as one it cannot classify — an operator who is told a \
+         repaired row is unclassifiable has been handed the defect back: {:?}",
+        again.refused
+    );
+    assert_eq!(
+        stored_patterns(&server, &attacker_login),
+        after_first,
+        "a second run must leave the grant table byte-identical"
+    );
+    assert_eq!(
+        after_first,
+        vec![attacker_database.replace('_', "\\_")],
+        "the only row left for this login must be the escaped pattern"
+    );
+
+    // (d) The foreign grant is untouched, and that is OBSERVED rather than
+    //     assumed: its stored pattern is still the unescaped one, it is reported
+    //     as refused with a reason, and its user still reaches its database.
+    assert_eq!(
+        stored_patterns(&server, FOREIGN_USER),
+        vec![FOREIGN_DATABASE.to_owned()],
+        "a grant this panel did not issue must still be stored exactly as the \
+         operator wrote it"
+    );
+    assert!(
+        report
+            .refused
+            .iter()
+            .any(|row| row.database == FOREIGN_DATABASE
+                && row.user == FOREIGN_USER
+                && row.reason == GrantRepairRefusal::NotThePanelsNaming),
+        "the foreign row must be reported as refused, with its reason, so that \
+         'left alone' is something an operator reads: {:?}",
+        report.refused
+    );
+    let foreign_still_works = server.run_as(
+        FOREIGN_USER,
+        FOREIGN_PASSWORD,
+        &format!("INSERT INTO `{FOREIGN_DATABASE}`.rows VALUES (1)"),
+    );
+    assert!(
+        foreign_still_works.status.success(),
+        "the operator's own grant must still work:\n{}",
+        String::from_utf8_lossy(&foreign_still_works.stderr)
+    );
+
+    server.run(&format!("DROP DATABASE IF EXISTS `{FOREIGN_DATABASE}`"));
+    server.run(&format!("DROP USER IF EXISTS '{FOREIGN_USER}'@'localhost'"));
     clear(&server, victim.name());
     clear(&server, attacker.name());
 }

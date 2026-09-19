@@ -47,6 +47,18 @@
 //! it. The fake host now REFUSES the statement rather than accepting it, so
 //! re-adding one fails loudly instead of passing quietly.
 //!
+//! **One operation here repairs the server rather than serving a request.**
+//! `repair_grants` exists because a database-level `GRANT`'s name is a LIKE
+//! pattern, so every grant this agent issued before `grant_pattern.rs` was
+//! written is stored in `mysql.db` as a wildcard that matches a neighbour's
+//! database. Escaping new grants could not reach the rows already on a host. It
+//! is the one operation that reads the grant table, the one that acts on rows it
+//! did not receive in a request, and therefore the one whose whole design is
+//! about restraint: it repairs only what it can prove this panel issued, refuses
+//! and REPORTS everything else, and grants the narrow form before revoking the
+//! wide one so that a crash leaves a customer with too much access rather than
+//! none.
+//!
 //! The area's shape is the one every area here has: one injectable host trait
 //! ([`DbHost`]), one file that really spawns the client ([`ProcessDbHost`]), one
 //! error enum ([`DbError`]) that structurally cannot carry the client's output,
@@ -61,9 +73,11 @@ mod drop_database;
 #[cfg(test)]
 #[path = "../tests/db/fake_db_host.rs"]
 pub(crate) mod fake_db_host;
+mod grant_pattern;
 mod list_databases;
 pub mod model;
 mod process_db_host;
+mod repair_grants;
 mod set_database_password;
 
 pub use create_database::create_database;
@@ -76,5 +90,10 @@ pub use list_databases::list_databases;
 pub use model::create_database_request::CreateDatabaseRequest;
 pub use model::database_size_report::DatabaseSizeReport;
 pub use model::database_summary::DatabaseSummary;
+pub use model::grant_repair_refusal::GrantRepairRefusal;
+pub use model::grant_repair_report::GrantRepairReport;
+pub use model::refused_grant::RefusedGrant;
+pub use model::repaired_grant::RepairedGrant;
 pub use process_db_host::ProcessDbHost;
+pub use repair_grants::repair_grants;
 pub use set_database_password::set_database_password;

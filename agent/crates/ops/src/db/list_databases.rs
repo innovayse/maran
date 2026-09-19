@@ -69,10 +69,15 @@ pub fn list_databases(
 
 /// Every database name the server printed, one per line, blanks dropped.
 ///
+/// Crate-visible rather than private because `repair_grants` asks the same
+/// question for a different purpose — which other databases an unescaped grant
+/// pattern also reached — and a second `SHOW DATABASES` in this area would be a
+/// second answer to "what does this server hold".
+///
 /// # Errors
 ///
 /// Returns whatever the client failed with; see [`DbHost::execute`].
-fn server_databases(host: &dyn DbHost) -> Result<Vec<String>, DbError> {
+pub(crate) fn server_databases(host: &dyn DbHost) -> Result<Vec<String>, DbError> {
     Ok(host
         .execute(SHOW_DATABASES)?
         .lines()
