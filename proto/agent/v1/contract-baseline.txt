@@ -3,11 +3,13 @@ enum maran.agent.v1.BackupDestinationKind
 enum maran.agent.v1.DistroFamily
 enum maran.agent.v1.ErrorCode
 enum maran.agent.v1.GrantRepairRefusal
+enum maran.agent.v1.HomeGroupRepairRefusal
 enum maran.agent.v1.LoginPasswordState
 enum maran.agent.v1.ManagedService
 enum maran.agent.v1.Protocol
 enum maran.agent.v1.PublicReadVerdict
 enum maran.agent.v1.ServiceState
+enum maran.agent.v1.SftpJailState
 enum maran.agent.v1.SiteBackendType
 enum maran.agent.v1.SiteLogKind
 enum maran.agent.v1.TransferProtocol
@@ -37,6 +39,13 @@ enum-value maran.agent.v1.GrantRepairRefusal 1 GRANT_REPAIR_REFUSAL_HOST_IS_NOT_
 enum-value maran.agent.v1.GrantRepairRefusal 2 GRANT_REPAIR_REFUSAL_NOT_THE_PANELS_NAMING
 enum-value maran.agent.v1.GrantRepairRefusal 3 GRANT_REPAIR_REFUSAL_UNRECOGNISED_PRIVILEGES
 enum-value maran.agent.v1.GrantRepairRefusal 4 GRANT_REPAIR_REFUSAL_PARTIALLY_OR_UNFAMILIARLY_ESCAPED
+enum-value maran.agent.v1.HomeGroupRepairRefusal 0 HOME_GROUP_REPAIR_REFUSAL_UNSPECIFIED
+enum-value maran.agent.v1.HomeGroupRepairRefusal 1 HOME_GROUP_REPAIR_REFUSAL_HOME_NOT_AT_EXPECTED_PATH
+enum-value maran.agent.v1.HomeGroupRepairRefusal 2 HOME_GROUP_REPAIR_REFUSAL_HOME_MISSING
+enum-value maran.agent.v1.HomeGroupRepairRefusal 3 HOME_GROUP_REPAIR_REFUSAL_SYMLINK
+enum-value maran.agent.v1.HomeGroupRepairRefusal 4 HOME_GROUP_REPAIR_REFUSAL_NOT_A_DIRECTORY
+enum-value maran.agent.v1.HomeGroupRepairRefusal 5 HOME_GROUP_REPAIR_REFUSAL_DIFFERENT_MOUNT
+enum-value maran.agent.v1.HomeGroupRepairRefusal 6 HOME_GROUP_REPAIR_REFUSAL_OWNER_MISMATCH
 enum-value maran.agent.v1.LoginPasswordState 0 LOGIN_PASSWORD_STATE_UNSPECIFIED
 enum-value maran.agent.v1.LoginPasswordState 1 LOGIN_PASSWORD_STATE_EMPTY
 enum-value maran.agent.v1.LoginPasswordState 2 LOGIN_PASSWORD_STATE_ABSENT
@@ -60,6 +69,9 @@ enum-value maran.agent.v1.ServiceState 0 SERVICE_STATE_UNSPECIFIED
 enum-value maran.agent.v1.ServiceState 1 SERVICE_STATE_RUNNING
 enum-value maran.agent.v1.ServiceState 2 SERVICE_STATE_STOPPED
 enum-value maran.agent.v1.ServiceState 3 SERVICE_STATE_UNKNOWN
+enum-value maran.agent.v1.SftpJailState 0 SFTP_JAIL_STATE_UNSPECIFIED
+enum-value maran.agent.v1.SftpJailState 1 SFTP_JAIL_STATE_INTACT
+enum-value maran.agent.v1.SftpJailState 2 SFTP_JAIL_STATE_DRIFTED
 enum-value maran.agent.v1.SiteBackendType 0 SITE_BACKEND_TYPE_UNSPECIFIED
 enum-value maran.agent.v1.SiteBackendType 1 SITE_BACKEND_TYPE_STATIC
 enum-value maran.agent.v1.SiteBackendType 2 SITE_BACKEND_TYPE_PHP
@@ -369,6 +381,10 @@ field maran.agent.v1.GetHostMetricsResponse 2 error TYPE_MESSAGE LABEL_OPTIONAL 
 field maran.agent.v1.GetServiceStatusesOk 1 services TYPE_MESSAGE LABEL_REPEATED type_name=.maran.agent.v1.ServiceStatus oneof=-
 field maran.agent.v1.GetServiceStatusesResponse 1 ok TYPE_MESSAGE LABEL_OPTIONAL type_name=.maran.agent.v1.GetServiceStatusesOk oneof=result
 field maran.agent.v1.GetServiceStatusesResponse 2 error TYPE_MESSAGE LABEL_OPTIONAL type_name=.maran.agent.v1.AgentError oneof=result
+field maran.agent.v1.GetSftpJailStatusOk 1 state TYPE_ENUM LABEL_OPTIONAL type_name=.maran.agent.v1.SftpJailState oneof=-
+field maran.agent.v1.GetSftpJailStatusOk 2 missing TYPE_STRING LABEL_REPEATED type_name=- oneof=-
+field maran.agent.v1.GetSftpJailStatusResponse 1 ok TYPE_MESSAGE LABEL_OPTIONAL type_name=.maran.agent.v1.GetSftpJailStatusOk oneof=result
+field maran.agent.v1.GetSftpJailStatusResponse 2 error TYPE_MESSAGE LABEL_OPTIONAL type_name=.maran.agent.v1.AgentError oneof=result
 field maran.agent.v1.HostMetrics 1 cpu_percent TYPE_DOUBLE LABEL_OPTIONAL type_name=- oneof=-
 field maran.agent.v1.HostMetrics 10 load_average_15m TYPE_DOUBLE LABEL_OPTIONAL type_name=- oneof=-
 field maran.agent.v1.HostMetrics 2 memory_used_bytes TYPE_UINT64 LABEL_OPTIONAL type_name=- oneof=-
@@ -453,6 +469,9 @@ field maran.agent.v1.RefusedGrant 1 grant_host TYPE_STRING LABEL_OPTIONAL type_n
 field maran.agent.v1.RefusedGrant 2 database_name TYPE_STRING LABEL_OPTIONAL type_name=- oneof=-
 field maran.agent.v1.RefusedGrant 3 db_username TYPE_STRING LABEL_OPTIONAL type_name=- oneof=-
 field maran.agent.v1.RefusedGrant 4 reason TYPE_ENUM LABEL_OPTIONAL type_name=.maran.agent.v1.GrantRepairRefusal oneof=-
+field maran.agent.v1.RefusedHome 1 account_username TYPE_STRING LABEL_OPTIONAL type_name=- oneof=-
+field maran.agent.v1.RefusedHome 2 home TYPE_STRING LABEL_OPTIONAL type_name=- oneof=-
+field maran.agent.v1.RefusedHome 3 reason TYPE_ENUM LABEL_OPTIONAL type_name=.maran.agent.v1.HomeGroupRepairRefusal oneof=-
 field maran.agent.v1.ReloadFtpsTlsOk 1 running TYPE_BOOL LABEL_OPTIONAL type_name=- oneof=-
 field maran.agent.v1.ReloadFtpsTlsOk 2 control_port_answered TYPE_BOOL LABEL_OPTIONAL type_name=- oneof=-
 field maran.agent.v1.ReloadFtpsTlsOk 3 certificate_present TYPE_BOOL LABEL_OPTIONAL type_name=- oneof=-
@@ -471,6 +490,14 @@ field maran.agent.v1.RemoveCertificateRequest 2 domain TYPE_STRING LABEL_OPTIONA
 field maran.agent.v1.RemoveCertificateRequest 3 site TYPE_MESSAGE LABEL_OPTIONAL type_name=.maran.agent.v1.SiteSpec oneof=-
 field maran.agent.v1.RemoveCertificateResponse 1 ok TYPE_MESSAGE LABEL_OPTIONAL type_name=.maran.agent.v1.RemoveCertificateOk oneof=result
 field maran.agent.v1.RemoveCertificateResponse 2 error TYPE_MESSAGE LABEL_OPTIONAL type_name=.maran.agent.v1.AgentError oneof=result
+field maran.agent.v1.RepairAccountHomeGroupsOk 1 examined TYPE_UINT32 LABEL_OPTIONAL type_name=- oneof=-
+field maran.agent.v1.RepairAccountHomeGroupsOk 2 already_correct TYPE_UINT32 LABEL_OPTIONAL type_name=- oneof=-
+field maran.agent.v1.RepairAccountHomeGroupsOk 3 repaired TYPE_MESSAGE LABEL_REPEATED type_name=.maran.agent.v1.RepairedHome oneof=-
+field maran.agent.v1.RepairAccountHomeGroupsOk 4 would_repair TYPE_MESSAGE LABEL_REPEATED type_name=.maran.agent.v1.RepairedHome oneof=-
+field maran.agent.v1.RepairAccountHomeGroupsOk 5 refused TYPE_MESSAGE LABEL_REPEATED type_name=.maran.agent.v1.RefusedHome oneof=-
+field maran.agent.v1.RepairAccountHomeGroupsRequest 1 report_only TYPE_BOOL LABEL_OPTIONAL type_name=- oneof=-
+field maran.agent.v1.RepairAccountHomeGroupsResponse 1 ok TYPE_MESSAGE LABEL_OPTIONAL type_name=.maran.agent.v1.RepairAccountHomeGroupsOk oneof=result
+field maran.agent.v1.RepairAccountHomeGroupsResponse 2 error TYPE_MESSAGE LABEL_OPTIONAL type_name=.maran.agent.v1.AgentError oneof=result
 field maran.agent.v1.RepairDatabaseGrantsOk 1 examined_grants TYPE_UINT32 LABEL_OPTIONAL type_name=- oneof=-
 field maran.agent.v1.RepairDatabaseGrantsOk 2 already_correct TYPE_UINT32 LABEL_OPTIONAL type_name=- oneof=-
 field maran.agent.v1.RepairDatabaseGrantsOk 3 repaired TYPE_MESSAGE LABEL_REPEATED type_name=.maran.agent.v1.RepairedGrant oneof=-
@@ -482,6 +509,8 @@ field maran.agent.v1.RepairDatabaseGrantsResponse 2 error TYPE_MESSAGE LABEL_OPT
 field maran.agent.v1.RepairedGrant 1 database_name TYPE_STRING LABEL_OPTIONAL type_name=- oneof=-
 field maran.agent.v1.RepairedGrant 2 db_username TYPE_STRING LABEL_OPTIONAL type_name=- oneof=-
 field maran.agent.v1.RepairedGrant 3 also_matched_databases TYPE_STRING LABEL_REPEATED type_name=- oneof=-
+field maran.agent.v1.RepairedHome 1 account_username TYPE_STRING LABEL_OPTIONAL type_name=- oneof=-
+field maran.agent.v1.RepairedHome 2 home TYPE_STRING LABEL_OPTIONAL type_name=- oneof=-
 field maran.agent.v1.RestoreBackupOk 1 files_restored TYPE_BOOL LABEL_OPTIONAL type_name=- oneof=-
 field maran.agent.v1.RestoreBackupOk 2 databases_restored TYPE_UINT32 LABEL_OPTIONAL type_name=- oneof=-
 field maran.agent.v1.RestoreBackupOk 3 databases_total TYPE_UINT32 LABEL_OPTIONAL type_name=- oneof=-
@@ -711,6 +740,9 @@ message maran.agent.v1.GetHostMetricsResponse
 message maran.agent.v1.GetServiceStatusesOk
 message maran.agent.v1.GetServiceStatusesRequest
 message maran.agent.v1.GetServiceStatusesResponse
+message maran.agent.v1.GetSftpJailStatusOk
+message maran.agent.v1.GetSftpJailStatusRequest
+message maran.agent.v1.GetSftpJailStatusResponse
 message maran.agent.v1.HostMetrics
 message maran.agent.v1.InstallCertificateOk
 message maran.agent.v1.InstallCertificateRequest
@@ -754,6 +786,7 @@ message maran.agent.v1.ReadFileRequest
 message maran.agent.v1.ReadFileResponse
 message maran.agent.v1.ReadableBackup
 message maran.agent.v1.RefusedGrant
+message maran.agent.v1.RefusedHome
 message maran.agent.v1.ReloadFtpsTlsOk
 message maran.agent.v1.ReloadFtpsTlsRequest
 message maran.agent.v1.ReloadFtpsTlsResponse
@@ -763,10 +796,14 @@ message maran.agent.v1.ReloadWebServerResponse
 message maran.agent.v1.RemoveCertificateOk
 message maran.agent.v1.RemoveCertificateRequest
 message maran.agent.v1.RemoveCertificateResponse
+message maran.agent.v1.RepairAccountHomeGroupsOk
+message maran.agent.v1.RepairAccountHomeGroupsRequest
+message maran.agent.v1.RepairAccountHomeGroupsResponse
 message maran.agent.v1.RepairDatabaseGrantsOk
 message maran.agent.v1.RepairDatabaseGrantsRequest
 message maran.agent.v1.RepairDatabaseGrantsResponse
 message maran.agent.v1.RepairedGrant
+message maran.agent.v1.RepairedHome
 message maran.agent.v1.RestoreBackupOk
 message maran.agent.v1.RestoreBackupRequest
 message maran.agent.v1.RestoreBackupResponse
@@ -833,6 +870,7 @@ rpc maran.agent.v1.AccountsService CreateAccount in=.maran.agent.v1.CreateAccoun
 rpc maran.agent.v1.AccountsService DeleteAccount in=.maran.agent.v1.DeleteAccountRequest out=.maran.agent.v1.DeleteAccountResponse client_streaming=false server_streaming=false
 rpc maran.agent.v1.AccountsService GetAccountSuspensionState in=.maran.agent.v1.GetAccountSuspensionStateRequest out=.maran.agent.v1.GetAccountSuspensionStateResponse client_streaming=false server_streaming=false
 rpc maran.agent.v1.AccountsService GetAccountUsage in=.maran.agent.v1.GetAccountUsageRequest out=.maran.agent.v1.GetAccountUsageResponse client_streaming=false server_streaming=false
+rpc maran.agent.v1.AccountsService RepairAccountHomeGroups in=.maran.agent.v1.RepairAccountHomeGroupsRequest out=.maran.agent.v1.RepairAccountHomeGroupsResponse client_streaming=false server_streaming=false
 rpc maran.agent.v1.AccountsService SetAccountQuota in=.maran.agent.v1.SetAccountQuotaRequest out=.maran.agent.v1.SetAccountQuotaResponse client_streaming=false server_streaming=false
 rpc maran.agent.v1.AccountsService SuspendAccount in=.maran.agent.v1.SuspendAccountRequest out=.maran.agent.v1.SuspendAccountResponse client_streaming=false server_streaming=false
 rpc maran.agent.v1.AccountsService UnsuspendAccount in=.maran.agent.v1.UnsuspendAccountRequest out=.maran.agent.v1.UnsuspendAccountResponse client_streaming=false server_streaming=false
@@ -881,6 +919,7 @@ rpc maran.agent.v1.FtpsService SetFtpsPassword in=.maran.agent.v1.SetFtpsPasswor
 rpc maran.agent.v1.MonitorService GetAccountsDiskUsage in=.maran.agent.v1.GetAccountsDiskUsageRequest out=.maran.agent.v1.GetAccountsDiskUsageResponse client_streaming=false server_streaming=false
 rpc maran.agent.v1.MonitorService GetHostMetrics in=.maran.agent.v1.GetHostMetricsRequest out=.maran.agent.v1.GetHostMetricsResponse client_streaming=false server_streaming=false
 rpc maran.agent.v1.MonitorService GetServiceStatuses in=.maran.agent.v1.GetServiceStatusesRequest out=.maran.agent.v1.GetServiceStatusesResponse client_streaming=false server_streaming=false
+rpc maran.agent.v1.MonitorService GetSftpJailStatus in=.maran.agent.v1.GetSftpJailStatusRequest out=.maran.agent.v1.GetSftpJailStatusResponse client_streaming=false server_streaming=false
 rpc maran.agent.v1.PhpService InstallPhpVersion in=.maran.agent.v1.InstallPhpVersionRequest out=.maran.agent.v1.InstallPhpVersionResponse client_streaming=false server_streaming=true
 rpc maran.agent.v1.PhpService ListPhpVersions in=.maran.agent.v1.ListPhpVersionsRequest out=.maran.agent.v1.ListPhpVersionsResponse client_streaming=false server_streaming=false
 rpc maran.agent.v1.SftpService CreateSftpUser in=.maran.agent.v1.CreateSftpUserRequest out=.maran.agent.v1.CreateSftpUserResponse client_streaming=false server_streaming=false
