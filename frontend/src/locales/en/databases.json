@@ -21,7 +21,8 @@
       "working": "Working…",
       "rowActions": "Actions for {name}",
       "confirmDropTitle": "Drop database {name}",
-      "confirmResetPasswordTitle": "Reset the password for {name}"
+      "confirmResetPasswordTitle": "Reset the password for {name}",
+      "grantRepairLink": "Grant repair"
     },
     "form": {
       "fields": {
@@ -54,6 +55,65 @@
       "copied": "Copied",
       "done": "Done",
       "resetHint": "If it is lost, reset the password from the list. That is the only way back — there is nothing to recover."
+    },
+    "grantRepair": {
+      "heading": "Grant repair",
+      "subtitle": "What this server's database grants hold, and what a repair would narrow.",
+      "adminNote": "Administrators only. The list spans every account on this server, so it names databases and users that belong to other customers.",
+      "loading": "Reading the server's grants…",
+      "notDisclosedTitle": "Not shown to you",
+      "notDisclosedDescription": "This page reads the grants of every account on the server at once, so only an administrator may open it. It says nothing about your own databases either way — ask your provider if you need it checked.",
+      "census": {
+        "heading": "What the server holds",
+        "inspected": "Inspection — nothing changed",
+        "acted": "Repair performed",
+        "examined": "Grants read",
+        "alreadyCorrect": "Already correct",
+        "wouldRepair": "Would be narrowed",
+        "repaired": "Narrowed",
+        "refused": "Left untouched",
+        "sumNote": "The four figures add up to the grants read: every row was put in exactly one of them, so this is the whole grant table and not a selection from it."
+      },
+      "changed": {
+        "plannedHeading": "What a repair would narrow",
+        "doneHeading": "What the repair narrowed",
+        "subtitle": "Grants this panel issued whose stored name had stopped naming one database.",
+        "emptyTitle": "Nothing to narrow",
+        "emptyDescription": "Every grant this panel issued on this server already names exactly one database.",
+        "database": "Database",
+        "user": "User",
+        "alsoMatched": "Also reachable with this grant",
+        "alsoMatchedNone": "No other database on the server matches it right now.",
+        "exposureNote": "The databases listed are ones the credential could have read and written while its grant was wide. That is what it could reach, not what it did. An empty list does not clear a row either: a matching database may have been created and dropped in between, and the name is matched when a client connects, not when this page is read.",
+        "notCleanNote": "A repair closes the reach from now on. It does not establish whether anyone used it, and it does not make this server clean of what happened before. Only your database server's query log can answer that, and it is off unless you turned it on."
+      },
+      "refused": {
+        "heading": "Left exactly as found",
+        "subtitle": "Rows this panel will not touch, with what each one needs from you.",
+        "emptyTitle": "Nothing was left untouched",
+        "emptyDescription": "Every row on this server was either already correct or one this panel could safely narrow.",
+        "grantHost": "Granted from",
+        "storedName": "Stored name",
+        "user": "User",
+        "notYoursNote": "A row is left alone precisely because this panel did not create it, so the names above are frequently somebody else's — another customer's database, or a credential you or your database administrator made by hand."
+      },
+      "action": {
+        "heading": "Run the repair",
+        "subtitle": "Only ever on the list above, and only while it still describes this server.",
+        "refresh": "Read the grants again",
+        "repair": "Narrow the grants listed",
+        "readReportFirst": "The repair is offered on a fresh reading of the server's grants. Read them again to get it back.",
+        "nothingToDo": "There is nothing for the repair to narrow on this server."
+      },
+      "confirm": {
+        "title": "Narrow the grants listed",
+        "question": "This rewrites live database access for {grants} on this server, one customer's application at a time. Nothing else on the server is touched, and rows the panel refused stay exactly as they are.",
+        "questionGrantCount": "{count} grant | {count} grants",
+        "confirm": "Narrow them",
+        "cancel": "Leave them alone",
+        "close": "Close without changing anything",
+        "acting": "Rewriting the grants…"
+      }
     }
   }
 }
