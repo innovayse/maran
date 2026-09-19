@@ -12,7 +12,7 @@
 #
 # Regenerate with `maran api --accept`, in its own reviewed commit.
 
-covered: 29 endpoints, 90 members
+covered: 30 endpoints, 91 members
 
 POST /api/v1/accounts  ->  CreateAccountCommand
   name: string
@@ -79,6 +79,8 @@ PUT /api/v1/cron-environment  ->  SetCronEnvironmentCommand
   variables: object[]
   variables[].name: string
   variables[].value: string
+POST /api/v1/database-grants/repair  ->  RepairDatabaseGrantsCommand
+  expectedRepairCount: number
 POST /api/v1/databases  ->  CreateDatabaseCommand
   accountId: string
   name: string
@@ -171,6 +173,7 @@ POST /api/v1/sites/{}/php-version  ->  ChangeSitePhpVersionCommand
   GET /api/v1/cron-entries
   GET /api/v1/cron-entries/{}/output
   GET /api/v1/cron-environment
+  GET /api/v1/database-grants
   GET /api/v1/databases
   GET /api/v1/databases/{}
   GET /api/v1/firewall/bans
