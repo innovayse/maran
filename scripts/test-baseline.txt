@@ -7,6 +7,11 @@
 # recorded beside each row below, which is what the owner should read. A digit
 # here means nothing without its explanation there.
 #
+#   rust     — RE-MEASURED 2026-09-19, `27 targets: 1914 passed / 0 failed / 114 ignored`, OK.
+#              All 27 rows reconciled; NOTHING FELL. Two rose: maran_agent 312->315 and maran_ops
+#              1165->1180 — the grant repair reaching the agent (the census op, the pattern-narrowing
+#              repair, and their model/mod wiring) plus the tests added alongside it. Ignored stayed
+#              at 114 (unchanged). Earlier: `27 targets: 1896 passed / 0 failed / 113 ignored`.
 #   rust     — RE-MEASURED 2026-09-13, `27 targets: 1896 passed / 0 failed / 113 ignored`, OK.
 #              All 27 rows reconciled; NOTHING FELL. maran_agent 308->312 and maran_ops 1158->1165:
 #              the cron allowance refused inside the lock that already holds the count, and the
@@ -21,7 +26,19 @@
 #              measured total exactly. Earlier: 2026-09-11T09:45:55Z, `1837 / 0 / 108`,
 #              TEST VERDICT: OK. Four rows moved: maran_agent 283 -> 293, shutdown_signal 2 -> 3,
 #              maran_ops 1125 -> 1126, and sftp_on_a_real_host 11 -> 12 IGNORED.
-#   backend  — RE-MEASURED 2026-09-13 (second pass), `19 targets: 3059 passed / 0 failed`, OK.
+#   backend  — RE-MEASURED 2026-09-13 (third pass), `19 targets: 3108 passed / 0 failed`, OK.
+#              All 19 rows reconciled; NOTHING FELL. Five rose: Databases 70->101,
+#              Agent.Client 319->323, Host.IntegrationTests 348->357, Host.Tests 237->240 and
+#              Sdk 186->188 — the grant repair reaching the panel (an administrator-only census
+#              and a repair that refuses any figure the caller did not read from a report), plus
+#              its audit entry: one action constant, its three display names, and the two suites
+#              that assert the journalled subject by EXACT string, because a containment
+#              assertion would pass on an entry naming a stranger's database beside the counts.
+#              NOTE ON THE PRECEDING LINE, worth more than the digits: the verdict was OK while
+#              these five rows were stale by 49 tests. The comparison refuses a DROP and is
+#              deliberately silent on a gain, so a green verdict is not evidence this file is
+#              current — only evidence that nothing was lost. Reconciling is a separate act.
+#              Earlier: `19 targets: 3059 passed / 0 failed`.
 #              All 19 rows reconciled; NOTHING FELL. Agent.Client 315->319, Cron 177->181 and
 #              Sdk 184->186: the fifth and last plan-allowance race, closed in the agent because
 #              cron keeps no rows, so no panel transaction could have been the atomic act.
@@ -56,8 +73,17 @@
 #              and the earlier reconciliation flagged it as provisional at the time. It has run at
 #              101 ever since, which means 63 tests could have been deleted from that one project
 #              without this file noticing.
-#   spa      — NOT re-measured and NOT edited by this pass. The 71 rows below already sum to exactly
-#              the 357 passed / 1 ignored a quiet tree reports, so there was nothing to reconcile.
+#   spa      — RE-MEASURED 2026-09-19, `72 targets: 373 passed / 0 failed / 1 ignored`, OK.
+#              All 72 rows reconciled; NOTHING FELL. One rose: databases/grant-repair.spec.ts
+#              10->11, the plural half of the confirmation dialog's counted phrase. It is a
+#              separate case rather than a second assertion because a rule that always answered
+#              "first form" passes the singular, so two counts that must differ is the smallest
+#              pair that observes the choice. Row sum verified: 373 / 0 / 1.
+#              WHAT THAT ROW STILL CANNOT SEE: this suite runs the panel in english, which takes
+#              two plural forms and is served by vue-i18n's default rule. Russian's three-form
+#              rule and armenian's invariant one are exercised by no row here; they were checked
+#              in a live browser at 1, 2, 11 and 21 grants, 21 being the count that separates the
+#              rule from a `count === 1` test. Earlier: `71 rows, 357 passed / 1 ignored`.
 #
 # NOT ONE TARGET FELL, on any stack. A fall is the single failure this file exists to catch and it
 # must never be baselined away; had one appeared it would have been reported as a regression rather
@@ -145,13 +171,13 @@
 # and a reader who sees only the new number should know that a baseline BELOW the tree costs nothing
 # here, because the failure this file exists to catch is a FALL.
 #
-rust	maran_agent [unittests src/lib.rs]	312	0	0
+rust	maran_agent [unittests src/lib.rs]	315	0	0
 rust	maran_agent [unittests src/main.rs]	0	0	0
 rust	account_deletion_on_a_real_host [tests/account_deletion_on_a_real_host.rs]	0	0	5
 rust	backup_on_a_real_host [tests/backup_on_a_real_host.rs]	0	0	12
 rust	binary_paths_on_a_real_host [tests/binary_paths_on_a_real_host.rs]	0	0	1
 rust	cron_on_a_real_host [tests/cron_on_a_real_host.rs]	0	0	6
-rust	databases_on_a_real_host [tests/databases_on_a_real_host.rs]	0	0	7
+rust	databases_on_a_real_host [tests/databases_on_a_real_host.rs]	0	0	8
 rust	firewall_on_a_real_host [tests/firewall_on_a_real_host.rs]	0	0	10
 rust	ftps_on_a_real_host [tests/ftps_on_a_real_host.rs]	0	0	15
 rust	handshake [tests/handshake.rs]	6	0	0
@@ -164,7 +190,7 @@ rust	shutdown_signal [tests/shutdown_signal.rs]	3	0	0
 rust	sites_on_a_real_host [tests/sites_on_a_real_host.rs]	0	0	16
 rust	maran_agent_core [unittests src/lib.rs]	353	0	0
 rust	maran_distro [unittests src/lib.rs]	38	0	0
-rust	maran_ops [unittests src/lib.rs]	1165	0	1
+rust	maran_ops [unittests src/lib.rs]	1180	0	1
 rust	maran_templates [unittests src/lib.rs]	0	0	0
 rust	golden_test [tests/golden_test.rs]	19	0	0
 rust	doc-tests maran_agent	0	0	0
@@ -172,7 +198,7 @@ rust	doc-tests maran_agent_core	0	0	0
 rust	doc-tests maran_distro	0	0	0
 rust	doc-tests maran_ops	0	0	0
 rust	doc-tests maran_templates	0	0	0
-backend	Maran.Agent.Client.Tests.dll	319	0	0
+backend	Maran.Agent.Client.Tests.dll	323	0	0
 backend	Maran.Modules.Backups.Tests.dll	191	0	0
 backend	Maran.SharedKernel.Tests.dll	163	0	0
 backend	Maran.Modules.Notifications.Tests.dll	48	0	0
@@ -184,13 +210,13 @@ backend	Maran.Modules.Cron.Tests.dll	181	0	0
 backend	Maran.Modules.Sites.Tests.dll	171	0	0
 backend	Maran.Modules.Firewall.Tests.dll	249	0	0
 backend	Maran.Modules.Accounts.Tests.dll	186	0	0
-backend	Maran.Modules.Databases.Tests.dll	70	0	0
+backend	Maran.Modules.Databases.Tests.dll	101	0	0
 backend	Maran.Modules.Ssl.Tests.dll	158	0	0
 backend	Maran.Modules.Identity.Tests.dll	203	0	0
-backend	Maran.Sdk.Tests.dll	186	0	0
+backend	Maran.Sdk.Tests.dll	188	0	0
 backend	Maran.ArchitectureTests.dll	58	0	0
-backend	Maran.Host.Tests.dll	237	0	0
-backend	Maran.Host.IntegrationTests.dll	348	0	0
+backend	Maran.Host.Tests.dll	240	0	0
+backend	Maran.Host.IntegrationTests.dll	357	0	0
 spa	accounts/delete.spec.ts	6	0	0
 spa	accounts/detail.spec.ts	10	0	0
 spa	accounts/form.spec.ts	7	0	0
@@ -219,6 +245,7 @@ spa	cron/raw-refusal.spec.ts	4	0	0
 spa	cron/schedule.spec.ts	2	0	0
 spa	databases/create.spec.ts	5	0	0
 spa	databases/credentials.spec.ts	15	0	0
+spa	databases/grant-repair.spec.ts	11	0	0
 spa	databases/list.spec.ts	8	0	0
 spa	file-transfer/create.spec.ts	8	0	0
 spa	file-transfer/credentials.spec.ts	17	0	0
