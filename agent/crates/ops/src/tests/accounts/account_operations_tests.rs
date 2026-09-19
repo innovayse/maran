@@ -9,8 +9,10 @@
 // bans on unwrap/expect/panic are lifted here only.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::sync::Mutex;
+
+use crate::accounts::model::home_metadata::HomeMetadata;
 
 use maran_agent_core::validation::db::database_name::DatabaseName;
 use maran_agent_core::validation::db::db_user_name::DbUserName;
@@ -21,7 +23,8 @@ use maran_agent_core::validation::web::php_version::PhpVersion;
 use maran_distro::{DistroFamily, adapter_for};
 
 use crate::accounts::{
-    AccountError, AccountOperations, CommandOutcome, StoredPassword, SystemHost,
+    AccountError, AccountOperations, CommandOutcome, HomeGroupRepairRefusal, StoredPassword,
+    SystemHost,
 };
 use std::path::Path;
 use std::sync::Arc;
@@ -78,6 +81,15 @@ struct RecordingHost {
     /// rather than a spawn, so the recorded argv cannot see it. A test that
     /// asserted on the argv would be blind to exactly the check it is about.
     existence_questions: Mutex<usize>,
+
+    /// What `read_password_database` returns, for the home-group repair tests.
+    passwd: Mutex<String>,
+
+    /// What `home_metadata` answers for a given path, for the home-group
+    /// repair tests. A path absent from the map answers `None` — nothing at
+    /// that path — which is the same answer a real host gives for a home
+    /// that does not exist.
+    homes: Mutex<HashMap<String, HomeMetadata>>,
 }
 
 impl RecordingHost {
@@ -91,7 +103,27 @@ impl RecordingHost {
             stderr: Mutex::new("refused\n".to_owned()),
             size: 0,
             existence_questions: Mutex::new(0),
+            passwd: Mutex::new(String::new()),
+            homes: Mutex::new(HashMap::new()),
         }
+    }
+
+    /// Sets what `read_password_database` returns.
+    fn with_passwd(self, passwd: &str) -> Self {
+        *self
+            .passwd
+            .lock()
+            .expect("the fixture lock is never poisoned") = passwd.to_owned();
+        self
+    }
+
+    /// Sets what `home_metadata` answers for `path`.
+    fn with_home(self, path: &str, metadata: HomeMetadata) -> Self {
+        self.homes
+            .lock()
+            .expect("the fixture lock is never poisoned")
+            .insert(path.to_owned(), metadata);
+        self
     }
 
     fn with_user(self, username: &str) -> Self {
@@ -219,6 +251,23 @@ impl SystemHost for RecordingHost {
 
     fn directory_size(&self, _path: &str) -> Result<u64, AccountError> {
         Ok(self.size)
+    }
+
+    fn read_password_database(&self, _path: &str) -> Result<String, AccountError> {
+        Ok(self
+            .passwd
+            .lock()
+            .expect("the fixture lock is never poisoned")
+            .clone())
+    }
+
+    fn home_metadata(&self, path: &str) -> Result<Option<HomeMetadata>, AccountError> {
+        Ok(self
+            .homes
+            .lock()
+            .expect("the fixture lock is never poisoned")
+            .get(path)
+            .copied())
     }
 }
 
@@ -1836,5 +1885,350 @@ fn a_deletion_waits_for_the_accounts_crontab_lock_before_removing_its_table() {
     assert!(
         !operations_calls(&operations, "crontab").is_empty(),
         "the crontab must really have been removed"
+    );
+}
+
+// `RepairHomeGroups`: reports, then repairs, every hosting account whose home
+// an earlier build left ungrouped for the web server.
+
+/// What `getent group www-data` prints for a web server group whose gid is
+/// `GROUP_GID`.
+const GROUP_ROW: &str = "www-data:x:33:\n";
+
+/// The gid [`GROUP_ROW`] names, and the group every "already correct" fixture
+/// home below is grouped by.
+const GROUP_GID: u32 = 33;
+
+/// The device id every fixture treats as the account home root's own
+/// filesystem.
+const HOME_ROOT_DEVICE: u64 = 10;
+
+/// A [`HomeMetadata`] for an ordinary, correctly shaped home — owned by
+/// `uid`, on the home root's own filesystem, and grouped by `gid`.
+fn ordinary_home(uid: u32, gid: u32) -> HomeMetadata {
+    HomeMetadata {
+        is_symlink: false,
+        is_directory: true,
+        owner_uid: uid,
+        group_gid: gid,
+        device: HOME_ROOT_DEVICE,
+    }
+}
+
+/// A host set up to answer `getent group` and the account home root's own
+/// metadata, ready for a passwd fixture and per-account home metadata to be
+/// layered on with [`RecordingHost::with_passwd`] and
+/// [`RecordingHost::with_home`].
+fn repair_host() -> RecordingHost {
+    RecordingHost::new().with_stdout(GROUP_ROW).with_home(
+        "/home",
+        HomeMetadata {
+            is_symlink: false,
+            is_directory: true,
+            owner_uid: 0,
+            group_gid: 0,
+            device: HOME_ROOT_DEVICE,
+        },
+    )
+}
+
+#[test]
+fn a_home_already_grouped_for_the_web_server_is_reported_and_touches_nothing() {
+    let account = AccountName::parse("acmeready").expect("the fixture name is valid");
+    let home = AccountOperations::<RecordingHost>::home_directory(&account);
+    let operations = debian(
+        repair_host()
+            .with_passwd(&format!(
+                "{}:x:2001:2001::{home}:/usr/sbin/nologin\n",
+                account.as_str()
+            ))
+            .with_home(&home, ordinary_home(2001, GROUP_GID)),
+    );
+
+    let report = operations
+        .repair_home_groups(true)
+        .expect("the report-only pass must succeed");
+
+    assert_eq!(report.examined, 1);
+    assert_eq!(report.already_correct, 1);
+    assert!(report.repaired.is_empty());
+    assert!(report.would_repair.is_empty());
+    assert!(report.refused.is_empty());
+    assert!(
+        operations_calls(&operations, "chgrp").is_empty(),
+        "an already-correct home must never be chgrp'd"
+    );
+}
+
+#[test]
+fn a_report_only_pass_lists_what_it_would_repair_and_touches_nothing() {
+    let account = AccountName::parse("acmestale").expect("the fixture name is valid");
+    let home = AccountOperations::<RecordingHost>::home_directory(&account);
+    let operations = debian(
+        repair_host()
+            .with_passwd(&format!(
+                "{}:x:2001:2001::{home}:/usr/sbin/nologin\n",
+                account.as_str()
+            ))
+            // Grouped by the account's own group, exactly as `useradd
+            // --create-home --user-group` left it before the account-creation
+            // fix shipped — the shape this whole repair exists for.
+            .with_home(&home, ordinary_home(2001, 2001)),
+    );
+
+    let report = operations
+        .repair_home_groups(true)
+        .expect("the report-only pass must succeed");
+
+    assert_eq!(report.examined, 1);
+    assert_eq!(report.already_correct, 0);
+    assert!(report.repaired.is_empty());
+    assert_eq!(report.would_repair.len(), 1);
+    assert_eq!(report.would_repair[0].account, account);
+    assert_eq!(report.would_repair[0].home, home);
+    assert!(report.refused.is_empty());
+    assert!(
+        operations_calls(&operations, "chgrp").is_empty(),
+        "a report-only pass must never chgrp anything"
+    );
+}
+
+#[test]
+fn a_live_pass_repairs_a_stale_home_and_leaves_an_already_correct_one_alone() {
+    let stale = AccountName::parse("acmestaletwo").expect("the fixture name is valid");
+    let stale_home = AccountOperations::<RecordingHost>::home_directory(&stale);
+    let ready = AccountName::parse("acmereadytwo").expect("the fixture name is valid");
+    let ready_home = AccountOperations::<RecordingHost>::home_directory(&ready);
+    let passwd = format!(
+        "{}:x:2001:2001::{stale_home}:/usr/sbin/nologin\n{}:x:2002:2002::{ready_home}:/usr/sbin/nologin\n",
+        stale.as_str(),
+        ready.as_str(),
+    );
+    let operations = debian(
+        repair_host()
+            .with_passwd(&passwd)
+            .with_home(&stale_home, ordinary_home(2001, 2001))
+            .with_home(&ready_home, ordinary_home(2002, GROUP_GID)),
+    );
+
+    let report = operations
+        .repair_home_groups(false)
+        .expect("the live pass must succeed");
+
+    assert_eq!(report.examined, 2);
+    assert_eq!(report.already_correct, 1);
+    assert_eq!(report.repaired.len(), 1);
+    assert_eq!(report.repaired[0].account, stale);
+    assert!(report.would_repair.is_empty());
+    assert!(report.refused.is_empty());
+
+    let chgrp_calls = operations_calls(&operations, "chgrp");
+    assert_eq!(
+        chgrp_calls.len(),
+        1,
+        "only the stale home must be chgrp'd: {chgrp_calls:?}"
+    );
+    assert_eq!(
+        chgrp_calls[0],
+        vec![
+            "/usr/bin/chgrp",
+            "--no-dereference",
+            "www-data",
+            stale_home.as_str()
+        ]
+    );
+}
+
+#[test]
+fn every_refusal_reason_is_reported_and_the_four_buckets_sum_to_examined() {
+    let not_at_path = AccountName::parse("acmemoved").expect("the fixture name is valid");
+    let missing = AccountName::parse("acmegone").expect("the fixture name is valid");
+    let missing_home = AccountOperations::<RecordingHost>::home_directory(&missing);
+    let symlinked = AccountName::parse("acmelink").expect("the fixture name is valid");
+    let symlinked_home = AccountOperations::<RecordingHost>::home_directory(&symlinked);
+    let not_a_directory = AccountName::parse("acmefile").expect("the fixture name is valid");
+    let not_a_directory_home = AccountOperations::<RecordingHost>::home_directory(&not_a_directory);
+    let other_mount = AccountName::parse("acmemount").expect("the fixture name is valid");
+    let other_mount_home = AccountOperations::<RecordingHost>::home_directory(&other_mount);
+    let wrong_owner = AccountName::parse("acmeowner").expect("the fixture name is valid");
+    let wrong_owner_home = AccountOperations::<RecordingHost>::home_directory(&wrong_owner);
+    let ready = AccountName::parse("acmefine").expect("the fixture name is valid");
+    let ready_home = AccountOperations::<RecordingHost>::home_directory(&ready);
+    let stale = AccountName::parse("acmebroke").expect("the fixture name is valid");
+    let stale_home = AccountOperations::<RecordingHost>::home_directory(&stale);
+
+    let passwd = format!(
+        "{not_at_path}:x:2001:2001::/srv/{not_at_path}:/usr/sbin/nologin\n\
+         {missing}:x:2002:2002::{missing_home}:/usr/sbin/nologin\n\
+         {symlinked}:x:2003:2003::{symlinked_home}:/usr/sbin/nologin\n\
+         {not_a_directory}:x:2004:2004::{not_a_directory_home}:/usr/sbin/nologin\n\
+         {other_mount}:x:2005:2005::{other_mount_home}:/usr/sbin/nologin\n\
+         {wrong_owner}:x:2006:2006::{wrong_owner_home}:/usr/sbin/nologin\n\
+         {ready}:x:2007:2007::{ready_home}:/usr/sbin/nologin\n\
+         {stale}:x:2008:2008::{stale_home}:/usr/sbin/nologin\n",
+        not_at_path = not_at_path.as_str(),
+        missing = missing.as_str(),
+        symlinked = symlinked.as_str(),
+        not_a_directory = not_a_directory.as_str(),
+        other_mount = other_mount.as_str(),
+        wrong_owner = wrong_owner.as_str(),
+        ready = ready.as_str(),
+        stale = stale.as_str(),
+    );
+
+    let operations = debian(
+        repair_host()
+            .with_passwd(&passwd)
+            .with_home(
+                &symlinked_home,
+                HomeMetadata {
+                    is_symlink: true,
+                    is_directory: false,
+                    owner_uid: 2003,
+                    group_gid: 2003,
+                    device: HOME_ROOT_DEVICE,
+                },
+            )
+            .with_home(
+                &not_a_directory_home,
+                HomeMetadata {
+                    is_symlink: false,
+                    is_directory: false,
+                    owner_uid: 2004,
+                    group_gid: 2004,
+                    device: HOME_ROOT_DEVICE,
+                },
+            )
+            .with_home(
+                &other_mount_home,
+                HomeMetadata {
+                    is_symlink: false,
+                    is_directory: true,
+                    owner_uid: 2005,
+                    group_gid: 2005,
+                    device: HOME_ROOT_DEVICE + 1,
+                },
+            )
+            .with_home(&wrong_owner_home, ordinary_home(9999, 9999))
+            .with_home(&ready_home, ordinary_home(2007, GROUP_GID))
+            .with_home(&stale_home, ordinary_home(2008, 2008)),
+    );
+
+    let report = operations
+        .repair_home_groups(false)
+        .expect("the live pass must succeed");
+
+    assert_eq!(report.examined, 8);
+    assert_eq!(report.already_correct, 1, "only `ready` is already correct");
+    assert_eq!(report.repaired.len(), 1, "only `stale` gets repaired");
+    assert!(
+        report.would_repair.is_empty(),
+        "this pass was not report-only"
+    );
+
+    // The four buckets, printed against the total, is exactly the check the
+    // task asked this suite to make visible rather than merely true.
+    let bucket_sum = report.already_correct
+        + report.repaired.len()
+        + report.would_repair.len()
+        + report.refused.len();
+    assert_eq!(
+        bucket_sum,
+        report.examined,
+        "already_correct({}) + repaired({}) + would_repair({}) + refused({}) must equal \
+         examined({})",
+        report.already_correct,
+        report.repaired.len(),
+        report.would_repair.len(),
+        report.refused.len(),
+        report.examined
+    );
+
+    let reason_for = |account: &AccountName| {
+        report
+            .refused
+            .iter()
+            .find(|refused| &refused.account == account)
+            .map(|refused| refused.reason)
+    };
+    assert_eq!(
+        reason_for(&not_at_path),
+        Some(HomeGroupRepairRefusal::HomeNotAtExpectedPath)
+    );
+    assert_eq!(
+        reason_for(&missing),
+        Some(HomeGroupRepairRefusal::HomeMissing)
+    );
+    assert_eq!(
+        reason_for(&symlinked),
+        Some(HomeGroupRepairRefusal::Symlink)
+    );
+    assert_eq!(
+        reason_for(&not_a_directory),
+        Some(HomeGroupRepairRefusal::NotADirectory)
+    );
+    assert_eq!(
+        reason_for(&other_mount),
+        Some(HomeGroupRepairRefusal::DifferentMount)
+    );
+    assert_eq!(
+        reason_for(&wrong_owner),
+        Some(HomeGroupRepairRefusal::OwnerMismatch)
+    );
+    assert_eq!(reason_for(&ready), None);
+    assert_eq!(reason_for(&stale), None);
+
+    assert!(
+        operations_calls(&operations, "chgrp")
+            .iter()
+            .all(|call| call[1] == stale_home || call.contains(&stale_home)),
+        "chgrp must only ever be asked about the one home that needed it"
+    );
+}
+
+#[test]
+fn a_second_pass_over_an_already_repaired_host_is_a_true_no_op() {
+    // The inverse control's inverse: having proven a stale home IS reported and
+    // repaired above, this proves that repairing it once is enough — the
+    // second pass over the SAME host, now grouped correctly, finds nothing
+    // left to do and sends no `chgrp` at all.
+    let account = AccountName::parse("acmetwice").expect("the fixture name is valid");
+    let home = AccountOperations::<RecordingHost>::home_directory(&account);
+    let operations = debian(
+        repair_host()
+            .with_passwd(&format!(
+                "{}:x:2001:2001::{home}:/usr/sbin/nologin\n",
+                account.as_str()
+            ))
+            .with_home(&home, ordinary_home(2001, 2001)),
+    );
+
+    let first = operations
+        .repair_home_groups(false)
+        .expect("the first pass must succeed");
+    assert_eq!(first.repaired.len(), 1);
+
+    // The fixture host does not actually mutate its own recorded metadata
+    // when `chgrp` "runs" — a real host would now answer `GROUP_GID` for this
+    // home's group, so the second pass is run against a host manually moved
+    // to that post-repair state, which is what a real re-run would observe.
+    let operations = debian(
+        repair_host()
+            .with_passwd(&format!(
+                "{}:x:2001:2001::{home}:/usr/sbin/nologin\n",
+                account.as_str()
+            ))
+            .with_home(&home, ordinary_home(2001, GROUP_GID)),
+    );
+    let second = operations
+        .repair_home_groups(false)
+        .expect("the second pass must succeed");
+
+    assert_eq!(second.already_correct, 1);
+    assert!(second.repaired.is_empty());
+    assert!(second.refused.is_empty());
+    assert!(
+        operations_calls(&operations, "chgrp").is_empty(),
+        "a host this repair already fixed must not be chgrp'd again"
     );
 }

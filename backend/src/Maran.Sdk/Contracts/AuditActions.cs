@@ -163,6 +163,22 @@ public static class AuditActions
     /// </summary>
     public const string DatabaseGrantsRepaired = "DatabaseGrantsRepaired";
 
+    /// <summary>
+    /// Every hosting account's home directory group was classified and, where wrong, re-grouped to the
+    /// web server's group (issue #28 item E). Recorded on the refusals too, and for the same reason
+    /// <see cref="DatabaseGrantsRepaired"/>'s refusals are: an operator who confirmed a figure that no
+    /// longer matched the host — an ordinary race, or an attempt to act without reading a fresh report
+    /// — is a pattern only the journal makes visible.
+    /// <para>
+    /// The subject is a count, never an account name. Several of the refusal reasons this operation can
+    /// report — an owner mismatch, a home on a different mount — exist precisely because the row at a
+    /// given path may not be the account the panel's own naming expects, so a name in this trail could
+    /// be wrong in a way nothing here can detect. The counts are current, verifiable, and — like
+    /// <see cref="DatabaseGrantsRepaired"/>'s subject — this journal is never deleted (rules/security.md).
+    /// </para>
+    /// </summary>
+    public const string AccountHomeGroupsRepaired = "AccountHomeGroupsRepaired";
+
     /// <summary>An SFTP login was created on the host, jailed into its account's own chroot.</summary>
     public const string SftpUserCreated = "SftpUserCreated";
 
@@ -272,7 +288,12 @@ public static class AuditActions
     /// <summary>The mail server refused or could not be reached. Recorded with the reason, never with the body.</summary>
     public const string MailSendFailed = "MailSendFailed";
 
-    /// <summary>A monitored condition crossed into alarm — a full disk, a stopped service.</summary>
+    /// <summary>
+    /// A monitored condition crossed into alarm — a full disk, a stopped service, a drifted SFTP
+    /// jail configuration block. Generic across every <c>AlertKind</c> on purpose: the journalled
+    /// subject already names which condition and which thing of that kind, so a new kind of alert
+    /// needs no action constant of its own.
+    /// </summary>
     public const string AlertRaised = "AlertRaised";
 
     /// <summary>A monitored condition returned to normal. Paired with the raise so an operator can read the outage's length.</summary>

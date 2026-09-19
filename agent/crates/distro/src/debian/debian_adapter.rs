@@ -175,6 +175,10 @@ impl DistroAdapter for DebianAdapter {
         debian_services::ssh_service()
     }
 
+    fn sshd_config_path(&self) -> &'static str {
+        debian_services::sshd_config_path()
+    }
+
     fn managed_units(&self) -> [&'static str; 4] {
         debian_services::managed_units()
     }

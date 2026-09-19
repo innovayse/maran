@@ -40,6 +40,8 @@ public static class ExpectedErrorStatuses
             ["AccountBackupOperationRunning"] = ErrorType.Conflict,
             ["AccountCleanupFailed"] = ErrorType.Failure,
             ["AccountDomainTaken"] = ErrorType.Conflict,
+            ["AccountHomeGroupRepairCountInvalid"] = ErrorType.Validation,
+            ["AccountHomeGroupRepairPlanChanged"] = ErrorType.Conflict,
             ["AccountNameTaken"] = ErrorType.Conflict,
             ["AccountNotFound"] = ErrorType.NotFound,
             ["AccountResumptionFailed"] = ErrorType.Failure,

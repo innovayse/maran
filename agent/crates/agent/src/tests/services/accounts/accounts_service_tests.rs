@@ -142,6 +142,19 @@ impl SystemHost for BlockingSystemHost {
     fn directory_size(&self, _path: &str) -> Result<u64, AccountError> {
         Ok(0)
     }
+
+    /// Unreachable: no rpc driven in this file repairs a home's group.
+    fn read_password_database(&self, _path: &str) -> Result<String, AccountError> {
+        unreachable!("no rpc in this file reaches the password database")
+    }
+
+    /// Unreachable: no rpc driven in this file repairs a home's group.
+    fn home_metadata(
+        &self,
+        _path: &str,
+    ) -> Result<Option<maran_ops::accounts::model::home_metadata::HomeMetadata>, AccountError> {
+        unreachable!("no rpc in this file inspects a home's metadata")
+    }
 }
 
 /// The php host the service holds for the deletion cascade.

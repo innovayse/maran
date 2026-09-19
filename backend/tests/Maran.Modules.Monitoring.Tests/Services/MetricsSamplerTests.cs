@@ -143,6 +143,62 @@ public sealed class MetricsSamplerTests
         });
     }
 
+    /// <summary>A drifted SFTP jail observed ten rounds running raises the alert, through the real round.</summary>
+    /// <remarks>
+    /// The evaluator's own tests drive it directly with a hand-built <see cref="AgentSftpJailStatus"/>;
+    /// this one proves the sampler actually asks the agent and forwards what it answered, which is
+    /// exactly the wiring a unit test of either half alone would miss — and the one this suite had no
+    /// test for until this change added it.
+    /// </remarks>
+    [Fact]
+    public async Task Ten_rounds_over_a_drifted_sftp_jail_raise_the_alert_once()
+    {
+        await using var dbContext = MonitoringTestContext.Create();
+        var agent = new StubAgentMonitorClient
+        {
+            SftpJailStatus = Result<AgentSftpJailStatus>.Ok(
+                new AgentSftpJailStatus(true, ["forcecommand internal-sftp"])),
+        };
+        var clock = new FakeClock();
+        var audit = new RecordingAuditWriter();
+        using var scopes = new TestScopeFactory(dbContext, agent, new StubAlertRecipientDirectory(), audit);
+        var sampler = Sampler(scopes, clock);
+
+        for (var round = 0; round < 20; round++)
+        {
+            await sampler.SampleOnceAsync(CancellationToken.None);
+            clock.Advance(TimeSpan.FromMinutes(1));
+        }
+
+        Assert.Equal(20, agent.SftpJailStatusCalls);
+        Assert.Single(audit.Entries, entry =>
+        {
+            return entry.Action == Sdk.Contracts.AuditActions.AlertRaised
+                && entry.Subject == $"SftpJailDrifted:{Monitoring.Services.AlertEvaluator.SftpJailSubject}";
+        });
+    }
+
+    /// <summary>A jail check the agent could not answer does not cost the round its sample or its disk alert.</summary>
+    [Fact]
+    public async Task A_jail_check_the_agent_could_not_answer_does_not_cost_the_round_its_sample()
+    {
+        await using var dbContext = MonitoringTestContext.Create();
+        var agent = new StubAgentMonitorClient
+        {
+            SftpJailStatus = Result<AgentSftpJailStatus>.Fail(Error.Of("AgentSystemFailure", ErrorType.Failure)),
+        };
+        using var scopes = new TestScopeFactory(dbContext, agent, new StubAlertRecipientDirectory(), new RecordingAuditWriter());
+        var sampler = Sampler(scopes, new FakeClock());
+
+        Assert.True(await sampler.SampleOnceAsync(CancellationToken.None));
+
+        Assert.Single(dbContext.Samples);
+        Assert.DoesNotContain(dbContext.AlertStates, state =>
+        {
+            return state.Kind == Monitoring.Domain.Enums.AlertKind.SftpJailDrifted;
+        });
+    }
+
     /// <summary>Builds the sampler over the container a test set up.</summary>
     /// <param name="scopes">The container each round opens a scope from.</param>
     /// <param name="clock">The clock every sample is stamped with.</param>

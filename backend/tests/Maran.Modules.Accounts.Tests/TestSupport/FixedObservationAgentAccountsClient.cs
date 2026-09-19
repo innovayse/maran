@@ -122,4 +122,13 @@ public sealed class FixedObservationAgentAccountsClient : IAgentAccountsClient
     {
         throw new NotSupportedException();
     }
+
+    /// <summary>Not exercised by these tests.</summary>
+    /// <param name="reportOnly">Unused.</param>
+    /// <param name="cancellationToken">Unused.</param>
+    /// <returns>Never returns.</returns>
+    public Task<Result<HomeGroupRepairReportDto>> RepairHomeGroupsAsync(bool reportOnly, CancellationToken cancellationToken)
+    {
+        throw new NotSupportedException();
+    }
 }

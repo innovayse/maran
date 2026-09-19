@@ -18,16 +18,19 @@ use crate::proto::{
     AgentError, CreateAccountOk, CreateAccountRequest, CreateAccountResponse, DeleteAccountOk,
     DeleteAccountRequest, DeleteAccountResponse, ErrorCode, GetAccountSuspensionStateOk,
     GetAccountSuspensionStateRequest, GetAccountSuspensionStateResponse, GetAccountUsageOk,
-    GetAccountUsageRequest, GetAccountUsageResponse, SetAccountQuotaOk, SetAccountQuotaRequest,
+    GetAccountUsageRequest, GetAccountUsageResponse, RepairAccountHomeGroupsRequest,
+    RepairAccountHomeGroupsResponse, SetAccountQuotaOk, SetAccountQuotaRequest,
     SetAccountQuotaResponse, SftpLoginSuspensionFact, SiteSuspensionFact, SuspendAccountOk,
     SuspendAccountRequest, SuspendAccountResponse, UnsuspendAccountOk, UnsuspendAccountRequest,
     UnsuspendAccountResponse, create_account_response, delete_account_response,
-    get_account_suspension_state_response, get_account_usage_response, set_account_quota_response,
-    suspend_account_response, unsuspend_account_response,
+    get_account_suspension_state_response, get_account_usage_response,
+    repair_account_home_groups_response, set_account_quota_response, suspend_account_response,
+    unsuspend_account_response,
 };
 use crate::services::accounts::account_status::to_agent_error;
 use crate::services::accounts::to_login_password_state::to_login_password_state;
 use crate::services::accounts::to_transfer_protocol::to_transfer_protocol;
+use crate::services::accounts::wire_home_group_repair_report::wire_home_group_repair_report;
 use crate::services::wire::run_blocking::run_blocking;
 
 /// The noun phrase in the message a failed blocking task reports under.
@@ -473,6 +476,41 @@ impl<
         };
 
         Ok(Response::new(GetAccountUsageResponse {
+            result: Some(result),
+        }))
+    }
+
+    /// Re-groups every hosting account's home directory to the web server's
+    /// group where it is not already that group.
+    ///
+    /// The one rpc in this file that takes no account name, for the same
+    /// reason `repair_database_grants` in `services::db` takes none: the set
+    /// of homes it repairs belongs to the host rather than to a tenant, and
+    /// `accounts.proto` says why a per-account pass would be the wrong shape.
+    /// There is nothing to re-validate: the request carries a single boolean,
+    /// and every account name and path the operation acts on is read from the
+    /// password database and decoded by [`maran_agent_core::validation::system::name::AccountName`]
+    /// itself.
+    async fn repair_account_home_groups(
+        &self,
+        request: Request<RepairAccountHomeGroupsRequest>,
+    ) -> Result<Response<RepairAccountHomeGroupsResponse>, Status> {
+        let report_only = request.into_inner().report_only;
+        let operations = Arc::clone(&self.operations);
+
+        let result = run_blocking(ACCOUNT_OPERATION, to_agent_error, move || {
+            operations.repair_home_groups(report_only)
+        })
+        .await;
+
+        let result = match result {
+            Ok(report) => repair_account_home_groups_response::Result::Ok(
+                wire_home_group_repair_report(report),
+            ),
+            Err(error) => repair_account_home_groups_response::Result::Error(error),
+        };
+
+        Ok(Response::new(RepairAccountHomeGroupsResponse {
             result: Some(result),
         }))
     }

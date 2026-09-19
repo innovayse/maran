@@ -24,4 +24,46 @@
   <data name="PlanUnlimitedName">
     <value>Անսահմանափակ</value>
   </data>
+  <data name="HomeGroupRepairRefusalHomeNotAtExpectedPath">
+    <value>Տնային պանակը ոչ այնտեղ, որտեղ վահանակը ստեղծում է</value>
+  </data>
+  <data name="HomeGroupRepairAdviceHomeNotAtExpectedPath">
+    <value>Այս հաշվի գրանցված տնային պանակը չի համընկնում այն ուղու հետ, որով այս վահանակը ստեղծում է հաշիվների տնային պանակները, ուստի վահանակը այն թողել է հենց այնպես, ինչպես գտել է։ Ոչինչ չի փոփոխվել։ Պարզեք, թե ինչու է պանակը տեղափոխվել, նախքան ձեռքով դիպչելը։</value>
+  </data>
+  <data name="HomeGroupRepairRefusalHomeMissing">
+    <value>Տնային պանակը գոյություն չունի</value>
+  </data>
+  <data name="HomeGroupRepairAdviceHomeMissing">
+    <value>Ուղին, որով այս վահանակը կստեղծեր տնային պանակը, գոյություն չունի, ուստի փոփոխելու խումբ չկա։ Ոչինչ չի փոփոխվել։ Ստուգեք, արդյոք տնային պանակը հեռացվել է, թե երբեք չի ստեղծվել։</value>
+  </data>
+  <data name="HomeGroupRepairRefusalSymlink">
+    <value>Տնային պանակը սիմլինք է</value>
+  </data>
+  <data name="HomeGroupRepairAdviceSymlink">
+    <value>Ուղին սիմվոլիկ հղում է, ոչ թե ինքը՝ տնային պանակը, ուստի խմբի փոփոխումը չէր ազդի այն, ինչին այն ուղղված է, և կարող է անվտանգ չլինել։ Ոչինչ չի փոփոխվել։ Պարզեք, թե ինչն է ստեղծել այս հղումը, նախքան դիպչելը։</value>
+  </data>
+  <data name="HomeGroupRepairRefusalNotADirectory">
+    <value>Պանակ չէ</value>
+  </data>
+  <data name="HomeGroupRepairAdviceNotADirectory">
+    <value>Ուղին գոյություն ունի, բայց պանակ չէ, ուստի այն չի կարող լինել հաշվի տնային պանակը։ Ոչինչ չի փոփոխվել։ Պարզեք, թե ինչ կա այս ուղում, նախքան դիպչելը։</value>
+  </data>
+  <data name="HomeGroupRepairRefusalDifferentMount">
+    <value>Այլ ֆայլային համակարգում</value>
+  </data>
+  <data name="HomeGroupRepairAdviceDifferentMount">
+    <value>Ուղին գտնվում է այլ ֆայլային համակարգում, քան հաշիվների տնային պանակների արմատը, ինչը այս վահանակը երբեք չի ստեղծում։ Ոչինչ չի փոփոխվել։ Ստուգեք, արդյոք այնտեղ ինչ-որ այլ բան մոնտավորված է։</value>
+  </data>
+  <data name="HomeGroupRepairRefusalOwnerMismatch">
+    <value>Չի պատկանում այս հաշվին</value>
+  </data>
+  <data name="HomeGroupRepairAdviceOwnerMismatch">
+    <value>Ուղին չի պատկանում հաշվի սեփական համակարգային օգտվողին, ուստի դա կարող է չլինել այս հաշվի տնային պանակը։ Ոչինչ չի փոփոխվել։ Ստուգեք, թե ում է պատկանում, նախքան ձեռքով դիպչելը։</value>
+  </data>
+  <data name="HomeGroupRepairRefusalUnspecified">
+    <value>Պատճառը նշված չէ</value>
+  </data>
+  <data name="HomeGroupRepairAdviceUnspecified">
+    <value>Գործակալը մերժել է այս հաշիվը պատճառով, որը վահանակի այս տարբերակը չի ճանաչում, ինչը սովորաբար նշանակում է, որ գործակալը վահանակից նոր է։ Ոչինչ չի փոփոխվել։ Թարմացրեք վահանակը և նորից գործարկեք հաշվետվությունը։</value>
+  </data>
 </root>

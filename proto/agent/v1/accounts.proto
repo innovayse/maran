@@ -127,6 +127,32 @@ service AccountsService {
 
   // Reads current disk usage and quota for an account.
   rpc GetAccountUsage(GetAccountUsageRequest) returns (GetAccountUsageResponse);
+
+  // Added 2026-09-19 (issue #28 item E). Re-groups every hosting account's
+  // home directory to the web server's group where it is not already that
+  // group, so a home an earlier build created — group-owned only by the
+  // account itself — can be traversed into by the web server without a
+  // manual `chgrp` on every affected server.
+  //
+  // Host-wide, like RepairDatabaseGrants: it takes no account name and acts
+  // on every hosting account on the machine at once, because the defect it
+  // repairs is a property of how accounts used to be created, not of any one
+  // caller's account. report_only mirrors RepairDatabaseGrantsRequest for the
+  // same reason: this re-groups a live directory for every customer on the
+  // host, so an operator must be able to read the list before it happens.
+  // The proto3 default is false, which means "do the repair" — the same
+  // thing an older caller that cannot set the field asks for.
+  //
+  // Idempotent: a second pass over an already-repaired host reports every
+  // account as already_correct and sends no chgrp at all.
+  //
+  // What this rpc deliberately does NOT do: it never touches a home's mode,
+  // only its group — see the doc comment on
+  // `AccountOperations::repair_home_groups` for why widening or narrowing
+  // permissions here would be a second, unconfirmed change riding on this
+  // one's report/confirm gate.
+  rpc RepairAccountHomeGroups(RepairAccountHomeGroupsRequest)
+      returns (RepairAccountHomeGroupsResponse);
 }
 
 message CreateAccountRequest {
@@ -418,4 +444,90 @@ message SiteSuspensionFact {
   // read. Unobservable is reported as not stubbed, which refuses a suspension
   // rather than certifying one.
   bool serving_stub = 2;
+}
+
+// Added 2026-09-19 (issue #28 item E).
+message RepairAccountHomeGroupsRequest {
+  // When true, nothing is changed: the agent classifies every hosting
+  // account's home and reports what it WOULD re-group. Present because the
+  // operation changes who can traverse into a customer's home directory, so
+  // an operator must be able to read the list before it happens rather than
+  // trust the predicate. The proto3 default is false, which means "do the
+  // repair" — the same thing an older caller that cannot set the field asks
+  // for.
+  bool report_only = 1;
+}
+
+// Added 2026-09-19.
+message RepairAccountHomeGroupsResponse {
+  oneof result {
+    RepairAccountHomeGroupsOk ok = 1;
+    AgentError error = 2;
+  }
+}
+
+// Added 2026-09-19. An account of every hosting account on the host:
+// examined equals already_correct plus the three repeated fields' lengths,
+// so the report reads as a census rather than a list of whatever was
+// interesting.
+message RepairAccountHomeGroupsOk {
+  // How many hosting accounts on this host were examined.
+  uint32 examined = 1;
+  // Accounts whose home was already group-owned by the web server's group.
+  // Nothing was sent for these; a clean, already-repaired host reports every
+  // account here.
+  uint32 already_correct = 2;
+  // Homes that were re-grouped. Empty when report_only was set.
+  repeated RepairedHome repaired = 3;
+  // Homes a report_only pass would have re-grouped. Always empty otherwise.
+  repeated RepairedHome would_repair = 4;
+  // Accounts deliberately left alone, with the reason for each. An operator
+  // reads this: "untouched" is meant to be observable rather than assumed.
+  repeated RefusedHome refused = 5;
+}
+
+// Added 2026-09-19. One account's home that was, or would be, re-grouped.
+message RepairedHome {
+  // The account's system user name.
+  string account_username = 1;
+  // The home directory that was, or would be, re-grouped.
+  string home = 2;
+}
+
+// Added 2026-09-19. One account's home the repair refused to touch.
+//
+// account_username and home are read from the passwd database, because a row
+// lands here precisely because something about it is not what this agent's
+// own AccountOperations::create would have produced — they are for an
+// operator to read, and the agent never re-derives a path from them.
+message RefusedHome {
+  // The account's system user name, as the passwd database spells it.
+  string account_username = 1;
+  // The path examined: the recorded home when it did not match the expected
+  // one, or the expected home otherwise.
+  string home = 2;
+  // Why the repair refused this account.
+  HomeGroupRepairRefusal reason = 3;
+}
+
+// Added 2026-09-19. Why one account's home was left exactly as it was found.
+enum HomeGroupRepairRefusal {
+  // No reason given. Never sent by this agent; present because proto3
+  // requires a zero value, and a caller seeing it is reading a message from
+  // something else.
+  HOME_GROUP_REPAIR_REFUSAL_UNSPECIFIED = 0;
+  // The account's recorded home is not `<home root>/<account>` — the one
+  // path this agent has ever created an account's home at.
+  HOME_GROUP_REPAIR_REFUSAL_HOME_NOT_AT_EXPECTED_PATH = 1;
+  // The path this agent would have created the home at does not exist.
+  HOME_GROUP_REPAIR_REFUSAL_HOME_MISSING = 2;
+  // The path is a symlink rather than the home directory itself. Checked
+  // with lstat and never followed.
+  HOME_GROUP_REPAIR_REFUSAL_SYMLINK = 3;
+  // The path exists, is not a symlink, and is not a directory either.
+  HOME_GROUP_REPAIR_REFUSAL_NOT_A_DIRECTORY = 4;
+  // The path sits on a different filesystem than the account home root.
+  HOME_GROUP_REPAIR_REFUSAL_DIFFERENT_MOUNT = 5;
+  // The path's owning uid is not the account's own uid.
+  HOME_GROUP_REPAIR_REFUSAL_OWNER_MISMATCH = 6;
 }

@@ -36,4 +36,16 @@
   <data name="AlertServiceStoppedResolvedBody">
     <value>Служба {0} снова работает. Менеджер служб сообщает: {1}</value>
   </data>
+  <data name="AlertSftpJailDriftedRaisedSubject">
+    <value>Конфигурация изоляции SFTP на этом сервере была нарушена</value>
+  </data>
+  <data name="AlertSftpJailDriftedRaisedBody">
+    <value>Блок конфигурации sshd, который ограничивает каждый вход SFTP только его собственными файлами, отсутствует или был изменён ({1}). До его восстановления клиенты SFTP на этом сервере больше не ограничены передачей файлов: их учётные данные могут открыть обычную командную оболочку и получить доступ к чему угодно, а не только к своим файлам. Восстановите блок «Match Group», который installer/lib/86-sftp.sh записывает в /etc/ssh/sshd_config (либо повторно выполните шаг установки SFTP в установщике), и перезапустите sshd.</value>
+  </data>
+  <data name="AlertSftpJailDriftedResolvedSubject">
+    <value>Конфигурация изоляции SFTP на этом сервере восстановлена</value>
+  </data>
+  <data name="AlertSftpJailDriftedResolvedBody">
+    <value>Блок конфигурации sshd, который ограничивает каждый вход SFTP только его собственными файлами, снова присутствует и не повреждён. Клиенты SFTP на этом сервере снова ограничены только передачей файлов.</value>
+  </data>
 </root>

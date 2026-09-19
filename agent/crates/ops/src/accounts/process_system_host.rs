@@ -1,11 +1,14 @@
 //! The [`SystemHost`] that actually runs programs on this machine.
 
+use std::fs;
+use std::os::unix::fs::MetadataExt;
 use std::path::Path;
 
 use maran_agent_core::utils::directory::directory_size;
 use maran_agent_core::utils::spawn_argv::spawn_argv;
 use maran_distro::DistroAdapter;
 
+use crate::accounts::model::home_metadata::HomeMetadata;
 use crate::accounts::{AccountError, CommandOutcome, SystemHost};
 
 /// Runs the real `useradd`, `usermod`, `userdel`, `setquota` and friends.
@@ -82,6 +85,31 @@ impl SystemHost for ProcessSystemHost {
     /// which is what a caller measuring a home directory before deleting it wants.
     fn directory_size(&self, path: &str) -> Result<u64, AccountError> {
         Ok(directory_size(Path::new(path)))
+    }
+
+    /// Reads the host's own passwd file, whole.
+    fn read_password_database(&self, path: &str) -> Result<String, AccountError> {
+        fs::read_to_string(path).map_err(|_| AccountError::HomeInspection {
+            reason: format!("could not read {path}"),
+        })
+    }
+
+    /// Reads `path`'s metadata with `lstat` — `std::fs::symlink_metadata`,
+    /// which is precisely the syscall that does not follow a symlink.
+    fn home_metadata(&self, path: &str) -> Result<Option<HomeMetadata>, AccountError> {
+        match fs::symlink_metadata(path) {
+            Ok(metadata) => Ok(Some(HomeMetadata {
+                is_symlink: metadata.file_type().is_symlink(),
+                is_directory: metadata.file_type().is_dir(),
+                owner_uid: metadata.uid(),
+                group_gid: metadata.gid(),
+                device: metadata.dev(),
+            })),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
+            Err(_) => Err(AccountError::HomeInspection {
+                reason: format!("could not read the metadata of {path}"),
+            }),
+        }
     }
 }
 

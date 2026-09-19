@@ -53,4 +53,12 @@ internal interface IAccountsServiceInvoker
     /// <param name="cancellationToken">Cancellation for the call.</param>
     /// <returns>The raw wire response, carrying either branch of its oneof.</returns>
     Task<GetAccountUsageResponse> GetAccountUsageAsync(GetAccountUsageRequest request, CancellationToken cancellationToken);
+
+    /// <summary>Invokes <c>RepairAccountHomeGroups</c>.</summary>
+    /// <param name="request">The wire request.</param>
+    /// <param name="cancellationToken">Cancellation for the call.</param>
+    /// <returns>The raw wire response, carrying either branch of its oneof.</returns>
+    Task<RepairAccountHomeGroupsResponse> RepairAccountHomeGroupsAsync(
+        RepairAccountHomeGroupsRequest request,
+        CancellationToken cancellationToken);
 }

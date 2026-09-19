@@ -1,11 +1,16 @@
 //! The account operations themselves, over whatever [`SystemHost`] they are given.
 
 use maran_agent_core::agent_paths::AgentPaths;
+use maran_agent_core::utils::system_accounts::system_accounts;
 use maran_agent_core::validation::system::name::AccountName;
 
 use maran_distro::DistroAdapter;
 
 use crate::accounts::account_lock::take_account_lock;
+use crate::accounts::model::home_group_repair_refusal::HomeGroupRepairRefusal;
+use crate::accounts::model::home_group_repair_report::HomeGroupRepairReport;
+use crate::accounts::model::refused_home::RefusedHome;
+use crate::accounts::model::repaired_home::RepairedHome;
 use crate::accounts::quota_blocks::QuotaBlocks;
 use crate::accounts::{
     AccountError, AccountSuspensionState, AccountUsage, CreatedAccount, StoredPassword, SystemHost,
@@ -46,6 +51,25 @@ const LOCKED_PASSWORD_PREFIX: char = 'L';
 
 /// The database `getent` is asked for when the question is about a password.
 const SHADOW_DATABASE: &str = "shadow";
+
+/// The database `getent` is asked for when the question is about a group's
+/// numeric id.
+///
+/// Asked through `getent` rather than resolved with `getgrnam_r` directly, for
+/// the same reason [`AccountOperations::stored_password`] asks `getent` for a
+/// password field instead of reading `/etc/shadow`: the host's configured name
+/// service, not only the local file, and — the reason that matters here more
+/// than there — the same [`SystemHost`] seam every other fact this area reads
+/// goes through, so a repair that decides whether a home's group is already
+/// correct is testable against a fake host instead of the machine's own group
+/// database.
+const GROUP_DATABASE: &str = "group";
+
+/// Which field of a `getent group` row holds the numeric group id, counting
+/// from zero.
+///
+/// The row's shape is `<name>:<password>:<gid>:<members>`.
+const GROUP_GID_FIELD: usize = 2;
 
 /// The separator between the fields of a shadow entry.
 const SHADOW_FIELD_SEPARATOR: char = ':';
@@ -844,6 +868,270 @@ impl<H: SystemHost> AccountOperations<H> {
         }
 
         Err(AccountError::command_failed(program, &outcome))
+    }
+
+    /// Reports, or repairs, every hosting account whose home an earlier build
+    /// left ungrouped for the web server.
+    ///
+    /// # The defect this exists for
+    ///
+    /// Before [`AccountOperations::create`] called
+    /// `open_home_to_the_web_server`, an account's home
+    /// was left `0750 <account>:<account>` — a mode and an owning group the
+    /// web server's own user is in no group that satisfies. Every document
+    /// root this agent creates is inside a home, so a site under such a home
+    /// cannot be served: nginx logs `stat() … failed (13: Permission
+    /// denied)` and answers every request with a refusal the panel explains
+    /// nowhere. That fix is forward-only — it runs once, at creation, for the
+    /// reason `open_home_to_the_web_server`'s own doc
+    /// comment gives — so an account created before it shipped keeps the
+    /// group its home was born with. This is the repair for those accounts.
+    ///
+    /// # The predicate: what makes a home need repair
+    ///
+    /// A hosting account's home is repaired only when ALL of these hold, and
+    /// it is refused — never guessed at — when any of them does not:
+    ///
+    /// 1. the account's OWN passwd row records its home as exactly
+    ///    `<home root>/<account>`, the one path this agent has ever created a
+    ///    home at — [`HomeGroupRepairRefusal::HomeNotAtExpectedPath`] otherwise;
+    /// 2. that path exists — [`HomeGroupRepairRefusal::HomeMissing`] otherwise;
+    /// 3. it is not a symlink — [`HomeGroupRepairRefusal::Symlink`] otherwise,
+    ///    checked with `lstat` and never followed;
+    /// 4. it is a directory — [`HomeGroupRepairRefusal::NotADirectory`]
+    ///    otherwise;
+    /// 5. it sits on the SAME filesystem as the account home root itself —
+    ///    [`HomeGroupRepairRefusal::DifferentMount`] otherwise;
+    /// 6. it is owned by the account's OWN uid, read from the same passwd row
+    ///    as its home — [`HomeGroupRepairRefusal::OwnerMismatch`] otherwise.
+    ///
+    /// Only then is the home's current group compared against the web
+    /// server's group: already equal reports as already correct, anything
+    /// else is what gets `chgrp`'d — or would, in a report-only pass.
+    ///
+    /// **It cannot mistake an already-correct home for a broken one**: a home
+    /// [`AccountOperations::create`] made today is already group-owned by the
+    /// web server's group, so it satisfies every condition above and is
+    /// simply reported as already correct. A clean host reports every account
+    /// this way and sends no `chgrp` at all; so does a second run over a host
+    /// this repair already fixed.
+    ///
+    /// # What this deliberately does not touch
+    ///
+    /// **The mode.** The defect this repairs is a wrong GROUP, not a wrong
+    /// mode — `useradd --create-home` already leaves every home `0750`, which
+    /// is exactly the mode `open_home_to_the_web_server`
+    /// restates for a freshly created one. A pre-fix home therefore already
+    /// carries the mode that lets the web server's group traverse it once it
+    /// HOLDS that group; only the group column was ever wrong. Widening the
+    /// mode here would be a change with no accompanying defect, on every
+    /// customer's home on the host, from a repair that is supposed to touch
+    /// one column of one directory. If an operator has since narrowed a
+    /// home's mode by hand, that is the account's own choice — the same
+    /// reason [`AccountOperations::create`] never re-applies itself to a
+    /// pre-existing user — and this repair does not override it.
+    ///
+    /// # Errors
+    ///
+    /// - [`AccountError::HomeInspection`] when the password database or a
+    ///   home's own metadata cannot be read at all — never confused with "the
+    ///   home does not exist", which is [`HomeGroupRepairRefusal::HomeMissing`]
+    ///   instead of an error.
+    /// - [`AccountError::CommandFailed`] when `getent` cannot resolve the web
+    ///   server's group at all — most plausibly because no web server is
+    ///   installed, in which case there is nothing to re-group accounts INTO
+    ///   and the whole pass refuses up front — or when `chgrp` itself refuses.
+    /// - [`AccountError::UnreadableOutput`] when `getent`'s row for the web
+    ///   server's group is not the shape this agent knows how to read.
+    pub fn repair_home_groups(
+        &self,
+        report_only: bool,
+    ) -> Result<HomeGroupRepairReport, AccountError> {
+        let passwd = self
+            .host
+            .read_password_database(self.distro.passwd_database())?;
+        let home_root_metadata = self
+            .host
+            .home_metadata(AgentPaths::ACCOUNT_HOME_ROOT)?
+            .ok_or_else(|| AccountError::HomeInspection {
+                reason: format!("{} does not exist", AgentPaths::ACCOUNT_HOME_ROOT),
+            })?;
+        let web_server_gid = self.web_server_group_gid()?;
+
+        let mut accounts: Vec<(AccountName, String, u32)> = system_accounts(&passwd)
+            .into_iter()
+            .filter_map(|row| {
+                let account = AccountName::parse(&row.name).ok()?;
+                Some((account, row.home, row.uid))
+            })
+            .collect();
+        // Sorted and deduplicated for the reason `get_accounts_disk_usage`
+        // sorts and deduplicates its own passwd rows: two calls against an
+        // unchanged host answer in the same order, and a hand-edited passwd
+        // file carrying the same name twice is examined once rather than
+        // reported — or repaired — twice over.
+        accounts.sort_by(|left, right| left.0.as_str().cmp(right.0.as_str()));
+        accounts.dedup_by(|left, right| left.0 == right.0);
+
+        let mut report = HomeGroupRepairReport {
+            examined: accounts.len(),
+            ..HomeGroupRepairReport::default()
+        };
+
+        for (account, recorded_home, uid) in accounts {
+            let expected_home = Self::home_directory(&account);
+            if recorded_home != expected_home {
+                self.refuse_home(
+                    &mut report,
+                    account,
+                    recorded_home,
+                    HomeGroupRepairRefusal::HomeNotAtExpectedPath,
+                );
+                continue;
+            }
+
+            let Some(metadata) = self.host.home_metadata(&expected_home)? else {
+                self.refuse_home(
+                    &mut report,
+                    account,
+                    expected_home,
+                    HomeGroupRepairRefusal::HomeMissing,
+                );
+                continue;
+            };
+
+            if metadata.is_symlink {
+                self.refuse_home(
+                    &mut report,
+                    account,
+                    expected_home,
+                    HomeGroupRepairRefusal::Symlink,
+                );
+                continue;
+            }
+
+            if !metadata.is_directory {
+                self.refuse_home(
+                    &mut report,
+                    account,
+                    expected_home,
+                    HomeGroupRepairRefusal::NotADirectory,
+                );
+                continue;
+            }
+
+            if metadata.device != home_root_metadata.device {
+                self.refuse_home(
+                    &mut report,
+                    account,
+                    expected_home,
+                    HomeGroupRepairRefusal::DifferentMount,
+                );
+                continue;
+            }
+
+            if metadata.owner_uid != uid {
+                self.refuse_home(
+                    &mut report,
+                    account,
+                    expected_home,
+                    HomeGroupRepairRefusal::OwnerMismatch,
+                );
+                continue;
+            }
+
+            if metadata.group_gid == web_server_gid {
+                report.already_correct += 1;
+                continue;
+            }
+
+            let repaired = RepairedHome {
+                account,
+                home: expected_home,
+            };
+            if report_only {
+                report.would_repair.push(repaired);
+                continue;
+            }
+
+            self.expect_success(
+                self.distro.chgrp_binary(),
+                &[
+                    "--no-dereference",
+                    self.distro.web_server_group(),
+                    &repaired.home,
+                ],
+            )?;
+            report.repaired.push(repaired);
+        }
+
+        Ok(report)
+    }
+
+    /// The numeric id of the web server's group, read with `getent group`.
+    ///
+    /// Asked fresh on every call rather than cached: the group is looked up
+    /// once per repair pass, and a cached id would survive the group being
+    /// removed and recreated with a different number, which is exactly the
+    /// case [`crate::db`] and `agent-core`'s own id-resolution types refuse to
+    /// let a caller cache around.
+    ///
+    /// # Errors
+    ///
+    /// [`AccountError::CommandFailed`] when `getent` exits non-zero — most
+    /// plausibly because the group does not exist, i.e. no web server is
+    /// installed — and [`AccountError::UnreadableOutput`] when its row is not
+    /// `<name>:<password>:<gid>:…` or the gid field is not a number.
+    fn web_server_group_gid(&self) -> Result<u32, AccountError> {
+        let program = self.distro.getent_binary();
+        let group = self.distro.web_server_group();
+        let outcome = self.host.run(program, &[GROUP_DATABASE, group])?;
+        if outcome.status != 0 {
+            return Err(AccountError::command_failed(program, &outcome));
+        }
+
+        let unreadable = || AccountError::UnreadableOutput {
+            program: program.to_owned(),
+        };
+
+        // The NAME is matched too, and not merely the gid field — the same
+        // defence `stored_password` and `login_locked` take against a future
+        // edit that drops the argument: `getent group` with no key lists
+        // every group on the host, and matching only a field position would
+        // read the first ROW'S gid as this one's.
+        let mut fields = outcome.stdout.lines().next().unwrap_or_default().split(':');
+        match (fields.clone().next(), fields.nth(GROUP_GID_FIELD)) {
+            (Some(name), Some(field)) if name == group => field.parse().map_err(|_| unreadable()),
+            _ => Err(unreadable()),
+        }
+    }
+
+    /// Adds `account` to the report's refusals and says so in the log.
+    ///
+    /// The log line exists for the same reason `ops::db::repair_grants`'s own
+    /// `refuse` writes one: a refusal is the answer for a home this repair
+    /// cannot classify with certainty, and an operator reading the agent's own
+    /// journal must be able to see that an account's home was left alone and
+    /// why. An account name and a path are not secrets — both are already
+    /// visible to any local user who can run `ls /home` — and neither is a
+    /// credential.
+    fn refuse_home(
+        &self,
+        report: &mut HomeGroupRepairReport,
+        account: AccountName,
+        home: String,
+        reason: HomeGroupRepairRefusal,
+    ) {
+        tracing::warn!(
+            account = account.as_str(),
+            home = home.as_str(),
+            "home group repair refused an account it cannot classify: {reason}"
+        );
+        report.refused.push(RefusedHome {
+            account,
+            home,
+            reason,
+        });
     }
 
     /// Makes the account's home traversable by the web server, and by nothing else.

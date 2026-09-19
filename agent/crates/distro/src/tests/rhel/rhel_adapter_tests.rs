@@ -64,6 +64,13 @@ fn the_rhel_family_serves_ssh_from_the_sshd_unit() {
     assert_eq!(RhelAdapter.ssh_service(), "sshd");
 }
 
+/// The RHEL family answers the same `sshd_config` path as the Debian family —
+/// the installer writes to this literal path on both, unconditionally.
+#[test]
+fn the_rhel_family_configures_sshd_at_the_documented_path() {
+    assert_eq!(RhelAdapter.sshd_config_path(), "/etc/ssh/sshd_config");
+}
+
 /// The panel reports exactly the four units it manages on the RHEL family.
 ///
 /// A literal list, not a comparison against the accessors it is built from:

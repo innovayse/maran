@@ -28,6 +28,10 @@ public sealed class StubAgentMonitorClient : IAgentMonitorClient
     public Result<IReadOnlyList<AgentAccountDiskUsage>> DiskUsage { get; set; } =
         Result<IReadOnlyList<AgentAccountDiskUsage>>.Ok([]);
 
+    /// <summary>What a request for the SFTP jail status is answered with.</summary>
+    public Result<AgentSftpJailStatus> SftpJailStatus { get; set; } =
+        Result<AgentSftpJailStatus>.Ok(new AgentSftpJailStatus(false, []));
+
     /// <inheritdoc />
     public Task<Result<AgentHostMetrics>> GetHostMetricsAsync(CancellationToken cancellationToken)
     {
@@ -45,5 +49,11 @@ public sealed class StubAgentMonitorClient : IAgentMonitorClient
         CancellationToken cancellationToken)
     {
         return Task.FromResult(DiskUsage);
+    }
+
+    /// <inheritdoc />
+    public Task<Result<AgentSftpJailStatus>> GetSftpJailStatusAsync(CancellationToken cancellationToken)
+    {
+        return Task.FromResult(SftpJailStatus);
     }
 }

@@ -210,4 +210,61 @@ public sealed class AgentAccountsClient : IAgentAccountsClient
             _ => Result<AccountUsageDto>.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
         };
     }
+
+    /// <inheritdoc/>
+    public async Task<Result<HomeGroupRepairReportDto>> RepairHomeGroupsAsync(
+        bool reportOnly,
+        CancellationToken cancellationToken)
+    {
+        var request = new RepairAccountHomeGroupsRequest { ReportOnly = reportOnly };
+        var response = await _invoker.RepairAccountHomeGroupsAsync(request, cancellationToken);
+
+        return response.ResultCase switch
+        {
+            RepairAccountHomeGroupsResponse.ResultOneofCase.Ok => Result<HomeGroupRepairReportDto>.Ok(
+                ToReport(response.Ok)),
+            RepairAccountHomeGroupsResponse.ResultOneofCase.Error => Result<HomeGroupRepairReportDto>.Fail(
+                AgentErrorTranslator.ToError(_logger, response.Error, nameof(RepairHomeGroupsAsync))),
+            _ => Result<HomeGroupRepairReportDto>.Fail(
+                Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
+        };
+    }
+
+    /// <summary>Projects the wire census onto the panel's DTOs.</summary>
+    /// <param name="ok">The success payload of <c>RepairAccountHomeGroups</c>.</param>
+    /// <returns>
+    /// The same four buckets and the same two counts, in the order the agent sent them. Nothing is
+    /// merged and nothing is dropped: the four buckets sum to <c>examined</c>, and a mapping that
+    /// folded "would repair" into "repaired" would make a report-only pass indistinguishable from one
+    /// that acted.
+    /// </returns>
+    private static HomeGroupRepairReportDto ToReport(RepairAccountHomeGroupsOk ok)
+    {
+        return new HomeGroupRepairReportDto(
+            ok.Examined,
+            ok.AlreadyCorrect,
+            ok.Repaired.Select(ToRepaired).ToList(),
+            ok.WouldRepair.Select(ToRepaired).ToList(),
+            ok.Refused.Select(ToRefused).ToList());
+    }
+
+    /// <summary>Projects one repaired — or would-be-repaired — home.</summary>
+    /// <param name="home">The wire row.</param>
+    /// <returns>The panel's carrier for it.</returns>
+    private static RepairedHomeDto ToRepaired(RepairedHome home)
+    {
+        return new RepairedHomeDto(home.AccountUsername, home.Home);
+    }
+
+    /// <summary>Projects one refused account, reason included.</summary>
+    /// <param name="home">The wire row.</param>
+    /// <returns>
+    /// The panel's carrier for it. The account name and path are carried through UNCHANGED — a
+    /// refused row is refused because it is not a home this panel's own account creation produced, so
+    /// tidying it here would hide the very thing an operator has to look at.
+    /// </returns>
+    private static RefusedHomeDto ToRefused(RefusedHome home)
+    {
+        return new RefusedHomeDto(home.AccountUsername, home.Home, home.Reason.ToString());
+    }
 }

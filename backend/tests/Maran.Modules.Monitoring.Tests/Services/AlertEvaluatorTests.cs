@@ -39,7 +39,7 @@ public sealed class AlertEvaluatorTests
 
         for (var observation = 0; observation < 20; observation++)
         {
-            await evaluator.EvaluateAsync(95.0, [], Start.AddMinutes(observation), CancellationToken.None);
+            await evaluator.EvaluateAsync(95.0, [], null, Start.AddMinutes(observation), CancellationToken.None);
         }
 
         var mail = Assert.IsType<SendMailRequested>(Assert.Single(scopes.Bus.Published));
@@ -65,11 +65,11 @@ public sealed class AlertEvaluatorTests
 
         for (var observation = 0; observation < AlertState.BreachesBeforeAlert; observation++)
         {
-            await evaluator.EvaluateAsync(95.0, [], Start.AddMinutes(observation), CancellationToken.None);
+            await evaluator.EvaluateAsync(95.0, [], null, Start.AddMinutes(observation), CancellationToken.None);
         }
 
-        await evaluator.EvaluateAsync(40.0, [], Start.AddMinutes(30), CancellationToken.None);
-        await evaluator.EvaluateAsync(40.0, [], Start.AddMinutes(31), CancellationToken.None);
+        await evaluator.EvaluateAsync(40.0, [], null, Start.AddMinutes(30), CancellationToken.None);
+        await evaluator.EvaluateAsync(40.0, [], null, Start.AddMinutes(31), CancellationToken.None);
 
         Assert.Equal(2, scopes.Bus.Published.Count);
         Assert.Single(audit.Entries, entry =>
@@ -91,7 +91,7 @@ public sealed class AlertEvaluatorTests
         for (var observation = 0; observation < 20; observation++)
         {
             await evaluator.EvaluateAsync(
-                AlertEvaluator.DiskUsageThresholdPercent, [], Start.AddMinutes(observation), CancellationToken.None);
+                AlertEvaluator.DiskUsageThresholdPercent, [], null, Start.AddMinutes(observation), CancellationToken.None);
         }
 
         Assert.Empty(scopes.Bus.Published);
@@ -114,7 +114,7 @@ public sealed class AlertEvaluatorTests
 
         for (var observation = 0; observation < 20; observation++)
         {
-            await evaluator.EvaluateAsync(null, [], Start.AddMinutes(observation), CancellationToken.None);
+            await evaluator.EvaluateAsync(null, [], null, Start.AddMinutes(observation), CancellationToken.None);
         }
 
         Assert.Empty(scopes.Bus.Published);
@@ -141,7 +141,7 @@ public sealed class AlertEvaluatorTests
 
         for (var observation = 0; observation < 30; observation++)
         {
-            await evaluator.EvaluateAsync(null, [unknown], Start.AddMinutes(observation), CancellationToken.None);
+            await evaluator.EvaluateAsync(null, [unknown], null, Start.AddMinutes(observation), CancellationToken.None);
         }
 
         Assert.Empty(scopes.Bus.Published);
@@ -163,7 +163,7 @@ public sealed class AlertEvaluatorTests
 
         for (var observation = 0; observation < 20; observation++)
         {
-            await evaluator.EvaluateAsync(null, [stopped], Start.AddMinutes(observation), CancellationToken.None);
+            await evaluator.EvaluateAsync(null, [stopped], null, Start.AddMinutes(observation), CancellationToken.None);
         }
 
         Assert.Single(scopes.Bus.Published);
@@ -171,6 +171,86 @@ public sealed class AlertEvaluatorTests
         {
             return entry.Action == AuditActions.AlertRaised && entry.Subject == "ServiceStopped:WebServer";
         });
+    }
+
+    /// <summary>
+    /// A drifted SFTP jail block raises once after ten consecutive checks, exactly like the disk and
+    /// a stopped service — the exact defect release-readiness issue #28 item E names, now observed.
+    /// </summary>
+    [Fact]
+    public async Task A_drifted_sftp_jail_reported_for_ten_checks_raises_once()
+    {
+        await using var dbContext = MonitoringTestContext.Create();
+        var recipients = new StubAlertRecipientDirectory("ops@example.com");
+        var audit = new RecordingAuditWriter();
+        using var scopes = new TestScopeFactory(dbContext, new StubAgentMonitorClient(), recipients, audit);
+        var evaluator = scopes.Resolve<AlertEvaluator>();
+
+        var drifted = new AgentSftpJailStatus(true, ["forcecommand internal-sftp"]);
+
+        for (var observation = 0; observation < 20; observation++)
+        {
+            await evaluator.EvaluateAsync(null, [], drifted, Start.AddMinutes(observation), CancellationToken.None);
+        }
+
+        var mail = Assert.IsType<SendMailRequested>(Assert.Single(scopes.Bus.Published));
+        Assert.Equal("ops@example.com", mail.Recipient);
+        Assert.Single(audit.Entries, entry =>
+        {
+            return entry.Action == AuditActions.AlertRaised
+                && entry.Subject == $"SftpJailDrifted:{AlertEvaluator.SftpJailSubject}";
+        });
+    }
+
+    /// <summary>A jail block restored after having drifted sends the resolve mail once.</summary>
+    [Fact]
+    public async Task A_restored_sftp_jail_sends_one_resolve_mail()
+    {
+        await using var dbContext = MonitoringTestContext.Create();
+        var recipients = new StubAlertRecipientDirectory("ops@example.com");
+        var audit = new RecordingAuditWriter();
+        using var scopes = new TestScopeFactory(dbContext, new StubAgentMonitorClient(), recipients, audit);
+        var evaluator = scopes.Resolve<AlertEvaluator>();
+
+        var drifted = new AgentSftpJailStatus(true, ["forcecommand internal-sftp"]);
+        var intact = new AgentSftpJailStatus(false, []);
+
+        for (var observation = 0; observation < AlertState.BreachesBeforeAlert; observation++)
+        {
+            await evaluator.EvaluateAsync(null, [], drifted, Start.AddMinutes(observation), CancellationToken.None);
+        }
+
+        await evaluator.EvaluateAsync(null, [], intact, Start.AddMinutes(30), CancellationToken.None);
+        await evaluator.EvaluateAsync(null, [], intact, Start.AddMinutes(31), CancellationToken.None);
+
+        Assert.Equal(2, scopes.Bus.Published.Count);
+        Assert.Single(audit.Entries, entry =>
+        {
+            return entry.Action == AuditActions.AlertResolved
+                && entry.Subject == $"SftpJailDrifted:{AlertEvaluator.SftpJailSubject}";
+        });
+    }
+
+    /// <summary>
+    /// A failed call to the agent is not evidence about the jail — it must neither advance nor reset
+    /// the alert, for the same reason an unmeasurable filesystem does not.
+    /// </summary>
+    [Fact]
+    public async Task A_failed_sftp_jail_check_raises_nothing_and_creates_no_row()
+    {
+        await using var dbContext = MonitoringTestContext.Create();
+        var recipients = new StubAlertRecipientDirectory("ops@example.com");
+        var audit = new RecordingAuditWriter();
+        using var scopes = new TestScopeFactory(dbContext, new StubAgentMonitorClient(), recipients, audit);
+        var evaluator = scopes.Resolve<AlertEvaluator>();
+
+        for (var observation = 0; observation < 20; observation++)
+        {
+            await evaluator.EvaluateAsync(null, [], null, Start.AddMinutes(observation), CancellationToken.None);
+        }
+
+        Assert.Empty(scopes.Bus.Published);
+        Assert.Empty(dbContext.AlertStates);
     }
 
     /// <summary>An alert raised on a panel with no mail settings is journalled as raised AND as skipped.</summary>
@@ -192,7 +272,7 @@ public sealed class AlertEvaluatorTests
 
         for (var observation = 0; observation < 20; observation++)
         {
-            await evaluator.EvaluateAsync(99.0, [], Start.AddMinutes(observation), CancellationToken.None);
+            await evaluator.EvaluateAsync(99.0, [], null, Start.AddMinutes(observation), CancellationToken.None);
         }
 
         Assert.Empty(scopes.Bus.Published);

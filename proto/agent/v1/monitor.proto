@@ -19,6 +19,15 @@ service MonitorService {
   // Reads current disk usage for every hosting account, for comparison
   // against each account's quota.
   rpc GetAccountsDiskUsage(GetAccountsDiskUsageRequest) returns (GetAccountsDiskUsageResponse);
+
+  // Reads the live sshd configuration and reports whether the installer's
+  // `Match Group` block — the block that turns membership of the SFTP group
+  // into a jailed, shell-less, port-forward-less login — is present and
+  // intact. Nothing here is re-checked by any other rpc: a package upgrade or
+  // a hand edit that removes this block silently turns every SFTP login on
+  // the host into a full shell session, and this is the panel's only way to
+  // notice.
+  rpc GetSftpJailStatus(GetSftpJailStatusRequest) returns (GetSftpJailStatusResponse);
 }
 
 message GetHostMetricsRequest {}
@@ -174,4 +183,38 @@ message AccountDiskUsage {
   // never "no quota"; the field is kept rather than removed because removing
   // it is a breaking change (rules/proto.md).
   uint64 quota_bytes = 3;
+}
+
+message GetSftpJailStatusRequest {}
+
+message GetSftpJailStatusResponse {
+  oneof result {
+    GetSftpJailStatusOk ok = 1;
+    AgentError error = 2;
+  }
+}
+
+message GetSftpJailStatusOk {
+  // Whether the installer's block is present and intact.
+  SftpJailState state = 1;
+  // What is missing, in the installer's own words — the literal marker text
+  // or `keyword value` directive pairs — so an operator can compare it
+  // directly against `installer/lib/86-sftp.sh` rather than against a
+  // paraphrase. Empty when `state` is SFTP_JAIL_STATE_INTACT.
+  repeated string missing = 2;
+}
+
+// Whether the live sshd configuration still carries the block the installer
+// wrote. Read from the file itself, not from a live connection's effective
+// configuration — see the agent's own doc comment on `MonitorHost::
+// read_sshd_config` for exactly what that can and cannot prove.
+enum SftpJailState {
+  SFTP_JAIL_STATE_UNSPECIFIED = 0;
+  // The block is present between its own marker comments and every
+  // directive it is supposed to carry is still there with its original
+  // value.
+  SFTP_JAIL_STATE_INTACT = 1;
+  // The block is missing, or present but missing one or more of its
+  // directives — see `GetSftpJailStatusOk.missing` for which.
+  SFTP_JAIL_STATE_DRIFTED = 2;
 }

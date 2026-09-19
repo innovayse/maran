@@ -46,4 +46,17 @@ public interface IAgentMonitorClient
     /// </remarks>
     Task<Result<IReadOnlyList<AgentAccountDiskUsage>>> GetAccountsDiskUsageAsync(
         CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Reads the live <c>sshd_config</c> and reports whether the installer's own <c>Match Group</c>
+    /// block — the block that jails every SFTP login — is still present and intact.
+    /// </summary>
+    /// <param name="cancellationToken">Cancellation for the call.</param>
+    /// <returns>The finding, or a typed failure when the agent could not read the file at all.</returns>
+    /// <remarks>
+    /// A failure here is NOT evidence that the jail is broken — it is the absence of any evidence at
+    /// all, because the agent never got to ask the question. A caller must not treat a failed call
+    /// the same way it treats <see cref="AgentSftpJailStatus.IsDrifted"/> being <c>true</c>.
+    /// </remarks>
+    Task<Result<AgentSftpJailStatus>> GetSftpJailStatusAsync(CancellationToken cancellationToken);
 }

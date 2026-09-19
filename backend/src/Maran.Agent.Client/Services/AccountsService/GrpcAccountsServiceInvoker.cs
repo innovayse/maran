@@ -71,4 +71,12 @@ internal sealed class GrpcAccountsServiceInvoker : IAccountsServiceInvoker
     {
         return await _client.GetAccountUsageAsync(request, cancellationToken: cancellationToken);
     }
+
+    /// <inheritdoc/>
+    public async Task<RepairAccountHomeGroupsResponse> RepairAccountHomeGroupsAsync(
+        RepairAccountHomeGroupsRequest request,
+        CancellationToken cancellationToken)
+    {
+        return await _client.RepairAccountHomeGroupsAsync(request, cancellationToken: cancellationToken);
+    }
 }

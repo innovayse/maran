@@ -64,6 +64,14 @@ fn the_debian_family_serves_ssh_from_the_ssh_unit() {
     assert_eq!(DebianAdapter.ssh_service(), "ssh");
 }
 
+/// The installer's `86-sftp.sh` appends its `Match Group` block to this exact
+/// path — a drift check that read a different file would find nothing wrong
+/// with a config nobody wrote to.
+#[test]
+fn the_debian_family_configures_sshd_at_the_documented_path() {
+    assert_eq!(DebianAdapter.sshd_config_path(), "/etc/ssh/sshd_config");
+}
+
 /// The panel reports exactly the four units it manages on the Debian family.
 ///
 /// A literal list, not a comparison against the accessors it is built from:

@@ -59,6 +59,11 @@ public sealed class AccountsModule : IPanelModule
         // it reads the request's own DbContext and applies the request's own tenant scope.
         services.AddScoped<IAccountDirectory, AccountDirectory>();
 
+        // Scoped like the Databases module's own refusal resolver: it resolves the sentences an
+        // administrator reads against IStringLocalizer<DisplayNames>, which is culture-sensitive per
+        // request.
+        services.AddScoped<HomeGroupRepairRefusalDisplayNames>();
+
         // Registers this module's resource managers into the shared pool the panel-wide
         // ResxErrorTextProvider resolves error codes and Manifest.DisplayNameKey against
         // (rules/csharp.md "The backend owns all user-facing message text") — that mechanism is

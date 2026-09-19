@@ -104,6 +104,68 @@ pub trait MonitorHost: Send + Sync {
     /// read.
     fn read_password_database(&self, path: &str) -> Result<String, MonitorError>;
 
+    /// The text of the OpenSSH server's main configuration file.
+    ///
+    /// `path` is [`maran_distro::DistroAdapter::sshd_config_path`], passed in
+    /// for the same reason `read_password_database` takes a path rather than
+    /// knowing one: this seam names no platform location of its own.
+    ///
+    /// **What reading this file can prove, and what it cannot.** The only
+    /// question this area asks of it is whether the installer's own
+    /// `Match Group` block — delimited by its own marker comments — is still
+    /// present in THIS file, between them, verbatim. That answers "was this
+    /// exact block removed or hand-edited", which is the drift the panel has
+    /// no way to see today. It does NOT prove that the block is what sshd
+    /// will actually enforce for a real login, and it does NOT resolve
+    /// `Include` at all — this method reads exactly the one file
+    /// `sshd_config_path` names and nothing it pulls in. Two consequences of
+    /// that, in the two directions that matter:
+    ///
+    /// - If the block were ever relocated into an `Include`d drop-in instead
+    ///   of the main file — not what `installer/lib/86-sftp.sh` does today,
+    ///   which appends directly to the main file, but a hand edit could move
+    ///   it there — this check would not find it and would report drift on a
+    ///   host that may still be jailing logins correctly. A FALSE POSITIVE,
+    ///   and the safe direction: it pages an operator to go look rather than
+    ///   staying quiet.
+    /// - An `Include`d drop-in can still change what governs a connection
+    ///   without touching this file at all: both families load
+    ///   `Include sshd_config.d/*.conf` from the TOP of `sshd_config`, and an
+    ///   OpenSSH `Match` block that is not closed by another `Match` line
+    ///   before its own file ends keeps applying to whatever text follows it
+    ///   after the `Include` splices back in — which could be this file's
+    ///   own appended block. This check reads only the block's own literal
+    ///   text and would report it Intact in that case, because the text IS
+    ///   unchanged; what actually governs a connection could differ. This is
+    ///   the FALSE NEGATIVE direction, and it is the accepted gap named in
+    ///   this feature's threat note — closing it means re-implementing
+    ///   OpenSSH's own `Include` resolution and `Match` precedence, which was
+    ///   judged out of proportion to the README's actual defect (a REMOVED
+    ///   block, not a shadowed one).
+    ///
+    /// Asking sshd itself for its effective configuration (`sshd -T -C
+    /// user=…`) was tried first and rejected — it evaluates a `Match Group`
+    /// condition only for a connection naming a REAL system user who is
+    /// already a member of the group, so the check would need either an
+    /// existing SFTP login (none may exist on a freshly installed host with
+    /// no accounts yet) or a login created solely to ask the question, which
+    /// would be a permanent, unrequested change to the host's account
+    /// inventory for a monitoring side effect — worse than the drift it
+    /// detects. This was measured, not assumed: `sshd -T` without `-C` was
+    /// run against a real `sshd` in a disposable container with the
+    /// installer's exact block appended, and it printed the file's GLOBAL
+    /// defaults only — zero occurrences of `match`, `chrootdirectory` or
+    /// `forcecommand` — while `sshd -T -C user=<member>,host=…,addr=…,
+    /// laddr=…,lport=22` for a real member of the group correctly showed the
+    /// block's directives in effect. `-C` is therefore not a way out of
+    /// needing a real group member.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`MonitorError::SshdConfigUnavailable`] when the file cannot be
+    /// read.
+    fn read_sshd_config(&self, path: &str) -> Result<String, MonitorError>;
+
     /// Bytes the tree at `path` occupies.
     ///
     /// Infallible by design: a path that is not there, or that cannot be read,

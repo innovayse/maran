@@ -64,4 +64,22 @@ public interface IAgentAccountsClient
     /// <param name="cancellationToken">Cancellation for the call.</param>
     /// <returns>The usage, or a typed failure.</returns>
     Task<Result<AccountUsageDto>> GetUsageAsync(string username, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Re-groups every hosting account's home directory to the web server's group where it is not
+    /// already that group (issue #28 item E).
+    /// </summary>
+    /// <remarks>
+    /// Host-wide, like <c>RepairGrantsAsync</c>: it takes no account name and acts on every hosting
+    /// account on the host at once, because the defect it repairs — a home group left as the account's
+    /// own rather than the web server's — is a property of how an account was created, not of any one
+    /// caller's account.
+    /// </remarks>
+    /// <param name="reportOnly">
+    /// When true, nothing is changed: the agent classifies every home and reports what it WOULD
+    /// re-group.
+    /// </param>
+    /// <param name="cancellationToken">Cancellation for the call.</param>
+    /// <returns>The census, or a typed failure.</returns>
+    Task<Result<HomeGroupRepairReportDto>> RepairHomeGroupsAsync(bool reportOnly, CancellationToken cancellationToken);
 }
