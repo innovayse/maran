@@ -156,6 +156,20 @@ pub enum AccountError {
         reason: String,
     },
 
+    /// The password database or a home directory's own metadata could not be
+    /// read, so `RepairHomeGroups` cannot classify what it examined.
+    ///
+    /// Its own variant rather than [`Self::CommandFailed`], because nothing
+    /// was run and refused — the failure is a filesystem read, and the two
+    /// carry different information to whoever reads them. Never folded into
+    /// a report as if nothing needed fixing: an account this repair could not
+    /// even inspect is not the same as one whose home is already correct.
+    #[error("could not inspect a home directory or the password database: {reason}")]
+    HomeInspection {
+        /// What could not be read.
+        reason: String,
+    },
+
     /// The account's crontab could not be read, so its cron cannot be reported
     /// on.
     ///

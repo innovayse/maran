@@ -1,5 +1,6 @@
 //! The seam between account operations and the machine they run on.
 
+use crate::accounts::model::home_metadata::HomeMetadata;
 use crate::accounts::{AccountError, CommandOutcome};
 
 /// The operating-system operations the account module needs.
@@ -37,4 +38,30 @@ pub trait SystemHost: Send + Sync {
     ///
     /// Returns an error when the tree cannot be measured.
     fn directory_size(&self, path: &str) -> Result<u64, AccountError>;
+
+    /// Reads the host's local password database, whole.
+    ///
+    /// The one source `RepairHomeGroups` enumerates hosting accounts from —
+    /// the same file and the same parse
+    /// (`maran_agent_core::utils::system_accounts::system_accounts`) the
+    /// monitoring area's disk-usage figures already use, so "which accounts
+    /// exist" answers identically everywhere it is asked.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`AccountError::HomeInspection`] when the database at `path`
+    /// cannot be read.
+    fn read_password_database(&self, path: &str) -> Result<String, AccountError>;
+
+    /// Reads what the filesystem itself says about `path`, with `lstat` and
+    /// never `stat` — a symlink is reported as itself, not followed.
+    ///
+    /// `None` when nothing exists at `path`; that is not an error, it is one of
+    /// the answers a home repair predicate needs to hear.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`AccountError::HomeInspection`] when the path exists but its
+    /// metadata could not be read for any other reason.
+    fn home_metadata(&self, path: &str) -> Result<Option<HomeMetadata>, AccountError>;
 }
