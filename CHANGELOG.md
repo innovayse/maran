@@ -82,6 +82,17 @@ otherwise find out the hard way.
 - **No web database manager.** There is no phpMyAdmin or equivalent; it is planned as a separate
   deployable with its own vhost and authentication rather than partially done here, so an operator
   who needs one does not have it.
+- **The database-grant escape is forward-only.** A database-level `GRANT`'s name is a LIKE pattern,
+  not an identifier, and an unescaped `_` in it matches any single character — so a build before
+  this fix could grant an account access it never issued, to a same-length account whose name
+  collided at the right position. The fix escapes every grant `create_database` writes from now on;
+  it does **not** touch a row a previous build already wrote, because rewriting a live customer's
+  access with nobody watching is worse than leaving it as found. A host that created databases
+  before this change carries unescaped rows until an administrator runs the repair from the panel's
+  Databases screen (`RepairDatabaseGrants`, `agent/crates/ops/src/db/repair_grants.rs`), which
+  reports what it would change before changing anything. See
+  `docs/superpowers/notes/2026-09-13-grant-pattern-threat-note.md` and
+  `docs/superpowers/notes/2026-09-13-grant-repair-threat-note.md`.
 - **FTPS ships, and this entry used to say it did not.** The line above read "No FTPS … File access
   is SFTP only — there is no FTP daemon installed and no second listening port … FTPS is tracked as
   issue #20", and every clause of it was false by the time it was read. The correction is stated

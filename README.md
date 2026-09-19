@@ -114,9 +114,16 @@ layer in the agent, so support for further systems is additive.
 
 Production installs are native — no containers. This paragraph used to add "no extra daemons
 beyond PostgreSQL and the two panel processes", which was never true and is the kind of sentence an
-operator reasons about their own attack surface with. The installer installs and starts **nginx**
-(step 20), **PostgreSQL** (30), **MariaDB** (85) and **cron** (88), and installs **vsftpd** switched
-off (89) — `grep -n 'pkg_install' installer/lib/*.sh` names every step that installs packages. What
+operator reasons about their own attack surface with. The installer installs **nginx** and
+**PostgreSQL** as OS packages in step 20 (`installer/lib/20-dependencies.sh`, which names both in
+its own header and in the package list for each family), configures nginx at step 80, and installs
+and starts **MariaDB** (85), **nftables** (87) and **cron** (88), with **vsftpd** installed switched
+off (89) — `grep -n 'pkg_install' installer/lib/*.sh` names every step that installs packages. This
+list previously left nftables out altogether, even though `installer/lib/87-firewall.sh:640` installs
+it the same way as the rest. A correction in the other direction was attempted and reverted: a pass
+moved nginx from step 20 to step 80 on the reasoning that 80 is the nginx step, which confuses
+installing a package with configuring it — step 20 is where `nginx` appears in the package list, and
+the claim as it originally stood was right. What
 the rule in `rules/architecture.md` actually says is narrower and does hold: *Maran itself* is three
 processes — `maran-api`, `maran-agent` and PostgreSQL — and the panel adds no broker and no sidecar
 of its own. The rest are the services a hosting panel exists to manage.
@@ -127,6 +134,31 @@ The installer verifies the system before changing anything, installs signed rele
 artifacts, hardens the systemd units, and prints a one-time link for creating the first
 administrator in the browser. Updates are signed, taken in one click or via the `maran`
 command line tool, and reversible with an automatic database dump and a rollback command.
+
+### What this puts on your server
+
+The sections above answer this piecemeal; here it is in one place, so an operator can see the
+whole attack surface without reading the installer scripts. Every row is a fact about this tree,
+not a description — cite the path if it stops being true.
+
+| Process | Runs as | Listens on | Stores |
+|---|---|---|---|
+| `maran-agent` | root — the only process the panel itself runs as root (`installer/systemd/maran-agent.service`, `--allow-uid`, `agent/crates/agent/src/main.rs:94`) | a unix socket only, `/run/maran/agent.sock`, narrowed to one caller uid; no network of any kind | its own render/config/state under `/etc/maran`, `/var/lib/maran*`; installer and agent logs under `/var/log/maran` |
+| `maran-api` | an unprivileged system user, `maran` (rules/security.md §8; `installer/lib/60-config.sh`) | a unix socket only, `/run/maran-api/api.sock` (`installer/panel.env.example:62`, `ASPNETCORE_URLS=http://unix:...`) — opens no TCP port itself | nothing of its own on disk; all panel state is in PostgreSQL |
+| nginx — panel vhost | master: root (nginx's own model); workers: nginx's own unprivileged user | **TCP 8443, TLS only.** There is no port 80 server block for the panel and nothing to redirect from (`installer/nginx/maran.conf`, closing comment) | `/var/log/maran/nginx-{access,error}.log`, with the access log's format changed specifically so it cannot record a query string (same file, `log_format maran_no_query`) |
+| nginx — customer sites | same nginx process | TCP 80, and TCP 443 with a certificate, per site (`agent/crates/templates/templates/nginx/*.j2`) | the site's own document root inside the account's home |
+| PostgreSQL | its own `postgres` user, not root | **no TCP at all** — `listen_addresses=''`, enforced and then verified against the running server (`installer/lib/30-postgresql.sh:105-108,164-166`) — unix socket, reachable only from `maran-api` | every module's schema: accounts, sessions, audit journal, site and certificate metadata, plans |
+| MariaDB/MySQL | its own `mysql`/`mariadb` user | the agent authenticates as `root@localhost` over the unix socket with no credential of any kind (`installer/lib/85-mysql.sh`); every account and grant the panel creates is scoped to `'<user>'@'localhost'`, never `'@'%'` (`agent/crates/ops/src/db/create_database.rs:25`) | customer databases; the panel keeps no copy of a database password once it has been shown |
+| php-fpm | one pool per account, running as that account's own Linux user, never root | a unix socket per pool under `/run/maran/php` | nothing beyond the pool's own state; the account's files live in its home |
+| sshd (SFTP) | root, per the operating system's own default — unmodified by this installer beyond the one config block below | TCP 22, already open on any server reachable by SSH | the one `Match Group` block making membership of the SFTP group a chroot into a jail — see "What ships with those" below for why nothing re-checks it |
+| vsftpd (FTPS) | root at startup, per the daemon's own model; **installed but not running** until switched on (see below) | nothing until an administrator turns it on; then TCP 21 plus the configured passive range | account jails under `/var/lib/maran-ftps`, bind-mounting the account's real home |
+| cron | root, the system service — untouched by the installer beyond scheduling per-account jobs | none | each account's own crontab |
+| nftables | not a daemon — no listening socket of its own; the kernel holds the loaded ruleset | n/a | the ruleset file at `AgentPaths::nftables_ruleset_path()`, `/etc/nftables.conf` (Debian) or `/etc/sysconfig/nftables.conf` (RHEL) (`installer/lib/87-firewall.sh:109-113`) |
+
+The only two processes root-owned **because Maran put them there** are `maran-agent` and, when an
+administrator switches it on, `vsftpd`. Every other root process on this list is a Linux server's
+ordinary furniture (`sshd`, `cron`, the nginx and MariaDB/PostgreSQL start-up sequence dropping to
+their own users) that this installer configures rather than introduces.
 
 ## Repository layout
 
@@ -240,6 +272,19 @@ What ships with those, said here rather than left to be discovered:
   refused by the PAM stack whether or not they hold a password. SFTP remains the default.
 - **There is no web database manager yet.** The phpMyAdmin-style module described above is a
   separate deployable with its own vhost and authentication, and it is not in this release.
+- **A database grant an earlier build issued keeps its wildcard pattern until an administrator
+  repairs it.** A database-level `GRANT`'s name is a LIKE-style pattern, and every `_` in it matches
+  any single character; a build before this fix escaped none of them, so an account whose name
+  collides at the same length as another's could reach that account's database. The escape now
+  written by `create_database` is forward-only — there is deliberately no migration, because one
+  would rewrite live customer access with nobody watching — so a host that had already created
+  databases carries unescaped rows in `mysql.db` until the repair in the panel's Databases screen is
+  run against it (`RepairDatabaseGrants`, `agent/crates/ops/src/db/repair_grants.rs`). It reports
+  what it would change before it changes anything, touches only rows it recognises as its own, and
+  leaves everything else untouched. See
+  `docs/superpowers/notes/2026-09-13-grant-pattern-threat-note.md` for the collision and
+  `docs/superpowers/notes/2026-09-13-grant-repair-threat-note.md` for the repair itself — both
+  carry an outstanding second review.
 - **A database password is shown once and never stored.** Losing it means resetting it, not
   looking it up; the same is true of an SFTP login's password.
 - **Dropping a database is final.** Nothing is backed up first.
