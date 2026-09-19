@@ -54,6 +54,34 @@ service DbService {
 
   // Reads the on-disk size of a database.
   rpc GetDatabaseSize(GetDatabaseSizeRequest) returns (GetDatabaseSizeResponse);
+
+  // Added 2026-09-13. Rewrites the grants this agent issued before it escaped
+  // the database name, and refuses everything else.
+  //
+  // A database-level GRANT's database name is a LIKE-style pattern: `_` matches
+  // any single character and backtick-quoting does not turn it off. Every name
+  // here is `<account>_<suffix>`, so every grant an older agent issued is stored
+  // in mysql.db as a pattern, and a customer holding a colliding legal account
+  // name reads AND writes a neighbour's database with their own credential —
+  // measured against a real MariaDB, see
+  // docs/superpowers/notes/2026-09-13-grant-pattern-threat-note.md. The escape
+  // shipped for new grants; the rows already on a host were never rewritten,
+  // and this rpc is that rewrite.
+  //
+  // Host-wide and NOT per account, deliberately: the defect is a property of
+  // the server's grant table, an operator repairing a host cannot enumerate
+  // every account that ever existed, and a per-account pass would leave the
+  // rows of a deleted-and-recreated account behind.
+  //
+  // Idempotent in the strongest sense available: a row already holding the
+  // escaped form is reported as already correct and no statement is sent for
+  // it, so a second call and a call against a clean install are both no-ops.
+  // Anything the agent cannot confidently identify as a grant IT issued — a
+  // grant from another host, a name pair no account could produce, privileges
+  // narrower than the ones it grants, an unfamiliar escape — is left untouched
+  // and reported as refused, because this operation revokes and re-issues a
+  // customer's live database access and guessing is an outage.
+  rpc RepairDatabaseGrants(RepairDatabaseGrantsRequest) returns (RepairDatabaseGrantsResponse);
 }
 
 message CreateDatabaseRequest {
@@ -217,4 +245,102 @@ message GetDatabaseSizeResponse {
 message GetDatabaseSizeOk {
   // Current on-disk size in bytes.
   uint64 size_bytes = 1;
+}
+
+// Added 2026-09-13.
+message RepairDatabaseGrantsRequest {
+  // When true, nothing is changed: the agent classifies every row and reports
+  // what it WOULD rewrite. Present because the operation revokes and re-issues
+  // live database access, so an operator must be able to read the list before
+  // it happens rather than trust the predicate. The proto3 default is false,
+  // which means "do the repair" — the same thing an older caller that cannot
+  // set the field asks for.
+  bool report_only = 1;
+}
+
+// Added 2026-09-13.
+message RepairDatabaseGrantsResponse {
+  oneof result {
+    RepairDatabaseGrantsOk ok = 1;
+    AgentError error = 2;
+  }
+}
+
+// Added 2026-09-13. An account of the WHOLE grant table: examined_grants equals
+// already_correct plus the three repeated fields' lengths, so the report reads
+// as a census rather than as a list of whatever was interesting.
+message RepairDatabaseGrantsOk {
+  // Rows of the server's database-level grant table that were read and
+  // classified.
+  uint32 examined_grants = 1;
+  // Rows that already held the escaped form, or whose name cannot hold a
+  // wildcard at all. Nothing was sent for these, and nothing is owed about
+  // them: a clean install reports every row here.
+  uint32 already_correct = 2;
+  // Rows that were rewritten. Empty when report_only was set.
+  repeated RepairedGrant repaired = 3;
+  // Rows a report_only pass would have rewritten. Always empty otherwise.
+  repeated RepairedGrant would_repair = 4;
+  // Rows deliberately left alone, with the reason for each. An operator reads
+  // this: "untouched" is meant to be observable rather than assumed.
+  repeated RefusedGrant refused = 5;
+}
+
+// Added 2026-09-13. One grant whose stored pattern became a literal name.
+message RepairedGrant {
+  // Fully-qualified database name the grant was always meant to name.
+  string database_name = 1;
+  // Fully-qualified user the grant belongs to.
+  string db_username = 2;
+  // Other databases on this server that the OLD pattern also matched.
+  //
+  // The one piece of evidence this operation can produce, and it is evidence of
+  // EXPOSURE and not of use: a name here is a database the repaired credential
+  // could have read and written while the row stood. An empty list does not
+  // clear the row — a matching database may have been created and dropped in
+  // between, and a pattern is matched at connection time. Whether the reach was
+  // USED is answered only by a query log, which is off on a default install.
+  repeated string also_matched_databases = 3;
+}
+
+// Added 2026-09-13. One grant-table row the repair refused to touch.
+//
+// The three name fields are the server's raw columns, because a row lands here
+// precisely because it is not a value this agent could have produced. They are
+// for an operator to read; the agent never puts them back into a statement.
+message RefusedGrant {
+  // The Host column, as the server holds it.
+  string grant_host = 1;
+  // The Db column, as the server holds it — escapes included, so an operator
+  // sees the stored pattern and not a tidied rendering of it.
+  string database_name = 2;
+  // The User column, as the server holds it.
+  string db_username = 3;
+  // Why the repair refused the row.
+  GrantRepairRefusal reason = 4;
+}
+
+// Added 2026-09-13. Why a row was left exactly as it was found.
+enum GrantRepairRefusal {
+  // No reason given. Never sent by this agent; present because proto3 requires
+  // a zero value, and a caller seeing it is reading a message from something
+  // else.
+  GRANT_REPAIR_REFUSAL_UNSPECIFIED = 0;
+  // The grant is for a host other than 'localhost', which is the only host this
+  // panel grants from. Reported rather than ignored: such a row carries the same
+  // unescaped wildcard, reachable from further away, and only the operator knows
+  // what depends on it.
+  GRANT_REPAIR_REFUSAL_HOST_IS_NOT_LOCALHOST = 1;
+  // The database and user names are not a pair this panel could have created —
+  // one of them does not decode against a whole account name, or the two decode
+  // to different accounts.
+  GRANT_REPAIR_REFUSAL_NOT_THE_PANELS_NAMING = 2;
+  // The row does not hold exactly the ALL PRIVILEGES grant this panel issues.
+  // Re-granting over a narrower one would ESCALATE it, which is worse than the
+  // wildcard being repaired.
+  GRANT_REPAIR_REFUSAL_UNRECOGNISED_PRIVILEGES = 3;
+  // The stored pattern is escaped in a form this panel never writes — in part,
+  // twice, or escaping some other character. Re-escaping a form nobody
+  // understands is how a working grant is destroyed.
+  GRANT_REPAIR_REFUSAL_PARTIALLY_OR_UNFAMILIARLY_ESCAPED = 4;
 }
