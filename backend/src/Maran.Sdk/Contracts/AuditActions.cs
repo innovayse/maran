@@ -138,6 +138,31 @@ public static class AuditActions
     /// </summary>
     public const string DatabasePasswordReset = "DatabasePasswordReset";
 
+    /// <summary>
+    /// The database server's grant table was rewritten so that every pattern this panel had issued
+    /// names one database again. Recorded on the refusals as well as on the repairs, and the reason
+    /// each is worth a line differs.
+    /// <para>
+    /// A success is the panel's only record of WHO narrowed live access for every customer on the
+    /// host at once. The agent logs each row it touched, but the host's log does not know which
+    /// operator asked, and an operation of this reach with no attributable entry is one nobody can
+    /// account for afterwards.
+    /// </para>
+    /// <para>
+    /// A refusal is worth a line because of what it means: the figure the operator confirmed no
+    /// longer described the server. That is either an ordinary race — another administrator ran the
+    /// repair first — or someone attempting the write without having read a report, and the journal
+    /// is where the second becomes visible as a pattern.
+    /// </para>
+    /// <para>
+    /// The subject is a count, never a name. Every row this operation refuses is refused precisely
+    /// because the panel did not write it, so its <c>Db</c> and <c>User</c> columns are another
+    /// tenant's identifiers or an operator's own credential — and this journal is never deleted
+    /// (rules/security.md).
+    /// </para>
+    /// </summary>
+    public const string DatabaseGrantsRepaired = "DatabaseGrantsRepaired";
+
     /// <summary>An SFTP login was created on the host, jailed into its account's own chroot.</summary>
     public const string SftpUserCreated = "SftpUserCreated";
 

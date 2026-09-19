@@ -99,6 +99,9 @@
   <data name="AuditActionDatabasePasswordReset">
     <value>Վերակայվեց տվյալների բազայի գաղտնաբառը</value>
   </data>
+  <data name="AuditActionDatabaseGrantsRepaired">
+    <value>Նեղացվեցին տվյալների բազաների իրավունքները</value>
+  </data>
   <data name="AuditActionSftpUserCreated">
     <value>Ստեղծվեց SFTP մուտք</value>
   </data>

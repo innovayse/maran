@@ -99,6 +99,9 @@
   <data name="AuditActionDatabasePasswordReset">
     <value>Database password reset</value>
   </data>
+  <data name="AuditActionDatabaseGrantsRepaired">
+    <value>Database grants narrowed</value>
+  </data>
   <data name="AuditActionSftpUserCreated">
     <value>SFTP login created</value>
   </data>

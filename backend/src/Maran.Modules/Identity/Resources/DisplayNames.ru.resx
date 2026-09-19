@@ -99,6 +99,9 @@
   <data name="AuditActionDatabasePasswordReset">
     <value>Сброшен пароль базы данных</value>
   </data>
+  <data name="AuditActionDatabaseGrantsRepaired">
+    <value>Сужены права доступа к базам данных</value>
+  </data>
   <data name="AuditActionSftpUserCreated">
     <value>Создан SFTP-доступ</value>
   </data>
