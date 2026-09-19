@@ -36,4 +36,16 @@
   <data name="AlertServiceStoppedResolvedBody">
     <value>{0} ծառայությունը կրկին աշխատում է։ Ծառայությունների կառավարիչն ասում է՝ {1}</value>
   </data>
+  <data name="AlertSftpJailDriftedRaisedSubject">
+    <value>Այս սերվերի SFTP մեկուսացման կարգավորումը փոփոխվել է</value>
+  </data>
+  <data name="AlertSftpJailDriftedRaisedBody">
+    <value>sshd-ի կարգավորումների բլոկը, որը սահմանափակում է յուրաքանչյուր SFTP մուտք միայն իր սեփական ֆայլերով, բացակայում է կամ փոփոխված է ({1})։ Մինչև այն վերականգնվի, այս սերվերի SFTP հաճախորդները այլևս սահմանափակված չեն ֆայլերի փոխանցումով. նրանց հավատարմագրերը կարող են բացել սովորական shell և հասանելի դառնալ ցանկացած ռեսուրսի, ոչ միայն իրենց սեփական ֆայլերին։ Վերականգնեք «Match Group» բլոկը, որը installer/lib/86-sftp.sh գրում է /etc/ssh/sshd_config ֆայլում (կամ նորից գործարկեք ինստալյատորի SFTP կարգավորման քայլը), և վերաբեռնեք sshd-ն։</value>
+  </data>
+  <data name="AlertSftpJailDriftedResolvedSubject">
+    <value>Այս սերվերի SFTP մեկուսացման կարգավորումը վերականգնվել է</value>
+  </data>
+  <data name="AlertSftpJailDriftedResolvedBody">
+    <value>sshd-ի կարգավորումների բլոկը, որը սահմանափակում է յուրաքանչյուր SFTP մուտք միայն իր սեփական ֆայլերով, կրկին առկա է և անվավեր չէ։ Այս սերվերի SFTP հաճախորդները կրկին սահմանափակված են միայն ֆայլերի փոխանցումով։</value>
+  </data>
 </root>

@@ -21,10 +21,10 @@ namespace Maran.Modules.Monitoring.Services;
 /// so no reader may assume the interval.
 /// </para>
 /// <para>
-/// <b>Service statuses are best-effort within a round that otherwise succeeded.</b> If the metrics
-/// came back and the statuses did not, the sample is still stored — the chart data is real — and the
-/// evaluator is simply given no services to judge, which advances no alert counter in either
-/// direction.
+/// <b>Service statuses and the SFTP jail check are best-effort within a round that otherwise
+/// succeeded.</b> If the metrics came back and either did not, the sample is still stored — the
+/// chart data is real — and the evaluator is simply given no services to judge, or <c>null</c> for
+/// the jail status, which advances no alert counter in either direction.
 /// </para>
 /// <para>
 /// <b>The loop never lets one bad round end it.</b> An exception escaping
@@ -133,8 +133,11 @@ public sealed class MetricsSampler : BackgroundService
         var statuses = await agent.GetServiceStatusesAsync(cancellationToken);
         var services = statuses.IsSuccess ? statuses.Value : [];
 
+        var jailStatus = await agent.GetSftpJailStatusAsync(cancellationToken);
+        var sftpJailStatus = jailStatus.IsSuccess ? jailStatus.Value : null;
+
         await evaluator.EvaluateAsync(
-            DiskUsedPercent(metrics.Value), services, observedAt, cancellationToken);
+            DiskUsedPercent(metrics.Value), services, sftpJailStatus, observedAt, cancellationToken);
 
         return true;
     }

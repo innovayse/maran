@@ -36,4 +36,16 @@
   <data name="AlertServiceStoppedResolvedBody">
     <value>The service {0} is running again. The service manager says: {1}</value>
   </data>
+  <data name="AlertSftpJailDriftedRaisedSubject">
+    <value>The SFTP jail configuration on this server has drifted</value>
+  </data>
+  <data name="AlertSftpJailDriftedRaisedBody">
+    <value>The sshd configuration block that confines every SFTP login to its own files is missing or has been altered ({1}). Until it is restored, SFTP customers on this server are no longer confined to file transfer: their credentials can open an ordinary shell and reach anything a shell can reach, not only their own files. Restore the "Match Group" block that installer/lib/86-sftp.sh writes to /etc/ssh/sshd_config (or re-run the installer's SFTP setup step) and reload sshd.</value>
+  </data>
+  <data name="AlertSftpJailDriftedResolvedSubject">
+    <value>The SFTP jail configuration on this server has been restored</value>
+  </data>
+  <data name="AlertSftpJailDriftedResolvedBody">
+    <value>The sshd configuration block that confines every SFTP login to its own files is present and intact again. SFTP customers on this server are once more confined to file transfer only.</value>
+  </data>
 </root>

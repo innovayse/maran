@@ -65,6 +65,14 @@ public sealed class AlertEvaluator
     /// </remarks>
     public const string RootFilesystemSubject = "/";
 
+    /// <summary>The subject recorded and mailed about for the sshd SFTP jail block.</summary>
+    /// <remarks>
+    /// There is exactly one block to watch — the installer writes one, for one group, at one fixed
+    /// path — so this is a constant rather than something the agent's answer supplies, the same
+    /// reason <see cref="RootFilesystemSubject"/> is.
+    /// </remarks>
+    public const string SftpJailSubject = "sshd-sftp-jail";
+
     /// <summary>The module's database context, which owns the alert rows.</summary>
     private readonly MonitoringDbContext _dbContext;
 
@@ -107,11 +115,19 @@ public sealed class AlertEvaluator
     /// resets nothing, because the panel did not find out.
     /// </param>
     /// <param name="services">The service statuses the agent reported, which may be an empty list.</param>
+    /// <param name="sftpJailStatus">
+    /// What the agent found when it checked the live sshd configuration for the installer's `Match
+    /// Group` block, or <c>null</c> when that call did not succeed. A <c>null</c> advances nothing
+    /// and resets nothing, for the same reason a <c>null</c> <paramref name="diskUsedPercent"/>
+    /// does: the panel did not find out, and a call that failed to ask the question is not evidence
+    /// about the answer.
+    /// </param>
     /// <param name="observedAt">When the readings were taken, from the panel's clock.</param>
     /// <param name="cancellationToken">Cancels the evaluation.</param>
     public async Task EvaluateAsync(
         double? diskUsedPercent,
         IReadOnlyList<AgentServiceStatus> services,
+        AgentSftpJailStatus? sftpJailStatus,
         DateTimeOffset observedAt,
         CancellationToken cancellationToken)
     {
@@ -147,6 +163,22 @@ public sealed class AlertEvaluator
             pending.Add((AlertKind.ServiceStopped, name, transition, service.Detail));
         }
 
+        if (sftpJailStatus is not null)
+        {
+            var transition = await ObserveAsync(
+                AlertKind.SftpJailDrifted,
+                SftpJailSubject,
+                sftpJailStatus.IsDrifted,
+                observedAt,
+                cancellationToken);
+
+            pending.Add((
+                AlertKind.SftpJailDrifted,
+                SftpJailSubject,
+                transition,
+                FormatMissing(sftpJailStatus.Missing)));
+        }
+
         // One save for the whole round, before any mail is attempted. See the type's remarks: a
         // transition that was not committed is a transition that repeats on the next sample.
         await _dbContext.SaveChangesAsync(cancellationToken);
@@ -173,6 +205,22 @@ public sealed class AlertEvaluator
     private static string FormatPercent(double percent)
     {
         return percent.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture);
+    }
+
+    /// <summary>Renders what the agent found missing, for the body of a jail-drift alert mail.</summary>
+    /// <param name="missing">
+    /// What the agent's block check did not find — the installer's own words, empty when the block
+    /// is intact.
+    /// </param>
+    /// <returns>A comma-separated list, or a fixed sentence when nothing is missing.</returns>
+    /// <remarks>
+    /// The resolved mail does not need this detail — it says the block is back — but the same
+    /// pending row is built for both directions, so this must answer sensibly for an empty list
+    /// too rather than being read only on the raising path.
+    /// </remarks>
+    private static string FormatMissing(IReadOnlyList<string> missing)
+    {
+        return missing.Count == 0 ? string.Empty : string.Join(", ", missing);
     }
 
     /// <summary>Records one observation against its alert row, creating the row on first sight.</summary>
