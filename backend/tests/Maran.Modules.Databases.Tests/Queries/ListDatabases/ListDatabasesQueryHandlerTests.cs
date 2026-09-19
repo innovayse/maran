@@ -48,6 +48,29 @@ public sealed class ListDatabasesQueryHandlerTests
             });
     }
 
+    /// <summary>
+    /// The reads that MAY hold the agent, each with the reason, so that everything else is refused by
+    /// default and a new tenant-scoped read cannot quietly join them.
+    /// </summary>
+    /// <remarks>
+    /// The default matters more than the entries. The law below exists because the database server has
+    /// no notion of a tenant, so an answer derived from its names is derived from a prefix scan — and
+    /// <c>alice_</c> is a prefix of account <c>alice_bob</c>'s names too. An entry here is a read whose
+    /// subject is NOT a customer's databases, so there is no tenant for a prefix to be mistaken for.
+    /// <see cref="Every_excused_reader_still_names_a_type_that_exists"/> refuses an entry that has gone
+    /// stale, which is what keeps this register from rotting into a place a real tenant-scoped read
+    /// hides.
+    /// </remarks>
+    private static readonly IReadOnlyDictionary<string, string> ReadersThatMayHoldTheAgent =
+        new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["InspectDatabaseGrantsQueryHandler"] =
+                "Its subject is the database server's own grant table, host-wide, which the panel keeps "
+                + "no copy of and which no account owns. It decodes no prefix and reports no account: "
+                + "the endpoint behind it is AdminOnly precisely because the answer spans every tenant, "
+                + "so there is no tenant scope here for a prefix scan to be mistaken for.",
+        };
+
     /// <summary>No query handler in this module can be handed the agent at all.</summary>
     [Fact]
     public void No_query_handler_in_this_module_can_be_handed_the_agent_at_all()
@@ -77,12 +100,42 @@ public sealed class ListDatabasesQueryHandlerTests
             {
                 return type.Name;
             })
+            .Where(name =>
+            {
+                return !ReadersThatMayHoldTheAgent.ContainsKey(name);
+            })
             .ToList();
 
         Assert.True(
             readers.Count == 0,
             "A read in this module must be answered from the panel's own rows, never from the agent's "
             + "diagnostic listing: " + string.Join(", ", readers));
+    }
+
+    /// <summary>Every excused reader still names a type that exists.</summary>
+    /// <remarks>
+    /// An exemption for a handler that has been renamed or removed is worse than none: it is a hole in
+    /// the default, sitting under a reason that reads as considered.
+    /// </remarks>
+    [Fact]
+    public void Every_excused_reader_still_names_a_type_that_exists()
+    {
+        var declared = typeof(ListDatabasesQueryHandler).Assembly.GetTypes()
+            .Select(type =>
+            {
+                return type.Name;
+            })
+            .ToHashSet(StringComparer.Ordinal);
+
+        var stale = ReadersThatMayHoldTheAgent.Keys.Where(name =>
+        {
+            return !declared.Contains(name);
+        }).ToList();
+
+        Assert.True(
+            stale.Count == 0,
+            "These readers are excused from the no-agent law and no longer exist, so the excuse is now a "
+            + "place a tenant-scoped read could hide: " + string.Join(", ", stale));
     }
 
     /// <summary>A listing shows a customer only their own rows.</summary>

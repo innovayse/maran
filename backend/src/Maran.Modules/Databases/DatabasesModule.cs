@@ -66,6 +66,11 @@ public sealed class DatabasesModule : IPanelModule
         // context's own filter (rules/architecture.md "A shared facility's contract").
         services.AddScoped<IAccountDatabaseDirectory, AccountDatabaseDirectory>();
 
+        // Scoped like the other request-culture readers: it resolves the refusal sentences an
+        // administrator reads against IStringLocalizer<DisplayNames>, which is culture-sensitive per
+        // request.
+        services.AddScoped<GrantRepairRefusalDisplayNames>();
+
         // The shared resource pool the panel-wide ResxErrorTextProvider resolves error codes and
         // Manifest.DisplayNameKey against. Module-internal lookups inject IStringLocalizer<T>
         // directly instead.

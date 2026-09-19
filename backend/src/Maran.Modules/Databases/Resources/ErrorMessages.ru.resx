@@ -45,4 +45,10 @@
   <data name="AccountNotFound">
     <value>Аккаунт не найден.</value>
   </data>
+  <data name="DatabaseGrantRepairPlanChanged">
+    <value>Права на сервере больше не совпадают с прочитанным вами отчётом, поэтому ничего не исправлено и ничего не изменено. Получите новый отчёт и подтвердите его числа, прежде чем исправлять.</value>
+  </data>
+  <data name="DatabaseGrantRepairCountInvalid">
+    <value>Число исправляемых прав не может быть отрицательным. Прочитайте отчёт снова и подтвердите указанное в нём число.</value>
+  </data>
 </root>

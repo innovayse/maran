@@ -15,4 +15,34 @@
   <data name="DatabasesModuleDisplayName">
     <value>Databases</value>
   </data>
+  <data name="GrantRepairRefusalHostIsNotLocalhost">
+    <value>Granted from another host</value>
+  </data>
+  <data name="GrantRepairAdviceHostIsNotLocalhost">
+    <value>This grant lets the credential connect from somewhere other than this server, so the panel left it exactly as it found it — only you know what depends on it. Nothing was changed. The wide pattern in its name is still there. Open your database server's own grant table, then narrow or remove the row by hand.</value>
+  </data>
+  <data name="GrantRepairRefusalNotThePanelsNaming">
+    <value>Not a pair this panel created</value>
+  </data>
+  <data name="GrantRepairAdviceNotThePanelsNaming">
+    <value>The database name and the user name do not decode to one account this panel owns, so this grant was made outside the panel. Nothing was changed. Leave it alone if you or your database administrator created it deliberately; otherwise find out who did before you touch it.</value>
+  </data>
+  <data name="GrantRepairRefusalUnrecognisedPrivileges">
+    <value>Narrower privileges than the panel issues</value>
+  </data>
+  <data name="GrantRepairAdviceUnrecognisedPrivileges">
+    <value>This grant gives less than the full set the panel issues, so re-issuing it would have WIDENED somebody's access. Nothing was changed. Keep it if it was made by hand on purpose; if the wide pattern in its name matters to you, narrow the name by hand instead.</value>
+  </data>
+  <data name="GrantRepairRefusalPartiallyOrUnfamiliarlyEscaped">
+    <value>Escaped in a form the panel does not write</value>
+  </data>
+  <data name="GrantRepairAdvicePartiallyOrUnfamiliarlyEscaped">
+    <value>The stored name is escaped in a way this panel never produces, so escaping it again could have destroyed a working grant. Nothing was changed. Compare it with a grant the panel issued, and correct it by hand if it is wrong.</value>
+  </data>
+  <data name="GrantRepairRefusalUnspecified">
+    <value>Reason not stated</value>
+  </data>
+  <data name="GrantRepairAdviceUnspecified">
+    <value>The server agent refused this row for a reason this version of the panel does not recognise, which usually means the agent is newer than the panel. Nothing was changed. Update the panel, then run the report again.</value>
+  </data>
 </root>
