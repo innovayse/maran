@@ -74,4 +74,12 @@ internal sealed class StubAccountsService : IAccountsServiceInvoker
     {
         throw new NotSupportedException("no test in this file reads usage");
     }
+
+    /// <inheritdoc/>
+    public Task<RepairAccountHomeGroupsResponse> RepairAccountHomeGroupsAsync(
+        RepairAccountHomeGroupsRequest request,
+        CancellationToken cancellationToken)
+    {
+        throw new NotSupportedException("no test in this file repairs home groups");
+    }
 }

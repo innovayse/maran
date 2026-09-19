@@ -98,6 +98,38 @@ public sealed class AgentMonitorClient : IAgentMonitorClient
         };
     }
 
+    /// <inheritdoc/>
+    public async Task<Result<AgentSftpJailStatus>> GetSftpJailStatusAsync(CancellationToken cancellationToken)
+    {
+        var response = await _invoker.GetSftpJailStatusAsync(new GetSftpJailStatusRequest(), cancellationToken);
+
+        return response.ResultCase switch
+        {
+            GetSftpJailStatusResponse.ResultOneofCase.Ok => Result<AgentSftpJailStatus>.Ok(
+                ToJailStatus(response.Ok)),
+            GetSftpJailStatusResponse.ResultOneofCase.Error => Result<AgentSftpJailStatus>.Fail(
+                AgentErrorTranslator.ToError(_logger, response.Error, nameof(GetSftpJailStatusAsync))),
+            _ => Result<AgentSftpJailStatus>.Fail(
+                Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
+        };
+    }
+
+    /// <summary>Projects the wire finding onto the panel's own.</summary>
+    /// <param name="ok">The success payload of <c>GetSftpJailStatus</c>.</param>
+    /// <returns>Whether the block is intact, and what is missing when it is not.</returns>
+    /// <remarks>
+    /// Written out rather than cast, for the same reason <see cref="ToPanelService"/> is: a value
+    /// this build has no name for — an agent newer than this panel sending a third state — must not
+    /// silently become a member the switch below never intended. UNSPECIFIED and any unrecognised
+    /// value are both read as drifted, never as intact: the safe direction for a state this client
+    /// cannot positively confirm is the one that gets an operator's attention rather than the one
+    /// that stays quiet.
+    /// </remarks>
+    private static AgentSftpJailStatus ToJailStatus(GetSftpJailStatusOk ok)
+    {
+        return new AgentSftpJailStatus(ok.State != SftpJailState.Intact, [.. ok.Missing]);
+    }
+
     /// <summary>Projects the wire snapshot onto the panel's own.</summary>
     /// <param name="metrics">The success payload of <c>GetHostMetrics</c>.</param>
     /// <returns>The same ten figures, unaltered.</returns>

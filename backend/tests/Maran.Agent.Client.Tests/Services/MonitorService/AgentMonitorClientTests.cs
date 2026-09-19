@@ -361,6 +361,104 @@ public sealed class AgentMonitorClientTests
         Assert.Equal("AgentInvalidResponse", result.Error!.Code);
     }
 
+    /// <summary>An intact block maps to a finding with no drift and nothing missing.</summary>
+    [Fact]
+    public async Task An_intact_block_maps_to_a_finding_with_no_drift()
+    {
+        var stub = new StubMonitorService
+        {
+            SftpJailStatusResponse = new GetSftpJailStatusResponse
+            {
+                Ok = new GetSftpJailStatusOk { State = SftpJailState.Intact },
+            },
+        };
+
+        var result = await Client(stub).GetSftpJailStatusAsync(CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.False(result.Value.IsDrifted);
+        Assert.Empty(result.Value.Missing);
+        Assert.NotNull(stub.LastSftpJailStatusRequest);
+    }
+
+    /// <summary>A drifted block maps to a finding naming what the agent could not find.</summary>
+    [Fact]
+    public async Task A_drifted_block_maps_to_a_finding_naming_what_is_missing()
+    {
+        var stub = new StubMonitorService
+        {
+            SftpJailStatusResponse = new GetSftpJailStatusResponse
+            {
+                Ok = new GetSftpJailStatusOk
+                {
+                    State = SftpJailState.Drifted,
+                    Missing = { "forcecommand internal-sftp", "x11forwarding no" },
+                },
+            },
+        };
+
+        var result = await Client(stub).GetSftpJailStatusAsync(CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.True(result.Value.IsDrifted);
+        Assert.Equal(["forcecommand internal-sftp", "x11forwarding no"], result.Value.Missing);
+    }
+
+    /// <summary>
+    /// An agent too old, or too new, to send a state this build recognises is read as drifted —
+    /// never as intact — because the safe direction for a state this client cannot positively
+    /// confirm is the one that gets an operator's attention.
+    /// </summary>
+    [Fact]
+    public async Task An_unspecified_state_is_read_as_drifted_and_never_as_intact()
+    {
+        var stub = new StubMonitorService
+        {
+            SftpJailStatusResponse = new GetSftpJailStatusResponse
+            {
+                Ok = new GetSftpJailStatusOk { State = SftpJailState.Unspecified },
+            },
+        };
+
+        var result = await Client(stub).GetSftpJailStatusAsync(CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.True(result.Value.IsDrifted);
+    }
+
+    /// <summary>The SFTP jail error payload maps to a failed result with the agent code.</summary>
+    [Fact]
+    public async Task The_sftp_jail_error_payload_maps_to_a_failed_result_with_the_agent_code()
+    {
+        var stub = new StubMonitorService
+        {
+            SftpJailStatusResponse = new GetSftpJailStatusResponse
+            {
+                Error = new AgentError { Code = ErrorCode.SystemFailure, Message = "cannot read sshd_config" },
+            },
+        };
+
+        var result = await Client(stub).GetSftpJailStatusAsync(CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("AgentSystemFailure", result.Error!.Code);
+    }
+
+    /// <summary>An SFTP jail response with neither branch set is refused rather than read as intact.</summary>
+    /// <remarks>
+    /// The failing direction that matters most for this one call: a malformed or unset response must
+    /// not silently read as "the jail is fine", which is exactly the false confidence release-readiness
+    /// issue #28 item E is about.
+    /// </remarks>
+    [Fact]
+    public async Task An_sftp_jail_response_with_neither_branch_set_is_refused_rather_than_read_as_intact()
+    {
+        var result = await Client(new StubMonitorService()).GetSftpJailStatusAsync(CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("AgentInvalidResponse", result.Error!.Code);
+    }
+
     /// <summary>Builds the production client over a stub transport and a logger nothing asserts.</summary>
     /// <param name="stub">The transport stub to drive.</param>
     /// <returns>The client under test.</returns>

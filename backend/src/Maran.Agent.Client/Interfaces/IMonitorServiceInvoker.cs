@@ -33,4 +33,12 @@ internal interface IMonitorServiceInvoker
     Task<GetAccountsDiskUsageResponse> GetAccountsDiskUsageAsync(
         GetAccountsDiskUsageRequest request,
         CancellationToken cancellationToken);
+
+    /// <summary>Invokes <c>GetSftpJailStatus</c>.</summary>
+    /// <param name="request">The wire request.</param>
+    /// <param name="cancellationToken">Cancellation for the call.</param>
+    /// <returns>The raw wire response, carrying either branch of its oneof.</returns>
+    Task<GetSftpJailStatusResponse> GetSftpJailStatusAsync(
+        GetSftpJailStatusRequest request,
+        CancellationToken cancellationToken);
 }

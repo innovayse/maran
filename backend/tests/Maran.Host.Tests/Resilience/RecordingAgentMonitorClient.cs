@@ -48,6 +48,14 @@ internal sealed class RecordingAgentMonitorClient : IAgentMonitorClient
         return Result<IReadOnlyList<AgentAccountDiskUsage>>.Ok([]);
     }
 
+    /// <inheritdoc/>
+    public async Task<Result<AgentSftpJailStatus>> GetSftpJailStatusAsync(CancellationToken cancellationToken)
+    {
+        await EnterAsync(cancellationToken);
+
+        return Result<AgentSftpJailStatus>.Ok(new AgentSftpJailStatus(false, []));
+    }
+
     /// <summary>Counts the call and applies whichever misbehaviour the test asked for.</summary>
     /// <param name="cancellationToken">The token the pipeline's timeout cancels.</param>
     /// <returns>A task that completes once the call may return.</returns>

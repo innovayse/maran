@@ -29,6 +29,12 @@ internal sealed class StubMonitorService : IMonitorServiceInvoker
     /// <summary>The last disk-usage request the stub received, for asserting the call was made.</summary>
     public GetAccountsDiskUsageRequest? LastDiskUsageRequest { get; private set; }
 
+    /// <summary>Response returned from <see cref="GetSftpJailStatusAsync"/>.</summary>
+    public GetSftpJailStatusResponse SftpJailStatusResponse { get; set; } = new();
+
+    /// <summary>The last SFTP jail status request the stub received, for asserting the call was made.</summary>
+    public GetSftpJailStatusRequest? LastSftpJailStatusRequest { get; private set; }
+
     /// <summary>Builds a stub answering the statuses call with one service in one state.</summary>
     /// <param name="service">Which service the row describes.</param>
     /// <param name="state">The state the agent reports.</param>
@@ -87,5 +93,14 @@ internal sealed class StubMonitorService : IMonitorServiceInvoker
     {
         LastDiskUsageRequest = request;
         return Task.FromResult(DiskUsageResponse);
+    }
+
+    /// <inheritdoc/>
+    public Task<GetSftpJailStatusResponse> GetSftpJailStatusAsync(
+        GetSftpJailStatusRequest request,
+        CancellationToken cancellationToken)
+    {
+        LastSftpJailStatusRequest = request;
+        return Task.FromResult(SftpJailStatusResponse);
     }
 }

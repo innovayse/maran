@@ -107,6 +107,17 @@ public sealed class ResilientAgentAccountsClient : IAgentAccountsClient
         }, cancellationToken);
     }
 
+    /// <inheritdoc/>
+    public Task<Result<HomeGroupRepairReportDto>> RepairHomeGroupsAsync(
+        bool reportOnly,
+        CancellationToken cancellationToken)
+    {
+        return ExecuteAsync(token =>
+        {
+            return _inner.RepairHomeGroupsAsync(reportOnly, token);
+        }, cancellationToken);
+    }
+
     /// <summary>Runs one call through the pipeline, carrying the caller's cancellation into it.</summary>
     /// <typeparam name="T">The value the call produces.</typeparam>
     /// <param name="call">The call to make.</param>

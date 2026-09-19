@@ -71,4 +71,16 @@ public sealed class ResilientAgentMonitorClient : IAgentMonitorClient
             _inner,
             cancellationToken);
     }
+
+    /// <inheritdoc/>
+    public async Task<Result<AgentSftpJailStatus>> GetSftpJailStatusAsync(CancellationToken cancellationToken)
+    {
+        return await _pipeline.ExecuteAsync(
+            async (state, token) =>
+            {
+                return await state.GetSftpJailStatusAsync(token);
+            },
+            _inner,
+            cancellationToken);
+    }
 }

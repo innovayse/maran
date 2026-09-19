@@ -39,4 +39,12 @@ internal sealed class GrpcMonitorServiceInvoker : IMonitorServiceInvoker
     {
         return await _client.GetAccountsDiskUsageAsync(request, cancellationToken: cancellationToken);
     }
+
+    /// <inheritdoc/>
+    public async Task<GetSftpJailStatusResponse> GetSftpJailStatusAsync(
+        GetSftpJailStatusRequest request,
+        CancellationToken cancellationToken)
+    {
+        return await _client.GetSftpJailStatusAsync(request, cancellationToken: cancellationToken);
+    }
 }
