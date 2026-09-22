@@ -252,7 +252,21 @@ than let silence imply a binding that does not exist. This is not a caveat to bu
 the one fact about this feature that, left unstated, turns "I installed my licence" into a belief the
 system does not actually hold.
 
-## 6b. MEASURED GAP: atomicity is the central mechanism and NOTHING tests it
+## 6b. CLOSED: atomicity is now observed — and the two failed attempts are kept here
+
+**Status: closed 2026-09-22.** `A_reader_watching_the_target_never_sees_it_absent_or_partial` kills
+the non-atomic mutant — `20 targets: 3206 passed / 1 failed`, the named test red. The section below
+is kept rather than deleted because the two attempts that did NOT work are the useful part.
+
+**What finally worked, and why it is not flaky.** A reader spins on the target while a writer
+rewrites it two hundred times. With one atomic rename the file is never absent and never
+half-written — that is an INVARIANT, so correct code cannot fail this however the threads
+interleave. Delete-then-write opens a real window with no file in it and the reader falls into it. A
+test that can only fail when the property is actually broken is not flaky; it is at worst weak, and
+the iteration count trades strength against time. UNOBSERVED even so: a machine killed mid-write.
+Only the ordering is observed, not power loss.
+
+## 6c. The two attempts that failed, kept so nobody repeats them
 
 Recorded 2026-09-22 from a mutation run, not from reading. The swap in
 `backend/src/Maran.SharedKernel/Utilities/IO/AtomicFileWriter.cs` —
@@ -274,20 +288,18 @@ produced deterministically from outside. A concurrency-race test could observe t
 delete-then-move opens, but it would be probabilistic, and a flaky gate is worse than an absent one
 (rules/testing.md).
 
-**A seam at the swap was TRIED and does NOT close it — recorded so nobody spends the afternoon
-again.** The step was made an injectable delegate defaulting to the real rename, and a test staged
+**Attempt two: a seam at the swap. It does NOT close it.** The step was made an injectable delegate defaulting to the real rename, and a test staged
 the one ordering that distinguishes the two forms: delete succeeds, move then fails. The same mutant
 was re-scored and **survived again** — `20 targets: 3207 passed / 0 failed`. The reason is obvious
 in hindsight and worth writing down: a test that injects its own swap **never executes the default
 one**, so mutating the default changes code the test does not reach. The seam and its test were
 reverted rather than left as public API surface buying nothing.
 
-**What would actually close it** is therefore narrower than it looked: the failing-swap ordering has
-to occur INSIDE the default implementation, which means either a filesystem the platform can make
-fail on rename but not on delete (not available portably), or a process killed between the two
-operations of the non-atomic form — which is a real-host polygon exercise, not a unit test. Until
-somebody does that, the atomicity argument in §2 and §4 rests on **reading the code**, not on a
-measurement, and a reviewer should treat it as such.
+**Why both attempts reasoned about the wrong thing.** Each tried to STAGE a failure, and a staged
+failure has to be injected, and an injected failure replaces the code under test. The way out was to
+stop staging and start WATCHING: assert an invariant the correct implementation cannot violate,
+rather than construct the one case where the two implementations diverge. That is recorded here
+because the instinct to inject is strong and cost two passes.
 
 **What IS measured, so the section is not read as worse than it is:** a rejected upload never
 reaches the writer, and a failing write leaves the previous licence and journals no success — both
