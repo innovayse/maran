@@ -183,6 +183,74 @@ EOF
   exit 1
 }
 
+# build_api_socket_directory: apply the tmpfiles snippet now, rather than waiting for a reboot.
+#
+# systemd-tmpfiles-setup.service reads /etc/tmpfiles.d at every boot, but this install must not
+# require one: the api is started a few lines below and needs the directory to exist, at the right
+# ownership, before it binds. `--create` also CORRECTS a directory that already exists, which is
+# what makes re-running the installer put right a host where the ownership was changed by hand.
+build_api_socket_directory() {
+  systemd-tmpfiles --create "${MARAN_TMPFILES_DIR}/${MARAN_API_TMPFILES_NAME}"
+}
+
+# assert_api_socket_directory: the boundary itself, observed on this host rather than assumed.
+#
+# This is the one host fact the whole peer-credential design rests on, and it is the fact an
+# earlier version of this step got wrong while every text-level check went on passing: the
+# directory must be 2710 owned panel:<web server group>. 0710 has no permissions for "other", so a
+# customer's uid cannot resolve a path inside it; the group is what lets nginx traverse it at all.
+# Checked here, on the real directory, because nothing else in the product can see it — a grep over
+# a unit file is not evidence about a directory.
+assert_api_socket_directory() {
+  local socket_dir observed expected
+  socket_dir="$(api_socket_directory)"
+  expected="2710 panel ${MARAN_WEB_SERVER_GROUP}"
+  observed="$(stat -c '%a %U %G' "$socket_dir" 2>/dev/null || true)"
+  if [ "$observed" != "$expected" ]; then
+    cat >&2 <<EOF
+70-services.sh: ${socket_dir} is '${observed:-absent}' but must be '${expected}'.
+
+That directory is the panel's trust boundary: at mode 2710 no other uid on this machine can
+resolve a path inside it, and the group is what lets nginx reach the socket. With the wrong
+ownership the panel answers 502 to every API call, or — worse — becomes reachable by accounts
+that must never reach it. It is built by ${MARAN_TMPFILES_DIR}/${MARAN_API_TMPFILES_NAME};
+check that file and that 'systemd-tmpfiles --create' accepted it.
+EOF
+    exit 1
+  fi
+  echo "Panel socket directory ${socket_dir} is ${expected}."
+}
+
+# wait_for_api_socket: the api really bound its socket, and the socket really came out reachable
+# by nginx and by nobody else.
+#
+# Type=simple means `systemctl restart` returns when the process was spawned, not when it bound, so
+# this waits rather than looks once. What it then checks is the other half of the boundary: mode
+# 660 (the panel narrows it at startup; Kestrel creates it world-connectable) and the web server's
+# group, inherited from the setgid directory. An install that ends without this has handed the
+# operator a panel that answers 502 and a log line saying everything went well.
+wait_for_api_socket() {
+  local expected observed attempt=0
+  expected="660 panel ${MARAN_WEB_SERVER_GROUP}"
+  while [ "$attempt" -lt 60 ]; do
+    if [ -S "$MARAN_API_SOCKET_PATH" ]; then
+      observed="$(stat -c '%a %U %G' "$MARAN_API_SOCKET_PATH" 2>/dev/null || true)"
+      [ "$observed" = "$expected" ] && { echo "Panel socket ${MARAN_API_SOCKET_PATH} is ${expected}."; return 0; }
+    fi
+    attempt=$((attempt + 1))
+    sleep 1
+  done
+  cat >&2 <<EOF
+70-services.sh: ${MARAN_API_SOCKET_PATH} is '${observed:-absent}' after 60s but must be '${expected}'.
+
+Absent means the api never bound its socket; a different owner, group or mode means nginx cannot
+open it and every API call will answer 502. Read the panel's own account of it first:
+
+    journalctl -u maran-api.service -n 50 --no-pager
+EOF
+  exit 1
+}
+
 step_services() {
   echo "Installing systemd units..."
   install_units

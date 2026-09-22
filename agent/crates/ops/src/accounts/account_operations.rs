@@ -622,6 +622,7 @@ impl<H: SystemHost> AccountOperations<H> {
         // longer resolves, and the removal protocol validates AFTER unlinking,
         // so it would put the file back.
         remove_account_pools(php_host, self.distro, name)?;
+        self.remove_crontab(&username)?;
 
         // Asked again, immediately before the irreversible step. The lock above
         // excludes every operation of this agent that could have removed the

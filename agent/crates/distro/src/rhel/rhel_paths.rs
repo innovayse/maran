@@ -19,3 +19,21 @@ pub fn nologin_shell() -> &'static str {
 pub fn php_fpm_pool_directory(version: &str) -> String {
     format!("/etc/opt/remi/php{}/php-fpm.d", version.replace('.', ""))
 }
+
+/// The file this family's `nftables.service` reads at boot.
+///
+/// `ExecStart=/sbin/nft -f /etc/sysconfig/nftables.conf`, so this is where the
+/// installer appends the include lines that pull in the agent's rendered
+/// ruleset and bans files. `/etc/nftables.conf` — the Debian family's answer —
+/// does not exist on this family at all, which is what makes a single literal
+/// in `ops` a firewall that never loads on one of the two.
+///
+/// The file the package ships holds nothing but comments and one commented-out
+/// `#include "/etc/nftables/main.nft"` (verified on the AlmaLinux 9 polygon),
+/// so an include appended to it has nothing before it that could undo it. The
+/// sample rulesets it points at live in `/etc/nftables/`, a directory the
+/// package leaves at mode 0700; the agent neither reads nor writes them.
+#[must_use]
+pub fn nftables_include_target() -> &'static str {
+    "/etc/sysconfig/nftables.conf"
+}

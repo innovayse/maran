@@ -194,6 +194,41 @@ export const createAppRouter = (): Router => {
         ],
       },
       {
+        // One route, for the same reason as `/databases`: nothing on this screen has a detail to
+        // open. A rule has no identity beyond its port, protocol and source range — the row IS the
+        // rule — and neither a ban nor a whitelist entry is more than the row that shows it.
+        path: '/firewall',
+        component: DefaultLayout,
+        children: [
+          { path: '', name: 'firewall', component: FirewallPage, meta: { module: 'firewall' } },
+        ],
+      },
+      {
+        // One route, for the same reason as `/databases`: a cron entry has no detail to open. The
+        // row IS the entry, and the one thing beyond it — what its last run left behind — costs a
+        // privileged read per entry, so it is a dialog opened on demand rather than a page.
+        path: '/cron',
+        component: DefaultLayout,
+        children: [{ path: '', name: 'cron', component: CronPage, meta: { module: 'cron' } }],
+      },
+      {
+        // One route: a task's detail is a live stream, which belongs beside the row it came from
+        // rather than behind a navigation that would tear the stream down and open another.
+        path: '/tasks',
+        component: DefaultLayout,
+        children: [{ path: '', name: 'tasks', component: TasksPage, meta: { module: 'tasks' } }],
+      },
+      {
+        // One route: the charts, the service states and the per-account disk table are read
+        // together, and nothing on the screen has a detail to open — a chart is the whole of what
+        // a metric has to say, and an account's own screen belongs to the Accounts module.
+        path: '/monitoring',
+        component: DefaultLayout,
+        children: [
+          { path: '', name: 'monitoring', component: MonitoringPage, meta: { module: 'monitoring' } },
+        ],
+      },
+      {
         // The unauthenticated screens: their own bare layout, no navigation, and no
         // dependency on the module catalogue — a visitor who cannot sign in must still
         // be able to render the screen that lets them.

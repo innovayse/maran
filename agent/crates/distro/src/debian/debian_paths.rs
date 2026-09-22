@@ -18,3 +18,19 @@ pub fn nologin_shell() -> &'static str {
 pub fn php_fpm_pool_directory(version: &str) -> String {
     format!("/etc/php/{version}/fpm/pool.d")
 }
+
+/// The file this family's `nftables.service` reads at boot.
+///
+/// `ExecStart=/usr/sbin/nft -f /etc/nftables.conf`, so this is where the
+/// installer appends the include lines that pull in the agent's rendered
+/// ruleset and bans files.
+///
+/// The file the Debian package ships begins with a `#!/usr/sbin/nft -f`
+/// shebang comment and then `flush ruleset`, and contains no `include` of its
+/// own (verified on the Ubuntu 24.04 polygon). Appending at the end therefore
+/// loads the agent's tables AFTER that flush, which is the order that makes an
+/// apply converge instead of being erased at the next boot.
+#[must_use]
+pub fn nftables_include_target() -> &'static str {
+    "/etc/nftables.conf"
+}
