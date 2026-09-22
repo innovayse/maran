@@ -34,6 +34,14 @@ public sealed class StubAgentMonitorClient : IAgentMonitorClient
     public Result<AgentSftpJailStatus> SftpJailStatus { get; set; } =
         Result<AgentSftpJailStatus>.Ok(new AgentSftpJailStatus(false, []));
 
+    /// <summary>How many times quota enforceability was asked for.</summary>
+    public int QuotaEnforceabilityCalls { get; private set; }
+
+    /// <summary>What <see cref="GetQuotaEnforceabilityAsync"/> answers.</summary>
+    public Result<AgentQuotaEnforceability> QuotaEnforceability { get; set; } =
+        Result<AgentQuotaEnforceability>.Ok(
+            new AgentQuotaEnforceability(true, Maran.Agent.Client.Services.AccountsService.QuotaUnenforceableReason.Unspecified));
+
     /// <inheritdoc />
     public Task<Result<AgentHostMetrics>> GetHostMetricsAsync(CancellationToken cancellationToken)
     {
@@ -60,5 +68,13 @@ public sealed class StubAgentMonitorClient : IAgentMonitorClient
     {
         SftpJailStatusCalls++;
         return Task.FromResult(SftpJailStatus);
+    }
+
+    /// <inheritdoc />
+    public Task<Result<AgentQuotaEnforceability>> GetQuotaEnforceabilityAsync(
+        CancellationToken cancellationToken)
+    {
+        QuotaEnforceabilityCalls++;
+        return Task.FromResult(QuotaEnforceability);
     }
 }

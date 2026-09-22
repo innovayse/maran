@@ -48,6 +48,7 @@
     <ProjectReference Include="..\Maran.Agent.Client\Maran.Agent.Client.csproj" />
     <ProjectReference Include="..\Maran.Modules\Accounts\Maran.Modules.Accounts.csproj" />
     <ProjectReference Include="..\Maran.Modules\Identity\Maran.Modules.Identity.csproj" />
+    <ProjectReference Include="..\Maran.Modules\Licensing\Maran.Modules.Licensing.csproj" />
     <ProjectReference Include="..\Maran.Modules\Sites\Maran.Modules.Sites.csproj" />
     <ProjectReference Include="..\Maran.Modules\Ssl\Maran.Modules.Ssl.csproj" />
     <ProjectReference Include="..\Maran.Modules\Databases\Maran.Modules.Databases.csproj" />

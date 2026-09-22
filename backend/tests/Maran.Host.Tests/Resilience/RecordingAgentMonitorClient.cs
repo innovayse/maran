@@ -56,6 +56,18 @@ internal sealed class RecordingAgentMonitorClient : IAgentMonitorClient
         return Result<AgentSftpJailStatus>.Ok(new AgentSftpJailStatus(false, []));
     }
 
+    /// <inheritdoc/>
+    public async Task<Result<AgentQuotaEnforceability>> GetQuotaEnforceabilityAsync(
+        CancellationToken cancellationToken)
+    {
+        await EnterAsync(cancellationToken);
+
+        return Result<AgentQuotaEnforceability>.Ok(
+            new AgentQuotaEnforceability(
+                true,
+                Maran.Agent.Client.Services.AccountsService.QuotaUnenforceableReason.Unspecified));
+    }
+
     /// <summary>Counts the call and applies whichever misbehaviour the test asked for.</summary>
     /// <param name="cancellationToken">The token the pipeline's timeout cancels.</param>
     /// <returns>A task that completes once the call may return.</returns>

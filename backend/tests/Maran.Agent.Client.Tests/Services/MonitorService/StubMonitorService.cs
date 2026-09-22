@@ -35,6 +35,12 @@ internal sealed class StubMonitorService : IMonitorServiceInvoker
     /// <summary>The last SFTP jail status request the stub received, for asserting the call was made.</summary>
     public GetSftpJailStatusRequest? LastSftpJailStatusRequest { get; private set; }
 
+    /// <summary>Response returned from <see cref="GetQuotaEnforceabilityAsync"/>.</summary>
+    public GetQuotaEnforceabilityResponse QuotaEnforceabilityResponse { get; set; } = new();
+
+    /// <summary>The last quota-enforceability request the stub received, for asserting the call was made.</summary>
+    public GetQuotaEnforceabilityRequest? LastQuotaEnforceabilityRequest { get; private set; }
+
     /// <summary>Builds a stub answering the statuses call with one service in one state.</summary>
     /// <param name="service">Which service the row describes.</param>
     /// <param name="state">The state the agent reports.</param>
@@ -102,5 +108,14 @@ internal sealed class StubMonitorService : IMonitorServiceInvoker
     {
         LastSftpJailStatusRequest = request;
         return Task.FromResult(SftpJailStatusResponse);
+    }
+
+    /// <inheritdoc/>
+    public Task<GetQuotaEnforceabilityResponse> GetQuotaEnforceabilityAsync(
+        GetQuotaEnforceabilityRequest request,
+        CancellationToken cancellationToken)
+    {
+        LastQuotaEnforceabilityRequest = request;
+        return Task.FromResult(QuotaEnforceabilityResponse);
     }
 }

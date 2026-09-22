@@ -114,6 +114,45 @@ public sealed class AgentMonitorClient : IAgentMonitorClient
         };
     }
 
+    /// <inheritdoc/>
+    public async Task<Result<AgentQuotaEnforceability>> GetQuotaEnforceabilityAsync(
+        CancellationToken cancellationToken)
+    {
+        var response = await _invoker.GetQuotaEnforceabilityAsync(
+            new GetQuotaEnforceabilityRequest(),
+            cancellationToken);
+
+        return response.ResultCase switch
+        {
+            GetQuotaEnforceabilityResponse.ResultOneofCase.Ok => Result<AgentQuotaEnforceability>.Ok(
+                ToQuotaEnforceability(response.Ok)),
+            GetQuotaEnforceabilityResponse.ResultOneofCase.Error => Result<AgentQuotaEnforceability>.Fail(
+                AgentErrorTranslator.ToError(_logger, response.Error, nameof(GetQuotaEnforceabilityAsync))),
+            _ => Result<AgentQuotaEnforceability>.Fail(
+                Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
+        };
+    }
+
+    /// <summary>Projects the wire finding onto the panel's own.</summary>
+    /// <param name="ok">The success payload of <c>GetQuotaEnforceability</c>.</param>
+    /// <returns>Whether the filesystem can enforce a quota, and why not when it cannot.</returns>
+    /// <remarks>
+    /// UNSPECIFIED and any unrecognised value are both read as NOT enforceable, never as
+    /// enforceable — the same safe direction <see cref="ToJailStatus"/> takes for its own unmapped
+    /// state: the panel must never display a limit it cannot back up over a value it merely failed
+    /// to recognise.
+    /// </remarks>
+    private static AgentQuotaEnforceability ToQuotaEnforceability(GetQuotaEnforceabilityOk ok)
+    {
+        var reason = Enum.IsDefined(
+            typeof(Maran.Agent.Client.Services.AccountsService.QuotaUnenforceableReason),
+            (int)ok.Reason)
+            ? (Maran.Agent.Client.Services.AccountsService.QuotaUnenforceableReason)(int)ok.Reason
+            : Maran.Agent.Client.Services.AccountsService.QuotaUnenforceableReason.Unspecified;
+
+        return new AgentQuotaEnforceability(ok.Enforceability == QuotaEnforceability.Enforceable, reason);
+    }
+
     /// <summary>Projects the wire finding onto the panel's own.</summary>
     /// <param name="ok">The success payload of <c>GetSftpJailStatus</c>.</param>
     /// <returns>Whether the block is intact, and what is missing when it is not.</returns>

@@ -46,6 +46,7 @@ public sealed class Program
         builder.Services.AddPanelModules(builder.Configuration);
         builder.Services.AddPanelBackgroundWork();
         builder.Services.AddPanelSeeding();
+        builder.Services.AddLicensingStartupCheck(builder.Configuration);
 
         var app = builder.Build();
 

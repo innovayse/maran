@@ -29,4 +29,26 @@ namespace Maran.Modules.Monitoring.Common;
 /// stands, including a zero: what a zero-quota plan means is the Accounts module's question, and
 /// inventing an answer here would put a second opinion about a plan outside the module that owns it.
 /// </param>
-public sealed record AccountDiskUsageDto(Guid AccountId, string Username, long? UsedBytes, long QuotaBytes);
+/// <param name="Enforceable">
+/// Whether the filesystem holding this account's home can currently back <paramref name="QuotaBytes"/>
+/// up with an actual kernel-enforced limit. <c>false</c> means the figure above is real — it is
+/// still the plan the customer paid for — but nothing on the server refuses a write past it right
+/// now: the filesystem was never mounted with quota accounting, or accounting is mounted but not
+/// turned on. This is issue #29's own fix: before this field existed, the panel showed the same bare
+/// number whether or not anything backed it, which made an unenforced paid limit undetectable by
+/// construction until the disk filled. This is a per-account fact, not a host-wide one, because two
+/// accounts on the SAME host can differ — one on a disk repaired after a remount, one not yet.
+/// </param>
+/// <param name="Note">
+/// Operator-facing text explaining <see cref="Enforceable"/>, or <c>null</c> when the quota is
+/// enforceable and there is nothing to explain. Localized in the Accounts module — rules/architecture.md
+/// ("the backend owns the data, the SPA renders it") is why this is a rendered sentence rather than a
+/// raw boolean the SPA would have to invent wording for.
+/// </param>
+public sealed record AccountDiskUsageDto(
+    Guid AccountId,
+    string Username,
+    long? UsedBytes,
+    long QuotaBytes,
+    bool Enforceable,
+    string? Note);

@@ -48,4 +48,32 @@
   <data name="AlertSftpJailDriftedResolvedBody">
     <value>Блок конфигурации sshd, который ограничивает каждый вход SFTP только его собственными файлами, снова присутствует и не повреждён. Клиенты SFTP на этом сервере снова ограничены только передачей файлов.</value>
   </data>
+  <data name="AlertQuotaNotEnforceableRaisedSubject">
+    <value>Этот сервер не может применять дисковые квоты</value>
+  </data>
+  <data name="AlertQuotaNotEnforceableRaisedBody">
+    <value>Файловая система, на которой расположены домашние каталоги хостинг-аккаунтов ({0}), не может применять дисковую квоту для пользователя ({1}), и это состояние держится уже десять проверок подряд. Любой лимит диска, показанный для аккаунтов на этом сервере, — это цифра из тарифа, и она сейчас НЕ применяется: аккаунт может использовать больше места, чем разрешено тарифом. Чтобы восстановить применение квот, смонтируйте файловую систему с учётом квот (usrquota/uquota) и выполните quotacheck и quotaon; это решение принимаете вы на этом сервере, панель не сделает этого автоматически.</value>
+  </data>
+  <data name="AlertQuotaNotEnforceableResolvedSubject">
+    <value>Этот сервер снова может применять дисковые квоты</value>
+  </data>
+  <data name="AlertQuotaNotEnforceableResolvedBody">
+    <value>Файловая система, на которой расположены домашние каталоги хостинг-аккаунтов ({0}), снова может применять дисковую квоту для пользователя. Лимиты диска, показанные для аккаунтов на этом сервере, снова применяются.</value>
+  </data>
+  <!-- TODO(owner): review naturalness. Placeholder translation, not final. Terms to check:
+       "проверка целостности" ("integrity check" — a literal rendering, not yet confirmed against
+       the owner's preferred product terminology); "лицензия" (whether the panel's license terms
+       should be named explicitly here or kept generic as below). -->
+  <data name="AlertCodeIntegrityDriftedRaisedSubject">
+    <value>Установленные файлы на этом сервере отличаются от выпущенной версии ({0})</value>
+  </data>
+  <data name="AlertCodeIntegrityDriftedRaisedBody">
+    <value>Собственная проверка панелью установленных файлов относительно подписанного релиза, который она считает установленным, обнаружила отличие, и это состояние держится уже десять проверок подряд: {1}. Это констатация факта, а не обвинение — ваша лицензия позволяет вам изменять собственную установку, и это уведомление не утверждает иного. Если это изменение не вносили вы, проверьте его; если вносили — никаких действий не требуется.</value>
+  </data>
+  <data name="AlertCodeIntegrityDriftedResolvedSubject">
+    <value>Установленные файлы на этом сервере снова соответствуют выпущенной версии ({0})</value>
+  </data>
+  <data name="AlertCodeIntegrityDriftedResolvedBody">
+    <value>Собственная проверка панелью установленных файлов относительно подписанного релиза больше не находит отличий (либо сама проверка снова работает): {1}.</value>
+  </data>
 </root>
