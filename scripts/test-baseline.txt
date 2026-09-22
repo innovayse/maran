@@ -239,7 +239,7 @@ rust	doc-tests maran_ops	0	0	0
 rust	doc-tests maran_templates	0	0	0
 backend	Maran.Agent.Client.Tests.dll	328	0	0
 backend	Maran.Modules.Backups.Tests.dll	191	0	0
-backend	Maran.SharedKernel.Tests.dll	167	0	0
+backend	Maran.SharedKernel.Tests.dll	168	0	0
 backend	Maran.Modules.Notifications.Tests.dll	48	0	0
 backend	Maran.Modules.Tasks.Tests.dll	54	0	0
 backend	Maran.Modules.Monitoring.Tests.dll	66	0	0

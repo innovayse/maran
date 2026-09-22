@@ -80,6 +80,83 @@ public sealed class AtomicFileWriterTests : IDisposable
         Assert.Equal(target, entries[0]);
     }
 
+    /// <summary>A reader watching the target while it is rewritten never sees it absent or partial.</summary>
+    /// <remarks>
+    /// <para>
+    /// <b>This is the test the atomicity claim had none of, and the reason it took three attempts.</b>
+    /// Replacing the rename with the non-atomic <c>File.Delete(target); File.Move(temp, target);</c>
+    /// — the form this class exists to avoid — left the whole backend suite green, because nothing
+    /// observed the swap at all. A seam was then added so a test could stage a failing swap; that
+    /// mutant SURVIVED too, because a test injecting its own swap never runs the real one. The seam
+    /// was reverted and this was written instead.
+    /// </para>
+    /// <para>
+    /// <b>Why watching cannot produce a false failure.</b> With one atomic rename the target is
+    /// never absent and never half-written — that is an INVARIANT, not a likelihood, so correct code
+    /// cannot fail this however the threads interleave. Delete-then-write opens a real window with
+    /// no file in it, and a reader spinning across many rewrites falls into it. A test that can only
+    /// fail when the property is actually broken is not flaky; it is merely possibly-weak, and the
+    /// iteration count is what trades strength against time.
+    /// </para>
+    /// <para>
+    /// UNOBSERVED HERE: a machine killed mid-write. Only the ordering is observed, not power loss.
+    /// </para>
+    /// </remarks>
+    /// <returns>Resolves when the writer and the watcher have both finished.</returns>
+    [Fact]
+    public async Task A_reader_watching_the_target_never_sees_it_absent_or_partial()
+    {
+        var target = Path.Combine(_directory, "licence.json");
+        var first = Encoding.UTF8.GetBytes("{\"v\":1}");
+        var second = Encoding.UTF8.GetBytes("{\"v\":2}");
+        await AtomicFileWriter.WriteAsync(target, first, TestFileMode, CancellationToken.None);
+
+        var stop = false;
+        var failure = (string?)null;
+
+        var watcher = Task.Run(() =>
+        {
+            while (!Volatile.Read(ref stop))
+            {
+                string seen;
+                try
+                {
+                    seen = File.ReadAllText(target);
+                }
+                catch (FileNotFoundException)
+                {
+                    // The window delete-then-write opens, and the one an atomic rename cannot.
+                    failure = "the target was ABSENT while being rewritten";
+                    return;
+                }
+                catch (IOException)
+                {
+                    continue;
+                }
+
+                if (seen != "{\"v\":1}" && seen != "{\"v\":2}")
+                {
+                    failure = $"the target was a partial or spliced document: `{seen}`";
+                    return;
+                }
+            }
+        });
+
+        for (var round = 0; round < 200 && failure is null; round++)
+        {
+            await AtomicFileWriter.WriteAsync(
+                target,
+                round % 2 == 0 ? second : first,
+                TestFileMode,
+                CancellationToken.None);
+        }
+
+        Volatile.Write(ref stop, true);
+        await watcher;
+
+        Assert.Null(failure);
+    }
+
     /// <inheritdoc />
     public void Dispose()
     {
