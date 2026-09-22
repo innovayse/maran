@@ -21,8 +21,17 @@ frontend/.vite/
 # `maran website` already referenced the site while git held nothing of it, which is the shape of
 # the mistake this line prevents.
 #
-# WHEN IT IS REGISTERED PROPERLY: `git submodule add` refuses a path that is ignored. Remove this
-# entry first, or pass `-f`, rather than concluding the submodule tooling is broken.
+# IT IS A PRIVATE REPOSITORY (the source of maran.innovayse.com), and that decides more than where
+# it lives. Maran itself is source-available: anyone may clone it. A private submodule inside a
+# public repository fails for every one of them — `git clone --recursive` stops on a permission
+# error, and `git submodule update` does too, with a message about authentication that reads like a
+# broken repository rather than a deliberate boundary. So registering it as a submodule here would
+# trade a clean clone for everyone against a convenience for the few who can fetch it. Ignoring it,
+# as now, keeps both repositories clonable by the people entitled to each.
+#
+# IF IT IS REGISTERED ANYWAY: `git submodule add` refuses a path that is ignored — remove this entry
+# first or pass `-f`, rather than concluding the tooling is broken — and expect the public clone
+# question above to need an answer, such as marking the submodule optional.
 website/
 # Playwright
 frontend/test-results/
