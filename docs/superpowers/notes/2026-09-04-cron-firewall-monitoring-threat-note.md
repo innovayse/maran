@@ -40,9 +40,14 @@ with this surface, and why is it safe now.**
   that is in place for when the Identity side lands, not about a live feature.
 - **Loopback is a trusted proxy, and on a hosting box loopback is not only nginx.**
   §3 is the section to read.
-- **Two findings from the round-3 installer re-review are still open** (F5 and F6 of
-  `.superpowers/sdd/2026-09-02-maran-cron-firewall-monitoring/task-16-rereview-3.md`);
-  its CRITICAL and all three MAJORs are closed in the working tree. §1 names each.
+- **Two findings from the round-3 installer re-review are still open, both MINOR**: F5 —
+  three of `assert_firewall_renders_through_the_agent`'s checks grep the raw `87-firewall.sh`
+  and are satisfied by a doc comment, not by code (demonstrated by stripping every code line
+  and leaving only comments — all three still pass); F6 — `installer/uninstall.sh`'s
+  `remove_firewall` carries a hand-copied duplicate of `87-firewall.sh`'s marker state machine
+  that nothing in the repository exercises, and the same mutation that turns the polygon red
+  for the original passes every gate here. Its CRITICAL and all three MAJORs are closed in the
+  working tree. §1 names each.
 
 **One guard the design claimed and the code did not have** was found during this pass,
 in the forwarded-headers configuration, and it was already being fixed while this note
@@ -1002,7 +1007,8 @@ the second lock. The residual is the warn-only TCP path recorded immediately abo
 
 ## Correction, 2026-09-09 — outgoing mail is its own module now
 
-Added by a verification pass (`.superpowers/sdd/threat-note-verification.md`). This note cites
+Added by a verification pass over every threat note on `fix/live-findings`, which found this
+note stale on two file paths. This note cites
 `backend/src/Maran.Modules/Monitoring/IntegrationEvents/Handlers/SendMailRequestedHandler.cs`.
 Outgoing mail moved out of Monitoring into `Maran.Modules.Notifications`, so the handler is at
 `backend/src/Maran.Modules/Notifications/IntegrationEvents/Handlers/SendMailRequestedHandler.cs`

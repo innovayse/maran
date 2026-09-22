@@ -4,9 +4,10 @@
 part of the only root process on the server, driven from a billing-facing panel endpoint.
 
 **Status: written BEFORE the change.** Nothing in `agent/` had been edited when this file was
-created; the measurements it argues from are in
-`.superpowers/sdd/rhel-unlock-defect-report.md` (Measurement 1 and 2), taken on both polygon
-families. A note written afterwards would be a justification for a choice already made, which
+created; the measurements it argues from — `usermod --unlock` and `usermod --lock` on a
+passwordless login, exit codes and the raw shadow field, taken on both polygon families — are
+the ones "The defect being fixed" below states. A note written afterwards would be a
+justification for a choice already made, which
 rules/architecture.md names as the mechanism that stops the next reader looking.
 
 **Second reviewer: OUTSTANDING.** No reviewer can be dispatched from this session. Per

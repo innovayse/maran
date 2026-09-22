@@ -168,7 +168,8 @@ whether this clears the bar for token handling; if yes, the comment should becom
 > without it as the control. nginx's ERROR log carries the raw request line too and can be given no
 > format at all. Both are now closed: the token no longer travels in a URL and the vhost logs no
 > query string — `docs/superpowers/notes/2026-09-11-setup-token-in-a-url-threat-note.md` (with its
-> "Correction and resolution" section) and `.superpowers/sdd/setup-token-log-report.md`. The
+> "Correction and resolution" section) and a working report kept only as a scratch file, not
+> committed. The
 > reviewer requirement this section asks for is **still OUTSTANDING**: only the leak is fixed, not
 > the review.
 

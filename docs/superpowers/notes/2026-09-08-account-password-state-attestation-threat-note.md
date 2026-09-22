@@ -8,10 +8,11 @@ and the two command handlers that consume it
 **Status: written BEFORE the change.** No file in `proto/`, `backend/src/Maran.Modules/Accounts/`,
 `backend/src/Maran.Agent.Client/` or `agent/` had been edited for this change when this file was
 created. The whole working tree is uncommitted, so `git status` cannot attest that; the mtimes of
-every file this change touches were recorded first, in
-`.superpowers/sdd/reactivation-panel-half-report.md`, and each precedes this note's own mtime.
-The measurements argued from here are in `.superpowers/sdd/rhel-unlock-defect-report.md`
-(Measurement 1 and 2), taken on both polygon families.
+every file this change touches were recorded first, in a working report kept only as a scratch
+file (not committed), and each precedes this note's own mtime.
+The measurements argued from here are the same ones the sibling `account-unlock-threat-note.md`
+states: `usermod --unlock`/`--lock` on a passwordless login diverge by exit code between the
+Debian and RHEL families, measured on both polygon families.
 
 **Second reviewer: OUTSTANDING.** No reviewer can be dispatched from this session. Per
 rules/security.md this change may live on a branch and MUST NOT merge to `main` until a second

@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="Maran">
+  <!--
+    The keystone in one colour: the same three courses, with the faces and the light removed.
+
+    For an embossing, a stamp, a partner's monochrome footer, and every size at which three lit
+    faces collapse into three muddy greys. Nothing is redrawn — these are the same coordinates the
+    colour mark uses, emitted by the same script, so the two files cannot drift apart. The courses
+    keep their radial geometry, so they still bow upward and still narrow with the stone, and the
+    air between them is still air rather than a painted line.
+
+    Each course is a single shape here rather than a lit half and a shadowed half: in one colour the
+    ridge on the centre line has nothing to separate, and drawing it would leave a hairline seam
+    that some renderers show and others do not.
+
+    `currentColor` lets the mark take the surrounding text colour when it is inlined in a component;
+    the `color` attribute is the fallback for when it is referenced through <img>, where there is no
+    inherited colour to take. #2E7BFF is the panel's own `ac` token.
+  -->
+  <g fill="currentColor" color="#2E7BFF">
+    <path d="M7.471 6.715Q8.5 5 10.5 5L21.5 5Q23.5 5 24.529 6.715L26.5 10L5.5 10Z"/>
+    <path d="M5.5 10L16 10L16 15.267A30.433 30.433 0 0 0 7.413 16.504Z"/>
+    <path d="M26.5 10L16 10L16 15.267A30.433 30.433 0 0 1 24.587 16.504Z"/>
+    <path d="M7.639 17.271A29.633 29.633 0 0 1 16 16.067L16 20.933A24.767 24.767 0 0 0 9.012 21.939Z"/>
+    <path d="M24.361 17.271A29.633 29.633 0 0 0 16 16.067L16 20.933A24.767 24.767 0 0 1 22.988 21.939Z"/>
+    <path d="M9.237 22.707A23.967 23.967 0 0 1 16 21.733L16 27L12.1 27Q10.5 27 10.049 25.465Z"/>
+    <path d="M22.763 22.707A23.967 23.967 0 0 0 16 21.733L16 27L19.9 27Q21.5 27 21.951 25.465Z"/>
+  </g>
+</svg>

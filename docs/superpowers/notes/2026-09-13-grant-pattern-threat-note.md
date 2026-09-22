@@ -9,7 +9,8 @@ reviewer, and that reviewer is OUTSTANDING.**
 
 `rules/security.md` says the note is written **first, before the change**. This one
 was not. The defect was found and the escape shipped into the working tree by the
-hunting lane (`.superpowers/sdd/older-modules-hunt.md`, finding F0) on 2026-09-13,
+hunting lane, finding F0 — the per-database `GRANT` is a wildcard pattern, so a customer's MySQL
+user can reach another tenant's database — on 2026-09-13,
 which recorded both the note and the second reviewer as OUTSTANDING and wrote
 neither. This file was written afterwards, by a different session, in the same day.
 
@@ -101,8 +102,9 @@ Three choices, reported as reconstruction:
 
 ## What was measured against a real server
 
-New with this note. Full evidence:
-`.superpowers/sdd/grant-pattern-measured.md`. Server:
+New with this note. The vulnerability was reproduced against a real MariaDB 10.11.14: the server
+behaves exactly as F0 said, and the escape both closes the hole and leaves the owner served (full
+working kept only as a scratch report, not committed). Server:
 `mariadbd Ver 10.11.14-MariaDB-0ubuntu0.24.04.1`, the version the Ubuntu 24.04
 polygon installs from the installer's own package list, reached over the local
 socket as root exactly as `ProcessDbHost` does.
@@ -211,8 +213,9 @@ upgrade path or in a `maran` subcommand is the owner's decision.
 - **`scripts/test-baseline.txt`.** The new `#[ignore]`d case raises that suite's
   declared count from 6 to 7, and the polygon lane's fifth axis compares
   `passed + failed` against that number. The file is outside this lane's writable
-  scope; the row is reported as prose in
-  `.superpowers/sdd/grant-pattern-measured.md` and **`maran polygon verify` will
+  scope; the row owed is `rust	databases_on_a_real_host [tests/databases_on_a_real_host.rs]	0	0	6`
+  (suite grew from a baseline of 6 to 7, one more), reported as prose because
+  `scripts/test-baseline.txt` is not this lane's to edit, and **`maran polygon verify` will
   refuse this suite until the row is raised.**
 - **Anything about a real deployment.** No shipped installation was examined. See
   the section above for what it would take.

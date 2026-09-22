@@ -897,13 +897,21 @@ fi
 #     quotes `grep -rn 'owed' .superpowers/sdd` -> 0 beside /usr/bin/grep -> 587, which is the
 #     measurement that bullet exists to teach. The cost of both exclusions is that a citation added
 #     to either file is invisible here; the alternative is a rule that cannot show its own evidence.
+#
+#     `docs` is now swept too. The sweep originally covered only `agent backend frontend installer
+#     scripts docker rules` and missed `docs/` entirely; a documents-only pass found 80 dangling
+#     citations across 25 files under docs/superpowers/{notes,plans} — 21 threat notes and 4 plans —
+#     none of them caught until that pass went looking by hand. A threat note or a plan is read by
+#     the same reviewer this check protects everywhere else, so a dangling path there is the same
+#     defect this rule exists to catch, not a lesser one because it sits in docs/ rather than a doc
+#     comment.
 while IFS= read -r file; do
   hits="$(grep -n '\.superpowers' "$file" || true)"
   if [ -n "$hits" ]; then
     line="$(printf '%s' "$hits" | head -1 | cut -d: -f1)"
     report "$file:$line: cites .superpowers/, which no clone contains (its .gitignore is \`*\`) — put the argument in the doc comment, a threat note under docs/superpowers/notes/, or rules/ (rules/architecture.md)"
   fi
-done < <(find agent backend frontend installer scripts docker rules \
+done < <(find agent backend frontend installer scripts docker rules docs \
            \( -name '*.rs' -o -name '*.cs' -o -name '*.sh' -o -name '*.md' -o -name '*.txt' \) \
            -not -path '*/target/*' -not -path '*/obj/*' -not -path '*/bin/*' \
            -not -path '*/node_modules/*' -not -path '*/dist/*' \

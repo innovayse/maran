@@ -3,8 +3,9 @@
 Date: 2026-09-09
 Surface: the agent's privileged file surface (`ops::sites`), the nginx vhosts the agent renders,
 and the installer's privileged steps.
-Finding this discharges: **F-1 (CRITICAL)** in `.superpowers/sdd/privs-audit-report.md` — proved on
-a polygon image, not reasoned about.
+Finding this discharges, from the privileged-surface audit: **F-1 (CRITICAL)** — nginx, running
+as root, opens each site's log files inside a directory the customer owns, and a symlink planted
+there is followed — proved on a polygon image, not reasoned about.
 
 ## Second reviewer: OUTSTANDING
 
@@ -468,7 +469,8 @@ Three further tests in the same suite:
 `AgentPaths::account_site_log_dir(account)` back to `home.join("logs")` — in an **rsync snapshot
 outside the repository**, and the suite is re-run in the polygon against that snapshot. It
 reproduces the escalation, by name, with the witness file created by root. The named failure and
-both runs' collected totals are quoted in `.superpowers/sdd/f1-site-logs-fix-report.md`.
+both runs' collected totals were quoted in a working report kept only as a scratch file, not
+committed.
 
 ## 4. What this fix does NOT cover
 
@@ -508,7 +510,8 @@ assurance.
 
 ## Correction, 2026-09-09 — the service group is `maran`, not `panel`
 
-Added by a verification pass (`.superpowers/sdd/threat-note-verification.md`). The ownership table
+Added by a verification pass over every threat note on `fix/live-findings`, which found this
+note MOSTLY VERIFIED with one factual error. The ownership table
 in §2.1 and the prose under it name the panel's system user and group `panel`
 (`/var/log/maran` as `root:panel`, `/var/log/maran/panel` as `panel:panel`). That account and
 group were renamed on this branch, in the same working tree: `installer/install.sh` sets

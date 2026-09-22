@@ -4,8 +4,11 @@ Date: 2026-09-09
 Surface: the agent's privileged account area (`ops::accounts`), the SFTP login path
 (`ops::sftp`), the account's crontab removal and the restore's home swap
 (`ops::backup::restore_backup`).
-Findings this answers: **C-3 (HIGH)** and **C-4 (HIGH)** in
-`.superpowers/sdd/agent-concurrency-audit.md`.
+Findings this answers, from the agent concurrency audit: **C-3 (HIGH)** — `DeleteAccount` is
+seven host mutations with no lock, and any site or SFTP RPC that interleaves leaves residue that
+breaks an unrelated tenant or hands a future tenant a live credential; and **C-4 (HIGH)** — the
+backup lock protects backups from each other and from nothing else, so a `DeleteAccount` during a
+restore recreates the deleted home, owned by a uid the host may have reassigned.
 
 ## Second reviewer: OUTSTANDING
 
@@ -202,12 +205,13 @@ had been reading it as if it did.
   written here rather than left for a reader to discover.
 - **I have not observed either race on a production host.** What IS measured is both races driven
   deliberately on the polygon images, against the real tools, with the fix reverted to reproduce the
-  audit's outcome and restored to close it. See `.superpowers/sdd/c3-c4-deletion-seam-report.md`.
+  audit's outcome and restored to close it; the working report for that run was kept only as a
+  scratch file, not committed.
 
 ## How this composes with the restore-recovery fix that landed today
 
-`recover_restores` reconciles an interrupted swap at startup, **before the socket is bound**
-(`.superpowers/sdd/f2-restore-recovery-report.md`). It takes the same per-account lock, which after
+`recover_restores` reconciles an interrupted swap at startup, **before the socket is bound**.
+It takes the same per-account lock, which after
 this change lives in `ops::accounts::account_lock` instead of `ops::backup::backup_lock`. Nothing
 about when it runs changes, and because it runs before any RPC can arrive the lock is always free
 for it — this change neither undoes that fix nor depends on it. The one place the two meet is the
@@ -310,7 +314,8 @@ That is not a regression this change introduces. It is the state the tree was in
 
 ## Correction, 2026-09-09 — `set_ftps_password` is no longer crate-private
 
-Added by a verification pass (`.superpowers/sdd/threat-note-verification.md`). The FTPS addendum
+Added by a verification pass over every threat note on `fix/live-findings`, which found this
+note VERIFIED except for one claim the tree has since overtaken. The FTPS addendum
 above says `set_ftps_password` "is crate-private and is NOT a customer-facing password change" and
 that "the rpc that Task 10 wires must add all three" protections. Task 10 has landed:
 `ops/src/ftps/set_ftps_password.rs` exposes `pub fn set_ftps_password` (with a

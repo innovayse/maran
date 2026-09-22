@@ -73,8 +73,8 @@ pool's user, and their cron spool's owner.
 mapped to `AlreadyExists`. Delete was the one operation with no gate at all, and it is the
 destructive one.
 
-**Confirmed by execution, not by reading.** The Phase B/C review
-(`.superpowers/sdd/ftps-phase-bc-review.md`, F2) added a witness test in a scratch copy that seeded
+**Confirmed by execution, not by reading.** The Phase B/C review (finding F2, kept only as a
+working report, not committed) added a witness test in a scratch copy that seeded
 `FakeFtpsHost` with a foreign login `alice_bob` homed at `/home/alice_bob` and asserted the deletion
 *succeeded and removed it*. The witness passed. The SFTP half is the identical hole and is **shipped
 on real installs today**.

@@ -3,7 +3,9 @@
 Date: 2026-09-09
 Surface: the agent's privileged backup area (`ops::backup`), the agent's startup path, and the
 installer's `maran-agent.service` unit.
-Finding this answers: **F-2 (HIGH)** in `.superpowers/sdd/privs-audit-report.md`.
+Finding this answers, from the privileged-surface audit: **F-2 (HIGH)** — a restore killed
+mid-flight leaves the account with no home and no recovery, and the next daemon start deletes
+the rollback dumps.
 
 ## Second reviewer: OUTSTANDING
 
@@ -246,4 +248,4 @@ cap or the age bound is wanted.
   existed. The case asserts the window was actually entered before it asserts anything about
   recovery, so a kill that missed fails the case instead of passing it.
 - Each case was proved able to fail by reverting the fix and quoting the named failure; the
-  quotes are in `.superpowers/sdd/f2-restore-recovery-report.md`.
+  quotes were kept in a working report only, not committed.

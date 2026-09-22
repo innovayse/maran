@@ -9,7 +9,8 @@ commercially licensed product without an obligation we are not meeting."
 
 **Update (2026-09-03, second pass — `MailKit` now landed):** All four dependencies this note now
 covers (`serde_json`+`zmij`, `rustix`, `MailKit`+`MimeKit`+their transitive closure) are
-permissively licensed (MIT / Apache-2.0, disjunctively for `rustix`) with no copyleft found at any
+permissively licensed (MIT / Apache-2.0, disjunctively for `rustix`) with no copyleft that
+BINDS this product found at any
 depth checked. The mechanical gap — `THIRD-PARTY-NOTICES.md` stale against the current
 `agent/Cargo.lock` and `backend/Directory.Packages.props` — was real, was reproduced by actually
 running `maran licenses --check` (which failed) in this pass, and has been **fixed by running
@@ -125,7 +126,17 @@ check of `serde_json`'s own declared licence would never surface `zmij` at all, 
 appear anywhere until you resolve the lockfile. It is permissive and adds no obligation beyond a
 second attribution row, but it is a second row, and it is also currently missing.
 
-**Conclusion:** Permissive, no copyleft anywhere in the chain, nothing to reproduce beyond
+**Correction, 2026-09-19.** "No copyleft anywhere in the chain" was too strong, and the whole
+tree now says so: `THIRD-PARTY-NOTICES.md` lists `lightningcss` and its two platform binaries under
+**MPL-2.0**, which is copyleft. It does not bind anything here, and the distinction is worth keeping
+rather than smoothing over: MPL is FILE-level, so it reaches only modified files of `lightningcss`
+itself, never this product's code, and `lightningcss` is a frontend build dependency that is not
+patched. So the obligation is dormant, not absent — and it wakes the day somebody edits that
+package, at which point those edits must be published. `r-efi`'s `LGPL-2.1-or-later` is a third arm
+of an `OR`, so choosing MIT makes it irrelevant; that one really is nothing.
+
+**Conclusion:** Permissive for every dependency that binds this product, one dormant file-level
+copyleft recorded above, nothing to reproduce beyond
 attribution. Action: add `serde_json` 1.0.151 and `zmij` 1.0.23 to `THIRD-PARTY-NOTICES.md` (via
 `maran licenses`, not by hand — the file says not to edit it directly and the generator pins
 locale-independent sort order for reproducibility).
@@ -401,7 +412,8 @@ push to catch any further drift this pass could not see.
 
 ## Correction, 2026-09-09 — the `MailKit` section's file paths, and the gate today
 
-Added by a verification pass (`.superpowers/sdd/threat-note-verification.md`). The `MailKit`
+Added by a verification pass over every threat note on `fix/live-findings`, whose gate for this
+note's one testable promise — `maran licenses --check` → `NOTICES-OK` — was GREEN. The `MailKit`
 section cites `backend/src/Maran.Modules/Monitoring/Services/SmtpMailer.cs` and
 `Monitoring/Maran.Modules.Monitoring.csproj`. Outgoing mail is now its own module: the file is
 `backend/src/Maran.Modules/Notifications/Services/SmtpMailer.cs` and the package reference lives

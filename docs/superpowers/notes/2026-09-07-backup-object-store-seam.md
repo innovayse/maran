@@ -37,8 +37,8 @@ misdescribes") a spec line in that state is the same class of defect, one level 
 
 ## Why it was left unwired — three measured obstacles
 
-Full working: `.superpowers/sdd/2026-09-05-maran-backups/seam-wiring-report.md`. Summarised,
-because the decision below rests on them:
+The wiring attempt's full working was kept only as a scratch report, not committed; summarised
+here, because the decision below rests on them:
 
 1. **A listing cannot be expressed in `{key, bytes}`.** `list_backups` refuses a name that is
    not valid UTF-8 (`BackupError::UnmintedArtifactName`) and a directory or symlink wearing an
@@ -136,7 +136,7 @@ note.
 
 ## Related
 
-- `.superpowers/sdd/2026-09-05-maran-backups/seam-wiring-report.md` — the wiring attempt, its
-  refusal, and the mutation evidence.
+- The wiring attempt's own report (its refusal and the mutation evidence) is summarised above,
+  under "Why it was left unwired"; it was kept only as a scratch file, not committed.
 - `docs/superpowers/notes/2026-09-05-backups-threat-note.md` — the S3 credential path.
 - `docs/superpowers/plans/2026-09-05-maran-backups.md` — Tasks 6, 11, 16.

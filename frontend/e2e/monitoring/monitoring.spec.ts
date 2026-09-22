@@ -44,18 +44,32 @@ const ACCOUNTS: AccountDiskUsage[] = [
     username: 'alice',
     usedBytes: 512 * 1024 * 1024,
     quotaBytes: 1024 * 1024 * 1024,
+    enforceable: true,
+    note: null,
   },
   {
     accountId: '22222222-2222-2222-2222-222222222222',
     username: 'bob',
     usedBytes: 3 * 1024 * 1024 * 1024,
     quotaBytes: 2 * 1024 * 1024 * 1024,
+    enforceable: true,
+    note: null,
   },
   {
     accountId: '33333333-3333-3333-3333-333333333333',
     username: 'carol',
     usedBytes: null,
     quotaBytes: 1024 * 1024 * 1024,
+    enforceable: true,
+    note: null,
+  },
+  {
+    accountId: '44444444-4444-4444-4444-444444444444',
+    username: 'dave',
+    usedBytes: 256 * 1024 * 1024,
+    quotaBytes: 1024 * 1024 * 1024,
+    enforceable: false,
+    note: 'Not currently enforced — mount the filesystem with quota accounting and run quotaon.',
   },
 ]
 
@@ -164,6 +178,20 @@ test('an account the agent did not measure gets no bar and says so', async ({ pa
   const carol = page.getByTestId('account-disk-row').filter({ hasText: 'carol' })
   await expect(carol.getByRole('progressbar')).toHaveCount(0)
   await expect(carol.getByText('Not measured')).toHaveCount(2)
+})
+
+// The proposition: an account whose quota this server cannot enforce gets NO progress bar against
+// its allowance — a bar there would draw a limit as if it were in force, which is issue #29's own
+// defect. It gets a "not enforced" badge instead, and the figure it can back (the used bytes) is
+// still shown in plain text. Breakable: draw `UiMeter` unconditionally and the progressbar count
+// below stops being zero for this row; drop the badge and the text assertion fails.
+test('an account whose quota cannot be enforced gets no bar and a badge instead', async ({ page }) => {
+  await openMonitoring(page)
+
+  const dave = page.getByTestId('account-disk-row').filter({ hasText: 'dave' })
+  await expect(dave.getByRole('progressbar')).toHaveCount(0)
+  await expect(dave.getByText('Not enforced', { exact: true })).toBeVisible()
+  await expect(dave.getByText('256 MiB, allowance not enforced')).toBeVisible()
 })
 
 // The proposition: all three states the agent reports are rendered, each with its own text — the

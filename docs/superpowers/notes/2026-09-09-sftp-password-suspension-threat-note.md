@@ -6,8 +6,9 @@ a customer-facing panel endpoint that an ordinary tenant may call for their own 
 **suspension bypass**, so rules/security.md's escalation rule applies.
 
 **Status: written BEFORE the change.** Nothing in `agent/` had been edited when this file was
-created. The defect it argues about is M-4 in `.superpowers/sdd/concurrency-mediums-report.md`
-(prose diff D-4), which ranks it *exploitable today* — the only item in that batch so ranked. A
+created. The defect it argues about is M-4 (prose diff D-4) of a concurrency-mediums audit kept
+only as a working report, which ranks it *exploitable today* — the only item in that batch so
+ranked. A
 note written afterwards would be a justification for a choice already made, which
 rules/architecture.md names as the mechanism that stops the next reader looking.
 

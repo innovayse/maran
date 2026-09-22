@@ -6,7 +6,17 @@
     <!-- data-theme is set here, before the app mounts, so the first paint is
          already the right theme: setting it from JavaScript flashes the wrong
          one first. The locale store rewrites it when the user chooses. -->
+    <!-- The icons, in the order a browser is meant to read them. The SVG comes
+         first so a browser that understands it scales one drawing instead of
+         picking a bitmap; the 32px PNG is the fallback for those that ignore
+         SVG icons. apple-touch-icon is what iOS puts on a home screen, and it
+         is opaque and inset on purpose — iOS crops and rounds whatever it is
+         given, and a transparent full-bleed mark loses its corners to that.
+         favicon.ico is deliberately not listed: it sits at the root and the
+         browsers that want it ask for it by convention. -->
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/icon-32.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
     <title>Maran</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />

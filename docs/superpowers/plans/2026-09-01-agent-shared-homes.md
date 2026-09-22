@@ -792,8 +792,8 @@ Expected: all green; test count = pre-plan count + 6 new decode tests, zero chan
 
 ## Outcome (all seven tasks complete, 2026-09-05)
 
-Every step above is done and its gate ran green. Per-task reports:
-`.superpowers/sdd/2026-09-01-agent-shared-homes/task-{1,2,3,4-5,6-7}-report.md`.
+Every step above is done and its gate ran green. Per-task reports were kept only as working
+scratch files (task 1, 2, 3, 4-5 and 6-7), not committed.
 
 Final gate, `agent/`: `cargo fmt --check`, `cargo clippy --all-targets -D warnings`,
 `RUSTDOCFLAGS="-D warnings" cargo doc --no-deps --workspace` all clean;

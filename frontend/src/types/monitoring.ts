@@ -121,6 +121,21 @@ export interface AccountDiskUsage {
    * dividing by it.
    */
   quotaBytes: number
+  /**
+   * Whether the filesystem holding this account's home can currently back {@link quotaBytes} with
+   * a real kernel-enforced limit. `false` means the figure is real — it is still the plan the
+   * customer paid for — but nothing on the server refuses a write past it right now. The table
+   * must never draw {@link quotaBytes} as if it were in force when this is `false`: that is
+   * issue #29's own defect, restated for the SPA rather than the backend.
+   */
+  enforceable: boolean
+  /**
+   * The backend's own explanation of why {@link enforceable} is `false`, already localized — or
+   * `null` when {@link enforceable} is `true` and there is nothing to explain. The SPA renders this
+   * text verbatim; it does not invent its own wording for what "not enforceable" means
+   * (rules/vue.md, rules/architecture.md — the backend owns user-facing text).
+   */
+  note: string | null
 }
 
 /** The monitoring endpoints this SPA calls, as `useMonitoringApi` implements them. */

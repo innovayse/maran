@@ -14,6 +14,21 @@ drive to create accounts automatically.
 Source-available and free to self-host; commercial modules are distributed through the
 Innovayse marketplace.
 
+Maran is a product of **[Innovayse LLC](https://innovayse.com)**, a software company in Yerevan,
+Armenia. Innovayse builds it, signs its releases, runs the licence and marketplace service behind
+its commercial modules, and answers for it — the panel is not a side project or a community
+volunteer effort, and the name on the signature is the name of the company you would call. Releases
+are published from `releases.maran.innovayse.com` and the installer is served from
+`get.maran.innovayse.com`, both under Innovayse's own domain, which is also what makes the release
+signing key traceable to somebody accountable rather than to an anonymous build.
+
+Two consequences worth stating in the same breath as the name, because a company standing behind a
+product is only meaningful if it says what it does NOT promise. The licence is Business Source
+License 1.1: the source is available to everyone and you may self-host and modify it, which means
+Innovayse cannot and does not claim the code on your server is unmodified. And when the licence
+service is unreachable, **only commercial modules degrade — the core never stops.** Customers'
+servers are not held hostage to Innovayse's uptime.
+
 ## Why Maran
 
 Existing panels are either expensive and closed, or free but built on architectures that keep
@@ -128,7 +143,7 @@ the rule in `rules/architecture.md` actually says is narrower and does hold: *Ma
 processes — `maran-api`, `maran-agent` and PostgreSQL — and the panel adds no broker and no sidecar
 of its own. The rest are the services a hosting panel exists to manage.
 
-    curl -sSL https://get.maran.com | bash
+    curl -sSL https://get.maran.innovayse.com | bash
 
 The installer verifies the system before changing anything, installs signed release
 artifacts, hardens the systemd units, and prints a one-time link for creating the first
@@ -203,9 +218,19 @@ Verification, each runnable on its own:
     maran handshake                    # agent and API over a real unix socket
     cd backend  && dotnet test         # unit, architecture and integration tests
     cd frontend && npm run lint && npm run typecheck && npm run build && npx playwright test
+    maran website                      # the public site, when checked out beside this repository
 
 The application has no unit-test runner by design: it is verified end to end against a running
 API in `frontend/e2e/` (rules/testing.md).
+
+The public site lives in its own repository — `gitlab.com/innovayse/maran-website`, cloned into
+`website/` when you want both side by side — and this one ignores that directory. It is governed by
+rules/nuxt.md all the same, and it is verified the other way round from the panel: its logic is
+small, pure and directly callable — content resolution and its English fallback, sidebar shaping, structured data, locale
+parity — so it is tested with Vitest in `website/tests/`, and its lint gate additionally checks the
+content itself: a release published in `CHANGELOG.md` with no release page, frontmatter that does
+not match its schema, an internal link that resolves to nothing, and the three locale directories
+disagreeing about their keys.
 
 `maran agent` runs the Rust toolchain natively and falls back to a pinned container when the
 machine has no C linker, so a fresh clone can build the agent before installing anything.
@@ -243,16 +268,29 @@ What ships with those, said here rather than left to be discovered:
 
 - **SSL is HTTP-01 only.** No wildcards and no DNS-01 — those belong with the DNS module, which
   is not in the first release. The domain must already resolve to the server.
-- **The ACME client has never completed an issuance against a real authority.** It reaches
-  Let's Encrypt's staging directory and its nonce endpoint, and is refused at account
-  registration when the operator has not set a contact address. Everything past that point —
-  ordering, challenge validation, finalising and downloading — has been exercised only against a
-  fake authority in tests. Treat automatic issuance as unproven until a staging run says
-  otherwise.
-- **An account created by an earlier build cannot serve a site.** Creating an account now
-  group-owns its home by the web server's group so the server can reach the document root; homes
-  created before that do not have it, and there is no repair command yet. Run
-  `chgrp www-data /home/<account>` (`nginx` on the RHEL family) by hand for those.
+- **The ACME client completes a real issuance, and Let's Encrypt itself is still unproven.**
+  Those are two separate facts and this bullet used to state only the first half of the first one.
+  The whole path — account registration with a contact address, order, HTTP-01 challenge served and
+  validated, finalise, download — now runs end to end against `pebble`, Let's Encrypt's own test
+  ACME server, with the issued certificate's serial in pebble's log matching the serial read back
+  out of the PEM. That exercise found a real defect no test had: the client sent no `User-Agent`,
+  which pebble refuses as `malformed` on every request. Let's Encrypt is permissive about it, so
+  only a stricter authority could have surfaced it.
+  What is still owed is the authority, not the protocol: pebble is not Let's Encrypt's service,
+  its rate limits, its validation from the public internet, or its chain, and none of that can be
+  tried without a publicly resolvable domain with inbound reachability. Nor is the renewal path
+  proven live — the test forces a fresh challenge every run, so the "already valid, skip the
+  challenge" branch that a renewal actually takes was deliberately not exercised. Treat issuance
+  against the real authority as unproven.
+- **An account created by an earlier build cannot serve a site, and there is now a repair for it.**
+  Creating an account group-owns its home by the web server's group so the server can reach the
+  document root; homes created before that do not have it, and nginx cannot traverse to their
+  document root. An administrator-only repair reports what it would change and then narrows only
+  what it reported, refusing six ways rather than guessing once — a home that is not where the
+  account says it is, missing, a symlink, not a directory, on a different mount, or owned by
+  another uid. It runs as root, which is why it refuses rather than repairs when anything about a
+  path is not what it expects. The manual `chgrp www-data /home/<account>` (`nginx` on the RHEL
+  family) still works and is what the repair does.
 - **`open_basedir` is not a security boundary.** Isolation between accounts comes from the pool's
   uid; the `open_basedir` line is there against accidents, not attackers.
 - **An FTP daemon IS installed, and it is switched off.** This sentence used to say the opposite —
@@ -285,15 +323,37 @@ What ships with those, said here rather than left to be discovered:
   `docs/superpowers/notes/2026-09-13-grant-pattern-threat-note.md` for the collision and
   `docs/superpowers/notes/2026-09-13-grant-repair-threat-note.md` for the repair itself — both
   carry an outstanding second review.
+- **A disk quota the filesystem cannot enforce is now reported instead of displayed as if it held.**
+  A plan's disk limit is something a customer paid for, and it binds only if the filesystem was
+  mounted with quota accounting and `quotaon` was actually run. Those are separate steps an operator
+  can miss, and until now nothing observed them: the panel showed the plan's own figure, the kernel
+  enforced nothing, and no screen, log or alert could ever contradict the other — an unenforced paid
+  limit was undetectable by construction until the disk filled. The host's enforcement state is now
+  read as its own fact, beside the sold figure rather than replacing it, monitoring raises an alert
+  while a host cannot enforce, and the interface stops drawing a usage bar it knows means nothing.
+  The panel never enables quotas by itself: mount options and `quotaon` on a live server are the
+  operator's decision, and a root daemon remounting a filesystem unattended is worse than an honest
+  refusal. Two limits, stated: enforcement is decided from `quotaon -p`, so an NFS home — where
+  enforcement lives on the export server — is a case this does not cover; and a limit binding is
+  proved on a real quota-enabled filesystem, not by any unit test.
 - **A database password is shown once and never stored.** Losing it means resetting it, not
   looking it up; the same is true of an SFTP login's password.
 - **Dropping a database is final.** Nothing is backed up first.
 - **What bounds an SFTP login after it authenticates is the account, not this feature.** The
   session is chrooted, shell-less and cannot forward ports, but it runs as the account's uid, so
   its CPU, memory and process limits are the account's — nothing here sets them.
-- **The `Match Group` block sshd needs is written by the installer and never re-checked.** If it
-  is removed by hand or by a package upgrade, SFTP logins become full shell sessions and nothing
-  in the panel would notice.
+- **The `Match Group` block sshd needs is written once by the installer, and the panel now notices
+  when it goes.** If it is removed by hand or by a package upgrade, SFTP logins become full shell
+  sessions — the panel used to keep showing them as jailed, which is the worst kind of wrong,
+  because nothing looks broken. Monitoring now reads the block and raises an alert when it drifts,
+  resolving it when the block comes back. All four directives that do the jailing are checked
+  individually, not just the `Match Group` line: a block whose header survived and whose body was
+  emptied is exactly the drift worth catching.
+  The check reads sshd's configuration file rather than asking `sshd -T`, and that was measured
+  rather than assumed — `sshd -T` prints the effective configuration but never the contents of a
+  `Match` block at all, so a check built on it would have been blind to the thing it reports on.
+  What it does NOT do: follow `Include` directives, and prove that a drifted host really grants a
+  shell. It reports that the configuration no longer says what the installer wrote.
 
 Cron, backups, the firewall and monitoring have since joined them — this line used to say they
 were "the modules that follow", which stopped being true when they landed. Each ships as a backend
