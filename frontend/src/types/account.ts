@@ -54,6 +54,30 @@ export interface Plan {
  * Request body for `POST /api/v1/accounts`, binding the backend's
  * `CreateAccountCommand` field-for-field.
  */
+/**
+ * A plan an account can be created against, as the panel reports it. The display
+ * name arrives already localized: plans are server-side reference data, and the
+ * SPA never translates or invents them (rules/vue.md).
+ */
+export interface Plan {
+  /** The plan's identity, submitted with a new account. */
+  id: string
+  /** The plan's name, already in the request's language. */
+  displayName: string
+  /** Disk the plan allows, in megabytes. */
+  diskQuotaMb: number
+  /** How many sites the plan allows. */
+  maxSites: number
+  /** How many databases the plan allows. */
+  maxDatabases: number
+  /** How many FTP users the plan allows. */
+  maxFtpUsers: number
+}
+
+/**
+ * Request body for `POST /api/v1/accounts`, mirroring the backend's
+ * `CreateAccountRequest` field-for-field.
+ */
 export interface CreateAccountRequest {
   /** The account's unique, Linux-username-safe short name. */
   name: string

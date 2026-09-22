@@ -11,6 +11,17 @@ namespace Maran.Agent.Client.Services.SystemService;
 /// <summary>Maps the agent's SystemService handshake onto <see cref="Result{T}"/>.</summary>
 public sealed class AgentSystemClient : IAgentSystemClient
 {
+    /// <summary>
+    /// Pre-compiled log delegate for a failure the agent reported. Source-generated for the same
+    /// reason <c>ExceptionMiddleware</c>'s is: an agent that is down fails every call, and this is
+    /// then the hottest line in the process.
+    /// </summary>
+    private static readonly Action<ILogger, string, string, Exception?> LogAgentError =
+        LoggerMessage.Define<string, string>(
+            LogLevel.Warning,
+            new EventId(1, nameof(AgentSystemClient)),
+            "Agent returned {AgentErrorCode}: {AgentErrorMessage}");
+
     /// <summary>The transport seam this client drives; a stub in tests, a real gRPC call in production.</summary>
     private readonly ISystemServiceInvoker _invoker;
 

@@ -151,6 +151,120 @@ longest member of a typical entity — one assignment and one `<param>` line per
 placing it first buries the field list under a screen of ceremony, and the ceremony only makes
 sense once the reader knows what is being assigned.
 
+## Domain models are rich: every change of state is a method
+
+An entity is not a bag of settable fields. Every property has a `private set`, and every way the
+entity can change is a **method on the entity itself**. A handler orchestrates — load, call, save —
+and never assigns a property.
+
+Two kinds of method, and the name says which:
+
+- **CRUD-shaped**, for a plain edit the domain has no opinion about: `Rename`, `ChangePlan`,
+  `UpdateContact`. Named for the field group they replace.
+- **Domain-logic**, for a transition with rules or consequences: `Suspend`, `Reactivate`, `Revoke`,
+  `EnableTotp`, `Consume`. Named for what happens in the business, never for the field it touches —
+  `Suspend()` says why; `SetStatus(AccountStatus.Suspended)` says nothing and lets a caller pass
+  any value it likes.
+
+```csharp
+// RIGHT — the entity enforces its own rule, and the name states the intent
+public void Revoke(DateTimeOffset at, SessionRevocationReason reason)
+{
+    if (RevokedAt is not null)
+    {
+        return;      // first reason survives; that is the entity's rule, not the caller's
+    }
+
+    RevokedAt = at;
+    RevocationReason = reason;
+}
+
+// WRONG — anaemic model: the rule now lives in whichever handler remembers it
+public DateTimeOffset? RevokedAt { get; set; }      // rejected in review
+session.RevokedAt = clock.UtcNow;                   // and so is this
+```
+
+Creation is the same rule applied to the beginning: the public constructor (or a static factory
+when creation can fail) is the only way an entity comes into existence in a valid state, and EF
+Core's parameterless constructor is `private` so nothing else can reach it.
+
+Do not add a method no use case calls yet. A rich model means every *existing* mutation is a named
+method — not a speculative `Update…` for each property against the day something might need it
+(YAGNI, rules/architecture.md).
+
+## Domain enums live in `Domain/Enums/`
+
+A module's enums go in `Domain/Enums/`, one per file, never loose beside the entities in `Domain/`.
+The namespace follows the folder, as always: `Maran.Modules.Identity.Domain.Enums`.
+
+```
+Domain/
+├── Session.cs              # the entity
+├── User.cs
+└── Enums/
+    ├── SessionRevocationReason.cs
+    ├── UserRole.cs
+    └── AccountStatus.cs
+```
+
+Two reasons. An enum is a closed set of values, not a thing with behaviour and identity, so it does
+not belong in the same list a reader scans to learn what the module models — mixed together, a
+`Domain/` folder of fifteen files hides its four actual entities. And an enum is the member most
+likely to be shared: statuses, roles and reasons are read by handlers, DTOs and EF configurations
+alike, so having one predictable home spares every one of them a search.
+
+The same separation the `Interfaces/`-never-beside-models rule makes for contracts.
+
+## Member order — methods come last
+
+Inside a type, members appear in this order, and a file that mixes them is a review reject:
+
+1. Constants and `static readonly` fields
+2. Instance fields
+3. Properties
+4. Constructors (public ones before the private EF Core one)
+5. Methods (public before private)
+
+```csharp
+// RIGHT — an entity reads as "what it is", then "what it does"
+public sealed class Session
+{
+    private const int TokenHashLength = 44;
+
+    public Guid Id { get; private set; }
+
+    public string TokenHash { get; private set; }
+
+    public Session(Guid id, Guid userId, string tokenHash) { ... }
+
+    private Session() { ... }
+
+    public bool IsActive(DateTimeOffset now) { ... }
+
+    public void Revoke(DateTimeOffset at, SessionRevocationReason reason) { ... }
+}
+
+// WRONG — a method between two properties
+public sealed class Session
+{
+    public Guid Id { get; private set; }
+
+    public bool IsActive(DateTimeOffset now) { ... }   // rejected in review
+
+    public string TokenHash { get; private set; }
+}
+```
+
+The reason is that a reader opening a domain model wants its **shape** first — what the thing is
+made of — and its behaviour second. Interleaving the two means the shape can only be learned by
+reading the whole file, and a property added later lands wherever the writer's cursor happened to
+be. Applies to every type, not only entities: DTOs, options classes, services, controllers.
+
+A constructor sits **below** the properties, not above them, even though it runs first. It is the
+longest member of a typical entity — one assignment and one `<param>` line per property — so
+placing it first buries the field list under a screen of ceremony, and the ceremony only makes
+sense once the reader knows what is being assigned.
+
 ## Canonical backend layout — every file has one correct place
 
 Nothing is filed "wherever it fits". A file whose path does not follow this map is a review reject, and so is a workaround that dodges the map instead of extending it.

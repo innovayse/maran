@@ -45,6 +45,22 @@ export interface RequestOptions {
   retryOnUnauthorized?: boolean
 }
 
+/** How one request is described to the low-level client's internal `request` helper. */
+export interface RequestOptions {
+  /** HTTP method. */
+  method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
+  /** The payload to serialize as JSON, or `undefined` for a body-less request. */
+  body?: unknown
+  /** Optional abort signal to cancel the in-flight request. */
+  signal?: AbortSignal
+  /**
+   * Whether a 401 should renew the access token and replay the request. Defaults
+   * to true. Sign-in calls set it to false: a wrong password is not a stale token,
+   * and retrying would spend a refresh and hide the real answer.
+   */
+  retryOnUnauthorized?: boolean
+}
+
 /** Public surface of the low-level API client returned by {@link useApi}. */
 export interface ApiClient {
   /**

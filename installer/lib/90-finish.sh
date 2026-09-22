@@ -100,6 +100,9 @@ neither this server's web server log nor your browser's history ever records it.
 If you lose it, read Setup__Token from /etc/maran/panel.env (root:maran 0640), or re-run
 the installer to issue a new one.
 
+The certificate is self-signed until you point a real hostname at this server, so your
+browser will warn once. That is expected on a fresh install.
+
 Next steps:
   - Confirm both services are healthy: systemctl status maran-api maran-agent
   - Confirm the panel answers:        curl -k https://${hostname}:${MARAN_PANEL_PORT}/health
