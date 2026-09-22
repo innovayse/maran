@@ -123,6 +123,10 @@ impl DistroAdapter for DebianAdapter {
         debian_services::quota_binary()
     }
 
+    fn quotaon_binary(&self) -> &'static str {
+        debian_services::quotaon_binary()
+    }
+
     fn pkill_binary(&self) -> &'static str {
         debian_services::pkill_binary()
     }
@@ -177,6 +181,10 @@ impl DistroAdapter for DebianAdapter {
 
     fn sshd_config_path(&self) -> &'static str {
         debian_services::sshd_config_path()
+    }
+
+    fn machine_id_path(&self) -> &'static str {
+        debian_services::machine_id_path()
     }
 
     fn managed_units(&self) -> [&'static str; 4] {

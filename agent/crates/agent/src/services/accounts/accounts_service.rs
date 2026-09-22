@@ -30,6 +30,7 @@ use crate::proto::{
 use crate::services::accounts::account_status::to_agent_error;
 use crate::services::accounts::to_login_password_state::to_login_password_state;
 use crate::services::accounts::to_transfer_protocol::to_transfer_protocol;
+use crate::services::accounts::to_wire_quota_state::to_wire_quota_state;
 use crate::services::accounts::wire_home_group_repair_report::wire_home_group_repair_report;
 use crate::services::wire::run_blocking::run_blocking;
 
@@ -468,10 +469,24 @@ impl<
             })
             .await
         {
-            Ok(usage) => get_account_usage_response::Result::Ok(GetAccountUsageOk {
-                used_bytes: usage.used_bytes,
-                quota_bytes: usage.quota_bytes,
-            }),
+            Ok(usage) => {
+                let (quota_state, quota_bytes, quota_unenforceable_reason) =
+                    to_wire_quota_state(usage.quota);
+                #[allow(deprecated)]
+                let ok = GetAccountUsageOk {
+                    used_bytes: usage.used_bytes,
+                    // Deprecated, and still written: it is the byte mirror
+                    // older callers read, per accounts.proto's own doc
+                    // comment on this field. `quota_state` is the field new
+                    // callers must use.
+                    quota_bytes,
+                    quota_state: quota_state as i32,
+                    quota_unenforceable_reason: quota_unenforceable_reason
+                        .unwrap_or(crate::proto::QuotaUnenforceableReason::Unspecified)
+                        as i32,
+                };
+                get_account_usage_response::Result::Ok(ok)
+            }
             Err(error) => get_account_usage_response::Result::Error(error),
         };
 

@@ -75,6 +75,39 @@ pub enum MonitorError {
     /// database against `/etc/ssh/sshd_config` and whatever replaced it.
     #[error("the sshd configuration could not be read")]
     SshdConfigUnavailable,
+
+    /// `/proc/mounts` could not be read.
+    ///
+    /// Its own variant rather than [`Self::HostStatisticsUnavailable`] even
+    /// though both are a read under `/proc`: an operator chasing a quota
+    /// finding looks at mount state, not at processor or memory statistics,
+    /// and the two failures have unrelated remedies.
+    #[error("the mounted filesystems could not be read")]
+    MountsUnavailable,
+
+    /// `/etc/machine-id` exists but could not be read (permission denied, an
+    /// I/O error, or similar).
+    ///
+    /// **Deliberately distinct from the file simply not existing.** A missing
+    /// `/etc/machine-id` is a legitimate host state — a container with no
+    /// systemd — and is reported as
+    /// [`crate::monitor::model::machine_identity::MachineIdentity::NotAvailable`],
+    /// not as this error: this variant means the agent could not find out,
+    /// the file not existing means the agent found out and the answer is
+    /// "there is none". Conflating the two would turn an ordinary container
+    /// into an alarm.
+    #[error("the host's machine-id could not be read")]
+    MachineIdUnavailable,
+
+    /// The kernel's IPv4 routing table (`/proc/net/route`) could not be
+    /// read.
+    ///
+    /// Its own variant rather than [`Self::HostStatisticsUnavailable`], even
+    /// though both are `/proc` reads: an operator chasing a fingerprint
+    /// finding looks at routing state, not at processor or memory
+    /// statistics, and the remedies do not overlap.
+    #[error("the host's IPv4 routing table could not be read")]
+    Ipv4RoutesUnavailable,
 }
 
 impl MonitorError {

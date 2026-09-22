@@ -90,6 +90,18 @@ struct RecordingHost {
     /// that path — which is the same answer a real host gives for a home
     /// that does not exist.
     homes: Mutex<HashMap<String, HomeMetadata>>,
+
+    /// What `read_mounts` returns — verbatim `/proc/mounts` content, for the
+    /// quota-enforceability tests. Defaults to a filesystem mounted WITH
+    /// quota accounting, so every test that does not care about
+    /// enforceability gets the ordinary, enforceable case rather than
+    /// silently exercising the unenforceable path.
+    mounts: Mutex<String>,
+
+    /// What `quota` (run with `-p`, i.e. `quotaon -p`) prints, for the
+    /// quota-enforceability tests. Defaults to "enabled", for the same reason
+    /// as `mounts` above.
+    quotaon_stdout: Mutex<String>,
 }
 
 impl RecordingHost {
@@ -105,7 +117,32 @@ impl RecordingHost {
             existence_questions: Mutex::new(0),
             passwd: Mutex::new(String::new()),
             homes: Mutex::new(HashMap::new()),
+            mounts: Mutex::new(
+                "/dev/sda1 /home ext4 rw,relatime,usrquota,grpquota 0 0\n".to_owned(),
+            ),
+            quotaon_stdout: Mutex::new(
+                "Quota for users are enabled on mountpoint /home\n".to_owned(),
+            ),
         }
+    }
+
+    /// Sets what `read_mounts` returns, for the "not mounted with quota
+    /// accounting" case.
+    fn with_mounts(self, mounts: &str) -> Self {
+        *self
+            .mounts
+            .lock()
+            .expect("the fixture lock is never poisoned") = mounts.to_owned();
+        self
+    }
+
+    /// Sets what `quotaon -p` prints, for the "mounted but not enabled" case.
+    fn with_quotaon_stdout(self, stdout: &str) -> Self {
+        *self
+            .quotaon_stdout
+            .lock()
+            .expect("the fixture lock is never poisoned") = stdout.to_owned();
+        self
     }
 
     /// Sets what `read_password_database` returns.
@@ -217,19 +254,26 @@ impl SystemHost for RecordingHost {
             .expect("the fixture lock is never poisoned")
             .pop()
             .unwrap_or(0);
-        let stdout = match (
-            arguments.first(),
-            self.shadow
+        let stdout = if arguments.contains(&"-p") {
+            self.quotaon_stdout
                 .lock()
                 .expect("the fixture lock is never poisoned")
-                .clone(),
-        ) {
-            (Some(&"shadow"), Some(entry)) => entry,
-            _ => self
-                .stdout
-                .lock()
-                .expect("the fixture lock is never poisoned")
-                .clone(),
+                .clone()
+        } else {
+            match (
+                arguments.first(),
+                self.shadow
+                    .lock()
+                    .expect("the fixture lock is never poisoned")
+                    .clone(),
+            ) {
+                (Some(&"shadow"), Some(entry)) => entry,
+                _ => self
+                    .stdout
+                    .lock()
+                    .expect("the fixture lock is never poisoned")
+                    .clone(),
+            }
         };
         self.recording
             .set_next(status, &stdout, &self.stderr_for(status));
@@ -256,6 +300,14 @@ impl SystemHost for RecordingHost {
     fn read_password_database(&self, _path: &str) -> Result<String, AccountError> {
         Ok(self
             .passwd
+            .lock()
+            .expect("the fixture lock is never poisoned")
+            .clone())
+    }
+
+    fn read_mounts(&self) -> Result<String, AccountError> {
+        Ok(self
+            .mounts
             .lock()
             .expect("the fixture lock is never poisoned")
             .clone())
@@ -918,7 +970,7 @@ fn a_quota_is_set_in_kibibyte_blocks_rounded_up() {
 }
 
 #[test]
-fn usage_reports_the_measured_tree_and_the_hard_limit() {
+fn usage_reports_the_measured_tree_and_the_hard_limit_when_enforceable() {
     let host = RecordingHost::new()
         .with_user("acme")
         .with_size(2048)
@@ -928,11 +980,19 @@ fn usage_reports_the_measured_tree_and_the_hard_limit() {
     let usage = operations.usage(&name()).expect("usage is read");
 
     assert_eq!(usage.used_bytes, 2048);
-    assert_eq!(usage.quota_bytes, 5120 * 1024);
+    match usage.quota {
+        crate::accounts::QuotaState::Enforced(blocks) => {
+            assert_eq!(blocks.to_bytes(), 5120 * 1024);
+        }
+        other => panic!("expected Enforced, got {other:?}"),
+    }
 }
 
+/// The three-state fix at its heart: "no hard-limit line" on an ENFORCEABLE
+/// filesystem must be reported as `EnforceableButUnset`, never folded to a
+/// byte count of zero — the exact collapse this plan exists to undo.
 #[test]
-fn a_filesystem_without_quotas_reports_no_limit_rather_than_failing() {
+fn a_filesystem_that_can_enforce_quotas_but_has_none_set_is_reported_as_such() {
     let host = RecordingHost::new()
         .with_user("acme")
         .with_size(2048)
@@ -941,7 +1001,102 @@ fn a_filesystem_without_quotas_reports_no_limit_rather_than_failing() {
 
     let usage = operations.usage(&name()).expect("usage is read");
 
-    assert_eq!(usage.quota_bytes, 0);
+    assert!(
+        matches!(
+            usage.quota,
+            crate::accounts::QuotaState::EnforceableButUnset
+        ),
+        "expected EnforceableButUnset, got {:?}",
+        usage.quota
+    );
+}
+
+/// The other new state: a filesystem `quotaon -p` reports as off, and never
+/// mounted with quota accounting either, is `NotEnforceable`, not a silent
+/// "no limit" that looks identical to a deliberate business decision.
+#[test]
+fn a_filesystem_never_mounted_with_quota_accounting_is_not_enforceable() {
+    let host = RecordingHost::new()
+        .with_user("acme")
+        .with_size(2048)
+        .with_mounts("/dev/sda1 /home ext4 rw,relatime 0 0\n")
+        .with_quotaon_stdout("quotaon: cannot find /home in /etc/fstab\n");
+    let operations = debian(host);
+
+    let usage = operations.usage(&name()).expect("usage is read");
+
+    assert!(
+        matches!(
+            usage.quota,
+            crate::accounts::QuotaState::NotEnforceable(
+                crate::accounts::QuotaUnenforceableReason::MountedWithoutQuotaAccounting
+            )
+        ),
+        "expected NotEnforceable(MountedWithoutQuotaAccounting), got {:?}",
+        usage.quota
+    );
+    // Never reached `quota -u -w`'s parse at all: enforceability is decided
+    // FIRST (Task 4's own requirement), so `used_bytes` still reads and the
+    // quota call is never trusted for a byte figure.
+    assert_eq!(usage.used_bytes, 2048);
+}
+
+/// The reason `quotaon -p` and the mount options disagree on: mounted WITH
+/// the option, but the kernel is not currently tracking it — the ext4 case
+/// the plan's Section 3 names as the reason `/proc/mounts` alone is not
+/// sufficient.
+#[test]
+fn a_filesystem_mounted_with_the_option_but_not_turned_on_gets_the_specific_reason() {
+    let host = RecordingHost::new()
+        .with_user("acme")
+        .with_size(2048)
+        .with_mounts("/dev/sda1 /home ext4 rw,relatime,usrquota 0 0\n")
+        .with_quotaon_stdout("Quota for users are not enabled on mountpoint /home\n");
+    let operations = debian(host);
+
+    let usage = operations.usage(&name()).expect("usage is read");
+
+    assert!(
+        matches!(
+            usage.quota,
+            crate::accounts::QuotaState::NotEnforceable(
+                crate::accounts::QuotaUnenforceableReason::AccountingNotEnabled
+            )
+        ),
+        "expected NotEnforceable(AccountingNotEnabled), got {:?}",
+        usage.quota
+    );
+}
+
+/// The mutant Task 4's proof names directly: if enforceability were decided
+/// AFTER parsing `quota -u -w` (or not at all), a `NotEnforceable` filesystem
+/// that happens to still print a hard-limit line would be reported as
+/// `Enforced`. This pins the order.
+#[test]
+fn a_not_enforceable_filesystem_is_reported_as_such_even_if_quota_still_prints_a_limit_line() {
+    let host = RecordingHost::new()
+        .with_user("acme")
+        .with_size(2048)
+        .with_mounts("/dev/sda1 /home ext4 rw,relatime 0 0\n")
+        .with_quotaon_stdout("quotaon: cannot find /home in /etc/fstab\n")
+        // What `quota -u -w` prints is irrelevant once enforceability itself
+        // says no — a stale hard-limit line left over from before a remount
+        // must not resurrect a byte figure the filesystem cannot back up.
+        .with_stdout("/dev/sda1 100 5120 5120 0 0 0\n");
+    let operations = debian(host);
+
+    let usage = operations.usage(&name()).expect("usage is read");
+
+    assert!(
+        matches!(
+            usage.quota,
+            crate::accounts::QuotaState::NotEnforceable(
+                crate::accounts::QuotaUnenforceableReason::MountedWithoutQuotaAccounting
+            )
+        ),
+        "expected NotEnforceable regardless of a stale quota line, got {:?}",
+        usage.quota
+    );
 }
 
 /// Reads back what the operations asked the host to run.
@@ -974,6 +1129,7 @@ fn tool_path(operations: &AccountOperations<RecordingHost>, program: &str) -> St
         "userdel" => distro.userdel_binary(),
         "setquota" => distro.setquota_binary(),
         "quota" => distro.quota_binary(),
+        "quotaon" => distro.quotaon_binary(),
         "id" => distro.id_binary(),
         "chmod" => distro.chmod_binary(),
         "chgrp" => distro.chgrp_binary(),

@@ -382,6 +382,16 @@ pub trait DistroAdapter: Send + Sync {
     /// the opposite and no test contradicted it.
     fn quota_binary(&self) -> &'static str;
 
+    /// Absolute path of `quotaon`, for the process-execution allow-list.
+    ///
+    /// Read-only in the sense this crate uses it: only `quotaon -p` is ever
+    /// run against it, to ask whether the kernel is tracking quota accounting
+    /// on a filesystem right now. Nothing in this crate calls `quotaon`
+    /// without `-p` — turning accounting ON is an operator's decision, never
+    /// this agent's (rules/architecture.md; the reasoning is repeated at the
+    /// call site rather than here, so it is read where the risk is).
+    fn quotaon_binary(&self) -> &'static str;
+
     /// Absolute path of `id`, for the process-execution allow-list.
     ///
     /// The accounts area asks it for a name's numeric uid, so the answer covers
@@ -515,6 +525,18 @@ pub trait DistroAdapter: Send + Sync {
     /// drop-in — so a reader that wants to find that block reads exactly this
     /// path and no `Include` target.
     fn sshd_config_path(&self) -> &'static str;
+
+    /// Where this family keeps the host's `machine-id`, the value a licence
+    /// fingerprint is computed from.
+    ///
+    /// An adapter fact rather than a literal in `ops` for the reason this whole
+    /// trait exists: today both families are systemd and name the same file, so
+    /// the two arms are identical — and an identical pair that is NAMED here is
+    /// what makes the day they diverge a one-line change instead of a hunt
+    /// through `ops`. `/var/lib/dbus/machine-id` is not an alternative on either:
+    /// it is a symlink to this path, verified by reading it, so a reader must not
+    /// treat the two as separate sources that could disagree.
+    fn machine_id_path(&self) -> &'static str;
 
     /// The closed set of units whose state the panel reports, in this fixed
     /// order: web server, database, cron, OpenSSH.

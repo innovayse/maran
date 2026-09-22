@@ -253,8 +253,52 @@ message GetAccountUsageResponse {
 message GetAccountUsageOk {
   // Bytes currently used under the account's home directory.
   uint64 used_bytes = 1;
-  // Quota currently in effect, in bytes.
-  uint64 quota_bytes = 2;
+  // DEPRECATED: kept only as a mirror of quota_state for callers not yet
+  // migrated. Equal to the enforced byte figure when quota_state is
+  // QUOTA_STATE_ENFORCED, and 0 for both QUOTA_STATE_ENFORCEABLE_BUT_UNSET
+  // and QUOTA_STATE_NOT_ENFORCEABLE — a 0 here NEVER distinguishes "no limit
+  // configured" from "this filesystem cannot hold a limit at all", which is
+  // the exact collapse quota_state exists to end. New callers read
+  // quota_state.
+  uint64 quota_bytes = 2 [deprecated = true];
+  // What this agent can honestly say about this account's disk quota: never
+  // a bare byte count, because a byte count alone cannot tell "no limit
+  // configured" apart from "this filesystem cannot enforce anything".
+  QuotaState quota_state = 3;
+  // Present only when quota_state is QUOTA_STATE_NOT_ENFORCEABLE; the
+  // specific reason the filesystem cannot enforce a quota.
+  QuotaUnenforceableReason quota_unenforceable_reason = 4;
+}
+
+// The three states a filesystem's disk quota can honestly be in, mirroring
+// `ops::accounts::QuotaState` (agent/crates/ops/src/accounts/model/quota_state.rs).
+// Never two states: an `Option`-shaped field here would repeat the exact
+// collapse this message's own quota_bytes field carries (see its doc
+// comment).
+enum QuotaState {
+  // Never sent by an agent that knows this field; means "this agent
+  // predates it". Callers fall back to quota_bytes.
+  QUOTA_STATE_UNSPECIFIED = 0;
+  // The filesystem can enforce a quota, and this account has one — read
+  // quota_bytes for the figure.
+  QUOTA_STATE_ENFORCED = 1;
+  // The filesystem can enforce a quota, and no limit is configured for this
+  // account.
+  QUOTA_STATE_ENFORCEABLE_BUT_UNSET = 2;
+  // The filesystem cannot enforce anything right now. quota_bytes is 0 here
+  // and means nothing — see quota_unenforceable_reason for why.
+  QUOTA_STATE_NOT_ENFORCEABLE = 3;
+}
+
+// Mirrors `ops::accounts::QuotaUnenforceableReason`. Present only when
+// quota_state is QUOTA_STATE_NOT_ENFORCEABLE.
+enum QuotaUnenforceableReason {
+  QUOTA_UNENFORCEABLE_REASON_UNSPECIFIED = 0;
+  // The filesystem is not mounted with a quota-accounting option
+  // (usrquota/uquota/usrjquota).
+  QUOTA_UNENFORCEABLE_REASON_MOUNTED_WITHOUT_QUOTA_ACCOUNTING = 1;
+  // Mounted with the option, but `quotaon -p` reports accounting is off.
+  QUOTA_UNENFORCEABLE_REASON_ACCOUNTING_NOT_ENABLED = 2;
 }
 
 message GetAccountSuspensionStateRequest {

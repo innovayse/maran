@@ -275,6 +275,11 @@ pub fn quota_binary() -> &'static str {
     "/usr/bin/quota"
 }
 
+/// Absolute path of `quotaon`, for the process-execution allow-list.
+pub fn quotaon_binary() -> &'static str {
+    "/usr/sbin/quotaon"
+}
+
 /// Absolute path of `id`, for the process-execution allow-list.
 #[must_use]
 pub fn id_binary() -> &'static str {
@@ -423,4 +428,14 @@ pub fn managed_units() -> [&'static str; 4] {
         cron_service(),
         ssh_service(),
     ]
+}
+
+/// Where debian keeps the host's `machine-id`.
+///
+/// See [`crate::DistroAdapter::machine_id_path`] for why this is an adapter fact
+/// even though both families currently agree on it.
+/// @returns The absolute path to the machine-id file.
+#[must_use]
+pub fn machine_id_path() -> &'static str {
+    "/etc/machine-id"
 }

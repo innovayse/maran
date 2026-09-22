@@ -166,6 +166,18 @@ pub trait MonitorHost: Send + Sync {
     /// read.
     fn read_sshd_config(&self, path: &str) -> Result<String, MonitorError>;
 
+    /// Reads `/proc/mounts`, verbatim — the kernel's own live list of mounted
+    /// filesystems and the options each was mounted with.
+    ///
+    /// Used only by [`crate::monitor::get_quota_enforceability`] to classify
+    /// whether the filesystem holding hosting accounts' homes can enforce a
+    /// disk quota; nothing in this crate mutates a mount.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`MonitorError::MountsUnavailable`] when it cannot be read.
+    fn read_mounts(&self) -> Result<String, MonitorError>;
+
     /// Bytes the tree at `path` occupies.
     ///
     /// Infallible by design: a path that is not there, or that cannot be read,
@@ -173,4 +185,38 @@ pub trait MonitorHost: Send + Sync {
     /// refusing to report an entire host's accounts because one directory could
     /// not be walked is worse than being low by that directory.
     fn directory_size(&self, path: &Path) -> u64;
+
+    /// Reads `/etc/machine-id`, verbatim and unvalidated.
+    ///
+    /// Returns `Ok(None)` when the file does not exist — a legitimate host
+    /// state (a container with no systemd), not a failure to observe. See
+    /// [`crate::monitor::model::machine_identity::MachineIdentity::from_raw`]
+    /// for how this raw reading becomes the typed answer, including how an
+    /// empty file is folded into "not available" rather than reported as an
+    /// empty machine-id.
+    ///
+    /// **Never logged.** The value this returns identifies one physical or
+    /// virtual machine for as long as it exists (rules/security.md item 8);
+    /// see [`crate::monitor::model::machine_identity::MachineIdentity`]'s doc
+    /// comment for exactly what may be recorded about it.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`MonitorError::MachineIdUnavailable`] when the file exists
+    /// but could not be read — never for the file simply being absent.
+    fn read_machine_id(&self, path: &str) -> Result<Option<String>, MonitorError>;
+
+    /// Reads the kernel's IPv4 routing table (`/proc/net/route`), verbatim.
+    ///
+    /// Used only by
+    /// [`crate::monitor::model::primary_interface::PrimaryInterface::from_ipv4_routes`]
+    /// to find the interface carrying the lowest-metric IPv4 default route —
+    /// see that type's doc comment for the definition of "primary interface"
+    /// this crate uses and for what makes the answer unstable.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`MonitorError::Ipv4RoutesUnavailable`] when it cannot be
+    /// read.
+    fn read_ipv4_routes(&self) -> Result<String, MonitorError>;
 }

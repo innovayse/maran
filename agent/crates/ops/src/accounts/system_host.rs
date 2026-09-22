@@ -53,6 +53,19 @@ pub trait SystemHost: Send + Sync {
     /// cannot be read.
     fn read_password_database(&self, path: &str) -> Result<String, AccountError>;
 
+    /// Reads `/proc/mounts`, whole — the kernel's own live list of mounted
+    /// filesystems and the options each was mounted with.
+    ///
+    /// Used only to classify quota enforceability
+    /// (`super::quota_enforceability::classify`); this agent never mutates a
+    /// mount, only reads what one already is.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`AccountError::HomeInspection`] when `/proc/mounts` cannot be
+    /// read.
+    fn read_mounts(&self) -> Result<String, AccountError>;
+
     /// Reads what the filesystem itself says about `path`, with `lstat` and
     /// never `stat` — a symlink is reported as itself, not followed.
     ///

@@ -9,9 +9,12 @@ use maran_distro::DistroAdapter;
 use crate::accounts::account_lock::take_account_lock;
 use crate::accounts::model::home_group_repair_refusal::HomeGroupRepairRefusal;
 use crate::accounts::model::home_group_repair_report::HomeGroupRepairReport;
+use crate::accounts::model::quota_state::QuotaState;
+use crate::accounts::model::quota_unenforceable_reason::QuotaUnenforceableReason;
 use crate::accounts::model::refused_home::RefusedHome;
 use crate::accounts::model::repaired_home::RepairedHome;
 use crate::accounts::quota_blocks::QuotaBlocks;
+use crate::accounts::quota_enforceability::classify as classify_quota_enforceability;
 use crate::accounts::{
     AccountError, AccountSuspensionState, AccountUsage, CreatedAccount, StoredPassword, SystemHost,
 };
@@ -635,17 +638,53 @@ impl<H: SystemHost> AccountOperations<H> {
         let username = self.require_existing(name)?;
         let used_bytes = self.host.directory_size(&Self::home_directory(name))?;
 
-        let outcome = self
-            .host
-            .run(self.distro.quota_binary(), &["-u", "-w", &username])?;
-        let quota_bytes = QuotaBlocks::parse_hard_limit(&outcome.stdout)
-            .map(QuotaBlocks::to_bytes)
-            .unwrap_or(0);
+        // Enforceability is decided FIRST, and only when it says yes is
+        // `quota -u -w`'s hard-limit line trusted for a byte figure — the
+        // rewrite Task 4 exists for. A filesystem that cannot enforce
+        // anything must be reported as such regardless of what a stale
+        // quota line (left over from before a remount, say) still prints.
+        let quota = match self.quota_enforceability()? {
+            Ok(()) => {
+                let outcome = self
+                    .host
+                    .run(self.distro.quota_binary(), &["-u", "-w", &username])?;
+                match QuotaBlocks::parse_hard_limit(&outcome.stdout) {
+                    Some(blocks) => QuotaState::Enforced(blocks),
+                    None => QuotaState::EnforceableButUnset,
+                }
+            }
+            Err(reason) => QuotaState::NotEnforceable(reason),
+        };
 
-        Ok(AccountUsage {
-            used_bytes,
-            quota_bytes,
-        })
+        Ok(AccountUsage { used_bytes, quota })
+    }
+
+    /// Whether the filesystem holding hosting accounts' homes can currently
+    /// enforce a per-user disk quota.
+    ///
+    /// `Ok(())` means it can; `Err` carries the specific reason it cannot.
+    /// See [`crate::accounts::quota_enforceability`] for the two
+    /// observations this reads and what they can and cannot see (most
+    /// notably: nothing here can see NFS server-side enforcement).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`AccountError::CommandUnavailable`] when `quotaon` cannot be
+    /// started, and [`AccountError::HomeInspection`] when `/proc/mounts`
+    /// cannot be read. Neither is the same as "not enforceable" — both mean
+    /// this agent could not even ASK the question.
+    fn quota_enforceability(&self) -> Result<Result<(), QuotaUnenforceableReason>, AccountError> {
+        let mounts = self.host.read_mounts()?;
+        let quotaon = self.host.run(
+            self.distro.quotaon_binary(),
+            &["-p", AgentPaths::ACCOUNT_HOME_ROOT],
+        )?;
+
+        Ok(classify_quota_enforceability(
+            &mounts,
+            &quotaon.stdout,
+            AgentPaths::ACCOUNT_HOME_ROOT,
+        ))
     }
 
     /// Applies a quota to a user already known to exist.

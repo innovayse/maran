@@ -3,17 +3,24 @@
 use std::sync::Arc;
 
 use maran_distro::DistroAdapter;
-use maran_ops::monitor::{self, MonitorHost, SftpJailStatus};
+use maran_ops::monitor::{
+    self, MachineIdentity, MonitorHost, PrimaryInterface, QuotaEnforceabilityStatus, SftpJailStatus,
+};
 use tonic::{Request, Response, Status};
 
 use crate::proto::monitor_service_server::MonitorService;
 use crate::proto::{
     AccountDiskUsage, GetAccountsDiskUsageOk, GetAccountsDiskUsageRequest,
     GetAccountsDiskUsageResponse, GetHostMetricsRequest, GetHostMetricsResponse,
-    GetServiceStatusesOk, GetServiceStatusesRequest, GetServiceStatusesResponse,
-    GetSftpJailStatusOk, GetSftpJailStatusRequest, GetSftpJailStatusResponse, HostMetrics,
-    ServiceStatus, SftpJailState, get_accounts_disk_usage_response, get_host_metrics_response,
-    get_service_statuses_response, get_sftp_jail_status_response,
+    GetQuotaEnforceabilityOk, GetQuotaEnforceabilityRequest, GetQuotaEnforceabilityResponse,
+    GetServerFingerprintInputsOk, GetServerFingerprintInputsRequest,
+    GetServerFingerprintInputsResponse, GetServiceStatusesOk, GetServiceStatusesRequest,
+    GetServiceStatusesResponse, GetSftpJailStatusOk, GetSftpJailStatusRequest,
+    GetSftpJailStatusResponse, HostMetrics, MachineIdStatus, PrimaryInterfaceStatus,
+    QuotaEnforceability, QuotaEnforceabilityReason, ServiceStatus, SftpJailState,
+    get_accounts_disk_usage_response, get_host_metrics_response, get_quota_enforceability_response,
+    get_server_fingerprint_inputs_response, get_service_statuses_response,
+    get_sftp_jail_status_response,
 };
 use crate::services::monitor::managed_service::managed_service;
 use crate::services::monitor::monitor_status::to_agent_error;
@@ -208,5 +215,133 @@ impl<H: MonitorHost + 'static> MonitorService for MonitorServiceImpl<H> {
         Ok(Response::new(GetSftpJailStatusResponse {
             result: Some(result),
         }))
+    }
+
+    /// Reports whether the filesystem holding hosting accounts' homes can
+    /// currently enforce a per-user disk quota — a remount can change this
+    /// without touching any account, so nothing else re-checks it after the
+    /// installer's own one-time preflight warning.
+    async fn get_quota_enforceability(
+        &self,
+        _request: Request<GetQuotaEnforceabilityRequest>,
+    ) -> Result<Response<GetQuotaEnforceabilityResponse>, Status> {
+        let host = Arc::clone(&self.host);
+        let distro = self.distro;
+        let result = run_blocking("monitoring reading", to_agent_error, move || {
+            monitor::get_quota_enforceability(host.as_ref(), distro)
+        })
+        .await;
+
+        let result = match result {
+            Ok(QuotaEnforceabilityStatus::Enforceable) => {
+                get_quota_enforceability_response::Result::Ok(GetQuotaEnforceabilityOk {
+                    enforceability: QuotaEnforceability::Enforceable as i32,
+                    reason: QuotaEnforceabilityReason::Unspecified as i32,
+                })
+            }
+            Ok(QuotaEnforceabilityStatus::NotEnforceable(reason)) => {
+                get_quota_enforceability_response::Result::Ok(GetQuotaEnforceabilityOk {
+                    enforceability: QuotaEnforceability::NotEnforceable as i32,
+                    reason: to_wire_quota_enforceability_reason(reason) as i32,
+                })
+            }
+            // `QuotaEnforceabilityStatus` is `#[non_exhaustive]`: a future
+            // variant answers Unspecified rather than failing to build.
+            Ok(_) => get_quota_enforceability_response::Result::Ok(GetQuotaEnforceabilityOk {
+                enforceability: QuotaEnforceability::Unspecified as i32,
+                reason: QuotaEnforceabilityReason::Unspecified as i32,
+            }),
+            Err(error) => get_quota_enforceability_response::Result::Error(error),
+        };
+
+        Ok(Response::new(GetQuotaEnforceabilityResponse {
+            result: Some(result),
+        }))
+    }
+
+    /// Reports the two raw values a licence's server fingerprint (spec §228)
+    /// is computed from — this host's `machine-id` and the interface
+    /// carrying its IPv4 default route. Reports only; computes and compares
+    /// nothing.
+    async fn get_server_fingerprint_inputs(
+        &self,
+        _request: Request<GetServerFingerprintInputsRequest>,
+    ) -> Result<Response<GetServerFingerprintInputsResponse>, Status> {
+        let host = Arc::clone(&self.host);
+        let distro = self.distro;
+        let result = run_blocking("monitoring reading", to_agent_error, move || {
+            monitor::get_server_fingerprint_inputs(host.as_ref(), distro)
+        })
+        .await;
+
+        let result = match result {
+            Ok(inputs) => {
+                get_server_fingerprint_inputs_response::Result::Ok(GetServerFingerprintInputsOk {
+                    machine_id: Some(to_wire_machine_id(inputs.machine_id)),
+                    primary_interface: Some(to_wire_primary_interface(inputs.primary_interface)),
+                })
+            }
+            Err(error) => get_server_fingerprint_inputs_response::Result::Error(error),
+        };
+
+        Ok(Response::new(GetServerFingerprintInputsResponse {
+            result: Some(result),
+        }))
+    }
+}
+
+/// Converts the agent's own [`MachineIdentity`] onto its wire shape.
+///
+/// `MachineIdentity` is `#[non_exhaustive]`: a wildcard reports `present:
+/// false` for a future variant this match does not yet know, the same
+/// "unspecified/absent" fallback every other conversion in this file uses,
+/// rather than a broken build.
+#[must_use]
+fn to_wire_machine_id(identity: MachineIdentity) -> MachineIdStatus {
+    match identity {
+        MachineIdentity::Present(value) => MachineIdStatus {
+            present: true,
+            value,
+        },
+        _ => MachineIdStatus {
+            present: false,
+            value: String::new(),
+        },
+    }
+}
+
+/// Converts the agent's own [`PrimaryInterface`] onto its wire shape. Same
+/// non-exhaustive fallback as [`to_wire_machine_id`].
+#[must_use]
+fn to_wire_primary_interface(interface: PrimaryInterface) -> PrimaryInterfaceStatus {
+    match interface {
+        PrimaryInterface::Present(value) => PrimaryInterfaceStatus {
+            present: true,
+            value,
+        },
+        _ => PrimaryInterfaceStatus {
+            present: false,
+            value: String::new(),
+        },
+    }
+}
+
+/// Converts the agent's own reason onto its wire mirror.
+///
+/// `QuotaUnenforceableReason` is `#[non_exhaustive]`: a wildcard covers a
+/// future variant with the same "unspecified" wire fallback the accounts
+/// service's own `to_wire_quota_state` uses, rather than a broken build.
+#[must_use]
+fn to_wire_quota_enforceability_reason(
+    reason: maran_ops::accounts::QuotaUnenforceableReason,
+) -> QuotaEnforceabilityReason {
+    match reason {
+        maran_ops::accounts::QuotaUnenforceableReason::MountedWithoutQuotaAccounting => {
+            QuotaEnforceabilityReason::MountedWithoutQuotaAccounting
+        }
+        maran_ops::accounts::QuotaUnenforceableReason::AccountingNotEnabled => {
+            QuotaEnforceabilityReason::AccountingNotEnabled
+        }
+        _ => QuotaEnforceabilityReason::Unspecified,
     }
 }

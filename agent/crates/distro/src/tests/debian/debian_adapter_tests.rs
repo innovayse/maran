@@ -106,7 +106,7 @@ fn the_debian_family_reports_exactly_the_four_units_the_panel_manages() {
 /// `sh` is in the table for the same reason and not because the agent spawns it
 /// — it never does — but because the path is written into a crontab line, where
 /// a wrong one is a cron entry that silently never runs.
-const EXPECTED_BINARIES: [(&str, &str); 17] = [
+const EXPECTED_BINARIES: [(&str, &str); 18] = [
     ("useradd", "/usr/sbin/useradd"),
     ("usermod", "/usr/sbin/usermod"),
     ("pkill", "/usr/bin/pkill"),
@@ -114,6 +114,7 @@ const EXPECTED_BINARIES: [(&str, &str); 17] = [
     ("chpasswd", "/usr/sbin/chpasswd"),
     ("setquota", "/usr/sbin/setquota"),
     ("quota", "/usr/bin/quota"),
+    ("quotaon", "/usr/sbin/quotaon"),
     ("id", "/usr/bin/id"),
     ("chmod", "/usr/bin/chmod"),
     ("chgrp", "/usr/bin/chgrp"),
@@ -127,7 +128,7 @@ const EXPECTED_BINARIES: [(&str, &str); 17] = [
 ];
 
 /// The adapter's answer for each tool, in the order of [`EXPECTED_BINARIES`].
-fn actual_binaries() -> [&'static str; 17] {
+fn actual_binaries() -> [&'static str; 18] {
     [
         DebianAdapter.useradd_binary(),
         DebianAdapter.usermod_binary(),
@@ -136,6 +137,7 @@ fn actual_binaries() -> [&'static str; 17] {
         DebianAdapter.chpasswd_binary(),
         DebianAdapter.setquota_binary(),
         DebianAdapter.quota_binary(),
+        DebianAdapter.quotaon_binary(),
         DebianAdapter.id_binary(),
         DebianAdapter.chmod_binary(),
         DebianAdapter.chgrp_binary(),
