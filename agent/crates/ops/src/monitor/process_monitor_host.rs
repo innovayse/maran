@@ -1,6 +1,7 @@
 //! The [`MonitorHost`] that actually reads this machine.
 
 use std::fs;
+use std::io;
 use std::path::Path;
 use std::thread;
 use std::time::Duration;
@@ -40,6 +41,14 @@ const PROC_LOADAVG: &str = "/proc/loadavg";
 /// The kernel's per-interface byte counters.
 const PROC_NET_DEV: &str = "/proc/net/dev";
 
+/// The kernel's IPv4 routing table.
+///
+/// Same reasoning as the four constants above: a kernel interface, identical
+/// on both supported families, not a `distro` fact.
+const PROC_NET_ROUTE: &str = "/proc/net/route";
+
+/// Where systemd publishes this host's `machine-id`.
+///
 /// How long the host waits between the two processor readings.
 ///
 /// The ONE in-call wait anywhere in this crate, and it is here because a
@@ -181,6 +190,15 @@ impl MonitorHost for ProcessMonitorHost {
         fs::read_to_string(path).map_err(|_| MonitorError::SshdConfigUnavailable)
     }
 
+    /// Reads `/proc/mounts` from the kernel's own procfs, verbatim.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`MonitorError::MountsUnavailable`] when it cannot be read.
+    fn read_mounts(&self) -> Result<String, MonitorError> {
+        fs::read_to_string("/proc/mounts").map_err(|_| MonitorError::MountsUnavailable)
+    }
+
     /// Walks the tree and sums it, through the one implementation of that walk.
     ///
     /// Symlinks count as zero and are never followed, which is what keeps a
@@ -188,6 +206,35 @@ impl MonitorHost for ProcessMonitorHost {
     /// link into its own parent from making the walk endless.
     fn directory_size(&self, path: &Path) -> u64 {
         directory_size(path)
+    }
+
+    /// Reads `/etc/machine-id`, verbatim.
+    ///
+    /// A missing file is reported as `Ok(None)`, never as an error: it is a
+    /// legitimate host state, distinguished from a genuine read failure by
+    /// matching `io::ErrorKind::NotFound` specifically rather than folding
+    /// every `io::Error` into [`MonitorError::MachineIdUnavailable`].
+    ///
+    /// # Errors
+    ///
+    /// Returns [`MonitorError::MachineIdUnavailable`] when the file exists
+    /// but could not be read (permission denied, or similar).
+    fn read_machine_id(&self, path: &str) -> Result<Option<String>, MonitorError> {
+        match fs::read_to_string(path) {
+            Ok(content) => Ok(Some(content)),
+            Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(None),
+            Err(_) => Err(MonitorError::MachineIdUnavailable),
+        }
+    }
+
+    /// Reads the kernel's IPv4 routing table, verbatim.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`MonitorError::Ipv4RoutesUnavailable`] when it cannot be
+    /// read.
+    fn read_ipv4_routes(&self) -> Result<String, MonitorError> {
+        fs::read_to_string(PROC_NET_ROUTE).map_err(|_| MonitorError::Ipv4RoutesUnavailable)
     }
 }
 

@@ -300,6 +300,17 @@ public static class AuditActions
     public const string AlertResolved = "AlertResolved";
 
     /// <summary>
+    /// The closed PluginLoader handed <c>ICodeIntegrityReportSink.ReportAsync</c> a
+    /// <c>CodeIntegrityReport</c> whose <c>Outcome</c> was <c>Drifted</c> with an empty
+    /// <c>DifferingPaths</c> — internally inconsistent, since a drift with nothing named to have
+    /// drifted is not a report a correct comparison can produce. Recorded rather than silently
+    /// treated as <c>Clean</c> (docs/superpowers/plans/2026-09-19-maran-code-integrity.md Task 3's
+    /// vacuity trap), and rather than treated as <c>Unavailable</c>: the malformed report is the
+    /// closed side's own defect, not evidence the hash list could not be read.
+    /// </summary>
+    public const string CodeIntegrityReportRejected = "CodeIntegrityReportRejected";
+
+    /// <summary>
     /// A password reset was asked for. Recorded for EVERY request, including one naming an address
     /// no user holds — the journal is where a sweep through a list of guessed addresses becomes
     /// visible, and it is the only place that can see it, because the endpoint deliberately answers
@@ -367,4 +378,26 @@ public static class AuditActions
     /// to build it should be answered from.
     /// </summary>
     public const string BackupDestinationSaved = "BackupDestinationSaved";
+
+    /// <summary>
+    /// An administrator read the installation's licence status. Recorded on every read, never only on
+    /// a refusal: a licence status names the product, the tier and the expiry of the whole
+    /// installation, and who looked at that fact and when is worth a date and an author the same way
+    /// <see cref="SiteLogTailed"/> already is for a read of a different sensitive surface. The subject
+    /// carries which of the three states was observed and, for a valid licence, its id and tier — never
+    /// its signature and never the fingerprint inputs a future slice's §228 work would add
+    /// (docs/superpowers/notes/2026-09-22-licence-verification-threat-note.md §4).
+    /// </summary>
+    public const string LicenceStatusRead = "LicenceStatusRead";
+
+    /// <summary>
+    /// An administrator attempted to install or replace the installation's licence artefact.
+    /// Recorded on EVERY outcome, success and refusal alike — the same argument
+    /// <see cref="LicenceStatusRead"/> already makes for a mere read, extended here to a write that
+    /// gates paid modules for the whole installation. The subject carries the outcome and, on
+    /// success, the new licence's id/tier and the PREVIOUS licence's id when one existed — never the
+    /// uploaded bytes, the Ed25519 signature, or any fingerprint input
+    /// (docs/superpowers/notes/2026-09-22-licence-installation-threat-note.md §5).
+    /// </summary>
+    public const string LicenceInstalled = "LicenceInstalled";
 }

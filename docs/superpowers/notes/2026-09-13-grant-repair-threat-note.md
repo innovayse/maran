@@ -23,8 +23,8 @@ So, explicitly:
 - **Reasoning, new here.** The predicate, the ordering argument, the placement
   argument, and what the operation can and cannot tell an operator about
   exploitation. Each was written forward from the question and each is measured
-  against a real MariaDB rather than argued — see
-  `.superpowers/sdd/grant-repair.md` for the log and the quoted failures.
+  against a real MariaDB rather than argued; the log and the quoted failures were kept only in a
+  working report, not committed.
 - **Still not established by anybody.** Whether the defect was ever USED on any
   real host. This note says why that cannot be settled from here, and does not
   imply the repair settles it.
@@ -176,8 +176,8 @@ application logs, and nothing else.
 ## What a second reviewer must check
 
 1. **The four predicate conditions, one at a time.** Each is the only thing
-   standing between this operation and somebody else's grant. The mutation log in
-   `.superpowers/sdd/grant-repair.md` names the failure each break produced; a
+   standing between this operation and somebody else's grant. The mutation log (kept only as a
+   working report, not committed) names the failure each break produced; a
    reviewer should re-run it rather than believe it.
 2. **That `SHOW GRANTS` renders `ALL PRIVILEGES` as those two words on every
    shipped server.** Measured on MariaDB 10.11.14 (Ubuntu 24.04) only. If a family
@@ -204,7 +204,7 @@ application logs, and nothing else.
 - **AlmaLinux 9**, above.
 - **`scripts/test-baseline.txt`.** The new `#[ignore]`d real-host case raises that
   suite's declared count from 7 to 8; the file is outside this lane's writable
-  scope and the row is reported as prose in `.superpowers/sdd/grant-repair.md`.
+  scope and the row is reported as prose here rather than in a committed file.
   `maran polygon verify` refuses that suite until it is raised.
 - **That an operator will read the refusals.** The operation reports them and logs
   them; whether the panel's UI shows them is a backend and SPA question nobody has
@@ -314,7 +314,7 @@ at risk" or "nothing was exposed".
    would refuse on changes that do not affect what will be rewritten, and would put
    another tenant's names into a request body.
 9. **The Armenian wording.** Three terms were chosen by judgement and are flagged for the
-   owner in `.superpowers/sdd/grant-repair-panel.md`: the word used for a SQL `GRANT` row,
+   owner here (a working note, not committed elsewhere): the word used for a SQL `GRANT` row,
    for a wildcard pattern, and for escaping. They are consistent with the tree's existing
    `սերվերի գործակալ` and `վահանակ`, but nothing in this repository can tell whether a
    fluent sentence says the right thing.

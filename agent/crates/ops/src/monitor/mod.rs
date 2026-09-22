@@ -38,6 +38,8 @@
 pub(crate) mod fake_monitor_host;
 mod get_accounts_disk_usage;
 mod get_host_metrics;
+mod get_quota_enforceability;
+mod get_server_fingerprint_inputs;
 mod get_service_statuses;
 mod get_sftp_jail_status;
 pub mod model;
@@ -47,11 +49,17 @@ mod process_monitor_host;
 
 pub use get_accounts_disk_usage::get_accounts_disk_usage;
 pub use get_host_metrics::get_host_metrics;
+pub use get_quota_enforceability::get_quota_enforceability;
+pub use get_server_fingerprint_inputs::get_server_fingerprint_inputs;
 pub use get_service_statuses::get_service_statuses;
 pub use get_sftp_jail_status::get_sftp_jail_status;
 pub use model::account_disk_usage::AccountDiskUsage;
 pub use model::filesystem_usage::FilesystemUsage;
 pub use model::host_metrics::HostMetrics;
+pub use model::machine_identity::MachineIdentity;
+pub use model::primary_interface::PrimaryInterface;
+pub use model::quota_enforceability_status::QuotaEnforceabilityStatus;
+pub use model::server_fingerprint_inputs::ServerFingerprintInputs;
 pub use model::service_state::ServiceState;
 pub use model::service_status::ServiceStatus;
 pub use model::sftp_jail_status::SftpJailStatus;

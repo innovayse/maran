@@ -1,10 +1,60 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="Maran">
-  <!-- The brand mark from the design: a rounded accent square carrying the
-       product's initial. #2E7BFF is the design's --ac token; it is written
-       literally here because an SVG served as a static file cannot read the
-       application's CSS variables. -->
-  <rect width="32" height="32" rx="8" fill="#2E7BFF"/>
-  <text x="16" y="22" text-anchor="middle"
-        font-family="'Public Sans', system-ui, sans-serif" font-size="18" font-weight="700"
-        fill="#FFFFFF">M</text>
+  <!--
+    The Maran mark, cut for a browser tab.
+
+    A keystone is the single wedge at the crown of an arch: every other stone is held up by its
+    neighbours, and the keystone is what makes the neighbours hold. That is what this panel is to a
+    server. It is also the stone at the crown of a MARAN, the vaulted cellar the product is named
+    after, so the mark and the name are one object. The stone is assembled from three courses whose
+    bed joints are radial — they converge on the arch's own centre of curvature at (16, 45.7), far
+    below the tile, which is why each course bows upward. A horizontal joint in a wedge is what a
+    mason reads as a stone about to shear.
+
+    This file is the full mark with ONE thing removed: the Gaussian bloom behind the joint lights.
+    A favicon is rasterised at 16 to 48 pixels, where a 0.85-unit blur is invisible, and a filter is
+    the one feature a favicon rasteriser is most likely to drop or mishandle. Everything that
+    survives at those sizes is kept, including the crisp joint lights and the bed highlights, which
+    still read at 32 and 48 — the sizes a browser also asks for.
+
+    It replaced a mark that set the letter M as live text. That file depended on a webfont
+    the browser never loads for a static SVG, so the panel's icon was a different shape on every
+    machine that opened it.
+
+    The colours are the panel's own: #2E7BFF is the `ac` token, at the top of the middle course's
+    lit face. Everything else is that hue lightened for the cap or deepened for the courses below.
+    They are written literally because an SVG served as a static file cannot read a CSS variable.
+
+    Generated, not drawn by hand. If the mark changes, this file is regenerated from the same
+    coordinates rather than edited, so it cannot drift from maran-keystone.svg.
+  -->
+  <defs>
+    <linearGradient id="l0" x1="7" y1="10" x2="14" y2="27" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#3E86FF"/><stop offset="1" stop-color="#2E7BFF"/></linearGradient>
+    <linearGradient id="s0" x1="25" y1="10" x2="18" y2="27" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#1B5FC4"/><stop offset="1" stop-color="#164E9E"/></linearGradient>
+    <linearGradient id="l1" x1="7" y1="10" x2="14" y2="27" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#2E7BFF"/><stop offset="1" stop-color="#2468DC"/></linearGradient>
+    <linearGradient id="s1" x1="25" y1="10" x2="18" y2="27" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#16509E"/><stop offset="1" stop-color="#123F7E"/></linearGradient>
+    <linearGradient id="l2" x1="7" y1="10" x2="14" y2="27" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#2468DC"/><stop offset="1" stop-color="#1B55BE"/></linearGradient>
+    <linearGradient id="s2" x1="25" y1="10" x2="18" y2="27" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#123F7E"/><stop offset="1" stop-color="#0C2E63"/></linearGradient>
+    <linearGradient id="cap" x1="16" y1="5" x2="16" y2="10" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#8FBCFF"/><stop offset="1" stop-color="#5290FF"/>
+    </linearGradient>
+    <clipPath id="stone"><path d="M7.471 6.715Q8.5 5 10.5 5L21.5 5Q23.5 5 24.529 6.715L26.5 10L21.951 25.465Q21.5 27 19.9 27L12.1 27Q10.5 27 10.049 25.465L5.5 10Z"/></clipPath>
+  </defs>
+
+  <g clip-path="url(#stone)" fill="none" stroke="#E4F0FF" stroke-width="0.9" stroke-linecap="round">
+    <path d="M7.526 16.887A30.033 30.033 0 0 1 24.474 16.887"/><path d="M9.124 22.323A24.367 24.367 0 0 1 22.876 22.323"/>
+  </g>
+  <path d="M5.5 10L16 10L16 15.267A30.433 30.433 0 0 0 7.413 16.504Z" fill="url(#l0)"/>
+  <path d="M26.5 10L16 10L16 15.267A30.433 30.433 0 0 1 24.587 16.504Z" fill="url(#s0)"/>
+  <path d="M7.639 17.271A29.633 29.633 0 0 1 16 16.067L16 20.933A24.767 24.767 0 0 0 9.012 21.939Z" fill="url(#l1)"/>
+  <path d="M24.361 17.271A29.633 29.633 0 0 0 16 16.067L16 20.933A24.767 24.767 0 0 1 22.988 21.939Z" fill="url(#s1)"/>
+  <path d="M9.237 22.707A23.967 23.967 0 0 1 16 21.733L16 27L12.1 27Q10.5 27 10.049 25.465Z" fill="url(#l2)"/>
+  <path d="M22.763 22.707A23.967 23.967 0 0 0 16 21.733L16 27L19.9 27Q21.5 27 21.951 25.465Z" fill="url(#s2)"/>
+  <path d="M7.471 6.715Q8.5 5 10.5 5L21.5 5Q23.5 5 24.529 6.715L26.5 10L5.5 10Z" fill="url(#cap)"/>
+  <g fill="none" stroke="#8FBCFF" stroke-width="0.34" stroke-opacity="0.8" stroke-linecap="round">
+    <path d="M7.639 17.271A29.633 29.633 0 0 1 24.361 17.271"/><path d="M9.237 22.707A23.967 23.967 0 0 1 22.763 22.707"/>
+  </g>
+  <g clip-path="url(#stone)">
+    <path d="M7.471 6.715L5.5 10L10.049 25.465Q10.5 27 12.1 27" fill="none"
+          stroke="#A8CBFF" stroke-width="1.1" stroke-opacity="0.45"/>
+  </g>
 </svg>

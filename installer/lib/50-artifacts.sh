@@ -7,7 +7,7 @@
 # Also supports a fully offline install from a pre-verified local tarball.
 set -euo pipefail
 
-readonly MARAN_RELEASE_BASE_URL="https://releases.maran.com"
+readonly MARAN_RELEASE_BASE_URL="https://releases.maran.innovayse.com"
 readonly MARAN_INSTALL_ROOT="/usr/local/maran"
 # MARAN_ARTIFACT_TMP: staging for downloaded archives between verification and extraction.
 # It is deliberately NOT under /var/lib/maran: that directory is created maran:maran 0750 by

@@ -48,4 +48,34 @@
   <data name="AlertSftpJailDriftedResolvedBody">
     <value>sshd-ի կարգավորումների բլոկը, որը սահմանափակում է յուրաքանչյուր SFTP մուտք միայն իր սեփական ֆայլերով, կրկին առկա է և անվավեր չէ։ Այս սերվերի SFTP հաճախորդները կրկին սահմանափակված են միայն ֆայլերի փոխանցումով։</value>
   </data>
+  <data name="AlertQuotaNotEnforceableRaisedSubject">
+    <value>Այս սերվերը չի կարող կիրառել սկավառակի քվոտաներ</value>
+  </data>
+  <data name="AlertQuotaNotEnforceableRaisedBody">
+    <value>Ֆայլային համակարգը, որի վրա գտնվում են հոսթինգ հաշիվների home պանակները ({0}), չի կարող կիրառել առանձին օգտատիրոջ սկավառակի քվոտա ({1}), և այս վիճակը մնում է անփոփոխ արդեն տասը հաջորդական ստուգումների ընթացքում։ Այս սերվերի հաշիվների համար ցուցադրված սկավառակի ցանկացած սահմանաչափ վերցված է սակագնից և ՀԻՄԱ ՉԻ ԿԻՐԱՌՎՈՒՄ. հաշիվը կարող է օգտագործել իր սակագրից ավելի տարածք։ Կիրառումը վերականգնելու համար մոնտավորեք ֆայլային համակարգը քվոտաների հաշվառմամբ (usrquota/uquota) և գործարկեք quotacheck և quotaon հրամանները. սա այս սերվերի վրա ձեր որոշումն է, և վահանակը դա ավտոմատ չի անելու։</value>
+  </data>
+  <data name="AlertQuotaNotEnforceableResolvedSubject">
+    <value>Այս սերվերը կրկին կարող է կիրառել սկավառակի քվոտաներ</value>
+  </data>
+  <data name="AlertQuotaNotEnforceableResolvedBody">
+    <value>Ֆայլային համակարգը, որի վրա գտնվում են հոսթինգ հաշիվների home պանակները ({0}), կրկին կարող է կիրառել առանձին օգտատիրոջ սկավառակի քվոտա։ Այս սերվերի հաշիվների համար ցուցադրված սկավառակի սահմանաչափերը կրկին կիրառվում են։</value>
+  </data>
+  <!-- TODO(owner): review naturalness. Placeholder translation, not final, and the least confident
+       of the three languages. Terms to check: "ամբողջականության ստուգում" (attempted "integrity
+       check" — this exact compound may not be the panel's established term); "արտոնագիր" (used
+       for "license" — verify against how the panel already names BSL/licensing elsewhere in the
+       hy resx set, if it does); the overall sentence structure of the raised-body paragraph, which
+       was translated clause-by-clause from the English rather than composed natively. -->
+  <data name="AlertCodeIntegrityDriftedRaisedSubject">
+    <value>Այս սերվերի տեղադրված ֆայլերը տարբերվում են թողարկված տարբերակից ({0})</value>
+  </data>
+  <data name="AlertCodeIntegrityDriftedRaisedBody">
+    <value>Վահանակի սեփական ստուգումը, որը համեմատում է տեղադրված ֆայլերը այն ստորագրված թողարկման հետ, որը իր կարծիքով աշխատում է, տարբերություն է հայտնաբերել, և այս վիճակը մնում է անփոփոխ արդեն տասը հաջորդական ստուգումների ընթացքում. {1}։ Սա փաստի արտահայտում է, ոչ թե մեղադրանք — ձեր արտոնագիրը թույլ է տալիս փոփոխել ձեր սեփական տեղադրումը, և այս ծանուցումը հակառակը չի հայտարարում։ Եթե այս փոփոխությունը ձեզ կողմից չի կատարվել, ստուգեք այն; եթե կատարվել է ձեզ կողմից, որևէ գործողություն պետք չէ։</value>
+  </data>
+  <data name="AlertCodeIntegrityDriftedResolvedSubject">
+    <value>Այս սերվերի տեղադրված ֆայլերը կրկին համապատասխանում են թողարկված տարբերակին ({0})</value>
+  </data>
+  <data name="AlertCodeIntegrityDriftedResolvedBody">
+    <value>Վահանակի սեփական ստուգումը այլևս տարբերություն չի հայտնաբերում տեղադրված ֆայլերի և ստորագրված թողարկման միջև (կամ ինքը ստուգումը կրկին աշխատում է). {1}։</value>
+  </data>
 </root>

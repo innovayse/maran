@@ -296,8 +296,8 @@ path here. Those belong on a root polygon.
 
 ## Correction, 2026-09-09 — this note's premises are SUPERSEDED
 
-Added by a verification pass over every threat note on `fix/live-findings`
-(`.superpowers/sdd/threat-note-verification.md`). The reasoning below about `openat`,
+Added by a verification pass over every threat note on `fix/live-findings`, which found this
+note **SUPERSEDED, and it does not say so**. The reasoning below about `openat`,
 `O_NOFOLLOW`, `nlink` and the pinned directory descriptor is still exactly the code. **Three of
 its premises are not**, and they are corrected here rather than left to read as verified:
 

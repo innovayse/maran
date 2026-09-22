@@ -94,6 +94,13 @@ impl SystemHost for ProcessSystemHost {
         })
     }
 
+    /// Reads `/proc/mounts` from the kernel's own procfs, whole.
+    fn read_mounts(&self) -> Result<String, AccountError> {
+        fs::read_to_string("/proc/mounts").map_err(|_| AccountError::HomeInspection {
+            reason: "could not read /proc/mounts".to_owned(),
+        })
+    }
+
     /// Reads `path`'s metadata with `lstat` — `std::fs::symlink_metadata`,
     /// which is precisely the syscall that does not follow a symlink.
     fn home_metadata(&self, path: &str) -> Result<Option<HomeMetadata>, AccountError> {

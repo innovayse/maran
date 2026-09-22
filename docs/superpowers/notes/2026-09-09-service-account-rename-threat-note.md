@@ -305,8 +305,8 @@ Why this and not something shorter:
   whole design rests on.
 
 Each of these was shown to go red by breaking the property it asserts, in a throwaway container of
-each family, with the failure quoted in the branch's report
-(`.superpowers/sdd/panel-user-rename-report.md`). Both images were then rebuilt with
+each family, with the failure quoted in a working report kept only as a scratch file (not
+committed). Both images were then rebuilt with
 `docker build --no-cache` — a cached `COPY` layer has scored an older file here before — and every
 assertion in the script passed on both families, including the FTPS name-agreement check this
 change did not touch.
@@ -324,7 +324,8 @@ relationship the suites read.
 
 ## Correction, 2026-09-09 — one assertion is named wrongly in §7
 
-Added by a verification pass (`.superpowers/sdd/threat-note-verification.md`). §7 cites
+Added by a verification pass over every threat note on `fix/live-findings`, which found this
+note VERIFIED except that one cited assertion does not exist under the name given. §7 cites
 `assert_the_legacy_panel_account_is_migrated_in_place`. No function of that name exists. The
 assertion is real and does what §7 describes — uid and gid unchanged while the names change — and
 its name is **`assert_the_legacy_service_account_is_migrated_in_place`**

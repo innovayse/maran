@@ -8,6 +8,10 @@ enum maran.agent.v1.LoginPasswordState
 enum maran.agent.v1.ManagedService
 enum maran.agent.v1.Protocol
 enum maran.agent.v1.PublicReadVerdict
+enum maran.agent.v1.QuotaEnforceability
+enum maran.agent.v1.QuotaEnforceabilityReason
+enum maran.agent.v1.QuotaState
+enum maran.agent.v1.QuotaUnenforceableReason
 enum maran.agent.v1.ServiceState
 enum maran.agent.v1.SftpJailState
 enum maran.agent.v1.SiteBackendType
@@ -65,6 +69,19 @@ enum-value maran.agent.v1.PublicReadVerdict 0 PUBLIC_READ_VERDICT_UNSPECIFIED
 enum-value maran.agent.v1.PublicReadVerdict 1 PUBLIC_READ_VERDICT_PRIVATE
 enum-value maran.agent.v1.PublicReadVerdict 2 PUBLIC_READ_VERDICT_PUBLICLY_READABLE
 enum-value maran.agent.v1.PublicReadVerdict 3 PUBLIC_READ_VERDICT_UNPROVEN
+enum-value maran.agent.v1.QuotaEnforceability 0 QUOTA_ENFORCEABILITY_UNSPECIFIED
+enum-value maran.agent.v1.QuotaEnforceability 1 QUOTA_ENFORCEABILITY_ENFORCEABLE
+enum-value maran.agent.v1.QuotaEnforceability 2 QUOTA_ENFORCEABILITY_NOT_ENFORCEABLE
+enum-value maran.agent.v1.QuotaEnforceabilityReason 0 QUOTA_ENFORCEABILITY_REASON_UNSPECIFIED
+enum-value maran.agent.v1.QuotaEnforceabilityReason 1 QUOTA_ENFORCEABILITY_REASON_MOUNTED_WITHOUT_QUOTA_ACCOUNTING
+enum-value maran.agent.v1.QuotaEnforceabilityReason 2 QUOTA_ENFORCEABILITY_REASON_ACCOUNTING_NOT_ENABLED
+enum-value maran.agent.v1.QuotaState 0 QUOTA_STATE_UNSPECIFIED
+enum-value maran.agent.v1.QuotaState 1 QUOTA_STATE_ENFORCED
+enum-value maran.agent.v1.QuotaState 2 QUOTA_STATE_ENFORCEABLE_BUT_UNSET
+enum-value maran.agent.v1.QuotaState 3 QUOTA_STATE_NOT_ENFORCEABLE
+enum-value maran.agent.v1.QuotaUnenforceableReason 0 QUOTA_UNENFORCEABLE_REASON_UNSPECIFIED
+enum-value maran.agent.v1.QuotaUnenforceableReason 1 QUOTA_UNENFORCEABLE_REASON_MOUNTED_WITHOUT_QUOTA_ACCOUNTING
+enum-value maran.agent.v1.QuotaUnenforceableReason 2 QUOTA_UNENFORCEABLE_REASON_ACCOUNTING_NOT_ENABLED
 enum-value maran.agent.v1.ServiceState 0 SERVICE_STATE_UNSPECIFIED
 enum-value maran.agent.v1.ServiceState 1 SERVICE_STATE_RUNNING
 enum-value maran.agent.v1.ServiceState 2 SERVICE_STATE_STOPPED
@@ -340,6 +357,8 @@ field maran.agent.v1.GetAccountSuspensionStateResponse 1 ok TYPE_MESSAGE LABEL_O
 field maran.agent.v1.GetAccountSuspensionStateResponse 2 error TYPE_MESSAGE LABEL_OPTIONAL type_name=.maran.agent.v1.AgentError oneof=result
 field maran.agent.v1.GetAccountUsageOk 1 used_bytes TYPE_UINT64 LABEL_OPTIONAL type_name=- oneof=-
 field maran.agent.v1.GetAccountUsageOk 2 quota_bytes TYPE_UINT64 LABEL_OPTIONAL type_name=- oneof=-
+field maran.agent.v1.GetAccountUsageOk 3 quota_state TYPE_ENUM LABEL_OPTIONAL type_name=.maran.agent.v1.QuotaState oneof=-
+field maran.agent.v1.GetAccountUsageOk 4 quota_unenforceable_reason TYPE_ENUM LABEL_OPTIONAL type_name=.maran.agent.v1.QuotaUnenforceableReason oneof=-
 field maran.agent.v1.GetAccountUsageRequest 1 username TYPE_STRING LABEL_OPTIONAL type_name=- oneof=-
 field maran.agent.v1.GetAccountUsageResponse 1 ok TYPE_MESSAGE LABEL_OPTIONAL type_name=.maran.agent.v1.GetAccountUsageOk oneof=result
 field maran.agent.v1.GetAccountUsageResponse 2 error TYPE_MESSAGE LABEL_OPTIONAL type_name=.maran.agent.v1.AgentError oneof=result
@@ -378,6 +397,14 @@ field maran.agent.v1.GetFtpsStatusResponse 1 ok TYPE_MESSAGE LABEL_OPTIONAL type
 field maran.agent.v1.GetFtpsStatusResponse 2 error TYPE_MESSAGE LABEL_OPTIONAL type_name=.maran.agent.v1.AgentError oneof=result
 field maran.agent.v1.GetHostMetricsResponse 1 ok TYPE_MESSAGE LABEL_OPTIONAL type_name=.maran.agent.v1.HostMetrics oneof=result
 field maran.agent.v1.GetHostMetricsResponse 2 error TYPE_MESSAGE LABEL_OPTIONAL type_name=.maran.agent.v1.AgentError oneof=result
+field maran.agent.v1.GetQuotaEnforceabilityOk 1 enforceability TYPE_ENUM LABEL_OPTIONAL type_name=.maran.agent.v1.QuotaEnforceability oneof=-
+field maran.agent.v1.GetQuotaEnforceabilityOk 2 reason TYPE_ENUM LABEL_OPTIONAL type_name=.maran.agent.v1.QuotaEnforceabilityReason oneof=-
+field maran.agent.v1.GetQuotaEnforceabilityResponse 1 ok TYPE_MESSAGE LABEL_OPTIONAL type_name=.maran.agent.v1.GetQuotaEnforceabilityOk oneof=result
+field maran.agent.v1.GetQuotaEnforceabilityResponse 2 error TYPE_MESSAGE LABEL_OPTIONAL type_name=.maran.agent.v1.AgentError oneof=result
+field maran.agent.v1.GetServerFingerprintInputsOk 1 machine_id TYPE_MESSAGE LABEL_OPTIONAL type_name=.maran.agent.v1.MachineIdStatus oneof=-
+field maran.agent.v1.GetServerFingerprintInputsOk 2 primary_interface TYPE_MESSAGE LABEL_OPTIONAL type_name=.maran.agent.v1.PrimaryInterfaceStatus oneof=-
+field maran.agent.v1.GetServerFingerprintInputsResponse 1 ok TYPE_MESSAGE LABEL_OPTIONAL type_name=.maran.agent.v1.GetServerFingerprintInputsOk oneof=result
+field maran.agent.v1.GetServerFingerprintInputsResponse 2 error TYPE_MESSAGE LABEL_OPTIONAL type_name=.maran.agent.v1.AgentError oneof=result
 field maran.agent.v1.GetServiceStatusesOk 1 services TYPE_MESSAGE LABEL_REPEATED type_name=.maran.agent.v1.ServiceStatus oneof=-
 field maran.agent.v1.GetServiceStatusesResponse 1 ok TYPE_MESSAGE LABEL_OPTIONAL type_name=.maran.agent.v1.GetServiceStatusesOk oneof=result
 field maran.agent.v1.GetServiceStatusesResponse 2 error TYPE_MESSAGE LABEL_OPTIONAL type_name=.maran.agent.v1.AgentError oneof=result
@@ -436,6 +463,8 @@ field maran.agent.v1.ListRulesRequest 1 ssh_ports TYPE_UINT32 LABEL_REPEATED typ
 field maran.agent.v1.ListRulesRequest 2 panel_port TYPE_UINT32 LABEL_OPTIONAL type_name=- oneof=-
 field maran.agent.v1.ListRulesResponse 1 ok TYPE_MESSAGE LABEL_OPTIONAL type_name=.maran.agent.v1.ListRulesOk oneof=result
 field maran.agent.v1.ListRulesResponse 2 error TYPE_MESSAGE LABEL_OPTIONAL type_name=.maran.agent.v1.AgentError oneof=result
+field maran.agent.v1.MachineIdStatus 1 present TYPE_BOOL LABEL_OPTIONAL type_name=- oneof=-
+field maran.agent.v1.MachineIdStatus 2 value TYPE_STRING LABEL_OPTIONAL type_name=- oneof=-
 field maran.agent.v1.ManifestDatabase 1 name TYPE_STRING LABEL_OPTIONAL type_name=- oneof=-
 field maran.agent.v1.ManifestDatabase 2 bytes TYPE_UINT64 LABEL_OPTIONAL type_name=- oneof=-
 field maran.agent.v1.ManifestDatabase 3 sha256 TYPE_STRING LABEL_OPTIONAL type_name=- oneof=-
@@ -449,6 +478,8 @@ field maran.agent.v1.PhpSetting 2 value TYPE_STRING LABEL_OPTIONAL type_name=- o
 field maran.agent.v1.PhpVersion 1 version TYPE_STRING LABEL_OPTIONAL type_name=- oneof=-
 field maran.agent.v1.PhpVersion 2 fpm_socket_directory TYPE_STRING LABEL_OPTIONAL type_name=- oneof=-
 field maran.agent.v1.PhpVersion 3 is_default TYPE_BOOL LABEL_OPTIONAL type_name=- oneof=_is_default
+field maran.agent.v1.PrimaryInterfaceStatus 1 present TYPE_BOOL LABEL_OPTIONAL type_name=- oneof=-
+field maran.agent.v1.PrimaryInterfaceStatus 2 value TYPE_STRING LABEL_OPTIONAL type_name=- oneof=-
 field maran.agent.v1.ProbeDestinationOk 1 verdict TYPE_ENUM LABEL_OPTIONAL type_name=.maran.agent.v1.PublicReadVerdict oneof=-
 field maran.agent.v1.ProbeDestinationOk 2 unproven_reason TYPE_STRING LABEL_OPTIONAL type_name=- oneof=-
 field maran.agent.v1.ProbeDestinationRequest 1 destination TYPE_MESSAGE LABEL_OPTIONAL type_name=.maran.agent.v1.BackupDestination oneof=-
@@ -737,6 +768,12 @@ message maran.agent.v1.GetFtpsStatusRequest
 message maran.agent.v1.GetFtpsStatusResponse
 message maran.agent.v1.GetHostMetricsRequest
 message maran.agent.v1.GetHostMetricsResponse
+message maran.agent.v1.GetQuotaEnforceabilityOk
+message maran.agent.v1.GetQuotaEnforceabilityRequest
+message maran.agent.v1.GetQuotaEnforceabilityResponse
+message maran.agent.v1.GetServerFingerprintInputsOk
+message maran.agent.v1.GetServerFingerprintInputsRequest
+message maran.agent.v1.GetServerFingerprintInputsResponse
 message maran.agent.v1.GetServiceStatusesOk
 message maran.agent.v1.GetServiceStatusesRequest
 message maran.agent.v1.GetServiceStatusesResponse
@@ -771,12 +808,14 @@ message maran.agent.v1.ListPhpVersionsResponse
 message maran.agent.v1.ListRulesOk
 message maran.agent.v1.ListRulesRequest
 message maran.agent.v1.ListRulesResponse
+message maran.agent.v1.MachineIdStatus
 message maran.agent.v1.ManifestDatabase
 message maran.agent.v1.MoveEntryOk
 message maran.agent.v1.MoveEntryRequest
 message maran.agent.v1.MoveEntryResponse
 message maran.agent.v1.PhpSetting
 message maran.agent.v1.PhpVersion
+message maran.agent.v1.PrimaryInterfaceStatus
 message maran.agent.v1.ProbeDestinationOk
 message maran.agent.v1.ProbeDestinationRequest
 message maran.agent.v1.ProbeDestinationResponse
@@ -918,6 +957,8 @@ rpc maran.agent.v1.FtpsService ReloadFtpsTls in=.maran.agent.v1.ReloadFtpsTlsReq
 rpc maran.agent.v1.FtpsService SetFtpsPassword in=.maran.agent.v1.SetFtpsPasswordRequest out=.maran.agent.v1.SetFtpsPasswordResponse client_streaming=false server_streaming=false
 rpc maran.agent.v1.MonitorService GetAccountsDiskUsage in=.maran.agent.v1.GetAccountsDiskUsageRequest out=.maran.agent.v1.GetAccountsDiskUsageResponse client_streaming=false server_streaming=false
 rpc maran.agent.v1.MonitorService GetHostMetrics in=.maran.agent.v1.GetHostMetricsRequest out=.maran.agent.v1.GetHostMetricsResponse client_streaming=false server_streaming=false
+rpc maran.agent.v1.MonitorService GetQuotaEnforceability in=.maran.agent.v1.GetQuotaEnforceabilityRequest out=.maran.agent.v1.GetQuotaEnforceabilityResponse client_streaming=false server_streaming=false
+rpc maran.agent.v1.MonitorService GetServerFingerprintInputs in=.maran.agent.v1.GetServerFingerprintInputsRequest out=.maran.agent.v1.GetServerFingerprintInputsResponse client_streaming=false server_streaming=false
 rpc maran.agent.v1.MonitorService GetServiceStatuses in=.maran.agent.v1.GetServiceStatusesRequest out=.maran.agent.v1.GetServiceStatusesResponse client_streaming=false server_streaming=false
 rpc maran.agent.v1.MonitorService GetSftpJailStatus in=.maran.agent.v1.GetSftpJailStatusRequest out=.maran.agent.v1.GetSftpJailStatusResponse client_streaming=false server_streaming=false
 rpc maran.agent.v1.PhpService InstallPhpVersion in=.maran.agent.v1.InstallPhpVersionRequest out=.maran.agent.v1.InstallPhpVersionResponse client_streaming=false server_streaming=true

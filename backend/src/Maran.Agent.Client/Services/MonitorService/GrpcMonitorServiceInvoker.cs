@@ -47,4 +47,12 @@ internal sealed class GrpcMonitorServiceInvoker : IMonitorServiceInvoker
     {
         return await _client.GetSftpJailStatusAsync(request, cancellationToken: cancellationToken);
     }
+
+    /// <inheritdoc/>
+    public async Task<GetQuotaEnforceabilityResponse> GetQuotaEnforceabilityAsync(
+        GetQuotaEnforceabilityRequest request,
+        CancellationToken cancellationToken)
+    {
+        return await _client.GetQuotaEnforceabilityAsync(request, cancellationToken: cancellationToken);
+    }
 }

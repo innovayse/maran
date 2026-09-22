@@ -84,6 +84,13 @@ public sealed class SslModule : IPanelModule
             // silently cannot apply (rules/csharp.md "Every outbound call goes through a named
             // resilience pipeline": one pipeline, one deadline).
             client.Timeout = Timeout.InfiniteTimeSpan;
+
+            // Every outbound ACME request identifies the client, RFC 7231's SHOULD and RFC 8555's
+            // own convention (every real authority's client library sends one). Let's Encrypt's own
+            // authority is permissive about a missing one; pebble — the ACME protocol test server
+            // this panel's client is exercised against — refuses
+            // EVERY request with no User-Agent at all as "malformed", which is what surfaced the gap.
+            client.DefaultRequestHeaders.UserAgent.ParseAdd("Maran-Panel-Acme-Client/1.0");
         });
 
         services.AddScoped<CertificateAuditJournal>();

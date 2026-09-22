@@ -636,3 +636,65 @@ sshd, which is not a fixture two tests may hold at once.
 PostgreSQL should be running (see "Starting PostgreSQL" above). Tests can connect to `postgres://maran_dev:maran_dev@localhost:5432/maran_dev`.
 
 For distro-specific agent testing, build an image, then mount your agent binary and test command as shown above.
+
+## Real mechanisms behind the stand-ins, and what they still don't prove
+
+Three things in this product have only ever been exercised against a fake: `systemctl-stand-in.sh`
+starts and stops nothing, `setquota-stand-in.sh` accepts and does nothing (the overlay has no quota
+support), and the ACME client has never completed an issuance against a real authority. The exact commands and their
+output are reproduced in the sections below rather than kept anywhere outside this clone.
+Two were closed as far as a container genuinely can:
+
+- **`docker/polygon/systemd.Dockerfile`** boots real systemd as PID 1 (`docker run -d --privileged
+  --cgroupns=host -v /sys/fs/cgroup:/sys/fs/cgroup:rw maran-polygon-systemd:test`). A unit started
+  through it actually serves an HTTP request; a stopped unit reports `inactive` with systemd's own
+  exit status 3; and a unit enabled for boot comes back up on its own after `docker restart` — the
+  one case `systemctl-stand-in.sh`'s own header says "only a real host settles". A disabled unit,
+  checked the same way, stays down. **This is still not a boot**: no bootloader, no initramfs, no
+  real device enumeration, and the kernel underneath is this machine's, shared with every other
+  container on it — not an operator's server.
+- **`docker/polygon/quota-harness.sh`** builds a loopback ext4 image with the in-kernel quota
+  feature, mounts it `usrquota` (matching `agent/crates/ops/src/accounts/account_operations.rs`
+  exactly — user quota only, the agent never asks for group quotas), and runs the agent's own
+  `setquota` invocation against a real account home on it. The proof is a write past the hard limit
+  refused by the **kernel** (`dd: error writing ...: Disk quota exceeded`), with usage on disk
+  confirmed to have stayed under the limit afterward — not a `setquota` exit code, which the
+  stand-in's own `exit 0` already shows proves nothing. The negative control — the identical write on
+  the container's unquota'd overlay root — succeeds, which is the honest "cannot enforce" case.
+  **This is still a loopback image on this box's own disk**, not a customer's real partition, and it
+  proves nothing about group quotas because the agent doesn't use them.
+
+Two were investigated and reported as not built, not faked with a third stand-in:
+
+- **ACME against `pebble`**: updated by a later pass — this is now built. `docker/docker-compose.pebble.yml`
+  runs `ghcr.io/letsencrypt/pebble` (`network_mode: host`, deterministic knobs), and
+  `backend/tests/Maran.Modules.Ssl.Tests/Integration/PebbleAcmeIssuanceTests.cs` (gated behind
+  `MARAN_PEBBLE_TESTS=1`, so it never runs in the ordinary gate) drives the production `AcmeClient`
+  through one real account registration, order, HTTP-01 challenge served and validated, finalize,
+  and certificate download — confirmed both from the client's own transcript and from pebble's own
+  server log, and the downloaded certificate read back with `openssl` independently of the C# that
+  wrote it. One production line changed to make it possible at all:
+  `SslModule.cs` now sets a `User-Agent` on the `"acme"` `HttpClient`, because pebble refuses any
+  request with none — Let's Encrypt does not. The pebble knobs and what each one hides, and how
+  the test trusts pebble's root — by pinning its own fixed CA file, never by disabling verification
+  — are recorded in the remarks on `PebbleAcmeIssuanceTests` itself, where a reader of the test
+  finds them. **Let's Encrypt as a real authority
+  remains completely unproven** — pebble implements the protocol, not their rate limits, their
+  validation from the public internet, or a publicly resolvable domain; that gap is issue #28.
+  Renewal, the real agent-mediated challenge write, and the HTTP endpoint around `AcmeClient` are
+  still not exercised — see that file's "still unproven" section.
+- **Destroy-and-restore drill**: attempted in a later pass and it passed. `restore_recovery_on_a_real_host.rs`
+  (4 cases) and `backup_on_a_real_host.rs` (12 cases) were both run for real against
+  `maran-polygon-ubuntu24` — a real account, a real MariaDB, a real destroy, a real restore, and a
+  byte/row/ownership comparison, not an existence check — and two real `SIGKILL`s were delivered
+  from inside a real restore, one of them landing inside the file-swap window
+  (`docs/superpowers/notes/2026-09-09-restore-interruption-recovery-threat-note.md`'s table row #2,
+  the one row capable of the old-files/new-databases mix that note forbids), and the reconciler
+  finished forward as the note prescribes. All 16 cases printed `ok`; no defect was found. The comparisons made were file content by value, ownership
+  and mode read back with `stat`, and database content by `SELECT`; the inverse control that matters
+  is that the comparison was first shown to FAIL on unrestored data, so it cannot pass vacuously. Still unproven: a real reboot or power
+  cut (this drill kills a process, not the machine), a bit-flipped archive on the polygon, and the
+  note's recovery states #5–#9, which stay covered only by in-process unit tests.
+
+Anything this harness cannot see stays unproven by silence otherwise: state it here rather than let a
+green run be read as more than it is.

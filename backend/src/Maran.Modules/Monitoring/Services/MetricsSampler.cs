@@ -136,8 +136,22 @@ public sealed class MetricsSampler : BackgroundService
         var jailStatus = await agent.GetSftpJailStatusAsync(cancellationToken);
         var sftpJailStatus = jailStatus.IsSuccess ? jailStatus.Value : null;
 
+        var quotaEnforceability = await agent.GetQuotaEnforceabilityAsync(cancellationToken);
+        var quotaStatus = quotaEnforceability.IsSuccess ? quotaEnforceability.Value : null;
+
+        // No code-integrity report here: that finding arrives from the closed PluginLoader through
+        // ICodeIntegrityReportSink on its own schedule (docs/superpowers/plans/2026-09-19-maran-code-
+        // integrity.md Task 2/3), never through this per-minute agent-metrics round. Passing null is
+        // "unanswered this round", which advances nothing and resets nothing — the correct behaviour
+        // for a round that was never asked the question.
         await evaluator.EvaluateAsync(
-            DiskUsedPercent(metrics.Value), services, sftpJailStatus, observedAt, cancellationToken);
+            DiskUsedPercent(metrics.Value),
+            services,
+            sftpJailStatus,
+            quotaStatus,
+            codeIntegrityReport: null,
+            observedAt,
+            cancellationToken);
 
         return true;
     }

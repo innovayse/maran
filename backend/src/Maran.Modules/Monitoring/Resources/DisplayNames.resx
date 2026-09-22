@@ -36,4 +36,7 @@
   <data name="ServiceSsh">
     <value>SSH</value>
   </data>
+  <data name="AccountQuotaNotEnforceableNote">
+    <value>Not currently enforced — this is the plan's allowance, but this server cannot back it with a real disk limit right now, so this account may use more. Mount the filesystem with quota accounting and run quotaon to restore enforcement; the panel will not do this for you.</value>
+  </data>
 </root>

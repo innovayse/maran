@@ -1,8 +1,10 @@
 using Maran.Agent.Client.Interfaces;
 using Maran.Agent.Client.Services.MonitorService;
 using Maran.Modules.Monitoring.Common;
+using Maran.Modules.Monitoring.Resources;
 using Maran.Sdk.Contracts;
 using Maran.Sdk.Interfaces;
+using Microsoft.Extensions.Localization;
 
 namespace Maran.Modules.Monitoring.Queries.ListAccountDiskUsage;
 
@@ -51,13 +53,24 @@ public sealed class ListAccountDiskUsageQueryHandler
     /// </remarks>
     private readonly IAccountDirectory _accounts;
 
+    /// <summary>
+    /// The localized text explaining why a row's <see cref="AccountDiskUsageDto.Enforceable"/> is
+    /// false. Read here rather than left to the SPA to invent, per rules/architecture.md ("the
+    /// backend owns the data, the SPA renders it") — a raw boolean gives the reader no idea what to
+    /// do about it.
+    /// </summary>
+    private readonly IStringLocalizer<DisplayNames> _text;
+
     /// <summary>Creates the handler.</summary>
     /// <param name="agent">The agent client that measures each account's home directory.</param>
     /// <param name="accounts">The directory that knows the accounts and their plans' allowances.</param>
-    public ListAccountDiskUsageQueryHandler(IAgentMonitorClient agent, IAccountDirectory accounts)
+    /// <param name="text">The localized text explaining an unenforceable quota.</param>
+    public ListAccountDiskUsageQueryHandler(
+        IAgentMonitorClient agent, IAccountDirectory accounts, IStringLocalizer<DisplayNames> text)
     {
         _agent = agent;
         _accounts = accounts;
+        _text = text;
     }
 
     /// <summary>Returns one row per hosting account the panel knows, ordered by user name.</summary>
@@ -80,13 +93,28 @@ public sealed class ListAccountDiskUsageQueryHandler
             return Result<IReadOnlyList<AccountDiskUsageDto>>.Fail(measured.Error!);
         }
 
+        // Every hosting account's home lives under the one filesystem
+        // `AgentPaths::ACCOUNT_HOME_ROOT` names, so today this is a single
+        // host-wide reading applied to every row — not a per-account one, even
+        // though the DTO carries the flag per row (Section 6 of the quota
+        // enforceability plan: a future layout where accounts split across
+        // filesystems must not have to widen the wire contract again). A
+        // failed read here is NOT folded into the whole listing's failure:
+        // the panel must still show what it can measure, and default to the
+        // SAFE reading — "assume not enforceable" — rather than silently
+        // claiming a limit is backed by a kernel it never actually asked.
+        var enforceability = await _agent.GetQuotaEnforceabilityAsync(cancellationToken);
+        var enforceable = enforceability is { IsSuccess: true, Value.IsEnforceable: true };
+
+        var note = enforceable ? null : _text["AccountQuotaNotEnforceableNote"].Value;
+
         var usedByUsername = ByUsername(measured.Value);
         var accounts = await _accounts.ListAsync(cancellationToken);
 
         var rows = accounts
             .Select(account =>
             {
-                return ToRow(account, usedByUsername);
+                return ToRow(account, usedByUsername, enforceable, note);
             })
             .OrderBy(row =>
             {
@@ -122,8 +150,17 @@ public sealed class ListAccountDiskUsageQueryHandler
     /// <summary>Builds one account's row from its snapshot and whatever the agent measured for it.</summary>
     /// <param name="account">The account, as the Accounts module described it.</param>
     /// <param name="usedByUsername">The agent's measurements, indexed by user name.</param>
+    /// <param name="enforceable">
+    /// Whether the filesystem holding hosting accounts' homes can currently enforce a quota — see
+    /// <see cref="AccountDiskUsageDto.Enforceable"/>.
+    /// </param>
+    /// <param name="note">The localized explanation shared by every row — see <see cref="AccountDiskUsageDto.Note"/>.</param>
     /// <returns>The row.</returns>
-    private static AccountDiskUsageDto ToRow(AccountSnapshot account, Dictionary<string, ulong> usedByUsername)
+    private static AccountDiskUsageDto ToRow(
+        AccountSnapshot account,
+        Dictionary<string, ulong> usedByUsername,
+        bool enforceable,
+        string? note)
     {
         // NULL, not zero, and the nullable type is the whole reason this method exists. An account
         // the agent did not measure — because the agent was down, or because a rename left the
@@ -134,7 +171,13 @@ public sealed class ListAccountDiskUsageQueryHandler
             ? ToSignedBytes(used)
             : null;
 
-        return new AccountDiskUsageDto(account.Id, account.Username, usedBytes, ToQuotaBytes(account.DiskQuotaMb));
+        return new AccountDiskUsageDto(
+            account.Id,
+            account.Username,
+            usedBytes,
+            ToQuotaBytes(account.DiskQuotaMb),
+            enforceable,
+            note);
     }
 
     /// <summary>Converts a plan's allowance from the megabytes it is stored in to bytes.</summary>

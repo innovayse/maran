@@ -1,0 +1,36 @@
+# Development/test-only: Let's Encrypt's own ACME test server, for exercising this panel's real
+# AcmeClient (backend/src/Maran.Modules/Ssl) against a real ACME protocol implementation without
+# touching Let's Encrypt's staging service or its rate limits. See .superpowers/sdd/acme-pebble.md.
+#
+# Not part of `maran dev`; started on demand:
+#   docker compose -f docker/docker-compose.pebble.yml up -d
+#
+# network_mode: host (Linux only) so pebble's own outbound HTTP-01 validation connects to
+# "localhost:5002" and reaches the SAME host loopback the test's temporary challenge server binds
+# to — pebble has no volume-mounted config here, it runs its own image default
+# (test/config/pebble-config.json: directory on :14000, HTTP-01 validation on :5002, domain
+# "localhost" server certificate). Bridge networking would put pebble's "localhost" inside its own
+# container, which is not where the test's challenge server listens.
+services:
+  pebble:
+    image: ghcr.io/letsencrypt/pebble:latest
+    container_name: maran-pebble
+    network_mode: host
+    environment:
+      # Deterministic knobs — see .superpowers/sdd/acme-pebble.md for exactly what each one hides.
+      # PEBBLE_WFE_NONCEREJECT=0: pebble by default rejects a random ~5% of nonces on purpose, to
+      # catch a client that does not know how to retry a badNonce. This client already handles that
+      # (AcmeSession's retry-with-new-nonce, tested in AcmeClientTests) — disabling it here removes
+      # random retries from THIS run's transcript, not the client's ability to survive one.
+      PEBBLE_WFE_NONCEREJECT: "0"
+      # PEBBLE_ALTERNATE_ROOTS=0: pebble by default signs issued chains from a randomly chosen one of
+      # several roots, to catch a client that hardcodes a single expected root. This slice reads the
+      # issued leaf's issuer/subject once and does not exercise chain-of-trust selection, so a fixed
+      # root just makes the printed transcript reproducible.
+      PEBBLE_ALTERNATE_ROOTS: "0"
+      # PEBBLE_AUTHZREUSE=0: pebble by default has a random chance of reusing a pending authorization
+      # across orders for the same account+identifier. This run always wants a fresh HTTP-01
+      # challenge to actually be served and validated, not skipped because a prior run's pending
+      # authorization got reused.
+      PEBBLE_AUTHZREUSE: "0"
+    restart: "no"

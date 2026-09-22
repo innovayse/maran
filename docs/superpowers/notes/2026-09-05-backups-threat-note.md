@@ -452,8 +452,8 @@ session — so its measured paragraphs are the ones to trust, and its arguments 
 `ubuntu:24.04`, as root, `umask 0027` (the unit's `UMask=`), real `panel` and customer uids, driving
 a harness that embeds the agent's REAL `open_scratch` source verbatim — the new one and the old
 unchecked one side by side, so the same harness reproduces the attack and then tries it against the
-fix. Full transcript: `.superpowers/sdd/2026-09-05-maran-backups/exploit-run.txt`, with the harness
-and its driver beside it.
+fix. The raw transcript was kept only as a working scratch file, not committed; its content is
+the before/after tables below, which quote it verbatim.
 
 **Both exploits reproduced first, on the old layout and the old code**, which is what makes the
 "after" columns mean anything:
@@ -517,7 +517,8 @@ ignored across 24 targets** against the 1374 baseline.
 
 ## Correction, 2026-09-09 — the scratch root moved and `ExecStartPre` is gone
 
-Added by a verification pass (`.superpowers/sdd/threat-note-verification.md`). Two facts this note
+Added by a verification pass over every threat note on `fix/live-findings`, which found this
+note stale on the scratch root and on `ExecStartPre`. Two facts this note
 reasons from are no longer true:
 
 - The bulk scratch is **`/var/lib/maran-scratch`** (`root:root 0700`, installed and asserted by

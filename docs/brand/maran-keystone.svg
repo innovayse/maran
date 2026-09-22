@@ -1,0 +1,86 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="Maran">
+  <!--
+    The Maran mark: the keystone, built out of its own courses.
+
+    A keystone is the single wedge at the crown of an arch. Every other stone is held up by its
+    neighbours; the keystone is what makes the neighbours hold. Take it out and the structure comes
+    down — which is what a control panel is to a server, and a claim no rack, cloud or globe can
+    make. It is also the stone at the crown of a MARAN, the vaulted cellar the product is named
+    after, so the mark and the name are one object.
+
+    THE STONE IS ASSEMBLED, NOT RULED. An earlier drawing of this mark was one solid mass with lines
+    drawn across it, which is a picture of a stone with stripes. This one is three separate courses
+    with 0.8 units of real air between them: each is its own piece, each catches its own light along
+    its top bed, and the gaps are gaps rather than paint. The difference matters beyond looks — a
+    line painted in a background colour is invisible only against the background it was painted for,
+    and shows as a stripe of the wrong colour on a photograph or a coloured header. Air is air
+    everywhere.
+
+    THE JOINTS ARE RADIAL. A voussoir's bed joints converge on the arch's own centre of curvature;
+    they are never horizontal, and a mason reads a horizontal joint in a wedge as a stone about to
+    shear. The stone's two sides ARE those radials, so the centre is simply where they meet — at
+    (16, 45.7), far below the tile. Every course is therefore bounded by arcs concentric with that
+    point, which is why they bow upward: each course's apex sits above its own ends. That is the
+    detail that makes the shape read as part of an arch rather than as a tapered box.
+
+    THE LIGHT COMES OUT FROM BETWEEN THEM. The glow is painted underneath the courses and clipped to
+    the whole stone, so it can only be seen where the air is. A vault holding something alive — and
+    equally three lit units in a tapered chassis, which is the server reading carried by the
+    object's own construction rather than by an icon bolted beside it. A rim light runs the left
+    silhouette, where the source would catch the edge.
+
+    Light falls from above, so each course is a step darker than the one over it, and each is split
+    on the centre line into a lit face and a turned-away face. Colour is the panel's own: #2E7BFF is
+    the `ac` token, sitting at the top of the middle course's lit face; everything else is that hue
+    lightened for the cap and deepened for the shadow. No hue the product does not already own.
+
+    Geometry, computed rather than eyeballed. Grid 32. Shoulders at y=10 spanning x=5.5..26.5 — the
+    widest point, deliberately sharp, because a cut stone's widest edge is an edge. Foot at y=27
+    spanning x=10.5..21.5, corners worn by 1.6. The cap recedes to x=8.5..23.5 at y=5, rounded 2.0.
+    Joint radii 30.033 and 24.367 about the centre of curvature; each course is inset from them by
+    half the gap. Ink spans x=5.5..26.5 and y=5..27, centred in both axes.
+
+    The bloom is a filter: a renderer that drops filters loses the glow and keeps the stone. Where
+    filters cannot go at all — an embossing, one-colour print — use maran-keystone-mono.svg.
+  -->
+  <defs>
+    <linearGradient id="k-l0" x1="7" y1="10" x2="14" y2="27" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#3E86FF"/><stop offset="1" stop-color="#2E7BFF"/></linearGradient>
+    <linearGradient id="k-s0" x1="25" y1="10" x2="18" y2="27" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#1B5FC4"/><stop offset="1" stop-color="#164E9E"/></linearGradient>
+    <linearGradient id="k-l1" x1="7" y1="10" x2="14" y2="27" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#2E7BFF"/><stop offset="1" stop-color="#2468DC"/></linearGradient>
+    <linearGradient id="k-s1" x1="25" y1="10" x2="18" y2="27" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#16509E"/><stop offset="1" stop-color="#123F7E"/></linearGradient>
+    <linearGradient id="k-l2" x1="7" y1="10" x2="14" y2="27" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#2468DC"/><stop offset="1" stop-color="#1B55BE"/></linearGradient>
+    <linearGradient id="k-s2" x1="25" y1="10" x2="18" y2="27" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#123F7E"/><stop offset="1" stop-color="#0C2E63"/></linearGradient>
+    <linearGradient id="k-cap" x1="16" y1="5" x2="16" y2="10" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#8FBCFF"/><stop offset="1" stop-color="#5290FF"/>
+    </linearGradient>
+    <clipPath id="k-stone"><path d="M7.471 6.715Q8.5 5 10.5 5L21.5 5Q23.5 5 24.529 6.715L26.5 10L21.951 25.465Q21.5 27 19.9 27L12.1 27Q10.5 27 10.049 25.465L5.5 10Z"/></clipPath>
+    <filter id="k-bloom" x="-35%" y="-35%" width="170%" height="170%">
+      <feGaussianBlur stdDeviation="0.85"/>
+    </filter>
+  </defs>
+
+  <g clip-path="url(#k-stone)">
+    <g filter="url(#k-bloom)" fill="none" stroke="#9BC4FF" stroke-width="2" stroke-opacity="0.9" stroke-linecap="round">
+      <path d="M7.526 16.887A30.033 30.033 0 0 1 24.474 16.887"/><path d="M9.124 22.323A24.367 24.367 0 0 1 22.876 22.323"/>
+    </g>
+    <g fill="none" stroke="#E4F0FF" stroke-width="0.5" stroke-linecap="round">
+      <path d="M7.526 16.887A30.033 30.033 0 0 1 24.474 16.887"/><path d="M9.124 22.323A24.367 24.367 0 0 1 22.876 22.323"/>
+    </g>
+  </g>
+
+  <path d="M5.5 10L16 10L16 15.267A30.433 30.433 0 0 0 7.413 16.504Z" fill="url(#k-l0)"/>
+  <path d="M26.5 10L16 10L16 15.267A30.433 30.433 0 0 1 24.587 16.504Z" fill="url(#k-s0)"/>
+  <path d="M7.639 17.271A29.633 29.633 0 0 1 16 16.067L16 20.933A24.767 24.767 0 0 0 9.012 21.939Z" fill="url(#k-l1)"/>
+  <path d="M24.361 17.271A29.633 29.633 0 0 0 16 16.067L16 20.933A24.767 24.767 0 0 1 22.988 21.939Z" fill="url(#k-s1)"/>
+  <path d="M9.237 22.707A23.967 23.967 0 0 1 16 21.733L16 27L12.1 27Q10.5 27 10.049 25.465Z" fill="url(#k-l2)"/>
+  <path d="M22.763 22.707A23.967 23.967 0 0 0 16 21.733L16 27L19.9 27Q21.5 27 21.951 25.465Z" fill="url(#k-s2)"/>
+  <path d="M7.471 6.715Q8.5 5 10.5 5L21.5 5Q23.5 5 24.529 6.715L26.5 10L5.5 10Z" fill="url(#k-cap)"/>
+
+  <g fill="none" stroke="#8FBCFF" stroke-width="0.34" stroke-opacity="0.8" stroke-linecap="round">
+    <path d="M7.639 17.271A29.633 29.633 0 0 1 24.361 17.271"/><path d="M9.237 22.707A23.967 23.967 0 0 1 22.763 22.707"/>
+  </g>
+  <g clip-path="url(#k-stone)">
+    <path d="M7.471 6.715L5.5 10L10.049 25.465Q10.5 27 12.1 27" fill="none"
+          stroke="#A8CBFF" stroke-width="1.1" stroke-opacity="0.45"/>
+  </g>
+</svg>

@@ -198,6 +198,10 @@
   <data name="AuditActionAlertResolved">
     <value>Ահազանգը հանվեց</value>
   </data>
+  <!-- TODO(owner): review naturalness. Least confident of the three languages. -->
+  <data name="AuditActionCodeIntegrityReportRejected">
+    <value>Կոդի ամբողջականության հաշվետվությունը մերժվեց որպես անվավեր</value>
+  </data>
   <data name="AuditActionPasswordResetRequested">
     <value>Պահանջվեց գաղտնաբառի վերակայում</value>
   </data>
@@ -221,5 +225,11 @@
   </data>
   <data name="AuditActionBackupDestinationSaved">
     <value>Պահանջվեց պահուստավորման պահեստ</value>
+  </data>
+  <data name="AuditActionLicenceStatusRead">
+    <value>Կարդացվեց լիցենզիայի կարգավիճակը</value>
+  </data>
+  <data name="AuditActionLicenceInstalled">
+    <value>Տեղադրվեց լիցենզիա</value>
   </data>
 </root>

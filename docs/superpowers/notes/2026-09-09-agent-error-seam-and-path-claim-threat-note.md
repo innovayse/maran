@@ -6,7 +6,11 @@ Written **before** the change, as `rules/security.md` ("Sensitive change escalat
 land on `fix/live-findings`; it MUST NOT merge to `main` until a second human reviewer has read this
 note and the diff.
 
-Covers the MEDIUM findings F-3, F-4, F-6 and F-7 of `.superpowers/sdd/privs-audit-report.md`.
+Covers four MEDIUM findings of the privileged-surface audit: F-3 — `AccountError::CommandFailed`
+carries tool stderr across the socket, a shape the database area proved wrong; F-4 —
+`CommandOutcome` is `#[derive(Debug)]` and one call site holds a shadow hash; F-6 —
+`resolve_in_home` is what `rules/security.md` item 2 names as THE path control, yet two of its
+three uses do not need it while nothing enforces it; and F-7 — `/home` is spelled twice.
 
 ## Which part of this is a privileged surface, and which is not
 
@@ -111,7 +115,8 @@ whether that is acceptable or whether the constant should become a function.
 
 ## Correction, 2026-09-09 — F-6's outstanding half has since been closed
 
-Added by a verification pass (`.superpowers/sdd/threat-note-verification.md`). This note says a
+Added by a verification pass over every threat note on `fix/live-findings`, which found this
+note VERIFIED but one claim now stale. This note says a
 reviewer "must decide whether `rules/security.md` item 2 is reworded" and that "until it is
 reworded the checklist remains misleading". **It has been reworded.** Item 2 now reads, in part:
 `resolve_in_home` "is a *locating* aid used by two read paths, and it contains nothing that is

@@ -28,6 +28,26 @@ service MonitorService {
   // the host into a full shell session, and this is the panel's only way to
   // notice.
   rpc GetSftpJailStatus(GetSftpJailStatusRequest) returns (GetSftpJailStatusResponse);
+
+  // Reads /proc/mounts and `quotaon -p` to report whether the filesystem
+  // holding hosting accounts' homes can currently enforce a per-user disk
+  // quota. A remount can change this without touching any account, so
+  // nothing but this rpc re-checks it after the installer's own one-time
+  // preflight warning (`installer/lib/10-preflight.sh`,
+  // `check_quota_capable`). Deliberately observe-only: this agent never
+  // turns quota accounting on or off, and never remounts anything — see
+  // `ops::accounts::quota_enforceability`'s module doc for why.
+  rpc GetQuotaEnforceability(GetQuotaEnforceabilityRequest) returns (GetQuotaEnforceabilityResponse);
+
+  // Reads the two raw values a licence's server fingerprint (spec §228) is
+  // computed from: this host's `machine-id` and the interface carrying its
+  // IPv4 default route. This rpc only REPORTS what the host has — nothing
+  // here computes, hashes or compares a fingerprint, and nothing here makes
+  // any licence-verification outcome reachable
+  // (docs/superpowers/notes/2026-09-22-licence-verification-threat-note.md
+  // §5, which named this exact gap: no rpc existed to obtain either value).
+  rpc GetServerFingerprintInputs(GetServerFingerprintInputsRequest)
+      returns (GetServerFingerprintInputsResponse);
 }
 
 message GetHostMetricsRequest {}
@@ -204,6 +224,40 @@ message GetSftpJailStatusOk {
   repeated string missing = 2;
 }
 
+message GetQuotaEnforceabilityRequest {}
+
+message GetQuotaEnforceabilityResponse {
+  oneof result {
+    GetQuotaEnforceabilityOk ok = 1;
+    AgentError error = 2;
+  }
+}
+
+message GetQuotaEnforceabilityOk {
+  // Whether the filesystem can enforce a quota right now.
+  QuotaEnforceability enforceability = 1;
+  // Present only when enforceability is QUOTA_ENFORCEABILITY_NOT_ENFORCEABLE.
+  QuotaEnforceabilityReason reason = 2;
+}
+
+// Mirrors the two enforceability-only states of
+// `ops::accounts::QuotaState` (agent/crates/ops/src/accounts/model/quota_state.rs)
+// — this rpc has no account to report a byte figure for, only a host-wide
+// fact about the filesystem, so it does not need that type's third,
+// account-carrying variant.
+enum QuotaEnforceability {
+  QUOTA_ENFORCEABILITY_UNSPECIFIED = 0;
+  QUOTA_ENFORCEABILITY_ENFORCEABLE = 1;
+  QUOTA_ENFORCEABILITY_NOT_ENFORCEABLE = 2;
+}
+
+// Mirrors `ops::accounts::QuotaUnenforceableReason`.
+enum QuotaEnforceabilityReason {
+  QUOTA_ENFORCEABILITY_REASON_UNSPECIFIED = 0;
+  QUOTA_ENFORCEABILITY_REASON_MOUNTED_WITHOUT_QUOTA_ACCOUNTING = 1;
+  QUOTA_ENFORCEABILITY_REASON_ACCOUNTING_NOT_ENABLED = 2;
+}
+
 // Whether the live sshd configuration still carries the block the installer
 // wrote. Read from the file itself, not from a live connection's effective
 // configuration — see the agent's own doc comment on `MonitorHost::
@@ -217,4 +271,61 @@ enum SftpJailState {
   // The block is missing, or present but missing one or more of its
   // directives — see `GetSftpJailStatusOk.missing` for which.
   SFTP_JAIL_STATE_DRIFTED = 2;
+}
+
+message GetServerFingerprintInputsRequest {}
+
+message GetServerFingerprintInputsResponse {
+  oneof result {
+    GetServerFingerprintInputsOk ok = 1;
+    AgentError error = 2;
+  }
+}
+
+message GetServerFingerprintInputsOk {
+  // This host's `machine-id`, or the fact that it has none.
+  MachineIdStatus machine_id = 1;
+  // The interface carrying this host's IPv4 default route, or the fact that
+  // it has none — see `MachineIdStatus`'s sibling message below for the
+  // definition of "primary interface" this agent uses and why it is an
+  // unstable value.
+  PrimaryInterfaceStatus primary_interface = 2;
+}
+
+// Whether a `machine-id` was found on this host, and its value when it was.
+//
+// A `present`/`value` pair rather than a bare (possibly empty) string on
+// purpose: an empty string is not a legitimate value for a machine-id, and
+// this shape makes "there is none" a state the wire format can carry instead
+// of a value a reader would have to interpret.
+message MachineIdStatus {
+  // False when the host has no `/etc/machine-id` at all — a container with
+  // no systemd, for example. `value` carries the empty string in that case
+  // and MUST NOT be read as a real (if empty) machine-id.
+  bool present = 1;
+  // This host's `machine-id`, trimmed. Meaningful only when `present` is
+  // true. NEVER LOGGED — this value identifies one physical or virtual
+  // machine for as long as it exists (rules/security.md item 8).
+  string value = 2;
+}
+
+// Whether this host has an IPv4 default route, and the interface it goes out
+// through.
+//
+// "Primary interface" is DEFINED, deliberately, because a host with several
+// NICs has no self-evident one: the interface named by the LOWEST-METRIC
+// IPv4 default route in the kernel's own routing table — the same tie-break
+// `ip route show default` itself applies. See the Rust type this mirrors,
+// `ops::monitor::model::primary_interface::PrimaryInterface`, for the full
+// definition, for what it does not cover (an IPv6-only default route is
+// invisible to it), and — because this is read here for a licence
+// fingerprint, not merely for curiosity — for why it is an UNSTABLE second
+// factor: a DHCP renewal, a VPN interface coming up, or a cable moved to a
+// different port can each change this value on a machine nobody touched.
+message PrimaryInterfaceStatus {
+  // False when the routing table carries no IPv4 default route.
+  bool present = 1;
+  // The interface name, e.g. "eth0". Meaningful only when `present` is true.
+  // NEVER LOGGED — same reason as `MachineIdStatus.value`.
+  string value = 2;
 }

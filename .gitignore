@@ -11,6 +11,19 @@ target/
 node_modules/
 frontend/dist/
 frontend/.vite/
+# Node / Nuxt
+# The public Nuxt site is developed as its own repository and is INTENDED to be a submodule here.
+# It is not one yet — as of 2026-09-22 there is no `website/.git`, no `.gitmodules`, and git holds
+# no gitlink for it; it is a plain directory of files. Ignoring it is therefore the interim, and
+# the reason is not tidiness. The whole directory is ignored, not just its build output: until
+# 2026-09-22 only the three build directories below were listed, so an ordinary `git add .` here
+# would have swallowed ~114 of the site's source files into the panel's repository. CLAUDE.md and
+# `maran website` already referenced the site while git held nothing of it, which is the shape of
+# the mistake this line prevents.
+#
+# WHEN IT IS REGISTERED PROPERLY: `git submodule add` refuses a path that is ignored. Remove this
+# entry first, or pass `-f`, rather than concluding the submodule tooling is broken.
+website/
 # Playwright
 frontend/test-results/
 frontend/playwright-report/
@@ -57,6 +70,11 @@ appsettings.*.local.json
 !installer/panel.env.example
 # Keys and certificates, wherever they land
 *.pem
+# …except pebble's own test CA root, which is PUBLIC by construction: it signs only the
+# throwaway directory of a local test ACME server, ships inside pebble's public image, and
+# is pinned by an integration test that cannot work without it. A clone missing this file
+# fails that test for a reason no error message would explain.
+!docker/pebble/pebble-minica.pem
 *.key
 *.pfx
 *.p12
@@ -71,6 +89,15 @@ appsettings.*.local.json
 # minted for the suite and belonging to no host and no authority. The rule above still catches every
 # real key, including anything an operator or a test run drops elsewhere in the tree.
 !agent/crates/ops/tests/fixtures/*.pem
+
+# installer/keys/: installer/lib/50-artifacts.sh:28 loads release-signing.pub from here and it
+# MUST ship with the installer package, so it is not covered by the blanket *.pem/*.key rule above.
+# Only private signing material is excluded — scripts/lib/release-bundle.sh never writes a private
+# key into this directory (it takes --key/$MARAN_RELEASE_SIGNING_KEY from OUTSIDE the repository),
+# so these patterns exist to catch a human mistake, not tooling output.
+installer/keys/*private*
+installer/keys/*.key
+!installer/keys/release-signing.pub
 
 # Logs, dumps and scratch
 # -----------------------

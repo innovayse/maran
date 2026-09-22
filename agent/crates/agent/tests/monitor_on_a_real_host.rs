@@ -47,8 +47,9 @@ use std::process::Command;
 
 use maran_distro::{DistroAdapter, adapter_for, detect};
 use maran_ops::monitor::{
-    ProcessMonitorHost, ServiceState, ServiceStatus, SftpJailStatus, get_accounts_disk_usage,
-    get_host_metrics, get_service_statuses, get_sftp_jail_status,
+    MachineIdentity, PrimaryInterface, ProcessMonitorHost, ServiceState, ServiceStatus,
+    SftpJailStatus, get_accounts_disk_usage, get_host_metrics, get_server_fingerprint_inputs,
+    get_service_statuses, get_sftp_jail_status,
 };
 
 use polygon_account::PolygonAccount;
@@ -498,4 +499,61 @@ fn removing_the_block_by_hand_is_noticed_and_restoring_it_clears_the_finding() {
         SftpJailStatus::Intact,
         "restoring the installer's exact content must clear the finding"
     );
+}
+
+/// The fingerprint inputs are read from this host's own files, not from a capture.
+///
+/// The unit tests parse committed captures, which pin the FORMAT and cannot pin two other things
+/// this suite is the only place to reach. First, the machine-id path comes from the distro adapter
+/// and is a string no structure rule inspects: a read against the real filesystem fails outright if
+/// it is wrong on this family. Second, `/proc/net/route` is the live routing table, so the
+/// lowest-metric tie-break runs against whatever the kernel actually has rather than a fixture
+/// somebody chose.
+///
+/// **Both values are asserted as PRESENT here, and that is deliberate.** A polygon image has a
+/// machine-id and a default route, so absence would mean the read failed rather than that the host
+/// genuinely lacks them — which is exactly the confusion `MachineIdentity::NotAvailable` exists to
+/// prevent, and cannot be demonstrated on an image that has both.
+///
+/// UNOBSERVED HERE: the NotAvailable arm. Measured on 2026-09-22: a plain `ubuntu:24.04` container
+/// has NO `/etc/machine-id` at all, so that arm is the ordinary case for a containerised install
+/// and is covered by the unit tests against a fake, never here.
+#[test]
+#[ignore = "reads this host's real machine-id and routing table: polygon only"]
+fn the_fingerprint_inputs_are_read_from_this_hosts_own_files() {
+    PolygonAccount::require_polygon();
+
+    let host = ProcessMonitorHost::default();
+    let inputs = get_server_fingerprint_inputs(&host, polygon_distro())
+        .expect("this host's machine-id and routing table are readable");
+
+    match inputs.machine_id {
+        MachineIdentity::Present(ref id) => {
+            // Asserted as a VALUE and not merely as non-empty: systemd writes 32 lowercase hex
+            // digits, so a path that happened to read some other file would be caught here rather
+            // than passing as "something was read".
+            assert_eq!(id.len(), 32, "machine-id is 32 hex digits, read `{id}`");
+            assert!(
+                id.chars().all(|c| c.is_ascii_hexdigit() && !c.is_ascii_uppercase()),
+                "machine-id is lowercase hex, read `{id}`"
+            );
+        }
+        MachineIdentity::NotAvailable => {
+            panic!("a polygon image has a machine-id, so absence means the read went to the wrong path")
+        }
+        // The type is #[non_exhaustive] so a third state can be added without breaking callers;
+        // this arm fails rather than passing over one, because a state nobody asserted on is a
+        // state this suite would otherwise report as fine.
+        other => panic!("unhandled machine-id state: {other:?}"),
+    }
+
+    match inputs.primary_interface {
+        PrimaryInterface::Present(ref name) => {
+            assert!(!name.is_empty(), "an interface name is never empty");
+        }
+        PrimaryInterface::NotAvailable => {
+            panic!("a polygon container has a default route, so absence means the parse failed")
+        }
+        other => panic!("unhandled primary-interface state: {other:?}"),
+    }
 }

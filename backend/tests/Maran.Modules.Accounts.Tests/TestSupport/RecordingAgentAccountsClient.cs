@@ -138,7 +138,7 @@ public sealed class RecordingAgentAccountsClient : IAgentAccountsClient
     {
         Calls.Add($"usage:{username}");
         return Task.FromResult(_failure is null
-            ? Result<AccountUsageDto>.Ok(new AccountUsageDto(2048, 4096))
+            ? Result<AccountUsageDto>.Ok(new AccountUsageDto(2048, 4096, AccountQuotaState.Enforced, QuotaUnenforceableReason.Unspecified))
             : Result<AccountUsageDto>.Fail(_failure));
     }
 

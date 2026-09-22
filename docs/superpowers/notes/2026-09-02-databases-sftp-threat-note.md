@@ -330,7 +330,8 @@ constants' names and reports a difference as a difference.
 
 ## Correction, 2026-09-09 — the SFTP jail base has moved
 
-Added by a verification pass (`.superpowers/sdd/threat-note-verification.md`). This note puts the
+Added by a verification pass over every threat note on `fix/live-findings`, which found this
+note stale on the jail path. This note puts the
 per-account jail under `/var/lib/maran/sftp/<account>/`. It is now
 **`/var/lib/maran-sftp/<account>/`**, a `root:root 0700` **sibling** of `/var/lib/maran` rather
 than a child of it (`installer/lib/40-user.sh`). The reason is the defect this note could not have

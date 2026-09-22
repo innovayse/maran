@@ -108,5 +108,35 @@ services:
     # The agent is pid 1 and stops on SIGTERM; five seconds is plenty and keeps `--stop` quick.
     stop_grace_period: 5s
 
+  # The public website, behind the `website` profile so plain `docker compose up -d` keeps
+  # starting the database alone. The site is its own repository
+  # (gitlab.com/innovayse/maran-website) and this build context only exists when it has been cloned
+  # into `website/` beside this one; without it the profile fails at build, which is the right
+  # failure — it names a directory that is not there rather than starting something empty. It runs the production image rather than a dev server on
+  # purpose: the thing worth checking locally is what a crawler receives from the built server,
+  # and `npm run dev` in website/ already covers editing.
+  #
+  # `NUXT_PUBLIC_SITE_INDEXABLE` is deliberately left unset, so this instance serves
+  # `Disallow: /` — a development host that can be indexed is a development host that gets
+  # indexed (rules/nuxt.md).
+  website:
+    profiles: ["website"]
+    image: maran-website:dev
+    container_name: maran-website
+    build:
+      context: ../website
+      dockerfile: Dockerfile
+    ports:
+      - "${WEBSITE_PORT:-3000}:3000"
+    healthcheck:
+      # The home page rendering is the whole service: a server that answers but renders nothing
+      # is exactly the failure this site cannot afford, so the check asks for the page itself.
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:3000/ || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    stop_grace_period: 5s
+
 volumes:
   pgdata:

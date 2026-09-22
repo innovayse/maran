@@ -50,8 +50,8 @@ repair. A bounded drain removes that whole class for every operation shorter tha
   cut, an OOM kill, or `TimeoutStopSec` expiring on a multi-hour restore, and a restore is measured
   in hours. Worse, and independent of this change: the rollback dumps that are the only copy of the
   pre-restore data live under `/var/lib/maran-scratch`, which the unit's `ExecStartPre` deletes on
-  the next start. That is an owner-level design question (a restore journal), it is reported and
-  argued in `.superpowers/sdd/agent-shutdown-report.md`, and **it is deliberately not fixed here**:
+  the next start. That is an owner-level design question (a restore journal), and
+  **it is deliberately not fixed here**:
   the two candidate fixes trade data loss against leaving a plaintext copy of a customer's
   databases unattended on disk, which is exactly the exposure that `ExecStartPre` line exists to
   prevent, and that trade is the owner's to make.
@@ -93,8 +93,8 @@ Consequences for a reviewer to weigh:
 
 ## Correction, 2026-09-09 — two statements this note makes are no longer true of the tree
 
-Added by a verification pass over every threat note on `fix/live-findings`
-(`.superpowers/sdd/threat-note-verification.md`). The argument and the addendum above stand; two
+Added by a verification pass over every threat note on `fix/live-findings`, which found this
+note verified in substance apart from these two now-false sentences. The argument and the addendum above stand; two
 facts do not:
 
 - **"`agent/crates/agent/src/shutdown.rs` (new)"** — there is no such file. The unit is a

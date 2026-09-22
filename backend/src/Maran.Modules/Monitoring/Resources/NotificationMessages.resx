@@ -48,4 +48,33 @@
   <data name="AlertSftpJailDriftedResolvedBody">
     <value>The sshd configuration block that confines every SFTP login to its own files is present and intact again. SFTP customers on this server are once more confined to file transfer only.</value>
   </data>
+  <data name="AlertQuotaNotEnforceableRaisedSubject">
+    <value>This server cannot enforce disk quotas</value>
+  </data>
+  <data name="AlertQuotaNotEnforceableRaisedBody">
+    <value>The filesystem holding hosting accounts' home directories ({0}) cannot enforce a per-user disk quota ({1}), and has stayed that way for ten consecutive checks. Any disk allowance shown for accounts on this server is the plan's own figure and is not currently being applied — an account can use more than its plan allows. To restore enforcement, mount the filesystem with quota accounting (usrquota/uquota) and run quotacheck and quotaon; that is a decision for you to make on this host, and the panel will not do it for you.</value>
+  </data>
+  <data name="AlertQuotaNotEnforceableResolvedSubject">
+    <value>This server can enforce disk quotas again</value>
+  </data>
+  <data name="AlertQuotaNotEnforceableResolvedBody">
+    <value>The filesystem holding hosting accounts' home directories ({0}) can once again enforce a per-user disk quota. Disk allowances shown for accounts on this server are being applied again.</value>
+  </data>
+  <!-- TODO(owner): review naturalness. Shared across both CodeIntegrityDrifted subjects
+       (installed-files, hash-list); {1} carries either the differing paths or the reason the hash
+       list could not be read. Wording must state a fact, never an accusation — BSL permits a
+       customer to modify their own installation (docs/superpowers/specs/2026-09-19-maran-code-
+       integrity.md §2, §5). -->
+  <data name="AlertCodeIntegrityDriftedRaisedSubject">
+    <value>Installed files on this server differ from what was released ({0})</value>
+  </data>
+  <data name="AlertCodeIntegrityDriftedRaisedBody">
+    <value>The panel's own comparison of its installed files against the signed release it believes it is running found a difference, and has stayed that way for ten consecutive checks: {1}. This is a statement of fact, not an accusation — your license permits you to modify your own installation, and this notice does not claim otherwise. If this change was not made by you, review it; if it was, no action is needed.</value>
+  </data>
+  <data name="AlertCodeIntegrityDriftedResolvedSubject">
+    <value>Installed files on this server match what was released ({0}) again</value>
+  </data>
+  <data name="AlertCodeIntegrityDriftedResolvedBody">
+    <value>The panel's own comparison of its installed files against the signed release it believes it is running no longer finds a difference (or the comparison itself is working again): {1}.</value>
+  </data>
 </root>

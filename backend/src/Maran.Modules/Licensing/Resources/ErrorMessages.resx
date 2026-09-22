@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="LicenceInstallTextRequired" xml:space="preserve">
+    <value>No licence text was submitted. Paste or upload the licence file's contents.</value>
+  </data>
+  <data name="LicenceInstallMalformed" xml:space="preserve">
+    <value>The submitted licence file is not in a shape this panel can read — it may have been copied incompletely, edited, or is not a licence file at all. Nothing was installed and the previous licence, if any, is unchanged. Download a fresh copy of your licence and try again without editing it.</value>
+  </data>
+  <data name="LicenceInstallSignatureInvalid" xml:space="preserve">
+    <value>The submitted licence file's signature does not match its contents, which means the file was changed after it was issued, or is not genuine. Nothing was installed and the previous licence, if any, is unchanged. Get a fresh copy of your licence rather than editing this one by hand, and submit that instead.</value>
+  </data>
+  <data name="LicenceInstallExpired" xml:space="preserve">
+    <value>The submitted licence's validity period has already ended. Nothing was installed and the previous licence, if any, is unchanged. Renew the licence and submit the renewed file.</value>
+  </data>
+  <data name="LicenceInstallProductMismatch" xml:space="preserve">
+    <value>The submitted licence file was issued for a different product and cannot be used here. Nothing was installed and the previous licence, if any, is unchanged. Submit the licence file issued for this panel instead.</value>
+  </data>
+  <!-- TODO(owner): this reason is currently unreachable in this build — nothing here can compute a
+       server fingerprint yet (see LicenceRefusalReason.FingerprintMismatch's own remarks) — so this
+       wording is provisional and has not been exercised against a real refusal. Review once the
+       fingerprint check exists. -->
+  <data name="LicenceInstallFingerprintMismatch" xml:space="preserve">
+    <value>The submitted licence was issued for a different server than this one. Nothing was installed and the previous licence, if any, is unchanged. Use your licence's self-service transfer to move it to this server, or contact support if you believe this is wrong.</value>
+  </data>
+</root>

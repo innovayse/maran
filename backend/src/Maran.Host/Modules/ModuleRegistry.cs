@@ -31,6 +31,18 @@ public static class ModuleRegistry
     public static IReadOnlyList<IPanelModule> All { get; } =
         [
             new IdentityModule(),
+
+            // LICENSING IS DELIBERATELY NOT HERE, and this note is why rather than an oversight.
+            // It was registered second for a while — right after Identity, before every module its
+            // status could one day gate — and the SPA's own coverage check went red on it:
+            // "every module the backend composes has a sidebar destination that is not the upgrade
+            // wall". That check is right. A module in this list is a promise to the interface, and
+            // licence verification has no screen yet, so the promise could not be kept: an operator
+            // would have had a module they could never reach. It is wired instead as a hosted
+            // service (Program.cs, AddLicensingStartupCheck), which is what actually needs to run.
+            // When it grows a screen, it belongs here — and the ordering argument still holds then:
+            // registration order is a reading convenience, but a reviewer looks for licensing early.
+
             new AccountsModule(),
             new SitesModule(),
             new SslModule(),

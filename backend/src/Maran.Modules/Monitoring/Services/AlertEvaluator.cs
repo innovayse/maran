@@ -1,3 +1,4 @@
+using Maran.Agent.Client.Services.AccountsService;
 using Maran.Agent.Client.Services.MonitorService;
 using Maran.Modules.Monitoring.Domain.Entities;
 using Maran.Modules.Monitoring.Domain.Enums;
@@ -73,6 +74,48 @@ public sealed class AlertEvaluator
     /// </remarks>
     public const string SftpJailSubject = "sshd-sftp-jail";
 
+    /// <summary>The subject recorded and mailed about for the filesystem holding hosting accounts' homes.</summary>
+    /// <remarks>
+    /// There is exactly one such filesystem in today's supported layout — <c>/home</c>, matching the
+    /// agent's own <c>AgentPaths::ACCOUNT_HOME_ROOT</c> — so this is a constant rather than something
+    /// an agent reading supplies, the same reason <see cref="RootFilesystemSubject"/> and
+    /// <see cref="SftpJailSubject"/> are.
+    /// </remarks>
+    public const string AccountHomeFilesystemSubject = "/home";
+
+    /// <summary>The subject recorded and mailed about when an installed file differs from the release.</summary>
+    /// <remarks>
+    /// Distinct from <see cref="HashListSubject"/> deliberately: a mismatched file and a hash list
+    /// the closed PluginLoader could not even read are two different operator questions, and folding
+    /// them into one subject would mean a resolved hash-list-availability problem could look, in the
+    /// journal, like a resolved file drift that never actually happened.
+    /// </remarks>
+    public const string InstalledFilesSubject = "installed-files";
+
+    /// <summary>The subject recorded and mailed about when the code-integrity hash list itself could not be used.</summary>
+    /// <remarks>See <see cref="InstalledFilesSubject"/> for why this is a subject of its own.</remarks>
+    public const string HashListSubject = "hash-list";
+
+    /// <summary>How many differing paths a code-integrity alert's mail body names before it switches to a count.</summary>
+    /// <remarks>
+    /// An operator reading a mail about a handful of files needs the files; an operator reading a
+    /// mail about thousands needs a count and "see the panel", not a wall of text — the same
+    /// order-of-magnitude reasoning docs/superpowers/plans/2026-09-19-maran-code-integrity.md Task 3
+    /// applies to the mail body's cap.
+    /// </remarks>
+    public const int DifferingPathsMailCap = 50;
+
+    /// <summary>How many differing paths a code-integrity alert's audit subject names, per the journal's own "count, never everything" doctrine.</summary>
+    /// <remarks>
+    /// Shorter than <see cref="DifferingPathsMailCap"/> on purpose: the journal is not the detailed
+    /// report, matching
+    /// <c>RepairDatabaseGrantsCommandHandler</c>'s own precedent that a journal subject is a count,
+    /// never a dump. Unlike that precedent, naming a few of the paths here leaks nothing — every path
+    /// is the panel's own code, not another tenant's data — so a short bounded list is included
+    /// alongside the count rather than the count alone.
+    /// </remarks>
+    public const int DifferingPathsAuditCap = 10;
+
     /// <summary>The module's database context, which owns the alert rows.</summary>
     private readonly MonitoringDbContext _dbContext;
 
@@ -122,16 +165,32 @@ public sealed class AlertEvaluator
     /// does: the panel did not find out, and a call that failed to ask the question is not evidence
     /// about the answer.
     /// </param>
+    /// <param name="quotaStatus">
+    /// What the agent found when it checked whether the filesystem holding hosting accounts' homes
+    /// can enforce a disk quota, or <c>null</c> when that call did not succeed. A <c>null</c>
+    /// advances nothing and resets nothing, for the same reason a <c>null</c>
+    /// <paramref name="sftpJailStatus"/> does: a check the agent could not answer is not evidence
+    /// about the answer, and an alert built on it would teach an operator to ignore the alert.
+    /// </param>
+    /// <param name="codeIntegrityReport">
+    /// The closed PluginLoader's latest finding about whether the panel's installed files match the
+    /// release's signed hash list, or <c>null</c> when nothing has reported this round. A
+    /// <c>null</c> advances nothing and resets nothing, for the same reason a <c>null</c>
+    /// <paramref name="sftpJailStatus"/> does — including that it must not RESOLVE an alert that is
+    /// currently firing: an unanswered round is not evidence the condition cleared.
+    /// </param>
     /// <param name="observedAt">When the readings were taken, from the panel's clock.</param>
     /// <param name="cancellationToken">Cancels the evaluation.</param>
     public async Task EvaluateAsync(
         double? diskUsedPercent,
         IReadOnlyList<AgentServiceStatus> services,
         AgentSftpJailStatus? sftpJailStatus,
+        AgentQuotaEnforceability? quotaStatus,
+        CodeIntegrityReport? codeIntegrityReport,
         DateTimeOffset observedAt,
         CancellationToken cancellationToken)
     {
-        var pending = new List<(AlertKind Kind, string Subject, AlertTransition Transition, string Detail)>();
+        var pending = new List<(AlertKind Kind, string Subject, string AuditSubject, AlertTransition Transition, string Detail)>();
 
         if (diskUsedPercent is not null)
         {
@@ -142,7 +201,7 @@ public sealed class AlertEvaluator
                 observedAt,
                 cancellationToken);
 
-            pending.Add((AlertKind.DiskUsage, RootFilesystemSubject, transition, FormatPercent(diskUsedPercent.Value)));
+            pending.Add((AlertKind.DiskUsage, RootFilesystemSubject, RootFilesystemSubject, transition, FormatPercent(diskUsedPercent.Value)));
         }
 
         foreach (var service in services)
@@ -160,7 +219,7 @@ public sealed class AlertEvaluator
                 observedAt,
                 cancellationToken);
 
-            pending.Add((AlertKind.ServiceStopped, name, transition, service.Detail));
+            pending.Add((AlertKind.ServiceStopped, name, name, transition, service.Detail));
         }
 
         if (sftpJailStatus is not null)
@@ -175,23 +234,157 @@ public sealed class AlertEvaluator
             pending.Add((
                 AlertKind.SftpJailDrifted,
                 SftpJailSubject,
+                SftpJailSubject,
                 transition,
                 FormatMissing(sftpJailStatus.Missing)));
+        }
+
+        if (quotaStatus is not null)
+        {
+            var transition = await ObserveAsync(
+                AlertKind.QuotaNotEnforceable,
+                AccountHomeFilesystemSubject,
+                !quotaStatus.IsEnforceable,
+                observedAt,
+                cancellationToken);
+
+            pending.Add((
+                AlertKind.QuotaNotEnforceable,
+                AccountHomeFilesystemSubject,
+                AccountHomeFilesystemSubject,
+                transition,
+                FormatReason(quotaStatus.Reason)));
+        }
+
+        if (codeIntegrityReport is not null)
+        {
+            if (codeIntegrityReport.Outcome == CodeIntegrityOutcome.Drifted
+                && codeIntegrityReport.DifferingPaths.Count == 0)
+            {
+                // A contract violation: a correct comparison never reports Drifted with nothing
+                // named. Never interpreted charitably as Clean, and never treated as Unavailable
+                // either — that outcome is reserved for "the comparison could not run", not "the
+                // closed side sent a report this repository cannot trust." Logged and otherwise
+                // ignored this round: neither InstalledFilesSubject nor HashListSubject is observed
+                // from it, so it can neither raise nor resolve either alert.
+                await _journal.RecordSystemAsync(
+                    AuditActions.CodeIntegrityReportRejected,
+                    $"version={codeIntegrityReport.InstalledVersion};outcome=Drifted;paths=0",
+                    succeeded: false,
+                    cancellationToken);
+            }
+            else if (codeIntegrityReport.Outcome == CodeIntegrityOutcome.Unavailable)
+            {
+                var transition = await ObserveAsync(
+                    AlertKind.CodeIntegrityDrifted,
+                    HashListSubject,
+                    breaching: true,
+                    observedAt,
+                    cancellationToken);
+
+                pending.Add((
+                    AlertKind.CodeIntegrityDrifted,
+                    HashListSubject,
+                    HashListSubject,
+                    transition,
+                    codeIntegrityReport.UnavailableReason ?? string.Empty));
+
+                // A report that could not run says nothing about whether the files themselves
+                // differ. It must not implicitly resolve an already-open InstalledFilesSubject
+                // episode — that would require an actual Clean comparison, which this round did not
+                // get.
+            }
+            else
+            {
+                var drifted = codeIntegrityReport.Outcome == CodeIntegrityOutcome.Drifted;
+
+                var filesTransition = await ObserveAsync(
+                    AlertKind.CodeIntegrityDrifted,
+                    InstalledFilesSubject,
+                    breaching: drifted,
+                    observedAt,
+                    cancellationToken);
+
+                pending.Add((
+                    AlertKind.CodeIntegrityDrifted,
+                    InstalledFilesSubject,
+                    drifted
+                        ? FormatDifferingPathsAuditSubject(codeIntegrityReport, InstalledFilesSubject)
+                        : InstalledFilesSubject,
+                    filesTransition,
+                    drifted
+                        ? FormatDifferingPathsBody(codeIntegrityReport.DifferingPaths)
+                        : string.Empty));
+
+                // Clean also resolves whichever hash-list-availability episode was open. A Clean
+                // comparison is proof the hash list WAS read successfully this round, so it is
+                // exactly the evidence needed to close that alert too — otherwise a
+                // hash-list-availability alert that has nothing to do with drift would never
+                // resolve once drift also clears.
+                var hashListTransition = await ObserveAsync(
+                    AlertKind.CodeIntegrityDrifted,
+                    HashListSubject,
+                    breaching: false,
+                    observedAt,
+                    cancellationToken);
+
+                pending.Add((
+                    AlertKind.CodeIntegrityDrifted,
+                    HashListSubject,
+                    HashListSubject,
+                    hashListTransition,
+                    string.Empty));
+            }
         }
 
         // One save for the whole round, before any mail is attempted. See the type's remarks: a
         // transition that was not committed is a transition that repeats on the next sample.
         await _dbContext.SaveChangesAsync(cancellationToken);
 
-        foreach (var (kind, subject, transition, detail) in pending)
+        foreach (var (kind, subject, auditSubject, transition, detail) in pending)
         {
             if (transition == AlertTransition.None)
             {
                 continue;
             }
 
-            await AnnounceAsync(kind, subject, transition, detail, cancellationToken);
+            await AnnounceAsync(kind, subject, auditSubject, transition, detail, cancellationToken);
         }
+    }
+
+    /// <summary>Renders the differing paths of a drifted code-integrity report for the mail body.</summary>
+    /// <param name="differingPaths">The paths the closed PluginLoader reported as not matching.</param>
+    /// <returns>
+    /// Every path, comma-joined, up to <see cref="DifferingPathsMailCap"/>; beyond that, the first
+    /// entries plus a count of how many more were not shown — an operator reading a mail about
+    /// thousands of files needs a count and "see the panel", never a wall of text.
+    /// </returns>
+    private static string FormatDifferingPathsBody(IReadOnlyList<string> differingPaths)
+    {
+        if (differingPaths.Count <= DifferingPathsMailCap)
+        {
+            return string.Join(", ", differingPaths);
+        }
+
+        var shown = differingPaths.Take(DifferingPathsMailCap);
+        return string.Join(", ", shown) + $", and {differingPaths.Count - DifferingPathsMailCap} more";
+    }
+
+    /// <summary>Renders the journal's <c>key=value</c> subject for a drifted code-integrity report.</summary>
+    /// <param name="report">The report to summarize.</param>
+    /// <param name="subject">The plain alert subject (<see cref="InstalledFilesSubject"/>).</param>
+    /// <returns>
+    /// <c>installed-files;version=&lt;version&gt;;count=&lt;n&gt;;paths=&lt;a,b,...&gt;</c> — the
+    /// version and the count are never truncated (the count is the figure that matters most), the
+    /// path list is capped at <see cref="DifferingPathsAuditCap"/>, following
+    /// <c>RepairDatabaseGrantsCommandHandler</c>'s "the subject is a count, never everything"
+    /// doctrine, in the <c>key=value;key=value</c> shape that same handler established so the
+    /// journal reads the same regardless of the panel's active locale.
+    /// </returns>
+    private static string FormatDifferingPathsAuditSubject(CodeIntegrityReport report, string subject)
+    {
+        var capped = report.DifferingPaths.Take(DifferingPathsAuditCap);
+        return $"{subject};version={report.InstalledVersion};count={report.DifferingPaths.Count};paths={string.Join(",", capped)}";
     }
 
     /// <summary>Renders a percentage for the body of an alert mail.</summary>
@@ -223,6 +416,25 @@ public sealed class AlertEvaluator
         return missing.Count == 0 ? string.Empty : string.Join(", ", missing);
     }
 
+    /// <summary>Renders why the filesystem cannot enforce a quota, for the body of the alert mail.</summary>
+    /// <param name="reason">The agent's own classification.</param>
+    /// <returns>A short, invariant phrase naming the reason.</returns>
+    /// <remarks>
+    /// The resolved mail does not read this — it says enforcement is back — but the same pending row
+    /// is built for both directions, so this must answer sensibly for
+    /// <see cref="QuotaUnenforceableReason.Unspecified"/> too rather than being read only on the
+    /// raising path.
+    /// </remarks>
+    private static string FormatReason(QuotaUnenforceableReason reason)
+    {
+        return reason switch
+        {
+            QuotaUnenforceableReason.MountedWithoutQuotaAccounting => "not mounted with quota accounting",
+            QuotaUnenforceableReason.AccountingNotEnabled => "quota accounting is off",
+            _ => "unknown",
+        };
+    }
+
     /// <summary>Records one observation against its alert row, creating the row on first sight.</summary>
     /// <param name="kind">Which kind of condition was observed.</param>
     /// <param name="subject">Which thing of that kind.</param>
@@ -251,7 +463,14 @@ public sealed class AlertEvaluator
 
     /// <summary>Journals a transition and mails about it.</summary>
     /// <param name="kind">Which kind of condition changed.</param>
-    /// <param name="subject">Which thing of that kind.</param>
+    /// <param name="subject">Which thing of that kind — used for the mail's subject/body formatting.</param>
+    /// <param name="auditSubject">
+    /// What is written to the journal for this transition. Equal to <paramref name="subject"/> for
+    /// every existing kind; for a drifted code-integrity report it additionally carries the
+    /// installed version, the differing-file count, and a capped path list in <c>key=value</c> form
+    /// (see <see cref="FormatDifferingPathsAuditSubject"/>) — the journal outlives the locale the
+    /// writer happened to be using, so this is never a localized sentence.
+    /// </param>
     /// <param name="transition">Whether the episode opened or closed.</param>
     /// <param name="detail">The figure or the service manager's words that go in the body.</param>
     /// <param name="cancellationToken">Cancels the send.</param>
@@ -266,18 +485,19 @@ public sealed class AlertEvaluator
     private async Task AnnounceAsync(
         AlertKind kind,
         string subject,
+        string auditSubject,
         AlertTransition transition,
         string detail,
         CancellationToken cancellationToken)
     {
         var action = transition == AlertTransition.Raised ? AuditActions.AlertRaised : AuditActions.AlertResolved;
-        await _journal.RecordSystemAsync(action, $"{kind}:{subject}", succeeded: true, cancellationToken);
+        await _journal.RecordSystemAsync(action, $"{kind}:{auditSubject}", succeeded: true, cancellationToken);
 
         var recipient = await _recipients.GetAlertRecipientAsync(cancellationToken);
         if (recipient is null)
         {
             await _journal.RecordSystemAsync(
-                AuditActions.MailSkippedNoSmtp, $"{kind}:{subject}", succeeded: false, cancellationToken);
+                AuditActions.MailSkippedNoSmtp, $"{kind}:{auditSubject}", succeeded: false, cancellationToken);
             return;
         }
 

@@ -90,6 +90,19 @@ pub(crate) const ALMA_NET_DEV: &str =
 /// What the service manager says about a unit this host knows nothing about.
 const UNKNOWN_UNIT: &str = "LoadState=not-found\nActiveState=inactive\nSubState=dead\nTriggeredBy=";
 
+/// A plausible `/etc/machine-id` value — 32 lowercase hex characters, the
+/// shape `systemd-machine-id-setup(1)` generates — used as the default so a
+/// test that does not care about `machine_id` still exercises a `Present`
+/// path rather than an accidental absence.
+const DEFAULT_MACHINE_ID: &str = "4e3ff4943c924fe4ab28141e8bebb6a3";
+
+/// A one-interface IPv4 routing table with a single default route through
+/// `eth0`, shaped exactly as `/proc/net/route` formats it (tab-separated,
+/// header line first) — used as the default for the same reason
+/// `DEFAULT_MACHINE_ID` is.
+const DEFAULT_IPV4_ROUTES: &str = "Iface\tDestination\tGateway \tFlags\tRefCnt\tUse\tMetric\tMask\t\tMTU\tWindow\tIRTT\n\
+eth0\t00000000\t0101A8C0\t0003\t0\t0\t100\t00000000\t0\t0\t0\n";
+
 /// A [`MonitorHost`] whose every reading is chosen by the test.
 pub(crate) struct FakeMonitorHost {
     /// Successive answers to `read_cpu_times`; the last one repeats.
@@ -117,10 +130,20 @@ pub(crate) struct FakeMonitorHost {
     /// The path `read_sshd_config` was last asked to read, so a test can assert the operation
     /// asked for exactly the file the adapter names rather than one of its own choosing.
     sshd_config_path_requested: Mutex<Option<String>>,
+    /// The path `read_machine_id` was last asked to read, so a test can assert the operation
+    /// uses what the adapter names.
+    machine_id_path_requested: Mutex<Option<String>>,
+    /// The `/proc/mounts` text, or `None` for a file that cannot be read.
+    mounts: Mutex<Option<String>>,
     /// What each directory measures; a directory absent here measures zero.
     sizes: Mutex<BTreeMap<PathBuf, u64>>,
     /// Every command the host was asked to spawn, as `program` plus its argv.
     commands: Mutex<Vec<Vec<String>>>,
+    /// What `read_machine_id` answers: `Ok(Some(_))`, `Ok(None)` for a
+    /// legitimately absent file, or `Err(_)` for a genuine read failure.
+    machine_id: Mutex<Result<Option<String>, MonitorError>>,
+    /// What `read_ipv4_routes` answers.
+    ipv4_routes: Mutex<Result<String, MonitorError>>,
 }
 
 impl FakeMonitorHost {
@@ -143,8 +166,14 @@ impl FakeMonitorHost {
             passwd: Mutex::new(Some(String::new())),
             sshd_config: Mutex::new(Some(String::new())),
             sshd_config_path_requested: Mutex::new(None),
+            machine_id_path_requested: Mutex::new(None),
+            mounts: Mutex::new(Some(
+                "/dev/sda1 /home ext4 rw,relatime,usrquota,grpquota 0 0\n".to_owned(),
+            )),
             sizes: Mutex::new(BTreeMap::new()),
             commands: Mutex::new(Vec::new()),
+            machine_id: Mutex::new(Ok(Some(DEFAULT_MACHINE_ID.to_owned()))),
+            ipv4_routes: Mutex::new(Ok(DEFAULT_IPV4_ROUTES.to_owned())),
         }
     }
 
@@ -231,8 +260,28 @@ impl FakeMonitorHost {
     }
 
     /// The path `read_sshd_config` was last asked to read, or `None` if it was never called.
+    /// The path `read_machine_id` was last asked for, so a test can assert the adapter named it.
+    /// @returns The recorded path, or `None` if it was never called.
+    pub(crate) fn machine_id_path_requested(&self) -> Option<String> {
+        self.machine_id_path_requested.lock().unwrap().clone()
+    }
+
+    /// The path `read_sshd_config` was last asked for.
+    /// @returns The recorded path, or `None` if it was never called.
     pub(crate) fn sshd_config_path_requested(&self) -> Option<String> {
         self.sshd_config_path_requested.lock().unwrap().clone()
+    }
+
+    /// Replaces `/proc/mounts`'s text.
+    pub(crate) fn with_mounts(self, mounts: &str) -> Self {
+        *self.mounts.lock().unwrap() = Some(mounts.to_owned());
+        self
+    }
+
+    /// Makes `/proc/mounts` unreadable.
+    pub(crate) fn with_unreadable_mounts(self) -> Self {
+        *self.mounts.lock().unwrap() = None;
+        self
     }
 
     /// Says how big the tree at `path` is.
@@ -241,6 +290,37 @@ impl FakeMonitorHost {
             .lock()
             .unwrap()
             .insert(PathBuf::from(path), bytes);
+        self
+    }
+
+    /// Replaces the machine-id the host reports.
+    pub(crate) fn with_machine_id(self, value: &str) -> Self {
+        *self.machine_id.lock().unwrap() = Ok(Some(value.to_owned()));
+        self
+    }
+
+    /// Makes the host report no `/etc/machine-id` at all — the legitimate
+    /// "does not exist" state, not a read failure.
+    pub(crate) fn with_absent_machine_id(self) -> Self {
+        *self.machine_id.lock().unwrap() = Ok(None);
+        self
+    }
+
+    /// Makes reading `/etc/machine-id` fail as a genuine I/O error.
+    pub(crate) fn with_unreadable_machine_id(self) -> Self {
+        *self.machine_id.lock().unwrap() = Err(MonitorError::MachineIdUnavailable);
+        self
+    }
+
+    /// Replaces the IPv4 routing table text the host reports.
+    pub(crate) fn with_ipv4_routes(self, routes: &str) -> Self {
+        *self.ipv4_routes.lock().unwrap() = Ok(routes.to_owned());
+        self
+    }
+
+    /// Makes reading the IPv4 routing table fail.
+    pub(crate) fn with_unreadable_ipv4_routes(self) -> Self {
+        *self.ipv4_routes.lock().unwrap() = Err(MonitorError::Ipv4RoutesUnavailable);
         self
     }
 
@@ -375,11 +455,37 @@ impl MonitorHost for FakeMonitorHost {
             .ok_or(MonitorError::SshdConfigUnavailable)
     }
 
+    /// Answers the configured `/proc/mounts` text, or reports it unreadable.
+    fn read_mounts(&self) -> Result<String, MonitorError> {
+        self.mounts
+            .lock()
+            .unwrap()
+            .clone()
+            .ok_or(MonitorError::MountsUnavailable)
+    }
+
     /// Answers what the test said this tree measures; anything it did not
     /// mention measures zero, exactly as an absent directory does on a real
     /// host.
     fn directory_size(&self, path: &Path) -> u64 {
         self.sizes.lock().unwrap().get(path).copied().unwrap_or(0)
+    }
+
+    /// Answers the configured machine-id state.
+    fn read_machine_id(&self, path: &str) -> Result<Option<String>, MonitorError> {
+        // Recorded so a test can assert the operation asked for the path the adapter named, rather
+        // than a literal of its own: a fake that discards the path cannot observe that at all, which
+        // is a trap this suite fell into once already with the sshd config path.
+        *self
+            .machine_id_path_requested
+            .lock()
+            .expect("machine-id path recorder") = Some(path.to_owned());
+        self.machine_id.lock().unwrap().clone()
+    }
+
+    /// Answers the configured IPv4 routing table text.
+    fn read_ipv4_routes(&self) -> Result<String, MonitorError> {
+        self.ipv4_routes.lock().unwrap().clone()
     }
 }
 

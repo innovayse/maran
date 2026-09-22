@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="LicenceInstallTextRequired" xml:space="preserve">
+    <value>Լիցենզիայի տեքստ չի ուղարկվել։ Տեղադրեք կամ վերբեռնեք լիցենզիայի ֆայլի պարունակությունը։</value>
+  </data>
+  <data name="LicenceInstallMalformed" xml:space="preserve">
+    <value>Ուղարկված լիցենզիայի ֆայլը կարդալի ձևաչափով չէ․ այն կարող է թերի պատճենված, փոփոխված լինել, կամ ընդհանրապես չլինել լիցենզիայի ֆայլ։ Ոչինչ չի տեղադրվել, նախորդ լիցենզիան, եթե կար, մնացել է անփոփոխ։ Ներբեռնեք լիցենզիայի թարմ պատճենը և կրկին փորձեք՝ առանց ֆայլը խմբագրելու։</value>
+  </data>
+  <data name="LicenceInstallSignatureInvalid" xml:space="preserve">
+    <value>Ուղարկված լիցենզիայի ֆայլի ստորագրությունը չի համընկնում դրա պարունակության հետ՝ ինչը նշանակում է, որ ֆայլը փոփոխվել է թողարկումից հետո, կամ իսկական չէ։ Ոչինչ չի տեղադրվել, նախորդ լիցենզիան, եթե կար, մնացել է անփոփոխ։ Ստացեք լիցենզիայի թարմ պատճենը՝ ձեռքով խմբագրելու փոխարեն, և ուղարկեք այն։</value>
+  </data>
+  <data name="LicenceInstallExpired" xml:space="preserve">
+    <value>Ուղարկված լիցենզիայի գործողության ժամկետն արդեն ավարտվել է։ Ոչինչ չի տեղադրվել, նախորդ լիցենզիան, եթե կար, մնացել է անփոփոխ։ Երկարացրեք լիցենզիան և ուղարկեք նորացված ֆայլը։</value>
+  </data>
+  <data name="LicenceInstallProductMismatch" xml:space="preserve">
+    <value>Ուղարկված լիցենզիայի ֆայլը թողարկվել է այլ ապրանքի համար և չի կարող օգտագործվել այստեղ։ Ոչինչ չի տեղադրվել, նախորդ լիցենզիան, եթե կար, մնացել է անփոփոխ։ Փոխարենը ուղարկեք հենց այս վահանակի համար թողարկված լիցենզիայի ֆայլը։</value>
+  </data>
+  <data name="LicenceInstallFingerprintMismatch" xml:space="preserve">
+    <value>Ուղարկված լիցենզիան թողարկվել է այլ սերվերի համար։ Ոչինչ չի տեղադրվել, նախորդ լիցենզիան, եթե կար, մնացել է անփոփոխ։ Օգտագործեք լիցենզիայի ինքնասպասարկման փոխանցումը այս սերվերին տեղափոխելու համար, կամ դիմեք աջակցությանը, եթե կարծում եք, որ սա սխալ է։</value>
+  </data>
+</root>

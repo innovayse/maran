@@ -1,5 +1,7 @@
+using Maran.Agent.Client.Services.AccountsService;
 using Maran.Agent.Client.Services.MonitorService;
 using Maran.Modules.Monitoring.Queries.ListAccountDiskUsage;
+using Maran.Modules.Monitoring.Resources;
 using Maran.Modules.Monitoring.Tests.TestSupport;
 using Maran.Sdk.Contracts;
 using Maran.SharedKernel.Results;
@@ -168,7 +170,7 @@ public sealed class ListAccountDiskUsageQueryHandlerTests
         {
             DiskUsage = Result<IReadOnlyList<AgentAccountDiskUsage>>.Fail(Error.Of("AgentUnavailable", ErrorType.Unavailable)),
         };
-        var handler = new ListAccountDiskUsageQueryHandler(agent, accounts);
+        var handler = new ListAccountDiskUsageQueryHandler(agent, accounts, new StubStringLocalizer<DisplayNames>());
 
         var result = await handler.HandleAsync(new ListAccountDiskUsageQuery(), CancellationToken.None);
 
@@ -212,6 +214,114 @@ public sealed class ListAccountDiskUsageQueryHandlerTests
         Assert.Empty(result.Value);
     }
 
+    /// <summary>Every row's quota is reported enforceable when the filesystem can back it.</summary>
+    [Fact]
+    public async Task Every_row_is_enforceable_when_the_filesystem_can_back_a_quota()
+    {
+        var agent = new StubAgentMonitorClient
+        {
+            DiskUsage = Result<IReadOnlyList<AgentAccountDiskUsage>>.Ok([new AgentAccountDiskUsage("alice", 1)]),
+            QuotaEnforceability = Result<AgentQuotaEnforceability>.Ok(
+                new AgentQuotaEnforceability(true, QuotaUnenforceableReason.Unspecified)),
+        };
+        var handler = new ListAccountDiskUsageQueryHandler(
+            agent,
+            new StubAccountDirectory(Snapshot(Guid.NewGuid(), "alice", diskQuotaMb: 512)),
+            new StubStringLocalizer<DisplayNames>());
+
+        var result = await handler.HandleAsync(new ListAccountDiskUsageQuery(), CancellationToken.None);
+
+        var row = Assert.Single(result.Value);
+        Assert.True(row.Enforceable);
+        Assert.Null(row.Note);
+    }
+
+    /// <summary>
+    /// When the filesystem cannot back a quota, every row carries the localized explanation rather
+    /// than a bare boolean — the SPA must not have to invent its own wording for why the figure it
+    /// shows is not being applied.
+    /// </summary>
+    [Fact]
+    public async Task Every_row_carries_the_localized_note_when_the_filesystem_cannot_back_a_quota()
+    {
+        var agent = new StubAgentMonitorClient
+        {
+            DiskUsage = Result<IReadOnlyList<AgentAccountDiskUsage>>.Ok([new AgentAccountDiskUsage("alice", 1)]),
+            QuotaEnforceability = Result<AgentQuotaEnforceability>.Ok(
+                new AgentQuotaEnforceability(false, QuotaUnenforceableReason.AccountingNotEnabled)),
+        };
+        var handler = new ListAccountDiskUsageQueryHandler(
+            agent,
+            new StubAccountDirectory(Snapshot(Guid.NewGuid(), "alice", diskQuotaMb: 512)),
+            new StubStringLocalizer<DisplayNames>());
+
+        var result = await handler.HandleAsync(new ListAccountDiskUsageQuery(), CancellationToken.None);
+
+        var row = Assert.Single(result.Value);
+        Assert.Equal("AccountQuotaNotEnforceableNote", row.Note);
+    }
+
+    /// <summary>
+    /// The mutant this test exists to kill: hardcoding <c>Enforceable = true</c> regardless of what
+    /// the agent reports is the exact regression issue #29 exists to fix. Every row must read
+    /// <c>false</c> when the shared filesystem cannot enforce anything — regardless of each
+    /// account's own <see cref="AccountSnapshot.DiskQuotaMb"/>.
+    /// </summary>
+    [Fact]
+    public async Task Every_row_is_not_enforceable_when_the_filesystem_cannot_back_a_quota()
+    {
+        var agent = new StubAgentMonitorClient
+        {
+            DiskUsage = Result<IReadOnlyList<AgentAccountDiskUsage>>.Ok(
+            [
+                new AgentAccountDiskUsage("alice", 1),
+                new AgentAccountDiskUsage("bob", 2),
+            ]),
+            QuotaEnforceability = Result<AgentQuotaEnforceability>.Ok(
+                new AgentQuotaEnforceability(
+                    false,
+                    QuotaUnenforceableReason.MountedWithoutQuotaAccounting)),
+        };
+        var handler = new ListAccountDiskUsageQueryHandler(
+            agent,
+            new StubAccountDirectory(
+                Snapshot(Guid.NewGuid(), "alice", diskQuotaMb: 512),
+                Snapshot(Guid.NewGuid(), "bob", diskQuotaMb: 999_999)),
+            new StubStringLocalizer<DisplayNames>());
+
+        var result = await handler.HandleAsync(new ListAccountDiskUsageQuery(), CancellationToken.None);
+
+        Assert.All(result.Value, row =>
+        {
+            Assert.False(row.Enforceable);
+        });
+    }
+
+    /// <summary>
+    /// A failed enforceability read defaults to the SAFE reading — not enforceable — rather than
+    /// silently claiming a limit is backed by a kernel this call never actually asked.
+    /// </summary>
+    [Fact]
+    public async Task A_failed_enforceability_read_defaults_to_not_enforceable_rather_than_the_listing_failing()
+    {
+        var agent = new StubAgentMonitorClient
+        {
+            DiskUsage = Result<IReadOnlyList<AgentAccountDiskUsage>>.Ok([new AgentAccountDiskUsage("alice", 1)]),
+            QuotaEnforceability = Result<AgentQuotaEnforceability>.Fail(
+                Error.Of("AgentUnavailable", ErrorType.Unavailable)),
+        };
+        var handler = new ListAccountDiskUsageQueryHandler(
+            agent,
+            new StubAccountDirectory(Snapshot(Guid.NewGuid(), "alice", diskQuotaMb: 512)),
+            new StubStringLocalizer<DisplayNames>());
+
+        var result = await handler.HandleAsync(new ListAccountDiskUsageQuery(), CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        var row = Assert.Single(result.Value);
+        Assert.False(row.Enforceable);
+    }
+
     /// <summary>Builds the handler over an agent that measured one thing and a panel that knows another.</summary>
     /// <param name="measured">What the agent reports.</param>
     /// <param name="known">The accounts the panel knows about.</param>
@@ -223,9 +333,11 @@ public sealed class ListAccountDiskUsageQueryHandlerTests
         var agent = new StubAgentMonitorClient
         {
             DiskUsage = Result<IReadOnlyList<AgentAccountDiskUsage>>.Ok(measured),
+            QuotaEnforceability = Result<AgentQuotaEnforceability>.Ok(
+                new AgentQuotaEnforceability(true, QuotaUnenforceableReason.Unspecified)),
         };
 
-        return new ListAccountDiskUsageQueryHandler(agent, new StubAccountDirectory(known));
+        return new ListAccountDiskUsageQueryHandler(agent, new StubAccountDirectory(known), new StubStringLocalizer<DisplayNames>());
     }
 
     /// <summary>Builds one account snapshot, naming only the fields these tests care about.</summary>

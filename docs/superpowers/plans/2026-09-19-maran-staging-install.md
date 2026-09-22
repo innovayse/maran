@@ -33,7 +33,7 @@ Two prerequisites below are not automated anywhere in this tree today. Both are 
 first, rather than discovered mid-run:
 
 - **There is no release artifact to install.** `installer/lib/50-artifacts.sh` fetches a
-  manifest and three component archives from `https://releases.maran.com/<channel>/manifest.json`
+  manifest and three component archives from `https://releases.maran.innovayse.com/<channel>/manifest.json`
   (`installer/lib/50-artifacts.sh:10,36-37`) and verifies their Ed25519 signature against a key
   baked into the installer package at `installer/keys/release-signing.pub`
   (`installer/lib/50-artifacts.sh:23-29`). **That directory does not exist in this repository** —
@@ -47,7 +47,7 @@ first, rather than discovered mid-run:
   install can run at all — this is new work this plan adds, because issue #28 assumed an
   installable artifact exists.
 - **The product has never issued a real signed release.** `README.md:2-3` says the project is
-  still "in active development toward the first release." `releases.maran.com` is very unlikely to
+  still "in active development toward the first release." `releases.maran.innovayse.com` is very unlikely to
   answer for the `stable` or `beta` channel today. Confirming that is Section 1, Step 1.1 below; if
   it does answer, most of Section 1's manual-bundle work is unnecessary and the plan says so at
   that step.
@@ -61,7 +61,7 @@ Everything else below rests on files read in this tree; each claim carries its `
 ### 1.1 Confirm which artifact path is live
 
 ```
-curl -fsSI https://releases.maran.com/stable/manifest.json
+curl -fsSI https://releases.maran.innovayse.com/stable/manifest.json
 ```
 
 - **If this returns 200:** a real release exists; skip to 1.3 and use `install.sh` with no
@@ -226,7 +226,7 @@ from the step files' own `ok`/`echo` lines, not invented.
    ```
    sudo bash installer/install.sh --offline-tarball /path/to/bundle.tar.gz
    ```
-   or, if `releases.maran.com` answered in 1.1:
+   or, if `releases.maran.innovayse.com` answered in 1.1:
    ```
    sudo bash installer/install.sh
    ```

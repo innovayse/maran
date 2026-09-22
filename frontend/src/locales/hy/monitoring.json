@@ -36,7 +36,9 @@
       "columnRatio": "Զբաղեցվածը սահմանաչափից",
       "notMeasured": "Չափված չէ",
       "noQuota": "Սահմանաչափ գրանցված չէ",
+      "notEnforcedBadge": "Չի կիրառվում",
       "ratio": "{used} {quota}-ից",
+      "ratioNotEnforced": "{used}, սահմանաչափը չի կիրառվում",
       "meterLabel": "{username}-ի սահմանաչափից զբաղեցված սկավառակը",
       "emptyTitle": "Հաշիվներ դեռ չկան",
       "emptyDescription": "Այս սերվերում չափելու համար հոսթինգի հաշիվ չկա։"

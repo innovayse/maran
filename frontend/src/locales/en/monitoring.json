@@ -36,7 +36,9 @@
       "columnRatio": "Used of allowance",
       "notMeasured": "Not measured",
       "noQuota": "No allowance recorded",
+      "notEnforcedBadge": "Not enforced",
       "ratio": "{used} of {quota}",
+      "ratioNotEnforced": "{used}, allowance not enforced",
       "meterLabel": "Disk used of the allowance for {username}",
       "emptyTitle": "No accounts yet",
       "emptyDescription": "There is no hosting account on this server to measure."

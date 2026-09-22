@@ -62,6 +62,11 @@ public sealed class MonitoringModule : IPanelModule
         services.AddScoped<MonitoringAuditJournal>();
         services.AddScoped<AlertEvaluator>();
 
+        // The Sdk-facing seam the closed PluginLoader calls into
+        // (docs/superpowers/plans/2026-09-19-maran-code-integrity.md Task 2/3). Scoped like
+        // AlertEvaluator itself, which it composes with and does nothing beyond routing into.
+        services.AddScoped<ICodeIntegrityReportSink, CodeIntegrityReportHandler>();
+
         // Scoped, like the Tasks and Backups name resolvers it mirrors: the localizer it holds
         // resolves the CURRENT request's culture, which is per-request state.
         services.AddScoped<ServiceDisplayNames>();

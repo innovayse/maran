@@ -3,7 +3,7 @@
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 > **CHECKBOX STATUS — set 2026-09-11 by the second Definition-of-Done pass
-> (`.superpowers/sdd/issue-20-dod-2.md`), and this note says exactly what the ticks mean.**
+> by the second Definition-of-Done pass, and this note says exactly what the ticks mean.**
 >
 > **83 of this plan's 84 steps are ticked.** Every step of Tasks 1-15 and Task 16 Steps 1, 2, 4 and
 > 5. A tick here means **the step's deliverables were found in the working tree and every repository
@@ -74,7 +74,7 @@ Copied from the spec and from `rules/`, with the values that must be typed exact
 - **Config-file injection is closed by validation, not by escaping.** `vsftpd.conf` is a line-oriented `key=value` file. Every value written into it comes from a validated type that cannot contain a newline, a carriage return or a control character (`rules/security.md` §4). The one operator-supplied value in the whole feature — the passive-mode advertised address — gets its own validated type for exactly this reason. There is **no per-login config file**: `chroot_local_user=YES` confines a login to its own passwd home, which is the jail, so `user_config_dir` has nothing to carry and is not enabled.
 - **Distro facts live only in `distro`.** Every fact about vsftpd that differs between the families and reaches the agent is an adapter method — the binary path and the FTPS group (Task 1), and the **TLS version option key spellings** (Task 6, finding F2: `ssl_tlsv11`/`ssl_tlsv12` on the Debian family, `ssl_tlsv1_1`/`ssl_tlsv1_2` on the RHEL family). The package name, the packaged service name and the shipped `secure_chroot_dir` differ too but reach nothing: the package name lives in the installer's `vsftpd_packages_for_family`, and Maran ships its own unit and its own empty directory under `/run`. `ops` never writes `/etc/vsftpd/vsftpd.conf` or `apt-get` itself. The agent's own config path (`/etc/maran/vsftpd/vsftpd.conf`) is not a distro fact and lives in `AgentPaths`, beside `/etc/maran/nginx/sites` and `/etc/maran/certificates`.
 - **The config is rendered, validated, atomically swapped and rolled back.** `vsftpd.conf` goes through `ops::safe_write`, validated by running the real `vsftpd` against the candidate — see Task 8 for the exact invocation and what makes it a real check rather than a decoration — and every render has a byte-exact golden in `agent/crates/templates/tests/golden/vsftpd/`.
-- **`vsftpd.conf` is REWRITTEN, never appended to, and has exactly one writer.** vsftpd's parser takes the **LAST** occurrence of a key and every earlier one is overwritten as the file is read. **An earlier pass of this plan stated the opposite — "the first occurrence wins" — and it was wrong.** It was taken in good faith from finding F3 in `.superpowers/sdd/ftps-task-03-report.md`; the correction is measured with controls on both families in `.superpowers/sdd/ftps-jail-mode-report.md` Step 4b (2026-09-09): a duplicated `listen_port` of `2121` then `2122` bound **2122** (`ss` showed `0.0.0.0:2122`), with single-value controls at both ports binding what they said; and a duplicated `force_local_logins_ssl` behaved as the **appended** value in both directions — `YES` then `NO` let a plaintext login through exactly as a lone `NO` does, `NO` then `YES` refused it exactly as a lone `YES` does — on `ubuntu:24.04` (3.0.5-0ubuntu3.1) and `almalinux:9` (3.0.5-8.el9). **The rule this constraint states is unchanged and its stakes rise.** Under "first wins" an appended line would be inert: a no-op that looks like a change, bad hygiene. Under what is actually there, an appended `force_local_logins_ssl=NO` **silently turns off the mandatory TLS this whole feature exists to enforce** (spec §11; the owner's decision 2) on a config that still parses, still starts and still greets with `220` — the panel would keep reporting a healthy daemon while passwords crossed the wire in the clear. That is the reason the file is replaced whole and never merged into. Nothing in this plan appends: `ops::safe_write` writes the whole rendered text to a temporary file and renames it over the target (`render_validate_swap.rs`), which is a replace on the first run and on every re-run alike, and `/etc/maran/vsftpd/vsftpd.conf` has exactly one writer — the agent. The installer creates the **directory** and never the file (Task 2). The systemd unit's `-obackground=NO` and the Task 8 validator's `-o…` flags are the one deliberate second source of a key, and under the corrected reading they are **not an exception to this rule — they are the ordinary case of it**: `-o` settings are applied after the file has been read, so they are the last setting of their key and they win for the same reason an appended line would. Measured with its inverse control in the same report: file `background=YES` plus `-obackground=NO` leaves the process systemd watches alive, and the same file with no `-o` exits, which under `Type=simple` is a unit systemd calls dead. Task 8's measurement table observes the same thing (`-obackground=NO -olisten=YES` keeps the daemon running against a file that says `listen=NO`). What makes the `-o` overrides safe is therefore not an exemption anyone has to remember, but that the agent is the file's only writer, so the only key set twice is the one Maran sets twice on purpose.
+- **`vsftpd.conf` is REWRITTEN, never appended to, and has exactly one writer.** vsftpd's parser takes the **LAST** occurrence of a key and every earlier one is overwritten as the file is read. **An earlier pass of this plan stated the opposite — "the first occurrence wins" — and it was wrong.** It was taken in good faith from finding F3 of a working task-03 report; the correction is measured with controls on both families in a working jail-mode report's Step 4b (2026-09-09): a duplicated `listen_port` of `2121` then `2122` bound **2122** (`ss` showed `0.0.0.0:2122`), with single-value controls at both ports binding what they said; and a duplicated `force_local_logins_ssl` behaved as the **appended** value in both directions — `YES` then `NO` let a plaintext login through exactly as a lone `NO` does, `NO` then `YES` refused it exactly as a lone `YES` does — on `ubuntu:24.04` (3.0.5-0ubuntu3.1) and `almalinux:9` (3.0.5-8.el9). **The rule this constraint states is unchanged and its stakes rise.** Under "first wins" an appended line would be inert: a no-op that looks like a change, bad hygiene. Under what is actually there, an appended `force_local_logins_ssl=NO` **silently turns off the mandatory TLS this whole feature exists to enforce** (spec §11; the owner's decision 2) on a config that still parses, still starts and still greets with `220` — the panel would keep reporting a healthy daemon while passwords crossed the wire in the clear. That is the reason the file is replaced whole and never merged into. Nothing in this plan appends: `ops::safe_write` writes the whole rendered text to a temporary file and renames it over the target (`render_validate_swap.rs`), which is a replace on the first run and on every re-run alike, and `/etc/maran/vsftpd/vsftpd.conf` has exactly one writer — the agent. The installer creates the **directory** and never the file (Task 2). The systemd unit's `-obackground=NO` and the Task 8 validator's `-o…` flags are the one deliberate second source of a key, and under the corrected reading they are **not an exception to this rule — they are the ordinary case of it**: `-o` settings are applied after the file has been read, so they are the last setting of their key and they win for the same reason an appended line would. Measured with its inverse control in the same report: file `background=YES` plus `-obackground=NO` leaves the process systemd watches alive, and the same file with no `-o` exits, which under `Type=simple` is a unit systemd calls dead. Task 8's measurement table observes the same thing (`-obackground=NO -olisten=YES` keeps the daemon running against a file that says `listen=NO`). What makes the `-o` overrides safe is therefore not an exemption anyone has to remember, but that the agent is the file's only writer, so the only key set twice is the one Maran sets twice on purpose.
 - **Counted limits are checked in the panel.** `Plan` gains `MaxFtpUsers` beside `MaxSites`, `MaxDatabases` and `MaxSftpUsers`.
 - **Deleting an account destroys its FTPS access first.** `userdel` of the account does not remove logins created with `--non-unique`, does not unmount the jail's bind mount and does not remove its systemd unit. The `AccountDeleting` cascade does all three, and a failure aborts the deletion. This is Plan 4's pool-leak lesson applied to a second daemon.
 - **Suspending an account locks every login it holds — and today it would not.** This was checked rather than assumed, and the assumption was wrong. `ProcessSftpHost::account_logins` selects passwd rows by `row.home == jail_directory`, where `jail_directory` is the **SFTP** jail. An FTPS login's passwd home is the FTPS jail, so the shipped `SetAccountLoginsLocked` would walk straight past it and a suspended customer would keep a working write credential into their home — the exact defect the SFTP rpc's own doc comment was written to describe. Task 5 moves login enumeration into one place that knows about both jails, before any FTPS login can exist.
@@ -98,7 +98,7 @@ Copied from the spec and from `rules/`, with the values that must be typed exact
 | `maran-ftps` (PAM service) | `pam_service_name`. `/etc/pam.d/maran-ftps` is written by the installer and contains `pam_succeed_if` requiring group membership, then `pam_unix`. The stock `/etc/pam.d/vsftpd` is never edited. |
 | `force_local_logins_ssl=YES`, `force_local_data_ssl=YES` | The owner's decision 2, as vsftpd spells it. **The two keys in this whole template that a single appended line can switch off:** the parser takes the last occurrence (see the rewrite-never-append constraint above), so `force_local_logins_ssl=NO` added after the rendered `YES` disables forced TLS on a config that still parses and still starts. Measured in both directions on both families. This is why the file is replaced whole, and why Task 10 asserts the live file carries each of these keys exactly once. |
 | `ssl_sslv2=NO`, `ssl_sslv3=NO` | Spelled identically by both families' builds. Two dead protocol versions, refused explicitly rather than left to a default. |
-| The TLS **version** keys — `ssl_tlsv1`, and the 1.1/1.2 pair whose spelling is **per family** | The floor, and the one value in this whole template that is a **distro fact**. Measured 2026-09-09 (finding F2, `.superpowers/sdd/ftps-task-03-report.md`): the Debian family's build spells them `ssl_tlsv11` / `ssl_tlsv12` / `ssl_tlsv13`, the RHEL family's spells them `ssl_tlsv1_1` / `ssl_tlsv1_2` / `ssl_tlsv1_3`; `ssl_tlsv1` is the same word on both. The rendered floor is therefore `ssl_tlsv1=NO`, `<the family's 1.1 key>=NO`, `<the family's 1.2 key>=YES`, and the keys come from `DistroAdapter::vsftpd_tls_version_keys()` (Task 6), never from a literal in the template. TLS 1.3 is left at the build's own default and is NOT written: the option exists on both families (contrary to what an earlier draft of this plan said), and with it unset both families were observed negotiating TLSv1.3 in Task 3 Step 5 — with the caveat Task 6 records, that the Debian half of that observation was made with the 1.1/1.2 lines removed rather than rendered. **Why this is not cosmetic:** the wrong spelling is an unrecognised variable, and on the Debian family vsftpd then exits 2 **printing nothing at all** — the silent-refusal blind spot Task 8's two-layer validation is built around. |
+| The TLS **version** keys — `ssl_tlsv1`, and the 1.1/1.2 pair whose spelling is **per family** | The floor, and the one value in this whole template that is a **distro fact**. Measured 2026-09-09 (finding F2 of a working task-03 report): the Debian family's build spells them `ssl_tlsv11` / `ssl_tlsv12` / `ssl_tlsv13`, the RHEL family's spells them `ssl_tlsv1_1` / `ssl_tlsv1_2` / `ssl_tlsv1_3`; `ssl_tlsv1` is the same word on both. The rendered floor is therefore `ssl_tlsv1=NO`, `<the family's 1.1 key>=NO`, `<the family's 1.2 key>=YES`, and the keys come from `DistroAdapter::vsftpd_tls_version_keys()` (Task 6), never from a literal in the template. TLS 1.3 is left at the build's own default and is NOT written: the option exists on both families (contrary to what an earlier draft of this plan said), and with it unset both families were observed negotiating TLSv1.3 in Task 3 Step 5 — with the caveat Task 6 records, that the Debian half of that observation was made with the 1.1/1.2 lines removed rather than rendered. **Why this is not cosmetic:** the wrong spelling is an unrecognised variable, and on the Debian family vsftpd then exits 2 **printing nothing at all** — the silent-refusal blind spot Task 8's two-layer validation is built around. |
 | `require_ssl_reuse=NO` | Set explicitly, with its reason in the template: vsftpd's default of `YES` requires the data connection to resume the control connection's TLS session, which OpenSSL 1.1.1+ TLS 1.3 session tickets and most graphical clients do not do, and the failure is a login that works and a directory listing that hangs. |
 
 ### Two constraints that already cost this repository a working feature
@@ -345,13 +345,13 @@ the way they do.
 | Default `background` | `NO` | **`YES`** |
 | TLS **version** option spelling (measured 2026-09-09, F2 — added by the third amendment) | `ssl_tlsv1`, **`ssl_tlsv11`**, **`ssl_tlsv12`**, **`ssl_tlsv13`** (Ubuntu 24.04, `vsftpd 3.0.5-0ubuntu3.1`) | `ssl_tlsv1`, **`ssl_tlsv1_1`**, **`ssl_tlsv1_2`**, **`ssl_tlsv1_3`** (AlmaLinux 9, `vsftpd 3.0.5-8.el9`) |
 
-**SETTLED, and kept here because how it was settled is the useful half — formerly CONTESTED: the `.wants` symlink under a mask.** A third measurement (`.superpowers/sdd/ftps-jail-mode-report.md`) ran all four cells of *mask x image* on both Debian-family images and agreed with Task 3, not Task 2. The mechanism was re-driven by hand: `deb-systemd-helper enable` delegates to systemd, which refuses a masked unit, so the helper exits **before** writing either the link or its state file, and the postinst swallows that with `|| true`. One caveat was deliberately kept rather than inverting the claim symmetrically: that absence rests on `systemctl` being present, and the helper's other branch writes the links itself. **The mask is the control on every path either way.** The original disagreement follows. Two of this plan's own tasks measured the Debian
+**SETTLED, and kept here because how it was settled is the useful half — formerly CONTESTED: the `.wants` symlink under a mask.** A third measurement (a working jail-mode report) ran all four cells of *mask x image* on both Debian-family images and agreed with Task 3, not Task 2. The mechanism was re-driven by hand: `deb-systemd-helper enable` delegates to systemd, which refuses a masked unit, so the helper exits **before** writing either the link or its state file, and the postinst swallows that with `|| true`. One caveat was deliberately kept rather than inverting the claim symmetrically: that absence rests on `systemctl` being present, and the helper's other branch writes the links itself. **The mask is the control on every path either way.** The original disagreement follows. Two of this plan's own tasks measured the Debian
 family's behaviour and got opposite answers, so the plan records both rather than picking one:
 
-- **Task 2, 2026-09-09** (`.superpowers/sdd/ftps-task-02-report.md`), `ubuntu:24.04` and
+- **Task 2, 2026-09-09** (a working task-02 report), `ubuntu:24.04` and
   `debian:trixie` throwaway containers: *"the SAME wants symlink is created even WITH the mask in
   place"* — i.e. `systemctl mask` does not stop dpkg's enablement bookkeeping.
-- **Task 3, 2026-09-09** (`.superpowers/sdd/ftps-task-03-report.md`, Step 3), four throwaway
+- **Task 3, 2026-09-09** (a working task-03 report, Step 3), four throwaway
   containers of the same two images: with the mask link present before install, **no** `.wants`
   entry and **no** `/var/lib/systemd/deb-systemd-helper-enabled/vsftpd.service.dsh-also` record;
   without the mask, both appear. The proposed mechanism is that `deb-systemd-helper` checks for
@@ -671,10 +671,10 @@ image's build.
 > actually had to do to make the daemon start at all.
 >
 > **AMENDED AFTER EXECUTION AGAIN — 2026-09-09, fourth pass.** This task's report
-> (`.superpowers/sdd/ftps-task-03-report.md`) is where finding F3 was raised, and **its premise was
+> (a working task-03 report) is where finding F3 was raised, and **its premise was
 > backwards**: it recorded that vsftpd takes the FIRST occurrence of a key, and the plan carried that
 > into three places in good faith. Re-measured with controls on both families
-> (`.superpowers/sdd/ftps-jail-mode-report.md` Step 4b): the parser takes the **LAST** occurrence — a
+> (a working jail-mode report's Step 4b): the parser takes the **LAST** occurrence — a
 > duplicated `listen_port` bound the appended value, and a duplicated `force_local_logins_ssl`
 > behaved as the appended value in both directions on `ubuntu:24.04` and `almalinux:9`. Recorded here
 > rather than only at the end of the plan because a reader who arrives at this executed task's report
@@ -954,7 +954,7 @@ that would ship a mount unit systemd refuses.
 > it is the name `account_operations.rs`, the real-host suite and Task 9's ownership check all call it
 > by. The `SetAccountLoginsLocked` and `GetAccountSuspensionState` rpcs keep their wire names, which
 > is what the "the two operations keep their names and their rpc" row in the reuse table is about; the
-> ops-layer function name is the one that changed. (`.superpowers/sdd/ftps-task-05-report.md`,
+> ops-layer function name is the one that changed. (a working task-05 report,
 > deviation 1.)
 >
 > **`LoginsError` has a fourth variant, `AccountBusy`.** Without it the moved write could not keep
@@ -1335,8 +1335,8 @@ have in front of them.
 
 **Finding F3, in one line where it belongs — with its premise corrected.** vsftpd takes the **LAST**
 occurrence of a key; an earlier pass of this plan wrote "the first occurrence" here and in the Global
-Constraints, taken from finding F3 in `.superpowers/sdd/ftps-task-03-report.md`, and it was backwards.
-`.superpowers/sdd/ftps-jail-mode-report.md` Step 4b measured it with controls on both families on
+Constraints, taken from finding F3 in a working task-03 report, and it was backwards.
+A working jail-mode report's Step 4b measured it with controls on both families on
 2026-09-09: a duplicated `listen_port` bound the second value, and a duplicated
 `force_local_logins_ssl` behaved as the appended value in both directions. This template is therefore
 rendered and written whole, through `ops::safe_write`, which replaces the file — nothing anywhere
@@ -1452,7 +1452,7 @@ That mutation is the historical bug, re-run as an experiment.
   - `reload_ftps_tls(&dyn FtpsHost, &dyn DistroAdapter) -> Result<FtpsState, FtpsError>` — the operation behind the `ReloadFtpsTls` rpc, which previously had **no ops home at all**: a service method may only do proto → ops → response, so the restart it performs has to live here. It restarts a RUNNING daemon so vsftpd re-reads the certificate material that was replaced underneath it, then re-asks the two post-swap questions (unit active, `220` on the control port) and returns `NotListening`/`ServiceRefused` if either answer is no. On a stopped or disabled daemon it is a no-op success — a daemon that is off picks the new material up at its next start by construction, and "reload TLS" must never be the thing that turns a deliberately-disabled daemon on.
   - `probe_listen_mode(&dyn FtpsHost) -> ListenMode` — settled row 6's deterministic probe, a named unit so a unit test can drive it. `ProcessFtpsHost` binds an IPv6 TCP listening socket the way vsftpd would — `[::]:0`, `SOCK_STREAM` — and drops it; the classification treats a refusal with `EAFNOSUPPORT` or `EADDRNOTAVAIL` (std's `ErrorKind::Unsupported` / `ErrorKind::AddrNotAvailable`) as "this kernel has no IPv6" and answers `ListenMode::Ipv4Only`; success, and every OTHER refusal, answers `ListenMode::DualStack` — an unexpected bind error is not evidence about address families, and the daemon's own start (layer 2) will surface the real problem and roll back.
   - `ListenMode { DualStack, Ipv4Only }` in `model/listen_mode.rs`.
-  - `FtpsState { pub running: bool, pub control_port_answered: bool, pub certificate: Option<CertificateState>, pub forced_tls: Option<bool>, pub passive_port_min: Option<u16>, pub passive_port_max: Option<u16>, pub listen_mode: Option<ListenMode> }` — **seven fields, four of them optional, and one of them not in this plan's first four passes**; see the amendment note under this bullet. `enable_ftps` reports the mode it probed and rendered; `get_ftps_status` reports the mode the LIVE config carries, by checking which of the template's two exact listen pairs the file on disk contains — the agent is the only writer of that file and the pairs are golden-pinned, so this is the agent reading its own decision back, not parsing foreign configuration. **That single-writer property is load-bearing, and the argument for it was rewritten in the fourth pass because the premise it rested on inverted.** An earlier pass argued: vsftpd takes the FIRST occurrence of a key, so a file that had ever been appended to could contain both listen pairs and this read would answer with whichever it found first regardless of which one the daemon obeyed. The parser in fact takes the **LAST** occurrence (measured with controls on both families, `.superpowers/sdd/ftps-jail-mode-report.md` Step 4b), which makes the failure worse-shaped rather than milder: a read that matches the pair the template rendered would report the mode the panel *intended* while the daemon obeyed the pair appended after it — a check that agrees with the panel's own decision no matter what the daemon is doing, which is exactly the blind gate `rules/testing.md` spends a section on. **The conclusion survives and gains one rule.** It survives because nothing appends and the agent is the only writer (Global Constraints), which is what makes "read the pair back" a sound question rather than a guess. The rule the correction adds: **this read takes the LAST occurrence of each key it looks at, never the first**, so that where the file and the daemon could disagree the agent answers with what the daemon obeys — and a live file carrying BOTH listen pairs, or either forced-TLS key more than once, is by construction not a file this agent wrote, which is the case Task 10's `the_live_config_carries_each_key_exactly_once_and_a_planted_duplicate_is_seen` exists to make observable rather than assumed.
+  - `FtpsState { pub running: bool, pub control_port_answered: bool, pub certificate: Option<CertificateState>, pub forced_tls: Option<bool>, pub passive_port_min: Option<u16>, pub passive_port_max: Option<u16>, pub listen_mode: Option<ListenMode> }` — **seven fields, four of them optional, and one of them not in this plan's first four passes**; see the amendment note under this bullet. `enable_ftps` reports the mode it probed and rendered; `get_ftps_status` reports the mode the LIVE config carries, by checking which of the template's two exact listen pairs the file on disk contains — the agent is the only writer of that file and the pairs are golden-pinned, so this is the agent reading its own decision back, not parsing foreign configuration. **That single-writer property is load-bearing, and the argument for it was rewritten in the fourth pass because the premise it rested on inverted.** An earlier pass argued: vsftpd takes the FIRST occurrence of a key, so a file that had ever been appended to could contain both listen pairs and this read would answer with whichever it found first regardless of which one the daemon obeyed. The parser in fact takes the **LAST** occurrence (measured with controls on both families, a working jail-mode report's Step 4b), which makes the failure worse-shaped rather than milder: a read that matches the pair the template rendered would report the mode the panel *intended* while the daemon obeyed the pair appended after it — a check that agrees with the panel's own decision no matter what the daemon is doing, which is exactly the blind gate `rules/testing.md` spends a section on. **The conclusion survives and gains one rule.** It survives because nothing appends and the agent is the only writer (Global Constraints), which is what makes "read the pair back" a sound question rather than a guess. The rule the correction adds: **this read takes the LAST occurrence of each key it looks at, never the first**, so that where the file and the daemon could disagree the agent answers with what the daemon obeys — and a live file carrying BOTH listen pairs, or either forced-TLS key more than once, is by construction not a file this agent wrote, which is the case Task 10's `the_live_config_carries_each_key_exactly_once_and_a_planted_duplicate_is_seen` exists to make observable rather than assumed.
   - `FtpsError`: `CertificateMissing { domain: String, expected_path: String }`, `ConfigRejected { output: String, output_is_unavailable_on_this_platform: bool }`, `ServiceRefused { unit: String }`, `NotListening`, `SpawnFailed { code: i32 }`, `Render`, `ConfigUnreadable`, `ConfigWrite` — **eight, not the six an earlier pass listed**: a live config that cannot be READ is a different answer from one that cannot be written, and both are different from a render failure, so the status read-back and `render_validate_swap`'s own refusal each get a variant rather than being folded into `SpawnFailed`.
 
 > **AMENDED AFTER EXECUTION — 2026-09-09 (fifth pass). Five statements above were wrong about what
@@ -1467,7 +1467,7 @@ That mutation is the historical bug, re-run as an experiment.
 > catch, pointed the wrong way. It is not a platform fact either (both families take the same path),
 > so it is a private const beside `enable_ftps`, with that argument in its doc comment.
 > `VSFTPD_CONFIG_PATH` is under `/etc` and therefore excluded from check 20; `FTPS_UNIT` is a unit
-> name and not a path. Both stayed. (`.superpowers/sdd/ftps-task-08-report.md`, PHANTOM 2.)
+> name and not a path. Both stayed. (a working task-08 report, PHANTOM 2.)
 >
 > **`FtpsState`'s four optional fields are the honest shape, not a convenience.** A status read taken
 > while the daemon is off, or before any config has ever been written, has no live file to read a
@@ -1902,7 +1902,7 @@ fn an_account_with_no_ftps_at_all_is_deleted_without_the_new_step_refusing() { /
 > is unwritable**: the cascade is driven by four separate host fakes, each recording only its own
 > calls, and three separate fakes have no shared clock — there is nothing that can produce one
 > ordered vector of steps across them (measured while writing the test,
-> `.superpowers/sdd/ftps-task-09-report.md` Step 5).
+> a working task-09 report's Step 5).
 >
 > What shipped instead is the house pattern the SFTP half of this same cascade already uses
 > (`a_jail_that_cannot_be_taken_down_stops_the_deletion_before_userdel_removes_the_home`): the order
@@ -3166,20 +3166,20 @@ Run: `cd frontend && npm run lint && npm run typecheck && npm run build && npx p
 ### Task 16: The Definition of Done pass, and the count that proves the run happened
 
 > **PLAN-WIDE CHECKBOX STATUS — SUPERSEDED 2026-09-11 by the SECOND Definition-of-Done pass
-> (`.superpowers/sdd/issue-20-dod-2.md`).** The first pass recorded 84 unticked boxes and declined to
+> by the second Definition-of-Done pass.** The first pass recorded 84 unticked boxes and declined to
 > tick Tasks 1-15 because its own tree was not quiet enough to score: the backend lane was running
 > over a peer's live tenant-filter mutant, `maran format --check backend` was red on a peer's import
 > ordering, and no polygon run existed. All three have since been measured clean, so the second pass
 > ticked Tasks 1-15 against the tree and its own green gates. What a tick means, and what it does
 > not, is stated in the CHECKBOX STATUS note at the head of this file — read that before trusting
-> one. Full evidence: `.superpowers/sdd/issue-20-dod-2.md` (and the first pass, which it builds on,
-> at `.superpowers/sdd/issue-20-dod.md`).
+> one. Full evidence was kept only in the second DoD pass's working report (and the first pass it
+> builds on), neither committed.
 
 **Files:** whatever the pass finds. No new behaviour.
 
 - [x] **Step 1: Walk the Definition of Done for every surface this plan added**
 
-> **DONE 2026-09-11** — walked in `.superpowers/sdd/issue-20-dod.md`. All five DoD items are met for
+> **DONE 2026-09-11** — walked in the first DoD pass's working report (not committed). All five DoD items are met for
 > the seven rpcs and the HTTP routes, with one defect (the **six** audit action names — corrected
 > 2026-09-12; this annotation said five, which is the File-structure table's stale count repeated
 > rather than re-measured, and the plan's own head block already records it as six —
@@ -3201,7 +3201,7 @@ work, not finished work awaiting tests.
 
 > **DONE 2026-09-12 — every gate in this step's list was RE-MEASURED on this tree, and both
 > blockers the second DoD pass left open are measured CLEAR. Evidence, per-gate verdict lines and
-> per-target counts: `.superpowers/sdd/task-16-final-gates.md`. Nothing below is transcribed from
+> per-target counts were kept in a working report (task-16-final-gates, not committed). Nothing below is transcribed from
 > that pass; each line is a run made here, after `source scripts/dev` (dotnet 9.0.317, cargo 1.98.0,
 > node v24.14.0, libprotoc 36.0 — no `NETSDK1045`).**
 >
@@ -3328,7 +3328,7 @@ it counts is a baseline nobody reviewed.
 
 > **STATUS 2026-09-12 — the ROWS ARE DONE; the box stays unticked because the COMMIT is what this
 > step names and a commit is the owner's. Evidence:
-> `.superpowers/sdd/task-16-final-gates.md`.**
+> a working report (task-16-final-gates, not committed).**
 >
 > Read as written, this step is not "the rows are right" — it is titled *in its own commit* and its
 > whole rationale is the separation ("a baseline refreshed in the same commit as the code it counts is
@@ -3463,7 +3463,7 @@ text says that, and says that turning it on is an administrator action with fire
 >    rule exists only in this plan and in the doc comments of `get_ftps_status.rs` and `ftps_state.rs`
 >    (measured at the fifth pass: `grep -ni occurrence rules/rust.md` found nothing. **Re-measured at
 >    the sixth: it now finds two, at `rules/rust.md:679`, so this item is closed — see the re-measure
->    block above.** `.superpowers/sdd/ftps-task-08-report.md`
+>    block above.** (a working task-08 report,
 >    PHANTOM 3, which reported it rather than editing `rules/` from outside its scope). It belongs in
 >    the config-write section beside the write protocol, because the next area that reads a config
 >    file back will otherwise re-derive it or, worse, not.
@@ -3689,7 +3689,7 @@ changed inline.
 
 ### Amended 2026-09-09 — closing the adversarial review
 
-An adversarial pre-execution review (`.superpowers/sdd/ftps-plan-review.md`: 6 BLOCKER, 9 MAJOR,
+An adversarial pre-execution review (kept only as a working report, not committed: 6 BLOCKER, 9 MAJOR,
 15 MINOR) was executed against this plan and every finding is folded into the text above; none is
 contested. The substance: the threat note moved to Task 2 Step 0 (written before the privileged
 change, as the rule requires, with Task 16 Step 4 reduced to verification); settled rows 3, 4 and 6
@@ -3711,7 +3711,7 @@ Every file path written in this amendment was re-verified against the working tr
 
 ### Amended 2026-09-09 (second pass) — closing the verification's five findings
 
-A verification of the amended plan (`.superpowers/sdd/ftps-plan-verification.md`) confirmed all 30
+A verification of the amended plan (kept only as a working report, not committed) confirmed all 30
 original findings closed and raised five NEW ones — 1 BLOCKER, 1 MAJOR, 3 MINOR. All five are folded
 into the task bodies above; none is contested, and one is implemented with a stated correction.
 
@@ -3773,7 +3773,7 @@ exemption.
 ### Amended 2026-09-09 (third pass) — two facts measured on real hosts, and one that two tasks disagree about
 
 Phase A (Tasks 1–3) has been **executed and proven on both families**, which is how these surfaced;
-Tasks 4–16 are unexecuted. `.superpowers/sdd/ftps-task-03-report.md` Step 8 raised three findings.
+Tasks 4–16 are unexecuted. A working task-03 report's Step 8 raised three findings.
 F1 (the jail base's mode) belongs to `installer/**` and its owner and is not touched here. The other
 two are folded into the task bodies above, and the third item below is deliberately NOT closed.
 
@@ -3868,8 +3868,8 @@ amended text says so in its own place.
 
 - **The claim that was wrong.** The Global Constraints, Task 6 Step 4 and Task 8 all carried
   *"vsftpd's parser takes the first occurrence of a key and ignores every later one"*, taken in good
-  faith by the third pass from finding F3 in `.superpowers/sdd/ftps-task-03-report.md`.
-- **What measured it.** `.superpowers/sdd/ftps-jail-mode-report.md` Step 4b, 2026-09-09, with
+  faith by the third pass from finding F3 in a working task-03 report.
+- **What measured it.** A working jail-mode report's Step 4b, 2026-09-09, with
   controls on both families. A duplicated `listen_port` — `2121` first, `2122` appended — bound
   **2122** (`ss` showing `0.0.0.0:2122`), with single-value controls binding 2121 and 2122
   respectively, so neither answer is a coincidence. A duplicated `force_local_logins_ssl`, driven with

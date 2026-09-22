@@ -59,4 +59,17 @@ public interface IAgentMonitorClient
     /// the same way it treats <see cref="AgentSftpJailStatus.IsDrifted"/> being <c>true</c>.
     /// </remarks>
     Task<Result<AgentSftpJailStatus>> GetSftpJailStatusAsync(CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Reads <c>/proc/mounts</c> and <c>quotaon -p</c> to report whether the filesystem holding
+    /// hosting accounts' homes can currently enforce a per-user disk quota.
+    /// </summary>
+    /// <param name="cancellationToken">Cancellation for the call.</param>
+    /// <returns>The finding, or a typed failure when the agent could not even ask the question.</returns>
+    /// <remarks>
+    /// A failure here is NOT evidence that the filesystem cannot enforce a quota — it is the
+    /// absence of any evidence at all, the same discipline
+    /// <see cref="GetSftpJailStatusAsync"/> follows for its own file read.
+    /// </remarks>
+    Task<Result<AgentQuotaEnforceability>> GetQuotaEnforceabilityAsync(CancellationToken cancellationToken);
 }

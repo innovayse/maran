@@ -203,8 +203,18 @@ public sealed class AgentAccountsClient : IAgentAccountsClient
 
         return response.ResultCase switch
         {
+#pragma warning disable CS0612 // QuotaBytes is deprecated on the wire but still read as the legacy mirror.
             GetAccountUsageResponse.ResultOneofCase.Ok => Result<AccountUsageDto>.Ok(
-                new AccountUsageDto(response.Ok.UsedBytes, response.Ok.QuotaBytes)),
+                new AccountUsageDto(
+                    response.Ok.UsedBytes,
+                    response.Ok.QuotaBytes,
+                    Enum.IsDefined(typeof(AccountQuotaState), (int)response.Ok.QuotaState)
+                        ? (AccountQuotaState)(int)response.Ok.QuotaState
+                        : AccountQuotaState.Unspecified,
+                    Enum.IsDefined(typeof(QuotaUnenforceableReason), (int)response.Ok.QuotaUnenforceableReason)
+                        ? (QuotaUnenforceableReason)(int)response.Ok.QuotaUnenforceableReason
+                        : QuotaUnenforceableReason.Unspecified)),
+#pragma warning restore CS0612
             GetAccountUsageResponse.ResultOneofCase.Error => Result<AccountUsageDto>.Fail(
                 AgentErrorTranslator.ToError(_logger, response.Error, nameof(GetUsageAsync))),
             _ => Result<AccountUsageDto>.Fail(Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),

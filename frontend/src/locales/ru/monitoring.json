@@ -36,7 +36,9 @@
       "columnRatio": "Занято от лимита",
       "notMeasured": "Не измерено",
       "noQuota": "Лимит не задан",
+      "notEnforcedBadge": "Не применяется",
       "ratio": "{used} из {quota}",
+      "ratioNotEnforced": "{used}, лимит не применяется",
       "meterLabel": "Занято диска от лимита для {username}",
       "emptyTitle": "Аккаунтов пока нет",
       "emptyDescription": "На этом сервере нет ни одного аккаунта хостинга для измерения."

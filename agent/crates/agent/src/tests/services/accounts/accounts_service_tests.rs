@@ -109,6 +109,10 @@ impl SystemHost for BlockingSystemHost {
         let stdout = match arguments {
             ["-S", username] => format!("{username} L 2026-01-01 0 99999 7 -1\n"),
             ["shadow", username] => format!("{username}:!:20704:0:99999:7:::\n"),
+            // `quotaon -p <mountpoint>`, for the usage rpc's own enforceability
+            // check: answered as an enforceable filesystem, since what this
+            // file tests is scheduling, not quota classification.
+            ["-p", _] => "Quota for users are enabled on mountpoint /home\n".to_owned(),
             _ => FAKE_UID_OUTPUT.to_owned(),
         };
 
@@ -146,6 +150,13 @@ impl SystemHost for BlockingSystemHost {
     /// Unreachable: no rpc driven in this file repairs a home's group.
     fn read_password_database(&self, _path: &str) -> Result<String, AccountError> {
         unreachable!("no rpc in this file reaches the password database")
+    }
+
+    /// A filesystem mounted with quota accounting — the usage rpc's own
+    /// enforceability check reads this, and this file tests scheduling, not
+    /// quota classification.
+    fn read_mounts(&self) -> Result<String, AccountError> {
+        Ok("/dev/sda1 /home ext4 rw,relatime,usrquota 0 0\n".to_owned())
     }
 
     /// Unreachable: no rpc driven in this file repairs a home's group.
