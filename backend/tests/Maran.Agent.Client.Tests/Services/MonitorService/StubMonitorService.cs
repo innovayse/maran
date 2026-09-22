@@ -41,6 +41,12 @@ internal sealed class StubMonitorService : IMonitorServiceInvoker
     /// <summary>The last quota-enforceability request the stub received, for asserting the call was made.</summary>
     public GetQuotaEnforceabilityRequest? LastQuotaEnforceabilityRequest { get; private set; }
 
+    /// <summary>The reply this stub returns for a fingerprint-inputs call.</summary>
+    public GetServerFingerprintInputsResponse ServerFingerprintInputsResponse { get; set; } = new();
+
+    /// <summary>The last fingerprint-inputs request this stub received, if any.</summary>
+    public GetServerFingerprintInputsRequest? LastServerFingerprintInputsRequest { get; private set; }
+
     /// <summary>Builds a stub answering the statuses call with one service in one state.</summary>
     /// <param name="service">Which service the row describes.</param>
     /// <param name="state">The state the agent reports.</param>
@@ -117,5 +123,14 @@ internal sealed class StubMonitorService : IMonitorServiceInvoker
     {
         LastQuotaEnforceabilityRequest = request;
         return Task.FromResult(QuotaEnforceabilityResponse);
+    }
+
+    /// <inheritdoc/>
+    public Task<GetServerFingerprintInputsResponse> GetServerFingerprintInputsAsync(
+        GetServerFingerprintInputsRequest request,
+        CancellationToken cancellationToken)
+    {
+        LastServerFingerprintInputsRequest = request;
+        return Task.FromResult(ServerFingerprintInputsResponse);
     }
 }

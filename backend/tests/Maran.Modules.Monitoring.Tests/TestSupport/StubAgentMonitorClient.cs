@@ -42,6 +42,17 @@ public sealed class StubAgentMonitorClient : IAgentMonitorClient
         Result<AgentQuotaEnforceability>.Ok(
             new AgentQuotaEnforceability(true, Maran.Agent.Client.Services.AccountsService.QuotaUnenforceableReason.Unspecified));
 
+    /// <summary>How many times <see cref="GetServerFingerprintAsync"/> was called.</summary>
+    public int ServerFingerprintCalls { get; private set; }
+
+    /// <summary>What <see cref="GetServerFingerprintAsync"/> answers.</summary>
+    /// <remarks>
+    /// Both halves null by default, so a test that has not said which machine it is on sees the
+    /// case licence binding refuses rather than one it permits.
+    /// </remarks>
+    public Result<AgentServerFingerprint> ServerFingerprint { get; set; } =
+        Result<AgentServerFingerprint>.Ok(new AgentServerFingerprint(null, null));
+
     /// <inheritdoc />
     public Task<Result<AgentHostMetrics>> GetHostMetricsAsync(CancellationToken cancellationToken)
     {
@@ -76,5 +87,13 @@ public sealed class StubAgentMonitorClient : IAgentMonitorClient
     {
         QuotaEnforceabilityCalls++;
         return Task.FromResult(QuotaEnforceability);
+    }
+
+    /// <inheritdoc />
+    public Task<Result<AgentServerFingerprint>> GetServerFingerprintAsync(
+        CancellationToken cancellationToken)
+    {
+        ServerFingerprintCalls++;
+        return Task.FromResult(ServerFingerprint);
     }
 }

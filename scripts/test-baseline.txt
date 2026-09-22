@@ -252,7 +252,7 @@ backend	Maran.Modules.Accounts.Tests.dll	199	0	0
 backend	Maran.Modules.Databases.Tests.dll	101	0	0
 backend	Maran.Modules.Ssl.Tests.dll	159	0	0
 backend	Maran.Modules.Identity.Tests.dll	203	0	0
-backend	Maran.Modules.Licensing.Tests.dll	39	0	0
+backend	Maran.Modules.Licensing.Tests.dll	46	0	0
 backend	Maran.Sdk.Tests.dll	196	0	0
 backend	Maran.ArchitectureTests.dll	58	0	0
 backend	Maran.Host.Tests.dll	241	0	0

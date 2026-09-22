@@ -47,14 +47,25 @@ public enum LicenceRefusalReason
     /// The licence verified, but its embedded server fingerprint does not match this server's own.
     /// </summary>
     /// <remarks>
-    /// UNREACHABLE in this slice. §228 wants a fingerprint built from <c>machine-id</c> plus the
-    /// primary network interface, and nothing in this tree exposes either today —
-    /// <c>proto/agent/v1/system.proto</c>'s <c>AgentInfo</c> carries only <c>version</c>,
-    /// <c>distro_id</c>, <c>family</c>, <c>proto_version</c> and <c>backup_root</c>. Obtaining a
-    /// fingerprint needs a new agent RPC surface this slice was explicitly told not to invent, so
-    /// <see cref="Services.LicenceVerifier"/> never produces this member — it is declared here so
-    /// the enum and the wire contract are ready for the RPC surface once it exists, not because any
-    /// code path returns it yet.
+    /// <para>
+    /// REACHABLE since the binding was wired: <c>GetServerFingerprintInputs</c> gives the panel
+    /// this host's machine-id, and <c>LicenceServerBindingPolicy</c> compares it against the
+    /// licence's optional <c>server</c> claim. A licence naming no server never produces this
+    /// member; one naming a different server always does.
+    /// </para>
+    /// <para>
+    /// <b>It also covers the case where this host's identity could not be read at all</b> — the
+    /// agent is down, or the host has no machine-id. That is deliberate and it is the direction
+    /// that costs an honest customer something: their bound licence reads as refused while their
+    /// agent is down. The other direction would let anyone who can stop the agent run a bound
+    /// licence on any machine they like, which is the attack binding exists to stop. The policy's
+    /// own remarks carry the full argument and the condition under which to revisit it.
+    /// </para>
+    /// <para>
+    /// The fingerprint is the machine-id ALONE. §228 also names the primary network interface, and
+    /// the panel reads it but never compares it: measured on the development host it is WiFi, and
+    /// it moves with a DHCP renewal, a VPN, or a cable in a different port.
+    /// </para>
     /// </remarks>
     FingerprintMismatch,
 }

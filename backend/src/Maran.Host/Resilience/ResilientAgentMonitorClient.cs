@@ -96,4 +96,17 @@ public sealed class ResilientAgentMonitorClient : IAgentMonitorClient
             _inner,
             cancellationToken);
     }
+
+    /// <inheritdoc/>
+    public async Task<Result<AgentServerFingerprint>> GetServerFingerprintAsync(
+        CancellationToken cancellationToken)
+    {
+        return await _pipeline.ExecuteAsync(
+            async (state, token) =>
+            {
+                return await state.GetServerFingerprintAsync(token);
+            },
+            _inner,
+            cancellationToken);
+    }
 }

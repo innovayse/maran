@@ -49,4 +49,12 @@ internal interface IMonitorServiceInvoker
     Task<GetQuotaEnforceabilityResponse> GetQuotaEnforceabilityAsync(
         GetQuotaEnforceabilityRequest request,
         CancellationToken cancellationToken);
+
+    /// <summary>Invokes <c>GetServerFingerprintInputs</c> on the agent.</summary>
+    /// <param name="request">The empty request the rpc takes.</param>
+    /// <param name="cancellationToken">Cancellation for the call.</param>
+    /// <returns>The agent's reply, success or typed error.</returns>
+    Task<GetServerFingerprintInputsResponse> GetServerFingerprintInputsAsync(
+        GetServerFingerprintInputsRequest request,
+        CancellationToken cancellationToken);
 }

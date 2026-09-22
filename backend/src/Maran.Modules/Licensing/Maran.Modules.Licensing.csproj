@@ -24,6 +24,10 @@
          2026-09-22-licence-verification-threat-note.md. -->
     <ProjectReference Include="..\..\Maran.Sdk\Maran.Sdk.csproj" />
     <ProjectReference Include="..\..\Maran.SharedKernel\Maran.SharedKernel.csproj" />
+    <!-- The licence names one server, and only the agent can say which server this is: the
+         machine-id lives in a root-owned file the panel process cannot read. Ten sibling
+         modules take this same reference for the same reason. -->
+    <ProjectReference Include="..\..\Maran.Agent.Client\Maran.Agent.Client.csproj" />
   </ItemGroup>
 
   <ItemGroup>

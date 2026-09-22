@@ -72,4 +72,19 @@ public interface IAgentMonitorClient
     /// <see cref="GetSftpJailStatusAsync"/> follows for its own file read.
     /// </remarks>
     Task<Result<AgentQuotaEnforceability>> GetQuotaEnforceabilityAsync(CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Reads the two raw values this server's licence fingerprint is derived from: its machine-id
+    /// and the interface carrying its IPv4 default route.
+    /// </summary>
+    /// <param name="cancellationToken">Cancellation for the call.</param>
+    /// <returns>The two values, or a typed failure when the agent could not be asked at all.</returns>
+    /// <remarks>
+    /// A failure here is NOT evidence that this host has no identity — it is the absence of any
+    /// evidence, the same discipline <see cref="GetSftpJailStatusAsync"/> follows. For licence
+    /// binding that absence REFUSES rather than allows: see
+    /// <c>LicenceServerBindingPolicy</c>, whose remarks say why the tempting other direction hands
+    /// an attacker a licence valid on every machine they own.
+    /// </remarks>
+    Task<Result<AgentServerFingerprint>> GetServerFingerprintAsync(CancellationToken cancellationToken);
 }

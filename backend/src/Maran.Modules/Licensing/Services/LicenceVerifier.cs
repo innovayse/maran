@@ -2,6 +2,7 @@ using System.Text;
 using System.Text.Json;
 using Maran.Modules.Licensing.Domain.Entities;
 using Maran.Modules.Licensing.Domain.Enums;
+using Maran.Modules.Licensing.Domain.Interfaces;
 using Maran.Modules.Licensing.Domain.Policies;
 using Maran.Modules.Licensing.Domain.ValueObjects;
 using Maran.Modules.Licensing.Interfaces;
@@ -47,13 +48,21 @@ public sealed class LicenceVerifier
     /// <summary>The panel's injected time source.</summary>
     private readonly IClock _clock;
 
+    /// <summary>Reads this host's own identity, for licences that name a server.</summary>
+    private readonly IServerIdentitySource _serverIdentitySource;
+
     /// <summary>Creates the verifier.</summary>
     /// <param name="signatureVerifier">This module's seam over Ed25519 signature checking.</param>
     /// <param name="clock">The panel's injected time source.</param>
-    public LicenceVerifier(ILicenceSignatureVerifier signatureVerifier, IClock clock)
+    /// <param name="serverIdentitySource">Reads this host's machine-id, answering null on failure.</param>
+    public LicenceVerifier(
+        ILicenceSignatureVerifier signatureVerifier,
+        IClock clock,
+        IServerIdentitySource serverIdentitySource)
     {
         _signatureVerifier = signatureVerifier;
         _clock = clock;
+        _serverIdentitySource = serverIdentitySource;
     }
 
     /// <summary>Verifies a licence artefact's text and answers a three-state result.</summary>
@@ -70,15 +79,23 @@ public sealed class LicenceVerifier
     /// <see cref="LicenceStatus.Valid"/>, <see cref="LicenceStatus.Absent"/>, or
     /// <see cref="LicenceStatus.Refused"/> — never a thrown exception, for any input whatsoever.
     /// </returns>
-    public Task<LicenceStatus> VerifyAsync(string? rawLicenceText, CancellationToken cancellationToken = default)
+    public async Task<LicenceStatus> VerifyAsync(
+        string? rawLicenceText,
+        CancellationToken cancellationToken = default)
     {
-        return Task.FromResult(Verify(rawLicenceText));
+        // The host's identity is read BEFORE the body, not inside it, so that the body stays the
+        // single non-throwing expression §229 rests on. The source is contractually silent about
+        // failures — it answers null — so this await cannot be the thing that throws.
+        var hostMachineId = await _serverIdentitySource.TryReadMachineIdAsync(cancellationToken);
+
+        return Verify(rawLicenceText, hostMachineId);
     }
 
     /// <summary>The synchronous core of <see cref="VerifyAsync"/>; see its remarks for the §229 argument.</summary>
     /// <param name="rawLicenceText">The installed licence envelope's raw text, or absent.</param>
+    /// <param name="hostMachineId">This host's machine-id, or null when it could not be read.</param>
     /// <returns>The three-state result.</returns>
-    private LicenceStatus Verify(string? rawLicenceText)
+    private LicenceStatus Verify(string? rawLicenceText, string? hostMachineId)
     {
         if (string.IsNullOrWhiteSpace(rawLicenceText))
         {
@@ -124,8 +141,14 @@ public sealed class LicenceVerifier
                 return Refused(LicenceRefusalReason.Expired);
             }
 
-            // Fingerprint comparison is intentionally absent here: unreachable in this slice, see
-            // LicenceRefusalReason.FingerprintMismatch's own remarks for why.
+            // Binding last, after the licence has been proved authentic and current. The order
+            // matters for what an operator is told: a forged licence naming this very server
+            // should read as a forgery, not as a machine mismatch.
+            if (LicenceServerBindingPolicy.IsBoundToAnotherServer(licence, hostMachineId))
+            {
+                return Refused(LicenceRefusalReason.FingerprintMismatch);
+            }
+
             return new LicenceStatus.Valid(licence);
         }
         catch (Exception)
@@ -163,6 +186,22 @@ public sealed class LicenceVerifier
             return null;
         }
 
+        // `server` is OPTIONAL and its absence is not malformed: an unbound licence — a trial, or
+        // one issued before anybody knew which host would run it — legitimately names no server.
+        // A `server` present but not a string IS malformed, because that is a claim the issuer
+        // meant to make and got wrong, and reading it as "unbound" would turn an issuer's typo
+        // into a licence valid everywhere.
+        string? boundMachineId = null;
+        if (payloadElement.TryGetProperty("server", out var serverElement))
+        {
+            if (serverElement.ValueKind != JsonValueKind.String)
+            {
+                return null;
+            }
+
+            boundMachineId = serverElement.GetString();
+        }
+
         if (!payloadElement.TryGetProperty("expiry", out var expiryElement) || expiryElement.ValueKind != JsonValueKind.String)
         {
             return null;
@@ -194,7 +233,13 @@ public sealed class LicenceVerifier
             return null;
         }
 
-        return new Licence(LicenceId.Of(id), productElement.GetString()!, tierElement.GetString()!, modules, expiry);
+        return new Licence(
+            LicenceId.Of(id),
+            productElement.GetString()!,
+            tierElement.GetString()!,
+            modules,
+            expiry,
+            boundMachineId);
     }
 
     /// <summary>Builds a <see cref="LicenceStatus.Refused"/> for the given reason.</summary>

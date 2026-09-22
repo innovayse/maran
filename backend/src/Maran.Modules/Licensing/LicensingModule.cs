@@ -1,6 +1,7 @@
 using System.Resources;
 using Maran.Modules.Licensing.Commands.InstallLicence;
 using Maran.Modules.Licensing.Domain.Enums;
+using Maran.Modules.Licensing.Domain.Interfaces;
 using Maran.Modules.Licensing.Interfaces;
 using Maran.Modules.Licensing.Options;
 using Maran.Modules.Licensing.Queries.GetLicenceStatus;
@@ -81,6 +82,11 @@ public sealed class LicensingModule : IPanelModule
         // registering it here does not evaluate it — see this type's own remarks for why that
         // distinction is the whole point.
         services.AddSingleton<ILicenceSignatureVerifier, Ed25519LicenceSignatureVerifier>();
+        // Reads this host's machine-id through the agent, for licences that name one server. A
+        // singleton like the verifier that consumes it, and like IAgentMonitorClient underneath —
+        // no lifetime is narrowed anywhere along that chain, which is what a singleton verifier
+        // requires to be resolvable at all.
+        services.AddSingleton<IServerIdentitySource, AgentServerIdentitySource>();
         services.AddSingleton<LicenceVerifier>();
 
         // Where the installed licence artefact lives (default: /var/lib/maran/licence.json — the

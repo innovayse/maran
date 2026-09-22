@@ -155,19 +155,6 @@ message CronEnvironmentVariable {
   string value = 2;
 }
 
-// One environment assignment the agent manages in an account's crontab.
-message CronEnvironmentVariable {
-  // The variable's name: letters, digits and underscores, not starting with a
-  // digit. MAILTO and SHELL are refused with ERROR_CODE_INVALID_INPUT —
-  // MAILTO is an outbound-relay primitive through the host's mail transfer
-  // agent, and SHELL changes the interpreter under every managed entry. The
-  // agent emits both itself, with values of its own choosing.
-  string name = 1;
-  // The value, written verbatim. Rejected for a newline, a carriage return, a
-  // NUL or any other control character, because a crontab is line-oriented.
-  string value = 2;
-}
-
 message ListCronEntriesRequest {
   // System username of the owning account.
   string account_username = 1;

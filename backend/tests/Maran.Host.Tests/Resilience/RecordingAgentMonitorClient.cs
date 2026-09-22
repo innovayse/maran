@@ -87,4 +87,13 @@ internal sealed class RecordingAgentMonitorClient : IAgentMonitorClient
 
         await Task.Yield();
     }
+
+    /// <inheritdoc/>
+    public async Task<Result<AgentServerFingerprint>> GetServerFingerprintAsync(
+        CancellationToken cancellationToken)
+    {
+        await EnterAsync(cancellationToken);
+
+        return Result<AgentServerFingerprint>.Ok(new AgentServerFingerprint(null, null));
+    }
 }

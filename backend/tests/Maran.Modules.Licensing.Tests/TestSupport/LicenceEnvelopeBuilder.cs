@@ -24,6 +24,11 @@ internal static class LicenceEnvelopeBuilder
     /// <param name="tier">The plan tier.</param>
     /// <param name="modules">The licensed module ids.</param>
     /// <param name="expiry">The licence's expiry instant.</param>
+    /// <param name="server">
+    /// The machine-id this licence is bound to, or <see langword="null"/> to omit the claim
+    /// entirely — which is what an unbound licence looks like on the wire, and is deliberately not
+    /// the same as a claim present but empty.
+    /// </param>
     /// <returns>The raw envelope text, ready to hand to <c>LicenceVerifier.VerifyAsync</c>.</returns>
     internal static string Build(
         string privateKeyHex,
@@ -31,19 +36,30 @@ internal static class LicenceEnvelopeBuilder
         string product = "maran",
         string tier = "included",
         string[]? modules = null,
-        DateTimeOffset? expiry = null)
+        DateTimeOffset? expiry = null,
+        string? server = null)
     {
         modules ??= ["databases", "sites"];
         var expiryValue = expiry ?? FixedReferenceInstant.AddDays(30);
 
-        var payloadJson = JsonSerializer.Serialize(new
+        // A dictionary rather than an anonymous type, so "server" can be ABSENT rather than
+        // present-and-null: the verifier treats those two differently, and a fixture that could
+        // only produce the second could not express an unbound licence at all.
+        var payload = new Dictionary<string, object>
         {
-            id,
-            product,
-            tier,
-            modules,
-            expiry = expiryValue.ToString("O"),
-        });
+            ["id"] = id,
+            ["product"] = product,
+            ["tier"] = tier,
+            ["modules"] = modules,
+            ["expiry"] = expiryValue.ToString("O"),
+        };
+
+        if (server is not null)
+        {
+            payload["server"] = server;
+        }
+
+        var payloadJson = JsonSerializer.Serialize(payload);
 
         var payloadBytes = Encoding.UTF8.GetBytes(payloadJson);
         var signature = Sign(privateKeyHex, payloadBytes);

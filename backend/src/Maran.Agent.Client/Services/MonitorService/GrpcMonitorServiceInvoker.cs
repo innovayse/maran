@@ -55,4 +55,12 @@ internal sealed class GrpcMonitorServiceInvoker : IMonitorServiceInvoker
     {
         return await _client.GetQuotaEnforceabilityAsync(request, cancellationToken: cancellationToken);
     }
+
+    /// <inheritdoc/>
+    public async Task<GetServerFingerprintInputsResponse> GetServerFingerprintInputsAsync(
+        GetServerFingerprintInputsRequest request,
+        CancellationToken cancellationToken)
+    {
+        return await _client.GetServerFingerprintInputsAsync(request, cancellationToken: cancellationToken);
+    }
 }

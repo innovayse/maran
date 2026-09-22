@@ -133,6 +133,40 @@ public sealed class AgentMonitorClient : IAgentMonitorClient
         };
     }
 
+    /// <inheritdoc/>
+    public async Task<Result<AgentServerFingerprint>> GetServerFingerprintAsync(
+        CancellationToken cancellationToken)
+    {
+        var response = await _invoker.GetServerFingerprintInputsAsync(
+            new GetServerFingerprintInputsRequest(),
+            cancellationToken);
+
+        return response.ResultCase switch
+        {
+            GetServerFingerprintInputsResponse.ResultOneofCase.Ok => Result<AgentServerFingerprint>.Ok(
+                ToServerFingerprint(response.Ok)),
+            GetServerFingerprintInputsResponse.ResultOneofCase.Error => Result<AgentServerFingerprint>.Fail(
+                AgentErrorTranslator.ToError(_logger, response.Error, nameof(GetServerFingerprintAsync))),
+            _ => Result<AgentServerFingerprint>.Fail(
+                Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure)),
+        };
+    }
+
+    /// <summary>Projects the wire pair onto the panel's own, keeping "there is none" a state.</summary>
+    /// <param name="ok">The success payload of <c>GetServerFingerprintInputs</c>.</param>
+    /// <returns>The two values, each null where the host has none.</returns>
+    /// <remarks>
+    /// <c>present</c> is what decides, never the string: a value arriving non-empty with
+    /// <c>present</c> false would be a bug on the far side, and reading it anyway would turn that
+    /// bug into a machine identity the panel then bound a paid licence to.
+    /// </remarks>
+    private static AgentServerFingerprint ToServerFingerprint(GetServerFingerprintInputsOk ok)
+    {
+        return new AgentServerFingerprint(
+            ok.MachineId is { Present: true } machineId ? machineId.Value : null,
+            ok.PrimaryInterface is { Present: true } primaryInterface ? primaryInterface.Value : null);
+    }
+
     /// <summary>Projects the wire finding onto the panel's own.</summary>
     /// <param name="ok">The success payload of <c>GetQuotaEnforceability</c>.</param>
     /// <returns>Whether the filesystem can enforce a quota, and why not when it cannot.</returns>
