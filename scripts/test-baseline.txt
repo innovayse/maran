@@ -1,6 +1,18 @@
 # Committed per-target test baseline. Recorded by 'maran test --accept'; commit the diff.
 # stack<TAB>target<TAB>passed<TAB>failed<TAB>ignored
 #
+# RE-MEASURED 2026-09-19 (quota enforceability, issue #29): rust 1960/0/116, backend 3142/0/0,
+# spa 370/0/1 — every stack sum verified against the run it came from. Three rows moved and none
+# fell: Monitoring 53->60 and Ssl 158->159 on the backend, monitoring.spec.ts 6->7 on the spa.
+#
+# One row was REMOVED rather than moved, which a sum alone would not explain: the owner asked for
+# frontend/e2e/monitoring/russian-locale.spec.ts to be deleted, so the spa stack is 71 rows and
+# 370 where it was 72 and 373. That is a deliberate removal, not a fall. What went with it was the
+# only guard for four defects a non-English screen reveals and key-parity cannot: machine constants
+# beside translated words, an English-only chart axis, an invented unit that read naturally in
+# english, and a Cyrillic byte unit beside an IEC one. `maran structure` checks that keys EXIST in
+# all three locales, never what a screen renders, so nothing here would catch their return.
+#
 # THE PROSE BELOW WAS ONCE LOST, AND THAT IS WORTH A WARNING RATHER THAN A QUIET REPAIR.
 # On 2026-09-19 a lane was killed mid-run and something in its path rewrote this file
 # mechanically: all 118 data rows survived and all 173 comment lines did not. The prose was
@@ -20,6 +32,20 @@
 # recorded beside each row below, which is what the owner should read. A digit
 # here means nothing without its explanation there.
 #
+#   rust     — RE-MEASURED 2026-09-19 (issue #29, quota enforceability), `27 targets:
+#              1960 passed / 0 failed / 116 ignored`, OK — `maran agent check` printed
+#              "AGENT-CHECK OK — fmt, clippy, test and doc all ran and all passed". All 27
+#              rows reconciled against that run; NOTHING FELL. Two rose: maran_agent
+#              318->321 (`to_wire_quota_state_tests.rs`, the wire-mapping proof for the new
+#              three-state QuotaState) and maran_ops 1202->1218 (`quota_state_tests.rs` +4,
+#              `quota_enforceability_tests.rs` +6, `get_quota_enforceability_tests.rs` +3,
+#              and `account_operations_tests.rs`'s net +3 from replacing its old two-case
+#              usage coverage with five new enforceability-aware cases — 4+6+3+3=16). Sum
+#              checked against the measured total: 318+3=321, 1202+16=1218,
+#              1941 (prior sum) + 3 + 16 = 1960, MATCHES. Ignored unchanged at 116 — this
+#              work added no new #[ignore]d case. Earlier: `27 targets: 1941 passed / 0
+#              failed / 116 ignored` (the sum this file's rows already carried before this
+#              entry, reconciled without its own dated comment — see the rows themselves).
 #   rust     — RE-MEASURED 2026-09-19, `27 targets: 1914 passed / 0 failed / 114 ignored`, OK.
 #              All 27 rows reconciled; NOTHING FELL. Two rose: maran_agent 312->315 and maran_ops
 #              1165->1180 — the grant repair reaching the agent (the census op, the pattern-narrowing
@@ -184,7 +210,7 @@
 # and a reader who sees only the new number should know that a baseline BELOW the tree costs nothing
 # here, because the failure this file exists to catch is a FALL.
 #
-rust	maran_agent [unittests src/lib.rs]	318	0	0
+rust	maran_agent [unittests src/lib.rs]	321	0	0
 rust	maran_agent [unittests src/main.rs]	0	0	0
 rust	account_deletion_on_a_real_host [tests/account_deletion_on_a_real_host.rs]	0	0	5
 rust	backup_on_a_real_host [tests/backup_on_a_real_host.rs]	0	0	12
@@ -203,7 +229,7 @@ rust	shutdown_signal [tests/shutdown_signal.rs]	3	0	0
 rust	sites_on_a_real_host [tests/sites_on_a_real_host.rs]	0	0	16
 rust	maran_agent_core [unittests src/lib.rs]	353	0	0
 rust	maran_distro [unittests src/lib.rs]	40	0	0
-rust	maran_ops [unittests src/lib.rs]	1202	0	1
+rust	maran_ops [unittests src/lib.rs]	1233	0	1
 rust	maran_templates [unittests src/lib.rs]	0	0	0
 rust	golden_test [tests/golden_test.rs]	19	0	0
 rust	doc-tests maran_agent	0	0	0
@@ -213,10 +239,10 @@ rust	doc-tests maran_ops	0	0	0
 rust	doc-tests maran_templates	0	0	0
 backend	Maran.Agent.Client.Tests.dll	328	0	0
 backend	Maran.Modules.Backups.Tests.dll	191	0	0
-backend	Maran.SharedKernel.Tests.dll	163	0	0
+backend	Maran.SharedKernel.Tests.dll	167	0	0
 backend	Maran.Modules.Notifications.Tests.dll	48	0	0
 backend	Maran.Modules.Tasks.Tests.dll	54	0	0
-backend	Maran.Modules.Monitoring.Tests.dll	53	0	0
+backend	Maran.Modules.Monitoring.Tests.dll	66	0	0
 backend	Maran.Modules.Sftp.Tests.dll	80	0	0
 backend	Maran.Modules.Ftp.Tests.dll	109	0	0
 backend	Maran.Modules.Cron.Tests.dll	181	0	0
@@ -224,12 +250,13 @@ backend	Maran.Modules.Sites.Tests.dll	171	0	0
 backend	Maran.Modules.Firewall.Tests.dll	249	0	0
 backend	Maran.Modules.Accounts.Tests.dll	199	0	0
 backend	Maran.Modules.Databases.Tests.dll	101	0	0
-backend	Maran.Modules.Ssl.Tests.dll	158	0	0
+backend	Maran.Modules.Ssl.Tests.dll	159	0	0
 backend	Maran.Modules.Identity.Tests.dll	203	0	0
-backend	Maran.Sdk.Tests.dll	190	0	0
+backend	Maran.Modules.Licensing.Tests.dll	39	0	0
+backend	Maran.Sdk.Tests.dll	196	0	0
 backend	Maran.ArchitectureTests.dll	58	0	0
 backend	Maran.Host.Tests.dll	241	0	0
-backend	Maran.Host.IntegrationTests.dll	357	0	0
+backend	Maran.Host.IntegrationTests.dll	366	0	0
 spa	accounts/delete.spec.ts	6	0	0
 spa	accounts/detail.spec.ts	10	0	0
 spa	accounts/form.spec.ts	7	0	0
@@ -272,8 +299,7 @@ spa	firewall/presets.spec.ts	6	0	0
 spa	firewall/ranges.spec.ts	5	0	0
 spa	firewall/whitelist.spec.ts	7	0	0
 spa	golden-path/account-to-ssl.spec.ts	0	0	1
-spa	monitoring/monitoring.spec.ts	6	0	0
-spa	monitoring/russian-locale.spec.ts	4	0	0
+spa	monitoring/monitoring.spec.ts	7	0	0
 spa	shell/account-menu.spec.ts	5	0	0
 spa	shell/command-palette.spec.ts	1	0	0
 spa	shell/health-server-error.spec.ts	1	0	0

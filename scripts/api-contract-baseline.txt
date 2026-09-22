@@ -161,6 +161,7 @@ POST /api/v1/sites/{}/php-version  ->  ChangeSitePhpVersionCommand
   POST /api/v1/sftp-users/{}/password — route-only call, no JSON body
   POST /api/v1/sites/{}/disable — route-only call, no JSON body
   POST /api/v1/sites/{}/enable — route-only call, no JSON body
+  GET /api/v1/account-home-groups
   GET /api/v1/accounts
   GET /api/v1/accounts/plans
   GET /api/v1/accounts/{}
@@ -182,6 +183,7 @@ POST /api/v1/sites/{}/php-version  ->  ChangeSitePhpVersionCommand
   GET /api/v1/ftp-users
   GET /api/v1/ftp-users/{}
   GET /api/v1/ftps-server
+  GET /api/v1/licence-status
   GET /api/v1/monitoring/accounts-disk
   GET /api/v1/monitoring/chart
   GET /api/v1/monitoring/metrics
@@ -199,4 +201,6 @@ POST /api/v1/sites/{}/php-version  ->  ChangeSitePhpVersionCommand
   GET /api/v1/tasks
   GET /api/v1/tasks/{}
   GET /api/v1/tasks/{}/stream
+  POST /api/v1/account-home-groups/repair (binds RepairAccountHomeGroupsCommand, no SPA caller)
   POST /api/v1/backup-destinations (binds SaveBackupDestinationCommand, no SPA caller)
+  POST /api/v1/licence-status/install (binds InstallLicenceCommand, no SPA caller)
