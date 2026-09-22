@@ -8,12 +8,13 @@ Normative engineering rules for this repository. They bind every contributor —
 | [csharp.md](csharp.md) | C# style, doc comments, Result-based errors, slice anatomy |
 | [rust.md](rust.md) | Agent code: lints, errors, validation, unsafe policy |
 | [vue.md](vue.md) | Frontend structure, components, i18n, styling |
+| [nuxt.md](nuxt.md) | Public website: rendering, content, locales, SEO |
 | [proto.md](proto.md) | The API↔agent contract and its evolution |
 | [testing.md](testing.md) | Order of work, Definition of Done, golden tests, CI gates |
 | [security.md](security.md) | The PR security checklist and escalation rules |
 | [git.md](git.md) | Commit gating, identity, branches, PRs |
 
-The complete folder maps — where every kind of file belongs — live inside these rules: backend in csharp.md, agent in rust.md, frontend in vue.md, repository top level in architecture.md. Extend the map before inventing a location.
+The complete folder maps — where every kind of file belongs — live inside these rules: backend in csharp.md, agent in rust.md, frontend in vue.md, the public website in nuxt.md, repository top level in architecture.md. Extend the map before inventing a location.
 
 ## What this repository never names
 

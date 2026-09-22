@@ -43,6 +43,8 @@ usage: maran <command> [arguments]
   module     scaffold a new backend module                            (new-module.sh)
   handshake  agent and API over a real unix socket                    (e2e-handshake.sh)
   licenses   third-party notices; --check verifies without writing    (licenses.sh)
+  release    release bundle: build|sign|verify|package|selftest      (release-bundle.sh)
+  website    the public site, when checked out beside this one        (website.sh)
 
 Put the toolchains on your PATH first — this must be sourced, not run:
 
@@ -72,6 +74,8 @@ case "$command_name" in
   module)    exec bash "$root/scripts/lib/new-module.sh" "$@" ;;
   handshake) exec bash "$root/scripts/lib/e2e-handshake.sh" "$@" ;;
   licenses)  exec bash "$root/scripts/lib/licenses.sh" "$@" ;;
+  release)   exec bash "$root/scripts/lib/release-bundle.sh" "$@" ;;
+  website)   exec bash "$root/scripts/lib/website.sh" "$@" ;;
   -h|--help|help) usage ;;
   *)
     echo "unknown command: $command_name" >&2

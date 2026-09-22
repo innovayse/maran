@@ -50,6 +50,6 @@ trim_trailing_whitespace = false
 indent_style = tab
 
 # Generated or vendored content is not ours to format.
-[{**/bin/**,**/obj/**,**/target/**,**/node_modules/**,**/dist/**}]
+[{**/bin/**,**/obj/**,**/target/**,**/node_modules/**,**/dist/**,**/.nuxt/**,**/.output/**}]
 insert_final_newline = false
 trim_trailing_whitespace = false
