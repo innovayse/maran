@@ -45,7 +45,7 @@ jobs:
       # Pinned to the commit v4.2.2 resolves to: a tag is mutable, and an action
       # that checks out this repository runs before any gate could notice it had
       # changed.
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       # rustfmt and clippy are requested explicitly: the toolchain the runner ships with
       # does not always carry them, and a missing component would skip the two gates below
@@ -153,7 +153,7 @@ jobs:
       # failure is somewhere else entirely.
       - name: Keep the verdict log
         if: ${{ !cancelled() && steps.verdict.conclusion != 'skipped' }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: agent-test-verdict
           path: ${{ runner.temp }}/verdict/rust.log
@@ -191,7 +191,7 @@ jobs:
       # Pinned to the commit v4.2.2 resolves to: a tag is mutable, and an action
       # that checks out this repository runs before any gate could notice it had
       # changed.
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       # The image carries its family's nginx, php-fpm and a Rust toolchain: a
       # test binary built on the runner links against the runner's glibc and
