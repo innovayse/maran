@@ -24,7 +24,7 @@ jobs:
   ci:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # Node 24, and deliberately NOT pinned to an exact patch the way `backend.yml` pins the .NET
       # SDK. The reason the SDK is pinned there is that the committed baseline is a count taken on
@@ -33,7 +33,7 @@ jobs:
       # `frontend/package-lock.json` and installed by `npm ci` below — the runtime's patch level does
       # not decide which spec files `testMatch` finds. The versions actually used are printed by the
       # step below, so the log records them either way.
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: '24'
           cache: 'npm'
@@ -211,7 +211,7 @@ jobs:
       # else entirely.
       - name: Keep the verdict log
         if: ${{ !cancelled() && steps.verdict.conclusion != 'skipped' }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: frontend-test-verdict
           path: ${{ runner.temp }}/verdict/spa.log

@@ -18,7 +18,7 @@ jobs:
   ci:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           # Full history, because `maran migrate guard` compares this branch against its merge
           # point with the default branch. At the default depth of 1 there is no merge base, the
@@ -68,7 +68,7 @@ jobs:
       # a different compiler is a different suite, and a total that moved would be attributed to
       # the branch rather than to the toolchain. There is no `global.json` in this tree to pin it
       # from, so the pin lives here and the step below proves it took.
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: '9.0.317'
 
@@ -314,7 +314,7 @@ jobs:
       # failure is somewhere else entirely.
       - name: Keep the verdict log
         if: ${{ !cancelled() && steps.verdict.conclusion != 'skipped' }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: backend-test-verdict
           path: ${{ runner.temp }}/verdict/backend.log
