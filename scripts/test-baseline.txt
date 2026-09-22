@@ -220,7 +220,7 @@ rust	databases_on_a_real_host [tests/databases_on_a_real_host.rs]	0	0	8
 rust	firewall_on_a_real_host [tests/firewall_on_a_real_host.rs]	0	0	10
 rust	ftps_on_a_real_host [tests/ftps_on_a_real_host.rs]	0	0	15
 rust	handshake [tests/handshake.rs]	6	0	0
-rust	monitor_on_a_real_host [tests/monitor_on_a_real_host.rs]	0	0	7
+rust	monitor_on_a_real_host [tests/monitor_on_a_real_host.rs]	0	0	8
 rust	php_pools_on_a_real_host [tests/php_pools_on_a_real_host.rs]	0	0	3
 rust	privileges_on_a_real_host [tests/privileges_on_a_real_host.rs]	0	0	15
 rust	restore_recovery_on_a_real_host [tests/restore_recovery_on_a_real_host.rs]	0	0	4
