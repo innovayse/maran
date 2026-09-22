@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="LicenceInstallTextRequired" xml:space="preserve">
+    <value>Текст лицензии не был отправлен. Вставьте или загрузите содержимое файла лицензии.</value>
+  </data>
+  <data name="LicenceInstallMalformed" xml:space="preserve">
+    <value>Отправленный файл лицензии имеет формат, который панель не может прочитать — возможно, он был скопирован не полностью, изменён, либо это вообще не файл лицензии. Ничего не было установлено, предыдущая лицензия (если она была) не изменена. Загрузите свежую копию лицензии и попробуйте снова, не редактируя файл.</value>
+  </data>
+  <data name="LicenceInstallSignatureInvalid" xml:space="preserve">
+    <value>Подпись отправленного файла лицензии не соответствует его содержимому — это означает, что файл был изменён после выпуска, либо он не подлинный. Ничего не было установлено, предыдущая лицензия (если она была) не изменена. Получите свежую копию лицензии вместо ручного редактирования этой и отправьте её.</value>
+  </data>
+  <data name="LicenceInstallExpired" xml:space="preserve">
+    <value>Срок действия отправленной лицензии уже истёк. Ничего не было установлено, предыдущая лицензия (если она была) не изменена. Продлите лицензию и отправьте обновлённый файл.</value>
+  </data>
+  <data name="LicenceInstallProductMismatch" xml:space="preserve">
+    <value>Отправленный файл лицензии выпущен для другого продукта и не может быть использован здесь. Ничего не было установлено, предыдущая лицензия (если она была) не изменена. Отправьте файл лицензии, выпущенный именно для этой панели.</value>
+  </data>
+  <data name="LicenceInstallFingerprintMismatch" xml:space="preserve">
+    <value>Отправленная лицензия была выпущена для другого сервера. Ничего не было установлено, предыдущая лицензия (если она была) не изменена. Используйте самостоятельный перенос лицензии на этот сервер либо обратитесь в поддержку, если считаете это ошибкой.</value>
+  </data>
+</root>

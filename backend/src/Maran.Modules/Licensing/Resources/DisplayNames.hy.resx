@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="LicensingModuleDisplayName">
+    <value>Լիցենզավորում</value>
+  </data>
+  <!-- TODO(owner): Armenian below is machine-assisted, not reviewed by a native speaker — every
+       entry needs a naturalness pass, more than the Russian text does. -->
+  <data name="LicenceStatusAbsent" xml:space="preserve">
+    <value>Լիցենզիա տեղադրված չէ։ Վահանակի կազմի մեջ մտնող բոլոր մոդուլները աշխատում են սովորականի պես․ լիցենզիայի տեղադրումը բացում է ձեր պլանի լրացուցիչ մոդուլները։</value>
+  </data>
+  <data name="LicenceStatusValid" xml:space="preserve">
+    <value>Լիցենզիա տեղադրված է և հաստատված։</value>
+  </data>
+  <data name="LicenceInstalledSentence" xml:space="preserve">
+    <value>Լիցենզիան տեղադրվել և հաստատվել է՝ նրա ստորագրությունը, ապրանքը և գործողության ժամկետը ստուգված են։ Սա լիցենզիան կապում չի այս կոնկրետ սերվերին. այս կառուցվածքում հնարավոր չէ ստուգել, թե որ սերվերի համար է նախատեսված լիցենզիան, ուստի նույն ֆայլը կհաստատվի նաև այս վահանակի ցանկացած այլ տեղադրման վրա՝ նույն հանրային բանալիով։</value>
+  </data>
+  <!-- TODO(owner): review naturalness — short state labels for LicenceStatusDto.State. -->
+  <data name="LicenceStateValid" xml:space="preserve">
+    <value>Լիցենզիա տեղադրված է</value>
+  </data>
+  <data name="LicenceStateAbsent" xml:space="preserve">
+    <value>Լիցենզիա տեղադրված չէ</value>
+  </data>
+  <data name="LicenceStateRefused" xml:space="preserve">
+    <value>Լիցենզիան չընդունվեց</value>
+  </data>
+  <data name="LicenceRefusalMalformed">
+    <value>Լիցենզիայի ֆայլը չի կարդացվում</value>
+  </data>
+  <data name="LicenceAdviceMalformed" xml:space="preserve">
+    <value>Տեղադրված լիցենզիայի ֆայլը այնպիսի ձևով է, որը վահանակը չի կարող կարդալ․ գուցե այն կրկնօրինակվել է թերի, փոփոխվել է, կամ ընդհանրապես լիցենզիայի ֆայլ չէ։ Վահանակի կազմի մեջ մտնող մոդուլներից ոչ մեկը չի ազդում։ Ներբեռնեք լիցենզիայի նոր պատճենը և տեղադրեք առանց ձեռքով խմբագրելու։</value>
+  </data>
+  <data name="LicenceRefusalSignatureInvalid">
+    <value>Լիցենզիայի ստորագրությունը չի համընկնում</value>
+  </data>
+  <data name="LicenceAdviceSignatureInvalid" xml:space="preserve">
+    <value>Տեղադրված լիցենզիայի ֆայլի ստորագրությունը չի համընկնում դրա բովանդակության հետ, ինչը նշանակում է, որ ֆայլը փոփոխվել է թողարկումից հետո կամ իսկական չէ։ Վահանակի կազմի մեջ մտնող մոդուլներից ոչ մեկը չի ազդում։ Ձեռքով խմբագրելու փոխարեն ստացեք լիցենզիայի նոր պատճենը և տեղադրեք այն։</value>
+  </data>
+  <data name="LicenceRefusalExpired">
+    <value>Լիցենզիայի ժամկետը լրացել է</value>
+  </data>
+  <data name="LicenceAdviceExpired" xml:space="preserve">
+    <value>Տեղադրված լիցենզիայի գործողության ժամկետը լրացել է։ Վահանակի կազմի մեջ մտնող մոդուլներից ոչ մեկը չի ազդում։ Երկարացրեք լիցենզիան՝ շարունակելու համար օգտվել դրանով ընդգրկված լրացուցիչ մոդուլներից։</value>
+  </data>
+  <data name="LicenceRefusalProductMismatch">
+    <value>Լիցենզիան թողարկված է այլ արտադրանքի համար</value>
+  </data>
+  <data name="LicenceAdviceProductMismatch" xml:space="preserve">
+    <value>Տեղադրված լիցենզիայի ֆայլը թողարկված է այլ արտադրանքի համար և չի կարող օգտագործվել այստեղ։ Վահանակի կազմի մեջ մտնող մոդուլներից ոչ մեկը չի ազդում։ Փոխարենը տեղադրեք հենց այս վահանակի համար թողարկված լիցենզիայի ֆայլը։</value>
+  </data>
+  <data name="LicenceRefusalFingerprintMismatch">
+    <value>Լիցենզիան թողարկված է այլ սերվերի համար</value>
+  </data>
+  <!-- TODO(owner): unreachable in this build (see English resx comment); wording provisional. -->
+  <data name="LicenceAdviceFingerprintMismatch" xml:space="preserve">
+    <value>Տեղադրված լիցենզիան թողարկված է այլ սերվերի համար։ Վահանակի կազմի մեջ մտնող մոդուլներից ոչ մեկը չի ազդում։ Օգտագործեք լիցենզիայի ինքնասպասարկման փոխանցումը այս սերվերին տեղափոխելու համար, կամ դիմեք աջակցությանը, եթե սա սխալ եք համարում։</value>
+  </data>
+</root>

@@ -8,6 +8,19 @@
   </PropertyGroup>
   <ItemGroup>
     <PackageVersion Include="Npgsql" Version="9.0.5" />
+    <!-- Ed25519 signature verification for licence artefacts (rules/security.md item 9: no
+         home-grown crypto). The BCL's System.Security.Cryptography has no Ed25519 support as of
+         .NET 9 — verified directly, not assumed: reflecting over the RSA type's own assembly finds
+         no Ed25519/Ed448/SlhDsa/MLDsa member. BouncyCastle is already a transitive dependency at
+         this exact version (pulled in by MailKit, per Maran.Modules.Notifications' resolved
+         deps.json) and is pinned here explicitly rather than left implicit. -->
+    <PackageVersion Include="BouncyCastle.Cryptography" Version="2.7.0" />
+    <!-- 2.7.0 and not 2.6.2, which is what MailKit alone would need: Testcontainers pulls
+         SSH.NET, which requires >= 2.7.0, so pinning lower is a DOWNGRADE that NU1109 refuses
+         and the whole solution stops building. The conflict was invisible while the Licensing
+         project sat outside Maran.sln — it compiled alone and broke the moment it joined,
+         which is the argument for putting a new project into the solution early rather than
+         once it looks finished. -->
     <PackageVersion Include="Microsoft.CodeAnalysis.BannedApiAnalyzers" Version="5.6.0" />
     <PackageVersion Include="Microsoft.AspNetCore.Mvc.Testing" Version="9.0.19" />
     <PackageVersion Include="xunit" Version="2.9.3" />

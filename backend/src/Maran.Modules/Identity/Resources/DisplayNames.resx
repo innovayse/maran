@@ -198,6 +198,9 @@
   <data name="AuditActionAlertResolved">
     <value>Alert resolved</value>
   </data>
+  <data name="AuditActionCodeIntegrityReportRejected">
+    <value>Code-integrity report rejected (malformed)</value>
+  </data>
   <data name="AuditActionPasswordResetRequested">
     <value>Password reset requested</value>
   </data>
@@ -221,5 +224,11 @@
   </data>
   <data name="AuditActionBackupDestinationSaved">
     <value>Backup destination requested</value>
+  </data>
+  <data name="AuditActionLicenceStatusRead">
+    <value>Licence status read</value>
+  </data>
+  <data name="AuditActionLicenceInstalled">
+    <value>Licence installed</value>
   </data>
 </root>

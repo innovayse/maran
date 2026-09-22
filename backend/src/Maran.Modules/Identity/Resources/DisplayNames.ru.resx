@@ -198,6 +198,10 @@
   <data name="AuditActionAlertResolved">
     <value>Оповещение снято</value>
   </data>
+  <!-- TODO(owner): review naturalness. "отклонён как некорректный" for "rejected (malformed)". -->
+  <data name="AuditActionCodeIntegrityReportRejected">
+    <value>Отчёт о целостности кода отклонён как некорректный</value>
+  </data>
   <data name="AuditActionPasswordResetRequested">
     <value>Запрошен сброс пароля</value>
   </data>
@@ -221,5 +225,11 @@
   </data>
   <data name="AuditActionBackupDestinationSaved">
     <value>Запрошено хранилище резервных копий</value>
+  </data>
+  <data name="AuditActionLicenceStatusRead">
+    <value>Прочитан статус лицензии</value>
+  </data>
+  <data name="AuditActionLicenceInstalled">
+    <value>Установлена лицензия</value>
   </data>
 </root>

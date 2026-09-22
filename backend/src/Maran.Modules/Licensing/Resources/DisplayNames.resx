@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="LicensingModuleDisplayName">
+    <value>Licensing</value>
+  </data>
+  <!-- Absent is the ordinary first-run state, not a fault: it must read as neutral information,
+       never as an error or an accusation (BSL permits modifying this code; nothing here may imply
+       that doing so is wrongdoing). -->
+  <data name="LicenceStatusAbsent" xml:space="preserve">
+    <value>No licence is installed. Every module included with the panel works as usual; installing a licence unlocks any add-on modules your plan includes.</value>
+  </data>
+  <data name="LicenceStatusValid" xml:space="preserve">
+    <value>A licence is installed and verified.</value>
+  </data>
+  <!-- Distinct from LicenceStatusValid on purpose: an operator who has JUST installed a licence
+       through the install endpoint needs to be told, in the same response, that doing so did not
+       bind it to this specific server (nothing here can check a server fingerprint yet). Silence on
+       this point would let the success response imply a guarantee the panel does not hold. -->
+  <data name="LicenceInstalledSentence" xml:space="preserve">
+    <value>The licence was installed and verified — its signature, product and expiry all checked out. This does not bind the licence to this specific server: nothing in this build can verify which server a licence is meant for, so the same file would also verify here on any other installation of this panel using the same public key.</value>
+  </data>
+  <!-- Short state labels: the wire-facing "name" for LicenceStatusDto.State, distinct from the
+       longer sentence above — a status chip needs a few words, not a paragraph. Absent stays
+       neutral for the same reason the sentence does. -->
+  <data name="LicenceStateValid" xml:space="preserve">
+    <value>Licence installed</value>
+  </data>
+  <data name="LicenceStateAbsent" xml:space="preserve">
+    <value>No licence installed</value>
+  </data>
+  <data name="LicenceStateRefused" xml:space="preserve">
+    <value>Licence not accepted</value>
+  </data>
+  <data name="LicenceRefusalMalformed">
+    <value>Licence file unreadable</value>
+  </data>
+  <data name="LicenceAdviceMalformed" xml:space="preserve">
+    <value>The installed licence file is not in a shape this panel can read — it may have been copied incompletely, edited, or is not a licence file at all. No modules included with the panel are affected. Download a fresh copy of your licence and install it again without editing it.</value>
+  </data>
+  <data name="LicenceRefusalSignatureInvalid">
+    <value>Licence signature does not match</value>
+  </data>
+  <!-- TODO(owner): review naturalness — "signature" is used in the cryptographic sense throughout
+       this module; confirm it reads clearly to an operator who is not a developer. -->
+  <data name="LicenceAdviceSignatureInvalid" xml:space="preserve">
+    <value>The installed licence file's signature does not match its contents, which means the file was changed after it was issued, or is not genuine. No modules included with the panel are affected. Get a fresh copy of your licence rather than editing this one by hand, and install that instead.</value>
+  </data>
+  <data name="LicenceRefusalExpired">
+    <value>Licence has expired</value>
+  </data>
+  <data name="LicenceAdviceExpired" xml:space="preserve">
+    <value>The installed licence's validity period has ended. No modules included with the panel are affected. Renew the licence to keep using the add-on modules it covers.</value>
+  </data>
+  <data name="LicenceRefusalProductMismatch">
+    <value>Licence issued for a different product</value>
+  </data>
+  <data name="LicenceAdviceProductMismatch" xml:space="preserve">
+    <value>The installed licence file was issued for a different product and cannot be used here. No modules included with the panel are affected. Install the licence file issued for this panel instead.</value>
+  </data>
+  <data name="LicenceRefusalFingerprintMismatch">
+    <value>Licence issued for a different server</value>
+  </data>
+  <!-- TODO(owner): this reason is currently unreachable in this build — nothing here can compute a
+       server fingerprint yet (see the module's own remarks) — so this wording is provisional and
+       has not been exercised against a real refusal. Review once the fingerprint check exists. -->
+  <data name="LicenceAdviceFingerprintMismatch" xml:space="preserve">
+    <value>The installed licence was issued for a different server than this one. No modules included with the panel are affected. Use your licence's self-service transfer to move it to this server, or contact support if you believe this is wrong.</value>
+  </data>
+</root>

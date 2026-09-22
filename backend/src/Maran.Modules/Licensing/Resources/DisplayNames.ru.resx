@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="LicensingModuleDisplayName">
+    <value>Лицензирование</value>
+  </data>
+  <!-- TODO(owner): review naturalness of every entry below — Russian phrasing chosen to avoid an
+       accusatory tone for Absent/refusal states, not reviewed by a native speaker for this module. -->
+  <data name="LicenceStatusAbsent" xml:space="preserve">
+    <value>Лицензия не установлена. Все модули, входящие в панель, работают как обычно; установка лицензии открывает дополнительные модули вашего плана.</value>
+  </data>
+  <data name="LicenceStatusValid" xml:space="preserve">
+    <value>Лицензия установлена и подтверждена.</value>
+  </data>
+  <data name="LicenceInstalledSentence" xml:space="preserve">
+    <value>Лицензия установлена и подтверждена — её подпись, продукт и срок действия проверены. Это не привязывает лицензию именно к этому серверу: в этой сборке нет возможности проверить, для какого сервера предназначена лицензия, поэтому тот же файл будет успешно подтверждён и на любой другой установке этой панели с тем же публичным ключом.</value>
+  </data>
+  <!-- TODO(owner): review naturalness — short state labels for LicenceStatusDto.State. -->
+  <data name="LicenceStateValid" xml:space="preserve">
+    <value>Лицензия установлена</value>
+  </data>
+  <data name="LicenceStateAbsent" xml:space="preserve">
+    <value>Лицензия не установлена</value>
+  </data>
+  <data name="LicenceStateRefused" xml:space="preserve">
+    <value>Лицензия не принята</value>
+  </data>
+  <data name="LicenceRefusalMalformed">
+    <value>Файл лицензии не читается</value>
+  </data>
+  <data name="LicenceAdviceMalformed" xml:space="preserve">
+    <value>Установленный файл лицензии имеет формат, который панель не может прочитать — возможно, он скопирован не полностью, изменён или не является файлом лицензии. Ни один из модулей, входящих в панель, не затронут. Загрузите файл лицензии заново и установите его без ручного редактирования.</value>
+  </data>
+  <data name="LicenceRefusalSignatureInvalid">
+    <value>Подпись лицензии не совпадает</value>
+  </data>
+  <data name="LicenceAdviceSignatureInvalid" xml:space="preserve">
+    <value>Подпись установленного файла лицензии не совпадает с его содержимым — это означает, что файл был изменён после выпуска или не является подлинным. Ни один из модулей, входящих в панель, не затронут. Получите новую копию лицензии вместо ручного редактирования этой и установите её.</value>
+  </data>
+  <data name="LicenceRefusalExpired">
+    <value>Срок действия лицензии истёк</value>
+  </data>
+  <data name="LicenceAdviceExpired" xml:space="preserve">
+    <value>Срок действия установленной лицензии закончился. Ни один из модулей, входящих в панель, не затронут. Продлите лицензию, чтобы продолжить пользоваться охватываемыми ею дополнительными модулями.</value>
+  </data>
+  <data name="LicenceRefusalProductMismatch">
+    <value>Лицензия выпущена для другого продукта</value>
+  </data>
+  <data name="LicenceAdviceProductMismatch" xml:space="preserve">
+    <value>Установленный файл лицензии выпущен для другого продукта и не может быть использован здесь. Ни один из модулей, входящих в панель, не затронут. Установите файл лицензии, выпущенный именно для этой панели.</value>
+  </data>
+  <data name="LicenceRefusalFingerprintMismatch">
+    <value>Лицензия выпущена для другого сервера</value>
+  </data>
+  <!-- TODO(owner): unreachable in this build (see English resx comment); wording provisional. -->
+  <data name="LicenceAdviceFingerprintMismatch" xml:space="preserve">
+    <value>Установленная лицензия выпущена для другого сервера. Ни один из модулей, входящих в панель, не затронут. Воспользуйтесь функцией переноса лицензии в личном кабинете, либо обратитесь в поддержку, если считаете это ошибкой.</value>
+  </data>
+</root>
