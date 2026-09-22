@@ -1105,6 +1105,30 @@ install_panel_logrotate_policy() {
   install -D -o root -g root -m 0644 "$source" "$MARAN_PANEL_LOGROTATE_DEST"
 }
 
+# install_agent_config_include: creates the agent's own configuration directories and
+# points nginx at the vhost one. Idempotent — `install -d` on an existing directory
+# succeeds, and the include is one whole file that is rewritten rather than a line
+# appended to somebody else's, so a re-run cannot produce a duplicate include.
+#
+# Public on purpose: the polygon images call THIS function to obtain the precondition
+# their site tests need, instead of performing the same edit themselves. An image that
+# manufactures the precondition it then asserts is how the missing include survived the
+# whole suite once already (rules/testing.md — a test proving the wrong proposition).
+install_agent_config_include() {
+  install -d -o root -g root -m 0755 "$MARAN_NGINX_SITES_DIR"
+  install -d -o root -g root -m 0755 "$MARAN_CERTIFICATES_DIR"
+
+  local tmp
+  tmp="$(mktemp)"
+  cat > "$tmp" <<EOF
+# Maran: nginx serves the vhosts the agent renders, and only those. Written by
+# installer/lib/80-nginx.sh; the directory belongs to the agent (spec §9).
+include ${MARAN_NGINX_SITES_DIR}/*.conf;
+EOF
+  install -m 0644 "$tmp" "$MARAN_NGINX_INCLUDE_CONF"
+  rm -f "$tmp"
+}
+
 step_nginx() {
   echo "Installing nginx vhost on port ${MARAN_PANEL_PORT}..."
   # First, so that the validation below parses a tree that already includes the agent's
