@@ -1256,66 +1256,6 @@ impl<H: SystemHost> AccountOperations<H> {
         // account owns its own home; only the group changed.
         self.expect_success(self.distro.chmod_binary(), &["0750", home])
     }
-
-    /// Makes the account's home traversable by the web server, and by nothing else.
-    ///
-    /// `useradd --create-home` leaves the home `0750 <account>:<account>`, and the web
-    /// server's user is in no group that can enter it. That is not a theoretical
-    /// problem: a real nginx serving a site under such a home logs
-    /// `stat() "/home/<account>/sites/<domain>/" failed (13: Permission denied)` and
-    /// refuses every request, static site and PHP site alike. Every document root this
-    /// agent creates is inside a home, so with the mode as `useradd` leaves it, no site
-    /// this panel creates can be served at all.
-    ///
-    /// The fix is a GROUP and not a traversal bit, and that difference is the whole
-    /// security decision here:
-    ///
-    /// - `chmod o+x /home/<account>` also works, and is what the reproduction used. It
-    ///   opens the home to EVERY local user on the machine — every other customer's PHP
-    ///   worker, every FTP session, every cron job — because "other" is not a principal,
-    ///   it is everyone who is neither the owner nor the group. On a shared hosting
-    ///   server that is exactly the set of people who must not be able to walk into each
-    ///   other's homes.
-    /// - Group-owning the home by the web server's group and keeping it `0750` grants
-    ///   the traversal to one principal, the one that has to have it. "Other" still gets
-    ///   nothing.
-    ///
-    /// What that group can then reach is bounded by the modes INSIDE the home, which are
-    /// the account's own: `r-x` on the home lets the server walk through it, and every
-    /// file below still answers according to its own bits. A customer who makes a file
-    /// unreadable still has an unreadable file.
-    ///
-    /// It runs on creation and nowhere else. Re-applying it to an existing account would
-    /// be the agent re-owning a directory it did not create, which is the one mistake
-    /// [`AccountOperations::create`] refuses to make for a pre-existing user.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`AccountError::CommandFailed`] when `chgrp` or `chmod` refuses — most
-    /// plausibly because the web server's group does not exist, i.e. because no web
-    /// server is installed. That is a failure and not something to shrug at: an account
-    /// whose home the web server cannot enter is an account whose sites cannot be
-    /// served, and reporting the creation as a success would hide it until a customer
-    /// noticed.
-    fn open_home_to_the_web_server(&self, home: &str) -> Result<(), AccountError> {
-        // `--no-dereference`, so a symlink standing where the home should be is
-        // re-grouped as the link rather than followed to whatever it points at. Nothing
-        // should be able to plant one — `useradd` created this directory a line ago and
-        // the account has no shell — but the flag costs nothing, and the alternative is a
-        // root process following a link it did not verify.
-        self.expect_success(
-            "chgrp",
-            &["--no-dereference", self.distro.web_server_group(), home],
-        )?;
-
-        // Restated rather than assumed. `useradd` honours `HOME_MODE`/`UMASK` from
-        // /etc/login.defs, so the mode a home is born with is a host setting an operator
-        // can change; a home left world-readable by such a setting would undo the whole
-        // point of the group above, and this is the line that says what the panel
-        // requires. Ownership of the home itself is `useradd`'s and is untouched — the
-        // account owns its own home; only the group changed.
-        self.expect_success("chmod", &["0750", home])
-    }
 }
 
 #[cfg(test)]
