@@ -7,7 +7,7 @@
     <CentralPackageTransitivePinningEnabled>true</CentralPackageTransitivePinningEnabled>
   </PropertyGroup>
   <ItemGroup>
-    <PackageVersion Include="Npgsql" Version="10.0.3" />
+    <PackageVersion Include="Npgsql" Version="9.0.5" />
     <!-- Ed25519 signature verification for licence artefacts (rules/security.md item 9: no
          home-grown crypto). The BCL's System.Security.Cryptography has no Ed25519 support as of
          .NET 9 — verified directly, not assumed: reflecting over the RSA type's own assembly finds
@@ -55,11 +55,11 @@
     <PackageVersion Include="WolverineFx.FluentValidation" Version="6.39.1" />
     <PackageVersion Include="NetArchTest.Rules" Version="1.3.2" />
     <PackageVersion Include="Testcontainers.PostgreSql" Version="4.15.0" />
-    <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.12" />
-    <PackageVersion Include="Microsoft.Extensions.Options.DataAnnotations" Version="10.0.12" />
+    <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="9.0.20" />
+    <PackageVersion Include="Microsoft.Extensions.Options.DataAnnotations" Version="9.0.20" />
     <PackageVersion Include="Microsoft.Extensions.Http.Resilience" Version="10.10.0" />
     <PackageVersion Include="Microsoft.Extensions.Resilience" Version="10.10.0" />
-    <PackageVersion Include="Serilog.AspNetCore" Version="10.0.0" />
+    <PackageVersion Include="Serilog.AspNetCore" Version="9.0.0" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="9.0.20" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="9.0.19" />
     <PackageVersion Include="FluentValidation" Version="12.1.1" />
