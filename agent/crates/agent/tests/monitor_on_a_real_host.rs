@@ -523,7 +523,7 @@ fn removing_the_block_by_hand_is_noticed_and_restoring_it_clears_the_finding() {
 fn the_fingerprint_inputs_are_read_from_this_hosts_own_files() {
     PolygonAccount::require_polygon();
 
-    let host = ProcessMonitorHost::default();
+    let host = ProcessMonitorHost;
     let inputs = get_server_fingerprint_inputs(&host, polygon_distro())
         .expect("this host's machine-id and routing table are readable");
 
@@ -534,12 +534,15 @@ fn the_fingerprint_inputs_are_read_from_this_hosts_own_files() {
             // than passing as "something was read".
             assert_eq!(id.len(), 32, "machine-id is 32 hex digits, read `{id}`");
             assert!(
-                id.chars().all(|c| c.is_ascii_hexdigit() && !c.is_ascii_uppercase()),
+                id.chars()
+                    .all(|c| c.is_ascii_hexdigit() && !c.is_ascii_uppercase()),
                 "machine-id is lowercase hex, read `{id}`"
             );
         }
         MachineIdentity::NotAvailable => {
-            panic!("a polygon image has a machine-id, so absence means the read went to the wrong path")
+            panic!(
+                "a polygon image has a machine-id, so absence means the read went to the wrong path"
+            )
         }
         // The type is #[non_exhaustive] so a third state can be added without breaking callers;
         // this arm fails rather than passing over one, because a state nobody asserted on is a

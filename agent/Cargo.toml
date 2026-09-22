@@ -22,10 +22,10 @@ license = "BUSL-1.1"
 [workspace.dependencies]
 # The templates crate's render types derive `askama::Template`; the version is
 # pinned here like every other workspace dependency.
-askama = "0.16"
+askama = "0.12"
 # Held on the 0.13 line to match tonic: tonic 0.13.1 requires prost ^0.13, and
 # the 0.14 line moved prost codec support out of tonic into a separate crate.
-prost = "0.14.4"
+prost = "0.13.5"
 # Safe wrappers over the syscalls that have no answer in `std`. Two callers, both
 # of which must reach a syscall without writing `unsafe` of their own — `unsafe`
 # in this workspace lives in agent-core::privs and nowhere else (rules/rust.md
@@ -90,8 +90,8 @@ tokio-stream = { version = "0.1.19", features = ["net"] }
 # separate tonic-prost / tonic-prost-build crates, so moving requires new
 # dependencies and a rewritten build.rs — a change that must not land without a
 # real compile behind it.
-tonic = "0.14.6"
-tonic-build = "0.14.6"
+tonic = "0.13.1"
+tonic-build = "0.13.1"
 # Test-only: service_fn turns a closure into the connector tonic's Endpoint needs
 # in order to dial something other than TCP. Same 0.5 line tonic depends on.
 tower = { version = "0.5.3", features = ["util"] }
