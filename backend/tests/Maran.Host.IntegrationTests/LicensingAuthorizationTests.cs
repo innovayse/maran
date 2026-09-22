@@ -244,6 +244,18 @@ public sealed class LicensingAuthorizationTests : IAsyncLifetime
             {
                 builder.UseSetting(setting.Key, setting.Value);
             }
+
+            // "No licence is installed" is a fact this test CREATES, not one it inherits. Without
+            // this line the path came from the ambient configuration — a developer's own .env — and
+            // these tests read whatever licence happened to be sitting there. That is exactly how
+            // they broke: a licence installed while driving the running panel by hand, bound to the
+            // machine-id of the agent container, turned an expected Absent into
+            // Refused(FingerprintMismatch) on a machine where nothing about the code had changed.
+            // A path inside a fresh temp directory cannot exist, so the absence is guaranteed rather
+            // than assumed.
+            builder.UseSetting(
+                "Licensing:LicenceFilePath",
+                Path.Combine(Path.GetTempPath(), $"maran-licensing-tests-{Guid.NewGuid():N}", "licence.json"));
         });
     }
 

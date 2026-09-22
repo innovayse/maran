@@ -26,10 +26,11 @@
   </data>
   <!-- Distinct from LicenceStatusValid on purpose: an operator who has JUST installed a licence
        through the install endpoint needs to be told, in the same response, that doing so did not
-       bind it to this specific server (nothing here can check a server fingerprint yet). Silence on
-       this point would let the success response imply a guarantee the panel does not hold. -->
+       bind it to this specific server UNLESS the licence itself names one — binding exists now, and
+       it is the licence's own `server` claim that decides. Silence on this point would let the
+       success response imply either more or less of a guarantee than the panel actually holds. -->
   <data name="LicenceInstalledSentence" xml:space="preserve">
-    <value>The licence was installed and verified — its signature, product and expiry all checked out. This does not bind the licence to this specific server: nothing in this build can verify which server a licence is meant for, so the same file would also verify here on any other installation of this panel using the same public key.</value>
+    <value>The licence was installed and verified — its signature, product and expiry all checked out. Whether it is tied to this server is decided by the licence itself: one issued for a named server verifies only here, and one that names no server verifies on any installation of this panel using the same public key. Your licence document says which kind you hold.</value>
   </data>
   <!-- Short state labels: the wire-facing "name" for LicenceStatusDto.State, distinct from the
        longer sentence above — a status chip needs a few words, not a paragraph. Absent stays

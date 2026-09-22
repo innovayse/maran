@@ -110,9 +110,12 @@ public sealed class InstallLicenceCommandHandlerTests : IDisposable
         Assert.Equal("lic-first", result.Value.LicenceId);
         Assert.Equal(envelope, await File.ReadAllTextAsync(LicenceFilePath));
 
-        // Threat note §6: the success sentence states outright that this did not bind the licence
-        // to this server.
-        Assert.Contains("does not bind", result.Value.Sentence, StringComparison.OrdinalIgnoreCase);
+        // The success sentence says what decides whether the licence is tied to this server, rather
+        // than asserting it is not. Binding exists now — the old wording ("does not bind ... the same
+        // file would also verify on any other installation") became false the day the `server` claim
+        // was honoured, and it was false in the direction that favours a copied licence. This licence
+        // names no server, so what the operator must be told is the CONDITION, not a verdict.
+        Assert.Contains("named server", result.Value.Sentence, StringComparison.OrdinalIgnoreCase);
 
         var success = Assert.Single(journal.Entries);
         Assert.True(success.Succeeded);
@@ -182,6 +185,38 @@ public sealed class InstallLicenceCommandHandlerTests : IDisposable
         {
             return entry.Succeeded;
         });
+    }
+
+    /// <summary>
+    /// A licence that verified and then could not be written leaves a FAILURE entry naming the stage.
+    /// </summary>
+    /// <remarks>
+    /// Found by driving the running panel, not by reading the code: a dev API cannot write
+    /// /var/lib/maran, so a good licence produced a 500 and the audit trail showed nothing at all
+    /// between the status read and the operator's confusion. Verification had already succeeded, so
+    /// this is the one case the journal must never lose — somebody presented a valid licence and the
+    /// panel failed to keep it.
+    ///
+    /// Note what the sibling test above could NOT see: it asserts only that no SUCCESS entry exists,
+    /// which was true both before and after the fix. A check that cannot observe the defect it would
+    /// be cited for is not a guard, and this one is written as the pair it needed.
+    /// </remarks>
+    [Fact]
+    public async Task A_licence_that_verified_but_could_not_be_written_is_journalled_as_a_failure()
+    {
+        var (installFails, journal) = BuildHandler(new ThrowingLicenceWriter());
+        var licence = LicenceEnvelopeBuilder.Build(TestKeys.RealPrivateKeyHex, id: "lic-unpersisted");
+
+        await Assert.ThrowsAsync<IOException>(() =>
+        {
+            return installFails.HandleAsync(CommandFor(licence), CancellationToken.None);
+        });
+
+        var entry = Assert.Single(journal.Entries);
+        Assert.False(entry.Succeeded);
+        // The subject names the stage rather than the exception: a filesystem path or an exception
+        // message in an audit subject would put host detail into a journal shown in a browser.
+        Assert.Equal("action=Install;status=Valid;persisted=false", entry.Subject);
     }
 
     /// <inheritdoc />

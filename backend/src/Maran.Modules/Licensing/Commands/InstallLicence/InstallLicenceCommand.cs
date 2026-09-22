@@ -14,9 +14,12 @@ namespace Maran.Modules.Licensing.Commands.InstallLicence;
 /// itself, the same bytes <c>Services.LicenceVerifier.VerifyAsync</c> already expects.
 /// </para>
 /// <para>
-/// <b>Installing a licence does not bind it to this server</b> — see
-/// <see cref="Commands.InstallLicence.InstallLicenceCommandHandler"/>'s own remarks and the threat
-/// note's §6 for why: <c>FingerprintMismatch</c> is unreachable in this codebase today.
+/// <b>Whether installing a licence binds it to this server is the licence's decision, not this
+/// command's</b>: a payload carrying a <c>server</c> claim is refused on every host but the one it
+/// names, and one without it installs anywhere. See
+/// <see cref="Commands.InstallLicence.InstallLicenceCommandHandler"/>'s own remarks, and
+/// <c>LicenceServerBindingPolicy</c> for why an unreadable host identity refuses rather than
+/// allows.
 /// </para>
 /// </remarks>
 /// <param name="RawLicenceText">The uploaded licence envelope's raw text, to be verified before anything is persisted.</param>

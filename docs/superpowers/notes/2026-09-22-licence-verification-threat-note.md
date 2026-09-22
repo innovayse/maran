@@ -140,15 +140,36 @@ built from.
   at `proto/agent/v1/system.proto:24-31`, and its doc comments (`:33-46`) enumerate exactly what it
   carries — none of it is machine- or interface-identifying.
 
-So the fingerprint half of §228 cannot be built today: it requires a new agent rpc surface (a new
-message field on `AgentInfo`, or a new rpc entirely) that does not exist in `proto/`, and correspondingly
-new Rust code in `agent/crates` to read `/etc/machine-id` and enumerate the primary interface — none
-of which exists (`grep -rn "AssemblyLoadContext" backend/src` finds only the *code-integrity* lane's
-files, confirming no `Licensing/`-side code references any of this either). A threat note that did
-not say this would let a reviewer approve a licence-verification design that has no way to obtain the
-one input §228 names as mandatory — a hole a reviewer needs to see before approving anything that
-claims to implement fingerprinting, and the reason this section exists rather than being folded
-silently into "future work."
+**SUPERSEDED 2026-09-22 — the rpc was built, and binding with it.** Everything above described the
+tree as it stood: no way to obtain the one input §228 names as mandatory. It is kept because it
+records what the gap WAS and why a reviewer had to see it, and because the shape of the fix is only
+judgeable against it.
+
+What exists now: `GetServerFingerprintInputs` in `proto/agent/v1/monitor.proto`, the Rust that reads
+`/etc/machine-id` and the lowest-metric IPv4 default route, and on the panel side
+`LicenceServerBindingPolicy` comparing a licence's optional `server` claim against this host's
+machine-id.
+
+Three decisions in it a reviewer should weigh rather than skim:
+
+1. **The machine-id ALONE.** The primary interface is read and never compared. Measured on the
+   development host it is WiFi, and it moves with a DHCP renewal, a VPN, or a cable in another port,
+   so binding to it would refuse paying customers for a change nobody made deliberately.
+2. **An absent `server` claim means unbound, not invalid** — trial licences are issued before anyone
+   knows the host. A claim present but not a string IS malformed, so an issuer's typo cannot widen a
+   licence to every machine on earth.
+3. **An unreadable host identity REFUSES a bound licence.** This costs an honest customer a refusal
+   whenever their agent is down, and is chosen because the other direction hands anyone who can stop
+   the agent a licence valid on every machine they own. It is affordable while nothing gates a
+   feature on licence status — refusal is reported, not enforced — and that is the condition to
+   revisit first.
+
+Measured, four mutants, each killing the test named for it: binding ignored; binding always
+refusing (which is what proves the first kill was for the right reason); an unreadable identity let
+through; and the signature check defeated so binding answers first, because a forgery naming this
+very machine must read as a forgery. Verified live as well, through the running panel: a licence
+issued for another machine-id was refused at the install endpoint, and the same licence issued for
+this host installed and verified.
 
 ## 6. Two assumptions recorded as an agent's, not the owner's
 

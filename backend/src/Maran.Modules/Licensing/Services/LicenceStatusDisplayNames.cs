@@ -62,8 +62,11 @@ public sealed class LicenceStatusDisplayNames
     /// <summary>
     /// States the sentence an operator reads on a SUCCESSFUL install response, distinct from
     /// <see cref="SentenceFor"/>'s plain "installed and verified": this one states outright that
-    /// installing a licence does not bind it to this server (threat note §6), so the response text
-    /// itself carries the honesty obligation rather than leaving it implied.
+    /// whether the licence is tied to THIS server is decided by the licence's own `server` claim, so
+    /// the response text itself carries the honesty obligation rather than leaving it implied. It
+    /// states the conditional rather than a verdict because this sentence is one string for both
+    /// kinds of licence, and a sentence that promised binding to a holder of an unbound licence
+    /// would be the same defect in the other direction.
     /// </summary>
     /// <returns>The localized install-success sentence.</returns>
     public string InstalledSentence()

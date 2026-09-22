@@ -154,7 +154,27 @@ public sealed class InstallLicenceCommandHandler
         var previousId = PreviousLicenceIdOrNull(cancellationToken);
 
         // The one call this whole sequence exists to gate: never reached for anything but Valid.
-        await _writer.InstallAsync(command.RawLicenceText, cancellationToken);
+        try
+        {
+            await _writer.InstallAsync(command.RawLicenceText, cancellationToken);
+        }
+        catch (Exception)
+        {
+            // MEASURED GAP, now closed. A write that throws — the licence directory not writable is
+            // the ordinary cause, and it is exactly what a dev or a misconfigured unit hits — used to
+            // leave NO entry at all: the exception went straight past the journal to the middleware,
+            // the caller got a 500, and the trail showed nothing between "status read: Absent" and
+            // the operator's confusion. Verification had SUCCEEDED by this point, so the one thing
+            // the journal must never lose is precisely this: somebody presented a good licence and
+            // the panel failed to keep it.
+            //
+            // The entry is written and the exception RETHROWN, deliberately. Swallowing it would
+            // report an install that did not happen, which is the worse of the two failures: the
+            // operator would believe the licence is in place.
+            await RecordAsync(command, succeeded: false, SubjectForWriteFailure(), cancellationToken);
+
+            throw;
+        }
 
         await RecordAsync(
             command,
@@ -223,6 +243,20 @@ public sealed class InstallLicenceCommandHandler
         return previousLicenceId is null ? subject : subject + $";previousId={previousLicenceId}";
     }
 
+    /// <summary>The audit subject for a licence that verified but could not be written.</summary>
+    /// <returns>The machine-readable subject.</returns>
+    /// <remarks>
+    /// It names the STAGE rather than the exception: the cause belongs in the error log with its
+    /// stack, and an audit subject carrying a filesystem path or an exception message would put
+    /// host detail into a journal that is shown in a browser. "Verified, then not persisted" is the
+    /// whole fact an operator needs from this row — the licence was good and the panel did not keep
+    /// it, so nothing changed and the previous licence, if any, still stands.
+    /// </remarks>
+    private static string SubjectForWriteFailure()
+    {
+        return "action=Install;status=Valid;persisted=false";
+    }
+
     /// <summary>Writes this handler's one audit entry, for either outcome.</summary>
     /// <param name="command">The caller, for the address and user agent the entry is stamped with.</param>
     /// <param name="succeeded">Whether the install took effect.</param>
@@ -257,8 +291,9 @@ public sealed class InstallLicenceCommandHandler
     /// <summary>Maps the newly installed, verified licence to the same wire shape the read-only status route returns.</summary>
     /// <param name="valid">The newly verified licence.</param>
     /// <returns>
-    /// The DTO — never a copy of the uploaded request body (threat note §5). Also states, in its own
-    /// sentence text, that installing a licence does not bind it to this server (threat note §6).
+    /// The DTO — never a copy of the uploaded request body (threat note §5). Its sentence also says
+    /// what decides whether the licence is tied to this server: the licence's own `server` claim,
+    /// which a licence naming no server simply does not carry.
     /// </returns>
     private LicenceStatusDto ToDto(LicenceStatus.Valid valid)
     {
