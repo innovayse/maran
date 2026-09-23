@@ -144,7 +144,17 @@ fn the_number_of_surviving_rollback_sets_is_bounded_and_the_oldest_go_first() {
         // ordered by time. Set explicitly rather than relying on the clock's
         // resolution: two directories created in one microsecond would otherwise
         // sort arbitrarily and this assertion would be about nothing.
+        //
+        // The stamp goes on the ROLLBACK directory, which is what `retain_newest`
+        // sorts by — an earlier version stamped the operation directory instead,
+        // one level up, and the code never reads that one. So the ordering this
+        // test believed it had established was the order the rollback
+        // directories happened to be created in, and the comment above described
+        // a protection the test did not have: on a machine fast enough to create
+        // several inside one filesystem timestamp, the sort was arbitrary. CI
+        // failed on exactly that while twelve consecutive local runs passed.
         let stamp = filetime_seconds(1_700_000_000 + index as i64);
+        set_directory_time(&operation.join(ROLLBACK_DIRECTORY), stamp);
         set_directory_time(&operation, stamp);
         operations.push(operation);
     }

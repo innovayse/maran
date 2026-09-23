@@ -515,20 +515,41 @@ fn removing_the_block_by_hand_is_noticed_and_restoring_it_clears_the_finding() {
 /// genuinely lacks them — which is exactly the confusion `MachineIdentity::NotAvailable` exists to
 /// prevent, and cannot be demonstrated on an image that has both.
 ///
-/// UNOBSERVED HERE: the NotAvailable arm. Measured on 2026-09-22: a plain `ubuntu:24.04` container
-/// has NO `/etc/machine-id` at all, so that arm is the ordinary case for a containerised install
-/// and is covered by the unit tests against a fake, never here.
+/// Both arms are real on the polygon and BOTH are checked against the file the adapter names: the
+/// ubuntu24 image carries a machine-id and the alma9 image does not, which is why an earlier
+/// version of this test — one that simply declared "a polygon image has a machine-id" — failed on
+/// half the matrix while asserting nothing about the code. What it asserts now is the agreement
+/// between the file and the answer, in both directions: an id reported while the file holds none,
+/// or none reported while the file holds one, is the read having gone somewhere else.
 #[test]
 #[ignore = "reads this host's real machine-id and routing table: polygon only"]
 fn the_fingerprint_inputs_are_read_from_this_hosts_own_files() {
     PolygonAccount::require_polygon();
 
     let host = ProcessMonitorHost;
-    let inputs = get_server_fingerprint_inputs(&host, polygon_distro())
+    let distro = polygon_distro();
+    // What the answer is CHECKED AGAINST: the file the adapter names, observed here rather than
+    // assumed. An earlier version of this test asserted that a polygon image simply has a
+    // machine-id, and that was false on the alma9 image while true on ubuntu24 — so the suite
+    // failed on a fact about the image instead of a fact about the code, and the comment above it
+    // already said as much. Reading the path lets absence be a legitimate answer AND still catches
+    // the defect this test exists for: a read that went somewhere else.
+    let machine_id_file = std::fs::read_to_string(distro.machine_id_path()).ok();
+    let file_holds_an_id = machine_id_file
+        .as_deref()
+        .map(str::trim)
+        .is_some_and(|contents| !contents.is_empty());
+
+    let inputs = get_server_fingerprint_inputs(&host, distro)
         .expect("this host's machine-id and routing table are readable");
 
     match inputs.machine_id {
         MachineIdentity::Present(ref id) => {
+            assert!(
+                file_holds_an_id,
+                "a machine-id was reported while {} holds none — the read found some other file",
+                distro.machine_id_path()
+            );
             // Asserted as a VALUE and not merely as non-empty: systemd writes 32 lowercase hex
             // digits, so a path that happened to read some other file would be caught here rather
             // than passing as "something was read".
@@ -540,9 +561,14 @@ fn the_fingerprint_inputs_are_read_from_this_hosts_own_files() {
             );
         }
         MachineIdentity::NotAvailable => {
-            panic!(
-                "a polygon image has a machine-id, so absence means the read went to the wrong path"
-            )
+            // Absence is a real state, not a failure: a container image often carries no
+            // /etc/machine-id at all. What would be a failure is absence reported while the file
+            // is sitting there, which is what this asserts.
+            assert!(
+                !file_holds_an_id,
+                "{} holds a machine-id and the agent reported none — the read went to the wrong path",
+                distro.machine_id_path()
+            );
         }
         // The type is #[non_exhaustive] so a third state can be added without breaking callers;
         // this arm fails rather than passing over one, because a state nobody asserted on is a
