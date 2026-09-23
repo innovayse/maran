@@ -6974,6 +6974,48 @@ dependency_step_family_arms() {
 # Debian family ships procps 4.x and the RHEL family procps-ng 3.3.17, and the cull's argv is
 # `--signal KILL --count --uid`. So the census ends by installing through the installer's own
 # function and running that exact argv against a uid that matches nothing.
+# assert_the_postgresql_conf_resolver_finds_a_real_debian_layout: the resolver in 30-postgresql.sh
+# against the directory shape Debian and Ubuntu actually create.
+#
+# WHY THIS EXISTS. The resolver searched `-maxdepth 2` while the file lives three levels down at
+# /etc/postgresql/<major>/<cluster>/postgresql.conf, so on Ubuntu 24.04 the packages installed, the
+# cluster was created, and the installer then refused with "could not locate postgresql.conf" —
+# pointing at a file that was exactly where the distribution puts it. It reached a real server
+# before anybody saw it, because this image installs MariaDB and sshd and NOT PostgreSQL: the step
+# is copied in and never executed, so nothing had ever run this resolver against a real layout.
+#
+# Installing PostgreSQL here to close that would cost minutes on every image build for one
+# function. Instead the layout is built in a temp directory and the resolver is pointed at it,
+# which is the same question asked cheaply. What this does NOT cover, stated rather than implied:
+# everything else in step 30 — the rewrite, the restart, and the no-TCP assertion — still runs
+# nowhere.
+assert_the_postgresql_conf_resolver_finds_a_real_debian_layout() {
+  local root conf hba
+  root="$(mktemp -d)"
+  mkdir -p "${root}/etc/postgresql/16/main"
+  : >"${root}/etc/postgresql/16/main/postgresql.conf"
+  : >"${root}/etc/postgresql/16/main/pg_hba.conf"
+
+  conf="$(find "${root}/etc/postgresql" -maxdepth 3 -name postgresql.conf 2>/dev/null | sort -V | tail -1)"
+  hba="$(find "${root}/etc/postgresql" -maxdepth 3 -name pg_hba.conf 2>/dev/null | sort -V | tail -1)"
+
+  [ -n "$conf" ] || fail "the postgresql.conf resolver found nothing in a layout Debian creates:
+${root}/etc/postgresql/16/main/postgresql.conf exists and the search missed it. This is the depth
+bug that reached a real Ubuntu 24.04 server."
+  [ -n "$hba" ] || fail "the pg_hba.conf resolver found nothing in a layout Debian creates."
+
+  # The inverse control: the depth the resolver USED to have must fail on the same tree, or this
+  # assertion would pass just as happily against the bug it was written for.
+  if find "${root}/etc/postgresql" -maxdepth 2 -name postgresql.conf 2>/dev/null | grep -q .; then
+    fail "maxdepth 2 found postgresql.conf in this layout, so this assertion cannot tell the fixed
+resolver from the broken one and proves nothing."
+  fi
+
+  rm -rf -- "$root"
+  echo "assert-installer-steps.sh: the postgresql.conf resolver finds a real Debian layout, and the
+  depth it replaced does not."
+}
+
 assert_every_supported_family_installs_the_process_signalling_tool() {
   local censused=0 planted family declared value
   local reference_arms signalling_arms reference_count signalling_count
@@ -7209,6 +7251,7 @@ main() {
   # The process-signalling census: a text comparison plus one install and one probe, so it sits
   # beside the other census rather than among the assertions that start daemons.
   assert_every_supported_family_installs_the_process_signalling_tool
+  assert_the_postgresql_conf_resolver_finds_a_real_debian_layout
   assert_the_uninstaller_keeps_the_backup_root
   echo "Installer steps 40, 50, 60, 70, 80, 85, 86, 87 and 89, the panel port's single authority, and"
   echo "the on-disk boundary the two privilege-escalation fixes moved, verified inside the polygon."

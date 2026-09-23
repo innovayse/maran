@@ -52,10 +52,23 @@ pg_service_name() {
 
 # pg_data_dir: locates postgresql.conf so this step can edit it without hardcoding a
 # version-numbered path (Debian embeds the major version in the path).
+# THE DEPTH IS THREE, and it was two. Debian and Ubuntu put the file at
+# /etc/postgresql/<major>/<cluster>/postgresql.conf — three levels below the starting point, not
+# two — so `-maxdepth 2` matched nothing and this step refused with "could not locate
+# postgresql.conf" on a host where the file was sitting exactly where the distribution puts it.
+# Measured on Ubuntu 24.04 with PostgreSQL 16: the packages installed, initdb created the cluster,
+# and the installer then could not find its own configuration.
+#
+# The polygon did not catch it, and the reason is worth writing down rather than fixing quietly:
+# its image installs MariaDB and sshd, not PostgreSQL, and it copies this file in without ever
+# executing the step. So nothing in this repository had ever run pg_conf_path against a real
+# Debian-family layout. The assertion added to docker/polygon/assert-installer-steps.sh now
+# exercises the resolver against that layout directly, which is cheap and catches this class
+# without installing a database in the image.
 pg_conf_path() {
   case "$MARAN_OS_FAMILY" in
     debian)
-      find /etc/postgresql -maxdepth 2 -name postgresql.conf 2>/dev/null | sort -V | tail -1
+      find /etc/postgresql -maxdepth 3 -name postgresql.conf 2>/dev/null | sort -V | tail -1
       ;;
     rhel)
       echo "/var/lib/pgsql/data/postgresql.conf"
@@ -66,7 +79,8 @@ pg_conf_path() {
 pg_hba_path() {
   case "$MARAN_OS_FAMILY" in
     debian)
-      find /etc/postgresql -maxdepth 2 -name pg_hba.conf 2>/dev/null | sort -V | tail -1
+      # Same depth, same reason as pg_conf_path above: the file is a sibling of postgresql.conf.
+      find /etc/postgresql -maxdepth 3 -name pg_hba.conf 2>/dev/null | sort -V | tail -1
       ;;
     rhel)
       echo "/var/lib/pgsql/data/pg_hba.conf"
@@ -91,7 +105,14 @@ pg_restrict_to_unix_socket() {
   conf="$(pg_conf_path)"
   hba="$(pg_hba_path)"
   if [ -z "$conf" ] || [ ! -f "$conf" ]; then
+    # Says WHERE it looked and what is there. The first version of this message said only that
+    # the file could not be located, and diagnosing the depth bug above needed a photograph of a
+    # console: a refusal that does not name its own search is a refusal somebody has to reproduce
+    # before they can read it.
     echo "30-postgresql.sh: could not locate postgresql.conf" >&2
+    echo "  searched: find /etc/postgresql -maxdepth 3 -name postgresql.conf" >&2
+    echo "  /etc/postgresql holds:" >&2
+    find /etc/postgresql -maxdepth 3 2>/dev/null | sed 's/^/    /' >&2 || echo "    (the directory does not exist)" >&2
     exit 1
   fi
   # pg_hba.conf is validated exactly like postgresql.conf. Without this, an empty result
