@@ -510,10 +510,10 @@ fn removing_the_block_by_hand_is_noticed_and_restoring_it_clears_the_finding() {
 /// lowest-metric tie-break runs against whatever the kernel actually has rather than a fixture
 /// somebody chose.
 ///
-/// **Both values are asserted as PRESENT here, and that is deliberate.** A polygon image has a
-/// machine-id and a default route, so absence would mean the read failed rather than that the host
-/// genuinely lacks them — which is exactly the confusion `MachineIdentity::NotAvailable` exists to
-/// prevent, and cannot be demonstrated on an image that has both.
+/// **The machine-id is checked against the file, and the default route is asserted PRESENT.** The
+/// two are not symmetric and the difference is measured, not assumed: an image may legitimately
+/// carry no `/etc/machine-id`, while a container that can reach anything has a default route, so
+/// absence there means the parse failed rather than that the host lacks one.
 ///
 /// Both arms are real on the polygon and BOTH are checked against the file the adapter names: the
 /// ubuntu24 image carries a machine-id and the alma9 image does not, which is why an earlier
