@@ -29,9 +29,9 @@ Resolved by cargo from `agent/Cargo.lock`.
 | `axum` | 0.8.9 | MIT |
 | `axum-core` | 0.5.6 | MIT |
 | `base64` | 0.22.1 | MIT OR Apache-2.0 |
+| `base64` | 0.23.1 | MIT OR Apache-2.0 |
 | `basic-toml` | 0.1.10 | MIT OR Apache-2.0 |
 | `bitflags` | 2.13.1 | MIT OR Apache-2.0 |
-| `block-buffer` | 0.10.4 | MIT OR Apache-2.0 |
 | `block-buffer` | 0.12.1 | MIT OR Apache-2.0 |
 | `bumpalo` | 3.20.3 | MIT OR Apache-2.0 |
 | `bytes` | 1.12.1 | MIT |
@@ -42,9 +42,9 @@ Resolved by cargo from `agent/Cargo.lock`.
 | `chrono` | 0.4.45 | MIT OR Apache-2.0 |
 | `cmake` | 0.1.58 | MIT OR Apache-2.0 |
 | `combine` | 4.6.8 | MIT |
+| `const-oid` | 0.10.2 | Apache-2.0 OR MIT |
 | `core-foundation` | 0.10.1 | MIT OR Apache-2.0 |
 | `core-foundation-sys` | 0.8.7 | MIT OR Apache-2.0 |
-| `cpufeatures` | 0.2.17 | MIT OR Apache-2.0 |
 | `cpufeatures` | 0.3.1 | MIT OR Apache-2.0 |
 | `crc-fast` | 1.10.0 | MIT OR Apache-2.0 |
 | `crypto-common` | 0.1.7 | MIT OR Apache-2.0 |
@@ -129,7 +129,7 @@ Resolved by cargo from `agent/Cargo.lock`.
 | `nom` | 7.1.3 | MIT |
 | `nu-ansi-term` | 0.50.3 | MIT |
 | `num-traits` | 0.2.19 | MIT OR Apache-2.0 |
-| `object_store` | 0.14.1 | MIT/Apache-2.0 |
+| `object_store` | 0.14.2 | MIT/Apache-2.0 |
 | `once_cell` | 1.21.4 | MIT OR Apache-2.0 |
 | `openssl-probe` | 0.2.1 | MIT OR Apache-2.0 |
 | `parking_lot` | 0.12.5 | MIT OR Apache-2.0 |
@@ -164,7 +164,7 @@ Resolved by cargo from `agent/Cargo.lock`.
 | `ring` | 0.17.14 | Apache-2.0 AND ISC |
 | `rustc-hash` | 2.1.3 | Apache-2.0 OR MIT |
 | `rustc_version` | 0.4.1 | MIT OR Apache-2.0 |
-| `rustix` | 1.1.4 | Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT |
+| `rustix` | 1.1.5 | Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT |
 | `rustls` | 0.23.43 | Apache-2.0 OR ISC OR MIT |
 | `rustls-native-certs` | 0.8.4 | Apache-2.0 OR ISC OR MIT |
 | `rustls-pki-types` | 1.15.1 | MIT OR Apache-2.0 |
@@ -184,7 +184,7 @@ Resolved by cargo from `agent/Cargo.lock`.
 | `serde_derive` | 1.0.229 | MIT OR Apache-2.0 |
 | `serde_json` | 1.0.151 | MIT OR Apache-2.0 |
 | `serde_urlencoded` | 0.7.1 | MIT/Apache-2.0 |
-| `sha2` | 0.10.9 | MIT OR Apache-2.0 |
+| `sha2` | 0.11.0 | MIT OR Apache-2.0 |
 | `sharded-slab` | 0.1.7 | MIT |
 | `shlex` | 2.0.1 | MIT OR Apache-2.0 |
 | `signal-hook-registry` | 1.4.8 | MIT OR Apache-2.0 |
@@ -280,8 +280,8 @@ Resolved by restore; versions are pinned in `backend/Directory.Packages.props`.
 
 | Package | Version | Licence |
 |---|---|---|
-| `BouncyCastle.Cryptography` | 2.6.2 | MIT |
 | `BouncyCastle.Cryptography` | 2.7.0 | MIT |
+| `Cronos` | 0.11.0 | MIT |
 | `DistributedLock.Core` | 1.0.8 | MIT |
 | `DistributedLock.Postgres` | 1.3.0 | MIT |
 | `Docker.DotNet.Enhanced` | 4.3.3 | MIT |
@@ -294,24 +294,25 @@ Resolved by restore; versions are pinned in `backend/Directory.Packages.props`.
 | `FastExpressionCompiler` | 5.4.1 | MIT |
 | `FluentValidation` | 12.1.1 | Apache-2.0 |
 | `FluentValidation.DependencyInjectionExtensions` | 12.1.1 | Apache-2.0 |
-| `Google.Protobuf` | 3.36.1 | BSD-3-Clause |
-| `Grpc.Core.Api` | 2.83.0 | Apache-2.0 |
-| `Grpc.Net.Client` | 2.83.0 | Apache-2.0 |
-| `Grpc.Net.Common` | 2.83.0 | Apache-2.0 |
-| `Grpc.Tools` | 2.83.0 | Apache-2.0 |
+| `Google.Protobuf` | 3.36.2 | BSD-3-Clause |
+| `Grpc.Core.Api` | 2.84.0 | Apache-2.0 |
+| `Grpc.Net.Client` | 2.84.0 | Apache-2.0 |
+| `Grpc.Net.Common` | 2.84.0 | Apache-2.0 |
+| `Grpc.Tools` | 2.84.0 | Apache-2.0 |
 | `Humanizer.Core` | 2.14.1 | MIT |
 | `ImTools` | 4.0.0 | MIT |
-| `JasperFx` | 2.60.0 | MIT |
-| `JasperFx.Events` | 2.60.0 | MIT |
+| `JasperFx` | 2.73.2 | MIT |
+| `JasperFx.Events` | 2.73.2 | MIT |
 | `JasperFx.RuntimeCompiler` | 5.0.0 | MIT |
-| `JasperFx.SourceGenerator` | 2.60.0 | MIT |
+| `JasperFx.SourceGenerator` | 2.73.2 | MIT |
 | `Konscious.Security.Cryptography.Argon2` | 1.3.1 | MIT |
 | `Konscious.Security.Cryptography.Blake2` | 1.1.1 | MIT |
-| `MailKit` | 4.17.0 | MIT |
-| `Microsoft.AspNetCore.Authentication.JwtBearer` | 9.0.19 | MIT |
+| `MailKit` | 4.18.0 | MIT |
+| `Microsoft.AspNetCore.Authentication.JwtBearer` | 9.0.20 | MIT |
 | `Microsoft.AspNetCore.Mvc.Testing` | 9.0.19 | MIT |
 | `Microsoft.AspNetCore.TestHost` | 9.0.19 | MIT |
 | `Microsoft.Bcl.AsyncInterfaces` | 9.0.0 | MIT |
+| `Microsoft.Bcl.Cryptography` | 10.0.0 | MIT |
 | `Microsoft.Bcl.Cryptography` | 10.0.2 | MIT |
 | `Microsoft.Bcl.TimeProvider` | 9.0.11 | MIT |
 | `Microsoft.Build.Framework` | 17.11.48 | MIT |
@@ -328,23 +329,24 @@ Resolved by restore; versions are pinned in `backend/Directory.Packages.props`.
 | `Microsoft.CodeAnalysis.VisualBasic.Workspaces` | 5.3.0 | MIT |
 | `Microsoft.CodeAnalysis.Workspaces.Common` | 5.3.0 | MIT |
 | `Microsoft.CodeAnalysis.Workspaces.MSBuild` | 5.3.0 | MIT |
-| `Microsoft.CodeCoverage` | 18.9.0 | MIT |
-| `Microsoft.EntityFrameworkCore` | 9.0.19 | MIT |
-| `Microsoft.EntityFrameworkCore.Abstractions` | 9.0.19 | MIT |
-| `Microsoft.EntityFrameworkCore.Analyzers` | 9.0.19 | MIT |
+| `Microsoft.CodeCoverage` | 18.10.1 | MIT |
+| `Microsoft.EntityFrameworkCore` | 9.0.20 | MIT |
+| `Microsoft.EntityFrameworkCore.Abstractions` | 9.0.20 | MIT |
+| `Microsoft.EntityFrameworkCore.Analyzers` | 9.0.20 | MIT |
 | `Microsoft.EntityFrameworkCore.Design` | 9.0.19 | MIT |
 | `Microsoft.EntityFrameworkCore.InMemory` | 9.0.19 | MIT |
 | `Microsoft.EntityFrameworkCore.Relational` | 9.0.19 | MIT |
-| `Microsoft.Extensions.AmbientMetadata.Application` | 10.9.0 | MIT |
-| `Microsoft.Extensions.Caching.Abstractions` | 9.0.19 | MIT |
-| `Microsoft.Extensions.Caching.Memory` | 9.0.19 | MIT |
-| `Microsoft.Extensions.Compliance.Abstractions` | 10.9.0 | MIT |
+| `Microsoft.Extensions.AmbientMetadata.Application` | 10.10.0 | MIT |
+| `Microsoft.Extensions.Caching.Abstractions` | 9.0.20 | MIT |
+| `Microsoft.Extensions.Caching.Memory` | 9.0.20 | MIT |
+| `Microsoft.Extensions.Compliance.Abstractions` | 10.10.0 | MIT |
 | `Microsoft.Extensions.Configuration` | 9.0.0 | MIT |
-| `Microsoft.Extensions.Configuration` | 9.0.19 | MIT |
+| `Microsoft.Extensions.Configuration` | 9.0.20 | MIT |
 | `Microsoft.Extensions.Configuration.Abstractions` | 9.0.0 | MIT |
 | `Microsoft.Extensions.Configuration.Abstractions` | 9.0.19 | MIT |
+| `Microsoft.Extensions.Configuration.Abstractions` | 9.0.20 | MIT |
 | `Microsoft.Extensions.Configuration.Binder` | 9.0.0 | MIT |
-| `Microsoft.Extensions.Configuration.Binder` | 9.0.19 | MIT |
+| `Microsoft.Extensions.Configuration.Binder` | 9.0.20 | MIT |
 | `Microsoft.Extensions.Configuration.CommandLine` | 9.0.0 | MIT |
 | `Microsoft.Extensions.Configuration.CommandLine` | 9.0.19 | MIT |
 | `Microsoft.Extensions.Configuration.EnvironmentVariables` | 9.0.0 | MIT |
@@ -355,18 +357,18 @@ Resolved by restore; versions are pinned in `backend/Directory.Packages.props`.
 | `Microsoft.Extensions.Configuration.Json` | 9.0.19 | MIT |
 | `Microsoft.Extensions.Configuration.UserSecrets` | 9.0.0 | MIT |
 | `Microsoft.Extensions.Configuration.UserSecrets` | 9.0.19 | MIT |
-| `Microsoft.Extensions.DependencyInjection` | 9.0.19 | MIT |
-| `Microsoft.Extensions.DependencyInjection.Abstractions` | 9.0.19 | MIT |
-| `Microsoft.Extensions.DependencyInjection.AutoActivation` | 10.9.0 | MIT |
+| `Microsoft.Extensions.DependencyInjection` | 9.0.20 | MIT |
+| `Microsoft.Extensions.DependencyInjection.Abstractions` | 9.0.20 | MIT |
+| `Microsoft.Extensions.DependencyInjection.AutoActivation` | 10.10.0 | MIT |
 | `Microsoft.Extensions.DependencyModel` | 9.0.19 | MIT |
 | `Microsoft.Extensions.Diagnostics` | 9.0.0 | MIT |
-| `Microsoft.Extensions.Diagnostics` | 9.0.19 | MIT |
+| `Microsoft.Extensions.Diagnostics` | 9.0.20 | MIT |
 | `Microsoft.Extensions.Diagnostics.Abstractions` | 9.0.0 | MIT |
-| `Microsoft.Extensions.Diagnostics.Abstractions` | 9.0.19 | MIT |
-| `Microsoft.Extensions.Diagnostics.ExceptionSummarization` | 10.9.0 | MIT |
+| `Microsoft.Extensions.Diagnostics.Abstractions` | 9.0.20 | MIT |
+| `Microsoft.Extensions.Diagnostics.ExceptionSummarization` | 10.10.0 | MIT |
 | `Microsoft.Extensions.Diagnostics.HealthChecks.Abstractions` | 9.0.0 | MIT |
 | `Microsoft.Extensions.FileProviders.Abstractions` | 9.0.0 | MIT |
-| `Microsoft.Extensions.FileProviders.Abstractions` | 9.0.19 | MIT |
+| `Microsoft.Extensions.FileProviders.Abstractions` | 9.0.20 | MIT |
 | `Microsoft.Extensions.FileProviders.Physical` | 9.0.0 | MIT |
 | `Microsoft.Extensions.FileProviders.Physical` | 9.0.19 | MIT |
 | `Microsoft.Extensions.FileSystemGlobbing` | 9.0.0 | MIT |
@@ -374,14 +376,14 @@ Resolved by restore; versions are pinned in `backend/Directory.Packages.props`.
 | `Microsoft.Extensions.Hosting` | 9.0.0 | MIT |
 | `Microsoft.Extensions.Hosting` | 9.0.19 | MIT |
 | `Microsoft.Extensions.Hosting.Abstractions` | 9.0.0 | MIT |
-| `Microsoft.Extensions.Hosting.Abstractions` | 9.0.19 | MIT |
-| `Microsoft.Extensions.Http` | 9.0.19 | MIT |
-| `Microsoft.Extensions.Http.Diagnostics` | 10.9.0 | MIT |
-| `Microsoft.Extensions.Http.Resilience` | 10.9.0 | MIT |
-| `Microsoft.Extensions.Logging` | 9.0.19 | MIT |
-| `Microsoft.Extensions.Logging.Abstractions` | 9.0.19 | MIT |
+| `Microsoft.Extensions.Hosting.Abstractions` | 9.0.20 | MIT |
+| `Microsoft.Extensions.Http` | 9.0.20 | MIT |
+| `Microsoft.Extensions.Http.Diagnostics` | 10.10.0 | MIT |
+| `Microsoft.Extensions.Http.Resilience` | 10.10.0 | MIT |
+| `Microsoft.Extensions.Logging` | 9.0.20 | MIT |
+| `Microsoft.Extensions.Logging.Abstractions` | 9.0.20 | MIT |
 | `Microsoft.Extensions.Logging.Configuration` | 9.0.0 | MIT |
-| `Microsoft.Extensions.Logging.Configuration` | 9.0.19 | MIT |
+| `Microsoft.Extensions.Logging.Configuration` | 9.0.20 | MIT |
 | `Microsoft.Extensions.Logging.Console` | 9.0.0 | MIT |
 | `Microsoft.Extensions.Logging.Console` | 9.0.19 | MIT |
 | `Microsoft.Extensions.Logging.Debug` | 9.0.0 | MIT |
@@ -391,26 +393,26 @@ Resolved by restore; versions are pinned in `backend/Directory.Packages.props`.
 | `Microsoft.Extensions.Logging.EventSource` | 9.0.0 | MIT |
 | `Microsoft.Extensions.Logging.EventSource` | 9.0.19 | MIT |
 | `Microsoft.Extensions.ObjectPool` | 9.0.12 | MIT |
-| `Microsoft.Extensions.ObjectPool` | 9.0.19 | MIT |
-| `Microsoft.Extensions.Options` | 9.0.19 | MIT |
+| `Microsoft.Extensions.ObjectPool` | 9.0.20 | MIT |
+| `Microsoft.Extensions.Options` | 9.0.20 | MIT |
 | `Microsoft.Extensions.Options.ConfigurationExtensions` | 9.0.0 | MIT |
-| `Microsoft.Extensions.Options.ConfigurationExtensions` | 9.0.19 | MIT |
-| `Microsoft.Extensions.Options.DataAnnotations` | 9.0.19 | MIT |
-| `Microsoft.Extensions.Primitives` | 9.0.19 | MIT |
-| `Microsoft.Extensions.Resilience` | 10.9.0 | MIT |
-| `Microsoft.Extensions.Telemetry` | 10.9.0 | MIT |
-| `Microsoft.Extensions.Telemetry.Abstractions` | 10.9.0 | MIT |
-| `Microsoft.IdentityModel.Abstractions` | 8.22.0 | MIT |
-| `Microsoft.IdentityModel.JsonWebTokens` | 8.22.0 | MIT |
-| `Microsoft.IdentityModel.Logging` | 8.22.0 | MIT |
+| `Microsoft.Extensions.Options.ConfigurationExtensions` | 9.0.20 | MIT |
+| `Microsoft.Extensions.Options.DataAnnotations` | 9.0.20 | MIT |
+| `Microsoft.Extensions.Primitives` | 9.0.20 | MIT |
+| `Microsoft.Extensions.Resilience` | 10.10.0 | MIT |
+| `Microsoft.Extensions.Telemetry` | 10.10.0 | MIT |
+| `Microsoft.Extensions.Telemetry.Abstractions` | 10.10.0 | MIT |
+| `Microsoft.IdentityModel.Abstractions` | 8.23.0 | MIT |
+| `Microsoft.IdentityModel.JsonWebTokens` | 8.23.0 | MIT |
+| `Microsoft.IdentityModel.Logging` | 8.23.0 | MIT |
 | `Microsoft.IdentityModel.Protocols` | 8.19.2 | MIT |
 | `Microsoft.IdentityModel.Protocols.OpenIdConnect` | 8.19.2 | MIT |
-| `Microsoft.IdentityModel.Tokens` | 8.22.0 | MIT |
-| `Microsoft.NET.Test.Sdk` | 18.9.0 | MIT |
-| `Microsoft.TestPlatform.ObjectModel` | 18.9.0 | MIT |
-| `Microsoft.TestPlatform.TestHost` | 18.9.0 | MIT |
+| `Microsoft.IdentityModel.Tokens` | 8.23.0 | MIT |
+| `Microsoft.NET.Test.Sdk` | 18.10.1 | MIT |
+| `Microsoft.TestPlatform.ObjectModel` | 18.10.1 | MIT |
+| `Microsoft.TestPlatform.TestHost` | 18.10.1 | MIT |
 | `Microsoft.VisualStudio.SolutionPersistence` | 1.0.52 | MIT |
-| `MimeKit` | 4.17.0 | MIT |
+| `MimeKit` | 4.18.0 | MIT |
 | `Mono.Cecil` | 0.11.3 | http://opensource.org/licenses/mit-license.php |
 | `Mono.TextTemplating` | 3.0.0 | MIT |
 | `NetArchTest.Rules` | 1.3.2 | not declared |
@@ -448,7 +450,7 @@ Resolved by restore; versions are pinned in `backend/Directory.Packages.props`.
 | `System.Composition.TypedParts` | 9.0.0 | MIT |
 | `System.Diagnostics.EventLog` | 9.0.0 | MIT |
 | `System.Diagnostics.EventLog` | 9.0.19 | MIT |
-| `System.Formats.Asn1` | 8.0.1 | MIT |
+| `System.Formats.Asn1` | 10.0.0 | MIT |
 | `System.IO.Pipelines` | 9.0.0 | MIT |
 | `System.IdentityModel.Tokens.Jwt` | 8.19.2 | MIT |
 | `System.Memory` | 4.5.4 | https://github.com/dotnet/corefx/blob/master/LICENSE.TXT |
@@ -456,20 +458,20 @@ Resolved by restore; versions are pinned in `backend/Directory.Packages.props`.
 | `System.Numerics.Vectors` | 4.6.0 | MIT |
 | `System.Reflection.Metadata` | 9.0.0 | MIT |
 | `System.Runtime.CompilerServices.Unsafe` | 6.1.0 | MIT |
-| `System.Security.Cryptography.Pkcs` | 8.0.1 | MIT |
+| `System.Security.Cryptography.Pkcs` | 10.0.0 | MIT |
 | `System.Text.Encoding.CodePages` | 8.0.0 | MIT |
 | `System.Text.Json` | 9.0.19 | MIT |
 | `System.Threading.Channels` | 8.0.0 | MIT |
 | `System.Threading.RateLimiting` | 8.0.0 | MIT |
 | `System.Threading.Tasks.Extensions` | 4.6.0 | MIT |
-| `Testcontainers` | 4.14.0 | MIT |
-| `Testcontainers.PostgreSql` | 4.14.0 | MIT |
-| `Weasel.Core` | 9.30.0 | MIT |
-| `Weasel.Postgresql` | 9.30.0 | MIT |
-| `WolverineFx` | 6.33.0 | MIT |
-| `WolverineFx.FluentValidation` | 6.33.0 | MIT |
-| `WolverineFx.Postgresql` | 6.33.0 | MIT |
-| `WolverineFx.RDBMS` | 6.33.0 | MIT |
+| `Testcontainers` | 4.15.0 | MIT |
+| `Testcontainers.PostgreSql` | 4.15.0 | MIT |
+| `Weasel.Core` | 9.32.0 | MIT |
+| `Weasel.Postgresql` | 9.32.0 | MIT |
+| `WolverineFx` | 6.39.1 | MIT |
+| `WolverineFx.FluentValidation` | 6.39.1 | MIT |
+| `WolverineFx.Postgresql` | 6.39.1 | MIT |
+| `WolverineFx.RDBMS` | 6.39.1 | MIT |
 | `xunit` | 2.9.3 | Apache-2.0 |
 | `xunit.abstractions` | 2.0.3 | https://raw.githubusercontent.com/xunit/xunit/master/license.txt |
 | `xunit.analyzers` | 1.18.0 | Apache-2.0 |
@@ -489,38 +491,33 @@ Runtime dependencies only; build and test tooling is not distributed.
 | `@babel/helper-validator-identifier` | 7.29.7 | MIT |
 | `@babel/parser` | 7.29.8 | MIT |
 | `@babel/types` | 7.29.8 | MIT |
-| `@emnapi/core` | 1.10.0 | MIT |
-| `@emnapi/runtime` | 1.10.0 | MIT |
-| `@emnapi/wasi-threads` | 1.2.1 | MIT |
-| `@intlify/core-base` | 11.4.10 | MIT |
-| `@intlify/devtools-types` | 11.4.10 | MIT |
-| `@intlify/message-compiler` | 11.4.10 | MIT |
-| `@intlify/shared` | 11.4.10 | MIT |
+| `@intlify/core-base` | 11.4.12 | MIT |
+| `@intlify/devtools-types` | 11.4.12 | MIT |
+| `@intlify/message-compiler` | 11.4.12 | MIT |
+| `@intlify/shared` | 11.4.12 | MIT |
 | `@jridgewell/gen-mapping` | 0.3.13 | MIT |
 | `@jridgewell/remapping` | 2.3.5 | MIT |
 | `@jridgewell/resolve-uri` | 3.1.2 | MIT |
 | `@jridgewell/sourcemap-codec` | 1.6.0 | MIT |
 | `@jridgewell/trace-mapping` | 0.3.31 | MIT |
-| `@napi-rs/wasm-runtime` | 1.2.3 | MIT |
 | `@oxc-project/types` | 0.147.0 | MIT |
 | `@rolldown/binding-linux-x64-gnu` | 1.2.6 | MIT |
 | `@rolldown/binding-linux-x64-musl` | 1.2.6 | MIT |
 | `@rolldown/pluginutils` | 1.0.1 | MIT |
-| `@tybys/wasm-util` | 0.10.3 | MIT |
-| `@types/node` | 26.4.0 | MIT |
+| `@types/node` | 26.6.2 | MIT |
 | `@vue-macros/common` | 3.1.4 | MIT |
-| `@vue/compiler-core` | 3.5.42 | MIT |
-| `@vue/compiler-dom` | 3.5.42 | MIT |
-| `@vue/compiler-sfc` | 3.5.42 | MIT |
-| `@vue/compiler-ssr` | 3.5.42 | MIT |
+| `@vue/compiler-core` | 3.5.43 | MIT |
+| `@vue/compiler-dom` | 3.5.43 | MIT |
+| `@vue/compiler-sfc` | 3.5.43 | MIT |
+| `@vue/compiler-ssr` | 3.5.43 | MIT |
 | `@vue/devtools-api` | 8.2.1 | MIT |
 | `@vue/devtools-kit` | 8.2.1 | MIT |
 | `@vue/devtools-shared` | 8.2.1 | MIT |
-| `@vue/reactivity` | 3.5.42 | MIT |
-| `@vue/runtime-core` | 3.5.42 | MIT |
-| `@vue/runtime-dom` | 3.5.42 | MIT |
-| `@vue/server-renderer` | 3.5.42 | MIT |
-| `@vue/shared` | 3.5.42 | MIT |
+| `@vue/reactivity` | 3.5.43 | MIT |
+| `@vue/runtime-core` | 3.5.43 | MIT |
+| `@vue/runtime-dom` | 3.5.43 | MIT |
+| `@vue/server-renderer` | 3.5.43 | MIT |
+| `@vue/shared` | 3.5.43 | MIT |
 | `acorn` | 8.18.0 | MIT |
 | `ast-kit` | 2.2.0 | MIT |
 | `ast-walker-scope` | 0.9.0 | MIT |
@@ -553,22 +550,21 @@ Runtime dependencies only; build and test tooling is not distributed.
 | `picomatch` | 4.0.7 | MIT |
 | `pinia` | 4.0.3 | MIT |
 | `pkg-types` | 2.3.1 | MIT |
-| `postcss` | 8.5.26 | MIT |
+| `postcss` | 8.5.28 | MIT |
 | `quansync` | 0.2.11 | MIT |
 | `readdirp` | 5.1.1 | MIT |
 | `rolldown` | 1.2.6 | MIT |
 | `scule` | 1.3.0 | MIT |
 | `source-map-js` | 1.2.1 | BSD-3-Clause |
 | `tinyglobby` | 0.2.17 | MIT |
-| `tslib` | 2.8.1 | 0BSD |
 | `typescript` | 5.9.3 | Apache-2.0 |
 | `ufo` | 1.6.4 | MIT |
-| `undici-types` | 8.3.0 | MIT |
+| `undici-types` | 8.9.0 | MIT |
 | `unplugin` | 3.3.0 | MIT |
 | `unplugin-utils` | 0.3.2 | MIT |
-| `vite` | 8.2.2 | MIT |
-| `vue` | 3.5.42 | MIT |
-| `vue-i18n` | 11.4.10 | MIT |
-| `vue-router` | 5.3.0 | MIT |
+| `vite` | 8.3.0 | MIT |
+| `vue` | 3.5.43 | MIT |
+| `vue-i18n` | 11.4.12 | MIT |
+| `vue-router` | 5.3.1 | MIT |
 | `webpack-virtual-modules` | 0.6.2 | MIT |
 

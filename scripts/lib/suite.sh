@@ -488,6 +488,15 @@ if stack != "spa":
     with open(path, encoding="utf-8", errors="replace") as handle:
         lines = handle.read().splitlines()
 
+    # ANSI escapes are STRIPPED before anything is matched, and this is not cosmetic. CI sets
+    # CARGO_TERM_COLOR=always, and libtest then writes `test result: <esc>[32mok<esc>[0m. 4 passed`
+    # — which the result pattern below, reading `test result: \w+\.`, cannot match. Measured: the
+    # agent lane reported `collected 0 targets` and `ABORTED — no test-result line` on every CI run
+    # from 2026-09-08 to 2026-09-23 while the suite underneath it was passing, because the harness
+    # could not read the log it was handed. A parser that only works on uncoloured output is a
+    # parser that silently stops measuring the moment somebody turns colour on.
+    lines = [re.sub(r"\x1b\[[0-9;]*[A-Za-z]", "", line) for line in lines]
+
 rows = []
 if stack == "rust":
     # The build directory is NOT matched at all, only the `deps/<binary>-<hash>` tail. It was once
@@ -756,11 +765,18 @@ suite_selftest_parsers() {
         'test selftest::a_planted_spliced_line ...      Running tests/selftest_spliced.rs (/tmp/x/deps/selftest_spliced-0123456789abcdef)' \
         'ok' \
         'test result: FAILED. 2 passed; 2 failed; 3 ignored; 0 measured; 0 filtered out' \
-        'test result: ok. 4 passed; 0 failed; 5 ignored; 0 measured; 0 filtered out' \
+        $'   \033[1m\033[92mRunning\033[0m unittests src/lib.rs (/tmp/x/deps/selftest_coloured-0123456789abcdef)' \
+        $'test result: \033[32mok\033[0m. 4 passed; 0 failed; 5 ignored; 0 measured; 0 filtered out' \
         >"$sample"
       # The second line is the rust lane's answer to the theory argument: libtest puts
       # `- should panic` between the name and the marker, so a fixture without it would let the
       # extractor go on producing a name no source file contains.
+      # The last two lines are COLOURED, exactly as CI produces them with CARGO_TERM_COLOR=always.
+      # They are here because the absence of such a fixture cost fifteen days: the agent lane
+      # reported `collected 0 targets` and `ABORTED — no test-result line` on every CI run from
+      # 2026-09-08 while the suite underneath it passed, and this self-test stayed silent through
+      # all of it because every line it planted was uncoloured. A parser proved only against the
+      # output of one terminal setting is proved against the wrong thing.
       expected_names='selftest::a_planted_failure_name
 selftest::a_planted_should_panic_case'
       expected_row='	2	2	3'

@@ -30,7 +30,7 @@ jobs:
       - uses: actions/setup-dotnet@v6
         if: matrix.language == 'csharp'
         with:
-          dotnet-version: '9.0.x'
+          dotnet-version: '9.0.317'
 
       - name: Install protoc
         if: matrix.language == 'csharp'
