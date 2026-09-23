@@ -251,6 +251,37 @@ Everyone taking part is expected to follow the [Code of Conduct](CODE_OF_CONDUCT
 
 ## Status
 
+### This is a beta
+
+**Do not put somebody else's customers on it.** A beta here means the software installs, runs and
+does what the screens say — and that several of the things a paid hosting product must be trusted
+about have never been exercised anywhere except this repository's own containers.
+
+Three of those, named rather than buried in the list below, because they are the ones that decide
+whether a server survives a bad day:
+
+- **No certificate has ever been issued by a real authority.** The whole ACME path runs end to end
+  against `pebble`, Let's Encrypt's test server, and that is not the same thing: not their rate
+  limits, not validation from the public internet, not their chain. The renewal branch is not
+  exercised at all.
+- **No disk limit has ever been enforced by a real filesystem.** The panel now reports honestly
+  when a host cannot enforce one, which is the fix that mattered — but a write refused at the limit
+  has been observed on a loopback filesystem in a container and nowhere else.
+- **No restore has been run on real hardware.** It has been run on the polygon, including one
+  killed mid-swap, and that is where the evidence ends.
+
+**The threat notes that cover the privileged parts still carry an outstanding second human
+reviewer.** `rules/security.md` requires one before this reaches `main`, and it has not happened.
+Twenty-eight of the thirty-two threat notes in `docs/superpowers/notes/` say so in their own text —
+among them `privs` in the root daemon, account deletion, the setup token and the suspension session
+cull. If you install this beta on a machine that matters, you are trusting a
+review that a person has not yet done.
+
+What is absent by design in the first release — no DNS, no mail, no web database manager — is
+listed below with the rest, and none of it is a defect.
+
+### The work itself
+
 In active development toward the first release. The foundation is in place — the agent contract,
 the Rust agent, the backend host and the application shell — and so is the first feature set:
 first-run setup, sign-in with two-factor authentication, sessions you can see and revoke, an

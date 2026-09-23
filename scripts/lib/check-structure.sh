@@ -439,25 +439,6 @@ done < <(grep -rl 'new AuditEntry(' --include='*.cs' backend/src 2>/dev/null \
 #     down and the check went quiet. Those three folders are now module-root folders
 #     (<Module>/Interfaces/, Options/, Validators/), matching Maran.Sdk and Maran.SharedKernel, so
 #     nothing registered by design lives under Common/ any more and the exemption is gone with it.
-registered_types_in_common() {
-  find backend/src/Maran.Modules -maxdepth 2 -name '*Module.cs' \
-    -not -path '*/obj/*' -not -path '*/bin/*' | sort | while IFS= read -r module_file; do
-    module_dir="$(dirname "$module_file")"
-    [ -d "$module_dir/Common" ] || continue
-    grep -oE 'services\.Add(Scoped|Singleton|Transient)<[^>]*>' "$module_file" \
-      | sed -E 's/.*<//; s/>$//' \
-      | tr ',' '\n' \
-      | sed -E 's/^ *//; s/ *$//; s/<.*//' \
-      | while IFS= read -r type_name; do
-          [ -n "$type_name" ] || continue
-          found="$(find "$module_dir/Common" -name "$type_name.cs" \
-            -not -path '*/obj/*' -not -path '*/bin/*' | sort | head -1)"
-          if [ -n "$found" ]; then
-            printf '%s\t%s\n' "$found" "$(basename "$module_file")"
-          fi
-        done
-  done | sort -u
-}
 while IFS="$(printf '\t')" read -r file module_file; do
   report "$file: registered in $module_file — a type with a DI lifetime belongs in the module's Services/ (rules/csharp.md)"
 done < <(registered_types_in_common)
