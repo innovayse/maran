@@ -205,7 +205,7 @@ split window — so every screen is designed from the narrow end up:
   as a control gets it too. A 28px row is a row somebody misses twice before hitting it.
 - **Padding grows with the viewport** — `px-4 sm:px-6 lg:px-8` — rather than one value that is
   cramped on a phone or lost on a monitor.
-- **Width is decided once, by the page's container** (`max-w-8xl`), never by the components inside
+- **Width is decided once, by the page's container** (`max-w-9xl`), never by the components inside
   it. A paragraph, a list or a hero that carries its own `max-w-*` is a second width competing with
   the first, and the two disagree the day the container moves.
 - **What cannot be narrowed scrolls inside itself**: tables through `UiTable` and code blocks

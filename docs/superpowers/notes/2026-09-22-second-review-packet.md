@@ -1,8 +1,9 @@
-# Second-review packet — four threat notes blocking `main`
+# Second-review packet — the 28 threat notes blocking `main`
 
 ## What this is, and what it is not
 
-Four threat notes carry an OUTSTANDING second review. `rules/security.md` requires a second
+**Twenty-eight** threat notes carry an OUTSTANDING second review, measured against the tree rather
+than copied from issue #28, which still says twenty-one. `rules/security.md` requires a second
 human reviewer on a threat note before the work it covers reaches `main`; nothing in this
 repository can satisfy that requirement on a human's behalf, and this file does not try to.
 It exists to make the review short: it says where each claim is, which claims are load-bearing,
@@ -37,6 +38,38 @@ a reviewer should not have to do by hand:
 the mechanism the code IMPLEMENTS, and whether the risk each note argues is acceptable is in fact
 acceptable. A path that resolves proves the file exists, not that it does what the paragraph beside
 it claims.
+
+## What this packet covers, and where the other notes are
+
+Counted rather than asserted, because a packet that implies it covers everything is worse than one
+that says what it misses:
+
+- **14 of the 28** already have a one-line verdict with the evidence that settles it, in
+  `2026-09-11-reviewer-packet.md` §7. That packet is 451 lines and remains the deep reading; it is
+  twelve days old, so treat its per-note evidence as sound and its claims about "today's tree" as
+  needing a glance. Its table holds 20 rows, six of which are notes no longer in this debt — the
+  overlap was counted, not assumed, because 20 was the number I first wrote here and it was wrong.
+- **4** are read in depth below — the newest, and the ones whose subject is money rather than
+  privilege.
+- **10 had nothing at all until this section.** 14 + 4 + 10 = 28, which is the arithmetic that
+  matters: every outstanding note is reachable from this file. They get a triage line each: what the note covers,
+  and the part of it I would look at first. A triage line is not the deep read the four below got,
+  and saying so is the point.
+
+### The ten, with the part worth opening first
+
+| Note | Covers | Look here first |
+|---|---|---|
+| `cron-firewall-monitoring` (1018 lines) | the installer's privileged firewall steps and the agent's root-side cron read | The firewall steps: they open ports on a live host, and this is the longest note of the set — read its refusals before its mechanisms |
+| `backups` (547 lines) | archiving a home and dumping databases as root | The restore half. A backup that fails is a lost copy; a restore that fails halfway is a live account in an unknown state |
+| `grant-pattern` (221 lines) | `grant_pattern_for` and the `GRANT ALL PRIVILEGES` it feeds | Whether the escape is applied at the ONE site that composes the statement. This is the defect where one customer could reach another's database |
+| `grant-repair` (353 lines) | the `RepairDatabaseGrants` rpc | That it touches only rows it recognises as its own. A repair that rewrites a row it did not create is worse than the defect |
+| `home-group-repair` (212 lines) | `repair_home_groups`, run as root over customers' homes | Its six refusals. It chowns a directory a customer owns, so every path assumption it makes is a privilege question |
+| `setup-token-in-a-url` (355 lines) | the one-time token that creates the first administrator, printed in a link | Where the token can be logged — a URL travels into access logs, proxies and shell history |
+| `totp-sha1` (129 lines) | the algorithm in the provisioning URI | One judgement: whether SHA1 in TOTP is acceptable to you. It is the industry default and it is also the thing a customer's auditor will ask about |
+| `suspension-session-cull` (280 lines) | the agent ending a customer's live sessions when an account is locked | What it signals and to whom. A cull that matches too widely kills the wrong processes as root |
+| `sftp-jail-drift` (216 lines) | a read-only surface reporting whether the sshd jail block is intact | Whether "cannot read the file" is reported as drift or as unknown. Reporting a jail as intact because the check failed is the shape this must not have |
+| `cron-allowance` (108 lines) | one additive proto field bounding how many cron entries an account may have | The smallest note of the set. Whether the absent field means "no limit" rather than "allow nothing" |
 
 ## How to review one note in about ten minutes
 
@@ -106,3 +139,20 @@ here because a reviewer will otherwise assume they were decided:
    being read.
 
 If either is wrong, notes 3 and 4 need rewriting rather than reviewing.
+
+## Where to record the verdict
+
+`rules/security.md` asks for a recorded verdict, and until now this packet asked for one without
+giving anywhere to put it. Write it here, in this file, and commit it — a verdict that lives only
+in a conversation is a verdict the next reader cannot find.
+
+One line per note is enough. What it must carry: **who** read it, **when**, and **what they
+decided** — accepted, accepted with a condition, or refused. "Looks fine" is not a verdict; the
+condition is the useful part.
+
+| Note | Reviewer | Date | Verdict |
+|---|---|---|---|
+| | | | |
+
+A note left out of this table is a note nobody signed, and `main` is not compliant while any of the
+28 is missing from it. That sentence is here so the table cannot be half-filled and read as done.
