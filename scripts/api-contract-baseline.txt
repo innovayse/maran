@@ -12,7 +12,7 @@
 #
 # Regenerate with `maran api --accept`, in its own reviewed commit.
 
-covered: 30 endpoints, 91 members
+covered: 31 endpoints, 92 members
 
 POST /api/v1/accounts  ->  CreateAccountCommand
   name: string
@@ -135,6 +135,8 @@ POST /api/v1/sites  ->  CreateSiteCommand
   proxyUpstream: string
 POST /api/v1/sites/{}/php-version  ->  ChangeSitePhpVersionCommand
   phpVersion: string
+POST /api/v1/sites/php-versions/install  ->  InstallPhpVersionCommand
+  version: string
 
 # not covered — no JSON body crosses here, so this check says nothing about it
   DELETE /api/v1/accounts/{} — route-only call, no JSON body
