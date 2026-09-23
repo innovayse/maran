@@ -66,7 +66,8 @@ usage() {
   cat >&2 <<'USAGE'
 usage: maran release <build|sign|verify|selftest> [arguments]
 
-  build     [--version <ver>] [--out <dir>]     assemble api+agent+frontend into a manifest'd bundle dir
+  build     [--version <ver>] [--channel stable|beta] [--out <dir>]
+            assemble api+agent+frontend into a manifest'd bundle dir
   sign      --key <path> [--bundle <dir>]       sign the bundle's manifest.json with an Ed25519 key
   verify    --bundle <dir> [--pubkey <path>]    verify signature+checksums the way the installer does
   package   [--bundle <dir>] [--out <file>]     tar the bundle dir into the single offline tarball
@@ -223,15 +224,25 @@ write_integrity_manifest() {
 }
 
 cmd_build() {
-  local version="" out_dir=""
+  local version="" out_dir="" channel=""
   while [ $# -gt 0 ]; do
     case "$1" in
       --version) version="${2:?--version requires a value}"; shift 2 ;;
+      --channel) channel="${2:?--channel requires a value}"; shift 2 ;;
       --out) out_dir="${2:?--out requires a value}"; shift 2 ;;
       *) echo "release build: unknown argument: $1" >&2; usage ;;
     esac
   done
   [ -n "$version" ] || version="0.0.0-dev-$(date -u +%Y%m%dT%H%M%SZ)"
+  # The channel is part of every artifact URL the manifest publishes, and the manifest is what the
+  # signature covers — so a bundle built for one channel and served from another is a bundle whose
+  # own URLs point somewhere it is not. It was hardcoded `stable`, which would have published the
+  # first beta under the word an operator reads as "ready".
+  [ -n "$channel" ] || channel="stable"
+  case "$channel" in
+    stable|beta) ;;
+    *) echo "release build: --channel must be stable or beta, got: ${channel}" >&2; exit 2 ;;
+  esac
   [ -n "$out_dir" ] || out_dir="/tmp/maran-release-bundle"
 
   tree_lock_acquire "$root" 0 "release build" \
@@ -277,7 +288,7 @@ cmd_build() {
       [ "$first" -eq 1 ] || echo "    },"
       first=0
       echo "    \"${component}-${arch}\": {"
-      echo "      \"url\": \"https://releases.maran.innovayse.com/stable/${component}-${arch}.tar.gz\","
+      echo "      \"url\": \"https://releases.maran.innovayse.com/${channel}/${component}-${arch}.tar.gz\","
       echo "      \"sha256\": \"${sha}\""
     done
     echo "    }"
@@ -443,6 +454,10 @@ cmd_selftest() {
   work="$(mktemp -d)"
   trap 'rm -rf -- "$work"' RETURN
 
+  # The selftest builds its own manifest inline rather than calling cmd_build, so it needs the
+  # same `channel` the real builder has — without it the URL would interpolate an empty segment
+  # and this test would be asserting against a shape no release ever has.
+  local channel="stable"
   local keydir="${work}/keys" bundle="${work}/bundle"
   install -d -m 0700 "$keydir"
   openssl genpkey -algorithm ed25519 -out "${keydir}/throwaway.key" >/dev/null 2>&1
@@ -476,7 +491,7 @@ cmd_selftest() {
       [ "$first" -eq 1 ] || echo "    },"
       first=0
       echo "    \"${component}-${arch}\": {"
-      echo "      \"url\": \"https://releases.maran.innovayse.com/stable/${component}-${arch}.tar.gz\","
+      echo "      \"url\": \"https://releases.maran.innovayse.com/${channel}/${component}-${arch}.tar.gz\","
       echo "      \"sha256\": \"$(sha256_of "${bundle}/${component}.tar.gz")\""
     done
     echo "    }"
