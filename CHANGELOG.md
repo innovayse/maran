@@ -5,6 +5,23 @@ than a strict category list: what changed and why it matters to somebody running
 
 ## Unreleased
 
+Nothing yet.
+
+## 1.0.0-beta.1 — 2026-09-23
+
+**A beta, and the README says what that means: do not put somebody else's customers on it.** The
+software installs, runs and does what its screens say. Three things a paid hosting product must be
+trusted about have been exercised only in this repository's own containers — no certificate has
+been issued by a real authority, no disk limit has been enforced by a real filesystem, and no
+restore has been run on real hardware.
+
+The threat notes covering the privileged parts were reviewed and accepted on 2026-09-23; the
+per-note verdict is in `docs/superpowers/notes/2026-09-22-second-review-packet.md`. That discharges
+`rules/security.md`'s second-reviewer requirement. It is not an external audit.
+
+What is absent by design: DNS, mail, and a web database manager.
+
+
 ### Added
 
 - **Panel authentication.** First-run setup from the installer's one-time token, sign-in with
