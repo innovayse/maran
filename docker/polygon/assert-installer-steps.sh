@@ -4236,6 +4236,25 @@ secret was never sent and its absence from the log means nothing."; return 1; }
     || { printf '%s' "curl reached the panel with a query string and not without one, which leaves this assertion
 no control request. https://127.0.0.1:${port}${VHOST_LOG_PROBE_PATH}"; return 1; }
 
+  # WAIT for the two lines rather than reading once. curl returns when the RESPONSE is complete;
+  # nginx writes its access-log entry after finishing the request, and with the write buffered the
+  # line is regularly not there yet. Measured 2026-09-23: commit b2d6a7a passed this assertion on
+  # dev and failed it on main — the same tree, the same image, a different machine's timing — and
+  # the failure read "the shipped panel vhost logged no line naming '/setup' at all", which is the
+  # sentence this assertion prints when the leak it hunts is absent. A flaky assertion that fails
+  # with the words of a real finding is worse than no assertion: it teaches its reader to disbelieve
+  # it.
+  #
+  # Bounded, and the bound is a failure rather than a fall-through: if the lines never arrive, the
+  # caller still reads an empty log and says so, exactly as before. The same shape as the pid-file
+  # wait above — wait for the observation, never sleep a length that looks safe.
+  vhost_log_waited=0
+  while [ "$(grep -cF -- "$VHOST_LOG_PROBE_PATH" "$VHOST_LOG_ACCESS_LOG" 2>/dev/null || echo 0)" -lt 2 ] \
+        && [ "$vhost_log_waited" -lt 50 ]; do
+    vhost_log_waited=$((vhost_log_waited + 1))
+    sleep 0.1
+  done
+
   cat "$VHOST_LOG_ACCESS_LOG"
   return 0
 }

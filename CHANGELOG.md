@@ -7,6 +7,24 @@ than a strict category list: what changed and why it matters to somebody running
 
 Nothing yet.
 
+## 1.0.0-beta.2 — 2026-09-23
+
+**The first beta could not install on a Debian-family host.** `30-postgresql.sh` searched
+`/etc/postgresql` to a depth of two for `postgresql.conf`, and Debian and Ubuntu put it three levels
+down at `/etc/postgresql/<major>/<cluster>/postgresql.conf`. The packages installed, `initdb`
+created the cluster, and the installer then refused to find its own configuration. Both resolvers
+had it — `postgresql.conf` and `pg_hba.conf`.
+
+It was found by the first real install anybody ran, on Ubuntu 24.04, and it survived because the
+polygon copies that step into its image without ever executing it: the image installs MariaDB and
+sshd, not PostgreSQL. An assertion now exercises the resolver against the layout Debian creates,
+with the inverse control that the old depth must fail on the same tree.
+
+The refusal also prints what it searched for and lists what `/etc/postgresql` holds. Diagnosing the
+original needed a photograph of a console.
+
+Nothing else changed: the panel, the agent and the SPA are the same software as beta.1.
+
 ## 1.0.0-beta.1 — 2026-09-23
 
 **A beta, and the README says what that means: do not put somebody else's customers on it.** The
