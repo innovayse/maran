@@ -44,7 +44,8 @@
         "twoFactor": "Двухфакторная проверка",
         "audit": "Журнал аудита",
         "securityPolicy": "Политика безопасности",
-        "smtpSettings": "Исходящая почта"
+        "smtpSettings": "Исходящая почта",
+        "phpVersions": "Версии PHP"
       }
     },
     "locale": {

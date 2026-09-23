@@ -29,6 +29,7 @@ import AuditPage from '../pages/settings/AuditPage.vue'
 import SessionsPage from '../pages/settings/SessionsPage.vue'
 import TwoFactorSettingsPage from '../pages/settings/TwoFactorSettingsPage.vue'
 import SecurityPolicyPage from '../pages/settings/SecurityPolicyPage.vue'
+import PhpVersionsPage from '../pages/settings/PhpVersionsPage.vue'
 import SmtpSettingsPage from '../pages/settings/SmtpSettingsPage.vue'
 import { createAuthGuard } from './authGuard'
 import { createModuleAccessGuard } from './moduleAccessGuard'
@@ -252,6 +253,11 @@ export const createAppRouter = (): Router => {
           // ability to send a reset link.
           { path: 'security-policy', name: 'security-policy', component: SecurityPolicyPage },
           { path: 'smtp', name: 'smtp-settings', component: SmtpSettingsPage },
+          // PHP runtimes are server-wide and installing one is administrators' work, so this sits
+          // with the other administrator screens and carries no `meta.module`: a host with no PHP
+          // version installed is a host where no PHP site can be created at all, which is not a
+          // state a licence should be able to produce.
+          { path: 'php', name: 'php-versions', component: PhpVersionsPage },
           // The journal is administrators-only, and the endpoint is what says so: a customer who
           // types this URL gets the panel's own refusal rendered on the page. No route guard
           // duplicates that rule here — a second copy of an authorization decision is a second

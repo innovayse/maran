@@ -109,6 +109,16 @@ public static class AuditActions
     /// <summary>A site was rebound to a different installed PHP version.</summary>
     public const string SitePhpVersionChanged = "SitePhpVersionChanged";
 
+    /// <summary>A PHP version was installed on this server.</summary>
+    /// <remarks>
+    /// Server-wide rather than per-account, and that is why it is journalled separately from
+    /// <see cref="SitePhpVersionChanged"/>: changing one site's version affects one customer,
+    /// while installing a runtime changes what every site on the box may be pointed at, and adds
+    /// packages an administrator will later have to patch. The subject is the version, because
+    /// that is the only thing the operation acts on.
+    /// </remarks>
+    public const string PhpVersionInstalled = "PhpVersionInstalled";
+
     /// <summary>A site was returned to normal serving.</summary>
     public const string SiteEnabled = "SiteEnabled";
 

@@ -75,6 +75,9 @@
   <data name="AuditActionSiteCreated">
     <value>Создан сайт</value>
   </data>
+  <data name="AuditActionPhpVersionInstalled" xml:space="preserve">
+    <value>Установлена версия PHP</value>
+  </data>
   <data name="AuditActionSitePhpVersionChanged">
     <value>Изменена версия PHP сайта</value>
   </data>

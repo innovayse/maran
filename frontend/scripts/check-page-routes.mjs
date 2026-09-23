@@ -94,6 +94,7 @@ const DELIBERATELY_UNLINKED = new Map([
   ['not-found', 'the catch-all: a page nothing should ever link to'],
   ['two-factor', 'opened by the account menu (ShellUserBlock), whose dropdown items push programmatically'],
   ['security-policy', 'opened by the account menu (ShellUserBlock), whose dropdown items push programmatically'],
+  ['php-versions', 'opened by the account menu (ShellUserBlock), whose dropdown items push programmatically'],
   ['accounts-new', "the list page's create button pushes here programmatically"],
   ['sites-new', "the list page's create button pushes here programmatically"],
 ])

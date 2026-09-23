@@ -75,6 +75,9 @@
   <data name="AuditActionSiteCreated">
     <value>Ստեղծվեց կայք</value>
   </data>
+  <data name="AuditActionPhpVersionInstalled" xml:space="preserve">
+    <value>Տեղադրվել է PHP տարբերակ</value>
+  </data>
   <data name="AuditActionSitePhpVersionChanged">
     <value>Փոխվեց կայքի PHP տարբերակը</value>
   </data>

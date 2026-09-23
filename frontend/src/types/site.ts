@@ -174,6 +174,17 @@ export interface SitesApi {
   listPhpVersions: (signal?: AbortSignal) => Promise<PhpVersion[]>
 
   /**
+   * Installs a PHP version on the server and answers what is installed afterwards.
+   *
+   * Administrator-only on the server. The promise does not settle until the install finishes,
+   * which is the host's package manager fetching over whatever mirror it has.
+   * @param version The version to install, e.g. `8.4`.
+   * @param signal Optional abort signal to cancel the in-flight request.
+   * @returns The versions installed on this server after the attempt.
+   */
+  installPhpVersion: (version: string, signal?: AbortSignal) => Promise<PhpVersion[]>
+
+  /**
    * Tails one of a site's logs: recent lines first, then new ones as they are written.
    *
    * Resolves only once the stream has ended and `onEnd` has been called, so a caller can await

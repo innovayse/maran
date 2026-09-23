@@ -44,7 +44,8 @@
         "twoFactor": "Երկքայլ ստուգում",
         "audit": "Աուդիտի մատյան",
         "securityPolicy": "Անվտանգության քաղաքականություն",
-        "smtpSettings": "Ելքային փոստ"
+        "smtpSettings": "Ելքային փոստ",
+        "phpVersions": "PHP տարբերակներ"
       }
     },
     "locale": {

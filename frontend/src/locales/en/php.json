@@ -1,0 +1,24 @@
+{
+  "php": {
+    "title": "PHP versions",
+    "description": "The PHP runtimes installed on this server, and the one control that adds to them.",
+    "table": {
+      "caption": "PHP versions installed on this server",
+      "version": "Version",
+      "default": "The host's default",
+      "defaultYes": "Yes",
+      "defaultNo": "No",
+      "defaultUnknown": "Not established"
+    },
+    "empty": {
+      "title": "No PHP version is installed",
+      "description": "No site on this server can run PHP until one is. Install a version below."
+    },
+    "install": {
+      "label": "Version to install",
+      "submit": "Install this version",
+      "running": "Installing {version}…",
+      "hint": "Two components, as the packages name it — 8.4, not php8.4 and not 8.4.3. The server's package manager does the fetching, which on a slow mirror takes minutes; the tasks screen carries the progress."
+    }
+  }
+}

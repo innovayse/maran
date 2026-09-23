@@ -68,4 +68,16 @@ public static class TaskKinds
     /// anything about until it is over.
     /// </remarks>
     public const string BackupRestore = "BackupRestore";
+
+    /// <summary>
+    /// A PHP version is being installed on this server, on an operator's demand.
+    /// </summary>
+    /// <remarks>
+    /// It earns a task for the plainest of the reasons on this list: it is the panel asking the
+    /// host's package manager to fetch and unpack a runtime, which takes minutes on a slow mirror
+    /// and cannot be hurried. The alternative — a request that simply has not answered yet — leaves
+    /// an operator unable to tell a slow download from a wedged one, and unable to say anything
+    /// about it to the customer waiting for the version.
+    /// </remarks>
+    public const string PhpVersionInstall = "PhpVersionInstall";
 }

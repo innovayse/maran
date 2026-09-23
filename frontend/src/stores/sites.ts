@@ -45,6 +45,18 @@ export const useSitesStore = defineStore('sites', () => {
   /** The PHP versions installed on the host, as last loaded. Never a list written into the SPA. */
   const phpVersions: Ref<PhpVersion[]> = ref([])
 
+  /** The version an install is running for, or `null` when none is. */
+  const installingPhpVersion: Ref<string | null> = ref(null)
+
+  /**
+   * Why the last install attempt failed, verbatim from the panel, or `null`.
+   *
+   * Separate from the store's general `errorMessage` for the reason the create flow keeps its own:
+   * an install that fails must not wipe the reason a different request failed, and the screen
+   * shows this one next to the control that caused it.
+   */
+  const phpInstallErrorMessage: Ref<string | null> = ref(null)
+
   /** True while a read request (the list, one site, or the versions) is in flight. */
   const loading: Ref<boolean> = ref(false)
 
@@ -155,6 +167,31 @@ export const useSitesStore = defineStore('sites', () => {
       errorMessage.value = null
     } catch (error) {
       errorMessage.value = error instanceof ApiError ? error.message : null
+    }
+  }
+
+  /**
+   * Asks the server to install a PHP version, and replaces the held list with what it answers.
+   *
+   * The list is REPLACED by the server's answer rather than appended to with the version that was
+   * requested: what this host has is the agent's to report, and a list grown from the request
+   * would show a version as installed on the strength of having asked for it.
+   * @param version The version to install, e.g. `8.4`.
+   * @returns `true` when the server reports the version among those installed afterwards.
+   */
+  const installPhpVersion = async (version: string): Promise<boolean> => {
+    installingPhpVersion.value = version
+    try {
+      phpVersions.value = await api.installPhpVersion(version)
+      phpInstallErrorMessage.value = null
+      return phpVersions.value.some((installed) => {
+        return installed.version === version
+      })
+    } catch (error) {
+      phpInstallErrorMessage.value = error instanceof ApiError ? error.message : null
+      return false
+    } finally {
+      installingPhpVersion.value = null
     }
   }
 
@@ -375,6 +412,8 @@ export const useSitesStore = defineStore('sites', () => {
     sites,
     selected,
     phpVersions,
+    installingPhpVersion,
+    phpInstallErrorMessage,
     loading,
     creating,
     acting,
@@ -389,6 +428,7 @@ export const useSitesStore = defineStore('sites', () => {
     load,
     loadOne,
     loadPhpVersions,
+    installPhpVersion,
     create,
     changePhpVersion,
     enable,

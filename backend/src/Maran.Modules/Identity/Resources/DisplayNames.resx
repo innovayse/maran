@@ -75,6 +75,9 @@
   <data name="AuditActionSiteCreated">
     <value>Site created</value>
   </data>
+  <data name="AuditActionPhpVersionInstalled" xml:space="preserve">
+    <value>PHP version installed</value>
+  </data>
   <data name="AuditActionSitePhpVersionChanged">
     <value>Site PHP version changed</value>
   </data>

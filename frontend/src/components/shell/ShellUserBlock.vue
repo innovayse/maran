@@ -165,6 +165,11 @@ const signOut = async (): Promise<void> => {
     <UiDropdownItem v-if="isAdmin" @select="go('smtp-settings')">
       {{ t('app.shell.menu.smtpSettings') }}
     </UiDropdownItem>
+    <!-- PHP runtimes are server-wide: installing one changes what every site on the box may be
+         pointed at. Administrator-only here for the same presentational reason as the two above. -->
+    <UiDropdownItem v-if="isAdmin" @select="go('php-versions')">
+      {{ t('app.shell.menu.phpVersions') }}
+    </UiDropdownItem>
     <UiDropdownItem destructive @select="signOut">{{ t('app.auth.signOut') }}</UiDropdownItem>
   </UiDropdown>
 

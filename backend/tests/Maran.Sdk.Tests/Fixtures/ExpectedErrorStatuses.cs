@@ -160,6 +160,10 @@ public static class ExpectedErrorStatuses
             ["PasswordResetEmailInvalid"] = ErrorType.Validation,
             ["PasswordResetTokenInvalid"] = ErrorType.Validation,
             ["PasswordTooWeak"] = ErrorType.Validation,
+            // Failure, not Validation: nothing the caller sent is wrong. The server could not say
+            // whether the packages landed, which is the host's problem and a 500's meaning, and
+            // classifying it as a bad request would send an operator looking at their own input.
+            ["PhpInstallOutcomeUnobserved"] = ErrorType.Failure,
             ["PhpVersionInvalidFormat"] = ErrorType.Validation,
             ["PhpVersionNotInstalled"] = ErrorType.Validation,
             ["PlanNotFound"] = ErrorType.NotFound,

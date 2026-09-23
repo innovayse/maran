@@ -44,7 +44,8 @@
         "twoFactor": "Two-step verification",
         "audit": "Audit journal",
         "securityPolicy": "Security policy",
-        "smtpSettings": "Outgoing mail"
+        "smtpSettings": "Outgoing mail",
+        "phpVersions": "PHP versions"
       }
     },
     "locale": {

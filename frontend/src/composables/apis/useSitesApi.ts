@@ -130,6 +130,23 @@ export const useSitesApi = (): SitesApi => {
   }
 
   /**
+   * Asks the server to install a PHP version, and answers the versions it has afterwards.
+   *
+   * Administrator-only on the server, and the SPA does not pretend otherwise: a customer who
+   * reaches this gets a refusal from the panel, which is where the decision belongs
+   * (rules/security.md — a check in the browser is advice).
+   *
+   * The request does not resolve until the install finishes, which on a slow mirror is minutes.
+   * Its progress is on the tasks screen, because the panel records a task for it.
+   * @param version The version to install, e.g. `8.4`.
+   * @param signal Optional abort signal to cancel the in-flight request.
+   * @returns The versions installed on this server after the attempt.
+   */
+  const installPhpVersion = (version: string, signal?: AbortSignal): Promise<PhpVersion[]> => {
+    return api.post<PhpVersion[]>(`${SITES_PATH}/php-versions/install`, { version }, signal)
+  }
+
+  /**
    * Reads the ending named in an `end` frame, refusing to invent a benign one.
    * @param named The `reason` the frame carried, or `undefined` when it carried none.
    * @returns The ending the panel named, or `failed` when it named none this SPA knows.
@@ -218,6 +235,7 @@ export const useSitesApi = (): SitesApi => {
     disable,
     remove,
     listPhpVersions,
+    installPhpVersion,
     tailLog,
   }
 }

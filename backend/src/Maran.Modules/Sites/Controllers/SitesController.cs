@@ -3,6 +3,7 @@ using Maran.Modules.Sites.Commands.CreateSite;
 using Maran.Modules.Sites.Commands.DeleteSite;
 using Maran.Modules.Sites.Commands.DisableSite;
 using Maran.Modules.Sites.Commands.EnableSite;
+using Maran.Modules.Sites.Commands.InstallPhpVersion;
 using Maran.Modules.Sites.Common;
 using Maran.Modules.Sites.Queries.GetSite;
 using Maran.Modules.Sites.Queries.ListPhpVersions;
@@ -184,6 +185,42 @@ public sealed class SitesController : BaseApiController
     {
         var query = new ListPhpVersionsQuery();
         return ToActionResult(await _bus.InvokeAsync<Result<IReadOnlyList<PhpVersionDto>>>(query, cancellationToken));
+    }
+
+    /// <summary>
+    /// Installs a PHP version on this server, so sites can be pointed at it.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Administrator only, unlike every other action on this controller.</b> The class-level
+    /// policy is <c>AnyAuthenticated</c>, and the attribute below is ADDED to it rather than
+    /// replacing it — ASP.NET Core requires every policy on the chain to pass — so a customer who
+    /// may create their own site cannot install a runtime for the whole box. The list beside this
+    /// action stays readable by anyone, because choosing among installed versions is a tenant's
+    /// business and adding to them is not.
+    /// </para>
+    /// <para>
+    /// It answers the versions the server has AFTER the attempt, read back from the agent rather
+    /// than assembled from what was asked for. The install itself is recorded as a task, because it
+    /// is the package manager fetching over whatever mirror the host has and an operator needs to
+    /// watch it rather than wait on it.
+    /// </para>
+    /// </remarks>
+    /// <param name="command">The version to install, e.g. <c>8.4</c>.</param>
+    /// <param name="cancellationToken">Cancellation token for the request.</param>
+    [HttpPost("php-versions/install")]
+    [Authorize(Policy = AuthorizationPolicies.AdminOnly)]
+    [ProducesResponseType(typeof(IReadOnlyList<PhpVersionDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> InstallPhpVersionAsync(
+        [FromBody] InstallPhpVersionCommand command,
+        CancellationToken cancellationToken)
+    {
+        command = command with { IpAddress = ClientIpAddress, UserAgent = CallerUserAgent };
+        return ToActionResult(
+            await _bus.InvokeAsync<Result<IReadOnlyList<PhpVersionDto>>>(command, cancellationToken));
     }
 
     /// <summary>
