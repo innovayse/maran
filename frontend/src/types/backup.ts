@@ -32,6 +32,14 @@ export interface Backup {
   id: string
   /** The account this is a backup of. */
   accountId: string
+  /**
+   * The account's username when that account no longer exists, and an empty string while it does.
+   *
+   * A pre-deletion backup outlives its account deliberately, so for precisely those rows the
+   * accounts list can name nobody — and those are the rows an operator reaches for after a
+   * deletion they regret.
+   */
+  orphanedAccountUsername: string
   /** How far the run got. */
   status: BackupStatus
   /** Why the backup was taken. */

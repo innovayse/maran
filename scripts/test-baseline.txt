@@ -274,7 +274,7 @@ spa	auth/setup.spec.ts	8	0	0
 spa	auth/two-factor-setup.spec.ts	2	0	0
 spa	auth/two-factor.spec.ts	5	0	0
 spa	backups/destinations.spec.ts	9	0	0
-spa	backups/list.spec.ts	14	0	0
+spa	backups/list.spec.ts	15	0	0
 spa	backups/reachability.spec.ts	1	0	0
 spa	backups/restore.spec.ts	12	0	0
 spa	backups/schedule.spec.ts	7	0	0

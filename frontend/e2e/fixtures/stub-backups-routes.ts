@@ -25,6 +25,7 @@ export const stubBackups = async (page: Page, backups: Backup[]): Promise<void> 
       const created: Backup = {
         id: '99999999-9999-9999-9999-999999999999',
         accountId: submitted.accountId,
+        orphanedAccountUsername: '',
         status: 'completed',
         kind: 'manual',
         sizeBytes: 5_242_880,

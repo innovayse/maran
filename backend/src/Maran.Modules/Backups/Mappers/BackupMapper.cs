@@ -28,6 +28,7 @@ public static class BackupMapper
         return new BackupDto(
             backup.Id,
             backup.AccountId,
+            backup.OrphanedAccountUsername,
             backup.Status,
             backup.Kind,
             backup.SizeBytes,

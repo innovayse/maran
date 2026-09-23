@@ -60,6 +60,7 @@ public sealed class ListBackupsQueryHandler
             {
                 backup.Id,
                 backup.AccountId,
+                backup.OrphanedAccountUsername,
                 backup.Status,
                 backup.Kind,
                 backup.SizeBytes,
@@ -77,6 +78,7 @@ public sealed class ListBackupsQueryHandler
                 return new BackupDto(
                     row.Id,
                     row.AccountId,
+                    row.OrphanedAccountUsername,
                     row.Status,
                     row.Kind,
                     row.SizeBytes,

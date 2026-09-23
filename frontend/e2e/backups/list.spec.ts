@@ -29,6 +29,7 @@ const ALICE: Account = {
 const COMPLETED: Backup = {
   id: '11111111-1111-1111-1111-111111111111',
   accountId: ALICE.id,
+  orphanedAccountUsername: '',
   status: 'completed',
   kind: 'manual',
   sizeBytes: 1_572_864,
@@ -44,6 +45,7 @@ const COMPLETED: Backup = {
 const FAILED: Backup = {
   id: '33333333-3333-3333-3333-333333333333',
   accountId: ALICE.id,
+  orphanedAccountUsername: '',
   status: 'failed',
   kind: 'manual',
   sizeBytes: 0,
@@ -102,6 +104,46 @@ test('a row names the owning account, its status and how many databases the copy
 // A failed run produced no archive. `sizeBytes` is zero for want of a file, and rendering it as
 // "0 B" would say an archive exists and is empty — the opposite of the truth, in the column an
 // operator uses to decide whether a copy is worth anything.
+/**
+ * A pre-deletion copy whose account is GONE — the state the whole feature exists for. The accounts
+ * list cannot name it, so the row has only the username preserved on the backup itself.
+ */
+const ORPHANED: Backup = {
+  id: '55555555-5555-5555-5555-555555555555',
+  accountId: '66666666-6666-6666-6666-666666666666',
+  orphanedAccountUsername: 'bob',
+  status: 'completed',
+  kind: 'preDeletion',
+  sizeBytes: 3_400,
+  sha256: 'b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90a1',
+  databaseCount: 1,
+  startedAt: '2026-09-06T05:00:00Z',
+  finishedAt: '2026-09-06T05:00:20Z',
+  failureCode: '',
+  failureDisplayName: '',
+}
+
+test('a copy of a deleted account is named by the username preserved on the backup', async ({
+  page,
+}) => {
+  await stubSignedIn(page)
+  await stubHealthy(page)
+  await stubModules(page, LICENSED)
+  // ALICE alone: the backup's own account is not in this list, because it was deleted.
+  await stubAccounts(page, [ALICE])
+  await stubBackups(page, [ORPHANED])
+
+  await page.goto('/backups')
+
+  // Found by driving the running panel: every pre-deletion row showed the em-dash placeholder,
+  // because the screen resolved names from the live accounts list alone and the wire carried no
+  // fallback — so the copies an operator reaches for after a deletion they regret were precisely
+  // the ones that would not say whose they were. The value had been stored since the migration
+  // that added it; it simply never left the database.
+  const row = page.getByRole('row').filter({ hasText: 'Completed' })
+  await expect(row.getByRole('cell').first()).toHaveText('bob')
+})
+
 test('a failed backup shows its failure code and no size at all', async ({ page }) => {
   await stubSignedIn(page)
   await stubHealthy(page)

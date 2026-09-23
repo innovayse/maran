@@ -37,6 +37,7 @@ const ALICE: Account = {
 const COMPLETED: Backup = {
   id: '11111111-1111-1111-1111-111111111111',
   accountId: ALICE.id,
+  orphanedAccountUsername: '',
   status: 'completed',
   kind: 'manual',
   sizeBytes: 1_572_864,

@@ -97,21 +97,26 @@ const confirmationTitle: ComputedRef<string> = computed(() => {
   return pending === null
     ? ''
     : t('backups.list.confirmDeleteTitle', {
-        account: accountName(pending.accountId),
+        account: accountName(pending),
         startedAt: formatIsoTimestamp(pending.startedAt, localeStore.current),
       })
 })
 
 /**
  * Names the account a backup belongs to, for a column that would otherwise print a GUID.
- * @param id The owning account's identity, as the backup row reports it.
- * @returns The account's own short name, or a placeholder when the accounts list has none.
+ *
+ * The live accounts list is asked first, and the backup's own `orphanedAccountUsername` second.
+ * That order matters: while an account exists its current name is the truthful one, and a name
+ * copied onto the row at deletion time is the only one left once it does not. The placeholder is
+ * reached only by a row that is neither — which no row the panel writes should be.
+ * @param backup The backup the row is drawn for.
+ * @returns The account's short name, the name preserved at deletion, or a placeholder.
  */
-const accountName = (id: string): string => {
+const accountName = (backup: Backup): string => {
   const owner = accountsStore.accounts.find((account) => {
-    return account.id === id
+    return account.id === backup.accountId
   })
-  return owner?.name ?? t('common.emptyValue')
+  return owner?.name ?? (backup.orphanedAccountUsername || t('common.emptyValue'))
 }
 
 /**
@@ -302,7 +307,7 @@ onMounted(refresh)
         </UiTableRow>
       </template>
       <UiTableRow v-for="backup in store.backups" :key="backup.id">
-        <UiTableCell class="font-medium">{{ accountName(backup.accountId) }}</UiTableCell>
+        <UiTableCell class="font-medium">{{ accountName(backup) }}</UiTableCell>
         <UiTableCell>
           <BackupStatusBadge :status="backup.status" />
           <!-- Both halves of the failure, and neither instead of the other. The sentence is the
@@ -340,7 +345,7 @@ onMounted(refresh)
                  "Actions" repeated down the column names nothing to a screen reader. -->
             <UiDropdown
               :label="t('common.actions')"
-              :aria-label="t('backups.list.rowActions', { account: accountName(backup.accountId) })"
+              :aria-label="t('backups.list.rowActions', { account: accountName(backup) })"
               align="end"
               variant="bare"
               :chevron="false"

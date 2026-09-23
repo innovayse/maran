@@ -19,6 +19,14 @@ namespace Maran.Modules.Backups.Common;
 /// </remarks>
 /// <param name="Id">The backup's identity, which is also the identifier its artifact is stored under.</param>
 /// <param name="AccountId">The account this is a backup of.</param>
+/// <param name="OrphanedAccountUsername">
+/// The username of the account this backup belongs to WHEN that account no longer exists, and empty
+/// while it does. A pre-deletion backup outlives its account on purpose — that is the whole reason
+/// the panel takes one — and a reader resolving the name from the live accounts list finds nothing
+/// for exactly those rows. The screen showed a placeholder there, so the backups an operator would
+/// reach for after a mistaken deletion were the ones that would not say whose they were. The row
+/// has held this value since the migration that added it; it simply never reached the wire.
+/// </param>
 /// <param name="Status">How far the run got, and therefore whether a restore may read it.</param>
 /// <param name="Kind">Why the backup was taken.</param>
 /// <param name="SizeBytes">The artifact's size, or zero when there is no artifact.</param>
@@ -38,6 +46,7 @@ namespace Maran.Modules.Backups.Common;
 public sealed record BackupDto(
     Guid Id,
     Guid AccountId,
+    string OrphanedAccountUsername,
     BackupStatus Status,
     BackupKind Kind,
     long SizeBytes,

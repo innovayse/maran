@@ -26,6 +26,7 @@ const ALICE: Account = {
 const COMPLETED: Backup = {
   id: '11111111-1111-1111-1111-111111111111',
   accountId: ALICE.id,
+  orphanedAccountUsername: '',
   status: 'completed',
   kind: 'manual',
   sizeBytes: 1_572_864,
@@ -65,6 +66,7 @@ test('a restore sends nothing until the account name is typed exactly', async ({
   const submitted = await stubBackupRestore(page, 200, {
     backupId: COMPLETED.id,
     accountId: ALICE.id,
+    orphanedAccountUsername: '',
     whole: true,
     filesRestored: true,
     databasesRestored: 2,
@@ -174,6 +176,7 @@ test('a whole restore reports the counts the panel gave back', async ({ page }) 
   await stubBackupRestore(page, 200, {
     backupId: COMPLETED.id,
     accountId: ALICE.id,
+    orphanedAccountUsername: '',
     whole: true,
     filesRestored: true,
     databasesRestored: 2,
@@ -236,6 +239,7 @@ test('the confirm control of a dialog taller than the window can actually be pre
   const submitted = await stubBackupRestore(page, 200, {
     backupId: COMPLETED.id,
     accountId: ALICE.id,
+    orphanedAccountUsername: '',
     whole: true,
     filesRestored: true,
     databasesRestored: 2,
