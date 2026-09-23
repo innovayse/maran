@@ -100,12 +100,21 @@ verify_manifest_signature() {
 manifest_field() {
   local manifest="$1" component="$2" field="$3"
   local key="${component}-${MARAN_ARCH}"
+  # The trailing comma is the whole point of `,?` here. This matched only `"[^"]*"[[:space:]]*$` —
+  # a quoted value at END OF LINE — and the manifest is ordinary pretty-printed JSON, where every
+  # field except the last in its object is followed by one. Measured against the published
+  # 1.0.0-beta.2 manifest: `sha256` (written last) read correctly and `url` (written first) came
+  # back EMPTY, so the step reported "manifest has no entry for api-x86_64" about an entry that was
+  # sitting there. No online install could fetch anything.
+  #
+  # The comma is stripped from the captured value along with the quotes, because a URL ending in a
+  # comma is not a URL and the failure would then move downstream to curl.
   awk -v key="\"${key}\"" -v field="\"${field}\"" '
     $0 ~ key { in_block=1 }
     in_block && $0 ~ field {
-      match($0, /"[^"]*"[[:space:]]*$/)
+      match($0, /"[^"]*"[[:space:]]*,?[[:space:]]*$/)
       val = substr($0, RSTART, RLENGTH)
-      gsub(/"/, "", val)
+      gsub(/[",[:space:]]/, "", val)
       print val
       exit
     }

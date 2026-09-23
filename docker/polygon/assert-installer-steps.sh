@@ -7008,6 +7008,69 @@ dependency_step_family_arms() {
 # which is the same question asked cheaply. What this does NOT cover, stated rather than implied:
 # everything else in step 30 — the rewrite, the restart, and the no-TCP assertion — still runs
 # nowhere.
+# assert_the_manifest_reader_reads_every_field_not_only_the_last: 50-artifacts.sh's manifest_field
+# against pretty-printed JSON of the shape `maran release build` writes.
+#
+# WHY THIS EXISTS. The reader matched a quoted value only at END OF LINE, and every JSON field
+# except the last in its object is followed by a comma — so it read `sha256`, written last, and
+# returned EMPTY for `url`, written first. Step 50 then refused with "manifest has no entry for
+# api-x86_64" about an entry that was in the file. No online install could fetch anything, and
+# 1.0.0-beta.1 and beta.2 were both published with it.
+#
+# It reached a real server for the same reason #34 did: nothing here runs step 50 against a real
+# signed manifest, and the offline path does not use this function at all, so the release selftest
+# passing says nothing about it.
+assert_the_manifest_reader_reads_every_field_not_only_the_last() {
+  local dir manifest url sha
+  dir="$(mktemp -d)"
+  manifest="${dir}/manifest.json"
+  cat >"$manifest" <<'MANIFEST'
+{
+  "version": "0.0.0-assert",
+  "artifacts": {
+    "api-x86_64": {
+      "url": "https://example.invalid/beta/api-x86_64.tar.gz",
+      "sha256": "1111111111111111111111111111111111111111111111111111111111111111"
+    }
+  }
+}
+MANIFEST
+
+  # The function under test, sourced from the step itself rather than copied here: a copy would go
+  # on passing after the original changed, which is the failure this whole file exists against.
+  MARAN_ARCH=x86_64
+  eval "$(sed -n '/^manifest_field() {/,/^}/p' /tmp/maran-installer/lib/50-artifacts.sh)"
+
+  url="$(manifest_field "$manifest" api url)"
+  sha="$(manifest_field "$manifest" api sha256)"
+
+  [ "$url" = "https://example.invalid/beta/api-x86_64.tar.gz" ] \
+    || fail "manifest_field read url as '${url}' — a field followed by a comma is every field but
+the last one, and this is the shape 'manifest has no entry for api-x86_64' was reported about."
+  [ "$sha" = "1111111111111111111111111111111111111111111111111111111111111111" ] \
+    || fail "manifest_field read sha256 as '${sha}'."
+
+  # The inverse control: the pattern this replaced must FAIL on the same file, or the assertion
+  # cannot tell the fixed reader from the broken one.
+  local old
+  old="$(awk -v key='"api-x86_64"' -v field='"url"' '
+    $0 ~ key { in_block=1 }
+    in_block && $0 ~ field {
+      match($0, /"[^"]*"[[:space:]]*$/)
+      print substr($0, RSTART, RLENGTH)
+      exit
+    }
+    in_block && /}/ { in_block=0 }
+  ' "$manifest")"
+  [ -z "$old" ] \
+    || fail "the end-of-line-only pattern read url as '${old}' from a comma-terminated line, so this
+assertion proves nothing about the fix."
+
+  rm -rf -- "$dir"
+  echo "assert-installer-steps.sh: manifest_field reads a comma-terminated field, and the pattern it
+  replaced does not."
+}
+
 assert_the_postgresql_conf_resolver_finds_a_real_debian_layout() {
   local root conf hba
   root="$(mktemp -d)"
@@ -7271,6 +7334,7 @@ main() {
   # beside the other census rather than among the assertions that start daemons.
   assert_every_supported_family_installs_the_process_signalling_tool
   assert_the_postgresql_conf_resolver_finds_a_real_debian_layout
+  assert_the_manifest_reader_reads_every_field_not_only_the_last
   assert_the_uninstaller_keeps_the_backup_root
   echo "Installer steps 40, 50, 60, 70, 80, 85, 86, 87 and 89, the panel port's single authority, and"
   echo "the on-disk boundary the two privilege-escalation fixes moved, verified inside the polygon."
