@@ -6,8 +6,10 @@ server — and its systemd unit. Second reviewer: **OUTSTANDING**.
 
 ## What is being changed
 
-1. `agent/crates/agent/src/shutdown.rs` (new): a future that completes on the first `SIGTERM` or
-   `SIGINT`, and a bounded drain wrapper.
+1. `agent/crates/agent/src/shutdown/` (new): a future that completes on the first `SIGTERM` or
+   `SIGINT` (`stop_signals.rs`), and a bounded drain wrapper (`drain_deadline.rs`). Cited as a
+   single `shutdown.rs` when this note was written; it was split into a module directory when the
+   drain grew its own tests, and the path is corrected here rather than left to resolve to nothing.
 2. `agent/crates/agent/src/server.rs`: `serve_with_incoming` becomes
    `serve_with_incoming_shutdown`, with the drain bounded by a deadline; the socket is unlinked
    after the server returns.

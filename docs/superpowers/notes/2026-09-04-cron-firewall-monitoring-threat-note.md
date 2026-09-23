@@ -24,7 +24,7 @@ with this surface, and why is it safe now.**
 5. The password-reset token flow and the SMTP sending path (rulings R11 and R12) —
    `backend/src/Maran.Modules/Identity/Commands/{RequestPasswordReset,ResetPassword}/`,
    `Identity/Domain/{PasswordResetToken,SecurityPolicy}.cs`, and
-   `backend/src/Maran.Modules/Monitoring/IntegrationEvents/Handlers/SendMailRequestedHandler.cs`.
+   `backend/src/Maran.Modules/Notifications/IntegrationEvents/Handlers/SendMailRequestedHandler.cs`.
    An earlier revision of this note deferred that section on the ground that Monitoring
    held no `.cs` files. It now holds all of them, and section 5 below is the analysis.
 
@@ -1009,7 +1009,7 @@ the second lock. The residual is the warn-only TCP path recorded immediately abo
 
 Added by a verification pass over every threat note on `fix/live-findings`, which found this
 note stale on two file paths. This note cites
-`backend/src/Maran.Modules/Monitoring/IntegrationEvents/Handlers/SendMailRequestedHandler.cs`.
+`backend/src/Maran.Modules/Notifications/IntegrationEvents/Handlers/SendMailRequestedHandler.cs`.
 Outgoing mail moved out of Monitoring into `Maran.Modules.Notifications`, so the handler is at
 `backend/src/Maran.Modules/Notifications/IntegrationEvents/Handlers/SendMailRequestedHandler.cs`
 and the sender at `Notifications/Services/SmtpMailer.cs`, with `IMailer` staying internal to that

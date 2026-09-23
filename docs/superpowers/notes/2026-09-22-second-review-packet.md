@@ -12,6 +12,32 @@ The author of all four notes is an AI agent working under the owner's direction.
 precisely why the second reviewer is not optional: every argument below was written by the
 same party that wrote the code it defends.
 
+## What a machine already checked, so your hour is not spent on it
+
+Run 2026-09-23 over all thirty-two notes. This is fact-checking, not judgement, and it is the half
+a reviewer should not have to do by hand:
+
+- **Every file path the notes cite was resolved against the tree.** 121 citations; two had rotted
+  and are corrected in this pass — `SendMailRequestedHandler.cs` moved from the Monitoring module
+  to Notifications, and `agent/src/shutdown.rs` became a `shutdown/` directory when the drain grew
+  its own tests. Both now point at what exists.
+- **Every identifier the notes name in backticks was looked for in the code**, tests included. What
+  did not resolve is either an external name the note mentions in order to say it is NOT used (PAM
+  entry points, SELinux types, systemd directives), a historical reference to something deliberately
+  removed (`UnauthenticatedCurrentUser`, the pre-authentication stand-in), or one deliberate case:
+  the group-id note names `a_group_recreated_during_a_restore_is_not_applied_from_the_stale_number`
+  as **a test that should exist and does not**, and says so in its own text. That is the note being
+  honest, not stale.
+- **Absolute claims were re-read against the tree** — "unreachable", "cannot be built", "nothing in
+  this tree does X". One had become false and was rewritten the same day: the licence-verification
+  note said server binding "cannot be built today", which stopped being true when the fingerprint
+  rpc landed. The rest hold.
+
+**What the machine cannot check, and why you are here:** whether the mechanism a note DESCRIBES is
+the mechanism the code IMPLEMENTS, and whether the risk each note argues is acceptable is in fact
+acceptable. A path that resolves proves the file exists, not that it does what the paragraph beside
+it claims.
+
 ## How to review one note in about ten minutes
 
 For each note, the questions that matter are the same three:
