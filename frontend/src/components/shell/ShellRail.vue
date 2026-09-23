@@ -15,6 +15,7 @@
  */
 import { useI18n } from 'vue-i18n'
 import UiButton from '../ui/UiButton.vue'
+import UiBrandMark from '../ui/UiBrandMark.vue'
 import UiNav from '../ui/UiNav.vue'
 import UiNavItem from '../ui/UiNavItem.vue'
 import UiNavLink from '../ui/UiNavLink.vue'
@@ -53,10 +54,8 @@ const expand = (): void => {
     <!-- Collapsing must not cost the document its heading: the rail draws the
          brand square the design draws, and carries the product name inside it
          for assistive technology, so `Maran` is the h1 in both presentations. -->
-    <h1
-      class="mb-2.5 grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-accent text-lg font-bold text-white"
-    >
-      <span aria-hidden="true">{{ t('app.brandInitial') }}</span>
+    <h1 class="mb-2.5">
+      <UiBrandMark :size="28" />
       <span class="sr-only">{{ t('app.title') }}</span>
     </h1>
 

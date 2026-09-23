@@ -18,6 +18,7 @@
  */
 import { useI18n } from 'vue-i18n'
 import UiBadge from '../ui/UiBadge.vue'
+import UiBrandMark from '../ui/UiBrandMark.vue'
 import UiButton from '../ui/UiButton.vue'
 import UiNav from '../ui/UiNav.vue'
 import UiNavItem from '../ui/UiNavItem.vue'
@@ -84,12 +85,7 @@ const toggleTheme = (): void => {
        pixel of it (w-56 is 224px), so the number stays literal here. -->
   <aside class="flex w-[246px] shrink-0 flex-col border-r border-border-subtle bg-surface-1">
     <div class="flex items-center gap-2.25 px-3 pt-3 pb-2.5">
-      <span
-        class="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-accent font-bold text-white"
-        aria-hidden="true"
-      >
-        {{ t('app.brandInitial') }}
-      </span>
+      <UiBrandMark :size="28" />
       <h1 class="min-w-0 flex-1 truncate leading-tight font-semibold">{{ t('app.title') }}</h1>
       <UiButton
         v-if="!compact"

@@ -1,7 +1,6 @@
 {
   "app": {
     "title": "Maran",
-    "brandInitial": "M",
     "nav": {
       "ariaLabel": "Main navigation",
       "systemStatus": "System status",

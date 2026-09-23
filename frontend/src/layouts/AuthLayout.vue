@@ -20,6 +20,7 @@
  * and the form is the only thing there to do.
  */
 import { useI18n } from 'vue-i18n'
+import UiBrandMark from '../components/ui/UiBrandMark.vue'
 import UiIcon, { type UiIconName } from '../components/ui/UiIcon.vue'
 
 /** The three assurances the left panel makes, each true of what the panel actually does. */
@@ -50,11 +51,7 @@ const { t } = useI18n()
       ></div>
 
       <div class="relative flex items-center gap-2.5">
-        <span
-          class="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-accent text-lg font-bold text-white"
-        >
-          {{ t('app.brandInitial') }}
-        </span>
+        <UiBrandMark :size="40" />
         <span class="text-xl font-semibold tracking-title">{{ t('app.title') }}</span>
       </div>
 
@@ -80,9 +77,7 @@ const { t } = useI18n()
         <!-- The brand repeats on narrow screens, where the left panel is gone and this
              would otherwise be a form with no indication of what it belongs to. -->
         <div class="mb-6 flex items-center gap-2.5 lg:hidden">
-          <span class="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-accent font-bold text-white">
-            {{ t('app.brandInitial') }}
-          </span>
+          <UiBrandMark :size="28" />
           <h1 class="text-xl font-semibold tracking-title">{{ t('app.title') }}</h1>
         </div>
 
