@@ -100,37 +100,6 @@ export MARAN_PANEL_PORT
 MARAN_API_SOCKET_PATH=/run/maran-api/api.sock
 export MARAN_API_SOCKET_PATH
 
-# --- The panel's public port -------------------------------------------------------
-# The one place this number is decided. nginx listens on it, preflight refuses to install
-# when something else already holds it, and the finish step prints it in the URL handed to
-# the operator. Anything added later that needs the number derives it from here rather
-# than repeating it: a port written as a literal in four files is a port that is wrong in
-# three of them the first time an operator changes it.
-#
-# Set here, before main() runs, and therefore before run_step sources anything under lib/ —
-# so a step file may derive from it at source time (10-preflight.sh does) as well as inside
-# a function.
-#
-# The one site that cannot read it is the nginx vhost's own `listen` line: a configuration
-# file interpolates no shell variable. That literal is tied back to this one by an assertion
-# in docker/polygon/assert-installer-steps.sh, which fails the polygon image build when the
-# two disagree — a failing check in place of a hope.
-MARAN_PANEL_PORT=8443
-export MARAN_PANEL_PORT
-
-# --- The panel's listening socket --------------------------------------------------
-# The one place this path is decided, and the panel's trust boundary. The api binds it instead
-# of a loopback TCP port so that WHICH LOCAL PROCESS connected is a kernel fact rather than a
-# guess: a port on 127.0.0.1 is reachable by every uid on the box, and everything that reaches
-# it arrives with the source address the panel trusts as its reverse proxy.
-#
-# Read by 60-config.sh (into ASPNETCORE_URLS), by 80-nginx.sh (into the vhost's upstream) and by
-# 70-services.sh, which substitutes both this path and its directory half into the api unit and
-# into the tmpfiles snippet that builds that directory. Nothing spells either one a second time;
-# the polygon's assert-installer-steps.sh builds the directory from this value and checks it.
-MARAN_API_SOCKET_PATH=/run/maran-api/api.sock
-export MARAN_API_SOCKET_PATH
-
 # --- CLI arguments -----------------------------------------------------------------
 # Parsed once here and exported so any step file can read them without re-parsing argv.
 MARAN_CHANNEL="stable"
