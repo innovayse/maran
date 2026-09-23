@@ -88,3 +88,24 @@ meaning exactly what it means today. Suspension then refuses when a password cou
   half's note, which carries the same limit.
 - Whether any operator has hand-set a password on an ACCOUNT's own entry in a live install. Such an
   account behaves as `USABLE`/`LOCKED` and is handled by the normal path, but no field data exists.
+
+---
+
+## Second review: RECORDED 2026-09-23
+
+Every sentence above that calls the second reviewer OUTSTANDING described the state until this
+date. It is kept rather than edited away, because what a note claimed while the debt stood is part
+of what a reader is judging.
+
+**Reviewer:** Edgar Poghosyan (edgar2031), the repository owner — the second human the rule asks
+for, and legitimately so: he wrote none of these notes. Every one was written by an agent session,
+which is the conflict the requirement exists to break.
+
+**Verdict:** accepted, with no condition attached to this note.
+
+**Typed by the agent at the reviewer's instruction**, because the reviewer does not write English.
+Recorded here so a later reader can tell whose judgement this is and whose keyboard it came
+through — those are not the same person.
+
+The verdict for all twenty-eight notes is tabulated in
+`docs/superpowers/notes/2026-09-22-second-review-packet.md`.

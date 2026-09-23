@@ -150,9 +150,50 @@ One line per note is enough. What it must carry: **who** read it, **when**, and 
 decided** — accepted, accepted with a condition, or refused. "Looks fine" is not a verdict; the
 condition is the useful part.
 
+**Recorded 2026-09-23.** The repository owner, Edgar Poghosyan (edgar2031), read the notes and
+accepted them. He is the second reviewer the rule asks for, and legitimately so: he did not write
+them — every one was written by an agent session, which is the exact conflict the requirement
+exists to break.
+
+**Who typed this.** The reviewer does not write English, so the verdict was dictated and this table
+was filled in by the agent on his instruction. That is recorded because provenance is the whole
+value of a signature: a future reader must be able to tell whose judgement this is and whose
+keyboard it came through, and those are not the same person here.
+
+**Unconditional unless amended below.** No per-note condition was given. If the reviewer attaches
+one to any note, it belongs in this table beside that note — a condition remembered in conversation
+and not written here is a condition nobody will find.
+
 | Note | Reviewer | Date | Verdict |
 |---|---|---|---|
-| | | | |
+| `2026-09-04-cron-firewall-monitoring` | Edgar Poghosyan (edgar2031) | 2026-09-23 | Accepted |
+| `2026-09-05-backups` | Edgar Poghosyan (edgar2031) | 2026-09-23 | Accepted |
+| `2026-09-07-installer-privileged-steps` | Edgar Poghosyan (edgar2031) | 2026-09-23 | Accepted |
+| `2026-09-08-account-password-state-attestation` | Edgar Poghosyan (edgar2031) | 2026-09-23 | Accepted |
+| `2026-09-08-account-unlock` | Edgar Poghosyan (edgar2031) | 2026-09-23 | Accepted |
+| `2026-09-08-agent-shutdown` | Edgar Poghosyan (edgar2031) | 2026-09-23 | Accepted |
+| `2026-09-09-account-deletion-exclusion` | Edgar Poghosyan (edgar2031) | 2026-09-23 | Accepted |
+| `2026-09-09-agent-error-seam-and-path-claim` | Edgar Poghosyan (edgar2031) | 2026-09-23 | Accepted |
+| `2026-09-09-ftps` | Edgar Poghosyan (edgar2031) | 2026-09-23 | Accepted |
+| `2026-09-09-group-id` | Edgar Poghosyan (edgar2031) | 2026-09-23 | Accepted |
+| `2026-09-09-identity-account-deletion` | Edgar Poghosyan (edgar2031) | 2026-09-23 | Accepted |
+| `2026-09-09-restore-interruption-recovery` | Edgar Poghosyan (edgar2031) | 2026-09-23 | Accepted |
+| `2026-09-09-service-account-rename` | Edgar Poghosyan (edgar2031) | 2026-09-23 | Accepted |
+| `2026-09-09-sftp-password-suspension` | Edgar Poghosyan (edgar2031) | 2026-09-23 | Accepted |
+| `2026-09-09-site-logs` | Edgar Poghosyan (edgar2031) | 2026-09-23 | Accepted |
+| `2026-09-09-transfer-login-deletion` | Edgar Poghosyan (edgar2031) | 2026-09-23 | Accepted |
+| `2026-09-11-setup-token-in-a-url` | Edgar Poghosyan (edgar2031) | 2026-09-23 | Accepted |
+| `2026-09-11-totp-sha1` | Edgar Poghosyan (edgar2031) | 2026-09-23 | Accepted |
+| `2026-09-12-suspension-session-cull` | Edgar Poghosyan (edgar2031) | 2026-09-23 | Accepted |
+| `2026-09-13-cron-allowance` | Edgar Poghosyan (edgar2031) | 2026-09-23 | Accepted |
+| `2026-09-13-grant-pattern` | Edgar Poghosyan (edgar2031) | 2026-09-23 | Accepted |
+| `2026-09-13-grant-repair` | Edgar Poghosyan (edgar2031) | 2026-09-23 | Accepted |
+| `2026-09-19-code-integrity-manifest` | Edgar Poghosyan (edgar2031) | 2026-09-23 | Accepted |
+| `2026-09-19-home-group-repair` | Edgar Poghosyan (edgar2031) | 2026-09-23 | Accepted |
+| `2026-09-19-release-bundle-signing` | Edgar Poghosyan (edgar2031) | 2026-09-23 | Accepted |
+| `2026-09-19-sftp-jail-drift` | Edgar Poghosyan (edgar2031) | 2026-09-23 | Accepted |
+| `2026-09-22-licence-installation` | Edgar Poghosyan (edgar2031) | 2026-09-23 | Accepted |
+| `2026-09-22-licence-verification` | Edgar Poghosyan (edgar2031) | 2026-09-23 | Accepted |
 
 A note left out of this table is a note nobody signed, and `main` is not compliant while any of the
 28 is missing from it. That sentence is here so the table cannot be half-filled and read as done.

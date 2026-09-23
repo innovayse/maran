@@ -270,12 +270,13 @@ whether a server survives a bad day:
 - **No restore has been run on real hardware.** It has been run on the polygon, including one
   killed mid-swap, and that is where the evidence ends.
 
-**The threat notes that cover the privileged parts still carry an outstanding second human
-reviewer.** `rules/security.md` requires one before this reaches `main`, and it has not happened.
-Twenty-eight of the thirty-two threat notes in `docs/superpowers/notes/` say so in their own text —
-among them `privs` in the root daemon, account deletion, the setup token and the suspension session
-cull. If you install this beta on a machine that matters, you are trusting a
-review that a person has not yet done.
+**The threat notes covering the privileged parts were reviewed on 2026-09-23**, and the verdict is
+recorded per note in `docs/superpowers/notes/2026-09-22-second-review-packet.md` — twenty-eight of
+the thirty-two, among them `privs` in the root daemon, account deletion, the setup token and the
+suspension session cull. What that buys and what it does not, stated plainly: a second person, who
+wrote none of them, read the arguments and accepted the risk, which is what `rules/security.md`
+asks for. It is not an external audit, and the notes themselves were written by the agent sessions
+that made the changes.
 
 What is absent by design in the first release — no DNS, no mail, no web database manager — is
 listed below with the rest, and none of it is a defect.
