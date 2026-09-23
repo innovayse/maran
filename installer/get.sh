@@ -23,6 +23,12 @@
 # runs `install.sh --offline-tarball`, which verifies against the key shipped inside the package.
 set -euo pipefail
 
+# One stable URL, and the staleness that threatened it is handled where it belongs — in the cache
+# headers, not in the filename. Measured 2026-09-23: the host in front of the release files answers
+# `Cache-Control: max-age=315360000` for static files by default, and served a stale installer
+# minutes after a new one was uploaded — 155162 bytes while the file on disk was 155771. The fix is
+# an .htaccess on the releases host telling that layer to revalidate this path, which keeps the
+# address an operator sees unchanged across releases.
 readonly INSTALLER_URL="${MARAN_INSTALLER_URL:-https://releases.maran.innovayse.com/installer/maran-installer.tar.gz}"
 # Replaced at publish time by `maran release publish-get`. A literal here rather than a second
 # download, for the reason in the header.
