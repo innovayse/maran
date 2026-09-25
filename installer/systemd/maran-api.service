@@ -116,7 +116,22 @@ RestrictSUIDSGID=true
 RestrictRealtime=true
 RestrictNamespaces=true
 LockPersonality=true
-MemoryDenyWriteExecute=true
+# MemoryDenyWriteExecute is DELIBERATELY ABSENT, and its absence is load-bearing rather than an
+# oversight somebody should tighten. It forbids a mapping that is writable and executable, which is
+# exactly what a just-in-time compiler must create — so under it this service does not start: it
+# takes SIGSEGV before it can log a word.
+#
+# Measured on Ubuntu 24.04, the same binary in three conditions: run directly it boots; run under a
+# transient unit carrying ONLY MemoryDenyWriteExecute=yes it core-dumps with status 11; run under
+# this unit with the directive present it did the same. See issue #40.
+#
+# Checked rather than assumed while writing this: maran-agent.service does not set it either, so
+# nothing in this product relies on it today. The agent COULD carry it — it is Rust and generates
+# no code at runtime — and that is a separate decision for whoever hardens the root daemon next;
+# this comment is not a claim that it does.
+#
+# Every other restriction in this file stays on for the panel: a JIT is incompatible with this one
+# directive, not with hardening.
 RemoveIPC=true
 # The managed monolith needs no raw sockets or exotic address families; AF_UNIX for
 # PostgreSQL, the agent and its own listening socket, and AF_INET/AF_INET6 for the

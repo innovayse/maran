@@ -995,6 +995,25 @@ if [ "$(find agent backend scripts docker \( -name '*.rs' -o -name '*.cs' -o -na
   report "scripts/lib/check-structure.sh: check 21 swept fewer than 100 source files, so it is not a statement about citations (rules/testing.md)"
 fi
 
+# 23. The panel's unit does not forbid what its runtime needs to run.
+#
+# MemoryDenyWriteExecute forbids a writable-and-executable mapping, which is exactly what a
+# just-in-time compiler makes. maran-api is .NET: under that directive it takes SIGSEGV before it
+# can log anything, so the failure arrives as a core dump with no message and sixty seconds of an
+# installer waiting for a socket. Measured on Ubuntu 24.04 — the same binary boots when run
+# directly and core-dumps under a transient unit carrying only that directive (issue #40).
+#
+# This is a one-line check for a defect that cost two real installs to find, and it reads the unit
+# rather than trusting the comment in it: a comment explaining an absence cannot stop somebody
+# adding the line back while hardening in good faith.
+if grep -qE '^[[:space:]]*MemoryDenyWriteExecute[[:space:]]*=[[:space:]]*(true|yes|1)' \
+     installer/systemd/maran-api.service 2>/dev/null; then
+  report "installer/systemd/maran-api.service: sets MemoryDenyWriteExecute, which .NET's JIT cannot run under — the panel takes SIGSEGV on startup and never binds its socket (issue #40)"
+fi
+if [ ! -f installer/systemd/maran-api.service ]; then
+  report "scripts/lib/check-structure.sh: check 23 found no installer/systemd/maran-api.service, so it is not a statement about the panel's unit (rules/testing.md)"
+fi
+
 # 22. Every published copy of the install command is the one the installer accepts.
 #
 # `get.sh` refuses at its first line unless it is root, so a documented `| bash` is a documented

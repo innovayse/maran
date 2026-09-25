@@ -301,6 +301,19 @@ ProtectHostname=true
 RestrictRealtime=true
 RestrictNamespaces=true
 LockPersonality=true
+
+# MemoryDenyWriteExecute: on HERE, and off in maran-api.service. The asymmetry is the point.
+#
+# It forbids a writable-and-executable mapping — what a just-in-time compiler must create. The
+# panel is .NET and takes SIGSEGV under it before it can log a word (issue #40). This process is
+# Rust: it generates no code at runtime, so the directive costs it nothing and it is the process
+# that matters most, being the only one running as root.
+#
+# Measured before it was added rather than reasoned about: run as a transient unit carrying this
+# directive on Ubuntu 24.04, the agent reported Result=success, ExecMainStatus=0. A hardening
+# directive added on the strength of "it should be fine" is how the panel's own unit acquired one
+# that stopped it starting.
+MemoryDenyWriteExecute=true
 RemoveIPC=true
 # AF_NETLINK is not optional despite looking exotic: firewall.AllowPort/DenyPort/
 # BanAddress/ListRules drive nftables, and nftables has no interface other than a
