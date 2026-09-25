@@ -89,6 +89,17 @@ arch_name() {
   esac
 }
 
+# dotnet_rid: the same machine, spelled the way `dotnet publish -r` spells it. Kept beside
+# arch_name rather than derived from it at the call site, so the two names for one architecture
+# move together.
+dotnet_rid() {
+  case "$(uname -m)" in
+    x86_64|amd64) echo "linux-x64" ;;
+    aarch64|arm64) echo "linux-arm64" ;;
+    *) echo "unsupported" ;;
+  esac
+}
+
 # sha256_of: one place for the checksum command, matching
 # installer/lib/50-artifacts.sh:126-132's verify_artifact_checksum exactly (sha256sum,
 # first whitespace-separated field).
@@ -121,10 +132,33 @@ build_api() {
   require_tool dotnet "publishes the backend"
   local publish_dir="${staging}/api"
   rm -rf -- "$publish_dir"
+  local rid
+  rid="$(dotnet_rid)"
+  [ "$rid" != "unsupported" ] || release_failed "dotnet publish: $(uname -m) is not an architecture this release builds for"
+
+  # SELF-CONTAINED, and this is the whole point of the flag rather than a preference. Published
+  # framework-dependent, the artifact needs a .NET 9 runtime already on the host; no fresh Debian or
+  # Ubuntu carries one and `20-dependencies.sh` installs none. Measured on Ubuntu 24.04: the panel
+  # never started — "You must install .NET to run this application ... Failed to resolve
+  # libhostfxr.so" — and the installer refused at step 70 because the socket was never bound. There
+  # was no host on which either published beta could start.
+  #
+  # The alternative was to teach the installer to add Microsoft's package repository as root, per
+  # family. That couples every install to a third-party feed's availability and spelling, for a
+  # runtime this project already ships, signs and checksums. Size is the cost of not doing that.
   dotnet publish "$root/backend/src/Maran.Host/Maran.Host.csproj" \
     -c Release -o "$publish_dir" \
+    --self-contained true -r "$rid" \
+    -p:PublishTrimmed=false \
     >"${staging}/.api-publish.log" 2>&1 \
     || { cat "${staging}/.api-publish.log" >&2; release_failed "dotnet publish failed for Maran.Host (log above)"; }
+
+  # The apphost is what systemd execs, and a publish that produced no runtime beside it is the
+  # defect this function exists to prevent — caught here rather than sixty seconds into an install.
+  [ -f "${publish_dir}/Maran.Host" ] \
+    || release_failed "dotnet publish produced no Maran.Host apphost in ${publish_dir}"
+  [ -f "${publish_dir}/libhostfxr.so" ] \
+    || release_failed "dotnet publish produced no libhostfxr.so in ${publish_dir}: the artifact is framework-dependent and will not start on a host without a .NET runtime (issue #39)"
 }
 
 build_agent() {
