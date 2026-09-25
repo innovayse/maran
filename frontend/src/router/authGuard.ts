@@ -17,6 +17,14 @@ const FORGOT_PASSWORD_ROUTE = 'forgot-password'
 const RESET_PASSWORD_ROUTE = 'reset-password'
 
 /**
+ * Route name of the screen that spends an invitation token.
+ *
+ * Public for the same reason as {@link RESET_PASSWORD_ROUTE}: the login this token
+ * belongs to has never signed in, so there is no session for the guard to find.
+ */
+const ACCEPT_INVITATION_ROUTE = 'accept-invitation'
+
+/**
  * Route name of the enrolment screen a steered administrator is held on.
  *
  * Deliberately not `two-factor`: that one is the settings page inside the shell,
@@ -28,8 +36,8 @@ const TWO_FACTOR_SETUP_ROUTE = 'two-factor-setup'
 /**
  * The screens a signed-out visitor may reach.
  *
- * The two password-reset screens are here because the person using them has, by
- * definition, no way to sign in first.
+ * The password-reset and accept-invitation screens are here because the person
+ * using them has, by definition, no way to sign in first.
  */
 const PUBLIC_ROUTES: readonly string[] = [
   LOGIN_ROUTE,
@@ -37,6 +45,7 @@ const PUBLIC_ROUTES: readonly string[] = [
   SETUP_ROUTE,
   FORGOT_PASSWORD_ROUTE,
   RESET_PASSWORD_ROUTE,
+  ACCEPT_INVITATION_ROUTE,
 ]
 
 /**

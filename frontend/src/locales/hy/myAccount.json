@@ -1,0 +1,19 @@
+{
+  "myAccount": {
+    "loading": "Ձեր հաշիվը բեռնվում է…",
+    "primaryDomainLabel": "Հիմնական դոմեն",
+    "statusLabel": "Կարգավիճակ",
+    "planHeading": "Փաթեթ",
+    "notFoundTitle": "Հաշիվ չի գտնվել",
+    "notFoundDescription": "Այս էջը ցույց է տալիս ձեզ պատկանող հոսթինգային հաշիվը. կարծես թե դուք այն չունեք։",
+    "limits": {
+      "diskQuota": "Սկավառակի քվոտա",
+      "diskQuotaValue": "{disk} ՄԲ",
+      "sites": "Կայքեր",
+      "databases": "Տվյալների բազաներ",
+      "sftpUsers": "SFTP մուտքեր",
+      "ftpUsers": "FTPS մուտքեր",
+      "cronEntries": "Cron գրառումներ"
+    }
+  }
+}

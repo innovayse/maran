@@ -4,6 +4,7 @@ using Maran.Modules.Accounts.Domain.Enums;
 using Maran.Modules.Accounts.Persistence;
 using Maran.Modules.Accounts.Services;
 using Maran.Modules.Accounts.Tests.TestSupport;
+using Microsoft.Extensions.Logging.Abstractions;
 using Maran.SharedKernel.Results;
 using Microsoft.EntityFrameworkCore;
 
@@ -46,11 +47,11 @@ public sealed class CreateAccountCommandHandlerTests
         await using var dbContext = CreateDbContext();
         var clock = new FakeClock(new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero));
         var agent = new RecordingAgentAccountsClient();
-        var handler = new CreateAccountCommandHandler(dbContext, agent, clock, Journal());
+        var handler = new CreateAccountCommandHandler(dbContext, agent, clock, Journal(), new StubMessageBus(), NullLogger<CreateAccountCommandHandler>.Instance);
         var planId = await SeedPlanAsync(dbContext);
 
         var result = await handler.HandleAsync(
-            new CreateAccountCommand("acme", "acme.example.com", planId, Ip, Client), CancellationToken.None);
+            new CreateAccountCommand("acme", "acme.example.com", planId, "owner@example.com", IpAddress: Ip, UserAgent: Client), CancellationToken.None);
 
         Assert.True(result.IsSuccess);
         Assert.Equal("acme", result.Value.Name);
@@ -72,10 +73,10 @@ public sealed class CreateAccountCommandHandlerTests
         var agent = new RecordingAgentAccountsClient();
         dbContext.Accounts.Add(new Account(Guid.NewGuid(), "acme", "existing.example.com", Guid.NewGuid(), clock.UtcNow));
         await dbContext.SaveChangesAsync();
-        var handler = new CreateAccountCommandHandler(dbContext, agent, clock, Journal());
+        var handler = new CreateAccountCommandHandler(dbContext, agent, clock, Journal(), new StubMessageBus(), NullLogger<CreateAccountCommandHandler>.Instance);
 
         var result = await handler.HandleAsync(
-            new CreateAccountCommand("acme", "different.example.com", Guid.NewGuid(), Ip, Client),
+            new CreateAccountCommand("acme", "different.example.com", Guid.NewGuid(), "owner@example.com", IpAddress: Ip, UserAgent: Client),
             CancellationToken.None);
 
         Assert.False(result.IsSuccess);
@@ -91,10 +92,10 @@ public sealed class CreateAccountCommandHandlerTests
         var agent = new RecordingAgentAccountsClient();
         dbContext.Accounts.Add(new Account(Guid.NewGuid(), "existing", "acme.example.com", Guid.NewGuid(), clock.UtcNow));
         await dbContext.SaveChangesAsync();
-        var handler = new CreateAccountCommandHandler(dbContext, agent, clock, Journal());
+        var handler = new CreateAccountCommandHandler(dbContext, agent, clock, Journal(), new StubMessageBus(), NullLogger<CreateAccountCommandHandler>.Instance);
 
         var result = await handler.HandleAsync(
-            new CreateAccountCommand("newname", "acme.example.com", Guid.NewGuid(), Ip, Client),
+            new CreateAccountCommand("newname", "acme.example.com", Guid.NewGuid(), "owner@example.com", IpAddress: Ip, UserAgent: Client),
             CancellationToken.None);
 
         Assert.False(result.IsSuccess);
@@ -115,11 +116,11 @@ public sealed class CreateAccountCommandHandlerTests
         await using var dbContext = CreateDbContext();
         var clock = new FakeClock(new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero));
         var agent = new RecordingAgentAccountsClient();
-        var handler = new CreateAccountCommandHandler(dbContext, agent, clock, Journal());
+        var handler = new CreateAccountCommandHandler(dbContext, agent, clock, Journal(), new StubMessageBus(), NullLogger<CreateAccountCommandHandler>.Instance);
         var planId = await SeedPlanAsync(dbContext, diskQuotaMb: 5_120);
 
         await handler.HandleAsync(
-            new CreateAccountCommand("acme", "acme.example.com", planId, Ip, Client), CancellationToken.None);
+            new CreateAccountCommand("acme", "acme.example.com", planId, "owner@example.com", IpAddress: Ip, UserAgent: Client), CancellationToken.None);
 
         Assert.Equal($"create:acme:{5_120UL * 1024 * 1024}", Assert.Single(agent.Calls));
     }
@@ -133,15 +134,41 @@ public sealed class CreateAccountCommandHandlerTests
         await using var dbContext = CreateDbContext();
         var clock = new FakeClock(new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero));
         var agent = new RecordingAgentAccountsClient(Error.Of("AgentUnavailable", ErrorType.Unavailable));
-        var handler = new CreateAccountCommandHandler(dbContext, agent, clock, Journal());
+        var handler = new CreateAccountCommandHandler(dbContext, agent, clock, Journal(), new StubMessageBus(), NullLogger<CreateAccountCommandHandler>.Instance);
         var planId = await SeedPlanAsync(dbContext);
 
         var result = await handler.HandleAsync(
-            new CreateAccountCommand("acme", "acme.example.com", planId, Ip, Client), CancellationToken.None);
+            new CreateAccountCommand("acme", "acme.example.com", planId, "owner@example.com", IpAddress: Ip, UserAgent: Client), CancellationToken.None);
 
         Assert.False(result.IsSuccess);
         Assert.Equal("AgentUnavailable", result.Error!.Code);
         Assert.Empty(await dbContext.Accounts.ToListAsync());
+    }
+
+    /// <summary>
+    /// An Identity subscriber that fails to issue the owner's login answers with the typed
+    /// <c>AccountLoginIssuanceFailed</c> code rather than letting the exception propagate — and the
+    /// account row it already wrote stays, because the failure is the login, not the creation.
+    /// </summary>
+    [Fact]
+    public async Task A_subscriber_that_fails_to_issue_the_login_returns_the_typed_error_and_keeps_the_account_row()
+    {
+        await using var dbContext = CreateDbContext();
+        var clock = new FakeClock(new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero));
+        var agent = new RecordingAgentAccountsClient();
+        var bus = new StubMessageBus(new InvalidOperationException("SMTP relay unreachable"));
+        var handler = new CreateAccountCommandHandler(dbContext, agent, clock, Journal(), bus, NullLogger<CreateAccountCommandHandler>.Instance);
+        var planId = await SeedPlanAsync(dbContext);
+
+        var result = await handler.HandleAsync(
+            new CreateAccountCommand("acme", "acme.example.com", planId, "owner@example.com", IpAddress: Ip, UserAgent: Client), CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("AccountLoginIssuanceFailed", result.Error!.Code);
+        Assert.DoesNotContain("SMTP relay unreachable", result.Error!.Code, StringComparison.Ordinal);
+
+        var stored = await dbContext.Accounts.SingleAsync();
+        Assert.Equal("acme", stored.Name);
     }
 
     /// <summary>An unknown plan is refused before the agent is asked to do anything.</summary>
@@ -151,10 +178,10 @@ public sealed class CreateAccountCommandHandlerTests
         await using var dbContext = CreateDbContext();
         var clock = new FakeClock(new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero));
         var agent = new RecordingAgentAccountsClient();
-        var handler = new CreateAccountCommandHandler(dbContext, agent, clock, Journal());
+        var handler = new CreateAccountCommandHandler(dbContext, agent, clock, Journal(), new StubMessageBus(), NullLogger<CreateAccountCommandHandler>.Instance);
 
         var result = await handler.HandleAsync(
-            new CreateAccountCommand("acme", "acme.example.com", Guid.NewGuid(), Ip, Client), CancellationToken.None);
+            new CreateAccountCommand("acme", "acme.example.com", Guid.NewGuid(), "owner@example.com", IpAddress: Ip, UserAgent: Client), CancellationToken.None);
 
         Assert.Equal("PlanNotFound", result.Error!.Code);
         Assert.Empty(agent.Calls);

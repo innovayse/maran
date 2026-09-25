@@ -80,6 +80,19 @@ namespace Maran.Sdk.Contracts;
 /// "whoever built this snapshot did not say"; both refuse, which is the direction a limit is allowed
 /// to be wrong in.
 /// </param>
+/// <param name="OwnerEmail">
+/// The account's own contact address, from <c>Account.OwnerEmail</c> — not the same datum as the
+/// login's own address (that entity's remarks explain the distinction and why both exist). Null
+/// for an account created before that column existed, meaning "unknown", never "none by design".
+/// This is what makes it possible for another module to recover a login that was never
+/// successfully created: without a durable copy of the address here, that repair has no address to
+/// send an invitation to.
+///
+/// It carries the same temporary default as <paramref name="MaxFtpUsers"/> and for the identical
+/// reason: this record is positional and constructed at every site named on that parameter's own
+/// remarks, and a required parameter would stop them building. Both production construction
+/// sites, in <c>AccountDirectory</c>, always pass the account's real (possibly null) value.
+/// </param>
 public sealed record AccountSnapshot(
     Guid Id,
     string Username,
@@ -89,4 +102,5 @@ public sealed record AccountSnapshot(
     int MaxCronEntries,
     int MaxPhpWorkersPerPool,
     int DiskQuotaMb,
-    int MaxFtpUsers = 0);
+    int MaxFtpUsers = 0,
+    string? OwnerEmail = null);

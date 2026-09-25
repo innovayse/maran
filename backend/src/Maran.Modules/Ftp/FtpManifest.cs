@@ -33,5 +33,6 @@ public static class FtpManifest
         Version: "1.0.0",
         Tier: LicenceTier.Included,
         Dependencies: [],
-        AgentCapabilities: [AgentCapability.Ftps]);
+        AgentCapabilities: [AgentCapability.Ftps],
+        Audience: ModuleAudience.Everyone);
 }

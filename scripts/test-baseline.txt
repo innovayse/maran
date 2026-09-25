@@ -210,6 +210,12 @@
 # and a reader who sees only the new number should know that a baseline BELOW the tree costs nothing
 # here, because the failure this file exists to catch is a FALL.
 #
+#
+# UPDATED 2026-09-25 (customer area, issue #49): one spa row added,
+# frontend/e2e/customer-area.spec.ts 2/0/0, so the spa stack is 72 rows where it was 71.
+# The header above was regenerated away by 'maran test spa --accept' and is restored here by
+# hand: the accept path rewrites this file from the run alone and keeps no prose, so every
+# re-measurement note in it is one --accept away from being lost. Worth fixing in the script.
 rust	maran_agent [unittests src/lib.rs]	321	0	0
 rust	maran_agent [unittests src/main.rs]	0	0	0
 rust	account_deletion_on_a_real_host [tests/account_deletion_on_a_real_host.rs]	0	0	5
@@ -283,6 +289,7 @@ spa	cron/entries.spec.ts	7	0	0
 spa	cron/environment.spec.ts	5	0	0
 spa	cron/raw-refusal.spec.ts	4	0	0
 spa	cron/schedule.spec.ts	2	0	0
+spa	customer-area.spec.ts	2	0	0
 spa	databases/create.spec.ts	5	0	0
 spa	databases/credentials.spec.ts	15	0	0
 spa	databases/grant-repair.spec.ts	11	0	0

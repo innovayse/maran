@@ -30,12 +30,14 @@
       "subtitle": "Վահանակը ստուգում է այս արժեքները ուղարկելուց առաջ, իսկ սերվերը ստուգում է դրանք կրկին։",
       "fields": {
         "primaryDomain": "Հիմնական դոմեն",
-        "planId": "Փաթեթի ID"
+        "planId": "Փաթեթի ID",
+        "ownerEmail": "Սեփականատիրոջ էլ. փոստ"
       },
       "placeholders": {
         "name": "example",
         "primaryDomain": "example.com",
-        "planId": "Ընտրեք փաթեթը"
+        "planId": "Ընտրեք փաթեթը",
+        "ownerEmail": "owner{'@'}example.com"
       },
       "submit": "Ստեղծել հաշիվ",
       "errors": {
@@ -43,7 +45,9 @@
         "nameInvalid": "Անունը պետք է լինի փոքրատառ, Linux-օգտանվան համար անվտանգ նույնացուցիչ (տառեր, թվեր, գծիկ, ընդգծում, սկսվում է տառով, 3-32 նիշ)։",
         "primaryDomainRequired": "Հիմնական դոմենը պարտադիր է։",
         "primaryDomainInvalid": "Հիմնական դոմենը պետք է լինի վավեր դոմենային անուն։",
-        "planIdRequired": "Փաթեթի ID-ն պարտադիր է։"
+        "planIdRequired": "Փաթեթի ID-ն պարտադիր է։",
+        "ownerEmailRequired": "Սեփականատիրոջ էլ. փոստը պարտադիր է։",
+        "ownerEmailInvalid": "Սեփականատիրոջ էլ. փոստը պետք է լինի վավեր հասցե։"
       },
       "planOption": "{name} — {disk} ՄԲ, կայքեր՝ {sites}"
     },
@@ -61,7 +65,9 @@
       "confirmReactivate": "Վերականգնե՞լ հաշիվը։",
       "working": "Կատարվում է…",
       "confirmSuspendTitle": "Կասեցնել {account} հաշիվը",
-      "confirmReactivateTitle": "Վերականգնել {account} հաշիվը"
+      "confirmReactivateTitle": "Վերականգնել {account} հաշիվը",
+      "resendInvitation": "Կրկին ուղարկել հրավերը",
+      "invitationResent": "Նոր հրավեր ուղարկվել է։ Վահանակը չի կարող հաստատել դրա հասնելը՝ փոստի հերթը կրկնակի փորձեր չի կատարում։"
     },
     "delete": {
       "title": "Ջնջել {account}",

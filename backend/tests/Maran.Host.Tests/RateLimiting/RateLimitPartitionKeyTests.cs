@@ -60,4 +60,62 @@ public sealed class RateLimitPartitionKeyTests
 
         Assert.Equal("account:acct-1", RateLimitPartitionKey.For(context));
     }
+
+    /// <summary>Two different logins on one hosting account share one partition, not two.</summary>
+    /// <remarks>
+    /// This is the replacement for an HTTP-level test that used to seed two logins on one account
+    /// and prove they shared a log-stream budget — impossible now that an account has exactly one
+    /// login. What is pinned instead is the mechanism itself: the key is read from
+    /// <see cref="PanelClaimTypes.AccountId"/>, so it does not degrade to the per-user claim even
+    /// when the two callers are different panel users. A partition key that silently fell back to
+    /// <c>UserId</c> would pass every other test in this file and still give each user their own
+    /// budget, which is exactly the defect this pins against.
+    /// </remarks>
+    [Fact]
+    public void Two_different_panel_users_on_one_account_share_one_partition()
+    {
+        var first = new ClaimsPrincipal(new ClaimsIdentity(
+            [new Claim(PanelClaimTypes.AccountId, "acct-1"), new Claim(PanelClaimTypes.UserId, "user-1")],
+            authenticationType: "test"));
+        var second = new ClaimsPrincipal(new ClaimsIdentity(
+            [new Claim(PanelClaimTypes.AccountId, "acct-1"), new Claim(PanelClaimTypes.UserId, "user-2")],
+            authenticationType: "test"));
+
+        var firstContext = Anonymous(IPAddress.Parse(PlainAddress));
+        firstContext.User = first;
+        var secondContext = Anonymous(IPAddress.Parse("198.51.100.9"));
+        secondContext.User = second;
+
+        var firstKey = RateLimitPartitionKey.For(firstContext);
+        var secondKey = RateLimitPartitionKey.For(secondContext);
+
+        Assert.Equal(firstKey, secondKey);
+        Assert.Equal("account:acct-1", firstKey);
+    }
+
+    /// <summary>With no account claim, the key falls back to the panel user, never to the account.</summary>
+    /// <remarks>
+    /// The companion to the test above: a panel administrator carries no account claim at all, so
+    /// two administrators must NOT collapse onto one partition just because both fall through the
+    /// account branch. Pinning the fallback's identity is what would catch a degradation the other
+    /// direction — the key silently becoming a constant, or reading the wrong claim, once the
+    /// account branch does not fire.
+    /// </remarks>
+    [Fact]
+    public void With_no_account_claim_two_panel_users_get_two_partitions()
+    {
+        var first = new ClaimsPrincipal(new ClaimsIdentity(
+            [new Claim(PanelClaimTypes.UserId, "user-1")],
+            authenticationType: "test"));
+        var second = new ClaimsPrincipal(new ClaimsIdentity(
+            [new Claim(PanelClaimTypes.UserId, "user-2")],
+            authenticationType: "test"));
+
+        var firstContext = Anonymous(IPAddress.Parse(PlainAddress));
+        firstContext.User = first;
+        var secondContext = Anonymous(IPAddress.Parse(PlainAddress));
+        secondContext.User = second;
+
+        Assert.NotEqual(RateLimitPartitionKey.For(firstContext), RateLimitPartitionKey.For(secondContext));
+    }
 }

@@ -1,0 +1,11 @@
+{
+  "app": {
+    "acceptInvitation": {
+      "title": "Set your password",
+      "subtitle": "The link you followed lets you set a password for your new account, once.",
+      "setPassword": "Set the password",
+      "done": "Your password has been set. Sign in with it to reach your account.",
+      "backToSignIn": "Back to sign in"
+    }
+  }
+}

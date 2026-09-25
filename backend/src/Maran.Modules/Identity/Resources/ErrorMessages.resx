@@ -72,4 +72,13 @@
   <data name="SecurityPolicyInvalid">
     <value>Those security settings are outside the range the panel accepts.</value>
   </data>
+  <data name="InvitationAccountNotFound">
+    <value>No such hosting account.</value>
+  </data>
+  <data name="InvitationTokenInvalid">
+    <value>That invitation link is no longer valid. Ask an administrator to resend it.</value>
+  </data>
+  <data name="InvitationLoginNotPending">
+    <value>There is nothing to invite this account's owner to: the login already has a password.</value>
+  </data>
 </root>

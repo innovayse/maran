@@ -297,26 +297,33 @@ public sealed class SiteLogStreamTests : IAsyncLifetime
         }
     }
 
-    /// <summary>The stream budget belongs to the account and is not multiplied by its panel users.</summary>
+    /// <summary>The stream budget belongs to the account and is not multiplied by its panel sessions.</summary>
+    /// <remarks>
+    /// Two sessions rather than two logins: <c>UX_Users_AccountId</c> now guarantees at most one
+    /// login per hosting account (see <c>AccountCreatedHandler</c>), so "five staff accounts" is no
+    /// longer a shape the domain allows. The scenario the budget actually has to survive is still
+    /// real — the same customer open in two browser tabs, each with its own access token — which is
+    /// exactly what two independent sign-ins of the one login produce.
+    /// </remarks>
     [Fact]
-    public async Task The_stream_budget_belongs_to_the_account_and_is_not_multiplied_by_its_panel_users()
+    public async Task The_stream_budget_belongs_to_the_account_and_is_not_multiplied_by_its_panel_sessions()
     {
         // The resource being rationed is consumed on behalf of a hosting account — the agent holds
-        // a thread per stream and knows nothing about panel logins. Partitioned by user instead,
-        // an account with five staff accounts would get five times the budget, and the limit would
-        // be whatever the customer chose to make it.
+        // a thread per stream and knows nothing about panel sessions. Partitioned by session
+        // instead, a customer open in two tabs would get twice the budget, and the limit would be
+        // whatever the number of open tabs happened to be.
         var agent = new StubAgentSitesClient { WaitsForCancellation = true };
         await using var factory = CreateFactory(agent, ("RateLimiting:SiteLogConcurrentStreamLimit", "1"));
         await MigrateAsync(factory);
         var world = await SeedAsync(factory);
         using var customer = await SignInAsync(factory, "customer");
-        using var colleague = await SignInAsync(factory, "colleague");
+        using var customerSecondSession = await SignInAsync(factory, "customer");
 
         using var abort = new CancellationTokenSource(ReadTimeout);
         using var held = await OpenAsync(customer, world.OwnSiteId, abort.Token);
         Assert.Equal(HttpStatusCode.OK, held.StatusCode);
 
-        using var refused = await OpenAsync(colleague, world.OwnSiteId, abort.Token);
+        using var refused = await OpenAsync(customerSecondSession, world.OwnSiteId, abort.Token);
 
         Assert.Equal(HttpStatusCode.TooManyRequests, refused.StatusCode);
         await abort.CancelAsync();
@@ -329,13 +336,13 @@ public sealed class SiteLogStreamTests : IAsyncLifetime
         // The companion to the test above, and the half that was missing.
         //
         // "One account is one budget" and "every caller shares one budget" both satisfy the
-        // colleague test, because the two colleagues also share an address — so that test passes
-        // unchanged if the partition key silently degrades to the caller's IP. It degrades exactly
-        // that way whenever the rate limiter runs before authentication, since an unauthenticated
-        // principal carries no account claim; the ordering in Program.cs is the only thing holding
-        // the account partition up, and moving one line above another left the whole solution
-        // green until this test existed. Two accounts on one address is the case that tells the
-        // two readings apart.
+        // two-sessions test above, because the two sessions also share an address — so that test
+        // passes unchanged if the partition key silently degrades to the caller's IP. It degrades
+        // exactly that way whenever the rate limiter runs before authentication, since an
+        // unauthenticated principal carries no account claim; the ordering in Program.cs is the
+        // only thing holding the account partition up, and moving one line above another left
+        // the whole solution green until this test existed. Two accounts on one address is the
+        // case that tells the two readings apart.
         var agent = new StubAgentSitesClient { WaitsForCancellation = true };
         await using var factory = CreateFactory(agent, ("RateLimiting:SiteLogConcurrentStreamLimit", "1"));
         await MigrateAsync(factory);
@@ -647,13 +654,6 @@ public sealed class SiteLogStreamTests : IAsyncLifetime
             Guid.NewGuid(), "customer", "customer@example.com", hasher.Hash(Password), UserRole.Customer, now);
         customer.AssignAccount(own.Id);
         identity.Users.Add(customer);
-
-        // A second panel user on the SAME account, so a test can ask whether the stream budget
-        // belongs to the account or to the person holding the token.
-        var colleague = new User(
-            Guid.NewGuid(), "colleague", "colleague@example.com", hasher.Hash(Password), UserRole.Customer, now);
-        colleague.AssignAccount(own.Id);
-        identity.Users.Add(colleague);
 
         // A customer on the OTHER account, so a test can ask the opposite question: that two
         // accounts are two budgets and not one shared between everyone on this address.

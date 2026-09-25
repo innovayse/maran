@@ -401,6 +401,29 @@ public static class AuditActions
     public const string LicenceStatusRead = "LicenceStatusRead";
 
     /// <summary>
+    /// A hosting account's owner was sent an invitation to set a first password: on account
+    /// creation, and again whenever an administrator resends it. The handler that fires on account
+    /// creation is idempotent and writes no second entry for a repeated <see cref="AccountCreated"/>,
+    /// but a deliberate resend for the same account is a distinct, later entry — an administrator
+    /// asking again is not a duplicate delivery of the same event.
+    /// </summary>
+    public const string CustomerInvited = "CustomerInvited";
+
+    /// <summary>
+    /// An invited login's owner set their first password from the invitation link, making the login
+    /// usable.
+    /// </summary>
+    public const string InvitationAccepted = "InvitationAccepted";
+
+    /// <summary>
+    /// An attempt to accept an invitation was refused: the token had expired, had already been
+    /// spent, or never existed. Recorded the same way for all three, so the entry cannot be read to
+    /// tell them apart (rules/security.md item 6, the same reasoning as
+    /// <see cref="PasswordResetRefused"/>).
+    /// </summary>
+    public const string InvitationAcceptRefused = "InvitationAcceptRefused";
+
+    /// <summary>
     /// An administrator attempted to install or replace the installation's licence artefact.
     /// Recorded on EVERY outcome, success and refusal alike — the same argument
     /// <see cref="LicenceStatusRead"/> already makes for a mere read, extended here to a write that

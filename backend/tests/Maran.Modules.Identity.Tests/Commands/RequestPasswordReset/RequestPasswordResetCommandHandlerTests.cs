@@ -37,7 +37,7 @@ public sealed class RequestPasswordResetCommandHandlerTests : IDisposable
             _bus,
             new IdentityAuditJournal(_audit, new StubCurrentUser()),
             new StubEmailTemplates(),
-            new OptionsWrapper<PasswordResetOptions>(new PasswordResetOptions { PanelUrl = panelUrl }),
+            new OptionsWrapper<PanelOptions>(new PanelOptions { PanelUrl = panelUrl }),
             _clock);
     }
 

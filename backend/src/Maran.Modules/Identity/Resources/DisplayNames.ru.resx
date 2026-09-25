@@ -235,4 +235,13 @@
   <data name="AuditActionLicenceInstalled">
     <value>Установлена лицензия</value>
   </data>
+  <data name="AuditActionCustomerInvited">
+    <value>Клиент приглашён</value>
+  </data>
+  <data name="AuditActionInvitationAccepted">
+    <value>Приглашение принято</value>
+  </data>
+  <data name="AuditActionInvitationAcceptRefused">
+    <value>Принятие приглашения отклонено</value>
+  </data>
 </root>

@@ -51,5 +51,6 @@ public static class SftpManifest
         Version: "1.0.0",
         Tier: LicenceTier.Included,
         Dependencies: [],
-        AgentCapabilities: [AgentCapability.Sftp]);
+        AgentCapabilities: [AgentCapability.Sftp],
+        Audience: ModuleAudience.Everyone);
 }

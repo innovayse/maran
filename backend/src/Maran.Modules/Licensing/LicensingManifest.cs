@@ -24,5 +24,6 @@ public static class LicensingManifest
         Version: "1.0.0",
         Tier: LicenceTier.Included,
         Dependencies: [],
-        AgentCapabilities: []);
+        AgentCapabilities: [],
+        Audience: ModuleAudience.AdministratorOnly);
 }

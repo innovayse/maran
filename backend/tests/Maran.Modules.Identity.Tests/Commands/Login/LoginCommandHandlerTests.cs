@@ -64,8 +64,10 @@ public sealed class LoginCommandHandlerTests : IDisposable
         return new LoginCommandHandler(
             _context,
             hasher ?? _hasher,
-            new JwtAccessTokenIssuer(options, TestSecurityPolicyCache.Over(_context), _clock),
-            new SessionService(_context, _clock, options),
+            new AuthenticationCompleter(
+                new JwtAccessTokenIssuer(options, TestSecurityPolicyCache.Over(_context), _clock),
+                new SessionService(_context, _clock, options),
+                _clock),
             new IdentityAuditJournal(_audit, new StubCurrentUser()),
             NewDetector(bruteForce),
             TestSecurityPolicyCache.Over(_context),
@@ -223,6 +225,71 @@ public sealed class LoginCommandHandlerTests : IDisposable
         var result = await NewHandler().HandleAsync(Attempt(), CancellationToken.None);
 
         Assert.False(result.IsSuccess);
+    }
+
+    /// <summary>
+    /// Signing in as an invited login is refused with the same result as a wrong password.
+    /// </summary>
+    /// <remarks>
+    /// Equality is asserted on the whole <c>Error</c> record, not merely on both having
+    /// failed: an invited login's empty password hash already fails <c>Verify</c>, so this pins that
+    /// the state check adds no SECOND, distinguishable refusal on top of it.
+    /// </remarks>
+    [Fact]
+    public async Task Signing_in_as_an_invited_login_is_refused_with_the_same_result_as_a_wrong_password()
+    {
+        _context.Users.Add(User.Invite(Guid.NewGuid(), "invited", "invited@example.com", Guid.NewGuid(), Now));
+        await _context.SaveChangesAsync();
+        await SeedUserAsync(_hasher.Hash(Password));
+
+        var invited = await NewHandler().HandleAsync(Attempt(username: "invited", password: Password), CancellationToken.None);
+        var wrongPassword = await NewHandler().HandleAsync(Attempt(password: "wrong"), CancellationToken.None);
+
+        Assert.False(invited.IsSuccess);
+        Assert.Equal(wrongPassword.Error, invited.Error);
+    }
+
+    /// <summary>
+    /// An invited login holding a VALID password hash is still refused, proving the state gate
+    /// itself, not merely the empty hash an invited login normally carries.
+    /// </summary>
+    /// <remarks>
+    /// The existing invited-login test above cannot separate "the handler checks state" from "the
+    /// handler has no state check at all, and the invitation's empty hash happens to fail
+    /// verification anyway" — a handler with the check deleted would still pass it. This constructs
+    /// the one case that tells them apart: <see cref="User.ChangePassword"/> sets a real hash without
+    /// touching <see cref="UserState"/>, so the seeded user has the RIGHT password and is still
+    /// <see cref="UserState.Invited"/>. If the state gate were missing, this login would succeed.
+    /// </remarks>
+    [Fact]
+    public async Task An_invited_login_with_a_valid_password_hash_is_still_refused_identically()
+    {
+        var invited = User.Invite(Guid.NewGuid(), "invited", "invited@example.com", Guid.NewGuid(), Now);
+        invited.ChangePassword(_hasher.Hash(Password));
+        _context.Users.Add(invited);
+        await _context.SaveChangesAsync();
+        await SeedUserAsync(_hasher.Hash(Password));
+
+        var invitedResult = await NewHandler().HandleAsync(Attempt(username: "invited", password: Password), CancellationToken.None);
+        var wrongPassword = await NewHandler().HandleAsync(Attempt(password: "wrong"), CancellationToken.None);
+
+        Assert.False(invitedResult.IsSuccess);
+        Assert.Equal(wrongPassword.Error, invitedResult.Error);
+    }
+
+    /// <summary>Signing in as a suspended login is refused the same way.</summary>
+    [Fact]
+    public async Task Signing_in_as_a_suspended_login_is_refused_with_the_same_result_as_a_wrong_password()
+    {
+        var suspended = await SeedUserAsync(_hasher.Hash(Password));
+        suspended.Suspend();
+        await _context.SaveChangesAsync();
+
+        var suspendedResult = await NewHandler().HandleAsync(Attempt(), CancellationToken.None);
+        var wrongPassword = await NewHandler().HandleAsync(Attempt(password: "wrong"), CancellationToken.None);
+
+        Assert.False(suspendedResult.IsSuccess);
+        Assert.Equal(wrongPassword.Error, suspendedResult.Error);
     }
 
     /// <summary>A locked account is refused with the same error a wrong password gets.</summary>

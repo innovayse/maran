@@ -101,6 +101,19 @@ public sealed class IdentityDbContext : DbContext
     }
 
     /// <summary>
+    /// Outstanding permissions for a newly created hosting account's owner to set their first
+    /// password. Digests only — the token itself lives in one request and one e-mail and is never
+    /// written down.
+    /// </summary>
+    public DbSet<InvitationToken> InvitationTokens
+    {
+        get
+        {
+            return Set<InvitationToken>();
+        }
+    }
+
+    /// <summary>
     /// When this panel first observed the installer's one-time setup token: at most one row, keyed by
     /// a constant. It carries a fingerprint rather than the token, and it is what the token's expiry
     /// is measured from — see <see cref="Domain.Entities.SetupTokenWindow"/>.
@@ -125,6 +138,7 @@ public sealed class IdentityDbContext : DbContext
         modelBuilder.ApplyConfiguration(new FailedLoginByIpConfiguration());
         modelBuilder.ApplyConfiguration(new SecurityPolicyConfiguration());
         modelBuilder.ApplyConfiguration(new PasswordResetTokenConfiguration());
+        modelBuilder.ApplyConfiguration(new InvitationTokenConfiguration());
         modelBuilder.ApplyConfiguration(new SetupTokenWindowConfiguration());
         base.OnModelCreating(modelBuilder);
     }

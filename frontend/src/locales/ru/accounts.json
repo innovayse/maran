@@ -30,12 +30,14 @@
       "subtitle": "Панель проверяет эти значения перед отправкой, а сервер проверяет их повторно.",
       "fields": {
         "primaryDomain": "Основной домен",
-        "planId": "ID тарифа"
+        "planId": "ID тарифа",
+        "ownerEmail": "Email владельца"
       },
       "placeholders": {
         "name": "example",
         "primaryDomain": "example.com",
-        "planId": "Выберите тариф"
+        "planId": "Выберите тариф",
+        "ownerEmail": "owner{'@'}example.com"
       },
       "submit": "Создать аккаунт",
       "errors": {
@@ -43,7 +45,9 @@
         "nameInvalid": "Имя должно быть безопасным именем пользователя Linux в нижнем регистре (буквы, цифры, дефис, подчёркивание, начинается с буквы, 3-32 символа).",
         "primaryDomainRequired": "Основной домен обязателен.",
         "primaryDomainInvalid": "Основной домен должен быть корректным доменным именем.",
-        "planIdRequired": "ID тарифа обязателен."
+        "planIdRequired": "ID тарифа обязателен.",
+        "ownerEmailRequired": "Email владельца обязателен.",
+        "ownerEmailInvalid": "Email владельца должен быть корректным адресом электронной почты."
       },
       "planOption": "{name} — {disk} МБ, сайтов: {sites}"
     },
@@ -61,7 +65,9 @@
       "confirmReactivate": "Возобновить аккаунт?",
       "working": "Выполняем…",
       "confirmSuspendTitle": "Приостановить аккаунт {account}",
-      "confirmReactivateTitle": "Возобновить аккаунт {account}"
+      "confirmReactivateTitle": "Возобновить аккаунт {account}",
+      "resendInvitation": "Отправить приглашение повторно",
+      "invitationResent": "Новое приглашение отправлено. Панель не может подтвердить его доставку — очередь почты не повторяет отправку."
     },
     "delete": {
       "title": "Удаление {account}",

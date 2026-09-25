@@ -1,5 +1,6 @@
 using FluentValidation;
 using Maran.Modules.Accounts.Persistence;
+using Maran.SharedKernel.Utilities.Mail;
 using Maran.SharedKernel.Utilities.Network;
 
 namespace Maran.Modules.Accounts.Commands.CreateAccount;
@@ -44,6 +45,15 @@ public sealed class CreateAccountCommandValidator : AbstractValidator<CreateAcco
     /// </remarks>
     private const string LinuxUserNamePattern = @"\A[a-z][a-z0-9_-]{2,31}\z";
 
+    /// <summary>
+    /// A storage bound, not a definition of validity — <c>AccountConfiguration</c> maps
+    /// <c>Account.OwnerEmail</c> as <c>varchar(256)</c>, narrower than
+    /// <see cref="EmailAddressRule.MaximumLength"/>'s full 320. The shared rule has no business
+    /// knowing this table's width, so the cap stays here and stays stricter — the same shape
+    /// <c>CompleteSetupCommandValidator.MaxEmailLength</c> uses for its own, differently-sized column.
+    /// </summary>
+    private const int MaxOwnerEmailLength = 256;
+
     /// <summary>The Accounts module's database context, used to confirm a submitted plan id exists.</summary>
     private readonly AccountsDbContext _dbContext;
 
@@ -73,6 +83,18 @@ public sealed class CreateAccountCommandValidator : AbstractValidator<CreateAcco
             {
                 return $"Plan '{command.PlanId}' was not found.";
             });
+
+        // EmailAddressRule, not FluentValidation's .EmailAddress(), for the reason
+        // CompleteSetupCommandValidator's own comment states: the built-in asks only for an "@"
+        // with something either side, so it accepts a display-name form like
+        // "Ops Team <ops@example.com>" and every control character besides. This value is
+        // reached at — it becomes User.Email and is handed to SendMailRequested.Recipient — so
+        // rules/security.md item 4 (a caller-supplied value ending up in line-oriented output)
+        // applies to it exactly as it does to every other address in this tree.
+        RuleFor(command => command.OwnerEmail)
+            .NotEmpty()
+            .MaximumLength(MaxOwnerEmailLength)
+            .Must(EmailAddressRule.IsAddress);
     }
 
     /// <summary>Confirms <paramref name="planId"/> names a real, seeded plan — never a bare foreign-key violation reaching the customer.</summary>

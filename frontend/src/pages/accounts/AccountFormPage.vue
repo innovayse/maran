@@ -1,7 +1,8 @@
 <script setup lang="ts">
 /**
- * Create-account screen: a form for name, primary domain and plan id, with
- * client-side validation mirroring the server's
+ * Create-account screen: a form for name, primary domain, plan id and the
+ * account's owner contact address, with client-side validation mirroring the
+ * server's
  * `CreateAccountCommandValidator` constraints exactly (same character
  * classes and length limits — read from
  * `backend/src/Maran.Modules/Accounts/Commands/CreateAccount/CreateAccountCommandValidator.cs`)
@@ -36,6 +37,18 @@ const NAME_PATTERN = /^[a-z][a-z0-9_-]{2,31}$/
  */
 const DOMAIN_PATTERN = /^(?!-)[A-Za-z0-9-]{1,63}(?<!-)(\.(?!-)[A-Za-z0-9-]{1,63}(?<!-))+$/
 
+/**
+ * A conservative address shape, not a full RFC 5322 grammar: something,
+ * an "@", something with a dot. The server's `EmailAddressRule` is the
+ * authority (mirroring it exactly is not attempted here, same as
+ * `ForgotPasswordPage.vue`); this only catches the obvious "forgot the @"
+ * slip before a round trip.
+ */
+const OWNER_EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
+/** Storage bound mirroring the server's `Account.OwnerEmail` column width. */
+const MAX_OWNER_EMAIL_LENGTH = 256
+
 const { t } = useI18n()
 const router = useRouter()
 const store = useAccountsStore()
@@ -46,6 +59,8 @@ const name: Ref<string> = ref('')
 const primaryDomain: Ref<string> = ref('')
 /** Current value of the plan id field. */
 const planId: Ref<string> = ref('')
+/** Current value of the owner's contact address field. */
+const ownerEmail: Ref<string> = ref('')
 /** Whether a submit has been attempted, so validation messages only show after the first try. */
 const submitted: Ref<boolean> = ref(false)
 
@@ -106,9 +121,28 @@ const planOptions: ComputedRef<SelectOption[]> = computed(() => {
   })
 })
 
+/** Client-side validation message for the owner email field, mirroring the server's rule. */
+const ownerEmailError: ComputedRef<string | null> = computed(() => {
+  if (!submitted.value) {
+    return null
+  }
+  if (ownerEmail.value.length === 0) {
+    return t('accounts.form.errors.ownerEmailRequired')
+  }
+  if (ownerEmail.value.length > MAX_OWNER_EMAIL_LENGTH || !OWNER_EMAIL_PATTERN.test(ownerEmail.value)) {
+    return t('accounts.form.errors.ownerEmailInvalid')
+  }
+  return null
+})
+
 /** Whether every field currently passes client-side validation. */
 const isValid: ComputedRef<boolean> = computed(() => {
-  return nameError.value === null && primaryDomainError.value === null && planIdError.value === null
+  return (
+    nameError.value === null &&
+    primaryDomainError.value === null &&
+    planIdError.value === null &&
+    ownerEmailError.value === null
+  )
 })
 
 /**
@@ -134,6 +168,7 @@ const submit = async (): Promise<void> => {
     name: name.value,
     primaryDomain: primaryDomain.value,
     planId: planId.value,
+    ownerEmail: ownerEmail.value,
   })
   if (created !== null) {
     await router.push({ name: 'accounts' })
@@ -191,6 +226,14 @@ onMounted(loadPlans)
             :error="planIdError"
             required
             :placeholder="t('accounts.form.placeholders.planId')"
+          />
+          <UiInput
+            v-model="ownerEmail"
+            :label="t('accounts.form.fields.ownerEmail')"
+            :error="ownerEmailError"
+            required
+            autocomplete="email"
+            :placeholder="t('accounts.form.placeholders.ownerEmail')"
           />
         </div>
         <div class="flex justify-end gap-2 rounded-b-xl border-t border-border-subtle bg-surface-2 px-4.5 py-3">

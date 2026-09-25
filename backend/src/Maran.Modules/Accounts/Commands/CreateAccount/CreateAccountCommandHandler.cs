@@ -5,6 +5,9 @@ using Maran.Modules.Accounts.Persistence;
 using Maran.Modules.Accounts.Resources;
 using Maran.Modules.Accounts.Services;
 using Maran.Sdk.Contracts;
+using Maran.Sdk.Events;
+using Microsoft.Extensions.Logging;
+using Wolverine;
 
 namespace Maran.Modules.Accounts.Commands.CreateAccount;
 
@@ -28,6 +31,18 @@ namespace Maran.Modules.Accounts.Commands.CreateAccount;
 /// </remarks>
 public sealed class CreateAccountCommandHandler
 {
+    /// <summary>
+    /// Pre-compiled log delegate for an Identity subscriber that failed to issue the account owner's
+    /// login. Source-generated because the subscriber's own exception text has no place in a
+    /// customer-facing message (rules/security.md item 8) — it is logged here, for the operator, and
+    /// never returned.
+    /// </summary>
+    private static readonly Action<ILogger, string, Exception?> LogLoginIssuanceFailed =
+        LoggerMessage.Define<string>(
+            LogLevel.Error,
+            new EventId(1, nameof(CreateAccountCommandHandler)),
+            "Account {AccountName} was created, but its owner's login could not be issued.");
+
     /// <summary>The Accounts module's database context.</summary>
     private readonly AccountsDbContext _dbContext;
 
@@ -40,21 +55,33 @@ public sealed class CreateAccountCommandHandler
     /// <summary>This module's audit journal.</summary>
     private readonly AccountAuditJournal _journal;
 
-    /// <summary>Creates the handler with the module's own database context, the agent and the clock.</summary>
+    /// <summary>The bus <see cref="AccountCreated"/> is invoked on.</summary>
+    private readonly IMessageBus _bus;
+
+    /// <summary>Where a subscriber's failure to issue the owner's login is recorded.</summary>
+    private readonly ILogger<CreateAccountCommandHandler> _logger;
+
+    /// <summary>Creates the handler with the module's own database context, the agent, the clock and the bus.</summary>
     /// <param name="dbContext">The Accounts module's database context.</param>
     /// <param name="agent">The agent client that provisions the system user.</param>
     /// <param name="clock">The injected time source used to stamp the new account's creation time.</param>
     /// <param name="journal">This module's audit journal.</param>
+    /// <param name="bus">The bus <see cref="AccountCreated"/> is invoked on.</param>
+    /// <param name="logger">Where a subscriber's failure to issue the owner's login is recorded.</param>
     public CreateAccountCommandHandler(
         AccountsDbContext dbContext,
         IAgentAccountsClient agent,
         IClock clock,
-        AccountAuditJournal journal)
+        AccountAuditJournal journal,
+        IMessageBus bus,
+        ILogger<CreateAccountCommandHandler> logger)
     {
         _dbContext = dbContext;
         _agent = agent;
         _clock = clock;
         _journal = journal;
+        _bus = bus;
+        _logger = logger;
     }
 
     /// <summary>
@@ -64,7 +91,10 @@ public sealed class CreateAccountCommandHandler
     /// <param name="cancellationToken">Cancels the write.</param>
     /// <returns>
     /// The created account, <c>AccountNameTaken</c>/<c>AccountDomainTaken</c>/<c>PlanNotFound</c>,
-    /// or the agent's own typed failure when the system user could not be provisioned.
+    /// the agent's own typed failure when the system user could not be provisioned, or
+    /// <c>AccountLoginIssuanceFailed</c> when the account was created but its owner's login was not
+    /// — see the remarks on the invocation below for why creating the account again is not the
+    /// recovery from that one.
     /// </returns>
     public async Task<Result<AccountDto>> HandleAsync(CreateAccountCommand command, CancellationToken cancellationToken)
     {
@@ -98,13 +128,35 @@ public sealed class CreateAccountCommandHandler
             return await FailAsync(command, provisioned.Error!, cancellationToken);
         }
 
-        var account = new Account(Guid.NewGuid(), command.Name, command.PrimaryDomain, command.PlanId, _clock.UtcNow);
+        var account = new Account(Guid.NewGuid(), command.Name, command.PrimaryDomain, command.PlanId, _clock.UtcNow, command.OwnerEmail);
 
         _dbContext.Accounts.Add(account);
         await _dbContext.SaveChangesAsync(cancellationToken);
 
         await _journal.RecordSuccessAsync(
             AuditActions.AccountCreated, account.Name, command.IpAddress, command.UserAgent, cancellationToken);
+
+        // INVOKED, not published: a failure to issue the login must reach the caller. The account
+        // already exists at this point and is not rolled back — see AccountCreated's remarks — so
+        // the failure is reported and "resend invitation" is the recovery. Caught rather than left
+        // to propagate, exactly as DeleteAccountCommandHandler catches AccountDeleting's subscribers:
+        // an uncaught throw here would reach the caller as a generic 500 through ExceptionMiddleware,
+        // reading as "creation failed" when the account is in fact sitting there without a login —
+        // and retrying creation would only hit AccountNameTaken above, not fix anything.
+        try
+        {
+            await _bus.InvokeAsync(new AccountCreated(account.Id, account.Name, command.OwnerEmail), cancellationToken);
+        }
+        catch (Exception exception)
+        {
+            // The subscriber's own text is never customer-facing (rules/security.md item 8); it is
+            // logged here, for the operator, and answered with a typed code instead. The success
+            // journal entry above stands: the account WAS created, so this is not re-journalled as a
+            // failed AccountCreated — that would contradict the entry an operator already has.
+            LogLoginIssuanceFailed(_logger, account.Name, exception);
+
+            return Result<AccountDto>.Fail(Error.Of(nameof(ErrorMessages.AccountLoginIssuanceFailed), ErrorType.Failure));
+        }
 
         return Result<AccountDto>.Ok(
             new AccountDto(account.Id, account.Name, account.PrimaryDomain, account.PlanId, account.Status, account.CreatedAt));

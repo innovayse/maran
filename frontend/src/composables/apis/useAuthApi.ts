@@ -1,5 +1,6 @@
 import { useApi } from '../useApi'
 import type {
+  AcceptInvitationRequest,
   AuthApi,
   AuthenticatedUser,
   CompleteSetupRequest,
@@ -202,6 +203,21 @@ export const useAuthApi = (): AuthApi => {
     return api.post<boolean>(`${AUTH_PATH}/reset-password`, request, signal, false)
   }
 
+  /**
+   * Sets the first password for an invited login.
+   *
+   * The backend gives one refusal for a token that never existed, one that has
+   * expired and one already spent, exactly like {@link resetPassword} — so this
+   * call, like that one, opts out of the 401 retry: there is no session yet to
+   * renew, and a replay would only spend a refresh.
+   * @param request The token from the invitation mail and the chosen password.
+   * @param signal Optional abort signal to cancel the in-flight request.
+   * @returns True once the password has been set.
+   */
+  const acceptInvitation = (request: AcceptInvitationRequest, signal?: AbortSignal): Promise<boolean> => {
+    return api.post<boolean>(`${AUTH_PATH}/accept-invitation`, request, signal, false)
+  }
+
   return {
     login,
     verifyTwoFactor,
@@ -217,5 +233,6 @@ export const useAuthApi = (): AuthApi => {
     disableTwoFactor,
     requestPasswordReset,
     resetPassword,
+    acceptInvitation,
   }
 }

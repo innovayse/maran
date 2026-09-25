@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 import { ref, type Ref } from 'vue'
 import { useAccountsApi } from '../composables/apis/useAccountsApi'
 import { ApiError } from '../composables/useApi'
-import type { Account, CreateAccountRequest, Plan } from '../types/account'
+import type { Account, CreateAccountRequest, MyAccount, Plan } from '../types/account'
 
 /**
  * Owns the hosting accounts list and the create-account workflow. The list and form pages read
@@ -47,6 +47,18 @@ export const useAccountsStore = defineStore('accounts', () => {
    * last attempt succeeded or has not been made yet. Rendered verbatim by the form page.
    */
   const createErrorMessage: Ref<string | null> = ref(null)
+
+  /** The caller's own account, its status, and its plan's limits — `null` before it is loaded. */
+  const mine: Ref<MyAccount | null> = ref(null)
+
+  /** True while the "my account" request is in flight. */
+  const mineLoading: Ref<boolean> = ref(false)
+
+  /**
+   * Backend-localized message from the most recent failed "my account" load, or `null` when the
+   * last load succeeded or has not been attempted yet.
+   */
+  const mineErrorMessage: Ref<string | null> = ref(null)
 
   /**
    * Loads the account list, replacing what is held.
@@ -165,6 +177,53 @@ export const useAccountsStore = defineStore('accounts', () => {
   }
 
   /**
+   * Loads the account the caller owns, replacing what is held.
+   *
+   * A 404 is not a genuine failure here: it is the expected answer for an
+   * administrator, who owns no account by design (rules server-side,
+   * `GetMyAccountQueryHandler`). `mineErrorMessage` stays `null` for it, so the
+   * page's empty state — written for exactly this case — renders instead of a
+   * red alert repeating a "not found" sentence that was never a malfunction.
+   * @returns Resolves once the request has settled, successfully or not.
+   */
+  const loadMine = async (): Promise<void> => {
+    mineLoading.value = true
+    try {
+      mine.value = await api.getMine()
+      mineErrorMessage.value = null
+    } catch (error) {
+      mine.value = null
+      mineErrorMessage.value = error instanceof ApiError && error.status !== 404 ? error.message : null
+    } finally {
+      mineLoading.value = false
+    }
+  }
+
+  /**
+   * Resends the invitation for the account's owner: retires every outstanding token and sends a
+   * new one. Administrator-only on the server; this store adds no matching check of its own
+   * (rules/architecture.md — the endpoint is the boundary, not the SPA).
+   *
+   * The panel's mail queue is deliberately non-durable, so a `true` here means the invitation
+   * was SENT, never that it was delivered — the caller renders that distinction, not this action.
+   * @param id The account whose owner is being (re)invited.
+   * @returns True once a new invitation was sent.
+   */
+  const resendInvitation = async (id: string): Promise<boolean> => {
+    acting.value = true
+    errorMessage.value = null
+    try {
+      await api.resendInvitation(id)
+      return true
+    } catch (error) {
+      errorMessage.value = error instanceof ApiError ? error.message : null
+      return false
+    } finally {
+      acting.value = false
+    }
+  }
+
+  /**
    * Runs one lifecycle call and folds the account it returns back into both the held list and
    * {@link selected}, so a list opened behind a detail page does not go stale.
    * @param call The lifecycle call to make.
@@ -200,6 +259,9 @@ export const useAccountsStore = defineStore('accounts', () => {
     createErrorMessage,
     selected,
     acting,
+    mine,
+    mineLoading,
+    mineErrorMessage,
     load,
     loadPlans,
     create,
@@ -207,5 +269,7 @@ export const useAccountsStore = defineStore('accounts', () => {
     suspend,
     reactivate,
     remove,
+    loadMine,
+    resendInvitation,
   }
 })

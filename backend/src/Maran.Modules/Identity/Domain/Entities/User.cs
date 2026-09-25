@@ -23,6 +23,13 @@ public sealed class User
     public UserRole Role { get; private set; }
 
     /// <summary>
+    /// Whether this login may be used. An invited login holds no password at all rather than an
+    /// empty hash: a sentinel hash in the same field a real one lives in is one careless comparison
+    /// away from being accepted.
+    /// </summary>
+    public UserState State { get; private set; }
+
+    /// <summary>
     /// The hosting account this user owns, for a <see cref="UserRole.Customer"/>; null for an
     /// administrator, who owns none and reaches all of them.
     /// </summary>
@@ -59,6 +66,16 @@ public sealed class User
     /// </summary>
     public DateTimeOffset? LockedUntil { get; private set; }
 
+    /// <summary>
+    /// Whether this login's hosting account is currently suspended, tracked independently of
+    /// <see cref="State"/> so an <see cref="UserState.Invited"/> login — which <see cref="Suspend"/>
+    /// deliberately leaves in <c>Invited</c>, so an unused invitation is never silently consumed —
+    /// still remembers that its account was suspended while the invitation was outstanding.
+    /// <see cref="Activate"/> reads this flag to decide whether accepting that invitation may
+    /// produce a usable login.
+    /// </summary>
+    public bool IsAccountSuspended { get; private set; }
+
     /// <summary>Creates a user with two-factor authentication not yet enrolled.</summary>
     /// <param name="id">The user's identity.</param>
     /// <param name="username">The unique login name.</param>
@@ -82,6 +99,75 @@ public sealed class User
         Username = string.Empty;
         Email = string.Empty;
         PasswordHash = string.Empty;
+    }
+
+    /// <summary>Creates the login of a hosting account's owner, before they have set a password.</summary>
+    /// <param name="id">The login's identity.</param>
+    /// <param name="username">The account's system user name, which is also the login name.</param>
+    /// <param name="email">The address the invitation was sent to.</param>
+    /// <param name="accountId">The hosting account this login owns.</param>
+    /// <param name="createdAt">The instant of creation, taken from <see cref="IClock"/>.</param>
+    /// <returns>A login in <see cref="UserState.Invited"/>, which cannot sign in.</returns>
+    public static User Invite(Guid id, string username, string email, Guid accountId, DateTimeOffset createdAt)
+    {
+        var user = new User(id, username, email, string.Empty, UserRole.Customer, createdAt)
+        {
+            State = UserState.Invited,
+        };
+
+        user.AssignAccount(accountId);
+        return user;
+    }
+
+    /// <summary>
+    /// Accepts an invitation: stores the first password and makes the login usable — unless the
+    /// account was suspended while the invitation was outstanding, in which case the password is
+    /// stored but the login comes out <see cref="UserState.Suspended"/> rather than usable.
+    /// </summary>
+    /// <param name="passwordHash">The Argon2id hash of the password its owner chose.</param>
+    /// <remarks>
+    /// A customer must never be able to turn a suspended hosting account into a working login simply
+    /// by finding an old invitation link. Storing the password rather than refusing it means the
+    /// owner does not have to accept the invitation a second time once the account is resumed —
+    /// <see cref="Resume"/> then returns them straight to <see cref="UserState.Active"/> with the
+    /// password they already chose.
+    /// </remarks>
+    public void Activate(string passwordHash)
+    {
+        PasswordHash = passwordHash;
+        State = IsAccountSuspended ? UserState.Suspended : UserState.Active;
+    }
+
+    /// <summary>
+    /// Blocks sign-in because the hosting account was suspended. Keeps the password.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="State"/> stays <see cref="UserState.Invited"/> for a login that has not been
+    /// claimed yet: suspending an account whose owner never set a password must not silently consume
+    /// the invitation they have not used yet. <see cref="IsAccountSuspended"/> is set regardless of
+    /// the current state, precisely so that fact is not lost when <see cref="State"/> cannot record
+    /// it — it is what <see cref="Activate"/> later reads to keep an invitation accepted during a
+    /// suspension from producing a usable login.
+    /// </remarks>
+    public void Suspend()
+    {
+        if (State == UserState.Active)
+        {
+            State = UserState.Suspended;
+        }
+
+        IsAccountSuspended = true;
+    }
+
+    /// <summary>Lifts a suspension, returning the login to the state it was in before.</summary>
+    public void Resume()
+    {
+        if (State == UserState.Suspended)
+        {
+            State = UserState.Active;
+        }
+
+        IsAccountSuspended = false;
     }
 
     /// <summary>Binds this user to the hosting account they own.</summary>

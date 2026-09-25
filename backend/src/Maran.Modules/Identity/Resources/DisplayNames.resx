@@ -234,4 +234,13 @@
   <data name="AuditActionLicenceInstalled">
     <value>Licence installed</value>
   </data>
+  <data name="AuditActionCustomerInvited">
+    <value>Customer invited</value>
+  </data>
+  <data name="AuditActionInvitationAccepted">
+    <value>Invitation accepted</value>
+  </data>
+  <data name="AuditActionInvitationAcceptRefused">
+    <value>Invitation acceptance refused</value>
+  </data>
 </root>

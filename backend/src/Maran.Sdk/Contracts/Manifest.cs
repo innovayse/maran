@@ -22,10 +22,19 @@ namespace Maran.Sdk.Contracts;
 /// reach (<see cref="AgentCapability"/>). Empty for a module that never talks to the agent, which is
 /// the honest declaration for most of them — Identity, Notifications and Tasks each hold none.
 /// </param>
+/// <param name="Audience">
+/// Who this module's screens are for (<see cref="ModuleAudience"/>). The modules catalogue endpoint
+/// reads it to decide what to offer a signed-in customer versus an administrator — presentation
+/// only, so it hides nothing that an endpoint would not itself refuse; every route keeps its own
+/// authorization check regardless of what the catalogue lists. There is deliberately no default: a
+/// module that does not state its audience must fail to compile rather than be silently offered to
+/// a customer.
+/// </param>
 public sealed record Manifest(
     string Id,
     string DisplayNameKey,
     string Version,
     LicenceTier Tier,
     IReadOnlyList<string> Dependencies,
-    IReadOnlyList<AgentCapability> AgentCapabilities);
+    IReadOnlyList<AgentCapability> AgentCapabilities,
+    ModuleAudience Audience);

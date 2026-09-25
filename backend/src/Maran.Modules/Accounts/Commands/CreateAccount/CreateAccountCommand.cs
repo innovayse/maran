@@ -17,6 +17,13 @@ namespace Maran.Modules.Accounts.Commands.CreateAccount;
 /// <param name="Name">The account's unique, Linux-username-safe short name.</param>
 /// <param name="PrimaryDomain">The account's primary domain.</param>
 /// <param name="PlanId">The id of the plan bounding this account's resource limits.</param>
+/// <param name="OwnerEmail">
+/// The account's own contact address, stored on <c>Account.OwnerEmail</c> and carried to Identity
+/// on <see cref="Maran.Sdk.Events.AccountCreated"/>, which stores it again on the login it creates.
+/// The two copies start equal and are allowed to diverge afterwards — see <c>Account.OwnerEmail</c>'s
+/// own remarks for why a second copy is the deliberate choice: it is what lets an administrator
+/// resend an invitation for an account whose login was never successfully created.
+/// </param>
 /// <param name="IpAddress">
 /// The caller's address, recorded in the audit journal. Read from the connection by the controller
 /// and never bound from the request: <c>JsonIgnore</c> keeps it out of the JSON body — a
@@ -35,5 +42,6 @@ public sealed record CreateAccountCommand(
     string Name,
     string PrimaryDomain,
     Guid PlanId,
+    string OwnerEmail,
     [property: JsonIgnore][property: BindNever][BindNever] string IpAddress = "",
     [property: JsonIgnore][property: BindNever][BindNever] string UserAgent = "");

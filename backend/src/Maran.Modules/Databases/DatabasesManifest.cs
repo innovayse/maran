@@ -17,5 +17,6 @@ public static class DatabasesManifest
         Version: "1.0.0",
         Tier: LicenceTier.Included,
         Dependencies: [],
-        AgentCapabilities: [AgentCapability.Db]);
+        AgentCapabilities: [AgentCapability.Db],
+        Audience: ModuleAudience.Everyone);
 }

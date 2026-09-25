@@ -38,6 +38,14 @@ public static class DisplayNameExemptions
             "accounts.status.{member}",
             "The detail screen draws the same badge from the same closed set as the list."),
         new(
+            "Maran.Modules.Accounts.Common.MyAccountDto",
+            "Status",
+            DisplayNameExemptionKind.SpaOwnedVocabulary,
+            "accounts.status.{member}",
+            "The customer's own account screen draws the same badge from the same closed set the "
+            + "administrator's list and detail screens already use; the bundle already words every "
+            + "value to offer those two."),
+        new(
             "Maran.Modules.Backups.Common.BackupDto",
             "Status",
             DisplayNameExemptionKind.SpaOwnedVocabulary,

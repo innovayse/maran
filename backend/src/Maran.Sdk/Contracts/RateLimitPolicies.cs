@@ -23,6 +23,7 @@ public static class RateLimitPolicies
     /// The password-reset limit: its own bucket, keyed by the caller's address.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// A separate policy rather than a reuse of <see cref="Login"/>, and that is deliberate in both
     /// directions. Sharing a bucket with sign-in would let an attacker exhaust somebody's login
     /// budget by asking for resets, and — the other way round — would let reset requests hide inside
@@ -30,8 +31,34 @@ public static class RateLimitPolicies
     /// guess but an OUTGOING MESSAGE with the operator's own return address on it: an unlimited one
     /// is a mail bomb aimed at any address the caller names and a fast route to the panel's domain
     /// being listed as a spam source.
+    /// </para>
+    /// <para>
+    /// Kept separate from <see cref="Invitation"/> for the same reason spelled out there: recovery
+    /// traffic recurring for the life of an account must not be able to exhaust the one-time budget
+    /// a new customer needs to accept an invitation they cannot simply ask to have resent — that
+    /// resend is an administrator-only action, unlike asking for another password-reset mail.
+    /// </para>
     /// </remarks>
     public const string PasswordReset = "password-reset";
+
+    /// <summary>
+    /// The invitation-acceptance limit: its own bucket, keyed by the caller's address, separate
+    /// from <see cref="PasswordReset"/> even though both endpoints are anonymous and both spend a
+    /// token.
+    /// </summary>
+    /// <remarks>
+    /// Sharing <see cref="PasswordReset"/>'s bucket would let unrelated traffic on either endpoint
+    /// exhaust the other's budget, and the two failure modes are asymmetric enough that neither
+    /// direction is acceptable. A customer behind shared NAT — an office, a campus, a carrier-grade
+    /// NAT on a mobile network — whose neighbours are requesting password resets would find their
+    /// one-time invitation link refused with no recovery: unlike a reset, they cannot simply ask for
+    /// the invitation again themselves, because resending it is an administrator-only action
+    /// (<c>ResendInvitationCommand</c>). And the other way round, an attacker probing invitation
+    /// tokens from one address would burn the reset budget of every genuine customer sharing it.
+    /// Accepting an invitation is a one-time onboarding step; requesting a reset is recovery traffic
+    /// that recurs for the life of the account — the two do not belong in one meter.
+    /// </remarks>
+    public const string Invitation = "invitation";
 
     /// <summary>
     /// The site-log stream limit: a CONCURRENCY limit on how many tails one account may hold

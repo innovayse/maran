@@ -104,6 +104,21 @@ const isAdmin: ComputedRef<boolean> = computed(() => {
 })
 
 /**
+ * Whether to offer the "my account" entry.
+ *
+ * A new branch, not a widening of {@link isAdmin}'s permissive one: this asks a
+ * different question — does the signed-in person own a hosting account at all
+ * — which `accountId` answers directly rather than by inference from a role.
+ * `/api/v1/accounts/me` 404s for anybody with no account (every administrator
+ * included), so hiding the link for `accountId === null` avoids offering a
+ * screen that can only answer "not found", the same reasoning the journal and
+ * the security screens above use in the other direction.
+ */
+const hasOwnAccount: ComputedRef<boolean> = computed(() => {
+  return authStore.user !== null && authStore.user.accountId !== null
+})
+
+/**
  * Opens one of the account pages.
  * @param name The route name to navigate to.
  * @returns Resolves once the navigation has settled.
@@ -151,6 +166,11 @@ const signOut = async (): Promise<void> => {
     <!-- Sessions, two-factor and the audit journal are real pages with real tests, and until
          this menu existed the only way to reach any of them was to type its URL: a screen
          nothing links to is a screen nobody has. -->
+    <!-- Only offered to a person who owns an account: the endpoint behind it answers "the
+         account YOU own" and 404s for anybody without one. -->
+    <UiDropdownItem v-if="hasOwnAccount" @select="go('my-account')">
+      {{ t('app.shell.menu.myAccount') }}
+    </UiDropdownItem>
     <UiDropdownItem @select="go('sessions')">{{ t('app.shell.menu.sessions') }}</UiDropdownItem>
     <UiDropdownItem @select="go('two-factor')">{{ t('app.shell.menu.twoFactor') }}</UiDropdownItem>
     <!-- Hidden from a customer because the journal is an administrator's page and a link that

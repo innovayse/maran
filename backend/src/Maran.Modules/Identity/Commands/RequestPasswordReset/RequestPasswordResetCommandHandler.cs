@@ -73,7 +73,7 @@ public sealed class RequestPasswordResetCommandHandler
     private readonly IStringLocalizer<EmailTemplates> _templates;
 
     /// <summary>The panel's own public address, for the link in the mail.</summary>
-    private readonly PasswordResetOptions _options;
+    private readonly PanelOptions _options;
 
     /// <summary>The panel's clock; the ambient one is a banned API (rules/csharp.md).</summary>
     private readonly IClock _clock;
@@ -90,7 +90,7 @@ public sealed class RequestPasswordResetCommandHandler
         IMessageBus bus,
         IdentityAuditJournal journal,
         IStringLocalizer<EmailTemplates> templates,
-        IOptions<PasswordResetOptions> options,
+        IOptions<PanelOptions> options,
         IClock clock)
     {
         _dbContext = dbContext;

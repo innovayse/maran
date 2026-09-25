@@ -65,10 +65,11 @@ public sealed class IdentityModule : IPanelModule
             .ValidateDataAnnotations()
             .ValidateOnStart();
 
-        // The panel's own public address, for the link in a password-reset mail. Never taken from
-        // the request's Host header, which the caller controls — see PasswordResetOptions.
-        services.AddOptions<PasswordResetOptions>()
-            .Bind(configuration.GetSection(PasswordResetOptions.SectionName))
+        // The panel's own public address, for the link in a password-reset mail and in an invitation
+        // mail alike. Never taken from the request's Host header, which the caller controls — see
+        // PanelOptions.
+        services.AddOptions<PanelOptions>()
+            .Bind(configuration.GetSection(PanelOptions.SectionName))
             .ValidateDataAnnotations()
             .ValidateOnStart();
 
@@ -80,6 +81,7 @@ public sealed class IdentityModule : IPanelModule
 
         services.AddScoped<IAuditWriter, DatabaseAuditWriter>();
         services.AddScoped<IdentityAuditJournal>();
+        services.AddScoped<InvitationMailComposer>();
         services.AddScoped<AuditActionDisplayNames>();
 
         // Singleton: it holds one row for the life of the process and is read on the sign-in path,
@@ -97,6 +99,7 @@ public sealed class IdentityModule : IPanelModule
         services.AddScoped<BruteForceDetector>();
         services.AddScoped<IAccessTokenIssuer, JwtAccessTokenIssuer>();
         services.AddScoped<ISessionService, SessionService>();
+        services.AddScoped<AuthenticationCompleter>();
         services.AddScoped<ITotpService, TotpService>();
         services.AddScoped<IRecoveryCodeService, RecoveryCodeService>();
 

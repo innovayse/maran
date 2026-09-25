@@ -30,4 +30,22 @@ The link stops working in one hour and can be used once. If this was not you, no
     <value>Open the panel, go to the reset-password page, and enter this code:
 {0}</value>
   </data>
+  <data name="InvitationSubject">
+    <value>Your hosting account is ready</value>
+  </data>
+  <data name="InvitationBody">
+    <value>Your hosting account has been created and a panel login has been issued for it.
+
+{0}
+
+The link stops working in seven days and can be used once.</value>
+  </data>
+  <data name="InvitationLink">
+    <value>Open this address to choose your password:
+{0}</value>
+  </data>
+  <data name="InvitationTokenOnly">
+    <value>Open the panel, go to the accept-invitation page, and enter this code:
+{0}</value>
+  </data>
 </root>

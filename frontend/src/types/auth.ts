@@ -107,6 +107,21 @@ export interface ResetPasswordRequest {
   newPassword: string
 }
 
+/**
+ * What accepting an invitation needs: the token from the mail, and the first
+ * password it sets.
+ *
+ * Shaped exactly like {@link ResetPasswordRequest} for the same reason that
+ * request is: the token IS the credential, so nothing here names the account —
+ * naming one would let a caller aim a token at somebody else's login.
+ */
+export interface AcceptInvitationRequest {
+  /** The plaintext token from the invitation mail. */
+  token: string
+  /** The password to set. */
+  newPassword: string
+}
+
 /** Whether the panel still needs its first administrator. */
 export interface SetupState {
   /** True once any user exists. */
@@ -173,4 +188,6 @@ export interface AuthApi {
   requestPasswordReset: (email: string, signal?: AbortSignal) => Promise<boolean>
   /** Sets a new password from a reset link. */
   resetPassword: (request: ResetPasswordRequest, signal?: AbortSignal) => Promise<boolean>
+  /** Sets the first password for an invited login, from the mailed invitation. */
+  acceptInvitation: (request: AcceptInvitationRequest, signal?: AbortSignal) => Promise<boolean>
 }

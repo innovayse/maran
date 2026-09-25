@@ -18,7 +18,7 @@ namespace Maran.Modules.Accounts.Persistence.Migrations
 #pragma warning disable 612, 618
             modelBuilder
                 .HasDefaultSchema("accounts")
-                .HasAnnotation("ProductVersion", "9.0.19")
+                .HasAnnotation("ProductVersion", "9.0.20")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
@@ -36,6 +36,10 @@ namespace Maran.Modules.Accounts.Persistence.Migrations
                         .IsRequired()
                         .HasMaxLength(32)
                         .HasColumnType("character varying(32)");
+
+                    b.Property<string>("OwnerEmail")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
 
                     b.Property<Guid>("PlanId")
                         .HasColumnType("uuid");

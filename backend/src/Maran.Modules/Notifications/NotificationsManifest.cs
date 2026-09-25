@@ -22,5 +22,6 @@ public static class NotificationsManifest
         Version: "1.0.0",
         Tier: LicenceTier.Included,
         Dependencies: [],
-        AgentCapabilities: []);
+        AgentCapabilities: [],
+        Audience: ModuleAudience.AdministratorOnly);
 }

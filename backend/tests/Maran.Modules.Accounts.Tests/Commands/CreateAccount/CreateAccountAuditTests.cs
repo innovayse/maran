@@ -4,6 +4,7 @@ using Maran.Modules.Accounts.Domain.Entities;
 using Maran.Modules.Accounts.Persistence;
 using Maran.Modules.Accounts.Services;
 using Maran.Modules.Accounts.Tests.TestSupport;
+using Microsoft.Extensions.Logging.Abstractions;
 using Maran.Sdk.Contracts;
 using Maran.SharedKernel.Results;
 using Microsoft.EntityFrameworkCore;
@@ -132,7 +133,9 @@ public sealed class CreateAccountAuditTests
                 dbContext,
                 agent,
                 new FakeClock(new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero)),
-                new AccountAuditJournal(Audit, FakeCurrentUser.Admin()));
+                new AccountAuditJournal(Audit, FakeCurrentUser.Admin()),
+                new StubMessageBus(),
+                NullLogger<CreateAccountCommandHandler>.Instance);
         }
 
         /// <summary>Everything the handler journalled.</summary>
@@ -149,7 +152,7 @@ public sealed class CreateAccountAuditTests
         public Task<Result<AccountDto>> CreateAsync(string name, string domain, Guid planId)
         {
             return _handler.HandleAsync(
-                new CreateAccountCommand(name, domain, planId, Ip, Client), CancellationToken.None);
+                new CreateAccountCommand(name, domain, planId, "owner@example.com", IpAddress: Ip, UserAgent: Client), CancellationToken.None);
         }
     }
 }

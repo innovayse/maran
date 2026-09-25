@@ -1,3 +1,4 @@
+using Maran.Modules.Identity.Domain.Enums;
 using Maran.Modules.Identity.Interfaces;
 using Maran.Modules.Identity.Models;
 using Maran.Modules.Identity.Persistence;
@@ -22,11 +23,13 @@ public sealed class VerifyTwoFactorCommandHandler
     /// <summary>Verifies a recovery code when the authenticator is gone.</summary>
     private readonly IRecoveryCodeService _recoveryCodeService;
 
-    /// <summary>Signs the access token.</summary>
-    private readonly IAccessTokenIssuer _accessTokenIssuer;
-
-    /// <summary>Issues the session.</summary>
-    private readonly ISessionService _sessionService;
+    /// <summary>
+    /// The one place that checks whether this login may sign in and, when it may, issues its session
+    /// and access token. See its own remarks for why this handler does not check the state itself —
+    /// this is precisely the check that used to be missing here, letting a suspended login with
+    /// two-factor enrolled sign in through this endpoint after its sessions were revoked.
+    /// </summary>
+    private readonly AuthenticationCompleter _authenticationCompleter;
 
     /// <summary>Records the attempt.</summary>
     private readonly IdentityAuditJournal _journal;
@@ -34,39 +37,30 @@ public sealed class VerifyTwoFactorCommandHandler
     /// <summary>Counts refusals per source address and announces an attack.</summary>
     private readonly BruteForceDetector _bruteForceDetector;
 
-    /// <summary>The panel's clock.</summary>
-    private readonly IClock _clock;
-
     /// <summary>Creates the handler.</summary>
     /// <param name="dbContext">The module's database context.</param>
     /// <param name="passwordHasher">Verifies the password.</param>
     /// <param name="totpService">Verifies the TOTP code.</param>
     /// <param name="recoveryCodeService">Verifies a recovery code.</param>
-    /// <param name="accessTokenIssuer">Signs the access token.</param>
-    /// <param name="sessionService">Issues the session.</param>
+    /// <param name="authenticationCompleter">Checks sign-in eligibility and issues the session.</param>
     /// <param name="journal">Records the attempt.</param>
     /// <param name="bruteForceDetector">Counts refusals per source address.</param>
-    /// <param name="clock">The panel's clock.</param>
     public VerifyTwoFactorCommandHandler(
         IdentityDbContext dbContext,
         IPasswordHasher passwordHasher,
         ITotpService totpService,
         IRecoveryCodeService recoveryCodeService,
-        IAccessTokenIssuer accessTokenIssuer,
-        ISessionService sessionService,
+        AuthenticationCompleter authenticationCompleter,
         IdentityAuditJournal journal,
-        BruteForceDetector bruteForceDetector,
-        IClock clock)
+        BruteForceDetector bruteForceDetector)
     {
         _dbContext = dbContext;
         _passwordHasher = passwordHasher;
         _totpService = totpService;
         _recoveryCodeService = recoveryCodeService;
-        _accessTokenIssuer = accessTokenIssuer;
-        _sessionService = sessionService;
+        _authenticationCompleter = authenticationCompleter;
         _journal = journal;
         _bruteForceDetector = bruteForceDetector;
-        _clock = clock;
     }
 
     /// <summary>Verifies password and code together, then issues the session.</summary>
@@ -92,6 +86,19 @@ public sealed class VerifyTwoFactorCommandHandler
             return Result<AuthenticatedOutcome>.Fail(Error.Of(nameof(ErrorMessages.InvalidCredentialsUnauthorized), ErrorType.Unauthorized));
         }
 
+        // Same refusal as a wrong password, deliberately, and checked before anything else about
+        // this user is revealed or written: a distinct answer would tell an attacker which suspended
+        // account still has a matching password. This is the check that was missing here — see the
+        // field's own remarks — so a suspended login with two-factor enrolled could still mint a
+        // fresh session through this endpoint after AccountSuspendingHandler had revoked every other
+        // one. AuthenticationCompleter enforces it again below; the two calls answer the identical
+        // question so neither can silently stop asking it.
+        if (user.State != UserState.Active)
+        {
+            await _bruteForceDetector.RecordFailureAsync(command.IpAddress, cancellationToken);
+            return Result<AuthenticatedOutcome>.Fail(Error.Of(nameof(ErrorMessages.InvalidCredentialsUnauthorized), ErrorType.Unauthorized));
+        }
+
         if (!user.IsTotpEnabled || user.TotpSecret is null)
         {
             return Result<AuthenticatedOutcome>.Fail(Error.Of(nameof(ErrorMessages.TwoFactorNotEnabledForbidden), ErrorType.Forbidden));
@@ -113,10 +120,17 @@ public sealed class VerifyTwoFactorCommandHandler
             return Result<AuthenticatedOutcome>.Fail(Error.Of(nameof(ErrorMessages.InvalidTwoFactorCodeUnauthorized), ErrorType.Unauthorized));
         }
 
-        var session = await _sessionService.IssueAsync(user.Id, command.IpAddress, command.UserAgent, cancellationToken);
-        var accessToken = await _accessTokenIssuer.IssueAsync(user, session.SessionId, cancellationToken);
+        var completed = await _authenticationCompleter.CompleteAsync(
+            user, command.IpAddress, command.UserAgent, cancellationToken);
+        if (!completed.IsSuccess)
+        {
+            // The state check above already refused a non-Active user, so this is unreachable in
+            // practice; kept because this handler must not silently drop a refusal the completer
+            // ever does report.
+            await _bruteForceDetector.RecordFailureAsync(command.IpAddress, cancellationToken);
+            return completed;
+        }
 
-        user.RecordLogin(_clock.UtcNow);
         await _dbContext.SaveChangesAsync(cancellationToken);
 
         if (usedRecoveryCode)
@@ -128,7 +142,7 @@ public sealed class VerifyTwoFactorCommandHandler
 
         await WriteAuditAsync(user.Id, user.Username, AuditActions.LoginSucceeded, command, true, cancellationToken);
 
-        return Result<AuthenticatedOutcome>.Ok(new AuthenticatedOutcome(accessToken, user, session));
+        return completed;
     }
 
     /// <summary>Writes one journal entry for this attempt.</summary>

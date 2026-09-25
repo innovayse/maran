@@ -1,3 +1,4 @@
+using Maran.Modules.Identity.Domain.Entities;
 using Maran.Modules.Identity.Domain.Enums;
 using Maran.Modules.Identity.Interfaces;
 using Maran.Modules.Identity.Persistence;
@@ -37,6 +38,34 @@ namespace Maran.Modules.Identity.Commands.ResetPassword;
 /// <b>The token is spent before anything else is written, and every other outstanding token with
 /// it.</b> A second link in a second mail is a second key to an account whose owner has just told the
 /// panel they lost control of it.
+/// </para>
+/// <para>
+/// <b>A token presented for a login that has never been claimed COMPLETES the invitation, rather
+/// than refusing.</b> <see cref="Maran.Modules.Identity.Domain.Enums.UserState.Invited"/> means the
+/// account's owner set no password yet — their invitation mail may be lost, spam-filtered, or simply
+/// unread — and <c>RequestPasswordResetCommandHandler</c> issues a reset token for such a login
+/// exactly as it does for any other, by design (it must not let the response distinguish one kind of
+/// account from another; see that type's remarks). Presenting a VALID, unexpired, unused reset token
+/// proves control of the same mailbox an invitation token proves control of, so this handler treats
+/// it the same way <c>AcceptInvitationCommandHandler</c> does: <see cref="User.Activate"/> instead of
+/// <see cref="User.ChangePassword"/>, which also clears <see cref="UserState.Invited"/> into a login
+/// that can actually sign in. The alternative — refusing the reset for an unclaimed login — would
+/// leave that customer with no path back into the account at all whenever the original invitation
+/// mail is unrecoverable, which is the dead end this handler exists to close.
+/// </para>
+/// <para>
+/// <b>This does not widen what an unauthenticated caller can learn.</b> The branch happens only
+/// AFTER a valid token has already been matched to a user — both outcomes still return the identical
+/// <c>Result&lt;bool&gt;.Ok(true)</c>, so nobody who does not already hold a live reset token (which
+/// itself required knowing an address the request endpoint treats uniformly) can tell an
+/// <c>Invited</c> account from an <c>Active</c> one through this endpoint. See
+/// docs/superpowers/notes/2026-09-25-customer-area-threat-note.md.
+/// </para>
+/// <para>
+/// <b>Every outstanding invitation token is retired here too, not only outstanding reset tokens.</b>
+/// Completing the invitation through this path must leave no other live key to the same login: an
+/// invitation mail that arrives LATE — or one an attacker intercepted earlier and held onto — would
+/// otherwise still be usable to overwrite the password this handler just set.
 /// </para>
 /// </remarks>
 public sealed class ResetPasswordCommandHandler
@@ -110,7 +139,32 @@ public sealed class ResetPasswordCommandHandler
             outstanding.Consume(now);
         }
 
-        user.ChangePassword(_passwordHasher.Hash(command.NewPassword));
+        // An outstanding invitation is retired here too — see the type's remarks — so a lost mail
+        // that turns up later, or one an attacker held onto, cannot still be spent to overwrite the
+        // password this call is about to set.
+        foreach (var outstandingInvitation in await _dbContext.InvitationTokens
+            .Where(other => other.UserId == user.Id && other.UsedAt == null)
+            .ToListAsync(cancellationToken))
+        {
+            outstandingInvitation.Consume(now);
+        }
+
+        // Read before Activate mutates it, so the journal below can still say which path this was.
+        var completesInvitation = user.State == UserState.Invited;
+
+        var newPasswordHash = _passwordHasher.Hash(command.NewPassword);
+        if (completesInvitation)
+        {
+            // The reset token proves control of the same mailbox the invitation token proves control
+            // of, so this completes the invitation exactly as AcceptInvitationCommandHandler does —
+            // see the type's remarks for why refusing here would be the dead end instead.
+            user.Activate(newPasswordHash);
+        }
+        else
+        {
+            user.ChangePassword(newPasswordHash);
+        }
+
         user.ClearLockout();
         await _dbContext.SaveChangesAsync(cancellationToken);
 
@@ -126,6 +180,21 @@ public sealed class ResetPasswordCommandHandler
             command.UserAgent,
             succeeded: true,
             cancellationToken);
+
+        if (completesInvitation)
+        {
+            // A second, distinct entry: "password changed" is true of every reset, but an operator
+            // scanning for who has and has not accepted their invitation needs this one too, or a
+            // customer who came in through this path reads as still never having accepted it.
+            await _journal.RecordIdentifiedAsync(
+                user.Id,
+                AuditActions.InvitationAccepted,
+                user.Username,
+                command.IpAddress,
+                command.UserAgent,
+                succeeded: true,
+                cancellationToken);
+        }
 
         return Result<bool>.Ok(true);
     }

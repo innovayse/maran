@@ -27,6 +27,9 @@
   <data name="AccountCleanupFailed">
     <value>The account was not deleted: something it owns could not be removed first. Nothing has been changed; please try again.</value>
   </data>
+  <data name="AccountLoginIssuanceFailed">
+    <value>The account was created, but the login for its owner could not be issued. Do not create the account again; resend the invitation instead.</value>
+  </data>
   <data name="AccountSuspensionFailed">
     <value>The account was not suspended: something it runs could not be stopped first. Nothing has been changed; please try again.</value>
   </data>

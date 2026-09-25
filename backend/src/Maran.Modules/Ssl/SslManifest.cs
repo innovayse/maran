@@ -22,5 +22,6 @@ public static class SslManifest
         Version: "1.0.0",
         Tier: LicenceTier.Included,
         Dependencies: ["sites"],
-        AgentCapabilities: [AgentCapability.Files, AgentCapability.Sites, AgentCapability.Ssl]);
+        AgentCapabilities: [AgentCapability.Files, AgentCapability.Sites, AgentCapability.Ssl],
+        Audience: ModuleAudience.Everyone);
 }

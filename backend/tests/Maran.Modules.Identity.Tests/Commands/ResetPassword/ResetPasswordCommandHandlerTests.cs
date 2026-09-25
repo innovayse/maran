@@ -241,4 +241,82 @@ public sealed class ResetPasswordCommandHandlerTests : IAsyncLifetime
         Assert.DoesNotContain(token, entry.Subject, StringComparison.Ordinal);
         Assert.DoesNotContain(token, entry.ActorUsername, StringComparison.Ordinal);
     }
+
+    /// <summary>
+    /// A reset token presented for a login that was never claimed completes the invitation instead of
+    /// leaving it stuck in <see cref="UserState.Invited"/> forever — the dead end an invited customer
+    /// hits when their invitation mail is lost and "forgot password" is the only path they can find
+    /// back in.
+    /// </summary>
+    [Fact]
+    public async Task A_reset_for_an_invited_login_activates_it_instead_of_leaving_it_invited()
+    {
+        var invitedUserId = Guid.NewGuid();
+        _context.Users.Add(User.Invite(invitedUserId, "acme", "owner@example.com", Guid.NewGuid(), Now));
+        await _context.SaveChangesAsync();
+        var token = PasswordResetTokenHasher.Generate();
+        _context.PasswordResetTokens.Add(
+            new PasswordResetToken(Guid.NewGuid(), invitedUserId, PasswordResetTokenHasher.Hash(token), Now));
+        await _context.SaveChangesAsync();
+
+        var result = await NewHandler().HandleAsync(Command(token), CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        var user = await _context.Users.SingleAsync(candidate => candidate.Id == invitedUserId);
+        Assert.Equal(UserState.Active, user.State);
+        Assert.True(_hasher.Verify(NewPassword, user.PasswordHash));
+    }
+
+    /// <summary>
+    /// Completing an invitation through the reset path retires every outstanding invitation token for
+    /// that login, so a lost mail that turns up later — or one an attacker intercepted and held onto
+    /// — cannot still be spent to overwrite the password this call just set.
+    /// </summary>
+    [Fact]
+    public async Task A_reset_that_completes_an_invitation_retires_its_outstanding_invitation_tokens()
+    {
+        var invitedUserId = Guid.NewGuid();
+        _context.Users.Add(User.Invite(invitedUserId, "acme", "owner@example.com", Guid.NewGuid(), Now));
+        var invitationToken = InvitationTokenHasher.Generate();
+        _context.InvitationTokens.Add(new InvitationToken(
+            Guid.NewGuid(), invitedUserId, InvitationTokenHasher.Hash(invitationToken), Now));
+        await _context.SaveChangesAsync();
+        var resetToken = PasswordResetTokenHasher.Generate();
+        _context.PasswordResetTokens.Add(
+            new PasswordResetToken(Guid.NewGuid(), invitedUserId, PasswordResetTokenHasher.Hash(resetToken), Now));
+        await _context.SaveChangesAsync();
+
+        await NewHandler().HandleAsync(Command(resetToken), CancellationToken.None);
+
+        var storedInvitation = await _context.InvitationTokens.SingleAsync();
+        Assert.NotNull(storedInvitation.UsedAt);
+    }
+
+    /// <summary>
+    /// Completing an invitation through the reset path journals it under <c>InvitationAccepted</c>
+    /// too, alongside <c>PasswordChanged</c>, so an operator scanning for who has accepted their
+    /// invitation is not told a customer who came in this way never did.
+    /// </summary>
+    [Fact]
+    public async Task A_reset_that_completes_an_invitation_is_also_journalled_as_an_invitation_accepted()
+    {
+        var invitedUserId = Guid.NewGuid();
+        _context.Users.Add(User.Invite(invitedUserId, "acme", "owner@example.com", Guid.NewGuid(), Now));
+        await _context.SaveChangesAsync();
+        var token = PasswordResetTokenHasher.Generate();
+        _context.PasswordResetTokens.Add(
+            new PasswordResetToken(Guid.NewGuid(), invitedUserId, PasswordResetTokenHasher.Hash(token), Now));
+        await _context.SaveChangesAsync();
+
+        await NewHandler().HandleAsync(Command(token), CancellationToken.None);
+
+        Assert.Contains(_audit.Written, entry =>
+        {
+            return entry.Action == AuditActions.InvitationAccepted && entry.Succeeded;
+        });
+        Assert.Contains(_audit.Written, entry =>
+        {
+            return entry.Action == AuditActions.PasswordChanged && entry.Succeeded;
+        });
+    }
 }

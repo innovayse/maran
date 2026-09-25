@@ -1,5 +1,5 @@
 using Maran.Modules.Identity.Domain.Entities;
-using Maran.Modules.Identity.Interfaces;
+using Maran.Modules.Identity.Domain.Enums;
 using Maran.Modules.Identity.Models;
 using Maran.Modules.Identity.Persistence;
 using Maran.Modules.Identity.Resources;
@@ -26,11 +26,11 @@ public sealed class LoginCommandHandler
     /// <summary>Verifies the password and reports when its hash needs upgrading.</summary>
     private readonly IPasswordHasher _passwordHasher;
 
-    /// <summary>Signs the access token.</summary>
-    private readonly IAccessTokenIssuer _accessTokenIssuer;
-
-    /// <summary>Issues the refresh-token session.</summary>
-    private readonly ISessionService _sessionService;
+    /// <summary>
+    /// The one place that checks whether this login may sign in and, when it may, issues its session
+    /// and access token. See its own remarks for why this handler does not check the state itself.
+    /// </summary>
+    private readonly AuthenticationCompleter _authenticationCompleter;
 
     /// <summary>Records the attempt, successful or not.</summary>
     private readonly IdentityAuditJournal _journal;
@@ -47,8 +47,7 @@ public sealed class LoginCommandHandler
     /// <summary>Creates the handler.</summary>
     /// <param name="dbContext">The module's database context.</param>
     /// <param name="passwordHasher">Verifies the password.</param>
-    /// <param name="accessTokenIssuer">Signs the access token.</param>
-    /// <param name="sessionService">Issues the refresh-token session.</param>
+    /// <param name="authenticationCompleter">Checks sign-in eligibility and issues the session.</param>
     /// <param name="journal">Records the attempt.</param>
     /// <param name="bruteForceDetector">Counts refusals per source address.</param>
     /// <param name="policyCache">The panel's security policy, read for the account lockout numbers.</param>
@@ -56,8 +55,7 @@ public sealed class LoginCommandHandler
     public LoginCommandHandler(
         IdentityDbContext dbContext,
         IPasswordHasher passwordHasher,
-        IAccessTokenIssuer accessTokenIssuer,
-        ISessionService sessionService,
+        AuthenticationCompleter authenticationCompleter,
         IdentityAuditJournal journal,
         BruteForceDetector bruteForceDetector,
         SecurityPolicyCache policyCache,
@@ -65,8 +63,7 @@ public sealed class LoginCommandHandler
     {
         _dbContext = dbContext;
         _passwordHasher = passwordHasher;
-        _accessTokenIssuer = accessTokenIssuer;
-        _sessionService = sessionService;
+        _authenticationCompleter = authenticationCompleter;
         _journal = journal;
         _bruteForceDetector = bruteForceDetector;
         _policyCache = policyCache;
@@ -114,6 +111,20 @@ public sealed class LoginCommandHandler
             return await RefuseAsync(user, command, cancellationToken);
         }
 
+        // Same refusal as a wrong password, deliberately. A distinct "your account is suspended"
+        // tells an attacker which usernames exist and which of them belong to real customers. An
+        // invited user's empty password hash already fails verification above, so this is what
+        // makes a SUSPENDED user refuse too, and what makes the invited case refuse for a stated
+        // reason rather than by accident.
+        //
+        // Checked BEFORE the rehash below, and before any other write: a refused sign-in must not
+        // touch the database, and a rehash performed here would be exactly that for a suspended
+        // account whose correct-but-stale password happens to verify.
+        if (user.State != UserState.Active)
+        {
+            return await RefuseAsync(user, command, cancellationToken);
+        }
+
         // The one moment the plaintext password is known to be correct, and therefore the only
         // moment a hash raised to stronger parameters can be recomputed without asking the user.
         if (_passwordHasher.NeedsRehash(user.PasswordHash))
@@ -129,24 +140,17 @@ public sealed class LoginCommandHandler
             return Result<LoginOutcome>.Ok(new LoginOutcome(null));
         }
 
-        var authenticated = await CompleteAsync(user, command, cancellationToken);
-        return Result<LoginOutcome>.Ok(new LoginOutcome(authenticated));
-    }
+        // The state gate lives in AuthenticationCompleter, not here — see its own remarks. The
+        // check above already refused a non-Active user, so this call always succeeds in practice;
+        // it is made through the shared completer anyway so this handler cannot drift from
+        // VerifyTwoFactorCommandHandler's path to the same outcome.
+        var completed = await _authenticationCompleter.CompleteAsync(
+            user, command.IpAddress, command.UserAgent, cancellationToken);
+        if (!completed.IsSuccess)
+        {
+            return await RefuseAsync(user, command, cancellationToken);
+        }
 
-    /// <summary>Issues the session and access token for a fully authenticated user.</summary>
-    /// <param name="user">The authenticated user.</param>
-    /// <param name="command">The attempt that authenticated them.</param>
-    /// <param name="cancellationToken">Cancellation token for the request.</param>
-    /// <returns>The response body and the session whose token becomes a cookie, both required.</returns>
-    private async Task<AuthenticatedOutcome> CompleteAsync(
-        User user,
-        LoginCommand command,
-        CancellationToken cancellationToken)
-    {
-        var session = await _sessionService.IssueAsync(user.Id, command.IpAddress, command.UserAgent, cancellationToken);
-        var accessToken = await _accessTokenIssuer.IssueAsync(user, session.SessionId, cancellationToken);
-
-        user.RecordLogin(_clock.UtcNow);
         await _dbContext.SaveChangesAsync(cancellationToken);
 
         await _journal.RecordClaimAsync(
@@ -158,7 +162,7 @@ public sealed class LoginCommandHandler
             succeeded: true,
             cancellationToken);
 
-        return new AuthenticatedOutcome(accessToken, user, session);
+        return Result<LoginOutcome>.Ok(new LoginOutcome(completed.Value));
     }
 
     /// <summary>Records a refused attempt, counts it against its source address, and answers no.</summary>

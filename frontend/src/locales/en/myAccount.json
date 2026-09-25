@@ -1,0 +1,19 @@
+{
+  "myAccount": {
+    "loading": "Loading your account…",
+    "primaryDomainLabel": "Primary domain",
+    "statusLabel": "Status",
+    "planHeading": "Plan",
+    "notFoundTitle": "No account found",
+    "notFoundDescription": "This page shows the hosting account you own; it looks like you do not have one.",
+    "limits": {
+      "diskQuota": "Disk quota",
+      "diskQuotaValue": "{disk} MB",
+      "sites": "Sites",
+      "databases": "Databases",
+      "sftpUsers": "SFTP logins",
+      "ftpUsers": "FTPS logins",
+      "cronEntries": "Cron entries"
+    }
+  }
+}

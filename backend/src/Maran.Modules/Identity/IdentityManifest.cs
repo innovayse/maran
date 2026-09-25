@@ -17,5 +17,6 @@ public static class IdentityManifest
         Version: "1.0.0",
         Tier: LicenceTier.Included,
         Dependencies: [],
-        AgentCapabilities: []);
+        AgentCapabilities: [],
+        Audience: ModuleAudience.Everyone);
 }

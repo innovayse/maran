@@ -6,6 +6,7 @@ import UpgradePage from '../pages/UpgradePage.vue'
 import AccountDetailPage from '../pages/accounts/AccountDetailPage.vue'
 import AccountsListPage from '../pages/accounts/AccountsListPage.vue'
 import AccountFormPage from '../pages/accounts/AccountFormPage.vue'
+import MyAccountPage from '../pages/accounts/MyAccountPage.vue'
 import SitesListPage from '../pages/sites/SitesListPage.vue'
 import SiteFormPage from '../pages/sites/SiteFormPage.vue'
 import SiteDetailPage from '../pages/sites/SiteDetailPage.vue'
@@ -25,6 +26,7 @@ import TwoFactorPage from '../pages/auth/TwoFactorPage.vue'
 import SetupPage from '../pages/auth/SetupPage.vue'
 import ForgotPasswordPage from '../pages/auth/ForgotPasswordPage.vue'
 import ResetPasswordPage from '../pages/auth/ResetPasswordPage.vue'
+import AcceptInvitationPage from '../pages/auth/AcceptInvitationPage.vue'
 import AuditPage from '../pages/settings/AuditPage.vue'
 import SessionsPage from '../pages/settings/SessionsPage.vue'
 import TwoFactorSettingsPage from '../pages/settings/TwoFactorSettingsPage.vue'
@@ -224,6 +226,28 @@ export const createAppRouter = (): Router => {
         path: '/reset-password',
         component: AuthLayout,
         children: [{ path: '', name: 'reset-password', component: ResetPasswordPage }],
+      },
+      {
+        // The token arrives in the query string, exactly as `/reset-password`'s does, because
+        // that is where the invitation mail's link puts it — the route itself carries nothing
+        // about the account. Unauthenticated by necessity: the login this token belongs to has
+        // never signed in, so it shares the sign-in screens' bare layout.
+        path: '/accept-invitation',
+        component: AuthLayout,
+        children: [{ path: '', name: 'accept-invitation', component: AcceptInvitationPage }],
+      },
+      {
+        path: '/my-account',
+        component: DefaultLayout,
+        children: [
+          // No `meta.module`: this is not a licensed module, it is a customer's own account —
+          // exactly like `/settings/sessions` above. No role guard here either, for the same
+          // reason as the administrator-only routes in this file: the endpoint
+          // (`GET /api/v1/accounts/me`) already answers "the account YOU own" off the caller's
+          // own token and 404s for an administrator, who owns none — a second, client-side copy
+          // of that decision would be a second place for it to be wrong.
+          { path: '', name: 'my-account', component: MyAccountPage },
+        ],
       },
       {
         // Enrolment for an administrator the panel is STEERING into it: the same

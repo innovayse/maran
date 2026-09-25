@@ -20,14 +20,15 @@ namespace Maran.Modules.Identity.IntegrationEvents.Handlers;
 /// <b>What it owns, established from the mapping rather than assumed.</b> <c>User</c> is the only
 /// entity in this module carrying an <c>AccountId</c>, so it is the only one the panel's residue
 /// audit can see. The rest of an account's identity state hangs off the USER — <c>Session</c>,
-/// <c>RecoveryCode</c> and <c>PasswordResetToken</c> are all keyed by <c>UserId</c> — which is
-/// precisely the shape the residue audit is blind to: it counts rows naming the account, and these
-/// name a user. A handler that dropped the <c>User</c> rows alone would therefore be pronounced
-/// clean by the audit while leaving live refresh tokens in the table.
+/// <c>RecoveryCode</c>, <c>PasswordResetToken</c> and <c>InvitationToken</c> are all keyed by
+/// <c>UserId</c> — which is precisely the shape the residue audit is blind to: it counts rows naming
+/// the account, and these name a user. A handler that dropped the <c>User</c> rows alone would
+/// therefore be pronounced clean by the audit while leaving live refresh tokens, and a live
+/// invitation, in the table.
 /// </para>
 /// <para>
 /// <b>What actually guarantees the dependents go, stated honestly.</b> It is the MAPPING, not the
-/// three <c>RemoveRange</c> calls below: all three tables are mapped with
+/// four <c>RemoveRange</c> calls below: all four tables are mapped with
 /// <c>DeleteBehavior.Cascade</c> from <c>User</c>, so removing a login takes them whether this
 /// handler names them or not. That was measured rather than assumed — deleting the session removal
 /// from this method leaves every test in the suite green, on the in-memory provider and against real
@@ -38,7 +39,7 @@ namespace Maran.Modules.Identity.IntegrationEvents.Handlers;
 /// <para>
 /// They are written out anyway, for two reasons that are about the reader rather than the row. This
 /// method is the module's answer to "what do you release for an account", and an answer that names
-/// only <c>User</c> would understate it by three credentials; and the removal then does not depend
+/// only <c>User</c> would understate it by four credentials; and the removal then does not depend
 /// on which provider is underneath, which matters because this module's unit tests run on the
 /// in-memory one, where a foreign key is a suggestion.
 /// </para>
@@ -110,6 +111,11 @@ public sealed class AccountDeletingHandler
             .Where(token => userIds.Contains(token.UserId))
             .ToListAsync(cancellationToken);
         _dbContext.PasswordResetTokens.RemoveRange(resetTokens);
+
+        var invitationTokens = await _dbContext.InvitationTokens
+            .Where(token => userIds.Contains(token.UserId))
+            .ToListAsync(cancellationToken);
+        _dbContext.InvitationTokens.RemoveRange(invitationTokens);
 
         var recoveryCodes = await _dbContext.RecoveryCodes
             .Where(code => userIds.Contains(code.UserId))

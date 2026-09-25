@@ -32,5 +32,6 @@ public static class BackupsManifest
         Version: "1.0.0",
         Tier: LicenceTier.Included,
         Dependencies: ["accounts"],
-        AgentCapabilities: [AgentCapability.Backup, AgentCapability.System]);
+        AgentCapabilities: [AgentCapability.Backup, AgentCapability.System],
+        Audience: ModuleAudience.Everyone);
 }

@@ -17,5 +17,6 @@ public static class FirewallManifest
         Version: "1.0.0",
         Tier: LicenceTier.Included,
         Dependencies: [],
-        AgentCapabilities: [AgentCapability.Firewall]);
+        AgentCapabilities: [AgentCapability.Firewall],
+        Audience: ModuleAudience.AdministratorOnly);
 }

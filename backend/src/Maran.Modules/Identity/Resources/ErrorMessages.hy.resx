@@ -72,4 +72,13 @@
   <data name="SecurityPolicyInvalid">
     <value>Անվտանգության այդ կարգավորումները թույլատրելի սահմաններից դուրս են։</value>
   </data>
+  <data name="InvitationAccountNotFound">
+    <value>Այդպիսի հոսթինգ հաշիվ չկա։</value>
+  </data>
+  <data name="InvitationTokenInvalid">
+    <value>Այս հրավերի հղումն այլևս վավեր չէ։ Խնդրեք վարիչին կրկին ուղարկել այն։</value>
+  </data>
+  <data name="InvitationLoginNotPending">
+    <value>Հրավիրելու ոչինչ չկա. այս մուտքն արդեն ունի գաղտնաբառ։</value>
+  </data>
 </root>

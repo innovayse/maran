@@ -40,6 +40,7 @@
       "signedOut": "Nobody is signed in",
       "accountMenu": "Account menu",
       "menu": {
+        "myAccount": "My account",
         "sessions": "Sessions",
         "twoFactor": "Two-step verification",
         "audit": "Audit journal",

@@ -56,14 +56,21 @@ public sealed class TenantScopeTests
     /// </summary>
     /// <remarks>
     /// <para>
-    /// All four are Identity's, and they are one decision rather than four. A filter closes over the
+    /// All five are Identity's, and they are one decision rather than five. A filter closes over the
     /// authenticated principal, and every query here runs when there is NO principal yet: sign-in
     /// looks a user up by e-mail and then a session up by token hash, a password reset is consumed by
-    /// a caller holding nothing but the token, and a recovery code is consumed part-way through
-    /// two-factor, before a session exists. A filtered table would find nobody and refuse every
-    /// login on the panel. <c>User.AccountId</c> is nullable precisely because an administrator has
-    /// none; the other three reach a tenant only THROUGH that user, which is why they appear here
-    /// only now that the census follows relationships.
+    /// a caller holding nothing but the token, an invitation is consumed the same way by a caller
+    /// holding nothing but ITS token, and a recovery code is consumed part-way through two-factor,
+    /// before a session exists. A filtered table would find nobody and refuse every login on the
+    /// panel. <c>User.AccountId</c> is nullable precisely because an administrator has none; the
+    /// other four reach a tenant only THROUGH that user, which is why they appear here only now that
+    /// the census follows relationships.
+    /// </para>
+    /// <para>
+    /// <c>InvitationToken</c> qualifies for the identical reason <c>PasswordResetToken</c> does: it
+    /// is reached by an anonymous caller presenting a bearer token — the plaintext value mailed to a
+    /// hosting account's owner — before any principal exists for a filter to close over. Nothing
+    /// exposes it by id; the only lookup is by the token's own digest.
     /// </para>
     /// <para>
     /// What makes the absence safe is that nothing exposes these rows by id — Identity's HTTP surface
@@ -81,6 +88,8 @@ public sealed class TenantScopeTests
             ["Maran.Modules.Identity.Domain.Entities.Session"] =
                 "looked up by token hash to ESTABLISH the principal a filter would close over",
             ["Maran.Modules.Identity.Domain.Entities.PasswordResetToken"] =
+                "consumed by an unauthenticated caller holding the token; there is no principal to scope to",
+            ["Maran.Modules.Identity.Domain.Entities.InvitationToken"] =
                 "consumed by an unauthenticated caller holding the token; there is no principal to scope to",
             ["Maran.Modules.Identity.Domain.Entities.RecoveryCode"] =
                 "consumed part-way through two-factor, before the session that would carry a principal exists",

@@ -53,7 +53,8 @@ public sealed class UndeclaredAgentModule : IPanelModule
         Version: "0.0.0",
         Tier: LicenceTier.Included,
         Dependencies: [],
-        AgentCapabilities: []);
+        AgentCapabilities: [],
+        Audience: ModuleAudience.AdministratorOnly);
 
     /// <inheritdoc />
     public void ConfigureServices(IServiceCollection services, IConfiguration configuration)

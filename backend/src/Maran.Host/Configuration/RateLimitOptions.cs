@@ -41,6 +41,21 @@ public sealed class RateLimitOptions
     [Range(1, 86_400)]
     public int PasswordResetWindowSeconds { get; set; } = 900;
 
+    /// <summary>Invitation-acceptance attempts allowed from one address within <see cref="InvitationWindowSeconds"/>.</summary>
+    /// <remarks>
+    /// A separate number from <see cref="PasswordResetMaxRequests"/> on purpose (see
+    /// <c>RateLimitPolicies.Invitation</c>): a fresh customer setting a first password does not have
+    /// a mail-bomb hazard to bound the way an anonymous reset request does, so there is room to be
+    /// more forgiving of a mistyped password confirmation without that generosity leaking into the
+    /// reset endpoint's much tighter budget.
+    /// </remarks>
+    [Range(1, 100)]
+    public int InvitationMaxRequests { get; set; } = 10;
+
+    /// <summary>Length of the window invitation-acceptance attempts are counted over, in seconds.</summary>
+    [Range(1, 86_400)]
+    public int InvitationWindowSeconds { get; set; } = 900;
+
     /// <summary>Requests allowed per authenticated account (or IP, when anonymous) within <see cref="ApiWindowSeconds"/>.</summary>
     [Range(1, 100_000)]
     public int ApiPermitLimit { get; set; } = 300;

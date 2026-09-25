@@ -28,10 +28,10 @@ test('the create-account form disables browser validation and uses no native val
 
   await expect(page.locator('form')).toHaveAttribute('novalidate', '')
 
-  // Two text inputs now: the plan is a listbox, whose options come from the backend,
-  // so there is no third field for a browser to validate.
+  // Three text inputs: name, primary domain and the account owner's email — the plan is a
+  // listbox, whose options come from the backend, so it is not a fourth field to validate here.
   const fields = page.locator('form input')
-  await expect(fields).toHaveCount(2)
+  await expect(fields).toHaveCount(3)
   const nativeAttributes = await fields.evaluateAll((inputs) => {
     return inputs.flatMap((input) => {
       return ['required', 'pattern', 'min', 'max', 'minlength', 'maxlength'].filter((attribute) => {
@@ -68,6 +68,7 @@ test('submitting the empty form shows the panel own field messages and sends no 
   await expect(page.getByText('Name is required.')).toBeVisible()
   await expect(page.getByText('Primary domain is required.')).toBeVisible()
   await expect(page.getByText('Plan ID is required.')).toBeVisible()
+  await expect(page.getByText('Owner email is required.')).toBeVisible()
   await expect(page.getByLabel('Name')).toHaveAttribute('aria-invalid', 'true')
   expect(createRequests).toEqual([])
 })
@@ -108,6 +109,7 @@ test('a rejected create renders the backend RFC 7807 detail verbatim and stays o
   await page.getByLabel('Primary domain').fill('alpha.example.com')
   await page.getByRole('combobox', { name: 'Plan ID' }).click()
   await page.getByRole('option', { name: THE_PLAN.displayName, exact: false }).click()
+  await page.getByLabel('Owner email').fill('owner@alpha.example.com')
   await page.getByRole('button', { name: 'Create account' }).click()
 
   await expect(page.getByRole('status')).toHaveText(backendDetail)
@@ -128,6 +130,7 @@ test('a valid submission posts the typed values and returns to the list showing 
   await page.getByLabel('Primary domain').fill('alpha.example.com')
   await page.getByRole('combobox', { name: 'Plan ID' }).click()
   await page.getByRole('option', { name: THE_PLAN.displayName, exact: false }).click()
+  await page.getByLabel('Owner email').fill('owner@alpha.example.com')
 
   const [request] = await Promise.all([
     page.waitForRequest((candidate) => {
@@ -140,6 +143,7 @@ test('a valid submission posts the typed values and returns to the list showing 
     name: 'alpha',
     primaryDomain: 'alpha.example.com',
     planId: '22222222-2222-2222-2222-222222222222',
+    ownerEmail: 'owner@alpha.example.com',
   })
   await expect(page).toHaveURL('/accounts')
   await expect(page.getByRole('cell', { name: 'alpha.example.com' })).toBeVisible()

@@ -2,7 +2,9 @@ import { defineStore } from 'pinia'
 import { computed, ref, type ComputedRef, type Ref } from 'vue'
 import { useAuthApi } from '../composables/apis/useAuthApi'
 import { ApiError } from '../composables/useApi'
+import { useModulesStore } from './modules'
 import type {
+  AcceptInvitationRequest,
   AuthenticatedUser,
   CompleteSetupRequest,
   LoginRequest,
@@ -94,6 +96,11 @@ export const useAuthStore = defineStore('auth', () => {
 
   /**
    * Forgets everything about the signed-in user.
+   *
+   * Also clears the module catalogue: it is now filtered by the signed-in identity's role, and
+   * sign-out routes without a full page reload, so leaving it loaded would hand the next
+   * signed-in identity on this tab — possibly holding a different role entirely — a catalogue that
+   * was never theirs.
    * @returns Nothing; state is cleared synchronously.
    */
   const clear = (): void => {
@@ -102,6 +109,7 @@ export const useAuthStore = defineStore('auth', () => {
     sessions.value = []
     twoFactorUsername.value = null
     requiresTwoFactorSetup.value = false
+    useModulesStore().clear()
   }
 
   /**
@@ -412,6 +420,27 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
+  /**
+   * Sets the first password for an invited login.
+   * @param request The token from the invitation mail and the chosen password.
+   * @returns True when the password was set; false when the panel refused.
+   */
+  const acceptInvitation = async (request: AcceptInvitationRequest): Promise<boolean> => {
+    loading.value = true
+    errorMessage.value = null
+    try {
+      await api.acceptInvitation(request)
+      return true
+    } catch (error) {
+      // Same non-branching rule as resetPassword: an unknown, expired and spent token all
+      // arrive as one refusal, and this store must not reconstruct the distinction.
+      remember(error)
+      return false
+    } finally {
+      loading.value = false
+    }
+  }
+
   return {
     accessToken,
     user,
@@ -438,5 +467,6 @@ export const useAuthStore = defineStore('auth', () => {
     disableTwoFactor,
     requestPasswordReset,
     resetPassword,
+    acceptInvitation,
   }
 })

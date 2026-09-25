@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using Maran.Host.IntegrationTests.Fixtures;
+using Maran.Modules.Identity.Commands.Login;
 using Maran.Modules.Identity.Domain.Entities;
 using Maran.Modules.Identity.Domain.Enums;
 using Maran.Modules.Identity.Persistence;
@@ -87,6 +88,44 @@ public sealed class AuthEndpointTests : IAsyncLifetime
             new { Username = "admin", Password = password });
     }
 
+    /// <summary>
+    /// Creates a customer login holding a VALID hash of <see cref="Password"/>, then moves it out of
+    /// <see cref="UserState.Active"/> the only way the domain allows: <see cref="User.Suspend"/>,
+    /// which deliberately keeps the password hash rather than clearing it (its own remarks). An
+    /// invited login's empty hash would fail password verification on its own and prove nothing
+    /// about the state check that runs after verification; a suspended login is the one state whose
+    /// password is real and still must be refused.
+    /// </summary>
+    private static async Task SeedSuspendedCustomerAsync(WebApplicationFactory<Program> factory)
+    {
+        using var scope = factory.Services.CreateScope();
+        var context = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
+        await context.Database.MigrateAsync();
+
+        var hasher = scope.ServiceProvider.GetRequiredService<IPasswordHasher>();
+        var clock = scope.ServiceProvider.GetRequiredService<IClock>();
+        var user = new User(
+            Guid.NewGuid(), "suspended-owner", "suspended-owner@example.com", hasher.Hash(Password),
+            UserRole.Customer, clock.UtcNow);
+        user.Activate(hasher.Hash(Password));
+        user.Suspend();
+        context.Users.Add(user);
+        await context.SaveChangesAsync();
+    }
+
+    /// <summary>Strips the per-request correlation id, which is not part of what an answer says.</summary>
+    /// <param name="body">The response body.</param>
+    /// <returns>The body with the correlation id replaced by a fixed marker.</returns>
+    private static string WithoutCorrelationId(string body)
+    {
+        return System.Text.RegularExpressions.Regex.Replace(
+            body,
+            "\"correlationId\":\"[^\"]*\"",
+            "\"correlationId\":\"-\"",
+            System.Text.RegularExpressions.RegexOptions.None,
+            TimeSpan.FromSeconds(1));
+    }
+
     /// <summary>Signing in with the right password returns an access token.</summary>
     [Fact]
     public async Task Signing_in_with_the_right_password_returns_an_access_token()
@@ -148,6 +187,37 @@ public sealed class AuthEndpointTests : IAsyncLifetime
 
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
         Assert.False(response.Headers.Contains("Set-Cookie"));
+    }
+
+    /// <summary>
+    /// A login in a non-Active state, holding a VALID password hash, is refused identically to a
+    /// wrong password — not merely with the same status, but with the same body. Without a state
+    /// check, this exact request would succeed: the hash really does verify. The existing coverage
+    /// of a refused invited login is not this proof, because its empty password hash fails
+    /// verification regardless of whether a state check exists at all (<see cref="LoginCommandHandler"/>'s
+    /// own remarks); this test seeds a login whose password is real so the state gate is the only
+    /// thing standing between the correct password and a session.
+    /// </summary>
+    [Fact]
+    public async Task A_suspended_login_with_the_correct_password_is_refused_exactly_like_a_wrong_one()
+    {
+        await using var factory = CreateFactory();
+        await SeedSuspendedCustomerAsync(factory);
+        using var correctClient = factory.CreateClient();
+        using var wrongClient = factory.CreateClient();
+
+        var correctPasswordResponse = await correctClient.PostAsJsonAsync(
+            "/api/v1/auth/login", new { Username = "suspended-owner", Password });
+        var wrongPasswordResponse = await wrongClient.PostAsJsonAsync(
+            "/api/v1/auth/login", new { Username = "suspended-owner", Password = "wrong" });
+
+        Assert.Equal(HttpStatusCode.Unauthorized, correctPasswordResponse.StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, wrongPasswordResponse.StatusCode);
+        Assert.False(correctPasswordResponse.Headers.Contains("Set-Cookie"));
+
+        var correctBody = WithoutCorrelationId(await correctPasswordResponse.Content.ReadAsStringAsync());
+        var wrongBody = WithoutCorrelationId(await wrongPasswordResponse.Content.ReadAsStringAsync());
+        Assert.Equal(wrongBody, correctBody);
     }
 
     /// <summary>A refused sign in says the same thing in the users own language.</summary>

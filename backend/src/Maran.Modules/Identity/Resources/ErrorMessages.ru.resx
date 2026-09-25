@@ -72,4 +72,13 @@
   <data name="SecurityPolicyInvalid">
     <value>Эти настройки безопасности выходят за допустимые пределы.</value>
   </data>
+  <data name="InvitationAccountNotFound">
+    <value>Такой хостинг-аккаунт не найден.</value>
+  </data>
+  <data name="InvitationTokenInvalid">
+    <value>Эта ссылка-приглашение больше недействительна. Попросите администратора отправить её снова.</value>
+  </data>
+  <data name="InvitationLoginNotPending">
+    <value>Приглашать некого: у этой учётной записи уже есть пароль.</value>
+  </data>
 </root>

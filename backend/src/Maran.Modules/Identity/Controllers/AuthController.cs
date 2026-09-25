@@ -1,4 +1,5 @@
 using Maran.Modules.Identity.Authorization;
+using Maran.Modules.Identity.Commands.AcceptInvitation;
 using Maran.Modules.Identity.Commands.BeginTotpEnrolment;
 using Maran.Modules.Identity.Commands.ConfirmTotpEnrolment;
 using Maran.Modules.Identity.Commands.DisableTotp;
@@ -325,6 +326,32 @@ public sealed class AuthController : BaseApiController
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> ResetPasswordAsync(
         [FromBody] ResetPasswordCommand command,
+        CancellationToken cancellationToken)
+    {
+        command = command with { IpAddress = ClientIpAddress, UserAgent = CallerUserAgent };
+        return ToActionResult(await _bus.InvokeAsync<Result<bool>>(command, cancellationToken));
+    }
+
+    /// <summary>Accepts an invitation: sets the first password for a newly created login.</summary>
+    /// <remarks>
+    /// Anonymous by necessity, exactly like <see cref="ResetPasswordAsync"/>: the caller has no
+    /// password yet, and the invitation token IS the credential. Rate limited on its OWN policy,
+    /// not <see cref="ResetPasswordAsync"/>'s — sharing a bucket would let unrelated reset traffic
+    /// from a caller's address exhaust the one-time budget a new customer needs to accept an
+    /// invitation they cannot simply ask to have resent (<c>RateLimitPolicies.Invitation</c>'s own
+    /// remarks). A token that never existed, has expired, or has already been spent all get the
+    /// same refusal.
+    /// </remarks>
+    /// <param name="command">The token from the mail and the chosen password. The caller's address
+    /// and user agent are stamped here.</param>
+    /// <param name="cancellationToken">Cancellation token for the request.</param>
+    [HttpPost("accept-invitation")]
+    [AllowAnonymous]
+    [EnableRateLimiting(RateLimitPolicies.Invitation)]
+    [ProducesResponseType(typeof(bool), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> AcceptInvitationAsync(
+        [FromBody] AcceptInvitationCommand command,
         CancellationToken cancellationToken)
     {
         command = command with { IpAddress = ClientIpAddress, UserAgent = CallerUserAgent };

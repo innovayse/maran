@@ -12,12 +12,16 @@
 #
 # Regenerate with `maran api --accept`, in its own reviewed commit.
 
-covered: 31 endpoints, 92 members
+covered: 32 endpoints, 95 members
 
 POST /api/v1/accounts  ->  CreateAccountCommand
   name: string
   primaryDomain: string
   planId: string
+  ownerEmail: string
+POST /api/v1/auth/accept-invitation  ->  AcceptInvitationCommand
+  token: string
+  newPassword: string
 POST /api/v1/auth/forgot-password  ->  RequestPasswordResetCommand
   email: string
 POST /api/v1/auth/login  ->  LoginCommand
@@ -160,11 +164,13 @@ POST /api/v1/sites/php-versions/install  ->  InstallPhpVersionCommand
   POST /api/v1/databases/{}/password — route-only call, no JSON body
   POST /api/v1/ftp-users/{}/password — route-only call, no JSON body
   POST /api/v1/ftps-server/disable — route-only call, no JSON body
+  POST /api/v1/invitations/{}/resend — route-only call, no JSON body
   POST /api/v1/sftp-users/{}/password — route-only call, no JSON body
   POST /api/v1/sites/{}/disable — route-only call, no JSON body
   POST /api/v1/sites/{}/enable — route-only call, no JSON body
   GET /api/v1/account-home-groups
   GET /api/v1/accounts
+  GET /api/v1/accounts/me
   GET /api/v1/accounts/plans
   GET /api/v1/accounts/{}
   GET /api/v1/audit

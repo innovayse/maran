@@ -22,5 +22,6 @@ public static class CronManifest
         Version: "1.0.0",
         Tier: LicenceTier.Included,
         Dependencies: [],
-        AgentCapabilities: [AgentCapability.Cron]);
+        AgentCapabilities: [AgentCapability.Cron],
+        Audience: ModuleAudience.Everyone);
 }

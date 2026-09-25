@@ -28,6 +28,14 @@
  * it is confirmed by typing the account's name in {@link AccountDeleteDialog},
  * which is also the only place the final backup taken before the cascade is
  * described.
+ *
+ * **"Resend invitation" is the recovery path for a login the owner never reached** —
+ * a panel with no SMTP configured when the account was created, or an
+ * `AccountCreated` handler that failed after the account row already existed.
+ * Administrator-only on the server (`InvitationsController`); this page adds no
+ * matching role check of its own (rules/architecture.md — the endpoint is the
+ * boundary). Its confirmation says the invitation was SENT, never delivered:
+ * the panel's mail queue is deliberately non-durable and cannot confirm receipt.
  */
 import { computed, onMounted, ref, type ComputedRef, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -66,6 +74,13 @@ const pending: Ref<PendingAction> = ref(null)
 
 /** Whether the deletion dialog is open. */
 const deleting: Ref<boolean> = ref(false)
+
+/**
+ * True once this page has sent an invitation and the panel accepted it. Cleared
+ * whenever a fresh resend is attempted, so a second click cannot leave a stale
+ * confirmation on screen for a request that has not answered yet.
+ */
+const invitationResent: Ref<boolean> = ref(false)
 
 /** The confirmation's title, naming the account and what would be done to it. */
 const confirmationTitle: ComputedRef<string> = computed(() => {
@@ -138,6 +153,18 @@ const cancelDelete = (): void => {
 }
 
 /**
+ * Resends the invitation for this account's owner.
+ *
+ * Reports only that the panel SENT it: the mail queue is deliberately
+ * non-durable, so nothing here can say the mail arrived.
+ * @returns Resolves once the request has settled.
+ */
+const resendInvitation = async (): Promise<void> => {
+  invitationResent.value = false
+  invitationResent.value = await accountsStore.resendInvitation(props.id)
+}
+
+/**
  * Deletes the account the dialog was confirmed for, and leaves for the list once
  * it is gone — the page it was on no longer describes anything. A refusal keeps
  * the dialog open over the message the panel sent.
@@ -182,6 +209,12 @@ onMounted(async () => {
         {{ accountsStore.errorMessage }}
       </UiAlert>
 
+      <!-- Says SENT, never delivered: the mail queue is deliberately non-durable and this page
+           has no way to know whether the mail arrived. -->
+      <UiAlert v-if="invitationResent" variant="info" class="mb-4">
+        {{ t('accounts.detail.invitationResent') }}
+      </UiAlert>
+
       <UiCard>
         <UiDescriptionList>
           <UiDescriptionItem :term="t('common.name')">
@@ -214,6 +247,11 @@ onMounted(async () => {
         </UiButton>
         <UiButton variant="destructive" @click="askDelete">
           {{ t('common.delete') }}
+        </UiButton>
+        <!-- Administrator-only on the server; no matching check here (rules/architecture.md). The
+             recovery path for an owner who never received their first invitation. -->
+        <UiButton variant="secondary" :disabled="accountsStore.acting" @click="resendInvitation">
+          {{ t('accounts.detail.resendInvitation') }}
         </UiButton>
       </div>
 

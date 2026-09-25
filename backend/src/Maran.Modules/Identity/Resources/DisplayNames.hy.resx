@@ -235,4 +235,13 @@
   <data name="AuditActionLicenceInstalled">
     <value>Տեղադրվեց լիցենզիա</value>
   </data>
+  <data name="AuditActionCustomerInvited">
+    <value>Հրավիրվեց հաճախորդ</value>
+  </data>
+  <data name="AuditActionInvitationAccepted">
+    <value>Հրավերն ընդունվեց</value>
+  </data>
+  <data name="AuditActionInvitationAcceptRefused">
+    <value>Հրավերի ընդունումը մերժվեց</value>
+  </data>
 </root>

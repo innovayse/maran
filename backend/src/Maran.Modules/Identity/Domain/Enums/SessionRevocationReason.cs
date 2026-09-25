@@ -23,4 +23,11 @@ public enum SessionRevocationReason
 
     /// <summary>The user's password changed, which invalidates everything issued against the old one.</summary>
     PasswordChanged,
+
+    /// <summary>
+    /// The login's hosting account was suspended. Closing the sessions already open is the half of a
+    /// suspension that actually matters: locking the login alone leaves whoever is already signed in
+    /// working normally until their access token expires.
+    /// </summary>
+    AccountSuspended,
 }

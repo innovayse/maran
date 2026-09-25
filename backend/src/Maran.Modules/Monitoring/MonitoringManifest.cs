@@ -17,5 +17,6 @@ public static class MonitoringManifest
         Version: "1.0.0",
         Tier: LicenceTier.Included,
         Dependencies: [],
-        AgentCapabilities: [AgentCapability.Monitor]);
+        AgentCapabilities: [AgentCapability.Monitor],
+        Audience: ModuleAudience.AdministratorOnly);
 }

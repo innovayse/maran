@@ -17,5 +17,6 @@ public static class SitesManifest
         Version: "1.0.0",
         Tier: LicenceTier.Included,
         Dependencies: [],
-        AgentCapabilities: [AgentCapability.Php, AgentCapability.Sites]);
+        AgentCapabilities: [AgentCapability.Php, AgentCapability.Sites],
+        Audience: ModuleAudience.Everyone);
 }

@@ -1,0 +1,19 @@
+{
+  "myAccount": {
+    "loading": "Загружаем ваш аккаунт…",
+    "primaryDomainLabel": "Основной домен",
+    "statusLabel": "Статус",
+    "planHeading": "Тариф",
+    "notFoundTitle": "Аккаунт не найден",
+    "notFoundDescription": "Эта страница показывает хостинговый аккаунт, которым вы владеете; похоже, у вас его нет.",
+    "limits": {
+      "diskQuota": "Квота на диск",
+      "diskQuotaValue": "{disk} МБ",
+      "sites": "Сайты",
+      "databases": "Базы данных",
+      "sftpUsers": "Учётные записи SFTP",
+      "ftpUsers": "Учётные записи FTPS",
+      "cronEntries": "Записи cron"
+    }
+  }
+}

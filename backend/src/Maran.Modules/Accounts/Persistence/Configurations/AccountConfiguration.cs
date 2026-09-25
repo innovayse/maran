@@ -33,6 +33,14 @@ public sealed class AccountConfiguration : IEntityTypeConfiguration<Account>
             .HasConversion<string>()
             .HasMaxLength(16);
 
+        // Nullable: an account created before this column existed has no value to backfill it with
+        // (Account.OwnerEmail's own remarks explain why), so null means "unknown" rather than "this
+        // account has no contact address". A new account always writes a real value —
+        // CreateAccountCommandValidator requires one — so the column reads as nullable only for
+        // rows this migration could not touch.
+        builder.Property(a => a.OwnerEmail)
+            .HasMaxLength(256);
+
         builder.Property(a => a.CreatedAt)
             .IsRequired();
 

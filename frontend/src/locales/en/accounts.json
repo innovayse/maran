@@ -30,12 +30,14 @@
       "subtitle": "The panel checks these values before sending them, and the server checks them again.",
       "fields": {
         "primaryDomain": "Primary domain",
-        "planId": "Plan ID"
+        "planId": "Plan ID",
+        "ownerEmail": "Owner email"
       },
       "placeholders": {
         "name": "example",
         "primaryDomain": "example.com",
-        "planId": "Choose a plan"
+        "planId": "Choose a plan",
+        "ownerEmail": "owner{'@'}example.com"
       },
       "submit": "Create account",
       "errors": {
@@ -43,7 +45,9 @@
         "nameInvalid": "Name must be a lowercase, Linux-username-safe identifier (letters, digits, hyphen, underscore, starting with a letter, 3-32 characters).",
         "primaryDomainRequired": "Primary domain is required.",
         "primaryDomainInvalid": "Primary domain must be a valid domain name.",
-        "planIdRequired": "Plan ID is required."
+        "planIdRequired": "Plan ID is required.",
+        "ownerEmailRequired": "Owner email is required.",
+        "ownerEmailInvalid": "Owner email must be a valid email address."
       },
       "planOption": "{name} — {disk} MB, {sites} sites"
     },
@@ -61,7 +65,9 @@
       "confirmReactivate": "Reactivate this account?",
       "working": "Working…",
       "confirmSuspendTitle": "Suspend account {account}",
-      "confirmReactivateTitle": "Reactivate account {account}"
+      "confirmReactivateTitle": "Reactivate account {account}",
+      "resendInvitation": "Resend invitation",
+      "invitationResent": "A new invitation has been sent. The panel cannot confirm it was delivered — its mail queue does not retry."
     },
     "delete": {
       "title": "Delete {account}",

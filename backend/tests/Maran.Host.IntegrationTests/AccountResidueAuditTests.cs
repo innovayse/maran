@@ -2,6 +2,8 @@ using Maran.Host.IntegrationTests.Fixtures;
 using Maran.Modules.Accounts.Domain.Entities;
 using Maran.Modules.Accounts.Persistence;
 using Maran.Modules.Databases.Persistence;
+using Maran.Modules.Identity.Domain.Entities;
+using Maran.Modules.Identity.Persistence;
 using Maran.Modules.Sites.Domain.Entities;
 using Maran.Modules.Sites.Domain.Enums;
 using Maran.Modules.Sites.Persistence;
@@ -107,6 +109,36 @@ public sealed class AccountResidueAuditTests : IAsyncLifetime
         var residue = await AuditAsync(factory, accountId);
 
         Assert.Empty(residue.Rows);
+        Assert.Empty(residue.Unchecked);
+    }
+
+    /// <summary>The audit sees Identity's own rows for the account, not only the tenant modules'.</summary>
+    /// <remarks>
+    /// Every other test here seeds the Accounts and Sites modules; none of them proves the mechanism
+    /// generalises to a module that is not itself under review — and Identity is exactly that module,
+    /// because a customer's login row is what the whole task-13 boundary is drawn around. The census
+    /// walks <c>IdentityDbContext</c>'s model exactly as it walks any other context's, so a login the
+    /// deletion left behind must be named the same way a leftover site is. This is the test the task
+    /// brief calls out by name: it must fail if Identity's users stopped being seen.
+    /// </remarks>
+    [Fact]
+    public async Task The_audit_sees_a_customers_login_left_behind_in_identity()
+    {
+        await using var factory = CreateFactory();
+        await MigrateAsync(factory);
+        var accountId = await SeedAsync(factory, includeSite: false);
+
+        using (var scope = factory.Services.CreateScope())
+        {
+            var identity = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
+            var now = scope.ServiceProvider.GetRequiredService<IClock>().UtcNow;
+            identity.Users.Add(User.Invite(Guid.NewGuid(), "residue-owner", "residue-owner@example.com", accountId, now));
+            await identity.SaveChangesAsync();
+        }
+
+        var residue = await AuditAsync(factory, accountId);
+
+        Assert.Contains(residue.Rows, row => { return row.StartsWith("User(", StringComparison.Ordinal); });
         Assert.Empty(residue.Unchecked);
     }
 

@@ -1,4 +1,5 @@
 using Maran.Modules.Identity.Domain.Entities;
+using Maran.Modules.Identity.Domain.Enums;
 using Maran.SharedKernel.Security;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
@@ -45,8 +46,18 @@ public sealed class UserConfiguration : IEntityTypeConfiguration<User>
             .HasConversion<string>()
             .HasMaxLength(16);
 
+        builder.Property(u => u.State)
+            .IsRequired()
+            .HasConversion<string>()
+            .HasMaxLength(16)
+            .HasDefaultValue(UserState.Active);
+
         builder.Property(u => u.CreatedAt)
             .IsRequired();
+
+        builder.Property(u => u.IsAccountSuspended)
+            .IsRequired()
+            .HasDefaultValue(false);
 
         // The TOTP secret is a second factor sitting at rest: anyone who reads this column can
         // generate the codes it protects. EncryptedStringConverter keeps the ciphertext in
@@ -63,5 +74,16 @@ public sealed class UserConfiguration : IEntityTypeConfiguration<User>
         // enforced by the database rather than only by the command, so a race cannot create twins.
         builder.HasIndex(u => u.Username).IsUnique().HasDatabaseName("IX_Users_Username");
         builder.HasIndex(u => u.Email).IsUnique().HasDatabaseName("IX_Users_Email");
+
+        // At most one login per hosting account: two would be two keys to the same account and
+        // neither would be wrong, so the second is refused by the database rather than only by
+        // AccountCreatedHandler's own pre-check, which a concurrent redelivery of AccountCreated can
+        // race past. Partial, because PostgreSQL counts NULLs as distinct in a unique index and an
+        // administrator's AccountId is NULL — several administrators, all with AccountId == null,
+        // must stay legal.
+        builder.HasIndex(u => u.AccountId)
+            .IsUnique()
+            .HasFilter("\"AccountId\" IS NOT NULL")
+            .HasDatabaseName("UX_Users_AccountId");
     }
 }
