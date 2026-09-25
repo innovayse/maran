@@ -143,7 +143,7 @@ the rule in `rules/architecture.md` actually says is narrower and does hold: *Ma
 processes — `maran-api`, `maran-agent` and PostgreSQL — and the panel adds no broker and no sidecar
 of its own. The rest are the services a hosting panel exists to manage.
 
-    curl -sSL https://get.maran.innovayse.com | bash
+    curl -sSL https://get.maran.innovayse.com | sudo bash
 
 The installer verifies the system before changing anything, installs signed release
 artifacts, hardens the systemd units, and prints a one-time link for creating the first

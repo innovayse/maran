@@ -995,6 +995,29 @@ if [ "$(find agent backend scripts docker \( -name '*.rs' -o -name '*.cs' -o -na
   report "scripts/lib/check-structure.sh: check 21 swept fewer than 100 source files, so it is not a statement about citations (rules/testing.md)"
 fi
 
+# 22. Every published copy of the install command is the one the installer accepts.
+#
+# `get.sh` refuses at its first line unless it is root, so a documented `| bash` is a documented
+# failure: the reader's very first command is refused. Measured 2026-09-25: eight copies said
+# `| bash` — README, the installation page and the marketing home page in all three locales, and
+# get.sh's own header comment — while three others already said `| sudo bash`. The project was
+# printing two different commands and the wrong one was on the page a first-time reader lands on.
+#
+# Nothing compared them, which is why it was found by a person reading the docs rather than by a
+# run. The website half only runs when `website/` is checked out beside this tree; its absence is
+# not a pass and not a failure, it is simply out of scope for that run, the same way `maran website`
+# treats it.
+install_command_needs_root=0
+grep -qE '^\[ "\$\(id -u\)" -eq 0 \]' installer/get.sh && install_command_needs_root=1
+if [ "$install_command_needs_root" -eq 1 ]; then
+  while IFS= read -r hit; do
+    [ -n "$hit" ] || continue
+    report "${hit%%:*}: prints 'get.maran.innovayse.com | bash' — get.sh refuses unless root, so this command fails for every reader who copies it. Use '| sudo bash'"
+  done < <(grep -rln 'get\.maran\.innovayse\.com | bash' README.md docs installer website/content 2>/dev/null || true)
+else
+  report "scripts/lib/check-structure.sh: check 22 could not find the root guard in installer/get.sh, so it is not a statement about the install command (rules/testing.md)"
+fi
+
 if [ "$violations" -gt 0 ]; then
   echo
   echo "$violations structural violation(s). See rules/ for the rule each one cites."

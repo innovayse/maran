@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# The bootstrap behind `curl -sSL https://get.maran.innovayse.com | bash`.
+# The bootstrap behind `curl -sSL https://get.maran.innovayse.com | sudo bash`.
 #
 # WHY THIS FILE EXISTS. The README's headline command could not work without it, and the failure
 # was not a small one. `install.sh` is not a single script: it resolves SCRIPT_DIR from
