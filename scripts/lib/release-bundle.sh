@@ -3,7 +3,7 @@
 #
 # That step is the installer's only trust boundary (its own header comment,
 # installer/lib/50-artifacts.sh:1-6): it will not unpack anything until a manifest's
-# Ed25519 signature verifies against installer/keys/release-signing.pub
+# ECDSA P-384 signature verifies against installer/keys/release-signing.pub
 # (installer/lib/50-artifacts.sh:28) and each component's sha256 inside that
 # now-trusted manifest matches the bytes on disk (installer/lib/50-artifacts.sh:123-150,
 # 179-206). Nothing produced a manifest or a signed bundle before this file — see
@@ -66,9 +66,13 @@ usage() {
   cat >&2 <<'USAGE'
 usage: maran release <build|sign|verify|selftest> [arguments]
 
-  build     [--version <ver>] [--channel stable|beta] [--out <dir>]
-            assemble api+agent+frontend into a manifest'd bundle dir
-  sign      --key <path> [--bundle <dir>]       sign the bundle's manifest.json with an Ed25519 key
+  build     [--version <ver>] [--channel stable|beta] [--out <dir>] [--arch <list>|both]
+            assemble api+agent+frontend into a manifest'd bundle dir. --arch defaults to this
+            host's; `both` builds x86_64 and aarch64, which is what a PUBLISHED release needs
+            (preflight accepts both, so a release with one leaves ARM64 operators nothing to
+            install). A single-architecture bundle also gets the unsuffixed tarball names the
+            offline installer path reads.
+  sign      --key <path> [--bundle <dir>]       sign the bundle's manifest.json with an ECDSA P-384 key
   verify    --bundle <dir> [--pubkey <path>]    verify signature+checksums the way the installer does
   package   [--bundle <dir>] [--out <file>]     tar the bundle dir into the single offline tarball
   selftest                                      build, sign with a throwaway key, verify OK, then
@@ -82,9 +86,21 @@ USAGE
 # arch_name: matches installer/install.sh:310-312's own mapping, so a bundle built here
 # names components the same way MARAN_ARCH does at install time.
 arch_name() {
-  case "$(uname -m)" in
+  case "${1:-$(uname -m)}" in
     x86_64|amd64) echo "x86_64" ;;
     aarch64|arm64) echo "aarch64" ;;
+    *) echo "unsupported" ;;
+  esac
+}
+
+# docker_platform: the same architecture spelled the way `docker --platform` spells it, for the
+# agent builder. Beside the other two spellings so all three names for one architecture move
+# together — the release now builds for an architecture that is NOT necessarily the host's, and a
+# mismatch between these would silently produce a bundle whose agent is for the wrong machine.
+docker_platform() {
+  case "${1:-$(uname -m)}" in
+    x86_64|amd64) echo "linux/amd64" ;;
+    aarch64|arm64) echo "linux/arm64" ;;
     *) echo "unsupported" ;;
   esac
 }
@@ -93,7 +109,7 @@ arch_name() {
 # arch_name rather than derived from it at the call site, so the two names for one architecture
 # move together.
 dotnet_rid() {
-  case "$(uname -m)" in
+  case "${1:-$(uname -m)}" in
     x86_64|amd64) echo "linux-x64" ;;
     aarch64|arm64) echo "linux-arm64" ;;
     *) echo "unsupported" ;;
@@ -128,13 +144,18 @@ require_tool() {
 # be exactly the kind of decoration rules/testing.md rejects, because the check would see
 # nothing different whether the real binary is broken or simply never built.
 build_api() {
-  local staging="$1"
+  local staging="$1" arch="${2:-$(arch_name)}"
   require_tool dotnet "publishes the backend"
-  local publish_dir="${staging}/api"
+  # Staged under an arch-suffixed name so a two-architecture build does not have its first half
+  # overwritten by its second (issue #53).
+  local publish_dir="${staging}/api-${arch}"
   rm -rf -- "$publish_dir"
   local rid
-  rid="$(dotnet_rid)"
-  [ "$rid" != "unsupported" ] || release_failed "dotnet publish: $(uname -m) is not an architecture this release builds for"
+  rid="$(dotnet_rid "$arch")"
+  [ "$rid" != "unsupported" ] || release_failed "dotnet publish: ${arch} is not an architecture this release builds for"
+  # Cross-publishing needs no emulation: `dotnet publish -r linux-arm64` on an x86_64 host produces
+  # an aarch64 apphost, measured by RUNNING it in an aarch64 container (it reached Wolverine's
+  # startup on glibc 2.28), which is the only evidence that counts here.
 
   # SELF-CONTAINED, and this is the whole point of the flag rather than a preference. Published
   # framework-dependent, the artifact needs a .NET 9 runtime already on the host; no fresh Debian or
@@ -161,25 +182,137 @@ build_api() {
     || release_failed "dotnet publish produced no libhostfxr.so in ${publish_dir}: the artifact is framework-dependent and will not start on a host without a .NET runtime (issue #39)"
 }
 
+# The oldest glibc in installer/lib/10-preflight.sh's supported matrix: AlmaLinux 8 and Rocky 8
+# carry 2.28, and every other accepted distribution carries more. The agent is built against THIS
+# floor because a dynamically linked glibc binary is forward compatible and never backward
+# compatible, so the floor is the only build target that runs on all eight (issue #48).
+readonly MARAN_AGENT_GLIBC_FLOOR="2.28"
+
+# The release signature: ECDSA P-384 over SHA-384, created and verified with `openssl dgst`.
+#
+# It was Ed25519 through `openssl pkeyutl -verify -rawin`, and that could not be verified on half
+# the supported fleet: `-rawin` arrived in OpenSSL 3.0, and AlmaLinux 8, Rocky 8, Ubuntu 20.04 and
+# Debian 11 all ship OpenSSL 1.1.1, whose `pkeyutl` has no such option and whose CLI cannot verify
+# Ed25519 at all. Measured on AlmaLinux 8 (issue #52):
+#
+#     # openssl pkeyutl -verify -rawin -pubin -inkey release-signing.pub ...
+#     pkeyutl: Option unknown option -rawin
+#
+# The installer reported that as "the signature does not match the trusted key" and told the
+# operator to suspect a compromised mirror, so the old arrangement did not merely fail there — it
+# failed while accusing the download.
+#
+# ECDSA over `openssl dgst` is verifiable by the OS's own openssl on EVERY supported version, with
+# no fallback branch and no second key: a supply-chain check that asks "which signature can I manage
+# here?" is only as strong as the weakest answer. P-384 rather than P-256 because the margin is free
+# — one digest name differs — and this is the key that decides whether a server runs our code.
+#
+# Measured on AlmaLinux 8's OpenSSL 1.1.1k, both halves: a good signature answers `Verified OK` and
+# a tampered payload answers `Verification Failure`. A verifier that only ever sees a good signature
+# proves nothing (rules/testing.md).
+readonly MARAN_SIGNATURE_DIGEST="sha384"
+
+# sign_release_file: <private key> <file> <signature out>. The ONE place this repository spells the
+# signing invocation, so the thing `verify_release_file` and installer/lib/50-artifacts.sh check can
+# never drift from the thing that was signed.
+sign_release_file() {
+  openssl dgst -"$MARAN_SIGNATURE_DIGEST" -sign "$1" -out "$3" "$2"
+}
+
+# verify_release_file: <public key> <file> <signature>. Silent; the caller reports.
+verify_release_file() {
+  openssl dgst -"$MARAN_SIGNATURE_DIGEST" -verify "$1" -signature "$3" "$2" >/dev/null 2>&1
+}
+
 build_agent() {
-  local staging="$1"
-  require_tool cargo "builds the agent"
-  (cd "$root/agent" && cargo build --release -p maran-agent) \
-    >"${staging}/.agent-build.log" 2>&1 \
-    || { cat "${staging}/.agent-build.log" >&2; release_failed "cargo build --release -p maran-agent failed (log above)"; }
-  local out_dir="${staging}/agent"
+  local staging="$1" arch="${2:-$(arch_name)}"
+  # docker rather than cargo, and the substitution is the fix for issue #48: a plain
+  # `cargo build --release` on the release host produced an agent requiring GLIBC_2.38 and 2.39,
+  # which could not execute on Ubuntu 22.04, Debian 12, AlmaLinux 9 or Rocky 9 — four of the eight
+  # distributions preflight accepts. On those hosts the panel installed, nginx served, and every
+  # privileged operation failed because the root daemon never ran a single instruction.
+  #
+  # docker/release/agent-builder-alma8.Dockerfile carries the reasoning, including why a static musl
+  # build is the wrong escape (the agent calls `getpwnam_r`, and glibc's NSS cannot be linked
+  # statically, so musl would break account lookups wherever SSSD or LDAP answers them).
+  require_tool docker "builds the agent against the oldest supported glibc (issue #48)"
+  # One builder image per architecture, each a native build INSIDE that architecture rather than a
+  # cross-compile: the Rust agent links glibc and calls `getpwnam_r`, so building it in an aarch64
+  # AlmaLinux 8 container is what makes "requires at most GLIBC_2.28 on ARM too" a measurement
+  # rather than a hope. On an x86_64 host the aarch64 build runs under qemu — slow, and honest.
+  local platform image
+  platform="$(docker_platform "$arch")"
+  [ "$platform" != "unsupported" ] || release_failed "no docker platform for architecture ${arch}"
+  image="maran-agent-builder:alma8-${arch}"
+  docker build -q --platform "$platform" -f "$root/docker/release/agent-builder-alma8.Dockerfile" \
+    -t "$image" "$root/docker/release" >"${staging}/.agent-builder-${arch}.log" 2>&1 \
+    || { cat "${staging}/.agent-builder-${arch}.log" >&2; release_failed "could not build the ${arch} agent builder image (log above)"; }
+
+  # The source is mounted READ-ONLY and the target directory is separate, so a release can never be
+  # a build that quietly rewrote the tree it was built from. `--locked` is the other half of that:
+  # a release that would have had to update Cargo.lock fails instead of shipping dependencies
+  # nobody reviewed.
+  #
+  # --user with the caller's uid keeps the build from leaving root-owned files in the staging
+  # directory, which a non-root release would then be unable to remove.
+  local work="${staging}/.agent-build"
+  rm -rf -- "$work"
+  install -d "$work"
+  # The REPOSITORY ROOT is mounted, not agent/ alone: agent/crates/agent/build.rs compiles the shared
+  # contract from `../../../proto/`, so a mount that stopped at agent/ fails with a protoc error
+  # about a path outside it (rules/proto.md — the generated code is never committed, so every build
+  # needs proto/ present). HOME is set because --user gives the process no passwd entry, and cargo
+  # writing to a home it cannot create fails in a way that names neither cargo nor the mount.
+  docker run --rm --user "$(id -u):$(id -g)" \
+    -v "$root":/src:ro \
+    -v "$work":/work \
+    -e HOME=/work \
+    -e CARGO_HOME=/work/.cargo \
+    -e CARGO_TARGET_DIR=/work/target \
+    -w /src/agent "$image" \
+    cargo build --release --locked -p maran-agent \
+    >"${staging}/.agent-build-${arch}.log" 2>&1 \
+    || { cat "${staging}/.agent-build-${arch}.log" >&2; release_failed "cargo build --release -p maran-agent failed in the ${arch} glibc ${MARAN_AGENT_GLIBC_FLOOR} builder (log above)"; }
+
+  local built="${work}/target/release/maran-agent"
+  [ -f "$built" ] \
+    || release_failed "the agent builder produced no binary at ${built}"
+
+  # The guard, and it reads the ARTIFACT rather than trusting the image that produced it: a builder
+  # image that silently moved to a newer base, or a dependency that pulled in a newer symbol, would
+  # otherwise ship exactly the defect this function was written to end. The check runs inside the
+  # builder because that is where binutils lives, and it asks for the highest glibc version the
+  # binary REQUIRES, not the one it was compiled on.
+  local highest
+  highest="$(docker run --rm --platform "$platform" --user "$(id -u):$(id -g)" -v "$work":/work:ro "$image" \
+    sh -c "readelf -V /work/target/release/maran-agent 2>/dev/null \
+             | grep -o 'GLIBC_[0-9][0-9.]*' | sed 's/GLIBC_//' | sort -uV | tail -1")"
+  highest="$(printf '%s' "$highest" | tr -d '[:space:]')"
+  [ -n "$highest" ] \
+    || release_failed "could not read the agent's required glibc versions, so this release cannot claim it runs on ${MARAN_AGENT_GLIBC_FLOOR} (rules/testing.md)"
+  if [ "$(printf '%s\n%s\n' "$MARAN_AGENT_GLIBC_FLOOR" "$highest" | sort -V | tail -1)" != "$MARAN_AGENT_GLIBC_FLOOR" ]; then
+    release_failed "the agent requires GLIBC_${highest}, above the ${MARAN_AGENT_GLIBC_FLOOR} floor: it would not start on AlmaLinux 8, Rocky 8, AlmaLinux 9, Debian 12 or Ubuntu 22.04 (issue #48)"
+  fi
+  echo "   agent (${arch}) requires at most GLIBC_${highest} (floor ${MARAN_AGENT_GLIBC_FLOOR})"
+
+  local out_dir="${staging}/agent-${arch}"
   rm -rf -- "$out_dir"
   install -d "$out_dir"
-  install -m 0755 "$root/agent/target/release/maran-agent" "$out_dir/maran-agent"
+  install -m 0755 "$built" "$out_dir/maran-agent"
 }
 
 build_frontend() {
-  local staging="$1"
+  local staging="$1" arch="${2:-$(arch_name)}"
   require_tool npm "builds the SPA"
   ( cd "$root/frontend" && npm run build ) \
     >"${staging}/.frontend-build.log" 2>&1 \
     || { cat "${staging}/.frontend-build.log" >&2; release_failed "npm run build failed in frontend/ (log above)"; }
-  local out_dir="${staging}/frontend"
+  # The SPA is architecture-independent — it is JavaScript and CSS — but it is staged and published
+  # per architecture anyway, so that `<component>-<arch>` is the shape of every manifest entry and
+  # installer/lib/50-artifacts.sh's reader needs no special case for one of the three. The cost is
+  # one duplicated archive per release; the alternative is a manifest where two components are keyed
+  # one way and the third another, which is the kind of exception that outlives its reason.
+  local out_dir="${staging}/frontend-${arch}"
   rm -rf -- "$out_dir"
   cp -r "$root/frontend/dist" "$out_dir"
 }
@@ -219,10 +352,23 @@ write_integrity_manifest() {
   local tmp_entries
   tmp_entries="$(mktemp)"
 
-  local component file rel_path sha
-  for component in api agent frontend; do
-    local comp_dir="${out_dir}/${component}"
-    [ -d "$comp_dir" ] || release_failed "write_integrity_manifest: ${comp_dir} does not exist — build_${component} must run before the integrity manifest is written"
+  # The staged directories are DISCOVERED rather than assumed, because there are now two shapes:
+  # a real build stages `api-x86_64/`, `agent-aarch64/` and so on (one set per architecture, issue
+  # #53), while the selftest stages plain `api/`, `agent/`, `frontend/`. Walking what is present
+  # keeps one writer for both instead of a second copy for the second shape. Each entry is prefixed
+  # with the directory's OWN name, so a two-architecture bundle's hashes cannot collide.
+  local comp_dirs=() d
+  for d in "${out_dir}"/api "${out_dir}"/api-* \
+           "${out_dir}"/agent "${out_dir}"/agent-* \
+           "${out_dir}"/frontend "${out_dir}"/frontend-*; do
+    [ -d "$d" ] && comp_dirs+=("$d")
+  done
+  [ "${#comp_dirs[@]}" -gt 0 ] \
+    || release_failed "write_integrity_manifest: no staged component directories under ${out_dir} — the build functions must run first"
+
+  local component comp_dir file rel_path sha
+  for comp_dir in "${comp_dirs[@]}"; do
+    component="$(basename "$comp_dir")"
     while IFS= read -r -d '' file; do
       rel_path="${file#"${comp_dir}"/}"
       sha="$(sha256_of "$file")"
@@ -258,12 +404,19 @@ write_integrity_manifest() {
 }
 
 cmd_build() {
-  local version="" out_dir="" channel=""
+  local version="" out_dir="" channel="" arch_list=""
   while [ $# -gt 0 ]; do
     case "$1" in
       --version) version="${2:?--version requires a value}"; shift 2 ;;
       --channel) channel="${2:?--channel requires a value}"; shift 2 ;;
       --out) out_dir="${2:?--out requires a value}"; shift 2 ;;
+      # --arch: a comma-separated list, or `both` for the pair a published release needs. Defaults
+      # to the host's architecture further down, so an unadorned build is unchanged (issue #53).
+      --arch)
+        arch_list="${2:?--arch requires a value}"
+        [ "$arch_list" != "both" ] || arch_list="x86_64,aarch64"
+        shift 2
+        ;;
       *) echo "release build: unknown argument: $1" >&2; usage ;;
     esac
   done
@@ -286,18 +439,46 @@ cmd_build() {
   rm -rf -- "$out_dir"
   install -d "$out_dir"
 
+  # The architectures this bundle is for. Defaults to the host's, so a plain `maran release build`
+  # behaves exactly as it did; `--arch x86_64,aarch64` builds the publishable pair (issue #53).
+  #
+  # preflight has accepted aarch64 from the beginning and its refusal text promised "x86_64 and
+  # aarch64 artifacts only" while the release produced one, so an ARM64 operator passed the gate and
+  # then found nothing to install. Building both is what makes that text true.
+  local arch_list="${arch_list:-$(arch_name)}"
   local arch
-  arch="$(arch_name)"
-  [ "$arch" != "unsupported" ] || release_failed "uname -m ($(uname -m)) is not a MARAN_ARCH this installer recognizes (installer/install.sh:310-312)"
-
-  build_api "$out_dir"
-  build_agent "$out_dir"
-  build_frontend "$out_dir"
+  for arch in ${arch_list//,/ }; do
+    [ "$(arch_name "$arch")" != "unsupported" ] \
+      || release_failed "'${arch}' is not a MARAN_ARCH this installer recognizes (installer/install.sh:310-312)"
+  done
 
   local component
-  for component in api agent frontend; do
-    tar_component "${out_dir}/${component}" "${out_dir}/${component}.tar.gz"
+  for arch in ${arch_list//,/ }; do
+    arch="$(arch_name "$arch")"
+    echo "== building for ${arch}"
+    build_api "$out_dir" "$arch"
+    build_agent "$out_dir" "$arch"
+    build_frontend "$out_dir" "$arch"
+    for component in api agent frontend; do
+      tar_component "${out_dir}/${component}-${arch}" "${out_dir}/${component}-${arch}.tar.gz"
+    done
   done
+
+  # The unsuffixed names the OFFLINE path reads. installer/lib/50-artifacts.sh's offline branch opens
+  # `<component>.tar.gz` with no architecture in the name — an offline bundle is carried to one
+  # machine, so it holds one architecture — while the online manifest points at the suffixed URLs.
+  # Written only for a single-architecture build, because a two-architecture bundle has no single
+  # right answer and silently picking one would produce an offline bundle for the wrong machine.
+  local single_arch=""
+  case "$arch_list" in
+    *,*) : ;;
+    *) single_arch="$(arch_name "$arch_list")" ;;
+  esac
+  if [ -n "$single_arch" ]; then
+    for component in api agent frontend; do
+      cp "${out_dir}/${component}-${single_arch}.tar.gz" "${out_dir}/${component}.tar.gz"
+    done
+  fi
 
   # integrity-manifest.json: a SEPARATE artefact from manifest.json below, written from the
   # same staged directories before they are removed from consideration — see
@@ -316,14 +497,17 @@ cmd_build() {
     echo "  \"version\": \"${version}\","
     echo "  \"artifacts\": {"
     local first=1
-    for component in api agent frontend; do
-      local sha
-      sha="$(sha256_of "${out_dir}/${component}.tar.gz")"
-      [ "$first" -eq 1 ] || echo "    },"
-      first=0
-      echo "    \"${component}-${arch}\": {"
-      echo "      \"url\": \"https://releases.maran.innovayse.com/${channel}/${component}-${arch}.tar.gz\","
-      echo "      \"sha256\": \"${sha}\""
+    for arch in ${arch_list//,/ }; do
+      arch="$(arch_name "$arch")"
+      for component in api agent frontend; do
+        local sha
+        sha="$(sha256_of "${out_dir}/${component}-${arch}.tar.gz")"
+        [ "$first" -eq 1 ] || echo "    },"
+        first=0
+        echo "    \"${component}-${arch}\": {"
+        echo "      \"url\": \"https://releases.maran.innovayse.com/${channel}/${component}-${arch}.tar.gz\","
+        echo "      \"sha256\": \"${sha}\""
+      done
     done
     echo "    }"
     echo "  }"
@@ -331,7 +515,7 @@ cmd_build() {
   } > "${out_dir}/manifest.json"
 
   rm -f "${out_dir}"/.*-*.log
-  echo "Bundle staged at ${out_dir} (version ${version}, arch ${arch})."
+  echo "Bundle staged at ${out_dir} (version ${version}, arch ${arch_list})."
   echo "NOT SIGNED YET — run: maran release sign --key <path-to-private-key> --bundle ${out_dir}"
 }
 
@@ -366,11 +550,8 @@ cmd_sign() {
   require_signing_key "$key"
   [ -f "${bundle_dir}/manifest.json" ] || release_failed "no manifest.json under ${bundle_dir} — run: maran release build"
 
-  openssl pkeyutl -sign -rawin \
-    -inkey "$key" \
-    -in "${bundle_dir}/manifest.json" \
-    -out "${bundle_dir}/manifest.json.sig" \
-    || release_failed "openssl pkeyutl -sign failed"
+  sign_release_file "$key" "${bundle_dir}/manifest.json" "${bundle_dir}/manifest.json.sig" \
+    || release_failed "signing manifest.json failed"
 
   echo "Signed ${bundle_dir}/manifest.json -> ${bundle_dir}/manifest.json.sig"
 
@@ -378,11 +559,9 @@ cmd_sign() {
   # into the manifest.json signature above — see write_integrity_manifest's comment.
   [ -f "${bundle_dir}/integrity-manifest.json" ] || release_failed "no integrity-manifest.json under ${bundle_dir} — run: maran release build (this bundle predates the code-integrity hash list)"
 
-  openssl pkeyutl -sign -rawin \
-    -inkey "$key" \
-    -in "${bundle_dir}/integrity-manifest.json" \
-    -out "${bundle_dir}/integrity-manifest.json.sig" \
-    || release_failed "openssl pkeyutl -sign failed for integrity-manifest.json"
+  sign_release_file "$key" "${bundle_dir}/integrity-manifest.json" \
+      "${bundle_dir}/integrity-manifest.json.sig" \
+    || release_failed "signing integrity-manifest.json failed"
 
   echo "Signed ${bundle_dir}/integrity-manifest.json -> ${bundle_dir}/integrity-manifest.json.sig"
 }
@@ -399,17 +578,24 @@ verify_bundle() {
   [ -f "${bundle_dir}/manifest.json" ] || { echo "verify: no manifest.json in ${bundle_dir}" >&2; return 1; }
   [ -f "${bundle_dir}/manifest.json.sig" ] || { echo "verify: no manifest.json.sig in ${bundle_dir} — bundle is UNSIGNED" >&2; return 1; }
 
-  if ! openssl pkeyutl -verify -rawin \
-      -pubin -inkey "$pubkey" \
-      -in "${bundle_dir}/manifest.json" -sigfile "${bundle_dir}/manifest.json.sig" >/dev/null 2>&1; then
+  if ! verify_release_file "$pubkey" "${bundle_dir}/manifest.json" "${bundle_dir}/manifest.json.sig"; then
     echo "verify: manifest signature does NOT verify against ${pubkey}" >&2
     return 1
   fi
 
-  local component expected actual
-  for component in api agent frontend; do
-    [ -f "${bundle_dir}/${component}.tar.gz" ] || { echo "verify: missing ${component}.tar.gz" >&2; return 1; }
-    expected="$(awk -v key="\"${component}-" '
+  # Driven by the MANIFEST's own keys rather than a fixed list, because a published bundle now
+  # carries one set per architecture (issue #53) while an offline bundle and the selftest's fixture
+  # carry one unsuffixed set. Verifying what the manifest claims is also the more honest check: a
+  # manifest entry with no archive behind it is exactly the defect an ARM64 operator met.
+  local component expected actual archive
+  for component in $(grep -oE '"(api|agent|frontend)-[a-z0-9_]+"' "${bundle_dir}/manifest.json" \
+                       | tr -d '"' | sort -u); do
+    # `<component>-<arch>.tar.gz` is what a published bundle holds; `<component>.tar.gz` is the
+    # unsuffixed name the offline installer path reads, and the one the selftest's fixture writes.
+    archive="${bundle_dir}/${component}.tar.gz"
+    [ -f "$archive" ] || archive="${bundle_dir}/${component%%-*}.tar.gz"
+    [ -f "$archive" ] || { echo "verify: manifest names ${component} but neither ${component}.tar.gz nor ${component%%-*}.tar.gz is in ${bundle_dir}" >&2; return 1; }
+    expected="$(awk -v key="\"${component}\"" '
       $0 ~ key { in_block=1 }
       in_block && /"sha256"/ {
         match($0, /"[^"]*"[[:space:]]*$/)
@@ -417,10 +603,13 @@ verify_bundle() {
       }
       in_block && /}/ { in_block=0 }
     ' "${bundle_dir}/manifest.json")"
-    [ -n "$expected" ] || { echo "verify: no sha256 in manifest for ${component}-*" >&2; return 1; }
-    actual="$(sha256_of "${bundle_dir}/${component}.tar.gz")"
+    [ -n "$expected" ] || { echo "verify: no sha256 in manifest for ${component}" >&2; return 1; }
+    # $archive, not a name rebuilt from $component: the two differ whenever the bundle carries the
+    # unsuffixed offline shape, and hashing a path that does not exist would report a mismatch about
+    # a file nobody shipped.
+    actual="$(sha256_of "$archive")"
     if [ "$actual" != "$expected" ]; then
-      echo "verify: checksum mismatch for ${component}.tar.gz: expected ${expected}, got ${actual}" >&2
+      echo "verify: checksum mismatch for ${archive##*/}: expected ${expected}, got ${actual}" >&2
       return 1
     fi
   done
@@ -438,7 +627,7 @@ cmd_verify() {
   done
   require_tool openssl "verifies the manifest"
   if verify_bundle "$bundle_dir" "$pubkey"; then
-    release_ok "${bundle_dir} verifies against ${pubkey} (signature + all three checksums)."
+    release_ok "${bundle_dir} verifies against ${pubkey} (signature + every checksum the manifest names)."
   else
     release_failed "${bundle_dir} did not verify against ${pubkey} (reason printed above)."
   fi
@@ -494,7 +683,9 @@ cmd_selftest() {
   local channel="stable"
   local keydir="${work}/keys" bundle="${work}/bundle"
   install -d -m 0700 "$keydir"
-  openssl genpkey -algorithm ed25519 -out "${keydir}/throwaway.key" >/dev/null 2>&1
+  # The SAME curve and digest the real key uses, because a selftest that signs with a different
+  # algorithm than production would verify an invocation nobody ships (rules/testing.md).
+  openssl ecparam -name secp384r1 -genkey -noout -out "${keydir}/throwaway.key" >/dev/null 2>&1
   openssl pkey -in "${keydir}/throwaway.key" -pubout -out "${keydir}/throwaway.pub" >/dev/null 2>&1
 
   install -d "$bundle"
@@ -579,9 +770,8 @@ cmd_selftest() {
 
   echo
   echo "-- outcome 5: untouched integrity-manifest.json verifies against integrity-manifest.json.sig --"
-  if openssl pkeyutl -verify -rawin \
-      -pubin -inkey "${keydir}/throwaway.pub" \
-      -in "${bundle}/integrity-manifest.json" -sigfile "${bundle}/integrity-manifest.json.sig" >/dev/null 2>&1; then
+  if verify_release_file "${keydir}/throwaway.pub" "${bundle}/integrity-manifest.json" \
+       "${bundle}/integrity-manifest.json.sig"; then
     echo "${VERDICT_PREFIX}: OK — untouched integrity-manifest.json ACCEPTED against its own signature (expected)."
   else
     release_failed "selftest: a freshly written and signed integrity-manifest.json did not verify against its own signature — the signing or verification invocation is broken."
@@ -602,14 +792,9 @@ cmd_selftest() {
   if cmp -s "${bundle}/integrity-manifest.json" "$defective"; then
     release_failed "selftest: outcome 6's sed did not actually change any byte — the corruption step itself is broken, so this proves nothing."
   fi
-  openssl pkeyutl -sign -rawin \
-    -inkey "${keydir}/throwaway.key" \
-    -in "$defective" \
-    -out "${defective}.sig" \
+  sign_release_file "${keydir}/throwaway.key" "$defective" "${defective}.sig" \
     || release_failed "selftest: could not sign the outcome-6 fixture"
-  if openssl pkeyutl -verify -rawin \
-      -pubin -inkey "${keydir}/throwaway.pub" \
-      -in "$defective" -sigfile "${defective}.sig" >/dev/null 2>&1; then
+  if verify_release_file "${keydir}/throwaway.pub" "$defective" "${defective}.sig"; then
     echo "${VERDICT_PREFIX}: OK — a manifest with one entry's sha256 corrupted BEFORE signing still verifies once signed (expected, and the honest boundary this feature has: the signature proves the bytes were signed by this key, never that any hash inside them is correct — the build's own count/floor check does not catch this either, and this outcome documents that gap rather than hiding it)."
   else
     release_failed "selftest: a manifest signed with a valid key over its own (defective) bytes did NOT verify — the sign/verify invocation pairing itself is broken, which is a bigger problem than the gap this outcome exists to document."
