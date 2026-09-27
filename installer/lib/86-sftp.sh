@@ -66,6 +66,33 @@ sshd_service_name() {
   esac
 }
 
+# sshd_packages_for_family: the package carrying the daemon and its configuration, per family.
+#
+# This step CONFIGURES sshd — it renders a Match block, validates it with `sshd -t` and replaces
+# the live file — so by the law 20-dependencies.sh states for its own list ("88-cron.sh, 87-firewall.sh
+# and 85-mysql.sh each install their family's package beside the configuration only they know how to
+# write") the package belongs here, with the block, and not in the base set. Step 86 was the one
+# service-configuring step that did not honour that law: it knew the unit name and assumed the
+# daemon (issue #43). On a fresh host with no sshd the refusal arrived at step 86 of 17, after
+# PostgreSQL, nginx, MariaDB, the service user, panel.env and both services were already in place.
+#
+# Both families spell it `openssh-server`, which is an agreement between two packagings rather
+# than a rule — hence a function per family rather than one literal, the arrangement
+# `cron_packages_for_family` has for the pair that does NOT agree.
+#
+# A cloud image always has this package, because it is how the operator logged in to run the
+# installer. A console-installed server, a minimal Debian and the install polygon do not, and that
+# is the host this function exists for.
+sshd_packages_for_family() {
+  case "${MARAN_OS_FAMILY:-}" in
+    debian|rhel) echo "openssh-server" ;;
+    *)
+      echo "86-sftp.sh: unsupported OS family '${MARAN_OS_FAMILY:-}'" >&2
+      exit 1
+      ;;
+  esac
+}
+
 # sshd_binary: the daemon, used only to VALIDATE a candidate config before it
 # becomes the live one. Not on root's PATH on every family, hence the fallback.
 sshd_binary() {
@@ -218,6 +245,29 @@ report_legacy_jails() {
 install_sftp_prerequisites() {
   ensure_sftp_group
   ensure_jail_root
+  # Before the Match block, because install_sshd_match_block refuses on a missing sshd_config and
+  # this is the step that is supposed to put one there (issue #43). `pkg_install` is idempotent:
+  # on the overwhelmingly common host that already has sshd this resolves to "already the newest
+  # version" and changes nothing.
+  #
+  # Unquoted on purpose: the answer is a package LIST and the words are the packages.
+  # shellcheck disable=SC2086
+  pkg_install $(sshd_packages_for_family)
+  # Started BEFORE the block is validated, and that ordering is the fix for a defect the package
+  # install above exposed (issue #45). `sshd -t` does more than parse a config: it also checks the
+  # privilege separation directory, and /run/sshd exists only because sshd.service declares
+  # RuntimeDirectory=sshd and has run at least once. On a host where the daemon has never started,
+  # a perfectly valid candidate fails validation with "Missing privilege separation directory".
+  #
+  # That host was unreachable while this step merely ASSUMED openssh-server: a real host with the
+  # package also has the running daemon. Installing the package here created the one ordering in
+  # which it exists and has never started.
+  #
+  # `enable --now` is the shape 88-cron.sh already uses for the same reason, and it is idempotent:
+  # on the overwhelmingly common host that already runs sshd, systemd treats both halves as success.
+  # The trailing reload in step_sftp is NOT made redundant by this — it is what makes the new Match
+  # block live afterwards without dropping the operator's own session.
+  systemctl enable --now "$(sshd_service_name)"
   install_sshd_match_block
 }
 

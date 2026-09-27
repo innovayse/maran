@@ -19,6 +19,97 @@ readonly MARAN_DB_NAME="maran"
 : "${MARAN_USER:?30-postgresql.sh: MARAN_USER is unset; it is set by install.sh and must be in the environment}"
 readonly MARAN_DB_ROLE="$MARAN_USER"
 
+# The oldest PostgreSQL major this panel is known to work on, and "known" is literal: AlmaLinux 9
+# ships 13 and its install polygon run is green, so the floor is the lowest version actually
+# verified rather than the newest available (issue #55).
+#
+# It exists because EL8's DEFAULT module stream is PostgreSQL 10, on which the panel aborts at
+# startup — `column c.conparentid does not exist`, a column added in PostgreSQL 11 — after the
+# installer had created the database and pronounced it ready. Until this floor, the installer took
+# whatever the distribution shipped and checked nothing, which README.md admitted in writing and
+# this defect turned into a dead panel.
+readonly MARAN_PG_MINIMUM_MAJOR=13
+
+# pg_available_major: the major version the package manager WOULD install right now, or empty when
+# it cannot be determined. Read from the package metadata rather than from a running server, because
+# the decision it feeds — whether to switch module stream — has to be made BEFORE installing.
+pg_available_major() {
+  case "$MARAN_OS_FAMILY" in
+    debian) apt-cache show postgresql 2>/dev/null | awk '/^Version:/{print $2; exit}' ;;
+    rhel)   dnf info postgresql-server 2>/dev/null | awk '/^Version/{print $3; exit}' ;;
+  esac | sed 's/[^0-9].*//'
+}
+
+# pg_select_modern_stream_on_rhel: on the RHEL family, move to a newer `postgresql` module stream
+# when and only when the default one is below the floor.
+#
+# EL8's AppStream carries streams 9.6, 10 (default), 12, 13, 15 and 16, so a modern PostgreSQL comes
+# from the DISTRIBUTION itself and this needs no third-party repository — which is why the fix is a
+# stream switch and not a PGDG repo.
+#
+# Conditional on purpose. AlmaLinux 9 installs 13 and is green on it; switching it to 16 for
+# tidiness would change a working system with no measured reason to. The defect is EL8's default of
+# 10, so EL8's default is what changes.
+pg_select_modern_stream_on_rhel() {
+  [ "$MARAN_OS_FAMILY" = "rhel" ] || return 0
+  command -v dnf >/dev/null 2>&1 || return 0
+
+  local available
+  available="$(pg_available_major)"
+  # No opinion means no action: a package manager whose metadata could not be read is not evidence
+  # that the stream is wrong, and the floor check after installation still refuses a bad version.
+  [ -n "$available" ] || return 0
+  [ "$available" -lt "$MARAN_PG_MINIMUM_MAJOR" ] || return 0
+
+  # The newest stream on offer, chosen by version rather than by listing order.
+  local newest
+  newest="$(dnf module list postgresql 2>/dev/null \
+              | awk '$1 == "postgresql" { print $2 }' \
+              | grep -E '^[0-9]+(\.[0-9]+)?$' | sort -V | tail -1)"
+  if [ -z "$newest" ]; then
+    echo "30-postgresql.sh: this host would install PostgreSQL ${available}, below the required" >&2
+    echo "  minimum of ${MARAN_PG_MINIMUM_MAJOR}, and no 'postgresql' module streams were found to" >&2
+    echo "  switch to. The panel aborts at startup on PostgreSQL below ${MARAN_PG_MINIMUM_MAJOR}" >&2
+    echo "  (column c.conparentid does not exist), so this install stops here instead." >&2
+    exit 1
+  fi
+
+  echo "PostgreSQL ${available} is the default here and the panel needs ${MARAN_PG_MINIMUM_MAJOR}+; enabling module stream postgresql:${newest}."
+  # `reset` before `enable`: a stream already enabled makes `enable` a no-op, and the default stream
+  # counts as enabled, so without the reset this would silently keep installing 10.
+  dnf module -y reset postgresql >/dev/null 2>&1 || true
+  dnf module -y enable "postgresql:${newest}" >/dev/null 2>&1 \
+    || { echo "30-postgresql.sh: could not enable module stream postgresql:${newest}" >&2; exit 1; }
+}
+
+# assert_pg_version_at_least_floor: the installed server really is at or above the floor.
+#
+# Separate from the stream selection above, and reading the SERVER rather than the package metadata,
+# because they answer different questions: one predicts what will be installed, this one reports
+# what is running. A host where an operator pinned an old PostgreSQL, or where the stream switch did
+# not take, must fail HERE with a version in the message rather than in the panel's journal with an
+# SQL error about a system catalogue column (rules/testing.md: a check must be able to observe what
+# it reports on).
+assert_pg_version_at_least_floor() {
+  local version major
+  version="$(su -s /bin/sh - postgres -c 'psql -tAc "SHOW server_version"' 2>/dev/null \
+               | tr -d '[:space:]')"
+  major="$(printf '%s' "$version" | sed 's/[^0-9].*//')"
+  if [ -z "$major" ]; then
+    echo "30-postgresql.sh: could not read the PostgreSQL server version, so this install cannot" >&2
+    echo "  claim the panel's minimum of ${MARAN_PG_MINIMUM_MAJOR} is met (rules/testing.md)." >&2
+    exit 1
+  fi
+  if [ "$major" -lt "$MARAN_PG_MINIMUM_MAJOR" ]; then
+    echo "30-postgresql.sh: PostgreSQL ${version} is installed; the panel requires ${MARAN_PG_MINIMUM_MAJOR} or newer." >&2
+    echo "  Below ${MARAN_PG_MINIMUM_MAJOR} the panel aborts at startup reading the system catalogues" >&2
+    echo "  ('column c.conparentid does not exist' — pg_constraint.conparentid arrived in 11)." >&2
+    echo "  Install a newer PostgreSQL for this distribution and re-run the installer (issue #55)." >&2
+    exit 1
+  fi
+  echo "PostgreSQL ${version} meets the panel's minimum of ${MARAN_PG_MINIMUM_MAJOR}."
+}
+
 # pg_install: installs the PostgreSQL server package for the current family. RHEL-family
 # distros ship PostgreSQL as modular/appstream packages needing an explicit `postgresql-setup
 # --initdb` step; Debian-family packages self-initialise on install. This split is exactly
@@ -29,6 +120,7 @@ pg_install() {
       pkg_install postgresql
       ;;
     rhel)
+      pg_select_modern_stream_on_rhel
       pkg_install postgresql-server
       # Idempotent: postgresql-setup refuses (non-fatally, we tolerate it) if the data
       # directory is already initialised, which is exactly the re-run case.
@@ -62,7 +154,7 @@ pg_service_name() {
 # The polygon did not catch it, and the reason is worth writing down rather than fixing quietly:
 # its image installs MariaDB and sshd, not PostgreSQL, and it copies this file in without ever
 # executing the step. So nothing in this repository had ever run pg_conf_path against a real
-# Debian-family layout. The assertion added to docker/polygon/assert-installer-steps.sh now
+# Debian-family layout. The assertion added to docker/polygon/asserts/assert-installer-steps.sh now
 # exercises the resolver against that layout directly, which is cheap and catches this class
 # without installing a database in the image.
 pg_conf_path() {
@@ -204,6 +296,9 @@ step_postgresql() {
   # `||` so the restart never ran, and the package-started server kept its TCP listener on
   # 127.0.0.1:5432 while this step printed "unix-socket only".
   systemctl restart "$(pg_service_name)"
+  # After the server is up and before the panel is ever asked to talk to it: the floor is checked
+  # where a failure still means "no changes to the panel" rather than a crash loop in step 70.
+  assert_pg_version_at_least_floor
   pg_create_role_and_db
   pg_assert_no_tcp_listener
   echo "PostgreSQL ready: database '${MARAN_DB_NAME}', role '${MARAN_DB_ROLE}', unix-socket only."

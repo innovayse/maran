@@ -165,14 +165,90 @@ EOF
   echo "MariaDB root@localhost authenticates over the unix socket."
 }
 
+# mysql_server_preexists: was there a MariaDB/MySQL server on this host BEFORE this step ran?
+#
+# The answer decides whether an insecure root is somebody else's server to leave alone or this
+# installer's own mess to clean up (issue #56), so it must be asked BEFORE `pkg_install`.
+#
+# Two independent signs, because either alone can be wrong: the `mysql` system database under the
+# data directory means a server has been INITIALISED here (a package installed but never started
+# leaves no such directory), and a server binary already on PATH means one is installed even if its
+# data directory lives somewhere unusual. Either is enough to treat the server as pre-existing —
+# this errs toward NOT touching a stranger's root, which is the safe direction.
+mysql_server_preexists() {
+  [ -d /var/lib/mysql/mysql ] && return 0
+  command -v mariadbd >/dev/null 2>&1 && return 0
+  command -v mysqld >/dev/null 2>&1 && return 0
+  return 1
+}
+
+# secure_fresh_mysql_root: give root@localhost socket authentication on a server THIS INSTALL just
+# created.
+#
+# Only ever called for a server the installer itself installed moments earlier, which is what makes
+# it safe: there is no operator data behind that root, and its passwordless default is the
+# installer's own doing. EL8 ships MariaDB 10.3, which leaves root@localhost with no password and no
+# `unix_socket` plugin; EL9's 10.5 and every Debian-family package configure socket auth themselves,
+# which is why no other version in the matrix reaches this.
+#
+# It does NOT report success. The verification that follows in step_mysql is what decides, so a
+# server where this did not take is still refused rather than assumed fixed (rules/testing.md).
+secure_fresh_mysql_root() {
+  echo "This server's MariaDB came up with a passwordless root; giving it socket authentication."
+
+  # The PLUGIN FIRST, and the order is not cosmetic — getting it wrong locks root out of the server.
+  # EL8's MariaDB 10.3 loads no socket plugin at all: `information_schema.plugins` has no row
+  # matching %socket% and root@localhost's `plugin` column is empty. An `ALTER USER ... IDENTIFIED
+  # VIA unix_socket` there sets an authentication method the server cannot perform, and root can then
+  # connect by NO means whatsoever. Measured, by doing it: after the bare ALTER, "cannot connect to
+  # MariaDB as root@localhost over the unix socket".
+  #
+  # `INSTALL SONAME 'auth_socket'` is the MariaDB spelling that loads the library providing the
+  # `unix_socket` plugin. It fails harmlessly when the plugin is already there.
+  "$MARAN_MYSQL_CLIENT" -u root -e "INSTALL SONAME 'auth_socket';" 2>/dev/null || true
+
+  # And the alter happens ONLY once the plugin is actually ACTIVE. Without this guard a host whose
+  # plugin library is missing would be left with a root nobody can use — strictly worse than the
+  # passwordless root this function was called to fix. If it is not active the server is left exactly
+  # as it was and verify_mysql_socket_auth refuses with its own message.
+  if ! "$MARAN_MYSQL_CLIENT" -u root -N -e \
+        "SELECT plugin_status FROM information_schema.plugins WHERE plugin_name = 'unix_socket';" \
+        2>/dev/null | grep -q ACTIVE; then
+    echo "85-mysql.sh: the unix_socket plugin could not be loaded, so root's login method was left" >&2
+    echo "  untouched rather than pointed at a plugin this server cannot perform." >&2
+    return 0
+  fi
+
+  # Measured on MariaDB 10.3.39: with the plugin ACTIVE this succeeds, root still connects, and
+  # mysql.user's plugin column reads `unix_socket`.
+  "$MARAN_MYSQL_CLIENT" -u root -e \
+    "ALTER USER 'root'@'localhost' IDENTIFIED VIA unix_socket; FLUSH PRIVILEGES;" 2>/dev/null \
+    || true
+}
+
 step_mysql() {
   echo "Installing MariaDB for customer databases..."
+
+  # Asked BEFORE the install, because afterwards there is no way to tell who created the server.
+  local preexisting="no"
+  mysql_server_preexists && preexisting="yes"
+
   # shellcheck disable=SC2046
   pkg_install $(mysql_packages_for_family)
 
   # `enable --now` is idempotent by design: on a re-run the unit is already
   # enabled and already running, and systemd treats both as success.
   systemctl enable --now "$(mysql_service_name)"
+
+  # A server this installer created, whose root came up with no credential at all, is secured here
+  # rather than refused: it is empty, it is nobody else's, and the insecure default is ours (issue
+  # #56). A server that PRE-EXISTED keeps the refusal below untouched — Maran does not change how a
+  # stranger's root logs in, whatever state it is in.
+  if [ "$preexisting" = "no" ] \
+     && mysql_root_can_connect \
+     && ! mysql_root_authentication_record | grep -qE "$MARAN_MYSQL_SOCKET_PLUGIN_PATTERN"; then
+    secure_fresh_mysql_root
+  fi
 
   verify_mysql_socket_auth
   echo "MariaDB ready for customer databases; the panel's own PostgreSQL is untouched."

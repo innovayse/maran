@@ -183,6 +183,46 @@ EOF
   exit 1
 }
 
+# wait_for_agent_socket: the ROOT daemon really started, and its socket really came out reachable
+# by the panel and by nobody else.
+#
+# The panel's socket had this wait from the beginning and the agent's had nothing but a
+# `systemctl restart`, whose exit status reports only that a process was spawned. That asymmetry
+# meant the step which installs the root daemon could not observe whether the root daemon runs
+# (rules/testing.md), and it hid a real failure: on a real install (Ubuntu 24.04.5) the agent died
+# with 226/NAMESPACE on every retry until systemd gave up, and this step still returned 0, the
+# install still printed "Maran is installed and reachable", and only /health dissented with
+# "agent":"unavailable" (issue #42).
+#
+# 660 root:<service group> is the boundary this asserts, measured on a working install: root owns
+# the socket because the agent IS root, the group is the panel's so the panel may connect, and
+# nothing outside that group may. A wrong group here is not a degraded panel but a panel with no
+# privileged operations at all — every site, user, database and certificate action fails.
+wait_for_agent_socket() {
+  local expected observed attempt=0
+  : "${MARAN_GROUP:?must be set by install.sh before this step is sourced}"
+  expected="660 root ${MARAN_GROUP}"
+  while [ "$attempt" -lt 60 ]; do
+    if [ -S "$MARAN_AGENT_SOCKET_PATH" ]; then
+      observed="$(stat -c '%a %U %G' "$MARAN_AGENT_SOCKET_PATH" 2>/dev/null || true)"
+      [ "$observed" = "$expected" ] && { echo "Agent socket ${MARAN_AGENT_SOCKET_PATH} is ${expected}."; return 0; }
+    fi
+    attempt=$((attempt + 1))
+    sleep 1
+  done
+  cat >&2 <<EOF
+70-services.sh: ${MARAN_AGENT_SOCKET_PATH} is '${observed:-absent}' after 60s but must be '${expected}'.
+
+Absent means the root agent never started, so the panel would come up with every privileged
+operation failing. A unit that exits 226/NAMESPACE never ran its binary at all and logged nothing
+of its own: check systemd's account as well as the agent's.
+
+    systemctl status maran-agent.service --no-pager
+    journalctl -u maran-agent.service -n 50 --no-pager
+EOF
+  exit 1
+}
+
 step_services() {
   echo "Installing systemd units..."
   install_units
@@ -195,6 +235,10 @@ step_services() {
   # Start the agent first: the api's health check depends on an agent handshake, and
   # starting order here matches the After= dependency declared in maran-api.service.
   systemctl restart maran-agent.service
+  # Waiting HERE rather than beside the api's wait is deliberate: the api's health check depends on
+  # an agent handshake, so letting the agent bind before the api starts makes the order the After=
+  # dependency declares actually hold at runtime, not just on paper.
+  wait_for_agent_socket
   systemctl restart maran-api.service
   wait_for_api_socket
   echo "Services installed and started."

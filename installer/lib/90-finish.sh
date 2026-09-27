@@ -28,7 +28,10 @@ panel_env_value() {
 step_finish() {
   local token hostname whitelist_seed
   token="$(panel_env_value Setup__Token)"
-  hostname="$(hostname -f 2>/dev/null || hostname)"
+  # host_display_name (install.sh) rather than the `hostname` binary: Oracle Linux 8 ships no
+  # `hostname` package, and the old expression's own fallback called the same missing program, so the
+  # install died with exit 127 (issue #57).
+  hostname="$(host_display_name)"
   # Absent whenever the install saw no client address to seed the firewall whitelist with.
   whitelist_seed="$(panel_env_value Firewall__SeedWhitelistCidr)"
 

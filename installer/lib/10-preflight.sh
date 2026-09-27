@@ -38,7 +38,13 @@ readonly MARAN_REQUIRED_PORTS="${MARAN_PANEL_PORT:?must be set by install.sh bef
 
 # supported_os_matrix: "id:version" pairs from the design spec §4. A version prefix
 # match (e.g. "22.04" matches VERSION_ID "22.04") keeps point releases working.
-readonly MARAN_SUPPORTED_MATRIX="ubuntu:22.04 ubuntu:24.04 debian:12 debian:13 almalinux:9 almalinux:10 rocky:9 rocky:10"
+# Every EL rebuild is listed by its OWN os-release ID rather than left to the ID_LIKE fallback in
+# install.sh: the fallback decides the package MANAGER, this list decides whether the pair was ever
+# TESTED, and conflating the two is how an untested target gets admitted. Oracle Linux reports
+# `ID=ol` (measured: ol 9.8, ID_LIKE=fedora), RHEL itself reports `ID=rhel`. All four EL vendors run
+# the same code path — the rhel family — so listing them costs one word each and claims nothing that
+# AlmaLinux's and Rocky's polygon runs do not already exercise.
+readonly MARAN_SUPPORTED_MATRIX="ubuntu:22.04 ubuntu:24.04 ubuntu:26.04 debian:12 debian:13 almalinux:8 almalinux:9 almalinux:10 rocky:8 rocky:9 rocky:10 rhel:8 rhel:9 rhel:10 ol:8 ol:9 ol:10"
 
 # fail: print a uniform "what failed / what to do" message and mark preflight failed.
 # Preflight collects ALL failures before exiting so the operator does not have to
@@ -120,7 +126,7 @@ check_os_supported() {
     ok "OS ${MARAN_OS_ID} ${MARAN_OS_VERSION_ID} is supported"
   else
     fail "OS ${MARAN_OS_ID} ${MARAN_OS_VERSION_ID} is not a supported target" \
-      "Install on one of: Ubuntu 22.04/24.04, Debian 12/13, AlmaLinux 9/10, Rocky 9/10."
+      "Install on one of: Ubuntu 22.04/24.04/26.04, Debian 12/13, or RHEL/AlmaLinux/Rocky/Oracle 8/9/10."
   fi
 }
 

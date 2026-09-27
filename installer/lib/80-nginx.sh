@@ -206,7 +206,10 @@ certificate." >&2
   require_service_group
   install -d -o root -g "$MARAN_GROUP" -m 0750 "$MARAN_TLS_DIR"
   local hostname
-  hostname="$(hostname -f 2>/dev/null || hostname)"
+  # host_display_name (install.sh) rather than the `hostname` binary: Oracle Linux 8 ships no
+  # `hostname` package, and the old expression's own fallback called the same missing program, so the
+  # install died with exit 127 (issue #57).
+  hostname="$(host_display_name)"
   openssl req -x509 -nodes -newkey ed25519 \
     -keyout "$MARAN_KEY_PATH" -out "$MARAN_CERT_PATH" \
     -days 3650 -subj "/CN=${hostname}" \

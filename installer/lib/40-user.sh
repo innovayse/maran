@@ -259,6 +259,36 @@ create_directory_layout() {
   remove_unless_root_only_directory /var/lib/maran-sftp
   install -d -o root -g root -m 0700 /var/lib/maran-sftp
   assert_root_only_directory /var/lib/maran-sftp
+  # AgentPaths FTPS jail base, the SFTP base's twin, and created HERE rather than only in
+  # 89-ftps.sh because maran-agent.service names it in ReadWritePaths= WITHOUT the leading
+  # `-` that marks a path systemd may skip. A writable-path target that does not exist is not
+  # ignored: setting up the unit's mount namespace fails outright, and on a real install
+  # (Ubuntu 24.04.5) it did, every retry until systemd gave up:
+  #
+  #     maran-agent.service: Failed to set up mount namespacing: /var/lib/maran-ftps:
+  #       No such file or directory
+  #     maran-agent.service: Main process exited, code=exited, status=226/NAMESPACE
+  #     maran-agent.service: Start request repeated too quickly.
+  #
+  # Step 70 starts the agent and step 89 created this directory, so the unit referenced a path
+  # that appeared nineteen steps too late; the install then finished with the root daemon dead
+  # and /health honestly answering "agent":"unavailable". Creating it with the rest of the
+  # layout is the fix that keeps the bind mount: marking the path optional with `-` would let
+  # the agent start and then see the jail READ-ONLY once FTPS is configured, which trades a
+  # loud failure for a silent one.
+  #
+  # 89-ftps.sh keeps its own identical create — it owns the jail's contents and must still be
+  # correct when run against a tree this step never touched — and `install -d` restates owner
+  # and mode rather than inheriting them, so running both is idempotent, not a conflict.
+  #
+  # Conditional removal and 0711 both come from 89-ftps.sh and mean there what they mean at
+  # the SFTP base above: each jail beneath this path holds a bind mount of a customer's real
+  # home, so an unconditional `rm -rf` on an upgrade would recurse through a live mount into
+  # customer data, and 0711 lets vsftpd's per-account chroot be entered by name without
+  # publishing one directory name per hosting account to every local uid.
+  remove_unless_root_only_directory /var/lib/maran-ftps
+  install -d -o root -g root -m 0711 /var/lib/maran-ftps
+  assert_root_only_directory_with_mode /var/lib/maran-ftps 711
   # /run/maran is normally recreated on boot by the systemd unit's RuntimeDirectory=
   # (see installer/systemd/maran-agent.service); created here too so the directory
   # exists immediately for the rest of this install run, before services first start.

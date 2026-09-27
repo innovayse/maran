@@ -82,7 +82,7 @@ export MARAN_USER MARAN_GROUP MARAN_LEGACY_USER MARAN_LEGACY_GROUP MARAN_SERVICE
 #
 # The one site that cannot read it is the nginx vhost's own `listen` line: a configuration
 # file interpolates no shell variable. That literal is tied back to this one by an assertion
-# in docker/polygon/assert-installer-steps.sh, which fails the polygon image build when the
+# in docker/polygon/asserts/assert-installer-steps.sh, which fails the polygon image build when the
 # two disagree — a failing check in place of a hope.
 MARAN_PANEL_PORT=8443
 export MARAN_PANEL_PORT
@@ -99,6 +99,18 @@ export MARAN_PANEL_PORT
 # the polygon's assert-installer-steps.sh builds the directory from this value and checks it.
 MARAN_API_SOCKET_PATH=/run/maran-api/api.sock
 export MARAN_API_SOCKET_PATH
+
+# The agent's gRPC socket. The installer never passes this path to anything — the agent defaults to
+# it (agent/crates/agent/src/tests/config/invocation_tests.rs asserts the default, and the unit's
+# ExecStart= passes no --socket, so the default is what production runs) and the panel reads its own
+# copy from appsettings.json. It is spelled here only so 70-services.sh can WAIT for it: a step that
+# starts the root daemon and cannot see its socket cannot report on it (issue #42).
+#
+# Because this is the one spelling the installer owns and the other two live elsewhere, a change to
+# the agent's default must change this line too; the value is asserted against a real install rather
+# than assumed (measured: 660 root:maran).
+MARAN_AGENT_SOCKET_PATH=/run/maran/agent.sock
+export MARAN_AGENT_SOCKET_PATH
 
 # --- CLI arguments -----------------------------------------------------------------
 # Parsed once here and exported so any step file can read them without re-parsing argv.
@@ -130,6 +142,39 @@ require_root() {
     echo "install.sh: must be run as root (try: sudo bash install.sh)" >&2
     exit 1
   fi
+}
+
+# host_display_name: this machine's name, for the self-signed certificate's CN and for the URL the
+# installer prints at the end. Never empty, and never dependent on the `hostname` BINARY.
+#
+# Both callers used to spell `hostname -f 2>/dev/null || hostname`, which assumes a program that is
+# not on every host. Oracle Linux 8's base image has no `hostname` package at all, so BOTH halves of
+# that expression failed and the install died mid-step under `set -e`:
+#
+#     80-nginx.sh: line 209: hostname: command not found        (exit 127)
+#
+# The fallbacks are ordered by how much they know, and every one after the first needs no package
+# this installer has not already required:
+#
+#   hostname -f        the fully-qualified name, when the program exists
+#   hostnamectl        systemd's own answer — and systemd is a hard requirement of this product
+#   /etc/hostname      the file systemd itself reads
+#   uname -n           coreutils, which cannot be absent from a host that boots
+#   localhost          so a certificate is still generated rather than one with an empty CN
+#
+# The last line matters more than it looks: an empty CN makes `openssl req` produce a certificate no
+# browser will accept, which would turn a missing package into a panel that cannot be reached.
+host_display_name() {
+  local name=""
+  if command -v hostname >/dev/null 2>&1; then
+    name="$(hostname -f 2>/dev/null || hostname 2>/dev/null || true)"
+  fi
+  [ -n "$name" ] || name="$(hostnamectl --static 2>/dev/null || true)"
+  [ -n "$name" ] || name="$(cat /etc/hostname 2>/dev/null || true)"
+  [ -n "$name" ] || name="$(uname -n 2>/dev/null || true)"
+  name="$(printf '%s' "$name" | tr -d '[:space:]')"
+  [ -n "$name" ] || name="localhost"
+  printf '%s\n' "$name"
 }
 
 # MARAN_LOG_DIR_WARNINGS: anything harden_log_directory has to say. It runs BEFORE stdout is

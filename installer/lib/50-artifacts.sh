@@ -69,8 +69,8 @@ prepare_staging_dir() {
   fi
 }
 
-# verify_manifest_signature: checks the manifest's Ed25519 signature against the baked-in
-# public key using openssl's raw pkeyutl verifier. Aborts the entire install on any
+# verify_manifest_signature: checks the manifest's ECDSA P-384 signature against the baked-in
+# public key using `openssl dgst`, the one verifier every supported openssl has. Aborts the entire install on any
 # failure — a bad signature is treated identically to a network error: install stops.
 verify_manifest_signature() {
   local manifest="$1" sig="$2"
@@ -80,11 +80,22 @@ verify_manifest_signature() {
     echo "  without its accompanying keys/ directory cannot verify releases and MUST NOT be used." >&2
     exit 1
   fi
-  if ! openssl pkeyutl -verify -rawin \
-      -pubin -inkey "$MARAN_RELEASE_PUBLIC_KEY_PEM" \
-      -in "$manifest" -sigfile "$sig" >/dev/null 2>&1; then
+  # `openssl dgst -verify`, NOT `pkeyutl -verify -rawin`, and the difference decides which
+  # distributions can install Maran at all. `-rawin` arrived in OpenSSL 3.0; AlmaLinux 8, Rocky 8,
+  # Ubuntu 20.04 and Debian 11 ship OpenSSL 1.1.1, whose pkeyutl has no such option and whose CLI
+  # cannot verify Ed25519 in any form. On those hosts the old invocation failed for a reason that
+  # had nothing to do with the signature, and this function then told the operator to suspect a
+  # compromised mirror (issue #52).
+  #
+  # `dgst` with an ECDSA key works identically on OpenSSL 1.1.1 and 3.x, so there is one code path
+  # here and no "verify whichever the host can manage" branch — a supply-chain check with a fallback
+  # is only as strong as its weakest branch. The digest is named explicitly and must match
+  # scripts/lib/release-bundle.sh's MARAN_SIGNATURE_DIGEST; the two are the same decision written on
+  # both sides of the wire, which is why each cites the other.
+  if ! openssl dgst -sha384 -verify "$MARAN_RELEASE_PUBLIC_KEY_PEM" \
+      -signature "$sig" "$manifest" >/dev/null 2>&1; then
     echo "50-artifacts.sh: manifest signature verification FAILED. Aborting install." >&2
-    echo "  The release manifest's Ed25519 signature does not match the trusted key." >&2
+    echo "  The release manifest's ECDSA P-384 signature does not match the trusted key." >&2
     echo "  This can mean a corrupted download or a compromised mirror. Do not retry" >&2
     echo "  blindly; verify you are downloading from ${MARAN_RELEASE_BASE_URL} and" >&2
     echo "  contact Innovayse support if the problem persists." >&2

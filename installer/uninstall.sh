@@ -16,7 +16,7 @@ fi
 #
 # Spelled here as well as in install.sh because the uninstaller is its own entry point and sources
 # nothing from the installer — sourcing install.sh would RUN it. The two files are held together
-# by an assertion in docker/polygon/assert-installer-steps.sh, which fails the image build when
+# by an assertion in docker/polygon/asserts/assert-installer-steps.sh, which fails the image build when
 # they disagree, in place of a hope that both get edited at once.
 MARAN_USER=maran
 MARAN_GROUP=maran
@@ -936,7 +936,7 @@ readonly MARAN_BACKUP_ROOT=/var/backups/maran
 # holding a customer's only copy of their data — would be one line and would look exactly like
 # its neighbours. Nothing in this repository would have gone red for it. So the promise is
 # stated here in a function the polygon can run and assert against a planted artifact
-# (docker/polygon/assert-installer-steps.sh, assert_the_uninstaller_keeps_the_backup_root),
+# (docker/polygon/asserts/assert-installer-steps.sh, assert_the_uninstaller_keeps_the_backup_root),
 # which is what makes it a checked promise instead of a comment.
 #
 # The count and not the names: entries are <account>.<backup id>, and an uninstall transcript
@@ -1006,7 +1006,7 @@ main() {
 }
 
 # main runs when this file is EXECUTED and not when it is SOURCED, which is what lets
-# docker/polygon/assert-installer-steps.sh drive remove_firewall and the /etc/maran removal
+# docker/polygon/asserts/assert-installer-steps.sh drive remove_firewall and the /etc/maran removal
 # against real files, a real include target and a real `nft`. Nothing in this repository
 # exercised the uninstaller at all before that, so its copy of the marker state machine — the
 # one whose `sed '/BEGIN/,/END/d'` predecessor deleted an operator's own `table inet mine` —

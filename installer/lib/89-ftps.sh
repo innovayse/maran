@@ -126,7 +126,7 @@ set -euo pipefail
 # group B and this step's PAM stack tested group A — every FTPS login on every install
 # refused, with every gate in the repository green. The comparison now lives in
 # `assert_the_installer_and_the_agent_spell_the_ftps_names_the_same`
-# (docker/polygon/assert-installer-steps.sh), which runs at polygon image BUILD time on
+# (docker/polygon/asserts/assert-installer-steps.sh), which runs at polygon image BUILD time on
 # both families: it sources this file and reads the literal out of `ftps_group()` in each
 # family's services module. What it cannot see is a value the agent computes instead of
 # declaring; the agent's own unit tests pin these literals from the other side.
