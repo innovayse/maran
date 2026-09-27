@@ -5,7 +5,79 @@ than a strict category list: what changed and why it matters to somebody running
 
 ## Unreleased
 
-Nothing yet.
+**Maran could not be installed on half the systems it claimed to support, and now it can.** The
+supported matrix is Debian 12/13, Ubuntu 22.04/24.04/26.04 LTS, and RHEL, AlmaLinux, Rocky Linux and
+Oracle Linux 8/9/10 — thirteen distributions, both families, every one of them now installed from
+nothing to a working panel and verified by the panel's own health endpoint rather than by the
+installer's exit code.
+
+The reason so much was broken at once is that nothing had ever executed the documented install path
+against a real init. Two polygon images run no init at all, which is why a fake `systemctl` had to
+exist — and its own header admits it "starts or stops NOTHING". A fake `systemctl` cannot fail on a
+unit directive, a mount namespace, or a binary that will not execute, and every defect below is
+exactly one of those. `maran installer` closes that hole: a fresh server with real systemd as PID 1,
+carrying nothing Maran needs, on both families and both architectures.
+
+What an operator would have hit:
+
+- **On AlmaLinux, Rocky or Oracle 8, the panel never started.** The distribution's default PostgreSQL
+  is 10 and the installer checked no version, so the panel aborted on a system catalogue column that
+  arrived in PostgreSQL 11. There is now a floor of 13 — the oldest version actually proven — and on
+  EL8 the installer enables a newer module stream from the distribution's own AppStream, needing no
+  third-party repository.
+- **On those same systems no release could even be verified.** The manifest's signature was Ed25519
+  through `openssl pkeyutl -rawin`, an option that arrived in OpenSSL 3.0; EL8 ships 1.1.1, whose
+  command line cannot verify Ed25519 at all. The installer reported that as a signature mismatch and
+  told the operator to suspect a compromised mirror. Releases are now signed with ECDSA P-384 and
+  verified with `openssl dgst`, which every supported openssl has — one code path, no "verify
+  whichever this host can manage" branch.
+- **On Oracle Linux the root daemon refused to start on every version.** The installer resolved the
+  family from `ID_LIKE` and accepted the host; the agent kept its own list and answered `unsupported
+  distro: ol`. `rhel` was missing from that list too, which no test could have caught because RHEL's
+  own images carry no nginx or PostgreSQL without a subscription. The two lists are now held equal by
+  a structure check.
+- **On Ubuntu 22.04, Debian 12 and EL8 the agent could not run at all.** It was built on the release
+  host and linked whatever glibc that machine had. It is now built inside an AlmaLinux 8 container —
+  the oldest glibc in the matrix — and the release refuses to ship an agent that needs anything
+  newer. A static musl build would have sidestepped glibc and broken account lookups wherever SSSD
+  or LDAP answers them, so it was rejected rather than taken.
+- **An install could report success with the root daemon dead.** Step 70 waited sixty seconds for the
+  panel's socket and did not look at the agent at all, so the one step that installs the privileged
+  daemon could not observe whether it runs. It now waits for the agent's socket with the same
+  specific refusal. That wait is what caught three of the defects above.
+- **The agent died before running an instruction on a fresh host**, because its unit named
+  `/var/lib/maran-ftps` as a mandatory writable path and step 89 created it nineteen steps after step
+  70 started the service. systemd does not skip a missing writable path; it fails to build the mount
+  namespace. The directory is created with the rest of the layout, and a structure check now requires
+  every mandatory `ReadWritePaths=` target to exist before the step that starts the units.
+- **Three dependencies were assumed rather than installed:** `openssh-server`, which step 86
+  configures and did not install, failing at step 86 of 16 after PostgreSQL, nginx and MariaDB were
+  already in place; `libicu`, without which the self-contained panel refuses to start and says so
+  only in the journal; and the `hostname` binary, absent on Oracle Linux 8, where both halves of
+  `hostname -f || hostname` called the same missing program and the install died at exit 127.
+- **On EL8 the installer installed MariaDB and then refused to continue because of it.** That
+  distribution's MariaDB leaves root with no password at all — a server where every local uid,
+  including the accounts Maran creates for customers, is root on every customer database. The refusal
+  was right and is kept for a server that pre-existed the install; a server the installer created
+  seconds earlier is now secured instead, with the socket plugin loaded *before* root's login method
+  is changed, because doing it the other way round locks root out entirely.
+
+**A suspended login could still obtain working access tokens.** Refreshing a session minted a fresh
+access token while consulting only whether the user still existed — not whether the login may be used
+at all. Suspension writes the state and revokes the sessions as two separate operations, so anything
+that stopped the second (a cancelled request, a failure in the session store, a process that died in
+between) left a suspended login holding live sessions, and each refresh rotated one into a new token
+indefinitely. The question now has a single definition on the domain entity, both paths that mint a
+token ask it, and a structure check refuses any future file that issues one without asking. Measured:
+the test for it fails without the check and the active-login control passes either way, and only two
+places in the codebase mint a session or a token at all.
+
+**ARM64 is built and runs.** `maran release build --arch both` produces a manifest carrying all six
+artifacts; the aarch64 agent and panel were verified by executing them on aarch64 with glibc 2.28.
+`installer/lib/10-preflight.sh` has accepted `aarch64` from the beginning while the release built
+only x86_64, so an ARM64 operator passed the gate and found nothing to install. One step, the
+firewall, cannot complete under emulation — an aarch64 `nft` cannot drive an x86_64 kernel — so ARM64
+is not yet claimed as verified end to end.
 
 ## 1.0.0-beta.2 — 2026-09-23
 

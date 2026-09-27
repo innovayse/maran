@@ -119,11 +119,22 @@ stack is the pinned one: `postgres:16-alpine` in `docker/docker-compose.dev.yml:
 
 | Family | Versions |
 |---|---|
-| Debian | Ubuntu 22.04 LTS, Ubuntu 24.04 LTS, Debian 12, Debian 13 |
-| RHEL | AlmaLinux 9, AlmaLinux 10, Rocky Linux 9, Rocky Linux 10 |
+| Debian | Ubuntu 22.04 LTS, Ubuntu 24.04 LTS, Ubuntu 26.04 LTS, Debian 12, Debian 13 |
+| RHEL | RHEL 8/9/10, AlmaLinux 8/9/10, Rocky Linux 8/9/10, Oracle Linux 8/9/10 |
 
-Architectures: x86_64 and aarch64. Distribution differences are isolated behind an adapter
-layer in the agent, so support for further systems is additive.
+Architectures: x86_64 and aarch64. Both are really built and really run: the agent is compiled
+inside an AlmaLinux 8 container of each architecture (so its highest required symbol is GLIBC_2.28
+on both, the oldest in the matrix above), the panel is published self-contained per runtime
+identifier, and `maran installer --arch aarch64` installs and verifies an aarch64 host. This line
+used to be true of `installer/lib/10-preflight.sh`, which accepted aarch64, and false of the
+release, which built only x86_64 — an ARM64 operator passed the gate and then found no artifact
+(issue #53).
+
+Distribution differences are isolated behind an adapter layer in the agent, so support for further
+systems is additive — but the FAMILY is not: Debian and RHEL are the two the agent knows, and SUSE
+or Alpine would each be new work rather than a new entry in a list. Alpine in particular is not on
+that road at all: it runs OpenRC, and every service, hardening directive and socket check in this
+product is systemd.
 
 ## Installation
 

@@ -1037,6 +1037,121 @@ else
   report "scripts/lib/check-structure.sh: check 22 could not find the root guard in installer/get.sh, so it is not a statement about the install command (rules/testing.md)"
 fi
 
+# 24. Every directory a systemd unit REQUIRES exists before the step that starts it.
+#
+# A ReadWritePaths= entry without a leading `-` is mandatory: if the path is missing, systemd
+# does not skip it, it fails to build the unit's mount namespace and the service dies with
+# 226/NAMESPACE before its binary runs. Measured on a real install (Ubuntu 24.04.5): the agent
+# unit named /var/lib/maran-ftps, only 89-ftps.sh created it, and step 70 starts the agent — so
+# it died on every retry until systemd gave up, and the install still exited 0 with the root
+# daemon dead (issue #41).
+#
+# The check pairs the units against the steps: for each mandatory writable path under a prefix
+# MARAN OWNS, some installer step numbered below the one that starts the services must create it
+# with `install -d`. Paths outside those prefixes (/home, /var/spool/cron) belong to the OS and
+# are not ours to create. The socket directory arrives as a placeholder and is created by the
+# starting step itself, before the restart, so it is excluded by shape.
+python3 - <<'CHECK24' || report "installer/systemd: a unit requires a directory no earlier step creates — see the lines above (issue #41)"
+import glob, re, sys
+
+START_STEP = 70   # 70-services.sh runs `systemctl restart` for both units.
+OWNED = ("/var/lib/maran", "/var/log/maran", "/var/backups/maran", "/run/maran")
+
+created = set()
+swept = 0
+for path in glob.glob("installer/lib/*.sh"):
+    m = re.match(r"installer/lib/(\d+)-", path)
+    if not m or int(m.group(1)) >= START_STEP:
+        continue
+    swept += 1
+    for line in open(path, encoding="utf-8"):
+        if line.lstrip().startswith("#"):
+            continue
+        for d in re.findall(r"install -d[^\n]*?(/[A-Za-z0-9_./-]+)\s*$", line):
+            created.add(d.rstrip("/"))
+
+bad = False
+units = sorted(glob.glob("installer/systemd/maran-*.service"))
+for unit in units:
+    for line in open(unit, encoding="utf-8"):
+        if not line.startswith("ReadWritePaths="):
+            continue
+        for token in line.split("=", 1)[1].split():
+            if token.startswith("-") or token.startswith("__"):
+                continue   # optional, or a placeholder the starting step substitutes
+            if not token.startswith(OWNED):
+                continue   # the OS provides it
+            if token.rstrip("/") not in created:
+                print(f"{unit}: requires {token}, which no installer step below "
+                      f"{START_STEP} creates — the unit dies with 226/NAMESPACE (issue #41)")
+                bad = True
+
+# The vacuity guards: this check goes blind if it reads no units, or no steps.
+if not units:
+    print("check 24 found no installer/systemd/maran-*.service, so it is not a statement "
+          "about the units (rules/testing.md)")
+    bad = True
+if swept < 4 or not created:
+    print(f"check 24 read {swept} step file(s) and {len(created)} created directories, so it "
+          f"is not a statement about what exists at start (rules/testing.md)")
+    bad = True
+
+sys.exit(1 if bad else 0)
+CHECK24
+
+# 25. The installer's supported matrix and the agent's distro detection name the same distributions.
+#
+# There are two lists of what Maran runs on, in two languages: the installer's
+# MARAN_SUPPORTED_MATRIX (shell) and the agent's `match id.as_str()` (Rust). Nothing made them
+# agree, so the matrix could be widened alone — and was. The installer resolves Oracle Linux through
+# ID_LIKE and welcomed it; the agent refused with `unsupported distro: ol` AFTER the panel was
+# installed and serving, leaving a host where every privileged operation is dead (issue #54).
+#
+# This check compares the two directly: every distribution id the matrix accepts must appear in the
+# agent's detection. It reads both files rather than a list of its own, because a third copy of the
+# same list would be one more thing to drift.
+while read -r matrix_id; do
+  grep -q "\"${matrix_id}\"" agent/crates/distro/src/detection/os_release.rs 2>/dev/null && continue
+  report "agent/crates/distro/src/detection/os_release.rs: does not know '${matrix_id}', which installer/lib/10-preflight.sh's supported matrix accepts — the panel would install and the agent would refuse to start (issue #54)"
+done < <(grep '^readonly MARAN_SUPPORTED_MATRIX=' installer/lib/10-preflight.sh 2>/dev/null \
+           | sed 's/.*="//; s/"$//' | tr ' ' '\n' | sed 's/:.*//' | sort -u)
+
+# The vacuity guards, on both axes this check can go blind on: an unreadable matrix reads exactly
+# like an empty one, and so does a detection file that moved (rules/testing.md).
+if [ "$(grep '^readonly MARAN_SUPPORTED_MATRIX=' installer/lib/10-preflight.sh 2>/dev/null \
+          | sed 's/.*="//; s/"$//' | tr ' ' '\n' | sed 's/:.*//' | sort -u | wc -l)" -lt 4 ]; then
+  report "scripts/lib/check-structure.sh: check 25 read fewer than 4 distribution ids from the supported matrix, so it is not a statement about the two lists (rules/testing.md)"
+fi
+if [ ! -f agent/crates/distro/src/detection/os_release.rs ]; then
+  report "scripts/lib/check-structure.sh: check 25 found no agent/crates/distro/src/detection/os_release.rs, so it is not a statement about the agent's detection (rules/testing.md)"
+fi
+
+# 26. Everything that mints a session or an access token asks whether the login may be used.
+#
+# The question has one definition — `User.MayAuthenticate` — and the reason it is a named member
+# rather than a comparison is that a comparison can be MISSING somewhere without anybody noticing.
+# It was missing twice: the two-factor sign-in path had no state check at all, and then
+# `RefreshSessionCommandHandler` minted access tokens while consulting only whether the user still
+# existed (issue #58). Suspension revokes sessions in a second operation after writing the state, so
+# a refresh that trusted the session row was trusting a guarantee that any failure in between breaks.
+#
+# AuthenticationCompleter's own remarks say this is convention and not structure — IAccessTokenIssuer
+# and ISessionService are ordinary services any handler can inject. This check is what turns the
+# convention into a gate: a file that calls IssueAsync on either of them and never mentions
+# MayAuthenticate is a new door with no question at it.
+while read -r minting_file; do
+  grep -q 'MayAuthenticate' "$minting_file" 2>/dev/null && continue
+  report "${minting_file}: issues a session or access token without consulting User.MayAuthenticate — every way of minting a token must ask whether the login may be used (issue #58)"
+done < <(grep -rl -E '_(accessTokenIssuer|sessionService)\.IssueAsync\(' backend/src --include='*.cs' 2>/dev/null \
+           | grep -v '/Generated/' | sort -u)
+
+# The vacuity guard: this check is a statement about minting sites, so finding none means it is a
+# statement about nothing — a renamed field would silence it completely (rules/testing.md).
+if [ "$(grep -rl -E '_(accessTokenIssuer|sessionService)\.IssueAsync\(' backend/src --include='*.cs' 2>/dev/null \
+          | grep -v '/Generated/' | sort -u | wc -l)" -lt 1 ]; then
+  report "scripts/lib/check-structure.sh: check 26 found no session or token minting sites at all, so it is not a statement about them (rules/testing.md)"
+fi
+
 if [ "$violations" -gt 0 ]; then
   echo
   echo "$violations structural violation(s). See rules/ for the rule each one cites."
