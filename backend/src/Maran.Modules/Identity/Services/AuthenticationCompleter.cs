@@ -21,14 +21,21 @@ namespace Maran.Modules.Identity.Services;
 /// every session they issue through this single method.
 /// </para>
 /// <para>
-/// <b>This is not a structural guarantee, and no comment here should claim it is.</b>
+/// <b>This is still not a structural guarantee, and no comment here should claim it is.</b>
 /// <see cref="IAccessTokenIssuer"/> and <see cref="ISessionService"/> are ordinary services in the
 /// shared container, already injected directly by <c>ResetPasswordCommandHandler</c> and
-/// <c>RefreshSessionCommandHandler</c> for their own, legitimate reasons. Nothing stops a future
-/// handler from doing the same and issuing a session with no state check at all — the gate this type
-/// provides is held by convention and by review noticing a new handler bypasses it, not by anything
-/// the compiler or the container enforces. A comment claiming otherwise would be worse than none: it
-/// would tell the next reviewer there is nothing here to check.
+/// <c>RefreshSessionCommandHandler</c> for their own, legitimate reasons. Nothing in the compiler or
+/// the container stops a future handler from issuing a token with no state check at all.
+/// </para>
+/// <para>
+/// <b>What this paragraph used to say, and why it was not enough.</b> It said the gate was held "by
+/// convention and by review noticing a new handler bypasses it" — and review did not notice: the
+/// refresh path minted access tokens for years while consulting only whether the user still existed
+/// (issue #58). Two things changed as a result. The question now has one definition,
+/// <see cref="User.MayAuthenticate"/>, so a missing check is a missing call to a named member rather
+/// than an absent comparison. And <c>maran structure</c>'s check 26 refuses any file that calls
+/// <c>IssueAsync</c> on either service without mentioning it, which is a gate a new handler trips
+/// rather than a habit a reviewer has to remember.
 /// </para>
 /// <para>
 /// <b>The refusal is byte-identical to a wrong password</b>, by construction: it is the same
@@ -88,7 +95,7 @@ public sealed class AuthenticationCompleter
         // Same refusal as a wrong password, deliberately — see the type's remarks. A suspended
         // login's sessions were already revoked when it was suspended; this is what stops a fresh
         // one being minted through whichever endpoint is asked, two-factor included.
-        if (user.State != UserState.Active)
+        if (!user.MayAuthenticate)
         {
             return Result<AuthenticatedOutcome>.Fail(
                 Error.Of(nameof(ErrorMessages.InvalidCredentialsUnauthorized), ErrorType.Unauthorized));

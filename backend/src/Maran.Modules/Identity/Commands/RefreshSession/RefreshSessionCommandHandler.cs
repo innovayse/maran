@@ -84,6 +84,28 @@ public sealed class RefreshSessionCommandHandler
             return Result<AuthenticatedOutcome>.Fail(Error.Of(nameof(ErrorMessages.RefreshTokenInvalidUnauthorized), ErrorType.Unauthorized));
         }
 
+        // "May this login be used at all" — asked HERE and not left to the session row's validity
+        // (issue #58). A refresh mints a working access token from a credential that was verified in
+        // the past, so it is a way in, and it consulted nothing but whether the user still existed.
+        //
+        // Relying on revocation instead was a narrower guarantee than it looked. AccountSuspendingHandler
+        // writes the state and revokes the sessions as two separate operations — Suspend() and
+        // SaveChangesAsync first, RevokeAllAsync after — so anything that prevents the second leaves a
+        // suspended login holding live sessions, and each refresh would rotate into a fresh token
+        // indefinitely. An Invited login is refused here for the same reason: it holds no password,
+        // so a session in its name is one nothing should have issued.
+        //
+        // The refusal is this path's own RefreshTokenInvalidUnauthorized rather than the sign-in
+        // paths' InvalidCredentials: the caller presented a token and learns only that the token is
+        // no good, which is the same thing every other refusal on this endpoint says. The session is
+        // left rotated — the presented token is already spent, and a suspended login gaining a spent
+        // token back would be the wrong way to fail.
+        if (!user.MayAuthenticate)
+        {
+            return Result<AuthenticatedOutcome>.Fail(
+                Error.Of(nameof(ErrorMessages.RefreshTokenInvalidUnauthorized), ErrorType.Unauthorized));
+        }
+
         // Re-issued rather than inherited, which is what makes a refresh re-evaluate the panel's
         // forced-two-factor policy: an administrator who has just finished enrolling stops being
         // steered on their next refresh, and one whose operator has just turned the policy on starts

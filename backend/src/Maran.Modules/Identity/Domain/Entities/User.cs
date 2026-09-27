@@ -30,6 +30,41 @@ public sealed class User
     public UserState State { get; private set; }
 
     /// <summary>
+    /// Whether this login may be used to obtain a token at all — the one place that question is
+    /// asked, so a new way of minting one cannot be added without asking it.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Why a member here rather than an <c>if</c> in each handler.</b> There were two sign-in
+    /// paths, each with its own copy of this comparison, and the two-factor path's copy was missing
+    /// — a suspended login with a second factor enrolled could sign in through it. That was fixed by
+    /// routing both through <c>AuthenticationCompleter</c>, and the comparison then existed once.
+    /// It was not the only door: <c>RefreshSessionCommandHandler</c> mints an access token from an
+    /// existing session and consulted nothing but "does this user still exist" (issue #58).
+    /// </para>
+    /// <para>
+    /// <b>What that door was worth.</b> Suspension writes the state and revokes the sessions as two
+    /// separate operations in <c>AccountSuspendingHandler</c> — <c>Suspend()</c> and
+    /// <c>SaveChangesAsync</c> first, <c>RevokeAllAsync</c> after. Anything that stops the second
+    /// from happening (a cancelled request, a failure in the session store, a process that dies in
+    /// between) leaves a suspended login holding live sessions, and refresh would then keep issuing
+    /// fresh access tokens from them indefinitely, each rotation extending the next. Asking the state
+    /// directly removes the dependency on that revocation being complete and timely.
+    /// </para>
+    /// <para>
+    /// <b>This still is not a structural guarantee</b>, and <c>AuthenticationCompleter</c>'s remarks
+    /// say the same about itself: <c>IAccessTokenIssuer</c> is an ordinary service any handler can
+    /// inject. What this member buys is that the question has ONE definition, so a new door is a
+    /// missing call to a named member rather than a missing comparison somebody has to notice.
+    /// <c>maran structure</c>'s check 26 is what turns that into a gate.
+    /// </para>
+    /// </remarks>
+    public bool MayAuthenticate
+    {
+        get { return State == UserState.Active; }
+    }
+
+    /// <summary>
     /// The hosting account this user owns, for a <see cref="UserRole.Customer"/>; null for an
     /// administrator, who owns none and reaches all of them.
     /// </summary>
