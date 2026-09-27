@@ -6,10 +6,10 @@ control, filesystem quotas, and an ACME issuance against a real (staging) author
 restore against data an operator would miss, and tear the box down clean. This is a document, not
 code — no source file changes, no `maran test`/`maran mutate`/build.
 
-**Why this run and not another polygon pass:** `docker/polygon/systemctl-stand-in.sh` records
-`start|stop|restart` and starts or stops nothing (`docker/polygon/systemctl-stand-in.sh:22`).
-`docker/polygon/setquota-stand-in.sh` "accepts and does nothing" because a container's overlay
-filesystem has no quota support to apply one to (`docker/polygon/setquota-stand-in.sh:12-22`). The
+**Why this run and not another polygon pass:** `docker/polygon/stand-ins/systemctl-stand-in.sh` records
+`start|stop|restart` and starts or stops nothing (`docker/polygon/stand-ins/systemctl-stand-in.sh:22`).
+`docker/polygon/stand-ins/setquota-stand-in.sh` "accepts and does nothing" because a container's overlay
+filesystem has no quota support to apply one to (`docker/polygon/stand-ins/setquota-stand-in.sh:12-22`). The
 ACME client "has never completed an issuance against a real authority" — it reaches Let's
 Encrypt's staging directory and nonce endpoint and is refused at account registration without a
 contact address (`README.md:214-222`). None of the three has ever run past that point outside a
@@ -270,7 +270,7 @@ from the step files' own `ok`/`echo` lines, not invented.
 alone. `rules/testing.md`'s law applies directly here because the polygon's own stand-in already
 demonstrates the failure mode: before its `show` arm existed, "EVERY subcommand it did not
 recognise fell through to `*) exit 0` printing nothing at all... there was no invocation of this
-stand-in that could produce a Stopped" (`docker/polygon/systemctl-stand-in.sh:39-44`) — a check
+stand-in that could produce a Stopped" (`docker/polygon/stand-ins/systemctl-stand-in.sh:39-44`) — a check
 against a tool that cannot say no is not a check.
 
 **Positive observation — stopped:**
@@ -299,7 +299,7 @@ the task requires.
 
 **What this run can prove that the polygon cannot, stated in the stand-in's own words:** "a unit
 comes back after a reboot" is explicitly out of the polygon's reach ("a container has no reboot and
-no init to ask... Only a real host settles that" — `docker/polygon/systemctl-stand-in.sh:69-73`).
+no init to ask... Only a real host settles that" — `docker/polygon/stand-ins/systemctl-stand-in.sh:69-73`).
 **Add one more observation this plan's Section 2 does not otherwise force: reboot the VPS
 (`sudo reboot`) and, after it comes back, run `systemctl is-active maran-api.service
 maran-agent.service` and `systemctl is-enabled` on both**, expecting `active`/`enabled` on both
@@ -324,7 +324,7 @@ mounted with quota accounting enabled. Evidence this is unhandled in this tree:
   filesystem mounted without `usrquota` will make `setquota` itself refuse (this is exactly what
   the polygon stand-in exists to paper over: "a container's overlay filesystem has no quota
   support to apply one to — `setquota` refuses on any host where the filesystem was not mounted
-  with quotas enabled," `docker/polygon/setquota-stand-in.sh:12-14`).
+  with quotas enabled," `docker/polygon/stand-ins/setquota-stand-in.sh:12-14`).
 - `QuotaBlocks::parse_hard_limit` reads `quota -u -w` and treats "no quota line" as `None`, which
   the caller folds to `quota_bytes: 0` — "not an error, just no limit"
   (`agent/crates/ops/src/accounts/quota_blocks.rs:26-32`, `account_operations.rs:617-623`). **This
@@ -459,7 +459,7 @@ completes cleanly or whether any step's `PREFLIGHT NOTE:`/`ok`/idempotence line 
 unexpected. This is the one thing `rules/README.md`'s standard for "verified by deliberately
 writing a violation" asks for, applied to the installer's own central claim, on a mechanism no
 polygon container can exercise (a `SIGKILL` mid-service-start is exactly the case
-`docker/polygon/systemctl-stand-in.sh` cannot answer, since it starts and stops nothing).
+`docker/polygon/stand-ins/systemctl-stand-in.sh` cannot answer, since it starts and stops nothing).
 
 **Where the evidence lives, in every case:** `/var/log/maran/install.log`
 (`installer/install.sh:28`), append-only across re-runs (`tee -a`,

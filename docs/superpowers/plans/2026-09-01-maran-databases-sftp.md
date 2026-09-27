@@ -575,7 +575,7 @@ Drop the `sftp_group` membership and confirm the group test goes red. Put the pa
 - Create: `agent/crates/agent/src/services/db/{db_service,db_status}.rs`, `agent/src/services/sftp/{sftp_service,sftp_status}.rs`
 - Create: `agent/crates/agent/tests/databases_on_a_real_host.rs`, `agent/crates/agent/tests/ftp_on_a_real_host.rs`
 - Modify: `agent/crates/agent/build.rs` (compile `db.proto` and `ftp.proto`), `src/server.rs`, `src/services/mod.rs`, `tests/handshake.rs`
-- Modify: `docker/polygon/ubuntu24.Dockerfile`, `alma9.Dockerfile` (mariadb-server and openssh-server, started in the test's fixture rather than baked as running)
+- Modify: `docker/polygon/images/ubuntu24/suite.Dockerfile`, `alma9.Dockerfile` (mariadb-server and openssh-server, started in the test's fixture rather than baked as running)
 
 **Interfaces:**
 - Consumes: everything from Tasks 1–4.

@@ -38,6 +38,7 @@ usage: maran <command> [arguments]
   mutate     break a protection on purpose and score the named test      (mutate.sh)
   lock       the tree write-lock: selftest proves it refuses AND proceeds (tree-lock-selftest.sh)
   polygon    verify: score an already-executed polygon run from its logs (polygon-ci.sh)
+  installer  the documented install path on a real systemd, both families (install-polygon.sh)
   migrate    module migrations: add|apply|list|check|status|guard     (migrations.sh)
   drift      is this database behind the migrations on disk; --apply fixes (schema-drift.sh)
   module     scaffold a new backend module                            (new-module.sh)
@@ -69,6 +70,7 @@ case "$command_name" in
   mutate)    exec bash "$root/scripts/lib/mutate.sh" "$@" ;;
   lock)      exec bash "$root/scripts/lib/tree-lock-selftest.sh" "$@" ;;
   polygon)   exec bash "$root/scripts/lib/polygon-ci.sh" "$@" ;;
+  installer) exec bash "$root/scripts/lib/install-polygon.sh" "$@" ;;
   migrate)   exec bash "$root/scripts/lib/migrations.sh" "$@" ;;
   drift)     exec bash "$root/scripts/lib/schema-drift.sh" "$@" ;;
   module)    exec bash "$root/scripts/lib/new-module.sh" "$@" ;;

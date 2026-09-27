@@ -179,10 +179,10 @@ did turn out to be exploitable, both of which were also "safe" until a parent's 
   so this is safe to run against a path aimed at something valuable.
 - `assert_root_only_directory` was hardcoded to mode `700`. It is now
   `assert_root_only_directory_with_mode <path> <octal>`, with the old one-argument name kept as a
-  wrapper passing `700` — `docker/polygon/assert-installer-steps.sh` calls the one-argument form
+  wrapper passing `700` — `docker/polygon/asserts/assert-installer-steps.sh` calls the one-argument form
   and needs no change. The mode is a parameter rather than a loosened check, so `0711` is asserted
   exactly and `0755` is still a refusal.
-- The mode stays `0711`, which is what `docker/polygon/assert-installer-steps.sh` pins. **No
+- The mode stays `0711`, which is what `docker/polygon/asserts/assert-installer-steps.sh` pins. **No
   `docker/` change is required by this fix.**
 
 ### Why the removal is CONDITIONAL, where the scratch's is not
@@ -547,7 +547,7 @@ pre-change note and are left exactly as they were; this reconciles them with wha
    holds `install.log nginx-access.log nginx-error.log`; the polygon reads that assignment rather
    than repeating it, and fails if it reads an empty answer.
 5. **The polygon now observes the ownership boundary, and states the half it cannot observe.**
-   `docker/polygon/assert-installer-steps.sh` asserts the layout (`/var/log/maran` `root:panel`
+   `docker/polygon/asserts/assert-installer-steps.sh` asserts the layout (`/var/log/maran` `root:panel`
    `0750`, `/var/log/maran/panel` `panel:panel` `0750`), walks every ancestor of every trusted leaf,
    and carries an inverse control that puts the original defect back on the real path — `chown
    panel:panel /var/log/maran`, verified landed with `stat` — requires all three leaves refused by
@@ -584,7 +584,7 @@ MUST NOT merge to `main` while this line stands.
    nothing**; it prints the backup root's path and how many artifacts are under it, and says they
    were kept. The uninstaller already never touched `/var/backups/maran`; what it lacked was any
    statement an operator could act on, and any check that the behaviour is still true tomorrow.
-3. `docker/polygon/assert-installer-steps.sh` — build-time gate, not shipped to a server.
+3. `docker/polygon/asserts/assert-installer-steps.sh` — build-time gate, not shipped to a server.
 
 ### What an attacker could do with this surface
 

@@ -297,7 +297,7 @@ discovered.
 | `installer/install.sh` | One `run_step 89-ftps.sh step_ftps` line between step 88 and step 90. |
 | `installer/uninstall.sh` | Removes what step 89 added, in the same marker-delimited discipline the other steps use. |
 | `docker/polygon/{ubuntu24,alma9}.Dockerfile` | `COPY installer/lib/89-ftps.sh` and the packages the assertions need. |
-| `docker/polygon/assert-installer-steps.sh` | Runs step 89's own functions and asserts what they left behind, including the refusals. |
+| `docker/polygon/asserts/assert-installer-steps.sh` | Runs step 89's own functions and asserts what they left behind, including the refusals. |
 
 ---
 
@@ -643,8 +643,8 @@ for, and the blind spot is printed rather than papered over:
 ### Task 3: The polygon proves step 89, on both families
 
 **Files:**
-- Modify: `docker/polygon/ubuntu24.Dockerfile`, `docker/polygon/alma9.Dockerfile`
-- Modify: `docker/polygon/assert-installer-steps.sh`
+- Modify: `docker/polygon/images/ubuntu24/suite.Dockerfile`, `docker/polygon/images/alma9/suite.Dockerfile`
+- Modify: `docker/polygon/asserts/assert-installer-steps.sh`
 
 **Interfaces:**
 - Consumes: `installer/lib/89-ftps.sh`'s public functions.
@@ -658,7 +658,7 @@ through `install_vsftpd_package`, so a package name that stops being right on a 
 image's build.
 
 > **AMENDED AFTER EXECUTION — 2026-09-09.** This task shipped on 2026-09-09: eight assertions in
-> `docker/polygon/assert-installer-steps.sh`, twenty mutations each shown red on both families, and
+> `docker/polygon/asserts/assert-installer-steps.sh`, twenty mutations each shown red on both families, and
 > the Step 5 composite hand-driven per family. **No assertion it produced was changed by this
 > amendment and none needs to be.** Checked one by one against findings F2 and F3: **no assertion
 > here names a TLS option key** — the five in this task are about a group, a directory's owner and

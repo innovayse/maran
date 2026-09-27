@@ -198,7 +198,7 @@ polygon_build_labelled() {
   local context="$1" family="$2" fingerprint="$3" image="$4" log="$5"
   docker build \
     --label "$POLYGON_FINGERPRINT_LABEL=$fingerprint" \
-    -f "$context/docker/polygon/$family.Dockerfile" -t "$image" "$context" >"$log" 2>&1
+    -f "$context/docker/polygon/images/$family/suite.Dockerfile" -t "$image" "$context" >"$log" 2>&1
 }
 
 # polygon_stamp: the RUN-TIME half of the currency check, and the line the score reads later.
@@ -233,7 +233,7 @@ polygon_stamp() {
     echo "         current, and a suite passing against it would have measured an unknown tree." >&2
     echo "         Rebuild it through this harness so the fingerprint is recorded:" >&2
     echo "           docker build --label $POLYGON_FINGERPRINT_LABEL=$expected \\" >&2
-    echo "             -f docker/polygon/$family.Dockerfile -t $image ." >&2
+    echo "             -f docker/polygon/images/$family/suite.Dockerfile -t $image ." >&2
     return 1
   fi
   if [ "$recorded" != "$expected" ]; then

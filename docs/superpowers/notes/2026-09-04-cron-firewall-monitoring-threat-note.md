@@ -218,7 +218,7 @@ would take away a firewall the operator already had.
 ### What is left open
 
 **F5 — three installer assertions cannot fail for the reason they name.** In
-`docker/polygon/assert-installer-steps.sh`, `assert_firewall_renders_through_the_agent`
+`docker/polygon/asserts/assert-installer-steps.sh`, `assert_firewall_renders_through_the_agent`
 greps the **raw** step file for `render-firewall-bans`, `render-firewall-ruleset` and
 `--ssh-port`. All three are satisfied by `87-firewall.sh`'s own doc comments: deleting
 both `render_firewall_file` invocations leaves the checks green. The same function
@@ -239,7 +239,7 @@ already destroyed an operator's own table once. `rules/testing.md`'s Definition 
 is not met for the uninstaller's half of the marker handling. **Still open.**
 
 **`disable_firewalld` is exercised by nothing.** Neither polygon image installs firewalld
-(`grep -i firewalld` over both Dockerfiles: no hits), and `docker/polygon/systemctl-stand-in.sh`
+(`grep -i firewalld` over both Dockerfiles: no hits), and `docker/polygon/stand-ins/systemctl-stand-in.sh`
 has **no `list-unit-files` arm at all**, so its catch-all would send a polygon run down
 the "no firewalld unit" branch regardless. The function's three-answer logic, its
 post-disable check and its abort are argued in prose and asserted by nothing. This is

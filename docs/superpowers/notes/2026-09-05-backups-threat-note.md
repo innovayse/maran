@@ -499,7 +499,7 @@ ignored across 24 targets** against the 1374 baseline.
    installer's own gate were reasoned about and reproduced in a container, never observed under
    systemd — the same limitation the rest of this note carries, and item 2 of §"What a second
    reviewer must check" is still open.
-3. ~~`docker/polygon/assert-installer-steps.sh` ... has no equivalent assertion for
+3. ~~`docker/polygon/asserts/assert-installer-steps.sh` ... has no equivalent assertion for
    `/var/lib/maran-scratch`.~~ **CLOSED 2026-09-07.** The polygon now carries the boundary:
    `assert-installer-steps.sh` asserts `"/var/lib/maran-scratch:0:0:700"` alongside
    `"/var/lib/maran-sftp:0:0:700"`, refuses either path that resolves back underneath

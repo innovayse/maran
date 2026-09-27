@@ -1668,7 +1668,7 @@ and asserts all three refuse."
 ### Task 11: A polygon that can actually run nginx
 
 **Files:**
-- Modify: `docker/polygon/ubuntu24.Dockerfile`, `docker/polygon/alma9.Dockerfile`
+- Modify: `docker/polygon/images/ubuntu24/suite.Dockerfile`, `docker/polygon/images/alma9/suite.Dockerfile`
 - Create: `agent/crates/agent/tests/sites_on_a_real_host.rs`
 - Modify: `.github/workflows/agent.yml`
 - Modify: `docker/README.md`
@@ -1699,8 +1699,8 @@ tested for real.
 - [ ] **Step 4: Verify and commit**
 
 ```bash
-docker build -f docker/polygon/ubuntu24.Dockerfile -t maran-polygon-ubuntu24 docker/polygon
-docker build -f docker/polygon/alma9.Dockerfile   -t maran-polygon-alma9    docker/polygon
+docker build -f docker/polygon/images/ubuntu24/suite.Dockerfile -t maran-polygon-ubuntu24 docker/polygon
+docker build -f docker/polygon/images/alma9/suite.Dockerfile   -t maran-polygon-alma9    docker/polygon
 git add docker .github/workflows/agent.yml agent/crates/agent/tests
 git commit -m "test(agent): a polygon that can run nginx, and a test that proves rollback
 

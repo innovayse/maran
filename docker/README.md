@@ -44,20 +44,20 @@
   - Port: `localhost:5432`
   - Includes a healthcheck for deterministic test startup.
 
-- **`polygon/ubuntu24.Dockerfile`**: Ubuntu 24.04 test container for the Rust agent.
+- **`polygon/images/ubuntu24/suite.Dockerfile`**: Ubuntu 24.04 test container for the Rust agent.
   - nginx from Ubuntu, php-fpm 8.3 from Sury — the repository the Debian adapter's package and service names are written against.
   - A pinned Rust toolchain, `protoc` and a C linker, so the agent's tests compile *inside* the image.
   - nginx includes `/etc/maran/nginx/sites` because the image RUNS `installer/lib/80-nginx.sh`'s `install_agent_config_include` — the installer's own code, not a copy of it. That is deliberate: the image used to make the edit itself, so every site test asserted a precondition the image had manufactured, and the fact that the installer did neither the directory nor the include went unseen by the whole suite. A build of these images is now the check that the installer still does it.
   - Creates `/run/maran` and `/run/maran/php`; `/etc/maran/nginx/sites` and `/etc/maran/certificates` come from the installer step above.
-  - MariaDB and OpenSSH the same way: the packages come from `installer/lib/85-mysql.sh`'s own `mysql_packages_for_family`, and the SFTP group, jail base directory and sshd `Match` block come from running `installer/lib/86-sftp.sh`'s `install_sftp_prerequisites` — see `polygon/assert-installer-steps.sh` below.
+  - MariaDB and OpenSSH the same way: the packages come from `installer/lib/85-mysql.sh`'s own `mysql_packages_for_family`, and the SFTP group, jail base directory and sshd `Match` block come from running `installer/lib/86-sftp.sh`'s `install_sftp_prerequisites` — see `polygon/asserts/assert-installer-steps.sh` below.
   - **The build context is the repository root**, not `docker/polygon`, because the image copies a file out of `installer/`. See the build commands below.
 
-- **`polygon/alma9.Dockerfile`**: AlmaLinux 9 test container for the Rust agent.
+- **`polygon/images/alma9/suite.Dockerfile`**: AlmaLinux 9 test container for the Rust agent.
   - nginx from AlmaLinux, php-fpm 8.3 from Remi (`php83`), with EPEL enabled because Remi requires it and CRB enabled for `gcc`, `make` and `unzip`.
   - **`protoc` is downloaded from GitHub, not installed from a repository** — this is the build's only outbound binary fetch. AlmaLinux 9 ships protobuf 3.14, which predates proto3 `optional` and refuses `php.proto` outright. The zip is pinned by version *and* checked against its sha256.
   - Otherwise identical in shape to the Ubuntu image, including running the installer step for the nginx include.
 
-- **`polygon/assert-installer-steps.sh`**: run at **build** time by both images, after they have installed the packages and started MariaDB.
+- **`polygon/asserts/assert-installer-steps.sh`**: run at **build** time by both images, after they have installed the packages and started MariaDB.
   - It sources `installer/lib/85-mysql.sh` and `installer/lib/86-sftp.sh` and calls their functions — `verify_mysql_socket_auth`, `install_sftp_prerequisites`, `install_sshd_match_block` — then asserts the result: root authenticates over the unix socket, the `maran-sftp` group exists, `/var/lib/maran-sftp` is `root:root 0700` **and every ancestor of it up to `/` is root-owned and not group- or other-writable**, and sshd_config carries exactly **one** `Match Group maran-sftp` block with its four directives after the installer function has been run **twice**.
   - It also asserts the failure paths, which no positive test reaches: the gate must refuse a root with a password *and* a root with no password at all, each with the right diagnosis, and `install_sshd_match_block` must leave an invalid sshd_config untouched rather than replacing it. To do that it really does set a throwaway root password inside the build layer and really does break sshd_config, restoring both afterwards.
   - Same reasoning as the nginx include above, now for two more areas: **the installer does the work and the image proves it**. Every one of these assertions has been checked by deleting the installer step it covers and watching the image build fail naming it.
@@ -97,7 +97,7 @@
     artifact still on the disk afterwards.
   - Run with **no arguments**, which is how both Dockerfiles run it and the only mode that counts. Named function arguments run just those assertions and label the output `SUBSET RUN … this is not the polygon build gate`; that is for development, never for a verdict.
 
-- **`polygon/systemctl-stand-in.sh`**: installed at `/usr/bin/systemctl` in both images.
+- **`polygon/stand-ins/systemctl-stand-in.sh`**: installed at `/usr/bin/systemctl` in both images.
   - A container has no init system, so the `systemctl reload nginx` the agent runs has nothing to talk to and every config write would roll back before `nginx -t` was ever reached.
   - It turns a reload into `nginx -s reload` when an nginx master is running and succeeds silently when none is. It starts no service and enables none at boot; every other subcommand exits 0.
   - **Two exceptions, added for the SFTP area: `enable --now <name>.mount` really performs the bind mount the unit describes, and `disable --now <name>.mount` really unmounts it again** — after checking the unit the way systemd checks it. A `.mount` unit's file name must be systemd's escaping of its own `Where=` or systemd refuses to load it, and the stand-in refuses the same way, using `systemd-escape` — systemd's own tool — so the expectation never comes from the code under test. Without the mount actually happening the account's home would not be inside the jail, and the SFTP suite could not tell a working jail from an empty one.
@@ -105,7 +105,7 @@
   - Both arms need privileges a default container does not have; run the SFTP and account-deletion suites with `--privileged` (below). Without it the mount fails, `create_sftp_user` returns `JailFailed`, and the suite goes **red** rather than passing on a jail that was never filled.
   - The consequence, stated rather than hidden: **the reload half of the config-write protocol cannot fail in the polygon**, so `ReloadFailed` and its rollback stay covered by the `ops::safe_write` unit tests, not by any polygon test. And the mount arm is an emulation of systemd's load-time check, not systemd itself: what the polygon proves is that the unit name and the mount are right, not that a real `systemd` would schedule the unit at boot.
 
-- **`polygon/setquota-stand-in.sh`**: installed at `/usr/sbin/setquota` in both images — the path the distro adapter names, since the agent no longer resolves the tool through `PATH`.
+- **`polygon/stand-ins/setquota-stand-in.sh`**: installed at `/usr/sbin/setquota` in both images — the path the distro adapter names, since the agent no longer resolves the tool through `PATH`.
   - A container's overlay filesystem has no quota support, and creating an account applies a quota — so without this every polygon test would fail at account creation, before reaching the privilege or nginx behaviour it exists for.
   - It accepts every invocation and does nothing.
   - The consequence, stated rather than hidden: **quota behaviour is exercised nowhere in the polygon.** `AccountError::CommandFailed` from a refusing `setquota` stays covered by the `ops::accounts` unit tests, which assert the argv rather than the effect.
@@ -212,7 +212,7 @@ The equivalent by hand, if you would rather see the whole command — the label 
 
 ```bash
 docker build --label "maran.polygon.fingerprint=$(polygon_fingerprint "$PWD" ubuntu24)" \
-  -f docker/polygon/ubuntu24.Dockerfile -t maran-polygon-ubuntu24 .
+  -f docker/polygon/images/ubuntu24/suite.Dockerfile -t maran-polygon-ubuntu24 .
 ```
 
 ### `:latest` carries no currency guarantee — pass `--no-cache` before you score
@@ -637,6 +637,62 @@ PostgreSQL should be running (see "Starting PostgreSQL" above). Tests can connec
 
 For distro-specific agent testing, build an image, then mount your agent binary and test command as shown above.
 
+## The folder layout, and the distinction it exists to make
+
+`docker/polygon/` is grouped by what each file IS, because the difference between two of the groups
+is one this project keeps paying for when it is blurred:
+
+| folder | what lives there | what it does to a test |
+|---|---|---|
+| `images/` | the five `.Dockerfile`s | provides the host under test |
+| `stand-ins/` | `systemctl-stand-in.sh`, `setquota-stand-in.sh` | makes a test PASS by pretending |
+| `asserts/` | `assert-installer-steps.sh`, `quota-harness.sh`, `pam-witness.c` | makes a test FAIL by measuring |
+
+A stand-in is not a weaker assert; it is the opposite of one. `systemctl-stand-in.sh` "starts or
+stops NOTHING" by its own header, and four defects hid behind exactly that (#39, #40, #41, #42).
+
+## The install polygon: the documented install path on a real init
+
+    maran installer [--os <version>] [--mode local|get|offline] [--bundle PATH] [--keep]
+
+`<version>` is any folder under `docker/polygon/images`: thirteen at the time of writing, covering
+Ubuntu 22.04/24.04/26.04, Debian 12/13, and AlmaLinux, Rocky Linux and Oracle Linux 8/9/10 — except
+Rocky 10, which `docker/polygon/images/README.md` explains. `--os` with an unknown value prints the
+list rather than guessing at a family, so that file and this sentence cannot be the only things
+keeping the count honest. Each version's base digest and measured glibc live in that README too.
+
+`images/install-debian.Dockerfile` and `images/install-rhel.Dockerfile` are one template per family,
+built against the digest in the chosen version's `images/<version>/base.txt`. They are fresh servers
+with real systemd as PID 1 and **nothing Maran needs** pre-installed — no PostgreSQL, no nginx, no
+openssh-server, no .NET, no python. `curl`, `ca-certificates` and `sudo` are the reader's starting
+point, because the documented first command is `curl -sSL https://get.maran.innovayse.com | sudo bash`.
+
+This exists because CI could not fail on any defect that lives in systemd itself. The two suite
+images run no init, so the stand-in had to exist; `systemd.Dockerfile` boots real systemd but only
+ever starts stock nginx and never installs Maran. Four defects were therefore found by hand on a
+real server: a framework-dependent publish (#39), `MemoryDenyWriteExecute` against a JIT (#40), a
+mandatory `ReadWritePaths=` target that did not exist yet (#41), and a step that started the root
+daemon without checking it (#42). It earned its keep immediately, surfacing #43, #45, #46 and #48 —
+including an agent binary that could not execute on half the supported OS matrix.
+
+The verdict comes from systemd and the panel, never from the installer's exit code: both units
+active, `/run/maran/agent.sock` `660 root:maran`, `/run/maran-api/api.sock` `660 maran:<web group>`,
+`/health` containing `"agent":"connected"` and `"database":"reachable"`, `/setup` 200. The exit code
+is checked too but cannot carry the verdict alone — it was 0 on the install whose root daemon was
+dead (#42).
+
+The three modes answer three different questions. `local` installs from the working tree over the
+released artifacts, so an installer fix is testable with no release at all. `offline` installs a
+signed bundle built from this tree (`maran release build && sign && package`), which is how ARTIFACT
+fixes are proved before anything is published — it is what showed the glibc 2.34 agent running on
+both families. `get` runs the documented one-liner and so tests what a reader actually receives,
+which is only meaningful after a release.
+
+**What it does not settle**, for the same reasons `systemd.Dockerfile`'s section below gives: the
+kernel is this machine's, so quota, SELinux, firewall rules and enablement-at-boot remain claims
+only a real host settles. It settles what was missing — units load, namespaces build, binaries
+execute, sockets bind, the panel answers.
+
 ## Real mechanisms behind the stand-ins, and what they still don't prove
 
 Three things in this product have only ever been exercised against a fake: `systemctl-stand-in.sh`
@@ -645,7 +701,7 @@ support), and the ACME client has never completed an issuance against a real aut
 output are reproduced in the sections below rather than kept anywhere outside this clone.
 Two were closed as far as a container genuinely can:
 
-- **`docker/polygon/systemd.Dockerfile`** boots real systemd as PID 1 (`docker run -d --privileged
+- **`docker/polygon/images/ubuntu24/systemd.Dockerfile`** boots real systemd as PID 1 (`docker run -d --privileged
   --cgroupns=host -v /sys/fs/cgroup:/sys/fs/cgroup:rw maran-polygon-systemd:test`). A unit started
   through it actually serves an HTTP request; a stopped unit reports `inactive` with systemd's own
   exit status 3; and a unit enabled for boot comes back up on its own after `docker restart` — the
@@ -653,7 +709,7 @@ Two were closed as far as a container genuinely can:
   checked the same way, stays down. **This is still not a boot**: no bootloader, no initramfs, no
   real device enumeration, and the kernel underneath is this machine's, shared with every other
   container on it — not an operator's server.
-- **`docker/polygon/quota-harness.sh`** builds a loopback ext4 image with the in-kernel quota
+- **`docker/polygon/asserts/quota-harness.sh`** builds a loopback ext4 image with the in-kernel quota
   feature, mounts it `usrquota` (matching `agent/crates/ops/src/accounts/account_operations.rs`
   exactly — user quota only, the agent never asks for group quotas), and runs the agent's own
   `setquota` invocation against a real account home on it. The proof is a write past the hard limit

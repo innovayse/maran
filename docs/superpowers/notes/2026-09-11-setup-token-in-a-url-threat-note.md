@@ -243,7 +243,7 @@ than the one it had found.
   SPA route would be logged as `/index.html` — measured, and the polygon assertion catches it.
 - `installer/logrotate/maran-panel` (new), installed by `installer/lib/80-nginx.sh` — daily,
   30 days, `USR1`. A separate defect: nothing had ever rotated the panel's own two nginx logs.
-- `docker/polygon/assert-installer-steps.sh` —
+- `docker/polygon/asserts/assert-installer-steps.sh` —
   `assert_the_panel_vhost_can_never_log_a_query_string` (a census over every `access_log` and every
   `log_format` in the vhost, plus a behavioural pair of requests through real nginx with a control
   in both directions), and a census inside

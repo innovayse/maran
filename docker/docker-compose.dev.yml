@@ -64,7 +64,7 @@ services:
     build:
       # The repository root, not docker/: the image copies files out of installer/.
       context: ..
-      dockerfile: docker/polygon/ubuntu24.Dockerfile
+      dockerfile: docker/polygon/images/ubuntu24/suite.Dockerfile
     # Interpolated so that a SECOND instance of this service can exist beside the first: the
     # self-check lane of `maran dev --selfcheck` runs the same service under another compose
     # project with its own container name and socket directory, so it can prove the bring-up

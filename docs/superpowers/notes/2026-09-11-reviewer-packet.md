@@ -263,7 +263,7 @@ Each re-checked, each could have gone the other way:
 - `panel:panel` in `ops/src/ftps/mod.rs` — **gone**; the only remaining hit is
   `installer/install.sh:146`, deliberate history ("used to be created panel:panel 0750").
 - `service-account-rename`'s cited polygon assertion — **correct now**:
-  `docker/polygon/assert-installer-steps.sh:4130 assert_the_legacy_service_account_is_migrated_in_place()`.
+  `docker/polygon/asserts/assert-installer-steps.sh:4130 assert_the_legacy_service_account_is_migrated_in_place()`.
 - `maran structure` — was 72 violations (all `locales/hy: missing key ftp.*`), now `STRUCTURE-OK`.
 
 ---

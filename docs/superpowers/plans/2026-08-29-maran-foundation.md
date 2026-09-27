@@ -1718,7 +1718,7 @@ export async function get<T>(path: string): Promise<T> {
 ### Task 11: Dev environment — docker compose + polygon images
 
 **Files:**
-- Create: `docker/docker-compose.dev.yml`, `docker/polygon/ubuntu24.Dockerfile`, `docker/polygon/alma9.Dockerfile`, `docker/README.md`
+- Create: `docker/docker-compose.dev.yml`, `docker/polygon/images/ubuntu24/suite.Dockerfile`, `docker/polygon/images/alma9/suite.Dockerfile`, `docker/README.md`
 
 **Interfaces:**
 - Consumes: nothing. Produces: `docker compose -f docker/docker-compose.dev.yml up -d` → PostgreSQL 16 on `localhost:5432` (user/pass/db `maran_dev`); polygon images build and can run the agent binary for manual/CI testing.
@@ -1741,7 +1741,7 @@ volumes:
 ```
 
 - [ ] **Step 2: polygon Dockerfiles** — `ubuntu24.Dockerfile`: `FROM ubuntu:24.04`, install `ca-certificates`, create `/run/maran`, copy nothing (binary mounted at runtime: `docker run -v $PWD/agent/target/debug/maran-agent:/usr/local/bin/maran-agent …`). Same for `alma9.Dockerfile` from `almalinux:9`. Each ends with a comment documenting the intended `docker run` invocation.
-- [ ] **Step 3: Verify** — `docker compose -f docker/docker-compose.dev.yml up -d && docker compose -f docker/docker-compose.dev.yml ps` (postgres healthy), `docker build -f docker/polygon/ubuntu24.Dockerfile docker/polygon` and alma9 build OK.
+- [ ] **Step 3: Verify** — `docker compose -f docker/docker-compose.dev.yml up -d && docker compose -f docker/docker-compose.dev.yml ps` (postgres healthy), `docker build -f docker/polygon/images/ubuntu24/suite.Dockerfile docker/polygon` and alma9 build OK.
 - [ ] **Step 4: Checkpoint** — possible commit `chore: dev compose and distro polygon images`.
 
 ---

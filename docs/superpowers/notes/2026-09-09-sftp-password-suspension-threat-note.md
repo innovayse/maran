@@ -392,7 +392,7 @@ The decision is the owner's. Four options, and what each costs:
    ones; and a client on a slow link that stalls mid-transfer is now disconnected, which will be
    reported as a product defect. Benefit: the two protocols stop differing, and the window is
    finite. Small change: one function in `installer/lib/86-sftp.sh`, already covered by
-   `docker/polygon/assert-installer-steps.sh`'s "exactly one block with its directives" assertion.
+   `docker/polygon/asserts/assert-installer-steps.sh`'s "exactly one block with its directives" assertion.
 3. **Cull sessions at suspension.** Cost: the largest, and it is not the code. It means the agent
    gains a "kill this account's processes" surface — exactly the shape `rules/security.md` item 12
    says is "rejected on sight" if it looks like *run this for me*, so it would have to be a closed

@@ -8,7 +8,7 @@ on:
       - 'docker/polygon/**'
       # The installer is part of this lane too, and measurably so: each polygon Dockerfile
       # COPYs installer/lib/*.sh and RUNS the installer's own functions at BUILD time, then
-      # docker/polygon/assert-installer-steps.sh asserts what they left behind. So an
+      # docker/polygon/asserts/assert-installer-steps.sh asserts what they left behind. So an
       # installer edit changes what this job asserts — `polygon_fingerprint`
       # (scripts/lib/polygon.sh) already treats installer/** as an image input for exactly
       # that reason — and no other workflow in .github/workflows/ names this path at all.

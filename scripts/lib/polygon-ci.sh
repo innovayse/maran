@@ -132,8 +132,8 @@ case "${1:-}" in
     [ $# -ge 1 ] || usage
     stamp_family="$1"
     stamp_image="${2:-maran-polygon-$stamp_family:latest}"
-    if [ ! -r "$root/docker/polygon/$stamp_family.Dockerfile" ]; then
-      echo "REFUSED: '$stamp_family' is no polygon family — docker/polygon/$stamp_family.Dockerfile" >&2
+    if [ ! -r "$root/docker/polygon/images/$stamp_family/suite.Dockerfile" ]; then
+      echo "REFUSED: '$stamp_family' is no polygon family — docker/polygon/images/$stamp_family/suite.Dockerfile" >&2
       echo "         does not exist, so there are no sources to fingerprint." >&2
       exit 2
     fi

@@ -45,7 +45,7 @@ the other family fails at exec time, in billing.
    `agent_tooling_packages_for_family` appends it on both arms.
 2. `assert_agent_tooling` gains `/usr/bin/pkill`, so the step proves the program is where the agent
    execs it on THIS host rather than trusting that the package manager succeeded.
-3. `docker/polygon/assert-installer-steps.sh` gains
+3. `docker/polygon/asserts/assert-installer-steps.sh` gains
    `assert_every_supported_family_installs_the_process_signalling_tool` — a census, not a comparison
    of two named copies: the family list is read out of `pkg_install`'s own case arms, so a third
    family added tomorrow with no signalling arm is named rather than passed over. It also installs

@@ -140,3 +140,8 @@ Thumbs.db
 # by building it, and neither is reproducible or meaningful on another machine.
 .dev-agent/
 **/.playwright-mcp/
+
+# The install polygon writes one install log per (os, mode) here. Build output of a dev tool, never
+# an input to anything: scripts/lib/install-polygon.sh prints the path it wrote, and a reader opens
+# that file. Committing them would put a machine-specific transcript in the history of every fix.
+.polygon-logs/

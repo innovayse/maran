@@ -289,7 +289,7 @@ Why this and not something shorter:
 
 ## 7. What proves it
 
-`docker/polygon/assert-installer-steps.sh`, at image build time on both families:
+`docker/polygon/asserts/assert-installer-steps.sh`, at image build time on both families:
 
 - the directory-layout table now resolves `maran`'s uid and gid (it resolved `panel`'s), with its
   eleven-path vacuity guard unchanged;
@@ -329,7 +329,7 @@ note VERIFIED except that one cited assertion does not exist under the name give
 `assert_the_legacy_panel_account_is_migrated_in_place`. No function of that name exists. The
 assertion is real and does what §7 describes — uid and gid unchanged while the names change — and
 its name is **`assert_the_legacy_service_account_is_migrated_in_place`**
-(`docker/polygon/assert-installer-steps.sh`, defined at the `assert_the_legacy_service_account_…`
+(`docker/polygon/asserts/assert-installer-steps.sh`, defined at the `assert_the_legacy_service_account_…`
 block and called from the run list). A reviewer grepping the name written above would have found
 nothing and concluded the proof was missing.
 

@@ -299,7 +299,7 @@ nothing. It is recorded because it changes the gate over an authentication surfa
 
 ### What was wrong with the gate
 
-`assert_ftps_pam_stack_requires_group_membership` (docker/polygon/assert-installer-steps.sh) said
+`assert_ftps_pam_stack_requires_group_membership` (docker/polygon/asserts/assert-installer-steps.sh) said
 "requires" and observed presence: it grepped `/etc/pam.d/maran-ftps` for the two
 `required pam_succeed_if.so user ingroup maran-ftps` lines and for the absence of the host's
 aggregate stack. A PAM stack is not its lines, it is their control flow, and the two are separable —
@@ -312,7 +312,7 @@ phases". What it was green over: an account in **no group**, offering the **wron
 ### What the gate proves now
 
 A live `pam_authenticate` **is** feasible where the assertion runs, and it now runs there.
-`docker/polygon/pam-witness.c` is compiled inside each polygon image against that family's own
+`docker/polygon/asserts/pam-witness.c` is compiled inside each polygon image against that family's own
 libpam and drives the real `pam_start` / `pam_authenticate` / `pam_acct_mgmt` against the stack
 step 89 has just installed, at the path libpam reads it from. Five transactions, and the assertion
 fails unless all five happen:

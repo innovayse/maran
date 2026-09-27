@@ -76,7 +76,7 @@ dev_stage_require_polygon_image() {
   if ! created="$(docker image inspect -f '{{.Created}}' "$image" 2>/dev/null)"; then
     echo "REFUSED — the polygon image $image does not exist on this machine." >&2
     echo "Build it first (docker/README.md), from the repository root:" >&2
-    echo "    docker build -f docker/polygon/ubuntu24.Dockerfile -t maran-polygon-ubuntu24 ." >&2
+    echo "    docker build -f docker/polygon/images/ubuntu24/suite.Dockerfile -t maran-polygon-ubuntu24 ." >&2
     exit 1
   fi
 
@@ -112,7 +112,7 @@ dev_stage_require_polygon_image() {
   echo "              image, so do not read a green bring-up as evidence about the installer."
   echo "              Rebuild it when a system behaviour surprises you:"
   echo "                  docker build --label $POLYGON_FINGERPRINT_LABEL=$expected \\"
-  echo "                    -f docker/polygon/ubuntu24.Dockerfile -t $image ."
+  echo "                    -f docker/polygon/images/ubuntu24/suite.Dockerfile -t $image ."
   return 0
 }
 

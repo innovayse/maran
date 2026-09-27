@@ -83,7 +83,7 @@ variant this plan's author did not anticipate cannot silently fall through unhan
 protection a named catch-all would give, without inventing a state that means nothing. Section 2
 below follows this exact shape.
 
-**The polygon's declared blind spot.** `docker/polygon/setquota-stand-in.sh:1-21` states, in its
+**The polygon's declared blind spot.** `docker/polygon/stand-ins/setquota-stand-in.sh:1-21` states, in its
 own comment, that a container's overlay filesystem "has no quota support to apply one to" and that
 the stand-in "accepts and does nothing" — "quota behaviour is NOT exercised by the polygon."
 Section 8 below is built on this fact, not around it.
@@ -481,7 +481,7 @@ control.
   `MountedWithoutQuotaAccounting` or vice versa (the wrong fix instruction reaches the operator).
   Test: unit tests over fabricated `/proc/mounts` text and fabricated `quotaon -p` output, one per
   reason. **Positive control (quotas enforceable) — NOT provable on this machine or the polygon**:
-  `docker/polygon/setquota-stand-in.sh:12-16` states the overlay filesystem has no quota support at
+  `docker/polygon/stand-ins/setquota-stand-in.sh:12-16` states the overlay filesystem has no quota support at
   all; this needs the real VPS from issue #28 section B, mounted with `usrquota` and `quotaon` run,
   observed exactly as `2026-09-19-maran-staging-install.md`'s section 3.2 describes. **Negative
   control (not enforceable) — provable everywhere, including the polygon and this machine**: the
@@ -539,7 +539,7 @@ dev machine without `usrquota` set demonstrates it a second way).
 **NOT provable here or in the polygon — needs the real VPS from issue #28 section B:** the POSITIVE
 case throughout — a filesystem actually mounted with `usrquota`, `quotacheck`+`quotaon` actually
 run, `setquota` actually binding, and a customer's write actually refused past the limit. This is
-stated by the polygon's own stand-in (`docker/polygon/setquota-stand-in.sh:12-16`) and by this
+stated by the polygon's own stand-in (`docker/polygon/stand-ins/setquota-stand-in.sh:12-16`) and by this
 plan's Section 8; the staging-install plan's section 3.2
 (`2026-09-19-maran-staging-install.md:309-361`) already contains the exact commands for that
 observation and is the document to extend, not duplicate, when that VPS run happens.
