@@ -16,7 +16,7 @@ const CANNOT_FIND: &str = "quotaon: cannot find /home in /etc/fstab\n";
 
 /// The **negative control this plan's own proof calls provable everywhere,
 /// including the polygon**: a filesystem never mounted with quota accounting
-/// at all, which is what `docker/polygon/setquota-stand-in.sh`'s overlay
+/// at all, which is what `docker/polygon/stand-ins/setquota-stand-in.sh`'s overlay
 /// filesystem already IS.
 #[test]
 fn a_filesystem_never_mounted_with_quota_accounting_is_not_enforceable() {

@@ -31,7 +31,7 @@ use crate::ssl::CertificateState;
 /// writing a file nothing rotates, growing one line per login and per transfer
 /// on the busiest host, with no unit failing and no gate moving until a
 /// partition fills. `assert_the_installer_and_the_agent_spell_the_ftps_names_the_same`
-/// in `docker/polygon/assert-installer-steps.sh` reads this literal and requires
+/// in `docker/polygon/asserts/assert-installer-steps.sh` reads this literal and requires
 /// the rotation stanza to name exactly it, and requires the same of every log
 /// path written anywhere in that policy, in `installer/lib/89-ftps.sh` and in
 /// this file. It is the same comparison the FTPS group, jail root and PAM

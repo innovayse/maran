@@ -9,7 +9,7 @@ use crate::family::DistroFamily;
 /// ticket when something behaves differently on Rocky than on AlmaLinux.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DistroInfo {
-    /// The os-release `ID` field (`ubuntu`, `debian`, `almalinux`, `rocky`).
+    /// The os-release `ID` field (`ubuntu`, `debian`, `almalinux`, `rocky`, `rhel`, `ol`).
     pub id: String,
     /// The family the adapter layer keys on.
     pub family: DistroFamily,

@@ -17,7 +17,7 @@
 //! the adapter rather than restated beside it.
 //!
 //! What it does NOT settle: that each program does what the agent expects of
-//! it. `/usr/sbin/setquota` on these images is `docker/polygon/setquota-stand-in.sh`,
+//! it. `/usr/sbin/setquota` on these images is `docker/polygon/stand-ins/setquota-stand-in.sh`,
 //! which accepts everything and does nothing — so what is proven for that one
 //! entry is the PATH, not the behaviour, and the stand-in's own comment says so.
 //! `/usr/bin/quota` is the real tool from the family's `quota` package.

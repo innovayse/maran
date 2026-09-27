@@ -50,6 +50,34 @@ fn quoted_rocky_id_maps_to_the_rhel_family() {
     assert_eq!(info.version_id, "9.4");
 }
 
+/// Oracle Linux reports `ID=ol`, which this detection refused while the INSTALLER accepted it
+/// through `ID_LIKE=fedora` — so the panel installed and the root daemon then died on every start
+/// with `unsupported distro: ol`, measured on Oracle Linux 8, 9 and 10 (issue #54).
+///
+/// The version is the real `VERSION_ID` from an Oracle Linux 9 image (`9.8`) rather than a round
+/// `9`, because the two lists are compared by id and the point release is what a host actually
+/// reports.
+#[test]
+fn oracle_linux_id_maps_to_the_rhel_family() {
+    let info = parse("ID=\"ol\"\nVERSION_ID=\"9.8\"\n").unwrap();
+
+    assert_eq!(info.id, "ol");
+    assert_eq!(info.family, DistroFamily::Rhel);
+    assert_eq!(info.version_id, "9.8");
+}
+
+/// RHEL itself, which the install polygon cannot exercise — RHEL's own images carry no nginx or
+/// PostgreSQL without a subscription, so the family is proved through its rebuilds. That is exactly
+/// why it needs a test here: it is the one supported vendor with no run to catch its absence.
+#[test]
+fn rhel_id_maps_to_the_rhel_family() {
+    let info = parse("ID=\"rhel\"\nVERSION_ID=\"9.4\"\n").unwrap();
+
+    assert_eq!(info.id, "rhel");
+    assert_eq!(info.family, DistroFamily::Rhel);
+    assert_eq!(info.version_id, "9.4");
+}
+
 #[test]
 fn unsupported_distribution_is_refused_by_id() {
     assert_eq!(

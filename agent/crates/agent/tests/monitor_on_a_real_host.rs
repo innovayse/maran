@@ -56,7 +56,7 @@ use polygon_account::PolygonAccount;
 
 /// Where the polygon's `systemctl` stand-in keeps one file per unit.
 ///
-/// It MUST match `STATE_DIRECTORY` in `docker/polygon/systemctl-stand-in.sh`.
+/// It MUST match `STATE_DIRECTORY` in `docker/polygon/stand-ins/systemctl-stand-in.sh`.
 /// Written out here rather than read from the script, because a test that
 /// derived the path from the thing under test could not notice the two coming
 /// apart — and a suite whose overrides land nowhere would report every unit in

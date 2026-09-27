@@ -139,7 +139,7 @@ const LOGIN_SUCCESSFUL: &str = "230 Login successful";
 /// whole family privileged. Ubuntu's `0640 root:shadow` is readable by its
 /// OWNER, so the Debian image never showed it.
 ///
-/// `docker/polygon/alma9.Dockerfile` closes it by making that file `0400
+/// `docker/polygon/images/alma9/suite.Dockerfile` closes it by making that file `0400
 /// root:root` — readable by root alone, with no capability — and
 /// [`the_shadow_database_can_be_read_for_authentication_in_this_container`] is
 /// the test that fails by name if the condition ever comes back. So a refusal of
@@ -577,7 +577,7 @@ fn the_shadow_database_can_be_read_for_authentication_in_this_container() {
              by path to {SHADOW_PASSWORD_HELPER} in a container that runs unconfined — which \
              `docker run --privileged` does — and withholds capability dac_override, while \
              this family ships /etc/shadow mode 0000 root:root, which root can read only with \
-             that capability. docker/polygon/alma9.Dockerfile makes the file 0400 root:root so \
+             that capability. docker/polygon/images/alma9/suite.Dockerfile makes the file 0400 root:root so \
              its OWNER can read it; if this test is red, that step is missing from the image \
              this container was started from, or something has put the mode back."
         ),

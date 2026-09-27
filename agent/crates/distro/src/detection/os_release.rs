@@ -29,9 +29,22 @@ pub fn parse(content: &str) -> Result<DistroInfo, DetectError> {
         }
     }
 
+    // All four EL vendors, and the list must stay equal to installer/lib/10-preflight.sh's
+    // MARAN_SUPPORTED_MATRIX: the installer resolves the family from ID_LIKE and so admitted
+    // Oracle Linux long before this match did, which meant the panel installed and the root daemon
+    // then refused to start — `unsupported distro: ol`, measured on Oracle Linux 8, 9 and 10
+    // (issue #54). Only step 70's agent wait (#42) made that visible instead of a green install
+    // with no privileged operations.
+    //
+    // `rhel` is here for the vendor the polygon cannot test — RHEL's own images carry no nginx or
+    // PostgreSQL without a subscription, so the family is proved through its rebuilds — and leaving
+    // it out would have shipped this defect to the only vendor with no run to catch it.
+    //
+    // No adapter work accompanies this: `adapter_for.rs` dispatches on the FAMILY, and these four
+    // are one EL userland. `maran structure`'s check 25 holds the two lists equal.
     let family = match id.as_str() {
         "ubuntu" | "debian" => DistroFamily::Debian,
-        "almalinux" | "rocky" => DistroFamily::Rhel,
+        "almalinux" | "rocky" | "rhel" | "ol" => DistroFamily::Rhel,
         _ => return Err(DetectError::Unsupported { id }),
     };
 

@@ -438,10 +438,31 @@ fn verify(uid: libc::uid_t, gid: libc::gid_t, seen: &Observed) -> Result<(), i32
 /// closed would turn a hardening step into an outage. The fallback below is what
 /// makes a failure of the fast path a non-event.
 fn close_inherited_descriptors() {
-    // SAFETY: `close_range` takes three integers and touches no memory. It is
-    // the async-signal-safe way to do this: one syscall, no allocation, no
-    // directory read. Descriptors 0-2 are excluded by the first argument.
-    if unsafe { libc::close_range(FIRST_INHERITED_DESCRIPTOR, libc::c_uint::MAX, 0) } == 0 {
+    // The RAW syscall, not glibc's `close_range` wrapper, and the difference decides which
+    // distributions Maran can be installed on. The wrapper appeared in glibc 2.34, so linking
+    // against it makes the agent unbuildable on anything older — measured on AlmaLinux 8
+    // (glibc 2.28): `rust-lld: error: undefined symbol: close_range`. That is EL8 and Rocky 8,
+    // which the supported matrix accepts and much of the hosting fleet still runs (issue #50).
+    //
+    // Going through `syscall` costs nothing here and changes no behaviour: the kernel entry point
+    // is the same one the wrapper calls, and the fallback below was already written for the kernel
+    // that lacks it. EL8's kernel is 4.18 and `close_range` arrived in 5.9, so on those hosts this
+    // returns ENOSYS at RUNTIME too — the wrapper would have been useless there even if it had
+    // linked, and the one-descriptor-at-a-time sweep is what actually protects the customer's
+    // child. `syscall` returns -1 on failure, so success is tested as `== 0` exactly as before.
+    //
+    // SAFETY: `SYS_close_range` takes three integers and touches no memory. It is the
+    // async-signal-safe way to do this: one syscall, no allocation, no directory read.
+    // Descriptors 0-2 are excluded by the first argument.
+    let swept = unsafe {
+        libc::syscall(
+            libc::SYS_close_range,
+            FIRST_INHERITED_DESCRIPTOR,
+            libc::c_uint::MAX,
+            0,
+        )
+    };
+    if swept == 0 {
         return;
     }
 
