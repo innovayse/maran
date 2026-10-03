@@ -4,9 +4,9 @@ using Maran.Modules.Accounts.Domain.Enums;
 using Maran.Modules.Accounts.Persistence;
 using Maran.Modules.Accounts.Services;
 using Maran.Modules.Accounts.Tests.TestSupport;
-using Microsoft.Extensions.Logging.Abstractions;
 using Maran.SharedKernel.Results;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Maran.Modules.Accounts.Tests.Commands.CreateAccount;
 
