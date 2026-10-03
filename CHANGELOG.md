@@ -5,6 +5,10 @@ than a strict category list: what changed and why it matters to somebody running
 
 ## Unreleased
 
+Nothing yet.
+
+## 1.0.0-beta.3 — 2026-10-03
+
 **Maran could not be installed on half the systems it claimed to support, and now it can.** The
 supported matrix is Debian 12/13, Ubuntu 22.04/24.04/26.04 LTS, and RHEL, AlmaLinux, Rocky Linux and
 Oracle Linux 8/9/10 — thirteen distributions, both families, every one of them now installed from
@@ -71,6 +75,20 @@ indefinitely. The question now has a single definition on the domain entity, bot
 token ask it, and a structure check refuses any future file that issues one without asking. Measured:
 the test for it fails without the check and the active-login control passes either way, and only two
 places in the codebase mint a session or a token at all.
+
+**Dependency updates are made deliberately again.** Dependabot is off, and the ten updates worth
+taking from its last three batches are in — with the EntityFrameworkCore companions brought back
+into step with the provider, which had drifted a patch version apart. Nine are refused, each with a
+reason: the .NET 10 line (this tree pins the SDK to 9.0.317 with `rollForward` disabled), TypeScript
+7 as a major compiler change, and the coupled tonic/prost/askama breaking releases, which touch the
+generated proto contract and need their own work. The cost is stated rather than buried: security
+updates no longer arrive on their own.
+
+**The polygon's assertion script is twelve files instead of one.** It was 7381 lines holding 61
+assertions — the largest violation in the tree of the rule that one file is one unit. The split is
+by subject and preserves the original order exactly, verified by the parts concatenating
+byte-identically to what was removed and by the assertion output being the same 433 lines before and
+after.
 
 **ARM64 is built and runs.** `maran release build --arch both` produces a manifest carrying all six
 artifacts; the aarch64 agent and panel were verified by executing them on aarch64 with glibc 2.28.
