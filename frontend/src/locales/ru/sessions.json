@@ -18,7 +18,8 @@
       "working": "Завершение сеанса…",
       "confirmEndTitle": "Завершить сеанс с {address}",
       "signOutEverywhere": "Выйти на всех устройствах",
-      "rowActions": "Действия для сеанса с адреса {address}"
+      "rowActions": "Действия для сеанса с адреса {address}",
+      "securityPolicyLink": "Политика безопасности"
     }
   }
 }

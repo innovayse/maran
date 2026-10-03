@@ -29,7 +29,6 @@
       "paletteNoMatches": "Ничего не найдено.",
       "paletteHintNavigate": "↑↓ — переход по списку",
       "paletteHintOpen": "↵ — открыть",
-      "themeSwitcherLabel": "Тема интерфейса",
       "themes": {
         "dark": "Тёмная",
         "light": "Светлая"
@@ -42,11 +41,7 @@
       "menu": {
         "myAccount": "Мой аккаунт",
         "sessions": "Сессии",
-        "twoFactor": "Двухфакторная проверка",
-        "audit": "Журнал аудита",
-        "securityPolicy": "Политика безопасности",
-        "smtpSettings": "Исходящая почта",
-        "phpVersions": "Версии PHP"
+        "twoFactor": "Двухфакторная проверка"
       }
     },
     "locale": {

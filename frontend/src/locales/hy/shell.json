@@ -29,7 +29,6 @@
       "paletteNoMatches": "Ոչինչ չի գտնվել։",
       "paletteHintNavigate": "↑↓ — շարժվել ցանկով",
       "paletteHintOpen": "↵ — բացել",
-      "themeSwitcherLabel": "Ինտերֆեյսի թեման",
       "themes": {
         "dark": "Մուգ",
         "light": "Բաց"
@@ -42,11 +41,7 @@
       "menu": {
         "myAccount": "Իմ հաշիվը",
         "sessions": "Սեսիաներ",
-        "twoFactor": "Երկքայլ ստուգում",
-        "audit": "Աուդիտի մատյան",
-        "securityPolicy": "Անվտանգության քաղաքականություն",
-        "smtpSettings": "Ելքային փոստ",
-        "phpVersions": "PHP տարբերակներ"
+        "twoFactor": "Երկքայլ ստուգում"
       }
     },
     "locale": {

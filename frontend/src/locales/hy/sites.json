@@ -23,7 +23,8 @@
         "phpVersion": "PHP",
         "status": "Կարգավիճակ",
         "createdAt": "Ստեղծված"
-      }
+      },
+      "phpVersionsLink": "PHP տարբերակներ"
     },
     "form": {
       "heading": "Նոր կայք",

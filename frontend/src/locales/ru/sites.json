@@ -23,7 +23,8 @@
         "phpVersion": "PHP",
         "status": "Статус",
         "createdAt": "Создан"
-      }
+      },
+      "phpVersionsLink": "Версии PHP"
     },
     "form": {
       "heading": "Новый сайт",

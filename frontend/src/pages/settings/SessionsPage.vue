@@ -10,7 +10,7 @@
  */
 import { computed, onMounted, ref, type ComputedRef, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useRouter } from 'vue-router'
+import { RouterLink, useRouter  } from 'vue-router'
 import UiAlert from '../../components/ui/UiAlert.vue'
 import UiBadge from '../../components/ui/UiBadge.vue'
 import UiButton from '../../components/ui/UiButton.vue'
@@ -135,6 +135,14 @@ onMounted(async () => {
       :subtitle="t('app.sessions.subtitle')"
     >
       <template #actions>
+        <!-- The panel's sign-in policy: how long a session lives, how many failures earn a ban.
+             It belongs with access, which is this screen, rather than in the account menu where it
+             read as a setting about the person looking at it. -->
+        <RouterLink
+          class="rounded-lg border border-border-subtle px-3 py-2 text-base text-text-secondary transition-colors hover:text-text-primary focus-visible:shadow-focus focus-visible:outline-none"
+          :to="{ name: 'security-policy' }"
+          >{{ t('app.sessions.securityPolicyLink') }}</RouterLink
+        >
         <UiButton
           v-if="authStore.sessions.length > 0"
           variant="destructive"

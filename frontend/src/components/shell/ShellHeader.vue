@@ -184,6 +184,33 @@ const crumbs: ComputedRef<string[]> = computed(() => {
   color: var(--t3);
 }
 
+/* ONE height for every control in this row.
+ *
+ * They had three. The icon button was 28px, the avatar 26px, and the two
+ * labelled buttons derived whatever their padding gave them — `4px 8px` for one
+ * and `4px 9px` for the other, so no two of them lined up and the row read as
+ * slightly broken rather than deliberately varied. The theme control and the
+ * locale switcher each brought a fourth and fifth.
+ *
+ * 28px because that is the size the design states for the square controls, and
+ * the one the rest now match. Each rule below sets its own look — surface,
+ * border, radius — and none of them sets a height any more: a control that
+ * wants to be a different size in this row is a control that needs a reason,
+ * and the reason belongs here where the row is laid out.
+ */
+.shell-header > * {
+  flex-shrink: 0;
+}
+
+.shell-header-picker,
+.shell-header-ai,
+.shell-header-icon,
+.shell-header-avatar,
+:deep(.shell-header-theme),
+:deep(.shell-locale) {
+  height: 28px;
+}
+
 /* The kit's button is sized for a labelled action; the header's server picker
    is chrome, so the shell restates its box. Restating the
    background and border also overrides the kit's focused border, so each one
@@ -195,7 +222,7 @@ const crumbs: ComputedRef<string[]> = computed(() => {
 .shell-header-picker {
   align-items: center;
   gap: 6px;
-  padding: 4px 8px;
+  padding: 0 8px;
   background: var(--s2);
   border: 1px solid var(--b1);
   border-radius: 6px;
@@ -212,7 +239,7 @@ const crumbs: ComputedRef<string[]> = computed(() => {
    reads as a different kind of action from everything else in the header. */
 .shell-header-ai {
   gap: 6px;
-  padding: 4px 9px;
+  padding: 0 9px;
   border-radius: 6px;
   background: var(--pus);
   border-color: rgb(139 109 240 / 0.35);
@@ -224,7 +251,6 @@ const crumbs: ComputedRef<string[]> = computed(() => {
 /* The design's square header controls: 28px, boxed on --s2. */
 .shell-header-icon {
   width: 28px;
-  height: 28px;
   padding: 0;
   border-radius: 6px;
   background: var(--s2);
@@ -232,13 +258,15 @@ const crumbs: ComputedRef<string[]> = computed(() => {
   color: var(--t2);
 }
 
-/* The design's avatar: a 26px circle on the raised surface with the stronger
-   border, not a boxed square like the controls beside it. It stays disabled —
+/* The design's avatar: a circle on the raised surface with the stronger border,
+   not a boxed square like the controls beside it. Its diameter is the row's
+   shared height rather than the 26px it used to carry: a circle two pixels
+   shorter than everything beside it reads as a mistake, not as a distinction,
+   and the distinction here is the shape and the surface. It stays disabled —
    there is no /me endpoint, so the panel has no initials to put in it and draws
    a neutral glyph instead of inventing a person. */
 .shell-header-avatar {
-  width: 26px;
-  height: 26px;
+  width: 28px;
   padding: 0;
   border-radius: 9999px;
   background: var(--s3);

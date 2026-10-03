@@ -29,7 +29,6 @@
       "paletteNoMatches": "Nothing matches that.",
       "paletteHintNavigate": "↑↓ to move",
       "paletteHintOpen": "↵ to open",
-      "themeSwitcherLabel": "Interface theme",
       "themes": {
         "dark": "Dark",
         "light": "Light"
@@ -42,11 +41,7 @@
       "menu": {
         "myAccount": "My account",
         "sessions": "Sessions",
-        "twoFactor": "Two-step verification",
-        "audit": "Audit journal",
-        "securityPolicy": "Security policy",
-        "smtpSettings": "Outgoing mail",
-        "phpVersions": "PHP versions"
+        "twoFactor": "Two-step verification"
       }
     },
     "locale": {

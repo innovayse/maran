@@ -18,7 +18,8 @@
       "working": "Ending the session…",
       "confirmEndTitle": "End the session from {address}",
       "signOutEverywhere": "Sign out everywhere",
-      "rowActions": "Actions for the session from {address}"
+      "rowActions": "Actions for the session from {address}",
+      "securityPolicyLink": "Security policy"
     }
   }
 }

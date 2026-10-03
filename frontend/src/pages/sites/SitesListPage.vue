@@ -59,6 +59,14 @@ onMounted(refresh)
   <section class="w-full">
     <UiPageHeading class="mb-4" :title="t('sites.list.heading')" :subtitle="t('sites.list.subtitle')">
       <template #actions>
+        <!-- PHP runtimes are a property of this server that only sites consume: installing one
+             changes what every site here may be pointed at. It used to be reachable only from the
+             account menu, where it had nothing to do with the person signed in. -->
+        <RouterLink
+          class="rounded-lg border border-border-subtle px-3 py-2 text-base text-text-secondary transition-colors hover:text-text-primary focus-visible:shadow-focus focus-visible:outline-none"
+          :to="{ name: 'php-versions' }"
+          >{{ t('sites.list.phpVersionsLink') }}</RouterLink
+        >
         <UiButton @click="goToCreate">{{ t('sites.list.createAction') }}</UiButton>
       </template>
     </UiPageHeading>

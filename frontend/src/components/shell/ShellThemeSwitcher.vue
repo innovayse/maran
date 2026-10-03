@@ -1,59 +1,69 @@
 <script setup lang="ts">
 /**
- * The header's theme picker.
+ * The header's theme control: one button that flips the theme.
  *
- * Two options shown side by side rather than one toggle: a toggle only says
- * what will happen next, so the user has to reason backwards to learn which
- * theme is active. The design draws both, and so do we.
+ * It used to draw both options side by side, and the reasoning then was that a
+ * toggle "only says what will happen next, so the user has to reason backwards
+ * to learn which theme is active". That is a real objection, and it is answered
+ * here rather than ignored: the button shows the theme that is ACTIVE, by icon
+ * and by name, and flipping is what clicking it does. Nothing has to be reasoned
+ * backwards.
+ *
+ * One control rather than two also ends a duplication the shell carried: the
+ * sidebar's footer already flips the theme through the same store, so the panel
+ * offered the same setting in two different shapes on the same screen.
  */
 import { computed, type ComputedRef } from 'vue'
 import { useI18n } from 'vue-i18n'
-import UiSegmentedControl, { type SegmentOption } from '../ui/UiSegmentedControl.vue'
+import UiButton from '../ui/UiButton.vue'
 import UiIcon from '../ui/UiIcon.vue'
 import { useThemeStore } from '../../stores/theme'
-import { SUPPORTED_THEMES, type AppTheme } from '../../types/theme'
 
 const { t } = useI18n()
 const themeStore = useThemeStore()
 
-/** The offered themes, dark first — this panel's baseline, not its alternative. */
-const options: ComputedRef<readonly SegmentOption[]> = computed(() => {
-  return SUPPORTED_THEMES.map((theme: AppTheme) => {
-    return {
-      value: theme,
-      label: t(`app.shell.themes.${theme}`),
-    }
-  })
+/** The icon of the theme in force: the moon for dark, the sun for light. */
+const icon: ComputedRef<'moon' | 'sun'> = computed(() => {
+  return themeStore.isDark ? 'moon' : 'sun'
+})
+
+/** The name of the theme in force, so the button states rather than promises. */
+const label: ComputedRef<string> = computed(() => {
+  return t(`app.shell.themes.${themeStore.current}`)
 })
 
 /**
- * Applies the chosen theme.
- * @param value The chosen theme, as the control's machine value.
- * @returns Nothing; the store updates the document synchronously.
+ * Flips the theme.
+ * @returns Nothing; the store applies it to `<html data-theme>` synchronously.
  */
-const select = (value: string): void => {
-  themeStore.setTheme(value as AppTheme)
-}
-
-/**
- * Icon for a theme option: the moon for dark, the sun for light.
- * @param value The option's machine value.
- * @returns The shell icon name to draw beside its label.
- */
-const iconFor = (value: string): 'moon' | 'sun' => {
-  return value === 'dark' ? 'moon' : 'sun'
+const flip = (): void => {
+  themeStore.toggle()
 }
 </script>
 
 <template>
-  <UiSegmentedControl
-    :model-value="themeStore.current"
-    :options="options"
-    :label="t('app.shell.themeSwitcherLabel')"
-    @update:model-value="select"
-  >
-    <template #icon="{ option }">
-      <UiIcon :name="iconFor(option.value)" size="md" />
-    </template>
-  </UiSegmentedControl>
+  <UiButton class="shell-header-theme" :aria-label="t('app.shell.toggleTheme')" @click="flip">
+    <UiIcon :name="icon" size="md" />
+    <span>{{ label }}</span>
+  </UiButton>
 </template>
+
+<style scoped>
+/* Boxed on the raised surface like the header's other chrome, and the same
+   height as every control beside it — see ShellHeader's own style block, which
+   owns that height for all of them. */
+.shell-header-theme {
+  gap: 6px;
+  padding: 0 9px;
+  border-radius: 6px;
+  background: var(--s2);
+  border: 1px solid var(--b1);
+  color: var(--t2);
+  font-size: var(--text-base);
+  font-weight: 400;
+}
+
+.shell-header-theme:focus-visible {
+  border-color: var(--ac);
+}
+</style>

@@ -84,29 +84,11 @@ const user: ComputedRef<ShellUser | null> = computed(() => {
   }
 })
 
-/**
- * Whether to offer the administrator-only entries.
- *
- * Asks whether the person is NOT a customer, rather than whether they ARE an
- * administrator, and the difference is the whole point. This menu is
- * presentation and never a gate — the endpoints refuse a customer whatever it
- * shows — so on a role it does not recognise it must err PERMISSIVE and offer
- * the entry (rules/architecture.md: the SPA is never the boundary). The
- * `=== 'admin'` form errs the other way: the day the panel reports a role above
- * administrator (`owner`, `superadmin`), every one of those people silently
- * loses the audit journal, the security policy and the SMTP settings from their
- * menu, with nothing on screen to say why and the backend perfectly willing to
- * serve them. A customer who is wrongly offered a link reads one refusal; an
- * owner who is wrongly denied one cannot find the page at all.
- */
-const isAdmin: ComputedRef<boolean> = computed(() => {
-  return authStore.user !== null && authStore.user.role !== 'customer'
-})
 
 /**
  * Whether to offer the "my account" entry.
  *
- * A new branch, not a widening of {@link isAdmin}'s permissive one: this asks a
+ * Its own question, and the only role test this menu still makes: it asks
  * different question — does the signed-in person own a hosting account at all
  * — which `accountId` answers directly rather than by inference from a role.
  * `/api/v1/accounts/me` 404s for anybody with no account (every administrator
@@ -173,23 +155,14 @@ const signOut = async (): Promise<void> => {
     </UiDropdownItem>
     <UiDropdownItem @select="go('sessions')">{{ t('app.shell.menu.sessions') }}</UiDropdownItem>
     <UiDropdownItem @select="go('two-factor')">{{ t('app.shell.menu.twoFactor') }}</UiDropdownItem>
-    <!-- Hidden from a customer because the journal is an administrator's page and a link that
-         only ever answers 403 is a worse answer than no link. This is presentation, not
-         authorization: the endpoint refuses a customer whatever this menu shows. -->
-    <UiDropdownItem v-if="isAdmin" @select="go('audit')">{{ t('app.shell.menu.audit') }}</UiDropdownItem>
-    <!-- Administrator-only for the same presentational reason as the journal above:
-         both endpoints refuse a customer whatever this menu shows. -->
-    <UiDropdownItem v-if="isAdmin" @select="go('security-policy')">
-      {{ t('app.shell.menu.securityPolicy') }}
-    </UiDropdownItem>
-    <UiDropdownItem v-if="isAdmin" @select="go('smtp-settings')">
-      {{ t('app.shell.menu.smtpSettings') }}
-    </UiDropdownItem>
-    <!-- PHP runtimes are server-wide: installing one changes what every site on the box may be
-         pointed at. Administrator-only here for the same presentational reason as the two above. -->
-    <UiDropdownItem v-if="isAdmin" @select="go('php-versions')">
-      {{ t('app.shell.menu.phpVersions') }}
-    </UiDropdownItem>
+    <!-- What is NOT here any more, and why.
+         This menu had grown into the place every unlinked screen was put: the audit journal,
+         outgoing mail, the security policy and the server's PHP runtimes. None of them is a
+         setting about the person signed in, and the first two already had their own entries in
+         the sidebar — the same screen offered twice under two different names.
+         The two that had no other way in were given one where they belong: PHP versions on the
+         sites list, since only sites consume a runtime, and the security policy on the access
+         screen, since it governs signing in. What remains below is this person's own account. -->
     <UiDropdownItem destructive @select="signOut">{{ t('app.auth.signOut') }}</UiDropdownItem>
   </UiDropdown>
 
