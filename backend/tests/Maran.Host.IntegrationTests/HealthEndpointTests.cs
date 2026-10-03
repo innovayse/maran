@@ -2,6 +2,8 @@ using System.Net;
 using Maran.Host.IntegrationTests.Fixtures;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Maran.Host.IntegrationTests;
 
@@ -34,11 +36,19 @@ public sealed class HealthEndpointTests : IAsyncLifetime
         return Task.CompletedTask;
     }
 
-    /// <summary>Readiness endpoint returns 200 when the database is reachable.</summary>
-    [Fact]
-    public async Task Readiness_endpoint_returns_200_when_the_database_is_reachable()
+    /// <summary>
+    /// Builds a host against this test's own database, with the settings startup validation refuses
+    /// to boot without.
+    /// </summary>
+    /// <remarks>
+    /// Extracted so that the ready/not-ready pair below share one host definition: two copies would
+    /// be two places for the settings to drift, and a readiness test built differently from the one
+    /// it is the control for proves nothing about either.
+    /// </remarks>
+    /// <returns>A factory the caller disposes.</returns>
+    private WebApplicationFactory<Program> NewFactory()
     {
-        await using var factory = new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
+        return new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
         {
             // Testing, not Development: inheriting the developer's database settings made these
             // tests pass locally against the wrong database and fail in CI.
@@ -57,10 +67,67 @@ public sealed class HealthEndpointTests : IAsyncLifetime
                 builder.UseSetting(setting.Key, setting.Value);
             }
         });
+    }
 
+    /// <summary>
+    /// Applies every registered module's migrations to this test's database, the way step 65 does on
+    /// a server.
+    /// </summary>
+    /// <param name="services">The built host's services.</param>
+    /// <returns>Resolves when the schema exists.</returns>
+    private static async Task MigrateAsync(IServiceProvider services)
+    {
+        foreach (var contextType in services.GetServices<DbContextOptions>()
+                     .Select(options => { return options.ContextType; })
+                     .Distinct())
+        {
+            await using var scope = services.CreateAsyncScope();
+            var context = (DbContext)scope.ServiceProvider.GetRequiredService(contextType);
+            await context.Database.MigrateAsync();
+        }
+    }
+
+    /// <summary>Readiness endpoint returns 200 when the database is reachable and migrated.</summary>
+    /// <returns>Resolves when the assertion has been made.</returns>
+    [Fact]
+    public async Task Readiness_endpoint_returns_200_when_the_database_is_reachable()
+    {
+        await using var factory = NewFactory();
         using var client = factory.CreateClient();
+
+        // The schema FIRST, because readiness now means "this panel can serve", not "a connection
+        // opened". An empty database is covered by its own test below; mixing the two would leave
+        // neither proved.
+        await MigrateAsync(factory.Services);
+
         var response = await client.GetAsync("/health/ready");
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
+
+    /// <summary>
+    /// A database that answers but holds no schema is NOT ready, and this is the inverse control for
+    /// the test above: without it, both would pass for a readiness check that never looked at the
+    /// database at all.
+    /// </summary>
+    /// <remarks>
+    /// This is the state that went undetected through three releases. Nothing applied the
+    /// migrations, every fresh install came up empty, and the probe reported the database as
+    /// "reachable" because it had opened a connection and asked nothing further — so `/health` said
+    /// the panel was fine while the first thing an operator did answered
+    /// `relation "identity.Users" does not exist` (issues #66, #68).
+    /// </remarks>
+    /// <returns>Resolves when the assertion has been made.</returns>
+    [Fact]
+    public async Task Readiness_endpoint_refuses_when_the_database_has_no_schema()
+    {
+        using var factory = NewFactory();
+        using var client = factory.CreateClient();
+
+        // Deliberately NOT migrated: this is a freshly created database, exactly as the installer
+        // leaves it before step 65 runs.
+        var response = await client.GetAsync("/health/ready");
+
+        Assert.NotEqual(HttpStatusCode.OK, response.StatusCode);
     }
 }

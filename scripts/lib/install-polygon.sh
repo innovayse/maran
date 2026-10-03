@@ -35,6 +35,7 @@ os="ubuntu24"
 mode="local"
 keep="no"
 bundle=""
+publish=""
 arch="x86_64"
 
 usage() {
@@ -56,6 +57,9 @@ usage: maran installer [--os <version>] [--mode local|get] [--keep]
                   which proves the packaging and the units — not the performance. It needs the
                   binfmt handlers registered:
                     docker run --privileged --rm tonistiigi/binfmt --install arm64
+  --publish PORT  map the panel's 8443 onto PORT on this machine, so a real BROWSER can open it.
+                  curl can reach the panel without this; a browser is the only thing that can find
+                  a TLS defect curl is happy with (issue #67).
   --keep          leave the container running afterwards for inspection.
 
 The verdict is built from systemd and the panel, never from the installer's exit code alone:
@@ -70,6 +74,7 @@ while [ $# -gt 0 ]; do
     --mode) mode="${2:?--mode needs a value}"; shift 2 ;;
     --bundle) bundle="${2:?--bundle needs a path}"; shift 2 ;;
     --arch) arch="${2:?--arch needs a value}"; shift 2 ;;
+    --publish) publish="${2:?--publish needs a port}"; shift 2 ;;
     --keep) keep="yes"; shift ;;
     -h|--help) usage ;;
     *) echo "install-polygon.sh: unknown argument '$1'" >&2; usage ;;
@@ -137,7 +142,13 @@ docker build -q --platform "$platform" --build-arg "BASE_IMAGE=${base_image}" \
 # --privileged plus the host's cgroup tree is what lets systemd be systemd here: it manages real
 # cgroups, builds real mount namespaces, and applies the unit hardening the panel and agent units
 # declare. Without it every directive this harness exists to exercise is silently inert.
+# The published port is optional and off by default: a mapped port is a port this machine now
+# listens on, and most runs have no browser to point at it.
+publish_args=()
+[ -n "$publish" ] && publish_args=(-p "127.0.0.1:${publish}:8443")
+
 docker run -d --name "$container" --platform "$platform" --privileged --cgroupns=host \
+  "${publish_args[@]}" \
   -v /sys/fs/cgroup:/sys/fs/cgroup:rw "$image" >/dev/null
 
 # Wait for the boot to settle before installing into it. `degraded` is accepted and `running` is
