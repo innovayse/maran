@@ -202,8 +202,8 @@ Resolved by cargo from `agent/Cargo.lock`.
 | `sync_wrapper` | 1.0.2 | Apache-2.0 |
 | `synstructure` | 0.13.2 | MIT |
 | `tempfile` | 3.27.0 | MIT OR Apache-2.0 |
-| `thiserror` | 2.0.20 | MIT OR Apache-2.0 |
-| `thiserror-impl` | 2.0.20 | MIT OR Apache-2.0 |
+| `thiserror` | 2.0.21 | MIT OR Apache-2.0 |
+| `thiserror-impl` | 2.0.21 | MIT OR Apache-2.0 |
 | `thread_local` | 1.1.10 | MIT OR Apache-2.0 |
 | `tinystr` | 0.8.4 | Unicode-3.0 |
 | `tinyvec` | 1.13.2 | Zlib OR Apache-2.0 OR MIT |
@@ -301,16 +301,16 @@ Resolved by restore; versions are pinned in `backend/Directory.Packages.props`.
 | `Grpc.Tools` | 2.84.0 | Apache-2.0 |
 | `Humanizer.Core` | 2.14.1 | MIT |
 | `ImTools` | 4.0.0 | MIT |
-| `JasperFx` | 2.73.2 | MIT |
-| `JasperFx.Events` | 2.73.2 | MIT |
+| `JasperFx` | 2.74.0 | MIT |
+| `JasperFx.Events` | 2.74.0 | MIT |
 | `JasperFx.RuntimeCompiler` | 5.0.0 | MIT |
-| `JasperFx.SourceGenerator` | 2.73.2 | MIT |
+| `JasperFx.SourceGenerator` | 2.74.0 | MIT |
 | `Konscious.Security.Cryptography.Argon2` | 1.3.1 | MIT |
 | `Konscious.Security.Cryptography.Blake2` | 1.1.1 | MIT |
 | `MailKit` | 4.18.0 | MIT |
 | `Microsoft.AspNetCore.Authentication.JwtBearer` | 9.0.20 | MIT |
-| `Microsoft.AspNetCore.Mvc.Testing` | 9.0.19 | MIT |
-| `Microsoft.AspNetCore.TestHost` | 9.0.19 | MIT |
+| `Microsoft.AspNetCore.Mvc.Testing` | 9.0.20 | MIT |
+| `Microsoft.AspNetCore.TestHost` | 9.0.20 | MIT |
 | `Microsoft.Bcl.AsyncInterfaces` | 9.0.0 | MIT |
 | `Microsoft.Bcl.Cryptography` | 10.0.0 | MIT |
 | `Microsoft.Bcl.Cryptography` | 10.0.2 | MIT |
@@ -333,9 +333,9 @@ Resolved by restore; versions are pinned in `backend/Directory.Packages.props`.
 | `Microsoft.EntityFrameworkCore` | 9.0.20 | MIT |
 | `Microsoft.EntityFrameworkCore.Abstractions` | 9.0.20 | MIT |
 | `Microsoft.EntityFrameworkCore.Analyzers` | 9.0.20 | MIT |
-| `Microsoft.EntityFrameworkCore.Design` | 9.0.19 | MIT |
-| `Microsoft.EntityFrameworkCore.InMemory` | 9.0.19 | MIT |
-| `Microsoft.EntityFrameworkCore.Relational` | 9.0.19 | MIT |
+| `Microsoft.EntityFrameworkCore.Design` | 9.0.20 | MIT |
+| `Microsoft.EntityFrameworkCore.InMemory` | 9.0.20 | MIT |
+| `Microsoft.EntityFrameworkCore.Relational` | 9.0.20 | MIT |
 | `Microsoft.Extensions.AmbientMetadata.Application` | 10.10.0 | MIT |
 | `Microsoft.Extensions.Caching.Abstractions` | 9.0.20 | MIT |
 | `Microsoft.Extensions.Caching.Memory` | 9.0.20 | MIT |
@@ -343,24 +343,23 @@ Resolved by restore; versions are pinned in `backend/Directory.Packages.props`.
 | `Microsoft.Extensions.Configuration` | 9.0.0 | MIT |
 | `Microsoft.Extensions.Configuration` | 9.0.20 | MIT |
 | `Microsoft.Extensions.Configuration.Abstractions` | 9.0.0 | MIT |
-| `Microsoft.Extensions.Configuration.Abstractions` | 9.0.19 | MIT |
 | `Microsoft.Extensions.Configuration.Abstractions` | 9.0.20 | MIT |
 | `Microsoft.Extensions.Configuration.Binder` | 9.0.0 | MIT |
 | `Microsoft.Extensions.Configuration.Binder` | 9.0.20 | MIT |
 | `Microsoft.Extensions.Configuration.CommandLine` | 9.0.0 | MIT |
-| `Microsoft.Extensions.Configuration.CommandLine` | 9.0.19 | MIT |
+| `Microsoft.Extensions.Configuration.CommandLine` | 9.0.20 | MIT |
 | `Microsoft.Extensions.Configuration.EnvironmentVariables` | 9.0.0 | MIT |
-| `Microsoft.Extensions.Configuration.EnvironmentVariables` | 9.0.19 | MIT |
+| `Microsoft.Extensions.Configuration.EnvironmentVariables` | 9.0.20 | MIT |
 | `Microsoft.Extensions.Configuration.FileExtensions` | 9.0.0 | MIT |
-| `Microsoft.Extensions.Configuration.FileExtensions` | 9.0.19 | MIT |
+| `Microsoft.Extensions.Configuration.FileExtensions` | 9.0.20 | MIT |
 | `Microsoft.Extensions.Configuration.Json` | 9.0.0 | MIT |
-| `Microsoft.Extensions.Configuration.Json` | 9.0.19 | MIT |
+| `Microsoft.Extensions.Configuration.Json` | 9.0.20 | MIT |
 | `Microsoft.Extensions.Configuration.UserSecrets` | 9.0.0 | MIT |
-| `Microsoft.Extensions.Configuration.UserSecrets` | 9.0.19 | MIT |
+| `Microsoft.Extensions.Configuration.UserSecrets` | 9.0.20 | MIT |
 | `Microsoft.Extensions.DependencyInjection` | 9.0.20 | MIT |
 | `Microsoft.Extensions.DependencyInjection.Abstractions` | 9.0.20 | MIT |
 | `Microsoft.Extensions.DependencyInjection.AutoActivation` | 10.10.0 | MIT |
-| `Microsoft.Extensions.DependencyModel` | 9.0.19 | MIT |
+| `Microsoft.Extensions.DependencyModel` | 9.0.20 | MIT |
 | `Microsoft.Extensions.Diagnostics` | 9.0.0 | MIT |
 | `Microsoft.Extensions.Diagnostics` | 9.0.20 | MIT |
 | `Microsoft.Extensions.Diagnostics.Abstractions` | 9.0.0 | MIT |
@@ -370,11 +369,11 @@ Resolved by restore; versions are pinned in `backend/Directory.Packages.props`.
 | `Microsoft.Extensions.FileProviders.Abstractions` | 9.0.0 | MIT |
 | `Microsoft.Extensions.FileProviders.Abstractions` | 9.0.20 | MIT |
 | `Microsoft.Extensions.FileProviders.Physical` | 9.0.0 | MIT |
-| `Microsoft.Extensions.FileProviders.Physical` | 9.0.19 | MIT |
+| `Microsoft.Extensions.FileProviders.Physical` | 9.0.20 | MIT |
 | `Microsoft.Extensions.FileSystemGlobbing` | 9.0.0 | MIT |
-| `Microsoft.Extensions.FileSystemGlobbing` | 9.0.19 | MIT |
+| `Microsoft.Extensions.FileSystemGlobbing` | 9.0.20 | MIT |
 | `Microsoft.Extensions.Hosting` | 9.0.0 | MIT |
-| `Microsoft.Extensions.Hosting` | 9.0.19 | MIT |
+| `Microsoft.Extensions.Hosting` | 9.0.20 | MIT |
 | `Microsoft.Extensions.Hosting.Abstractions` | 9.0.0 | MIT |
 | `Microsoft.Extensions.Hosting.Abstractions` | 9.0.20 | MIT |
 | `Microsoft.Extensions.Http` | 9.0.20 | MIT |
@@ -385,13 +384,13 @@ Resolved by restore; versions are pinned in `backend/Directory.Packages.props`.
 | `Microsoft.Extensions.Logging.Configuration` | 9.0.0 | MIT |
 | `Microsoft.Extensions.Logging.Configuration` | 9.0.20 | MIT |
 | `Microsoft.Extensions.Logging.Console` | 9.0.0 | MIT |
-| `Microsoft.Extensions.Logging.Console` | 9.0.19 | MIT |
+| `Microsoft.Extensions.Logging.Console` | 9.0.20 | MIT |
 | `Microsoft.Extensions.Logging.Debug` | 9.0.0 | MIT |
-| `Microsoft.Extensions.Logging.Debug` | 9.0.19 | MIT |
+| `Microsoft.Extensions.Logging.Debug` | 9.0.20 | MIT |
 | `Microsoft.Extensions.Logging.EventLog` | 9.0.0 | MIT |
-| `Microsoft.Extensions.Logging.EventLog` | 9.0.19 | MIT |
+| `Microsoft.Extensions.Logging.EventLog` | 9.0.20 | MIT |
 | `Microsoft.Extensions.Logging.EventSource` | 9.0.0 | MIT |
-| `Microsoft.Extensions.Logging.EventSource` | 9.0.19 | MIT |
+| `Microsoft.Extensions.Logging.EventSource` | 9.0.20 | MIT |
 | `Microsoft.Extensions.ObjectPool` | 9.0.12 | MIT |
 | `Microsoft.Extensions.ObjectPool` | 9.0.20 | MIT |
 | `Microsoft.Extensions.Options` | 9.0.20 | MIT |
@@ -449,7 +448,7 @@ Resolved by restore; versions are pinned in `backend/Directory.Packages.props`.
 | `System.Composition.Runtime` | 9.0.0 | MIT |
 | `System.Composition.TypedParts` | 9.0.0 | MIT |
 | `System.Diagnostics.EventLog` | 9.0.0 | MIT |
-| `System.Diagnostics.EventLog` | 9.0.19 | MIT |
+| `System.Diagnostics.EventLog` | 9.0.20 | MIT |
 | `System.Formats.Asn1` | 10.0.0 | MIT |
 | `System.IO.Pipelines` | 9.0.0 | MIT |
 | `System.IdentityModel.Tokens.Jwt` | 8.19.2 | MIT |
@@ -460,7 +459,7 @@ Resolved by restore; versions are pinned in `backend/Directory.Packages.props`.
 | `System.Runtime.CompilerServices.Unsafe` | 6.1.0 | MIT |
 | `System.Security.Cryptography.Pkcs` | 10.0.0 | MIT |
 | `System.Text.Encoding.CodePages` | 8.0.0 | MIT |
-| `System.Text.Json` | 9.0.19 | MIT |
+| `System.Text.Json` | 9.0.20 | MIT |
 | `System.Threading.Channels` | 8.0.0 | MIT |
 | `System.Threading.RateLimiting` | 8.0.0 | MIT |
 | `System.Threading.Tasks.Extensions` | 4.6.0 | MIT |
@@ -468,10 +467,10 @@ Resolved by restore; versions are pinned in `backend/Directory.Packages.props`.
 | `Testcontainers.PostgreSql` | 4.15.0 | MIT |
 | `Weasel.Core` | 9.32.0 | MIT |
 | `Weasel.Postgresql` | 9.32.0 | MIT |
-| `WolverineFx` | 6.39.1 | MIT |
-| `WolverineFx.FluentValidation` | 6.39.1 | MIT |
-| `WolverineFx.Postgresql` | 6.39.1 | MIT |
-| `WolverineFx.RDBMS` | 6.39.1 | MIT |
+| `WolverineFx` | 6.40.0 | MIT |
+| `WolverineFx.FluentValidation` | 6.40.0 | MIT |
+| `WolverineFx.Postgresql` | 6.40.0 | MIT |
+| `WolverineFx.RDBMS` | 6.40.0 | MIT |
 | `xunit` | 2.9.3 | Apache-2.0 |
 | `xunit.abstractions` | 2.0.3 | https://raw.githubusercontent.com/xunit/xunit/master/license.txt |
 | `xunit.analyzers` | 1.18.0 | Apache-2.0 |
