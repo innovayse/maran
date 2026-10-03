@@ -202,6 +202,9 @@ COPY installer/logrotate/maran-panel /tmp/maran-installer/logrotate/maran-panel
 # shape that defeated the single-file parser — so the assertion is the
 # regression itself, not an account of one.
 COPY installer/lib/60-config.sh /tmp/maran-installer/lib/60-config.sh
+# Step 65 applies the database migrations (issue #66). The census in assert-installer-steps.sh
+# requires every step to be here, which is how its absence was found.
+COPY installer/lib/65-schema.sh /tmp/maran-installer/lib/65-schema.sh
 # Read, never sourced: `10-preflight.sh` defines its own `fail`, and sourcing it
 # would replace the assert script's.
 # The shared helpers the steps call; absent, a step exits 127 before any assertion runs.
