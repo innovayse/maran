@@ -210,7 +210,24 @@ certificate." >&2
   # `hostname` package, and the old expression's own fallback called the same missing program, so the
   # install died with exit 127 (issue #57).
   hostname="$(host_display_name)"
-  openssl req -x509 -nodes -newkey ed25519 \
+  # ECDSA P-256, and NOT Ed25519, which is what this line used to generate. No Chromium-based
+  # browser accepts an Ed25519 SERVER CERTIFICATE, so the panel could not be opened at all: the
+  # TLS handshake fails with ERR_SSL_VERSION_OR_CIPHER_MISMATCH, which is not the self-signed
+  # warning and offers the operator nothing to click past (issue #67).
+  #
+  # It survived every check this project has because all of them reach the panel with `curl -k`,
+  # and OpenSSL accepts Ed25519 certificates perfectly well. Thirteen distributions reported a
+  # healthy panel nobody could open.
+  #
+  # Measured with an inverse control rather than inferred from one error message: two nginx
+  # containers, same image, same configuration, same browser, differing only in the certificate's
+  # algorithm — Ed25519 fails the handshake, ECDSA P-256 completes it and leaves the ordinary
+  # "unknown authority" page an operator can proceed from. `curl -k` is happy with both, which is
+  # exactly why curl could never have found this.
+  #
+  # P-256 rather than RSA: it is a modern curve every browser and every supported OpenSSL accepts,
+  # and it matches the curve family the release signature already uses.
+  openssl req -x509 -nodes -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 \
     -keyout "$MARAN_KEY_PATH" -out "$MARAN_CERT_PATH" \
     -days 3650 -subj "/CN=${hostname}" \
     -addext "subjectAltName=DNS:${hostname}"
