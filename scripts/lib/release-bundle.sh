@@ -243,6 +243,17 @@ build_agent() {
   local platform image
   platform="$(docker_platform "$arch")"
   [ "$platform" != "unsupported" ] || release_failed "no docker platform for architecture ${arch}"
+  # A foreign architecture needs the host's binfmt handlers registered, and they do NOT survive a
+  # reboot. Without them the build fails deep inside cargo with `exec /usr/local/bin/cargo: exec
+  # format error`, which names neither the cause nor the fix — measured, by rebooting. Checked here
+  # with the cheapest possible container, so a release refuses in a second with the command to run.
+  if [ "$arch" != "$(arch_name)" ]; then
+    docker run --rm --platform "$platform" "${base_image_for_check:-almalinux:8}" true >/dev/null 2>&1 \
+      || release_failed "this host cannot execute ${arch} containers, so the ${arch} agent cannot be built. Register the emulation handlers once and retry:
+    docker run --privileged --rm tonistiigi/binfmt --install arm64
+  They are not persistent: a reboot clears them."
+  fi
+
   image="maran-agent-builder:alma8-${arch}"
   docker build -q --platform "$platform" -f "$root/docker/release/agent-builder-alma8.Dockerfile" \
     -t "$image" "$root/docker/release" >"${staging}/.agent-builder-${arch}.log" 2>&1 \
