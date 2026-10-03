@@ -367,6 +367,7 @@ main() {
   run_step 40-user.sh         step_user
   run_step 50-artifacts.sh    step_artifacts
   run_step 60-config.sh       step_config
+  run_step 65-schema.sh       step_schema
   run_step 70-services.sh     step_services
   run_step 80-nginx.sh        step_nginx
   # After 80, because it validates and reloads the tree 80 has just made complete, and before
