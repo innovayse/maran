@@ -329,6 +329,9 @@ COPY installer/lib/81-site-logs.sh /tmp/maran-installer/lib/81-site-logs.sh
 # census cannot see is not.
 COPY installer/lib/88-cron.sh /tmp/maran-installer/lib/88-cron.sh
 COPY docker/polygon/asserts/assert-installer-steps.sh /tmp/maran-installer/assert-installer-steps.sh
+# The assertions themselves, one file per subject. The entry point above refuses by name when a
+# part is missing, so a forgotten COPY is a named failure rather than a silently shorter suite.
+COPY docker/polygon/asserts/parts /tmp/maran-installer/parts
 RUN bash -c 'set -euo pipefail; \
       export MARAN_OS_FAMILY=debian DEBIAN_FRONTEND=noninteractive; \
       . /tmp/maran-installer/lib/85-mysql.sh; \
