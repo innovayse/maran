@@ -42,6 +42,10 @@ readonly API_UNIT="${INSTALLER_ROOT}/systemd/maran-api.service"
 readonly API_TMPFILES="${INSTALLER_ROOT}/systemd/maran-api.tmpfiles.conf"
 readonly AGENT_UNIT="${INSTALLER_ROOT}/systemd/maran-agent.service"
 readonly SERVICES_STEP="${INSTALLER_LIB}/70-services.sh"
+# The shared helpers the step files call but no step defines. Sourced rather than read: a step that
+# calls `host_display_name` and cannot find it exits 127 with no assertion of this script ever
+# running, which is how it was found (installer/lib/00-common.sh carries the full account).
+readonly COMMON_LIB="${INSTALLER_LIB}/00-common.sh"
 readonly PREFLIGHT_STEP="${INSTALLER_LIB}/10-preflight.sh"
 readonly FIREWALL_STEP="${INSTALLER_LIB}/87-firewall.sh"
 # The step whose validation gate is asserted below, and the step whose `panel` group and
@@ -194,6 +198,7 @@ require_installer_file "$API_UNIT" installer/systemd/maran-api.service
 require_installer_file "$API_TMPFILES" installer/systemd/maran-api.tmpfiles.conf
 require_installer_file "$AGENT_UNIT" installer/systemd/maran-agent.service
 require_installer_file "$SERVICES_STEP" installer/lib/70-services.sh
+require_installer_file "$COMMON_LIB" installer/lib/00-common.sh
 require_installer_file "$PREFLIGHT_STEP" installer/lib/10-preflight.sh
 require_installer_file "$FIREWALL_STEP" installer/lib/87-firewall.sh
 require_installer_file "$NGINX_STEP" installer/lib/80-nginx.sh
@@ -252,6 +257,11 @@ require_systemctl_stand_in
 # lockout-relevant code in the installer, and this is the only place they meet a real
 # sshd_config, a real sshd and a real distribution's bash. 10-preflight.sh is deliberately
 # NOT sourced — it defines its own `fail`, which would replace the one above.
+# The shared helpers first, so a step sourced below finds what it calls. Safe to source anywhere:
+# 00-common.sh defines no `fail` and holds no readonly state, which is exactly why it is a file of
+# its own rather than part of 10-preflight.sh (which this script deliberately does not source).
+# shellcheck source=/dev/null
+. "$COMMON_LIB"
 # shellcheck source=/dev/null
 . "$CONFIG_STEP"
 # The firewall step, sourced for the same reason: its include wiring is loaded by real
@@ -342,7 +352,8 @@ run_user_step() {
     MARAN_ADOPT_EXISTING_USER="${MARAN_ADOPT_EXISTING_USER:-}" \
     bash -c 'set -euo pipefail
 . "$1"
-eval "$2"' _ "$USER_STEP" "$1"
+. "$2"
+eval "$3"' _ "$COMMON_LIB" "$USER_STEP" "$1"
 }
 
 # run_identity_step: the same, for step 15, with the two ends of the rename overridable so the
@@ -355,7 +366,8 @@ run_identity_step() {
     MARAN_SERVICE_ACCOUNT_MARKER="$POLYGON_SERVICE_MARKER" \
     bash -c 'set -euo pipefail
 . "$1"
-eval "$2"' _ "$IDENTITY_STEP" "$1"
+. "$2"
+eval "$3"' _ "$COMMON_LIB" "$IDENTITY_STEP" "$1"
 }
 
 # installer_root_trusted_log_names: the leaf names under /var/log/maran that a ROOT process
@@ -414,13 +426,22 @@ port_of_url() {
 # test's side of the boundary, where it cannot flatter the code.
 run_installer_step() {
   local snippet="$1"
+  # The shared helpers are sourced INSIDE the child, not merely in this script. A child sees nothing
+  # the parent sourced, so a step that calls `host_display_name` would exit 127 here with no
+  # assertion having run — which is exactly how this was found (installer/lib/00-common.sh).
+  # The dependency adapter is sourced too, because the steps run here INSTALL things now:
+  # `install_sftp_prerequisites` brings its own openssh-server rather than assuming one, and that
+  # call reaches `pkg_install`, which lives in 20-dependencies.sh. Without it the step dies with
+  # `pkg_install: command not found` before any assertion of this script runs.
   bash -c 'set -euo pipefail
 . "$1"
 . "$2"
 . "$3"
 . "$4"
-eval "$5"' _ "${INSTALLER_LIB}/85-mysql.sh" "${INSTALLER_LIB}/86-sftp.sh" "$CONFIG_STEP" \
-    "$FIREWALL_STEP" "$snippet"
+. "$5"
+. "$6"
+eval "$7"' _ "$COMMON_LIB" "$DEPENDENCIES_STEP" "${INSTALLER_LIB}/85-mysql.sh" \
+    "${INSTALLER_LIB}/86-sftp.sh" "$CONFIG_STEP" "$FIREWALL_STEP" "$snippet"
 }
 
 # assert_panel_port_has_one_authority: the panel's public port is decided in exactly one
@@ -563,7 +584,8 @@ render_finish_message() {
   MARAN_PANEL_PORT="$port" bash -c 'set -euo pipefail
 exec 3>&1
 . "$1"
-step_finish' _ "$step" 2>&1
+. "$2"
+step_finish' _ "$COMMON_LIB" "$step" 2>&1
 }
 
 # message_names_path: whether `$1` names `$2` as a whole word.
@@ -2195,7 +2217,8 @@ run_nginx_step() {
     PATH="$search_path" \
     bash -c 'set -euo pipefail
 . "$1"
-eval "$2"' _ "$NGINX_STEP" "$snippet"
+. "$2"
+eval "$3"' _ "$COMMON_LIB" "$NGINX_STEP" "$snippet"
 }
 
 # nginx_shim_that_interrupts_the_validation: writes, into the directory `$1`, an `nginx` that
@@ -4286,7 +4309,8 @@ run_services_step() {
     LIB_DIR="$INSTALLER_LIB" \
     bash -c 'set -euo pipefail
 . "$1"
-eval "$2"' _ "$SERVICES_STEP" "$snippet"
+. "$2"
+eval "$3"' _ "$COMMON_LIB" "$SERVICES_STEP" "$snippet"
 }
 
 # assert_the_panel_socket_directory_is_built_and_then_looked_at: the panel's trust boundary,
@@ -5259,7 +5283,8 @@ run_staging_step() {
   fi
   SCRIPT_DIR="$INSTALLER_ROOT" PATH="$search_path" bash -c 'set -euo pipefail
 . "$1"
-eval "$2"' _ "$ARTIFACTS_STEP" "$snippet"
+. "$2"
+eval "$3"' _ "$COMMON_LIB" "$ARTIFACTS_STEP" "$snippet"
 }
 
 # assert_the_staging_gate_refuses_what_install_left_wrong: the inverse control for the gate
@@ -5454,7 +5479,8 @@ run_preflight_step() {
     PATH="$search_path" \
     bash -c 'set -euo pipefail
 . "$1"
-eval "$2"' _ "$PREFLIGHT_STEP" "$snippet"
+. "$2"
+eval "$3"' _ "$COMMON_LIB" "$PREFLIGHT_STEP" "$snippet"
 }
 
 # df_stand_in: writes, into directory `$1`, a `df` that reports `$2` MiB available and records that

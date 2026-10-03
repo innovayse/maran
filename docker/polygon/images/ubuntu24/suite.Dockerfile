@@ -204,6 +204,8 @@ COPY installer/logrotate/maran-panel /tmp/maran-installer/logrotate/maran-panel
 COPY installer/lib/60-config.sh /tmp/maran-installer/lib/60-config.sh
 # Read, never sourced: `10-preflight.sh` defines its own `fail`, and sourcing it
 # would replace the assert script's.
+# The shared helpers the steps call; absent, a step exits 127 before any assertion runs.
+COPY installer/lib/00-common.sh /tmp/maran-installer/lib/00-common.sh
 COPY installer/lib/10-preflight.sh /tmp/maran-installer/lib/10-preflight.sh
 # Read, so the documented keys can be checked against what the installer writes.
 COPY installer/panel.env.example /tmp/maran-installer/panel.env.example

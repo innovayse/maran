@@ -144,38 +144,6 @@ require_root() {
   fi
 }
 
-# host_display_name: this machine's name, for the self-signed certificate's CN and for the URL the
-# installer prints at the end. Never empty, and never dependent on the `hostname` BINARY.
-#
-# Both callers used to spell `hostname -f 2>/dev/null || hostname`, which assumes a program that is
-# not on every host. Oracle Linux 8's base image has no `hostname` package at all, so BOTH halves of
-# that expression failed and the install died mid-step under `set -e`:
-#
-#     80-nginx.sh: line 209: hostname: command not found        (exit 127)
-#
-# The fallbacks are ordered by how much they know, and every one after the first needs no package
-# this installer has not already required:
-#
-#   hostname -f        the fully-qualified name, when the program exists
-#   hostnamectl        systemd's own answer — and systemd is a hard requirement of this product
-#   /etc/hostname      the file systemd itself reads
-#   uname -n           coreutils, which cannot be absent from a host that boots
-#   localhost          so a certificate is still generated rather than one with an empty CN
-#
-# The last line matters more than it looks: an empty CN makes `openssl req` produce a certificate no
-# browser will accept, which would turn a missing package into a panel that cannot be reached.
-host_display_name() {
-  local name=""
-  if command -v hostname >/dev/null 2>&1; then
-    name="$(hostname -f 2>/dev/null || hostname 2>/dev/null || true)"
-  fi
-  [ -n "$name" ] || name="$(hostnamectl --static 2>/dev/null || true)"
-  [ -n "$name" ] || name="$(cat /etc/hostname 2>/dev/null || true)"
-  [ -n "$name" ] || name="$(uname -n 2>/dev/null || true)"
-  name="$(printf '%s' "$name" | tr -d '[:space:]')"
-  [ -n "$name" ] || name="localhost"
-  printf '%s\n' "$name"
-}
 
 # MARAN_LOG_DIR_WARNINGS: anything harden_log_directory has to say. It runs BEFORE stdout is
 # redirected into the log file, so a message printed there would reach the terminal and never the
@@ -374,6 +342,12 @@ run_step() {
 main() {
   require_root
   setup_logging
+
+  # The helpers more than one step needs, sourced before any step so every step has them — and kept
+  # OUT of this file because the step files are also consumed on their own, where install.sh is not
+  # present. See installer/lib/00-common.sh for the defect that taught us the difference.
+  # shellcheck disable=SC1090
+  . "${LIB_DIR}/00-common.sh"
   echo "Maran installer starting: $(date -u '+%Y-%m-%dT%H:%M:%SZ')"
 
   detect_os
