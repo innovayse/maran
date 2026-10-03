@@ -176,8 +176,27 @@ elif [ "$mode" = "offline" ]; then
     'cd /root/installer && bash install.sh --offline-tarball /root/maran-bundle.tar.gz' \
     >"$log" 2>&1 || installer_status=$?
 else
-  docker exec "$container" bash -c \
-    'curl -sSL https://get.maran.innovayse.com | sudo bash' >"$log" 2>&1 || installer_status=$?
+  # The documented command verbatim — `| sudo bash` — because that is what a reader runs.
+  #
+  # `sudo` can be unusable INSIDE the container for a reason that has nothing to do with Maran: the
+  # HOST's AppArmor profile for `unix-chkpwd` denies it dac_read_search and dac_override, so PAM
+  # cannot read the shadow file and sudo refuses with "Authentication service cannot retrieve
+  # authentication info". Measured on an Ubuntu host against the EL8 image; the EL8 image is fine on
+  # a real server, which runs no such profile.
+  #
+  # That is reported and then worked around, never hidden: the container's shell is already root, so
+  # running the same pipeline without sudo exercises everything about Maran that the documented
+  # command would — the published get.sh, its checksum guard, the signature, the install — while the
+  # line below makes it plain that the sudo half was not what got tested here.
+  if docker exec "$container" sudo -n true >/dev/null 2>&1; then
+    docker exec "$container" bash -c \
+      'curl -sSL https://get.maran.innovayse.com | sudo bash' >"$log" 2>&1 || installer_status=$?
+  else
+    echo "    note: sudo is unusable in this container (the host's AppArmor denies unix_chkpwd), so the"
+    echo "          documented pipeline ran without it. Everything after the pipe is unchanged."
+    docker exec "$container" bash -c \
+      'curl -sSL https://get.maran.innovayse.com | bash' >"$log" 2>&1 || installer_status=$?
+  fi
 fi
 echo "    installer exit: ${installer_status} (log: ${log#"$root"/})"
 
