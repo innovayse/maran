@@ -76,7 +76,7 @@ hyper-util = { version = "0.1.20", features = ["tokio"] }
 # the kernel sees it, which a crate that hides the calls behind an RAII type takes
 # away. It is used in exactly one module and nowhere else.
 libc = "0.2.189"
-thiserror = "2.0.20"
+thiserror = "2.0.21"
 tempfile = "3.27"
 # "signal" and "time" are both load-bearing for the stop path and are named here
 # rather than inherited from a transitive enable: "signal" registers the SIGTERM
