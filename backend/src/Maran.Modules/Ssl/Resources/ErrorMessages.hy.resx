@@ -28,7 +28,7 @@
     <value>Կայքը չի գտնվել։</value>
   </data>
   <data name="AccountNotFound">
-    <value>Հաշիվը չի գտնվել։</value>
+    <value>Այս հաշիվը չի գտնվել։</value>
   </data>
   <data name="AcmeAuthorityUnreachable">
     <value>Չհաջողվեց կապվել վկայագրման կենտրոնի հետ։ Փորձեք ավելի ուշ։</value>

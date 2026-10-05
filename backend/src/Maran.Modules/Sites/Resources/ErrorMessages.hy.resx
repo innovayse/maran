@@ -28,7 +28,7 @@
     <value>PHP-ի այս տարբերակը տեղադրված չէ սերվերում։</value>
   </data>
   <data name="AccountNotFound">
-    <value>Հաշիվը չի գտնվել։</value>
+    <value>Այս հաշիվը չի գտնվել։</value>
   </data>
   <data name="SiteBackendNotPhp">
     <value>Այս կայքը PHP չի օգտագործում, ուստի փոխելու PHP տարբերակ չունի։</value>

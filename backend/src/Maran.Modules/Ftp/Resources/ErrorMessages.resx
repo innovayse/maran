@@ -49,6 +49,6 @@
     <value>This FTPS user could not be created and no password was issued. Please try again. If the name is then reported as already taken, contact support: a leftover login may have to be removed.</value>
   </data>
   <data name="AccountNotFound">
-    <value>This account could not be found. Refresh the page to see its current state.</value>
+    <value>This account could not be found.</value>
   </data>
 </root>
