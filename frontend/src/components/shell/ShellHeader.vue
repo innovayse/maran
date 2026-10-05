@@ -184,19 +184,19 @@ const crumbs: ComputedRef<string[]> = computed(() => {
   color: var(--t3);
 }
 
-/* ONE height for every control in this row.
+/* ONE definition for every control in this row.
  *
- * They had three. The icon button was 28px, the avatar 26px, and the two
- * labelled buttons derived whatever their padding gave them — `4px 8px` for one
- * and `4px 9px` for the other, so no two of them lined up and the row read as
- * slightly broken rather than deliberately varied. The theme control and the
- * locale switcher each brought a fourth and fifth.
+ * They had five. Heights of 28px, 26px and whatever `padding: 4px 8px` and `4px 9px` produced;
+ * horizontal padding of 8px, 9px and none; the locale switcher with no box at all while its
+ * neighbours were boxed; and the avatar on a different surface and border from everything beside
+ * it. Nothing about that was a decision — it was five controls written at five times.
  *
- * 28px because that is the size the design states for the square controls, and
- * the one the rest now match. Each rule below sets its own look — surface,
- * border, radius — and none of them sets a height any more: a control that
- * wants to be a different size in this row is a control that needs a reason,
- * and the reason belongs here where the row is laid out.
+ * So the box is stated once, here, where the row is laid out. A control below overrides only what
+ * genuinely differs about it — the assistant's violet wash, the square icon's fixed width, the
+ * avatar's circle — and nothing restates the height, the surface or the border.
+ *
+ * The locale switcher's own button is included by name: it renders inside UiDropdown, so the class
+ * on the component sits on a wrapper and the box belongs to the button within it.
  */
 .shell-header > * {
   flex-shrink: 0;
@@ -207,70 +207,50 @@ const crumbs: ComputedRef<string[]> = computed(() => {
 .shell-header-icon,
 .shell-header-avatar,
 :deep(.shell-header-theme),
-:deep(.shell-locale) {
+:deep(.shell-locale button) {
   height: 28px;
-}
-
-/* The kit's button is sized for a labelled action; the header's server picker
-   is chrome, so the shell restates its box. Restating the
-   background and border also overrides the kit's focused border, so each one
-   restates that too — a keyboard user must not get half a focus ring.
-   `display` is deliberately NOT restated: a scoped rule is unlayered CSS and
-   beats every Tailwind utility, so `display: flex` here silently defeated the
-   `max-lg:hidden` that is supposed to drop this control on a phone. The kit's
-   button is already inline-flex, so there was nothing to restate anyway. */
-.shell-header-picker {
-  align-items: center;
+  padding: 0 9px;
   gap: 6px;
-  padding: 0 8px;
-  background: var(--s2);
-  border: 1px solid var(--b1);
   border-radius: 6px;
+  border: 1px solid var(--b1);
+  background: var(--s2);
   color: var(--t2);
   font-size: var(--text-base);
   font-weight: 400;
 }
 
-.shell-header-picker:focus-visible {
+.shell-header-picker:focus-visible,
+.shell-header-ai:focus-visible,
+.shell-header-icon:focus-visible,
+.shell-header-avatar:focus-visible,
+:deep(.shell-header-theme:focus-visible),
+:deep(.shell-locale button:focus-visible) {
   border-color: var(--ac);
 }
 
-/* The design's "Ask AI" button: a violet wash rather than the accent, so it
-   reads as a different kind of action from everything else in the header. */
+/* The design's "Ask AI" button: a violet wash rather than the accent, so it reads as a different
+   kind of action from everything else in the header. Only the colours differ. */
 .shell-header-ai {
-  gap: 6px;
-  padding: 0 9px;
-  border-radius: 6px;
   background: var(--pus);
   border-color: rgb(139 109 240 / 0.35);
   color: var(--pu);
-  font-size: var(--text-base);
   font-weight: 500;
 }
 
-/* The design's square header controls: 28px, boxed on --s2. */
-.shell-header-icon {
-  width: 28px;
-  padding: 0;
-  border-radius: 6px;
-  background: var(--s2);
-  border-color: var(--b1);
-  color: var(--t2);
-}
-
-/* The design's avatar: a circle on the raised surface with the stronger border,
-   not a boxed square like the controls beside it. Its diameter is the row's
-   shared height rather than the 26px it used to carry: a circle two pixels
-   shorter than everything beside it reads as a mistake, not as a distinction,
-   and the distinction here is the shape and the surface. It stays disabled —
-   there is no /me endpoint, so the panel has no initials to put in it and draws
-   a neutral glyph instead of inventing a person. */
+/* The two square controls: the row's height in both directions, and no horizontal padding because
+   the glyph is the content. */
+.shell-header-icon,
 .shell-header-avatar {
   width: 28px;
   padding: 0;
-  border-radius: 9999px;
-  background: var(--s3);
-  border-color: var(--b2);
-  color: var(--t2);
 }
+
+/* The avatar is the one control whose SHAPE differs, and that is the distinction it carries — not a
+   different surface, which is what it used to have as well. It stays disabled: there is no /me
+   endpoint, so the panel has no initials to put in it and draws a neutral glyph rather than
+   inventing a person. */
+.shell-header-avatar {
+  border-radius: 9999px;
+}
+
 </style>

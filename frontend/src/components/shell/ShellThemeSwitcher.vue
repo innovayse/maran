@@ -47,23 +47,3 @@ const flip = (): void => {
     <span>{{ label }}</span>
   </UiButton>
 </template>
-
-<style scoped>
-/* Boxed on the raised surface like the header's other chrome, and the same
-   height as every control beside it — see ShellHeader's own style block, which
-   owns that height for all of them. */
-.shell-header-theme {
-  gap: 6px;
-  padding: 0 9px;
-  border-radius: 6px;
-  background: var(--s2);
-  border: 1px solid var(--b1);
-  color: var(--t2);
-  font-size: var(--text-base);
-  font-weight: 400;
-}
-
-.shell-header-theme:focus-visible {
-  border-color: var(--ac);
-}
-</style>
