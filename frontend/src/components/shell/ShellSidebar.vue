@@ -135,9 +135,15 @@ const toggleTheme = (): void => {
       <!-- The design's identity block, which is also the account menu's trigger:
            it names the signed-in person once and takes the width that leaves. -->
       <ShellUserBlock />
+      <!-- Only where the header's theme control is not drawn.
+           The header carries one theme button, and this footer carried a second — the same setting
+           offered twice on one screen, in two different shapes, one of them a moon that always
+           showed the moon whichever theme was in force. Below `sm` the header drops its copy to
+           keep the row narrow, and this is then the only one, so it is kept for exactly that width
+           rather than deleted. -->
       <UiButton
         variant="secondary"
-        class="shell-icon-button shell-icon-button--boxed"
+        class="shell-icon-button shell-icon-button--boxed sm:hidden"
         :aria-label="t('app.shell.toggleTheme')"
         :title="t('app.shell.toggleTheme')"
         @click="toggleTheme"

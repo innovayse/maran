@@ -36,6 +36,19 @@ const SHELL_ROUTE_LABEL_KEYS: Record<string, string> = {
   'system-status': 'app.nav.systemStatus',
   upgrade: 'app.upgrade.heading',
   'not-found': 'app.notFound.heading',
+  // Every screen under /settings. They were missing, so each fell through to its own route name
+  // and the first line of the page read "Panel / audit", "Panel / sessions" — a router identifier,
+  // lowercase and in English, whatever language the operator chose. It is the same fall-through
+  // CHILD_ROUTE_LABEL_KEYS below was written for, one level up, and these are the screens reached
+  // most often from the navigation.
+  sessions: 'app.sessions.heading',
+  audit: 'app.audit.heading',
+  'security-policy': 'app.securityPolicy.heading',
+  'two-factor': 'app.twoFactor.heading',
+  'two-factor-setup': 'app.twoFactor.heading',
+  'smtp-settings': 'app.smtp.heading',
+  'php-versions': 'php.title',
+  'my-account': 'app.shell.menu.myAccount',
 }
 
 /**
