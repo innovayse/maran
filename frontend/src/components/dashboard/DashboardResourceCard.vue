@@ -10,6 +10,12 @@
  * other two are byte pairs, so the processor's bar is given a max of 100 explicitly rather than
  * being passed a total it does not have.
  *
+ * **Every bar carries its label and its figure as visible text.** `UiMeter` is a bar and nothing
+ * else — its `label` and `valueText` reach assistive technology through `aria-label` and
+ * `aria-valuetext` and are invisible on screen — so a card that passed them and stopped would show
+ * an operator three unlabelled stripes. The monitoring screen's disk table pairs the same primitive
+ * with its own visible figures for the same reason.
+ *
  * **The network counters the payload carries are deliberately not shown.** They are totals since
  * boot, not rates, and "4.2 TB received" on a landing page reads as traffic while meaning uptime.
  * A rate needs two readings and the panel does not offer one here, so this card shows nothing
@@ -59,6 +65,53 @@ const diskText: ComputedRef<string> = computed(() => {
   })
 })
 
+/** One bar: what it measures, how far along it is, and the figure a reader sees. */
+interface Reading {
+  /** Stable key for the list. */
+  key: string
+  /** The measure's name, already translated. */
+  label: string
+  /** How much is used, in the same unit as {@link Reading.max}. */
+  value: number
+  /** The allowance, in the same unit as {@link Reading.value}. */
+  max: number
+  /** The figure as a reader sees it, and as assistive technology announces it. */
+  text: string
+}
+
+/**
+ * The three bars, in the order an operator triages them: the processor says what is happening now,
+ * memory says whether it can continue, and the disk says whether it can continue tomorrow.
+ */
+const readings: ComputedRef<Reading[]> = computed(() => {
+  return [
+    {
+      key: 'cpu',
+      label: t('monitoring.charts.cpu'),
+      value: props.resources.cpuPercent,
+
+      // 100 explicitly: a percentage carries no total of its own, and passing one of the byte
+      // figures here would draw a bar at a ratio that means nothing.
+      max: 100,
+      text: cpuText.value,
+    },
+    {
+      key: 'memory',
+      label: t('monitoring.charts.memory'),
+      value: props.resources.memoryUsedBytes,
+      max: props.resources.memoryTotalBytes,
+      text: memoryText.value,
+    },
+    {
+      key: 'disk',
+      label: t('monitoring.charts.disk'),
+      value: props.resources.diskUsedBytes,
+      max: props.resources.diskTotalBytes,
+      text: diskText.value,
+    },
+  ]
+})
+
 /**
  * The three load averages as one line.
  *
@@ -83,24 +136,22 @@ const loadText: ComputedRef<string> = computed(() => {
     <UiSectionHeading class="mb-3" :title="t('app.status.resources.title')" />
 
     <div class="grid gap-4 sm:grid-cols-3">
-      <UiMeter
-        :value="resources.cpuPercent"
-        :max="100"
-        :label="t('monitoring.charts.cpu')"
-        :value-text="cpuText"
-      />
-      <UiMeter
-        :value="resources.memoryUsedBytes"
-        :max="resources.memoryTotalBytes"
-        :label="t('monitoring.charts.memory')"
-        :value-text="memoryText"
-      />
-      <UiMeter
-        :value="resources.diskUsedBytes"
-        :max="resources.diskTotalBytes"
-        :label="t('monitoring.charts.disk')"
-        :value-text="diskText"
-      />
+      <div
+        v-for="reading in readings"
+        :key="reading.key"
+        class="flex flex-col gap-1"
+      >
+        <div class="flex items-baseline justify-between gap-2">
+          <span class="text-sm text-[var(--t2)]">{{ reading.label }}</span>
+          <span class="text-sm font-medium text-[var(--t1)]">{{ reading.text }}</span>
+        </div>
+        <UiMeter
+          :value="reading.value"
+          :max="reading.max"
+          :label="reading.label"
+          :value-text="reading.text"
+        />
+      </div>
     </div>
 
     <UiDescriptionList class="mt-4">
