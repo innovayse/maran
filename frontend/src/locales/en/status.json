@@ -4,7 +4,32 @@
       "heading": "System status",
       "checking": "Checking the panel API…",
       "ok": "All systems are operational.",
-      "unreachable": "Could not reach the API"
+      "unreachable": "Could not reach the API",
+      "resources": {
+        "title": "Right now",
+        "ratio": "{used} of {total}",
+        "load": "Load average (1 / 5 / 15 min)"
+      },
+      "counts": {
+        "title": "On this server",
+        "accounts": "Accounts",
+        "sites": "Sites",
+        "databases": "Databases"
+      },
+      "attention": {
+        "title": "Needs attention",
+        "allClear": "Nothing needs attention.",
+        "certificates": "certificates expiring soon",
+        "backups": "backups failed",
+        "tasks": "tasks failed",
+        "bans": "addresses banned"
+      },
+      "audit": {
+        "title": "Latest activity",
+        "empty": "Nothing has been recorded yet.",
+        "failed": "Failed",
+        "all": "Open the audit journal"
+      }
     }
   }
 }
