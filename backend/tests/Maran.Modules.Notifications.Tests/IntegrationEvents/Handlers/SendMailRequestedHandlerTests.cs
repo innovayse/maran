@@ -116,6 +116,11 @@ public sealed class SendMailRequestedHandlerTests
 
         var entry = Assert.Single(audit.Entries);
         Assert.Equal(AuditActions.MailSkippedNoSmtp, entry.Action);
+        // And SUCCEEDED, which is the half this test did not assert: changing the outcome broke
+        // nothing here, so a fresh install kept writing a red FAILED row for mail that was
+        // correctly not sent (issue #71). The send-failure test above asserts the opposite, so the
+        // two together say which event is which rather than that an entry was written.
+        Assert.True(entry.Succeeded);
     }
 
     /// <summary>A journal that itself fails does not let the failure escape the handler either.</summary>

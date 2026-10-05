@@ -496,8 +496,19 @@ public sealed class AlertEvaluator
         var recipient = await _recipients.GetAlertRecipientAsync(cancellationToken);
         if (recipient is null)
         {
+            // SUCCEEDED, not failed. Nothing went wrong here: outgoing mail is not configured, so
+            // there was nobody to tell, and skipping the send is the correct thing to do rather
+            // than a thing that failed to happen. Recorded as a failure, it put a red row in the
+            // audit journal of every freshly installed server within minutes — for working
+            // correctly — and an operator who learns that red rows are normal has lost the one
+            // thing the journal is for (issue #71).
+            //
+            // The action name carries the meaning: "Mail skipped: no SMTP settings" beside
+            // "Succeeded" reads as what happened. A third outcome of its own — skipped, distinct
+            // from both — would say it better, and that is a change to the journal's schema and to
+            // every reader of it; it is recorded in the issue rather than smuggled in here.
             await _journal.RecordSystemAsync(
-                AuditActions.MailSkippedNoSmtp, $"{kind}:{auditSubject}", succeeded: false, cancellationToken);
+                AuditActions.MailSkippedNoSmtp, $"{kind}:{auditSubject}", succeeded: true, cancellationToken);
             return;
         }
 
