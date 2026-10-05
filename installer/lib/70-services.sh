@@ -91,11 +91,47 @@ render_api_runtime_dir() {
 # inherits — so this one word is what lets the api reach the only root process on the server. The
 # unit used to be installed unrendered because it named nothing an installer decides; it names the
 # service group now, and that name is decided in install.sh like the port and the socket path.
+# quota_device_binds: the BindPaths= lines that let the agent see the one block device it needs,
+# or a comment saying why there are none.
+#
+# PrivateDevices=true hides every block device from the agent, and `setquota` must stat the device
+# behind the filesystem it limits — so without this, creating a hosting account failed with
+# "Cannot stat() mounted device" and the panel answered 500 (issue #73). The unit's own comment
+# carries the measurement.
+#
+# BOTH names are bound. The mount table usually gives a symlink (`/dev/mapper/vg-lv`) that resolves
+# to the real node (`/dev/dm-0`); setquota opens the name it was handed, and the kernel then needs
+# the target, so binding one of the two is not enough.
+#
+# A host where the device cannot be resolved gets no binds and a comment instead of a broken unit:
+# quotas will not work there, which is a limitation the panel reports through its own
+# QuotaNotEnforceable alert, rather than an install that refuses to finish.
+quota_device_binds() {
+  local target="/home" source resolved
+  source="$(findmnt -no SOURCE --target "$target" 2>/dev/null | head -1)"
+  if [ -z "$source" ] || [ ! -e "$source" ]; then
+    echo "# No block device resolved for ${target}; disk quotas will not be enforceable here."
+    return 0
+  fi
+
+  echo "BindPaths=${source}"
+  resolved="$(readlink -f "$source" 2>/dev/null)"
+  if [ -n "$resolved" ] && [ "$resolved" != "$source" ] && [ -e "$resolved" ]; then
+    echo "BindPaths=${resolved}"
+  fi
+}
+
 render_agent_unit() {
-  local out="$1"
+  local out="$1" binds
   : "${MARAN_GROUP:?must be set by install.sh before this step is sourced}"
-  sed -e "s#__MARAN_GROUP__#${MARAN_GROUP}#g" \
-    "${LIB_DIR}/../systemd/maran-agent.service" > "$out"
+  binds="$(quota_device_binds)"
+  # Rendered through awk rather than sed because the replacement is MULTI-LINE: `sed s###` with a
+  # newline in the replacement is a portability trap, and this one is two lines on most hosts.
+  awk -v group="$MARAN_GROUP" -v binds="$binds" '
+    { gsub(/__MARAN_GROUP__/, group) }
+    /^__MARAN_QUOTA_DEVICE_BINDS__$/ { print binds; next }
+    { print }
+  ' "${LIB_DIR}/../systemd/maran-agent.service" > "$out"
   refuse_unsubstituted_placeholder "$out" maran-agent.service
 }
 

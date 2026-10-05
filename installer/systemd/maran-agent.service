@@ -293,7 +293,29 @@ ReadWritePaths=/home -/var/spool/cron /var/lib/maran-sftp /var/lib/maran-ftps /v
 # a substitute for the protection ProtectSystem=full would have given. "-" prefixes
 # because neither path is guaranteed to exist on a minimal install.
 ReadOnlyPaths=-/etc/sudoers -/etc/sudoers.d
+# PrivateDevices gives this service a private /dev holding only pseudo-devices — no block devices
+# at all. That is the right default for a root daemon, and it silently made DISK QUOTAS impossible:
+# `setquota` must stat the block device behind the filesystem it is limiting, and in that namespace
+# the node does not exist. Every attempt to create a hosting account therefore failed with
+#
+#     setquota: Cannot stat() mounted device /dev/mapper/...: No such file or directory
+#
+# and the panel answered 500 — the product's primary operation, on every server (issue #73).
+#
+# Measured, on one host, changing one property at a time:
+#
+#     PrivateDevices=yes                     setquota fails, the quota is unchanged
+#     PrivateDevices=yes + the binds below   setquota succeeds, the quota is applied
+#
+# `DeviceAllow=` does NOT help and was tried: it governs cgroup access to devices that exist in the
+# namespace, and here the node is absent rather than forbidden.
+#
+# So the isolation stays and exactly one device is let through: the one holding the filesystem the
+# hosting accounts live on. 70-services.sh resolves it at install time — it is host-specific, and
+# both the symlink the mount table names and the node it resolves to have to be bound, because
+# setquota opens the name it was given.
 PrivateDevices=true
+__MARAN_QUOTA_DEVICE_BINDS__
 ProtectKernelTunables=true
 ProtectKernelLogs=true
 ProtectClock=true
@@ -337,7 +359,22 @@ CapabilityBoundingSet=CAP_CHOWN CAP_DAC_OVERRIDE CAP_FOWNER CAP_SETGID CAP_SETUI
 # need to reload systemd units and (per rules/rust.md) never runs interpreted/JIT'd
 # code, but ProtectKernelModules would block the systemctl calls this daemon issues
 # on the api's behalf; kept off rather than guessed at without a verified test.
-SystemCallFilter=@system-service
+# quotactl/quotactl_fd are NOT in @system-service, and accounts.SetAccountQuota cannot work
+# without them. The failure they cause does not look like a syscall denial at all, which is why
+# this line is worth its comment (issue #73): SystemCallErrorNumber=EPERM below turns the denied
+# quotactl into an errno, setquota reads that as "the kernel has no quota for this filesystem",
+# falls back to writing the on-disk quota file, and reports
+#
+#     setquota: Cannot open quotafile //aquota.user: Operation not permitted
+#     setquota: Not all specified mountpoints are using quota.
+#
+# — a message that points at the file and the mount point, neither of which is the problem.
+# Measured on Ubuntu 24.04, same host, same device, varying only this filter:
+#     SystemCallFilter=@system-service            setquota exits 1, quota unchanged
+#     SystemCallFilter=@system-service quotactl   setquota exits 0, quota applied
+# quotactl_fd is listed alongside it for kernels where quota-tools uses the newer call; systemd
+# ignores a syscall name the running kernel does not know, so naming both costs nothing.
+SystemCallFilter=@system-service quotactl quotactl_fd
 SystemCallErrorNumber=EPERM
 UMask=0027
 
@@ -356,7 +393,11 @@ UMask=0027
 #   4. sites.CreateSite end to end, including the `nginx -t` validation step and the
 #      reload, on the RHEL family where SELinux may deny what this sandbox permits;
 #      an SELinux denial looks nothing like EROFS and must not be mistaken for one.
-#   5. accounts.SetAccountQuota — quota tooling touches the filesystem root of /home.
+#   5. accounts.SetAccountQuota — CONFIRMED on Ubuntu 24.04 and no longer a claim. It needed
+#      three things this file now has, each found only by running it: the BindPaths= for the
+#      block device (PrivateDevices= hides it), quotactl in SystemCallFilter= above, and the
+#      agent passing the DEVICE rather than a path (quota_device_for in the ops crate). Still
+#      to check on the RHEL family.
 #   6. ProtectKernelModules/MemoryDenyWriteExecute (left off above) and
 #      ProtectControlGroups (never set — per-account systemd slices may need it):
 #      turn each on one at a time and find out, rather than reasoning about it.

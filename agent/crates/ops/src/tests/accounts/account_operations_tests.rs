@@ -449,6 +449,118 @@ fn a_useradd_that_refuses_is_reported_by_program_and_status_and_carries_no_tool_
     );
 }
 
+/// Issue #75. The `setquota` that failed on every stock Ubuntu server (issue #73) is what
+/// exposed this: `useradd` had already run, so the host kept a user, a group and a home for
+/// an account the panel never recorded — and the `user_exists` check at the top of `create`
+/// then answered AlreadyExists, so the SAME name could never be created again. The operator
+/// had to run `userdel` by hand, on a host they were not told about, to retry.
+#[test]
+fn a_creation_whose_quota_step_fails_takes_the_system_user_back_out() {
+    // Pops are LIFO, so these read bottom-up: useradd, chgrp and chmod succeed, setquota
+    // refuses, and the rollback's own userdel succeeds.
+    let operations = debian(
+        RecordingHost::new()
+            .failing_next(0)
+            .failing_next(1)
+            .failing_next(0)
+            .failing_next(0)
+            .failing_next(0),
+    );
+
+    let error = operations
+        .create(&name(), 4096)
+        .expect_err("a refusing setquota fails the creation");
+
+    // The answer is about the quota, not about the cleanup: the caller asked to create an
+    // account, and why that failed is the useful reply.
+    match &error {
+        AccountError::CommandFailed { program, status } => {
+            assert_eq!(*program, tool_path(&operations, "setquota"));
+            assert_eq!(*status, 1);
+        }
+        other => panic!("expected the setquota failure, got {other:?}"),
+    }
+
+    assert_eq!(
+        operations_calls(&operations, "userdel"),
+        vec![vec![
+            tool_path(&operations, "userdel").as_str(),
+            // --remove, or the home stays behind and the next attempt adopts a directory
+            // this agent cannot vouch for.
+            "--remove",
+            "acme"
+        ]]
+    );
+}
+
+/// The rollback covers the step before the quota too, and for the same reason: `useradd` has
+/// already happened by then.
+#[test]
+fn a_creation_whose_home_permissions_fail_takes_the_system_user_back_out() {
+    let operations = debian(
+        RecordingHost::new()
+            .failing_next(0)
+            .failing_next(1)
+            .failing_next(0),
+    );
+
+    operations
+        .create(&name(), 0)
+        .expect_err("a refusing chgrp fails the creation");
+
+    assert_eq!(
+        operations_calls(&operations, "userdel"),
+        vec![vec![
+            tool_path(&operations, "userdel").as_str(),
+            "--remove",
+            "acme"
+        ]]
+    );
+}
+
+/// A rollback that itself fails must not overwrite the answer. The caller still learns why
+/// the creation failed; the orphan it could not remove is a log line for the operator, who
+/// is the only one who can clear it.
+#[test]
+fn a_rollback_that_fails_too_still_reports_why_the_creation_failed() {
+    // Bottom-up again: useradd, chgrp, chmod succeed; setquota refuses with 7; the
+    // rollback's userdel refuses with 8.
+    let operations = debian(
+        RecordingHost::new()
+            .failing_next(8)
+            .failing_next(7)
+            .failing_next(0)
+            .failing_next(0)
+            .failing_next(0),
+    );
+
+    let error = operations
+        .create(&name(), 4096)
+        .expect_err("the creation still fails");
+
+    match &error {
+        AccountError::CommandFailed { program, status } => {
+            assert_eq!(*program, tool_path(&operations, "setquota"));
+            assert_eq!(*status, 7, "the rollback's status 8 replaced the real one");
+        }
+        other => panic!("expected the setquota failure, got {other:?}"),
+    }
+}
+
+/// The control for the three above: a creation that works runs no rollback at all. Without
+/// it, a `create` that deleted the account it had just made would pass every test above.
+#[test]
+fn a_creation_that_works_runs_no_rollback() {
+    let operations = debian(RecordingHost::new());
+
+    operations.create(&name(), 4096).expect("creation succeeds");
+
+    assert!(
+        operations_calls(&operations, "userdel").is_empty(),
+        "a successful creation deleted the account it had just made"
+    );
+}
+
 #[test]
 fn suspending_locks_the_password_and_takes_the_shell_away() {
     let operations = debian(RecordingHost::new().with_user("acme"));
@@ -964,7 +1076,9 @@ fn a_quota_is_set_in_kibibyte_blocks_rounded_up() {
             "2",
             "0",
             "0",
-            "/home"
+            // The device, not `/home`: inside the agent's own mount namespace /home is a bind
+            // mount of itself (systemd's `ReadWritePaths=`), which setquota rejects (issue #73).
+            "/dev/sda1"
         ]
     );
 }
