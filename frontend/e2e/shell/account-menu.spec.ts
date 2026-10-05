@@ -31,27 +31,24 @@ test('the account menu opens the sessions screen', async ({ page }) => {
   await expect(page).toHaveURL('/settings/sessions')
 })
 
-test('the account menu opens the audit journal for an administrator', async ({ page }) => {
+test('an administrator reaches the audit journal from the navigation', async ({ page }) => {
+  // It used to be an account-menu entry, and this test used to click it there. The journal is a
+  // server-wide screen rather than a setting about the person signed in, so it lives in the
+  // navigation now — and it already had an entry there, which made the menu a second way to the
+  // same screen under a second name. The claim worth keeping is that an administrator can reach
+  // it, so the claim moved rather than the test being deleted.
   await stubPanel(page, 'admin')
 
   await page.goto('/')
-  await page.getByRole('button', { name: 'Account menu' }).click()
-  await page.getByRole('menuitem', { name: 'Audit journal' }).click()
+  await page.getByRole('link', { name: 'Audit journal' }).click()
 
   await expect(page).toHaveURL('/settings/audit')
 })
 
-test('a customer is not offered the audit journal', async ({ page }) => {
-  // Presentation, not authorization: the endpoint refuses a customer whatever the menu shows.
-  // A link that only ever answers 403 is a worse answer than no link.
-  await stubPanel(page, 'customer')
-
-  await page.goto('/')
-  await page.getByRole('button', { name: 'Account menu' }).click()
-
-  await expect(page.getByRole('menuitem', { name: 'Sessions' })).toBeVisible()
-  await expect(page.getByRole('menuitem', { name: 'Audit journal' })).toHaveCount(0)
-})
+// A customer is not offered the audit journal: asserted in customer-area.spec.ts against the
+// NAVIGATION, which is the only place that entry exists now. The spec that used to stand here
+// looked for it in the account menu, and once the entry moved it could not fail for any role — a
+// test that cannot fail is worse than no test, so it is not kept as reassurance.
 
 test('the identity block is the only place the signed-in name appears, and it gets the footer width', async ({
   page,
@@ -94,7 +91,7 @@ test('the account menu opens upwards when the sidebar footer leaves no room belo
   expect((box?.y ?? 0) + (box?.height ?? 0)).toBeLessThanOrEqual(height)
 
   // Visible is not the same as usable: the point a user taps must land on the item itself.
-  for (const label of ['Sessions', 'Two-step verification', 'Audit journal', 'Sign out']) {
+  for (const label of ['Sessions', 'Two-step verification', 'Sign out']) {
     const item = page.getByRole('menuitem', { name: label })
     const reachable = await item.evaluate((element: HTMLElement): boolean => {
       const rect = element.getBoundingClientRect()

@@ -307,7 +307,7 @@ spa	firewall/ranges.spec.ts	5	0	0
 spa	firewall/whitelist.spec.ts	7	0	0
 spa	golden-path/account-to-ssl.spec.ts	0	0	1
 spa	monitoring/monitoring.spec.ts	7	0	0
-spa	shell/account-menu.spec.ts	5	0	0
+spa	shell/account-menu.spec.ts	4	0	0
 spa	shell/command-palette.spec.ts	1	0	0
 spa	shell/health-server-error.spec.ts	1	0	0
 spa	shell/health-status.spec.ts	2	0	0
