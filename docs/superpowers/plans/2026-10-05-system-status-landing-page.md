@@ -77,10 +77,10 @@ Any later section added to this endpoint inherits that rule or it does not go in
   int FailedTasks)` — counts, not lists: the page links to the screen that holds the detail, and
   a landing page that embeds four tables is four screens badly.
 
-- [ ] **Step 1:** Write the three records with doc comments on every member, including the
+- [x] **Step 1:** Write the three records with doc comments on every member, including the
       "null means not for this caller" rule on each nullable section.
-- [ ] **Step 2:** `dotnet build backend/` — expect success.
-- [ ] **Step 3:** Commit.
+- [x] **Step 2:** `dotnet build backend/` — expect success.
+- [x] **Step 3:** Commit.
 
 ---
 
@@ -100,17 +100,17 @@ Any later section added to this endpoint inherits that rule or it does not go in
   signature.
 - Produces: `GET /api/v1/dashboard`.
 
-- [ ] **Step 1:** Map the route with `[Authorize]`, following `ModulesEndpoint`'s file shape.
-- [ ] **Step 2:** Return `new DashboardDto(false, null, [], null, null, [])` when
+- [x] **Step 1:** Map the route with `[Authorize]`, following `ModulesEndpoint`'s file shape.
+- [x] **Step 2:** Return `new DashboardDto(false, null, [], null, null, [])` when
       `ICurrentUser.IsAdmin` is false, and return before dispatching ANY query.
-- [ ] **Step 3:** For an administrator, dispatch the queries concurrently and compose. Each
+- [x] **Step 3:** For an administrator, dispatch the queries concurrently and compose. Each
       section is wrapped so that one refusal or one failure empties THAT section and leaves the
       rest — the agent being unreachable must not blank the counts, which come from the database.
       Document why per section, the way `monitoring.ts` documents its split reads.
-- [ ] **Step 4:** Certificates "expiring soon" uses a named constant with the reason for the
+- [x] **Step 4:** Certificates "expiring soon" uses a named constant with the reason for the
       number in its doc comment, not a bare literal.
-- [ ] **Step 5:** `dotnet build backend/` — expect success.
-- [ ] **Step 6:** Commit.
+- [x] **Step 5:** `dotnet build backend/` — expect success.
+- [x] **Step 6:** Commit.
 
 ---
 
@@ -126,11 +126,11 @@ Any later section added to this endpoint inherits that rule or it does not go in
   `attention`, `recentAudit`, `loading`, `isLoaded`, `errorMessage`, and `load()`.
 - Mirrors Task 1's DTOs field-for-field in `types/dashboard.ts`, with the nullability intact.
 
-- [ ] **Step 1:** Write the api composable (one `get`), the types, and the store — the store calls
+- [x] **Step 1:** Write the api composable (one `get`), the types, and the store — the store calls
       the composable, the page never does.
-- [ ] **Step 2:** Store backend-localized `title`/`detail` verbatim; generate no error text.
-- [ ] **Step 3:** `npm run typecheck` — expect success.
-- [ ] **Step 4:** Commit.
+- [x] **Step 2:** Store backend-localized `title`/`detail` verbatim; generate no error text.
+- [x] **Step 3:** `npm run typecheck` — expect success.
+- [x] **Step 4:** Commit.
 
 ---
 
@@ -144,15 +144,15 @@ Any later section added to this endpoint inherits that rule or it does not go in
 - Create: `frontend/src/components/dashboard/DashboardAttentionList.vue`
 - Modify: `frontend/src/locales/en.json`, `ru.json`, `hy.json`
 
-- [ ] **Step 1:** Keep today's four health branches EXACTLY as they are — the page is still the
+- [x] **Step 1:** Keep today's four health branches EXACTLY as they are — the page is still the
       always-available route, and an unreachable panel must read as it does now.
-- [ ] **Step 2:** Add the administrator sections below the verdict, each from the UI kit, each
+- [x] **Step 2:** Add the administrator sections below the verdict, each from the UI kit, each
       hidden when its store section is null. Every count links to the screen that owns the detail.
-- [ ] **Step 3:** A zero is a real answer and must render as `0`, never as an empty state — a
+- [x] **Step 3:** A zero is a real answer and must render as `0`, never as an empty state — a
       freshly installed server has no accounts, and a blank panel there would read as a failure.
-- [ ] **Step 4:** All three locales, same keys.
-- [ ] **Step 5:** `npm run lint && npm run typecheck && npm run build` — expect success.
-- [ ] **Step 6:** Commit.
+- [x] **Step 4:** All three locales, same keys.
+- [x] **Step 5:** `npm run lint && npm run typecheck && npm run build` — expect success.
+- [x] **Step 6:** Commit.
 
 ---
 
@@ -163,25 +163,49 @@ Any later section added to this endpoint inherits that rule or it does not go in
 - Create: `backend/tests/Maran.Host.IntegrationTests/DashboardEndpointIntegrationTests.cs`
 - Create: `frontend/e2e/dashboard.spec.ts`
 
-- [ ] **Step 1:** The authorization claims first, because they are the ones that matter: an
+- [x] **Step 1:** The authorization claims first, because they are the ones that matter: an
       anonymous caller is refused; a customer gets every administrator section null AND no module
       query is dispatched (assert on the bus, not only on the response — a response that happens
       to be empty would pass a weaker check while the data had already been read).
-- [ ] **Step 2:** An administrator gets every section; one failing section empties only itself.
-- [ ] **Step 3:** A zero count renders as `0` and not as an empty state.
-- [ ] **Step 4:** Mutation-check each new test: make the production code wrong on purpose, confirm
+- [x] **Step 2:** An administrator gets every section; one failing section empties only itself.
+- [x] **Step 3:** A zero count renders as `0` and not as an empty state.
+- [x] **Step 4:** Mutation-check each new test: make the production code wrong on purpose, confirm
       the test fails, put it back. A test that cannot fail is not a test.
-- [ ] **Step 5:** `dotnet test` and the Playwright suite — expect 0 failures.
-- [ ] **Step 6:** Commit.
+- [x] **Step 5:** `dotnet test` and the Playwright suite — expect 0 failures.
+- [x] **Step 6:** Commit.
 
 ---
 
 ### Task 6: Verify on a real server
 
-- [ ] **Step 1:** Build and install on the Ubuntu server, sign in as an administrator, and read the
+- [x] **Step 1:** Build and install on the Ubuntu server, sign in as an administrator, and read the
       page in a browser at full page height.
-- [ ] **Step 2:** Check every number against the host: the counts against the database, the
+- [x] **Step 2:** Check every number against the host: the counts against the database, the
       resources against `top`/`df`, the services against `systemctl is-active`. A dashboard whose
       numbers are not the server's numbers is worse than the one sentence it replaced.
-- [ ] **Step 3:** Confirm the customer view shows no administrator section, signed in as a customer.
-- [ ] **Step 4:** Comment on #70 with what was measured, and close it.
+- [x] **Step 3:** Confirm the customer view shows no administrator section, signed in as a customer.
+- [x] **Step 4:** Comment on #70 with what was measured, and close it.
+
+---
+
+## What executing this plan changed about it
+
+Written down because a plan that is only ever right is a plan nobody learned from.
+
+- **No module needed a new query.** `Monitoring/GetHostMetrics` already answers the live reading and
+  is even documented "as the dashboard shows it" — it was built for a dashboard that was never
+  made. The attention counts all came from existing listings too.
+- **One count had to go.** A server-wide count of scheduled tasks would be one privileged agent
+  round-trip per account, because the Cron module keeps no table. The reason now lives in
+  `DashboardCountsDto`.
+- **`ServiceStatusBadges` already existed**, so Task 4 created one component fewer than planned.
+- **The plan's "assert on the bus" was not done.** The integration tests read the response, so they
+  cannot tell a section that was never read from one read and discarded; the test file says so
+  rather than implying a check that is not there. Recording dispatches on a wrapped `IMessageBus`
+  would observe it and is the honest follow-up if that gap ever matters.
+- **The e2e suite found a defect in the resource card.** `UiMeter` is a bar and nothing else — its
+  label and figure are `aria-` only — so the first version showed three unlabelled stripes. Caught
+  by the spec asserting the figure was visible, which is why that assertion was written.
+- **Deploying it broke the server once.** The install is self-contained; a framework-dependent
+  publish left the API unable to start ("No frameworks were found"). `scripts/lib/release-bundle.sh`
+  documents exactly this, and reading it first would have cost nothing.
