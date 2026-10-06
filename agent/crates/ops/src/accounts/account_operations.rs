@@ -15,6 +15,7 @@ use crate::accounts::model::refused_home::RefusedHome;
 use crate::accounts::model::repaired_home::RepairedHome;
 use crate::accounts::quota_blocks::QuotaBlocks;
 use crate::accounts::quota_enforceability::classify as classify_quota_enforceability;
+use crate::accounts::quota_enforceability::quota_device_for;
 use crate::accounts::{
     AccountError, AccountSuspensionState, AccountUsage, CreatedAccount, StoredPassword, SystemHost,
 };
@@ -191,17 +192,62 @@ impl<H: SystemHost> AccountOperations<H> {
             ],
         )?;
 
-        self.open_home_to_the_web_server(&home)?;
+        // Everything from here on is rolled back by `undo_creation` if it fails, because
+        // `useradd` has already happened and nothing above this line will undo it. Without
+        // the rollback a failure left the system user, its group and its home behind while
+        // the panel's own record was never written — and the account could then never be
+        // created, because the `user_exists` check at the top of this function answered
+        // AlreadyExists for a name the panel does not know (issue #75). Each step below
+        // returns through `undo_creation` rather than `?` for that reason.
+        if let Err(failure) = self.open_home_to_the_web_server(&home) {
+            return Err(self.undo_creation(username, failure));
+        }
 
         // apply_quota, not set_quota: the public one confirms the account exists, and
         // asking that one line after creating it is a second `id` per creation for an
         // answer already known.
-        self.apply_quota(username, quota_bytes)?;
+        if let Err(failure) = self.apply_quota(username, quota_bytes) {
+            return Err(self.undo_creation(username, failure));
+        }
 
-        Ok(CreatedAccount {
-            home_directory: home,
-            uid: self.read_uid(username)?,
-        })
+        match self.read_uid(username) {
+            Ok(uid) => Ok(CreatedAccount {
+                home_directory: home,
+                uid,
+            }),
+            Err(failure) => Err(self.undo_creation(username, failure)),
+        }
+    }
+
+    /// Removes what [`AccountOperations::create`] had made when a later step of it fails,
+    /// and answers with the failure that caused the rollback.
+    ///
+    /// `userdel --remove` is the whole of it, and that is a statement about WHEN this runs
+    /// rather than a shortcut: a creation that has not returned yet has no PHP pool, no
+    /// crontab, no SFTP login and no database, so none of the ordering that
+    /// [`AccountOperations::delete_under_lock`] documents applies here. The home is at most
+    /// a copy of `/etc/skel` and is never a mount point of anything.
+    ///
+    /// The ORIGINAL failure is what comes back, never the rollback's own. A caller asked to
+    /// create an account; the useful answer is why that could not be done, and a rollback
+    /// error reported in its place would describe cleanup the caller never requested. When
+    /// the rollback itself fails the account is left orphaned after all — rare, and the one
+    /// case worth a log line, because the operator then has to remove the user by hand
+    /// before any retry can succeed.
+    fn undo_creation(&self, username: &str, failure: AccountError) -> AccountError {
+        if let Err(rollback_failure) =
+            self.expect_success(self.distro.userdel_binary(), &["--remove", username])
+        {
+            tracing::warn!(
+                username,
+                %rollback_failure,
+                %failure,
+                "an account creation failed and its rollback failed too, so the system user \
+                 is left behind and must be removed by hand before a retry can succeed"
+            );
+        }
+
+        failure
     }
 
     /// Suspends the account: its shell is locked and its password disabled.
@@ -699,10 +745,16 @@ impl<H: SystemHost> AccountOperations<H> {
     /// this agent could not even ASK the question.
     fn quota_enforceability(&self) -> Result<Result<(), QuotaUnenforceableReason>, AccountError> {
         let mounts = self.host.read_mounts()?;
-        let quotaon = self.host.run(
-            self.distro.quotaon_binary(),
-            &["-p", AgentPaths::ACCOUNT_HOME_ROOT],
-        )?;
+        // The MOUNT POINT holding the home root, not the home root itself. `quotaon -p /home`
+        // answers "not found or has no quota enabled" whenever /home is a directory of the root
+        // filesystem — the stock Ubuntu layout — so this check reported quotas unenforceable on
+        // every such server, by a route that could never have reported anything else (issue #73).
+        let Some(device) = quota_device_for(&mounts, AgentPaths::ACCOUNT_HOME_ROOT) else {
+            return Ok(Err(QuotaUnenforceableReason::MountedWithoutQuotaAccounting));
+        };
+        let quotaon = self
+            .host
+            .run(self.distro.quotaon_binary(), &["-p", device])?;
 
         Ok(classify_quota_enforceability(
             &mounts,
@@ -722,17 +774,22 @@ impl<H: SystemHost> AccountOperations<H> {
         // Soft and hard limits are set to the same value, and inode limits to zero
         // (unlimited). A soft limit below the hard one only buys a grace period the
         // panel has no way to explain to the customer.
+        // The MOUNT POINT, for the reason quota_enforceability gives: setquota takes a mount point
+        // or a device and refuses a plain directory, so passing the home root failed on every
+        // server whose /home is not its own filesystem — which is every default Ubuntu install.
+        let mounts = self.host.read_mounts()?;
+        let device = quota_device_for(&mounts, AgentPaths::ACCOUNT_HOME_ROOT).ok_or_else(|| {
+            AccountError::HomeInspection {
+                reason: format!(
+                    "no block device in /proc/mounts holds {}",
+                    AgentPaths::ACCOUNT_HOME_ROOT
+                ),
+            }
+        })?;
+
         self.expect_success(
             self.distro.setquota_binary(),
-            &[
-                "-u",
-                username,
-                &blocks,
-                &blocks,
-                "0",
-                "0",
-                AgentPaths::ACCOUNT_HOME_ROOT,
-            ],
+            &["-u", username, &blocks, &blocks, "0", "0", device],
         )
     }
 

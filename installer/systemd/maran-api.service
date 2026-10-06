@@ -21,6 +21,18 @@ Type=simple
 User=__MARAN_USER__
 Group=__MARAN_GROUP__
 EnvironmentFile=/etc/maran/panel.env
+# The panel's own directory, and the omission of this line was a defect rather than a default.
+# systemd starts a service in `/` when no WorkingDirectory is given, and two things the panel does
+# resolve RELATIVE paths against it: Wolverine's code generation, which then tried to create
+# `/Internal` on the server's root filesystem (issue #74), and ASP.NET's content root. The first
+# only failed because the hardening below makes `/` read-only — without it the panel would have been
+# writing generated C# into the root directory of the operator's server, on every request that
+# needed a handler, logging the attempt each time.
+#
+# The same class of defect cost an hour earlier in this cycle, when the migration step inherited the
+# installer's working directory (`/root/installer`) and the panel aborted before running a line of
+# its own code. A process that writes relative paths needs to be told where it stands.
+WorkingDirectory=/usr/local/maran/api
 ExecStart=/usr/local/maran/api/Maran.Host
 Restart=on-failure
 RestartSec=2

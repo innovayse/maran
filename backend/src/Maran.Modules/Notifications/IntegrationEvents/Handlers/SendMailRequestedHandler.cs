@@ -128,7 +128,14 @@ public sealed class SendMailRequestedHandler
     {
         try
         {
-            await _journal.RecordSystemAsync(action, recipient, succeeded: false, cancellationToken);
+            // The outcome follows the ACTION, because the two actions that reach here are not the
+            // same kind of event. `MailSendFailed` is a delivery that was attempted and refused —
+            // a failure an operator must see. `MailSkippedNoSmtp` is outgoing mail not being
+            // configured, so there was nobody to tell: the skip is correct behaviour and recording
+            // it red put a FAILED row in the journal of every fresh install for working properly
+            // (issue #71).
+            var succeeded = action == AuditActions.MailSkippedNoSmtp;
+            await _journal.RecordSystemAsync(action, recipient, succeeded, cancellationToken);
         }
         catch (Exception exception)
         {
