@@ -298,7 +298,7 @@ rust	doc-tests maran_distro	0	0	0
 rust	doc-tests maran_ops	0	0	0
 rust	doc-tests maran_templates	0	0	0
 backend	Maran.Agent.Client.Tests.dll	371	0	0
-backend	Maran.SharedKernel.Tests.dll	230	0	0
+backend	Maran.SharedKernel.Tests.dll	235	0	0
 backend	Maran.Modules.Identity.Tests.dll	282	0	0
 backend	Maran.Modules.Sftp.Tests.dll	84	0	0
 backend	Maran.Modules.Notifications.Tests.dll	52	0	0
