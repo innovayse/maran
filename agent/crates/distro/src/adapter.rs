@@ -362,6 +362,58 @@ pub trait DistroAdapter: Send + Sync {
     /// `procps-ng`), so the installer needs no new dependency.
     fn pgrep_binary(&self) -> AdapterBinary;
 
+    /// Absolute path of `atq`, for the process-execution allow-list.
+    ///
+    /// Account deletion lists the pending `at` jobs with it, so it can remove
+    /// the ones the account owns before the account's uid is released (issue
+    /// #139). The `at` package is OPTIONAL on a hosting server: neither family
+    /// installs it by default, so a host without it has no `at` jobs to leave
+    /// behind, and the caller treats an absent binary as "nothing to remove".
+    /// For that reason it is the one tool whose presence the real-host path
+    /// check does not demand (`binary_paths_on_a_real_host.rs`, optional
+    /// section): absent is allowed, present must be at this path.
+    ///
+    /// `/usr/bin/atq` on both families (Debian `at`, RHEL `at`); on Debian it
+    /// is a link to `at`. Not verified on a live host of every release.
+    fn atq_binary(&self) -> AdapterBinary;
+
+    /// Absolute path of `atrm`, for the process-execution allow-list.
+    ///
+    /// Removes one `at` job by id, after [`Self::atq_binary`] named it as the
+    /// account's. Same package, same optional presence and same path on both
+    /// families as `atq`; see there.
+    fn atrm_binary(&self) -> AdapterBinary;
+
+    /// Absolute path of `loginctl`, for the process-execution allow-list.
+    ///
+    /// Account deletion disables lingering and terminates the user's systemd
+    /// user manager with it (`loginctl disable-linger`, `loginctl
+    /// terminate-user`), so no `user@<uid>.service` outlives the account. It
+    /// ships with systemd itself, which this agent already requires, so unlike
+    /// `atq` its presence is demanded on a real host.
+    ///
+    /// `/usr/bin/loginctl` on both families (Debian `systemd`, RHEL
+    /// `systemd`).
+    fn loginctl_binary(&self) -> AdapterBinary;
+
+    /// Absolute path of `ipcrm`, for the process-execution allow-list.
+    ///
+    /// Removes a System V shared-memory segment, semaphore set or message queue
+    /// by id, after the account's objects were found in `/proc/sysvipc/*`. It
+    /// comes from `util-linux`, an essential package on Debian and a base
+    /// package on RHEL, so its presence is demanded on a real host.
+    ///
+    /// `/usr/bin/ipcrm` on both families.
+    fn ipcrm_binary(&self) -> AdapterBinary;
+
+    /// Directory the `at` daemon keeps its job files in.
+    ///
+    /// A platform fact: Debian's `at` spools to `/var/spool/cron/atjobs`, the
+    /// RHEL family's to `/var/spool/at`. Account deletion reads it to confirm
+    /// that no job file owned by the departed uid remains after `atrm` ran. The
+    /// directory exists only where the `at` package is installed.
+    fn at_spool_directory(&self) -> &'static str;
+
     /// Absolute path of `passwd`, for the process-execution allow-list.
     ///
     /// Needed for `passwd -S <user>`, which REPORTS whether a password can

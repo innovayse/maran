@@ -100,7 +100,11 @@ create_directory_layout' \
     "/var/lib/maran-scratch:0:0:700" \
     "/var/lib/maran-sftp:0:0:700" \
     "/run/maran:0:${panel_gid}:750" \
-    "/run/maran-php:0:0:755"; do
+    "/run/maran-php:0:0:755" \
+    "/run/maran-host:0:0:700" \
+    "/run/maran-host/tmp:0:0:700" \
+    "/run/maran-host/var-tmp:0:0:700" \
+    "/run/maran-host/dev-shm:0:0:700"; do
     assert_directory_is "${entry%%:*}" "${entry#*:}"
     checked=$((checked + 1))
   done
@@ -111,8 +115,8 @@ create_directory_layout' \
   # anywhere. A count is not decoration on that axis: it is the only thing that observes the
   # list's SIZE, which is the property the assertions themselves cannot see. Raise it with the
   # list.
-  [ "$checked" -eq 12 ] \
-    || fail "the directory layout list checked ${checked} paths, not the 12 this list names (11 from step 40 and the PHP socket directory from its tmpfiles snippet). A path has been dropped from the list, and a check that is not in the list is not a check that failed — it is one that no longer exists."
+  [ "$checked" -eq 16 ] \
+    || fail "the directory layout list checked ${checked} paths, not the 16 this list names (11 from step 40, the PHP socket directory from its tmpfiles snippet, and /run/maran-host with its three mount points). A path has been dropped from the list, and a check that is not in the list is not a check that failed — it is one that no longer exists."
 
   # The scratch is a SIBLING of /var/lib/maran, never a child, and the reason is the whole
   # fix: the owner of a directory can rename an entry inside it aside and leave a symlink
@@ -182,8 +186,9 @@ create_directory_layout' \
   esac
 
   assert_the_web_user_reaches_php_sockets_and_not_the_agent_directory
+  assert_the_host_mount_points_are_built_by_their_snippet
 
-  echo "Step 40's directory layout verified: twelve directories, each a real directory with its own owner and mode, and every root-written log leaf under a root-only ancestry."
+  echo "Step 40's directory layout verified: sixteen directories, each a real directory with its own owner and mode, and every root-written log leaf under a root-only ancestry."
   echo "UNOBSERVED HERE: only the two directories the INSTALLER creates are asserted above — /var/log/maran and /var/log/maran/sites. The per-account level, /var/log/maran/sites/<account> root:root 0750, is created by the agent as root at site-create time (SiteHost::create_site_log_directory), never by the installer, because the installer does not know the accounts and an account created later must get one anyway. It is asserted where it is made: agent/crates/agent/tests/sites_on_a_real_host.rs, every_directory_the_site_log_tree_is_made_of_belongs_to_root. Nothing here can see it, and a reader must not take the rows above as covering the whole tree."
   echo "UNOBSERVED HERE: the ancestry above is the state step 40 leaves behind, not a guarantee about later. Neither of the two root writers that made this directory a defect runs in this image — install.sh's own \`tee -a\` and the root nginx master's access_log/error_log opens — and the nginx one could not be gated even where it does run, because nginx re-creates those files itself on every start, reload and SIGUSR1, after every check the installer performs. The ownership asserted above is the whole defence, not a check in front of the write."
 }
@@ -238,6 +243,31 @@ assert_the_web_user_reaches_php_sockets_and_not_the_agent_directory() {
   unset -f as_the_web_user
   echo "The web user (${web_name}) traverses /run/maran-php and not /run/maran; the probe refused when /run/maran-php was planted at 0750."
   echo "UNOBSERVED HERE: nginx and php-fpm are not run as that uid, no socket is connected to, and SELinux is off in this image (RHEL enforcing is untested)."
+}
+
+# assert_the_host_mount_points_are_built_by_their_snippet: /run/maran-host and its three mount points
+# (issue #139) as the installer's own tmpfiles snippet makes them, not as step 40 happened to.
+#
+# The agent unit bind-mounts the HOST's /tmp, /var/tmp and /dev/shm onto these, so that account
+# deletion can sweep what the account's processes left there (maran-agent.service, BindPaths=). They
+# are windows onto world-writable directories, hence root-only 0700. The list above proves step 40
+# made them so; this proves the snippet that rebuilds them on every boot (/run is a tmpfs, and step
+# 40 does not run at boot) says the same thing.
+#
+# The probe must be able to fail: widen the parent to 0755 and read it back, require systemd-tmpfiles
+# to put it right, and only then believe the 0700 it reports.
+assert_the_host_mount_points_are_built_by_their_snippet() {
+  chmod 0755 /run/maran-host
+  [ "$(stat -c '%a' /run/maran-host)" = 755 ] \
+    || fail "chmod 0755 /run/maran-host did not take effect, so the control below would measure nothing"
+  systemd-tmpfiles --create "$HOST_TMPFILES"
+  local path
+  for path in /run/maran-host /run/maran-host/tmp /run/maran-host/var-tmp /run/maran-host/dev-shm; do
+    [ "$(stat -c '%a %U %G' "$path")" = "700 root root" ] \
+      || fail "after systemd-tmpfiles --create ${HOST_TMPFILES}, ${path} is '$(stat -c '%a %U %G' "$path")', not '700 root root'. The agent unit would bind the host's shared temporary directories onto a path other uids can resolve."
+  done
+  echo "systemd-tmpfiles rebuilt /run/maran-host and its three mount points at 700 root:root from a directory planted at 0755."
+  echo "UNOBSERVED HERE: this image boots no systemd, so no unit bind-mounts anything onto these directories. That is observed in the systemd lane (scripts/lib/install-polygon.sh), by joining the agent's mount namespace."
 }
 
 # assert_directory_is: one path against `uid:gid:mode`, with the three questions asked

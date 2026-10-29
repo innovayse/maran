@@ -398,6 +398,45 @@ fn the_bound_variant_is_mapped_by_name_ahead_of_the_wildcard() {
 }
 
 #[test]
+fn leftover_uid_resources_are_system_failures_whose_messages_name_only_the_account() {
+    let cases = [
+        (
+            AccountError::AtJobsRemain {
+                username: "acme".to_owned(),
+            },
+            "scheduled at jobs of account 'acme' are still queued after being removed",
+        ),
+        (
+            AccountError::UserManagerRemains {
+                username: "acme".to_owned(),
+            },
+            "the user manager of account 'acme' is still running after being ended",
+        ),
+        (
+            AccountError::IpcRemain {
+                username: "acme".to_owned(),
+            },
+            "IPC objects of account 'acme' are still present after being removed",
+        ),
+        (
+            AccountError::SharedFilesRemain {
+                username: "acme".to_owned(),
+            },
+            "shared files of account 'acme' are still present after being removed",
+        ),
+    ];
+
+    for (error, message) in cases {
+        assert_eq!(
+            code_of(&error),
+            ErrorCode::SystemFailure as i32,
+            "{error:?}"
+        );
+        assert_eq!(error.to_string(), message);
+    }
+}
+
+#[test]
 fn surviving_processes_are_a_system_failure_whose_message_names_only_the_account() {
     // The account is still there and the same deletion can be retried, so the
     // panel must report a fault. The message must carry no pid, command line or

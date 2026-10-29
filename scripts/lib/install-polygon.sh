@@ -233,6 +233,38 @@ check_socket() {
 check_socket /run/maran/agent.sock "660 root maran"
 check_socket /run/maran-api/api.sock "660 maran ${web_group}"
 
+# The agent's view of the HOST's shared temporary directories (issue #139). The unit keeps
+# PrivateTmp=true, so its own /tmp is a private one; account deletion sweeps the host's /tmp through
+# the bind mount BindPaths= puts at /run/maran-host/tmp. Nothing short of looking from inside the
+# agent's mount namespace can say whether that bind survived PrivateTmp (and, for dev-shm,
+# PrivateDevices), so this plants a marker in the HOST's /tmp and joins the namespace of the running
+# agent (nsenter -t <pid> -m) to require it visible at the bind. The marker is removed afterwards.
+agent_pid="$(docker exec "$container" systemctl show -p MainPID --value maran-agent 2>&1 | tr -d '\r' || true)"
+host_marker="maran-host-bind-probe-$$"
+case "$agent_pid" in
+  ''|0|*[!0-9]*) note "the agent has no main pid ('${agent_pid}'), so its mount namespace cannot be joined to look at /run/maran-host" ;;
+  *)
+    docker exec "$container" touch "/tmp/${host_marker}" "/var/tmp/${host_marker}" "/dev/shm/${host_marker}" \
+      >/dev/null 2>&1 || note "could not plant the probe markers in the host's /tmp, /var/tmp and /dev/shm"
+    for pair in tmp:/tmp var-tmp:/var/tmp dev-shm:/dev/shm; do
+      bind="/run/maran-host/${pair%%:*}"
+      # The positive control: the same marker must NOT be in the agent's own private directory.
+      # PrivateTmp is what makes the bind necessary, and a probe that found the marker there would
+      # be looking at the host's directory through a PrivateTmp that is not private.
+      if [ "${pair#*:}" != /dev/shm ] \
+        && docker exec "$container" nsenter -t "$agent_pid" -m test -e "${pair#*:}/${host_marker}" 2>/dev/null; then
+        note "the agent sees the host's marker at its own ${pair#*:}, so PrivateTmp=true is not isolating it and the probe at ${bind} would prove nothing"
+      fi
+      if ! docker exec "$container" nsenter -t "$agent_pid" -m test -e "${bind}/${host_marker}" 2>/dev/null; then
+        note "the host's ${pair#*:}/${host_marker} is NOT visible at ${bind} from inside the agent's mount namespace, so account deletion cannot sweep the host's ${pair#*:}"
+      fi
+    done
+    docker exec "$container" rm -f "/tmp/${host_marker}" "/var/tmp/${host_marker}" "/dev/shm/${host_marker}" >/dev/null 2>&1 || true
+    echo "    host temp binds: markers planted in the host's /tmp, /var/tmp and /dev/shm, looked for at /run/maran-host/* from agent pid ${agent_pid}"
+    echo "    UNOBSERVED HERE: the sweep itself (a real delete in this unit's sandbox); /var/tmp may share /tmp's filesystem on this image."
+    ;;
+esac
+
 # The panel's own account of itself, through nginx on the port the installer published. Health is
 # read for CONTENT and not for a 200: the endpoint answered 200 with "agent":"unavailable" on the
 # install that had no root daemon, so the string is the check.

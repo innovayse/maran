@@ -9,11 +9,18 @@ mod account_error;
 mod account_lock;
 mod account_operations;
 mod end_account_processes;
+mod end_account_user_manager;
 pub mod model;
+mod parse_atq_listing;
+mod parse_sysv_ipc_table;
 mod process_system_host;
 mod quota_blocks;
 mod quota_enforceability;
 mod read_managed_account;
+mod remove_account_at_jobs;
+mod remove_account_shared_files;
+mod remove_account_sysv_ipc;
+mod sweep_directory_by_owner;
 mod system_host;
 
 pub use account_error::AccountError;

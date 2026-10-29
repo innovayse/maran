@@ -315,6 +315,59 @@ pub enum AccountError {
         /// The account whose processes survived.
         username: String,
     },
+
+    /// Scheduled `at` jobs of the account were still queued after the removal
+    /// pass, so the deletion stopped before `userdel`.
+    ///
+    /// A job left queued runs later under the numeric uid the next tenant is
+    /// handed. The account is half-deleted recoverably, exactly as for
+    /// [`Self::ProcessesRemain`]: the same deletion repeated converges once the
+    /// queue is clear. Carries the name only: no job id, queue or command
+    /// reaches a customer-facing message.
+    #[error("scheduled at jobs of account '{username}' are still queued after being removed")]
+    AtJobsRemain {
+        /// The account whose jobs survived.
+        username: String,
+    },
+
+    /// The account's systemd user manager (or its lingering state) was still
+    /// present after it was ended, so the deletion stopped before `userdel`.
+    ///
+    /// A user manager that outlives the account keeps processes and a runtime
+    /// directory under a uid about to be reused. Retryable like
+    /// [`Self::ProcessesRemain`]. Carries the name only.
+    #[error("the user manager of account '{username}' is still running after being ended")]
+    UserManagerRemains {
+        /// The account whose user manager survived.
+        username: String,
+    },
+
+    /// SysV IPC objects (shared memory, message queues, semaphore sets) owned
+    /// by the account's uid were still present after removal, so the deletion
+    /// stopped before `userdel`.
+    ///
+    /// Such an object outlives every process and is owned by a bare uid, so the
+    /// next account given that uid would inherit it. Retryable like
+    /// [`Self::ProcessesRemain`]. Carries the name only: no object id or key
+    /// reaches a customer-facing message.
+    #[error("IPC objects of account '{username}' are still present after being removed")]
+    IpcRemain {
+        /// The account whose IPC objects survived.
+        username: String,
+    },
+
+    /// Files the account owns outside its home, in shared temporary
+    /// directories, were still present after the sweep, so the deletion
+    /// stopped before `userdel`.
+    ///
+    /// They are owned by a bare uid, so the next account given that uid would
+    /// inherit them. Retryable like [`Self::ProcessesRemain`]. Carries the name
+    /// only: no path reaches a customer-facing message.
+    #[error("shared files of account '{username}' are still present after being removed")]
+    SharedFilesRemain {
+        /// The account whose files survived.
+        username: String,
+    },
 }
 
 impl AccountError {

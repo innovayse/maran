@@ -129,6 +129,8 @@ fn declared_binaries(distro: &'static dyn DistroAdapter) -> Vec<(&'static str, S
         ("usermod_binary", distro.usermod_binary().to_string()),
         ("pkill_binary", distro.pkill_binary().to_string()),
         ("pgrep_binary", distro.pgrep_binary().to_string()),
+        ("loginctl_binary", distro.loginctl_binary().to_string()),
+        ("ipcrm_binary", distro.ipcrm_binary().to_string()),
         ("setquota_binary", distro.setquota_binary().to_string()),
         ("quota_binary", distro.quota_binary().to_string()),
         ("quotaon_binary", distro.quotaon_binary().to_string()),
@@ -182,6 +184,52 @@ fn every_declared_binary_path_names_an_executable_file() {
             "DistroAdapter::{accessor}() declares {path}, which exists but has \
              no execute bit. The agent execs it."
         );
+    }
+}
+
+/// The declared paths of the programs whose package is OPTIONAL on a host.
+///
+/// `atq` and `atrm` come from the `at` package, which neither family installs
+/// by default and which this agent does not require: a host without it has no
+/// `at` jobs, and account deletion treats the absent binary as "nothing to
+/// remove". They are therefore NOT in [`declared_binaries`], whose test demands
+/// presence. The contract here is the weaker one that can still fail: when the
+/// program IS on the host, it must be at the path the adapter declares (a
+/// package that installs it elsewhere would otherwise be silently skipped as
+/// "absent" by the agent).
+fn optional_binaries(distro: &'static dyn DistroAdapter) -> Vec<(&'static str, String)> {
+    vec![
+        ("atq_binary", distro.atq_binary().to_string()),
+        ("atrm_binary", distro.atrm_binary().to_string()),
+    ]
+}
+
+/// An optional program is either absent from its declared path or an executable file there.
+///
+/// UNOBSERVED HERE: a polygon image without the `at` package makes this test
+/// vacuous for `atq` and `atrm` (both absent, both allowed). The issue #139
+/// polygon installs `at` so that the present branch is exercised; this test
+/// cannot tell a missing install from an image that simply lacks it.
+#[test]
+#[ignore = "requires a polygon container"]
+fn every_optional_binary_is_absent_or_executable_at_its_declared_path() {
+    require_polygon();
+    let distro = polygon_distro();
+
+    for (accessor, path) in optional_binaries(distro) {
+        match std::fs::metadata(Path::new(&path)) {
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => panic!(
+                "DistroAdapter::{accessor}() declares {path}, and looking at it failed ({error})."
+            ),
+            Ok(metadata) => {
+                assert!(
+                    metadata.is_file() && metadata.permissions().mode() & 0o111 != 0,
+                    "DistroAdapter::{accessor}() declares {path}, which exists but is not an \
+                     executable regular file. The agent execs it."
+                );
+            }
+        }
     }
 }
 

@@ -298,6 +298,14 @@ create_directory_layout() {
   # 70-services.sh installs; created here too because the agent unit names it in ReadWritePaths=,
   # and a missing mandatory path kills that unit with 226/NAMESPACE before it runs (issue #41).
   install -d -o root -g root -m 0755 /run/maran-php
+  # /run/maran-host holds bind mounts of the HOST's /tmp, /var/tmp and /dev/shm for the agent's
+  # unit, which runs with PrivateTmp=true (installer/systemd/maran-host.tmpfiles.conf says why).
+  # root-only: it is a second name for the host's world-writable directories. The mount points
+  # must exist before the agent starts, so they are made here as well as by the tmpfiles snippet.
+  install -d -o root -g root -m 0700 /run/maran-host
+  install -d -o root -g root -m 0700 /run/maran-host/tmp
+  install -d -o root -g root -m 0700 /run/maran-host/var-tmp
+  install -d -o root -g root -m 0700 /run/maran-host/dev-shm
 }
 
 # remove_unless_root_only_directory: deletes whatever occupies the path unless it is

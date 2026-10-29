@@ -5,6 +5,24 @@ than a strict category list: what changed and why it matters to somebody running
 
 ## Unreleased
 
+**Deleting an account left things behind that a new account could inherit.** After the processes were
+ended, the user's number (uid) still keyed several places `userdel` does not clean: jobs queued with
+`at`, files in `/tmp`, `/var/tmp` and `/dev/shm`, shared memory, message queues and semaphores, and a
+lingering `systemd --user` session manager. The next account given that uid would own them. Deletion
+now removes each before the system user goes, in this order: crontab, `at` jobs, user manager,
+processes, SysV IPC, shared temporary files, then `userdel`.
+
+- Every step fails closed: anything left aborts the deletion with a system failure and running it again
+  finishes the job. A temporary directory holding another owner's files is never emptied or chowned;
+  deletion refuses instead.
+- The agent's own private `/tmp` hid the host's, so a sweep would have found nothing and passed. The unit
+  now bind-mounts the host's temporary directories under `/run/maran-host/` (`PrivateTmp` stays on).
+- `at` is optional: where it is not installed the step is skipped. Group-owned leftovers and
+  `/dev/mqueue` are not handled yet (follow-up).
+
+Threat note: `docs/superpowers/notes/2026-10-29-account-deletion-leftovers-threat-note.md`; its second
+review is recorded as outstanding.
+
 **An administrator locked out of the panel now has a supported way back in.** When the only administrator
 lost a password or an authenticator and no mail was configured, the only options were editing the
 database by hand, which leaves no audit row, or reinstalling. The installer now places a root-only

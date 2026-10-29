@@ -276,8 +276,9 @@ rust	maran_agent [unittests src/lib.rs]	410	0	0
 rust	maran_agent [unittests src/main.rs]	0	0	0
 rust	account_deletion_on_a_real_host [tests/account_deletion_on_a_real_host.rs]	0	0	6
 rust	account_identity_on_a_real_host [tests/account_identity_on_a_real_host.rs]	0	0	6
+rust	account_leftovers_on_a_real_host [tests/account_leftovers_on_a_real_host.rs]	0	0	2
 rust	backup_on_a_real_host [tests/backup_on_a_real_host.rs]	0	0	13
-rust	binary_paths_on_a_real_host [tests/binary_paths_on_a_real_host.rs]	0	0	4
+rust	binary_paths_on_a_real_host [tests/binary_paths_on_a_real_host.rs]	0	0	5
 rust	cron_on_a_real_host [tests/cron_on_a_real_host.rs]	0	0	6
 rust	databases_on_a_real_host [tests/databases_on_a_real_host.rs]	0	0	8
 rust	firewall_on_a_real_host [tests/firewall_on_a_real_host.rs]	0	0	10

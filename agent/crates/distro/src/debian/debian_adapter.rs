@@ -138,6 +138,26 @@ impl DistroAdapter for DebianAdapter {
         debian_services::pgrep_binary()
     }
 
+    fn atq_binary(&self) -> AdapterBinary {
+        debian_services::atq_binary()
+    }
+
+    fn atrm_binary(&self) -> AdapterBinary {
+        debian_services::atrm_binary()
+    }
+
+    fn loginctl_binary(&self) -> AdapterBinary {
+        debian_services::loginctl_binary()
+    }
+
+    fn ipcrm_binary(&self) -> AdapterBinary {
+        debian_services::ipcrm_binary()
+    }
+
+    fn at_spool_directory(&self) -> &'static str {
+        debian_services::at_spool_directory()
+    }
+
     fn passwd_binary(&self) -> AdapterBinary {
         debian_services::passwd_binary()
     }

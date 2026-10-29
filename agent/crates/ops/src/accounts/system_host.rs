@@ -6,6 +6,7 @@ use maran_agent_core::utils::call_class::CallClass;
 use maran_distro::AdapterBinary;
 
 use crate::accounts::model::home_metadata::HomeMetadata;
+use crate::accounts::model::sysv_ipc_kind::SysvIpcKind;
 use crate::accounts::{AccountError, CommandOutcome};
 
 /// The operating-system operations the account module needs.
@@ -102,6 +103,19 @@ pub trait SystemHost: Send + Sync {
     /// Returns [`AccountError::HomeInspection`] when the path exists but its
     /// metadata could not be read for any other reason.
     fn home_metadata(&self, path: &str) -> Result<Option<HomeMetadata>, AccountError>;
+
+    /// Reads one of the kernel's SysV IPC tables, whole, as raw text.
+    ///
+    /// The real host reads `/proc/sysvipc/shm`, `/proc/sysvipc/msg` or
+    /// `/proc/sysvipc/sem` for the matching [`SysvIpcKind`]; parsing is the
+    /// caller's (`super::parse_sysv_ipc_table`). A kernel without that table
+    /// answers an empty string: there is nothing there to remove.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`AccountError::HomeInspection`] when the table exists but could
+    /// not be read.
+    fn read_sysv_ipc_table(&self, kind: SysvIpcKind) -> Result<String, AccountError>;
 
     /// Waits for `interval` before the caller looks again.
     ///

@@ -14,6 +14,7 @@ use std::sync::Mutex;
 use std::time::Duration;
 
 use crate::accounts::model::home_metadata::HomeMetadata;
+use crate::accounts::model::sysv_ipc_kind::SysvIpcKind;
 
 use maran_agent_core::utils::bound_exceeded::BoundExceeded;
 use maran_agent_core::utils::call_class::CallClass;
@@ -148,6 +149,18 @@ struct RecordingHost {
     /// Every interval the operations asked the host to pause for. Recorded and
     /// never slept, so a retry loop's bound is a number a test can read.
     pauses: Mutex<Vec<Duration>>,
+
+    /// One marker per observable step, in the order the operations took them:
+    /// `run:<program path>` for a spawn, `stat:<path>` for a filesystem look,
+    /// `ipc-read` for a SysV table read. Shared (`Arc`) so a test's replacement
+    /// shared-files step can write into the same timeline, which is what lets one
+    /// assertion order steps recorded by different seams.
+    events: Arc<Mutex<Vec<String>>>,
+
+    /// What the shared-memory table (`/proc/sysvipc/shm`) holds; the message and
+    /// semaphore tables are always empty. Defaults to an empty table: no IPC
+    /// object is owned by anyone on this fake host.
+    shm_table: Mutex<String>,
 }
 
 impl RecordingHost {
@@ -176,7 +189,31 @@ impl RecordingHost {
             timing_out: Mutex::new(None),
             pkill_statuses: Mutex::new(VecDeque::new()),
             pauses: Mutex::new(Vec::new()),
+            events: Arc::new(Mutex::new(Vec::new())),
+            shm_table: Mutex::new(String::new()),
         }
+    }
+
+    /// A handle on the shared timeline, for a step that is not a host call.
+    fn events_handle(&self) -> Arc<Mutex<Vec<String>>> {
+        Arc::clone(&self.events)
+    }
+
+    /// Every marker recorded so far, in order.
+    fn events(&self) -> Vec<String> {
+        self.events
+            .lock()
+            .expect("the fixture lock is never poisoned")
+            .clone()
+    }
+
+    /// Sets the text of the shared-memory table.
+    fn with_shm_table(self, table: &str) -> Self {
+        *self
+            .shm_table
+            .lock()
+            .expect("the fixture lock is never poisoned") = table.to_owned();
+        self
     }
 
     /// Queues the exit statuses the next `pkill` spawns answer with, in order.
@@ -391,6 +428,10 @@ impl SystemHost for RecordingHost {
         arguments: &[&str],
         class: CallClass,
     ) -> Result<CommandOutcome, AccountError> {
+        self.events
+            .lock()
+            .expect("the fixture lock is never poisoned")
+            .push(format!("run:{program}"));
         self.classes
             .lock()
             .expect("the fixture lock is never poisoned")
@@ -522,12 +563,33 @@ impl SystemHost for RecordingHost {
     }
 
     fn home_metadata(&self, path: &str) -> Result<Option<HomeMetadata>, AccountError> {
+        self.events
+            .lock()
+            .expect("the fixture lock is never poisoned")
+            .push(format!("stat:{path}"));
         Ok(self
             .homes
             .lock()
             .expect("the fixture lock is never poisoned")
             .get(path)
             .copied())
+    }
+
+    fn read_sysv_ipc_table(&self, kind: SysvIpcKind) -> Result<String, AccountError> {
+        self.events
+            .lock()
+            .expect("the fixture lock is never poisoned")
+            .push("ipc-read".to_owned());
+        // Nothing there by default: no IPC object is owned by anyone on this
+        // fake host. Only the shared-memory table can be filled by a test.
+        if kind == SysvIpcKind::Shm {
+            return Ok(self
+                .shm_table
+                .lock()
+                .expect("the fixture lock is never poisoned")
+                .clone());
+        }
+        Ok(String::new())
     }
 
     fn pause(&self, interval: Duration) {
@@ -545,8 +607,15 @@ fn passwd_row(name: &str, uid: u32, gid: u32, home: &str) -> String {
 
 /// Operations bound to a recording host and the Debian adapter, which is what the
 /// argv assertions below are written against.
+///
+/// Its shared-temp-files step is a no-op: the real one walks the machine's own
+/// `/run/maran-host` mounts, which a unit test must never touch. The step's own
+/// behaviour is tested in `remove_account_shared_files_tests.rs` against a
+/// temporary directory, and its place in the deletion by the tests that replace
+/// it below.
 fn debian(host: RecordingHost) -> AccountOperations<RecordingHost> {
     AccountOperations::new(host, adapter_for(DistroFamily::Debian))
+        .with_shared_files_step(Box::new(|_| Ok(())))
 }
 
 fn name() -> AccountName {
@@ -3675,4 +3744,153 @@ fn a_crontab_removal_that_outlives_its_deadline_aborts_the_deletion_before_userd
 
     assert!(matches!(error, AccountError::Bound(_)), "{error:?}");
     assert!(operations_calls(&operations, "userdel").is_empty());
+}
+
+/// A listing of the `atq` queue with one job queued by `acme`.
+const ACME_AT_JOB: &str = "7\tThu Oct 29 10:00:00 2026 a acme\n";
+
+/// A shared-memory table with one segment `acme` (uid 1001) owns.
+const ACME_SHM_TABLE: &str = "key shmid perms cuid uid\n0 42 600 1001 1001\n";
+
+/// Runs a full deletion of `acme` on `operations` and returns its result.
+fn delete_acme(operations: &AccountOperations<RecordingHost>) -> Result<u64, AccountError> {
+    operations.delete_under_lock(
+        &FakePhpHost::empty(),
+        &no_databases(),
+        &no_sftp(),
+        &no_ftps(),
+        &name(),
+    )
+}
+
+/// The position of the first marker equal to `wanted`.
+fn first_event(events: &[String], wanted: &str) -> usize {
+    events
+        .iter()
+        .position(|event| event == wanted)
+        .unwrap_or_else(|| panic!("no `{wanted}` marker was recorded in {events:?}"))
+}
+
+#[test]
+fn the_uid_leftovers_are_released_in_order_and_all_before_userdel() {
+    // The order is the argument (issue #139): `atd` and the user manager start
+    // processes, so they precede the kill; IPC and temp files are only stable once
+    // nothing runs, so they follow it; `userdel` is last. Each step is observed by
+    // the first thing it does: the `atq` presence look, the runtime-directory look,
+    // the first process kill, the first IPC table read, and the replaced shared
+    // files step writing into the same timeline.
+    let host = RecordingHost::new().with_user("acme").with_stdout("");
+    let events = host.events_handle();
+    let marker = Arc::clone(&events);
+    let operations = debian(host).with_shared_files_step(Box::new(move |_| {
+        marker
+            .lock()
+            .expect("the fixture lock is never poisoned")
+            .push("shared-files".to_owned());
+        Ok(())
+    }));
+
+    delete_acme(&operations).expect("deletion succeeds");
+
+    let events = operations.host().events();
+    let at = first_event(
+        &events,
+        &format!("stat:{}", operations.distro().atq_binary()),
+    );
+    let manager = first_event(&events, "stat:/run/user/1001");
+    let processes = first_event(&events, &format!("run:{}", tool_path(&operations, "pkill")));
+    let ipc = first_event(&events, "ipc-read");
+    let shared = first_event(&events, "shared-files");
+    let userdel = first_event(
+        &events,
+        &format!("run:{}", tool_path(&operations, "userdel")),
+    );
+    assert!(
+        at < manager && manager < processes && processes < ipc && ipc < shared && shared < userdel,
+        "expected at < user manager < processes < IPC < shared files < userdel, got {events:?}"
+    );
+}
+
+#[test]
+fn a_queued_at_job_that_survives_stops_the_deletion_before_userdel() {
+    let atq = adapter_for(DistroFamily::Debian).atq_binary().to_string();
+    let operations = debian(
+        RecordingHost::new()
+            .with_user("acme")
+            .with_stdout(ACME_AT_JOB)
+            .with_home(&atq, ordinary_home(0, 0)),
+    );
+
+    let refusal = delete_acme(&operations);
+
+    assert!(
+        matches!(refusal, Err(AccountError::AtJobsRemain { .. })),
+        "expected AtJobsRemain, got {refusal:?}"
+    );
+    assert!(
+        operations_calls(&operations, "userdel").is_empty(),
+        "userdel must not have run: the account stays, which is the state that can be retried"
+    );
+}
+
+#[test]
+fn a_user_manager_that_survives_stops_the_deletion_before_userdel() {
+    let operations = debian(
+        RecordingHost::new()
+            .with_user("acme")
+            .with_home("/var/lib/systemd/linger/acme", ordinary_home(0, 0)),
+    );
+
+    let refusal = delete_acme(&operations);
+
+    assert!(
+        matches!(refusal, Err(AccountError::UserManagerRemains { .. })),
+        "expected UserManagerRemains, got {refusal:?}"
+    );
+    assert!(
+        operations_calls(&operations, "userdel").is_empty(),
+        "userdel must not have run: the account stays, which is the state that can be retried"
+    );
+}
+
+#[test]
+fn a_sysv_ipc_object_that_survives_stops_the_deletion_before_userdel() {
+    let operations = debian(
+        RecordingHost::new()
+            .with_user("acme")
+            .with_shm_table(ACME_SHM_TABLE),
+    );
+
+    let refusal = delete_acme(&operations);
+
+    assert!(
+        matches!(refusal, Err(AccountError::IpcRemain { .. })),
+        "expected IpcRemain, got {refusal:?}"
+    );
+    assert!(
+        operations_calls(&operations, "userdel").is_empty(),
+        "userdel must not have run: the account stays, which is the state that can be retried"
+    );
+}
+
+#[test]
+fn shared_temp_files_that_remain_stop_the_deletion_before_userdel() {
+    let operations = debian(RecordingHost::new().with_user("acme")).with_shared_files_step(
+        Box::new(|account| {
+            Err(AccountError::SharedFilesRemain {
+                username: account.name().as_str().to_owned(),
+            })
+        }),
+    );
+
+    let refusal = delete_acme(&operations);
+
+    assert!(
+        matches!(refusal, Err(AccountError::SharedFilesRemain { .. })),
+        "expected SharedFilesRemain, got {refusal:?}"
+    );
+    assert!(
+        operations_calls(&operations, "userdel").is_empty(),
+        "userdel must not have run: the account stays, which is the state that can be retried"
+    );
 }

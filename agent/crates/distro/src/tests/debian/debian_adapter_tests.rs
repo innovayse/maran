@@ -111,11 +111,15 @@ fn the_debian_family_reports_exactly_the_four_units_the_panel_manages() {
 /// `sh` is in the table for the same reason and not because the agent spawns it
 /// — it never does — but because the path is written into a crontab line, where
 /// a wrong one is a cron entry that silently never runs.
-const EXPECTED_BINARIES: [(&str, &str); 19] = [
+const EXPECTED_BINARIES: [(&str, &str); 23] = [
     ("useradd", "/usr/sbin/useradd"),
     ("usermod", "/usr/sbin/usermod"),
     ("pkill", "/usr/bin/pkill"),
     ("pgrep", "/usr/bin/pgrep"),
+    ("atq", "/usr/bin/atq"),
+    ("atrm", "/usr/bin/atrm"),
+    ("loginctl", "/usr/bin/loginctl"),
+    ("ipcrm", "/usr/bin/ipcrm"),
     ("userdel", "/usr/sbin/userdel"),
     ("chpasswd", "/usr/sbin/chpasswd"),
     ("setquota", "/usr/sbin/setquota"),
@@ -134,12 +138,16 @@ const EXPECTED_BINARIES: [(&str, &str); 19] = [
 ];
 
 /// The adapter's answer for each tool, in the order of [`EXPECTED_BINARIES`].
-fn actual_binaries() -> [String; 19] {
+fn actual_binaries() -> [String; 23] {
     [
         DebianAdapter.useradd_binary().to_string(),
         DebianAdapter.usermod_binary().to_string(),
         DebianAdapter.pkill_binary().to_string(),
         DebianAdapter.pgrep_binary().to_string(),
+        DebianAdapter.atq_binary().to_string(),
+        DebianAdapter.atrm_binary().to_string(),
+        DebianAdapter.loginctl_binary().to_string(),
+        DebianAdapter.ipcrm_binary().to_string(),
         DebianAdapter.userdel_binary().to_string(),
         DebianAdapter.chpasswd_binary().to_string(),
         DebianAdapter.setquota_binary().to_string(),
@@ -212,7 +220,7 @@ fn declared_binary_methods() -> usize {
 
 /// Every program the Debian adapter lets the agent execute, with the method that names it.
 ///
-/// One entry per `AdapterBinary`-returning method of the trait (24 fixed paths
+/// One entry per `AdapterBinary`-returning method of the trait (28 fixed paths
 /// plus the version-built php-fpm validator). `sh` and the login shell are not
 /// here: they are written somewhere, never executed by the agent, so they stay
 /// plain strings (see the type assertion below).
@@ -233,6 +241,10 @@ fn every_executable() -> Vec<(&'static str, AdapterBinary)> {
         ("usermod", DebianAdapter.usermod_binary()),
         ("pkill", DebianAdapter.pkill_binary()),
         ("pgrep", DebianAdapter.pgrep_binary()),
+        ("atq", DebianAdapter.atq_binary()),
+        ("atrm", DebianAdapter.atrm_binary()),
+        ("loginctl", DebianAdapter.loginctl_binary()),
+        ("ipcrm", DebianAdapter.ipcrm_binary()),
         ("passwd", DebianAdapter.passwd_binary()),
         ("getent", DebianAdapter.getent_binary()),
         ("setquota", DebianAdapter.setquota_binary()),
@@ -332,4 +344,10 @@ fn sh_and_nologin_stay_plain_paths_and_are_not_executable_typed() {
 
     assert!(sh.starts_with('/'));
     assert!(nologin.starts_with('/'));
+}
+
+/// The Debian family keeps `at` job files in the directory its `at` package spools to.
+#[test]
+fn the_debian_family_names_the_directory_its_at_daemon_spools_to() {
+    assert_eq!(DebianAdapter.at_spool_directory(), "/var/spool/cron/atjobs");
 }
