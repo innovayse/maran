@@ -260,7 +260,7 @@ agent/
     │   └── src/
     │       ├── adapter.rs     the DistroAdapter trait, alone. Besides paths and packages it
     │       │                  answers the account-deletion programs atq · atrm · loginctl ·
-    │       │                  ipcrm (each an AdapterBinary) and at_spool_directory
+    │       │                  ipcrm (each an AdapterBinary) and the directories at_spool_directory · mail_spool_directory
     │       ├── adapter_for.rs the selector: family → adapter
     │       ├── family.rs      DistroFamily
     │       ├── vsftpd_tls_version_keys.rs  the NAMES of the three TLS-version
@@ -294,13 +294,15 @@ agent/
     │       │                  accounts = system users: useradd/userdel, homes, quotas.
     │       │                  Deletion releases every uid-keyed leftover, in this order
     │       │                  (issue #139): crontab → at jobs → user manager → processes →
-    │       │                  SysV IPC → shared temp files → re-resolve the uid → userdel.
+    │       │                  SysV IPC → shared temp files → mail spool → re-resolve the uid → userdel.
     │       │                  Its non-rpc units: remove_account_at_jobs.rs (+ parse_atq_listing.rs,
     │       │                  model/at_job.rs) · end_account_user_manager.rs (linger off, session
     │       │                  terminated) · remove_account_sysv_ipc.rs (+ parse_sysv_ipc_table.rs,
     │       │                  model/sysv_ipc_kind.rs, model/sysv_ipc_object.rs) ·
     │       │                  remove_account_shared_files.rs (+ sweep_directory_by_owner.rs, the
-    │       │                  descriptor walk). Each fails closed: a leftover is a typed error and
+    │       │                  descriptor walk) · remove_account_mail_spool.rs (the one file named after the
+    │       │                  account in the distro's real mail directory; userdel --remove was
+    │       │                  measured to leave it on RHEL). Each fails closed: a leftover is a typed error and
     │       │                  userdel does not run.
     │       │                  sftp/ is OpenSSH logins chrooted into a per-account,
     │       │                  root-owned jail with the real home bind-mounted inside;

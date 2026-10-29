@@ -288,6 +288,14 @@ pub fn at_spool_directory() -> &'static str {
     "/var/spool/cron/atjobs"
 }
 
+/// The real directory per-user mail spool files live in on this family.
+///
+/// Debian's is `/var/mail`; the other spelling is a symlink to it.
+#[must_use]
+pub fn mail_spool_directory() -> &'static str {
+    "/var/mail"
+}
+
 /// Absolute path of `passwd`, for the process-execution allow-list.
 ///
 /// The shadow suite installs the user-facing half of its tools in `/usr/bin`

@@ -354,3 +354,9 @@ fn sh_and_nologin_stay_plain_paths_and_are_not_executable_typed() {
 fn the_rhel_family_names_the_directory_its_at_daemon_spools_to() {
     assert_eq!(RhelAdapter.at_spool_directory(), "/var/spool/at");
 }
+
+/// The Rhel family names the real directory its mail spool files live in.
+#[test]
+fn the_rhel_family_names_the_real_directory_of_its_mail_spool() {
+    assert_eq!(RhelAdapter.mail_spool_directory(), "/var/spool/mail");
+}

@@ -158,6 +158,10 @@ impl DistroAdapter for RhelAdapter {
         rhel_services::at_spool_directory()
     }
 
+    fn mail_spool_directory(&self) -> &'static str {
+        rhel_services::mail_spool_directory()
+    }
+
     fn passwd_binary(&self) -> AdapterBinary {
         rhel_services::passwd_binary()
     }

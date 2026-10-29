@@ -166,6 +166,22 @@ fn remove_account(distro: &'static dyn DistroAdapter, name: &AccountName) {
         "a leftover polygon account must be removable, userdel exited {status}: {}",
         String::from_utf8_lossy(&outcome.stderr)
     );
+
+    // `userdel --remove` leaves the mail spool on the RHEL family (measured on the AlmaLinux 9
+    // polygon, issue #139). This cleanup bypasses the agent's delete, so it clears the spool itself:
+    // otherwise a later account handed this uid would own it, and a suite asserting that nothing is
+    // inherited would be measuring this fixture's leftovers rather than the agent.
+    let spool = Path::new("/var/mail").join(name.as_str());
+    if spool
+        .symlink_metadata()
+        .is_ok_and(|metadata| metadata.is_file())
+        && let Err(error) = std::fs::remove_file(&spool)
+    {
+        eprintln!(
+            "the polygon account {}'s mail spool could not be removed: {error}",
+            name.as_str()
+        );
+    }
 }
 
 impl Drop for PolygonAccount {

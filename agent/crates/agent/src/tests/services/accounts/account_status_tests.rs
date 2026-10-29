@@ -424,6 +424,12 @@ fn leftover_uid_resources_are_system_failures_whose_messages_name_only_the_accou
             },
             "shared files of account 'acme' are still present after being removed",
         ),
+        (
+            AccountError::MailSpoolRemains {
+                username: "acme".to_owned(),
+            },
+            "the mail spool of account 'acme' is still present after being removed",
+        ),
     ];
 
     for (error, message) in cases {

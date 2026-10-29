@@ -10,8 +10,10 @@ ended, the user's number (uid) still keyed several places `userdel` does not cle
 `at`, files in `/tmp`, `/var/tmp` and `/dev/shm`, shared memory, message queues and semaphores, and a
 lingering `systemd --user` session manager. The next account given that uid would own them. Deletion
 now removes each before the system user goes, in this order: crontab, `at` jobs, user manager,
-processes, SysV IPC, shared temporary files, then `userdel`.
+processes, SysV IPC, shared temporary files, mail spool, then `userdel`.
 
+- `userdel --remove` was measured to leave a deleted account's mail spool behind on AlmaLinux 9, so the
+  spool is now removed explicitly (only a regular file owned by the account; anything else refuses).
 - Every step fails closed: anything left aborts the deletion with a system failure and running it again
   finishes the job. A temporary directory holding another owner's files is never emptied or chowned;
   deletion refuses instead.

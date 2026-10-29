@@ -158,6 +158,10 @@ impl DistroAdapter for DebianAdapter {
         debian_services::at_spool_directory()
     }
 
+    fn mail_spool_directory(&self) -> &'static str {
+        debian_services::mail_spool_directory()
+    }
+
     fn passwd_binary(&self) -> AdapterBinary {
         debian_services::passwd_binary()
     }

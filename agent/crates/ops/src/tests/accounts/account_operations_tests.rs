@@ -616,6 +616,7 @@ fn passwd_row(name: &str, uid: u32, gid: u32, home: &str) -> String {
 fn debian(host: RecordingHost) -> AccountOperations<RecordingHost> {
     AccountOperations::new(host, adapter_for(DistroFamily::Debian))
         .with_shared_files_step(Box::new(|_| Ok(())))
+        .with_mail_spool_step(Box::new(|_| Ok(())))
 }
 
 fn name() -> AccountName {
@@ -3782,13 +3783,22 @@ fn the_uid_leftovers_are_released_in_order_and_all_before_userdel() {
     let host = RecordingHost::new().with_user("acme").with_stdout("");
     let events = host.events_handle();
     let marker = Arc::clone(&events);
-    let operations = debian(host).with_shared_files_step(Box::new(move |_| {
-        marker
-            .lock()
-            .expect("the fixture lock is never poisoned")
-            .push("shared-files".to_owned());
-        Ok(())
-    }));
+    let mail_marker = Arc::clone(&events);
+    let operations = debian(host)
+        .with_shared_files_step(Box::new(move |_| {
+            marker
+                .lock()
+                .expect("the fixture lock is never poisoned")
+                .push("shared-files".to_owned());
+            Ok(())
+        }))
+        .with_mail_spool_step(Box::new(move |_| {
+            mail_marker
+                .lock()
+                .expect("the fixture lock is never poisoned")
+                .push("mail-spool".to_owned());
+            Ok(())
+        }));
 
     delete_acme(&operations).expect("deletion succeeds");
 
@@ -3801,13 +3811,19 @@ fn the_uid_leftovers_are_released_in_order_and_all_before_userdel() {
     let processes = first_event(&events, &format!("run:{}", tool_path(&operations, "pkill")));
     let ipc = first_event(&events, "ipc-read");
     let shared = first_event(&events, "shared-files");
+    let mail = first_event(&events, "mail-spool");
     let userdel = first_event(
         &events,
         &format!("run:{}", tool_path(&operations, "userdel")),
     );
     assert!(
-        at < manager && manager < processes && processes < ipc && ipc < shared && shared < userdel,
-        "expected at < user manager < processes < IPC < shared files < userdel, got {events:?}"
+        at < manager
+            && manager < processes
+            && processes < ipc
+            && ipc < shared
+            && shared < mail
+            && mail < userdel,
+        "expected at < user manager < processes < IPC < shared files < mail spool < userdel, got {events:?}"
     );
 }
 
@@ -3888,6 +3904,27 @@ fn shared_temp_files_that_remain_stop_the_deletion_before_userdel() {
     assert!(
         matches!(refusal, Err(AccountError::SharedFilesRemain { .. })),
         "expected SharedFilesRemain, got {refusal:?}"
+    );
+    assert!(
+        operations_calls(&operations, "userdel").is_empty(),
+        "userdel must not have run: the account stays, which is the state that can be retried"
+    );
+}
+
+#[test]
+fn a_mail_spool_that_remains_stops_the_deletion_before_userdel() {
+    let operations =
+        debian(RecordingHost::new().with_user("acme")).with_mail_spool_step(Box::new(|account| {
+            Err(AccountError::MailSpoolRemains {
+                username: account.name().as_str().to_owned(),
+            })
+        }));
+
+    let refusal = delete_acme(&operations);
+
+    assert!(
+        matches!(refusal, Err(AccountError::MailSpoolRemains { .. })),
+        "expected MailSpoolRemains, got {refusal:?}"
     );
     assert!(
         operations_calls(&operations, "userdel").is_empty(),

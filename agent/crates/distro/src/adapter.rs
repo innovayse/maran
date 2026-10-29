@@ -414,6 +414,17 @@ pub trait DistroAdapter: Send + Sync {
     /// directory exists only where the `at` package is installed.
     fn at_spool_directory(&self) -> &'static str;
 
+    /// The real directory holding per-user mail spool files, one regular file
+    /// per login named after it.
+    ///
+    /// A platform fact: Debian's is `/var/mail` (and `/var/spool/mail` is a
+    /// symlink to it), the RHEL family's is `/var/spool/mail` (and `/var/mail`
+    /// is the symlink). The REAL directory is named, so it can be opened
+    /// without following a link. Account deletion removes the departed
+    /// account's spool from it, because `userdel --remove` was measured to
+    /// leave it behind on the RHEL family.
+    fn mail_spool_directory(&self) -> &'static str;
+
     /// Absolute path of `passwd`, for the process-execution allow-list.
     ///
     /// Needed for `passwd -S <user>`, which REPORTS whether a password can

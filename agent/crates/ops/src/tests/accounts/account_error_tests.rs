@@ -168,6 +168,19 @@ fn the_shared_files_remain_message_names_the_account_and_no_path() {
     );
 }
 
+/// The mail spool refusal names the account and no path.
+#[test]
+fn the_mail_spool_remains_message_names_the_account_and_no_path() {
+    let error = AccountError::MailSpoolRemains {
+        username: "acme".to_owned(),
+    };
+
+    assert_eq!(
+        error.to_string(),
+        "the mail spool of account 'acme' is still present after being removed"
+    );
+}
+
 /// The survivor refusal names the account and nothing else.
 #[test]
 fn the_processes_remain_message_names_the_account_and_no_process_detail() {

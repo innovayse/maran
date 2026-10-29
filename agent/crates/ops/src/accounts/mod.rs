@@ -18,6 +18,7 @@ mod quota_blocks;
 mod quota_enforceability;
 mod read_managed_account;
 mod remove_account_at_jobs;
+mod remove_account_mail_spool;
 mod remove_account_shared_files;
 mod remove_account_sysv_ipc;
 mod sweep_directory_by_owner;

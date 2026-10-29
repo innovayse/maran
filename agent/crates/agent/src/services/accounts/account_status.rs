@@ -63,6 +63,7 @@ pub fn to_agent_error(error: &AccountError) -> AgentError {
         AccountError::UserManagerRemains { .. } => ErrorCode::SystemFailure,
         AccountError::IpcRemain { .. } => ErrorCode::SystemFailure,
         AccountError::SharedFilesRemain { .. } => ErrorCode::SystemFailure,
+        AccountError::MailSpoolRemains { .. } => ErrorCode::SystemFailure,
         // The name is well formed but the user behind it is not a hosting account
         // (reserved, a system identity, a home elsewhere). INVALID_INPUT: not
         // NOT_FOUND, because the user may exist, and not SYSTEM_FAILURE, because

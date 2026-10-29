@@ -368,6 +368,24 @@ pub enum AccountError {
         /// The account whose files survived.
         username: String,
     },
+
+    /// The account's mail spool could not be removed, or something it must not
+    /// touch sits at its name, so the deletion stopped before `userdel`.
+    ///
+    /// `userdel --remove` was measured to leave the spool behind on the RHEL
+    /// family, and the file is owned by a bare uid, so the next account given
+    /// that uid would own it. Its own variant rather than
+    /// [`Self::SharedFilesRemain`] because the operator looks in a different
+    /// place: the distribution's mail directory, not a temp directory. Raised
+    /// when the entry at the account's name is uid-owned but not a regular file
+    /// (it is never followed or removed), or when it survived the unlink.
+    /// Retryable like [`Self::ProcessesRemain`]. Carries the name only: no path
+    /// reaches a customer-facing message.
+    #[error("the mail spool of account '{username}' is still present after being removed")]
+    MailSpoolRemains {
+        /// The account whose spool survived.
+        username: String,
+    },
 }
 
 impl AccountError {

@@ -83,7 +83,7 @@ may contain a platform literal — a path, a package name, a shell — and
 | Path | Purpose |
 |---|---|
 | `src/detection/` | what host is this? `os_release.rs` parses, `detect.rs` decides, `distro_info.rs` carries the answer, `detect_error.rs` refuses unsupported hosts. |
-| `src/adapter.rs` | the `DistroAdapter` trait, alone in its file. It also answers the account-deletion programs `atq`, `atrm`, `loginctl`, `ipcrm` (as `AdapterBinary`) and `at_spool_directory`. |
+| `src/adapter.rs` | the `DistroAdapter` trait, alone in its file. It also answers the account-deletion programs `atq`, `atrm`, `loginctl`, `ipcrm` (as `AdapterBinary`), `at_spool_directory` and `mail_spool_directory`. |
 | `src/adapter_binary.rs` | `AdapterBinary`, alone in its file: the absolute path of one program the agent may start as root. The field is private and the constructors are `pub(crate)`, so only this crate can build one; every `*_binary` adapter method that names an executed program returns it, and every `ops` process seam takes `&AdapterBinary` rather than a string. `php_fpm_binary` takes the validated `PhpVersion`, the only path built with `format!`. |
 | `src/adapter_for.rs` | family → adapter. The branch on family happens exactly once, here. |
 | `src/family.rs` | `DistroFamily`. |
@@ -101,7 +101,7 @@ an RPC is found without searching.
 
 | Path | Purpose |
 |---|---|
-| `src/accounts/` | system users: useradd/userdel, homes, quotas, usage. Deletion releases the uid's leftovers in order: crontab, at jobs, user manager, processes, SysV IPC, shared temp files, re-resolve, `userdel`. Non-rpc units: `remove_account_at_jobs.rs` (`parse_atq_listing.rs`, `model/at_job.rs`), `end_account_user_manager.rs`, `remove_account_sysv_ipc.rs` (`parse_sysv_ipc_table.rs`, `model/sysv_ipc_kind.rs`, `model/sysv_ipc_object.rs`), `remove_account_shared_files.rs` (`sweep_directory_by_owner.rs`). |
+| `src/accounts/` | system users: useradd/userdel, homes, quotas, usage. Deletion releases the uid's leftovers in order: crontab, at jobs, user manager, processes, SysV IPC, shared temp files, mail spool, re-resolve, `userdel`. Non-rpc units: `remove_account_at_jobs.rs` (`parse_atq_listing.rs`, `model/at_job.rs`), `end_account_user_manager.rs`, `remove_account_sysv_ipc.rs` (`parse_sysv_ipc_table.rs`, `model/sysv_ipc_kind.rs`, `model/sysv_ipc_object.rs`), `remove_account_shared_files.rs` (`sweep_directory_by_owner.rs`), `remove_account_mail_spool.rs`. |
 | `src/sites/` | nginx vhosts: create, enable/disable, delete, php version, log tail, reload. `converge_php_site.rs` is not an rpc: it brings one PHP site's pool and then its vhost to the current render, writing only what differs (a same-version `UpdateSitePhpVersion` runs it). |
 | `src/php/` | pools and versions. No proto service of its own — driven by sites and accounts. `render_pool.rs` renders a pool's configuration, shared by pool writes and `sites/converge_php_site.rs`. |
 | `src/db/` | MySQL/MariaDB databases and the dedicated user each one is created with. The agent holds no database credential: it connects over the local socket as root, authenticated by the connecting uid. |

@@ -351,3 +351,9 @@ fn sh_and_nologin_stay_plain_paths_and_are_not_executable_typed() {
 fn the_debian_family_names_the_directory_its_at_daemon_spools_to() {
     assert_eq!(DebianAdapter.at_spool_directory(), "/var/spool/cron/atjobs");
 }
+
+/// The Debian family names the real directory its mail spool files live in.
+#[test]
+fn the_debian_family_names_the_real_directory_of_its_mail_spool() {
+    assert_eq!(DebianAdapter.mail_spool_directory(), "/var/mail");
+}

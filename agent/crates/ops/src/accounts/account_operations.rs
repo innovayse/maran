@@ -22,6 +22,7 @@ use crate::accounts::quota_blocks::QuotaBlocks;
 use crate::accounts::quota_enforceability::classify as classify_quota_enforceability;
 use crate::accounts::quota_enforceability::quota_device_for;
 use crate::accounts::remove_account_at_jobs::remove_account_at_jobs;
+use crate::accounts::remove_account_mail_spool::remove_account_mail_spool;
 use crate::accounts::remove_account_shared_files::remove_account_shared_files;
 use crate::accounts::remove_account_sysv_ipc::remove_account_sysv_ipc;
 use crate::accounts::{
@@ -127,6 +128,14 @@ pub struct AccountOperations<H: SystemHost> {
     /// test replaces it so a deletion test neither touches the real filesystem
     /// nor is blind to the step's failure.
     shared_files_step: SharedFilesStep,
+
+    /// The step that removes the account's mail spool during a deletion.
+    ///
+    /// A field for the same reason as `shared_files_step`: it opens the
+    /// distribution's real mail directory with a descriptor, which
+    /// [`SystemHost`] cannot express. Production always holds
+    /// [`remove_account_mail_spool`] bound to the distro adapter.
+    mail_spool_step: SharedFilesStep,
 }
 
 /// The shape of the shared-temp-files step: the account in, a leftover or an
@@ -141,6 +150,7 @@ impl<H: SystemHost> AccountOperations<H> {
             host,
             distro,
             shared_files_step: Box::new(remove_account_shared_files),
+            mail_spool_step: Box::new(move |account| remove_account_mail_spool(distro, account)),
         }
     }
 
@@ -151,6 +161,16 @@ impl<H: SystemHost> AccountOperations<H> {
     #[cfg(test)]
     fn with_shared_files_step(mut self, step: SharedFilesStep) -> Self {
         self.shared_files_step = step;
+        self
+    }
+
+    /// Replaces the mail-spool step of a deletion, for a unit test.
+    ///
+    /// Test-only: production code cannot reach it, so the step a real deletion
+    /// runs is always [`remove_account_mail_spool`].
+    #[cfg(test)]
+    fn with_mail_spool_step(mut self, step: SharedFilesStep) -> Self {
+        self.mail_spool_step = step;
         self
     }
 
@@ -941,6 +961,13 @@ impl<H: SystemHost> AccountOperations<H> {
         // tenant; each fails closed with its own variant before `userdel`.
         remove_account_sysv_ipc(&self.host, self.distro, &account)?;
         (self.shared_files_step)(&account)?;
+
+        // The mail spool, removed here by name and not left to `userdel
+        // --remove`: measured on AlmaLinux 9, the spool of a deleted account
+        // survived `userdel --remove` and the next account given the uid owned
+        // it. Last of the uid-keyed steps and still before the identity
+        // re-check, so the freshest fact precedes the irreversible step.
+        (self.mail_spool_step)(&account)?;
 
         // Resolved again, immediately before the irreversible step, and the ids are
         // compared with the first resolution. The lock above excludes every

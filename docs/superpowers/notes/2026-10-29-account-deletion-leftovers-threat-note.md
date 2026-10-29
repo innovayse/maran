@@ -24,7 +24,7 @@ triggered under the next owner's identity. Per leftover:
 | leftover | real? | verdict |
 |---|---|---|
 | queued `at` jobs (`/var/spool/at`) | Only where `at` is installed. A job is a file owned by the uid that `atd` runs as that uid at its time. | REAL when `at` exists. Deleted explicitly: `atq` parse, `atrm` per job, re-verify. |
-| mail spool (`/var/mail/<user>`) | Expected to be removed by `userdel --remove` (it deletes the mail spool). | Handled by `userdel`; NOT re-implemented. Pinned by a real-host test so a regression is seen. |
+| mail spool (`<mail dir>/<user>`) | Was assumed removed by `userdel --remove`. MEASURED WRONG on AlmaLinux 9 (polygon, PR #176): spools of deleted accounts survived and the next owner of the uid owned them; Ubuntu passed. | REAL on the RHEL family. Removed explicitly by name (see "Mail spool" below); the real-host test pins it on both families. |
 | shared temp files (`/tmp`, `/var/tmp`, `/dev/shm`) | Files owned by the uid outside the home; `userdel` does not touch them. A reused uid owns them. | REAL. Swept by a descriptor walk as root, keyed by `st_uid`. |
 | SysV IPC (shared memory, semaphores, message queues) | Objects keyed by creator/owner uid survive process death. | REAL. Listed from `/proc/sysvipc/*`, removed with `ipcrm` by id, re-verified. |
 | lingering systemd user manager | Present only if linger is enabled or a session left `user@<uid>.service`. | REAL on the systemd lane. `loginctl disable-linger`, `terminate-user`, then poll `/run/user/<uid>`. |
@@ -53,7 +53,7 @@ both login kinds, the crontab and the pools:
 
 ```
 crontab(2) -> at jobs -> user manager -> end_account_processes (#103)
-  -> SysV IPC -> shared temp files -> re-resolve, compare ids -> userdel --remove
+  -> SysV IPC -> shared temp files -> mail spool -> re-resolve, compare ids -> userdel --remove
 ```
 
 Reasons: `atd` and the user manager are respawners and creators of processes, so they go before the
@@ -94,7 +94,7 @@ Files are removed with the existing `remove_file_in_directory.rs`. The sweep des
 
 ## New error variants
 
-`AccountError` gains `AtJobsRemain`, `UserManagerRemains`, `IpcRemain` and `SharedFilesRemain`, each
+`AccountError` gains `AtJobsRemain`, `UserManagerRemains`, `IpcRemain`, `SharedFilesRemain` and `MailSpoolRemains`, each
 carrying the account name only (no path, id or count reaches the customer; the agent logs the figure
 for the operator). All four map to the existing `SystemFailure` code in `account_status.rs`; no proto
 change. Every `SystemHost` method and every fake that implements it grows with them (contracts first).
@@ -105,8 +105,18 @@ change. Every `SystemHost` method and every fake that implements it grows with t
   `atq` is parsed for the uid's jobs, each removed with `atrm <id>`, and `atq` is read again; any job
   left, or any output line that cannot be parsed, refuses with `AtJobsRemain`. Unparseable output is a
   refusal, never "none". Binaries come from the distro adapter; argv only; ids are parsed integers.
-- **mail spool.** Not touched by the agent. A real-host test creates a spool file and asserts
-  `userdel --remove` removed it, on both families.
+- **mail spool.** The first design left it to `userdel --remove`; the polygon measured that it does
+  not on AlmaLinux 9 (cause of the survival inside `userdel` not isolated by the author). Now an
+  explicit step after the shared-temp sweep and before the identity re-check: the mail directory is a
+  distro fact (`DistroAdapter::mail_spool_directory`, the REAL directory: `/var/mail` on Debian,
+  `/var/spool/mail` on RHEL, the other spelling being a symlink). The directory is opened
+  `O_DIRECTORY | O_NOFOLLOW`; `<dir>/<account name>` is `fstatat(AT_SYMLINK_NOFOLLOW)`ed and removed
+  with `unlinkat` only if it is a regular file owned by the account uid; a uid-owned entry of any other
+  kind (link, directory) is refused with the new `AccountError::MailSpoolRemains` and untouched; an
+  entry of another uid is left alone. Own variant rather than `SharedFilesRemain` because the operator
+  must look in the mail directory, not a temp directory; same `SystemFailure` mapping. The unit's
+  `ReadWritePaths=` gains `-/var/spool/mail -/var/mail`. Residual: only the file named after the
+  account is removed, not other files in the directory the uid may own.
 - **SysV IPC.** `/proc/sysvipc/shm`, `msg`, `sem` parsed for rows whose `uid` or `cuid` equals the
   account; `ipcrm` run by id; the tables re-read. Anything left refuses with `IpcRemain`.
 - **User manager.** Only when the host runs systemd: `loginctl disable-linger <name>`,
