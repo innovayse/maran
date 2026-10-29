@@ -301,17 +301,20 @@ fn plant_ipc(account: &PolygonAccount) -> Vec<(&'static str, String)> {
 
 /// Whether the object `id` of the kind `list` (an `ipcs` flag) still exists.
 ///
+/// `ipcs -i` exits 0 whether or not the object exists (measured on util-linux 2.39: a missing
+/// id prints `ipcs: id N not found` to standard error and nothing to standard output, status 0),
+/// so the answer is whether it described the object on standard output.
+///
 /// # Panics
 ///
 /// Panics when `ipcs` cannot be run.
 fn ipc_exists(list: &str, id: &str) -> bool {
-    Command::new("ipcs")
+    let output = Command::new("ipcs")
         .args([list, "-i", id])
         .env("LC_ALL", "C")
         .output()
-        .expect("ipcs is in the polygon image")
-        .status
-        .success()
+        .expect("ipcs is in the polygon image");
+    output.status.success() && !output.stdout.is_empty()
 }
 
 /// Removes the SysV objects a failed assertion would otherwise leave on the host.
