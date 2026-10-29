@@ -237,6 +237,7 @@ COPY installer/panel.env.example /tmp/maran-installer/panel.env.example
 # runs needs its COPY here; these are those four.
 COPY installer/systemd/maran-api.service /tmp/maran-installer/systemd/maran-api.service
 COPY installer/systemd/maran-api.tmpfiles.conf /tmp/maran-installer/systemd/maran-api.tmpfiles.conf
+COPY installer/systemd/maran-host.tmpfiles.conf /tmp/maran-installer/systemd/maran-host.tmpfiles.conf
 COPY installer/systemd/maran-php.tmpfiles.conf /tmp/maran-installer/systemd/maran-php.tmpfiles.conf
 COPY installer/systemd/maran-agent.service /tmp/maran-installer/systemd/maran-agent.service
 # Step 70's install_units renders and installs the package-install template with the units above
@@ -490,7 +491,6 @@ RUN dnf install -y --nodocs at \
 # The tmpfiles snippet that builds /run/maran-host, the mount points the agent unit binds the host's
 # shared temporary directories onto. The directory-layout assertion applies THIS file with the
 # family's real systemd-tmpfiles and stats the result, not a mkdir invented here.
-COPY installer/systemd/maran-host.tmpfiles.conf /tmp/maran-installer/systemd/maran-host.tmpfiles.conf
 
 # The quota tools. The agent execs BOTH halves by absolute path — `/usr/sbin/setquota`
 # to apply an account's limit and `/usr/bin/quota` to read its usage back for
