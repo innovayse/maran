@@ -194,8 +194,7 @@ fn plant_files(account: &PolygonAccount) -> usize {
     }
 
     let mail = Path::new(MAIL_DIRECTORY).join(tag);
-    std::fs::write(&mail, format!("From: someone\n\n{PLANTED_MAIL_MARKER}\n"))
-        .expect("plant mail");
+    std::fs::write(&mail, format!("From: someone\n\n{PLANTED_MAIL_MARKER}\n")).expect("plant mail");
     chown(&mail, Some(ids.uid()), Some(ids.gid())).expect("hand the mail to the account");
     2
 }
@@ -396,8 +395,8 @@ fn a_deleted_accounts_shared_directory_files_mail_at_jobs_and_ipc_are_not_inheri
     // `useradd` creates an empty spool for the reborn account, owned by the same uid; and other
     // polygon suites in the same container leave spools of accounts that held this uid before,
     // which this test did not plant. Only the planted message would be an inheritance.
-    let reborn_spool = std::fs::read(Path::new(MAIL_DIRECTORY).join(name.as_str()))
-        .unwrap_or_default();
+    let reborn_spool =
+        std::fs::read(Path::new(MAIL_DIRECTORY).join(name.as_str())).unwrap_or_default();
     assert!(
         !String::from_utf8_lossy(&reborn_spool).contains(PLANTED_MAIL_MARKER),
         "the new account inherited the previous tenant's mail spool"
