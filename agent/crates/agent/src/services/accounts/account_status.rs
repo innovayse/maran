@@ -54,6 +54,16 @@ pub fn to_agent_error(error: &AccountError) -> AgentError {
         // exited. Named ahead of the wildcard so a missing arm cannot compile
         // silently. The message carries the account name only.
         AccountError::ProcessesRemain { .. } => ErrorCode::SystemFailure,
+        // The other leftovers of a uid that a deletion refuses to free: queued at
+        // jobs, a live user manager, SysV IPC objects and files in shared
+        // temporary directories. Each leaves the account in place and the same
+        // deletion retryable, so each is a SYSTEM_FAILURE with the name only.
+        // Named ahead of the wildcard so a missing arm cannot compile silently.
+        AccountError::AtJobsRemain { .. } => ErrorCode::SystemFailure,
+        AccountError::UserManagerRemains { .. } => ErrorCode::SystemFailure,
+        AccountError::IpcRemain { .. } => ErrorCode::SystemFailure,
+        AccountError::SharedFilesRemain { .. } => ErrorCode::SystemFailure,
+        AccountError::MailSpoolRemains { .. } => ErrorCode::SystemFailure,
         // The name is well formed but the user behind it is not a hosting account
         // (reserved, a system identity, a home elsewhere). INVALID_INPUT: not
         // NOT_FOUND, because the user may exist, and not SYSTEM_FAILURE, because

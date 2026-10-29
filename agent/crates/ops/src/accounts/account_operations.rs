@@ -11,6 +11,7 @@ use maran_distro::{AdapterBinary, DistroAdapter};
 
 use crate::accounts::account_lock::take_account_lock;
 use crate::accounts::end_account_processes::end_account_processes;
+use crate::accounts::end_account_user_manager::end_account_user_manager;
 use crate::accounts::model::home_group_repair_refusal::HomeGroupRepairRefusal;
 use crate::accounts::model::home_group_repair_report::HomeGroupRepairReport;
 use crate::accounts::model::quota_state::QuotaState;
@@ -20,6 +21,10 @@ use crate::accounts::model::repaired_home::RepairedHome;
 use crate::accounts::quota_blocks::QuotaBlocks;
 use crate::accounts::quota_enforceability::classify as classify_quota_enforceability;
 use crate::accounts::quota_enforceability::quota_device_for;
+use crate::accounts::remove_account_at_jobs::remove_account_at_jobs;
+use crate::accounts::remove_account_mail_spool::remove_account_mail_spool;
+use crate::accounts::remove_account_shared_files::remove_account_shared_files;
+use crate::accounts::remove_account_sysv_ipc::remove_account_sysv_ipc;
 use crate::accounts::{
     AccountError, AccountSuspensionState, AccountUsage, CreatedAccount, StoredPassword, SystemHost,
 };
@@ -111,13 +116,62 @@ pub struct AccountOperations<H: SystemHost> {
     /// Where platform facts come from. Operations never branch on a distribution
     /// themselves (rules/rust.md "Distro adapter"); they ask.
     distro: &'static dyn DistroAdapter,
+
+    /// The step that removes the account's files from the shared temp
+    /// directories during a deletion.
+    ///
+    /// A field and not a direct call because that step walks the agent's
+    /// bind-mounted view of the HOST's `/tmp`, `/var/tmp` and `/dev/shm`
+    /// ([`AgentPaths::SHARED_TEMP_ROOTS`]) with descriptors, which is not
+    /// reachable through [`SystemHost`] (it is a walk, not a spawn or a single
+    /// read). Production always holds [`remove_account_shared_files`]; a unit
+    /// test replaces it so a deletion test neither touches the real filesystem
+    /// nor is blind to the step's failure.
+    shared_files_step: SharedFilesStep,
+
+    /// The step that removes the account's mail spool during a deletion.
+    ///
+    /// A field for the same reason as `shared_files_step`: it opens the
+    /// distribution's real mail directory with a descriptor, which
+    /// [`SystemHost`] cannot express. Production always holds
+    /// [`remove_account_mail_spool`] bound to the distro adapter.
+    mail_spool_step: SharedFilesStep,
 }
+
+/// The shape of the shared-temp-files step: the account in, a leftover or an
+/// I/O failure out.
+type SharedFilesStep = Box<dyn Fn(&ManagedAccount) -> Result<(), AccountError> + Send + Sync>;
 
 impl<H: SystemHost> AccountOperations<H> {
     /// Creates the operations bound to `host` and the host's distribution adapter.
     #[must_use]
     pub fn new(host: H, distro: &'static dyn DistroAdapter) -> Self {
-        Self { host, distro }
+        Self {
+            host,
+            distro,
+            shared_files_step: Box::new(remove_account_shared_files),
+            mail_spool_step: Box::new(move |account| remove_account_mail_spool(distro, account)),
+        }
+    }
+
+    /// Replaces the shared-temp-files step of a deletion, for a unit test.
+    ///
+    /// Test-only: production code cannot reach it, so the step a real deletion
+    /// runs is always [`remove_account_shared_files`].
+    #[cfg(test)]
+    fn with_shared_files_step(mut self, step: SharedFilesStep) -> Self {
+        self.shared_files_step = step;
+        self
+    }
+
+    /// Replaces the mail-spool step of a deletion, for a unit test.
+    ///
+    /// Test-only: production code cannot reach it, so the step a real deletion
+    /// runs is always [`remove_account_mail_spool`].
+    #[cfg(test)]
+    fn with_mail_spool_step(mut self, step: SharedFilesStep) -> Self {
+        self.mail_spool_step = step;
+        self
     }
 
     /// The machine these operations run against.
@@ -658,6 +712,13 @@ impl<H: SystemHost> AccountOperations<H> {
     ///   deleting the customer's files from inside the jail, and a mount left
     ///   behind afterwards points at a home that no longer exists — a state the
     ///   uninstaller refuses to clean up and a re-created account would inherit.
+    /// - Its other uid-keyed leftovers are released in a fixed order, all before
+    ///   `userdel` (issue #139): queued `at` jobs, then the systemd user manager
+    ///   and lingering (both can start processes, so they precede the kill), then
+    ///   the processes, then SysV IPC objects and shared-temp-directory files
+    ///   (stable only once nothing runs). `userdel` clears none of them and the
+    ///   next account given the uid would inherit each. Every one fails closed
+    ///   with its own variant.
     /// - The account's PROCESSES are killed and verified gone
     ///   (`end_account_processes`) after the last step that could start one and
     ///   before `userdel`. `userdel` is no safety net here: its refusal of a user
@@ -715,6 +776,18 @@ impl<H: SystemHost> AccountOperations<H> {
     ///   were still running after every kill round. Raised after the crontab and
     ///   pool sweeps and before `userdel`, so the account is still present and the
     ///   same deletion converges once the survivor has exited.
+    /// - [`AccountError::AtJobsRemain`] when a queued `at` job of the account's
+    ///   uid survived `atrm`. Raised before the kill and before `userdel`.
+    /// - [`AccountError::UserManagerRemains`] when the account's lingering flag or
+    ///   its systemd user manager (`/run/user/<uid>`) survived `loginctl`. Raised
+    ///   before the kill and before `userdel`.
+    /// - [`AccountError::IpcRemain`] when a SysV shared-memory segment, queue or
+    ///   semaphore set of the account's uid survived `ipcrm`. Raised after the
+    ///   kill and before `userdel`.
+    /// - [`AccountError::SharedFilesRemain`] when the account owns something in
+    ///   `/tmp`, `/var/tmp` or `/dev/shm` that the sweep cannot remove (a
+    ///   directory of its own holding another owner's entry, or a bound hit).
+    ///   Nothing foreign is touched; raised before `userdel`.
     /// - [`AccountError::CommandFailed`] when `pkill` answered neither "matched"
     ///   nor "nothing matched", or `crontab` refused to remove the
     ///   account's table for any reason other than there not being one.
@@ -758,10 +831,13 @@ impl<H: SystemHost> AccountOperations<H> {
     /// `crontab -u <name> -r`, and resolves it AGAIN after the last wait,
     /// comparing user and group ids with the first resolution before `userdel`.
     ///
-    /// Between the second crontab sweep and that second resolution it ends every
-    /// process of the account's uid (`end_account_processes`): a bounded kill and
-    /// verify loop that refuses with [`AccountError::ProcessesRemain`], before
-    /// `userdel`, when something survives.
+    /// Between the second crontab sweep and that second resolution it runs, in
+    /// this order: `at` jobs (`remove_account_at_jobs`), the user manager
+    /// (`end_account_user_manager`), every process of the account's uid
+    /// (`end_account_processes`, a bounded kill and verify loop refusing with
+    /// [`AccountError::ProcessesRemain`]), SysV IPC (`remove_account_sysv_ipc`)
+    /// and shared temp files (`remove_account_shared_files`). Each `?` returns
+    /// before `userdel`, so a retry converges.
     ///
     /// Split from [`AccountOperations::delete`] for the reason
     /// `restore_backup`'s body is split from its entry point: the lock is a
@@ -860,15 +936,38 @@ impl<H: SystemHost> AccountOperations<H> {
             self.remove_crontab(&account)?;
         }
 
+        // Queued `at` jobs go BEFORE the kill: `atd` is a respawner, a job that
+        // fires between the kill and `userdel` starts a new process of this uid.
+        // Then the systemd user manager (and lingering), for the same reason: it
+        // restarts whatever it supervises. Both are skipped, touching nothing,
+        // on a host that has neither (issue #139).
+        remove_account_at_jobs(&self.host, self.distro, &account)?;
+        end_account_user_manager(&self.host, self.distro, &account)?;
+
         // The account's processes end HERE: after the last step that can start
-        // one (the pool sweep reloads php-fpm, which runs workers as this uid),
-        // and before the identity re-check so the freshest fact precedes the
+        // one (the pool sweep reloads php-fpm, which runs workers as this uid,
+        // and atd and the user manager were stopped just above), and before the
+        // identity re-check so the freshest fact precedes the
         // irreversible step. `userdel` is not a guard: its busy-user refusal needs
         // `CAP_SYS_PTRACE`, which this agent's bounding set lacks by design, so
         // it would free the uid with a process still running as it and the next
         // `useradd` would hand that process to a new tenant. The lock held here
         // is outer and never waits, so the rounds' pauses add no wait-for edge.
         end_account_processes(&self.host, self.distro, &account)?;
+
+        // SysV IPC objects and files in the shared temp directories are only
+        // stable once nothing can write them, so they follow the kill. Each is
+        // keyed by the bare uid, which the next `useradd` may hand to another
+        // tenant; each fails closed with its own variant before `userdel`.
+        remove_account_sysv_ipc(&self.host, self.distro, &account)?;
+        (self.shared_files_step)(&account)?;
+
+        // The mail spool, removed here by name and not left to `userdel
+        // --remove`: measured on AlmaLinux 9, the spool of a deleted account
+        // survived `userdel --remove` and the next account given the uid owned
+        // it. Last of the uid-keyed steps and still before the identity
+        // re-check, so the freshest fact precedes the irreversible step.
+        (self.mail_spool_step)(&account)?;
 
         // Resolved again, immediately before the irreversible step, and the ids are
         // compared with the first resolution. The lock above excludes every

@@ -116,6 +116,71 @@ fn the_other_failures_of_each_area_still_flatten_into_their_removal_variants() {
     ));
 }
 
+/// Each leftover refusal names the account and nothing else.
+#[test]
+fn the_at_jobs_remain_message_names_the_account_and_no_job_detail() {
+    let error = AccountError::AtJobsRemain {
+        username: "acme".to_owned(),
+    };
+
+    assert_eq!(
+        error.to_string(),
+        "scheduled at jobs of account 'acme' are still queued after being removed"
+    );
+}
+
+/// The user manager refusal names the account only.
+#[test]
+fn the_user_manager_remains_message_names_the_account_only() {
+    let error = AccountError::UserManagerRemains {
+        username: "acme".to_owned(),
+    };
+
+    assert_eq!(
+        error.to_string(),
+        "the user manager of account 'acme' is still running after being ended"
+    );
+}
+
+/// The IPC refusal names the account and no object id.
+#[test]
+fn the_ipc_remain_message_names_the_account_and_no_object_detail() {
+    let error = AccountError::IpcRemain {
+        username: "acme".to_owned(),
+    };
+
+    assert_eq!(
+        error.to_string(),
+        "IPC objects of account 'acme' are still present after being removed"
+    );
+}
+
+/// The shared files refusal names the account and no path.
+#[test]
+fn the_shared_files_remain_message_names_the_account_and_no_path() {
+    let error = AccountError::SharedFilesRemain {
+        username: "acme".to_owned(),
+    };
+
+    assert_eq!(
+        error.to_string(),
+        "shared files of account 'acme' are still present after being removed"
+    );
+}
+
+/// The mail spool refusal names the account and no path.
+#[test]
+fn the_mail_spool_remains_message_names_the_account_and_no_path() {
+    let error = AccountError::MailSpoolRemains {
+        username: "acme".to_owned(),
+    };
+
+    assert_eq!(
+        error.to_string(),
+        "the mail spool of account 'acme' is still present after being removed"
+    );
+}
+
 /// The survivor refusal names the account and nothing else.
 #[test]
 fn the_processes_remain_message_names_the_account_and_no_process_detail() {

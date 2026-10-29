@@ -237,6 +237,7 @@ COPY installer/panel.env.example /tmp/maran-installer/panel.env.example
 # runs needs its COPY here; these are those four.
 COPY installer/systemd/maran-api.service /tmp/maran-installer/systemd/maran-api.service
 COPY installer/systemd/maran-api.tmpfiles.conf /tmp/maran-installer/systemd/maran-api.tmpfiles.conf
+COPY installer/systemd/maran-host.tmpfiles.conf /tmp/maran-installer/systemd/maran-host.tmpfiles.conf
 COPY installer/systemd/maran-php.tmpfiles.conf /tmp/maran-installer/systemd/maran-php.tmpfiles.conf
 COPY installer/systemd/maran-agent.service /tmp/maran-installer/systemd/maran-agent.service
 # Step 70's install_units renders and installs the package-install template with the units above
@@ -477,6 +478,19 @@ RUN bash -c 'set -euo pipefail; \
 RUN dnf install -y --nodocs passwd \
     && dnf clean all \
     && test -x /usr/bin/passwd
+
+# at(1), for the account-deletion leftovers suite. A pending `at` job is a file in the spool
+# owned by the account's uid and runs as that uid when its time comes, so it outlives `userdel` and
+# runs as the NEXT holder of the number. The suite plants one with the real `at` and requires the
+# deletion to remove it with the real `atrm`; `atq` is what lists it. Without the package there is
+# nothing to plant and the claim would be tested against a stub.
+RUN dnf install -y --nodocs at \
+    && dnf clean all \
+    && test -x /usr/bin/at && test -x /usr/bin/atq && test -x /usr/bin/atrm
+
+# The tmpfiles snippet that builds /run/maran-host, the mount points the agent unit binds the host's
+# shared temporary directories onto. The directory-layout assertion applies THIS file with the
+# family's real systemd-tmpfiles and stats the result, not a mkdir invented here.
 
 # The quota tools. The agent execs BOTH halves by absolute path — `/usr/sbin/setquota`
 # to apply an account's limit and `/usr/bin/quota` to read its usage back for

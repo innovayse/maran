@@ -40,6 +40,47 @@ impl AgentPaths {
     /// this operation built" and "the path the check approved" the same path.
     pub const ACCOUNT_HOME_ROOT: &'static str = "/home";
 
+    /// Where the host's `/tmp` is bind-mounted inside the agent's mount namespace.
+    ///
+    /// `maran-agent.service` runs with `PrivateTmp=true`, so the agent's own
+    /// `/tmp` is a private, empty directory and a walk of it would find nothing
+    /// and report success: a sweep that is vacuously green. The unit therefore
+    /// carries `BindPaths=/tmp:/run/maran-host/tmp`, and the account-deletion
+    /// sweep walks this mount point instead. `PrivateTmp` stays on deliberately
+    /// (the agent's own temporary files must not live in a host-wide namespace);
+    /// only the cleanup reaches the host's directory, and only through here. The
+    /// mount point is created by `tmpfiles.d` as `0700 root`. See
+    /// `docs/superpowers/notes/2026-10-29-account-deletion-leftovers-threat-note.md`.
+    pub const HOST_TMP_DIRECTORY: &'static str = "/run/maran-host/tmp";
+
+    /// Where the host's `/var/tmp` is bind-mounted inside the agent's mount namespace.
+    ///
+    /// The same arrangement and the same reason as [`Self::HOST_TMP_DIRECTORY`]:
+    /// `PrivateTmp=true` hides the host's `/var/tmp` as well, and
+    /// `BindPaths=/var/tmp:/run/maran-host/var-tmp` brings it back for the sweep.
+    pub const HOST_VAR_TMP_DIRECTORY: &'static str = "/run/maran-host/var-tmp";
+
+    /// Where the host's `/dev/shm` is bind-mounted inside the agent's mount namespace.
+    ///
+    /// `PrivateDevices=true` may replace `/dev` with a minimal tree whose
+    /// `/dev/shm` is not the host's, so the unit binds the host's with
+    /// `BindPaths=/dev/shm:/run/maran-host/dev-shm` when that is the case (which
+    /// of the two holds is decided by measurement under real systemd, not
+    /// assumed). The sweep walks this mount point either way.
+    pub const HOST_DEV_SHM_DIRECTORY: &'static str = "/run/maran-host/dev-shm";
+
+    /// Every world-writable temp directory the account-deletion sweep walks, as
+    /// the agent sees it: the three bind-mount points above.
+    ///
+    /// One list, so the sweep and its tests cannot disagree about which
+    /// directories count. A file owned by a deleted account's uid in any of them
+    /// would belong to whoever `useradd` hands that uid to next.
+    pub const SHARED_TEMP_ROOTS: &'static [&'static str] = &[
+        Self::HOST_TMP_DIRECTORY,
+        Self::HOST_VAR_TMP_DIRECTORY,
+        Self::HOST_DEV_SHM_DIRECTORY,
+    ];
+
     /// Directory the php-fpm pools' unix sockets are created in.
     ///
     /// The agent's own directory, not the one either family's php-fpm package

@@ -43,6 +43,9 @@ readonly API_TMPFILES="${INSTALLER_ROOT}/systemd/maran-api.tmpfiles.conf"
 # The tmpfiles snippet that builds the PHP pool socket directory. Applied by the step 40 directory
 # layout check so /run/maran-php comes from the installer's own artefact (issue #101).
 readonly PHP_TMPFILES="${INSTALLER_ROOT}/systemd/maran-php.tmpfiles.conf"
+# The tmpfiles snippet that builds /run/maran-host, the root-only mount points the agent unit binds
+# the host's /tmp, /var/tmp and /dev/shm onto (issue #139). Applied by the directory layout check.
+readonly HOST_TMPFILES="${INSTALLER_ROOT}/systemd/maran-host.tmpfiles.conf"
 readonly AGENT_UNIT="${INSTALLER_ROOT}/systemd/maran-agent.service"
 # The package-install template step 70 renders and installs beside the two units above (issue #93).
 # RENDERED and INSTALLED by the step's own functions, never read for an expectation: see
@@ -213,6 +216,7 @@ require_installer_file "$CONFIG_STEP" installer/lib/60-config.sh
 require_installer_file "$API_UNIT" installer/systemd/maran-api.service
 require_installer_file "$API_TMPFILES" installer/systemd/maran-api.tmpfiles.conf
 require_installer_file "$PHP_TMPFILES" installer/systemd/maran-php.tmpfiles.conf
+require_installer_file "$HOST_TMPFILES" installer/systemd/maran-host.tmpfiles.conf
 require_installer_file "$AGENT_UNIT" installer/systemd/maran-agent.service
 require_installer_file "$PHP_INSTALL_UNIT_SOURCE" installer/systemd/maran-php-install@.service
 require_installer_file "$SERVICES_STEP" installer/lib/70-services.sh

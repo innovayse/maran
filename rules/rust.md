@@ -146,7 +146,12 @@ agent/
     │       ├── agent_paths.rs AgentPaths — locations the agent owns and that are the SAME
     │       │                  on every family (nginx include dir, certificate dir, account
     │       │                  home root, php-fpm socket dir, SFTP jail root, FTPS jail
-    │       │                  root, site log root, backup root, bulk scratch root). A path
+    │       │                  root, site log root, backup root, bulk scratch root, and the three
+    │       │                  host-temp mount points /run/maran-host/{tmp,var-tmp,dev-shm}:
+    │       │                  HOST_TMP_DIRECTORY and its siblings, listed together as
+    │       │                  SHARED_TEMP_ROOTS — where the unit's BindPaths= shows the agent
+    │       │                  the HOST's temporary directories, since its own PrivateTmp hides
+    │       │                  them and a sweep of the private ones would be vacuously green). A path
     │       │                  that differs between families is a distro fact and lives in
     │       │                  distro/, never here; one that does not differ lives here, never
     │       │                  as an adapter method repeated with the same literal.
@@ -216,7 +221,13 @@ agent/
     │       │                  caller already holds open plus a single entry name:
     │       │                  open_in_directory.rs · create_file_in_directory.rs ·
     │       │                  make_directory_in_directory.rs · rename_in_directory.rs ·
-    │       │                  remove_file_in_directory.rs. One file per syscall and not one
+    │       │                  remove_file_in_directory.rs · and the two the shared-temp sweep adds:
+    │       │                  stat_in_directory.rs (fstatat, AT_SYMLINK_NOFOLLOW forced; answers
+    │       │                  an entry_stat.rs carrying an entry_kind.rs, owner and device of the
+    │       │                  entry itself, never of a link's target) ·
+    │       │                  remove_directory_in_directory.rs (unlinkat, AT_REMOVEDIR forced; an
+    │       │                  EMPTY directory only). entry_stat.rs and entry_kind.rs are plain
+    │       │                  data with no syscall, beside their wrapper. One file per syscall and not one
     │       │                  "at_syscalls.rs": each carries its own SAFETY argument and its
     │       │                  own reason for the flags it forces, and a reviewer reads the
     │       │                  one that changed.
@@ -247,7 +258,9 @@ agent/
     │                          misc.rs), not the folder.
     ├── distro/
     │   └── src/
-    │       ├── adapter.rs     the DistroAdapter trait, alone
+    │       ├── adapter.rs     the DistroAdapter trait, alone. Besides paths and packages it
+    │       │                  answers the account-deletion programs atq · atrm · loginctl ·
+    │       │                  ipcrm (each an AdapterBinary) and the directories at_spool_directory · mail_spool_directory
     │       ├── adapter_for.rs the selector: family → adapter
     │       ├── family.rs      DistroFamily
     │       ├── vsftpd_tls_version_keys.rs  the NAMES of the three TLS-version
@@ -278,7 +291,19 @@ agent/
     │       │                  login protocols share, so the systemd
     │       │                  path-escaping rule is stated once instead of once
     │       │                  per protocol.
-    │       │                  accounts = system users: useradd/userdel, homes, quotas
+    │       │                  accounts = system users: useradd/userdel, homes, quotas.
+    │       │                  Deletion releases every uid-keyed leftover, in this order
+    │       │                  (issue #139): crontab → at jobs → user manager → processes →
+    │       │                  SysV IPC → shared temp files → mail spool → re-resolve the uid → userdel.
+    │       │                  Its non-rpc units: remove_account_at_jobs.rs (+ parse_atq_listing.rs,
+    │       │                  model/at_job.rs) · end_account_user_manager.rs (linger off, session
+    │       │                  terminated) · remove_account_sysv_ipc.rs (+ parse_sysv_ipc_table.rs,
+    │       │                  model/sysv_ipc_kind.rs, model/sysv_ipc_object.rs) ·
+    │       │                  remove_account_shared_files.rs (+ sweep_directory_by_owner.rs, the
+    │       │                  descriptor walk) · remove_account_mail_spool.rs (the one file named after the
+    │       │                  account in the distro's real mail directory; userdel --remove was
+    │       │                  measured to leave it on RHEL). Each fails closed: a leftover is a typed error and
+    │       │                  userdel does not run.
     │       │                  sftp/ is OpenSSH logins chrooted into a per-account,
     │       │                  root-owned jail with the real home bind-mounted inside;
     │       │                  its model/account_jail.rs is where every path and the

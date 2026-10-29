@@ -197,6 +197,14 @@ impl SystemHost for BlockingSystemHost {
         unreachable!("no rpc in this file inspects a home's metadata")
     }
 
+    /// No IPC objects exist: nothing there to find.
+    fn read_sysv_ipc_table(
+        &self,
+        _kind: maran_ops::accounts::model::sysv_ipc_kind::SysvIpcKind,
+    ) -> Result<String, AccountError> {
+        Ok(String::new())
+    }
+
     /// Returns at once: virtual time, and no rpc driven here deletes an account.
     fn pause(&self, _interval: Duration) {}
 }

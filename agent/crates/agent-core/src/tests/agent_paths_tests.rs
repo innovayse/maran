@@ -293,3 +293,27 @@ fn the_php_socket_directory_is_not_under_the_agents_private_directory() {
     );
     assert!(AgentPaths::PHP_FPM_SOCKET_DIRECTORY.starts_with("/run/"));
 }
+
+#[test]
+fn the_shared_temp_roots_are_exactly_the_three_host_bind_mounts_under_one_parent() {
+    assert_eq!(
+        AgentPaths::SHARED_TEMP_ROOTS,
+        [
+            AgentPaths::HOST_TMP_DIRECTORY,
+            AgentPaths::HOST_VAR_TMP_DIRECTORY,
+            AgentPaths::HOST_DEV_SHM_DIRECTORY,
+        ]
+    );
+    assert_eq!(AgentPaths::HOST_TMP_DIRECTORY, "/run/maran-host/tmp");
+    assert_eq!(
+        AgentPaths::HOST_VAR_TMP_DIRECTORY,
+        "/run/maran-host/var-tmp"
+    );
+    assert_eq!(
+        AgentPaths::HOST_DEV_SHM_DIRECTORY,
+        "/run/maran-host/dev-shm"
+    );
+    for root in AgentPaths::SHARED_TEMP_ROOTS {
+        assert!(root.starts_with("/run/maran-host/"), "{root}");
+    }
+}

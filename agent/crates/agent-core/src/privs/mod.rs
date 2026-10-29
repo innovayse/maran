@@ -36,7 +36,12 @@
 //! [`rename_in_directory`](rename_in_directory::rename_in_directory) puts it in
 //! place atomically, and
 //! [`remove_file_in_directory`](remove_file_in_directory::remove_file_in_directory)
-//! takes an entry away.
+//! takes an entry away. Two more serve the account-deletion sweep:
+//! [`stat_in_directory`](stat_in_directory::stat_in_directory) reads an entry's
+//! owner and kind without following a link, and
+//! [`remove_directory_in_directory`](remove_directory_in_directory::remove_directory_in_directory)
+//! takes away a directory that is already empty. Their threat note is
+//! `docs/superpowers/notes/2026-10-29-account-deletion-leftovers-threat-note.md`.
 //!
 //! Changes here require a second reviewer and a threat note
 //! (rules/security.md "Sensitive change escalation"). The notes are
@@ -49,7 +54,7 @@
 //! `#[allow(unsafe_code)]` is scoped to the modules that hold syscalls, not to
 //! the crate: `unsafe` anywhere else in `agent-core` still fails to compile, and
 //! every other crate root carries `#![forbid(unsafe_code)]`. Note which modules
-//! are NOT in that list — [`directory_entry_name`] and [`priv_error`] hold the
+//! are NOT in that list — [`directory_entry_name`], [`entry_kind`], [`entry_stat`] and [`priv_error`] hold the
 //! judgement and the vocabulary of this module and no syscall at all, so they
 //! are compiled under the same ban as the rest of the workspace.
 
@@ -58,6 +63,8 @@ pub mod account_ids;
 #[allow(unsafe_code)]
 pub mod create_file_in_directory;
 pub mod directory_entry_name;
+pub mod entry_kind;
+pub mod entry_stat;
 #[allow(unsafe_code)]
 pub mod fork_as_account;
 #[allow(unsafe_code)]
@@ -68,6 +75,10 @@ pub mod make_directory_in_directory;
 pub mod open_in_directory;
 pub mod priv_error;
 #[allow(unsafe_code)]
+pub mod remove_directory_in_directory;
+#[allow(unsafe_code)]
 pub mod remove_file_in_directory;
 #[allow(unsafe_code)]
 pub mod rename_in_directory;
+#[allow(unsafe_code)]
+pub mod stat_in_directory;

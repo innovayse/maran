@@ -124,7 +124,7 @@ operator will widen with chmod instead."
   # Leave the image as it was found: this is the only assertion that installs a unit.
   rm -f /etc/systemd/system/maran-api.service /etc/systemd/system/maran-agent.service \
     /etc/systemd/system/maran-php-install@.service
-  rm -f /etc/tmpfiles.d/maran-api.conf /etc/tmpfiles.d/maran-php.conf
+  rm -f /etc/tmpfiles.d/maran-api.conf /etc/tmpfiles.d/maran-php.conf /etc/tmpfiles.d/maran-host.conf
   rm -rf "$socket_dir"
 
   echo "Step 70 built ${socket_dir} as ${expected} with this family's real systemd-tmpfiles, refused it when its"
