@@ -118,7 +118,10 @@ cli_diag_scan() {
   while IFS= read -r name; do
     # Case-insensitive: the names are Security__EncryptionKey and Setup__Token today, but an
     # upper-case SOME_API_KEY must not slip past a pattern that only knew the camel-case spelling.
-    [[ "${name,,}" =~ (key|token|password|secret|connectionstring|credential) ]] || continue
+    # The name must END in the word, as the redactor's own rule does (SecretTextRedactor): a
+    # substring match made PasswordReset__PanelUrl a "secret", found its URL in the logs and refused
+    # every bundle on every install (#68's real-install run).
+    [[ "${name,,}" =~ (key|token|password|secret|connectionstring|credential)$ ]] || continue
     value="$(
       set -a
       # shellcheck disable=SC1090
@@ -200,8 +203,11 @@ cli_diagnostics() {
   # target is refused instead of followed. umask 077 gives it mode 0600 from the first byte. The
   # descriptor is kept and tar writes to it, so the file is opened exactly once and never re-opened
   # by name.
+  # The open happens inside a group so its 2>/dev/null applies to the open alone. A bare
+  # `exec 9> ... 2>/dev/null` made the stderr redirection permanent, and every later refusal
+  # of this command was printed to /dev/null (#68's real-install run).
   set -C
-  if ! exec 9> "$target" 2>/dev/null; then
+  if ! { exec 9> "$target"; } 2>/dev/null; then
     set +C
     cli_fail "refusing to write ${target}: it already exists or cannot be created"
   fi

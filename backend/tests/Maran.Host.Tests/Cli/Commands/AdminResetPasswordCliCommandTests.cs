@@ -35,6 +35,9 @@ public sealed class AdminResetPasswordCliCommandTests
     [InlineData("--clear-two-factor")]
     [InlineData("alice bob")]
     [InlineData("alice --bogus")]
+    [InlineData("--")]
+    [InlineData("-- alice bob")]
+    [InlineData("alice -- bob")]
     public async Task A_malformed_command_line_is_a_usage_error(string commandLine)
     {
         using var console = new CapturedCliConsole();
@@ -72,6 +75,29 @@ public sealed class AdminResetPasswordCliCommandTests
         await Assert.ThrowsAsync<InvalidOperationException>(async () =>
         {
             await Verb().ExecuteAsync(Invocation(false, "alice", "--allow-non-terminal"), console.Console, default);
+        });
+
+        Assert.Equal(string.Empty, console.Output);
+    }
+
+    /// <summary>
+    /// The installed wrapper's own spelling, flags then <c>--</c> then the identifier, passes the argument
+    /// gate: the verb goes on to ask the container for the issuer, which this empty container cannot give.
+    /// A usage refusal here is the bug that made every real recovery exit 64.
+    /// </summary>
+    /// <param name="commandLine">The arguments as the wrapper passes them.</param>
+    [Theory]
+    [InlineData("--allow-non-terminal -- alice")]
+    [InlineData("--allow-non-terminal --clear-two-factor -- alice")]
+    [InlineData("--allow-non-terminal -- -alice")]
+    public async Task The_wrappers_end_of_options_marker_is_accepted(string commandLine)
+    {
+        using var console = new CapturedCliConsole();
+        var arguments = commandLine.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+        {
+            await Verb().ExecuteAsync(Invocation(false, arguments), console.Console, default);
         });
 
         Assert.Equal(string.Empty, console.Output);

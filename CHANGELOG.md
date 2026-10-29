@@ -5,6 +5,14 @@ than a strict category list: what changed and why it matters to somebody running
 
 ## Unreleased
 
+**The break-glass `maran` commands work on a real install.** `maran admin-reset-password` exited
+with a usage error on every call, because the command refused the `--` its own wrapper passes before
+the identifier. `maran collect-diagnostics` refused every bundle, because it took the panel address
+setting `PasswordReset__PanelUrl` for a secret (its name contains "password") and found the address
+in the logs; and the reason was never printed, because an earlier step had sent the rest of the
+command's error output to nowhere. A setting is now a secret only when its name ends in one of the
+secret words, as the panel's own redaction rule says.
+
 **Signing in with a second factor now works.** After a correct authenticator or recovery code the
 panel sent the user back to the sign-in screen, and only a reload let them in: the screen read the
 answer to the code step in the shape of the first step's answer and found no session in it. The
