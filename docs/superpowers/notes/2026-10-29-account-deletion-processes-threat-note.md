@@ -150,11 +150,12 @@ kernel behaviour, not measured), so each pass shrinks the set and a short bound 
   wakes and still counts, ending in `ProcessesRemain` (fail closed). OPEN: how an unkillable
   (D-state) process is handled beyond the refusal and an operator retry. Residual: a zombie's pid
   stays allocated until reaped, which is not an uid-inheritance hazard.
-- **Other uid-keyed leftovers are OPEN and out of scope here:** queued `at` jobs under
-  `/var/spool/at`, the mail spool, files in `/tmp` and `/var/tmp`, SysV shared memory and message
-  queues, a systemd lingering user manager. A follow-up issue is to be filed for them. Whether `atd`
-  and `linger` can exist for a managed account was not checked; `atd` in particular is a respawner
-  the ordering above does not remove.
+- **Other uid-keyed leftovers are out of scope here and are handled in issue #139:** queued `at` jobs
+  under `/var/spool/at`, the mail spool, files in `/tmp` and `/var/tmp`, SysV shared memory and
+  message queues, a systemd lingering user manager. See
+  `2026-10-29-account-deletion-leftovers-threat-note.md`, which also places `atd` and the user
+  manager (respawners) before this kill in the delete order. gid-keyed leftovers and `/dev/mqueue`
+  are a further follow-up.
 - **`pkill` and `pgrep` must exist.** `installer/lib/20-dependencies.sh` already installs `procps` /
   `procps-ng` (`signalling_packages_for_family`), which ships both, so no installer change is needed.
 
@@ -241,6 +242,6 @@ Taken by the owner:
 
 Open:
 
-1. File a follow-up issue for the other uid-keyed leftovers (`at` jobs, mail spool, `/tmp` and
-   `/var/tmp` files, SysV IPC, linger).
+1. (Taken over by issue #139; see `2026-10-29-account-deletion-leftovers-threat-note.md`.) The other
+   uid-keyed leftovers (`at` jobs, mail spool, `/tmp` and `/var/tmp` files, SysV IPC, linger).
 2. The unkillable (D-state) process case beyond the fail-closed refusal.
