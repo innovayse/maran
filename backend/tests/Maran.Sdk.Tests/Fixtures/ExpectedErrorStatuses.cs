@@ -169,6 +169,12 @@ public static class ExpectedErrorStatuses
             ["MailRecipientInvalid"] = ErrorType.Validation,
             ["PasswordResetEmailInvalid"] = ErrorType.Validation,
             ["PasswordResetTokenInvalid"] = ErrorType.Validation,
+            // The break-glass console recovery (#130). NotFound: no login has that name or address.
+            // Conflict: the login exists but is not an active administrator, a state of the account
+            // rather than a malformed request.
+            ["AdminRecoveryUserNotFound"] = ErrorType.NotFound,
+            ["AdminRecoveryNotAdministrator"] = ErrorType.Conflict,
+            ["AdminRecoveryLoginNotActive"] = ErrorType.Conflict,
             ["PasswordTooWeak"] = ErrorType.Validation,
             // Failure, not Validation: nothing the caller sent is wrong. The server could not say
             // whether the packages landed, which is the host's problem and a 500's meaning, and
