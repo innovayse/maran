@@ -25,6 +25,26 @@ the panel's own TLS listener. Until now every check reached the panel with a com
 accepted a certificate browsers refuse, which is how an installed panel that no browser could open
 went unnoticed.
 
+**Deleting an account left things behind that a new account could inherit.** After the processes were
+ended, the user's number (uid) still keyed several places `userdel` does not clean: jobs queued with
+`at`, files in `/tmp`, `/var/tmp` and `/dev/shm`, shared memory, message queues and semaphores, and a
+lingering `systemd --user` session manager. The next account given that uid would own them. Deletion
+now removes each before the system user goes, in this order: crontab, `at` jobs, user manager,
+processes, SysV IPC, shared temporary files, mail spool, then `userdel`.
+
+- `userdel --remove` was measured to leave a deleted account's mail spool behind on AlmaLinux 9, so the
+  spool is now removed explicitly (only a regular file owned by the account; anything else refuses).
+- Every step fails closed: anything left aborts the deletion with a system failure and running it again
+  finishes the job. A temporary directory holding another owner's files is never emptied or chowned;
+  deletion refuses instead.
+- The agent's own private `/tmp` hid the host's, so a sweep would have found nothing and passed. The unit
+  now bind-mounts the host's temporary directories under `/run/maran-host/` (`PrivateTmp` stays on).
+- `at` is optional: where it is not installed the step is skipped. Group-owned leftovers and
+  `/dev/mqueue` are not handled yet (follow-up).
+
+Threat note: `docs/superpowers/notes/2026-10-29-account-deletion-leftovers-threat-note.md`; its second
+review is recorded as outstanding.
+
 **A published release can no longer ship without both architectures.** A build, sign or
 verify run with `--publish` now refuses unless both x86_64 and aarch64 are present: `build --publish`
 requires `--arch both`, and signing and verification refuse a manifest missing any of the api, agent or

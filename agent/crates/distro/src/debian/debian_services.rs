@@ -243,6 +243,59 @@ pub fn pgrep_binary() -> AdapterBinary {
     AdapterBinary::fixed("/usr/bin/pgrep")
 }
 
+/// Absolute path of `atq`, for the process-execution allow-list.
+///
+/// From the `at` package, which is NOT installed by default on this family: a
+/// host without it has no `at` jobs, and the caller treats the absent binary as
+/// "nothing to remove". Not verified on every release of the family.
+#[must_use]
+pub fn atq_binary() -> AdapterBinary {
+    AdapterBinary::fixed("/usr/bin/atq")
+}
+
+/// Absolute path of `atrm`, for the process-execution allow-list.
+///
+/// From the `at` package, the same one that ships `atq`, and optional in the
+/// same way.
+#[must_use]
+pub fn atrm_binary() -> AdapterBinary {
+    AdapterBinary::fixed("/usr/bin/atrm")
+}
+
+/// Absolute path of `loginctl`, for the process-execution allow-list.
+///
+/// From the `systemd` package, which this agent already requires (it drives
+/// every service through `systemctl`), so no extra dependency is declared.
+#[must_use]
+pub fn loginctl_binary() -> AdapterBinary {
+    AdapterBinary::fixed("/usr/bin/loginctl")
+}
+
+/// Absolute path of `ipcrm`, for the process-execution allow-list.
+///
+/// From `util-linux`, a base package on this family, so no extra dependency is
+/// declared.
+#[must_use]
+pub fn ipcrm_binary() -> AdapterBinary {
+    AdapterBinary::fixed("/usr/bin/ipcrm")
+}
+
+/// Directory the `at` daemon keeps its job files in on this family.
+///
+/// Present only where the `at` package is installed.
+#[must_use]
+pub fn at_spool_directory() -> &'static str {
+    "/var/spool/cron/atjobs"
+}
+
+/// The real directory per-user mail spool files live in on this family.
+///
+/// Debian's is `/var/mail`; the other spelling is a symlink to it.
+#[must_use]
+pub fn mail_spool_directory() -> &'static str {
+    "/var/mail"
+}
+
 /// Absolute path of `passwd`, for the process-execution allow-list.
 ///
 /// The shadow suite installs the user-facing half of its tools in `/usr/bin`

@@ -53,7 +53,8 @@ assert_the_agent_unit_declares_its_writable_roots() {
     /var/backups/maran \
     /var/log/maran/sites \
     /run/maran \
-    /run/maran-php; do
+    /run/maran-php \
+    /run/maran-host; do
     covered=0
     for entry in $writable_set; do
       entry="${entry#-}"
@@ -68,8 +69,8 @@ assert_the_agent_unit_declares_its_writable_roots() {
   # The vacuity guard, on the axis that can go blind: this loop is one list, a `for` over an empty
   # list exits 0, and a root deleted from it removes a check with no output changing anywhere.
   # Raise it with the list.
-  [ "$checked" -eq 8 ] \
-    || fail "the writable-root list checked ${checked} roots, not the 8 the agent writes. A root has been dropped from the list, and a check that is not in the list is not a check that failed — it is one that no longer exists."
+  [ "$checked" -eq 9 ] \
+    || fail "the writable-root list checked ${checked} roots, not the 9 the agent writes. A root has been dropped from the list, and a check that is not in the list is not a check that failed — it is one that no longer exists."
 
   local environment_file_line path_line
   environment_file_line="$(grep -n '^EnvironmentFile=' "$AGENT_UNIT" | head -1 | cut -d: -f1)"

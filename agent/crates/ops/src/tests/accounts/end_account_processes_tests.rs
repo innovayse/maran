@@ -19,6 +19,7 @@ use maran_distro::{AdapterBinary, DistroAdapter, DistroFamily, adapter_for};
 
 use crate::accounts::end_account_processes::end_account_processes;
 use crate::accounts::model::home_metadata::HomeMetadata;
+use crate::accounts::model::sysv_ipc_kind::SysvIpcKind;
 use crate::accounts::{AccountError, SystemHost};
 
 /// The uid the fixture account runs as.
@@ -127,6 +128,10 @@ impl SystemHost for ScriptedHost {
 
     fn home_metadata(&self, _path: &str) -> Result<Option<HomeMetadata>, AccountError> {
         unreachable!("the process cull inspects no home")
+    }
+
+    fn read_sysv_ipc_table(&self, _kind: SysvIpcKind) -> Result<String, AccountError> {
+        unreachable!("the process cull reads no IPC table")
     }
 
     fn pause(&self, interval: Duration) {

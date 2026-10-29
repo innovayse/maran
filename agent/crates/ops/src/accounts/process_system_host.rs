@@ -11,6 +11,7 @@ use maran_agent_core::utils::spawn_argv::spawn_argv;
 use maran_distro::{AdapterBinary, DistroAdapter};
 
 use crate::accounts::model::home_metadata::HomeMetadata;
+use crate::accounts::model::sysv_ipc_kind::SysvIpcKind;
 use crate::accounts::{AccountError, CommandOutcome, SystemHost};
 use maran_agent_core::end_of_options::END_OF_OPTIONS;
 
@@ -136,6 +137,21 @@ impl SystemHost for ProcessSystemHost {
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
             Err(_) => Err(AccountError::HomeInspection {
                 reason: format!("could not read the metadata of {path}"),
+            }),
+        }
+    }
+
+    /// Reads `/proc/sysvipc/<table>` from the kernel's own procfs, whole.
+    ///
+    /// A table that does not exist (a kernel built without that IPC kind) is an
+    /// empty answer, not an error: nothing of that kind can be owned.
+    fn read_sysv_ipc_table(&self, kind: SysvIpcKind) -> Result<String, AccountError> {
+        let path = format!("/proc/sysvipc/{}", kind.table_name());
+        match fs::read_to_string(&path) {
+            Ok(text) => Ok(text),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(String::new()),
+            Err(_) => Err(AccountError::HomeInspection {
+                reason: format!("could not read {path}"),
             }),
         }
     }

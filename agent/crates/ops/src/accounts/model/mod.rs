@@ -3,6 +3,7 @@
 
 pub mod account_suspension_state;
 pub mod account_usage;
+pub mod at_job;
 pub mod created_account;
 pub mod home_group_repair_refusal;
 pub mod home_group_repair_report;
@@ -13,3 +14,5 @@ pub mod quota_unenforceable_reason;
 pub mod refused_home;
 pub mod repaired_home;
 pub mod stored_password;
+pub mod sysv_ipc_kind;
+pub mod sysv_ipc_object;

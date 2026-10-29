@@ -72,6 +72,10 @@ remove_systemd_units() {
   # the /run/maran removal further down does not reach it and the snippet would recreate it.
   rm -f /etc/tmpfiles.d/maran-php.conf
   rm -rf /run/maran-php
+  # And the mount points for the host's shared temporary directories. Unmounted by the agent unit's
+  # stop, which has happened by now; rmdir-style removal must never recurse through a live bind.
+  rm -f /etc/tmpfiles.d/maran-host.conf
+  rmdir /run/maran-host/tmp /run/maran-host/var-tmp /run/maran-host/dev-shm /run/maran-host 2>/dev/null || true
   systemctl daemon-reload
 }
 

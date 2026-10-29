@@ -24,6 +24,10 @@ readonly MARAN_PHP_TMPFILES_NAME="maran-php.conf"
 # (AgentPaths::PHP_FPM_SOCKET_DIRECTORY) and the agent unit's ReadWritePaths= names it; a rename
 # here without one there breaks every PHP site.
 readonly MARAN_PHP_SOCKET_DIRECTORY="/run/maran-php"
+
+# The tmpfiles snippet building the mount points the agent unit bind-mounts the host's shared temporary
+# directories onto. Installed as it stands: nothing in it is substituted.
+readonly MARAN_HOST_TMPFILES_NAME="maran-host.conf"
 # The template unit through which the agent installs a PHP version as root, outside its own sandbox
 # (issue #93). The file name is the contract with the agent: ops/src/php starts
 # maran-php-install@<package>.service, so a rename here without one there installs nothing.
@@ -201,6 +205,7 @@ install_units() {
   install -m 0644 "$tmp" "${MARAN_TMPFILES_DIR}/${MARAN_API_TMPFILES_NAME}"
   # Nothing to substitute, so installed straight from the source file.
   install -m 0644 "${LIB_DIR}/../systemd/maran-php.tmpfiles.conf" "${MARAN_TMPFILES_DIR}/${MARAN_PHP_TMPFILES_NAME}"
+  install -m 0644 "${LIB_DIR}/../systemd/maran-host.tmpfiles.conf" "${MARAN_TMPFILES_DIR}/${MARAN_HOST_TMPFILES_NAME}"
   render_agent_unit "$tmp"
   install -m 0644 "$tmp" "${MARAN_UNIT_DIR}/maran-agent.service"
   # Installed, NEVER enabled: it has no [Install] section and only the agent starts it.
@@ -246,6 +251,34 @@ EOF
     exit 1
   fi
   echo "PHP socket directory ${MARAN_PHP_SOCKET_DIRECTORY} is ${expected}."
+}
+
+# build_host_mount_directory: apply the host-temp mount-point snippet now, for the same reasons.
+#
+# The agent unit's BindPaths= names these directories as targets, so they must exist, root-only,
+# before the agent starts (installer/systemd/maran-host.tmpfiles.conf). `--create` also corrects a
+# directory changed by hand.
+build_host_mount_directory() {
+  systemd-tmpfiles --create "${MARAN_TMPFILES_DIR}/${MARAN_HOST_TMPFILES_NAME}"
+}
+
+# assert_host_mount_directory: /run/maran-host observed on this host rather than assumed.
+#
+# Must be 700 root:root: it is a second name for the host's world-writable /tmp, /var/tmp and
+# /dev/shm, and a tenant able to resolve a path through it would be handed one.
+assert_host_mount_directory() {
+  local expected="700 root root" observed
+  observed="$(stat -c '%a %U %G' /run/maran-host 2>/dev/null || true)"
+  if [ "$observed" != "$expected" ]; then
+    cat >&2 <<EOF
+70-services.sh: /run/maran-host is '${observed:-absent}' but must be '${expected}'.
+
+It is built by ${MARAN_TMPFILES_DIR}/${MARAN_HOST_TMPFILES_NAME}; check that file and that
+'systemd-tmpfiles --create' accepted it.
+EOF
+    exit 1
+  fi
+  echo "Host temp mount directory /run/maran-host is ${expected}."
 }
 
 # assert_api_socket_directory: the boundary itself, observed on this host rather than assumed.
@@ -361,6 +394,9 @@ step_services() {
   # Same precondition for the PHP pool sockets: the agent unit's ReadWritePaths= names this path.
   build_php_socket_directory
   assert_php_socket_directory
+  # And for the host's shared temporary directories the agent unit bind-mounts (BindPaths=).
+  build_host_mount_directory
+  assert_host_mount_directory
   # Start the agent first: the api's health check depends on an agent handshake, and
   # starting order here matches the After= dependency declared in maran-api.service.
   # An upgrade re-renders every PHP site's pool and vhost when the panel starts (issue #125): the
