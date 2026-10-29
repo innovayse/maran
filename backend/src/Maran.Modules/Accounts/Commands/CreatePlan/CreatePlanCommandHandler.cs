@@ -6,6 +6,7 @@ using Maran.Modules.Accounts.Resources;
 using Maran.Modules.Accounts.Services;
 using Maran.Sdk.Contracts;
 using Microsoft.Extensions.Localization;
+using Npgsql;
 
 namespace Maran.Modules.Accounts.Commands.CreatePlan;
 
@@ -23,9 +24,10 @@ namespace Maran.Modules.Accounts.Commands.CreatePlan;
 /// <para>
 /// The name is trimmed before it is compared and stored, so " Gold" and "Gold" cannot be two plans
 /// that look identical in a list. The unique index on the stored name is the backstop for two
-/// administrators creating the same name in the same instant: the loser of that race gets the
-/// database's refusal rather than this handler's sentence, which is the one place the answer is not
-/// localized, and a race between two people typing the same plan name is not worth a lock.
+/// administrators creating the same name in the same instant: the loser of that race is caught at the
+/// save — a unique violation (<c>SqlState 23505</c> and nothing else) — and answered with the same
+/// <c>PlanNameTaken</c> and the same journal entry as the check above, never a server error. Any other
+/// database failure is not a taken name and propagates.
 /// </para>
 /// </remarks>
 public sealed class CreatePlanCommandHandler
@@ -87,7 +89,22 @@ public sealed class CreatePlanCommandHandler
             command.MaxPhpWorkersPerPool);
 
         _dbContext.Plans.Add(plan);
-        await _dbContext.SaveChangesAsync(cancellationToken);
+        try
+        {
+            await _dbContext.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException exception)
+            when (exception.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation })
+        {
+            // The ONE narrowing: only 23505 means another creation won the name between the check
+            // and this insert. Anything else (a dropped connection, a timeout) is not "taken".
+            _dbContext.Plans.Remove(plan);
+
+            await _journal.RecordFailureAsync(
+                AuditActions.PlanCreated, name, command.IpAddress, command.UserAgent, cancellationToken);
+
+            return Result<PlanDto>.Fail(Error.Of(nameof(ErrorMessages.PlanNameTaken), ErrorType.Conflict));
+        }
 
         await _journal.RecordSuccessAsync(
             AuditActions.PlanCreated, name, command.IpAddress, command.UserAgent, cancellationToken);

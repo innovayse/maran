@@ -6,6 +6,7 @@ using Maran.Modules.Accounts.Tests.TestSupport;
 using Maran.Sdk.Contracts;
 using Maran.SharedKernel.Results;
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
 
 namespace Maran.Modules.Accounts.Tests.Commands.DeletePlan;
 
@@ -17,11 +18,20 @@ namespace Maran.Modules.Accounts.Tests.Commands.DeletePlan;
 /// </summary>
 public sealed class DeletePlanCommandHandlerTests : IDisposable
 {
+    /// <summary>Throws an arranged exception on the next save, to force a race the in-memory store cannot.</summary>
+    private readonly ArmedSaveFailureInterceptor _saveFailure = new();
+
     /// <summary>The module's context, in memory.</summary>
-    private readonly AccountsDbContext _dbContext = AccountsTestContext.Create();
+    private readonly AccountsDbContext _dbContext;
 
     /// <summary>Everything the handler journals.</summary>
     private readonly RecordingAuditWriter _audit = new();
+
+    /// <summary>Opens the context with the save-failure interceptor attached.</summary>
+    public DeletePlanCommandHandlerTests()
+    {
+        _dbContext = AccountsTestContext.Create(_saveFailure);
+    }
 
     /// <inheritdoc />
     public void Dispose()
@@ -144,5 +154,47 @@ public sealed class DeletePlanCommandHandlerTests : IDisposable
 
         Assert.True(result.IsSuccess);
         Assert.Empty(await _dbContext.Plans.ToListAsync());
+    }
+
+    /// <summary>Builds the failure the database raises, wrapped as EF Core wraps it.</summary>
+    /// <param name="sqlState">The SQLSTATE the database reports.</param>
+    private static DbUpdateException Violation(string sqlState)
+    {
+        return new DbUpdateException(
+            "save failed", new PostgresException("constraint violated", "ERROR", "ERROR", sqlState));
+    }
+
+    /// <summary>An account placed on the plan between the check and the delete is answered PlanInUse and journalled as a failure.</summary>
+    [Fact]
+    public async Task An_account_placed_on_the_plan_between_the_check_and_the_delete_answers_plan_in_use_and_is_journalled_as_a_failure()
+    {
+        var plan = await AddPlanAsync("Agency");
+        _saveFailure.Next = Violation(PostgresErrorCodes.ForeignKeyViolation);
+
+        var result = await NewHandler().HandleAsync(Command(plan.Id), CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("PlanInUse", result.Error!.Code);
+        Assert.Equal(ErrorType.Conflict, result.Error.Type);
+        var entry = Assert.Single(_audit.Entries);
+        Assert.Equal(AuditActions.PlanDeleted, entry.Action);
+        Assert.Equal("Agency", entry.Subject);
+        Assert.False(entry.Succeeded);
+    }
+
+    /// <summary>A database failure that is not a foreign-key violation propagates instead of being called in use.</summary>
+    [Fact]
+    public async Task A_delete_failing_for_any_other_database_reason_propagates()
+    {
+        // The inverse control: a catch that swallowed every DbUpdateException would pass the test above.
+        var plan = await AddPlanAsync("Agency");
+        _saveFailure.Next = Violation(PostgresErrorCodes.UniqueViolation);
+
+        await Assert.ThrowsAsync<DbUpdateException>(async () =>
+        {
+            await NewHandler().HandleAsync(Command(plan.Id), CancellationToken.None);
+        });
+
+        Assert.Empty(_audit.Entries);
     }
 }

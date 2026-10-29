@@ -2,6 +2,7 @@ using Maran.Modules.Accounts.Persistence;
 using Maran.Modules.Accounts.Resources;
 using Maran.Modules.Accounts.Services;
 using Maran.Sdk.Contracts;
+using Npgsql;
 
 namespace Maran.Modules.Accounts.Commands.DeletePlan;
 
@@ -14,8 +15,9 @@ namespace Maran.Modules.Accounts.Commands.DeletePlan;
 /// <b>The decision: a plan with accounts on it is never deleted, and the answer is a sentence, not a
 /// database error</b> (<c>PlanInUse</c>, a conflict). <c>Accounts.PlanId</c> is a foreign key with
 /// <c>ON DELETE RESTRICT</c>, so the database would refuse the delete anyway — but with a
-/// constraint-violation exception that reaches the administrator as a generic server error, naming
-/// no plan and no remedy. This handler asks first and answers in the administrator's language.
+/// constraint-violation exception that would reach the administrator as a generic server error, naming
+/// no plan and no remedy. This handler asks first and answers in the administrator's language; the
+/// foreign key stays the backstop and its violation is mapped to the same answer.
 /// </para>
 /// <para>
 /// It does not offer to reassign the accounts, and that is deliberate: moving a customer to another
@@ -25,10 +27,11 @@ namespace Maran.Modules.Accounts.Commands.DeletePlan;
 /// </para>
 /// <para>
 /// The check and the delete are two statements, so an account created onto the plan in the instant
-/// between them is caught by the foreign key and surfaces as the database's refusal. That window is
-/// the length of one round trip and the consequence is a refused delete, never a plan removed from
-/// under an account; closing it would need a lock on the accounts table for a form nobody submits in
-/// a race.
+/// between them is caught by the foreign key (<c>SqlState 23503</c> and nothing else) and answered exactly like
+/// the check above: <c>PlanInUse</c>, journalled as a refusal, never a server error. Any other
+/// database failure is not "in use" and propagates. That window is the length of one round trip and
+/// the consequence is a refused delete, never a plan removed from under an account; closing it would
+/// need a lock on the accounts table for a form nobody submits in a race.
 /// </para>
 /// <para>
 /// A shipped plan can be deleted like any other. The seeder inserts the standard plans only into a
@@ -77,7 +80,18 @@ public sealed class DeletePlanCommandHandler
         }
 
         _dbContext.Plans.Remove(plan);
-        await _dbContext.SaveChangesAsync(cancellationToken);
+        try
+        {
+            await _dbContext.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException exception)
+            when (exception.InnerException is PostgresException { SqlState: PostgresErrorCodes.ForeignKeyViolation })
+        {
+            // The ONE narrowing: only 23503 means an account was created onto the plan between the
+            // check and the delete. The plan is still there, so the refusal names it.
+            return await FailAsync(
+                command, plan.DisplayNameKey, Error.Of(nameof(ErrorMessages.PlanInUse), ErrorType.Conflict), cancellationToken);
+        }
 
         await _journal.RecordSuccessAsync(
             AuditActions.PlanDeleted, plan.DisplayNameKey, command.IpAddress, command.UserAgent, cancellationToken);

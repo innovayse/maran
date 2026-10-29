@@ -7,6 +7,7 @@ using Maran.Modules.Accounts.Resources;
 using Maran.Modules.Accounts.Services;
 using Maran.Sdk.Contracts;
 using Microsoft.Extensions.Localization;
+using Npgsql;
 
 namespace Maran.Modules.Accounts.Commands.UpdatePlan;
 
@@ -75,7 +76,10 @@ namespace Maran.Modules.Accounts.Commands.UpdatePlan;
 /// <para>
 /// <b>The name.</b> Sending the name the plan already shows keeps a shipped plan's translated name;
 /// any other text becomes the plan's name in every language. A name another plan already reads as is
-/// refused (<c>PlanNameTaken</c>); a plan may keep its own.
+/// refused (<c>PlanNameTaken</c>); a plan may keep its own. Two administrators claiming the same name
+/// in the same instant pass that check together; the loser is caught at the save (a unique violation,
+/// <c>SqlState 23505</c> and nothing else) and answered with the same <c>PlanNameTaken</c>, journalled
+/// the same way, never as a server error.
 /// </para>
 /// <para>
 /// <b>The journal subject is the plan's stored identity as it was before the edit</b> — the
@@ -169,7 +173,18 @@ public sealed class UpdatePlanCommandHandler
             command.MaxFtpUsers,
             command.MaxCronEntries,
             command.MaxPhpWorkersPerPool);
-        await _dbContext.SaveChangesAsync(cancellationToken);
+        try
+        {
+            await _dbContext.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException exception)
+            when (exception.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation })
+        {
+            // The ONE narrowing: only 23505 means another edit or creation won the name between
+            // the check above and this save. Any other database failure propagates.
+            return await FailAsync(
+                command, subject, Error.Of(nameof(ErrorMessages.PlanNameTaken), ErrorType.Conflict), cancellationToken);
+        }
 
         await _journal.RecordSuccessAsync(
             AuditActions.PlanUpdated,

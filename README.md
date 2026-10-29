@@ -91,6 +91,7 @@ producing security advisories. Maran takes a different position:
 
 | | |
 |---|---|
+| **Plans** | hosting plans created, edited and deleted from the panel: disk quota and per-account limits, unique names, quota changes pushed to existing accounts, and a plan in use cannot be deleted. |
 | **Websites** | PHP, static and reverse-proxy sites; domain aliases; per-site PHP version; access and error logs in the interface; HTTPS and www redirects; enable/disable. |
 | **PHP** | versions 7.4 through 8.4 side by side, installed on demand. Each account gets its own pool running under its own user, with a safe subset of settings exposed to customers. |
 | **SSL** | free Let's Encrypt certificates with automatic renewal, custom certificate upload, self-signed fallback. |

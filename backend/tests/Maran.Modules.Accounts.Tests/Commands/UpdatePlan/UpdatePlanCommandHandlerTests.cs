@@ -6,6 +6,7 @@ using Maran.Modules.Accounts.Tests.TestSupport;
 using Maran.Sdk.Contracts;
 using Maran.SharedKernel.Results;
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
 
 namespace Maran.Modules.Accounts.Tests.Commands.UpdatePlan;
 
@@ -20,8 +21,11 @@ public sealed class UpdatePlanCommandHandlerTests : IDisposable
     /// <summary>One mebibyte in bytes, the unit a quota is pushed to the agent in.</summary>
     private const ulong Mebibyte = 1024UL * 1024UL;
 
+    /// <summary>Throws an arranged exception on the next save, to force a race the in-memory store cannot.</summary>
+    private readonly ArmedSaveFailureInterceptor _saveFailure = new();
+
     /// <summary>The module's context, in memory.</summary>
-    private readonly AccountsDbContext _dbContext = AccountsTestContext.Create();
+    private readonly AccountsDbContext _dbContext;
 
     /// <summary>Everything the handler journals.</summary>
     private readonly RecordingAuditWriter _audit = new();
@@ -38,6 +42,7 @@ public sealed class UpdatePlanCommandHandlerTests : IDisposable
     /// <summary>Stores the plan the tests edit.</summary>
     public UpdatePlanCommandHandlerTests()
     {
+        _dbContext = AccountsTestContext.Create(_saveFailure);
         _dbContext.Plans.Add(_plan);
         _dbContext.SaveChanges();
     }
@@ -389,5 +394,46 @@ public sealed class UpdatePlanCommandHandlerTests : IDisposable
         Assert.True(result.IsSuccess);
         Assert.Equal(1, (await ReloadAsync()).MaxSites);
         Assert.Empty(_agent.Calls);
+    }
+
+    /// <summary>Builds the failure the database raises, wrapped as EF Core wraps it.</summary>
+    /// <param name="sqlState">The SQLSTATE the database reports.</param>
+    private static DbUpdateException Violation(string sqlState)
+    {
+        return new DbUpdateException(
+            "save failed", new PostgresException("constraint violated", "ERROR", "ERROR", sqlState));
+    }
+
+    /// <summary>A name claimed between the check and the save answers PlanNameTaken, is journalled as a failure and changes nothing.</summary>
+    [Fact]
+    public async Task A_name_claimed_between_the_check_and_the_save_answers_name_taken_and_is_journalled_as_a_failure()
+    {
+        _saveFailure.Next = Violation(PostgresErrorCodes.UniqueViolation);
+
+        var result = await NewHandler().HandleAsync(Same() with { Name = "Studio", MaxSites = 99 }, CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("PlanNameTaken", result.Error!.Code);
+        Assert.Equal(ErrorType.Conflict, result.Error.Type);
+        var entry = Assert.Single(_audit.Entries);
+        Assert.Equal(AuditActions.PlanUpdated, entry.Action);
+        Assert.Equal("Agency", entry.Subject);
+        Assert.False(entry.Succeeded);
+        Assert.Equal(10, (await ReloadAsync()).MaxSites);
+    }
+
+    /// <summary>A database failure that is not a unique violation propagates instead of being called a taken name.</summary>
+    [Fact]
+    public async Task An_edit_failing_for_any_other_database_reason_propagates()
+    {
+        // The inverse control: a catch that swallowed every DbUpdateException would pass the test above.
+        _saveFailure.Next = Violation(PostgresErrorCodes.ForeignKeyViolation);
+
+        await Assert.ThrowsAsync<DbUpdateException>(async () =>
+        {
+            await NewHandler().HandleAsync(Same() with { MaxSites = 11 }, CancellationToken.None);
+        });
+
+        Assert.Empty(_audit.Entries);
     }
 }

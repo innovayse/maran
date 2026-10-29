@@ -7,6 +7,7 @@ using Maran.Modules.Accounts.Domain.Entities;
 using Maran.Modules.Accounts.Persistence;
 using Maran.Modules.Identity.Persistence;
 using Maran.Sdk.Contracts;
+using Maran.SharedKernel.Interfaces;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -246,6 +247,49 @@ public sealed class PlansEndpointTests : IAsyncLifetime
         var postgres = Assert.IsType<PostgresException>(failure.InnerException);
         Assert.Equal(PostgresErrorCodes.ForeignKeyViolation, postgres.SqlState);
         Assert.Equal("FK_Accounts_Plans_PlanId", postgres.ConstraintName);
+    }
+
+    /// <summary>An account placed on a plan between the handler's check and its delete is answered 409 PlanInUse, not 500, and the plan survives.</summary>
+    [Fact]
+    public async Task An_account_placed_on_a_plan_between_the_check_and_the_delete_is_answered_conflict_not_a_server_error()
+    {
+        // The race itself, made deterministic: the interceptor lands the competing account in the
+        // instant after the handler found the plan unused and before its delete executes, so the
+        // foreign key (SQLSTATE 23503) is what refuses it.
+        var race = new PlanDeleteRaceInterceptor();
+        await using var factory = EndpointHarness.CreateFactory(_pg, services =>
+        {
+            services.ConfigureDbContext<AccountsDbContext>(options =>
+            {
+                options.AddInterceptors(race);
+            });
+        });
+        await EndpointHarness.MigrateAsync(factory);
+        await EndpointHarness.SeedAdministratorAsync(factory);
+        var plan = Plan.Define(Guid.NewGuid(), "Agency", 10_240, 10, 5, 4, 2, 3, 8);
+        using (var seed = factory.Services.CreateScope())
+        {
+            var seeding = seed.ServiceProvider.GetRequiredService<AccountsDbContext>();
+            seeding.Plans.Add(plan);
+            await seeding.SaveChangesAsync();
+        }
+
+        using var admin = await EndpointHarness.SignInAsync(factory, "admin");
+        race.Arm(async () =>
+        {
+            using var rival = factory.Services.CreateScope();
+            var context = rival.ServiceProvider.GetRequiredService<AccountsDbContext>();
+            var now = rival.ServiceProvider.GetRequiredService<IClock>().UtcNow;
+            context.Accounts.Add(new Account(Guid.NewGuid(), "olive", "olive.example.com", plan.Id, now));
+            await context.SaveChangesAsync();
+        });
+
+        var response = await admin.DeleteAsync($"/api/v1/plans/{plan.Id}");
+
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+        Assert.Contains("PlanInUse", await response.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+        var survivor = Assert.Single(await ListAsync(admin));
+        Assert.Equal(1, survivor.GetProperty("accountCount").GetInt32());
     }
 
     /// <summary>The database holds a plan's name and key equal and a name unique, whatever wrote the row.</summary>

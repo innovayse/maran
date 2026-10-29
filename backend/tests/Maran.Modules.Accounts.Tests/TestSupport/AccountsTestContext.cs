@@ -1,5 +1,6 @@
 using Maran.Modules.Accounts.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 
 namespace Maran.Modules.Accounts.Tests.TestSupport;
 
@@ -11,11 +12,13 @@ namespace Maran.Modules.Accounts.Tests.TestSupport;
 public static class AccountsTestContext
 {
     /// <summary>Creates the context.</summary>
+    /// <param name="interceptors">Interceptors to attach, for a test that arranges a failed save.</param>
     /// <returns>A context over its own in-memory database.</returns>
-    public static AccountsDbContext Create()
+    public static AccountsDbContext Create(params IInterceptor[] interceptors)
     {
         var options = new DbContextOptionsBuilder<AccountsDbContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .AddInterceptors(interceptors)
             .Options;
 
         return new AccountsDbContext(options);

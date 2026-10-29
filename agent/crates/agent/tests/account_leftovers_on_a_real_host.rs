@@ -75,6 +75,9 @@ const SHARED_DIRECTORIES: [(&str, &str); 3] = [
 /// The mail spool directory, the same path on both families (a symlink to the spool on RHEL).
 const MAIL_DIRECTORY: &str = "/var/mail";
 
+/// The line the planted mail spool carries, searched for in the reborn account's spool.
+const PLANTED_MAIL_MARKER: &str = "private to the previous tenant";
+
 /// A time far enough away that no `atd` in the image runs the planted job during the test.
 const AT_TIME: &str = "203512312359";
 
@@ -191,7 +194,7 @@ fn plant_files(account: &PolygonAccount) -> usize {
     }
 
     let mail = Path::new(MAIL_DIRECTORY).join(tag);
-    std::fs::write(&mail, b"From: someone\n\nprivate to the previous tenant\n")
+    std::fs::write(&mail, format!("From: someone\n\n{PLANTED_MAIL_MARKER}\n"))
         .expect("plant mail");
     chown(&mail, Some(ids.uid()), Some(ids.gid())).expect("hand the mail to the account");
     2
@@ -389,13 +392,14 @@ fn a_deleted_accounts_shared_directory_files_mail_at_jobs_and_ipc_are_not_inheri
             entries_owned_by(directory, uid)
         );
     }
+    // The spool is judged by its CONTENT, not by its owner or its existence. On the RHEL family
+    // `useradd` creates an empty spool for the reborn account, owned by the same uid; and other
+    // polygon suites in the same container leave spools of accounts that held this uid before,
+    // which this test did not plant. Only the planted message would be an inheritance.
+    let reborn_spool = std::fs::read(Path::new(MAIL_DIRECTORY).join(name.as_str()))
+        .unwrap_or_default();
     assert!(
-        entries_owned_by(MAIL_DIRECTORY, uid).is_empty(),
-        "mail owned by the freed uid survives: {:?}",
-        entries_owned_by(MAIL_DIRECTORY, uid)
-    );
-    assert!(
-        !Path::new(MAIL_DIRECTORY).join(name.as_str()).exists(),
+        !String::from_utf8_lossy(&reborn_spool).contains(PLANTED_MAIL_MARKER),
         "the new account inherited the previous tenant's mail spool"
     );
     let survived_job = at_queue_holds(&job);
