@@ -162,7 +162,9 @@ download_and_verify_online() {
     url="$(manifest_field "$manifest" "$component" "url")"
     checksum="$(manifest_field "$manifest" "$component" "sha256")"
     if [ -z "$url" ] || [ -z "$checksum" ]; then
-      echo "50-artifacts.sh: manifest has no entry for ${component}-${MARAN_ARCH}" >&2
+      echo "50-artifacts.sh: manifest has no entry for ${component}-${MARAN_ARCH}." >&2
+      echo "This release was not built for this machine's architecture (${MARAN_ARCH})." >&2
+      echo "Install a release that ships ${MARAN_ARCH} artifacts, or run the installer on a supported architecture." >&2
       exit 1
     fi
     dest="${MARAN_ARTIFACT_TMP}/${component}.tar.gz"

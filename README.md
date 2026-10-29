@@ -146,10 +146,8 @@ stack is the pinned one: `postgres:16-alpine` in `docker/docker-compose.dev.yml:
 Architectures: x86_64 and aarch64. Both are really built and really run: the agent is compiled
 inside an AlmaLinux 8 container of each architecture (so its highest required symbol is GLIBC_2.28
 on both, the oldest in the matrix above), the panel is published self-contained per runtime
-identifier, and `maran installer --arch aarch64` installs and verifies an aarch64 host. This line
-used to be true of `installer/lib/10-preflight.sh`, which accepted aarch64, and false of the
-release, which built only x86_64 — an ARM64 operator passed the gate and then found no artifact
-(issue #53).
+identifier, and `maran installer --arch aarch64` installs and verifies an aarch64 host. The
+firewall step is not yet verified end to end on ARM64 hardware.
 
 Distribution differences are isolated behind an adapter layer in the agent, so support for further
 systems is additive — but the FAMILY is not: Debian and RHEL are the two the agent knows, and SUSE

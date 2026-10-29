@@ -66,14 +66,19 @@ usage() {
   cat >&2 <<'USAGE'
 usage: maran release <build|sign|verify|selftest> [arguments]
 
-  build     [--version <ver>] [--channel stable|beta] [--out <dir>] [--arch <list>|both]
+  build     [--version <ver>] [--channel stable|beta] [--out <dir>] [--arch <list>|both] [--publish]
             assemble api+agent+frontend into a manifest'd bundle dir. --arch defaults to this
             host's; `both` builds x86_64 and aarch64, which is what a PUBLISHED release needs
             (preflight accepts both, so a release with one leaves ARM64 operators nothing to
-            install). A single-architecture bundle also gets the unsuffixed tarball names the
+            install). --publish declares the bundle is meant to be served and REFUSES anything but
+            `both`. A single-architecture bundle also gets the unsuffixed tarball names the
             offline installer path reads.
-  sign      --key <path> [--bundle <dir>]       sign the bundle's manifest.json with an ECDSA P-384 key
-  verify    --bundle <dir> [--pubkey <path>]    verify signature+checksums the way the installer does
+  sign      --key <path> [--bundle <dir>] [--publish]
+                                                sign the bundle's manifest.json with an ECDSA P-384 key;
+                                                --publish first refuses a manifest lacking either arch
+  verify    --bundle <dir> [--pubkey <path>] [--publish]
+                                                verify signature+checksums the way the installer does;
+                                                --publish also requires api/agent/frontend for BOTH arches
   package   [--bundle <dir>] [--out <file>]     tar the bundle dir into the single offline tarball
   selftest                                      build, sign with a throwaway key, verify OK, then
                                                  prove a tampered byte and a missing signature are
@@ -121,6 +126,41 @@ dotnet_rid() {
 # first whitespace-separated field).
 sha256_of() {
   sha256sum "$1" | awk '{print $1}'
+}
+
+# MARAN_PUBLISH_ARCHES / MARAN_COMPONENTS: the full set a PUBLISHED release must carry. preflight
+# accepts both architectures, so a release holding one passes an operator's gate and then leaves
+# them nothing to install (issue #53). Named once so the build refusal and the manifest check below
+# cannot disagree about what "complete" means.
+readonly MARAN_PUBLISH_ARCHES="x86_64 aarch64"
+readonly MARAN_COMPONENTS="api agent frontend"
+
+# manifest_missing_keys: <manifest.json>. Prints each `<component>-<arch>` key a published release
+# needs and the manifest does not hold, one per line. The key is matched as a quoted string, the
+# same shape verify_bundle and installer/lib/50-artifacts.sh's reader scan for, so a key that is
+# merely mentioned inside a url cannot satisfy it.
+manifest_missing_keys() {
+  local manifest="$1" component arch
+  for arch in $MARAN_PUBLISH_ARCHES; do
+    for component in $MARAN_COMPONENTS; do
+      grep -qE "^[[:space:]]*\"${component}-${arch}\"[[:space:]]*:" "$manifest" \
+        || echo "${component}-${arch}"
+    done
+  done
+}
+
+# require_publishable_manifest: <manifest.json>. Returns 1 naming every missing key. Separate from
+# verify_bundle because a local or offline single-architecture bundle is legitimate and must keep
+# verifying; only a bundle declared --publish owes both architectures.
+require_publishable_manifest() {
+  local manifest="$1" missing
+  [ -f "$manifest" ] || { echo "publish check: no manifest at ${manifest}" >&2; return 1; }
+  missing="$(manifest_missing_keys "$manifest" | tr '\n' ' ')"
+  if [ -n "${missing// /}" ]; then
+    echo "publish check: ${manifest} lacks: ${missing}— a published release needs api, agent and frontend for BOTH x86_64 and aarch64" >&2
+    return 1
+  fi
+  return 0
 }
 
 # require_toolchain: named refusal, not a silent skip, per rules/testing.md — a builder
@@ -415,12 +455,13 @@ write_integrity_manifest() {
 }
 
 cmd_build() {
-  local version="" out_dir="" channel="" arch_list=""
+  local version="" out_dir="" channel="" arch_list="" publish=0
   while [ $# -gt 0 ]; do
     case "$1" in
       --version) version="${2:?--version requires a value}"; shift 2 ;;
       --channel) channel="${2:?--channel requires a value}"; shift 2 ;;
       --out) out_dir="${2:?--out requires a value}"; shift 2 ;;
+      --publish) publish=1; shift ;;
       # --arch: a comma-separated list, or `both` for the pair a published release needs. Defaults
       # to the host's architecture further down, so an unadorned build is unchanged (issue #53).
       --arch)
@@ -442,6 +483,17 @@ cmd_build() {
     *) echo "release build: --channel must be stable or beta, got: ${channel}" >&2; exit 2 ;;
   esac
   [ -n "$out_dir" ] || out_dir="/tmp/maran-release-bundle"
+
+  # A published build owes both architectures, refused HERE, before the tree lock and before any
+  # toolchain runs: the omission costs an ARM64 operator a failed install, and finding it after an
+  # hour of builds would be the expensive place to learn it. --channel cannot carry this meaning
+  # because it always has a value (stable by default), so every local build would count as published.
+  if [ "$publish" -eq 1 ]; then
+    local requested_arches
+    requested_arches="$(for a in ${arch_list//,/ }; do arch_name "$a"; done | sort -u | tr '\n' ' ')"
+    [ "$requested_arches" = "aarch64 x86_64 " ] \
+      || release_failed "--publish requires --arch both (x86_64 AND aarch64); got '${arch_list:-the host default}'. A release without both leaves one architecture's operators nothing to install (issue #53)."
+  fi
 
   tree_lock_acquire "$root" 0 "release build" \
     || { suite_did_not_run "$VERDICT_PREFIX" "the tree lock is held (named above) — retry once the other lane finishes."; exit "$SUITE_STATUS_DID_NOT_RUN"; }
@@ -549,17 +601,24 @@ require_signing_key() {
 }
 
 cmd_sign() {
-  local key="${MARAN_RELEASE_SIGNING_KEY:-}" bundle_dir="/tmp/maran-release-bundle"
+  local key="${MARAN_RELEASE_SIGNING_KEY:-}" bundle_dir="/tmp/maran-release-bundle" publish=0
   while [ $# -gt 0 ]; do
     case "$1" in
       --key) key="${2:?--key requires a value}"; shift 2 ;;
       --bundle) bundle_dir="${2:?--bundle requires a value}"; shift 2 ;;
+      --publish) publish=1; shift ;;
       *) echo "release sign: unknown argument: $1" >&2; usage ;;
     esac
   done
   require_tool openssl "signs the manifest"
   require_signing_key "$key"
   [ -f "${bundle_dir}/manifest.json" ] || release_failed "no manifest.json under ${bundle_dir} — run: maran release build"
+  # Checked before the signature exists: signing is the act that makes an incomplete manifest look
+  # official, so the refusal belongs ahead of it rather than after.
+  if [ "$publish" -eq 1 ]; then
+    require_publishable_manifest "${bundle_dir}/manifest.json" \
+      || release_failed "refusing to sign an incomplete published release (reason printed above)."
+  fi
 
   sign_release_file "$key" "${bundle_dir}/manifest.json" "${bundle_dir}/manifest.json.sig" \
     || release_failed "signing manifest.json failed"
@@ -628,15 +687,19 @@ verify_bundle() {
 }
 
 cmd_verify() {
-  local bundle_dir="/tmp/maran-release-bundle" pubkey="$root/installer/keys/release-signing.pub"
+  local bundle_dir="/tmp/maran-release-bundle" pubkey="$root/installer/keys/release-signing.pub" publish=0
   while [ $# -gt 0 ]; do
     case "$1" in
       --bundle) bundle_dir="${2:?--bundle requires a value}"; shift 2 ;;
       --pubkey) pubkey="${2:?--pubkey requires a value}"; shift 2 ;;
+      --publish) publish=1; shift ;;
       *) echo "release verify: unknown argument: $1" >&2; usage ;;
     esac
   done
   require_tool openssl "verifies the manifest"
+  if [ "$publish" -eq 1 ] && ! require_publishable_manifest "${bundle_dir}/manifest.json"; then
+    release_failed "${bundle_dir} is not a complete published release (reason printed above)."
+  fi
   if verify_bundle "$bundle_dir" "$pubkey"; then
     release_ok "${bundle_dir} verifies against ${pubkey} (signature + every checksum the manifest names)."
   else
@@ -823,7 +886,81 @@ cmd_selftest() {
   fi
 
   echo
-  release_ok "selftest: build -> sign -> verify accepted a good bundle, refused a tampered one and an unsigned one, wrote a complete integrity-manifest.json across all three components, verified and refused it exactly like manifest.json, documented the signature-does-not-re-derive-hashes gap, and refused a build below the vacuity floor."
+  echo "-- outcome 8: a published release must carry BOTH architectures --"
+  # Two-arch synthetic bundle: each staged dir holds 20 files, so even the one-arch fixture (3 dirs = 60) clears INTEGRITY_MANIFEST_MIN_FILES.
+  # Built twice from one writer so the only difference between the accepted and the refused bundle is
+  # the aarch64 keys themselves, which is what makes the refusal attributable to the check.
+  local pub_arch pub_bundle pub_component pub_first
+  make_two_arch_fixture() {
+    local dir="$1" arches="$2"
+    install -d "$dir"
+    for pub_arch in $arches; do
+      for pub_component in $MARAN_COMPONENTS; do
+        install -d "${dir}/${pub_component}-${pub_arch}"
+        for i in $(seq 1 20); do
+          echo "synthetic ${pub_component} ${pub_arch} file ${i} for release-bundle.sh selftest only" \
+            > "${dir}/${pub_component}-${pub_arch}/file-${i}.txt"
+        done
+        tar_component "${dir}/${pub_component}-${pub_arch}" "${dir}/${pub_component}-${pub_arch}.tar.gz"
+      done
+    done
+    write_integrity_manifest "$dir" "selftest"
+    pub_first=1
+    {
+      echo "{"
+      echo "  \"version\": \"selftest\","
+      echo "  \"artifacts\": {"
+      for pub_arch in $arches; do
+        for pub_component in $MARAN_COMPONENTS; do
+          [ "$pub_first" -eq 1 ] || echo "    },"
+          pub_first=0
+          echo "    \"${pub_component}-${pub_arch}\": {"
+          echo "      \"url\": \"https://releases.maran.innovayse.com/${channel}/${pub_component}-${pub_arch}.tar.gz\","
+          echo "      \"sha256\": \"$(sha256_of "${dir}/${pub_component}-${pub_arch}.tar.gz")\""
+        done
+      done
+      echo "    }"
+      echo "  }"
+      echo "}"
+    } > "${dir}/manifest.json"
+    MARAN_RELEASE_SIGNING_KEY="" cmd_sign --key "${keydir}/throwaway.key" --bundle "$dir" >/dev/null
+  }
+
+  pub_bundle="${work}/two-arch"
+  make_two_arch_fixture "$pub_bundle" "x86_64 aarch64"
+  if verify_bundle "$pub_bundle" "${keydir}/throwaway.pub" && require_publishable_manifest "${pub_bundle}/manifest.json"; then
+    echo "${VERDICT_PREFIX}: OK — two-architecture bundle ACCEPTED by verify and by the publish check (positive control, expected)."
+  else
+    release_failed "selftest: a complete two-architecture bundle was refused — the publish check refuses everything, or the fixture is broken."
+  fi
+
+  local one_arch="${work}/one-arch"
+  make_two_arch_fixture "$one_arch" "x86_64"
+  # The signature and every checksum are GOOD here, so plain verify accepting it proves the refusal
+  # below comes from the publish check and from nothing else.
+  verify_bundle "$one_arch" "${keydir}/throwaway.pub" \
+    || release_failed "selftest: the x86_64-only fixture failed plain verify, so the next check would prove nothing."
+  local refusal
+  if refusal="$(require_publishable_manifest "${one_arch}/manifest.json" 2>&1)"; then
+    release_failed "selftest: the publish check ACCEPTED a bundle with no aarch64 keys — it is decoration."
+  elif printf '%s' "$refusal" | grep -q 'api-aarch64' && printf '%s' "$refusal" | grep -q 'agent-aarch64' \
+       && printf '%s' "$refusal" | grep -q 'frontend-aarch64'; then
+    echo "${VERDICT_PREFIX}: OK — bundle without aarch64 keys REFUSED, naming api-aarch64, agent-aarch64 and frontend-aarch64 (inverse control, expected)."
+  else
+    release_failed "selftest: the publish check refused the x86_64-only bundle but did not name the missing aarch64 keys: ${refusal}"
+  fi
+
+  if ( cmd_build --publish --arch x86_64 --out "${work}/never-built" ) >/dev/null 2>&1; then
+    release_failed "selftest: 'build --publish --arch x86_64' was ACCEPTED — the build-side refusal is decoration."
+  elif [ -e "${work}/never-built" ]; then
+    release_failed "selftest: 'build --publish --arch x86_64' was refused only AFTER it started writing output."
+  else
+    echo "${VERDICT_PREFIX}: OK — 'build --publish --arch x86_64' REFUSED before any output was written (expected)."
+  fi
+  echo "UNOBSERVED HERE: the build-side refusal of a --arch both build is not exercised, because that would run the real toolchains."
+
+  echo
+  release_ok "selftest: build -> sign -> verify accepted a good bundle, refused a tampered one and an unsigned one, wrote a complete integrity-manifest.json across all three components, verified and refused it exactly like manifest.json, documented the signature-does-not-re-derive-hashes gap, refused a build below the vacuity floor, and held a published release to both architectures."
 }
 
 command_name="${1:-}"

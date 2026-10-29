@@ -25,6 +25,13 @@ processes, SysV IPC, shared temporary files, mail spool, then `userdel`.
 Threat note: `docs/superpowers/notes/2026-10-29-account-deletion-leftovers-threat-note.md`; its second
 review is recorded as outstanding.
 
+**A published release can no longer ship without both architectures.** A build, sign or
+verify run with `--publish` now refuses unless both x86_64 and aarch64 are present: `build --publish`
+requires `--arch both`, and signing and verification refuse a manifest missing any of the api, agent or
+frontend entries for either architecture. A local build without `--publish` still targets the host only.
+An installer run on an architecture the release was not built for now says so plainly, naming the
+architecture, instead of reporting only a missing manifest entry.
+
 **Plans can be created, edited and deleted from the panel.** Administrators manage hosting plans under
 Plans: a name is unique regardless of case, a plan with accounts on it cannot be deleted, and a changed
 disk quota is pushed to the accounts already on it. A quota cannot be lowered below any account's usage;

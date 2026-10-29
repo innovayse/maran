@@ -379,6 +379,13 @@ Each row names the workflow that runs it, so this list can be checked against
   `FORMAT VERDICT: OK` line rather than on a status (`backend.yml`). That gate ran here
   unnamed by this list for as long as it has existed, which is the drift this section's
   own first sentence exists to prevent.
+- C# on PostgreSQL 13 and 16: the integration tests are the only ones that open a database, and the
+  supported systems span both (rules/architecture.md). `backend.yml` runs the same whole-suite
+  `maran test backend` verdict twice — job `ci` on the fixture's default (`postgres:16-alpine`) and
+  job `ci-pg13` with `MARAN_TEST_PG_IMAGE=postgres:13-alpine` and `MARAN_TEST_PG_MAJOR=13`, which
+  makes the fixture fail when the server it got is another major. Both score against the one
+  baseline row per test dll, the whole suite and not a subset (`--filter` is refused), and the 13
+  leg keeps its own artifact (`backend-test-verdict-pg13`).
 - Rust: fmt --check, clippy -D warnings, tests, doc build clean (`agent.yml`).
   **Not** cargo-deny or cargo-audit: this row claimed both for months and no workflow has
   ever invoked either — measured against every step of every file in `.github/workflows/`.

@@ -47,10 +47,17 @@ Spec: `docs/superpowers/specs/2026-08-29-maran-design.md`.
 Two families, and every one of these is a system the product must actually work on — not a
 best-effort target:
 
-| Family | Versions |
-|---|---|
-| Debian | Ubuntu 22.04 LTS, Ubuntu 24.04 LTS, Debian 12, Debian 13 |
-| RHEL | AlmaLinux 9, AlmaLinux 10, Rocky Linux 9, Rocky Linux 10 |
+| Family | Versions | PostgreSQL major |
+|---|---|---|
+| Debian | Ubuntu 22.04 LTS | not verified in this repository |
+| Debian | Ubuntu 24.04 LTS | 16 (installer/lib/30-postgresql.sh measured it; the dev and CI default is also 16) |
+| Debian | Debian 12, Debian 13 | not verified in this repository |
+| RHEL | AlmaLinux 9, Rocky Linux 9 | 13 (AlmaLinux 9 per installer/lib/30-postgresql.sh; Rocky 9 is not separately verified) |
+| RHEL | AlmaLinux 10, Rocky Linux 10 | not verified in this repository |
+
+The panel's floor is PostgreSQL 13 (`MARAN_PG_MINIMUM_MAJOR` in `installer/lib/30-postgresql.sh`), so
+CI runs the whole backend suite on 13 as well as on 16 (rules/testing.md). Fill an unverified cell
+from the distribution's own documentation, never from memory.
 
 Architectures: `x86_64` and `aarch64`.
 

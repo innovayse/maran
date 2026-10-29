@@ -1,11 +1,13 @@
 using Npgsql;
 using Testcontainers.PostgreSql;
+using Xunit.Abstractions;
+using Xunit.Sdk;
 
 namespace Maran.Host.IntegrationTests.Fixtures;
 
 /// <summary>
 /// The one PostgreSQL server this assembly's integration tests share, and a fresh database inside it
-/// for each test that asks.
+/// for each test that asks. The server is the one <see cref="PostgresTestTarget"/> names.
 /// </summary>
 /// <remarks>
 /// It exists because the shape it replaces was quietly costing minutes and producing a flaky suite.
@@ -22,6 +24,10 @@ namespace Maran.Host.IntegrationTests.Fixtures;
 /// and the fix is the same one that makes the suite fast: one server for the assembly, and a database
 /// per test so the seeds cannot collide. The isolation each test had is preserved exactly — a fresh,
 /// empty database with no migrations applied — and only the server is shared.
+///
+/// Which server to start is <see cref="PostgresTestTarget"/>'s question and whether the started one is
+/// the one declared is <see cref="PostgresServerVersion"/>'s (issue #98); this fixture only starts the
+/// container the target names and refuses to hand out a database when the server it got is another major.
 /// </remarks>
 public sealed class PostgresFixture : IAsyncLifetime
 {
@@ -38,17 +44,53 @@ public sealed class PostgresFixture : IAsyncLifetime
     /// whichever unrelated test happened to run at the moment the limit was reached. A limit that
     /// fails a test other than the one that exhausted it is a limit worth having headroom on.
     /// </remarks>
-    private readonly PostgreSqlContainer _container = new PostgreSqlBuilder("postgres:16-alpine")
-        .WithCommand("-c", "max_connections=300")
-        .Build();
+    private readonly PostgreSqlContainer _container;
+
+    /// <summary>Receives the one line naming the image and server version this run measured.</summary>
+    private readonly IMessageSink _diagnostics;
 
     /// <summary>Distinguishes the databases handed out, so two tests never share one.</summary>
     private int _issued;
 
-    /// <summary>Starts the server once, before any test in the collection runs.</summary>
-    public Task InitializeAsync()
+    /// <summary>The server this run was asked to measure.</summary>
+    public PostgresTestTarget Target { get; }
+
+    /// <summary>The started server's version; <see langword="null"/> until <see cref="InitializeAsync"/> has run.</summary>
+    public PostgresServerVersion? ServerVersion { get; private set; }
+
+    /// <summary>Reads the target from the environment and builds, without starting, its container.</summary>
+    /// <param name="diagnostics">The sink xUnit injects for messages that belong in the run's log.</param>
+    public PostgresFixture(IMessageSink diagnostics)
     {
-        return _container.StartAsync();
+        _diagnostics = diagnostics;
+        Target = PostgresTestTarget.FromEnvironment();
+
+        _container = new PostgreSqlBuilder(Target.Image)
+            .WithCommand("-c", "max_connections=300")
+            .Build();
+    }
+
+    /// <summary>
+    /// Starts the server once, before any test in the collection runs, then reports which server it is
+    /// and refuses to continue if it is not the declared major.
+    /// </summary>
+    public async Task InitializeAsync()
+    {
+        await _container.StartAsync();
+
+        await using var connection = new NpgsqlConnection(_container.GetConnectionString());
+        await connection.OpenAsync();
+
+        await using var command = new NpgsqlCommand("SHOW server_version_num", connection);
+        var version = PostgresServerVersion.Parse((string)(await command.ExecuteScalarAsync() ?? ""));
+
+        _diagnostics.OnMessage(new DiagnosticMessage(
+            $"PostgresFixture: image {Target.Image}, server_version_num {version.Number}"));
+
+        // The server was asked, not the image tag trusted: a tag can be retagged or a variable can fail
+        // to reach the process, and a leg that measured the wrong server certifies nothing.
+        version.Require(Target.ExpectedMajor);
+        ServerVersion = version;
     }
 
     /// <summary>Stops the server after the last test in the collection.</summary>

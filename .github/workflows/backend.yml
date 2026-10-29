@@ -370,3 +370,122 @@ jobs:
             ${{ runner.temp }}/verdict/backend.log
             ${{ runner.temp }}/telemetry.log
           if-no-files-found: error
+
+  # THE SAME WHOLE-SUITE VERDICT, AGAINST POSTGRESQL 13. The `ci` job above is PostgreSQL 16 (the
+  # Testcontainers default). The supported-systems table in rules/architecture.md has AlmaLinux 9
+  # on PostgreSQL 13, and the installer's floor is 13 (installer/lib/30-postgresql.sh), so a query
+  # that only works on 14+ (a cast the old planner rejects, `date_bin`) is green on 16 and dead on
+  # a supported host. Only Maran.Host.IntegrationTests opens a database, so this run measures
+  # PostgreSQL 13 exactly where it matters.
+  #
+  # WHY THE WHOLE SUITE AND NOT JUST THAT PROJECT. `maran test backend` refuses `--filter`, and
+  # rules/testing.md ("Score against the WHOLE suite, never a subset") says why: a verdict taken on
+  # a subset is blind to every other project, and the total is compared against one baseline row per
+  # test dll. Running only the integration project would need the subset interface, which the
+  # harness deliberately does not have. The price is a second compile and a second pass of the unit
+  # projects, paid on a separate runner in parallel, so wall-clock cost is the slowest leg and not
+  # the sum. That trade is accepted; the alternative is a verdict the baseline cannot check.
+  #
+  # Deliberately absent here: the lock selftest, structure, format, migration checks and the
+  # Release build. They do not depend on the database and the `ci` job already owns them.
+  #
+  # `MARAN_TEST_PG_MAJOR` makes the fixture FAIL if the server it got is not that major, so a
+  # silently ignored image variable cannot turn this job into a second PostgreSQL 16 run.
+  ci-pg13:
+    runs-on: ubuntu-latest
+    env:
+      MARAN_TEST_PG_IMAGE: postgres:13-alpine
+      MARAN_TEST_PG_MAJOR: '13'
+    steps:
+      - uses: actions/checkout@v7
+
+      # Same exact patch as the `ci` job, for the same reason: the baseline is a count taken on it.
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '9.0.317'
+
+      - name: The SDK is the one this repository is built and baselined against
+        run: |
+          want=9.0.317
+          if ! version_output="$(dotnet --version 2>&1)"; then
+            echo "::error::'dotnet --version' itself failed, so no SDK is usable on this runner."
+            printf '%s\n' "$version_output"
+            exit 1
+          fi
+          have="$(printf '%s\n' "$version_output" | head -1)"
+          echo "dotnet --version -> $have"
+          dotnet --list-sdks
+          if [ "$have" != "$want" ] || ! dotnet --list-sdks | grep -q "^$want "; then
+            echo "::error::dotnet SDK is '$have', and this repository baselines on $want."
+            exit 1
+          fi
+
+      - name: Install protoc
+        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
+
+      # Same sampler as the `ci` job, same reason; observation only, never fails the job.
+      - name: Start resource telemetry
+        run: |
+          telemetry="$RUNNER_TEMP/telemetry.log"
+          : > "$telemetry"
+          setsid nohup bash -c '
+            log="$1"; temp="$2"
+            while true; do
+              {
+                echo "=== $(date -u +%Y-%m-%dT%H:%M:%SZ) ==="
+                free -m
+                df -h /
+                df -h "$temp"
+                echo "--- top 8 by RSS (KiB) ---"
+                ps -eo rss,comm --sort=-rss | head -9
+                echo "--- kernel out-of-memory lines ---"
+                sudo dmesg 2>&1 | grep -iE "out of memory|oom-kill|killed process" | tail -5
+                echo
+              } >> "$log" 2>&1
+              sleep 10
+            done
+          ' telemetry "$telemetry" "$RUNNER_TEMP" > /dev/null 2>&1 < /dev/null &
+          echo "sampler started (pid $!), writing to $telemetry"
+
+      # Scored on the printed verdict line, never on the exit status, exactly as in the `ci` job
+      # (see the long comment there). `--accept` is never passed.
+      - name: Test verdict on PostgreSQL 13 — per-project totals against the committed baseline
+        id: verdict
+        run: |
+          set -o pipefail
+          mkdir -p "$RUNNER_TEMP/verdict"
+          status=0
+          bash scripts/maran test backend 2>&1 |
+            tee "$RUNNER_TEMP/verdict/backend-pg13.log" || status=$?
+          echo "harness exit status: $status (recorded; the verdict is the line below, not this)"
+          if ! grep -q '^TEST VERDICT: OK' "$RUNNER_TEMP/verdict/backend-pg13.log"; then
+            echo "::error::the backend suite on PostgreSQL 13 did not print 'TEST VERDICT: OK'."
+            echo "--- what the run reported ---"
+            if ! grep -aE '^(TEST VERDICT|collected |ABORTED|REFUSED|CONTAMINATED|UNRECONCILED|SELF-TEST| +\w+: )' \
+              "$RUNNER_TEMP/verdict/backend-pg13.log"; then
+              echo "(no verdict-shaped line in the log; its last 40 lines follow)"
+              tail -40 "$RUNNER_TEMP/verdict/backend-pg13.log" || echo "(the log is empty or absent)"
+            fi
+            exit 1
+          fi
+          if [ "$status" -ne 0 ]; then
+            echo "::error::the suite printed 'TEST VERDICT: OK' and then exited $status."
+            echo "Those two disagree, so neither is evidence: score nothing from this run."
+            exit 1
+          fi
+
+      - name: Show the end of the resource telemetry
+        if: always()
+        run: |
+          echo "--- last 60 lines of the resource telemetry ---"
+          tail -60 "$RUNNER_TEMP/telemetry.log" || echo "(the telemetry log is empty or absent)"
+
+      - name: Keep the verdict log
+        if: ${{ !cancelled() && steps.verdict.conclusion != 'skipped' }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: backend-test-verdict-pg13
+          path: |
+            ${{ runner.temp }}/verdict/backend-pg13.log
+            ${{ runner.temp }}/telemetry.log
+          if-no-files-found: error
