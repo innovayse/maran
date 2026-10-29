@@ -9,6 +9,9 @@ internal sealed class RecordingLogger<T> : ILogger<T>
     /// <summary>Every message written, in order, already formatted with its arguments.</summary>
     public List<string> Messages { get; } = [];
 
+    /// <summary>The level of each entry in <see cref="Messages"/>, at the same index.</summary>
+    public List<LogLevel> Levels { get; } = [];
+
     /// <inheritdoc/>
     public IDisposable? BeginScope<TState>(TState state)
         where TState : notnull
@@ -31,5 +34,6 @@ internal sealed class RecordingLogger<T> : ILogger<T>
         Func<TState, Exception?, string> formatter)
     {
         Messages.Add(formatter(state, exception));
+        Levels.Add(logLevel);
     }
 }

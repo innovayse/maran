@@ -1,5 +1,10 @@
 //! The seam between account operations and the machine they run on.
 
+use std::time::Duration;
+
+use maran_agent_core::utils::call_class::CallClass;
+use maran_distro::AdapterBinary;
+
 use crate::accounts::model::home_metadata::HomeMetadata;
 use crate::accounts::{AccountError, CommandOutcome};
 
@@ -16,16 +21,34 @@ use crate::accounts::{AccountError, CommandOutcome};
 /// (rules/security.md item 3): the account name is caller-supplied, and a shell
 /// would turn a name this crate has validated into a string a shell re-parses.
 pub trait SystemHost: Send + Sync {
-    /// Runs `program` with `arguments` and waits for it.
+    /// Runs `program` with `arguments` and waits for it, no longer than `class`
+    /// allows.
+    ///
+    /// `program` is an [`AdapterBinary`], the adapter's own absolute path for a
+    /// tool, so nothing but the distribution adapter can name what root executes.
     ///
     /// # Errors
     ///
     /// Returns [`AccountError::CommandUnavailable`] when the program cannot be
-    /// started at all. A non-zero exit is NOT an error here — it is returned in
+    /// started at all, and [`AccountError::Bound`] when it outlived its deadline
+    /// or wrote more than its output ceiling and was killed with its whole
+    /// process group. A non-zero exit is NOT an error here — it is returned in
     /// the outcome, because each caller reads the status differently.
-    fn run(&self, program: &str, arguments: &[&str]) -> Result<CommandOutcome, AccountError>;
+    fn run(
+        &self,
+        program: &AdapterBinary,
+        arguments: &[&str],
+        class: CallClass,
+    ) -> Result<CommandOutcome, AccountError>;
 
-    /// Reports whether a system user exists.
+    /// Reports whether a system user exists, by every name source the host is
+    /// configured with.
+    ///
+    /// Asked by account creation only, to refuse a name that already belongs to
+    /// ANY user (never adopting it). It is NOT how an operation on an existing
+    /// account decides it may act: that is the managed-account resolution over
+    /// [`SystemHost::read_password_database`], which refuses a user this panel
+    /// did not create even though it exists.
     ///
     /// # Errors
     ///
@@ -41,7 +64,9 @@ pub trait SystemHost: Send + Sync {
 
     /// Reads the host's local password database, whole.
     ///
-    /// The one source `RepairHomeGroups` enumerates hosting accounts from —
+    /// The one source every operation on an existing account resolves its
+    /// managed account from, and `RepairHomeGroups` enumerates hosting accounts
+    /// from —
     /// the same file and the same parse
     /// (`maran_agent_core::utils::system_accounts::system_accounts`) the
     /// monitoring area's disk-usage figures already use, so "which accounts
@@ -77,4 +102,17 @@ pub trait SystemHost: Send + Sync {
     /// Returns [`AccountError::HomeInspection`] when the path exists but its
     /// metadata could not be read for any other reason.
     fn home_metadata(&self, path: &str) -> Result<Option<HomeMetadata>, AccountError>;
+
+    /// Waits for `interval` before the caller looks again.
+    ///
+    /// The only way the account operations spend wall-clock time, and a trait
+    /// method rather than a call to `std::thread::sleep` so that time is
+    /// injected like every other effect (rules/testing.md "Determinism": no
+    /// sleeps, inject the clock). The real host sleeps; a test fake records the
+    /// interval and returns at once, which makes the bound of a retry loop a
+    /// number a test can read instead of a duration it has to wait out.
+    ///
+    /// Called from inside the blocking section of an rpc, never from an async
+    /// worker.
+    fn pause(&self, interval: Duration);
 }

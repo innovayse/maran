@@ -26,7 +26,12 @@ use crate::cron::model::crontab_document::CrontabDocument;
 ///
 /// # Errors
 ///
+/// - [`CronError::Account`] when `account` is not a hosting account this panel
+///   may act on (reserved, absent, a system identity, or with the wrong home).
+///   Checked first, before the crontab or the home is touched.
 /// - [`CronError::CrontabRefused`] when the crontab could not be read.
+/// - [`CronError::Bound`] when `crontab` outlived its deadline and was killed with its
+///   process group. Nothing was changed.
 /// - [`CronError::EntryFileUnreadable`] when a command file is there and could
 ///   not be read as the entry's own file.
 /// - [`CronError::Privilege`] when the account cannot be resolved.
@@ -34,7 +39,8 @@ pub fn list_cron_entries(
     host: &dyn CronHost,
     account: &AccountName,
 ) -> Result<Vec<CronEntry>, CronError> {
-    let Some(text) = host.read_crontab(account)? else {
+    let managed = host.managed_account(account)?;
+    let Some(text) = host.read_crontab(&managed)? else {
         return Ok(Vec::new());
     };
 
@@ -43,7 +49,7 @@ pub fn list_cron_entries(
 
     for entry in document.entries() {
         let command = host
-            .read_command_file(account, &entry.id)?
+            .read_command_file(&managed, &entry.id)?
             .as_deref()
             .map(CronEntry::command_from_file);
 

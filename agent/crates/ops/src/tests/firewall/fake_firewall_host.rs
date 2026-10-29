@@ -29,9 +29,11 @@ use std::time::Duration;
 
 use maran_agent_core::agent_paths::AgentPaths;
 use maran_agent_core::command_outcome::CommandOutcome;
+use maran_agent_core::utils::bound_exceeded::BoundExceeded;
+use maran_agent_core::utils::call_class::CallClass;
 use maran_agent_core::validation::web::port::Port;
 use maran_agent_core::validation::web::source_cidr::SourceCidr;
-use maran_distro::{DistroAdapter, DistroFamily, adapter_for};
+use maran_distro::{AdapterBinary, DistroAdapter, DistroFamily, adapter_for};
 use maran_templates::nftables::nftables_protocol::NftablesProtocol;
 
 use crate::firewall::firewall_error::FirewallError;
@@ -109,6 +111,8 @@ pub(crate) struct FakeFirewallHost {
     /// the apply's ORDER, the one thing this area must not get wrong,
     /// something a test can see.
     steps: Mutex<Vec<String>>,
+    /// Every `nft` spawn with the call class it asked for, in order.
+    classes: Mutex<Vec<(Vec<String>, CallClass)>>,
     /// Every path that was really loaded with `nft -f`, in order.
     applies: Mutex<Vec<String>>,
     /// Whether `table inet maran_bans` is loaded.
@@ -125,6 +129,9 @@ pub(crate) struct FakeFirewallHost {
     bans_json: Mutex<Option<String>>,
     /// Whether `nft` cannot be started at all.
     nft_missing: Mutex<bool>,
+    /// The verb of the `nft` call that is killed at its deadline, when a test
+    /// said one must be.
+    times_out_on: Mutex<Option<String>>,
     /// Whether reading a file refuses.
     read_refuses: Mutex<bool>,
     /// Whether staging, flushing or renaming refuses.
@@ -140,6 +147,7 @@ impl FakeFirewallHost {
         Self {
             files: Mutex::new(HashMap::new()),
             steps: Mutex::new(Vec::new()),
+            classes: Mutex::new(Vec::new()),
             applies: Mutex::new(Vec::new()),
             bans_table: Mutex::new(false),
             elements: Mutex::new(Vec::new()),
@@ -148,6 +156,7 @@ impl FakeFirewallHost {
             load_status: Mutex::new(0),
             bans_json: Mutex::new(None),
             nft_missing: Mutex::new(false),
+            times_out_on: Mutex::new(None),
             read_refuses: Mutex::new(false),
             write_refuses: Mutex::new(false),
             gate: Mutex::new(None),
@@ -212,7 +221,14 @@ impl FakeFirewallHost {
         *self.load_status.lock().unwrap() = 1;
     }
 
-    /// Makes `nft` impossible to start.
+    /// Makes the `nft` call whose verb is `verb` (`--check`, `-f`, `list`,
+    /// `add`, `delete`) be killed at its deadline, the way the bounded spawn
+    /// reports it.
+    pub(crate) fn time_out_on(&self, verb: &str) {
+        *self.times_out_on.lock().unwrap() = Some(verb.to_owned());
+    }
+
+    /// Makes `nft` unstartable.
     pub(crate) fn lose_nft(&self) {
         *self.nft_missing.lock().unwrap() = true;
     }
@@ -247,14 +263,40 @@ impl FakeFirewallHost {
         self.elements.lock().unwrap().clone()
     }
 
-    /// The argument vector of the first `nft` call whose second argument is
-    /// `verb`, the program first.
+    /// The argument vector of the first `nft` call whose verb is `verb`, the
+    /// program first and every argument exactly as it was passed, an
+    /// end-of-options marker included.
+    ///
+    /// The verb is the first argument that is neither the JSON switch nor the
+    /// end-of-options marker, so a call is found by what it does and not by
+    /// where the guard sits.
     pub(crate) fn nft_call_starting_with(&self, verb: &str) -> Option<Vec<String>> {
         self.steps()
             .into_iter()
             .filter_map(|step| step.strip_prefix(RUN_STEP).map(str::to_owned))
             .map(|argv| argv.split(' ').map(str::to_owned).collect::<Vec<_>>())
-            .find(|argv| argv.get(1).is_some_and(|first| first == verb))
+            .find(|argv| {
+                argv.iter()
+                    .skip(1)
+                    .find(|argument| *argument != "-j" && *argument != "--")
+                    .is_some_and(|first| first == verb)
+            })
+    }
+
+    /// The call class of the first `nft` call whose verb is `verb` (as for
+    /// [`Self::nft_call_starting_with`]), or `None` when there was none.
+    pub(crate) fn class_of_call(&self, verb: &str) -> Option<CallClass> {
+        self.classes
+            .lock()
+            .unwrap()
+            .iter()
+            .find(|(arguments, _)| {
+                arguments
+                    .iter()
+                    .find(|argument| *argument != "-j" && *argument != "--")
+                    .is_some_and(|first| first == verb)
+            })
+            .map(|(_, class)| *class)
     }
 
     /// Records one step.
@@ -263,11 +305,21 @@ impl FakeFirewallHost {
     }
 
     /// Answers an `nft` invocation the way the real tool would.
-    fn answer_nft(&self, arguments: &[&str]) -> CommandOutcome {
+    fn answer_nft(&self, passed: &[&str]) -> CommandOutcome {
+        // The end-of-options marker is the parser's business and carries no
+        // meaning the fake models; every pattern below reads the argv without it.
+        let without_guard: Vec<&str> = passed
+            .iter()
+            .copied()
+            .filter(|argument| *argument != "--")
+            .collect();
+        let arguments = without_guard.as_slice();
+
         match arguments {
             ["--check", "-f", _] => self.answer_check(),
             ["-f", path] => self.answer_load(path),
             ["list", "table", _, _] => self.answer_table_listing(),
+            ["list", "chain", _, _, _] => self.answer_table_listing(),
             ["-j", "list", "set", _, _, set] => self.answer_set_listing(set),
             ["add", "element", ..] => self.answer_add(arguments),
             ["delete", "element", ..] => self.answer_delete(arguments),
@@ -402,13 +454,38 @@ impl FirewallHost for FakeFirewallHost {
     /// A program that is not the adapter's `nft` panics rather than answering
     /// blandly: a fake that shrugs at an unexpected tool is a fake that lets
     /// an operation run anything and still pass.
-    fn run(&self, program: &str, arguments: &[&str]) -> Result<CommandOutcome, FirewallError> {
+    fn run(
+        &self,
+        program: &AdapterBinary,
+        arguments: &[&str],
+        class: CallClass,
+    ) -> Result<CommandOutcome, FirewallError> {
+        let program = program.as_str();
         assert!(
             program.starts_with('/') && program.ends_with("nft"),
             "the firewall spawns nft by an absolute path from the adapter: {program}"
         );
 
         self.record(format!("{RUN_STEP}{program} {}", arguments.join(" ")));
+        self.classes.lock().unwrap().push((
+            arguments
+                .iter()
+                .map(|argument| (*argument).to_owned())
+                .collect(),
+            class,
+        ));
+
+        let verb = arguments
+            .iter()
+            .copied()
+            .find(|argument| *argument != "-j" && *argument != "--");
+        let wanted = self.times_out_on.lock().unwrap().clone();
+        if wanted.as_deref().is_some() && wanted.as_deref() == verb {
+            return Err(FirewallError::Bound(BoundExceeded::TimedOut {
+                program: program.to_owned(),
+                deadline: class.deadline(),
+            }));
+        }
 
         if *self.nft_missing.lock().unwrap() {
             return Err(FirewallError::NftFailed {

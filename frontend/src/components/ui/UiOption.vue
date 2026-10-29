@@ -9,6 +9,17 @@
  * the option is never the focused element, so giving it a tab stop would
  * break the very keyboard model it exists to implement. Only `UiSelect`
  * renders it.
+ *
+ * The row sits on the popup's `bg-surface-3`. Its text is `text-text-primary`
+ * (13.5:1 there), and the active row is a wash of the accent (`bg-accent-soft`)
+ * under that same primary text — never accent TEXT on the wash, which is the
+ * pair that fails over `surface-3` (4.40:1). The chosen row is marked by a check
+ * mark AND a heavier weight, so selection is not carried by colour alone. The tick
+ * is `text-accent-text` on a resting row (5.23:1 on dark `surface-3`, 5.74 on light),
+ * but on the ACTIVE row it is `text-text-primary`: that row carries the accent wash,
+ * and accent text over the wash on `surface-3` is the 4.40:1 pairing the redesign
+ * README forbids. The tick is still a tick by its shape. A row is at least 36px
+ * tall, above the 24px minimum target.
  */
 import UiIcon from './UiIcon.vue'
 
@@ -69,16 +80,22 @@ const onPointerEnter = (): void => {
     role="option"
     :aria-selected="selected"
     :aria-disabled="disabled ? 'true' : undefined"
-    class="flex cursor-pointer items-center justify-between gap-2.5 rounded-md px-3 py-2 text-base text-text-primary"
+    class="flex min-h-9 cursor-pointer items-center justify-between gap-2.5 rounded-row px-3 py-2 text-base text-text-primary sm:text-sm"
     :class="[
-      active ? 'bg-surface-3' : '',
-      selected ? 'font-medium' : '',
+      active ? 'bg-accent-soft' : '',
+      selected ? 'font-semibold' : '',
       disabled ? 'cursor-not-allowed opacity-65' : '',
     ]"
     @click="onClick"
     @pointerenter="onPointerEnter"
   >
-    <span>{{ label }}</span>
-    <UiIcon v-if="selected" name="check" size="sm" class="text-accent" />
+    <span class="min-w-0 wrap-anywhere">{{ label }}</span>
+    <UiIcon
+      v-if="selected"
+      name="check"
+      size="sm"
+      class="shrink-0"
+      :class="active ? 'text-text-primary' : 'text-accent-text'"
+    />
   </li>
 </template>

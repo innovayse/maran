@@ -140,28 +140,40 @@ defineExpose({ reset })
 
 <template>
   <UiForm @submit="submit">
-    <CronScheduleField :schedule="initialSchedule" @update:model-value="changeSchedule" />
+    <div class="flex flex-col gap-4">
+      <CronScheduleField :schedule="initialSchedule" @update:model-value="changeSchedule" />
 
-    <UiInput
-      :model-value="command"
-      :label="t('cron.form.fields.command')"
-      :placeholder="t('cron.form.placeholders.command')"
-      :error="commandError"
-      class="mt-3"
-      @update:model-value="changeCommand"
-    />
+      <!-- The command and its hint sit together: the hint is the rule the refusal below it quotes. -->
+      <div class="flex flex-col gap-1.5">
+        <UiInput
+          :model-value="command"
+          :label="t('cron.form.fields.command')"
+          :placeholder="t('cron.form.placeholders.command')"
+          :error="commandError"
+          mono
+          @update:model-value="changeCommand"
+        />
+        <p class="text-sm text-text-muted wrap-anywhere">{{ t('cron.form.commandHint') }}</p>
+      </div>
 
-    <p class="mt-1 text-sm text-text-muted">{{ t('cron.form.commandHint') }}</p>
+      <p
+        v-if="scheduleError !== null"
+        role="alert"
+        class="text-sm text-danger wrap-anywhere"
+      >
+        {{ scheduleError }}
+      </p>
 
-    <p v-if="scheduleError !== null" class="mt-2 text-sm text-danger">{{ scheduleError }}</p>
-
-    <div class="mt-3 flex items-center gap-2">
-      <UiButton type="submit" :disabled="submitting">
-        {{ submitting ? t('common.saving') : isEditing ? t('cron.form.save') : t('cron.form.create') }}
-      </UiButton>
-      <UiButton v-if="isEditing" variant="secondary" @click="cancel">
-        {{ t('common.cancel') }}
-      </UiButton>
+      <!-- The pill is the form's one primary action. On a phone the buttons share the row evenly so
+           neither is a thin target; from `sm` they sit at their natural width. -->
+      <div class="flex flex-wrap items-center gap-2">
+        <UiButton type="submit" :disabled="submitting">
+          {{ submitting ? t('common.saving') : isEditing ? t('cron.form.save') : t('cron.form.create') }}
+        </UiButton>
+        <UiButton v-if="isEditing" variant="secondary" @click="cancel">
+          {{ t('common.cancel') }}
+        </UiButton>
+      </div>
     </div>
   </UiForm>
 </template>

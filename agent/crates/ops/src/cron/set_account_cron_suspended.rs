@@ -42,8 +42,12 @@ use crate::cron::model::crontab_document::CrontabDocument;
 ///
 /// # Errors
 ///
-/// Returns [`CronError::CrontabRefused`] when the crontab cannot be read or
-/// the new table is refused. The account keeps the state it had.
+/// Returns [`CronError::Account`] when `account` is not a hosting account this
+/// panel may act on, checked first and before the crontab is touched, and
+/// [`CronError::CrontabRefused`] when the crontab cannot be read or
+/// the new table is refused. The account keeps the state it had. Returns
+/// [`CronError::Bound`] when `crontab` outlived its deadline and was killed with its
+/// process group, in which case the table may or may not have been replaced.
 pub fn set_account_cron_suspended(
     host: &dyn CronHost,
     distro: &dyn DistroAdapter,
@@ -55,13 +59,17 @@ pub fn set_account_cron_suspended(
     // still overwrite whatever landed in between. Per account, process-local —
     // see `cron_lock` for the whole argument.
     let _crontab = cron_lock(account);
+    let managed = host.managed_account(account)?;
 
-    let existing = host.read_crontab(account)?.unwrap_or_default();
+    let existing = host.read_crontab(&managed)?.unwrap_or_default();
     let mut document = CrontabDocument::parse(&existing);
 
     document.set_suspended(suspended);
 
-    host.install_crontab(account, &document.render(account, distro.sh_binary()))
+    host.install_crontab(
+        &managed,
+        &document.render(managed.name(), distro.sh_binary()),
+    )
 }
 
 #[cfg(test)]

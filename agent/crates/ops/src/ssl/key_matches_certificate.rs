@@ -13,10 +13,11 @@ const CERTIFICATE_PUBLIC_KEY: [&str; 3] = ["x509", "-noout", "-pubkey"];
 ///
 /// `-passin pass:` supplies an empty passphrase explicitly. Without it an
 /// encrypted key makes openssl prompt: with no tty it fails, with one it would
-/// block the agent forever, and which of those happens depends on how the daemon
-/// was started rather than on the input. An encrypted key is refused
-/// deterministically instead — the panel is expected to send an unencrypted one,
-/// because nginx cannot read any other kind without a passphrase of its own.
+/// block the agent until the deadline of its call kills it, and which of those
+/// happens depends on how the daemon was started rather than on the input. An
+/// encrypted key is refused deterministically instead — the panel is expected to
+/// send an unencrypted one, because nginx cannot read any other kind without a
+/// passphrase of its own.
 const PRIVATE_KEY_PUBLIC_KEY: [&str; 4] = ["pkey", "-pubout", "-passin", "pass:"];
 
 /// Whether `material`'s private key belongs to `material`'s certificate.
@@ -46,6 +47,7 @@ const PRIVATE_KEY_PUBLIC_KEY: [&str; 4] = ["pkey", "-pubout", "-passin", "pass:"
 /// # Errors
 ///
 /// Returns [`SslOpError::ToolUnavailable`] when openssl cannot be run,
+/// [`SslOpError::Bound`] when it outruns its deadline,
 /// [`SslOpError::MalformedCertificate`] — carrying openssl's own words, since a
 /// certificate is public — when it cannot read the certificate, and
 /// [`SslOpError::MalformedPrivateKey`], which has nowhere to put a detail, when
@@ -57,16 +59,22 @@ pub(crate) fn key_matches_certificate(
 ) -> Result<bool, SslOpError> {
     let openssl = distro.openssl_binary();
 
-    let from_certificate =
-        host.run_with_certificate(openssl, &CERTIFICATE_PUBLIC_KEY, material.certificate_pem())?;
+    let from_certificate = host.run_with_certificate(
+        &openssl,
+        &CERTIFICATE_PUBLIC_KEY,
+        material.certificate_pem(),
+    )?;
     if from_certificate.status != 0 {
         return Err(SslOpError::MalformedCertificate {
             reason: from_certificate.stderr,
         });
     }
 
-    let from_key =
-        host.run_with_private_key(openssl, &PRIVATE_KEY_PUBLIC_KEY, material.private_key_pem())?;
+    let from_key = host.run_with_private_key(
+        &openssl,
+        &PRIVATE_KEY_PUBLIC_KEY,
+        material.private_key_pem(),
+    )?;
     if !from_key.succeeded() {
         return Err(SslOpError::MalformedPrivateKey);
     }

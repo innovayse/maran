@@ -3,6 +3,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use maran_agent_core::utils::call_class::CallClass;
 use maran_agent_core::validation::system::name::AccountName;
 
 use crate::sftp::fake_sftp_host::{FakeSftpHost, account, distro};
@@ -106,9 +107,10 @@ fn the_mount_unit_is_stopped_now_and_not_only_disabled_for_the_next_boot() {
     assert_eq!(
         disable.argv,
         vec![
-            distro().service_manager().to_owned(),
+            distro().service_manager().as_str().to_owned(),
             "disable".to_owned(),
             "--now".to_owned(),
+            "--".to_owned(),
             jail().unit_name().to_owned(),
         ]
     );
@@ -244,4 +246,54 @@ fn a_password_database_that_cannot_be_read_fails_the_removal() {
     .expect_err("must fail");
 
     assert!(matches!(failure, SftpError::AccountMissing));
+}
+
+/// Stopping and reloading the service manager are `Reload` calls.
+#[test]
+fn stopping_the_mount_and_reloading_the_service_manager_run_in_the_reload_class() {
+    let host = host_with_a_built_jail();
+
+    remove_account_sftp(&host, distro(), &account()).expect("removed");
+
+    let systemctl: Vec<_> = host
+        .spawns()
+        .into_iter()
+        .filter(|spawn| spawn.argv[0].ends_with("systemctl"))
+        .collect();
+    assert_eq!(systemctl.len(), 2, "{systemctl:?}");
+    for spawn in systemctl {
+        assert_eq!(spawn.class, CallClass::Reload, "{:?}", spawn.argv);
+    }
+}
+
+/// `daemon-reload` has no operand, so it carries no marker.
+#[test]
+fn daemon_reload_carries_no_end_of_options_marker() {
+    // The inverse control of the marker in front of the unit name.
+    let host = host_with_a_built_jail();
+
+    remove_account_sftp(&host, distro(), &account()).expect("removed");
+
+    let reload = host
+        .spawns()
+        .into_iter()
+        .find(|spawn| spawn.argv.contains(&"daemon-reload".to_owned()))
+        .expect("the manager was reloaded");
+    assert!(!reload.argv.contains(&"--".to_owned()), "{:?}", reload.argv);
+}
+
+/// A service manager that never answers stops the deletion with a bound.
+#[test]
+fn a_mount_that_cannot_be_stopped_in_time_is_a_bound_and_the_unit_file_stays() {
+    let host = host_with_a_built_jail();
+    host.time_out("systemctl");
+
+    let error = remove_account_sftp(&host, distro(), &account()).expect_err("must fail");
+
+    assert!(matches!(error, SftpError::Bound(_)), "got {error:?}");
+    assert!(
+        host.paths().contains(&jail().unit_path().to_owned()),
+        "the unit file must stay, so a retry finds the same state: {:?}",
+        host.paths()
+    );
 }

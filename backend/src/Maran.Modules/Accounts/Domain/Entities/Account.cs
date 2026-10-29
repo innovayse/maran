@@ -26,7 +26,7 @@ public sealed class Account
     /// <summary>The account's identity.</summary>
     public Guid Id { get; private set; }
 
-    /// <summary>The account's unique, Linux-username-safe short name (the eventual system user name).</summary>
+    /// <summary>The account's unique short name (the eventual system user name), in the agent's account alphabet and never a reserved system name.</summary>
     public string Name { get; private set; }
 
     /// <summary>The account's primary domain.</summary>

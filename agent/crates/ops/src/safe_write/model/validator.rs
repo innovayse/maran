@@ -1,15 +1,19 @@
 //! The command that checks a rendered configuration before it is swapped in.
 
+use maran_agent_core::utils::call_class::CallClass;
+use maran_distro::AdapterBinary;
+
 /// The command [`super::super::render_validate_swap::write_config`] runs
 /// against the freshly written temporary file to decide whether it is safe
 /// to put in place — `nginx -t`, `php-fpm -t`, `crontab -T`, as the area
 /// requires.
 ///
-/// Holds only the argv, never a path: the program and its arguments are
-/// facts of the distribution, supplied by the caller from its
-/// `DistroAdapter`, and this crate must not guess at either
-/// (rules/rust.md "Distro adapter").
-/// # A validator MUST be a check, and four of this workspace's twelve are not
+/// Holds the program as an [`AdapterBinary`] and the argv: both are facts of the
+/// distribution, supplied by the caller from its `DistroAdapter`, and this crate
+/// must not guess at either (rules/rust.md "Distro adapter"). The type cannot be
+/// built outside the distro crate, so a validator cannot name a program the
+/// adapter did not.
+/// # A validator MUST be a check, and four of this workspace's validators are not
 ///
 /// `rules/rust.md` names step 5 "validate", and the examples it gives are all
 /// pure: `nginx -t`, `php-fpm -t`, `crontab -T`. A command that CHANGES the
@@ -50,10 +54,14 @@
 /// and would be one new `DistroAdapter` method, and for `vsftpd` nothing at all —
 /// it would need a parser written here.
 pub struct Validator<'a> {
-    /// Absolute path of the validating binary.
-    pub program: &'a str,
+    /// The validating binary, as the distribution adapter names it.
+    pub program: &'a AdapterBinary,
     /// Arguments passed to `program`, as an argv array — never a shell string.
     pub arguments: &'a [&'a str],
+    /// How long the validator may run: [`CallClass::Validate`] for a pure check
+    /// (`nginx -t`, `php-fpm -t`), [`CallClass::Reload`] for the four mutating
+    /// ones, because they ask the service manager to change unit state.
+    pub class: CallClass,
 }
 
 #[cfg(test)]

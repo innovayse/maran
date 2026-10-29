@@ -1,6 +1,7 @@
 //! EnsureBansTable: load the table runtime bans live in, once and only once.
 
 use maran_agent_core::agent_paths::AgentPaths;
+use maran_agent_core::utils::call_class::CallClass;
 use maran_distro::DistroAdapter;
 use maran_templates::nftables::nftables_bans_table::NftablesBansTable;
 
@@ -8,6 +9,7 @@ use crate::firewall::apply_ruleset::apply_ruleset;
 use crate::firewall::firewall_error::FirewallError;
 use crate::firewall::firewall_host::FirewallHost;
 use crate::firewall::firewall_lock::firewall_lock;
+use maran_agent_core::end_of_options::END_OF_OPTIONS;
 
 /// The nftables address family both of this agent's tables live in.
 ///
@@ -38,8 +40,19 @@ pub(super) const BANNED_V6_SET: &str = "banned_v6";
 /// `nft`'s verb for showing an object.
 const LIST: &str = "list";
 
-/// `nft`'s noun for a table.
-const TABLE: &str = "table";
+/// `nft`'s noun for a chain.
+const CHAIN: &str = "chain";
+
+/// The chain the existence probe asks about.
+///
+/// The one chain the bans file declares (`templates/nftables/bans_table.nft.j2`),
+/// and the reason the probe asks about it rather than about the table:
+/// `nft list table` prints every set element, so its answer grows with the
+/// number of bans, while a chain's listing holds only its three rules. A
+/// chain exists exactly when its table does, so the exit status answers the
+/// same question. The name must match the template; the template test
+/// asserts it appears there.
+const BANS_CHAIN: &str = "input";
 
 /// Makes sure `table inet maran_bans` is loaded, and leaves it completely
 /// alone when it already is.
@@ -82,6 +95,7 @@ const TABLE: &str = "table";
 ///   rendered bans file; nothing is loaded and no existing table is touched.
 /// - [`FirewallError::StagingFailed`] when the file cannot be written or
 ///   renamed into place.
+/// - [`FirewallError::Bound`] when `nft` was killed at its deadline.
 pub fn ensure_bans_table(
     host: &dyn FirewallHost,
     distro: &dyn DistroAdapter,
@@ -107,9 +121,22 @@ pub(super) fn ensure_bans_table_under_lock(
     host: &dyn FirewallHost,
     distro: &dyn DistroAdapter,
 ) -> Result<(), FirewallError> {
+    // Existence is asked of the chain, never of the table: `nft list table`
+    // prints every ban element, so on a host with a large ban set the output
+    // alone could exceed the stdout cap and turn a yes/no question into an
+    // error. The chain's listing is the same few lines at any ban count, and
+    // needs no flag whose support varies by `nft` version.
     let listed = host.run(
-        distro.nft_binary(),
-        &[LIST, TABLE, TABLE_FAMILY, BANS_TABLE],
+        &distro.nft_binary(),
+        &[
+            END_OF_OPTIONS,
+            LIST,
+            CHAIN,
+            TABLE_FAMILY,
+            BANS_TABLE,
+            BANS_CHAIN,
+        ],
+        CallClass::Query,
     )?;
     if listed.status == 0 {
         // The table is loaded, so its sets hold whatever bans are in force.

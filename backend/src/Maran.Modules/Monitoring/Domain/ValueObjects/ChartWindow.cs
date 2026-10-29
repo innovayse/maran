@@ -13,7 +13,7 @@ namespace Maran.Modules.Monitoring.Domain.ValueObjects;
 /// </para>
 /// <para>
 /// There is no rollup table behind this. The buckets are computed on read, by PostgreSQL's
-/// <c>date_bin</c>, over the raw rows — so there is one copy of the data, no second write path per
+/// <c>floor</c>-on-epoch arithmetic, over the raw rows — so there is one copy of the data, no second write path per
 /// sample, and no possibility of the summary and the samples disagreeing.
 /// </para>
 /// </remarks>
@@ -22,7 +22,7 @@ namespace Maran.Modules.Monitoring.Domain.ValueObjects;
 public sealed record ChartWindow(TimeSpan Lookback, TimeSpan Bucket)
 {
     /// <summary>
-    /// The fixed anchor <c>date_bin</c> measures its buckets from.
+    /// The fixed anchor the bucket arithmetic measures its buckets from.
     /// </summary>
     /// <remarks>
     /// A constant instant rather than the start of the requested range, so that two requests a

@@ -34,7 +34,8 @@ use crate::sites::model::create_site_input::CreateSiteInput;
 /// Returns whatever [`write_pool`] refused, mapped into this area's error type
 /// — most usefully [`SitesOpError::PhpVersionNotInstalled`] for a version this
 /// host does not have, and [`SitesOpError::ConfigWrite`] carrying the PHP
-/// area's own failure for anything else.
+/// area's own failure for anything else. A program killed at its deadline stays
+/// [`SitesOpError::Bound`].
 pub fn write_site_pool(
     php_host: &dyn PhpHost,
     distro: &dyn DistroAdapter,

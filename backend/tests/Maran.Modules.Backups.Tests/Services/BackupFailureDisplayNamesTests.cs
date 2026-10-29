@@ -168,6 +168,38 @@ public sealed class BackupFailureDisplayNamesTests
         }
     }
 
+    /// <summary>A backup that failed because the agent could not be reached is named in every language.</summary>
+    /// <remarks>
+    /// <c>AgentUnavailable</c> is the code the agent client answers for a transport that never reached
+    /// the agent, so it is on no wire-error walk above (the agent said nothing) and a row records it
+    /// all the same. Without its entry the table showed the raw code. The VALUE is asserted per
+    /// language, so a missing key — which falls back to the code itself — fails each case.
+    /// </remarks>
+    /// <param name="culture">The request culture to resolve in.</param>
+    /// <param name="expected">The sentence the operator reads.</param>
+    [Theory]
+    [InlineData("en", "The server was not answering")]
+    [InlineData("ru", "Сервер не отвечал")]
+    [InlineData("hy", "Սերվերը չէր պատասխանում")]
+    public void A_backup_that_failed_because_the_agent_was_unreachable_is_named_in_every_language(
+        string culture,
+        string expected)
+    {
+        var names = BackupsTestContext.FailureNames();
+        var previous = CultureInfo.CurrentUICulture;
+
+        try
+        {
+            CultureInfo.CurrentUICulture = new CultureInfo(culture);
+
+            Assert.Equal(expected, names.Of("AgentUnavailable"));
+        }
+        finally
+        {
+            CultureInfo.CurrentUICulture = previous;
+        }
+    }
+
     /// <summary>A row that did not fail is named nothing at all, never the empty key's fallback.</summary>
     [Fact]
     public void A_backup_that_did_not_fail_is_named_nothing()

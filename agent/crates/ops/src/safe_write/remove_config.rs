@@ -2,6 +2,8 @@
 
 use std::path::Path;
 
+use maran_agent_core::utils::call_class::CallClass;
+
 use crate::safe_write::config_tree_lock::config_tree_lock;
 use crate::safe_write::model::{Reload, Validator};
 use crate::safe_write::{ConfigHost, RollbackGuard, SafeWriteError};
@@ -38,7 +40,10 @@ use crate::safe_write::{ConfigHost, RollbackGuard, SafeWriteError};
 /// unlinked — in both cases the target is untouched. Returns
 /// [`SafeWriteError::ValidationFailed`] or [`SafeWriteError::ReloadFailed`]
 /// with the file restored, [`SafeWriteError::SpawnFailed`] with the same
-/// restoration when one of those programs could not be started at all, and
+/// restoration when one of those programs could not be started at all,
+/// [`SafeWriteError::Bound`] with the same restoration when one of them outlived
+/// its deadline or its output ceiling and was killed (a bound is not a verdict,
+/// so it is never a failed validation or a failed reload), and
 /// [`SafeWriteError::RollbackFailed`] when that restoration also failed.
 pub fn remove_config(
     host: &dyn ConfigHost,
@@ -68,7 +73,7 @@ pub fn remove_config(
         return Err(SafeWriteError::Rename);
     }
 
-    let validation = match host.run(validator.program, validator.arguments) {
+    let validation = match host.run(validator.program, validator.arguments, validator.class) {
         Ok(outcome) => outcome,
         Err(error) => return finish_with_rollback(&mut guard, error),
     };
@@ -81,7 +86,7 @@ pub fn remove_config(
         );
     }
 
-    match host.run(reload.program, reload.arguments) {
+    match host.run(reload.program, reload.arguments, CallClass::Reload) {
         Ok(outcome) if outcome.status == 0 => {
             guard.commit();
             Ok(())

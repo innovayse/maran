@@ -13,6 +13,7 @@ pub mod php_version;
 pub mod php_version_error;
 pub mod port;
 pub mod port_error;
+pub(crate) mod reserved_host_name;
 pub mod s3_bucket;
 pub mod s3_bucket_error;
 pub mod s3_object_prefix;

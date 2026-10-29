@@ -16,8 +16,13 @@
  *   click beside the panel nor a reflexive Escape closes it, because either would destroy the
  *   credential outright. It closes through its own Done button and the header's close control,
  *   both of which are deliberate acts;
- * - and it names the recovery, so an operator who does lose it knows the one path back rather
- *   than opening a support ticket that cannot be answered.
+ * - it names the recovery, so an operator who does lose it knows the one path back rather
+ *   than opening a support ticket that cannot be answered;
+ * - the notice is amber, not red: nothing has failed, the operator is being told to act before a
+ *   value stops existing, and in the redesign amber is the colour that means "attention needed";
+ * - the copy control keeps its translated accessible name ("Copy password", then "Copied") — the
+ *   glyph beside it is decorative — and the secret itself is never logged, stored or put in a
+ *   `title`/`aria-label`: it lives only in this component's props and its one text node.
  *
  * The prefixed login is shown, never the bare name: the host holds `<account>_<name>` in
  * `/etc/passwd`, and somebody who types the short form into an SFTP client simply cannot log in.
@@ -28,6 +33,8 @@ import { ref, watch, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import UiAlert from '../ui/UiAlert.vue'
 import UiButton from '../ui/UiButton.vue'
+import UiDescriptionItem from '../ui/UiDescriptionItem.vue'
+import UiDescriptionList from '../ui/UiDescriptionList.vue'
 import UiIcon from '../ui/UiIcon.vue'
 import UiModal from '../ui/UiModal.vue'
 
@@ -104,34 +111,27 @@ watch(
     :dismissible="false"
     @close="close"
   >
-    <!-- The loud tone is deliberate. The panel has two, and this is the one an operator does not
-         scroll past: the sentence under it is the only warning they will get before the value
-         stops existing. -->
-    <UiAlert variant="error" class="mb-4">{{ t('sftp.credential.warning') }}</UiAlert>
+    <!-- The sentence in this notice is the only warning the operator gets before the value stops
+         existing, so it is the first thing in the body and it carries the attention colour. -->
+    <UiAlert variant="warning" class="mb-4">{{ t('sftp.credential.warning') }}</UiAlert>
 
-    <dl class="flex flex-col gap-3">
-      <div>
-        <dt class="text-xs font-medium tracking-wide text-text-muted uppercase">
-          {{ t('sftp.credential.loginLabel') }}
-        </dt>
-        <dd class="mt-0.5 font-mono text-base break-all text-text-primary">{{ fullName }}</dd>
-      </div>
-      <div>
-        <dt class="text-xs font-medium tracking-wide text-text-muted uppercase">
-          {{ t('sftp.credential.passwordLabel') }}
-        </dt>
+    <UiDescriptionList>
+      <UiDescriptionItem :term="t('sftp.credential.loginLabel')" mono class="sm:col-span-2">
+        {{ fullName }}
+      </UiDescriptionItem>
+      <UiDescriptionItem :term="t('sftp.credential.passwordLabel')" mono class="sm:col-span-2">
         <!-- Selectable text, not a masked field: the clipboard may be unavailable, and the only
              other way to keep this value is to read or select it. -->
-        <dd
+        <span
           data-testid="sftp-password"
-          class="mt-0.5 rounded-lg border border-border-subtle bg-surface-2 px-3 py-2 font-mono text-base break-all text-text-primary"
+          class="mt-1 block rounded-control border border-border-strong bg-surface-2 px-3 py-2.5 text-base text-text-primary wrap-anywhere"
         >
           {{ password }}
-        </dd>
-      </div>
-    </dl>
+        </span>
+      </UiDescriptionItem>
+    </UiDescriptionList>
 
-    <p class="mt-3 text-sm text-text-muted">{{ t('sftp.credential.resetHint') }}</p>
+    <p class="mt-4 text-sm text-text-muted">{{ t('sftp.credential.resetHint') }}</p>
 
     <template #footer>
       <UiButton variant="secondary" @click="copyPassword">

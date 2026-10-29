@@ -13,7 +13,11 @@ use std::os::unix::fs::PermissionsExt as _;
 use std::path::Path;
 use std::sync::Mutex;
 
-use crate::safe_write::model::{ConfigFile, Reload, Validator};
+use maran_agent_core::utils::call_class::CallClass;
+use maran_distro::AdapterBinary;
+
+use crate::safe_write::adapter_programs::{reload, timed_out, validator};
+use crate::safe_write::model::ConfigFile;
 use crate::safe_write::{CommandOutcome, ConfigHost, SafeWriteError, write_config_set};
 
 /// A [`ConfigHost`] that records what it was asked to run and can be told to
@@ -25,6 +29,10 @@ struct FakeConfigHost {
     seen: Mutex<Vec<(String, String)>>,
     watched: Vec<std::path::PathBuf>,
     calls: Mutex<usize>,
+    /// Whether the validator is killed at its deadline instead of answering.
+    validator_times_out: bool,
+    /// Whether the reload, the call after the validator, is killed at its deadline.
+    reload_times_out: bool,
 }
 
 impl FakeConfigHost {
@@ -34,6 +42,23 @@ impl FakeConfigHost {
             seen: Mutex::new(Vec::new()),
             watched: watched.iter().map(|path| path.to_path_buf()).collect(),
             calls: Mutex::new(0),
+            validator_times_out: false,
+            reload_times_out: false,
+        }
+    }
+
+    /// A host whose validator accepts and whose reload outlives its deadline.
+    fn reload_timing_out(watched: &[&Path]) -> Self {
+        Self {
+            reload_times_out: true,
+            ..Self::passing(watched)
+        }
+    }
+
+    fn timing_out(watched: &[&Path]) -> Self {
+        Self {
+            validator_times_out: true,
+            ..Self::passing(watched)
         }
     }
 
@@ -54,11 +79,24 @@ impl FakeConfigHost {
 }
 
 impl ConfigHost for FakeConfigHost {
-    fn run(&self, _program: &str, _arguments: &[&str]) -> Result<CommandOutcome, SafeWriteError> {
+    fn run(
+        &self,
+        _program: &AdapterBinary,
+        _arguments: &[&str],
+        _class: CallClass,
+    ) -> Result<CommandOutcome, SafeWriteError> {
         let mut calls = self.calls.lock().unwrap();
         *calls += 1;
         let first = *calls == 1;
         drop(calls);
+
+        if first && self.validator_times_out {
+            return Err(SafeWriteError::Bound(timed_out("/usr/sbin/nginx")));
+        }
+
+        if !first && self.reload_times_out {
+            return Err(SafeWriteError::Bound(timed_out("/usr/bin/systemctl")));
+        }
 
         if first {
             let snapshot = self
@@ -80,20 +118,6 @@ impl ConfigHost for FakeConfigHost {
             stdout: String::new(),
             stderr: "nginx: [emerg] SSL_CTX_use_PrivateKey_file failed".to_owned(),
         })
-    }
-}
-
-fn validator() -> Validator<'static> {
-    Validator {
-        program: "/usr/sbin/nginx",
-        arguments: &["-t"],
-    }
-}
-
-fn reload() -> Reload<'static> {
-    Reload {
-        program: "/usr/bin/systemctl",
-        arguments: &["reload", "nginx"],
     }
 }
 
@@ -277,4 +301,119 @@ fn an_empty_set_changes_nothing_and_reloads_nothing() {
     write_config_set(&host, &[], &validator(), &reload()).unwrap();
 
     assert_eq!(host.calls(), 0);
+}
+
+#[test]
+fn a_set_whose_validator_times_out_restores_every_member() {
+    // A killed validator is not a verdict, but the set was already renamed into place,
+    // so the restoration is the one a refusal would have had: every member, not the last.
+    let directory = tempfile::tempdir().unwrap();
+    let key = directory.path().join("privkey.pem");
+    let certificate = directory.path().join("fullchain.pem");
+    std::fs::write(&key, "OLD KEY\n").unwrap();
+    std::fs::write(&certificate, "OLD CERTIFICATE\n").unwrap();
+    let host = FakeConfigHost::timing_out(&[]);
+
+    let refused = write_config_set(
+        &host,
+        &[
+            ConfigFile {
+                target: &key,
+                contents: "NEW KEY\n",
+                mode: 0o600,
+            },
+            ConfigFile {
+                target: &certificate,
+                contents: "NEW CERTIFICATE\n",
+                mode: 0o644,
+            },
+        ],
+        &validator(),
+        &reload(),
+    );
+
+    assert!(
+        matches!(refused, Err(SafeWriteError::Bound(_))),
+        "a bound is not a failed validation: {refused:?}"
+    );
+    assert_eq!(std::fs::read_to_string(&key).unwrap(), "OLD KEY\n");
+    assert_eq!(
+        std::fs::read_to_string(&certificate).unwrap(),
+        "OLD CERTIFICATE\n"
+    );
+    assert_eq!(host.calls(), 1, "the reload is never reached");
+}
+
+#[test]
+fn a_set_with_no_previous_files_whose_validator_times_out_leaves_none_behind() {
+    let directory = tempfile::tempdir().unwrap();
+    let key = directory.path().join("privkey.pem");
+    let certificate = directory.path().join("fullchain.pem");
+    let host = FakeConfigHost::timing_out(&[]);
+
+    let refused = write_config_set(
+        &host,
+        &[
+            ConfigFile {
+                target: &key,
+                contents: "NEW KEY\n",
+                mode: 0o600,
+            },
+            ConfigFile {
+                target: &certificate,
+                contents: "NEW CERTIFICATE\n",
+                mode: 0o644,
+            },
+        ],
+        &validator(),
+        &reload(),
+    );
+
+    assert!(
+        matches!(refused, Err(SafeWriteError::Bound(_))),
+        "{refused:?}"
+    );
+    assert!(!key.exists());
+    assert!(!certificate.exists());
+}
+
+#[test]
+fn a_set_whose_reload_times_out_restores_every_member_and_reports_the_bound() {
+    // The validator accepted, so the set was in place and valid; a killed reload leaves
+    // the server's state unknown, and the files must go back exactly as a failed reload's do.
+    let directory = tempfile::tempdir().unwrap();
+    let key = directory.path().join("privkey.pem");
+    let certificate = directory.path().join("fullchain.pem");
+    std::fs::write(&key, "OLD KEY\n").unwrap();
+    std::fs::write(&certificate, "OLD CERTIFICATE\n").unwrap();
+    let host = FakeConfigHost::reload_timing_out(&[]);
+
+    let refused = write_config_set(
+        &host,
+        &[
+            ConfigFile {
+                target: &key,
+                contents: "NEW KEY\n",
+                mode: 0o600,
+            },
+            ConfigFile {
+                target: &certificate,
+                contents: "NEW CERTIFICATE\n",
+                mode: 0o644,
+            },
+        ],
+        &validator(),
+        &reload(),
+    );
+
+    assert!(
+        matches!(refused, Err(SafeWriteError::Bound(_))),
+        "a bound is not a failed reload: {refused:?}"
+    );
+    assert_eq!(std::fs::read_to_string(&key).unwrap(), "OLD KEY\n");
+    assert_eq!(
+        std::fs::read_to_string(&certificate).unwrap(),
+        "OLD CERTIFICATE\n"
+    );
+    assert_eq!(host.calls(), 2, "the validator and the reload both ran");
 }

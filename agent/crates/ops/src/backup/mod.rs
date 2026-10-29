@@ -76,6 +76,7 @@
 pub mod archive;
 mod backup_error;
 mod backup_host;
+mod bound_or;
 // Public: the question of whether `tar`, `gzip` and the database dump client
 // are actually present and executable on THIS host, asked at agent startup so
 // a dropped package is loud before a scheduled backup finds it at 03:00
@@ -89,6 +90,7 @@ mod backup_root;
 mod create_backup;
 mod database_catalog;
 mod delete_backup;
+mod list_archive_members;
 mod list_backups;
 mod local_object_store_host;
 pub mod model;
@@ -122,6 +124,7 @@ mod restore_backup;
 // rather than by parsing a directory's name.
 mod restore_marker_file;
 mod root_only_chain;
+mod run_discarding;
 mod s3_object_store_host;
 // Private: the live per-dump ceiling, derived from the same measurement.
 mod scratch_dump_ceiling;

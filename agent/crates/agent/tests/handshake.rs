@@ -16,6 +16,8 @@ use tower::service_fn;
 
 use maran_agent::error::StartupError;
 use maran_agent::peercred::PeerPolicy;
+use maran_agent::proto::accounts_service_client::AccountsServiceClient;
+use maran_agent::proto::cron_service_client::CronServiceClient;
 use maran_agent::proto::db_service_client::DbServiceClient;
 use maran_agent::proto::files_service_client::FilesServiceClient;
 use maran_agent::proto::ftps_service_client::FtpsServiceClient;
@@ -25,14 +27,17 @@ use maran_agent::proto::sites_service_client::SitesServiceClient;
 use maran_agent::proto::ssl_service_client::SslServiceClient;
 use maran_agent::proto::system_service_client::SystemServiceClient;
 use maran_agent::proto::{
-    CreateDatabaseRequest, CreateDirectoryRequest, CreateFtpsUserRequest, CreateSftpUserRequest,
-    CreateSiteRequest, DeleteEntryRequest, DeleteFtpsUserRequest, EnableFtpsRequest,
-    EnableFtpsResponse, ErrorCode, GetAgentInfoRequest, GetFtpsStatusRequest,
-    InstallCertificateRequest, InstallPhpVersionRequest, ListDatabasesRequest,
-    ListPhpVersionsRequest, SetFtpsPasswordRequest, create_database_response,
-    create_ftps_user_response, create_sftp_user_response, delete_entry_response,
-    delete_ftps_user_response, enable_ftps_response, get_agent_info_response,
-    get_ftps_status_response, set_ftps_password_response,
+    CreateAccountRequest, CreateDatabaseRequest, CreateDirectoryRequest, CreateFtpsUserRequest,
+    CreateSftpUserRequest, CreateSiteRequest, DeleteEntryRequest, DeleteFtpsUserRequest,
+    EnableFtpsRequest, EnableFtpsResponse, ErrorCode, GetAccountSuspensionStateRequest,
+    GetAccountUsageRequest, GetAgentInfoRequest, GetCronEnvironmentRequest, GetFtpsStatusRequest,
+    InstallCertificateRequest, InstallPhpVersionRequest, ListCronEntriesRequest,
+    ListDatabasesRequest, ListPhpVersionsRequest, SetFtpsPasswordRequest, SiteBackendType,
+    create_account_response, create_database_response, create_ftps_user_response,
+    create_sftp_user_response, create_site_response, delete_entry_response,
+    delete_ftps_user_response, enable_ftps_response, get_account_suspension_state_response,
+    get_account_usage_response, get_agent_info_response, get_cron_environment_response,
+    get_ftps_status_response, list_cron_entries_response, set_ftps_password_response,
 };
 
 /// How long the test waits for the server to bind before declaring it stuck.
@@ -84,7 +89,7 @@ async fn handshake_over_a_unix_socket_reports_the_agent_and_the_host() {
         other => panic!("the handshake must succeed on a supported host, got {other:?}"),
     };
 
-    assert_eq!(info.proto_version, 1);
+    assert_eq!(info.proto_version, 2);
     assert!(
         !info.version.is_empty(),
         "the agent must report its version"
@@ -436,6 +441,61 @@ async fn the_database_and_sftp_services_answer_over_the_wire_with_a_typed_refusa
     server.abort();
 }
 
+/// The agent half of a panel request that names one host twice: refused over the wire as invalid
+/// input, before any host access, so the test needs no root and no nginx and is valid on any machine.
+///
+/// The twin on the panel side treats `ALREADY_EXISTS` as "another vhost serves a name", which is a
+/// different answer: this one is the caller's own mistake, and mapping it to `ALREADY_EXISTS` would
+/// tell the panel to report a taken domain for a request that can never succeed.
+#[tokio::test]
+async fn a_create_site_naming_one_host_twice_is_refused_over_the_wire_as_invalid_input() {
+    let directory = tempfile::tempdir().unwrap();
+    let socket_path = directory.path().join("agent.sock");
+
+    let policy = PeerPolicy::new(maran_agent_core::utils::current_uid::current_uid().unwrap());
+    let server_path = socket_path.clone();
+    let mut server =
+        tokio::spawn(async move { maran_agent::server::serve(&server_path, policy).await });
+
+    match wait_until_listening(&socket_path, &mut server).await {
+        Started::Listening => {}
+        Started::UnsupportedHost(reason) => {
+            eprintln!("skipping the repeated host name test: {reason}");
+            return;
+        }
+    }
+
+    let channel = connect(&socket_path).await;
+
+    // The alias differs from the domain only in case, which proves the comparison runs after the
+    // domain type has lower-cased both: a byte-wise comparison of the raw strings would let it through.
+    let response = SitesServiceClient::new(channel)
+        .create_site(CreateSiteRequest {
+            account_username: "polyrep".to_owned(),
+            domain: "rep.test".to_owned(),
+            aliases: vec!["REP.test".to_owned()],
+            backend_type: SiteBackendType::Static as i32,
+            ..CreateSiteRequest::default()
+        })
+        .await
+        .unwrap()
+        .into_inner();
+
+    match response.result {
+        Some(create_site_response::Result::Error(error)) => {
+            assert_eq!(
+                error.code,
+                ErrorCode::InvalidInput as i32,
+                "a request repeating a host name is the caller's mistake, not a taken name: {}",
+                error.message
+            );
+        }
+        other => panic!("CreateSite must answer with a typed refusal, got {other:?}"),
+    }
+
+    server.abort();
+}
+
 #[tokio::test]
 async fn the_ftps_service_answers_its_own_typed_errors_rather_than_unimplemented() {
     let directory = tempfile::tempdir().unwrap();
@@ -589,9 +649,11 @@ const PANEL_PASSIVE_ADDRESS_WHEN_NOT_BEHIND_NAT: &str = "";
 /// `enable_ftps` asks for certificate material FIRST and returns
 /// `CertificateMissing` with nothing written, so a hostname nothing can have
 /// material for is what makes this test safe to run anywhere: it reaches the
-/// operation and stops inside its first step, mutating nothing. `.invalid` is
-/// reserved by RFC 2606 and no certificate authority issues for it.
-const A_HOSTNAME_NO_CERTIFICATE_STORE_HOLDS: &str = "panel-seam-check.invalid";
+/// operation and stops inside its first step, mutating nothing. `.test` is
+/// reserved by RFC 2606 and no certificate authority issues for it. It is NOT
+/// `.invalid`: that suffix is in the agent's reserved host name set, so
+/// `enable_ftps` refuses it as input before it ever asks for material.
+const A_HOSTNAME_NO_CERTIFICATE_STORE_HOLDS: &str = "panel-seam-check.example.test";
 
 /// The request the PANEL builds when an operator enables FTPS on an ordinary
 /// host, as `AgentFtpsClient.EnableAsync` puts it on the wire.
@@ -727,6 +789,322 @@ async fn the_enable_shape_the_panel_sends_passes_the_agents_input_boundary_and_a
         "UNOBSERVED HERE: the daemon. This test reaches the agent's input boundary and the \
          certificate probe behind it, never a running vsftpd and never the panel process."
     );
+
+    server.abort();
+}
+
+/// A reserved name that no machine this suite runs on carries as a user, so
+/// without the reserved list the agent would answer "no such account" for it.
+const RESERVED_NAME_NO_HOST_HOLDS: &str = "ec2_user";
+
+/// A well-formed, unreserved name that no machine this suite runs on carries.
+const UNRESERVED_NAME_NO_HOST_HOLDS: &str = "wirecheckacct";
+
+/// Whether the user database of this machine holds `user`.
+fn host_has_user(user: &str) -> bool {
+    std::process::Command::new("getent")
+        .args(["passwd", user])
+        .output()
+        .unwrap()
+        .status
+        .success()
+}
+
+/// The error code of a `GetAccountUsage` answer, or a panic naming what came
+/// back instead.
+fn usage_code(response: maran_agent::proto::GetAccountUsageResponse) -> i32 {
+    match response.result {
+        Some(get_account_usage_response::Result::Error(error)) => error.code,
+        other => panic!("GetAccountUsage must answer with a typed refusal, got {other:?}"),
+    }
+}
+
+/// The error code of a `GetAccountSuspensionState` answer, or a panic.
+fn suspension_state_code(response: maran_agent::proto::GetAccountSuspensionStateResponse) -> i32 {
+    match response.result {
+        Some(get_account_suspension_state_response::Result::Error(error)) => error.code,
+        other => {
+            panic!("GetAccountSuspensionState must answer with a typed refusal, got {other:?}")
+        }
+    }
+}
+
+/// The error code of a `ListCronEntries` answer, or a panic.
+fn cron_list_code(response: maran_agent::proto::ListCronEntriesResponse) -> i32 {
+    match response.result {
+        Some(list_cron_entries_response::Result::Error(error)) => error.code,
+        other => panic!("ListCronEntries must answer with a typed refusal, got {other:?}"),
+    }
+}
+
+/// The error code of a `GetCronEnvironment` answer, or a panic.
+fn cron_environment_code(response: maran_agent::proto::GetCronEnvironmentResponse) -> i32 {
+    match response.result {
+        Some(get_cron_environment_response::Result::Error(error)) => error.code,
+        other => panic!("GetCronEnvironment must answer with a typed refusal, got {other:?}"),
+    }
+}
+
+/// The error code of a `CreateAccount` answer, or a panic.
+fn create_account_code(response: maran_agent::proto::CreateAccountResponse) -> i32 {
+    match response.result {
+        Some(create_account_response::Result::Error(error)) => error.code,
+        other => panic!("CreateAccount must answer with a typed refusal, got {other:?}"),
+    }
+}
+
+/// Blind spot, stated where it matters: this test returns early on an
+/// unsupported host, which would pass silently, and it sends only rpcs that READ
+/// (plus a `CreateAccount` for `root`, which stops at a refusal either way). A
+/// mutating rpc for a system user is deliberately NOT sent over a real host
+/// here, because with the guard removed it would change that user on whatever
+/// machine ran the test. Those are settled by the polygon suite
+/// `account_identity_on_a_real_host`.
+#[tokio::test]
+async fn a_reserved_account_name_is_refused_over_the_wire_before_any_tool_runs() {
+    let directory = tempfile::tempdir().unwrap();
+    let socket_path = directory.path().join("agent.sock");
+
+    let policy = PeerPolicy::new(maran_agent_core::utils::current_uid::current_uid().unwrap());
+    let server_path = socket_path.clone();
+    let mut server =
+        tokio::spawn(async move { maran_agent::server::serve(&server_path, policy).await });
+
+    match wait_until_listening(&socket_path, &mut server).await {
+        Started::Listening => {}
+        Started::UnsupportedHost(reason) => {
+            eprintln!("skipping the reserved account name test: {reason}");
+            return;
+        }
+    }
+
+    assert!(
+        !host_has_user(RESERVED_NAME_NO_HOST_HOLDS)
+            && !host_has_user(UNRESERVED_NAME_NO_HOST_HOLDS),
+        "this test needs a machine without a {RESERVED_NAME_NO_HOST_HOLDS} or \
+         {UNRESERVED_NAME_NO_HOST_HOLDS} user: with one, the control below proves nothing"
+    );
+
+    let channel = connect(&socket_path).await;
+    let mut accounts = AccountsServiceClient::new(channel.clone());
+    let mut cron = CronServiceClient::new(channel);
+    let invalid = ErrorCode::InvalidInput as i32;
+    let not_found = ErrorCode::NotFound as i32;
+
+    // `root` is refused by the list AND by the id floor AND by the home rule, so
+    // it proves the wiring but not the list; the second name, which only the
+    // list refuses, is what proves the list is asked on the shipped path.
+    let created = accounts
+        .create_account(CreateAccountRequest {
+            username: "root".to_owned(),
+            quota_bytes: 0,
+        })
+        .await
+        .unwrap()
+        .into_inner();
+    assert_eq!(
+        create_account_code(created),
+        invalid,
+        "creating `root` must be refused as a reserved name, not reported as already existing"
+    );
+
+    for reserved in ["root", RESERVED_NAME_NO_HOST_HOLDS] {
+        let usage = accounts
+            .get_account_usage(GetAccountUsageRequest {
+                username: reserved.to_owned(),
+            })
+            .await
+            .unwrap()
+            .into_inner();
+        assert_eq!(usage_code(usage), invalid, "usage of `{reserved}`");
+
+        let state = accounts
+            .get_account_suspension_state(GetAccountSuspensionStateRequest {
+                username: reserved.to_owned(),
+            })
+            .await
+            .unwrap()
+            .into_inner();
+        assert_eq!(
+            suspension_state_code(state),
+            invalid,
+            "suspension state of `{reserved}`"
+        );
+
+        let listing = cron
+            .list_cron_entries(ListCronEntriesRequest {
+                account_username: reserved.to_owned(),
+            })
+            .await
+            .unwrap()
+            .into_inner();
+        assert_eq!(
+            cron_list_code(listing),
+            invalid,
+            "cron listing of `{reserved}`"
+        );
+
+        let environment = cron
+            .get_cron_environment(GetCronEnvironmentRequest {
+                account_username: reserved.to_owned(),
+            })
+            .await
+            .unwrap()
+            .into_inner();
+        assert_eq!(
+            cron_environment_code(environment),
+            invalid,
+            "cron environment of `{reserved}`"
+        );
+    }
+
+    // The inverse control: a well-formed, unreserved name the host does not hold
+    // is ABSENT, a different answer from a refusal, so the refusals above are
+    // not the agent saying no to everything.
+    let usage = accounts
+        .get_account_usage(GetAccountUsageRequest {
+            username: UNRESERVED_NAME_NO_HOST_HOLDS.to_owned(),
+        })
+        .await
+        .unwrap()
+        .into_inner();
+    assert_eq!(usage_code(usage), not_found);
+
+    let listing = cron
+        .list_cron_entries(ListCronEntriesRequest {
+            account_username: UNRESERVED_NAME_NO_HOST_HOLDS.to_owned(),
+        })
+        .await
+        .unwrap()
+        .into_inner();
+    assert_eq!(cron_list_code(listing), not_found);
+
+    server.abort();
+}
+
+/// The error code a `CreateSite` response carries, or a panic naming what came
+/// back instead.
+///
+/// # Panics
+///
+/// Panics when the response is an `Ok` envelope or carries no result: a reserved
+/// name that provisioned a site is the very failure this suite exists to catch.
+fn create_site_code(response: maran_agent::proto::CreateSiteResponse) -> i32 {
+    match response.result {
+        Some(create_site_response::Result::Error(error)) => error.code,
+        other => panic!("CreateSite must answer with a typed refusal, got {other:?}"),
+    }
+}
+
+/// A reserved host name is refused over the wire as invalid input at the doors that
+/// write a name into an nginx `server_name` or a certificate store, before any host
+/// access, so the test needs no root and no nginx. The panel's own refusal is
+/// asserted by the backend suite; this is the agent's own, asked directly with the
+/// same names (rules/security.md item 1).
+///
+/// Blind spot: this proves the doors refuse, not that an ordinary name passes them,
+/// since a real ordinary `CreateSite` needs root. The inverse control lives in the
+/// pure unit tests of `validated_site`, `validated_identity` and
+/// `validated_ftps_configuration`, which accept an ordinary domain and alias.
+#[tokio::test]
+async fn a_reserved_host_name_is_refused_over_the_wire_as_invalid_input_at_every_door() {
+    let directory = tempfile::tempdir().unwrap();
+    let socket_path = directory.path().join("agent.sock");
+
+    let policy = PeerPolicy::new(maran_agent_core::utils::current_uid::current_uid().unwrap());
+    let server_path = socket_path.clone();
+    let mut server =
+        tokio::spawn(async move { maran_agent::server::serve(&server_path, policy).await });
+
+    match wait_until_listening(&socket_path, &mut server).await {
+        Started::Listening => {}
+        Started::UnsupportedHost(reason) => {
+            eprintln!("skipping the reserved host name test: {reason}");
+            return;
+        }
+    }
+
+    let channel = connect(&socket_path).await;
+    let invalid = ErrorCode::InvalidInput as i32;
+    let reserved = [
+        "203.0.113.7",
+        "shop.123",
+        "foo.localhost",
+        "x.local",
+        "x.localdomain",
+        "x.internal",
+        "x.lan",
+        "x.invalid",
+        "FOO.LOCAL",
+    ];
+
+    for name in reserved {
+        // The primary domain.
+        let as_domain = SitesServiceClient::new(channel.clone())
+            .create_site(CreateSiteRequest {
+                account_username: "polyrsv".to_owned(),
+                domain: name.to_owned(),
+                backend_type: SiteBackendType::Static as i32,
+                ..CreateSiteRequest::default()
+            })
+            .await
+            .unwrap()
+            .into_inner();
+        assert_eq!(
+            create_site_code(as_domain),
+            invalid,
+            "a site whose domain is `{name}` must be refused as input"
+        );
+
+        // An alias, beside an ordinary primary domain.
+        let as_alias = SitesServiceClient::new(channel.clone())
+            .create_site(CreateSiteRequest {
+                account_username: "polyrsv".to_owned(),
+                domain: "rsv.example.test".to_owned(),
+                aliases: vec![name.to_owned()],
+                backend_type: SiteBackendType::Static as i32,
+                ..CreateSiteRequest::default()
+            })
+            .await
+            .unwrap()
+            .into_inner();
+        assert_eq!(
+            create_site_code(as_alias),
+            invalid,
+            "a site with the alias `{name}` must be refused as input"
+        );
+
+        // The FTPS server's host name.
+        let mut enable = the_shape_the_panel_sends();
+        enable.hostname = name.to_owned();
+        let enabled = FtpsServiceClient::new(channel.clone())
+            .enable_ftps(enable)
+            .await
+            .unwrap()
+            .into_inner();
+        assert_eq!(
+            refusal_code(enabled),
+            invalid,
+            "FTPS on the host name `{name}` must be refused as input"
+        );
+    }
+
+    // The inverse control, read-only: asking for the status of an FTPS host name that was
+    // reserved before this rule existed is NOT refused as input, because read-only
+    // rpcs keep working for names already on the host.
+    let status = FtpsServiceClient::new(channel)
+        .get_ftps_status(GetFtpsStatusRequest {
+            hostname: "legacy.internal".to_owned(),
+        })
+        .await
+        .unwrap()
+        .into_inner();
+    if let Some(get_ftps_status_response::Result::Error(error)) = status.result {
+        assert_ne!(
+            error.code, invalid,
+            "a read-only status query for an existing reserved name must not be refused as input"
+        );
+    }
 
     server.abort();
 }

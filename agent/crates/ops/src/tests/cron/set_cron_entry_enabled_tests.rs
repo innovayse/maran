@@ -5,8 +5,8 @@
 use crate::cron::create_cron_entry::create_cron_entry;
 use crate::cron::cron_error::CronError;
 use crate::cron::recording_cron_host::{
-    ABSENT_ID, FIRST_ID, RecordingCronHost, account, cmd_path, command, distro, entry_id,
-    every_five_minutes, exit_path, log_path,
+    ABSENT_ID, FIRST_ID, RecordingCronHost, account, assert_refused_untouched, cmd_path, command,
+    distro, entry_id, every_five_minutes, exit_path, log_path, unmanaged_cases,
 };
 use crate::cron::set_cron_entry_enabled::set_cron_entry_enabled;
 
@@ -114,4 +114,23 @@ fn a_refused_install_leaves_the_entry_enabled() {
 
     assert_eq!(refusal, Err(CronError::CrontabRefused { code: 1 }));
     assert_eq!(host.crontab(), Some(before));
+}
+
+/// An account that is not a hosting account is refused before the table is
+/// read, and everything the host holds is left as it was.
+#[test]
+fn enabling_an_entry_of_an_unmanaged_account_installs_nothing() {
+    // The entry id is one the table could never hold, so only the account gate
+    // can be what refuses.
+    for case in unmanaged_cases() {
+        let result = set_cron_entry_enabled(
+            &case.host,
+            distro(),
+            &case.account,
+            &entry_id(FIRST_ID),
+            true,
+        );
+
+        assert_refused_untouched(&case, result);
+    }
 }

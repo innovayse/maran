@@ -4,6 +4,7 @@
 use std::path::Path;
 
 use maran_agent_core::agent_paths::AgentPaths;
+use maran_agent_core::utils::call_class::CallClass;
 use maran_distro::DistroAdapter;
 use maran_templates::systemd::unit::MountUnit;
 
@@ -11,6 +12,7 @@ use crate::ftps::ftps_error::FtpsError;
 use crate::ftps::ftps_host::FtpsHost;
 use crate::ftps::model::ftps_jail::FtpsJail;
 use crate::safe_write::model::{Reload, Validator};
+use maran_agent_core::end_of_options::END_OF_OPTIONS;
 
 /// The mode the jail and its mount point are created with.
 ///
@@ -128,7 +130,8 @@ const START_NOW: &str = "--now";
 ///
 /// Returns [`FtpsError::JailFailed`] when a directory cannot be created, the
 /// unit cannot be rendered, or the config-write protocol refuses it — which
-/// includes the mount itself refusing to come up.
+/// includes the mount itself refusing to come up. Returns [`FtpsError::Bound`]
+/// when the service manager outruns its deadline.
 pub(crate) fn ensure_account_jail(
     host: &dyn FtpsHost,
     distro: &dyn DistroAdapter,
@@ -164,9 +167,12 @@ pub(crate) fn ensure_account_jail(
         // The unit is still enabled and started, because that call is idempotent
         // and is the only thing that can bring up a mount somebody stopped by
         // hand. Skipping the write is not the same as skipping the mount.
+        // `systemctl` parses with `getopt_long`, which honours the end-of-options
+        // marker, so the unit name after it can never be read as an option.
         let started = host.run(
-            distro.service_manager(),
-            &[ENABLE, START_NOW, jail.unit_name()],
+            &distro.service_manager(),
+            &[ENABLE, START_NOW, END_OF_OPTIONS, jail.unit_name()],
+            CallClass::Reload,
         )?;
         if started.status != 0 {
             return Err(FtpsError::JailFailed);
@@ -175,20 +181,32 @@ pub(crate) fn ensure_account_jail(
         return Ok(());
     }
 
+    // The absolute path of the service manager, from the adapter. `ops` names no
+    // binary path of its own, and a bare `"systemctl"` would be worse than a
+    // literal: a root process would resolve the program through `PATH`.
+    let service_manager = distro.service_manager();
     let validator = Validator {
-        // The absolute path of the service manager, from the adapter. `ops`
-        // names no binary path of its own, and a bare `"systemctl"` would be
-        // worse than a literal: a root process would resolve the program
-        // through `PATH`.
-        program: distro.service_manager(),
+        program: &service_manager,
         arguments: &[DAEMON_RELOAD],
+        // `daemon-reload` mutates the service manager's state, so it is a
+        // `Reload` and not a pure validation.
+        class: CallClass::Reload,
     };
-    let reload_arguments = [ENABLE, START_NOW, jail.unit_name()];
+    let reload_arguments = [ENABLE, START_NOW, END_OF_OPTIONS, jail.unit_name()];
     let reload = Reload {
-        program: distro.service_manager(),
+        program: &service_manager,
         arguments: &reload_arguments,
     };
 
     host.write_config(unit_path, &contents, &validator, &reload)
-        .map_err(|_| FtpsError::JailFailed)
+        .map_err(|error| match error {
+            // A tool that was killed at its deadline has not said the mount
+            // cannot be built; it is reported as the bound it is.
+            bound @ FtpsError::Bound(_) => bound,
+            _ => FtpsError::JailFailed,
+        })
 }
+
+#[cfg(test)]
+#[path = "../tests/ftps/ensure_account_jail_tests.rs"]
+mod tests;

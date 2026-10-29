@@ -13,7 +13,11 @@
 use std::os::unix::fs::PermissionsExt as _;
 use std::path::Path;
 
-use super::{is_single_statement, run_client};
+use maran_agent_core::utils::bound_exceeded::BoundExceeded;
+use maran_agent_core::utils::call_class::CallClass;
+use maran_agent_core::utils::output_stream::OutputStream;
+
+use super::{LOCK_WAIT_OPTION, bound_error, is_single_statement, run_client};
 use crate::db::db_error::DbError;
 
 /// A statement of the shape that actually carries a credential.
@@ -113,7 +117,7 @@ fn the_statement_never_becomes_an_argv_element() {
     let root = tempfile::tempdir().unwrap();
     let program = stand_in_client(root.path(), "");
 
-    run_client(&program.display().to_string(), CREATE_USER).unwrap();
+    run_client(&program, CREATE_USER).unwrap();
 
     let argv = std::fs::read_to_string(root.path().join("argv")).unwrap();
     // The vacuity guard is on the axis that can go blind: if the stand-in never
@@ -138,7 +142,7 @@ fn the_statement_reaches_the_client_on_standard_input() {
     let root = tempfile::tempdir().unwrap();
     let program = stand_in_client(root.path(), "");
 
-    run_client(&program.display().to_string(), CREATE_USER).unwrap();
+    run_client(&program, CREATE_USER).unwrap();
 
     // The inverse control for the test above: moving the statement off argv is
     // only correct if the client still RECEIVES it. A guard that merely stopped
@@ -152,10 +156,7 @@ fn the_clients_output_comes_back_to_the_caller() {
     let root = tempfile::tempdir().unwrap();
     let program = stand_in_client(root.path(), "4\n");
 
-    let answer = run_client(
-        &program.display().to_string(),
-        "SELECT COUNT(*) FROM mysql.user",
-    );
+    let answer = run_client(&program, "SELECT COUNT(*) FROM mysql.user");
 
     assert_eq!(answer.unwrap(), "4\n");
 }
@@ -165,7 +166,7 @@ fn a_client_that_cannot_be_started_is_reported_as_unavailable() {
     let root = tempfile::tempdir().unwrap();
     let missing = root.path().join("no-such-client");
 
-    let answer = run_client(&missing.display().to_string(), "SELECT 1");
+    let answer = run_client(&missing, "SELECT 1");
 
     assert_eq!(answer, Err(DbError::ClientUnavailable));
 }
@@ -183,9 +184,13 @@ fn a_client_killed_by_a_signal_is_reported_as_killed_and_not_as_one_that_never_s
     let root = tempfile::tempdir().unwrap();
     let program = stand_in_program(root.path(), "cat > /dev/null\nkill -9 $$\n");
 
-    let answer = run_client(&program.display().to_string(), "SELECT 1");
+    let answer = run_client(&program, "SELECT 1");
 
-    assert_eq!(answer, Err(DbError::ClientKilled { signal: 9 }));
+    // Changed on purpose by the bounded spawn (#90): the core reports a client
+    // ended by a signal it did not send as having no exit status, and not WHICH
+    // signal, so the number is the unknown one. The variant is what matters here:
+    // a killed client is still told apart from one that never started.
+    assert_eq!(answer, Err(DbError::ClientKilled { signal: 0 }));
 }
 
 #[test]
@@ -199,20 +204,17 @@ fn a_client_that_answered_with_a_number_is_told_apart_from_one_that_never_ran() 
         root.path(),
         "cat > /dev/null\nprintf 'ERROR 1064 (42000): You have an error\\n' >&2\nexit 1\n",
     );
-    let answered = run_client(&refused_by_the_server.display().to_string(), "SELECT 1");
+    let answered = run_client(&refused_by_the_server, "SELECT 1");
 
     let killed = tempfile::tempdir().unwrap();
     let suicidal = stand_in_program(killed.path(), "cat > /dev/null\nkill -9 $$\n");
-    let signalled = run_client(&suicidal.display().to_string(), "SELECT 1");
+    let signalled = run_client(&suicidal, "SELECT 1");
 
-    let never_started = run_client(
-        &killed.path().join("absent").display().to_string(),
-        "SELECT 1",
-    );
-    let never_sent = run_client(&suicidal.display().to_string(), "SELECT 1; SELECT 2");
+    let never_started = run_client(&killed.path().join("absent"), "SELECT 1");
+    let never_sent = run_client(&suicidal, "SELECT 1; SELECT 2");
 
     assert_eq!(answered, Err(DbError::ClientFailed { code: 1064 }));
-    assert_eq!(signalled, Err(DbError::ClientKilled { signal: 9 }));
+    assert_eq!(signalled, Err(DbError::ClientKilled { signal: 0 }));
     assert_eq!(never_started, Err(DbError::ClientUnavailable));
     assert_eq!(never_sent, Err(DbError::StatementRefused));
 
@@ -235,10 +237,7 @@ fn a_statement_carrying_a_second_statement_is_refused_before_anything_is_spawned
     let root = tempfile::tempdir().unwrap();
     let program = stand_in_client(root.path(), "");
 
-    let answer = run_client(
-        &program.display().to_string(),
-        "SELECT 1; DROP DATABASE `other`",
-    );
+    let answer = run_client(&program, "SELECT 1; DROP DATABASE `other`");
 
     assert_eq!(answer, Err(DbError::StatementRefused));
     // Refused BEFORE the spawn, not after: the stand-in leaves both recordings
@@ -269,4 +268,94 @@ fn the_statements_this_area_really_builds_are_accepted() {
         "SELECT COALESCE(SUM(data_length + index_length), 0) \
          FROM information_schema.tables WHERE table_schema = 'alice_shop'"
     ));
+}
+
+#[test]
+fn the_session_carries_a_server_side_lock_wait_below_the_agents_deadline() {
+    let root = tempfile::tempdir().unwrap();
+    let program = stand_in_client(root.path(), "");
+
+    run_client(&program, "DROP DATABASE `alice_shop`").unwrap();
+
+    let argv = std::fs::read_to_string(root.path().join("argv")).unwrap();
+    assert!(
+        argv.lines().any(|line| line == LOCK_WAIT_OPTION),
+        "the client was not given the lock wait option: {argv:?}"
+    );
+    // The figure the option carries, read back out of its text, must be below
+    // the deadline the agent kills the client at: the server abandons the wait
+    // first and answers with an error number.
+    let seconds: u64 = LOCK_WAIT_OPTION
+        .rsplit('=')
+        .next()
+        .unwrap()
+        .parse()
+        .unwrap();
+    assert!(
+        seconds < CallClass::Database.deadline().as_secs(),
+        "the server-side wait ({seconds} s) must end before the agent's deadline"
+    );
+}
+
+#[test]
+fn a_client_flooding_standard_output_is_unparsable_and_not_a_truncated_answer() {
+    let root = tempfile::tempdir().unwrap();
+    let program = stand_in_program(
+        root.path(),
+        "cat > /dev/null\nhead -c 1100000 /dev/zero | tr '\\0' 'x'\n",
+    );
+
+    let answer = run_client(&program, "SHOW DATABASES");
+
+    assert_eq!(answer, Err(DbError::Unparsable));
+}
+
+#[test]
+fn a_client_flooding_standard_error_is_a_bound_and_never_a_classified_failure() {
+    let root = tempfile::tempdir().unwrap();
+    let program = stand_in_program(
+        root.path(),
+        "cat > /dev/null\nhead -c 100000 /dev/zero | tr '\\0' 'x' >&2\nexit 1\n",
+    );
+
+    let answer = run_client(&program, "SHOW DATABASES");
+
+    assert!(
+        matches!(
+            answer,
+            Err(DbError::Bound(BoundExceeded::OutputTooLarge {
+                stream: OutputStream::Stderr,
+                ..
+            }))
+        ),
+        "expected the typed output bound, got {answer:?}"
+    );
+}
+
+#[test]
+fn a_deadline_is_a_bound_and_standard_output_past_its_cap_is_unparsable() {
+    let deadline = BoundExceeded::TimedOut {
+        program: String::from("/usr/bin/mariadb"),
+        deadline: CallClass::Database.deadline(),
+    };
+    let flood = BoundExceeded::OutputTooLarge {
+        program: String::from("/usr/bin/mariadb"),
+        stream: OutputStream::Stdout,
+        cap: 1,
+    };
+
+    assert_eq!(bound_error(deadline.clone()), DbError::Bound(deadline));
+    assert_eq!(bound_error(flood), DbError::Unparsable);
+}
+
+/// The client runs under the database deadline and no other: a dump-sized
+/// statement killed at the sixty-second query deadline would pass every other
+/// test here, because none of them waits that long.
+#[test]
+fn the_client_is_spawned_under_the_database_class_and_no_other() {
+    let classes = crate::test_support::call_class_census::classes_named_in_code(include_str!(
+        "../../db/process_db_host.rs"
+    ));
+
+    assert_eq!(classes, ["Database"]);
 }

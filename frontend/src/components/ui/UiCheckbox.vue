@@ -7,6 +7,18 @@
  * label, required and invalid flags) with no scripted key handling of our own.
  * Use it for a standalone on/off choice; for a mutually exclusive set use
  * `UiRadioGroup`.
+ *
+ * LOOK AND MEASUREMENTS. The unchecked box is a `bg-surface-2` square with a
+ * `border-border-control` outline, not `border-border-strong`: the box is the ONLY
+ * thing that says "tick here", and `--b2` is 1.47:1 against a panel. `--bc` is the
+ * token that exists for a control's edge, so the boundary cannot drift with the text
+ * tier the way a borrowed `text-text-muted` would. Measured against the surface the
+ * box sits on (WCAG 1.4.11 wants 3:1 of a control boundary): dark 3.82 on the page,
+ * 3.57 on `--s1`, 3.36 on `--s2`, 3.08 on `--s3`; light 3.39, 3.63, 3.30, 3.07.
+ * Checked, the box is `bg-accent-fill` carrying a
+ * white check mark at 5.14:1 (`bg-accent` would give 3.89:1 and fail); the fill
+ * itself is 3.65:1 against a panel. The whole row is the label, so the click
+ * target is the box plus its text, at least 32px tall (WCAG 2.5.8 asks for 24).
  */
 import { computed, useId, type ComputedRef } from 'vue'
 import UiIcon from './UiIcon.vue'
@@ -58,10 +70,17 @@ const onChange = (event: Event): void => {
 </script>
 
 <template>
-  <div class="flex flex-col gap-1">
-    <div class="flex items-center gap-2">
-      <!-- `sr-only peer` keeps the real control in the accessibility tree and the
-           focus order while the sibling span carries the visual state. -->
+  <div class="flex flex-col gap-1.5">
+    <!-- The input sits INSIDE its label so the whole row is one click target, and
+         is `sr-only peer` so the real control stays in the accessibility tree and
+         the focus order while the sibling box carries the visual state. The
+         `for`/`id` pair is kept as well: an explicit association survives a later
+         restructure of the wrapper. -->
+    <label
+      :for="fieldId"
+      class="flex min-h-8 w-fit max-w-full items-center gap-2.5 text-sm text-text-primary"
+      :class="disabled ? 'cursor-not-allowed opacity-65' : 'cursor-pointer'"
+    >
       <input
         :id="fieldId"
         type="checkbox"
@@ -74,23 +93,19 @@ const onChange = (event: Event): void => {
         @change="onChange"
       />
       <span
-        class="inline-flex size-4.5 shrink-0 items-center justify-center rounded-sm border text-white transition-colors peer-focus-visible:border-accent peer-focus-visible:shadow-focus peer-disabled:opacity-65"
+        class="inline-flex size-5 shrink-0 items-center justify-center rounded-mark border text-white transition-colors"
         :class="[
-          modelValue ? 'border-accent bg-accent' : 'bg-surface-2',
-          hasError && !modelValue ? 'border-[rgb(229_72_77/0.5)]' : '',
-          !modelValue && !hasError ? 'border-border-strong' : '',
+          modelValue ? 'border-accent-fill bg-accent-fill' : 'bg-surface-2',
+          !modelValue && hasError ? 'border-danger' : '',
+          !modelValue && !hasError ? 'border-border-control' : '',
+          hasError ? 'peer-focus-visible:shadow-focus-danger' : 'peer-focus-visible:shadow-focus',
         ]"
         aria-hidden="true"
       >
         <UiIcon v-if="modelValue" name="check" size="sm" />
       </span>
-      <label
-        :for="fieldId"
-        class="text-base text-text-primary"
-        :class="disabled ? 'cursor-not-allowed opacity-65' : 'cursor-pointer'"
-        >{{ label }}</label
-      >
-    </div>
-    <p v-if="hasError" :id="errorId" class="text-base text-danger">{{ error }}</p>
+      <span class="min-w-0 wrap-anywhere">{{ label }}</span>
+    </label>
+    <p v-if="hasError" :id="errorId" class="text-sm text-danger wrap-anywhere">{{ error }}</p>
   </div>
 </template>

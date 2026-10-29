@@ -1,5 +1,7 @@
 {
   "myAccount": {
+    "eyebrow": "Your hosting account",
+    "identityHeading": "Account",
     "loading": "Loading your account…",
     "primaryDomainLabel": "Primary domain",
     "statusLabel": "Status",
@@ -14,6 +16,7 @@
       "sftpUsers": "SFTP logins",
       "ftpUsers": "FTPS logins",
       "cronEntries": "Cron entries"
-    }
+    },
+    "suspendedNotice": "This account is suspended. Contact your hosting provider to have it restored."
   }
 }

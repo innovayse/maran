@@ -130,9 +130,7 @@ RUN dnf install -y --nodocs --enablerepo=crb \
 # touch nginx ran in here. Now, if installer/lib/80-nginx.sh stops doing it, this build
 # fails and no polygon suite runs at all (rules/testing.md).
 COPY installer/lib/80-nginx.sh /tmp/maran-installer/lib/80-nginx.sh
-RUN mkdir -p /run/maran /run/maran/php \
-    && chmod 755 /run/maran \
-    && bash -c 'set -euo pipefail; . /tmp/maran-installer/lib/80-nginx.sh; install_agent_config_include' \
+RUN bash -c 'set -euo pipefail; . /tmp/maran-installer/lib/80-nginx.sh; install_agent_config_include' \
     && test -d /etc/maran/nginx/sites \
     && test -d /etc/maran/certificates \
     && grep -q '/etc/maran/nginx/sites' /etc/nginx/conf.d/maran-sites.conf \
@@ -239,7 +237,11 @@ COPY installer/panel.env.example /tmp/maran-installer/panel.env.example
 # runs needs its COPY here; these are those four.
 COPY installer/systemd/maran-api.service /tmp/maran-installer/systemd/maran-api.service
 COPY installer/systemd/maran-api.tmpfiles.conf /tmp/maran-installer/systemd/maran-api.tmpfiles.conf
+COPY installer/systemd/maran-php.tmpfiles.conf /tmp/maran-installer/systemd/maran-php.tmpfiles.conf
 COPY installer/systemd/maran-agent.service /tmp/maran-installer/systemd/maran-agent.service
+# Step 70's install_units renders and installs the package-install template with the units above
+# (issue #93), so it must be here or the step aborts on a missing source and no suite runs.
+COPY installer/systemd/maran-php-install@.service /tmp/maran-installer/systemd/maran-php-install@.service
 COPY installer/lib/70-services.sh /tmp/maran-installer/lib/70-services.sh
 # Step 80 again — the earlier COPY was consumed by the `rm -rf /tmp/maran-installer` that ends
 # the include block above — and step 40 beside it. Both are RUN by the assert script, not read:
@@ -374,10 +376,9 @@ RUN bash -c 'set -euo pipefail; \
 # `create_directory_layout` is sourced and called instead of `install -d
 # /var/backups/maran` being written out again, so the mode the suites measure
 # is the mode a real install produces; a second copy of the path or the mode in
-# this file is a copy that stops matching. The one thing put back afterwards is
-# /run/maran's mode: that function sets 0750 root:<service group>, and this
-# image sets 0755 on purpose for the php-pool suites (see the assert-script
-# comment that says so).
+# this file is a copy that stops matching. /run/maran keeps the 0750
+# root:<service group> that function sets: nothing here loosens it, because the PHP
+# pool sockets live in /run/maran-php instead.
 #
 # The account's name is not written here either: step 40 reads MARAN_USER,
 # MARAN_GROUP and MARAN_SERVICE_ACCOUNT_MARKER out of the environment, the way
@@ -386,6 +387,12 @@ RUN bash -c 'set -euo pipefail; \
 # that cannot see them aborts by name instead of expanding an empty string into
 # `install -o`.
 COPY installer/lib/40-user.sh /tmp/maran-installer/lib/40-user.sh
+# The PHP pool socket directory, built by systemd-tmpfiles from the REAL snippet the installer
+# ships, not by a mkdir invented here. It is a sibling of /run/maran (root:root 0755) so the web
+# server's user can traverse it while /run/maran stays the 0750 directory step 40 makes; this image
+# used to chmod /run/maran to 0755 instead, which hid that the real mode locks nginx out of every
+# pool socket. It is applied in the step below, where systemd-tmpfiles is already known to be
+# present (the panel socket assertion runs it from this same image).
 RUN bash -c 'set -euo pipefail; \
       MARAN_USER="$(sed -n "s/^MARAN_USER=//p" /tmp/maran-installer/install.sh)"; \
       MARAN_GROUP="$(sed -n "s/^MARAN_GROUP=//p" /tmp/maran-installer/install.sh)"; \
@@ -395,7 +402,8 @@ RUN bash -c 'set -euo pipefail; \
       . /tmp/maran-installer/lib/40-user.sh; \
       create_service_user >/dev/null; \
       create_directory_layout; \
-      chmod 0755 /run/maran; \
+      systemd-tmpfiles --create /tmp/maran-installer/systemd/maran-php.tmpfiles.conf; \
+      test "$(stat -c "%a %U %G" /run/maran-php)" = "755 root root"; \
       test -d /var/backups/maran' \
     && rm -f /tmp/maran-installer/lib/40-user.sh
 

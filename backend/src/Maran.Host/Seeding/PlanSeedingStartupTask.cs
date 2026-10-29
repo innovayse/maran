@@ -27,11 +27,12 @@ namespace Maran.Host.Seeding;
 /// this task assumes the schema is present, which on a real server it is by the time the API is
 /// started.
 ///
-/// Idempotence is the seeder's, not this task's: it inserts by fixed id only what is absent and
-/// UPDATES nothing. An operator who has edited the Business plan's disk quota keeps their edit
-/// across every restart, and an operator who has deleted a standard plan outright gets it back —
-/// which is the honest reading of "a fresh installation ships with these", and is why the seeder
-/// does not track deletions.
+/// Idempotence is the seeder's, not this task's: it inserts the standard plans only into a panel
+/// that holds no plan at all and UPDATES nothing. An operator who has edited the Business plan's
+/// disk quota keeps their edit across every restart, and an operator who has deleted a standard plan
+/// keeps it deleted — "a fresh installation ships with these" is the promise, and a panel with any
+/// plan in it is no longer fresh. (Deleting a plan became possible with the plan management screen;
+/// until then the seeder topped absent plans up on every start.)
 /// </remarks>
 public sealed class PlanSeedingStartupTask : IHostedService
 {

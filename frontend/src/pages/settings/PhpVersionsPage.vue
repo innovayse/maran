@@ -20,15 +20,29 @@
  * host's package manager fetching over whatever mirror it has. The button holds
  * its pending state for the whole run, and the tasks screen carries the progress
  * the panel records against it.
+ *
+ * **Layout (redesign 2026-10).** An accent eyebrow over an uppercase title, then two panels: the
+ * installed versions (a table with the version in the mono face, the default marked with a badge
+ * so the word is never the only carrier) and the install control beside it from 1024px, below it
+ * on a narrower screen. The table scrolls inside its own container, so nothing scrolls
+ * horizontally at 390px.
+ *
+ * **A refusal to list is shown, and an empty list is only announced once the load has settled.**
+ * The store records the server's refusal in `errorMessage`; the page now prints it first, as the
+ * docs above promise, instead of leaving a customer who typed the URL with an empty table. And
+ * "No PHP version is installed" is a claim about the host, so it waits for the answer: drawn
+ * before the request returned it would state, for a moment, a fact nobody had observed.
  */
 import { onMounted, ref, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import UiAlert from '../../components/ui/UiAlert.vue'
+import UiBadge from '../../components/ui/UiBadge.vue'
 import UiButton from '../../components/ui/UiButton.vue'
 import UiCard from '../../components/ui/UiCard.vue'
 import UiEmptyState from '../../components/ui/UiEmptyState.vue'
 import UiInput from '../../components/ui/UiInput.vue'
 import UiPageHeading from '../../components/ui/UiPageHeading.vue'
+import UiSectionHeading from '../../components/ui/UiSectionHeading.vue'
 import UiTable from '../../components/ui/UiTable.vue'
 import UiTableCell from '../../components/ui/UiTableCell.vue'
 import UiTableHeaderCell from '../../components/ui/UiTableHeaderCell.vue'
@@ -41,8 +55,12 @@ const sitesStore = useSitesStore()
 /** The version typed into the install field, e.g. `8.4`. */
 const version: Ref<string> = ref('')
 
+/** Whether the first load has settled, so an empty list is a fact and not a loading frame. */
+const loaded: Ref<boolean> = ref(false)
+
 onMounted(async () => {
   await sitesStore.loadPhpVersions()
+  loaded.value = true
 })
 
 /**
@@ -84,57 +102,80 @@ const install = async (): Promise<void> => {
 </script>
 
 <template>
-  <section class="flex flex-col gap-6">
-    <UiPageHeading :title="t('php.title')" :description="t('php.description')" />
+  <section class="flex flex-col gap-4">
+    <UiPageHeading
+      :eyebrow="t('php.eyebrow')"
+      :title="t('php.title')"
+      :subtitle="t('php.description')"
+    />
 
-    <UiCard>
-      <UiTable :caption="t('php.table.caption')">
-        <template #head>
-          <UiTableRow>
-            <UiTableHeaderCell>{{ t('php.table.version') }}</UiTableHeaderCell>
-            <UiTableHeaderCell>{{ t('php.table.default') }}</UiTableHeaderCell>
+    <!-- The one thing that needs attention goes first: the server's own refusal or failure to
+         list. It is the backend's localized sentence, so the SPA holds no copy of it. -->
+    <UiAlert v-if="sitesStore.errorMessage" variant="error">
+      {{ sitesStore.errorMessage }}
+    </UiAlert>
+
+    <div class="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] lg:items-start">
+      <UiCard>
+        <UiSectionHeading class="mb-4" :title="t('php.table.heading')" />
+
+        <UiTable v-if="sitesStore.phpVersions.length > 0" :caption="t('php.table.caption')">
+          <template #head>
+            <UiTableRow>
+              <UiTableHeaderCell>{{ t('php.table.version') }}</UiTableHeaderCell>
+              <UiTableHeaderCell>{{ t('php.table.default') }}</UiTableHeaderCell>
+            </UiTableRow>
+          </template>
+          <UiTableRow v-for="installed in sitesStore.phpVersions" :key="installed.version">
+            <UiTableCell mono>{{ installed.version }}</UiTableCell>
+            <UiTableCell>
+              <UiBadge v-if="installed.isDefault === true" variant="success">
+                {{ defaultLabel(installed.isDefault) }}
+              </UiBadge>
+              <UiBadge v-else-if="installed.isDefault === null" variant="warning">
+                {{ defaultLabel(installed.isDefault) }}
+              </UiBadge>
+              <span v-else class="text-text-secondary">{{ defaultLabel(installed.isDefault) }}</span>
+            </UiTableCell>
           </UiTableRow>
-        </template>
-        <UiTableRow v-for="installed in sitesStore.phpVersions" :key="installed.version">
-          <UiTableCell class="font-medium">{{ installed.version }}</UiTableCell>
-          <UiTableCell>{{ defaultLabel(installed.isDefault) }}</UiTableCell>
-        </UiTableRow>
-      </UiTable>
+        </UiTable>
 
-      <UiEmptyState
-        v-if="sitesStore.phpVersions.length === 0"
-        :title="t('php.empty.title')"
-        :description="t('php.empty.description')"
-      />
-    </UiCard>
-
-    <UiCard>
-      <div class="flex flex-col gap-3">
-        <UiInput
-          v-model="version"
-          :label="t('php.install.label')"
-          placeholder="8.4"
-          :disabled="sitesStore.installingPhpVersion !== null"
+        <UiEmptyState
+          v-else-if="loaded"
+          :title="t('php.empty.title')"
+          :description="t('php.empty.description')"
         />
-        <p class="text-sm text-text-secondary">{{ t('php.install.hint') }}</p>
+      </UiCard>
 
-        <UiAlert v-if="sitesStore.phpInstallErrorMessage" variant="error">
-          {{ sitesStore.phpInstallErrorMessage }}
-        </UiAlert>
+      <UiCard>
+        <UiSectionHeading class="mb-4" :title="t('php.install.heading')" />
+        <div class="flex flex-col gap-3">
+          <UiInput
+            v-model="version"
+            :label="t('php.install.label')"
+            placeholder="8.4"
+            :disabled="sitesStore.installingPhpVersion !== null"
+          />
+          <p class="text-sm text-text-secondary">{{ t('php.install.hint') }}</p>
 
-        <div>
-          <UiButton
-            :disabled="version.trim().length === 0 || sitesStore.installingPhpVersion !== null"
-            @click="install"
-          >
-            {{
-              sitesStore.installingPhpVersion === null
-                ? t('php.install.submit')
-                : t('php.install.running', { version: sitesStore.installingPhpVersion })
-            }}
-          </UiButton>
+          <UiAlert v-if="sitesStore.phpInstallErrorMessage" variant="error">
+            {{ sitesStore.phpInstallErrorMessage }}
+          </UiAlert>
+
+          <div>
+            <UiButton
+              :disabled="version.trim().length === 0 || sitesStore.installingPhpVersion !== null"
+              @click="install"
+            >
+              {{
+                sitesStore.installingPhpVersion === null
+                  ? t('php.install.submit')
+                  : t('php.install.running', { version: sitesStore.installingPhpVersion })
+              }}
+            </UiButton>
+          </div>
         </div>
-      </div>
-    </UiCard>
+      </UiCard>
+    </div>
   </section>
 </template>

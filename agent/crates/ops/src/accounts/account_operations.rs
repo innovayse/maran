@@ -1,12 +1,16 @@
 //! The account operations themselves, over whatever [`SystemHost`] they are given.
 
 use maran_agent_core::agent_paths::AgentPaths;
+use maran_agent_core::utils::call_class::CallClass;
 use maran_agent_core::utils::system_accounts::system_accounts;
+use maran_agent_core::validation::system::managed_account::ManagedAccount;
+use maran_agent_core::validation::system::managed_account_error::ManagedAccountError;
 use maran_agent_core::validation::system::name::AccountName;
 
-use maran_distro::DistroAdapter;
+use maran_distro::{AdapterBinary, DistroAdapter};
 
 use crate::accounts::account_lock::take_account_lock;
+use crate::accounts::end_account_processes::end_account_processes;
 use crate::accounts::model::home_group_repair_refusal::HomeGroupRepairRefusal;
 use crate::accounts::model::home_group_repair_report::HomeGroupRepairReport;
 use crate::accounts::model::quota_state::QuotaState;
@@ -15,17 +19,19 @@ use crate::accounts::model::refused_home::RefusedHome;
 use crate::accounts::model::repaired_home::RepairedHome;
 use crate::accounts::quota_blocks::QuotaBlocks;
 use crate::accounts::quota_enforceability::classify as classify_quota_enforceability;
+use crate::accounts::quota_enforceability::quota_device_for;
 use crate::accounts::{
     AccountError, AccountSuspensionState, AccountUsage, CreatedAccount, StoredPassword, SystemHost,
 };
 use crate::cron::cron_lock::cron_lock;
-use crate::cron::{CronHost, NO_CRONTAB_MARKER, inspect_account_cron};
+use crate::cron::{CronError, CronHost, NO_CRONTAB_MARKER, inspect_account_cron};
 use crate::db::{DbHost, drop_account_databases};
 use crate::ftps::{FtpsHost, remove_account_ftps};
-use crate::logins::{LoginsHost, account_logins};
+use crate::logins::{LoginsError, LoginsHost, account_logins};
 use crate::php::{PhpHost, remove_account_pools};
 use crate::sftp::{SftpHost, remove_account_sftp};
 use crate::sites::{SiteHost, inspect_account_sites};
+use maran_agent_core::end_of_options::END_OF_OPTIONS;
 
 /// The argument that makes `passwd` REPORT a login's state instead of changing
 /// it.
@@ -90,6 +96,14 @@ const SHADOW_PASSWORD_FIELD: usize = 1;
 ///
 /// Everything it does goes through the injected [`SystemHost`], so the decisions in
 /// here are tested without a single real user being created.
+///
+/// **Every operation on an existing account first resolves a
+/// [`ManagedAccount`]**, the proof that the host user behind the name is a
+/// hosting account, and only that proof reaches `usermod`, `userdel`,
+/// `setquota`, `quota`, `passwd`, `getent` and `crontab -u`. A bare
+/// [`AccountName`] proves spelling only, and `root` is spelled correctly.
+/// `create` is the one operation with no user to resolve; it refuses a reserved
+/// name instead, before anything runs.
 pub struct AccountOperations<H: SystemHost> {
     /// The machine these operations run against.
     host: H,
@@ -138,6 +152,11 @@ impl<H: SystemHost> AccountOperations<H> {
     /// `resolve_in_home` roots its containment at `AgentPaths`, so a drift here
     /// would have been an operation building under a root the check does not
     /// approve.
+    ///
+    /// The same string [`ManagedAccount`] compares a passwd row's home with, and
+    /// for the same reason: both are built from `AgentPaths::ACCOUNT_HOME_ROOT`,
+    /// so the home an account is created at and the home it is later accepted at
+    /// cannot drift apart.
     #[must_use]
     pub fn home_directory(name: &AccountName) -> String {
         format!("{}/{}", AgentPaths::ACCOUNT_HOME_ROOT, name.as_str())
@@ -151,11 +170,26 @@ impl<H: SystemHost> AccountOperations<H> {
     /// match — a home directory it did not create may hold somebody's data, and
     /// silently re-owning it is the one mistake that cannot be undone.
     ///
+    /// A reserved name is refused FIRST, before any host fact is read and before
+    /// `useradd`, and is not reported as [`AccountError::AlreadyExists`]: the
+    /// refusal is a decision about the name and costs no lookup, so it cannot be
+    /// used to ask whether such a user exists. A name that is not reserved but
+    /// already belongs to ANY user, hosting account or not, is still
+    /// [`AccountError::AlreadyExists`] and is never adopted.
+    ///
     /// # Errors
     ///
-    /// Returns [`AccountError::AlreadyExists`] when the user is already present,
-    /// and [`AccountError::CommandFailed`] when `useradd`, the step that gives the
-    /// home directory to the web server's group, or `setquota` refuses.
+    /// - [`AccountError::NotManaged`] when the name is reserved, before anything
+    ///   ran; or when the user this call just created would not be one this
+    ///   agent could manage afterwards (the host's id floor moved, say), in which
+    ///   case the creation is rolled back.
+    /// - [`AccountError::AlreadyExists`] when the user is already present.
+    /// - [`AccountError::CommandFailed`] when `useradd`, the step that gives the
+    ///   home directory to the web server's group, or `setquota` refuses.
+    /// - [`AccountError::Bound`] when a program it ran outlived its deadline or its output ceiling and
+    ///   was killed with its whole process group. Not a verdict: the step may have taken
+    ///   effect on the host, so the caller reads the account again before it believes
+    ///   either outcome.
     ///
     /// That step is named in prose rather than linked: it is private, and a public
     /// doc comment linking a private item is an error under `-D warnings`, which is
@@ -166,6 +200,18 @@ impl<H: SystemHost> AccountOperations<H> {
         name: &AccountName,
         quota_bytes: u64,
     ) -> Result<CreatedAccount, AccountError> {
+        ManagedAccount::refuse_reserved(name).map_err(|refusal| {
+            tracing::warn!(
+                username = name.as_str(),
+                ?refusal,
+                "refused to create an account with a reserved name"
+            );
+            AccountError::NotManaged {
+                username: name.as_str().to_owned(),
+                refusal,
+            }
+        })?;
+
         let username = name.as_str();
         if self.host.user_exists(username)? {
             return Err(AccountError::AlreadyExists {
@@ -178,8 +224,18 @@ impl<H: SystemHost> AccountOperations<H> {
         // --create-home makes the directory and copies /etc/skel; --user-group gives
         // the account a group of its own, which is what makes per-account file modes
         // meaningful. Arguments are passed as an array — never a shell string.
-        self.expect_success(
-            self.distro.useradd_binary(),
+        //
+        // `--` before the name: `useradd` reads its options with `getopt_long`, which ends
+        // option parsing at `--` on both families (shadow-utils is the same package on
+        // Debian and RHEL), so a name can never be read as an option.
+        //
+        // A `useradd` killed at its deadline may have made the user or its home before it
+        // was stopped. Only that case is probed: when the user exists afterwards, this call
+        // created it (`user_exists` answered no a moment ago and the account lock is held),
+        // so the same rollback as any later step removes it and a retry is not met with
+        // `AlreadyExists`. Any other `useradd` failure is rolled back by shadow-utils itself.
+        if let Err(failure) = self.expect_success(
+            &self.distro.useradd_binary(),
             &[
                 "--create-home",
                 "--home-dir",
@@ -187,21 +243,96 @@ impl<H: SystemHost> AccountOperations<H> {
                 "--shell",
                 self.distro.nologin_shell(),
                 "--user-group",
+                END_OF_OPTIONS,
                 username,
             ],
-        )?;
+            CallClass::Mutation,
+        ) {
+            if matches!(failure, AccountError::Bound(_))
+                && self.host.user_exists(username).unwrap_or(false)
+            {
+                return Err(self.undo_creation(username, failure));
+            }
+            return Err(failure);
+        }
 
-        self.open_home_to_the_web_server(&home)?;
+        // Everything from here on is rolled back by `undo_creation` if it fails, because
+        // `useradd` has already happened and nothing above this line will undo it. Without
+        // the rollback a failure left the system user, its group and its home behind while
+        // the panel's own record was never written — and the account could then never be
+        // created, because the `user_exists` check, which follows the reserved-name refusal
+        // at the top of this function, answered AlreadyExists for a name the panel does not
+        // know (issue #75). Each step below
+        // returns through `undo_creation` rather than `?` for that reason.
+        if let Err(failure) = self.open_home_to_the_web_server(&home) {
+            return Err(self.undo_creation(username, failure));
+        }
 
         // apply_quota, not set_quota: the public one confirms the account exists, and
         // asking that one line after creating it is a second `id` per creation for an
         // answer already known.
-        self.apply_quota(username, quota_bytes)?;
+        if let Err(failure) = self.apply_quota(username, quota_bytes) {
+            return Err(self.undo_creation(username, failure));
+        }
+
+        let uid = match self.read_uid(username) {
+            Ok(uid) => uid,
+            Err(failure) => return Err(self.undo_creation(username, failure)),
+        };
+
+        // The account just made must be one this agent will agree to manage. A host
+        // whose id floor moved between `useradd` and here, or whose `useradd` placed
+        // the home elsewhere, would otherwise be left with a user that every later
+        // operation refuses and that nothing can then delete.
+        if let Err(failure) = self.resolve_managed(name) {
+            return Err(self.undo_creation(username, failure));
+        }
 
         Ok(CreatedAccount {
             home_directory: home,
-            uid: self.read_uid(username)?,
+            uid,
         })
+    }
+
+    /// Removes what [`AccountOperations::create`] had made when a later step of it fails,
+    /// and answers with the failure that caused the rollback.
+    ///
+    /// `userdel --remove` is the whole of it, and that is a statement about WHEN this runs
+    /// rather than a shortcut: a creation that has not returned yet has no PHP pool, no
+    /// crontab, no SFTP login and no database, so none of the ordering that
+    /// [`AccountOperations::delete_under_lock`] documents applies here. The home is at most
+    /// a copy of `/etc/skel` and is never a mount point of anything.
+    ///
+    /// This is the one place a bare name reaches `userdel`, and it is sanctioned by what
+    /// precedes it: the name passed [`ManagedAccount::refuse_reserved`], `user_exists`
+    /// answered that no user bore it, and `useradd` made it one statement earlier, so
+    /// the only user this can remove is the one this call created.
+    ///
+    /// The ORIGINAL failure is what comes back, never the rollback's own. A caller asked to
+    /// create an account; the useful answer is why that could not be done, and a rollback
+    /// error reported in its place would describe cleanup the caller never requested. When
+    /// the rollback itself fails the account is left orphaned after all — rare, and the one
+    /// case worth a log line, because the operator then has to remove the user by hand
+    /// before any retry can succeed.
+    fn undo_creation(&self, username: &str, failure: AccountError) -> AccountError {
+        // `Mutation` and not `Bulk`: the account was created a moment ago, so its home holds
+        // only the skeleton and the removal is short. A wedged `userdel` here must not hold
+        // the account lock for the twelve hours of the `Bulk` class.
+        if let Err(rollback_failure) = self.expect_success(
+            &self.distro.userdel_binary(),
+            &["--remove", END_OF_OPTIONS, username],
+            CallClass::Mutation,
+        ) {
+            tracing::warn!(
+                username,
+                %rollback_failure,
+                %failure,
+                "an account creation failed and its rollback failed too, so the system user \
+                 is left behind and must be removed by hand before a retry can succeed"
+            );
+        }
+
+        failure
     }
 
     /// Suspends the account: its shell is locked and its password disabled.
@@ -212,9 +343,19 @@ impl<H: SystemHost> AccountOperations<H> {
     ///
     /// # Errors
     ///
-    /// Returns [`AccountError::NotFound`] when the account does not exist.
+    /// - [`AccountError::NotFound`] when the host has no such account.
+    /// - [`AccountError::NotManaged`] when the user exists but is not a hosting
+    ///   account (a reserved name, a system identity, a home elsewhere). Nothing
+    ///   was run.
+    /// - [`AccountError::HomeInspection`] when the password database cannot be
+    ///   read; the operation refuses rather than guess.
+    /// - [`AccountError::Bound`] when `usermod` outlived its deadline or its output ceiling and
+    ///   was killed with its whole process group. Not a verdict: the step may have taken
+    ///   effect on the host, so the caller reads the account again before it believes
+    ///   either outcome.
     pub fn suspend(&self, name: &AccountName) -> Result<(), AccountError> {
-        let username = self.require_existing(name)?;
+        let account = self.resolve_managed(name)?;
+        let username = account.name().as_str();
 
         // Both, not either: `--lock` prefixes the password hash so no password can
         // match, and the nologin shell stops any authentication method that does not
@@ -222,10 +363,20 @@ impl<H: SystemHost> AccountOperations<H> {
         //
         // The account already has the nologin shell from creation; setting it again is
         // what makes suspension correct for an account whose shell was changed by hand.
-        self.expect_success(self.distro.usermod_binary(), &["--lock", &username])?;
         self.expect_success(
-            self.distro.usermod_binary(),
-            &["--shell", self.distro.nologin_shell(), &username],
+            &self.distro.usermod_binary(),
+            &["--lock", END_OF_OPTIONS, username],
+            CallClass::Mutation,
+        )?;
+        self.expect_success(
+            &self.distro.usermod_binary(),
+            &[
+                "--shell",
+                self.distro.nologin_shell(),
+                END_OF_OPTIONS,
+                username,
+            ],
+            CallClass::Mutation,
         )?;
 
         Ok(())
@@ -271,22 +422,41 @@ impl<H: SystemHost> AccountOperations<H> {
     ///
     /// # Errors
     ///
-    /// - [`AccountError::NotFound`] when the account does not exist.
+    /// - [`AccountError::NotFound`] when the host has no such account.
+    /// - [`AccountError::NotManaged`] when the user exists but is not a hosting
+    ///   account. Nothing was run.
+    /// - [`AccountError::HomeInspection`] when the password database cannot be
+    ///   read.
     /// - [`AccountError::CommandFailed`] when the shadow entry cannot be read,
     ///   when `usermod --unlock` refuses a genuinely locked account, or when
     ///   the shell cannot be set.
     /// - [`AccountError::UnreadableOutput`] when the shadow entry does not have
     ///   the shape `<name>:<password>:…` for this account.
+    /// - [`AccountError::Bound`] when `getent` or `usermod` outlived its deadline or its output ceiling and
+    ///   was killed with its whole process group. Not a verdict: the step may have taken
+    ///   effect on the host, so the caller reads the account again before it believes
+    ///   either outcome.
     pub fn unsuspend(&self, name: &AccountName) -> Result<(), AccountError> {
-        let username = self.require_existing(name)?;
+        let account = self.resolve_managed(name)?;
+        let username = account.name().as_str();
 
-        if self.stored_password(&username)? == StoredPassword::Locked {
-            self.expect_success(self.distro.usermod_binary(), &["--unlock", &username])?;
+        if self.stored_password(username)? == StoredPassword::Locked {
+            self.expect_success(
+                &self.distro.usermod_binary(),
+                &["--unlock", END_OF_OPTIONS, username],
+                CallClass::Mutation,
+            )?;
         }
 
         self.expect_success(
-            self.distro.usermod_binary(),
-            &["--shell", self.distro.nologin_shell(), &username],
+            &self.distro.usermod_binary(),
+            &[
+                "--shell",
+                self.distro.nologin_shell(),
+                END_OF_OPTIONS,
+                username,
+            ],
+            CallClass::Mutation,
         )?;
 
         Ok(())
@@ -354,7 +524,14 @@ impl<H: SystemHost> AccountOperations<H> {
     ///
     /// # Errors
     ///
-    /// - [`AccountError::NotFound`] when the account does not exist.
+    /// - [`AccountError::NotFound`] when the host has no such account.
+    /// - [`AccountError::NotManaged`] when the user exists but is not a hosting
+    ///   account. Resolved FIRST, before any of the three inspections, because
+    ///   the state of a user that is not an account is exactly what this must
+    ///   not disclose: answering for any name would make it an oracle on every
+    ///   user of the host.
+    /// - [`AccountError::HomeInspection`] when the password database cannot be
+    ///   read.
     /// - [`AccountError::SiteInspection`] when a vhost exists and cannot be
     ///   read — refusing to answer rather than answering about the files that
     ///   happened to be readable.
@@ -367,6 +544,9 @@ impl<H: SystemHost> AccountOperations<H> {
     ///   enumeration used to live in and now covers both protocols; renaming it
     ///   is a wire-visible change and belongs with the task that widens the
     ///   contract.
+    /// - [`AccountError::Bound`] when `crontab`, `passwd`, `getent` or `id`
+    ///   outlived its deadline and was killed: neither of the two inspection
+    ///   variants above, because the read was stopped and not refused.
     /// - [`AccountError::CommandFailed`] or
     ///   [`AccountError::UnreadableOutput`] when `passwd -S` refuses or prints
     ///   something this agent cannot read for the account's OWN login.
@@ -377,26 +557,37 @@ impl<H: SystemHost> AccountOperations<H> {
         logins_host: &dyn LoginsHost,
         name: &AccountName,
     ) -> Result<AccountSuspensionState, AccountError> {
-        let username = self.require_existing(name)?;
-        let sites = inspect_account_sites(site_host, name)?;
+        let account = self.resolve_managed(name)?;
+        let username = account.name().as_str();
+        let sites = inspect_account_sites(site_host, account.name())?;
         // Both conversions are written out rather than ridden on `?`: the
         // blanket `From<SftpError>` means "the deletion did not happen", which
         // is the wrong sentence for an observation, and cron has no blanket
         // conversion for the same reason.
-        let cron = inspect_account_cron(cron_host, name).map_err(|error| {
-            AccountError::CronInspection {
-                reason: error.to_string(),
-            }
-        })?;
-        let logins = account_logins(logins_host, self.distro, name).map_err(|error| {
-            AccountError::SftpInspection {
-                reason: error.to_string(),
-            }
-        })?;
+        //
+        // A bound is the exception to both: a read that was killed at its deadline is not a
+        // statement that the cron table or the logins could not be inspected, so it comes
+        // back as the bound itself.
+        let cron =
+            inspect_account_cron(cron_host, account.name()).map_err(|error| match error {
+                CronError::Bound(bound) => AccountError::Bound(bound),
+                other => AccountError::CronInspection {
+                    reason: other.to_string(),
+                },
+            })?;
+        let logins =
+            account_logins(logins_host, self.distro, account.name()).map_err(
+                |error| match error {
+                    LoginsError::Bound(bound) => AccountError::Bound(bound),
+                    other => AccountError::SftpInspection {
+                        reason: other.to_string(),
+                    },
+                },
+            )?;
 
         Ok(AccountSuspensionState {
-            login_locked: self.login_locked(&username)?,
-            login_password: self.stored_password(&username)?,
+            login_locked: self.login_locked(username)?,
+            login_password: self.stored_password(username)?,
             sites_directory_readable: sites.directory_readable,
             sites: sites.sites,
             cron,
@@ -467,6 +658,13 @@ impl<H: SystemHost> AccountOperations<H> {
     ///   deleting the customer's files from inside the jail, and a mount left
     ///   behind afterwards points at a home that no longer exists — a state the
     ///   uninstaller refuses to clean up and a re-created account would inherit.
+    /// - The account's PROCESSES are killed and verified gone
+    ///   (`end_account_processes`) after the last step that could start one and
+    ///   before `userdel`. `userdel` is no safety net here: its refusal of a user
+    ///   with live processes needs `CAP_SYS_PTRACE`, which this agent lacks by
+    ///   design, so it would exit 0 and free a uid a survivor still runs as, which
+    ///   the next account created would inherit. A survivor after the bounded
+    ///   rounds stops the deletion with [`AccountError::ProcessesRemain`].
     ///
     /// That second ordering is not hypothetical for the pools: it is the state
     /// the agent shipped in, because nothing removed a pool at all.
@@ -493,7 +691,16 @@ impl<H: SystemHost> AccountOperations<H> {
     ///
     /// # Errors
     ///
-    /// - [`AccountError::NotFound`] when the account does not exist.
+    /// - [`AccountError::NotFound`] when the host has no such account.
+    /// - [`AccountError::NotManaged`] when the user exists but is not a hosting
+    ///   account (root, a daemon's user, a login that shares an account's uid).
+    ///   Refused as the first step inside the lock, so no database was dropped,
+    ///   no login or jail removed and no crontab touched.
+    /// - [`AccountError::IdentityChanged`] when the account was resolved again
+    ///   immediately before `userdel` and its user or group id differed from the
+    ///   first resolution.
+    /// - [`AccountError::HomeInspection`] when the password database cannot be
+    ///   read.
     /// - [`AccountError::DatabaseRemoval`] when a database or a database user
     ///   could not be dropped.
     /// - [`AccountError::SftpRemoval`] when an SFTP login, its bind mount, its
@@ -504,13 +711,24 @@ impl<H: SystemHost> AccountOperations<H> {
     ///   wrong one finds nothing wrong there.
     /// - [`AccountError::PoolRemoval`] when one of its pools could not be taken
     ///   away.
-    /// - [`AccountError::CommandFailed`] when `crontab` refused to remove the
+    /// - [`AccountError::ProcessesRemain`] when processes of the account's uid
+    ///   were still running after every kill round. Raised after the crontab and
+    ///   pool sweeps and before `userdel`, so the account is still present and the
+    ///   same deletion converges once the survivor has exited.
+    /// - [`AccountError::CommandFailed`] when `pkill` answered neither "matched"
+    ///   nor "nothing matched", or `crontab` refused to remove the
     ///   account's table for any reason other than there not being one.
     /// - [`AccountError::Busy`] when another operation for this account — a
     ///   backup, a restore, an SFTP login creation, a pool write or another
     ///   deletion — is already running on this host.
+    /// - [`AccountError::Bound`] when a program outlived its deadline and was
+    ///   killed with its process group. Raised by a step before `userdel`, it
+    ///   leaves the account in place like the cases above; raised by `userdel`
+    ///   itself it says nothing about whether the account is gone, and the caller
+    ///   reads the account again before it believes either answer.
     ///
-    /// In every one of those cases `userdel` has NOT been run.
+    /// In every one of those cases except a bound at `userdel` itself, `userdel`
+    /// has NOT been run.
     pub fn delete(
         &self,
         php_host: &dyn PhpHost,
@@ -520,8 +738,10 @@ impl<H: SystemHost> AccountOperations<H> {
         name: &AccountName,
     ) -> Result<u64, AccountError> {
         // Taken FIRST, before a single thing is read, and held for the whole
-        // sequence by living in this scope: the guard is owned, so every return
-        // below — including every `?` — releases it. Nothing the sequence calls
+        // sequence by living in this scope. The managed account is resolved INSIDE
+        // it (`delete_under_lock`), so the resolution and what it authorises are
+        // one critical section; the lock stays outer and never waits. The guard is
+        // owned, so every return below — including every `?` — releases it. Nothing the sequence calls
         // takes it again (`crate::accounts::account_lock` names the callers), so
         // there is no nesting to deadlock on.
         let _guard = take_account_lock(name).ok_or_else(|| AccountError::Busy {
@@ -532,6 +752,16 @@ impl<H: SystemHost> AccountOperations<H> {
     }
 
     /// The deletion sequence itself, with the account's lock ALREADY held.
+    ///
+    /// It resolves the [`ManagedAccount`] as its very first statement, so a
+    /// refused user costs no database drop, no login teardown and no
+    /// `crontab -u <name> -r`, and resolves it AGAIN after the last wait,
+    /// comparing user and group ids with the first resolution before `userdel`.
+    ///
+    /// Between the second crontab sweep and that second resolution it ends every
+    /// process of the account's uid (`end_account_processes`): a bounded kill and
+    /// verify loop that refuses with [`AccountError::ProcessesRemain`], before
+    /// `userdel`, when something survives.
     ///
     /// Split from [`AccountOperations::delete`] for the reason
     /// `restore_backup`'s body is split from its entry point: the lock is a
@@ -553,14 +783,11 @@ impl<H: SystemHost> AccountOperations<H> {
         ftps_host: &dyn FtpsHost,
         name: &AccountName,
     ) -> Result<u64, AccountError> {
-        let username = self.require_existing(name)?;
-        let bytes_freed = self
-            .host
-            .directory_size(&Self::home_directory(name))
-            .unwrap_or(0);
+        let account = self.resolve_managed(name)?;
+        let bytes_freed = self.host.directory_size(account.home()).unwrap_or(0);
 
-        drop_account_databases(db_host, name)?;
-        remove_account_sftp(sftp_host, self.distro, name)?;
+        drop_account_databases(db_host, account.name())?;
+        remove_account_sftp(sftp_host, self.distro, account.name())?;
 
         // Directly after the SFTP teardown, and before `userdel`, because it is
         // the same class of resource with the same failure and the same fix:
@@ -583,7 +810,7 @@ impl<H: SystemHost> AccountOperations<H> {
         // still mounted. Like every other step it is NOT best-effort: the first
         // refusal aborts the deletion with the account still present, which is
         // the recoverable half.
-        remove_account_ftps(ftps_host, self.distro, name)?;
+        remove_account_ftps(ftps_host, self.distro, account.name())?;
 
         {
             // The SEVENTH writer of this account's crontab, and the only one
@@ -604,8 +831,8 @@ impl<H: SystemHost> AccountOperations<H> {
             // make every cron operation for this account wait on a `userdel`
             // that has nothing to do with the crontab, and the removal is the
             // only part of the sequence that touches one.
-            let _crontab = cron_lock(name);
-            self.remove_crontab(&username)?;
+            let _crontab = cron_lock(account.name());
+            self.remove_crontab(&account)?;
         }
 
         // LAST of the pre-`userdel` steps, and its position is still the point,
@@ -621,19 +848,53 @@ impl<H: SystemHost> AccountOperations<H> {
         // `userdel` every remaining pool of this account names a user that no
         // longer resolves, and the removal protocol validates AFTER unlinking,
         // so it would put the file back.
-        remove_account_pools(php_host, self.distro, name)?;
-        self.remove_crontab(&username)?;
+        remove_account_pools(php_host, self.distro, account.name())?;
 
-        // Asked again, immediately before the irreversible step. The lock above
-        // excludes every operation of this agent that could have removed the
-        // account since the first check, so what this catches is the one thing
-        // the lock cannot see: a `userdel` an operator ran by hand, or a second
-        // agent binary. A validated `AccountName` proves the name is well
-        // formed; it has never proved the account is still there, and the
-        // sequence between the two checks is several process spawns long.
-        let _ = self.require_existing(name)?;
+        // A second sweep of the spool, now under the crontab lock as well, because
+        // the first one is several process spawns old: the pool sweep above is a
+        // `php-fpm -t` and a reload per pool, and a crontab installed meanwhile
+        // would otherwise survive `userdel` and be handed whole to the next tenant
+        // of this name. Scoped to the statement, for the reason the first is.
+        {
+            let _crontab = cron_lock(account.name());
+            self.remove_crontab(&account)?;
+        }
 
-        self.expect_success(self.distro.userdel_binary(), &["--remove", &username])?;
+        // The account's processes end HERE: after the last step that can start
+        // one (the pool sweep reloads php-fpm, which runs workers as this uid),
+        // and before the identity re-check so the freshest fact precedes the
+        // irreversible step. `userdel` is not a guard: its busy-user refusal needs
+        // `CAP_SYS_PTRACE`, which this agent's bounding set lacks by design, so
+        // it would free the uid with a process still running as it and the next
+        // `useradd` would hand that process to a new tenant. The lock held here
+        // is outer and never waits, so the rounds' pauses add no wait-for edge.
+        end_account_processes(&self.host, self.distro, &account)?;
+
+        // Resolved again, immediately before the irreversible step, and the ids are
+        // compared with the first resolution. The lock above excludes every
+        // operation of this agent that could have removed the account since the
+        // first check, so what this catches is the one thing the lock cannot see: a
+        // `userdel` an operator ran by hand, or a second agent binary, possibly
+        // followed by a different user being given the same name. A validated
+        // `AccountName` proves the name is well formed; it has never proved the
+        // account is still there or still the same user, and the sequence between
+        // the two resolutions is many process spawns long.
+        let confirmed = self.resolve_managed(name)?;
+        if confirmed.uid() != account.uid() || confirmed.gid() != account.gid() {
+            tracing::warn!(
+                username = name.as_str(),
+                "refused to delete an account whose user was replaced while the deletion ran"
+            );
+            return Err(AccountError::IdentityChanged {
+                username: name.as_str().to_owned(),
+            });
+        }
+
+        self.expect_success(
+            &self.distro.userdel_binary(),
+            &["--remove", END_OF_OPTIONS, confirmed.name().as_str()],
+            CallClass::Bulk,
+        )?;
 
         Ok(bytes_freed)
     }
@@ -644,23 +905,38 @@ impl<H: SystemHost> AccountOperations<H> {
     ///
     /// # Errors
     ///
-    /// Returns [`AccountError::NotFound`] when the account does not exist, and
-    /// [`AccountError::CommandFailed`] when `setquota` refuses.
+    /// - [`AccountError::NotFound`] when the host has no such account.
+    /// - [`AccountError::NotManaged`] when the user exists but is not a hosting
+    ///   account; no quota was set on it.
+    /// - [`AccountError::HomeInspection`] when the password database or
+    ///   `/proc/mounts` cannot be read.
+    /// - [`AccountError::CommandFailed`] when `setquota` refuses.
+    /// - [`AccountError::Bound`] when `quotaon` or `setquota` outlived its deadline or its output ceiling and
+    ///   was killed with its whole process group. Not a verdict: the step may have taken
+    ///   effect on the host, so the caller reads the account again before it believes
+    ///   either outcome.
     pub fn set_quota(&self, name: &AccountName, quota_bytes: u64) -> Result<(), AccountError> {
-        let username = self.require_existing(name)?;
-        self.apply_quota(&username, quota_bytes)
+        let account = self.resolve_managed(name)?;
+        self.apply_quota(account.name().as_str(), quota_bytes)
     }
 
     /// Reads how much the account currently uses, and against what quota.
     ///
     /// # Errors
     ///
-    /// Returns [`AccountError::NotFound`] when the account does not exist, and
-    /// [`AccountError::UnreadableOutput`] when `quota` prints something this agent
-    /// cannot parse.
+    /// - [`AccountError::NotFound`] when the host has no such account.
+    /// - [`AccountError::NotManaged`] when the user exists but is not a hosting
+    ///   account; nothing was measured.
+    /// - [`AccountError::HomeInspection`] when the password database cannot be
+    ///   read.
+    /// - [`AccountError::UnreadableOutput`] when `quota` prints something this
+    ///   agent cannot parse.
+    /// - [`AccountError::Bound`] when `quota` or `quotaon` outlived its deadline or its output
+    ///   ceiling and was killed with its whole process group. Nothing was changed.
     pub fn usage(&self, name: &AccountName) -> Result<AccountUsage, AccountError> {
-        let username = self.require_existing(name)?;
-        let used_bytes = self.host.directory_size(&Self::home_directory(name))?;
+        let account = self.resolve_managed(name)?;
+        let username = account.name().as_str();
+        let used_bytes = self.host.directory_size(account.home())?;
 
         // Enforceability is decided FIRST, and only when it says yes is
         // `quota -u -w`'s hard-limit line trusted for a byte figure — the
@@ -669,9 +945,11 @@ impl<H: SystemHost> AccountOperations<H> {
         // quota line (left over from before a remount, say) still prints.
         let quota = match self.quota_enforceability()? {
             Ok(()) => {
-                let outcome = self
-                    .host
-                    .run(self.distro.quota_binary(), &["-u", "-w", &username])?;
+                let outcome = self.host.run(
+                    &self.distro.quota_binary(),
+                    &["-u", "-w", END_OF_OPTIONS, username],
+                    CallClass::Query,
+                )?;
                 match QuotaBlocks::parse_hard_limit(&outcome.stdout) {
                     Some(blocks) => QuotaState::Enforced(blocks),
                     None => QuotaState::EnforceableButUnset,
@@ -696,12 +974,22 @@ impl<H: SystemHost> AccountOperations<H> {
     /// Returns [`AccountError::CommandUnavailable`] when `quotaon` cannot be
     /// started, and [`AccountError::HomeInspection`] when `/proc/mounts`
     /// cannot be read. Neither is the same as "not enforceable" — both mean
-    /// this agent could not even ASK the question.
+    /// this agent could not even ASK the question. Returns [`AccountError::Bound`] when
+    /// `quotaon` outlived its deadline and was killed, which is likewise not an answer.
     fn quota_enforceability(&self) -> Result<Result<(), QuotaUnenforceableReason>, AccountError> {
         let mounts = self.host.read_mounts()?;
+        // The MOUNT POINT holding the home root, not the home root itself. `quotaon -p /home`
+        // answers "not found or has no quota enabled" whenever /home is a directory of the root
+        // filesystem — the stock Ubuntu layout — so this check reported quotas unenforceable on
+        // every such server, by a route that could never have reported anything else (issue #73).
+        let Some(device) = quota_device_for(&mounts, AgentPaths::ACCOUNT_HOME_ROOT) else {
+            return Ok(Err(QuotaUnenforceableReason::MountedWithoutQuotaAccounting));
+        };
+        // A query: `quotaon -p` only prints whether accounting is on, it switches nothing.
         let quotaon = self.host.run(
-            self.distro.quotaon_binary(),
-            &["-p", AgentPaths::ACCOUNT_HOME_ROOT],
+            &self.distro.quotaon_binary(),
+            &["-p", END_OF_OPTIONS, device],
+            CallClass::Query,
         )?;
 
         Ok(classify_quota_enforceability(
@@ -711,42 +999,95 @@ impl<H: SystemHost> AccountOperations<H> {
         ))
     }
 
-    /// Applies a quota to a user already known to exist.
+    /// Applies a quota to a user already known to exist and to be a hosting account.
+    ///
+    /// Takes a bare name and is private on purpose: its two callers are
+    /// [`AccountOperations::create`], for a user it created one statement earlier
+    /// after refusing reserved names, and `set_quota`, which holds the resolved
+    /// proof.
     ///
     /// # Errors
     ///
-    /// Returns [`AccountError::CommandFailed`] when `setquota` refuses.
+    /// Returns [`AccountError::CommandFailed`] when `setquota` refuses and
+    /// [`AccountError::Bound`] when it outlived its deadline and was killed.
     fn apply_quota(&self, username: &str, quota_bytes: u64) -> Result<(), AccountError> {
         let blocks = QuotaBlocks::from_bytes(quota_bytes).as_argument();
 
         // Soft and hard limits are set to the same value, and inode limits to zero
         // (unlimited). A soft limit below the hard one only buys a grace period the
         // panel has no way to explain to the customer.
+        // The MOUNT POINT, for the reason quota_enforceability gives: setquota takes a mount point
+        // or a device and refuses a plain directory, so passing the home root failed on every
+        // server whose /home is not its own filesystem — which is every default Ubuntu install.
+        let mounts = self.host.read_mounts()?;
+        let device = quota_device_for(&mounts, AgentPaths::ACCOUNT_HOME_ROOT).ok_or_else(|| {
+            AccountError::HomeInspection {
+                reason: format!(
+                    "no block device in /proc/mounts holds {}",
+                    AgentPaths::ACCOUNT_HOME_ROOT
+                ),
+            }
+        })?;
+
         self.expect_success(
-            self.distro.setquota_binary(),
+            &self.distro.setquota_binary(),
             &[
                 "-u",
+                END_OF_OPTIONS,
                 username,
                 &blocks,
                 &blocks,
                 "0",
                 "0",
-                AgentPaths::ACCOUNT_HOME_ROOT,
+                device,
             ],
+            CallClass::Mutation,
         )
     }
 
-    /// Confirms the account exists and returns its name.
+    /// Resolves `name` to the hosting account of that name on this host, or refuses.
+    ///
+    /// The ONLY way a lifecycle operation turns a name into something it may act
+    /// on as root. It reads the local password database through the host seam
+    /// (the file [`ManagedAccount`] decides from; the type itself reads none) and
+    /// asks the type, which refuses a reserved name, an absent or ambiguous row, a
+    /// home that is not `<home root>/<name>` and a system identity.
+    ///
+    /// The result is a fact about one moment: it is never kept, and an operation
+    /// that waits on anything resolves again afterwards (see
+    /// [`AccountOperations::delete`]).
     ///
     /// # Errors
     ///
-    /// Returns [`AccountError::NotFound`] when it does not.
-    fn require_existing(&self, name: &AccountName) -> Result<String, AccountError> {
-        let username = name.as_str().to_owned();
-        if self.host.user_exists(&username)? {
-            Ok(username)
-        } else {
-            Err(AccountError::NotFound { username })
+    /// - [`AccountError::NotFound`] when the local database has no single row of
+    ///   that name.
+    /// - [`AccountError::NotManaged`] for every other refusal; the log line names
+    ///   which, the returned error does not.
+    /// - [`AccountError::HomeInspection`] when the database cannot be read, in
+    ///   which case nothing is acted on.
+    fn resolve_managed(&self, name: &AccountName) -> Result<ManagedAccount, AccountError> {
+        let passwd = self
+            .host
+            .read_password_database(self.distro.passwd_database())?;
+
+        match ManagedAccount::resolve(name.clone(), &passwd) {
+            Ok(account) => Ok(account),
+            Err(ManagedAccountError::NotFound) => Err(AccountError::NotFound {
+                username: name.as_str().to_owned(),
+            }),
+            // `ManagedAccountError` is non-exhaustive, so any refusal added later
+            // lands here and fails closed.
+            Err(refusal) => {
+                tracing::warn!(
+                    username = name.as_str(),
+                    ?refusal,
+                    "refused to act on a user that is not a hosting account"
+                );
+                Err(AccountError::NotManaged {
+                    username: name.as_str().to_owned(),
+                    refusal,
+                })
+            }
         }
     }
 
@@ -755,15 +1096,21 @@ impl<H: SystemHost> AccountOperations<H> {
     /// # Errors
     ///
     /// Returns [`AccountError::UnreadableOutput`] when `id` prints something other
-    /// than a number.
+    /// than a number, and [`AccountError::Bound`] when `id` outlived its deadline and was
+    /// killed.
     fn read_uid(&self, username: &str) -> Result<u32, AccountError> {
-        let outcome = self.host.run(self.distro.id_binary(), &["-u", username])?;
+        let program = self.distro.id_binary();
+        let outcome = self.host.run(
+            &program,
+            &["-u", END_OF_OPTIONS, username],
+            CallClass::Query,
+        )?;
         outcome
             .stdout
             .trim()
             .parse::<u32>()
             .map_err(|_| AccountError::UnreadableOutput {
-                program: self.distro.id_binary().to_owned(),
+                program: program.to_string(),
             })
     }
 
@@ -812,16 +1159,20 @@ impl<H: SystemHost> AccountOperations<H> {
     ///
     /// Returns [`AccountError::CommandFailed`] when `getent` exits non-zero.
     /// That includes its "key not found" status (2, documented in `getent(1)`
-    /// and measured as 2 on both families): an account `require_existing` has
+    /// and measured as 2 on both families): an account `resolve_managed` has
     /// just resolved and which nevertheless has no shadow entry is a host in a
     /// state this agent will not guess about. And
     /// [`AccountError::UnreadableOutput`] when the first line is not
     /// `<name>:<password>:…` for this account.
     fn stored_password(&self, username: &str) -> Result<StoredPassword, AccountError> {
         let program = self.distro.getent_binary();
-        let outcome = self.host.run(program, &[SHADOW_DATABASE, username])?;
+        let outcome = self.host.run(
+            &program,
+            &[END_OF_OPTIONS, SHADOW_DATABASE, username],
+            CallClass::Query,
+        )?;
         if outcome.status != 0 {
-            return Err(AccountError::command_failed(program, &outcome));
+            return Err(AccountError::command_failed(program.as_str(), &outcome));
         }
 
         let mut fields = outcome
@@ -834,18 +1185,35 @@ impl<H: SystemHost> AccountOperations<H> {
         match (fields.next(), fields.nth(SHADOW_PASSWORD_FIELD - 1)) {
             (Some(name), Some(field)) if name == username => Ok(StoredPassword::classify(field)),
             _ => Err(AccountError::UnreadableOutput {
-                program: program.to_owned(),
+                program: program.to_string(),
             }),
         }
     }
 
+    /// Reports whether the account's password is locked, from `passwd -S`.
+    ///
+    /// Reads the first line of the status output: the first field must be the
+    /// account name and the second is the state, which starts with `L` when the
+    /// login is locked.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`AccountError::Bound`] when `passwd` outlived its deadline or its
+    /// output ceiling, the host's error when it cannot be started, a command
+    /// failure when it exits non-zero, and [`AccountError::UnreadableOutput`] when
+    /// the first line does not name the account and a state.
     fn login_locked(&self, username: &str) -> Result<bool, AccountError> {
         let program = self.distro.passwd_binary();
-        let outcome = self
-            .host
-            .run(program, &[PASSWORD_STATUS_ARGUMENT, username])?;
+        // No `--` here, unlike every other call in this file: `passwd` is shadow-utils' on
+        // Debian and a `popt` program on RHEL, and only the first is known to end option
+        // parsing at `--` (checked on both polygon images before it is added).
+        let outcome = self.host.run(
+            &program,
+            &[PASSWORD_STATUS_ARGUMENT, username],
+            CallClass::Query,
+        )?;
         if outcome.status != 0 {
-            return Err(AccountError::command_failed(program, &outcome));
+            return Err(AccountError::command_failed(program.as_str(), &outcome));
         }
 
         let mut fields = outcome
@@ -860,7 +1228,7 @@ impl<H: SystemHost> AccountOperations<H> {
                 Ok(state.starts_with(LOCKED_PASSWORD_PREFIX))
             }
             _ => Err(AccountError::UnreadableOutput {
-                program: program.to_owned(),
+                program: program.to_string(),
             }),
         }
     }
@@ -868,9 +1236,14 @@ impl<H: SystemHost> AccountOperations<H> {
     /// Removes the account's crontab from the host's cron spool.
     ///
     /// `crontab -u <account> -r`, which is the only correct way to write that
-    /// spool: where it lives, what owns it and how the daemon learns it changed
-    /// are `crontab(1)`'s business on each family, and unlinking the file
-    /// directly gets one of those wrong somewhere.
+    /// spool. It takes the resolved [`ManagedAccount`] and not a name, because
+    /// with a bare name this call was `crontab -u root -r` for a request that
+    /// named root, which removes root's whole table, foreign lines included.
+    ///
+    /// Going through `crontab` is the only correct way to write that spool:
+    /// where it lives, what owns it and how the daemon learns it changed are
+    /// `crontab(1)`'s business on each family, and unlinking the file directly
+    /// gets one of those wrong somewhere.
     ///
     /// An account that has no table is NOT a failure. Both cron lineages answer
     /// `no crontab for <account>` and exit non-zero for that, and every account
@@ -884,7 +1257,7 @@ impl<H: SystemHost> AccountOperations<H> {
     /// # Why a name, and why here rather than after `userdel`
     ///
     /// The spool is addressed by the account's NAME and never by its uid, and
-    /// this runs while the account still exists — `require_existing` has already
+    /// this runs while the account still exists — `resolve_managed` has already
     /// resolved it, and `userdel` has not run. Both halves matter, because the
     /// same recycling that creates the defect could just as easily make the
     /// cleanup remove somebody else's table:
@@ -905,15 +1278,22 @@ impl<H: SystemHost> AccountOperations<H> {
     ///
     /// Returns [`AccountError::CommandFailed`] when `crontab` refused for any
     /// other reason, so a table that could not be removed stops the deletion
-    /// while the account is still there to try again.
-    fn remove_crontab(&self, username: &str) -> Result<(), AccountError> {
+    /// while the account is still there to try again, and [`AccountError::Bound`] when
+    /// `crontab` outlived its deadline and was killed.
+    fn remove_crontab(&self, account: &ManagedAccount) -> Result<(), AccountError> {
         let program = self.distro.crontab_binary();
-        let outcome = self.host.run(program, &["-u", username, "-r"])?;
+        // No `--`: `-r` is the last argument and no operand follows it, so there is nothing for
+        // a guard to protect.
+        let outcome = self.host.run(
+            &program,
+            &["-u", account.name().as_str(), "-r"],
+            CallClass::Mutation,
+        )?;
         if outcome.status == 0 || outcome.stderr.contains(NO_CRONTAB_MARKER) {
             return Ok(());
         }
 
-        Err(AccountError::command_failed(program, &outcome))
+        Err(AccountError::command_failed(program.as_str(), &outcome))
     }
 
     /// Runs a program and turns a non-zero exit into an error.
@@ -923,14 +1303,20 @@ impl<H: SystemHost> AccountOperations<H> {
     /// Returns [`AccountError::CommandFailed`], which names the program and its
     /// exit status. The tool's own sentence does not travel in the error — it is
     /// written to the agent's log by `AccountError::command_failed`, for the
-    /// reason that variant sets out.
-    fn expect_success(&self, program: &str, arguments: &[&str]) -> Result<(), AccountError> {
-        let outcome = self.host.run(program, arguments)?;
+    /// reason that variant sets out, or [`AccountError::Bound`] when the program outlived
+    /// the deadline of `class` and was killed with its whole process group.
+    fn expect_success(
+        &self,
+        program: &AdapterBinary,
+        arguments: &[&str],
+        class: CallClass,
+    ) -> Result<(), AccountError> {
+        let outcome = self.host.run(program, arguments, class)?;
         if outcome.status == 0 {
             return Ok(());
         }
 
-        Err(AccountError::command_failed(program, &outcome))
+        Err(AccountError::command_failed(program.as_str(), &outcome))
     }
 
     /// Reports, or repairs, every hosting account whose home an earlier build
@@ -951,6 +1337,13 @@ impl<H: SystemHost> AccountOperations<H> {
     /// group its home was born with. This is the repair for those accounts.
     ///
     /// # The predicate: what makes a home need repair
+    ///
+    /// A user is a candidate at all only when it is a hosting account by
+    /// [`ManagedAccount`]'s decision: a reserved name, a user with a system
+    /// identity (and the right home) and a name with no single passwd row are not
+    /// examined, and their homes are never re-grouped, whatever the web server's
+    /// group is. A user refused for its home, whatever its ids, stays a candidate, so that it is reported by
+    /// condition 1 below instead of vanishing from the report.
     ///
     /// A hosting account's home is repaired only when ALL of these hold, and
     /// it is refused — never guessed at — when any of them does not:
@@ -1006,6 +1399,10 @@ impl<H: SystemHost> AccountOperations<H> {
     ///   and the whole pass refuses up front — or when `chgrp` itself refuses.
     /// - [`AccountError::UnreadableOutput`] when `getent`'s row for the web
     ///   server's group is not the shape this agent knows how to read.
+    /// - [`AccountError::Bound`] when `getent` or `chgrp` outlived its deadline or its output ceiling and
+    ///   was killed with its whole process group. Not a verdict: the step may have taken
+    ///   effect on the host, so the caller reads the account again before it believes
+    ///   either outcome.
     pub fn repair_home_groups(
         &self,
         report_only: bool,
@@ -1021,18 +1418,30 @@ impl<H: SystemHost> AccountOperations<H> {
             })?;
         let web_server_gid = self.web_server_group_gid()?;
 
-        let mut accounts: Vec<(AccountName, String, u32)> = system_accounts(&passwd)
-            .into_iter()
-            .filter_map(|row| {
-                let account = AccountName::parse(&row.name).ok()?;
-                Some((account, row.home, row.uid))
-            })
-            .collect();
+        // Only users the type admits are candidates, plus the ones it refuses for their
+        // home (whatever their ids, since the type checks the home first), which the predicate below reports as `HomeNotAtExpectedPath`
+        // exactly as before. A reserved name (the operator's own login among them), a
+        // system identity and a name that has no single row are not hosting accounts, so
+        // they are not examined and no group of theirs is ever changed. The type is asked
+        // per row against the rows parsed once here: the text is no longer re-parsed per
+        // row and the id floors are read once for the whole pass.
+        let rows = system_accounts(&passwd);
+        let mut accounts: Vec<(AccountName, String, u32)> = Vec::new();
+        for (account, answer) in ManagedAccount::resolve_each(&rows) {
+            match answer {
+                Ok(_) | Err(ManagedAccountError::WrongHome) => {
+                    if let Some(row) = rows.iter().find(|row| row.name == account.as_str()) {
+                        accounts.push((account, row.home.clone(), row.uid));
+                    }
+                }
+                Err(_) => {}
+            }
+        }
         // Sorted and deduplicated for the reason `get_accounts_disk_usage`
         // sorts and deduplicates its own passwd rows: two calls against an
-        // unchanged host answer in the same order, and a hand-edited passwd
-        // file carrying the same name twice is examined once rather than
-        // reported — or repaired — twice over.
+        // unchanged host answer in the same order. A name carried twice by a
+        // hand-edited file never reaches here, because the type refuses an
+        // ambiguous row, so the deduplication is a second, harmless guard.
         accounts.sort_by(|left, right| left.0.as_str().cmp(right.0.as_str()));
         accounts.dedup_by(|left, right| left.0 == right.0);
 
@@ -1118,12 +1527,14 @@ impl<H: SystemHost> AccountOperations<H> {
             }
 
             self.expect_success(
-                self.distro.chgrp_binary(),
+                &self.distro.chgrp_binary(),
                 &[
                     "--no-dereference",
+                    END_OF_OPTIONS,
                     self.distro.web_server_group(),
                     &repaired.home,
                 ],
+                CallClass::Mutation,
             )?;
             report.repaired.push(repaired);
         }
@@ -1144,17 +1555,22 @@ impl<H: SystemHost> AccountOperations<H> {
     /// [`AccountError::CommandFailed`] when `getent` exits non-zero — most
     /// plausibly because the group does not exist, i.e. no web server is
     /// installed — and [`AccountError::UnreadableOutput`] when its row is not
-    /// `<name>:<password>:<gid>:…` or the gid field is not a number.
+    /// `<name>:<password>:<gid>:…` or the gid field is not a number. Returns
+    /// [`AccountError::Bound`] when `getent` outlived its deadline and was killed.
     fn web_server_group_gid(&self) -> Result<u32, AccountError> {
         let program = self.distro.getent_binary();
         let group = self.distro.web_server_group();
-        let outcome = self.host.run(program, &[GROUP_DATABASE, group])?;
+        let outcome = self.host.run(
+            &program,
+            &[END_OF_OPTIONS, GROUP_DATABASE, group],
+            CallClass::Query,
+        )?;
         if outcome.status != 0 {
-            return Err(AccountError::command_failed(program, &outcome));
+            return Err(AccountError::command_failed(program.as_str(), &outcome));
         }
 
         let unreadable = || AccountError::UnreadableOutput {
-            program: program.to_owned(),
+            program: program.to_string(),
         };
 
         // The NAME is matched too, and not merely the gid field — the same
@@ -1236,7 +1652,8 @@ impl<H: SystemHost> AccountOperations<H> {
     /// server is installed. That is a failure and not something to shrug at: an account
     /// whose home the web server cannot enter is an account whose sites cannot be
     /// served, and reporting the creation as a success would hide it until a customer
-    /// noticed.
+    /// noticed. Returns [`AccountError::Bound`] when either program outlived its deadline
+    /// and was killed.
     fn open_home_to_the_web_server(&self, home: &str) -> Result<(), AccountError> {
         // `--no-dereference`, so a symlink standing where the home should be is
         // re-grouped as the link rather than followed to whatever it points at. Nothing
@@ -1244,8 +1661,14 @@ impl<H: SystemHost> AccountOperations<H> {
         // the account has no shell — but the flag costs nothing, and the alternative is a
         // root process following a link it did not verify.
         self.expect_success(
-            self.distro.chgrp_binary(),
-            &["--no-dereference", self.distro.web_server_group(), home],
+            &self.distro.chgrp_binary(),
+            &[
+                "--no-dereference",
+                END_OF_OPTIONS,
+                self.distro.web_server_group(),
+                home,
+            ],
+            CallClass::Mutation,
         )?;
 
         // Restated rather than assumed. `useradd` honours `HOME_MODE`/`UMASK` from
@@ -1254,7 +1677,11 @@ impl<H: SystemHost> AccountOperations<H> {
         // point of the group above, and this is the line that says what the panel
         // requires. Ownership of the home itself is `useradd`'s and is untouched — the
         // account owns its own home; only the group changed.
-        self.expect_success(self.distro.chmod_binary(), &["0750", home])
+        self.expect_success(
+            &self.distro.chmod_binary(),
+            &[END_OF_OPTIONS, "0750", home],
+            CallClass::Mutation,
+        )
     }
 }
 

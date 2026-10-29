@@ -4,6 +4,7 @@ use maran_distro::DistroAdapter;
 
 use crate::php::PhpHost;
 use crate::php::model::php_override::PhpOverride;
+use crate::sites::create_vhost::create_vhost;
 use crate::sites::model::create_site_input::CreateSiteInput;
 use crate::sites::model::created_site::CreatedSite;
 use crate::sites::model::site_kind::SiteKind;
@@ -11,7 +12,6 @@ use crate::sites::model::site_paths::SitePaths;
 use crate::sites::render_vhost::render_vhost;
 use crate::sites::resolved_site_paths::resolved_site_paths;
 use crate::sites::write_site_pool::write_site_pool;
-use crate::sites::write_vhost::write_vhost;
 use crate::sites::{SiteHost, SitesOpError};
 
 /// Creates a site: its document root inside the account's home, its php-fpm
@@ -44,6 +44,8 @@ use crate::sites::{SiteHost, SitesOpError};
 ///
 /// # Errors
 ///
+/// Returns [`SitesOpError::RepeatedHostName`] when an alias equals the domain
+/// or another alias, before anything is read or written.
 /// Returns [`SitesOpError::AlreadyExists`] when a vhost for the domain is
 /// already present, and [`SitesOpError::ConfigUnreadable`] when one is present
 /// but unreadable — which is deliberately not treated as "no site here",
@@ -57,9 +59,19 @@ use crate::sites::{SiteHost, SitesOpError};
 /// version this host does not have — refused before any vhost is written, so
 /// nothing is left half-created — [`SitesOpError::NginxValidation`] when
 /// `nginx -t` rejects the result
-/// — with no vhost left behind — [`SitesOpError::ReloadFailed`] when the
+/// — with no vhost left behind — [`SitesOpError::ServerNameTaken`] when the
+/// domain or an alias is already served by another vhost on this host, or the
+/// site's own vhost appeared while this creation was running — again with no
+/// vhost left behind — [`SitesOpError::ReloadFailed`] when the
 /// reload refuses it, and [`SitesOpError::ConfigWrite`] for any other failure
-/// of the write protocol.
+/// of the write protocol. Returns [`SitesOpError::Bound`] when `nginx -t` or the reload
+/// outlived its deadline and was killed, again with no vhost left behind; a bound is no
+/// verdict on the vhost, so it is never one of the refusals above.
+///
+/// A refusal at the vhost leaves what came before it: the document root, the
+/// log directory and, for a PHP site, the account's pool for that version. None
+/// of them serves a request on its own, the pool is shared by the account's
+/// other sites on that version, and a repeated creation converges on all three.
 pub fn create_site(
     host: &dyn SiteHost,
     php_host: &dyn PhpHost,
@@ -68,6 +80,25 @@ pub fn create_site(
     max_children: u32,
     overrides: &[PhpOverride],
 ) -> Result<CreatedSite, SitesOpError> {
+    // Every host name the vhost will serve, the domain first. Asked about
+    // twice: here, for a name the request itself repeats, and at the vhost,
+    // for a name some other file on this host already serves.
+    let served_names: Vec<&str> = std::iter::once(&input.domain)
+        .chain(&input.aliases)
+        .map(|name| name.as_str())
+        .collect();
+
+    // Before anything is read or written (rules/rust.md "Validation first"):
+    // nginx words a name repeated inside one server block exactly as it words
+    // a name two vhosts share, so a repetition left to the vhost check would be
+    // refused there as another site's claim, with the document root already
+    // created.
+    if let Some(name) = first_repeated_name(&served_names) {
+        return Err(SitesOpError::RepeatedHostName {
+            name: name.to_owned(),
+        });
+    }
+
     // Named, not yet resolved: the document root does not exist until the
     // block below creates it, and a path can only be proved contained once it
     // is there.
@@ -112,13 +143,37 @@ pub fn create_site(
         write_site_pool(php_host, distro, input, version, max_children, overrides)?;
     }
 
+    // A creation, not a replacement: the vhost is introduced through the half
+    // of the config-write protocol that refuses a target already there and
+    // refuses `nginx -t`'s warning that one of the site's names is served by
+    // another vhost — the warning nginx prints and then exits 0 on. The check
+    // above is the idempotent answer for an ordinary retry; this one is the
+    // answer under the config-tree lock, against the tree that holds every
+    // other vhost, and it is what a concurrent creation naming one of the same
+    // hosts meets (`create_vhost` says why the check is nginx's warning and not
+    // a scan of the directory).
     let contents = render_vhost(input, &paths)?;
-    write_vhost(host, distro, &paths.config_path, &contents)?;
+    create_vhost(host, distro, &paths.config_path, &contents, &served_names)?;
 
     Ok(CreatedSite {
         document_root: paths.document_root.display().to_string(),
         config_path: paths.config_path.display().to_string(),
     })
+}
+
+/// The first of `names` that appears earlier in `names` too, or `None` when
+/// every name is distinct.
+///
+/// Exact comparison is the whole comparison: every name is a `Domain`, which
+/// is lowercased at parse, so two spellings of one host cannot both survive to
+/// here. Quadratic on purpose — a site's names are a handful, and a set would
+/// say nothing a reader needs.
+fn first_repeated_name<'a>(names: &[&'a str]) -> Option<&'a str> {
+    names
+        .iter()
+        .enumerate()
+        .find(|&(index, name)| names[..index].contains(name))
+        .map(|(_, name)| *name)
 }
 
 #[cfg(test)]

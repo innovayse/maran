@@ -1,8 +1,9 @@
 {
   "firewall": {
+    "eyebrow": "Security",
     "heading": "Firewall",
     "subtitle": "What this host lets through, who it is currently refusing, and who it will never refuse.",
-    "sshNote": "The accepts the panel renders for SSH and for its own port are not listed here and cannot be removed from this screen. Which port SSH listens on is a host fact the panel holds and does not send to the browser, so read the port yourself before changing a rule.",
+    "sshNote": "The accept rules the panel generates for SSH and for its own port are not listed here and cannot be removed from this screen. Which port SSH listens on is a host fact the panel holds and does not send to the browser, so read the port yourself before changing a rule.",
     "loading": "Loading the firewall…",
     "protocols": {
       "tcp": "TCP",

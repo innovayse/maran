@@ -63,6 +63,9 @@
   <data name="BackupFailureAgentLimitReached">
     <value>A plan allowance for this account was already used up</value>
   </data>
+  <data name="BackupFailureAgentUnavailable">
+    <value>The server was not answering</value>
+  </data>
   <data name="BackupDestinationDefault">
     <value>Local storage</value>
   </data>

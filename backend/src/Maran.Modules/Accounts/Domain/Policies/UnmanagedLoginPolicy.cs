@@ -45,10 +45,21 @@ namespace Maran.Modules.Accounts.Domain.Policies;
 /// login at all leaves the inference nothing to infer from, so an ordinary suspension reported a
 /// number as unknown for ever. Every other signal in reach was examined and none is sound.
 /// <c>login_password_state</c> is an OLDER field than <c>unmanaged_logins</c>, so an agent stating it
-/// may still predate the count. <c>GetAgentInfo.proto_version</c> is the only version on the wire and
-/// the agent has it hard-coded at <c>1</c> for every contract revision, so it distinguishes nothing —
-/// and reading it would cost this module an agent capability for a constant. There is no capability
-/// handshake. Nothing else arrived in the change that added the count except a login's protocol.
+/// may still predate the count. Nothing else arrived in the change that added the count except a
+/// login's protocol.
+/// </para>
+/// <para>
+/// <b>Why the contract revision does not discharge the inference.</b>
+/// <c>GetAgentInfo.proto_version</c> is the only version on the wire. Until issue #88 the agent had it
+/// hard-coded at <c>1</c> for every contract revision, so it distinguished nothing. It now moves with
+/// the contract (rules/proto.md "The contract revision"), and the panel refuses an agent outside its
+/// window — every revision the panel drives postdates <c>unmanaged_logins</c>. That still does not
+/// let this policy treat a zero as measured, for two reasons. The refusal is made at the handshake —
+/// at startup and on every health request — and not before the suspension that produces this answer,
+/// so an agent replaced while the panel runs answers this call unchecked; this answer carries no
+/// revision of its own to check it against. And reading the revision here would cost this module the
+/// <c>System</c> agent capability for one number that, by the time it was read, describes a different
+/// call.
 /// </para>
 /// <para>
 /// So the inference stays and the SENTENCE changes. The unmeasured reading splits in two, which adds

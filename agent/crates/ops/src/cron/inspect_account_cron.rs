@@ -22,13 +22,17 @@ use crate::cron::model::crontab_document::CrontabDocument;
 ///
 /// # Errors
 ///
-/// Returns [`CronError::CrontabRefused`] when the account's crontab exists and
-/// cannot be read.
+/// Returns [`CronError::Account`] when `account` is not a hosting account this
+/// panel may act on, checked first and before the crontab is touched, and
+/// [`CronError::CrontabRefused`] when the account's crontab exists and
+/// cannot be read, and [`CronError::Bound`] when `crontab` outlived its deadline and was
+/// killed with its process group.
 pub fn inspect_account_cron(
     host: &dyn CronHost,
     account: &AccountName,
 ) -> Result<AccountCronSuspension, CronError> {
-    let text = host.read_crontab(account)?.unwrap_or_default();
+    let managed = host.managed_account(account)?;
+    let text = host.read_crontab(&managed)?.unwrap_or_default();
     let document = CrontabDocument::parse(&text);
 
     let entries_suspended = document

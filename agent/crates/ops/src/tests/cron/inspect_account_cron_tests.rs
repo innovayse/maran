@@ -6,7 +6,8 @@ use crate::cron::create_cron_entry::create_cron_entry;
 use crate::cron::cron_error::CronError;
 use crate::cron::inspect_account_cron::inspect_account_cron;
 use crate::cron::recording_cron_host::{
-    RecordingCronHost, SECOND_ID, account, command, distro, entry_id, every_five_minutes, schedule,
+    RecordingCronHost, SECOND_ID, account, assert_refused_untouched, command, distro, entry_id,
+    every_five_minutes, schedule, unmanaged_cases,
 };
 use crate::cron::set_account_cron_suspended::set_account_cron_suspended;
 use crate::cron::set_cron_entry_enabled::set_cron_entry_enabled;
@@ -140,4 +141,16 @@ fn a_crontab_that_cannot_be_read_is_refused_and_not_reported_as_empty() {
         matches!(refused, Err(CronError::CrontabRefused { .. })),
         "an unreadable crontab must refuse to answer, got {refused:?}"
     );
+}
+
+/// An account that is not a hosting account is refused before the table is
+/// read, and everything the host holds is left as it was.
+#[test]
+fn inspecting_the_cron_of_an_unmanaged_account_reads_no_crontab() {
+    // The suspension state is decided from root's table when the account is root.
+    for case in unmanaged_cases() {
+        let result = inspect_account_cron(&case.host, &case.account);
+
+        assert_refused_untouched(&case, result);
+    }
 }

@@ -189,6 +189,26 @@ public static class AuditActions
     /// </summary>
     public const string AccountHomeGroupsRepaired = "AccountHomeGroupsRepaired";
 
+    /// <summary>
+    /// A plan was defined. Recorded on the refusals too: a name already taken is a conflict an
+    /// operator wants to find later, and a creation the validator accepted but the handler refused is
+    /// the half of the trail that explains a plan that is missing.
+    /// </summary>
+    public const string PlanCreated = "PlanCreated";
+
+    /// <summary>
+    /// A plan's name or limits were changed, and with them the limits of every account already on it.
+    /// Recorded on the refusals too — above all the refusal to lower a disk quota under an account's
+    /// current usage, which is the one an operator who then asks "why did my edit not take" needs.
+    /// </summary>
+    public const string PlanUpdated = "PlanUpdated";
+
+    /// <summary>
+    /// A plan was deleted. Recorded on the refusals too: the refusal because accounts still sit on the
+    /// plan is how an operator learns who is still being sold it.
+    /// </summary>
+    public const string PlanDeleted = "PlanDeleted";
+
     /// <summary>An SFTP login was created on the host, jailed into its account's own chroot.</summary>
     public const string SftpUserCreated = "SftpUserCreated";
 
@@ -408,6 +428,16 @@ public static class AuditActions
     /// asking again is not a duplicate delivery of the same event.
     /// </summary>
     public const string CustomerInvited = "CustomerInvited";
+
+    /// <summary>
+    /// An administrator asked the panel for a one-time invitation link to hand to a hosting
+    /// account's owner themselves, instead of the panel mailing it. A distinct action from
+    /// <see cref="CustomerInvited"/> on purpose: a link shown to an administrator is a credential
+    /// that left the system by hand, and an auditor reading the journal should be able to tell it
+    /// from a mail the panel sent. The subject is the customer's login name; the entry never
+    /// carries the link, the token or its digest.
+    /// </summary>
+    public const string InvitationLinkIssued = "InvitationLinkIssued";
 
     /// <summary>
     /// An invited login's owner set their first password from the invitation link, making the login

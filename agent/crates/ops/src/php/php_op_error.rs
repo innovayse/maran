@@ -1,5 +1,7 @@
 //! Failures of the multi-PHP operations.
 
+use maran_agent_core::utils::bound_exceeded::BoundExceeded;
+
 use crate::safe_write::SafeWriteError;
 
 /// What can go wrong while listing, installing, or configuring a PHP version.
@@ -15,9 +17,9 @@ pub enum PhpOpError {
     /// The version parses as a PHP version but is not one this panel runs.
     ///
     /// The supported set is closed (spec §11): what the agent installs is not
-    /// the caller's choice, so `9.9` is refused HERE and never reaches a
-    /// package manager. Handing an unknown name to `apt-get install` would
-    /// make the caller the author of the agent's package list.
+    /// the caller's choice, so `9.9` is refused HERE and never reaches the
+    /// install unit. Handing an unknown name to it would make the caller the
+    /// author of the agent's package list.
     #[error("PHP {version} is not a supported version")]
     UnsupportedVersion {
         /// The version that was asked for.
@@ -127,6 +129,20 @@ pub enum PhpOpError {
         stderr: String,
     },
 
+    /// A program this area ran (`php-fpm -t`, `systemctl …`) outlived its
+    /// deadline or its output ceiling and was killed with its whole process
+    /// group.
+    ///
+    /// **Not a verdict**, and so never a [`Self::PoolValidation`], a
+    /// [`Self::ReloadFailed`], a [`Self::PackageManager`], a
+    /// [`Self::ServiceEnable`] or a [`Self::ConfigWrite`]: the program was
+    /// stopped before it could answer. For the install unit it is the sharpest
+    /// case, because the unit lives in the service manager and keeps running
+    /// after the agent stops waiting, so the version may still appear. Carries
+    /// the program's path and the bound and never a byte the program printed.
+    #[error(transparent)]
+    Bound(#[from] BoundExceeded),
+
     /// The pool file could not be written or swapped in — every failure of the
     /// write protocol that is not a validation or reload refusal.
     #[error("failed to write the php-fpm pool: {reason}")]
@@ -136,10 +152,17 @@ pub enum PhpOpError {
         reason: String,
     },
 
-    /// The package manager could not be run, or refused the installation.
-    #[error("the package manager failed: {stderr}")]
+    /// The install unit could not be started, failed, or succeeded without
+    /// the version appearing.
+    ///
+    /// The package manager runs inside that unit, not in the agent, so its
+    /// own output is in the unit's journal and not in this error.
+    #[error("the PHP install unit failed: {stderr}")]
     PackageManager {
-        /// The package manager's standard error, for an operator's log.
+        /// The service manager's standard error, followed by the unit name, a
+        /// pointer to `journalctl -u <unit>` where the package manager's own
+        /// output lives, and a hint that a missing unit means the installer
+        /// must be re-run, for an operator's log.
         stderr: String,
     },
 
@@ -171,16 +194,21 @@ impl From<SafeWriteError> for PhpOpError {
     ///
     /// The two failures an operator acts on differently — php-fpm refusing the
     /// content, and php-fpm refusing to reload valid content — keep their own
-    /// variants and their tool output; everything else collapses into
-    /// [`PhpOpError::ConfigWrite`], whose `Display` still carries the original
+    /// variants and their tool output, and a bound stays [`PhpOpError::Bound`];
+    /// everything else collapses into [`PhpOpError::ConfigWrite`], whose `Display` still carries the original
     /// chain, including a rollback that did not happen.
     fn from(error: SafeWriteError) -> Self {
         match error {
             SafeWriteError::ValidationFailed { stderr } => Self::PoolValidation { stderr },
             SafeWriteError::ReloadFailed { stderr } => Self::ReloadFailed { stderr },
+            SafeWriteError::Bound(bound) => Self::Bound(bound),
             other => Self::ConfigWrite {
                 reason: other.to_string(),
             },
         }
     }
 }
+
+#[cfg(test)]
+#[path = "../tests/php/php_op_error_tests.rs"]
+mod tests;

@@ -55,7 +55,8 @@ test('asking for a link offers the way back to signing in', async ({ page }) => 
   await page.goto('/forgot-password')
   await page.getByLabel('Email').fill('admin@example.com')
   await page.getByRole('button', { name: 'Send the link' }).click()
-  await page.getByRole('button', { name: 'Back to sign in' }).click()
+  // a navigation is a link, not a button — issue #82
+  await page.getByRole('link', { name: 'Back to sign in' }).click()
 
   await expect(page).toHaveURL('/login')
 })
@@ -66,7 +67,8 @@ test('the sign-in screen links to the screen that asks for a reset link', async 
   await stubEmptyModules(page)
 
   await page.goto('/login')
-  await page.getByRole('button', { name: 'Forgot your password?' }).click()
+  // a navigation is a link, not a button — issue #82
+  await page.getByRole('link', { name: 'Forgot your password?' }).click()
 
   await expect(page).toHaveURL('/forgot-password')
 })

@@ -11,7 +11,29 @@ Type=simple
 # to create/modify OS users, write system service configs and manage services on the
 # api's behalf. Its own operations then drop to the target account's UID for any
 # customer file I/O (fork + setuid, done in-process, not by this unit).
-User=root
+#
+# `User=root` IS NOT WRITTEN HERE, and its absence is the fix for issue #81 rather than an
+# omission. A system service already runs as root when no User= is given, so the directive
+# changed nothing about the identity — but writing it sent systemd down its user-SWITCHING path,
+# and a service that has switched user comes out the other side without CAP_SETUID in its
+# permitted set. The bounding set still listed the capability, which is why this was invisible:
+#
+#     CapBnd: 00000000202014eb   <- cap_setuid present, as the unit asks
+#     CapEff: 000000002020146b   <- cap_setuid absent, as the process actually ran
+#
+# The effect was that NO work could be done as a hosting account at all. `setgroups` and
+# `setgid` succeeded, `setuid` was refused, and every site creation answered 500 — uid 0 alone
+# has not been enough to change uid since capabilities replaced the all-powerful root check.
+#
+# Measured on Ubuntu 24.04 by taking the unit's own directives and removing one at a time:
+# only the removal of `User=root` or of `NoNewPrivileges=` brought cap_setuid back, and the two
+# together are what lose it. With it gone the agent still runs as uid 0, the capability is
+# present, and a site's document root is created owned by the account rather than by root.
+#
+# AmbientCapabilities=CAP_SETUID was considered and REFUSED: ambient capabilities survive
+# `setuid` on purpose, so the child that has dropped to the customer would keep CAP_SETUID and
+# could return to root. That is precisely the isolation `fork_as_account` exists to create, and
+# `privileges_on_a_real_host.rs` asserts a dropped child cannot regain root.
 # The service group, on a root process: the socket the agent creates inherits the process's
 # group, which is what actually grants maran-api (which runs as that account) access to it.
 # Without this the socket is root:root and the API cannot connect at all — the 0660 mode below
@@ -132,8 +154,13 @@ NoNewPrivileges=true
 # What that trade costs, stated plainly: /etc is no longer protected by this unit.
 # What is still bought: /usr and the boot loader directories stay read-only, so a
 # compromised agent cannot overwrite the system's binaries or libraries, cannot replace
-# its own /usr/local/maran/agent binary, and cannot install a boot-time payload —
-# the persistence routes that survive a reinstall of the panel. Configuration-level
+# its own /usr/local/maran/agent binary, and cannot install a boot-time payload
+# directly — the persistence routes that survive a reinstall of the panel. The one
+# deliberate exception is PHP: the agent can ask PID 1 to start
+# maran-php-install@<package>.service, an UNSANDBOXED package install run as root
+# that is not a validator, so the closed set of six versions is enforced by the agent
+# alone, and a compromised agent could name another package there (--no-remove only
+# refuses removals; the `--` before the instance keeps it from being read as an option). Configuration-level
 # protection for /etc is not attempted by the sandbox; it is enforced upstream instead,
 # by the agent's closed typed command set (no "run this" rpc exists) and by every
 # config write going through render -> temp file -> validate -> atomic rename.
@@ -215,8 +242,12 @@ RuntimeDirectoryMode=0750
 #                    (root:root 0700, one subdirectory per account); RestoreBackup and
 #                    DeleteBackup read/unlink them. `local_object_store_host.rs` creates
 #                    this tree itself on first use, so the installer does not have to.
+#   /run/maran-php   AgentPaths::PHP_FPM_SOCKET_DIRECTORY, the PHP-FPM pool sockets. Built
+#                    root:root 0755 by maran-php.tmpfiles.conf and deliberately NOT a
+#                    RuntimeDirectory=: that would delete the sockets php-fpm is listening on
+#                    whenever this unit stops, and it is a sibling of /run/maran because the
+#                    web server's user cannot traverse that 0750 directory.
 #   /run/maran       the gRPC socket directory, created by RuntimeDirectory= below, and
-#                    AgentPaths::PHP_FPM_SOCKET_DIRECTORY (/run/maran/php) and
 #                    AgentPaths::agent_scratch_dir() (/run/maran/scratch), which holds
 #                    only files whose size is bounded by something other than a
 #                    customer's data — a rendered crontab table is kilobytes. Anything
@@ -230,8 +261,8 @@ RuntimeDirectoryMode=0750
 # Paths deliberately NOT listed, so the omission reads as a decision and not an
 # oversight: /var/lib/mysql (db.* rpcs go through the MySQL client protocol, the agent
 # never touches the datadir), /var/www (document roots live under /home), anything
-# under /usr (the agent installs packages through the distro package manager, which
-# runs as its own unprivileged-of-this-sandbox process, not inside ours), and the two
+# under /usr (the agent does not run the package manager: it asks PID 1 to start
+# maran-php-install@<package>.service, whose process runs outside this sandbox), and the two
 # below, each of which is a path this unit ONCE listed:
 #
 #   /var/lib/maran   the PANEL's state root, not the agent's, and it sat in the writable
@@ -286,14 +317,36 @@ RuntimeDirectoryMode=0750
 # AgentPaths::NGINX_INCLUDE_DIRECTORY and ::CERTIFICATE_DIRECTORY live under /etc, which
 # ProtectSystem=true never protects (only "full"/"strict" would), so they need no entry
 # here either.
-ReadWritePaths=/home -/var/spool/cron /var/lib/maran-sftp /var/lib/maran-ftps /var/lib/maran-scratch /var/backups/maran /var/log/maran/sites /run/maran
+ReadWritePaths=/home -/var/spool/cron /var/lib/maran-sftp /var/lib/maran-ftps /var/lib/maran-scratch /var/backups/maran /var/log/maran/sites /run/maran /run/maran-php
 # What /etc still may not become: the agent has no rpc that grants sudo rights, so the
 # one tree it can be permanently denied without losing a capability is the sudoers
 # configuration. This is a small, honest restriction on an otherwise writable /etc, not
 # a substitute for the protection ProtectSystem=full would have given. "-" prefixes
 # because neither path is guaranteed to exist on a minimal install.
 ReadOnlyPaths=-/etc/sudoers -/etc/sudoers.d
+# PrivateDevices gives this service a private /dev holding only pseudo-devices — no block devices
+# at all. That is the right default for a root daemon, and it silently made DISK QUOTAS impossible:
+# `setquota` must stat the block device behind the filesystem it is limiting, and in that namespace
+# the node does not exist. Every attempt to create a hosting account therefore failed with
+#
+#     setquota: Cannot stat() mounted device /dev/mapper/...: No such file or directory
+#
+# and the panel answered 500 — the product's primary operation, on every server (issue #73).
+#
+# Measured, on one host, changing one property at a time:
+#
+#     PrivateDevices=yes                     setquota fails, the quota is unchanged
+#     PrivateDevices=yes + the binds below   setquota succeeds, the quota is applied
+#
+# `DeviceAllow=` does NOT help and was tried: it governs cgroup access to devices that exist in the
+# namespace, and here the node is absent rather than forbidden.
+#
+# So the isolation stays and exactly one device is let through: the one holding the filesystem the
+# hosting accounts live on. 70-services.sh resolves it at install time — it is host-specific, and
+# both the symlink the mount table names and the node it resolves to have to be bound, because
+# setquota opens the name it was given.
 PrivateDevices=true
+__MARAN_QUOTA_DEVICE_BINDS__
 ProtectKernelTunables=true
 ProtectKernelLogs=true
 ProtectClock=true
@@ -301,6 +354,119 @@ ProtectHostname=true
 RestrictRealtime=true
 RestrictNamespaces=true
 LockPersonality=true
+
+# The four directives from here down to the ProtectProc= paragraph were added by issue #91 from
+# analysis, and none of them has yet been observed on a running server. Each one carries a single
+# marker line saying what it still owes, and every such marker in this file follows one rule. The
+# verification phase turns that directive on ALONE, changing one property per run, in a throwaway
+# install polygon with real systemd as PID 1 (Ubuntu 24.04 and AlmaLinux 9 at the least). It reads
+# the value back from the loaded unit (`systemctl show maran-agent -p <Directive>`), confirms the
+# journal has no "Unknown key" line for it, and drives account, quota, site, cron, backup and
+# restore, firewall, SFTP and suspension operations through the panel's API. A directive that
+# holds has its marker replaced by what was measured: family, systemd version, operations, result.
+# A directive that breaks anything is removed, and its comment records the observation that
+# removed it. A hardening directive kept on the strength of "it should be fine" is how the
+# panel's own unit once acquired one that stopped it starting (issue #40).
+# Threat note: docs/superpowers/notes/2026-10-26-agent-unit-hardening-threat-note.md.
+#
+# SystemCallArchitectures=native: system calls made through any ABI other than the host's own
+# (i386 and x32 on an x86_64 kernel built with IA32 emulation, 32-bit arm on aarch64) are refused.
+# Nothing here needs them gone; the reason is that the filters in this file are not equally tight
+# on every ABI. On i386, sockets are multiplexed through socketcall(2), which is weaker ground for
+# RestrictAddressFamilies=, so a non-native binary would be a way around it. Nothing the agent runs
+# is non-native: the agent is a native Rust binary, its one raw syscall (close_range in
+# fork_as_account) uses the native number, and every allow-listed child is a distro-packaged
+# binary of the host architecture.
+# UNCONFIRMED (#91): owes the agent starting and the operations passing with only this changed.
+#   The record says whether the measured kernel had IA32 emulation at all (without it the
+#   restriction is unobservable there), and whether a violation was killed (SIGSYS) or got EPERM.
+SystemCallArchitectures=native
+# ProtectControlGroups=true: /sys/fs/cgroup becomes read-only in this daemon's mount namespace.
+# Without it, uid 0 (which owns every cgroup interface file, so plain file permission lets it
+# write them) can rewrite any service's limits or freeze it, a denial of service against the
+# whole host. It can also move a process it forked out of this unit's cgroup, where that
+# process survives `systemctl stop` and the
+# KillMode=control-group the TimeoutStopSec= paragraph relies on. On a host booted with cgroup v1
+# or the hybrid hierarchy it would also reach the root cgroup's release_agent, which the kernel
+# runs as full root outside every restriction in this file. That last point is the kernel's
+# documented behaviour and was not measured; every supported release defaults to cgroup v2.
+#
+# Nothing the agent does writes a cgroup. Its own code touches none, and `systemctl` asks PID 1,
+# which mounts the SFTP jails and reloads nginx and php-fpm from outside this namespace. An
+# earlier version of this file left the directive off on the guess that "per-account systemd
+# slices may need it"; no slice, scope or systemd-run exists anywhere in the agent. The read-only
+# mount holds against CAP_SYS_ADMIN (in the bounding set below), which could otherwise remount
+# it writable, only because the @system-service group below contains no
+# mount syscall (expanded on systemd 255; each family's systemd is to be checked the same way)
+# and RestrictNamespaces= above refuses a fresh namespace to mount in.
+# UNCONFIRMED (#91): owes `findmnt /sys/fs/cgroup` inside the agent's namespace (nsenter -m)
+#   showing ro, and SFTP login create (a mount unit), site create (the reload), FTPS enable and
+#   the service-status read passing. On systemd 257, where the directive gained `private` and
+#   `strict`, it also owes what `true` mounts there, read from the loaded unit.
+ProtectControlGroups=true
+# ProtectKernelModules=true: the module syscalls are refused by seccomp and the module tree
+# (/usr/lib/modules, /lib/modules) is hidden. Its value is small and is stated as small:
+# CAP_SYS_MODULE is already missing from the bounding set below, so an explicit module load
+# already fails. An earlier version of this file left it off on the claim that it "would block
+# the systemctl calls this daemon issues". That was reasoned rather than measured, and the
+# reasoning does not hold: systemctl loads no module and reads no module tree, and the work it
+# asks for is done by PID 1 outside this sandbox. Kernel AUTO-loading, such as the nf_tables
+# expression modules a firewall rpc's first `nft -f` can pull in, is run by the kernel in the init
+# namespace and is expected to keep working. nginx's dynamic modules live under
+# /usr/lib/nginx/modules or /usr/lib64/nginx/modules, so `nginx -t` is unaffected.
+# UNCONFIRMED (#91): owes the firewall rpcs (allow, ban, list, unban), `setquota` and the
+#   `quotaon -p` enforceability read passing, and the module tree inaccessible in the agent's
+#   namespace. The polygon shares a kernel whose nf_tables modules are already loaded, so the
+#   record says that cold autoload was not observed.
+ProtectKernelModules=true
+# RestrictSUIDSGID=true: the kernel refuses a set-user-ID or set-group-ID bit in the mode argument
+# of chmod, mkdir, mknod and open(O_CREAT), for this daemon and for every child it runs.
+# NoNewPrivileges= already stops such a file from elevating anything INSIDE this sandbox, but a
+# customer's processes run outside it: a setuid-root file written anywhere outside /usr is local
+# root for whichever customer runs it, and it outlives the agent. The agent itself never asks for
+# these bits. One path refuses them in Rust (the validated FileMode of files.*) and a restore's
+# tar is told to drop them (--no-same-permissions). This enforces the same on every other
+# path and in every child (tar, useradd copying the skeleton, chmod, chgrp) without
+# depending on each validator.
+# The distro package manager inherits it too for as long as it runs as this daemon's child
+# (#93); that is a reason to run it outside this sandbox, never a reason to drop this line.
+#
+# Possible edge, NOT measured: GNU chmod given a four-digit octal keeps a directory's existing
+# setgid bit, so on a host whose /home itself carries g+s the `chmod 0750` on a new home might be
+# refused and account creation fail loudly. Whether the new home still carries the inherited bit
+# by then depends on how useradd sets the home's mode, which was reasoned and not read.
+#
+# systemd added this directive in 242, so every supported system knows it (the oldest, Ubuntu
+# 22.04, ships 249; the EL9 family ships 252).
+# UNCONFIRMED (#91): owes account create and delete (also on a host with `chmod g+s /home`,
+#   with the new home's mode read after useradd to settle the edge above), a restore of a
+#   home holding a setuid file and a setgid directory (it must succeed and leave no setid
+#   bit; also an archive made by the previous release, on both families), and a stand-in
+#   transient unit showing `chmod u+s` refused through both fchmodat and fchmodat2 on each
+#   systemd measured, plus the value read back from the loaded unit on the oldest supported
+#   systemd and on EL9. If the restore fails, this directive is removed.
+RestrictSUIDSGID=true
+# ProtectProc=invisible is deliberately NOT set; it was analysed and refused, and ProcSubset=pid
+# with it. This daemon has no CAP_SYS_PTRACE (bounding set below), so under hidepid=invisible it
+# would stop seeing every process of another uid. Two security functions read /proc through a
+# child and would then fail silently, in the insecure direction:
+#   suspension  `pkill --uid` (ops::logins::end_account_sessions) would match nothing and exit 1,
+#               which that module rightly reads as "no session open", so a suspension would be
+#               recorded as complete while the customer's SFTP session kept writing.
+#   deletion    the account's processes must be ended and verified gone by deletion itself
+#               (ops::accounts), because `userdel --remove` is NOT a safety net here: it refuses a
+#               busy user (exit 8) only by stat-ing /proc/<pid>/root, which the kernel gates behind
+#               CAP_SYS_PTRACE for another uid's process. This daemon deliberately lacks that
+#               capability (CapabilityBoundingSet below), so userdel exits 0, the process survives
+#               and the next useradd hands its uid to a different tenant (measured on Ubuntu 24.04
+#               and AlmaLinux 9). That blindness comes from the missing capability, not from
+#               hidepid or ProtectProc.
+# Either is worse than the exposure the directive closes: other users' command lines visible to
+# this daemon. ProcSubset=pid is refused for a plainer reason: it hides /proc/mounts and
+# /proc/net/*, which account creation's quota step and monitor.GetHostMetrics read.
+# UNCONFIRMED (#91): the rejection owes its observation, made with the directive applied in a
+#   throwaway polygon edit and never shipped: a process at the account's uid, watched from OUTSIDE
+#   the sandbox, survives suspension and deletion with it on, and is killed or refused with it off.
 
 # MemoryDenyWriteExecute: on HERE, and off in maran-api.service. The asymmetry is the point.
 #
@@ -312,7 +478,21 @@ LockPersonality=true
 # Measured before it was added rather than reasoned about: run as a transient unit carrying this
 # directive on Ubuntu 24.04, the agent reported Result=success, ExecMainStatus=0. A hardening
 # directive added on the strength of "it should be fine" is how the panel's own unit acquired one
-# that stopped it starting.
+# that stopped it starting. That measurement, not a rule, is what keeps it here: an earlier
+# comment in this file credited a rule with saying the agent runs no generated code, and no rule
+# says so.
+#
+# What that measurement did not cover: it saw the daemon START. The directive is inherited by
+# every child the agent runs (`nginx -t`, `php-fpm -t`, nft, tar, the dump tools, the shadow
+# suite), and none of them has yet been observed under it. PCRE2's JIT is the realistic case:
+# nginx with `pcre_jit on`, PHP with pcre.jit (on by default), or an opcache JIT an operator
+# enabled. The long-running daemons are started by PID 1 and are not affected; only their
+# validation runs here.
+# UNCONFIRMED (#91): owes the operations with their children under it: site create (`nginx -t`
+#   exits 0), PHP pool write (`php-fpm -t` exits 0), FTPS enable, backup and restore, certificate
+#   install, scored by exit status and rpc result (a JIT warning on stderr is not a failure). It
+#   also owes which enforcement ran (seccomp, or the kernel's PR_SET_MDWE where systemd uses it),
+#   because the polygon's kernel is newer than most production kernels.
 MemoryDenyWriteExecute=true
 RemoveIPC=true
 # AF_NETLINK is not optional despite looking exotic: firewall.AllowPort/DenyPort/
@@ -332,20 +512,53 @@ RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
 #                    shadow-utils is built with audit support and emits an ADD_USER
 #                    record; without the capability useradd reports a failure rather
 #                    than silently skipping the record.
+#   CAP_KILL         defence in depth for every bounded spawn (issue #90): on a deadline
+#                    the agent kills the child's WHOLE process group. Today every member
+#                    of such a group runs as root (the agent starts no package manager,
+#                    and a root parent signalling its own root children needs no
+#                    capability), so nothing depends on this line yet. It stays so that a
+#                    future child that drops privileges to another uid cannot turn the
+#                    group kill into a silently partial one: kill(2) reports success when
+#                    it signalled ANY member.
 CapabilityBoundingSet=CAP_CHOWN CAP_DAC_OVERRIDE CAP_FOWNER CAP_SETGID CAP_SETUID CAP_KILL CAP_SYS_ADMIN CAP_NET_ADMIN CAP_AUDIT_WRITE CAP_NET_BIND_SERVICE
-# ProtectKernelModules/MemoryDenyWriteExecute are intentionally NOT set: the agent may
-# need to reload systemd units and (per rules/rust.md) never runs interpreted/JIT'd
-# code, but ProtectKernelModules would block the systemctl calls this daemon issues
-# on the api's behalf; kept off rather than guessed at without a verified test.
-SystemCallFilter=@system-service
+# Absent from that set on purpose, and leaned on by directives above: CAP_SYS_MODULE, which is
+# why ProtectKernelModules= adds little, and CAP_SYS_PTRACE, which is why ProtectProc=invisible
+# would blind this daemon to other users' processes. CAP_SYS_ADMIN is present, and the read-only
+# /sys/fs/cgroup of ProtectControlGroups= is what stops it remounting the cgroup tree writable.
+# quotactl/quotactl_fd are NOT in @system-service, and accounts.SetAccountQuota cannot work
+# without them. The failure they cause does not look like a syscall denial at all, which is why
+# this line is worth its comment (issue #73): SystemCallErrorNumber=EPERM below turns the denied
+# quotactl into an errno, setquota reads that as "the kernel has no quota for this filesystem",
+# falls back to writing the on-disk quota file, and reports
+#
+#     setquota: Cannot open quotafile //aquota.user: Operation not permitted
+#     setquota: Not all specified mountpoints are using quota.
+#
+# — a message that points at the file and the mount point, neither of which is the problem.
+# Measured on Ubuntu 24.04, same host, same device, varying only this filter:
+#     SystemCallFilter=@system-service            setquota exits 1, quota unchanged
+#     SystemCallFilter=@system-service quotactl   setquota exits 0, quota applied
+# quotactl_fd is listed alongside it for kernels where quota-tools uses the newer call; systemd
+# ignores a syscall name the running kernel does not know, so naming both costs nothing.
+# The bounded spawn (issue #90) needs setpgid (child in its own group), kill (group kill),
+# waitid and wait4 (deadline wait and reap), clone/clone3/execve and pipe2/poll. All are
+# in @system-service, so this line needs nothing for it. MEASURED: the group, expanded
+# recursively (a flat grep of `systemd-analyze syscall-filter` is blind to included groups),
+# contains them on alma9 and debian12 (threat note, item 13); the other images were not re-measured. NOT measured: a deadline-kill
+# spawn under this real sandbox, which is to be verified (systemd-analyze verify, plus one
+# on one host of each family) before the claim is relied on. pidfd_open and
+# pidfd_send_signal are deliberately NOT added: that is a design choice (the spawn core does not use
+# pidfds), not a measured fact; both are already in @system-service on the measured images.
+SystemCallFilter=@system-service quotactl quotactl_fd
 SystemCallErrorNumber=EPERM
 UMask=0027
 
 # --- Not yet confirmed on a real boot ---------------------------------------------
 # This sandbox was derived from the rpc set in proto/agent/v1/ and from the systemd.exec
-# semantics of ProtectSystem=/ReadWritePaths=, not from a running server. Nothing below
-# has been observed to work; each line is a claim to be checked once, on one host of
-# each family (Ubuntu/Debian and AlmaLinux/Rocky), and this comment shrinks as they are:
+# semantics of ProtectSystem=/ReadWritePaths=, not from a running server. No item below
+# that is not marked confirmed has been observed to work; each line is a claim to be checked
+# once, on one host of each family (Ubuntu/Debian and AlmaLinux/Rocky), and this comment
+# shrinks as they are:
 #   1. accounts.CreateAccount then DeleteAccount — the EROFS this file exists to fix.
 #      Confirm /etc/passwd, /etc/shadow, /etc/group, /etc/gshadow, /etc/subuid and the
 #      "-" backup generation are all written.
@@ -356,10 +569,15 @@ UMask=0027
 #   4. sites.CreateSite end to end, including the `nginx -t` validation step and the
 #      reload, on the RHEL family where SELinux may deny what this sandbox permits;
 #      an SELinux denial looks nothing like EROFS and must not be mistaken for one.
-#   5. accounts.SetAccountQuota — quota tooling touches the filesystem root of /home.
-#   6. ProtectKernelModules/MemoryDenyWriteExecute (left off above) and
-#      ProtectControlGroups (never set — per-account systemd slices may need it):
-#      turn each on one at a time and find out, rather than reasoning about it.
+#   5. accounts.SetAccountQuota — CONFIRMED on Ubuntu 24.04 and no longer a claim. It needed
+#      three things this file now has, each found only by running it: the BindPaths= for the
+#      block device (PrivateDevices= hides it), quotactl in SystemCallFilter= above, and the
+#      agent passing the DEVICE rather than a path (quota_device_for in the ops crate). Still
+#      to check on the RHEL family.
+#   6. What issue #91 added or re-justified: SystemCallArchitectures=, ProtectControlGroups=,
+#      ProtectKernelModules= and RestrictSUIDSGID=, the operations measurement that
+#      MemoryDenyWriteExecute= (set above) has not had, and the ProtectProc= rejection. Each says
+#      beside it what it owes; turn each on alone and find out, rather than reasoning about it.
 
 [Install]
 WantedBy=multi-user.target

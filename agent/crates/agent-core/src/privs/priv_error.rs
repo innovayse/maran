@@ -74,8 +74,21 @@ pub enum PrivError {
     },
     /// One of `setgroups`, `setgid` or `setuid` returned an error in the child.
     /// The child exited without doing any work.
-    #[error("privilege drop failed in child")]
-    DropFailed,
+    ///
+    /// The syscall is NAMED, and the name is the whole point of the variant carrying a field at
+    /// all: "privilege drop failed in child" was the message for a year, and when it finally
+    /// fired on a real server (issue #81) it could not distinguish three different failures with
+    /// three different causes. Three hypotheses were tested from the outside and all three were
+    /// wrong, because the error named a category instead of a call.
+    ///
+    /// A `&'static str` rather than an enum: the three names are literals this module writes and
+    /// nothing branches on them — they are read by a person, in a log line, while reproducing the
+    /// failure by hand.
+    #[error("privilege drop failed in child: {syscall}")]
+    DropFailed {
+        /// Which of the three calls returned an error: `setgroups`, `setgid` or `setuid`.
+        syscall: &'static str,
+    },
     /// The child dropped, re-read its own credentials, and found at least one of
     /// them not to be what it asked for. A partially applied drop: the process
     /// looked unprivileged and was not, so it exited before touching anything.

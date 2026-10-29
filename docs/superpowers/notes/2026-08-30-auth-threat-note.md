@@ -128,10 +128,27 @@ exactly one name, ordinally: an unknown role, or `admin` in the wrong case, is n
 administrator. A request with no claims, or with no `HttpContext` at all, is nobody rather than an
 exception. `HttpContextCurrentUserTests` covers each of those directions.
 
-**Forget an `[Authorize]` and open an endpoint.** The authorization fallback policy requires an
-authenticated user, so an endpoint with no attribute denies rather than opens. Anonymity is marked
-per action, never on a class — a class-level `[AllowAnonymous]` outranks an action's `[Authorize]`,
-which had already left `logout-all` open once.
+**Forget an `[Authorize]` and open an endpoint.** The authorization fallback policy is `AdminOnly`
+(`backend/src/Maran.Host/Authorization/RolePolicies.cs`), so an endpoint with no authorization
+metadata refuses an anonymous caller (401) and a signed-in customer (403) and answers an
+administrator only. *Corrected 2026-10-26 (issue #89):* this paragraph used to say the fallback
+"requires an authenticated user, so an endpoint with no attribute denies rather than opens". The
+fallback was then `AnyAuthenticated`, which a customer passes, so the sentence held for an
+anonymous caller only. The DEFAULT policy, which a bare `[Authorize]` evaluates, is still
+`AnyAuthenticated` and customer-level by design; no endpoint in this tree uses the bare form, and
+every endpoint names its policy or is marked anonymous. That is held by
+`EndpointAuthorizationPolicyTests` in `backend/tests/Maran.Host.IntegrationTests` (every mapped
+endpoint, plus the exact anonymous set) and by `ControllerAuthorizationDeclarationTests` in
+`backend/tests/Maran.ArchitectureTests` (every controller action). The fallback itself is held by
+`RolePoliciesTests` and `AuthorizationFallbackEndpointTests`. The argument, and what is still open,
+is in `docs/superpowers/notes/2026-10-26-authorization-fallback-threat-note.md`.
+
+Anonymity is marked per action, never on a class, because a class-level `[AllowAnonymous]` outranks
+an action's `[Authorize]` (it had already left `logout-all` open once). *Corrected 2026-10-26:*
+`SetupController` used to carry it on the class; its two actions now carry it individually, and
+`AnonymityDeclarationTests.No_composed_controller_grants_anonymity_at_class_level` in
+`backend/tests/Maran.ArchitectureTests` fails if any composed controller carries it on the type.
+These tests are written but had not been run when this was edited.
 
 **Ride a logged-in browser (CSRF).** `SameSite=Strict` plus a mandatory custom header
 (`X-Maran-Request`) on cookie-bearing state changes: a cross-site form cannot set a custom header.

@@ -73,6 +73,27 @@ static CONFIG_WRITES: Mutex<()> = Mutex::const_new(());
 /// the read-and-decide an operation does before it calls in — see
 /// "What this lock does not cover" below.
 ///
+/// # How long a holder can keep it
+///
+/// A stated sum and no longer "short, we hope": every program a holder starts has
+/// a deadline and is killed with its whole process group when it passes
+/// (`maran_agent_core::utils::call_class::CallClass`). A holder therefore keeps
+/// the lock for at most its validator's deadline plus its reload's deadline plus
+/// the two ceilings the core allows for reaping a killed child:
+///
+/// - a pure validator (`nginx -t`, `php-fpm -t`): 60 s + 240 s + 2 x 5 s = 310 s;
+/// - a mutating validator (`systemctl daemon-reload` or `restart`, run as the
+///   validator of the jail units and of `vsftpd.conf`): 240 s + 240 s + 2 x 5 s
+///   = 490 s.
+///
+/// A holder whose program passes its deadline returns
+/// [`super::SafeWriteError::Bound`] through the same rollback every other step
+/// failure takes, and the guard is released by that return, so a hung `nginx -t`
+/// or a hung `systemctl` no longer holds every other config write on the host
+/// for as long as the hang lasts. The residual is the holder's OWN input and
+/// output (the rename, `fsync`, the temporary file), which has no deadline and is
+/// the same as it was: a stalled disk stalls the holder.
+///
 /// # Wait rather than refuse
 ///
 /// This lock waits. `crate::accounts::account_lock` refuses instead
@@ -95,7 +116,10 @@ static CONFIG_WRITES: Mutex<()> = Mutex::const_new(());
 /// threads, against a panel that issues config writes from interactive
 /// requests and two schedulers. The queue length is therefore bounded by the
 /// panel's own request concurrency, far below the ceiling, and each waiter
-/// leaves after one reload rather than after an archive. This is stated rather
+/// leaves after one reload rather than after an archive. The worst a waiter can
+/// now wait is the sum above for each holder ahead of it, which bounds the time a
+/// blocking-pool thread is occupied by one holder; the number of holders ahead is
+/// still bounded only by the panel's own request concurrency. This is stated rather
 /// than measured under load: the audit asked for the question to be addressed,
 /// and the honest answer is the arithmetic plus the fact that the same pool
 /// already carries backups, which hold a thread for far longer.

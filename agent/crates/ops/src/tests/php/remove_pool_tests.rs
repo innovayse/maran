@@ -4,6 +4,7 @@
 
 use std::path::Path;
 
+use maran_agent_core::utils::call_class::CallClass;
 use maran_agent_core::validation::system::name::AccountName;
 use maran_agent_core::validation::web::php_version::PhpVersion;
 
@@ -94,4 +95,51 @@ fn a_version_outside_the_supported_set_is_refused_before_any_path_is_built() {
         "expected UnsupportedVersion, got {refusal:?}"
     );
     assert_eq!(host.removals(), 0);
+}
+
+#[test]
+fn a_pool_removal_hands_the_protocol_a_short_class_validator_and_a_reload_ended_with_end_of_options()
+ {
+    let host = FakePhpHost::with_installed(&["8.3"]);
+    write_pool_under_lock(&host, distro(), &pool_input(Vec::new())).unwrap();
+
+    remove_pool(&host, distro(), &account(), &version()).unwrap();
+
+    // The write's two commands come first; the removal's are the last two.
+    let commands = host.protocol_commands();
+    assert_eq!(commands.len(), 4);
+    assert_eq!(
+        commands[2],
+        vec![
+            distro().php_fpm_binary(&version()).to_string(),
+            "-t".to_owned()
+        ]
+    );
+    assert_eq!(
+        commands[3],
+        vec![
+            distro().service_manager().to_string(),
+            "reload".to_owned(),
+            "--".to_owned(),
+            distro().php_fpm_service("8.3"),
+        ]
+    );
+    assert_eq!(
+        host.protocol_classes(),
+        vec![CallClass::Validate, CallClass::Validate]
+    );
+}
+
+#[test]
+fn a_pool_removal_whose_validator_times_out_is_a_bound_and_never_a_refusal() {
+    let host = FakePhpHost::with_installed(&["8.3"]);
+    write_pool_under_lock(&host, distro(), &pool_input(Vec::new())).unwrap();
+    host.time_out_protocol();
+
+    let outcome = remove_pool(&host, distro(), &account(), &version());
+
+    assert!(
+        matches!(outcome, Err(PhpOpError::Bound(_))),
+        "expected Bound, got {outcome:?}"
+    );
 }

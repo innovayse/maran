@@ -1,6 +1,7 @@
 //! SetSftpPassword: one `user:password` line, over standard input — and the
 //! lock that line would otherwise take off.
 
+use maran_agent_core::utils::call_class::CallClass;
 use maran_agent_core::validation::secrets::password::Password;
 use maran_agent_core::validation::system::name::AccountName;
 use maran_agent_core::validation::system::sftp_user_name::SftpUserName;
@@ -10,6 +11,7 @@ use crate::accounts::{StoredPassword, take_account_lock};
 use crate::sftp::model::account_jail::AccountJail;
 use crate::sftp::sftp_error::SftpError;
 use crate::sftp::sftp_host::SftpHost;
+use maran_agent_core::end_of_options::END_OF_OPTIONS;
 
 /// The separator `chpasswd` expects between the login and its password.
 const FIELD_SEPARATOR: char = ':';
@@ -149,6 +151,10 @@ const LOCK: &str = "--lock";
 ///
 /// - [`SftpError::AccountBusy`] when another operation for the hosting account
 ///   is already running. Nothing was read and nothing was written.
+/// - [`SftpError::AccountNotManaged`] and [`SftpError::AccountMissing`] when
+///   `account` is not a hosting account this panel may act on (reserved, a
+///   system identity, the wrong home, or no local row). Checked before the jail
+///   is read, the login is looked up or anything is written.
 /// - [`SftpError::PasswordRejected`] when `chpasswd` refuses the line — the
 ///   login exists and its password is unchanged.
 /// - [`SftpError::NotFound`] when the host holds no login of that name, and
@@ -160,7 +166,10 @@ const LOCK: &str = "--lock";
 ///   that case, and the login is open: it is the one condition here an operator
 ///   has to act on.
 /// - [`SftpError::SpawnFailed`] when `getent` or `usermod` refuses, or when a
-///   tool could not be run at all, or its standard input could not be written.
+///   tool could not be run at all, or its standard input could not be delivered.
+/// - [`SftpError::Bound`] when `getent`, `chpasswd` or `usermod` outran its
+///   deadline. Whether the password was changed, and whether the lock was put
+///   back, is then unknown, so the call is reported as failed and is re-issued.
 pub fn set_sftp_password(
     host: &dyn SftpHost,
     distro: &dyn DistroAdapter,
@@ -172,8 +181,14 @@ pub fn set_sftp_password(
     // including every error path and a panic.
     let _guard = take_account_lock(account).ok_or(SftpError::AccountBusy)?;
 
-    let jail = AccountJail::for_account(account, distro.systemd_unit_directory());
-    let logins = host.account_logins(distro.passwd_database(), account, jail.directory())?;
+    // The gate comes before the jail is read or anything is written: the
+    // login this changes is a copy of the account's identity, and `chpasswd`
+    // on a login whose account is a system user or an operator's own login is
+    // the escalation this check exists to refuse.
+    let managed = host.managed_account(distro.passwd_database(), account)?;
+
+    let jail = AccountJail::for_account(managed.name(), distro.systemd_unit_directory());
+    let logins = host.account_logins(distro.passwd_database(), managed.name(), jail.directory())?;
     if !logins.iter().any(|held| held.as_str() == user.as_str()) {
         return Err(SftpError::NotFound);
     }
@@ -229,7 +244,9 @@ pub(crate) fn set_sftp_password_under_lock(
 ///
 /// - [`SftpError::PasswordRejected`] when `chpasswd` refuses the line.
 /// - [`SftpError::SpawnFailed`] when it could not be run at all, or its standard
-///   input could not be written.
+///   input could not be delivered.
+/// - [`SftpError::Bound`] when `chpasswd` outran its deadline; the password may
+///   or may not have been changed.
 pub(crate) fn write_password(
     host: &dyn SftpHost,
     distro: &dyn DistroAdapter,
@@ -238,7 +255,12 @@ pub(crate) fn write_password(
 ) -> Result<(), SftpError> {
     let line = format!("{}{FIELD_SEPARATOR}{}\n", user.as_str(), password.as_str());
 
-    let outcome = host.run(distro.chpasswd_binary(), &[], Some(&line))?;
+    let outcome = host.run(
+        &distro.chpasswd_binary(),
+        &[],
+        Some(&line),
+        CallClass::Mutation,
+    )?;
     if outcome.status != 0 {
         return Err(SftpError::PasswordRejected);
     }
@@ -257,6 +279,7 @@ pub(crate) fn write_password(
 /// # Errors
 ///
 /// - [`SftpError::SpawnFailed`] when `usermod` refuses or could not be run.
+/// - [`SftpError::Bound`] when `usermod` or the read-back outran its deadline.
 /// - [`SftpError::StatusUnreadable`] when the entry cannot be read back.
 /// - [`SftpError::SuspensionNotRestored`] when the login can authenticate
 ///   anyway.
@@ -265,7 +288,14 @@ fn restore_the_lock(
     distro: &dyn DistroAdapter,
     user: &SftpUserName,
 ) -> Result<(), SftpError> {
-    let outcome = host.run(distro.usermod_binary(), &[LOCK, user.as_str()], None)?;
+    // `usermod` parses with `getopt_long`, which honours the end-of-options
+    // marker on both families.
+    let outcome = host.run(
+        &distro.usermod_binary(),
+        &[LOCK, END_OF_OPTIONS, user.as_str()],
+        None,
+        CallClass::Mutation,
+    )?;
     if outcome.status != 0 {
         return Err(SftpError::SpawnFailed {
             code: outcome.status,
@@ -313,10 +343,13 @@ fn stored_password(
     distro: &dyn DistroAdapter,
     user: &SftpUserName,
 ) -> Result<StoredPassword, SftpError> {
+    // `getent` parses with `argp`, which honours the end-of-options marker, so
+    // the database name and the login are both operands after it.
     let outcome = host.run(
-        distro.getent_binary(),
-        &[SHADOW_DATABASE, user.as_str()],
+        &distro.getent_binary(),
+        &[END_OF_OPTIONS, SHADOW_DATABASE, user.as_str()],
         None,
+        CallClass::Query,
     )?;
     if outcome.status == KEY_NOT_FOUND {
         return Err(SftpError::NotFound);

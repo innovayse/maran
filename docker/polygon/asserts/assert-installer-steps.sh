@@ -40,7 +40,15 @@ readonly API_UNIT="${INSTALLER_ROOT}/systemd/maran-api.service"
 # boundary written down: it is SOURCE for a check that RUNS it (see
 # assert_the_panel_socket_directory_is_built_and_then_looked_at), not a file this script greps.
 readonly API_TMPFILES="${INSTALLER_ROOT}/systemd/maran-api.tmpfiles.conf"
+# The tmpfiles snippet that builds the PHP pool socket directory. Applied by the step 40 directory
+# layout check so /run/maran-php comes from the installer's own artefact (issue #101).
+readonly PHP_TMPFILES="${INSTALLER_ROOT}/systemd/maran-php.tmpfiles.conf"
 readonly AGENT_UNIT="${INSTALLER_ROOT}/systemd/maran-agent.service"
+# The package-install template step 70 renders and installs beside the two units above (issue #93).
+# RENDERED and INSTALLED by the step's own functions, never read for an expectation: see
+# parts/php-install-unit.sh. Step 70's install_units reads it, so a missing COPY stops the build
+# at the step and not only at the assertion.
+readonly PHP_INSTALL_UNIT_SOURCE="${INSTALLER_ROOT}/systemd/maran-php-install@.service"
 readonly SERVICES_STEP="${INSTALLER_LIB}/70-services.sh"
 # The shared helpers the step files call but no step defines. Sourced rather than read: a step that
 # calls `host_display_name` and cannot find it exits 127 with no assertion of this script ever
@@ -196,7 +204,9 @@ require_installer_file "$PANEL_ENV_EXAMPLE" installer/panel.env.example
 require_installer_file "$CONFIG_STEP" installer/lib/60-config.sh
 require_installer_file "$API_UNIT" installer/systemd/maran-api.service
 require_installer_file "$API_TMPFILES" installer/systemd/maran-api.tmpfiles.conf
+require_installer_file "$PHP_TMPFILES" installer/systemd/maran-php.tmpfiles.conf
 require_installer_file "$AGENT_UNIT" installer/systemd/maran-agent.service
+require_installer_file "$PHP_INSTALL_UNIT_SOURCE" installer/systemd/maran-php-install@.service
 require_installer_file "$SERVICES_STEP" installer/lib/70-services.sh
 require_installer_file "$COMMON_LIB" installer/lib/00-common.sh
 require_installer_file "$PREFLIGHT_STEP" installer/lib/10-preflight.sh
@@ -456,6 +466,7 @@ for __part in \
   "${ASSERT_PARTS_DIR}/service-account.sh" \
   "${ASSERT_PARTS_DIR}/directory-layout.sh" \
   "${ASSERT_PARTS_DIR}/units-and-preflight.sh" \
+  "${ASSERT_PARTS_DIR}/php-install-unit.sh" \
   "${ASSERT_PARTS_DIR}/uninstaller.sh" \
   "${ASSERT_PARTS_DIR}/ftps.sh" \
   "${ASSERT_PARTS_DIR}/artifacts-and-packages.sh"; do
@@ -472,6 +483,7 @@ main() {
   assert_panel_port_has_one_authority
   assert_the_service_account_name_has_one_authority
   assert_generated_keys_are_documented
+  assert_the_panel_host_name_is_recorded_from_the_name_the_vhost_serves
   # Before the firewall assertions: they write /etc/maran/panel.env at its real path and refuse
   # to run when it is already there, and so does this one. It cleans up after itself.
   assert_the_finish_message_tells_the_truth_about_this_install
@@ -514,6 +526,10 @@ main() {
   # After it, because it needs the `panel` group that assertion's prepare step creates, and because
   # it is the other assertion that installs files outside /tmp.
   assert_the_panel_socket_directory_is_built_and_then_looked_at
+  # After it, because both install and remove the same unit files through step 70's install_units,
+  # and the socket assertion above leaves the unit directory clean for them.
+  assert_the_php_install_unit_is_the_one_fixed_oneshot_the_design_allows
+  assert_step_70_installs_the_php_install_unit_root_owned_and_never_enabled
 
   # Last of all, and deliberately: these RUN step 40's create_directory_layout, which
   # re-modes /run/maran and re-owns /var/lib/maran to the values a real install leaves.
@@ -534,6 +550,10 @@ main() {
   assert_the_release_staging_directory_is_root_only
   assert_the_staging_gate_refuses_what_install_left_wrong
   assert_the_agent_unit_declares_its_writable_roots
+  assert_the_agent_unit_never_makes_usr_writable
+  assert_the_agent_unit_keeps_its_measured_hardening
+  assert_the_agent_unit_never_hides_other_users_processes
+  assert_the_agent_unit_renders_through_the_installer
   assert_preflight_warns_about_backup_space_without_refusing
 
   # Step 89, and the ORDER inside this group is the step's own order, because the step's whole

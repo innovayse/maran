@@ -3,9 +3,12 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <!-- data-theme is set here, before the app mounts, so the first paint is
-         already the right theme: setting it from JavaScript flashes the wrong
-         one first. The locale store rewrites it when the user chooses. -->
+    <!-- data-theme="dark" is only the baseline the very first frame has before any script runs:
+         the theme store (src/stores/theme.ts) replaces it with the stored or system-preferred
+         theme when main.ts creates it, before the app mounts, so it holds on every page, signed in
+         or not. The choice is deliberately not read by an inline script here: the panel serves
+         script-src 'self', which refuses inline scripts, and a second copy of the resolution
+         would drift from the store's. The locale store rewrites lang the same way. -->
     <!-- The icons, in the order a browser is meant to read them. The SVG comes
          first so a browser that understands it scales one drawing instead of
          picking a bitmap; the 32px PNG is the fallback for those that ignore

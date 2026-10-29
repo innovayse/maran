@@ -1,6 +1,7 @@
 //! WritePool: one php-fpm pool per account per version, through the one
 //! config-write path.
 
+use maran_agent_core::utils::call_class::CallClass;
 use maran_distro::DistroAdapter;
 use maran_templates::php_fpm::pool::Pool;
 use maran_templates::php_fpm::pool_override::PoolOverride;
@@ -10,6 +11,7 @@ use crate::php::model::pool_input::PoolInput;
 use crate::php::model::pool_paths::PoolPaths;
 use crate::php::supported_versions::ensure_supported;
 use crate::php::{PhpHost, PhpOpError};
+use maran_agent_core::end_of_options::END_OF_OPTIONS;
 
 /// The argument that makes php-fpm check its configuration instead of serving.
 pub(crate) const VALIDATE_ARGUMENT: &str = "-t";
@@ -116,6 +118,9 @@ const IDLE_CEILING_DIVISOR: u32 = 3;
 /// the previous pool restored — [`PhpOpError::ReloadFailed`] when the reload
 /// refuses it, and [`PhpOpError::ConfigWrite`] for any other failure of the
 /// protocol, including the creation of the socket directory. Returns
+/// [`PhpOpError::Bound`] when `php-fpm -t` or the reload outlived its deadline and was
+/// killed with its process group — with the previous pool restored, and not a verdict on
+/// the pool. Returns
 /// [`PhpOpError::AccountBusy`] when another operation for this account — a
 /// deletion, a backup, a restore, an SFTP login creation or another pool write
 /// — holds the account's lock; nothing is written and nothing is reloaded.
@@ -207,19 +212,24 @@ pub(crate) fn write_pool_under_lock(
 
     let contents = render_pool(distro, input, &paths)?;
 
-    let validator_program = distro.php_fpm_binary(input.version.as_str());
+    let validator_program = distro.php_fpm_binary(&input.version);
+    // A pure check, so the short class: `php-fpm -t` reads the tree and changes nothing.
     let validator = crate::safe_write::model::Validator {
         program: &validator_program,
         arguments: &[VALIDATE_ARGUMENT],
+        class: CallClass::Validate,
     };
     let service = distro.php_fpm_service(input.version.as_str());
-    let reload_arguments = [RELOAD_SUBCOMMAND, service.as_str()];
+    // `--` before the unit: `systemctl` reads its options with `getopt_long`, which ends
+    // option parsing at `--`.
+    let reload_arguments = [RELOAD_SUBCOMMAND, END_OF_OPTIONS, service.as_str()];
+    // The absolute path of the service manager, from the adapter. `ops` names no binary
+    // path of its own — and a bare `"systemctl"` written to get past that rule would be a
+    // program a root process resolves through `PATH`, which is worse than the literal it
+    // replaced.
+    let service_manager = distro.service_manager();
     let reload = crate::safe_write::model::Reload {
-        // The absolute path of the service manager, from the adapter. `ops`
-        // names no binary path of its own — and a bare `"systemctl"` written
-        // to get past that rule would be a program a root process resolves
-        // through `PATH`, which is worse than the literal it replaced.
-        program: distro.service_manager(),
+        program: &service_manager,
         arguments: &reload_arguments,
     };
 

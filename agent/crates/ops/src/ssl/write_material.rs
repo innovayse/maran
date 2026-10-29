@@ -1,5 +1,6 @@
 //! Handing certificate material to the one config-write protocol.
 
+use maran_agent_core::utils::call_class::CallClass;
 use maran_distro::DistroAdapter;
 
 use crate::safe_write::model::{Reload, Validator};
@@ -8,6 +9,7 @@ use crate::sites::write_vhost::{RELOAD_SUBCOMMAND, VALIDATE_ARGUMENT};
 use crate::ssl::model::certificate_material::CertificateMaterial;
 use crate::ssl::ssl_host::SslHost;
 use crate::ssl::ssl_op_error::SslOpError;
+use maran_agent_core::end_of_options::END_OF_OPTIONS;
 
 /// Writes `material` into the agent's own store with the nginx validator and
 /// reload attached.
@@ -28,21 +30,29 @@ use crate::ssl::ssl_op_error::SslOpError;
 /// # Errors
 ///
 /// Returns [`SslOpError::NginxValidation`] or [`SslOpError::ReloadFailed`] with
-/// the previous material restored, and [`SslOpError::MaterialWrite`] for every
-/// other failure of the protocol — never carrying the material itself.
+/// the previous material restored, [`SslOpError::Bound`] when the validator or
+/// the reload outruns its deadline (the previous material is restored and the
+/// lock released by then), and [`SslOpError::MaterialWrite`] for every other
+/// failure of the protocol — never carrying the material itself.
 pub(crate) fn write_material(
     host: &dyn SslHost,
     distro: &dyn DistroAdapter,
     certificate: &SiteCertificate,
     material: &CertificateMaterial,
 ) -> Result<(), SslOpError> {
+    let nginx = distro.nginx_binary();
+    let service_manager = distro.service_manager();
     let validator = Validator {
-        program: distro.nginx_binary(),
+        program: &nginx,
         arguments: &[VALIDATE_ARGUMENT],
+        // `nginx -t` only reads: a pure validation.
+        class: CallClass::Validate,
     };
-    let reload_arguments = [RELOAD_SUBCOMMAND, distro.nginx_service()];
+    // `--` before the unit: `systemctl` reads its options with `getopt_long`,
+    // which ends option parsing at `--`, on both families.
+    let reload_arguments = [RELOAD_SUBCOMMAND, END_OF_OPTIONS, distro.nginx_service()];
     let reload = Reload {
-        program: distro.service_manager(),
+        program: &service_manager,
         arguments: &reload_arguments,
     };
 

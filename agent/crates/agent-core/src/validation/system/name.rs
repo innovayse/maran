@@ -8,11 +8,15 @@ const MIN_LENGTH: usize = 3;
 /// Longest accepted name, matching the conventional `useradd` limit.
 const MAX_LENGTH: usize = 30;
 
-/// A validated hosting-account name, safe to embed in paths and unit names.
+/// A validated account-name spelling, safe to embed in paths and unit names.
 ///
 /// The inner string is private and the only constructor is [`AccountName::parse`],
 /// so holding a value of this type is proof that validation happened — a function
 /// taking an `AccountName` cannot be handed an unchecked string by mistake.
+///
+/// That is a proof of SPELLING only: `root` is a valid `AccountName`. That the
+/// host user behind a name is a hosting account is proved by
+/// [`ManagedAccount`](super::managed_account::ManagedAccount).
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct AccountName(String);
 

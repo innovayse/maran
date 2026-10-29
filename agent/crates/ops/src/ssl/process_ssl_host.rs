@@ -1,14 +1,17 @@
 //! The [`SslHost`] that actually touches this machine.
 
-use std::io::Write as _;
 use std::os::unix::fs::PermissionsExt as _;
 use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
 
 use maran_agent_core::agent_paths::AgentPaths;
 use maran_agent_core::command_outcome::CommandOutcome;
-use maran_agent_core::utils::apply_child_environment::apply_child_environment;
+use maran_agent_core::utils::call_class::CallClass;
+use maran_agent_core::utils::child_input::ChildInput;
+use maran_agent_core::utils::child_output::ChildOutput;
+use maran_agent_core::utils::run_bounded::run_bounded;
+use maran_agent_core::utils::spawn_request::SpawnRequest;
 use maran_agent_core::validation::system::name::AccountName;
+use maran_distro::AdapterBinary;
 
 use crate::safe_write::model::{ConfigFile, Reload, Validator};
 use crate::safe_write::{ConfigHost, SafeWriteError, remove_config, write_config_set};
@@ -89,14 +92,22 @@ impl Default for ProcessSslHost {
 }
 
 impl ConfigHost for ProcessSslHost {
-    /// Spawns `program` with `arguments` as an argv array.
+    /// Spawns `program` with `arguments` as an argv array, for at most the
+    /// deadline of `class`.
     ///
     /// No shell is involved, at any point (rules/security.md item 3): the
     /// arguments reach `execve` one by one, so there is no command line for
-    /// anything to re-parse. `program` comes from the `DistroAdapter`'s
-    /// allow-list and never from a request.
-    fn run(&self, program: &str, arguments: &[&str]) -> Result<CommandOutcome, SafeWriteError> {
-        self.sites.run(program, arguments)
+    /// anything to re-parse. `program` is an [`AdapterBinary`], which only the
+    /// distro crate can build, so it never comes from a request. The spawn is the
+    /// site host's, and so are its errors: a bound arrives as
+    /// [`SafeWriteError::Bound`].
+    fn run(
+        &self,
+        program: &AdapterBinary,
+        arguments: &[&str],
+        class: CallClass,
+    ) -> Result<CommandOutcome, SafeWriteError> {
+        self.sites.run(program, arguments, class)
     }
 }
 
@@ -138,6 +149,25 @@ impl SiteHost for ProcessSslHost {
     }
 
     /// Delegates to the site area's host.
+    ///
+    /// Present because [`SiteHost`] requires it, and reached by nothing in the
+    /// certificate area: installing or removing a certificate re-renders a
+    /// vhost that already exists, which is a replacement. Delegated rather than
+    /// refused so that this host stays the site host plus certificate work and
+    /// nothing less.
+    fn create_config(
+        &self,
+        target: &Path,
+        contents: &str,
+        validator: &Validator<'_>,
+        reload: &Reload<'_>,
+        refused_warnings: &[String],
+    ) -> Result<(), SitesOpError> {
+        self.sites
+            .create_config(target, contents, validator, reload, refused_warnings)
+    }
+
+    /// Delegates to the site area's host.
     fn remove_config(
         &self,
         target: &Path,
@@ -159,10 +189,10 @@ impl SiteHost for ProcessSslHost {
 
 impl SslHost for ProcessSslHost {
     /// Spawns `program` with the certificate on standard input and returns
-    /// everything it said.
+    /// everything it said, as a query.
     fn run_with_certificate(
         &self,
-        program: &str,
+        program: &AdapterBinary,
         arguments: &[&str],
         certificate_pem: &str,
     ) -> Result<CommandOutcome, SslOpError> {
@@ -178,7 +208,7 @@ impl SslHost for ProcessSslHost {
     /// because by the time it holds the outcome there is nothing left to attach.
     fn run_with_private_key(
         &self,
-        program: &str,
+        program: &AdapterBinary,
         arguments: &[&str],
         private_key_pem: &str,
     ) -> Result<KeyToolOutcome, SslOpError> {
@@ -324,7 +354,7 @@ impl SslHost for ProcessSslHost {
     /// directory when it is dropped, on every path out of this function.
     fn generate_material(
         &self,
-        program: &str,
+        program: &AdapterBinary,
         request: &SelfSignedRequest,
     ) -> Result<CertificateMaterial, SslOpError> {
         let store = PathBuf::from(AgentPaths::CERTIFICATE_DIRECTORY);
@@ -365,11 +395,13 @@ impl SslHost for ProcessSslHost {
             &certificate_argument,
         ];
 
-        let outcome =
-            self.run(program, &arguments)
-                .map_err(|error| SslOpError::ToolUnavailable {
-                    reason: error.to_string(),
-                })?;
+        // Key generation is a mutation of nothing but the working directory above;
+        // `Mutation` is the class of a short program that writes. A bound is
+        // reported as itself, and the working directory is removed when
+        // `workspace` is dropped on the way out.
+        let outcome = self
+            .run(program, &arguments, CallClass::Mutation)
+            .map_err(SslOpError::from_tool_run)?;
         if outcome.status != 0 {
             // openssl's own diagnostics about a request it refused. No key
             // exists yet at this point that could be echoed: it would have been
@@ -532,66 +564,39 @@ fn set_mode(path: &Path, mode: u32) -> Result<(), SslOpError> {
     })
 }
 
-/// Spawns `program` with `arguments` and hands it `input` on standard input.
+/// Spawns `program` with `arguments` and hands it `input` on standard input, as
+/// a query.
 ///
 /// Shared by both `run_with_*` methods so there is one spawning sequence rather
 /// than two that can drift; what differs between them is only how much of the
 /// result the caller is allowed to see, and that is decided by their return
 /// types.
 ///
-/// The child's stdin is closed by dropping the handle before the wait: a tool
-/// that reads to end-of-file — which every one of these does — would otherwise
-/// wait forever for input that has already been written, and the agent would
-/// wait with it.
+/// The bounded core delivers the bytes from its own thread and closes the pipe
+/// as soon as they are written: a tool that reads to end-of-file — which every
+/// one of these does — would otherwise wait for input that has already been
+/// written. A tool that never reads is stopped by the `Query` deadline, which
+/// kills its whole process group, and a delivery that fails is reported without
+/// its cause: the buffer being written IS sometimes the private key, and an io
+/// error's message is not a place to find out.
 ///
 /// # Errors
 ///
 /// Returns [`SslOpError::ToolUnavailable`] when the program cannot be started,
-/// its input cannot be delivered, or it cannot be waited for.
+/// its input cannot be delivered, or it cannot be waited for, and
+/// [`SslOpError::Bound`] when it outran its deadline or its output ceiling.
 fn spawn_with_input(
-    program: &str,
+    program: &AdapterBinary,
     arguments: &[&str],
     input: &str,
 ) -> Result<CommandOutcome, SslOpError> {
-    let unavailable = |reason: String| SslOpError::ToolUnavailable { reason };
-
-    let mut command = Command::new(program);
-    apply_child_environment(&mut command);
-    let mut child = command
-        .args(arguments)
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .map_err(|error| unavailable(format!("could not run {program}: {error}")))?;
-
-    match child.stdin.take() {
-        Some(mut stdin) => {
-            // The write's failure is reported without its cause: the buffer
-            // being written IS sometimes the private key, and an io error's
-            // message is not a place to find out.
-            let written = stdin.write_all(input.as_bytes());
-            drop(stdin);
-            written.map_err(|_| unavailable(format!("could not write to {program}")))?;
-        }
-        None => {
-            return Err(unavailable(format!(
-                "could not open the input of {program}"
-            )));
-        }
-    }
-
-    let output = child
-        .wait_with_output()
-        .map_err(|error| unavailable(format!("could not wait for {program}: {error}")))?;
-
-    Ok(CommandOutcome {
-        // -1 for a process killed by a signal: it did not exit, and reporting 0
-        // would read as success to every caller.
-        status: output.status.code().unwrap_or(-1),
-        stdout: String::from_utf8_lossy(&output.stdout).into_owned(),
-        stderr: String::from_utf8_lossy(&output.stderr).into_owned(),
-    })
+    Ok(run_bounded(SpawnRequest {
+        program: program.as_path(),
+        arguments,
+        class: CallClass::Query,
+        input: ChildInput::Bytes(input.as_bytes()),
+        output: ChildOutput::DEFAULT,
+    })?)
 }
 
 #[cfg(test)]

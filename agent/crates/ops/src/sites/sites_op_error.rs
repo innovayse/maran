@@ -1,6 +1,7 @@
 //! Failures of the site operations.
 
 use maran_agent_core::privs::priv_error::PrivError;
+use maran_agent_core::utils::bound_exceeded::BoundExceeded;
 use maran_agent_core::validation::fs::path_error::PathError;
 
 use crate::safe_write::SafeWriteError;
@@ -24,6 +25,46 @@ pub enum SitesOpError {
     AlreadyExists {
         /// The domain that was asked for.
         domain: String,
+    },
+
+    /// Another vhost on this host already serves a host name this site asked
+    /// for — its domain or one of its aliases — so the site was not created.
+    ///
+    /// Separate from [`SitesOpError::AlreadyExists`], which is the idempotent
+    /// answer to asking for THIS site again: that one is decided before
+    /// anything is written, by finding the site's own vhost. This one is
+    /// decided inside the config-write protocol, under its lock, either because
+    /// the site's own vhost appeared between that first look and the write (a
+    /// concurrent creation of the same domain won), or because `nginx -t`,
+    /// reading the whole tree with the new vhost in it, warned that one of its
+    /// names is already served elsewhere. nginx exits 0 on that warning and
+    /// would otherwise answer the name from whichever file sorts first; the
+    /// write treats it as a refusal instead. Either way nothing of the new
+    /// vhost is left behind.
+    #[error("a host name of this site is already served on this host: {detail}")]
+    ServerNameTaken {
+        /// What refused: the vhost path that already existed, or nginx's own
+        /// warning naming the host.
+        detail: String,
+        /// The validator's standard error, for an operator's log; empty when
+        /// the refusal was an existing file and no validator ran.
+        stderr: String,
+    },
+
+    /// The site asked for one host name twice — an alias equal to the domain,
+    /// or the same alias repeated — so nothing was created.
+    ///
+    /// Refused before anything is read or written, as the caller's input, and
+    /// separate from [`SitesOpError::ServerNameTaken`] on purpose: nginx warns
+    /// about a name repeated inside ONE server block in exactly the words it
+    /// uses for a name two vhosts share, so without this check the creation
+    /// would reach the vhost, be refused there, and be reported as a name
+    /// another site already holds — leaving the document root behind and
+    /// telling the panel something untrue about the host.
+    #[error("the host name '{name}' is asked for more than once")]
+    RepeatedHostName {
+        /// The name that appeared more than once.
+        name: String,
     },
 
     /// No site with this domain is configured on this host.
@@ -114,6 +155,19 @@ pub enum SitesOpError {
         version: String,
     },
 
+    /// A program this area ran (`nginx -t`, `systemctl reload`, …) outlived its
+    /// deadline or its output ceiling and was killed with its whole process group.
+    ///
+    /// **Not a verdict**, and so never a [`SitesOpError::NginxValidation`], a
+    /// [`SitesOpError::ReloadFailed`] or a [`SitesOpError::ConfigWrite`]: the
+    /// program was stopped before it could answer, and a reload that was killed
+    /// may still have taken effect. Whatever the operation had written has been
+    /// put back by the config-write protocol, as for any other failed step.
+    /// Carries the program's path and the bound and never a byte the program
+    /// printed.
+    #[error(transparent)]
+    Bound(#[from] BoundExceeded),
+
     /// The vhost directory could not be read.
     #[error("could not read the site configuration at {path}")]
     ConfigUnreadable {
@@ -138,13 +192,27 @@ impl From<SafeWriteError> for SitesOpError {
     ///
     /// The two failures an operator acts on differently — the validator
     /// refusing the content, and nginx refusing to reload valid content — keep
-    /// their own variants and their tool output; everything else collapses
-    /// into [`SitesOpError::ConfigWrite`], whose `Display` still carries the
+    /// their own variants and their tool output, and so do a creation's two
+    /// refusals, which both become [`SitesOpError::ServerNameTaken`]: in this
+    /// area the only creation is a vhost, the only warning it refuses is nginx
+    /// reporting a host name served twice, and an existing target is the
+    /// site's own domain already served. A bound stays a bound, because it
+    /// states no verdict on the content. Everything else collapses into
+    /// [`SitesOpError::ConfigWrite`], whose `Display` still carries the
     /// original chain, including a rollback that did not happen.
     fn from(error: SafeWriteError) -> Self {
         match error {
             SafeWriteError::ValidationFailed { stderr } => Self::NginxValidation { stderr },
             SafeWriteError::ReloadFailed { stderr } => Self::ReloadFailed { stderr },
+            SafeWriteError::Bound(bound) => Self::Bound(bound),
+            SafeWriteError::TargetExists { target } => Self::ServerNameTaken {
+                detail: format!("a vhost already exists at {target}"),
+                stderr: String::new(),
+            },
+            SafeWriteError::RefusedWarning { warning, stderr } => Self::ServerNameTaken {
+                detail: warning,
+                stderr,
+            },
             other => Self::ConfigWrite {
                 reason: other.to_string(),
             },
@@ -177,8 +245,8 @@ impl From<crate::php::PhpOpError> for SitesOpError {
     ///
     /// The two an operator acts on differently keep their meaning — a missing
     /// version stays [`SitesOpError::PhpVersionNotInstalled`], and php-fpm
-    /// refusing to reload a valid pool stays [`SitesOpError::ReloadFailed`] —
-    /// and everything else collapses into [`SitesOpError::ConfigWrite`], whose
+    /// refusing to reload a valid pool stays [`SitesOpError::ReloadFailed`], and
+    /// a bound stays [`SitesOpError::Bound`] — and everything else collapses into [`SitesOpError::ConfigWrite`], whose
     /// `Display` still carries the original message. The areas do not import
     /// each other's errors any further than this one conversion: a site
     /// operation reports site failures, whatever it had to call to fail.
@@ -188,9 +256,14 @@ impl From<crate::php::PhpOpError> for SitesOpError {
                 Self::PhpVersionNotInstalled { version }
             }
             crate::php::PhpOpError::ReloadFailed { stderr } => Self::ReloadFailed { stderr },
+            crate::php::PhpOpError::Bound(bound) => Self::Bound(bound),
             other => Self::ConfigWrite {
                 reason: other.to_string(),
             },
         }
     }
 }
+
+#[cfg(test)]
+#[path = "../tests/sites/sites_op_error_tests.rs"]
+mod tests;

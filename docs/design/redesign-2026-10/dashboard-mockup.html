@@ -1,0 +1,592 @@
+<!doctype html>
+<html lang="en" class="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Server status — Maran</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800;900&family=Inter:wght@400;500;600;700&family=Noto+Sans+Armenian:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* ===========================================================================
+   Maran, in the Innovayse admin's structure, in Maran's own colours.
+
+   The STRUCTURE is the ASPU admin's (aspu.innovayse.com/admin, read at 1440,
+   768 and 390): a flat dark desktop with rounded panels 12px apart, a solid
+   accent active item with its glow, Archivo black figures and titles, Inter
+   for text, a bottom tab bar below 1024px.
+
+   The COLOURS are Maran's, read from its mark (frontend/public/favicon.svg,
+   the keystone) and its own dark tokens (frontend/src/assets/css/main.css).
+   The keystone is a ramp of one blue, #E4F0FF down to #0C2E63, lit at #2E7BFF.
+   Which step goes where was decided by measuring contrast, not by eye:
+     #2468DC  filled surfaces under white text   5.14:1  (#2E7BFF fails: 3.89:1)
+     #5290FF  blue text and icons on the dark     6.18:1
+     #2E7BFF  meters, glows, the mark's own core  3.87:1 against a track
+   =========================================================================== */
+:root {
+  /* Maran's own dark neutrals (main.css), cool, so they sit with a blue accent */
+  --rgb-paper:  233 235 238;  /* #E9EBEE  t1 */
+  --rgb-accent: 46 123 255;   /* #2E7BFF  ac, the keystone's lit core */
+
+  --desk:       #07080A;      /* one step under bg #0A0B0D: the app desktop */
+
+  /* the keystone's ramp, each step placed by its measured contrast */
+  --accent:       #2E7BFF;    /* meters, glows, focus */
+  --accent-fill:  #2468DC;    /* filled surfaces under white text: 5.14:1 */
+  --accent-hover: #1B55BE;    /* 6.80:1 */
+  --accent-text:  #5290FF;    /* blue text and icons on the dark: 6.18:1 */
+  --accent-light: #8FBCFF;    /* the cap's top face: 9.84:1 */
+
+  --ok:   #2FB574;            /* gr */
+  --warn: #E0A030;            /* am */
+  --bad:  #E5484D;            /* rd */
+
+  --paper:    rgb(var(--rgb-paper));
+  --p80: rgb(var(--rgb-paper) / .80);
+  --p75: rgb(var(--rgb-paper) / .75);
+  --p60: rgb(var(--rgb-paper) / .64);
+  --p50: rgb(var(--rgb-paper) / .58);   /* lifted from .50 so small uppercase labels keep 4.5:1 */
+  --p40: rgb(var(--rgb-paper) / .50);
+  --p35: rgb(var(--rgb-paper) / .42);
+  --p15: rgb(var(--rgb-paper) / .15);
+  --p10: rgb(var(--rgb-paper) / .10);
+  --p05: rgb(var(--rgb-paper) / .05);
+  --p04: rgb(var(--rgb-paper) / .04);
+  --p03: rgb(var(--rgb-paper) / .03);
+  --a15: rgb(var(--rgb-accent) / .15);
+  --a40: rgb(var(--rgb-accent) / .45);
+
+  --shadow-accent: 0 8px 30px -8px rgb(var(--rgb-accent) / .55);
+
+  --font-display: 'Archivo', 'Noto Sans Armenian', 'Inter', 'Arial Black', sans-serif;
+  --font-body:    'Inter', 'Noto Sans Armenian', 'Segoe UI', sans-serif;
+  --font-mono:    'JetBrains Mono', 'Fira Code', monospace;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body {
+  background: var(--desk); color: var(--paper);
+  font: 400 14px/1.5 var(--font-body); -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+}
+a { color: inherit; text-decoration: none; }
+.mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+svg { flex: none; }
+.i  { width: 20px; height: 20px; }
+.is { width: 18px; height: 18px; }
+:is(a, button):focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* ---- shell -------------------------------------------------------------- */
+.shell { display: flex; flex-direction: column; gap: 12px; height: 100%; padding: 12px; }
+.panel { border: 1px solid var(--p10); background: var(--p04); border-radius: 16px; }
+
+/* app bar */
+.appbar { display: flex; align-items: center; gap: 16px; height: 56px; padding: 0 16px; flex: none; }
+.iconbtn.burger { display: none; }
+.logo { display: flex; align-items: center; gap: 10px; width: 236px; flex: none; }
+.logo-mark { width: 30px; height: 30px; display: block; }   /* the keystone carries its own blues: no plate */
+.logo b { font-family: var(--font-display); font-weight: 900; font-size: 15px; letter-spacing: .08em; }
+.logo-sub { font-family: var(--font-display); font-weight: 800; font-size: 12px; letter-spacing: .12em; color: var(--p60); }
+.search {
+  display: flex; align-items: center; gap: 10px; width: 448px; height: 38px; padding: 0 8px 0 14px;
+  border-radius: 10px; border: 1px solid var(--p15); background: var(--p04); color: var(--p50); font-size: 14px;
+  min-width: 0; white-space: nowrap;
+}
+.search .ph-text { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.kbd { margin-left: auto; flex: none; white-space: nowrap; display: inline-flex; gap: 4px; border-radius: 6px; border: 1px solid var(--p15);
+       padding: 2px 7px; font-size: 11px; font-weight: 600; color: var(--p40); }
+.iconbtn.search-ic { display: none; }
+.bar-right { margin-left: auto; display: flex; align-items: center; gap: 22px; }
+.lang, .tosite { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; color: var(--p80); }
+.tosite { font-family: var(--font-display); font-weight: 800; letter-spacing: .08em; font-size: 12px; text-transform: uppercase; }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ok); box-shadow: 0 0 0 3px rgb(47 181 116 / .22); }
+.ava { width: 34px; height: 34px; border-radius: 50%; background: var(--accent-fill); display: grid; place-items: center;
+       font-weight: 700; font-size: 14px; color: #fff; flex: none; }
+.iconbtn { width: 38px; height: 38px; border-radius: 10px; border: 0; background: transparent; color: var(--p80);
+           display: grid; place-items: center; cursor: pointer; }
+.iconbtn:hover { background: var(--p10); }
+
+/* middle */
+.middle { display: flex; gap: 12px; flex: 1; min-height: 0; }
+
+/* sidebar */
+.side { width: 240px; flex: none; padding: 12px; display: flex; flex-direction: column; min-height: 0; }
+.side-scroll { scrollbar-width: thin; scrollbar-color: var(--p15) transparent;
+   flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 4px; margin-right: -4px; padding-right: 4px; }
+.group { padding: 16px 12px 4px; font-family: var(--font-display); font-size: 10px; font-weight: 800;
+         letter-spacing: .2em; text-transform: uppercase; color: var(--p35); }
+.nav { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 12px;
+       font-size: 14px; font-weight: 500; color: var(--p75); transition: background .2s, color .2s; }
+.nav:hover { background: var(--p10); color: var(--paper); }
+.nav.active { background: var(--accent-fill); color: #fff; box-shadow: var(--shadow-accent); }
+.badge-n { margin-left: auto; font-size: 11px; font-weight: 700; min-width: 22px; text-align: center;
+           padding: 1px 7px; border-radius: 999px; background: var(--p10); color: var(--p75); }
+.nav.active .badge-n { background: rgb(255 255 255 / .22); color: #fff; }
+.me { margin-top: 12px; flex: none; padding: 12px; border-radius: 12px; border: 1px solid var(--p10); background: var(--p03); }
+.me-row { display: flex; align-items: center; gap: 12px; }
+.me-row > div b { display: block; font-size: 14px; font-weight: 700; }
+.me-row > div span { display: block; font-size: 12.5px; color: var(--p50); }
+.logout { margin-top: 12px; width: 100%; height: 36px; border-radius: 8px; border: 1px solid var(--p15);
+          background: transparent; color: var(--p80); font: 600 13px var(--font-body);
+          display: flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer; }
+.logout:hover { background: var(--p10); color: var(--paper); }
+
+/* content: the only scroller */
+.content { flex: 1; min-width: 0; overflow-y: auto; overflow-x: hidden; background: var(--p03); }
+.content main { padding: 32px; }
+
+/* ---- page header ------------------------------------------------------- */
+.ph { display: flex; align-items: center; justify-content: space-between; gap: 20px; }
+.eyebrow { font-family: var(--font-display); font-size: 12px; font-weight: 800; letter-spacing: .14em;
+           text-transform: uppercase; color: var(--accent-text); }
+h1 { font-family: var(--font-display); font-weight: 900; font-size: 30px; line-height: 1.12;
+     letter-spacing: -.01em; margin: 6px 0 0; text-transform: uppercase; }
+/* The house's primary action: a full pill in the accent, with its glow. */
+.pill { display: inline-flex; align-items: center; gap: 8px; height: 40px; padding: 0 20px 0 16px;
+        border-radius: 999px; background: var(--accent-fill); color: #fff; font: 600 14px var(--font-body);
+        box-shadow: var(--shadow-accent); border: 0; cursor: pointer; white-space: nowrap; flex: none; }
+.pill:hover { background: var(--accent-hover); }
+
+/* the finding, in the same card language, marked by the accent edge */
+.notice { margin-top: 24px; display: flex; align-items: center; gap: 14px; padding: 16px 18px; border-radius: 16px;
+          border: 1px solid rgb(224 160 48 / .45); background: rgb(224 160 48 / .08); }
+.notice .sq { width: 36px; height: 36px; border-radius: 10px; background: rgb(224 160 48 / .16); color: var(--warn);
+              display: grid; place-items: center; flex: none; }
+.notice p { margin: 0; color: var(--p80); font-size: 14px; flex: 1; min-width: 0; }
+.notice p b { color: var(--paper); }
+.ghostpill { display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 14px; border-radius: 999px;
+             border: 1px solid rgb(224 160 48 / .5); color: #F2C46D; font-weight: 600; font-size: 13px; white-space: nowrap; flex: none; }
+.ghostpill:hover { background: rgb(224 160 48 / .14); }
+
+/* ---- KPI cards: icon square, figure, label ------------------------------ */
+.kpis { margin-top: 24px; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }
+.kpi { padding: 20px; display: block; transition: transform .3s, border-color .3s; min-width: 0; }
+.kpi:hover { transform: translateY(-2px); border-color: var(--a40); }
+.sq { width: 36px; height: 36px; border-radius: 10px; background: var(--a15); color: var(--accent-text);
+      display: grid; place-items: center; }
+.kpi .v { margin-top: 14px; font-family: var(--font-display); font-weight: 900; font-size: 30px; line-height: 1; }
+.kpi .v small { font-size: 15px; font-weight: 800; color: var(--p50); margin-left: 4px; white-space: nowrap; }
+/* Labels are uppercase as the house sets them, but they WRAP: the ASPU admin's long Armenian labels
+   overflowed a two-column card at 390px and pushed the panel into a horizontal scroll. */
+.kpi .l { margin-top: 8px; font-family: var(--font-display); font-size: 11.5px; font-weight: 800;
+          letter-spacing: .12em; text-transform: uppercase; color: var(--p50);
+          overflow-wrap: anywhere; }
+.meter { margin-top: 14px; height: 6px; border-radius: 999px; background: var(--p10); overflow: hidden; }
+.meter i { display: block; height: 100%; border-radius: 999px; background: var(--accent); }
+
+/* ---- widgets ------------------------------------------------------------ */
+.row { margin-top: 24px; display: grid; gap: 16px; }
+.r-12 { grid-template-columns: minmax(0, 1fr) minmax(0, 1.65fr); }
+.r-11 { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+.card { padding: 20px; min-width: 0; }
+.ch { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
+.ch h2 { margin: 0; font-family: var(--font-display); font-size: 13px; font-weight: 800; letter-spacing: .12em;
+         text-transform: uppercase; color: var(--p80); }
+.ch a { font-size: 13px; font-weight: 600; color: var(--accent-text); }
+.ch a:hover { color: var(--accent-light); }
+
+/* quick actions: bordered rows with an icon square and a chevron, as in the admin */
+.qa-list { display: flex; flex-direction: column; gap: 10px; }
+.qa { display: flex; align-items: center; gap: 14px; padding: 10px 14px 10px 10px; border-radius: 12px;
+      border: 1px solid var(--p10); background: var(--p03); color: var(--p80); font-weight: 500;
+      transition: border-color .2s, background .2s; }
+.qa:hover { border-color: var(--a40); background: var(--p05); color: var(--paper); }
+.qa .sq { width: 32px; height: 32px; border-radius: 8px; background: var(--p05); color: var(--p75); }
+.qa:hover .sq { background: var(--a15); color: var(--accent-text); }
+.qa .chev { margin-left: auto; color: var(--p40); }
+
+/* table */
+.tbl { width: 100%; overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; min-width: 520px; }
+th { text-align: left; font-family: var(--font-display); font-size: 11px; font-weight: 800; letter-spacing: .12em;
+     text-transform: uppercase; color: var(--p50); padding: 0 12px 12px; border-bottom: 1px solid var(--p10); }
+th.r, td.r { text-align: right; }
+td { padding: 13px 12px; border-bottom: 1px solid var(--p05); font-size: 14px; vertical-align: middle; }
+tbody tr:last-child td { border-bottom: 0; }
+tbody tr { transition: background .2s; }
+tbody tr:hover { background: var(--p04); }
+.who { display: flex; align-items: center; gap: 10px; }
+.ini { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center;
+       background: var(--a15); color: var(--accent-light); font-size: 11px; font-weight: 700; flex: none; }
+.who > div b { display: block; font-weight: 700; color: var(--paper); }
+.who > div span { display: block; font-size: 12.5px; color: var(--p50); }
+.tag { display: inline-block; padding: 3px 10px; border-radius: 999px; background: var(--p10);
+       font-family: var(--font-display); font-size: 10.5px; font-weight: 800; letter-spacing: .1em;
+       text-transform: uppercase; color: var(--p80); }
+.tag.hot { background: var(--a15); color: var(--accent-light); }
+.use { display: flex; align-items: center; justify-content: flex-end; gap: 10px; }
+.use .meter { margin: 0; width: 96px; }
+.use .meter i { background: var(--p50); }
+.use .meter.hot i { background: var(--warn); }
+.use .p { width: 40px; text-align: right; font-size: 13px; color: var(--p60); }
+.use .p.hot { color: var(--warn); font-weight: 700; }
+
+/* lists */
+.list { list-style: none; margin: 0; padding: 0; }
+.list li { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-top: 1px solid var(--p05); }
+.list li:first-child { border-top: 0; padding-top: 0; }
+.list .sq { width: 34px; height: 34px; border-radius: 10px; background: var(--p05); color: var(--p75); }
+.list .name { font-weight: 600; }
+.list .meta { font-size: 12.5px; color: var(--p50); }
+.st { margin-left: auto; display: inline-flex; align-items: center; gap: 7px; font-size: 12.5px; font-weight: 600; white-space: nowrap; }
+.st.ok { color: #4CCB8D; }
+.st.ok::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--ok); }
+.st.off { color: #F2C46D; }
+.st.off::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--warn); }
+.time { margin-left: auto; font-size: 12.5px; color: var(--p40); white-space: nowrap; }
+.fail { color: #F2C46D; }
+
+/* ---- mobile menu: the sidebar itself, slid in as a floating drawer -------
+   As the ASPU admin does it: the same navigation, in a rounded panel that comes in from the left
+   with 12px of desktop around it, over a darkened and blurred page. Opened by the hamburger and by
+   the tab bar's "More"; closed by its own button, by the backdrop, and by Escape — which the ASPU
+   admin does not do, and a modal panel must. */
+.drawer-head { display: none; }
+.backdrop { display: none; }
+
+/* ---- bottom tab bar (below 1024px, as in the admin) --------------------- */
+.tabbar { display: none; }
+
+/* ---- responsive --------------------------------------------------------- */
+@media (max-width: 1279px) {
+  .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .r-12 { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 1023px) {
+  .logo-sub, .tosite span { display: none; }
+  .side {
+    position: fixed; z-index: 50; top: 12px; left: 12px; bottom: 12px; width: 264px;
+    background: #101216; transform: translateX(calc(-100% - 24px));
+    transition: transform .3s cubic-bezier(.2,.8,.2,1); visibility: hidden;
+  }
+  body.menu-open .side { transform: none; visibility: visible; }
+  .drawer-head { display: flex; align-items: center; justify-content: space-between; height: 44px; padding: 0 4px 0 8px; margin-bottom: 10px; flex: none; }
+  .backdrop { display: block; position: fixed; inset: 0; z-index: 40; background: rgb(7 8 10 / .7);
+              backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
+              opacity: 0; pointer-events: none; transition: opacity .3s; }
+  body.menu-open .backdrop { opacity: 1; pointer-events: auto; }
+  .iconbtn.burger { display: grid; }
+  .logo { width: auto; }
+  .search { width: auto; flex: 1; max-width: 300px; }
+  .r-11 { grid-template-columns: minmax(0, 1fr); }
+  .ph { flex-direction: column; align-items: flex-start; gap: 16px; }
+  .content main { padding: 24px; }
+  /* the tab bar: five destinations, each with its label kept whole — the admin truncated
+     its labels ("Նորությու…") at 390px; short names avoid that rather than hide it */
+  .tabbar { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); height: 64px; flex: none; padding: 0 6px; }
+  .tab { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+         font: 600 11px var(--font-body); color: var(--p60); border-radius: 12px;
+         background: transparent; border: 0; cursor: pointer; }
+  .tab.active { color: var(--accent-text); }
+}
+@media (max-width: 639px) {
+  .shell { padding: 8px; gap: 8px; }
+  .appbar { padding: 0 8px; gap: 8px; }
+  .search { display: none; }
+  .iconbtn.search-ic { display: grid; }
+  .bar-right { gap: 4px; }
+  .lang .lbl, .lang svg.chev { display: none; }
+  h1 { font-size: 24px; }
+  .content main { padding: 18px 16px; }
+  .kpi { padding: 16px; }
+  .kpi .v { font-size: 26px; }
+  .kpi .v small { font-size: 12px; }
+  /* The text takes the whole row beside the icon and the button drops below it. Left in one row,
+     the button kept its width and squeezed the sentence to one word per line. */
+  .notice { flex-wrap: wrap; align-items: flex-start; }
+  .notice p { flex: 1 1 calc(100% - 50px); }
+  .notice .ghostpill { margin-left: 50px; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+
+<div class="backdrop" data-close-menu></div>
+
+<div class="shell">
+
+  <!-- ===== app bar ===== -->
+  <header class="panel appbar">
+    <button class="iconbtn burger" type="button" aria-label="Open the menu" aria-controls="main-nav" aria-expanded="false" data-open-menu>
+      <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+    </button>
+    <a class="logo" href="#" aria-label="Maran, server status">
+      <img class="logo-mark" src="maran-mark.svg" alt="" width="30" height="30">
+      <b>MARAN</b><span class="logo-sub">PANEL</span>
+    </a>
+    <div class="search" role="search">
+      <svg class="is" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="9" cy="9" r="6"/><path d="M17 17l-3.5-3.5"/></svg>
+      <span class="ph-text">Search accounts, sites, domains…</span>
+      <span class="kbd">⌘ K</span>
+    </div>
+    <div class="bar-right">
+      <button class="iconbtn search-ic" type="button" aria-label="Search">
+        <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>
+      </button>
+      <span class="lang"><span class="dot"></span><span class="lbl">hosting-01</span>
+        <svg class="is chev" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 8l5 5 5-5"/></svg></span>
+      <a class="tosite" href="#" aria-label="Open phpMyAdmin">
+        <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 01-1 1H5a1 1 0 01-1-1V7a1 1 0 011-1h5"/></svg>
+        <span>Server console</span>
+      </a>
+      <span class="ava" aria-label="Edgar">E</span>
+    </div>
+  </header>
+
+  <div class="middle">
+
+    <!-- ===== sidebar ===== -->
+    <nav class="panel side" id="main-nav" aria-label="Main">
+      <div class="drawer-head">
+        <span class="logo"><img class="logo-mark" src="maran-mark.svg" alt="" width="30" height="30"><b>MARAN</b></span>
+        <button class="iconbtn" type="button" data-close-menu aria-label="Close the menu">
+          <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 6l12 12M18 6L6 18"/></svg>
+        </button>
+      </div>
+      <div class="side-scroll">
+        <a class="nav active" href="#" aria-current="page">
+          <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="4" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.5"/></svg>
+          Dashboard
+        </a>
+
+        <div class="group">Hosting</div>
+        <a class="nav" href="#"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c0-3.6 2.9-6 6.5-6s6.5 2.4 6.5 6M16 4.5a3.5 3.5 0 010 7M21.5 20c0-2.6-1.4-4.6-3.5-5.5"/></svg>Accounts<span class="badge-n">6</span></a>
+        <a class="nav" href="#"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 3 2.5 15 0 18M12 3c-2.5 3-2.5 15 0 18"/></svg>Sites<span class="badge-n">11</span></a>
+        <a class="nav" href="#"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v12c0 1.7 3.6 3 8 3s8-1.3 8-3V6M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/></svg>Databases<span class="badge-n">4</span></a>
+        <a class="nav" href="#"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg>File transfer</a>
+        <a class="nav" href="#"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>Scheduled tasks</a>
+
+        <div class="group">Security</div>
+        <a class="nav" href="#"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 3l8 3v6c0 4.5-3.3 8.3-8 9-4.7-.7-8-4.5-8-9V6z"/></svg>Firewall</a>
+        <a class="nav" href="#"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="4" y="11" width="16" height="9" rx="2"/><path d="M8 11V8a4 4 0 018 0v3"/></svg>Certificates</a>
+        <a class="nav" href="#"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M20 12a8 8 0 11-2.3-5.7"/><path d="M20 4v4.5h-4.5"/></svg>Backups</a>
+
+        <div class="group">System</div>
+        <a class="nav" href="#"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M3 17l5-6 4 4 4-7 5 9"/></svg>Monitoring</a>
+        <a class="nav" href="#"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M7 3h7l5 5v13H7z"/><path d="M14 3v5h5M10 13h6M10 17h6"/></svg>Audit journal</a>
+        <a class="nav" href="#"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 00.3 1.8l.1.1a2 2 0 11-2.8 2.8l-.1-.1a1.7 1.7 0 00-1.8-.3 1.7 1.7 0 00-1 1.5V21a2 2 0 01-4 0v-.1a1.7 1.7 0 00-1.1-1.5 1.7 1.7 0 00-1.8.3l-.1.1a2 2 0 11-2.8-2.8l.1-.1a1.7 1.7 0 00.3-1.8 1.7 1.7 0 00-1.5-1H3a2 2 0 010-4h.1a1.7 1.7 0 001.5-1.1 1.7 1.7 0 00-.3-1.8l-.1-.1a2 2 0 112.8-2.8l.1.1a1.7 1.7 0 001.8.3H9a1.7 1.7 0 001-1.5V3a2 2 0 014 0v.1a1.7 1.7 0 001 1.5 1.7 1.7 0 001.8-.3l.1-.1a2 2 0 112.8 2.8l-.1.1a1.7 1.7 0 00-.3 1.8V9a1.7 1.7 0 001.5 1H21a2 2 0 010 4h-.1a1.7 1.7 0 00-1.5 1z"/></svg>Settings</a>
+      </div>
+
+      <div class="me">
+        <div class="me-row">
+          <span class="ava">E</span>
+          <div><b>Edgar Poghosyan</b><span>admin · edgar@innovayse.com</span></div>
+        </div>
+        <button class="logout" type="button">
+          <svg class="is" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M8 4H5a1 1 0 00-1 1v10a1 1 0 001 1h3M13 14l4-4-4-4M17 10H8"/></svg>
+          Sign out
+        </button>
+      </div>
+    </nav>
+
+    <!-- ===== content ===== -->
+    <div class="panel content">
+      <main>
+
+        <div class="ph">
+          <div>
+            <div class="eyebrow">Maran · hosting-01</div>
+            <h1>Welcome back, Edgar</h1>
+          </div>
+          <a class="pill" href="#">
+            <svg class="is" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M10 4v12M4 10h12"/></svg>
+            New account
+          </a>
+        </div>
+
+        <div class="notice" role="status">
+          <span class="sq" aria-hidden="true">
+            <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9L2 18a2 2 0 001.7 3h16.6a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z"/></svg>
+          </span>
+          <p><b>aramyan</b> has <span class="mono">410 MiB</span> left of its 5 GiB plan. At this week's rate it fills on Thursday.</p>
+          <a class="ghostpill" href="#">Raise the plan
+            <svg class="is" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 10h10M11 6l4 4-4 4"/></svg>
+          </a>
+        </div>
+
+        <section class="kpis" aria-label="This server at a glance">
+          <a class="panel kpi" href="#">
+            <span class="sq"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c0-3.6 2.9-6 6.5-6s6.5 2.4 6.5 6M16 4.5a3.5 3.5 0 010 7"/></svg></span>
+            <div class="v" data-count="6">6</div>
+            <div class="l">Accounts</div>
+          </a>
+          <a class="panel kpi" href="#">
+            <span class="sq"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 3 2.5 15 0 18M12 3c-2.5 3-2.5 15 0 18"/></svg></span>
+            <div class="v" data-count="11">11</div>
+            <div class="l">Sites</div>
+          </a>
+          <a class="panel kpi" href="#">
+            <span class="sq"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v12c0 1.7 3.6 3 8 3s8-1.3 8-3V6"/></svg></span>
+            <div class="v" data-count="4">4</div>
+            <div class="l">Databases</div>
+          </a>
+          <a class="panel kpi" href="#">
+            <span class="sq"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="7" width="18" height="10" rx="2"/><path d="M7 12h.01M11 12h6"/></svg></span>
+            <div class="v"><span data-count="41.3" data-decimals="1">41.3</span><small>/ 97.9 GB</small></div>
+            <div class="l">Disk in use</div>
+            <div class="meter"><i style="width:42%"></i></div>
+          </a>
+          <a class="panel kpi" href="#">
+            <span class="sq"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="5" y="5" width="14" height="14" rx="2"/><path d="M9 2v3M15 2v3M9 19v3M15 19v3M2 9h3M2 15h3M19 9h3M19 15h3"/></svg></span>
+            <div class="v"><span data-count="17" data-decimals="0">17</span><small>%</small></div>
+            <div class="l">Processor</div>
+          </a>
+          <a class="panel kpi" href="#">
+            <span class="sq"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="6" width="18" height="12" rx="2"/><path d="M7 10v4M11 10v4M15 10v4"/></svg></span>
+            <div class="v"><span data-count="2.4" data-decimals="1">2.4</span><small>/ 7.6 GB</small></div>
+            <div class="l">Memory</div>
+          </a>
+          <a class="panel kpi" href="#">
+            <span class="sq"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3l8 3v6c0 4.5-3.3 8.3-8 9-4.7-.7-8-4.5-8-9V6z"/></svg></span>
+            <div class="v" data-count="3">3</div>
+            <div class="l">Banned addresses</div>
+          </a>
+          <a class="panel kpi" href="#">
+            <span class="sq"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20 12a8 8 0 11-2.3-5.7"/><path d="M20 4v4.5h-4.5"/></svg></span>
+            <div class="v" data-count="0">0</div>
+            <div class="l">Failed backups</div>
+          </a>
+        </section>
+
+        <section class="row r-12">
+          <div class="panel card">
+            <div class="ch"><h2>Quick actions</h2></div>
+            <div class="qa-list">
+              <a class="qa" href="#"><span class="sq"><svg class="is" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="8" cy="7" r="3"/><path d="M2.5 17c0-3 2.5-5 5.5-5s5.5 2 5.5 5M15 6v5M12.5 8.5h5"/></svg></span>Create an account<svg class="is chev" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M8 5l5 5-5 5"/></svg></a>
+              <a class="qa" href="#"><span class="sq"><svg class="is" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="10" cy="10" r="7.5"/><path d="M2.5 10h15M10 2.5c2 2.5 2 12.5 0 15"/></svg></span>Add a site<svg class="is chev" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M8 5l5 5-5 5"/></svg></a>
+              <a class="qa" href="#"><span class="sq"><svg class="is" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8"><ellipse cx="10" cy="5" rx="6.5" ry="2.5"/><path d="M3.5 5v10c0 1.4 2.9 2.5 6.5 2.5s6.5-1.1 6.5-2.5V5"/></svg></span>Create a database<svg class="is chev" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M8 5l5 5-5 5"/></svg></a>
+              <a class="qa" href="#"><span class="sq"><svg class="is" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3.5" y="9" width="13" height="8" rx="1.5"/><path d="M6.5 9V6.5a3.5 3.5 0 017 0V9"/></svg></span>Issue a certificate<svg class="is chev" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M8 5l5 5-5 5"/></svg></a>
+              <a class="qa" href="#"><span class="sq"><svg class="is" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M16.5 10a6.5 6.5 0 11-2-4.7"/><path d="M17 3v3.5h-3.5"/></svg></span>Back up now<svg class="is chev" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M8 5l5 5-5 5"/></svg></a>
+            </div>
+          </div>
+
+          <div class="panel card">
+            <div class="ch"><h2>Accounts</h2><a href="#">View all</a></div>
+            <div class="tbl">
+              <table>
+                <thead><tr><th>Account</th><th>Plan</th><th class="r">Sites</th><th class="r">Disk used</th></tr></thead>
+                <tbody>
+                  <tr><td><div class="who"><span class="ini">AR</span><div><b>aramyan</b><span>aramyan-shop.am</span></div></div></td>
+                      <td><span class="tag">Starter</span></td><td class="r mono">2</td>
+                      <td><div class="use"><div class="meter hot"><i style="width:92%"></i></div><span class="p hot mono">92%</span></div></td></tr>
+                  <tr><td><div class="who"><span class="ini">GK</span><div><b>gyumri-kitchen</b><span>gyumri-kitchen.am</span></div></div></td>
+                      <td><span class="tag hot">Business</span></td><td class="r mono">2</td>
+                      <td><div class="use"><div class="meter"><i style="width:47%"></i></div><span class="p mono">47%</span></div></td></tr>
+                  <tr><td><div class="who"><span class="ini">IN</span><div><b>innovayse</b><span>innovayse.com</span></div></div></td>
+                      <td><span class="tag hot">Business</span></td><td class="r mono">2</td>
+                      <td><div class="use"><div class="meter"><i style="width:29%"></i></div><span class="p mono">29%</span></div></td></tr>
+                  <tr><td><div class="who"><span class="ini">VA</span><div><b>vardanyan</b><span>vardanyan.am</span></div></div></td>
+                      <td><span class="tag">Starter</span></td><td class="r mono">3</td>
+                      <td><div class="use"><div class="meter"><i style="width:42%"></i></div><span class="p mono">42%</span></div></td></tr>
+                  <tr><td><div class="who"><span class="ini">TS</span><div><b>tsaghkadzor</b><span>tsaghkadzor-rest.am</span></div></div></td>
+                      <td><span class="tag">Starter</span></td><td class="r mono">1</td>
+                      <td><div class="use"><div class="meter"><i style="width:24%"></i></div><span class="p mono">24%</span></div></td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <section class="row r-11">
+          <div class="panel card">
+            <div class="ch"><h2>Services</h2><a href="#">Monitoring</a></div>
+            <ul class="list">
+              <li><span class="sq"><svg class="is" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="10" cy="10" r="7.5"/><path d="M2.5 10h15"/></svg></span><div><div class="name">Web server</div><div class="meta">nginx · 11 sites</div></div><span class="st ok">Running</span></li>
+              <li><span class="sq"><svg class="is" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8"><ellipse cx="10" cy="5" rx="6.5" ry="2.5"/><path d="M3.5 5v10c0 1.4 2.9 2.5 6.5 2.5s6.5-1.1 6.5-2.5V5"/></svg></span><div><div class="name">Database</div><div class="meta">PostgreSQL · 4 databases</div></div><span class="st ok">Running</span></li>
+              <li><span class="sq"><svg class="is" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="10" cy="10" r="7.5"/><path d="M10 6v4l2.5 1.5"/></svg></span><div><div class="name">Cron</div><div class="meta">7 scheduled tasks</div></div><span class="st ok">Running</span></li>
+              <li><span class="sq"><svg class="is" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="5" width="14" height="10" rx="2"/><path d="M6 9l2 2-2 2M10 13h4"/></svg></span><div><div class="name">SSH</div><div class="meta">port 2299</div></div><span class="st ok">Running</span></li>
+              <li><span class="sq"><svg class="is" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2.5" y="4.5" width="15" height="11" rx="2"/><path d="M3 5.5l7 5 7-5"/></svg></span><div><div class="name">Outgoing mail</div><div class="meta">No SMTP settings</div></div><span class="st off">Not set up</span></li>
+            </ul>
+          </div>
+
+          <div class="panel card">
+            <div class="ch"><h2>Latest activity</h2><a href="#">Journal</a></div>
+            <ul class="list">
+              <li><span class="ini">ED</span><div><div class="name">Site created</div><div class="meta">nairi.studio</div></div><span class="time mono">09:41</span></li>
+              <li><span class="ini">ED</span><div><div class="name">Account created</div><div class="meta">nairi · Starter</div></div><span class="time mono">09:38</span></li>
+              <li><span class="ini" style="background:var(--p10);color:var(--p75)">SY</span><div><div class="name fail">Mail skipped</div><div class="meta">No SMTP settings</div></div><span class="time mono">09:38</span></li>
+              <li><span class="ini" style="background:var(--p10);color:var(--p75)">SY</span><div><div class="name">Backup completed</div><div class="meta">gyumri-kitchen · 1.2 GB</div></div><span class="time mono">08:02</span></li>
+              <li><span class="ini" style="background:var(--p10);color:var(--p75)">SY</span><div><div class="name">Address banned</div><div class="meta mono">45.146.166.12</div></div><span class="time mono">07:15</span></li>
+            </ul>
+          </div>
+        </section>
+
+      </main>
+    </div>
+  </div>
+
+  <!-- ===== bottom tab bar (below 1024px) ===== -->
+  <nav class="panel tabbar" aria-label="Sections">
+    <a class="tab active" href="#" aria-current="page"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="4" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.5"/></svg>Home</a>
+    <a class="tab" href="#"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c0-3.6 2.9-6 6.5-6s6.5 2.4 6.5 6"/></svg>Accounts</a>
+    <a class="tab" href="#"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 3 2.5 15 0 18M12 3c-2.5 3-2.5 15 0 18"/></svg>Sites</a>
+    <a class="tab" href="#"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v12c0 1.7 3.6 3 8 3s8-1.3 8-3V6"/></svg>Data</a>
+    <button class="tab" type="button" aria-controls="main-nav" aria-expanded="false" data-open-menu><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg>More</button>
+  </nav>
+</div>
+
+<script>
+/* The mobile menu. Focus moves into the drawer when it opens and back to whatever opened it when it
+   closes, so a keyboard or screen-reader user is never left behind the backdrop; the page behind it
+   cannot be tabbed into while it is open. */
+(() => {
+  const body = document.body;
+  const nav = document.getElementById('main-nav');
+  const openers = document.querySelectorAll('[data-open-menu]');
+  let returnTo = null;
+
+  const setExpanded = (value) => { openers.forEach((b) => b.setAttribute('aria-expanded', String(value))); };
+
+  const open = (trigger) => {
+    returnTo = trigger;
+    body.classList.add('menu-open');
+    setExpanded(true);
+    nav.querySelector('[data-close-menu]').focus();
+  };
+
+  const close = () => {
+    if (!body.classList.contains('menu-open')) return;
+    body.classList.remove('menu-open');
+    setExpanded(false);
+    if (returnTo) returnTo.focus();
+  };
+
+  openers.forEach((b) => b.addEventListener('click', () => open(b)));
+  document.querySelectorAll('[data-close-menu]').forEach((el) => el.addEventListener('click', close));
+  // Escape closes it — the ASPU admin's drawer ignores Escape, and a modal panel must not.
+  document.addEventListener('keydown', (event) => { if (event.key === 'Escape') close(); });
+  // Choosing a destination closes it, so the page the user asked for is what they see.
+  nav.querySelectorAll('a.nav').forEach((a) => a.addEventListener('click', close));
+  // Keep Tab inside the open drawer.
+  nav.addEventListener('keydown', (event) => {
+    if (event.key !== 'Tab' || !body.classList.contains('menu-open')) return;
+    const items = [...nav.querySelectorAll('a, button')].filter((el) => el.offsetParent !== null);
+    const first = items[0], last = items[items.length - 1];
+    if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+    else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+  });
+  // Back to desktop width with the drawer open: drop the open state, the sidebar is just there.
+  matchMedia('(min-width: 1024px)').addEventListener('change', (q) => { if (q.matches) { body.classList.remove('menu-open'); setExpanded(false); } });
+})();
+
+/* The house count-up (the ASPU admin animates data-count with GSAP). Reduced motion skips it;
+   the real value is already in the markup, so nothing depends on this running. */
+(() => {
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  document.querySelectorAll('[data-count]').forEach((el) => {
+    const target = parseFloat(el.dataset.count);
+    const decimals = parseInt(el.dataset.decimals || '0', 10);
+    const start = performance.now();
+    const tick = (now) => {
+      const t = Math.min((now - start) / 900, 1);
+      el.textContent = (target * (1 - Math.pow(1 - t, 3))).toFixed(decimals);
+      if (t < 1) requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  });
+})();
+</script>
+</body>
+</html>

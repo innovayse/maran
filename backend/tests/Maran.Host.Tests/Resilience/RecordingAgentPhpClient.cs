@@ -1,7 +1,7 @@
-using System.Net.Sockets;
 using System.Runtime.CompilerServices;
 using Maran.Agent.Client.Interfaces;
 using Maran.Agent.Client.Services.PhpService;
+using Maran.Host.Tests.Fixtures;
 using Maran.SharedKernel.Results;
 
 namespace Maran.Host.Tests.Resilience;
@@ -25,7 +25,7 @@ internal sealed class RecordingAgentPhpClient : IAgentPhpClient
 
         if (Calls <= FailuresBeforeSuccess)
         {
-            throw new SocketException((int)SocketError.ConnectionRefused);
+            throw AgentTransportFaults.ConnectRefused();
         }
 
         await Task.Yield();

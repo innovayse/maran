@@ -103,3 +103,19 @@ fn a_hostname_the_agent_will_not_accept_is_refused_before_anything_is_rendered()
         );
     }
 }
+
+#[test]
+fn a_reserved_hostname_is_refused_as_invalid_input_while_an_ordinary_one_is_accepted() {
+    for reserved in ["203.0.113.7", "localhost", "ftp.local"] {
+        let mut request = a_good_request();
+        request.hostname = reserved.to_owned();
+
+        let error = validated_ftps_configuration(&request)
+            .map(|_| ())
+            .expect_err("a reserved hostname must be refused");
+
+        assert_eq!(error.code, ErrorCode::InvalidInput as i32, "{reserved}");
+    }
+
+    assert!(validated_ftps_configuration(&a_good_request()).is_ok());
+}

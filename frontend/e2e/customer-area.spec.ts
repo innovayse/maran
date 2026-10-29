@@ -84,7 +84,8 @@ test.describe('the customer area, end to end', () => {
     // The screen does not sign the customer in itself — Activate() only makes the login usable,
     // it issues no session — so the confirmation and the way back are what "done" looks like.
     await expect(page.getByText('Your password has been set.')).toBeVisible()
-    await page.getByRole('button', { name: 'Back to sign in' }).click()
+    // a navigation is a link, not a button — issue #82
+    await page.getByRole('link', { name: 'Back to sign in' }).click()
     await expect(page).toHaveURL('/login')
 
     // --- signed in as the customer: the shell now answers as their account, not the panel's.

@@ -89,6 +89,10 @@ pub(crate) fn refused_member_name(name: &str) -> String {
 /// Returns [`BackupError::ArchiveFailed`] when the archive's members cannot be
 /// listed at all, and [`BackupError::UnexpectedArchiveMember`] naming the first
 /// member outside the layout.
+///
+/// Returns [`BackupError::Bound`], and no member list, when the listing was
+/// past a bound (its deadline, its output, its member count or a name's
+/// length): a listing cut short is never scanned as if it were whole.
 pub(crate) fn scan_members(
     host: &dyn BackupHost,
     artifact: &std::path::Path,

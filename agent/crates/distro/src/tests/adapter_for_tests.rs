@@ -83,7 +83,7 @@ fn the_mysql_client_is_an_absolute_path_on_every_family() {
     // lookup to fall back on: a relative name is a binary that simply fails to spawn.
     for adapter in every_adapter() {
         assert!(
-            adapter.mysql_client_binary().starts_with('/'),
+            adapter.mysql_client_binary().as_str().starts_with('/'),
             "{:?} must name an absolute path: argv spawning has no PATH to fall back on",
             adapter.family()
         );
@@ -124,7 +124,10 @@ fn every_family_names_the_user_management_tools_by_an_absolute_path() {
             adapter.userdel_binary(),
             adapter.chpasswd_binary(),
         ] {
-            assert!(binary.starts_with('/'), "{binary} is not an absolute path");
+            assert!(
+                binary.as_str().starts_with('/'),
+                "{binary} is not an absolute path"
+            );
         }
     }
 }

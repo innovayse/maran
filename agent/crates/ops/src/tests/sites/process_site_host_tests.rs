@@ -8,63 +8,54 @@
 // bans on unwrap/expect/panic are lifted here only.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use maran_agent_core::utils::call_class::CallClass;
+use maran_distro::{DistroFamily, adapter_for};
+
 use super::ProcessSiteHost;
-use crate::safe_write::{ConfigHost, SafeWriteError};
+use crate::safe_write::ConfigHost;
 
-/// A program that is not installed anywhere, so the spawn cannot succeed.
+/// The account name no host has, passed to `id` so it exits non-zero.
+const ABSENT_ACCOUNT: &str = "maran-no-such-account-for-a-test";
+
+// The host runs only what a distribution adapter named, as an `AdapterBinary`, a type
+// no test can construct, so the two tests below use the adapter's `id` (coreutils, on
+// both families). That a program which cannot be started is reported as a failure to
+// START it, and a bound as a bound, is the mapping `SafeWriteError::from_spawn` owns,
+// and `safe_write_error_tests.rs` drives it with a constructed spawn error.
+
+/// A program that STARTED and then refused is an outcome, not a spawn failure.
 ///
-/// Under `/nonexistent` rather than a plausible name in `/usr/sbin`, so the test
-/// cannot start passing on a machine that happens to have the tool.
-const MISSING_BINARY: &str = "/nonexistent/maran-no-such-program";
-
-/// A program that really starts and really exits non-zero.
-///
-/// The inverse control's whole point is that it EXISTS: `/bin/false` is on both
-/// supported families and does exactly one thing.
-const FAILING_BINARY: &str = "/bin/false";
-
-/// A program that could not be started is reported as a failure to START it.
-///
-/// This is the witness the defect had none of. A missing or unexecutable binary
-/// came back as [`SafeWriteError::ReloadFailed`], so an operator read
-/// "configuration reload failed" and went looking at a config file, when the
-/// truth was that `nginx` was not installed. The two failures are different jobs
-/// — install a package, or fix a vhost — and the error name has to say which.
-#[test]
-fn a_program_that_cannot_be_started_is_a_spawn_failure() {
-    let host = ProcessSiteHost::new();
-
-    let refused = host.run(MISSING_BINARY, &["-t"]);
-
-    match refused {
-        Err(SafeWriteError::SpawnFailed { program, reason }) => {
-            assert_eq!(program, MISSING_BINARY, "the error must name the program");
-            assert!(
-                !reason.is_empty(),
-                "the operating system's reason must reach the operator"
-            );
-        }
-        other => panic!("expected a spawn failure, got {other:?}"),
-    }
-}
-
-/// A program that STARTED and then refused is not a spawn failure.
-///
-/// The inverse control for the test above: a gate that refuses everything proves
-/// nothing. Replacing one wrong label with another — calling a validator's real
-/// refusal "could not run the program" — would be the same defect wearing the
-/// other hat, so the host returns a non-zero status as an outcome and leaves the
-/// meaning of that status to the protocol above it, which turns it into
-/// [`SafeWriteError::ValidationFailed`] or [`SafeWriteError::ReloadFailed`]
+/// A missing or unexecutable binary once came back as a failed reload, so an operator
+/// read "configuration reload failed" and went looking at a config file. The inverse
+/// control for the mapping is that a refusal is NOT mistaken for the other thing: the
+/// host returns a non-zero status as an outcome and leaves its meaning to the protocol
+/// above it, which turns it into a failed validation or a failed reload
 /// (`render_validate_swap_tests.rs`).
 #[test]
 fn a_program_that_started_and_failed_is_an_outcome_and_not_a_spawn_failure() {
     let host = ProcessSiteHost::new();
+    let id = adapter_for(DistroFamily::Debian).id_binary();
 
-    let outcome = host.run(FAILING_BINARY, &[]).unwrap();
+    let outcome = host
+        .run(&id, &["-u", "--", ABSENT_ACCOUNT], CallClass::Query)
+        .unwrap();
 
     assert_ne!(
         outcome.status, 0,
-        "{FAILING_BINARY} is supposed to exit non-zero"
+        "`id` of an absent account exits non-zero"
     );
+}
+
+/// The positive control: the same call for an account that exists succeeds.
+#[test]
+fn a_program_that_started_and_succeeded_returns_its_output() {
+    let host = ProcessSiteHost::new();
+    let id = adapter_for(DistroFamily::Debian).id_binary();
+
+    let outcome = host
+        .run(&id, &["-u", "--", "root"], CallClass::Query)
+        .unwrap();
+
+    assert_eq!(outcome.status, 0);
+    assert_eq!(outcome.stdout.trim(), "0");
 }

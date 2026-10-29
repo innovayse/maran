@@ -15,7 +15,17 @@
 
 use rustix::fs::{StatVfs, StatVfsMountFlags};
 
-use super::usage_of;
+use std::time::Duration;
+
+use maran_agent_core::utils::bound_exceeded::BoundExceeded;
+use maran_agent_core::utils::call_class::CallClass;
+use maran_agent_core::utils::output_stream::OutputStream;
+use maran_agent_core::utils::spawn_error::SpawnError;
+use maran_distro::{DistroFamily, adapter_for};
+
+use super::{ProcessMonitorHost, spawn_failure, usage_of};
+use crate::monitor::monitor_error::MonitorError;
+use crate::monitor::monitor_host::MonitorHost;
 
 /// The fragment size every filesystem this panel will meet reports.
 const FRAGMENT: u64 = 4096;
@@ -93,4 +103,58 @@ fn more_available_blocks_than_the_filesystem_holds_does_not_wrap_around() {
     let usage = usage_of(&statistics(100, 200, 200));
 
     assert_eq!(usage.used_bytes, 0);
+}
+
+#[test]
+fn a_deadline_is_a_bound_and_never_a_tool_that_never_ran() {
+    let bound = BoundExceeded::TimedOut {
+        program: String::from("/usr/bin/systemctl"),
+        deadline: Duration::from_secs(60),
+    };
+
+    assert_eq!(
+        spawn_failure(SpawnError::Bound(bound.clone())),
+        MonitorError::Bound(bound)
+    );
+}
+
+#[test]
+fn an_output_past_its_cap_is_a_bound_and_never_a_tool_that_never_ran() {
+    let bound = BoundExceeded::OutputTooLarge {
+        program: String::from("/usr/bin/systemctl"),
+        stream: OutputStream::Stdout,
+        cap: 8,
+    };
+
+    assert_eq!(
+        spawn_failure(SpawnError::Bound(bound.clone())),
+        MonitorError::Bound(bound)
+    );
+}
+
+/// The inverse control: a program that could not be started keeps its old
+/// answer, so the bound arm is not swallowing every failure.
+#[test]
+fn a_program_that_could_not_be_started_is_still_reported_as_never_having_run() {
+    let mapped = spawn_failure(SpawnError::Start {
+        program: String::from("/usr/bin/systemctl"),
+        reason: String::from("No such file or directory"),
+    });
+
+    assert_eq!(mapped, MonitorError::program_unavailable());
+}
+
+/// The host runs the adapter's binary through the bounded core and returns its
+/// outcome. `id` stands in for the service manager: a real program the adapter
+/// names, with an answer a test can recognise.
+#[test]
+fn the_host_runs_the_adapters_binary_and_returns_its_outcome() {
+    let adapter = adapter_for(DistroFamily::Debian);
+
+    let outcome = ProcessMonitorHost::new()
+        .run(&adapter.id_binary(), &["-u"], CallClass::Query)
+        .expect("id ran");
+
+    assert_eq!(outcome.status, 0);
+    assert!(outcome.stdout.trim().parse::<u32>().is_ok());
 }

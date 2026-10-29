@@ -30,7 +30,8 @@ use crate::php::{PhpHost, PhpOpError};
 ///
 /// Returns whatever [`remove_pool`] refused, for the first version it refused
 /// on. Every version before it has been removed and every version after it is
-/// untouched — which is safe to retry, because removal is idempotent.
+/// untouched — which is safe to retry, because removal is idempotent. That includes
+/// [`PhpOpError::Bound`], for a validator or reload that was killed at its deadline.
 pub fn remove_account_pools(
     host: &dyn PhpHost,
     distro: &dyn DistroAdapter,

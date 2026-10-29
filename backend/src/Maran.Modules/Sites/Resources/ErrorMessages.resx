@@ -60,4 +60,10 @@
   <data name="SiteLogTailFailed">
     <value>This log could not be read.</value>
   </data>
+  <data name="SiteDomainReserved">
+    <value>This name cannot be used for a site.</value>
+  </data>
+  <data name="SiteAliasReserved">
+    <value>One of the additional hostnames cannot be used for a site.</value>
+  </data>
 </root>

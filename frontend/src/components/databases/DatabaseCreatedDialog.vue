@@ -8,7 +8,7 @@
  * product. When the dialog closes, the last copy is gone.
  *
  * So the dialog is built around that fact rather than around the happy news:
- * - the warning is the first thing in the body, not a footnote under the value;
+ * - the warning is the first thing in the body, in amber, not a footnote under the value;
  * - the password is rendered as selectable text as well as being copyable, because a clipboard
  *   write can silently fail in a locked-down browser and a value nobody can select is a value
  *   nobody can save;
@@ -16,6 +16,8 @@
  *   click beside the panel nor a reflexive Escape closes it, because either would destroy the
  *   credential outright. It closes through its own Done button and the header's close control,
  *   both of which are deliberate acts;
+ * - the control that copies keeps its accessible name ("Copy password"), and the value is never
+ *   written to the console or to storage — it lives in this component's props and its markup only;
  * - and it names the recovery, so an operator who does lose it knows the one path back rather
  *   than opening a support ticket that cannot be answered.
  *
@@ -28,6 +30,8 @@ import { ref, watch, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import UiAlert from '../ui/UiAlert.vue'
 import UiButton from '../ui/UiButton.vue'
+import UiDescriptionItem from '../ui/UiDescriptionItem.vue'
+import UiDescriptionList from '../ui/UiDescriptionList.vue'
 import UiIcon from '../ui/UiIcon.vue'
 import UiModal from '../ui/UiModal.vue'
 
@@ -106,40 +110,39 @@ watch(
     :dismissible="false"
     @close="close"
   >
-    <!-- The loud tone is deliberate. The panel has two, and this is the one an operator does not
-         scroll past: the sentence under it is the only warning they will get before the value
-         stops existing. -->
-    <UiAlert variant="error" class="mb-4">{{ t('databases.credential.warning') }}</UiAlert>
+    <!-- Amber, and first in the body: this sentence is the only warning there is before the value
+         stops existing. It is a warning rather than an error because nothing has failed — the
+         database was made — and red is kept for the things that did go wrong. -->
+    <UiAlert variant="warning" class="mb-4">{{ t('databases.credential.warning') }}</UiAlert>
 
-    <dl class="flex flex-col gap-3">
-      <div v-if="databaseFullName !== null">
-        <dt class="text-xs font-medium tracking-wide text-text-muted uppercase">
-          {{ t('databases.credential.databaseLabel') }}
-        </dt>
-        <dd class="mt-0.5 font-mono text-base break-all text-text-primary">{{ databaseFullName }}</dd>
-      </div>
-      <div>
-        <dt class="text-xs font-medium tracking-wide text-text-muted uppercase">
-          {{ t('databases.credential.loginLabel') }}
-        </dt>
-        <dd class="mt-0.5 font-mono text-base break-all text-text-primary">{{ dbUserName }}</dd>
-      </div>
-      <div>
-        <dt class="text-xs font-medium tracking-wide text-text-muted uppercase">
-          {{ t('databases.credential.passwordLabel') }}
-        </dt>
+    <!-- The kit's description list owns the label/value markup, so these labels match every other
+         detail screen. The raised block is only the frame around it. The password spans both columns
+         because it is the longest value and the one the operator must be able to read whole. -->
+    <UiDescriptionList class="rounded-control border border-border-subtle bg-surface-2 p-4">
+      <UiDescriptionItem v-if="databaseFullName !== null" :term="t('databases.credential.databaseLabel')" mono>
+        <span class="break-all">{{ databaseFullName }}</span>
+      </UiDescriptionItem>
+      <UiDescriptionItem :term="t('databases.credential.loginLabel')" mono>
+        <span class="break-all">{{ dbUserName }}</span>
+      </UiDescriptionItem>
+      <UiDescriptionItem :term="t('databases.credential.passwordLabel')" mono class="sm:col-span-2">
         <!-- Selectable text, not a masked field: the clipboard may be unavailable, and the only
-             other way to keep this value is to read or select it. -->
-        <dd
+             other way to keep this value is to read or select it. `select-all` makes one click
+             select the whole value, which is what somebody copying it by hand needs. It sits on
+             the page colour inside the raised block so the value reads as the thing to take. The
+             test id is on this span so it holds exactly the password text and nothing else. -->
+        <span
           data-testid="database-password"
-          class="mt-0.5 rounded-lg border border-border-subtle bg-surface-2 px-3 py-2 font-mono text-base break-all text-text-primary"
-        >
-          {{ password }}
-        </dd>
-      </div>
-    </dl>
+          class="block rounded-control border border-border-strong bg-page px-3 py-2.5 text-base font-medium break-all text-text-primary select-all"
+        >{{ password }}</span>
+      </UiDescriptionItem>
+    </UiDescriptionList>
 
-    <p class="mt-3 text-sm text-text-muted">{{ t('databases.credential.resetHint') }}</p>
+    <p class="mt-4 text-sm text-text-muted">{{ t('databases.credential.resetHint') }}</p>
+
+    <!-- A name change on a button is not announced by itself, so the copy result is also spoken
+         from a status region that is in the page before it has anything to say. -->
+    <span class="sr-only" role="status">{{ copied ? t('databases.credential.copied') : '' }}</span>
 
     <template #footer>
       <UiButton variant="secondary" @click="copyPassword">

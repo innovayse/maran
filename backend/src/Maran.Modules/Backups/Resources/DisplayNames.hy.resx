@@ -63,6 +63,9 @@
   <data name="BackupFailureAgentLimitReached">
     <value>Այս հաշվի սակագնային սահմանաչափն արդեն սպառված էր</value>
   </data>
+  <data name="BackupFailureAgentUnavailable">
+    <value>Սերվերը չէր պատասխանում</value>
+  </data>
   <data name="BackupDestinationDefault">
     <value>Տեղական պահոց</value>
   </data>

@@ -46,7 +46,15 @@ const ACCOUNT_OPERATION: &str = "account operation";
 /// operation on the blocking pool, and map the outcome into the response's
 /// `oneof`. The name check lives once in `Self::validated` and the run in
 /// `wire::run_blocking`; a handler is left with only what differs — which
-/// operation, and the shape of its `Ok` payload. Failures travel in the
+/// operation, and the shape of its `Ok` payload.
+///
+/// The name this service validates is spelling only. Whether the host user
+/// behind it is a hosting account the agent will act on as root is decided
+/// inside each operation, on the blocking pool because it reads the password
+/// database, and under the account's lock where the operation takes one (a
+/// resolved `ManagedAccount` is a fact about one moment and is never carried
+/// across the closure boundary). A refusal reaches the wire as
+/// `ERROR_CODE_INVALID_INPUT`, an absent account as `ERROR_CODE_NOT_FOUND`. Failures travel in the
 /// payload rather than as a gRPC status, because they are answers the panel
 /// acts on — an account that already exists is information, not a transport
 /// error.
@@ -193,6 +201,10 @@ impl<
     /// boundary): a name reaching here becomes a system user, a home directory
     /// and a path segment, so it is checked where it is used.
     ///
+    /// This proves the SPELLING only. That the user behind a valid name is a
+    /// hosting account (`root` is spelled correctly) is the operation's
+    /// question, not this one's.
+    ///
     /// # Errors
     ///
     /// Returns the wire error for an invalid name.
@@ -211,7 +223,9 @@ impl<
     /// cannot forget the validation step, leave the operation on a runtime
     /// worker, or map an error differently from its neighbours. `operation`
     /// takes the validated name by value and owns everything else it touches,
-    /// because it is handed to the runtime and outlives this call.
+    /// because it is handed to the runtime and outlives this call. It is the
+    /// operation that resolves the name to a managed account, on the blocking
+    /// pool.
     ///
     /// # Errors
     ///
@@ -244,7 +258,8 @@ impl<
     L: LoginsHost + 'static,
 > AccountsService for AccountsServiceImpl<H, P, D, S, F, W, C, L>
 {
-    /// Creates the system user, its home directory and its initial quota.
+    /// Creates the system user, its home directory and its initial quota. A
+    /// reserved name is refused before anything runs.
     async fn create_account(
         &self,
         request: Request<CreateAccountRequest>,
@@ -314,8 +329,9 @@ impl<
         }))
     }
 
-    /// Removes the account's databases, SFTP logins, jail, pools, system user
-    /// and everything under its home directory.
+    /// Removes the account's databases, SFTP and FTPS logins and jails, crontab,
+    /// pools, system user and everything under its home directory. A user that
+    /// is not a hosting account is refused before any of that starts.
     async fn delete_account(
         &self,
         request: Request<DeleteAccountRequest>,

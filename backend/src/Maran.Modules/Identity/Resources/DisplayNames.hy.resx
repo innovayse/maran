@@ -108,6 +108,15 @@
   <data name="AuditActionAccountHomeGroupsRepaired">
     <value>Վերականգնվեցին հաշիվների տնային պանակների խմբերը</value>
   </data>
+  <data name="AuditActionPlanCreated">
+    <value>Սակագինը ստեղծվեց</value>
+  </data>
+  <data name="AuditActionPlanUpdated">
+    <value>Սակագինը փոփոխվեց</value>
+  </data>
+  <data name="AuditActionPlanDeleted">
+    <value>Սակագինը ջնջվեց</value>
+  </data>
   <data name="AuditActionSftpUserCreated">
     <value>Ստեղծվեց SFTP մուտք</value>
   </data>
@@ -238,10 +247,25 @@
   <data name="AuditActionCustomerInvited">
     <value>Հրավիրվեց հաճախորդ</value>
   </data>
+  <data name="AuditActionInvitationLinkIssued">
+    <value>Ստեղծվեց հրավերի հղում</value>
+  </data>
   <data name="AuditActionInvitationAccepted">
     <value>Հրավերն ընդունվեց</value>
   </data>
   <data name="AuditActionInvitationAcceptRefused">
     <value>Հրավերի ընդունումը մերժվեց</value>
+  </data>
+  <data name="InvitationStateNone">
+    <value>Հրավեր չի ստեղծվել</value>
+  </data>
+  <data name="InvitationStatePending">
+    <value>Հրավերը սպասում է պատասխանի</value>
+  </data>
+  <data name="InvitationStateExpired">
+    <value>Հրավերի ժամկետը լրացել է</value>
+  </data>
+  <data name="InvitationStateAccepted">
+    <value>Հրավերն ընդունվել է</value>
   </data>
 </root>

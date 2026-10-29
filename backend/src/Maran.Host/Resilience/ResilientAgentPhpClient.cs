@@ -15,6 +15,8 @@ namespace Maran.Host.Resilience;
 /// minutes while a package manager works, so the operation timeout would abandon it half-done, and
 /// the retry would restart an install the agent is still performing. The stream states its own
 /// ending — including the case where it stopped without one — so nothing is left hanging silently.
+/// A failure of the transport itself is not one of those endings: with no pipeline here, it leaves
+/// the stream as the exception the transport raised.
 /// </remarks>
 public sealed class ResilientAgentPhpClient : IAgentPhpClient
 {
@@ -36,7 +38,8 @@ public sealed class ResilientAgentPhpClient : IAgentPhpClient
     /// <inheritdoc/>
     public async Task<Result<IReadOnlyList<PhpVersionDto>>> ListVersionsAsync(CancellationToken cancellationToken)
     {
-        return await _pipeline.ExecuteAsync(
+        return await AgentOperationPipeline.ExecuteAsync(
+            _pipeline,
             async (state, token) =>
             {
                 return await state.ListVersionsAsync(token);

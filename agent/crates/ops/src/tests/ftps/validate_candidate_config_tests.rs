@@ -26,7 +26,7 @@ fn the_candidate_is_run_in_standalone_foreground_mode_on_a_loopback_port() {
     validate_candidate_config(&host, distro(), "listen=YES\n").expect("accepted");
 
     let spawn = host.spawns().first().cloned().expect("the daemon was run");
-    assert_eq!(spawn.argv[0], distro().vsftpd_binary());
+    assert_eq!(spawn.argv[0], distro().vsftpd_binary().as_str());
     assert!(spawn.argv.contains(&"-obackground=NO".to_owned()));
     assert!(spawn.argv.contains(&"-olisten=YES".to_owned()));
     assert!(spawn.argv.contains(&"-olisten_ipv6=NO".to_owned()));
@@ -83,4 +83,43 @@ fn a_host_that_cannot_give_a_loopback_port_reports_a_failure_to_run_rather_than_
         host.spawns().is_empty(),
         "no daemon may be started without a port of its own"
     );
+}
+
+#[test]
+fn the_candidate_has_no_call_class_because_the_end_of_its_window_is_a_success() {
+    // A candidate that outlives its window is the ACCEPTED outcome, so it is not
+    // run under a class whose deadline would kill it as wedged.
+    let host = FakeFtpsHost::with_certificate();
+    validate_candidate_config(&host, distro(), "listen=YES\n").expect("accepted");
+
+    let spawn = host.spawns().first().cloned().expect("the daemon was run");
+    assert_eq!(spawn.class, None);
+}
+
+#[test]
+fn the_candidate_is_given_no_end_of_options_marker() {
+    // The daemon's own argument loop treats `--` as an unknown option and exits
+    // 2, which would refuse every valid configuration.
+    let host = FakeFtpsHost::with_certificate();
+    validate_candidate_config(&host, distro(), "listen=YES\n").expect("accepted");
+
+    let spawn = host.spawns().first().cloned().expect("the daemon was run");
+    assert!(
+        !spawn.argv.iter().any(|argument| argument == "--"),
+        "{:?}",
+        spawn.argv
+    );
+}
+
+#[test]
+fn a_daemon_that_floods_its_output_is_a_bound_and_never_a_verdict_on_the_text() {
+    // A daemon killed for printing too much has said nothing about the
+    // configuration. Reading it as a refusal would blame the text; reading it
+    // as an acceptance would swap in a configuration nobody saw run.
+    let host = FakeFtpsHost::with_certificate().with_candidate_flooding();
+
+    let failed =
+        validate_candidate_config(&host, distro(), "listen=YES\n").expect_err("the daemon flooded");
+
+    assert!(matches!(failed, FtpsError::Bound(_)), "got {failed:?}");
 }

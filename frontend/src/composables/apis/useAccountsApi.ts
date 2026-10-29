@@ -8,14 +8,6 @@ const ACCOUNTS_PATH = '/api/v1/accounts'
 const MY_ACCOUNT_PATH = '/api/v1/accounts/me'
 
 /**
- * The endpoint an outstanding invitation is resent through. Lives in Identity on the server
- * (`InvitationsController`), not Accounts, but is called from exactly one screen — the account
- * detail page this composable already serves — so it is exposed here rather than starting a
- * one-call `useInvitationsApi.ts` for a single administrator action.
- */
-const INVITATIONS_PATH = '/api/v1/invitations'
-
-/**
  * Builds the accounts API on top of the shared low-level client.
  *
  * Each call is a named `const` arrow function with its own JSDoc rather than an
@@ -107,15 +99,5 @@ export const useAccountsApi = (): AccountsApi => {
     return api.get<MyAccount>(MY_ACCOUNT_PATH, signal)
   }
 
-  /**
-   * Resends the invitation for an account's owner.
-   * @param accountId The hosting account whose owner is being (re)invited.
-   * @param signal Optional abort signal to cancel the in-flight request.
-   * @returns True once a new invitation was sent.
-   */
-  const resendInvitation = (accountId: string, signal?: AbortSignal): Promise<boolean> => {
-    return api.post<boolean>(`${INVITATIONS_PATH}/${accountId}/resend`, undefined, signal)
-  }
-
-  return { list, create, listPlans, get, suspend, reactivate, remove, getMine, resendInvitation }
+  return { list, create, listPlans, get, suspend, reactivate, remove, getMine }
 }

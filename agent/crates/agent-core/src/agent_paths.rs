@@ -49,7 +49,16 @@ impl AgentPaths {
     /// cannot disagree about a path for family-specific reasons. A directory
     /// under `/run` also disappears on reboot, which is what keeps a stale
     /// socket from outliving the pool that owned it.
-    pub const PHP_FPM_SOCKET_DIRECTORY: &'static str = "/run/maran/php";
+    ///
+    /// A SIBLING of `/run/maran`, deliberately not a child of it. `/run/maran`
+    /// is the agent's private directory (`root:maran`, `0750`: the agent socket
+    /// and scratch live there), so the web server's user — neither root nor in
+    /// group `maran` — cannot traverse it, and nginx would get `EACCES` on every
+    /// `fastcgi_pass` and answer 502. Opening `/run/maran` up would weaken the
+    /// agent's own directory to fix a web-server problem; a directory of its
+    /// own, `root:root` `0755`, lets nginx reach the sockets while each socket
+    /// file keeps its per-pool owner and mode `0660`.
+    pub const PHP_FPM_SOCKET_DIRECTORY: &'static str = "/run/maran-php";
 
     /// Base directory holding one root-owned SFTP jail per account.
     ///

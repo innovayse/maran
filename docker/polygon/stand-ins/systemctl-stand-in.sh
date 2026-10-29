@@ -457,6 +457,11 @@ case "$verb" in
             started=yes
             shift
         fi
+        # The agent ends the options before the unit (`enable --now -- <unit>`), as
+        # systemctl's `getopt_long` allows, so the unit is what follows a bare `--`.
+        if [ "${1:-}" = "--" ]; then
+            shift
+        fi
         case "${1:-}" in
             *.mount) mount_unit "$1" ;;
             '') exit 0 ;;
@@ -474,6 +479,10 @@ case "$verb" in
         stopped=""
         if [ "${1:-}" = "--now" ]; then
             stopped=yes
+            shift
+        fi
+        # The same end-of-options marker as the `enable` arm above.
+        if [ "${1:-}" = "--" ]; then
             shift
         fi
         case "${1:-}" in

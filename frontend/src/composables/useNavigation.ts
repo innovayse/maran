@@ -21,6 +21,12 @@ const SYSTEM_STATUS_ROUTE = 'system-status'
 const AUDIT_ROUTE = 'audit'
 
 /**
+ * Route name of the plans screen. Plans are the Accounts module's reference data, edited by the
+ * administrator only, so its entry is the shell's own and travels with the accounts entry.
+ */
+const PLANS_ROUTE = 'plans'
+
+/**
  * Route name of the upgrade prompt a locked module's entry points to.
  */
 const UPGRADE_ROUTE = 'upgrade'
@@ -55,6 +61,15 @@ export const useNavigation = (): ComputedRef<NavigationEntry[]> => {
       locked: false,
     }
 
+    // Whether to offer the administrator-only entries (the audit journal, the plans screen). NOT a
+    // gate — the endpoint refuses a customer whatever the sidebar shows — so on a role it does not
+    // recognise it errs PERMISSIVE and offers the entry (rules/architecture.md: the SPA is never
+    // the boundary). Asking "not a customer" rather than "is an admin" is the whole point: a role
+    // above administrator must not silently lose the journal from a menu the backend would happily
+    // serve it. The same rule, in the same spelling, as the account menu's admin entries in
+    // ShellUserBlock.
+    const isNotCustomer = authStore.user !== null && authStore.user.role !== 'customer'
+
     const moduleEntries: NavigationEntry[] = modulesStore.modules.flatMap((module) => {
       const landing = moduleLandingRoute(module.name)
 
@@ -74,37 +89,46 @@ export const useNavigation = (): ComputedRef<NavigationEntry[]> => {
         module.isEnabled && typeof landing === 'string' && router.hasRoute(landing)
       const upgrade = { name: UPGRADE_ROUTE, params: { module: module.name } }
 
-      return [
-        {
-          key: module.name,
-          // Never a route name the router does not know: linking to one throws while rendering
-          // the sidebar, which takes the whole shell down with it.
-          target: reachable && typeof landing === 'string' ? { name: landing } : upgrade,
-          // The label comes from the panel, already localized: the SPA cannot own translations for
-          // modules it learns about at runtime. The machine name is the honest fallback.
-          labelKey: null,
-          label: module.displayName ?? module.name,
-          moduleName: module.name,
-          // The catalogue reports no icon, so this SPA states which glyph each module it knows is
-          // drawn with, the same way it states where the module's entry leads. A module it does
-          // not know keeps the neutral glyph rather than a guess made from its name.
-          icon: moduleNavigationIcon(module.name),
-          locked: !module.isEnabled,
-        },
-      ]
-    })
+      const entry: NavigationEntry = {
+        key: module.name,
+        // Never a route name the router does not know: linking to one throws while rendering
+        // the sidebar, which takes the whole shell down with it.
+        target: reachable && typeof landing === 'string' ? { name: landing } : upgrade,
+        // The label comes from the panel, already localized: the SPA cannot own translations for
+        // modules it learns about at runtime. The machine name is the honest fallback.
+        labelKey: null,
+        label: module.displayName ?? module.name,
+        moduleName: module.name,
+        // The catalogue reports no icon, so this SPA states which glyph each module it knows is
+        // drawn with, the same way it states where the module's entry leads. A module it does
+        // not know keeps the neutral glyph rather than a guess made from its name.
+        icon: moduleNavigationIcon(module.name),
+        locked: !module.isEnabled,
+      }
 
-    // Whether to offer the administrator-only journal entry. NOT a gate — the endpoint refuses a
-    // customer whatever the sidebar shows — so on a role it does not recognise it errs PERMISSIVE
-    // and offers the entry (rules/architecture.md: the SPA is never the boundary). Asking "not a
-    // customer" rather than "is an admin" is the whole point: a role above administrator must not
-    // silently lose the journal from a menu the backend would happily serve it. The same rule, in
-    // the same spelling, as the account menu's admin entries in ShellUserBlock.
-    const showsAuditJournal = authStore.user !== null && authStore.user.role !== 'customer'
+      // Plans are the Accounts module's own reference data, so the entry exists only while that
+      // module is usable, and sits directly under it. Like the journal it is not a gate: the
+      // endpoints refuse a customer whatever the sidebar shows, and a role it does not recognise
+      // errs permissive.
+      if (module.name === 'accounts' && module.isEnabled && isNotCustomer) {
+        const plansEntry: NavigationEntry = {
+          key: 'plans',
+          target: { name: PLANS_ROUTE },
+          labelKey: 'app.nav.plans',
+          label: null,
+          moduleName: null,
+          icon: 'package',
+          locked: false,
+        }
+        return [entry, plansEntry]
+      }
+
+      return [entry]
+    })
 
     // The journal sits after the module entries: it is the shell's own record OF them — the place
     // an operator goes after something on the screens above did not happen as expected.
-    const auditEntry: NavigationEntry[] = showsAuditJournal
+    const auditEntry: NavigationEntry[] = isNotCustomer
       ? [
           {
             key: 'audit-journal',

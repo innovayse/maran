@@ -138,3 +138,13 @@ fn the_committed_fixture_really_does_expire_when_the_constant_says() {
     let printed = String::from_utf8_lossy(&printed.stdout);
     assert_eq!(parse_end_date(printed.trim()), Some(EXPIRY_UNIX));
 }
+
+#[test]
+fn an_expiry_read_that_times_out_is_a_bound_and_never_a_guessed_date() {
+    let host = FakeSslHost::passing();
+    host.time_out_openssl();
+
+    let failure = certificate_expiry(&host, distro(), &matching_material()).unwrap_err();
+
+    assert!(matches!(failure, SslOpError::Bound(_)), "{failure:?}");
+}

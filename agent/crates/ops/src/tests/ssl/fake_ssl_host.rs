@@ -22,7 +22,10 @@ use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
 use maran_agent_core::command_outcome::CommandOutcome;
+use maran_agent_core::utils::bound_exceeded::BoundExceeded;
+use maran_agent_core::utils::call_class::CallClass;
 use maran_agent_core::validation::system::name::AccountName;
+use maran_distro::AdapterBinary;
 
 use crate::safe_write::model::{Reload, Validator};
 use crate::sites::fake_site_host::FakeSiteHost;
@@ -87,6 +90,18 @@ pub(crate) enum Event {
     VhostWritten,
 }
 
+/// The validator and reload one material write or removal handed the config
+/// protocol.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct RecordedProtocol {
+    /// The validator's argument vector, the program first.
+    pub(crate) validator: Vec<String>,
+    /// The call class the validator asked for.
+    pub(crate) validator_class: CallClass,
+    /// The reload's argument vector, the program first.
+    pub(crate) reload: Vec<String>,
+}
+
 /// An [`SslHost`] that keeps the certificate store in memory and answers for
 /// openssl.
 pub(crate) struct FakeSslHost {
@@ -124,6 +139,17 @@ pub(crate) struct FakeSslHost {
     /// The state a real host reaches on an I/O error, and the one a caller must
     /// never be allowed to read as "there is nothing here".
     unreadable: Mutex<BTreeSet<PathBuf>>,
+    /// Every program path the fake was asked to run, in order, so a test can
+    /// prove it came from the adapter.
+    programs: Mutex<Vec<String>>,
+    /// Whether every openssl run outruns its deadline. The run is recorded and
+    /// then killed before it answers, as the real host does.
+    openssl_times_out: Mutex<bool>,
+    /// Whether the config protocol behind a material write or removal outruns
+    /// its deadline.
+    material_times_out: Mutex<bool>,
+    /// The validator and reload of every material write or removal, in order.
+    protocols: Mutex<Vec<RecordedProtocol>>,
 }
 
 impl FakeSslHost {
@@ -148,6 +174,10 @@ impl FakeSslHost {
             removal_fails: Mutex::new(false),
             marker_removals_to_fail: Mutex::new(0),
             unreadable: Mutex::new(BTreeSet::new()),
+            programs: Mutex::new(Vec::new()),
+            openssl_times_out: Mutex::new(false),
+            material_times_out: Mutex::new(false),
+            protocols: Mutex::new(Vec::new()),
         }
     }
 
@@ -198,6 +228,49 @@ impl FakeSslHost {
         *self.refusal.lock().unwrap() = Some((subcommand.to_owned(), 1, stderr.to_owned()));
     }
 
+    /// Makes every openssl run outrun its deadline.
+    pub(crate) fn time_out_openssl(&self) {
+        *self.openssl_times_out.lock().unwrap() = true;
+    }
+
+    /// Makes the config protocol behind a material write or removal outrun its
+    /// deadline. The store is left as it was, as the protocol leaves it.
+    pub(crate) fn time_out_material_writes(&self) {
+        *self.material_times_out.lock().unwrap() = true;
+    }
+
+    /// The validator and reload of every material write or removal, in order.
+    pub(crate) fn protocols(&self) -> Vec<RecordedProtocol> {
+        self.protocols.lock().unwrap().clone()
+    }
+
+    /// Records the protocol a material write or removal was handed.
+    fn record_protocol(&self, validator: &Validator<'_>, reload: &Reload<'_>) {
+        let command = |program: &AdapterBinary, arguments: &[&str]| {
+            let mut argv = vec![program.as_str().to_owned()];
+            argv.extend(arguments.iter().map(|argument| (*argument).to_owned()));
+            argv
+        };
+        self.protocols.lock().unwrap().push(RecordedProtocol {
+            validator: command(validator.program, validator.arguments),
+            validator_class: validator.class,
+            reload: command(reload.program, reload.arguments),
+        });
+    }
+
+    /// Every program path the fake was asked to run, in order.
+    pub(crate) fn programs(&self) -> Vec<String> {
+        self.programs.lock().unwrap().clone()
+    }
+
+    /// The bound an openssl run is killed with.
+    fn openssl_bound(program: &AdapterBinary, class: CallClass) -> SslOpError {
+        SslOpError::Bound(BoundExceeded::TimedOut {
+            program: program.as_str().to_owned(),
+            deadline: class.deadline(),
+        })
+    }
+
     /// Makes `nginx -t` refuse every configuration.
     pub(crate) fn reject_validation(&self, stderr: &str) {
         self.sites.reject_validation(stderr);
@@ -206,6 +279,11 @@ impl FakeSslHost {
     /// The content of a vhost, if the host holds one.
     pub(crate) fn config(&self, path: &Path) -> Option<String> {
         self.sites.config(path)
+    }
+
+    /// Puts `contents` at `path` as if that vhost were already on disk.
+    pub(crate) fn place_config(&self, path: &Path, contents: &str) {
+        self.sites.place_config(path, contents);
     }
 
     /// How many vhost writes or removals reached the protocol.
@@ -352,6 +430,24 @@ impl SiteHost for FakeSslHost {
         written
     }
 
+    fn create_config(
+        &self,
+        target: &Path,
+        contents: &str,
+        validator: &Validator<'_>,
+        reload: &Reload<'_>,
+        refused_warnings: &[String],
+    ) -> Result<(), SitesOpError> {
+        let written =
+            self.sites
+                .create_config(target, contents, validator, reload, refused_warnings);
+        if written.is_ok() {
+            self.events.lock().unwrap().push(Event::VhostWritten);
+        }
+
+        written
+    }
+
     fn remove_config(
         &self,
         target: &Path,
@@ -375,11 +471,18 @@ impl SslHost for FakeSslHost {
     /// argv it was given.
     fn run_with_certificate(
         &self,
-        _program: &str,
+        program: &AdapterBinary,
         arguments: &[&str],
         _certificate_pem: &str,
     ) -> Result<CommandOutcome, SslOpError> {
         self.record(arguments);
+        self.programs
+            .lock()
+            .unwrap()
+            .push(program.as_str().to_owned());
+        if *self.openssl_times_out.lock().unwrap() {
+            return Err(Self::openssl_bound(program, CallClass::Query));
+        }
 
         Ok(self.answer(arguments))
     }
@@ -389,11 +492,18 @@ impl SslHost for FakeSslHost {
     /// here.
     fn run_with_private_key(
         &self,
-        _program: &str,
+        program: &AdapterBinary,
         arguments: &[&str],
         _private_key_pem: &str,
     ) -> Result<KeyToolOutcome, SslOpError> {
         self.record(arguments);
+        self.programs
+            .lock()
+            .unwrap()
+            .push(program.as_str().to_owned());
+        if *self.openssl_times_out.lock().unwrap() {
+            return Err(Self::openssl_bound(program, CallClass::Query));
+        }
         let outcome = self.answer(arguments);
 
         Ok(KeyToolOutcome::new(outcome.status == 0, outcome.stdout))
@@ -438,9 +548,16 @@ impl SslHost for FakeSslHost {
         &self,
         certificate: &SiteCertificate,
         material: &CertificateMaterial,
-        _validator: &Validator<'_>,
-        _reload: &Reload<'_>,
+        validator: &Validator<'_>,
+        reload: &Reload<'_>,
     ) -> Result<(), SslOpError> {
+        self.record_protocol(validator, reload);
+        if *self.material_times_out.lock().unwrap() {
+            return Err(SslOpError::Bound(BoundExceeded::TimedOut {
+                program: validator.program.as_str().to_owned(),
+                deadline: validator.class.deadline(),
+            }));
+        }
         self.preinstall(certificate, material);
         self.events.lock().unwrap().push(Event::MaterialWritten);
         Ok(())
@@ -449,9 +566,16 @@ impl SslHost for FakeSslHost {
     fn remove_material(
         &self,
         certificate: &SiteCertificate,
-        _validator: &Validator<'_>,
-        _reload: &Reload<'_>,
+        validator: &Validator<'_>,
+        reload: &Reload<'_>,
     ) -> Result<(), SslOpError> {
+        self.record_protocol(validator, reload);
+        if *self.material_times_out.lock().unwrap() {
+            return Err(SslOpError::Bound(BoundExceeded::TimedOut {
+                program: validator.program.as_str().to_owned(),
+                deadline: validator.class.deadline(),
+            }));
+        }
         if *self.removal_fails.lock().unwrap() {
             return Err(SslOpError::MaterialWrite {
                 reason: "the certificate store is read-only".to_owned(),
@@ -477,9 +601,16 @@ impl SslHost for FakeSslHost {
     /// every run of the suite pay for one.
     fn generate_material(
         &self,
-        _program: &str,
+        program: &AdapterBinary,
         request: &SelfSignedRequest,
     ) -> Result<CertificateMaterial, SslOpError> {
+        self.programs
+            .lock()
+            .unwrap()
+            .push(program.as_str().to_owned());
+        if *self.openssl_times_out.lock().unwrap() {
+            return Err(Self::openssl_bound(program, CallClass::Mutation));
+        }
         self.arguments.lock().unwrap().push(vec![
             "req".to_owned(),
             request.subject.clone(),

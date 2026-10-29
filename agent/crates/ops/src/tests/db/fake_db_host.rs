@@ -18,7 +18,9 @@
 
 use std::collections::HashMap;
 use std::sync::Mutex;
+use std::time::Duration;
 
+use maran_agent_core::utils::bound_exceeded::BoundExceeded;
 use maran_agent_core::validation::db::database_name::DatabaseName;
 use maran_agent_core::validation::db::db_user_name::DbUserName;
 use maran_agent_core::validation::secrets::password::Password;
@@ -48,6 +50,10 @@ pub(crate) struct FakeDbHost {
     /// The exit status and standard error every statement fails with, when a
     /// test installed a failure.
     failure: Mutex<Option<(i32, String)>>,
+    /// How many statements the "client" answers before it runs past its
+    /// deadline, when a test installed a timeout. Every statement after that
+    /// many is recorded and then answered with the bound.
+    answers_before_timeout: Mutex<Option<usize>>,
     /// What the size query answers with.
     size: Mutex<String>,
     /// The `mysql.db` rows the "server" holds, as `(Host, Db, User)`.
@@ -72,6 +78,7 @@ impl FakeDbHost {
             user_count: Mutex::new(None),
             statements: Mutex::new(Vec::new()),
             failure: Mutex::new(None),
+            answers_before_timeout: Mutex::new(None),
             size: Mutex::new(DEFAULT_SIZE_BYTES.to_string()),
             grant_rows: Mutex::new(Vec::new()),
             rendered_grants: Mutex::new(HashMap::new()),
@@ -105,6 +112,31 @@ impl FakeDbHost {
         *host.failure.lock().unwrap() = Some((code, stderr.to_owned()));
 
         host
+    }
+
+    /// A host whose client answers `answered` statements and then runs past its
+    /// deadline on every one after them.
+    ///
+    /// Zero makes the first statement the one that never returns. The statement
+    /// that times out is still RECORDED, as a real server may already have it,
+    /// and the fake applies none of its effects, because a client that was killed
+    /// reported none.
+    pub(crate) fn timing_out_after(answered: usize) -> Self {
+        let host = Self::new();
+        host.time_out_after(answered);
+
+        host
+    }
+
+    /// From now on, answers `answered` more statements and then runs past the
+    /// deadline on every one after them.
+    ///
+    /// For a test that has to build state first (a database that exists) and
+    /// only then make the client hang. The count starts at the statements the
+    /// fake has already been asked, so setup is never counted.
+    pub(crate) fn time_out_after(&self, answered: usize) {
+        let asked = self.statements.lock().unwrap().len();
+        *self.answers_before_timeout.lock().unwrap() = Some(asked + answered);
     }
 
     /// Gives the "server" one `mysql.db` row, with the privileges it renders.
@@ -226,7 +258,19 @@ impl DbHost for FakeDbHost {
     /// shrugs at a statement nobody expected is a fake that lets an operation
     /// send anything and still pass.
     fn execute(&self, statement: &str) -> Result<String, DbError> {
-        self.statements.lock().unwrap().push(statement.to_owned());
+        let asked_before = {
+            let mut statements = self.statements.lock().unwrap();
+            statements.push(statement.to_owned());
+            statements.len() - 1
+        };
+
+        let answers = *self.answers_before_timeout.lock().unwrap();
+        if answers.is_some_and(|answered| asked_before >= answered) {
+            return Err(DbError::Bound(BoundExceeded::TimedOut {
+                program: String::from("/usr/bin/mariadb"),
+                deadline: Duration::from_secs(120),
+            }));
+        }
 
         let failure = self.failure.lock().unwrap().clone();
         if let Some((code, stderr)) = failure {

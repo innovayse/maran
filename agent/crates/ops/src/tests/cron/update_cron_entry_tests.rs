@@ -5,8 +5,8 @@
 use crate::cron::create_cron_entry::create_cron_entry;
 use crate::cron::cron_error::CronError;
 use crate::cron::recording_cron_host::{
-    ABSENT_ID, FIRST_ID, RecordingCronHost, account, cmd_path, command, distro, entry_id,
-    every_five_minutes, schedule,
+    ABSENT_ID, FIRST_ID, RecordingCronHost, account, assert_refused_untouched, cmd_path, command,
+    distro, entry_id, every_five_minutes, schedule, unmanaged_cases,
 };
 use crate::cron::update_cron_entry::update_cron_entry;
 
@@ -131,4 +131,24 @@ fn a_command_file_that_cannot_be_written_is_reported_after_the_schedule_landed()
     assert_eq!(refusal, Err(CronError::EntryFileUnwritable));
     let table = host.crontab().expect("a table was installed");
     assert!(table.contains("0 3 * * * "));
+}
+
+/// An account that is not a hosting account is refused before the table is
+/// read, and everything the host holds is left as it was.
+#[test]
+fn updating_an_entry_of_an_unmanaged_account_installs_nothing_and_writes_no_command_file() {
+    // The command file is written after the install, so a gate placed below
+    // either would leave one of them behind.
+    for case in unmanaged_cases() {
+        let result = update_cron_entry(
+            &case.host,
+            distro(),
+            &case.account,
+            &entry_id(FIRST_ID),
+            &every_five_minutes(),
+            &command("echo changed"),
+        );
+
+        assert_refused_untouched(&case, result);
+    }
 }

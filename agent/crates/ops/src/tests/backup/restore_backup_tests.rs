@@ -894,3 +894,33 @@ fn the_accounts_identity_is_asked_again_before_the_home_is_swapped() {
     assert!(outcome.files_restored);
     assert!(fixture.home().join("public").join("index.php").is_file());
 }
+
+/// A load killed at its deadline is not a success and not left alone: the
+/// server may have taken part of the dump, so it is unwound exactly like a load
+/// that failed, every database already replaced going back from its own
+/// rollback dump.
+#[test]
+fn a_load_that_times_out_after_the_first_drop_is_rolled_back_like_a_failed_load() {
+    let fixture = Fixture::new(3);
+    let host = host_with(&fixture, 3);
+    host.time_out_archive_load_for("alice_shop2");
+
+    let error = run(&fixture, &host, &databases(3), &mut sink()).unwrap_err();
+
+    assert_eq!(
+        error,
+        BackupError::RolledBack {
+            failed: "alice_shop2".to_owned(),
+            rolled_back: vec![
+                "alice_shop2".to_owned(),
+                "alice_shop1".to_owned(),
+                "alice_shop0".to_owned()
+            ]
+        }
+    );
+    // The swap has not happened yet, so the files were never at risk.
+    assert_eq!(
+        read_to_string(fixture.home().join("live.txt")).unwrap(),
+        LIVE_FILE
+    );
+}

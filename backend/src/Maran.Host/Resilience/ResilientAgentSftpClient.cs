@@ -42,7 +42,8 @@ public sealed class ResilientAgentSftpClient : IAgentSftpClient
         SensitiveString password,
         CancellationToken cancellationToken)
     {
-        return await _pipeline.ExecuteAsync(
+        return await AgentOperationPipeline.ExecuteAsync(
+            _pipeline,
             async (state, token) =>
             {
                 return await state.Client.CreateAsync(
@@ -62,7 +63,8 @@ public sealed class ResilientAgentSftpClient : IAgentSftpClient
         SensitiveString password,
         CancellationToken cancellationToken)
     {
-        return await _pipeline.ExecuteAsync(
+        return await AgentOperationPipeline.ExecuteAsync(
+            _pipeline,
             async (state, token) =>
             {
                 return await state.Client.SetPasswordAsync(
@@ -81,7 +83,8 @@ public sealed class ResilientAgentSftpClient : IAgentSftpClient
         string sftpUsername,
         CancellationToken cancellationToken)
     {
-        return await _pipeline.ExecuteAsync(
+        return await AgentOperationPipeline.ExecuteAsync(
+            _pipeline,
             async (state, token) =>
             {
                 return await state.Client.DeleteAsync(state.AccountUsername, state.SftpUsername, token);
@@ -96,7 +99,8 @@ public sealed class ResilientAgentSftpClient : IAgentSftpClient
         bool locked,
         CancellationToken cancellationToken)
     {
-        return await _pipeline.ExecuteAsync(
+        return await AgentOperationPipeline.ExecuteAsync(
+            _pipeline,
             async (state, token) =>
             {
                 return await state.Client.SetAccountLoginsLockedAsync(

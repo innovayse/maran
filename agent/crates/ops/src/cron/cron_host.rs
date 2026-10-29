@@ -2,6 +2,7 @@
 
 use maran_agent_core::validation::system::cron_command::CronCommand;
 use maran_agent_core::validation::system::cron_entry_id::CronEntryId;
+use maran_agent_core::validation::system::managed_account::ManagedAccount;
 use maran_agent_core::validation::system::name::AccountName;
 
 use crate::cron::cron_error::CronError;
@@ -34,6 +35,27 @@ use crate::cron::model::cron_run_record::CronRunRecord;
 /// (rules/rust.md "Async and blocking"). The obligation is restated on each
 /// method below, because a caller reads the method they are calling.
 pub trait CronHost: Send + Sync {
+    /// Proves that `account` names a hosting account this panel may act on.
+    ///
+    /// **Every operation in this area calls this first and hands the result to
+    /// every other method of this trait**, so no root effect (`crontab -u`, a
+    /// privilege drop into a home) can be reached with a bare name: `root` and
+    /// every other system user are refused here, before `crontab` is run.
+    /// The proof is a fact about one moment and is never stored; operations that
+    /// hold `cron_lock` (this crate's per-account cron lock) resolve it INSIDE
+    /// the lock, so the resolution and the use are one critical section.
+    ///
+    /// Implementations MUST be called from `tokio::task::spawn_blocking`: they
+    /// read the host's password database.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`CronError::Account`] when the account is reserved, absent from
+    /// the local password database, a system identity, or has the wrong home,
+    /// and also when the password database cannot be read (an unreadable
+    /// database proves nothing, so it refuses).
+    fn managed_account(&self, account: &AccountName) -> Result<ManagedAccount, CronError>;
+
     /// Reads the account's current crontab.
     ///
     /// `Ok(None)` for an account that has no crontab at all, which is not a
@@ -43,13 +65,14 @@ pub trait CronHost: Send + Sync {
     ///
     /// Implementations MUST be called from `tokio::task::spawn_blocking`: they
     /// spawn a program and wait for it, which on a runtime worker stalls every
-    /// other in-flight command.
+    /// other in-flight command. The wait is bounded by the program's deadline.
     ///
     /// # Errors
     ///
     /// Returns [`CronError::CrontabRefused`] when the program refuses for any
-    /// other reason, or cannot be run at all.
-    fn read_crontab(&self, account: &AccountName) -> Result<Option<String>, CronError>;
+    /// other reason, cannot be run at all, or answers more than the read ceiling,
+    /// and [`CronError::Bound`] when it outlives its deadline and is killed.
+    fn read_crontab(&self, account: &ManagedAccount) -> Result<Option<String>, CronError>;
 
     /// Replaces the account's crontab with `contents`, whole.
     ///
@@ -66,13 +89,15 @@ pub trait CronHost: Send + Sync {
     ///
     /// Implementations MUST be called from `tokio::task::spawn_blocking`: they
     /// spawn a program and wait for it, which on a runtime worker stalls every
-    /// other in-flight command.
+    /// other in-flight command. The wait is bounded by the program's deadline.
     ///
     /// # Errors
     ///
     /// Returns [`CronError::CrontabRefused`] when the program refuses the table
-    /// or cannot be given one at all.
-    fn install_crontab(&self, account: &AccountName, contents: &str) -> Result<(), CronError>;
+    /// or cannot be given one at all, and [`CronError::Bound`] when it outlives
+    /// its deadline and is killed, in which case the table may or may not have
+    /// been replaced.
+    fn install_crontab(&self, account: &ManagedAccount, contents: &str) -> Result<(), CronError>;
 
     /// Mints an id for a new entry.
     ///
@@ -118,7 +143,7 @@ pub trait CronHost: Send + Sync {
     /// be resolved or the privilege drop fails.
     fn write_command_file(
         &self,
-        account: &AccountName,
+        account: &ManagedAccount,
         entry: &CronEntryId,
         command: &CronCommand,
     ) -> Result<(), CronError>;
@@ -145,7 +170,7 @@ pub trait CronHost: Send + Sync {
     /// the account cannot be resolved.
     fn read_command_file(
         &self,
-        account: &AccountName,
+        account: &ManagedAccount,
         entry: &CronEntryId,
     ) -> Result<Option<String>, CronError>;
 
@@ -167,7 +192,7 @@ pub trait CronHost: Send + Sync {
     /// be resolved or the privilege drop fails.
     fn remove_entry_files(
         &self,
-        account: &AccountName,
+        account: &ManagedAccount,
         entry: &CronEntryId,
     ) -> Result<(), CronError>;
 
@@ -187,7 +212,7 @@ pub trait CronHost: Send + Sync {
     /// [`CronError::Privilege`] as [`Self::read_command_file`] does.
     fn read_run_record(
         &self,
-        account: &AccountName,
+        account: &ManagedAccount,
         entry: &CronEntryId,
     ) -> Result<Option<CronRunRecord>, CronError>;
 
@@ -212,7 +237,7 @@ pub trait CronHost: Send + Sync {
     /// [`CronError::Privilege`] as [`Self::read_command_file`] does.
     fn read_output_tail(
         &self,
-        account: &AccountName,
+        account: &ManagedAccount,
         entry: &CronEntryId,
         max_bytes: usize,
     ) -> Result<Option<String>, CronError>;

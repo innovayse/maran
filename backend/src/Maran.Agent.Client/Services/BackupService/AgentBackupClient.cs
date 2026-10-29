@@ -65,7 +65,40 @@ public sealed class AgentBackupClient : IAgentBackupClient
     }
 
     /// <inheritdoc/>
-    public async IAsyncEnumerable<BackupCreateEvent> CreateAsync(
+    /// <remarks>
+    /// A transport failure — an agent that cannot be reached, a connection torn mid-stream — ends the
+    /// stream in a <see cref="BackupCreateEventKind.Failed"/> event carrying the code of
+    /// <see cref="AgentTransportFailure.ToError"/>, never in the raw exception.
+    /// </remarks>
+    public IAsyncEnumerable<BackupCreateEvent> CreateAsync(
+        string accountUsername,
+        string backupId,
+        AgentBackupDestination destination,
+        CancellationToken cancellationToken)
+    {
+        return AgentStreamGuard.EndOnTransportFailureAsync(
+            CreateEventsAsync(accountUsername, backupId, destination, cancellationToken),
+            exception =>
+            {
+                return new BackupCreateEvent(
+                    BackupCreateEventKind.Failed,
+                    0,
+                    string.Empty,
+                    0,
+                    string.Empty,
+                    0,
+                    AgentTransportFailure.ToError(exception).Code);
+            },
+            cancellationToken);
+    }
+
+    /// <summary>Streams the create events the agent states, without guarding against the transport failing.</summary>
+    /// <param name="accountUsername">System username of the account being backed up.</param>
+    /// <param name="backupId">Caller-assigned identifier for this backup.</param>
+    /// <param name="destination">Where to store the resulting artifact.</param>
+    /// <param name="cancellationToken">Cancellation for the stream.</param>
+    /// <returns>Progress events followed by exactly one terminal event.</returns>
+    private async IAsyncEnumerable<BackupCreateEvent> CreateEventsAsync(
         string accountUsername,
         string backupId,
         AgentBackupDestination destination,
@@ -144,7 +177,47 @@ public sealed class AgentBackupClient : IAgentBackupClient
     }
 
     /// <inheritdoc/>
-    public async IAsyncEnumerable<BackupRestoreEvent> RestoreAsync(
+    /// <remarks>
+    /// A transport failure ends the stream in a <see cref="BackupRestoreEventKind.Failed"/> event
+    /// carrying <see cref="AgentTransportFailure.ToError"/>, never in the raw exception.
+    /// </remarks>
+    public IAsyncEnumerable<BackupRestoreEvent> RestoreAsync(
+        string accountUsername,
+        string backupId,
+        AgentBackupDestination destination,
+        string expectedSha256,
+        IReadOnlyList<string> allowedDatabases,
+        CancellationToken cancellationToken)
+    {
+        return AgentStreamGuard.EndOnTransportFailureAsync(
+            RestoreEventsAsync(
+                accountUsername,
+                backupId,
+                destination,
+                expectedSha256,
+                allowedDatabases,
+                cancellationToken),
+            exception =>
+            {
+                return new BackupRestoreEvent(
+                    BackupRestoreEventKind.Failed,
+                    0,
+                    string.Empty,
+                    null,
+                    AgentTransportFailure.ToError(exception));
+            },
+            cancellationToken);
+    }
+
+    /// <summary>Streams the restore events the agent states, without guarding against the transport failing.</summary>
+    /// <param name="accountUsername">System username of the account being restored into.</param>
+    /// <param name="backupId">Identifier of the backup to restore.</param>
+    /// <param name="destination">Where the artifact currently resides.</param>
+    /// <param name="expectedSha256">The digest the panel recorded when the artifact was created.</param>
+    /// <param name="allowedDatabases">Every database the panel still knows this account owns.</param>
+    /// <param name="cancellationToken">Cancellation for the stream.</param>
+    /// <returns>Progress events followed by exactly one terminal event.</returns>
+    private async IAsyncEnumerable<BackupRestoreEvent> RestoreEventsAsync(
         string accountUsername,
         string backupId,
         AgentBackupDestination destination,

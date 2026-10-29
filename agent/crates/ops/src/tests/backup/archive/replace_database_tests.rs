@@ -57,3 +57,18 @@ fn a_load_that_fails_is_reported_to_the_caller() {
     assert_eq!(error, BackupError::LoadFailed { status: 1 });
     assert_eq!(host.dropped(), vec![database().as_str().to_owned()]);
 }
+
+/// A load killed at its deadline is a bound, not a load failure, and the
+/// database is left dropped: the caller owes the same rollback it owes a load
+/// that failed.
+#[test]
+fn a_load_that_times_out_is_a_bound_and_leaves_the_database_dropped() {
+    let host = RecordingBackupHost::new();
+    host.time_out_archive_load_for(database().as_str());
+    let (_scratch, path) = dump();
+
+    let error = replace_database(&host, &database(), &path).unwrap_err();
+
+    assert!(matches!(error, BackupError::Bound(_)), "{error:?}");
+    assert_eq!(host.dropped(), vec![database().as_str().to_owned()]);
+}

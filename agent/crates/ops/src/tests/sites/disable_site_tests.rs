@@ -13,7 +13,9 @@ use std::path::Path;
 
 use crate::sites::{SitesOpError, disable_site};
 
-use crate::sites::fake_site_host::{FakeSiteHost, create_test_site, distro, php_input};
+use crate::sites::fake_site_host::{
+    FakeSiteHost, create_test_site, distro, legacy_suspended_text, php_input,
+};
 
 /// The vhost every test here acts on.
 const VHOST: &str = "/etc/maran/nginx/sites/example.com.conf";
@@ -87,4 +89,26 @@ fn a_rejected_suspension_leaves_the_live_vhost_in_place() {
     // The protocol restores the previous content, so a refused suspension
     // leaves the site serving rather than serving nothing.
     assert_eq!(host.config(Path::new(VHOST)), live);
+}
+
+#[test]
+fn disabling_a_site_that_serves_the_earlier_stub_rewrites_it_to_the_current_one() {
+    let host = FakeSiteHost::passing();
+    let input = php_input();
+    create_test_site(&host, &input).unwrap();
+    disable_site(&host, distro(), &input).unwrap();
+    let current = host.config(Path::new(VHOST)).unwrap();
+    host.place_config(
+        Path::new(VHOST),
+        &legacy_suspended_text(&host, &input, "example.com"),
+    );
+
+    disable_site(&host, distro(), &input).unwrap();
+
+    let rewritten = host.config(Path::new(VHOST)).unwrap();
+    assert_eq!(rewritten, current);
+    assert!(
+        rewritten.contains("disable_symlinks if_not_owner;"),
+        "the stub the next disable writes carries the symlink rule: {rewritten}"
+    );
 }

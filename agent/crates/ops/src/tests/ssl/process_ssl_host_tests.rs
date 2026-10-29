@@ -12,10 +12,16 @@ use std::os::unix::fs::PermissionsExt as _;
 use std::path::Path;
 
 use maran_agent_core::command_outcome::CommandOutcome;
+use maran_agent_core::utils::call_class::CallClass;
+use maran_distro::{AdapterBinary, DistroFamily, adapter_for};
 
 use crate::safe_write::model::{Reload, Validator};
 use crate::safe_write::{ConfigHost, SafeWriteError};
-use crate::ssl::process_ssl_host::{create_private_directory, reassert_mode, remove_one};
+use crate::ssl::fake_ssl_host::{CERTIFICATE_PEM, KEY_PEM, UNRELATED_KEY_PEM};
+use crate::ssl::process_ssl_host::{
+    ProcessSslHost, create_private_directory, reassert_mode, remove_one,
+};
+use crate::ssl::ssl_host::SslHost;
 use crate::ssl::ssl_op_error::SslOpError;
 
 /// The mode of `path`, masked to the permission bits.
@@ -121,7 +127,12 @@ fn a_removal_that_committed_leaves_nothing_to_chmod_and_is_not_an_error() {
 struct RefusingWebServer;
 
 impl ConfigHost for RefusingWebServer {
-    fn run(&self, _program: &str, _arguments: &[&str]) -> Result<CommandOutcome, SafeWriteError> {
+    fn run(
+        &self,
+        _program: &AdapterBinary,
+        _arguments: &[&str],
+        _class: CallClass,
+    ) -> Result<CommandOutcome, SafeWriteError> {
         Ok(CommandOutcome {
             status: 1,
             stdout: String::new(),
@@ -138,16 +149,20 @@ fn a_removal_the_web_server_refuses_puts_the_key_back_at_exactly_0600() {
     std::fs::write(&key, material).unwrap();
     std::fs::set_permissions(&key, std::fs::Permissions::from_mode(0o600)).unwrap();
 
+    // Real adapter values: an `AdapterBinary` cannot be built outside the
+    // distro crate, and this host never starts them.
+    let nginx = adapter_for(DistroFamily::Debian).nginx_binary();
     let failure = remove_one(
         &RefusingWebServer,
         &key,
         0o600,
         &Validator {
-            program: "/nonexistent",
+            program: &nginx,
             arguments: &[],
+            class: CallClass::Validate,
         },
         &Reload {
-            program: "/nonexistent",
+            program: &nginx,
             arguments: &[],
         },
     )
@@ -163,4 +178,95 @@ fn a_removal_the_web_server_refuses_puts_the_key_back_at_exactly_0600() {
     // rollback CREATED this file, so without the re-assertion it is
     // `0o666 & !umask` — 0640 under the agent unit's `UMask=0027`.
     assert_eq!(mode_of(&key), 0o600);
+}
+
+/// The arguments that print the public key a certificate carries.
+const CERTIFICATE_PUBLIC_KEY: [&str; 3] = ["x509", "-noout", "-pubkey"];
+
+/// The arguments that print the public key a private key implies, with an
+/// empty passphrase supplied so that a tool never prompts.
+const KEY_PUBLIC_KEY: [&str; 4] = ["pkey", "-pubout", "-passin", "pass:"];
+
+#[test]
+fn a_certificate_handed_to_the_real_tool_reaches_its_standard_input() {
+    // The bytes go through the bounded core's writer thread. A child that read
+    // nothing would print nothing and exit non-zero, so a public key on stdout
+    // proves the input arrived whole.
+    let host = ProcessSslHost::new();
+    let openssl = adapter_for(DistroFamily::Debian).openssl_binary();
+
+    let outcome = host
+        .run_with_certificate(&openssl, &CERTIFICATE_PUBLIC_KEY, CERTIFICATE_PEM)
+        .unwrap();
+
+    assert_eq!(outcome.status, 0, "stderr: {:?}", outcome.stderr);
+    assert!(
+        outcome.stdout.starts_with("-----BEGIN PUBLIC KEY-----"),
+        "{:?}",
+        outcome.stdout
+    );
+}
+
+#[test]
+fn the_key_and_the_certificate_it_belongs_to_imply_one_public_key_through_the_real_tool() {
+    let host = ProcessSslHost::new();
+    let openssl = adapter_for(DistroFamily::Debian).openssl_binary();
+    let from_certificate = host
+        .run_with_certificate(&openssl, &CERTIFICATE_PUBLIC_KEY, CERTIFICATE_PEM)
+        .unwrap();
+
+    let from_key = host
+        .run_with_private_key(&openssl, &KEY_PUBLIC_KEY, KEY_PEM)
+        .unwrap();
+
+    assert!(from_key.succeeded());
+    assert!(from_key.output_matches(&from_certificate.stdout));
+}
+
+#[test]
+fn a_key_that_belongs_to_another_certificate_does_not_match_through_the_real_tool() {
+    // The inverse control of the test above: the same comparison, fed a valid
+    // key that belongs elsewhere, must say no. A comparison mutated to say yes
+    // for everything passes the test above and fails this one.
+    let host = ProcessSslHost::new();
+    let openssl = adapter_for(DistroFamily::Debian).openssl_binary();
+    let from_certificate = host
+        .run_with_certificate(&openssl, &CERTIFICATE_PUBLIC_KEY, CERTIFICATE_PEM)
+        .unwrap();
+
+    let from_key = host
+        .run_with_private_key(&openssl, &KEY_PUBLIC_KEY, UNRELATED_KEY_PEM)
+        .unwrap();
+
+    assert!(from_key.succeeded());
+    assert!(!from_key.output_matches(&from_certificate.stdout));
+}
+
+#[test]
+fn a_private_key_the_tool_refuses_is_a_failed_outcome_and_never_an_error() {
+    // The refusal is the operation's domain decision. It must arrive as
+    // `succeeded() == false`, not as a bound or a start failure, and the
+    // outcome carries no text for the garbage to be echoed from.
+    let host = ProcessSslHost::new();
+    let openssl = adapter_for(DistroFamily::Debian).openssl_binary();
+
+    let outcome = host
+        .run_with_private_key(&openssl, &KEY_PUBLIC_KEY, "not a key\n")
+        .unwrap();
+
+    assert!(!outcome.succeeded());
+    assert!(!format!("{outcome:?}").contains("not a key"));
+}
+
+#[test]
+fn every_spawn_in_the_host_runs_under_a_short_class() {
+    // The standard-input spawns are queries and the key generation is a short
+    // mutation. A bulk or package class here would let a hung openssl hold a
+    // blocking thread for minutes, and no test of the behaviour waits that
+    // long to notice.
+    let classes = crate::test_support::call_class_census::classes_named_in_code(include_str!(
+        "../../ssl/process_ssl_host.rs"
+    ));
+
+    assert_eq!(classes, ["Mutation", "Query"]);
 }

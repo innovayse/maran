@@ -2,12 +2,16 @@ namespace Maran.Modules.Accounts.Domain.Entities;
 
 /// <summary>
 /// A plan an <see cref="Account"/> is created against: the resource limits spec §8 requires — disk
-/// quota and counts for sites, databases, SFTP logins, FTPS logins and cron entries. Plans are
-/// reference data the panel ships with (seeded by <see cref="Seeders.PlanSeeder"/>) and are
-/// read-only from every module's perspective in this pass; nothing here mutates a plan after
-/// creation.
+/// quota and counts for sites, databases, SFTP logins, FTPS logins and cron entries. A fresh panel
+/// ships three (seeded by <see cref="Seeders.PlanSeeder"/>); an administrator defines, edits and
+/// retires the rest, which is what lets an operator sell something other than what shipped.
 /// </summary>
 /// <remarks>
+/// Editing a plan edits every account on it: the limits are read live through the plan row, never
+/// copied onto an account. That is the whole point of a plan, and it is also why the one limit that
+/// is ALSO enforced by the operating system — the disk quota — needs more than a changed column; see
+/// <c>UpdatePlanCommandHandler</c> for what happens to the accounts when it moves.
+///
 /// <see cref="MaxSftpUsers"/> was called <c>MaxFtpUsers</c> until the file-transfer allowance was
 /// given its module. It is the SAME allowance under a name that now matches what the product ships:
 /// this panel serves file transfer over OpenSSH's <c>internal-sftp</c> and installs no FTP daemon at
@@ -25,11 +29,41 @@ namespace Maran.Modules.Accounts.Domain.Entities;
 /// </remarks>
 public sealed class Plan
 {
+    /// <summary>
+    /// The longest name an operator may give a plan, in characters. The column, the validator and the
+    /// screen's field all take this one number from here, so widening it is one edit and a migration.
+    /// </summary>
+    public const int NameMaxLength = 64;
+
     /// <summary>The plan's identity.</summary>
     public Guid Id { get; private set; }
 
     /// <summary>The resx key for this plan's human-readable name.</summary>
+    /// <remarks>
+    /// <para>
+    /// For a plan the panel ships this is the key its translated name is looked up under. For a plan
+    /// an operator named (<see cref="Name"/>) it holds the SAME text as <see cref="Name"/>, and
+    /// nothing in this release reads it as a key. It is kept equal, by the check constraint
+    /// <c>CK_Plans_NameMirroredInKey</c>, because it is the one column the previous release reads
+    /// (rules/architecture.md "expand-then-contract"): a panel rolled back to that release still
+    /// shows every plan, and shows an operator's plans under their own names, because a resource
+    /// lookup that finds no entry answers with the key it was given. A null or placeholder here
+    /// would instead break the old plan list or print machine text in it.
+    /// </para>
+    /// <para>
+    /// It is also the plan's stable identity for anything that must read the same whoever asks and in
+    /// whatever language — the audit journal above all, which is never deleted and cannot be allowed
+    /// to read differently per reader. Its unique index is what makes a plan's name unique.
+    /// </para>
+    /// </remarks>
     public string DisplayNameKey { get; private set; }
+
+    /// <summary>
+    /// The name an operator gave this plan, verbatim, or <c>null</c> for a plan the panel ships with,
+    /// whose name is a resx entry and therefore reads in the viewer's language. A name an operator
+    /// typed has no translation to look up and is shown as typed, in every language.
+    /// </summary>
+    public string? Name { get; private set; }
 
     /// <summary>The account's disk quota, in megabytes.</summary>
     public int DiskQuotaMb { get; private set; }
@@ -139,15 +173,48 @@ public sealed class Plan
         int maxCronEntries,
         int maxPhpWorkersPerPool,
         int maxFtpUsers = 0)
+        : this(
+            id,
+            displayNameKey,
+            null,
+            diskQuotaMb,
+            maxSites,
+            maxDatabases,
+            maxSftpUsers,
+            maxCronEntries,
+            maxPhpWorkersPerPool,
+            maxFtpUsers)
     {
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxDatabases);
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxSftpUsers);
-        ArgumentOutOfRangeException.ThrowIfNegative(maxCronEntries);
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxPhpWorkersPerPool);
-        ArgumentOutOfRangeException.ThrowIfNegative(maxFtpUsers);
+    }
+
+    /// <summary>Creates a plan under either kind of name; the two public ways in both end here.</summary>
+    /// <param name="id">The plan's identity.</param>
+    /// <param name="displayNameKey">The resx key of a shipped plan's name; for an operator's plan, its name again.</param>
+    /// <param name="name">The name an operator typed, or <c>null</c>.</param>
+    /// <param name="diskQuotaMb">The account's disk quota, in megabytes.</param>
+    /// <param name="maxSites">The maximum number of sites the account may create.</param>
+    /// <param name="maxDatabases">The maximum number of databases the account may create.</param>
+    /// <param name="maxSftpUsers">The maximum number of SFTP logins the account may create.</param>
+    /// <param name="maxCronEntries">The maximum number of cron entries the account may keep.</param>
+    /// <param name="maxPhpWorkersPerPool">The maximum number of php-fpm workers one pool may run.</param>
+    /// <param name="maxFtpUsers">The maximum number of FTPS logins the account may create.</param>
+    private Plan(
+        Guid id,
+        string displayNameKey,
+        string? name,
+        int diskQuotaMb,
+        int maxSites,
+        int maxDatabases,
+        int maxSftpUsers,
+        int maxCronEntries,
+        int maxPhpWorkersPerPool,
+        int maxFtpUsers)
+    {
+        GuardLimits(maxDatabases, maxSftpUsers, maxCronEntries, maxPhpWorkersPerPool, maxFtpUsers);
 
         Id = id;
         DisplayNameKey = displayNameKey;
+        Name = name;
         DiskQuotaMb = diskQuotaMb;
         MaxSites = maxSites;
         MaxDatabases = maxDatabases;
@@ -161,5 +228,121 @@ public sealed class Plan
     private Plan()
     {
         DisplayNameKey = string.Empty;
+    }
+
+    /// <summary>
+    /// Defines a plan an operator named, as opposed to one the panel ships. The limits obey the same
+    /// guards as the shipped plans' (see the public constructor): there is one rule about what a
+    /// sellable plan is, and it does not depend on who typed it.
+    /// </summary>
+    /// <param name="id">The plan's identity.</param>
+    /// <param name="name">The plan's name, as the operator wants customers and administrators to read it.</param>
+    /// <param name="diskQuotaMb">The account's disk quota, in megabytes.</param>
+    /// <param name="maxSites">The maximum number of sites the account may create.</param>
+    /// <param name="maxDatabases">The maximum number of databases the account may create. Must be positive.</param>
+    /// <param name="maxSftpUsers">The maximum number of SFTP logins the account may create. Must be positive.</param>
+    /// <param name="maxFtpUsers">The maximum number of FTPS logins the account may create. Zero sells none.</param>
+    /// <param name="maxCronEntries">The maximum number of cron entries the account may keep. Zero sells none.</param>
+    /// <param name="maxPhpWorkersPerPool">The maximum number of php-fpm workers one pool may run. Must be positive.</param>
+    /// <returns>The new plan.</returns>
+    /// <exception cref="ArgumentException">Thrown when <paramref name="name"/> is empty or white space.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown when a limit breaks its guard.</exception>
+    public static Plan Define(
+        Guid id,
+        string name,
+        int diskQuotaMb,
+        int maxSites,
+        int maxDatabases,
+        int maxSftpUsers,
+        int maxFtpUsers,
+        int maxCronEntries,
+        int maxPhpWorkersPerPool)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+
+        // The key mirrors the name: see DisplayNameKey for why a column nothing here reads as a key
+        // must still hold the text.
+        return new Plan(
+            id,
+            name,
+            name,
+            diskQuotaMb,
+            maxSites,
+            maxDatabases,
+            maxSftpUsers,
+            maxCronEntries,
+            maxPhpWorkersPerPool,
+            maxFtpUsers);
+    }
+
+    /// <summary>
+    /// Gives the plan a name an operator typed. From here on the plan's name is that text in every
+    /// language; a shipped plan's translated name is dropped, because keeping both would leave two
+    /// names and no rule for which one a customer reads. <see cref="DisplayNameKey"/> follows the
+    /// name, so the two never differ.
+    /// </summary>
+    /// <param name="name">The new name.</param>
+    /// <exception cref="ArgumentException">Thrown when <paramref name="name"/> is empty or white space.</exception>
+    public void Rename(string name)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+
+        Name = name;
+        DisplayNameKey = name;
+    }
+
+    /// <summary>
+    /// Replaces every limit the plan carries. The guards are the constructor's, so an edit cannot
+    /// leave a plan in a state its creation would have refused.
+    /// </summary>
+    /// <param name="diskQuotaMb">The account's disk quota, in megabytes.</param>
+    /// <param name="maxSites">The maximum number of sites the account may create.</param>
+    /// <param name="maxDatabases">The maximum number of databases the account may create. Must be positive.</param>
+    /// <param name="maxSftpUsers">The maximum number of SFTP logins the account may create. Must be positive.</param>
+    /// <param name="maxFtpUsers">The maximum number of FTPS logins the account may create. Zero sells none.</param>
+    /// <param name="maxCronEntries">The maximum number of cron entries the account may keep. Zero sells none.</param>
+    /// <param name="maxPhpWorkersPerPool">The maximum number of php-fpm workers one pool may run. Must be positive.</param>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown when a limit breaks its guard.</exception>
+    public void ChangeLimits(
+        int diskQuotaMb,
+        int maxSites,
+        int maxDatabases,
+        int maxSftpUsers,
+        int maxFtpUsers,
+        int maxCronEntries,
+        int maxPhpWorkersPerPool)
+    {
+        GuardLimits(maxDatabases, maxSftpUsers, maxCronEntries, maxPhpWorkersPerPool, maxFtpUsers);
+
+        DiskQuotaMb = diskQuotaMb;
+        MaxSites = maxSites;
+        MaxDatabases = maxDatabases;
+        MaxSftpUsers = maxSftpUsers;
+        MaxFtpUsers = maxFtpUsers;
+        MaxCronEntries = maxCronEntries;
+        MaxPhpWorkersPerPool = maxPhpWorkersPerPool;
+    }
+
+    /// <summary>
+    /// The one statement of which limits may not be zero, shared by creation and by editing so the two
+    /// cannot disagree. The reasons are on the public constructor's parameters.
+    /// </summary>
+    /// <param name="maxDatabases">Must be positive.</param>
+    /// <param name="maxSftpUsers">Must be positive.</param>
+    /// <param name="maxCronEntries">Must not be negative.</param>
+    /// <param name="maxPhpWorkersPerPool">Must be positive.</param>
+    /// <param name="maxFtpUsers">Must not be negative.</param>
+    private static void GuardLimits(
+        int maxDatabases,
+        int maxSftpUsers,
+        int maxCronEntries,
+        int maxPhpWorkersPerPool,
+        int maxFtpUsers)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxDatabases);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxSftpUsers);
+        ArgumentOutOfRangeException.ThrowIfNegative(maxCronEntries);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxPhpWorkersPerPool);
+        ArgumentOutOfRangeException.ThrowIfNegative(maxFtpUsers);
     }
 }

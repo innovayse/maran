@@ -344,10 +344,23 @@ pub async fn serve(socket_path: &Path, policy: PeerPolicy) -> Result<(), Startup
     // The consequence is the one an operator needs and no line here used to
     // state: this process does not exit when the budget expires. `main` returns
     // and the runtime is dropped, and dropping a tokio runtime joins every
-    // blocking thread with NO timeout (tokio 1.53 `runtime::blocking::pool`),
-    // so the exit waits for whatever `useradd`, `rename` or database load was
-    // already running. The real bound on a stop is therefore the unit's
-    // `TimeoutStopSec=45` and the `SIGKILL` behind it, not this budget.
+    // blocking thread with NO timeout of its own (tokio 1.53
+    // `runtime::blocking::pool`), so the exit waits for whatever `useradd`,
+    // `rename` or database load was already running. Every program the agent
+    // starts now has a deadline (`CallClass`), so that wait is finite — but the
+    // longest class is hours (only `Bulk`; a package install is about 35 minutes), so it is not
+    // short. The real bound on a stop is therefore the unit's
+    // `TimeoutStopSec=45` and the `SIGKILL` behind it, not this budget and not
+    // a child's deadline.
+    //
+    // No tonic `timeout` or `concurrency_limit_per_connection` is set, on
+    // purpose. A server timeout drops the handler future and frees nothing (the
+    // blocking work and any lock it holds keep running), and it would report a
+    // failure for a write that then succeeds. A concurrency limit is per
+    // connection, the panel uses one HTTP/2 connection, so it would be a
+    // panel-wide limit that long-lived streams such as `sites.TailSiteLog`
+    // would eat slot by slot. A child that runs too long is bounded where the
+    // work is, by its call class, and surfaces as the in-band `Bound` error.
     tokio::select! {
         result = serving => result?,
         () = drain_deadline(deadline) => tracing::warn!(
@@ -438,6 +451,12 @@ enum WebTreeReconciliation {
 /// `the_only_startup_reconciliations_are_the_restores_the_web_tree_and_the_php_pools`
 /// goes red the day one of the three gains a pass.
 ///
+/// A second blind spot sits inside the tree it does read: a site creation
+/// killed between the rename of its vhost and the check of `nginx -t`'s warning
+/// that one of its names is already served leaves a colliding vhost live, and
+/// this pass cannot catch it, because that tree validates with exit 0 — the
+/// warning is not this pass's refusal — so it reloads the colliding file.
+///
 /// # Why it never refuses the start
 ///
 /// This process is the operator's only remote repair tool. Refusing to start
@@ -458,7 +477,10 @@ fn reconcile_web_tree(
                  reloaded onto it. UNOBSERVED HERE: the SFTP and FTPS jail mount units \
                  and vsftpd.conf — those three trees have no validator that can be run \
                  without also acting on the daemon. The php-fpm pool trees ARE observed, \
-                 by reconcile_php_pool_trees, one outcome per installed version"
+                 by reconcile_php_pool_trees, one outcome per installed version. ALSO \
+                 UNOBSERVED HERE: a vhost left by a site creation killed mid-write whose \
+                 host name another vhost already serves, which nginx -t reports as a \
+                 warning and exit 0"
             );
             WebTreeReconciliation::Applied
         }

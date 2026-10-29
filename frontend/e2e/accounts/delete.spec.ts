@@ -2,6 +2,7 @@ import { expect, test, type Page } from '@playwright/test'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubModules } from '../fixtures/stub-modules-route'
+import { stubInvitation } from '../fixtures/stub-invitation-routes'
 import type { Account } from '../../src/types/account'
 import type { PanelModule } from '../../src/types/module'
 
@@ -38,6 +39,7 @@ const openDetail = async (page: Page, modules: PanelModule[]): Promise<string[]>
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, modules)
+  await stubInvitation(page, ACCOUNT.id, 'pending')
   await page.route(`**/api/v1/accounts/${ACCOUNT.id}`, async (route) => {
     if (route.request().method() === 'GET') {
       await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(ACCOUNT) })
@@ -145,6 +147,7 @@ test('a refused deletion shows the panel message and keeps the account', async (
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, WITH_BACKUPS)
+  await stubInvitation(page, ACCOUNT.id, 'pending')
   await page.route(`**/api/v1/accounts/${ACCOUNT.id}`, async (route) => {
     if (route.request().method() === 'GET') {
       await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(ACCOUNT) })

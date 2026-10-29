@@ -757,6 +757,125 @@ while IFS= read -r file; do
   fi
 done < <(find agent/crates/ops/src agent/crates/agent/src -name '*.rs' -not -path '*/tests/*' 2>/dev/null | sort)
 
+# 17d. The bounded spawn core is called from the process hosts and nowhere else, and never with a
+#      program built from a path literal. `spawn_argv`, `run_bounded`, `run_unthreaded`,
+#      `run_for_window` and `run_discarding` take `&Path`, not `AdapterBinary`, because
+#      `agent-core` cannot depend on `distro` and the tests drive the core with a fixture program.
+#      So the type system does NOT stop a caller from handing the core a path that did not come
+#      from the DistroAdapter -- `spawn_argv(Path::new("/bin/sh"), ...)` compiles. What keeps that
+#      true is that every real caller sits in a process host whose `program` argument is an
+#      `AdapterBinary` (`program.as_path()`), and this check keeps the callers to exactly those
+#      files: a new caller is a new host, and a new host is added to the list below IN THE SAME PR
+#      as rules/rust.md names it (the list is written here, not inferred -- an inferred
+#      exemption is a rule that quietly stops applying).
+#
+#      Two rules, both on production code of ops, agent, distro and templates (agent-core owns the
+#      core and is the one crate that defines it; tests drive it on purpose and are skipped):
+#        (a) a call of the core outside the sanctioned list is reported;
+#        (b) a first argument that is a path literal (`Path::new("...")`, `PathBuf::from(...)`),
+#            or a `program:` field built that way, is reported anywhere -- the sanctioned files
+#            included, because a host that spawns a literal has stopped asking the adapter.
+#      What it CANNOT see, stated rather than implied: a path laundered through a variable
+#      (`let p = Path::new("/bin/sh"); spawn_argv(p, ...)`), a call whose first argument sits on
+#      the next line, and `.as_path()` taken from something that is not an AdapterBinary inside a
+#      sanctioned file. Those stay with review; this makes the cheap, direct misuse a red build.
+#
+#      Why not clippy `disallowed-methods`: it would need an `#[allow(clippy::disallowed_methods)]`
+#      in every sanctioned file, and an `#[allow]` written to make a gate pass is the thing the
+#      rules avoid.
+#
+#      CENSUS (rules/testing.md): the 14 listed files are exactly what this prints, and it is the
+#      positive control -- each of them must still hit the pattern, so a pattern that stopped
+#      matching fails the stale-entry check below instead of passing silently:
+#        grep -rlE '\b(spawn_argv|run_bounded|run_unthreaded|run_for_window|run_discarding)\(|SpawnRequest \{' \
+#          agent/crates/ops/src agent/crates/agent/src | grep -v /tests/
+spawn_call_re='\b(spawn_argv|run_bounded|run_unthreaded|run_for_window|run_discarding)\(|SpawnRequest \{'
+spawn_literal_re='\b(spawn_argv|run_bounded|run_unthreaded|run_for_window|run_discarding|run_archiver|run_client)\([[:space:]]*Path(Buf)?::(new|from)\(|program:[[:space:]]*Path(Buf)?::(new|from)\('
+sanctioned_spawn_hosts=(
+  agent/crates/ops/src/accounts/process_system_host.rs
+  agent/crates/ops/src/backup/list_archive_members.rs
+  agent/crates/ops/src/backup/process_backup_host.rs
+  agent/crates/ops/src/backup/run_discarding.rs
+  agent/crates/ops/src/cron/crontab_spool.rs
+  agent/crates/ops/src/db/process_db_host.rs
+  agent/crates/ops/src/firewall/process_firewall_host.rs
+  agent/crates/ops/src/ftps/process_ftps_host.rs
+  agent/crates/ops/src/logins/process_logins_host.rs
+  agent/crates/ops/src/monitor/process_monitor_host.rs
+  agent/crates/ops/src/php/process_php_host.rs
+  agent/crates/ops/src/sftp/process_sftp_host.rs
+  agent/crates/ops/src/sites/process_site_host.rs
+  agent/crates/ops/src/ssl/process_ssl_host.rs
+)
+
+# The lines of a file that CALL the core: a match that is not a comment line and not a `fn`/`use`
+# declaration (the core's own definitions, and run_discarding's, are declarations of the name).
+spawn_call_lines() {
+  grep -nE "$spawn_call_re" "$1" 2>/dev/null |
+    grep -vE '^[0-9]+:[[:space:]]*(//|(pub(\([a-z]+\))? )?(async )?fn |use )' || true
+}
+
+# Self-controls on the two patterns, run before they are trusted. Positive: a line the check must
+# flag. Inverse: the sanctioned shape it must not. A pattern that matched everything or nothing
+# would otherwise read as a clean tree.
+if ! printf '%s\n' '    spawn_argv(Path::new("/bin/sh"), arguments, class)' | grep -qE "$spawn_literal_re"; then
+  report "scripts/lib/check-structure.sh: check 17d's literal pattern did not match \`spawn_argv(Path::new(\"/bin/sh\"), ...)\` -- the control that proves it can see a violation failed (rules/testing.md)"
+fi
+if ! printf '%s\n' '    run_bounded(SpawnRequest { program: PathBuf::from("/bin/sh"), ..request })' | grep -qE "$spawn_literal_re"; then
+  report "scripts/lib/check-structure.sh: check 17d's literal pattern did not match a \`program: PathBuf::from(...)\` field -- the control that proves it can see a violation failed (rules/testing.md)"
+fi
+if printf '%s\n' '        spawn_argv(program.as_path(), arguments, class)' | grep -qE "$spawn_literal_re"; then
+  report "scripts/lib/check-structure.sh: check 17d's literal pattern matched the sanctioned \`spawn_argv(program.as_path(), ...)\` -- the inverse control failed, so the check would flag every host (rules/testing.md)"
+fi
+# The call pattern must see a known real call: agent-core's own spawn_argv hands its request to
+# run_bounded, so that file has to produce a hit or the pattern (or the filter) has gone blind.
+if [ -z "$(spawn_call_lines agent/crates/agent-core/src/utils/spawn_argv.rs)" ]; then
+  report "agent/crates/agent-core/src/utils/spawn_argv.rs: check 17d's call pattern found no call of run_bounded in the one file known to make one -- the check cannot observe what it reports on (rules/testing.md)"
+fi
+
+# (a) Stale entries: a listed host must still call the core, else the exemption is a named hole.
+spawn_host_count=0
+for host in "${sanctioned_spawn_hosts[@]}"; do
+  spawn_host_count=$((spawn_host_count + 1))
+  if [ ! -f "$host" ]; then
+    report "scripts/lib/check-structure.sh: check 17d lists $host as a process host and no such file exists -- an exemption for a file that does not exist is a hole the next file of that name falls into"
+  elif [ -z "$(spawn_call_lines "$host")" ]; then
+    report "$host: listed in check 17d as a process host but calls none of the bounded spawn core -- remove it from the list, or the exemption is a hole"
+  fi
+done
+if [ "$spawn_host_count" -eq 0 ]; then
+  report "scripts/lib/check-structure.sh: check 17d's process-host list read as empty, so the stale-entry guard examined nothing -- that is a failure to observe and not a clean list (rules/testing.md)"
+fi
+
+spawn_scanned=0
+while IFS= read -r file; do
+  spawn_scanned=$((spawn_scanned + 1))
+
+  # (a) a call from a file that is not a sanctioned process host.
+  is_host=0
+  for host in "${sanctioned_spawn_hosts[@]}"; do
+    [ "$file" = "$host" ] && is_host=1
+  done
+  if [ "$is_host" -eq 0 ]; then
+    first="$(spawn_call_lines "$file" | head -1 | cut -d: -f1)"
+    if [ -n "$first" ]; then
+      report "$file:$first: calls the bounded spawn core outside a process host -- the program must come from an AdapterBinary in a host listed in check 17d (add the host to that list and to rules/rust.md first)"
+    fi
+  fi
+
+  # (b) a program built from a path literal, in any production file.
+  offenders="$(grep -nE "$spawn_literal_re" "$file" | grep -vE '^[0-9]+:[[:space:]]*//' || true)"
+  if [ -n "$offenders" ]; then
+    line="$(printf '%s' "$offenders" | head -1 | cut -d: -f1)"
+    report "$file:$line: a program built from a path literal reaches the bounded spawn core -- a root spawn takes its program from an AdapterBinary (rules/security.md item 3)"
+  fi
+done < <(find agent/crates/ops/src agent/crates/agent/src agent/crates/distro/src agent/crates/templates/src \
+           -name '*.rs' -not -path '*/tests/*' 2>/dev/null | sort)
+# The vacuity guard on the population: an empty traversal reads exactly like a clean tree.
+if [ "$spawn_scanned" -eq 0 ]; then
+  report "scripts/lib/check-structure.sh: check 17d scanned no .rs file under ops, agent, distro or templates -- that is a failure to observe and not a clean run (rules/testing.md)"
+fi
+
 # 17c. The provisioned-password alphabet is the same string in all THREE languages that hold it.
 #      The backend mints these passwords, the agent's `Password` type refuses anything outside its
 #      set, and the SPA generates one for the first-run administrator. A character the agent
@@ -1150,6 +1269,105 @@ done < <(grep -rl -E '_(accessTokenIssuer|sessionService)\.IssueAsync\(' backend
 if [ "$(grep -rl -E '_(accessTokenIssuer|sessionService)\.IssueAsync\(' backend/src --include='*.cs' 2>/dev/null \
           | grep -v '/Generated/' | sort -u | wc -l)" -lt 1 ]; then
   report "scripts/lib/check-structure.sh: check 26 found no session or token minting sites at all, so it is not a statement about them (rules/testing.md)"
+fi
+
+# 27. The agent, the installer and the uninstaller spell the package-install unit the same way.
+#
+# The agent installs a PHP version by starting `maran-php-install@<package>.service`; the installer
+# ships and installs the template `maran-php-install@.service`; the uninstaller removes it. Four
+# spellings of one name, in two languages and three files, and a drift in any one is silent: a
+# renamed template leaves the agent asking systemd for a unit that does not exist, so every PHP
+# install fails on a real host while each side is green on its own (issue #93).
+#
+# The agent's side is read from the string constant in ops/src/php/install_php_version.rs, so this
+# check follows a rename there instead of holding a fifth copy of the name.
+php_unit_rust="agent/crates/ops/src/php/install_php_version.rs"
+php_unit_prefix="$(sed -n 's/^const INSTALL_UNIT_PREFIX: &str = "\(.*\)";$/\1/p' "$php_unit_rust" 2>/dev/null | head -1)"
+if [ -z "$php_unit_prefix" ]; then
+  report "scripts/lib/check-structure.sh: check 27 could not read INSTALL_UNIT_PREFIX from ${php_unit_rust}, so it is not a statement about the package-install unit's name (rules/testing.md)"
+else
+  php_unit_template="${php_unit_prefix}.service"
+  [ -f "installer/systemd/${php_unit_template}" ] \
+    || report "installer/systemd/${php_unit_template}: missing, but the agent starts '${php_unit_prefix}<package>.service' (${php_unit_rust}) — every PHP version install would fail on a real host (issue #93)"
+  grep -q "^readonly MARAN_PHP_INSTALL_UNIT_NAME=\"${php_unit_template}\"\$" installer/lib/70-services.sh 2>/dev/null \
+    || report "installer/lib/70-services.sh: MARAN_PHP_INSTALL_UNIT_NAME is not '${php_unit_template}', the template the agent's '${php_unit_prefix}' prefix names — the installer would install a unit the agent never starts (issue #93)"
+  grep -q "rm -f /etc/systemd/system/${php_unit_template}\$" installer/uninstall.sh 2>/dev/null \
+    || report "installer/uninstall.sh: does not remove /etc/systemd/system/${php_unit_template}, which the installer drops — an uninstall would leave an unmanaged root package-install unit behind (issue #93)"
+fi
+
+# 28-30. The FTPS unit keeps its documented rejections off, its capability bound enumerated, and
+# its start line what the harness runs (issue #92).
+#
+# maran-ftps.service is the root process that listens on the internet. Its hardening is measured
+# directive by directive in the threat note's outcomes table, and the unit's own comment names the
+# five directives kept off (ProtectSystem=strict, ProtectHome, PrivateTmp, NoNewPrivileges,
+# RestrictNamespaces). They are kept off by the owner's scope, see the note's "What stays off, and
+# why"; RestrictNamespaces would also silently disable session isolation. The same edit could widen the
+# capability bound to the kernel-level capabilities, or leak a harness drop-in into the shipped
+# unit. This reads the text of the unit, comments stripped and continuation lines joined.
+# Blind spot, stated: text, not runtime. A key systemd ignores, or a directive a container skips,
+# is invisible here. Reading the manager's own answer back in the installer polygon is planned and
+# not yet present; the real-login measurement is the note's, not yet filled in.
+ftps_unit="installer/systemd/maran-ftps.service"
+# The unit's effective lines: comments dropped, backslash continuations joined, 'Key = value'
+# spacing normalised to 'Key=value' so a spaced form is counted like the plain one.
+ftps_effective() {
+  grep -vE '^[[:space:]]*#' | sed -e ':a' -e '/\\$/{N;s/\\\n[[:space:]]*/ /;ba' -e '}' \
+    | sed -E 's/^[[:space:]]*([A-Za-z]+)[[:space:]]*=[[:space:]]*/\1=/'
+}
+# 28. Matches a banned rejection on stdin; prints each offending line.
+ftps_banned_rejections() {
+  grep -E '^[[:space:]]*((ProtectHome|NoNewPrivileges|PrivateTmp|RestrictNamespaces)[[:space:]]*=[[:space:]]*(yes|true|1|on)([[:space:]]|$)|ProtectSystem[[:space:]]*=[[:space:]]*strict)'
+}
+# 29. Prints every forbidden capability named on a CapabilityBoundingSet line on stdin.
+ftps_forbidden_caps() {
+  grep -E '^[[:space:]]*CapabilityBoundingSet[[:space:]]*=' \
+    | grep -oE 'CAP_(SYS_MODULE|SYS_RAWIO|SYS_PTRACE|SYS_BOOT|MKNOD|NET_ADMIN|NET_RAW|SYS_TIME|BPF)\b'
+}
+if [ ! -f "$ftps_unit" ]; then
+  report "scripts/lib/check-structure.sh: checks 28-30 found no ${ftps_unit}, so they are not a statement about the FTPS unit (rules/testing.md)"
+else
+  ftps_text="$(ftps_effective < "$ftps_unit")"
+  if ! printf '%s\n' "$ftps_text" | grep -qE '^\[Service\]$' \
+     || ! printf '%s\n' "$ftps_text" | grep -qE '^ExecStart='; then
+    report "${ftps_unit}: has no [Service] section or no ExecStart= line after comments are stripped, so checks 28-30 read nothing (rules/testing.md)"
+  fi
+  # Positive controls: each matcher must find a planted violation, or it is blind.
+  printf 'ProtectHome=yes\n' | ftps_banned_rejections >/dev/null \
+    || report "scripts/lib/check-structure.sh: check 28's matcher did not find a planted ProtectHome=yes, so it is blind (rules/testing.md)"
+  printf 'ProtectSystem=strict\n' | ftps_banned_rejections >/dev/null \
+    || report "scripts/lib/check-structure.sh: check 28's matcher did not find a planted ProtectSystem=strict, so it is blind (rules/testing.md)"
+  printf 'CapabilityBoundingSet=CAP_SETUID CAP_SYS_MODULE\n' | ftps_forbidden_caps >/dev/null \
+    || report "scripts/lib/check-structure.sh: check 29's matcher did not find a planted CAP_SYS_MODULE, so it is blind (rules/testing.md)"
+
+  # 28. The documented rejections stay off.
+  while IFS= read -r line; do
+    [ -n "$line" ] && report "${ftps_unit}: '${line}' — weighed and rejected for this daemon, see the threat note's \"What stays off, and why\" (issue #92)"
+  done < <(printf '%s\n' "$ftps_text" | ftps_banned_rejections)
+
+  # 29. The capability bound is one positive, non-empty line naming none of the kernel-level set.
+  caps_lines="$(printf '%s\n' "$ftps_text" | grep -cE '^[[:space:]]*CapabilityBoundingSet[[:space:]]*=')"
+  if [ "$caps_lines" -ne 1 ]; then
+    report "${ftps_unit}: has ${caps_lines} CapabilityBoundingSet= lines, expected exactly 1 — absent means the full root set, and several lines are merged (issue #92)"
+  fi
+  if printf '%s\n' "$ftps_text" | grep -qE '^[[:space:]]*CapabilityBoundingSet[[:space:]]*=[[:space:]]*(~|$)'; then
+    report "${ftps_unit}: CapabilityBoundingSet= is empty or a negated list, expected an enumerated positive set (issue #92)"
+  fi
+  while IFS= read -r cap; do
+    [ -n "$cap" ] && report "${ftps_unit}: CapabilityBoundingSet= names ${cap}, a kernel-level capability vsftpd has no use for (issue #92)"
+  done < <(printf '%s\n' "$ftps_text" | ftps_forbidden_caps)
+
+  # 30. The start line is the harness's, with no extra exec hooks and no unreplaced token.
+  want_exec='ExecStart=/usr/sbin/vsftpd /etc/maran/vsftpd/vsftpd.conf -obackground=NO'
+  [ "$(printf '%s\n' "$ftps_text" | grep -c '^ExecStart=')" -eq 1 ] \
+    && printf '%s\n' "$ftps_text" | grep -qxF "$want_exec" \
+    || report "${ftps_unit}: ExecStart= is not exactly one line '${want_exec}', which the polygon runs directly (issue #92)"
+  if printf '%s\n' "$ftps_text" | grep -qE '^(ExecStartPre|ExecStartPost|ExecStop|ExecReload)[[:space:]]*='; then
+    report "${ftps_unit}: carries an ExecStartPre/ExecStartPost/ExecStop/ExecReload hook, which the shipped unit must not (issue #92)"
+  fi
+  if printf '%s\n' "$ftps_text" | grep -qE '__[A-Z_]+__'; then
+    report "${ftps_unit}: carries an unreplaced __TOKEN__ placeholder, and nothing renders this unit (issue #92)"
+  fi
 fi
 
 if [ "$violations" -gt 0 ]; then

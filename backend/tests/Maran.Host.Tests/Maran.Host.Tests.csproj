@@ -19,6 +19,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- One copy of the unix-socket agent double: a linked file, because a test project cannot reference another test project's internals. -->
+    <Compile Include="..\Maran.Agent.Client.Tests\TestSupport\UnixSocketAgentDouble.cs" Link="Fixtures\UnixSocketAgentDouble.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\..\src\Maran.Host\Maran.Host.csproj" />
   </ItemGroup>
 

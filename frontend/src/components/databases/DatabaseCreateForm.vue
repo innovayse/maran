@@ -12,12 +12,18 @@
  * (rules/vue.md) — it reports a validated request and the page decides what to do with it. It also
  * refuses to emit at all until its own rules pass, which is what makes the round trip it saves a
  * real saving rather than a message printed beside a request that went anyway.
+ *
+ * Drawn as one `UiCard` panel: a titled section, the three fields, and the submit pill under them
+ * at the end. The root is a single element, so the page spaces it with a class and the card
+ * draws no margin of its own.
  */
 import { computed, ref, type ComputedRef, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import UiButton from '../ui/UiButton.vue'
+import UiCard from '../ui/UiCard.vue'
 import UiForm from '../ui/UiForm.vue'
 import UiInput from '../ui/UiInput.vue'
+import UiSectionHeading from '../ui/UiSectionHeading.vue'
 import UiSelect, { type SelectOption } from '../ui/UiSelect.vue'
 import type { Account } from '../../types/account'
 import type { CreateDatabaseRequest } from '../../types/database'
@@ -145,38 +151,49 @@ defineExpose({ reset })
 </script>
 
 <template>
-  <div class="rounded-xl border border-border-subtle bg-surface-1">
+  <UiCard>
     <UiForm @submit="submit">
-      <div class="grid gap-3.5 p-4.5 sm:grid-cols-3">
-        <UiSelect
-          v-model="accountId"
-          :label="t('databases.form.fields.accountId')"
-          :placeholder="t('databases.form.placeholders.accountId')"
-          :options="accountOptions"
-          :error="accountError"
-          required
-        />
-        <UiInput
-          v-model="name"
-          :label="t('databases.form.fields.name')"
-          :placeholder="t('databases.form.placeholders.name')"
-          :error="nameError"
-          required
-        />
-        <UiInput
-          v-model="dbUserName"
-          :label="t('databases.form.fields.dbUserName')"
-          :placeholder="t('databases.form.placeholders.dbUserName')"
-          :error="dbUserNameError"
-          required
-        />
+      <UiSectionHeading
+        class="mb-4"
+        :title="t('databases.form.heading')"
+        :subtitle="t('databases.form.hint')"
+      />
+      <!-- Two columns from a tablet, three only once a content panel is wide enough to give the
+           account picker its "name · domain" labels room: at 1024px the sidebar has already taken
+           240px, and three squeezed tracks cut the picker's text. -->
+      <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        <div class="min-w-0 sm:col-span-2 xl:col-span-1">
+          <UiSelect
+            v-model="accountId"
+            :label="t('databases.form.fields.accountId')"
+            :placeholder="t('databases.form.placeholders.accountId')"
+            :options="accountOptions"
+            :error="accountError"
+            required
+          />
+        </div>
+        <div class="min-w-0">
+          <UiInput
+            v-model="name"
+            :label="t('databases.form.fields.name')"
+            :placeholder="t('databases.form.placeholders.name')"
+            :error="nameError"
+            required
+          />
+        </div>
+        <div class="min-w-0">
+          <UiInput
+            v-model="dbUserName"
+            :label="t('databases.form.fields.dbUserName')"
+            :placeholder="t('databases.form.placeholders.dbUserName')"
+            :error="dbUserNameError"
+            required
+          />
+        </div>
       </div>
-      <div
-        class="flex flex-wrap items-center justify-between gap-2 rounded-b-xl border-t border-border-subtle bg-surface-2 px-4.5 py-3"
-      >
-        <p class="text-sm text-text-muted">{{ t('databases.form.hint') }}</p>
+      <div class="mt-5 flex justify-end">
         <UiButton type="submit" :disabled="submitting">{{ t('databases.form.submit') }}</UiButton>
       </div>
     </UiForm>
-  </div>
+  </UiCard>
 </template>

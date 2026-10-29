@@ -93,3 +93,24 @@ fn an_archiver_that_refuses_reports_its_status() {
         Err(BackupError::ArchiveFailed { status: 2 })
     ));
 }
+
+/// An archiver killed at its deadline is a bound, not an archive failure.
+#[test]
+fn an_archiver_that_times_out_is_a_bound_and_not_an_archive_failure() {
+    let scratch = TempDir::new().expect("a temporary directory");
+    let artifact = TempDir::new().expect("a temporary directory");
+    let host = RecordingBackupHost::new();
+    host.time_out_archive();
+    let spec = ArchiveSpec {
+        home: PathBuf::from("/home/alice"),
+        scratch: scratch.path().to_path_buf(),
+        artifact: artifact.path().join("a.tar.gz.partial"),
+    };
+
+    let outcome = archive_home(&host, &manifest(), &spec);
+
+    assert!(
+        matches!(outcome, Err(BackupError::Bound(_))),
+        "expected a bound, got {outcome:?}"
+    );
+}

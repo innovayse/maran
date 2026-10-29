@@ -136,7 +136,8 @@ test('the last-run dialog shows what the run left behind', async ({ page }) => {
   // dialog also prints the last-run instant, whose formatting carries a `0` on any plausible
   // clock, so `toContainText('0')` passed with the exit-code field showing anything at all —
   // including "Not reported", which is the state the sibling test below exists to keep distinct.
-  await expect(dialog.locator('dd').first()).toHaveText('0')
+  // It now binds to a named hook instead of DOM order (the old `dd`-first contract): issue #82.
+  await expect(dialog.getByTestId('cron-exit-code')).toHaveText('0')
 })
 
 // The module answers 200 with a `null` BODY for an entry that has never run — `Result<CronEntryOutputDto?>`

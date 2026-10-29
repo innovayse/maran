@@ -1,10 +1,13 @@
+using Maran.Agent.Client.Channels;
 using Maran.Agent.Client.Interfaces;
 using Maran.Agent.Client.Services.SystemService;
+using Maran.Agent.Client.Tests.TestSupport;
 using Maran.Host.Configuration;
 using Maran.Host.HealthChecks;
 using Maran.Host.Resilience;
 using Maran.SharedKernel.Results;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
 using Polly;
 using Polly.Registry;
 
@@ -26,7 +29,12 @@ public sealed class AgentHealthProbeTests
     public async Task A_reachable_agent_is_reported_as_connected()
     {
         var probe = NewProbe(new StubAgentSystemClient(
-            Result<AgentInfoDto>.Ok(new AgentInfoDto("1.0.0", "debian", "debian", 1, "/var/backups/maran"))));
+            Result<AgentInfoDto>.Ok(new AgentInfoDto(
+                "1.0.0",
+                "debian",
+                "debian",
+                AgentProtoVersionWindow.Maximum,
+                "/var/backups/maran"))));
 
         Assert.Equal(AgentHealthProbe.Connected, await probe.ProbeAsync());
     }
@@ -40,13 +48,84 @@ public sealed class AgentHealthProbeTests
         Assert.Equal(AgentHealthProbe.Unavailable, await probe.ProbeAsync());
     }
 
-    /// <summary>A transport exception is reported as unavailable rather than thrown.</summary>
+    /// <summary>
+    /// An agent whose handshake the window refused is reported as incompatible, which is not the same
+    /// answer as an agent that did not answer.
+    /// </summary>
     [Fact]
-    public async Task A_transport_exception_is_reported_as_unavailable_rather_than_thrown()
+    public async Task An_agent_outside_the_window_is_reported_as_incompatible()
     {
-        var probe = NewProbe(new StubAgentSystemClient(new InvalidOperationException("socket is gone")));
+        var probe = NewProbe(new StubAgentSystemClient(
+            Result<AgentInfoDto>.Fail(Error.Of(AgentProtoVersionWindow.IncompatibleCode, ErrorType.Unavailable))));
 
-        Assert.Equal(AgentHealthProbe.Unavailable, await probe.ProbeAsync());
+        Assert.Equal(AgentHealthProbe.Incompatible, await probe.ProbeAsync());
+    }
+
+    /// <summary>An unreachable agent is reported as unavailable, never as incompatible (inverse control).</summary>
+    [Fact]
+    public async Task An_unreachable_agent_is_reported_unavailable_not_incompatible()
+    {
+        var probe = NewProbe(new StubAgentSystemClient(
+            Result<AgentInfoDto>.Fail(Error.Of("AgentUnavailable", ErrorType.Unavailable))));
+
+        var answer = await probe.ProbeAsync();
+
+        Assert.Equal(AgentHealthProbe.Unavailable, answer);
+        Assert.NotEqual(AgentHealthProbe.Incompatible, answer);
+    }
+
+    /// <summary>
+    /// A socket that does not exist is reported as unavailable through the real client and the real
+    /// pipeline, with no catch-all in the probe to hide a transport exception that escaped.
+    /// </summary>
+    [Fact]
+    public async Task A_missing_agent_socket_is_reported_unavailable_without_a_catch_all()
+    {
+        using var missing = UnixSocketAgentDouble.Missing();
+        using var channel = AgentChannel.CreateUnixSocket(missing.SocketPath);
+        var probe = NewProbe(new AgentSystemClient(channel, NullLogger<AgentSystemClient>.Instance));
+
+        var answer = await probe.ProbeAsync().WaitAsync(TimeSpan.FromSeconds(15));
+
+        Assert.Equal(AgentHealthProbe.Unavailable, answer);
+    }
+
+    /// <summary>
+    /// A defect that is not a transport failure is not swallowed into "unavailable": it leaves the
+    /// probe, so a bug is a failed request instead of a health answer that hides it.
+    /// </summary>
+    [Fact]
+    public async Task A_defect_inside_the_client_is_not_reported_as_an_unavailable_agent()
+    {
+        var probe = NewProbe(new StubAgentSystemClient(new InvalidOperationException("a bug, not a transport failure")));
+
+        await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+        {
+            await probe.ProbeAsync();
+        });
+    }
+
+    /// <summary>
+    /// A real agent that accepts the connection and never answers is reported as unavailable within
+    /// the probe's retry ceiling, not after it.
+    /// </summary>
+    [Fact]
+    public async Task A_hung_agent_is_reported_unavailable_within_the_probe_ceiling()
+    {
+        using var hung = UnixSocketAgentDouble.AcceptAndHold();
+        using var channel = AgentChannel.CreateUnixSocket(hung.SocketPath);
+        var probe = NewProbe(
+            new AgentSystemClient(channel, NullLogger<AgentSystemClient>.Instance),
+            probeTimeoutSeconds: 1);
+        var started = System.Diagnostics.Stopwatch.StartNew();
+
+        var answer = await probe.ProbeAsync().WaitAsync(TimeSpan.FromSeconds(15));
+        started.Stop();
+
+        Assert.Equal(AgentHealthProbe.Unavailable, answer);
+
+        // Three attempts of one second each plus two short backoffs: above one timeout, below ten.
+        Assert.InRange(started.Elapsed, TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(10));
     }
 
     /// <summary>A hung agent is reported as unavailable instead of hanging the caller.</summary>

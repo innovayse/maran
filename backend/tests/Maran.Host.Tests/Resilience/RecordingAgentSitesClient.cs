@@ -1,7 +1,7 @@
-using System.Net.Sockets;
 using Maran.Agent.Client.Interfaces;
 using Maran.Agent.Client.Services.PhpService;
 using Maran.Agent.Client.Services.SitesService;
+using Maran.Host.Tests.Fixtures;
 using Maran.SharedKernel.Results;
 
 namespace Maran.Host.Tests.Resilience;
@@ -198,7 +198,7 @@ internal sealed class RecordingAgentSitesClient : IAgentSitesClient
 
         if (Calls <= FailuresBeforeSuccess)
         {
-            throw new SocketException((int)SocketError.ConnectionRefused);
+            throw AgentTransportFaults.ConnectRefused();
         }
     }
 }

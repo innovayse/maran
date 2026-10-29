@@ -7,7 +7,13 @@ use std::io::Write as _;
 use std::path::{Path, PathBuf};
 
 use maran_agent_core::command_outcome::CommandOutcome;
-use maran_agent_core::utils::spawn_argv::spawn_argv;
+use maran_agent_core::utils::call_class::CallClass;
+use maran_agent_core::utils::child_input::ChildInput;
+use maran_agent_core::utils::child_output::ChildOutput;
+use maran_agent_core::utils::run_bounded::run_bounded;
+use maran_agent_core::utils::spawn_error::SpawnError;
+use maran_agent_core::utils::spawn_request::SpawnRequest;
+use maran_distro::AdapterBinary;
 
 use crate::firewall::firewall_error::FirewallError;
 use crate::firewall::firewall_host::FirewallHost;
@@ -20,6 +26,24 @@ use crate::firewall::firewall_host::FirewallHost;
 /// applies racing each other could not collide even without the lock every
 /// mutation holds.
 const STAGED_PREFIX: &str = ".maran-firewall-";
+
+/// The most standard output one `nft` run may write: 16 MiB.
+///
+/// Every `nft` call here answers in a few lines or nothing (the bans-table
+/// existence probe lists a chain, not the table, precisely so that its output
+/// does not grow with the ban count), except `nft -j list set`, which prints
+/// the whole ban set as JSON at roughly eighty bytes an element. The core's own default of 4 MiB would refuse a set of about fifty
+/// thousand bans; this figure holds about two hundred thousand, which is more
+/// than a host's firewall can usefully carry. Past it the run is an error
+/// ([`FirewallError::Bound`]) and never a truncated list: a ban list cut short
+/// is a panel believing an address is not blocked when it is.
+const MAXIMUM_STDOUT_BYTES: u64 = 16 * 1024 * 1024;
+
+/// The most standard error one `nft` run may write: 1 MiB.
+///
+/// `nft` quotes the rejected ruleset line back in a refusal, so this is far
+/// above any real message; it exists so that the read is bounded.
+const MAXIMUM_STDERR_BYTES: u64 = 1024 * 1024;
 
 /// Runs the real `nft`, and replaces the real ruleset files.
 ///
@@ -56,22 +80,41 @@ impl FirewallHost for ProcessFirewallHost {
     /// set element are tokens in it. `program` comes from the
     /// `DistroAdapter`'s allow-list and never from a request.
     ///
-    /// The spawn itself is [`spawn_argv`], shared with every other host that
-    /// runs an argv array: it gives the child a closed standard input, so an
-    /// `nft` that decides to read from it fails instead of hanging a root
-    /// daemon, and it pins `LC_ALL=C`, which this file did not do before — a
-    /// gain, since this area reads `nft`'s own diagnostics back.
+    /// The spawn itself is the bounded core's [`run_bounded`], the same one
+    /// every other host that runs an argv array goes through, with the output
+    /// caps this file declares and not the core's defaults (see
+    /// `MAXIMUM_STDOUT_BYTES`). It gives the child a closed standard input, so
+    /// an `nft` that decides to read from it fails instead of hanging a root
+    /// daemon, it pins `LC_ALL=C`, which this area relies on when it reads
+    /// `nft`'s own diagnostics back, and it runs the child in a process group
+    /// of its own that is killed whole at `class`'s deadline.
     ///
     /// # Errors
     ///
     /// Returns [`FirewallError::NftFailed`] when the program cannot be
-    /// started or waited for, carrying the operating system's reason. A
-    /// non-zero exit is not an error here — it is returned in the outcome for
-    /// the caller to read.
-    fn run(&self, program: &str, arguments: &[&str]) -> Result<CommandOutcome, FirewallError> {
-        spawn_argv(program, arguments).map_err(|error| FirewallError::NftFailed {
-            stderr: format!("could not run {program}: {error}"),
+    /// started or waited for, carrying the reason. A non-zero exit is not an
+    /// error here — it is returned in the outcome for the caller to read.
+    ///
+    /// Returns [`FirewallError::Bound`] when the program was killed at its
+    /// deadline or wrote more than the caps allow. It is never folded into
+    /// `NftFailed`: that variant says `nft` ran and answered.
+    fn run(
+        &self,
+        program: &AdapterBinary,
+        arguments: &[&str],
+        class: CallClass,
+    ) -> Result<CommandOutcome, FirewallError> {
+        run_bounded(SpawnRequest {
+            program: program.as_path(),
+            arguments,
+            class,
+            input: ChildInput::Null,
+            output: ChildOutput::Capture {
+                stdout_cap: MAXIMUM_STDOUT_BYTES,
+                stderr_cap: MAXIMUM_STDERR_BYTES,
+            },
         })
+        .map_err(spawn_failure)
     }
 
     /// Reads the file, treating "it is not there" as an answer.
@@ -198,3 +241,23 @@ fn flush(path: &Path) -> Result<(), FirewallError> {
         .and_then(|handle| handle.sync_all())
         .map_err(|_| FirewallError::StagingFailed)
 }
+
+/// Turns the bounded core's failure into this area's error.
+///
+/// A deadline or an output cap is [`FirewallError::Bound`], carried by name:
+/// it is never `NftFailed`, which says `nft` ran and answered. Every other way
+/// the core can fail to produce an outcome (not started, input not delivered,
+/// not waited for) is `NftFailed` carrying the core's own text, which holds no
+/// argument vector and no captured byte.
+fn spawn_failure(error: SpawnError) -> FirewallError {
+    match error {
+        SpawnError::Bound(bound) => FirewallError::Bound(bound),
+        other => FirewallError::NftFailed {
+            stderr: other.to_string(),
+        },
+    }
+}
+
+#[cfg(test)]
+#[path = "../tests/firewall/process_firewall_host_tests.rs"]
+mod tests;

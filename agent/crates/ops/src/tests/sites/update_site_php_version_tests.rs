@@ -7,7 +7,9 @@ use maran_agent_core::validation::web::php_version::PhpVersion;
 use crate::php::fake_php_host::FakePhpHost;
 use crate::php::model::php_override::PhpOverride;
 use crate::php::write_pool;
-use crate::sites::fake_site_host::{FakeSiteHost, create_test_site, distro, php_input};
+use crate::sites::fake_site_host::{
+    FakeSiteHost, create_test_site, distro, legacy_suspended_text, php_input,
+};
 use crate::sites::model::php_switch::PhpSwitch;
 use crate::sites::model::site_paths::SitePaths;
 use crate::sites::{SitesOpError, disable_site, update_site_php_version};
@@ -366,4 +368,36 @@ fn switching_versions_on_a_suspended_site_writes_the_pool_and_leaves_the_stub() 
             .is_some(),
         "the new version's pool must be written even while the site is suspended"
     );
+}
+
+#[test]
+fn switching_versions_on_a_site_serving_the_earlier_stub_leaves_the_stub() {
+    // The same guarantee as above for a suspension made before the upgrade:
+    // the stub on disk is the previous release's text, and a version switch
+    // that read it as "not suspended" would put the customer back on the air.
+    let site_host = FakeSiteHost::passing();
+    let php_host = FakePhpHost::with_installed(&["8.3", "8.4"]);
+    let site = php_input();
+    create_test_site(&site_host, &site).unwrap();
+    let vhost_path = SitePaths::for_site(&site.account, &site.domain).config_path;
+    let legacy = legacy_suspended_text(&site_host, &site, "example.com");
+    site_host.place_config(&vhost_path, &legacy);
+    let writes_before = site_host.writes();
+
+    update_site_php_version(
+        &site_host,
+        &php_host,
+        distro(),
+        &site,
+        &PhpSwitch {
+            version: &PhpVersion::parse("8.4").unwrap(),
+            max_children: WORKERS,
+            overrides: &[],
+            remove_previous_pool: false,
+        },
+    )
+    .unwrap();
+
+    assert_eq!(site_host.config(&vhost_path).unwrap(), legacy);
+    assert_eq!(site_host.writes(), writes_before);
 }

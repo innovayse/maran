@@ -18,6 +18,8 @@ use std::sync::Mutex;
 use std::sync::atomic::{AtomicU32, Ordering};
 
 use maran_agent_core::agent_paths::AgentPaths;
+use maran_agent_core::utils::bound_exceeded::BoundExceeded;
+use maran_agent_core::utils::call_class::CallClass;
 use maran_agent_core::validation::system::name::AccountName;
 use maran_agent_core::validation::web::domain::Domain;
 use maran_agent_core::validation::web::php_version::PhpVersion;
@@ -68,6 +70,38 @@ pub(crate) struct FakeSiteHost {
     /// Whether listing the vhost directory refuses, so a test can drive the
     /// one case where an empty answer and a blind one look alike.
     listing_refused: Mutex<bool>,
+    /// The targets `write_config` (the REPLACING half) was asked for — kept
+    /// apart from `create_targets` so a test can tell which half of the
+    /// protocol an operation chose.
+    replaced_targets: Mutex<Vec<PathBuf>>,
+    /// The targets `create_config` (the CREATING half) was asked for.
+    create_targets: Mutex<Vec<PathBuf>>,
+    /// The warnings each creation asked to refuse, in call order.
+    create_refusals: Mutex<Vec<Vec<String>>>,
+    /// The validator each creation was handed, as `(program, arguments)`.
+    create_validators: Mutex<Vec<(String, Vec<String>)>>,
+    /// The reload each creation was handed, as `(program, arguments)`.
+    create_reloads: Mutex<Vec<(String, Vec<String>)>>,
+    /// A vhost that appears the moment its path is next READ, as a concurrent
+    /// creation's write would: that read still answers "absent".
+    appears_after_read: Mutex<Option<(PathBuf, String)>>,
+    /// The validator and the reload every write, creation, removal and batch
+    /// reload was handed, in call order.
+    protocol: Mutex<Vec<ProtocolCall>>,
+    /// Whether the validator outlives its deadline and is killed, so the host
+    /// answers with a bound instead of a verdict.
+    validation_times_out: Mutex<bool>,
+}
+
+/// One use of the config-write protocol, as the operation shaped it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct ProtocolCall {
+    /// The validator, as `(program, arguments)`.
+    pub(crate) validator: (String, Vec<String>),
+    /// The class the validator was given.
+    pub(crate) validator_class: CallClass,
+    /// The reload, as `(program, arguments)`.
+    pub(crate) reload: (String, Vec<String>),
 }
 
 impl FakeSiteHost {
@@ -82,7 +116,81 @@ impl FakeSiteHost {
             log_lines: Mutex::new(Vec::new()),
             tailed: Mutex::new(None),
             listing_refused: Mutex::new(false),
+            replaced_targets: Mutex::new(Vec::new()),
+            create_targets: Mutex::new(Vec::new()),
+            create_refusals: Mutex::new(Vec::new()),
+            create_validators: Mutex::new(Vec::new()),
+            create_reloads: Mutex::new(Vec::new()),
+            appears_after_read: Mutex::new(None),
+            protocol: Mutex::new(Vec::new()),
+            validation_times_out: Mutex::new(false),
         }
+    }
+
+    /// Makes the validator outlive its deadline: every write, creation, removal
+    /// and batch reload then ends in a bound.
+    pub(crate) fn time_out_validation(&self) {
+        *self.validation_times_out.lock().unwrap() = true;
+    }
+
+    /// The validator and the reload every protocol use was handed, in order.
+    pub(crate) fn protocol(&self) -> Vec<ProtocolCall> {
+        self.protocol.lock().unwrap().clone()
+    }
+
+    /// Records what the operation handed the protocol, then reports the bound
+    /// when the validator is set to outlive its deadline.
+    fn enter_protocol(
+        &self,
+        validator: &Validator<'_>,
+        reload: &Reload<'_>,
+    ) -> Result<(), SitesOpError> {
+        self.protocol.lock().unwrap().push(ProtocolCall {
+            validator: command_line(validator.program.as_str(), validator.arguments),
+            validator_class: validator.class,
+            reload: command_line(reload.program.as_str(), reload.arguments),
+        });
+
+        if *self.validation_times_out.lock().unwrap() {
+            return Err(SitesOpError::Bound(BoundExceeded::TimedOut {
+                program: validator.program.to_string(),
+                deadline: validator.class.deadline(),
+            }));
+        }
+
+        Ok(())
+    }
+
+    /// Arranges for `contents` to appear at `path` right after the next read
+    /// of it, which still answers "absent" — the interleaving of a second
+    /// creation winning between this one's existence check and its write.
+    pub(crate) fn place_config_after_next_read(&self, path: &Path, contents: &str) {
+        *self.appears_after_read.lock().unwrap() = Some((path.to_path_buf(), contents.to_owned()));
+    }
+
+    /// The targets the REPLACING half of the protocol was asked for.
+    pub(crate) fn replaced_targets(&self) -> Vec<PathBuf> {
+        self.replaced_targets.lock().unwrap().clone()
+    }
+
+    /// The targets the CREATING half of the protocol was asked for.
+    pub(crate) fn create_targets(&self) -> Vec<PathBuf> {
+        self.create_targets.lock().unwrap().clone()
+    }
+
+    /// The warnings each creation asked to refuse, in call order.
+    pub(crate) fn create_refusals(&self) -> Vec<Vec<String>> {
+        self.create_refusals.lock().unwrap().clone()
+    }
+
+    /// The validator each creation was handed, as `(program, arguments)`.
+    pub(crate) fn create_validators(&self) -> Vec<(String, Vec<String>)> {
+        self.create_validators.lock().unwrap().clone()
+    }
+
+    /// The reload each creation was handed, as `(program, arguments)`.
+    pub(crate) fn create_reloads(&self) -> Vec<(String, Vec<String>)> {
+        self.create_reloads.lock().unwrap().clone()
     }
 
     /// Makes listing the vhost directory refuse.
@@ -124,6 +232,25 @@ impl FakeSiteHost {
         *self.writes.lock().unwrap()
     }
 
+    /// Runs the fake validator over a write and, when it accepts, stores
+    /// `contents` — the one body both halves of the protocol share.
+    fn accept(&self, target: &Path, contents: &str) -> Result<(), SitesOpError> {
+        *self.writes.lock().unwrap() += 1;
+
+        let (status, stderr) = self.validation.lock().unwrap().clone();
+        if status != 0 {
+            // The real protocol restores the previous content before
+            // returning, so the fake leaves the map untouched.
+            return Err(SitesOpError::NginxValidation { stderr });
+        }
+
+        self.files
+            .lock()
+            .unwrap()
+            .insert(target.to_path_buf(), contents.to_owned());
+        Ok(())
+    }
+
     /// The directories the host was asked to create as the account.
     pub(crate) fn created(&self) -> Vec<PathBuf> {
         self.created.lock().unwrap().clone()
@@ -148,39 +275,85 @@ impl SiteHost for FakeSiteHost {
     }
 
     fn read_config(&self, path: &Path) -> Result<Option<String>, SitesOpError> {
-        Ok(self.config(path))
+        let answer = self.config(path);
+
+        let appeared = self
+            .appears_after_read
+            .lock()
+            .unwrap()
+            .take_if(|pending| pending.0.as_path() == path);
+        if let Some((held, contents)) = appeared {
+            self.files.lock().unwrap().insert(held, contents);
+        }
+
+        Ok(answer)
     }
 
     fn write_config(
         &self,
         target: &Path,
         contents: &str,
-        _validator: &Validator<'_>,
-        _reload: &Reload<'_>,
+        validator: &Validator<'_>,
+        reload: &Reload<'_>,
     ) -> Result<(), SitesOpError> {
-        *self.writes.lock().unwrap() += 1;
-
-        let (status, stderr) = self.validation.lock().unwrap().clone();
-        if status != 0 {
-            // The real protocol restores the previous content before
-            // returning, so the fake leaves the map untouched.
-            return Err(SitesOpError::NginxValidation { stderr });
-        }
-
-        self.files
+        self.replaced_targets
             .lock()
             .unwrap()
-            .insert(target.to_path_buf(), contents.to_owned());
-        Ok(())
+            .push(target.to_path_buf());
+        self.enter_protocol(validator, reload)?;
+
+        self.accept(target, contents)
+    }
+
+    /// The creation half: refused untouched when the target is already held,
+    /// otherwise stored exactly as [`Self::write_config`] stores. The
+    /// warnings are RECORDED, not modelled — this fake runs no validator to
+    /// print one; the protocol's own tests in `safe_write` drive that refusal.
+    fn create_config(
+        &self,
+        target: &Path,
+        contents: &str,
+        validator: &Validator<'_>,
+        reload: &Reload<'_>,
+        refused_warnings: &[String],
+    ) -> Result<(), SitesOpError> {
+        self.create_targets
+            .lock()
+            .unwrap()
+            .push(target.to_path_buf());
+        self.create_refusals
+            .lock()
+            .unwrap()
+            .push(refused_warnings.to_vec());
+        self.create_validators.lock().unwrap().push(command_line(
+            validator.program.as_str(),
+            validator.arguments,
+        ));
+        self.create_reloads
+            .lock()
+            .unwrap()
+            .push(command_line(reload.program.as_str(), reload.arguments));
+        self.enter_protocol(validator, reload)?;
+
+        if self.files.lock().unwrap().contains_key(target) {
+            *self.writes.lock().unwrap() += 1;
+            return Err(SitesOpError::ServerNameTaken {
+                detail: format!("a vhost already exists at {}", target.display()),
+                stderr: String::new(),
+            });
+        }
+
+        self.accept(target, contents)
     }
 
     fn remove_config(
         &self,
         target: &Path,
-        _validator: &Validator<'_>,
-        _reload: &Reload<'_>,
+        validator: &Validator<'_>,
+        reload: &Reload<'_>,
     ) -> Result<(), SitesOpError> {
         *self.writes.lock().unwrap() += 1;
+        self.enter_protocol(validator, reload)?;
         self.files.lock().unwrap().remove(target);
         Ok(())
     }
@@ -228,10 +401,11 @@ impl SiteMaintenanceHost for FakeSiteHost {
     /// so one `reject_validation` call governs both.
     fn validate_and_reload(
         &self,
-        _validator: &Validator<'_>,
-        _reload: &Reload<'_>,
+        validator: &Validator<'_>,
+        reload: &Reload<'_>,
     ) -> Result<(), SitesOpError> {
         *self.writes.lock().unwrap() += 1;
+        self.enter_protocol(validator, reload)?;
 
         let (status, stderr) = self.validation.lock().unwrap().clone();
         if status == 0 {
@@ -264,6 +438,18 @@ impl SiteMaintenanceHost for FakeSiteHost {
 
         Ok(TailEnd::ClientClosed)
     }
+}
+
+/// A program and its arguments as owned strings, the shape the recorded
+/// commands are compared in.
+fn command_line(program: &str, arguments: &[&str]) -> (String, Vec<String>) {
+    (
+        program.to_owned(),
+        arguments
+            .iter()
+            .map(|argument| (*argument).to_owned())
+            .collect(),
+    )
 }
 
 /// The adapter every test in this file runs against. Which family is
@@ -351,5 +537,54 @@ pub(crate) fn create_test_site<H: SiteHost>(
         input,
         TEST_WORKERS,
         &[],
+    )
+}
+
+/// The suspended vhost exactly as an agent wrote it before the challenge
+/// location carried its symlink rule, for `domain` and its `www.` alias.
+///
+/// A literal on purpose, byte for byte the text of
+/// `templates/tests/golden/nginx/suspended_site_legacy.conf` with this host's
+/// paths in it: a fixture built by deleting a line from the current render
+/// would move with the render it is meant to be compared against, and the
+/// recognition of stubs already on disk would stop being pinned by anything.
+pub(crate) fn legacy_suspended_text<H: SiteHost>(
+    host: &H,
+    input: &CreateSiteInput,
+    domain: &str,
+) -> String {
+    let account = input.account.as_str();
+    let root = host
+        .resolve_in_account_home(&input.account, Path::new(&format!("sites/{domain}")))
+        .unwrap();
+
+    format!(
+        "# Rendered by Maran. Do not edit: this file is replaced whenever the site changes.
+server {{
+    listen 80;
+    listen [::]:80;
+    server_name {domain} www.{domain};
+
+    access_log /var/log/maran/sites/{account}/{domain}.access.log;
+    error_log /var/log/maran/sites/{account}/{domain}.error.log;
+
+    # A suspended account's certificate still renews on schedule (sites.proto:
+    # the vhost is kept on disable \"so SSL renewal and SEO are not disrupted\"),
+    # so the ACME HTTP-01 challenge must stay reachable even though everything
+    # else on the site answers with the fixed refusal below.
+    location ^~ /.well-known/acme-challenge/ {{
+        root {root};
+        default_type \"text/plain\";
+    }}
+
+    # A suspended account keeps its vhost — so the domain still resolves to a
+    # clear answer instead of a connection refusal — but serves nothing of the
+    # account's own.
+    location / {{
+        return 403 \"This site has been suspended.\";
+    }}
+}}
+",
+        root = root.display()
     )
 }

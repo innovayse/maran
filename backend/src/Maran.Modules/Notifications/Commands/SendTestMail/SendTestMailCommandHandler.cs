@@ -91,6 +91,11 @@ public sealed class SendTestMailCommandHandler
             ? AuditActions.MailSkippedNoSmtp
             : AuditActions.MailSendFailed;
 
+        // FAILED even when the action is `MailSkippedNoSmtp`, and the difference from the two
+        // background senders is deliberate. There, nobody asked for mail: an alert had nowhere to
+        // go and skipping it is correct, so a red row would be noise (issue #71). Here an operator
+        // pressed "send a test mail" — they asked for exactly one thing and did not get it. From
+        // their side that is a failed attempt, and the journal should say so.
         await _journal.RecordRequestAsync(
             action,
             command.Recipient,

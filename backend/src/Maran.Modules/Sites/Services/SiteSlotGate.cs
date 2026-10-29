@@ -11,14 +11,16 @@ namespace Maran.Modules.Sites.Services;
 /// </summary>
 /// <remarks>
 /// <para>
-/// <b>Why a lock at all, when the other race in this handler is closed by a key.</b> The domain race
-/// and the limit race look alike and are not. Each of the obvious alternatives was considered and each
-/// is blind to something:
+/// <b>Why a lock at all, when the other race in this handler is decided by a key.</b> The hostname
+/// race and the limit race look alike and are not. Each of the obvious alternatives was considered and
+/// each is blind to something:
 /// </para>
 /// <para>
 /// A <b>unique index</b> cannot express "at most N rows for this account": an index refuses a repeated
-/// VALUE, and the allowance is a cardinality. It is exactly what closes the two-sites-one-domain case,
-/// through the hostname key, and it cannot be made to close this one.
+/// VALUE, and the allowance is a cardinality. It is exactly what stops two rows claiming one hostname,
+/// through the hostname key — in the database only; a loser that got past the agent's refusal has its
+/// vhost on the host by then, and removing it is the handler's work, not the key's — and it cannot be
+/// made to close this one.
 /// </para>
 /// <para>
 /// An <b>insert whose <c>WHERE</c> carries the count</b> looks atomic and is not. Under
@@ -121,10 +123,43 @@ public sealed class SiteSlotGate : ISiteSlotGate
         }
 
         _dbContext.Sites.Add(site);
-        await _dbContext.SaveChangesAsync(cancellationToken);
+        try
+        {
+            await _dbContext.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException)
+        {
+            // Rethrown, never answered: the caller tells a taken hostname from a fault (see the
+            // interface). The transaction is rolled back by its disposal on the way out; what that
+            // does not undo is the change tracker, which still holds the row and its claims as Added.
+            ForgetUnwritten(site);
+            throw;
+        }
+
         await transaction.CommitAsync(cancellationToken);
 
         return true;
+    }
+
+    /// <summary>Stops the change tracker holding a row, and its hostname claims, that were never written.</summary>
+    /// <param name="site">The site whose insert failed.</param>
+    /// <remarks>
+    /// A failed save leaves every entity it tried in the state it had, so without this the next save
+    /// on this scoped context — any later write in the same request — would try the refused insert
+    /// again and fail on the same key. Each claim is detached in its own right: detaching a principal
+    /// leaves its dependents tracked, and a claim left as Added would be inserted on its own. The claims
+    /// are walked from a copy: detaching one makes EF Core's navigation fix-up remove it from
+    /// <see cref="Site.Hostnames"/>, which would end an enumeration of the live collection with
+    /// "Collection was modified" in place of the <see cref="DbUpdateException"/> the caller expects.
+    /// </remarks>
+    private void ForgetUnwritten(Site site)
+    {
+        foreach (var hostname in site.Hostnames.ToList())
+        {
+            _dbContext.Entry(hostname).State = EntityState.Detached;
+        }
+
+        _dbContext.Entry(site).State = EntityState.Detached;
     }
 
     /// <summary>Derives this account's advisory-lock key from its identity.</summary>

@@ -1,11 +1,14 @@
 //! Service and binary names on the RHEL family.
 
+use maran_agent_core::validation::web::php_version::PhpVersion;
+
+use crate::adapter_binary::AdapterBinary;
 use crate::vsftpd_tls_version_keys::VsftpdTlsVersionKeys;
 
 /// Absolute path of the nginx binary, for the process-execution allow-list.
 #[must_use]
-pub fn nginx_binary() -> &'static str {
-    "/usr/sbin/nginx"
+pub fn nginx_binary() -> AdapterBinary {
+    AdapterBinary::fixed("/usr/sbin/nginx")
 }
 
 /// Name of the nginx systemd service unit.
@@ -27,8 +30,8 @@ pub fn nginx_service() -> &'static str {
 /// path is the violation whether or not the path is currently right
 /// (rules/rust.md "Distro adapter").
 #[must_use]
-pub fn service_manager() -> &'static str {
-    "/usr/bin/systemctl"
+pub fn service_manager() -> AdapterBinary {
+    AdapterBinary::fixed("/usr/bin/systemctl")
 }
 
 /// The user the web server runs as.
@@ -73,11 +76,11 @@ pub fn php_fpm_service(version: &str) -> String {
 /// (`crates/agent/tests/php_pools_on_a_real_host.rs`), because a path that is
 /// merely plausible is how this was wrong in the first place.
 #[must_use]
-pub fn php_fpm_binary(version: &str) -> String {
-    format!(
+pub fn php_fpm_binary(version: &PhpVersion) -> AdapterBinary {
+    AdapterBinary::versioned(format!(
         "/opt/remi/php{version}/root/usr/sbin/php-fpm",
-        version = version.replace('.', "")
-    )
+        version = version.as_str().replace('.', "")
+    ))
 }
 
 /// Absolute path of the openssl binary, for the process-execution allow-list.
@@ -86,8 +89,8 @@ pub fn php_fpm_binary(version: &str) -> String {
 /// the same: a binary is spawnable because this trait named it, not because
 /// the two families happen to agree.
 #[must_use]
-pub fn openssl_binary() -> &'static str {
-    "/usr/bin/openssl"
+pub fn openssl_binary() -> AdapterBinary {
+    AdapterBinary::fixed("/usr/bin/openssl")
 }
 
 /// Absolute path of `tar`, for the process-execution allow-list.
@@ -96,8 +99,8 @@ pub fn openssl_binary() -> &'static str {
 /// AlmaLinux 9 polygon, where it is the real file (`ls -l` shows no symlink),
 /// the same path the Debian family uses.
 #[must_use]
-pub fn tar_binary() -> &'static str {
-    "/usr/bin/tar"
+pub fn tar_binary() -> AdapterBinary {
+    AdapterBinary::fixed("/usr/bin/tar")
 }
 
 /// Absolute path of `gzip`, for the process-execution allow-list.
@@ -105,8 +108,8 @@ pub fn tar_binary() -> &'static str {
 /// RHEL's `gzip` package installs it here — verified `command -v gzip` on the
 /// AlmaLinux 9 polygon, where it is the real file and not a symlink.
 #[must_use]
-pub fn gzip_binary() -> &'static str {
-    "/usr/bin/gzip"
+pub fn gzip_binary() -> AdapterBinary {
+    AdapterBinary::fixed("/usr/bin/gzip")
 }
 
 /// Absolute path of the database dump client, for the process-execution
@@ -126,8 +129,8 @@ pub fn gzip_binary() -> &'static str {
 /// [`crate::DistroAdapter::database_dump_binary`] for the full measurement,
 /// including the `--no-tablespaces` finding.
 #[must_use]
-pub fn database_dump_binary() -> &'static str {
-    "/usr/bin/mariadb-dump"
+pub fn database_dump_binary() -> AdapterBinary {
+    AdapterBinary::fixed("/usr/bin/mariadb-dump")
 }
 
 /// Absolute path of the `mysql` client binary, for the process-execution
@@ -138,8 +141,8 @@ pub fn database_dump_binary() -> &'static str {
 /// path the Debian family uses — an agreement between these two distributions
 /// rather than a rule, and asked of the adapter all the same.
 #[must_use]
-pub fn mysql_client_binary() -> &'static str {
-    "/usr/bin/mysql"
+pub fn mysql_client_binary() -> AdapterBinary {
+    AdapterBinary::fixed("/usr/bin/mysql")
 }
 
 /// Name of the database systemd service unit.
@@ -175,8 +178,8 @@ pub fn sftp_group() -> &'static str {
 /// it at the same path — an agreement between two packages rather than a rule,
 /// asked of the adapter all the same.
 #[must_use]
-pub fn vsftpd_binary() -> &'static str {
-    "/usr/sbin/vsftpd"
+pub fn vsftpd_binary() -> AdapterBinary {
+    AdapterBinary::fixed("/usr/sbin/vsftpd")
 }
 
 /// Name of the group whose membership authorizes an FTPS login.
@@ -219,20 +222,20 @@ pub fn vsftpd_tls_version_keys() -> VsftpdTlsVersionKeys {
 /// RHEL's `shadow-utils` package installs the suite in `/usr/sbin`, the same
 /// path the Debian family uses.
 #[must_use]
-pub fn useradd_binary() -> &'static str {
-    "/usr/sbin/useradd"
+pub fn useradd_binary() -> AdapterBinary {
+    AdapterBinary::fixed("/usr/sbin/useradd")
 }
 
 /// Absolute path of `userdel`, for the process-execution allow-list.
 #[must_use]
-pub fn userdel_binary() -> &'static str {
-    "/usr/sbin/userdel"
+pub fn userdel_binary() -> AdapterBinary {
+    AdapterBinary::fixed("/usr/sbin/userdel")
 }
 
 /// Absolute path of `usermod`, for the process-execution allow-list.
 #[must_use]
-pub fn usermod_binary() -> &'static str {
-    "/usr/sbin/usermod"
+pub fn usermod_binary() -> AdapterBinary {
+    AdapterBinary::fixed("/usr/sbin/usermod")
 }
 
 /// Absolute path of `pkill`, for the process-execution allow-list.
@@ -242,8 +245,17 @@ pub fn usermod_binary() -> &'static str {
 /// per-family answer and not a shared constant, even though the two families
 /// install it at the same path today.
 #[must_use]
-pub fn pkill_binary() -> &'static str {
-    "/usr/bin/pkill"
+pub fn pkill_binary() -> AdapterBinary {
+    AdapterBinary::fixed("/usr/bin/pkill")
+}
+
+/// Absolute path of `pgrep`, for the process-execution allow-list.
+///
+/// From the `procps-ng` package, the same one that ships `pkill`, so no extra
+/// dependency is declared for it.
+#[must_use]
+pub fn pgrep_binary() -> AdapterBinary {
+    AdapterBinary::fixed("/usr/bin/pgrep")
 }
 
 /// Absolute path of `passwd`, for the process-execution allow-list.
@@ -254,8 +266,8 @@ pub fn pkill_binary() -> &'static str {
 /// password. Verified on the polygon by `binary_paths_on_a_real_host`, which
 /// stats every path this module declares.
 #[must_use]
-pub fn passwd_binary() -> &'static str {
-    "/usr/bin/passwd"
+pub fn passwd_binary() -> AdapterBinary {
+    AdapterBinary::fixed("/usr/bin/passwd")
 }
 
 /// Absolute path of `getent`, for the process-execution allow-list.
@@ -271,8 +283,8 @@ pub fn passwd_binary() -> &'static str {
 /// `libc-bin` on this family, `glibc-common` on the other — so unlike `passwd`
 /// it cannot be absent from a host that runs anything at all.
 #[must_use]
-pub fn getent_binary() -> &'static str {
-    "/usr/bin/getent"
+pub fn getent_binary() -> AdapterBinary {
+    AdapterBinary::fixed("/usr/bin/getent")
 }
 
 /// Absolute path of `setquota`, for the process-execution allow-list.
@@ -280,37 +292,38 @@ pub fn getent_binary() -> &'static str {
 /// The quota tools ship their administrative half in `/usr/sbin`, beside the
 /// shadow suite, and their reporting half in `/usr/bin`.
 #[must_use]
-pub fn setquota_binary() -> &'static str {
-    "/usr/sbin/setquota"
+pub fn setquota_binary() -> AdapterBinary {
+    AdapterBinary::fixed("/usr/sbin/setquota")
 }
 
 /// Absolute path of `quota`, for the process-execution allow-list.
 #[must_use]
-pub fn quota_binary() -> &'static str {
-    "/usr/bin/quota"
+pub fn quota_binary() -> AdapterBinary {
+    AdapterBinary::fixed("/usr/bin/quota")
 }
 
 /// Absolute path of `quotaon`, for the process-execution allow-list.
-pub fn quotaon_binary() -> &'static str {
-    "/usr/sbin/quotaon"
+#[must_use]
+pub fn quotaon_binary() -> AdapterBinary {
+    AdapterBinary::fixed("/usr/sbin/quotaon")
 }
 
 /// Absolute path of `id`, for the process-execution allow-list.
 #[must_use]
-pub fn id_binary() -> &'static str {
-    "/usr/bin/id"
+pub fn id_binary() -> AdapterBinary {
+    AdapterBinary::fixed("/usr/bin/id")
 }
 
 /// Absolute path of `chmod`, for the process-execution allow-list.
 #[must_use]
-pub fn chmod_binary() -> &'static str {
-    "/usr/bin/chmod"
+pub fn chmod_binary() -> AdapterBinary {
+    AdapterBinary::fixed("/usr/bin/chmod")
 }
 
 /// Absolute path of `chgrp`, for the process-execution allow-list.
 #[must_use]
-pub fn chgrp_binary() -> &'static str {
-    "/usr/bin/chgrp"
+pub fn chgrp_binary() -> AdapterBinary {
+    AdapterBinary::fixed("/usr/bin/chgrp")
 }
 
 /// Absolute path of `chpasswd`, for the process-execution allow-list.
@@ -318,8 +331,8 @@ pub fn chgrp_binary() -> &'static str {
 /// The one program the agent hands a password to; how it is handed over is
 /// the calling operation's business, not this file's.
 #[must_use]
-pub fn chpasswd_binary() -> &'static str {
-    "/usr/sbin/chpasswd"
+pub fn chpasswd_binary() -> AdapterBinary {
+    AdapterBinary::fixed("/usr/sbin/chpasswd")
 }
 
 /// Directory a systemd unit file must be written to for `systemctl` to see it.
@@ -351,8 +364,8 @@ pub fn passwd_database() -> &'static str {
 /// family's `cron` package chooses the same path, which is an agreement between
 /// two packages rather than a rule.
 #[must_use]
-pub fn crontab_binary() -> &'static str {
-    "/usr/bin/crontab"
+pub fn crontab_binary() -> AdapterBinary {
+    AdapterBinary::fixed("/usr/bin/crontab")
 }
 
 /// Absolute path of the `nft` binary, for the process-execution allow-list.
@@ -366,8 +379,8 @@ pub fn crontab_binary() -> &'static str {
 /// [`crate::DistroAdapter`] says to answer, and it is the same evidence the
 /// Debian family cites for the same value.
 #[must_use]
-pub fn nft_binary() -> &'static str {
-    "/usr/sbin/nft"
+pub fn nft_binary() -> AdapterBinary {
+    AdapterBinary::fixed("/usr/sbin/nft")
 }
 
 /// Absolute path of the POSIX shell a crontab line names.

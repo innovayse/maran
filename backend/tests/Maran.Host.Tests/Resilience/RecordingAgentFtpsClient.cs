@@ -1,6 +1,6 @@
-using System.Net.Sockets;
 using Maran.Agent.Client.Interfaces;
 using Maran.Agent.Client.Services.FtpsService;
+using Maran.Host.Tests.Fixtures;
 using Maran.SharedKernel.Results;
 using Maran.SharedKernel.Security;
 
@@ -149,7 +149,7 @@ internal sealed class RecordingAgentFtpsClient : IAgentFtpsClient
 
         if (Calls <= FailuresBeforeSuccess)
         {
-            throw new SocketException((int)SocketError.ConnectionRefused);
+            throw AgentTransportFaults.ConnectRefused();
         }
 
         if (Hangs)

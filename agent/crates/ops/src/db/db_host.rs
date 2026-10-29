@@ -56,5 +56,8 @@ pub trait DbHost: Send + Sync {
     ///   above.
     /// - [`DbError::ClientUnavailable`] when the client could not be started.
     /// - [`DbError::ClientKilled`] when a signal ended it mid-statement.
+    /// - [`DbError::Bound`] when the implementation stopped the client because it
+    ///   ran past its deadline, or wrote more to its standard error than the
+    ///   implementation will read. The statement may nevertheless take effect.
     fn execute(&self, statement: &str) -> Result<String, DbError>;
 }

@@ -78,3 +78,26 @@ fn a_certificate_the_tool_refuses_carries_the_tools_own_words() {
         other => panic!("expected a malformed certificate, got {other:?}"),
     }
 }
+
+#[test]
+fn a_key_check_that_times_out_is_a_bound_and_never_a_mismatch() {
+    // A killed `openssl` has not said the halves differ. Reading the kill as
+    // "no match" would refuse a valid pair; reading it as a match would install
+    // one nobody checked.
+    let host = FakeSslHost::passing();
+    host.time_out_openssl();
+
+    let failure = key_matches_certificate(&host, distro(), &matching_material()).unwrap_err();
+
+    assert!(matches!(failure, SslOpError::Bound(_)), "{failure:?}");
+}
+
+#[test]
+fn both_halves_are_checked_with_the_adapters_openssl() {
+    let host = FakeSslHost::passing();
+
+    key_matches_certificate(&host, distro(), &matching_material()).unwrap();
+
+    let expected = distro().openssl_binary().as_str().to_owned();
+    assert_eq!(host.programs(), vec![expected.clone(), expected]);
+}

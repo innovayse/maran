@@ -1,75 +1,92 @@
 <script setup lang="ts">
 /**
- * Authenticated shell: the sidebar (or its collapsed rail), the header, and
- * the document's single `<main>` landmark wrapping the routed page
- * (rules/vue.md: "Exactly one `<main>` per document" — this layout is the one
- * place that renders it; pages render `<section>`). Every route that belongs
- * to the authenticated area nests under this layout in the router.
+ * Authenticated shell: a flat dark desktop with rounded panels floating on it, 12px apart — the
+ * app bar on top, the navigation (sidebar, or its collapsed rail) on the left, one content panel.
+ * It also owns the document's single `<main>` landmark wrapping the routed page (rules/vue.md:
+ * "Exactly one `<main>` per document" — this layout is the one place that renders it; pages
+ * render `<section>`). Every route that belongs to the authenticated area nests under this layout
+ * in the router.
  *
- * The frame follows the design canvas: a full-height flex row that never
- * scrolls itself, with only `<main>` scrolling, so the sidebar and header
- * stay put while a long page moves under them.
+ * **The content panel is the only thing that scrolls.** The frame is exactly the viewport tall
+ * and clips; `<main>` is the scroller, so the app bar and the navigation stay put while a long
+ * page moves under them. `h-dvh` rather than `h-screen` so a phone's collapsing address bar does
+ * not push the tab bar below the visible area.
+ *
+ * **Below 1024px the sidebar is a drawer** ({@link ShellDrawer}) and a bottom tab bar appears
+ * ({@link ShellTabBar}). The two presentations are different components, so the viewport is read
+ * in JavaScript rather than hidden by CSS: rendering both would put two navigation landmarks and
+ * two copies of every link in the document. The match is read synchronously in setup, not on
+ * mount, so a phone never paints one frame of desktop sidebar before the swap.
+ *
+ * **While the drawer is open the rest of the shell is `inert`.** The drawer is a modal dialog:
+ * the page behind it must not take focus, be clicked through, or be read by assistive technology.
+ * The drawer itself sits outside the inert frame, which is why the frame is a sibling of it and
+ * not its parent.
+ *
+ * **The first Tab stop is a "Skip to content" link** (WCAG 2.4.1 Bypass Blocks). Without it a
+ * keyboard user crosses the logo and every sidebar entry on every screen before reaching the page.
+ * The link is visually hidden until it takes focus, then drawn as a labelled chip with the shell's
+ * focus ring, and activating it moves focus into `<main>`. `<main>` is given `tabindex="-1"` so it
+ * can receive that focus without joining the Tab order. The link handles the click itself instead
+ * of navigating to a `#main-content` fragment: in history mode a fragment would rewrite the URL
+ * and push an entry the user then has to Back out of.
  */
-import { nextTick, onBeforeUnmount, onMounted, ref, watch, type Ref } from 'vue'
+import { onBeforeUnmount, onMounted, ref, useTemplateRef, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import ShellHeader from '../components/shell/ShellHeader.vue'
 import ShellCommandPalette from '../components/shell/ShellCommandPalette.vue'
+import ShellDrawer from '../components/shell/ShellDrawer.vue'
+import ShellHeader from '../components/shell/ShellHeader.vue'
 import ShellRail from '../components/shell/ShellRail.vue'
 import ShellSidebar from '../components/shell/ShellSidebar.vue'
+import ShellTabBar from '../components/shell/ShellTabBar.vue'
 import { useNavigation } from '../composables/useNavigation'
 import { useModulesStore } from '../stores/modules'
-import { useThemeStore } from '../stores/theme'
-import { focusableElements } from '../utils/focusableElements'
 
 /**
- * Width at which the sidebar can afford to hold a column of its own — Tailwind's
- * `lg`. Below it the 246px sidebar eats most of a phone screen, so the shell
- * moves it off-canvas instead. The number is duplicated as `lg:` variants in
- * {@link ../components/shell/ShellHeader.vue}, which hides the menu button above
- * the same width; both must move together.
+ * The viewport at which the sidebar can afford a column of its own: Tailwind's `lg`, `64rem`
+ * (1024px), written as the `min-width` media query that `lg:` itself compiles to. Below it the
+ * 240px sidebar eats most of a phone screen, so the shell moves it into a drawer instead.
  *
- * The design canvas is a 1440x900 desktop artboard with no media query and no
- * narrow screen, so this breakpoint and everything it triggers is our decision,
- * not a value copied from the design.
+ * This is the ONE place the shell asks the question. The app bar's menu button and the brand
+ * cell's width take the answer as a prop (`compact`) rather than repeating the breakpoint as an
+ * `lg:` class, so the layout and the chrome cannot disagree about which presentation is showing.
  */
-const COMPACT_QUERY = '(max-width: 1023.98px)'
+const WIDE_QUERY = '(min-width: 64rem)'
 
 const { t } = useI18n()
 const entries = useNavigation()
 const modulesStore = useModulesStore()
-// Instantiated here rather than in `main.ts`: creating the store applies the
-// persisted theme to `<html data-theme>`, and this layout is the first thing
-// rendered inside the authenticated area.
-const themeStore = useThemeStore()
 
-/**
- * Whether the viewport is too narrow for a sidebar in the flow. Reactive
- * rather than CSS-only because the two presentations are different components,
- * and rendering both would put two `h1`s and two nav landmarks in the document.
- */
-const isCompact: Ref<boolean> = ref(false)
+/** Live match for {@link WIDE_QUERY}; kept so its listener can be removed. */
+const wideQuery: MediaQueryList = window.matchMedia(WIDE_QUERY)
 
-/** Whether the off-canvas navigation drawer is open. Only meaningful while compact. */
+/** Whether the viewport is too narrow for a sidebar in the flow. */
+const isCompact: Ref<boolean> = ref(!wideQuery.matches)
+
+/** Whether the navigation drawer is open. Only meaningful while compact. */
 const drawerOpen: Ref<boolean> = ref(false)
 
-/** The drawer panel, whose focusable descendants the trap cycles through. */
-const drawerElement: Ref<HTMLElement | null> = ref(null)
-
-/** The control that opened the drawer, so focus can return to it on close. */
-const drawerOpener: Ref<HTMLElement | null> = ref(null)
-
-/** Live match for {@link COMPACT_QUERY}; kept so its listener can be removed. */
-let compactQuery: MediaQueryList | null = null
-
 /**
- * Whether the navigation is collapsed to the icon rail. The design keeps both
- * presentations and switches between them, so this is the shell's own state
- * rather than a preference the panel reports.
+ * Whether the navigation is collapsed to the icon rail. The design keeps both presentations and
+ * switches between them, so this is the shell's own state rather than a preference the panel
+ * reports.
  */
 const collapsed: Ref<boolean> = ref(false)
 
 /** Whether the jump-to palette is open. */
 const paletteOpen: Ref<boolean> = ref(false)
+
+/** The `<main>` element, the target the skip link moves focus to. */
+const mainElement = useTemplateRef<HTMLElement>('main')
+
+/**
+ * Moves focus into `<main>` for the skip link. Focus (not scroll alone) is what matters: the next
+ * Tab continues from the page's first control instead of from the link at the top of the shell.
+ * @returns Nothing; focus moves synchronously.
+ */
+const skipToContent = (): void => {
+  mainElement.value?.focus()
+}
 
 /**
  * Opens the jump-to palette.
@@ -85,20 +102,6 @@ const openPalette = (): void => {
  */
 const closePalette = (): void => {
   paletteOpen.value = false
-}
-
-/**
- * Records the current compact state from a media-query match.
- * @param event The match state, either the initial list or a change event.
- * @returns Nothing; state updates synchronously.
- */
-const applyCompact = (event: MediaQueryList | MediaQueryListEvent): void => {
-  isCompact.value = event.matches
-  // Growing back to desktop must not leave a drawer open over a sidebar that is
-  // now in the flow again — the backdrop would block the whole page.
-  if (!event.matches) {
-    drawerOpen.value = false
-  }
 }
 
 /**
@@ -118,98 +121,6 @@ const closeDrawer = (): void => {
 }
 
 /**
- * Keeps Tab inside the open drawer, wrapping at both ends. A drawer that is
- * modal for the mouse but not for the keyboard strands a keyboard user in the
- * page behind the backdrop.
- * @param event The keyboard event for Tab or Shift+Tab.
- * @returns Nothing; focus moves synchronously.
- */
-const onDrawerTab = (event: KeyboardEvent): void => {
-  const elements = focusableElements(drawerElement.value)
-  if (elements.length === 0) {
-    event.preventDefault()
-    return
-  }
-
-  const first = elements[0]
-  const last = elements[elements.length - 1]
-  const active = document.activeElement
-  if (!(active instanceof Node) || drawerElement.value?.contains(active) !== true) {
-    event.preventDefault()
-    first?.focus()
-    return
-  }
-
-  if (event.shiftKey && (active === first || active === drawerElement.value)) {
-    event.preventDefault()
-    last?.focus()
-    return
-  }
-
-  if (!event.shiftKey && active === last) {
-    event.preventDefault()
-    first?.focus()
-  }
-}
-
-// Focus enters the drawer when it opens and returns to the menu button when it
-// closes, so the keyboard user does not restart from the top of the document.
-watch(drawerOpen, async (open: boolean): Promise<void> => {
-  if (open) {
-    drawerOpener.value = document.activeElement instanceof HTMLElement ? document.activeElement : null
-    await nextTick()
-    ;(focusableElements(drawerElement.value)[0] ?? drawerElement.value)?.focus()
-    return
-  }
-
-  drawerOpener.value?.focus()
-  drawerOpener.value = null
-})
-
-/**
- * Toggles the palette on the platform's own shortcut.
- *
- * Both modifiers are accepted: the design shows the macOS command key, and this
- * panel is administered from Linux servers at least as often, where the same
- * gesture is Ctrl. `preventDefault` stops the browser's own find-in-page.
- * @param event The keyboard event to inspect.
- * @returns Nothing; state updates synchronously.
- */
-const onShortcut = (event: KeyboardEvent): void => {
-  if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
-    event.preventDefault()
-    paletteOpen.value = !paletteOpen.value
-  }
-}
-
-onMounted((): void => {
-  window.addEventListener('keydown', onShortcut)
-  compactQuery = window.matchMedia(COMPACT_QUERY)
-  applyCompact(compactQuery)
-  compactQuery.addEventListener('change', applyCompact)
-})
-
-onBeforeUnmount((): void => {
-  window.removeEventListener('keydown', onShortcut)
-  compactQuery?.removeEventListener('change', applyCompact)
-  compactQuery = null
-})
-
-/**
- * Ensures the module catalogue is loaded, since the navigation is built from it. The router guard
- * only fetches it for gated routes, so without this the sidebar would stay empty on every ungated
- * page — which is every page until a module ships one.
- * @returns Resolves once the catalogue request has settled.
- */
-const ensureCatalogueLoaded = async (): Promise<void> => {
-  if (!modulesStore.isLoaded) {
-    await modulesStore.load()
-  }
-}
-
-onMounted(ensureCatalogueLoaded)
-
-/**
  * Collapses the sidebar into the rail.
  * @returns Nothing; state updates synchronously.
  */
@@ -226,101 +137,129 @@ const expandNavigation = (): void => {
 }
 
 /**
- * Flips the interface theme through the store that owns `<html data-theme>`.
- * @returns Nothing; the store updates state and the DOM synchronously.
+ * Records the compact state when the viewport crosses the breakpoint.
+ * @param event The match state of {@link WIDE_QUERY}.
+ * @returns Nothing; state updates synchronously.
  */
-const toggleTheme = (): void => {
-  themeStore.toggle()
+const applyCompact = (event: MediaQueryListEvent): void => {
+  isCompact.value = !event.matches
+  // Growing back to desktop must not leave the drawer "open" over a sidebar that is in the flow
+  // again — the inert frame and the backdrop would block the whole page.
+  if (event.matches) {
+    drawerOpen.value = false
+  }
 }
+
+/**
+ * Toggles the palette on the platform's own shortcut.
+ *
+ * Both modifiers are accepted: the design shows the macOS command key, and this panel is
+ * administered from Linux servers at least as often, where the same gesture is Ctrl.
+ * `preventDefault` stops the browser's own find-in-page. The shortcut is ignored while the
+ * drawer is open: the palette would open over a page the drawer has made inert.
+ * @param event The keyboard event to inspect.
+ * @returns Nothing; state updates synchronously.
+ */
+const onShortcut = (event: KeyboardEvent): void => {
+  if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
+    event.preventDefault()
+    if (!drawerOpen.value) {
+      paletteOpen.value = !paletteOpen.value
+    }
+  }
+}
+
+/**
+ * Ensures the module catalogue is loaded, since the navigation is built from it. The router guard
+ * only fetches it for gated routes, so without this the sidebar would stay empty on every ungated
+ * page — which is every page until a module ships one.
+ * @returns Resolves once the catalogue request has settled.
+ */
+const ensureCatalogueLoaded = async (): Promise<void> => {
+  if (!modulesStore.isLoaded) {
+    await modulesStore.load()
+  }
+}
+
+onMounted((): void => {
+  window.addEventListener('keydown', onShortcut)
+  wideQuery.addEventListener('change', applyCompact)
+})
+
+onMounted(ensureCatalogueLoaded)
+
+onBeforeUnmount((): void => {
+  window.removeEventListener('keydown', onShortcut)
+  wideQuery.removeEventListener('change', applyCompact)
+})
 </script>
 
 <template>
-  <div class="flex h-screen overflow-hidden bg-page text-text-primary">
-    <!-- Compact: the sidebar leaves the flow and becomes an off-canvas drawer.
-         The rail is not offered here — a 56px icon strip beside a 144px page is
-         no better than the sidebar it replaces. -->
-    <template v-if="isCompact">
-      <div
-        v-if="drawerOpen"
-        class="fixed inset-0 z-40 bg-black/55 backdrop-blur-[2px]"
-        aria-hidden="true"
-        @click="closeDrawer"
-      ></div>
-      <div
-        v-if="drawerOpen"
-        ref="drawerElement"
-        class="shell-drawer fixed inset-y-0 left-0 z-50 flex focus-visible:outline-none"
-        role="dialog"
-        aria-modal="true"
-        tabindex="-1"
-        :aria-label="t('app.shell.navigationLabel')"
-        @keydown.esc.prevent="closeDrawer"
-        @keydown.tab="onDrawerTab"
-      >
-        <ShellSidebar
-          :entries="entries"
-          compact
-          @toggle-theme="toggleTheme"
-          @open-palette="openPalette"
-          @navigate="closeDrawer"
-        />
-      </div>
-    </template>
+  <div class="h-dvh overflow-hidden bg-page text-text-primary">
+    <!-- First in the DOM, so first in the Tab order. `sr-only` hides it without removing it from
+         the order; `focus:not-sr-only` brings it back on focus, fixed over the app bar, with the
+         shell's own focus ring. It sits OUTSIDE the inert frame below on purpose: the drawer
+         makes that frame inert while it is open, and a skip link must not vanish with it. -->
+    <a
+      href="#main-content"
+      class="sr-only z-50 rounded-control bg-surface-1 px-4 py-2 text-sm font-semibold text-text-primary focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:shadow-focus focus:outline-none"
+      @click.prevent="skipToContent"
+    >
+      {{ t('app.shell.skipToContent') }}
+    </a>
 
-    <!-- Wide: unchanged — the rail and the sidebar exactly as before. -->
-    <template v-else>
-      <!-- The rail carries no theme control: the design puts one in the expanded
-           sidebar's footer and the header, not in the narrow column. -->
-      <ShellRail v-if="collapsed" :entries="entries" @expand="expandNavigation" />
-      <ShellSidebar
-        v-else
+    <!-- The desktop: panels floating 12px apart (8px on a phone). `inert` while the drawer is
+         open makes the drawer genuinely modal. -->
+    <div class="flex h-full flex-col gap-2 p-2 sm:gap-3 sm:p-3" :inert="drawerOpen">
+      <ShellHeader
         :entries="entries"
-        @collapse="collapseNavigation"
-        @toggle-theme="toggleTheme"
+        :navigation-open="drawerOpen"
+        :compact="isCompact"
+        @open-navigation="openDrawer"
         @open-palette="openPalette"
       />
-    </template>
+
+      <div class="flex min-h-0 flex-1 gap-3">
+        <template v-if="!isCompact">
+          <ShellRail v-if="collapsed" :entries="entries" @expand="expandNavigation" />
+          <ShellSidebar v-else :entries="entries" @collapse="collapseNavigation" />
+        </template>
+
+        <!-- The content inset lives here rather than in each page: every screen gets the same
+             wrapper, and many pages repeating it is that many chances for one to drift. Pages
+             render their own content flush inside it. It steps with the viewport (16, 24, 32px)
+             because horizontal space is the scarce thing on a phone and the opposite on a desktop
+             monitor, where an operator spends hours.
+             `overflow-x-hidden` is the backstop for the rule that nothing scrolls sideways at
+             390px; wide tables scroll inside their own container, not here.
+             `scroll-py-3` keeps the browser's focus-driven scroll-into-view from pinning a control
+             flush against this region's top or bottom edge: the 4px focus ring is drawn outside the
+             control and the region clips it, so a flush control lost its ring on one side (the last
+             row of the cron form, and any control reached by Tab on a phone). 12px clears it. -->
+        <main
+          id="main-content"
+          ref="main"
+          tabindex="-1"
+          class="min-w-0 flex-1 overflow-x-hidden overflow-y-auto rounded-panel border border-border-subtle bg-surface-1 p-4 scroll-py-3 focus:outline-none sm:p-6 lg:p-8"
+        >
+          <!-- RouterView, not a slot: this layout is a route component with child routes, so the
+               page for the active child renders here. A <slot/> would silently render nothing. -->
+          <RouterView />
+        </main>
+      </div>
+
+      <ShellTabBar
+        v-if="isCompact"
+        :entries="entries"
+        :navigation-open="drawerOpen"
+        @open-navigation="openDrawer"
+      />
+    </div>
+
+    <ShellDrawer v-if="isCompact" :open="drawerOpen" @close="closeDrawer">
+      <ShellSidebar :entries="entries" compact @navigate="closeDrawer" />
+    </ShellDrawer>
 
     <ShellCommandPalette :open="paletteOpen" :entries="entries" @close="closePalette" />
-
-    <div class="flex min-h-0 min-w-0 flex-1 flex-col">
-      <ShellHeader :entries="entries" :navigation-open="drawerOpen" @open-navigation="openDrawer" />
-      <!-- The content inset lives here rather than in each page: every screen gets the same
-           wrapper, and four pages repeating it is four chances for one to drift. Pages render
-           their own content flush inside it.
-           It grows with the viewport rather than being one fixed value. The panel is an
-           operator's tool that lives on a wide screen for hours, and the original flat 22px
-           left every page crowded against the chrome there while still being right on a
-           laptop. Small screens keep a modest inset because horizontal space is the scarce
-           thing; from `lg` up the window has room to spare and the content should breathe. -->
-      <main class="min-h-0 flex-1 overflow-y-auto px-6 pt-6 pb-12 sm:px-8 sm:pt-7 lg:px-10 lg:pt-8 xl:px-12">
-        <!-- RouterView, not a slot: this layout is a route component with child routes, so the
-             page for the active child renders here. A <slot/> would silently render nothing. -->
-        <RouterView />
-      </main>
-    </div>
   </div>
 </template>
-
-<style scoped>
-/* The drawer slides in from the edge it lives on. Distance and duration only —
-   a user who asked for less motion gets the panel without the travel. */
-.shell-drawer {
-  animation: shell-drawer-in 0.18s ease;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .shell-drawer {
-    animation: none;
-  }
-}
-
-@keyframes shell-drawer-in {
-  from {
-    transform: translateX(-100%);
-  }
-  to {
-    transform: none;
-  }
-}
-</style>

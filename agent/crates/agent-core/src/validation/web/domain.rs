@@ -1,6 +1,8 @@
-//! A hostname that is safe to write into a web-server configuration.
+//! A hostname that is safe to write into a web-server configuration and that a
+//! tenant is allowed to serve: well-formed, and not in the reserved set.
 
 use crate::validation::web::domain_error::DomainError;
+use crate::validation::web::reserved_host_name::reservation_of;
 
 /// The longest a domain may be, from DNS.
 const MAX_LENGTH: usize = 253;
@@ -8,16 +10,54 @@ const MAX_LENGTH: usize = 253;
 /// The longest a single label may be, from DNS.
 const MAX_LABEL_LENGTH: usize = 63;
 
-/// A syntactically valid hostname, checked once at the boundary and then
+/// A syntactically valid, non-reserved hostname, checked once at the boundary and then
 /// carried as a type so no later caller has to remember to check it again.
 ///
 /// Construction is the only way to obtain one, so a `Domain` in a signature is
-/// a promise that the value has been through [`Domain::parse`].
+/// a promise that the value has been through [`Domain::parse`] or, for a name
+/// that may already exist, [`Domain::parse_existing`].
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Domain(String);
 
 impl Domain {
-    /// Parses `candidate` into a domain.
+    /// Parses `candidate` into a domain a tenant may CLAIM: well-formed and not
+    /// in the reserved set. Use it wherever a name is about to be created or
+    /// served (a new site, its aliases, an FTPS hostname).
+    ///
+    /// Lowercased on the way in, because DNS is case-insensitive while a
+    /// config file and a filesystem path are not: two sites differing only in
+    /// case must not become two different document roots.
+    ///
+    /// # Errors
+    ///
+    /// Every error of [`Domain::parse_existing`], and in addition:
+    ///
+    /// - [`DomainError::NumericFinalLabel`] when the last label is all digits
+    ///   (an IPv4 literal such as `203.0.113.7`, `1.2.3`, or a lone `12345`).
+    /// - [`DomainError::LocalhostFamily`] for `localhost` and `*.localhost`.
+    /// - [`DomainError::SpecialUseSuffix`] for a name that is, or ends in,
+    ///   `local`, `localdomain`, `internal`, `lan`, `home.arpa` or `invalid`.
+    ///
+    /// A plain single label such as `shop` stays accepted: only the reserved set
+    /// above is refused, and the API's own rule is what demands two labels.
+    pub fn parse(candidate: &str) -> Result<Self, DomainError> {
+        let existing = Self::parse_existing(candidate)?;
+
+        if let Some(reserved) = reservation_of(existing.as_str()) {
+            return Err(reserved);
+        }
+
+        Ok(existing)
+    }
+
+    /// Parses the name of a site or host that may ALREADY exist: the shape
+    /// check alone, without the reserved set.
+    ///
+    /// A tenant could create a now-reserved name before the set was enforced, and
+    /// the agent must still be able to disable, delete, inspect and tail such a
+    /// site, or the clean-up of the very hole the set closes would be refused.
+    /// Never use it for a name about to be created or served: that is
+    /// [`Domain::parse`].
     ///
     /// Lowercased on the way in, because DNS is case-insensitive while a
     /// config file and a filesystem path are not: two sites differing only in
@@ -33,7 +73,7 @@ impl Domain {
     ///   caller's choosing.
     /// - [`DomainError::InvalidLabel`] for an empty or over-long label, or one
     ///   starting or ending with a hyphen.
-    pub fn parse(candidate: &str) -> Result<Self, DomainError> {
+    pub fn parse_existing(candidate: &str) -> Result<Self, DomainError> {
         if candidate.is_empty() {
             return Err(DomainError::Empty);
         }

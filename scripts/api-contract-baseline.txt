@@ -12,7 +12,7 @@
 #
 # Regenerate with `maran api --accept`, in its own reviewed commit.
 
-covered: 32 endpoints, 95 members
+covered: 34 endpoints, 111 members
 
 POST /api/v1/accounts  ->  CreateAccountCommand
   name: string
@@ -117,6 +117,24 @@ PUT /api/v1/notifications/smtp  ->  SaveSmtpSettingsCommand
   alertRecipient: string
 POST /api/v1/notifications/smtp/test  ->  SendTestMailCommand
   recipient: string
+POST /api/v1/plans  ->  CreatePlanCommand
+  name: string
+  diskQuotaMb: number
+  maxSites: number
+  maxDatabases: number
+  maxSftpUsers: number
+  maxFtpUsers: number
+  maxCronEntries: number
+  maxPhpWorkersPerPool: number
+PUT /api/v1/plans/{}  ->  UpdatePlanCommand
+  name: string
+  diskQuotaMb: number
+  maxSites: number
+  maxDatabases: number
+  maxSftpUsers: number
+  maxFtpUsers: number
+  maxCronEntries: number
+  maxPhpWorkersPerPool: number
 PUT /api/v1/security-policy  ->  SaveSecurityPolicyCommand
   minimumPasswordLength: number
   forceTwoFactorForAdmins: boolean
@@ -152,6 +170,7 @@ POST /api/v1/sites/php-versions/install  ->  InstallPhpVersionCommand
   DELETE /api/v1/firewall/rules — query-string call, no JSON body
   DELETE /api/v1/firewall/whitelist/{} — route-only call, no JSON body
   DELETE /api/v1/ftp-users/{} — route-only call, no JSON body
+  DELETE /api/v1/plans/{} — route-only call, no JSON body
   DELETE /api/v1/sessions/{} — route-only call, no JSON body
   DELETE /api/v1/sftp-users/{} — route-only call, no JSON body
   DELETE /api/v1/sites/{} — route-only call, no JSON body
@@ -164,6 +183,7 @@ POST /api/v1/sites/php-versions/install  ->  InstallPhpVersionCommand
   POST /api/v1/databases/{}/password — route-only call, no JSON body
   POST /api/v1/ftp-users/{}/password — route-only call, no JSON body
   POST /api/v1/ftps-server/disable — route-only call, no JSON body
+  POST /api/v1/invitations/{}/link — route-only call, no JSON body
   POST /api/v1/invitations/{}/resend — route-only call, no JSON body
   POST /api/v1/sftp-users/{}/password — route-only call, no JSON body
   POST /api/v1/sites/{}/disable — route-only call, no JSON body
@@ -191,12 +211,14 @@ POST /api/v1/sites/php-versions/install  ->  InstallPhpVersionCommand
   GET /api/v1/ftp-users
   GET /api/v1/ftp-users/{}
   GET /api/v1/ftps-server
+  GET /api/v1/invitations/{}
   GET /api/v1/licence-status
   GET /api/v1/monitoring/accounts-disk
   GET /api/v1/monitoring/chart
   GET /api/v1/monitoring/metrics
   GET /api/v1/monitoring/services
   GET /api/v1/notifications/smtp
+  GET /api/v1/plans
   GET /api/v1/security-policy
   GET /api/v1/sessions
   GET /api/v1/setup/state

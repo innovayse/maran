@@ -8,13 +8,20 @@
  * the caller says so through `titleAs` — see that prop for why the default is
  * the un-promoted one.
  *
- * The design draws it as a dashed-border panel on the raised surface with a
- * deliberately large 76px of vertical air — the emptiness is the message, so
- * the panel is not allowed to look like a collapsed row — then a 46px icon
- * tile, a 15px/600 title, a 12.5px secondary body capped at 400px so the
- * sentence wraps into a readable column rather than the full table width, and
- * the actions set 4px below.
+ * It is drawn as a dashed-border panel on the panel surface with deliberately
+ * large vertical air — the emptiness is the message, so the panel must not
+ * look like a collapsed row — then an optional icon tile, the title, a body
+ * capped at 400px so the sentence wraps into a readable column rather than the
+ * full table width, and the actions below. The dashed edge is decoration (it
+ * is far under the 3:1 a boundary would need) and nothing relies on it: the
+ * title and description say what is empty.
+ *
+ * The title is sentence case, not the uppercase of a page title: it is a
+ * message ("No sites yet"), and a sentence set in capitals reads as shouting
+ * and is slower to read. It still wraps anywhere, since it may be the
+ * translated name of a thing in Armenian or a server-sent name.
  */
+import UiIconTile from './UiIconTile.vue'
 
 /**
  * The element the title is rendered as. `'p'` is the emphasized paragraph the
@@ -72,21 +79,22 @@ defineSlots<{
 
 <template>
   <div
-    class="flex flex-col items-center gap-2.5 rounded-xl border border-dashed border-border-strong bg-surface-1 px-6 py-20 text-center"
+    class="flex min-w-0 flex-col items-center gap-3 rounded-panel border border-dashed border-border-strong bg-surface-1 px-6 py-16 text-center"
   >
-    <!-- The tile is drawn only when a caller supplies a glyph: an empty bordered
-         square would read as a missing image rather than as decoration. -->
-    <div
-      v-if="$slots.icon"
-      class="grid size-11.5 place-items-center rounded-xl border border-border-subtle bg-surface-2 text-text-muted"
-    >
+    <!-- The tile is drawn only when a caller supplies a glyph: an empty tinted
+         square would read as a missing image rather than as decoration. The
+         accent text sits on the accent wash over the panel surface (--s1),
+         never over --s3, where that pairing measures under 4.5:1. -->
+    <UiIconTile v-if="$slots.icon" size="lg">
       <slot name="icon" />
-    </div>
-    <component :is="titleAs" class="text-lg font-semibold text-text-primary">{{ title }}</component>
-    <p v-if="description" class="max-w-[400px] text-base leading-normal text-text-secondary">
+    </UiIconTile>
+    <component :is="titleAs" class="font-display text-lg font-extrabold text-text-primary wrap-anywhere">{{
+      title
+    }}</component>
+    <p v-if="description" class="max-w-100 text-sm leading-normal text-text-secondary wrap-anywhere">
       {{ description }}
     </p>
-    <div v-if="$slots.default" class="mt-2 flex gap-2">
+    <div v-if="$slots.default" class="mt-1 flex flex-wrap justify-center gap-2">
       <slot />
     </div>
   </div>

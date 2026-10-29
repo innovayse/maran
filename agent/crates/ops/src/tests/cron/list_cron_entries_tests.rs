@@ -6,8 +6,8 @@ use crate::cron::create_cron_entry::create_cron_entry;
 use crate::cron::cron_error::CronError;
 use crate::cron::list_cron_entries::list_cron_entries;
 use crate::cron::recording_cron_host::{
-    FIRST_ID, RecordingCronHost, SECOND_ID, account, cmd_path, command, distro, entry_id,
-    every_five_minutes, schedule,
+    FIRST_ID, RecordingCronHost, SECOND_ID, account, assert_refused_untouched, cmd_path, command,
+    distro, entry_id, every_five_minutes, schedule, unmanaged_cases,
 };
 
 /// An account with no crontab lists as empty rather than as a failure.
@@ -127,4 +127,16 @@ fn a_crontab_that_cannot_be_read_stops_the_listing() {
     let refusal = list_cron_entries(&host, &account());
 
     assert_eq!(refusal, Err(CronError::CrontabRefused { code: 7 }));
+}
+
+/// An account that is not a hosting account is refused before the table is
+/// read, and everything the host holds is left as it was.
+#[test]
+fn listing_the_entries_of_an_unmanaged_account_reads_no_crontab() {
+    // Reading root's table as root is itself the disclosure.
+    for case in unmanaged_cases() {
+        let result = list_cron_entries(&case.host, &case.account);
+
+        assert_refused_untouched(&case, result);
+    }
 }

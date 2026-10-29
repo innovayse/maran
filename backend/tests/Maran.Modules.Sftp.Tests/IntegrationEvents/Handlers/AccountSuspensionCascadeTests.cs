@@ -158,7 +158,7 @@ public sealed class AccountSuspensionCascadeTests
         var agent = new RecordingAgentSftpClient
         {
             SetAccountLoginsLockedResult = Result<AccountLoginLockOutcomeDto>.Fail(
-                Error.Of("AgentUnavailable", ErrorType.Failure)),
+                Error.Of("AgentUnavailable", ErrorType.Unavailable)),
         };
         var message = new AccountSuspending(Account, Username);
 
@@ -178,7 +178,7 @@ public sealed class AccountSuspensionCascadeTests
         var agent = new RecordingAgentSftpClient
         {
             SetAccountLoginsLockedResult = Result<AccountLoginLockOutcomeDto>.Fail(
-                Error.Of("AgentUnavailable", ErrorType.Failure)),
+                Error.Of("AgentUnavailable", ErrorType.Unavailable)),
         };
 
         await Assert.ThrowsAsync<InvalidOperationException>(async () =>
@@ -195,7 +195,7 @@ public sealed class AccountSuspensionCascadeTests
         var agent = new RecordingAgentSftpClient
         {
             SetAccountLoginsLockedResult = Result<AccountLoginLockOutcomeDto>.Fail(
-                Error.Of("AgentUnavailable", ErrorType.Failure)),
+                Error.Of("AgentUnavailable", ErrorType.Unavailable)),
         };
 
         await Assert.ThrowsAsync<InvalidOperationException>(async () =>

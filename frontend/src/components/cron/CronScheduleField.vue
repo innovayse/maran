@@ -250,20 +250,25 @@ watch(
 </script>
 
 <template>
-  <fieldset class="rounded-lg border border-border-subtle p-3">
-    <legend class="px-1 text-xs uppercase tracking-wide text-text-muted">
+  <fieldset class="m-0 min-w-0 rounded-control border border-border-subtle bg-surface-2 p-4">
+    <legend
+      class="max-w-full px-2 font-display text-xs font-extrabold uppercase tracking-caps text-accent-text wrap-anywhere"
+    >
       {{ t('cron.schedule.legend') }}
     </legend>
 
-    <UiSegmentedControl
-      :model-value="mode"
-      :options="modeOptions"
-      :label="t('cron.schedule.modeLabel')"
-      class="mb-3"
-      @update:model-value="changeMode"
-    />
+    <!-- The segmented control scrolls inside its own row rather than widening the form: its two
+         labels are the longest strings here in Russian and Armenian. -->
+    <div class="mb-4 max-w-full overflow-x-auto">
+      <UiSegmentedControl
+        :model-value="mode"
+        :options="modeOptions"
+        :label="t('cron.schedule.modeLabel')"
+        @update:model-value="changeMode"
+      />
+    </div>
 
-    <div v-if="mode === 'builder'" class="grid gap-3 sm:grid-cols-2">
+    <div v-if="mode === 'builder'" class="grid gap-4 sm:grid-cols-2">
       <UiSelect
         :model-value="frequency"
         :options="frequencyOptions"
@@ -274,12 +279,14 @@ watch(
         v-if="usesMinute"
         :model-value="minute"
         :label="t('cron.schedule.fields.minute')"
+        mono
         @update:model-value="minute = $event"
       />
       <UiInput
         v-if="usesHour"
         :model-value="hour"
         :label="t('cron.schedule.fields.hour')"
+        mono
         @update:model-value="hour = $event"
       />
       <UiSelect
@@ -293,6 +300,7 @@ watch(
         v-if="frequency === 'monthly'"
         :model-value="dayOfMonth"
         :label="t('cron.schedule.fields.dayOfMonth')"
+        mono
         @update:model-value="dayOfMonth = $event"
       />
     </div>
@@ -303,16 +311,24 @@ watch(
       :label="t('cron.schedule.fields.expression')"
       :placeholder="t('cron.schedule.placeholders.expression')"
       :error="rawError"
+      mono
       @update:model-value="changeExpression"
     />
 
-    <p v-if="builderError !== null" class="mt-2 text-sm text-danger">{{ builderError }}</p>
+    <p v-if="builderError !== null" class="mt-3 text-sm text-danger wrap-anywhere">
+      {{ builderError }}
+    </p>
 
     <!-- The five fields as the module will receive them. Both modes end here, which is what lets an
-         operator check a builder pattern against the cron they already know. -->
-    <p class="mt-3 text-sm text-text-secondary">
-      {{ t('cron.schedule.previewLabel') }}
-      <span class="font-mono text-text-primary" data-testid="cron-schedule-preview">{{ preview }}</span>
+         operator check a builder pattern against the cron they already know. The figure is set in
+         mono on the raised surface, and scrolls inside itself if a long expression outgrows a phone. -->
+    <p class="mt-4 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-sm text-text-secondary">
+      <span>{{ t('cron.schedule.previewLabel') }}</span>
+      <span
+        class="max-w-full overflow-x-auto rounded-control bg-surface-3 px-3 py-1.5 font-mono text-sm tabular-nums whitespace-nowrap text-text-primary"
+        data-testid="cron-schedule-preview"
+        >{{ preview }}</span
+      >
     </p>
   </fieldset>
 </template>

@@ -1,0 +1,75 @@
+{
+  "plans": {
+    "list": {
+      "eyebrow": "Hosting",
+      "heading": "Plans",
+      "subtitle": "What each package contains. An account is created on one plan, and the plan's limits apply to it.",
+      "createAction": "New plan",
+      "loading": "Loading plans…",
+      "emptyTitle": "No plans yet",
+      "emptyDescription": "Accounts are created on a plan, so define the first one before creating an account.",
+      "tableCaption": "Plans and their limits",
+      "none": "None",
+      "columns": {
+        "accounts": "Accounts",
+        "diskQuota": "Disk (MB)",
+        "sites": "Sites",
+        "databases": "Databases",
+        "sftpUsers": "SFTP logins",
+        "ftpUsers": "FTPS logins",
+        "cronEntries": "Cron entries",
+        "phpWorkers": "PHP workers"
+      },
+      "edit": "Edit {name}",
+      "delete": "Delete {name}",
+      "deleteTitle": "Delete plan {name}",
+      "deleteQuestionFree": "The plan is removed and nothing can be created on it any more. No account is on it, so no customer is affected.",
+      "deleteQuestionInUse": "{count} account is on this plan, so the panel will refuse to delete it and change nothing. Move that account to another plan or delete it first. | {count} accounts are on this plan, so the panel will refuse to delete it and change nothing. Move those accounts to another plan or delete them first.",
+      "working": "Deleting the plan…"
+    },
+    "form": {
+      "eyebrow": "Plans",
+      "headingNew": "New plan",
+      "headingEdit": "Edit plan",
+      "subtitleNew": "Name the plan and set what each account on it may use. The panel checks these values before sending them, and the server checks them again.",
+      "subtitleEdit": "Change the name or the limits. The panel checks these values before sending them, and the server checks them again.",
+      "loading": "Loading the plan…",
+      "notFoundTitle": "Plan not found",
+      "notFoundDescription": "It may have been deleted since this link was made.",
+      "backToList": "Back to plans",
+      "nameSection": "Name",
+      "limitsSection": "Limits for each account",
+      "limitsHint": "Zero FTPS logins or zero cron entries sells none of them. Every other limit must be at least 1.",
+      "fields": {
+        "name": "Plan name",
+        "diskQuotaMb": "Disk quota (MB)",
+        "maxSites": "Sites",
+        "maxDatabases": "Databases",
+        "maxSftpUsers": "SFTP logins",
+        "maxFtpUsers": "FTPS logins",
+        "maxCronEntries": "Cron entries",
+        "maxPhpWorkersPerPool": "PHP workers per pool"
+      },
+      "placeholders": {
+        "name": "Business"
+      },
+      "submitNew": "Create plan",
+      "submitEdit": "Save plan",
+      "errors": {
+        "nameRequired": "Name is required.",
+        "nameTooLong": "Name must be at most {max} characters.",
+        "nameControl": "Name must not contain control characters.",
+        "whole": "Enter a whole number.",
+        "range": "Enter a number from {min} to {max}."
+      },
+      "reach": {
+        "title": "An edit reaches the accounts already on this plan",
+        "accounts": "{count} account is on this plan. The new limits apply to it at once. | {count} accounts are on this plan. The new limits apply to all of them at once.",
+        "disk": "A lowered disk quota is written to every account on the server. If any account already uses more than the new figure, the panel refuses the whole edit and changes nothing.",
+        "counts": "A lowered number of sites, databases, logins or cron entries removes nothing: an account above it keeps what it has and cannot add more.",
+        "none": "No account is on this plan yet, so this edit changes nothing for anyone."
+      },
+      "diskLowered": "The disk quota goes down from {from} MB to {to} MB. If any account on this plan already uses more than {to} MB, the server refuses the edit and nothing is changed."
+    }
+  }
+}

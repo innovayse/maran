@@ -1,5 +1,12 @@
 //! Failures of the FTPS daemon operations.
 
+use maran_agent_core::agent_paths::AgentPaths;
+use maran_agent_core::utils::bound_exceeded::BoundExceeded;
+use maran_agent_core::utils::spawn_error::SpawnError;
+use maran_agent_core::validation::system::managed_account_error::ManagedAccountError;
+
+use crate::safe_write::SafeWriteError;
+
 /// The `code` reported when a program could not be started at all.
 ///
 /// Negative so it can never collide with an exit status, every one of which is
@@ -10,13 +17,14 @@ pub(crate) const PROGRAM_UNAVAILABLE: i32 = -1;
 /// What can go wrong while enabling, disabling, reloading or reading the FTPS
 /// daemon, and while creating an FTPS login, setting its password or removing it.
 ///
-/// One exhaustive list for the whole area (rules/rust.md "Errors"). Two of the
-/// variants carry text, and both are deliberate: [`Self::CertificateMissing`]
-/// names the path an operator has to put material at, and
-/// [`Self::ConfigRejected`] carries what the daemon printed when it refused a
-/// candidate configuration. Neither can hold a credential — the login half of
-/// the area reports a refused password as [`Self::PasswordRejected`], which
-/// carries nothing at all — and both
+/// One exhaustive list for the whole area (rules/rust.md "Errors"). Three of the
+/// variants carry text, and all are deliberate: [`Self::Bound`] names the path
+/// of the program that was stopped and the bound, never a byte it printed,
+/// [`Self::CertificateMissing`] names the path an operator has to put material
+/// at, and [`Self::ConfigRejected`] carries what the daemon printed when it
+/// refused a candidate configuration. None of them can hold a credential — the
+/// login half of the area reports a refused password as
+/// [`Self::PasswordRejected`], which carries nothing at all — and all
 /// are operator-facing text that the panel maps to a localized message rather
 /// than showing verbatim to a hosting customer (rules/rust.md "Errors").
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
@@ -75,7 +83,9 @@ pub enum FtpsError {
     /// does not match parses perfectly and dies at the first handshake, and a
     /// port something else already holds leaves a unit systemd is happy with.
     /// This is what the post-swap observation exists to catch, and reaching it
-    /// restores the previous configuration.
+    /// restores the previous configuration. It is only returned after the bounded
+    /// wait for the control port (`wait_for_control_port`) has run out, so a
+    /// daemon that is merely slow to bind is not reported as silent.
     #[error("the ftps daemon is not answering on its control port")]
     NotListening,
 
@@ -88,6 +98,17 @@ pub enum FtpsError {
         /// The program's exit status, or a negative sentinel when it never ran.
         code: i32,
     },
+
+    /// A program of this area outran its deadline or its output ceiling, and was
+    /// killed together with its process group.
+    ///
+    /// Its own variant and never a verdict: a tool that was killed has not said
+    /// that the daemon, the login or the configuration is good or bad, and it may
+    /// have finished on the host after the agent stopped waiting. So this is never
+    /// folded into [`Self::ServiceRefused`], [`Self::ConfigRejected`] or
+    /// [`Self::SpawnFailed`], each of which states something the agent knows.
+    #[error(transparent)]
+    Bound(#[from] BoundExceeded),
 
     /// The daemon configuration could not be rendered.
     ///
@@ -207,6 +228,18 @@ pub enum FtpsError {
     /// never from an exit status.
     #[error("the ftps login's suspension could not be restored after the password was set")]
     SuspensionNotRestored,
+
+    /// The name is not a hosting account this panel may act on: it is reserved,
+    /// has a system identity, or does not have the managed home.
+    ///
+    /// Raised before any jail, login or password is touched. A name with no row
+    /// in the local password database at all is [`Self::AccountMissing`]
+    /// instead. Deliberately one variant for the three refusals, and without the
+    /// reason: naming which check failed would describe the rules to whoever is
+    /// probing them. The reason is carried only by the wrapped value of the
+    /// type that decided; this variant drops it.
+    #[error("the account is not a hosting account")]
+    AccountNotManaged,
 }
 
 /// `useradd`'s status for a name that is already taken.
@@ -222,7 +255,54 @@ const NAME_IN_USE: i32 = 9;
 /// repeated deletion converges on [`FtpsError::NotFound`] rather than failing.
 const NO_SUCH_USER: i32 = 6;
 
+impl From<SpawnError> for FtpsError {
+    /// Maps a failed spawn onto this area's list.
+    ///
+    /// A bound becomes [`Self::Bound`]. Every other failure means the program
+    /// never produced an answer, so it becomes [`Self::program_unavailable`],
+    /// which is what the area's tests and callers already read as "could not
+    /// run it". `SpawnError` is `#[non_exhaustive]`, so a variant added later
+    /// lands on the same answer.
+    ///
+    /// Each area keeps its own copy of this small mapping on purpose: the
+    /// non-bound target differs per area (`SafeWriteError::from_spawn`,
+    /// `AccountError`, `SslOpError` and the rest each name their own), so the
+    /// arms are not interchangeable and are not to be folded into one helper.
+    fn from(error: SpawnError) -> Self {
+        match error {
+            SpawnError::Bound(bound) => Self::Bound(bound),
+            _ => Self::program_unavailable(),
+        }
+    }
+}
+
 impl FtpsError {
+    /// Maps a failure of the config-write protocol onto this area's list.
+    ///
+    /// A validator or reload that exited non-zero is [`Self::ServiceRefused`],
+    /// since for the daemon's file both steps are the service manager acting on
+    /// the daemon. A program that could not be started is
+    /// [`Self::program_unavailable`]. A bound stays [`Self::Bound`]: a tool that
+    /// was killed at its deadline said nothing about the configuration, so it is
+    /// not a refusal and not a write failure. Every other failure is
+    /// [`Self::ConfigWrite`] carrying the protocol's message for the operator
+    /// log.
+    #[must_use]
+    pub(crate) fn from_config_write(error: SafeWriteError) -> Self {
+        match error {
+            SafeWriteError::ValidationFailed { .. } | SafeWriteError::ReloadFailed { .. } => {
+                Self::ServiceRefused {
+                    unit: AgentPaths::FTPS_UNIT.to_owned(),
+                }
+            }
+            SafeWriteError::SpawnFailed { .. } => Self::program_unavailable(),
+            SafeWriteError::Bound(bound) => Self::Bound(bound),
+            other => Self::ConfigWrite {
+                reason: other.to_string(),
+            },
+        }
+    }
+
     /// The error for a program that could not be started at all.
     #[must_use]
     pub fn program_unavailable() -> Self {
@@ -251,4 +331,22 @@ impl FtpsError {
 
         Self::SpawnFailed { code: status }
     }
+
+    /// Maps the refusal of a managed-account resolution onto this area's list.
+    ///
+    /// An absent row is [`Self::AccountMissing`], the answer the area always
+    /// gave for an account the host does not hold; every other refusal
+    /// (reserved, system identity, wrong home) is [`Self::AccountNotManaged`].
+    /// `ManagedAccountError` is `#[non_exhaustive]`, so a refusal added later
+    /// lands on the stricter answer.
+    pub(crate) fn from_managed_account(error: ManagedAccountError) -> Self {
+        match error {
+            ManagedAccountError::NotFound => Self::AccountMissing,
+            _ => Self::AccountNotManaged,
+        }
+    }
 }
+
+#[cfg(test)]
+#[path = "../tests/ftps/ftps_error_tests.rs"]
+mod tests;

@@ -23,11 +23,23 @@ internal sealed class GrpcFilesServiceInvoker : IFilesServiceInvoker
     {
         using var call = _client.WriteFile(cancellationToken: cancellationToken);
 
-        await call.RequestStream.WriteAsync(request, cancellationToken);
+        try
+        {
+            await call.RequestStream.WriteAsync(request, cancellationToken);
 
-        // The agent finishes the write when the request stream closes; without this the call hangs
-        // until the deadline and the file is never written.
-        await call.RequestStream.CompleteAsync();
+            // The agent finishes the write when the request stream closes; without this the call hangs
+            // until the deadline and the file is never written.
+            await call.RequestStream.CompleteAsync();
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            // The stream writer reports a connection that could not be made, or one that was torn,
+            // as a cancellation although nobody cancelled (the channel sets
+            // ThrowOperationCanceledOnCancellation). The call's own response task holds the real
+            // status, so awaiting it raises the RpcException every unary call raises and the
+            // pipeline maps it to the same typed answer (issue #87).
+            return await call.ResponseAsync;
+        }
 
         return await call.ResponseAsync;
     }

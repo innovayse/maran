@@ -108,6 +108,15 @@
   <data name="AuditActionAccountHomeGroupsRepaired">
     <value>Восстановлены группы домашних каталогов учётных записей</value>
   </data>
+  <data name="AuditActionPlanCreated">
+    <value>Тариф создан</value>
+  </data>
+  <data name="AuditActionPlanUpdated">
+    <value>Тариф изменён</value>
+  </data>
+  <data name="AuditActionPlanDeleted">
+    <value>Тариф удалён</value>
+  </data>
   <data name="AuditActionSftpUserCreated">
     <value>Создан SFTP-доступ</value>
   </data>
@@ -238,10 +247,25 @@
   <data name="AuditActionCustomerInvited">
     <value>Клиент приглашён</value>
   </data>
+  <data name="AuditActionInvitationLinkIssued">
+    <value>Создана ссылка-приглашение</value>
+  </data>
   <data name="AuditActionInvitationAccepted">
     <value>Приглашение принято</value>
   </data>
   <data name="AuditActionInvitationAcceptRefused">
     <value>Принятие приглашения отклонено</value>
+  </data>
+  <data name="InvitationStateNone">
+    <value>Приглашение не создано</value>
+  </data>
+  <data name="InvitationStatePending">
+    <value>Приглашение ожидает ответа</value>
+  </data>
+  <data name="InvitationStateExpired">
+    <value>Срок приглашения истёк</value>
+  </data>
+  <data name="InvitationStateAccepted">
+    <value>Приглашение принято</value>
   </data>
 </root>

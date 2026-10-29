@@ -4,6 +4,7 @@
 // A failing assertion IS the reporting mechanism for a test.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use maran_agent_core::utils::call_class::CallClass;
 use maran_agent_core::validation::system::ftps_user_name::FtpsUserName;
 
 use crate::accounts::take_account_lock;
@@ -55,10 +56,11 @@ fn userdel_is_run_without_the_flag_that_would_delete_the_customers_files() {
     assert_eq!(
         spawn.argv,
         vec![
-            distro().userdel_binary().to_owned(),
+            distro().userdel_binary().as_str().to_owned(),
+            "--".to_owned(),
             "ftpsdelflag_files".to_owned()
         ],
-        "the argument vector is the program and the name, and nothing else"
+        "the argument vector is the program, the marker and the name, and nothing else"
     );
 }
 
@@ -193,4 +195,28 @@ fn a_deletion_that_finished_leaves_the_hosting_accounts_lock_free() {
         take_account_lock(&account).is_some(),
         "the lock must be free once the operation returned"
     );
+}
+
+#[test]
+fn deleting_a_login_runs_userdel_as_a_mutation_and_not_as_a_bulk_removal() {
+    // `Bulk` is for `userdel --remove`, which walks a whole home. This call has
+    // no `--remove`, so a Bulk deadline would let a wedged `userdel` hold the
+    // account lock for half a day.
+    let host = host_with_login("ftpsdelclass");
+
+    delete_ftps_user(&host, distro(), &host.account_name(), &login(&host, SUFFIX))
+        .expect("the deletion must succeed");
+
+    let spawn = host.last_spawn().expect("userdel ran");
+    assert_eq!(spawn.class, Some(CallClass::Mutation));
+}
+
+#[test]
+fn a_userdel_that_times_out_is_a_bound_and_not_a_missing_login() {
+    let host = host_with_login("ftpsdeltimeout").timing_out("userdel");
+
+    let error = delete_ftps_user(&host, distro(), &host.account_name(), &login(&host, SUFFIX))
+        .expect_err("must fail");
+
+    assert!(matches!(error, FtpsError::Bound(_)), "got {error:?}");
 }

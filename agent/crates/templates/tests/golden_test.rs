@@ -33,7 +33,7 @@ fn php_body() -> String {
         access_log: "/var/log/maran/sites/acme/example.com.access.log",
         error_log: "/var/log/maran/sites/acme/example.com.error.log",
         document_root: "/home/acme/sites/example.com",
-        fpm_socket: Some("/run/maran/php/acme-8.3.sock"),
+        fpm_socket: Some("/run/maran-php/acme-8.3.sock"),
         upstream: None,
     }
     .render_config()
@@ -149,6 +149,103 @@ fn a_suspended_site_renders_its_golden() {
     );
 }
 
+/// A static site with a certificate renders its golden.
+///
+/// Its port-80 block holds only the challenge location and the redirect, so
+/// the challenge location's own link rule is the only one that block carries.
+#[test]
+fn a_static_site_with_ssl_renders_its_golden() {
+    let aliases = vec!["www.static.example".to_owned()];
+    let body = SiteBody {
+        access_log: "/var/log/maran/sites/acme/static.example.access.log",
+        error_log: "/var/log/maran/sites/acme/static.example.error.log",
+        document_root: "/home/acme/sites/static.example",
+        fpm_socket: None,
+        upstream: None,
+    }
+    .render_config()
+    .unwrap();
+    let ssl = SslBlock {
+        domain: "static.example",
+        aliases: &aliases,
+        certificate_path: "/etc/maran/certs/static.example/fullchain.pem",
+        certificate_key_path: "/etc/maran/certs/static.example/privkey.pem",
+        server_body: &body,
+    };
+    let site = StaticSite {
+        domain: "static.example",
+        aliases: &aliases,
+        document_root: "/home/acme/sites/static.example",
+        body: &body,
+        ssl: Some(ssl),
+    };
+
+    assert_eq!(
+        site.render_config().unwrap(),
+        golden("nginx/static_site_ssl.conf")
+    );
+}
+
+/// A proxied site with a certificate renders its golden.
+///
+/// Its challenge location is the only place the site opens a file, so that
+/// location's link rule is the only one the whole file carries.
+#[test]
+fn a_proxy_site_with_ssl_renders_its_golden() {
+    let aliases: Vec<String> = vec![];
+    let body = SiteBody {
+        access_log: "/var/log/maran/sites/acme/app.example.access.log",
+        error_log: "/var/log/maran/sites/acme/app.example.error.log",
+        document_root: "/home/acme/sites/app.example",
+        fpm_socket: None,
+        upstream: Some("127.0.0.1:3000"),
+    }
+    .render_config()
+    .unwrap();
+    let ssl = SslBlock {
+        domain: "app.example",
+        aliases: &aliases,
+        certificate_path: "/etc/maran/certs/app.example/fullchain.pem",
+        certificate_key_path: "/etc/maran/certs/app.example/privkey.pem",
+        server_body: &body,
+    };
+    let site = ProxySite {
+        domain: "app.example",
+        aliases: &aliases,
+        document_root: "/home/acme/sites/app.example",
+        body: &body,
+        ssl: Some(ssl),
+    };
+
+    assert_eq!(
+        site.render_config().unwrap(),
+        golden("nginx/proxy_site_ssl.conf")
+    );
+}
+
+/// The legacy suspended render is byte-for-byte the stub released agents wrote.
+///
+/// `ops::sites::is_suspended_vhost` recognises a suspension by comparing the
+/// file on disk with a render, so a stub an earlier agent wrote must still
+/// compare equal or the next renewal wakes that customer's site. The golden is
+/// a copy of the released agents' own `suspended_site.conf`.
+#[test]
+fn a_suspended_site_renders_the_stub_released_agents_wrote() {
+    let aliases: Vec<String> = vec![];
+    let site = SuspendedSite {
+        domain: "gone.example",
+        aliases: &aliases,
+        document_root: "/home/acme/sites/gone.example",
+        access_log: "/var/log/maran/sites/acme/gone.example.access.log",
+        error_log: "/var/log/maran/sites/acme/gone.example.error.log",
+    };
+
+    assert_eq!(
+        site.render_legacy_config().unwrap(),
+        golden("nginx/suspended_site_legacy.conf")
+    );
+}
+
 #[test]
 fn a_pool_renders_its_golden() {
     let overrides = vec![PoolOverride {
@@ -158,7 +255,7 @@ fn a_pool_renders_its_golden() {
     let pool = Pool {
         pool_name: "acme-8.3",
         account: "acme",
-        socket_path: "/run/maran/php/acme-8.3.sock",
+        socket_path: "/run/maran-php/acme-8.3.sock",
         web_server_user: "www-data",
         max_children: 10,
         start_servers: 2,

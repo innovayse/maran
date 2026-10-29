@@ -1,5 +1,7 @@
 //! Why a backup could not be created.
 
+use maran_agent_core::utils::bound_exceeded::BoundExceeded;
+
 /// The `status` reported when a program could not be started at all.
 ///
 /// Negative so it can never collide with an exit status, every one of which is
@@ -11,7 +13,9 @@ pub(crate) const PROGRAM_UNAVAILABLE: i32 = -1;
 ///
 /// One exhaustive list for the whole area (rules/rust.md "Errors"), and a
 /// deliberately narrow one: **no variant carries a program's output or a
-/// database's contents.** Every field of a creation's variants is an integer.
+/// database's contents.** Every field of a creation's variants is an integer,
+/// except [`BackupError::Bound`], whose payload names the program's own
+/// absolute path (an agent-derived string) and the bound that stopped it.
 ///
 /// A restore's variants had to widen that, because a restore's failures are
 /// about a live account and "one of your databases could not be put back" with
@@ -467,4 +471,23 @@ pub enum BackupError {
         /// The redacted reason.
         message: String,
     },
+
+    /// A program this area started ran past its deadline, or wrote more output
+    /// than the area is willing to hold, and was killed together with its
+    /// process group.
+    ///
+    /// It states one thing only: the program was stopped by the agent. It is
+    /// NOT a verdict on the archive, the dump or the database — a dump that was
+    /// killed at its deadline has not been shown to be bad, and an archive
+    /// listing that was cut off has not been shown to be hostile — so it never
+    /// stands in for [`Self::DumpFailed`], [`Self::ArchiveFailed`],
+    /// [`Self::DropFailed`] or [`Self::LoadFailed`], each of which says that
+    /// the program ran and refused. The payload names the program's path and
+    /// the bound and carries no byte the program printed.
+    #[error(transparent)]
+    Bound(#[from] BoundExceeded),
 }
+
+#[cfg(test)]
+#[path = "../tests/backup/backup_error_tests.rs"]
+mod tests;

@@ -8,15 +8,19 @@ namespace Maran.Host.Resilience;
 
 /// <summary>
 /// Puts every agent account operation through <see cref="AgentOperationPipeline"/>: a timeout, so a
-/// stuck unix-socket call cannot hang the HTTP request that made it, and a bounded retry on
-/// transport failures (rules/csharp.md "Every outbound call goes through a named resilience
-/// pipeline").
+/// stuck unix-socket call cannot hang the HTTP request that made it, a bounded retry on a connection
+/// to the agent that could not be established, and a typed answer — <c>AgentUnavailable</c>, a 503 —
+/// in place of the exception an unreachable agent used to throw (rules/csharp.md "Every outbound call
+/// goes through a named resilience pipeline").
 /// </summary>
 /// <remarks>
 /// A decorator rather than a change inside <c>AgentAccountsClient</c>, because the pipeline lives
 /// in the Host — the canonical layout puts <c>Resilience/</c> there — while the client project must
 /// not depend on the Host. Registered by <see cref="Extensions.ResilienceExtensions"/> over the
-/// client the agent project registers, so nothing else has to know the difference.
+/// client the agent project registers, so nothing else has to know the difference. The inner client
+/// lets a transport failure out as the exception it is, so the retry can see it; the decorator is
+/// what answers it, through <see cref="AgentOperationPipeline.ExecuteAsync{T, TState}"/>, which every
+/// decorator shares so that the answer is decided once.
 ///
 /// Before this existed, the pipeline was registered and resolved by nobody: the whole of
 /// <c>ResiliencePipelineProvider</c> appeared in the codebase exactly once, in a doc comment
@@ -122,12 +126,16 @@ public sealed class ResilientAgentAccountsClient : IAgentAccountsClient
     /// <typeparam name="T">The value the call produces.</typeparam>
     /// <param name="call">The call to make.</param>
     /// <param name="cancellationToken">The caller's cancellation token.</param>
-    /// <returns>What the call returned, once the pipeline has finished with it.</returns>
+    /// <returns>
+    /// What the call returned, once the pipeline has finished with it, or the typed failure a
+    /// transport failure is answered with.
+    /// </returns>
     private async Task<Result<T>> ExecuteAsync<T>(
         Func<CancellationToken, Task<Result<T>>> call,
         CancellationToken cancellationToken)
     {
-        return await _pipeline.ExecuteAsync(
+        return await AgentOperationPipeline.ExecuteAsync(
+            _pipeline,
             async (state, token) =>
             {
                 return await state(token);

@@ -41,8 +41,9 @@ type InstallStream = Pin<Box<dyn Stream<Item = Result<InstallPhpVersionResponse,
 pub struct PhpServiceImpl<H> {
     /// The machine the PHP operations run against.
     host: Arc<H>,
-    /// Where platform facts come from — the package manager, the package name
-    /// and the pool directory of each version. A service never branches on a
+    /// Where platform facts come from — the service manager, the package
+    /// name (which is the install unit's instance) and the pool directory of
+    /// each version. A service never branches on a
     /// distribution itself (rules/rust.md "Distro adapter"); it passes this on.
     distro: &'static dyn maran_distro::DistroAdapter,
 }
@@ -129,6 +130,10 @@ impl<H: PhpHost + 'static> PhpService for PhpServiceImpl<H> {
     /// The stream always ends with exactly one terminal message — the ok or
     /// the error — and never with a bare gRPC status for a domain outcome.
     ///
+    /// The agent does not run the package manager: it starts the installer's
+    /// `maran-php-install@<package>` unit and waits for it, because its own
+    /// sandbox keeps `/usr` read-only.
+    ///
     /// **Cancellation class: run to completion** (rules/rust.md, "Async and
     /// blocking"), with nothing to reclaim afterwards. A package manager
     /// stopped part-way is a broken host, and the rpc is idempotent, so the
@@ -139,9 +144,11 @@ impl<H: PhpHost + 'static> PhpService for PhpServiceImpl<H> {
     ///
     /// It is bounded: the channel has a ceiling, and a client that drops the
     /// stream closes it, after which each remaining send fails immediately
-    /// rather than blocking. The package manager itself is not interrupted —
-    /// half an `apt-get install` is a broken host, and the panel retries the
-    /// rpc, which is idempotent — but nothing accumulates on its behalf.
+    /// rather than blocking. The package manager is not interrupted, and
+    /// the agent could not interrupt it: it runs in its own unit's cgroup, so
+    /// neither a dropped client nor a restart of the agent stops it — half a
+    /// package-manager run is a broken host, and the panel retries the rpc,
+    /// which is idempotent — and nothing accumulates on its behalf.
     async fn install_php_version(
         &self,
         request: Request<InstallPhpVersionRequest>,
@@ -200,3 +207,7 @@ impl<H: PhpHost + 'static> PhpService for PhpServiceImpl<H> {
         Ok(Response::new(Box::pin(ReceiverStream::new(receiver))))
     }
 }
+
+#[cfg(test)]
+#[path = "../../tests/services/php/php_service_tests.rs"]
+mod tests;

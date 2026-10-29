@@ -159,3 +159,22 @@ fn a_range_is_denied_by_naming_both_bounds_and_not_by_its_first_port() {
 
     assert!(!live(&host).contains("30000"), "the range must be gone");
 }
+
+/// A deny whose load was killed at its deadline is a bound, not a success and
+/// not an `nft` failure, and it does not keep the host-wide firewall lock.
+#[test]
+fn a_deny_whose_load_times_out_is_a_bound_and_releases_the_firewall_lock() {
+    let rule = open_rule(8080, NftablesProtocol::Tcp);
+    let hung = FakeFirewallHost::with_rules(slice::from_ref(&rule));
+    hung.time_out_on("-f");
+
+    let outcome = deny_port(&hung, distro(), &ports(), &rule);
+
+    assert!(
+        matches!(outcome, Err(FirewallError::Bound(_))),
+        "expected a bound, got {outcome:?}"
+    );
+
+    let healthy = FakeFirewallHost::with_rules(slice::from_ref(&rule));
+    assert_eq!(deny_port(&healthy, distro(), &ports(), &rule), Ok(()));
+}

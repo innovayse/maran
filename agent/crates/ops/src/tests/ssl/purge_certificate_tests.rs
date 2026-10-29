@@ -54,3 +54,20 @@ fn a_removal_that_fails_does_not_stop_the_caller() {
     // The material is still there, which is exactly what the warning says.
     assert_eq!(host.stored_count(), 2);
 }
+
+#[test]
+fn a_purge_whose_removal_times_out_is_still_not_an_error_for_the_caller() {
+    // The site IS deleted; a killed removal is logged (a key may remain on disk)
+    // and must not make the caller retry an operation that already succeeded.
+    let host = FakeSslHost::passing();
+    let input = php_input();
+    host.preinstall(
+        &SiteCertificate::for_domain(&input.domain),
+        &matching_material(),
+    );
+    host.time_out_material_writes();
+
+    purge_certificate(&host, distro(), &input.domain);
+
+    assert_eq!(host.stored_count(), 2, "the removal never happened");
+}

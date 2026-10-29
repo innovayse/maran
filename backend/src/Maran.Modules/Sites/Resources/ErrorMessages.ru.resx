@@ -60,4 +60,10 @@
   <data name="SiteLogTailFailed">
     <value>Не удалось прочитать журнал.</value>
   </data>
+  <data name="SiteDomainReserved">
+    <value>Это имя нельзя использовать для сайта.</value>
+  </data>
+  <data name="SiteAliasReserved">
+    <value>Одно из дополнительных имён нельзя использовать для сайта.</value>
+  </data>
 </root>

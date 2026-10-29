@@ -183,3 +183,49 @@ fn the_generated_subject_still_says_what_the_certificate_is() {
     // marker file is — and it must never be turned back into one.
     assert!(requested[1].contains("/OU=maran-self-signed"));
 }
+
+#[test]
+fn a_generation_that_times_out_is_a_bound_and_installs_nothing() {
+    let host = host_with_site();
+    let writes_before = host.vhost_writes();
+    host.time_out_openssl();
+
+    let failure = generate_self_signed(&host, distro(), &php_input()).unwrap_err();
+
+    assert!(matches!(failure, SslOpError::Bound(_)), "{failure:?}");
+    assert_eq!(host.stored_count(), 0);
+    assert_eq!(host.vhost_writes(), writes_before);
+    let certificate = SiteCertificate::for_domain(&php_input().domain);
+    assert!(
+        !host.has_marker(&self_signed_marker(&certificate)),
+        "a marker describes bytes that were never written"
+    );
+}
+
+#[test]
+fn a_placeholder_check_that_times_out_leaves_the_installed_certificate_untouched() {
+    // The decision "may this be replaced" rests on an openssl read. A killed
+    // read must neither authorise the replacement nor be read as "not ours":
+    // the caller is told the agent got no answer.
+    let host = host_with_site();
+    generate_self_signed(&host, distro(), &php_input()).unwrap();
+    let certificate = SiteCertificate::for_domain(&php_input().domain);
+    let before = host.stored(certificate.key_path());
+    host.time_out_openssl();
+
+    let failure = generate_self_signed(&host, distro(), &php_input()).unwrap_err();
+
+    assert!(matches!(failure, SslOpError::Bound(_)), "{failure:?}");
+    assert_eq!(host.stored(certificate.key_path()), before);
+    assert!(host.has_marker(&self_signed_marker(&certificate)));
+}
+
+#[test]
+fn the_placeholder_is_generated_with_the_adapters_openssl() {
+    let host = host_with_site();
+
+    generate_self_signed(&host, distro(), &php_input()).unwrap();
+
+    let expected = distro().openssl_binary().as_str().to_owned();
+    assert!(host.programs().contains(&expected), "{:?}", host.programs());
+}

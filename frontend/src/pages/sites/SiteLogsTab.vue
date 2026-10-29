@@ -17,6 +17,9 @@
  * `v-html`, never a string of markup (rules/vue.md: raw HTML is an XSS hole in a panel that
  * renders exactly this kind of content).
  *
+ * The log scrolls inside its own pane (lines wrap and the pane is height-capped), so a long line
+ * never makes the page scroll horizontally at 390px.
+ *
  * The stream is stopped on unmount and whenever the source changes: a stream nobody aborts
  * keeps its connection open for the life of the tab.
  */
@@ -25,6 +28,7 @@ import { useI18n } from 'vue-i18n'
 import UiAlert from '../../components/ui/UiAlert.vue'
 import UiBadge from '../../components/ui/UiBadge.vue'
 import UiButton from '../../components/ui/UiButton.vue'
+import UiCard from '../../components/ui/UiCard.vue'
 import UiEmptyState from '../../components/ui/UiEmptyState.vue'
 import UiSegmentedControl, { type SegmentOption } from '../../components/ui/UiSegmentedControl.vue'
 import { useSitesStore } from '../../stores/sites'
@@ -125,25 +129,9 @@ onBeforeUnmount(stop)
 </script>
 
 <template>
-  <div class="flex flex-col gap-3">
-    <div class="flex flex-wrap items-center gap-2">
-      <UiSegmentedControl
-        :model-value="source"
-        :options="sourceOptions"
-        :label="t('sites.detail.logs.sourceLabel')"
-        @update:model-value="onSourceChange"
-      />
-      <UiButton v-if="isStreaming" variant="secondary" @click="stop">
-        {{ t('sites.detail.logs.stop') }}
-      </UiButton>
-      <UiButton v-else @click="start">{{ t('sites.detail.logs.start') }}</UiButton>
-      <span v-if="isStreaming" class="text-sm text-text-muted">{{ t('sites.detail.logs.streaming') }}</span>
-      <span v-if="store.logLines.length > 0" class="ml-auto font-mono text-xs text-text-muted">
-        {{ t('sites.detail.logs.lineCount', { count: store.logLines.length }) }}
-      </span>
-    </div>
-
-    <!-- The view's own truncation, stated rather than implied by a line count. -->
+  <div class="flex min-w-0 flex-col gap-4">
+    <!-- Notices come first: whether lines are missing is the one thing the operator must see before
+         reading the pane. The view's own truncation is stated rather than implied by a line count. -->
     <UiAlert v-if="store.logScrollbackTruncated" variant="info">
       {{ t('sites.detail.logs.truncatedNotice') }}
     </UiAlert>
@@ -152,29 +140,58 @@ onBeforeUnmount(stop)
       {{ endText }}
     </UiAlert>
 
+    <UiCard class="flex flex-col gap-4">
+      <div class="flex flex-wrap items-center gap-x-3 gap-y-2">
+        <UiSegmentedControl
+          :model-value="source"
+          :options="sourceOptions"
+          :label="t('sites.detail.logs.sourceLabel')"
+          @update:model-value="onSourceChange"
+        />
+        <UiButton v-if="isStreaming" variant="secondary" @click="stop">
+          {{ t('sites.detail.logs.stop') }}
+        </UiButton>
+        <UiButton v-else @click="start">{{ t('sites.detail.logs.start') }}</UiButton>
+        <span v-if="isStreaming" class="text-sm text-text-muted">{{ t('sites.detail.logs.streaming') }}</span>
+        <span
+          v-if="store.logLines.length > 0"
+          class="font-mono text-xs text-text-muted tabular-nums sm:ml-auto"
+        >
+          {{ t('sites.detail.logs.lineCount', { count: store.logLines.length }) }}
+        </span>
+      </div>
+
+      <p v-if="store.logLines.length === 0 && isStreaming" class="text-sm text-text-muted">
+        {{ t('sites.detail.logs.waiting') }}
+      </p>
+
+      <!-- The pane scrolls inside itself, never the page: lines wrap (`break-all`) so a long one
+           cannot widen it, and `min-w-0` lets it shrink inside the flex column at 390px. It is a
+           tab stop so a keyboard user can scroll it. -->
+      <ol
+        v-else-if="store.logLines.length > 0"
+        tabindex="0"
+        :aria-label="t(`sites.detail.logs.source.${source}`)"
+        class="max-h-96 min-w-0 overflow-auto overscroll-contain rounded-control border border-border-subtle bg-page p-3 outline-none focus-visible:shadow-focus"
+      >
+        <li
+          v-for="(line, index) in store.logLines"
+          :key="index"
+          class="flex items-start gap-2 py-0.5 font-mono text-xs leading-relaxed text-text-secondary"
+        >
+          <UiBadge v-if="line.historical" variant="neutral" class="shrink-0">
+            {{ t('sites.detail.logs.historical') }}
+          </UiBadge>
+          <!-- Interpolation, always: this is a customer-controlled string. -->
+          <span class="min-w-0 whitespace-pre-wrap break-all">{{ line.line }}</span>
+        </li>
+      </ol>
+    </UiCard>
+
     <UiEmptyState
       v-if="isUntouched"
       :title="t('sites.detail.logs.emptyTitle')"
       :description="t('sites.detail.logs.emptyDescription')"
     />
-
-    <p v-else-if="store.logLines.length === 0 && isStreaming" class="text-sm text-text-muted">
-      {{ t('sites.detail.logs.waiting') }}
-    </p>
-
-    <ol
-      v-else-if="store.logLines.length > 0"
-      class="max-h-96 overflow-auto rounded-xl border border-border-subtle bg-surface-1 p-3"
-    >
-      <li
-        v-for="(line, index) in store.logLines"
-        :key="index"
-        class="flex items-start gap-2 py-0.5 font-mono text-sm text-text-secondary"
-      >
-        <UiBadge v-if="line.historical" variant="neutral">{{ t('sites.detail.logs.historical') }}</UiBadge>
-        <!-- Interpolation, always: this is a customer-controlled string. -->
-        <span class="whitespace-pre-wrap break-all">{{ line.line }}</span>
-      </li>
-    </ol>
   </div>
 </template>

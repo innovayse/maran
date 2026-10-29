@@ -27,14 +27,16 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
 
+use maran_agent_core::utils::call_class::CallClass;
 use maran_agent_core::utils::system_account::SystemAccount;
 use maran_agent_core::validation::system::cron_command::CronCommand;
 use maran_agent_core::validation::system::cron_entry_id::CronEntryId;
 use maran_agent_core::validation::system::ftps_user_name::FtpsUserName;
+use maran_agent_core::validation::system::managed_account::ManagedAccount;
 use maran_agent_core::validation::system::name::AccountName;
 use maran_agent_core::validation::system::sftp_user_name::SftpUserName;
 use maran_agent_core::validation::web::domain::Domain;
-use maran_distro::{DistroFamily, adapter_for};
+use maran_distro::{AdapterBinary, DistroFamily, adapter_for};
 use maran_ops::accounts::{AccountError, AccountOperations, CommandOutcome, SystemHost};
 use maran_ops::cron::model::cron_run_record::CronRunRecord;
 use maran_ops::cron::{CronError, CronHost};
@@ -51,9 +53,12 @@ use tonic::Request;
 
 use crate::proto::accounts_service_server::AccountsService;
 use crate::proto::{
-    CreateAccountRequest, ErrorCode, GetAccountSuspensionStateRequest, GetAccountUsageRequest,
-    LoginPasswordState, create_account_response, get_account_suspension_state_response,
-    get_account_usage_response,
+    AgentError, CreateAccountRequest, DeleteAccountRequest, ErrorCode,
+    GetAccountSuspensionStateRequest, GetAccountUsageRequest, LoginPasswordState,
+    SetAccountQuotaRequest, SuspendAccountRequest, UnsuspendAccountRequest,
+    create_account_response, delete_account_response, get_account_suspension_state_response,
+    get_account_usage_response, set_account_quota_response, suspend_account_response,
+    unsuspend_account_response,
 };
 use crate::services::accounts::accounts_service::AccountsServiceImpl;
 
@@ -91,6 +96,23 @@ const FAKE_UID_OUTPUT: &str = "1000";
 struct BlockingSystemHost {
     /// When the blocking call began, set once by whichever thread runs it.
     blocking_began: Arc<Mutex<Option<Instant>>>,
+    /// The local password database the host answers, which is what every
+    /// operation on an existing account resolves its managed account from.
+    passwd: String,
+    /// How many times the host was asked to spawn a program or measure a tree:
+    /// the two ways an operation reaches the machine as root. Zero is the
+    /// proof that a refused request ran nothing.
+    effects: Arc<Mutex<usize>>,
+}
+
+impl BlockingSystemHost {
+    /// Counts one reach into the machine.
+    fn touch(&self) {
+        *self
+            .effects
+            .lock()
+            .expect("the effect counter is not held across a panic") += 1;
+    }
 }
 
 impl SystemHost for BlockingSystemHost {
@@ -105,14 +127,20 @@ impl SystemHost for BlockingSystemHost {
     /// which is the pair `passwd -S` alone cannot express. Anything else would
     /// make that rpc fail here for a reason that has nothing to do with what
     /// this file tests.
-    fn run(&self, _program: &str, arguments: &[&str]) -> Result<CommandOutcome, AccountError> {
+    fn run(
+        &self,
+        _program: &AdapterBinary,
+        arguments: &[&str],
+        _class: CallClass,
+    ) -> Result<CommandOutcome, AccountError> {
+        self.touch();
         let stdout = match arguments {
             ["-S", username] => format!("{username} L 2026-01-01 0 99999 7 -1\n"),
-            ["shadow", username] => format!("{username}:!:20704:0:99999:7:::\n"),
+            ["--", "shadow", username] => format!("{username}:!:20704:0:99999:7:::\n"),
             // `quotaon -p <mountpoint>`, for the usage rpc's own enforceability
             // check: answered as an enforceable filesystem, since what this
             // file tests is scheduling, not quota classification.
-            ["-p", _] => "Quota for users are enabled on mountpoint /home\n".to_owned(),
+            ["-p", "--", _] => "Quota for users are enabled on mountpoint /home\n".to_owned(),
             _ => FAKE_UID_OUTPUT.to_owned(),
         };
 
@@ -144,12 +172,14 @@ impl SystemHost for BlockingSystemHost {
 
     /// An empty home; the usage rpc reads the number but asserts nothing on it.
     fn directory_size(&self, _path: &str) -> Result<u64, AccountError> {
+        self.touch();
         Ok(0)
     }
 
-    /// Unreachable: no rpc driven in this file repairs a home's group.
+    /// The configured password database: the two hosting accounts this file
+    /// drives by default, or whatever a refusal test installed.
     fn read_password_database(&self, _path: &str) -> Result<String, AccountError> {
-        unreachable!("no rpc in this file reaches the password database")
+        Ok(self.passwd.clone())
     }
 
     /// A filesystem mounted with quota accounting — the usage rpc's own
@@ -166,6 +196,9 @@ impl SystemHost for BlockingSystemHost {
     ) -> Result<Option<maran_ops::accounts::model::home_metadata::HomeMetadata>, AccountError> {
         unreachable!("no rpc in this file inspects a home's metadata")
     }
+
+    /// Returns at once: virtual time, and no rpc driven here deletes an account.
+    fn pause(&self, _interval: Duration) {}
 }
 
 /// The php host the service holds for the deletion cascade.
@@ -177,7 +210,12 @@ struct UnusedPhpHost;
 
 impl ConfigHost for UnusedPhpHost {
     /// Unreachable: no rpc driven here writes a pool.
-    fn run(&self, _program: &str, _arguments: &[&str]) -> Result<SafeWriteOutcome, SafeWriteError> {
+    fn run(
+        &self,
+        _program: &AdapterBinary,
+        _arguments: &[&str],
+        _class: CallClass,
+    ) -> Result<SafeWriteOutcome, SafeWriteError> {
         unreachable!("no rpc in this file reaches the php host")
     }
 }
@@ -253,15 +291,25 @@ impl SftpHost for UnusedSftpHost {
     /// Unreachable: no rpc driven here touches a login.
     fn run(
         &self,
-        _program: &str,
+        _program: &AdapterBinary,
         _arguments: &[&str],
         _stdin: Option<&str>,
+        _class: CallClass,
     ) -> Result<CommandOutcome, SftpError> {
         unreachable!("no rpc in this file reaches the sftp host")
     }
 
     /// Unreachable: see [`UnusedSftpHost`].
     fn account_ownership(&self, _account: &AccountName) -> Result<AccountOwnership, SftpError> {
+        unreachable!("no rpc in this file reaches the sftp host")
+    }
+
+    /// Unreachable: see [`UnusedSftpHost`].
+    fn managed_account(
+        &self,
+        _passwd_database: &str,
+        _account: &AccountName,
+    ) -> Result<ManagedAccount, SftpError> {
         unreachable!("no rpc in this file reaches the sftp host")
     }
 
@@ -323,7 +371,12 @@ struct UnusedFtpsHost;
 
 impl FtpsHost for UnusedFtpsHost {
     /// Unreachable: see [`UnusedFtpsHost`].
-    fn run(&self, _program: &str, _arguments: &[&str]) -> Result<CommandOutcome, FtpsError> {
+    fn run(
+        &self,
+        _program: &AdapterBinary,
+        _arguments: &[&str],
+        _class: CallClass,
+    ) -> Result<CommandOutcome, FtpsError> {
         unreachable!("no rpc in this file reaches the ftps host")
     }
 
@@ -346,7 +399,7 @@ impl FtpsHost for UnusedFtpsHost {
     /// Unreachable: see [`UnusedFtpsHost`].
     fn run_candidate(
         &self,
-        _program: &str,
+        _program: &AdapterBinary,
         _contents: &str,
         _arguments: &[&str],
         _deadline: Duration,
@@ -370,6 +423,16 @@ impl FtpsHost for UnusedFtpsHost {
     }
 
     /// Unreachable: see [`UnusedFtpsHost`].
+    fn pause(&self, _duration: Duration) {
+        unreachable!("no rpc in this file reaches the ftps host")
+    }
+
+    /// Unreachable: see [`UnusedFtpsHost`].
+    fn monotonic_now(&self) -> Duration {
+        unreachable!("no rpc in this file reaches the ftps host")
+    }
+
+    /// Unreachable: see [`UnusedFtpsHost`].
     fn certificate_state(&self, _domain: &Domain) -> Result<CertificateState, FtpsError> {
         unreachable!("no rpc in this file reaches the ftps host")
     }
@@ -377,15 +440,25 @@ impl FtpsHost for UnusedFtpsHost {
     /// Unreachable: see [`UnusedFtpsHost`].
     fn run_with_stdin(
         &self,
-        _program: &str,
+        _program: &AdapterBinary,
         _arguments: &[&str],
         _stdin: &str,
+        _class: CallClass,
     ) -> Result<CommandOutcome, FtpsError> {
         unreachable!("no rpc in this file reaches the ftps host")
     }
 
     /// Unreachable: see [`UnusedFtpsHost`].
     fn account_ownership(&self, _account: &AccountName) -> Result<AccountOwnership, FtpsError> {
+        unreachable!("no rpc in this file reaches the ftps host")
+    }
+
+    /// Unreachable: see [`UnusedFtpsHost`].
+    fn managed_account(
+        &self,
+        _passwd_database: &str,
+        _account: &AccountName,
+    ) -> Result<ManagedAccount, FtpsError> {
         unreachable!("no rpc in this file reaches the ftps host")
     }
 
@@ -450,7 +523,12 @@ impl LoginsHost for UnusedLoginsHost {
     }
 
     /// Unreachable: an account with no login is asked about none.
-    fn run(&self, _program: &str, _arguments: &[&str]) -> Result<CommandOutcome, LoginsError> {
+    fn run(
+        &self,
+        _program: &AdapterBinary,
+        _arguments: &[&str],
+        _class: CallClass,
+    ) -> Result<CommandOutcome, LoginsError> {
         unreachable!("no login exists in this file, so none is asked about")
     }
 }
@@ -500,6 +578,18 @@ impl SiteHost for UnusedSiteHost {
     }
 
     /// Unreachable: see [`UnusedSiteHost`].
+    fn create_config(
+        &self,
+        _target: &Path,
+        _contents: &str,
+        _validator: &Validator<'_>,
+        _reload: &Reload<'_>,
+        _refused_warnings: &[String],
+    ) -> Result<(), SitesOpError> {
+        unreachable!("no rpc in this file reaches the site host")
+    }
+
+    /// Unreachable: see [`UnusedSiteHost`].
     fn remove_config(
         &self,
         _target: &Path,
@@ -528,13 +618,19 @@ impl SiteHost for UnusedSiteHost {
 struct UnusedCronHost;
 
 impl CronHost for UnusedCronHost {
+    /// Resolves the account against the two hosting accounts this file drives,
+    /// as the real host resolves it against the password database.
+    fn managed_account(&self, account: &AccountName) -> Result<ManagedAccount, CronError> {
+        ManagedAccount::resolve(account.clone(), &standard_passwd()).map_err(CronError::Account)
+    }
+
     /// No crontab at all.
-    fn read_crontab(&self, _account: &AccountName) -> Result<Option<String>, CronError> {
+    fn read_crontab(&self, _account: &ManagedAccount) -> Result<Option<String>, CronError> {
         Ok(None)
     }
 
     /// Unreachable: the suspension state never installs a table.
-    fn install_crontab(&self, _account: &AccountName, _contents: &str) -> Result<(), CronError> {
+    fn install_crontab(&self, _account: &ManagedAccount, _contents: &str) -> Result<(), CronError> {
         unreachable!("no rpc in this file installs a crontab")
     }
 
@@ -546,7 +642,7 @@ impl CronHost for UnusedCronHost {
     /// Unreachable: see [`UnusedCronHost`].
     fn write_command_file(
         &self,
-        _account: &AccountName,
+        _account: &ManagedAccount,
         _entry: &CronEntryId,
         _command: &CronCommand,
     ) -> Result<(), CronError> {
@@ -556,7 +652,7 @@ impl CronHost for UnusedCronHost {
     /// Unreachable: see [`UnusedCronHost`].
     fn read_command_file(
         &self,
-        _account: &AccountName,
+        _account: &ManagedAccount,
         _entry: &CronEntryId,
     ) -> Result<Option<String>, CronError> {
         unreachable!("no rpc in this file reads a command file")
@@ -565,7 +661,7 @@ impl CronHost for UnusedCronHost {
     /// Unreachable: see [`UnusedCronHost`].
     fn remove_entry_files(
         &self,
-        _account: &AccountName,
+        _account: &ManagedAccount,
         _entry: &CronEntryId,
     ) -> Result<(), CronError> {
         unreachable!("no rpc in this file removes entry files")
@@ -574,7 +670,7 @@ impl CronHost for UnusedCronHost {
     /// Unreachable: see [`UnusedCronHost`].
     fn read_run_record(
         &self,
-        _account: &AccountName,
+        _account: &ManagedAccount,
         _entry: &CronEntryId,
     ) -> Result<Option<CronRunRecord>, CronError> {
         unreachable!("no rpc in this file reads a run record")
@@ -583,7 +679,7 @@ impl CronHost for UnusedCronHost {
     /// Unreachable: see [`UnusedCronHost`].
     fn read_output_tail(
         &self,
-        _account: &AccountName,
+        _account: &ManagedAccount,
         _entry: &CronEntryId,
         _max_bytes: usize,
     ) -> Result<Option<String>, CronError> {
@@ -603,11 +699,32 @@ type ServiceUnderTest = AccountsServiceImpl<
     UnusedLoginsHost,
 >;
 
-/// Builds the service the way `server.rs` builds it, over the blocking host.
-fn service() -> (Arc<ServiceUnderTest>, Arc<Mutex<Option<Instant>>>) {
+/// The service under test with the two cells its host records into: when the
+/// blocking call began, and how many state-changing calls reached the host.
+type ServiceAndCells = (
+    Arc<ServiceUnderTest>,
+    Arc<Mutex<Option<Instant>>>,
+    Arc<Mutex<usize>>,
+);
+
+/// The password database of the two hosting accounts this file drives: ids
+/// above any floor, each home exactly under `/home`.
+fn standard_passwd() -> String {
+    format!(
+        "{SLOW_ACCOUNT}:x:1001:1001::/home/{SLOW_ACCOUNT}:/usr/sbin/nologin\n\
+         {FAST_ACCOUNT}:x:1002:1002::/home/{FAST_ACCOUNT}:/usr/sbin/nologin\n"
+    )
+}
+
+/// Builds the service the way `server.rs` builds it, over a host answering
+/// `passwd`, and returns the cells the host records into.
+fn service_over(passwd: String) -> ServiceAndCells {
     let blocking_began = Arc::new(Mutex::new(None));
+    let effects = Arc::new(Mutex::new(0));
     let host = BlockingSystemHost {
         blocking_began: Arc::clone(&blocking_began),
+        passwd,
+        effects: Arc::clone(&effects),
     };
     let distro = adapter_for(DistroFamily::Debian);
 
@@ -623,7 +740,15 @@ fn service() -> (Arc<ServiceUnderTest>, Arc<Mutex<Option<Instant>>>) {
             UnusedLoginsHost,
         )),
         blocking_began,
+        effects,
     )
+}
+
+/// Builds the service over the two ordinary hosting accounts.
+fn service() -> (Arc<ServiceUnderTest>, Arc<Mutex<Option<Instant>>>) {
+    let (service, blocking_began, _) = service_over(standard_passwd());
+
+    (service, blocking_began)
 }
 
 /// The moment the blocking host entered its spawn, waited for by yielding
@@ -779,4 +904,250 @@ async fn a_suspension_state_asked_for_an_impossible_username_is_refused_in_the_p
     };
 
     assert_eq!(error.code, ErrorCode::InvalidInput as i32);
+}
+
+/// The refusal inside an rpc's `oneof`, when it answered with one.
+fn refusal_of<T>(
+    result: Option<T>,
+    pick: impl FnOnce(T) -> Option<AgentError>,
+) -> Option<AgentError> {
+    result.and_then(pick)
+}
+
+/// Sends every rpc that acts on an account to `service`, naming `username`,
+/// and returns each rpc's refusal (`None` when it answered with an ok).
+async fn every_rpc_for(
+    service: &Arc<ServiceUnderTest>,
+    username: &str,
+) -> Vec<(&'static str, Option<AgentError>)> {
+    let username = username.to_owned();
+    vec![
+        (
+            "create",
+            refusal_of(
+                service
+                    .create_account(Request::new(CreateAccountRequest {
+                        username: username.clone(),
+                        quota_bytes: 0,
+                    }))
+                    .await
+                    .unwrap()
+                    .into_inner()
+                    .result,
+                |result| match result {
+                    create_account_response::Result::Error(error) => Some(error),
+                    create_account_response::Result::Ok(_) => None,
+                },
+            ),
+        ),
+        (
+            "suspend",
+            refusal_of(
+                service
+                    .suspend_account(Request::new(SuspendAccountRequest {
+                        username: username.clone(),
+                    }))
+                    .await
+                    .unwrap()
+                    .into_inner()
+                    .result,
+                |result| match result {
+                    suspend_account_response::Result::Error(error) => Some(error),
+                    suspend_account_response::Result::Ok(_) => None,
+                },
+            ),
+        ),
+        (
+            "unsuspend",
+            refusal_of(
+                service
+                    .unsuspend_account(Request::new(UnsuspendAccountRequest {
+                        username: username.clone(),
+                    }))
+                    .await
+                    .unwrap()
+                    .into_inner()
+                    .result,
+                |result| match result {
+                    unsuspend_account_response::Result::Error(error) => Some(error),
+                    unsuspend_account_response::Result::Ok(_) => None,
+                },
+            ),
+        ),
+        (
+            "delete",
+            refusal_of(
+                service
+                    .delete_account(Request::new(DeleteAccountRequest {
+                        username: username.clone(),
+                    }))
+                    .await
+                    .unwrap()
+                    .into_inner()
+                    .result,
+                |result| match result {
+                    delete_account_response::Result::Error(error) => Some(error),
+                    delete_account_response::Result::Ok(_) => None,
+                },
+            ),
+        ),
+        (
+            "set_quota",
+            refusal_of(
+                service
+                    .set_account_quota(Request::new(SetAccountQuotaRequest {
+                        username: username.clone(),
+                        quota_bytes: 1024,
+                    }))
+                    .await
+                    .unwrap()
+                    .into_inner()
+                    .result,
+                |result| match result {
+                    set_account_quota_response::Result::Error(error) => Some(error),
+                    set_account_quota_response::Result::Ok(_) => None,
+                },
+            ),
+        ),
+        (
+            "usage",
+            refusal_of(
+                service
+                    .get_account_usage(Request::new(GetAccountUsageRequest {
+                        username: username.clone(),
+                    }))
+                    .await
+                    .unwrap()
+                    .into_inner()
+                    .result,
+                |result| match result {
+                    get_account_usage_response::Result::Error(error) => Some(error),
+                    get_account_usage_response::Result::Ok(_) => None,
+                },
+            ),
+        ),
+        (
+            "suspension_state",
+            refusal_of(
+                service
+                    .get_account_suspension_state(Request::new(GetAccountSuspensionStateRequest {
+                        username,
+                    }))
+                    .await
+                    .unwrap()
+                    .into_inner()
+                    .result,
+                |result| match result {
+                    get_account_suspension_state_response::Result::Error(error) => Some(error),
+                    get_account_suspension_state_response::Result::Ok(_) => None,
+                },
+            ),
+        ),
+    ]
+}
+
+/// Every rpc that acts on an account answers a reserved name with the typed
+/// refusal, and nothing reaches the machine.
+///
+/// `create` is in the list for the same name: it is refused before the host is
+/// asked whether such a user exists.
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn every_account_rpc_refuses_root_with_invalid_input_and_runs_nothing() {
+    let (service, _, effects) =
+        service_over("root:x:0:0:root:/root:/bin/bash\n".to_owned() + &standard_passwd());
+
+    for (rpc, refusal) in every_rpc_for(&service, "root").await {
+        let error = refusal.unwrap_or_else(|| panic!("{rpc} must refuse root"));
+        assert_eq!(
+            error.code,
+            ErrorCode::InvalidInput as i32,
+            "{rpc} must answer a refusal of the request, not a fault or an absence"
+        );
+        assert_eq!(
+            error.message, "account 'root' is not a hosting account this panel manages",
+            "{rpc}"
+        );
+        assert!(error.tool_output.is_empty(), "{rpc}");
+    }
+    assert_eq!(
+        *effects.lock().unwrap(),
+        0,
+        "a refused request must not spawn a program or measure a tree"
+    );
+}
+
+/// An existing user that is not a hosting account is a refusal, an absent one
+/// is not found, and the two are never confused with each other or with an
+/// idempotency outcome.
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn an_unmanaged_user_is_invalid_input_and_an_absent_user_is_not_found() {
+    let passwd = standard_passwd()
+        + "ubuntu:x:1000:1000::/home/ubuntu:/bin/bash\n\
+           opsadmin:x:1003:1003::/srv/opsadmin:/bin/bash\n";
+    let (service, _, effects) = service_over(passwd);
+
+    for user in ["ubuntu", "opsadmin"] {
+        for (rpc, refusal) in every_rpc_for(&service, user)
+            .await
+            .into_iter()
+            .filter(|(rpc, _)| *rpc != "create")
+        {
+            let error = refusal.unwrap_or_else(|| panic!("{rpc} must refuse {user}"));
+            assert_eq!(
+                error.code,
+                ErrorCode::InvalidInput as i32,
+                "{rpc} on {user}"
+            );
+        }
+    }
+    assert_eq!(*effects.lock().unwrap(), 0);
+
+    for (rpc, refusal) in every_rpc_for(&service, "ghostuser")
+        .await
+        .into_iter()
+        .filter(|(rpc, _)| *rpc != "create")
+    {
+        let error = refusal.unwrap_or_else(|| panic!("{rpc} must refuse a user that is absent"));
+        assert_eq!(error.code, ErrorCode::NotFound as i32, "{rpc}");
+    }
+}
+
+/// The inverse control: a hosting account is still served over the same rpcs.
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn a_hosting_account_is_still_suspended_and_unsuspended_over_the_rpc() {
+    let (service, _, effects) = service_over(standard_passwd());
+
+    let suspended = service
+        .suspend_account(Request::new(SuspendAccountRequest {
+            username: FAST_ACCOUNT.to_owned(),
+        }))
+        .await
+        .unwrap()
+        .into_inner();
+    let unsuspended = service
+        .unsuspend_account(Request::new(UnsuspendAccountRequest {
+            username: FAST_ACCOUNT.to_owned(),
+        }))
+        .await
+        .unwrap()
+        .into_inner();
+
+    assert!(
+        matches!(
+            suspended.result,
+            Some(suspend_account_response::Result::Ok(_))
+        ),
+        "{suspended:?}"
+    );
+    assert!(
+        matches!(
+            unsuspended.result,
+            Some(unsuspend_account_response::Result::Ok(_))
+        ),
+        "{unsuspended:?}"
+    );
+    assert!(
+        *effects.lock().unwrap() > 0,
+        "the accepted request must reach the host, or the refusals above prove nothing"
+    );
 }

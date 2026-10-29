@@ -10,6 +10,7 @@
       "reverseProxy": "Հակադարձ պրոքսի"
     },
     "list": {
+      "eyebrow": "Հոսթինգ",
       "heading": "Կայքեր",
       "subtitle": "Այս սերվերի սպասարկած կայքերը։",
       "createAction": "Նոր կայք",
@@ -24,7 +25,8 @@
         "status": "Կարգավիճակ",
         "createdAt": "Ստեղծված"
       },
-      "phpVersionsLink": "PHP տարբերակներ"
+      "phpVersionsLink": "PHP տարբերակներ",
+      "disabledNotice": "Անջատված կայքեր՝ {count}։ Դրանց այցելուները կայքի փոխարեն տեսնում են կասեցման էջ։"
     },
     "form": {
       "heading": "Նոր կայք",

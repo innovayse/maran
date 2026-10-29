@@ -6,8 +6,8 @@ use crate::cron::create_cron_entry::create_cron_entry;
 use crate::cron::cron_error::CronError;
 use crate::cron::get_cron_entry_output::get_cron_entry_output;
 use crate::cron::recording_cron_host::{
-    ABSENT_ID, FIRST_ID, RecordingCronHost, account, command, distro, entry_id, every_five_minutes,
-    exit_path, log_path, run_record,
+    ABSENT_ID, FIRST_ID, RecordingCronHost, account, assert_refused_untouched, command, distro,
+    entry_id, every_five_minutes, exit_path, log_path, run_record, unmanaged_cases,
 };
 
 /// A host with one entry created, ready to have run files put on it.
@@ -109,4 +109,17 @@ fn only_the_tail_of_a_long_output_is_returned() {
     let output = get_cron_entry_output(&host, &account, &id).expect("read");
 
     assert_eq!(output.output.expect("output").len(), 64 * 1024);
+}
+
+/// An account that is not a hosting account is refused before the table is
+/// read, and everything the host holds is left as it was.
+#[test]
+fn reading_the_output_of_an_unmanaged_account_reads_no_crontab_and_no_entry_file() {
+    // The output file is read as root when the account is root, so the gate
+    // must come before the table and before every file.
+    for case in unmanaged_cases() {
+        let result = get_cron_entry_output(&case.host, &case.account, &entry_id(FIRST_ID));
+
+        assert_refused_untouched(&case, result);
+    }
 }

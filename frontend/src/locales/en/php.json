@@ -1,8 +1,10 @@
 {
   "php": {
+    "eyebrow": "Runtimes",
     "title": "PHP versions",
     "description": "The PHP runtimes installed on this server, and the one control that adds to them.",
     "table": {
+      "heading": "Installed versions",
       "caption": "PHP versions installed on this server",
       "version": "Version",
       "default": "The host's default",
@@ -15,6 +17,7 @@
       "description": "No site on this server can run PHP until one is. Install a version below."
     },
     "install": {
+      "heading": "Install a version",
       "label": "Version to install",
       "submit": "Install this version",
       "running": "Installing {version}…",

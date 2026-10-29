@@ -11,6 +11,11 @@
  *
  * It owns no state: every value is a `defineModel`, so the page holds the request being built
  * and this component only decides what is on screen.
+ *
+ * It renders ONE root (a two-column grid from 768px, a single column below), so the page can
+ * place the whole block as a unit; the earlier fragment of three roots could only be laid out
+ * by whatever stack happened to contain it. The upstream hint wraps anywhere, because it quotes
+ * an address and an unbroken value must not push a 390px screen sideways.
  */
 import { computed, type ComputedRef } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -89,29 +94,31 @@ const onBackendChange = (value: string): void => {
 </script>
 
 <template>
-  <UiSelect
-    :model-value="backendType"
-    :label="t('sites.form.fields.backendType')"
-    :options="backendOptions"
-    required
-    @update:model-value="onBackendChange"
-  />
-
-  <PhpVersionSelect
-    v-if="needsPhpVersion"
-    v-model="phpVersion"
-    :versions="props.phpVersions"
-    :error="props.phpVersionError"
-  />
-
-  <div v-if="needsProxyUpstream">
-    <UiInput
-      v-model="proxyUpstream"
-      :label="t('sites.form.fields.proxyUpstream')"
-      :placeholder="t('sites.form.placeholders.proxyUpstream')"
-      :error="props.proxyUpstreamError"
+  <div class="grid gap-4 md:grid-cols-2">
+    <UiSelect
+      :model-value="backendType"
+      :label="t('sites.form.fields.backendType')"
+      :options="backendOptions"
       required
+      @update:model-value="onBackendChange"
     />
-    <p class="mt-1 text-sm text-text-muted">{{ t('sites.form.hints.proxyUpstream') }}</p>
+
+    <PhpVersionSelect
+      v-if="needsPhpVersion"
+      v-model="phpVersion"
+      :versions="props.phpVersions"
+      :error="props.phpVersionError"
+    />
+
+    <div v-if="needsProxyUpstream" class="min-w-0">
+      <UiInput
+        v-model="proxyUpstream"
+        :label="t('sites.form.fields.proxyUpstream')"
+        :placeholder="t('sites.form.placeholders.proxyUpstream')"
+        :error="props.proxyUpstreamError"
+        required
+      />
+      <p class="mt-1.5 text-sm text-text-muted wrap-anywhere">{{ t('sites.form.hints.proxyUpstream') }}</p>
+    </div>
   </div>
 </template>

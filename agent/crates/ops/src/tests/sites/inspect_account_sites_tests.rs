@@ -12,7 +12,7 @@ use std::path::Path;
 use maran_agent_core::validation::system::name::AccountName;
 
 use crate::sites::fake_site_host::{
-    FakeSiteHost, create_test_site, distro, php_input, test_account,
+    FakeSiteHost, create_test_site, distro, legacy_suspended_text, php_input, test_account,
 };
 use crate::sites::{disable_site, inspect_account_sites};
 
@@ -162,4 +162,57 @@ fn an_account_with_no_vhost_at_all_is_readable_and_empty() {
 
     assert!(observed.directory_readable);
     assert!(observed.sites.is_empty());
+}
+
+#[test]
+fn a_site_still_serving_the_stub_an_earlier_agent_wrote_is_reported_as_stubbed() {
+    let host = FakeSiteHost::passing();
+    let input = php_input();
+    create_test_site(&host, &input).unwrap();
+    host.place_config(
+        Path::new(VHOST),
+        &legacy_suspended_text(&host, &input, "example.com"),
+    );
+
+    let observed = inspect_account_sites(&host, &account()).unwrap();
+
+    assert_eq!(observed.sites.len(), 1);
+    assert!(
+        observed.sites[0].serving_stub,
+        "the previous release's stub is a suspension, so the panel must be told it is stubbed"
+    );
+}
+
+#[test]
+fn a_site_stubbed_under_a_name_that_is_reserved_today_is_still_reported_as_stubbed() {
+    // The cleanup door: a vhost written before the reserved set existed must
+    // stay observable, or its suspension could never be certified.
+    let host = FakeSiteHost::passing();
+    let input = php_input();
+    create_test_site(&host, &input).unwrap();
+    host.place_config(
+        Path::new("/etc/maran/nginx/sites/host.local.conf"),
+        &legacy_suspended_text(&host, &input, "host.local"),
+    );
+
+    let observed = inspect_account_sites(&host, &account()).unwrap();
+
+    let reserved = observed
+        .sites
+        .iter()
+        .find(|site| site.domain == "host.local")
+        .expect("the reserved-name vhost is listed");
+    assert!(
+        reserved.serving_stub,
+        "a reserved stem must still be recognised as the suspended render"
+    );
+    let ordinary = observed
+        .sites
+        .iter()
+        .find(|site| site.domain == "example.com")
+        .expect("the ordinary vhost is listed");
+    assert!(
+        !ordinary.serving_stub,
+        "inverse control: a live ordinary vhost is still not a stub"
+    );
 }

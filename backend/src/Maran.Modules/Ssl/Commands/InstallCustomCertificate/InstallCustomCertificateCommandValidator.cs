@@ -1,5 +1,6 @@
 using FluentValidation;
 using Maran.Modules.Ssl.Resources;
+using Maran.Sdk.Interfaces;
 using Maran.SharedKernel.Utilities.Network;
 
 namespace Maran.Modules.Ssl.Commands.InstallCustomCertificate;
@@ -9,9 +10,18 @@ namespace Maran.Modules.Ssl.Commands.InstallCustomCertificate;
 /// (rules/security.md "Input").
 /// </summary>
 /// <remarks>
-/// Shape only. Whether the key actually matches the certificate is decided by the agent, which has
-/// the material and the crypto to check it — the panel asserting a match it did not verify would be
-/// worse than not checking, because the failure would then surface as nginx refusing to start.
+/// <para>
+/// The domain is checked for shape AND for reservation: an address literal, a loopback or
+/// special-use name (<see cref="ReservedHostNameRule"/>) and the panel's own name
+/// (<see cref="IReservedHostDirectory"/>) are refused with a message of their own, exactly as
+/// <c>IssueCertificate</c> does, so the reservation cannot be bypassed through this second door.
+/// </para>
+/// <para>
+/// The certificate and key fields are shape only. Whether the key actually matches the certificate
+/// is decided by the agent, which has the material and the crypto to check it — the panel asserting
+/// a match it did not verify would be worse than not checking, because the failure would then
+/// surface as nginx refusing to start.
+/// </para>
 /// </remarks>
 public sealed class InstallCustomCertificateCommandValidator
     : AbstractValidator<InstallCustomCertificateCommand>
@@ -23,13 +33,20 @@ public sealed class InstallCustomCertificateCommandValidator
     private const int MaximumMaterialLength = 65536;
 
     /// <summary>Configures the field rules for <see cref="InstallCustomCertificateCommand"/>.</summary>
-    public InstallCustomCertificateCommandValidator()
+    /// <param name="panelHosts">Answers whether a name is the panel's own.</param>
+    public InstallCustomCertificateCommandValidator(IReservedHostDirectory panelHosts)
     {
         RuleFor(command => command.Domain)
             .NotEmpty()
             .MaximumLength(HostNameRule.MaximumLength)
             .Must(HostNameRule.IsHostName)
-            .WithMessage(nameof(ErrorMessages.CertificateDomainInvalidFormat));
+            .WithMessage(nameof(ErrorMessages.CertificateDomainInvalidFormat))
+            .Must(domain =>
+            {
+                return !HostNameRule.IsHostName(domain)
+                    || !(ReservedHostNameRule.IsReserved(domain) || panelHosts.IsPanelHostName(domain));
+            })
+            .WithMessage(nameof(ErrorMessages.CertificateDomainReserved));
 
         RuleFor(command => command.CertificatePem)
             .NotEmpty()

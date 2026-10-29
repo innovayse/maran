@@ -9,6 +9,11 @@
  * group for a screen reader, and the shared radio `name` gives the ARIA
  * radiogroup keyboard contract (one tab stop, arrow keys move and select)
  * natively.
+ *
+ * The legend is the group's visible label (`text-sm`, `text-text-secondary`
+ * 7.08:1 on a panel) and turns `text-danger` with the group; the message below
+ * says why, so the red is never the only cue. See {@link UiInput} for the
+ * error-text pairs.
  */
 import { computed, useId, type ComputedRef } from 'vue'
 import UiRadio from './UiRadio.vue'
@@ -86,7 +91,7 @@ const onSelect = (value: string): void => {
        also overrides the legend-based name, hence the explicit `aria-labelledby`. -->
   <fieldset
     role="radiogroup"
-    class="flex flex-col gap-2 border-0 p-0"
+    class="flex min-w-0 flex-col gap-1 border-0 p-0"
     :aria-labelledby="legendId"
     :aria-required="required ? 'true' : undefined"
     :aria-invalid="hasError"
@@ -94,7 +99,7 @@ const onSelect = (value: string): void => {
   >
     <legend
       :id="legendId"
-      class="mb-1 text-base font-medium"
+      class="mb-1.5 text-sm font-medium wrap-anywhere"
       :class="hasError ? 'text-danger' : 'text-text-secondary'"
     >
       {{ legend }}
@@ -109,6 +114,6 @@ const onSelect = (value: string): void => {
       :disabled="disabled || option.disabled === true"
       @select="onSelect"
     />
-    <p v-if="hasError" :id="errorId" class="text-base text-danger">{{ error }}</p>
+    <p v-if="hasError" :id="errorId" class="mt-0.5 text-sm text-danger wrap-anywhere">{{ error }}</p>
   </fieldset>
 </template>

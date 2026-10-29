@@ -1,6 +1,7 @@
 //! SetFtpsPassword: one `user:password` line, over standard input — and the
 //! lock that line would otherwise take off.
 
+use maran_agent_core::utils::call_class::CallClass;
 use maran_agent_core::validation::secrets::password::Password;
 use maran_agent_core::validation::system::ftps_user_name::FtpsUserName;
 use maran_agent_core::validation::system::name::AccountName;
@@ -10,6 +11,7 @@ use crate::accounts::{StoredPassword, take_account_lock};
 use crate::ftps::ftps_error::FtpsError;
 use crate::ftps::ftps_host::FtpsHost;
 use crate::ftps::model::ftps_jail::FtpsJail;
+use maran_agent_core::end_of_options::END_OF_OPTIONS;
 
 /// The separator `chpasswd` expects between the login and its password.
 const FIELD_SEPARATOR: char = ':';
@@ -165,13 +167,20 @@ const LOCK: &str = "--lock";
 ///   raised before `chpasswd` runs, so the password is unchanged.
 /// - [`FtpsError::AccountMissing`] when the password database cannot be read at
 ///   all.
+/// - [`FtpsError::AccountNotManaged`] and [`FtpsError::AccountMissing`] when
+///   `account` is not a hosting account this panel may act on (reserved, a
+///   system identity, the wrong home, or no local row). Checked before the jail
+///   is read, the login is looked up or anything is written.
 /// - [`FtpsError::PasswordRejected`] when `chpasswd` refuses the line — the
 ///   login exists and its password is unchanged.
 /// - [`FtpsError::SuspensionNotRestored`] when the password was set but the
 ///   login can authenticate although it could not before. The password IS set in
 ///   that case, and the login is open.
 /// - [`FtpsError::SpawnFailed`] when `getent` or `usermod` refuses, or when a
-///   tool could not be run at all, or its standard input could not be written.
+///   tool could not be run at all, or its standard input could not be delivered.
+/// - [`FtpsError::Bound`] when `getent`, `chpasswd` or `usermod` outran its
+///   deadline. Whether the password was changed, and whether the lock was put
+///   back, is then unknown, so the call is reported as failed and is re-issued.
 pub fn set_ftps_password(
     host: &dyn FtpsHost,
     distro: &dyn DistroAdapter,
@@ -183,8 +192,14 @@ pub fn set_ftps_password(
     // including every error path and a panic.
     let _guard = take_account_lock(account).ok_or(FtpsError::AccountBusy)?;
 
-    let jail = FtpsJail::for_account(account, distro.systemd_unit_directory());
-    let logins = host.account_logins(distro.passwd_database(), account, jail.directory())?;
+    // The gate comes before the jail is read or anything is written: the
+    // login this changes is a copy of the account's identity, and `chpasswd`
+    // on a login whose account is a system user or an operator's own login is
+    // the escalation this check exists to refuse.
+    let managed = host.managed_account(distro.passwd_database(), account)?;
+
+    let jail = FtpsJail::for_account(managed.name(), distro.systemd_unit_directory());
+    let logins = host.account_logins(distro.passwd_database(), managed.name(), jail.directory())?;
     if !logins.iter().any(|held| held.as_str() == user.as_str()) {
         return Err(FtpsError::NotFound);
     }
@@ -242,7 +257,9 @@ pub(crate) fn set_ftps_password_under_lock(
 ///   login's password is unchanged in that case — `chpasswd` writes the shadow
 ///   field or it does not.
 /// - [`FtpsError::SpawnFailed`] when `chpasswd` could not be run at all, or its
-///   standard input could not be written.
+///   standard input could not be delivered.
+/// - [`FtpsError::Bound`] when `chpasswd` outran its deadline; the password may
+///   or may not have been changed.
 pub(crate) fn write_password(
     host: &dyn FtpsHost,
     distro: &dyn DistroAdapter,
@@ -254,7 +271,8 @@ pub(crate) fn write_password(
     // argument vector, a log line or an error.
     let line = format!("{}{FIELD_SEPARATOR}{}\n", user.as_str(), password.as_str());
 
-    let outcome = host.run_with_stdin(distro.chpasswd_binary(), &[], &line)?;
+    let outcome =
+        host.run_with_stdin(&distro.chpasswd_binary(), &[], &line, CallClass::Mutation)?;
     if outcome.status != 0 {
         return Err(FtpsError::PasswordRejected);
     }
@@ -282,7 +300,13 @@ fn restore_the_lock(
     distro: &dyn DistroAdapter,
     user: &FtpsUserName,
 ) -> Result<(), FtpsError> {
-    let outcome = host.run(distro.usermod_binary(), &[LOCK, user.as_str()])?;
+    // `usermod` parses with `getopt_long`, which honours the end-of-options
+    // marker on both families.
+    let outcome = host.run(
+        &distro.usermod_binary(),
+        &[LOCK, END_OF_OPTIONS, user.as_str()],
+        CallClass::Mutation,
+    )?;
     if outcome.status != 0 {
         return Err(FtpsError::SpawnFailed {
             code: outcome.status,
@@ -330,7 +354,13 @@ fn stored_password(
     distro: &dyn DistroAdapter,
     user: &FtpsUserName,
 ) -> Result<StoredPassword, FtpsError> {
-    let outcome = host.run(distro.getent_binary(), &[SHADOW_DATABASE, user.as_str()])?;
+    // `getent` parses with `argp`, which honours the end-of-options marker, so
+    // the database name and the login are both operands after it.
+    let outcome = host.run(
+        &distro.getent_binary(),
+        &[END_OF_OPTIONS, SHADOW_DATABASE, user.as_str()],
+        CallClass::Query,
+    )?;
     if outcome.status == KEY_NOT_FOUND {
         return Err(FtpsError::NotFound);
     }

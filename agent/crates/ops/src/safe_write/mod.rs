@@ -13,9 +13,18 @@
 //! change, because between two separate writes they are a mismatched pair and
 //! `nginx -t` — which really does load them — refuses. So the set is renamed
 //! into place first, and only then validated and reloaded, once.
+//!
+//! [`create_config::create_config`] is the second extension: a file that must
+//! not exist yet, refused when it does, and refused when the validator passes
+//! while warning about something the caller names — `nginx -t` exits 0 on two
+//! vhosts claiming one host name.
 
+#[cfg(test)]
+#[path = "../tests/safe_write/adapter_programs.rs"]
+pub(crate) mod adapter_programs;
 mod config_host;
 mod config_tree_lock;
+mod create_config;
 pub mod model;
 mod remove_config;
 mod render_validate_swap;
@@ -24,6 +33,7 @@ mod safe_write_error;
 mod write_config_set;
 
 pub use config_host::ConfigHost;
+pub use create_config::create_config;
 pub use maran_agent_core::command_outcome::CommandOutcome;
 pub use remove_config::remove_config;
 pub use render_validate_swap::write_config;

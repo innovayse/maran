@@ -10,7 +10,7 @@ use std::process::{Command, Output, Stdio};
 use std::sync::OnceLock;
 use std::time::{Duration, Instant};
 
-use maran_distro::{DistroAdapter, adapter_for, detect};
+use maran_distro::{AdapterBinary, DistroAdapter, adapter_for, detect};
 
 /// The environment variable each polygon image sets, naming itself.
 const POLYGON_MARKER: &str = "MARAN_POLYGON";
@@ -45,7 +45,7 @@ pub struct PolygonMariadb {
     /// The client binary, taken from the distro adapter — the same path the
     /// agent will execute, so a family whose adapter names the wrong one fails
     /// here rather than on a customer's server.
-    client: &'static str,
+    client: AdapterBinary,
 }
 
 impl PolygonMariadb {
@@ -137,7 +137,7 @@ impl PolygonMariadb {
     ///
     /// Panics when the client cannot be run at all.
     pub fn run(&self, statement: &str) -> Output {
-        Command::new(self.client)
+        Command::new(&self.client)
             .args(["--batch", "--skip-column-names", "--execute", statement])
             .stdin(Stdio::null())
             .output()
@@ -155,7 +155,7 @@ impl PolygonMariadb {
     ///
     /// Panics when the client cannot be run at all.
     pub fn run_as(&self, user: &str, password: &str, statement: &str) -> Output {
-        Command::new(self.client)
+        Command::new(&self.client)
             .args([
                 "--protocol=socket",
                 &format!("--user={user}"),

@@ -1,6 +1,7 @@
 using FluentValidation.TestHelper;
 using Maran.Modules.Sites.Commands.CreateSite;
 using Maran.Modules.Sites.Domain.Enums;
+using Maran.Modules.Sites.Tests.TestSupport;
 
 namespace Maran.Modules.Sites.Tests.Commands.CreateSite;
 
@@ -11,8 +12,11 @@ namespace Maran.Modules.Sites.Tests.Commands.CreateSite;
 /// </summary>
 public sealed class CreateSiteCommandValidatorTests
 {
+    /// <summary>The name the stub directory calls the panel's own.</summary>
+    private const string PanelName = "panel.example.net";
+
     /// <summary>The validator under test.</summary>
-    private readonly CreateSiteCommandValidator _validator = new();
+    private readonly CreateSiteCommandValidator _validator = new(new StubPanelHostDirectory(PanelName));
 
     /// <summary>A well formed php site passes every rule.</summary>
     [Fact]
@@ -90,6 +94,122 @@ public sealed class CreateSiteCommandValidatorTests
         Assert.NotEmpty(result.Errors);
     }
 
+    /// <summary>A domain in the static reserved set is rejected with the reserved key.</summary>
+    [Theory]
+    [InlineData("203.0.113.7")]
+    [InlineData("127.0.0.1")]
+    [InlineData("shop.123")]
+    [InlineData("foo.localhost")]
+    [InlineData("FOO.LOCAL")]
+    [InlineData("x.localdomain")]
+    [InlineData("x.internal")]
+    [InlineData("x.lan")]
+    public void A_domain_in_the_reserved_set_is_rejected_with_the_reserved_key(string domain)
+    {
+        // Well formed, so the shape rule accepts every one of these; each would still land in an
+        // nginx server_name on a root-managed host.
+        var result = _validator.TestValidate(Command() with { Domain = domain });
+
+        result.ShouldHaveValidationErrorFor(command => command.Domain)
+            .WithErrorMessage("SiteDomainReserved");
+    }
+
+    /// <summary>The panel's own name, its www form and any casing of either are rejected as a domain.</summary>
+    [Theory]
+    [InlineData("panel.example.net")]
+    [InlineData("www.panel.example.net")]
+    [InlineData("Panel.Example.NET")]
+    public void The_panels_own_name_is_rejected_as_a_domain_with_the_reserved_key(string domain)
+    {
+        _validator.TestValidate(Command() with { Domain = domain })
+            .ShouldHaveValidationErrorFor(command => command.Domain)
+            .WithErrorMessage("SiteDomainReserved");
+    }
+
+    /// <summary>A name beside the panel's, or merely resembling a reserved one, is accepted.</summary>
+    /// <remarks>The inverse control: a validator that refused everything would pass every rejection test.</remarks>
+    [Theory]
+    [InlineData("shop.panel.example.net")]
+    [InlineData("example.net")]
+    [InlineData("mylocal.com")]
+    [InlineData("localhost.example.com")]
+    [InlineData("internal.example.com")]
+    [InlineData("web2.example.com")]
+    [InlineData("shop.example.test")]
+    public void A_name_that_is_not_reserved_is_accepted_as_a_domain(string domain)
+    {
+        _validator.TestValidate(Command() with { Domain = domain })
+            .ShouldNotHaveValidationErrorFor(command => command.Domain);
+    }
+
+    /// <summary>An alias in the static reserved set is rejected with the alias reserved key.</summary>
+    [Theory]
+    [InlineData("203.0.113.7")]
+    [InlineData("foo.localhost")]
+    [InlineData("x.local")]
+    public void An_alias_in_the_reserved_set_is_rejected_with_the_alias_reserved_key(string alias)
+    {
+        var result = _validator.TestValidate(Command() with { Aliases = ["www.example.com", alias] });
+
+        Assert.Contains(result.Errors, failure =>
+        {
+            return failure.PropertyName == "Aliases[1]" && failure.ErrorMessage == "SiteAliasReserved";
+        });
+        Assert.DoesNotContain(result.Errors, failure =>
+        {
+            return failure.PropertyName == "Aliases[0]";
+        });
+    }
+
+    /// <summary>The panel's own name is rejected as an alias.</summary>
+    [Theory]
+    [InlineData("panel.example.net")]
+    [InlineData("WWW.panel.example.net")]
+    public void The_panels_own_name_is_rejected_as_an_alias_with_the_alias_reserved_key(string alias)
+    {
+        var result = _validator.TestValidate(Command() with { Aliases = [alias] });
+
+        Assert.Contains(result.Errors, failure =>
+        {
+            return failure.PropertyName == "Aliases[0]" && failure.ErrorMessage == "SiteAliasReserved";
+        });
+    }
+
+    /// <summary>An ordinary alias beside the domain is accepted.</summary>
+    [Fact]
+    public void An_ordinary_alias_is_accepted()
+    {
+        var result = _validator.TestValidate(Command() with { Aliases = ["shop.example.com", "shop.panel.example.net"] });
+
+        result.ShouldNotHaveAnyValidationErrors();
+    }
+
+    /// <summary>With no panel name configured only the static set applies.</summary>
+    [Fact]
+    public void With_no_panel_name_configured_a_panel_like_name_is_accepted()
+    {
+        var validator = new CreateSiteCommandValidator(new StubPanelHostDirectory());
+
+        validator.TestValidate(Command() with { Domain = "panel.example.net" })
+            .ShouldNotHaveValidationErrorFor(command => command.Domain);
+        validator.TestValidate(Command() with { Domain = "203.0.113.7" })
+            .ShouldHaveValidationErrorFor(command => command.Domain)
+            .WithErrorMessage("SiteDomainReserved");
+    }
+
+    /// <summary>A malformed name that also ends in a reserved suffix is reported once, as malformed.</summary>
+    [Theory]
+    [InlineData("bad..local")]
+    [InlineData("under_score.localhost")]
+    public void A_malformed_name_is_not_also_reported_as_reserved(string name)
+    {
+        var domainResult = _validator.TestValidate(Command() with { Domain = name });
+        var aliasResult = _validator.TestValidate(Command() with { Aliases = [name] });
+
+        Assert.Equal(["SiteDomainInvalidFormat"], Messages(domainResult.Errors));
+        Assert.Equal(["SiteAliasInvalidFormat"], Messages(aliasResult.Errors));
+    }
+
     /// <summary>A php site without a well formed version is rejected.</summary>
     [Theory]
     [InlineData("")]
@@ -158,6 +278,17 @@ public sealed class CreateSiteCommandValidatorTests
     {
         _validator.TestValidate(Command() with { BackendType = (SiteBackendType)99 })
             .ShouldHaveValidationErrorFor(command => command.BackendType);
+    }
+
+    /// <summary>The message of each failure, in order.</summary>
+    /// <param name="failures">The failures a validation produced.</param>
+    /// <returns>The messages, which are resource keys.</returns>
+    private static List<string> Messages(IEnumerable<FluentValidation.Results.ValidationFailure> failures)
+    {
+        return failures.Select(failure =>
+        {
+            return failure.ErrorMessage;
+        }).ToList();
     }
 
     /// <summary>Builds a valid PHP-backed command each test varies one field of.</summary>

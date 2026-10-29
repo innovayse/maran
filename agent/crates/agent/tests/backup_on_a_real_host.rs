@@ -258,7 +258,7 @@ fn a_shadowed_gzip_on_path_never_compresses_a_backup() {
     }
 
     let fixture = Fixture::new();
-    let (impostor, marker) = plant_impostor_gzip(&fixture, distro.gzip_binary());
+    let (impostor, marker) = plant_impostor_gzip(&fixture, distro.gzip_binary().as_str());
 
     let output = run_under_impostor_path(
         "a_shadowed_gzip_on_path_never_compresses_a_backup",
@@ -336,7 +336,7 @@ fn a_shadowed_gzip_on_path_never_reads_an_archive_back() {
     })
     .expect("the archiver succeeds");
 
-    let (impostor, marker) = plant_impostor_gzip(&fixture, distro.gzip_binary());
+    let (impostor, marker) = plant_impostor_gzip(&fixture, distro.gzip_binary().as_str());
     let output = run_under_impostor_path(
         "a_shadowed_gzip_on_path_never_reads_an_archive_back",
         &fixture,
@@ -1511,5 +1511,113 @@ fn a_deletion_that_overlaps_a_restore_is_refused_and_the_home_keeps_its_own_uid(
         matches!(deletion, Err(AccountError::Busy { .. })),
         "the deletion must be refused as busy while the restore holds the account's lock, \
          got {deletion:?}"
+    );
+}
+
+/// A member name past the longest one a listing may hold (16 KiB), by a clear
+/// margin, so the test does not depend on the exact figure.
+const MEMBER_NAME_PAST_THE_BOUND: usize = 20_000;
+
+/// A member name no real home produces but well inside every bound.
+const MEMBER_NAME_WITHIN_THE_BOUND: usize = 100;
+
+/// Makes, with the real `tar` and the family's own gzip, an archive whose one
+/// member is named `member_name_bytes` letters long, and answers its path.
+///
+/// The long name is made by `tar`'s own `--transform` over a short real file,
+/// because a path on this filesystem cannot be longer than `PATH_MAX`: what
+/// ends up in the archive is a header the archiver itself wrote, which is the
+/// shape of a hand-built hostile artifact.
+///
+/// # Panics
+///
+/// Panics when `tar` cannot be run or refuses.
+fn archive_with_one_member_named(
+    distro: &dyn DistroAdapter,
+    directory: &Path,
+    member_name_bytes: usize,
+) -> PathBuf {
+    let source = directory.join("source");
+    create_dir_all(&source).expect("the source directory");
+    write(source.join("file.txt"), HOME_FILE_CONTENTS).expect("the source file");
+
+    let artifact = directory.join(format!("named-{member_name_bytes}.tar.gz"));
+    let made = Command::new(distro.tar_binary())
+        .arg("--create")
+        .arg(format!("--use-compress-program={}", distro.gzip_binary()))
+        .arg("--file")
+        .arg(&artifact)
+        .arg("--directory")
+        .arg(&source)
+        .arg(format!(
+            "--transform=s,^file.txt$,{},",
+            "n".repeat(member_name_bytes)
+        ))
+        .arg("file.txt")
+        .output()
+        .expect("tar can be started");
+    assert!(
+        made.status.success(),
+        "tar could not make the fixture archive: {}",
+        String::from_utf8_lossy(&made.stderr)
+    );
+
+    artifact
+}
+
+#[test]
+#[ignore = "requires a polygon container"]
+fn an_archive_whose_member_name_exceeds_the_bound_is_refused_before_anything_is_extracted() {
+    require_polygon();
+    let distro = polygon_distro();
+    let host = ProcessBackupHost::new(distro);
+    let directory = tempfile::tempdir().expect("a temporary directory");
+
+    // The inverse control: the same construction with a name inside the bound
+    // lists, so the refusal below is about the length and not about how the
+    // fixture was made.
+    let ordinary =
+        archive_with_one_member_named(distro, directory.path(), MEMBER_NAME_WITHIN_THE_BOUND);
+    let listed = host
+        .list_members(&ordinary)
+        .expect("an archive whose member name is within the bound lists");
+    assert_eq!(
+        listed,
+        vec!["n".repeat(MEMBER_NAME_WITHIN_THE_BOUND)],
+        "the listing must be the member name exactly as the archive stores it"
+    );
+
+    let hostile =
+        archive_with_one_member_named(distro, directory.path(), MEMBER_NAME_PAST_THE_BOUND);
+    let refused = host.list_members(&hostile);
+    assert!(
+        matches!(&refused, Err(BackupError::ArchiveFailed { status }) if *status < 0),
+        "a member name past the bound must refuse the whole listing with the agent's own \
+         (negative) status, got {refused:?}"
+    );
+
+    // Listing extracts nothing: no member of either archive appeared anywhere.
+    let mut entries: Vec<String> = std::fs::read_dir(directory.path())
+        .expect("the directory is readable")
+        .map(|entry| {
+            entry
+                .expect("an entry")
+                .file_name()
+                .to_string_lossy()
+                .into_owned()
+        })
+        .collect();
+    entries.sort();
+    // Sorted the same way as the directory listing above, so the comparison does not
+    // depend on how the two numbers happen to order as text.
+    let mut expected = vec![
+        format!("named-{MEMBER_NAME_PAST_THE_BOUND}.tar.gz"),
+        format!("named-{MEMBER_NAME_WITHIN_THE_BOUND}.tar.gz"),
+        "source".to_owned(),
+    ];
+    expected.sort();
+    assert_eq!(
+        entries, expected,
+        "listing an archive must not extract any member"
     );
 }

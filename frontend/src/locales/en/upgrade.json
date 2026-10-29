@@ -1,11 +1,16 @@
 {
   "app": {
     "upgrade": {
+      "eyebrow": "Licence",
       "heading": "Upgrade required",
       "subtitle": "This area belongs to a module your current licence does not cover.",
       "module": "The \"{module}\" module is not included in your current licence.",
       "tier": "Licence tier: {tier}.",
-      "backHome": "Back to system status"
+      "backHome": "Back to system status",
+      "how": {
+        "heading": "How to get it",
+        "body": "The licence is managed by whoever administers this server. Ask them to add the module to it; it appears in the menu as soon as the licence covers it."
+      }
     }
   }
 }

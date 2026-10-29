@@ -12,6 +12,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use maran_agent_core::privs::priv_error::PrivError;
+use maran_agent_core::validation::system::managed_account_error::ManagedAccountError;
 use maran_ops::cron::CronError;
 
 use super::to_agent_error;
@@ -29,6 +30,10 @@ fn every_variant() -> Vec<CronError> {
         CronError::EntryFileUnremovable,
         CronError::EntryIdUnavailable,
         CronError::EntryLimitReached,
+        CronError::Account(ManagedAccountError::Reserved),
+        CronError::Account(ManagedAccountError::NotFound),
+        CronError::Account(ManagedAccountError::SystemIdentity),
+        CronError::Account(ManagedAccountError::WrongHome),
     ]
 }
 
@@ -156,4 +161,116 @@ fn no_mapped_failure_carries_a_programs_output() {
             "the mapping must not invent a message beside the variant's own"
         );
     }
+}
+
+#[test]
+fn a_user_that_is_not_a_hosting_account_is_an_invalid_input_and_never_a_fault() {
+    // Reserved, a system identity and a home elsewhere are one answer to the
+    // panel: the request names an account it does not manage, and no crontab
+    // was read or installed. Not SYSTEM_FAILURE, because nothing on the host is
+    // broken; not ACCOUNT_BUSY, which invites the identical request again.
+    for refusal in [
+        ManagedAccountError::Reserved,
+        ManagedAccountError::SystemIdentity,
+        ManagedAccountError::WrongHome,
+    ] {
+        let code = code_of(&CronError::Account(refusal));
+
+        assert_eq!(code, ErrorCode::InvalidInput as i32);
+        assert_ne!(code, ErrorCode::SystemFailure as i32);
+        assert_ne!(code, ErrorCode::AccountBusy as i32);
+    }
+}
+
+#[test]
+fn an_account_with_no_password_database_row_is_not_found_and_not_invalid_input() {
+    // The inverse control for the arm above: the absent account keeps the
+    // answer an absent entry gets, so the catch-all cannot have swallowed it.
+    assert_eq!(
+        code_of(&CronError::Account(ManagedAccountError::NotFound)),
+        ErrorCode::NotFound as i32
+    );
+}
+
+#[test]
+fn the_not_managed_sentence_is_the_same_for_every_refusal_and_names_no_rule() {
+    let sentences: Vec<String> = [
+        ManagedAccountError::Reserved,
+        ManagedAccountError::SystemIdentity,
+        ManagedAccountError::WrongHome,
+    ]
+    .into_iter()
+    .map(|refusal| to_agent_error(&CronError::Account(refusal)).message)
+    .collect();
+
+    assert_eq!(sentences[0], sentences[1]);
+    assert_eq!(sentences[1], sentences[2]);
+    assert_eq!(sentences[0], "the account is not a hosting account");
+}
+
+use std::time::Duration;
+
+use maran_agent_core::utils::bound_exceeded::BoundExceeded;
+use maran_agent_core::utils::output_stream::OutputStream;
+
+/// The unit under test, read so that the arm that names the bound by itself can
+/// be checked; see [`the_bound_variant_is_mapped_by_name_ahead_of_the_wildcard`].
+const MAPPING_SOURCE: &str = include_str!("../../../services/cron/cron_status.rs");
+
+/// A deadline that passed, as the bounded spawn core reports it.
+fn timed_out() -> CronError {
+    CronError::Bound(BoundExceeded::TimedOut {
+        program: "/usr/sbin/stand-in".to_owned(),
+        deadline: Duration::from_secs(60),
+    })
+}
+
+/// An output cap that was crossed, as the bounded spawn core reports it.
+fn output_too_large() -> CronError {
+    CronError::Bound(BoundExceeded::OutputTooLarge {
+        program: "/usr/sbin/stand-in".to_owned(),
+        stream: OutputStream::Stdout,
+        cap: 4_194_304,
+    })
+}
+
+/// A deadline is a fault of the host: a system failure, no tool text, and a
+/// message that names the program that was killed.
+#[test]
+fn a_timeout_is_a_system_failure_with_no_tool_output_and_a_message_naming_the_program() {
+    let wire = to_agent_error(&timed_out());
+
+    assert_eq!(wire.code, ErrorCode::SystemFailure as i32);
+    assert!(wire.tool_output.is_empty());
+    assert!(wire.message.contains("/usr/sbin/stand-in"));
+}
+
+/// An output cap is the same kind of fault as a deadline.
+#[test]
+fn an_output_overflow_is_a_system_failure_with_no_tool_output_and_a_message_naming_the_program() {
+    let wire = to_agent_error(&output_too_large());
+
+    assert_eq!(wire.code, ErrorCode::SystemFailure as i32);
+    assert!(wire.tool_output.is_empty());
+    assert!(wire.message.contains("/usr/sbin/stand-in"));
+}
+
+/// The wildcard arm answers `SystemFailure` too, so deleting the explicit arm
+/// changes no behaviour and the two tests above cannot notice it. This one reads
+/// the source: the bound must be named, and named before the wildcard.
+#[test]
+fn the_bound_variant_is_mapped_by_name_ahead_of_the_wildcard() {
+    let code_lines: Vec<&str> = MAPPING_SOURCE
+        .lines()
+        .map(str::trim_start)
+        .filter(|line| !line.starts_with("//"))
+        .collect();
+    let wildcard = code_lines.iter().position(|line| line.starts_with("_ =>"));
+    let bound = code_lines
+        .iter()
+        .position(|line| line.starts_with("CronError::Bound("));
+
+    // Positive control: the scan does find the wildcard it is measured against.
+    let wildcard = wildcard.expect("the mapping ends in a wildcard arm");
+    assert!(bound.expect("the bound variant has its own arm") < wildcard);
 }

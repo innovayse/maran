@@ -2,9 +2,52 @@
   "app": {
     "status": {
       "heading": "System status",
+      "eyebrow": "Maran · This server",
       "checking": "Checking the panel API…",
       "ok": "All systems are operational.",
-      "unreachable": "Could not reach the API"
+      "unreachable": "Could not reach the API",
+      "resources": {
+        "title": "Right now",
+        "ratio": "{used} of {total}",
+        "load": "Load average (1 / 5 / 15 min)"
+      },
+      "counts": {
+        "title": "On this server",
+        "accounts": "Accounts",
+        "sites": "Sites",
+        "databases": "Databases"
+      },
+      "attention": {
+        "title": "Needs attention",
+        "allClear": "Nothing needs attention.",
+        "certificates": "certificates expiring soon",
+        "backups": "backups failed",
+        "tasks": "tasks failed",
+        "bans": "addresses banned"
+      },
+      "audit": {
+        "title": "Latest activity",
+        "empty": "Nothing has been recorded yet.",
+        "failed": "Failed",
+        "all": "Open the audit journal"
+      },
+      "actions": {
+        "newAccount": "New account"
+      },
+      "quickActions": {
+        "title": "Quick actions",
+        "createAccount": "Create an account",
+        "addSite": "Add a site",
+        "createDatabase": "Create a database",
+        "backups": "Open the backups"
+      },
+      "customerArea": {
+        "title": "Your account",
+        "myAccount": "Open my account",
+        "mySites": "Open my sites",
+        "myDatabases": "Open my databases",
+        "myBackups": "Open my backups"
+      }
     }
   }
 }

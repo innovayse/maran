@@ -149,45 +149,47 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
+  <!-- The page puts this table in its panel. Machine text — the address, the failure count, the
+       date — is set in the mono face by the cell itself and never uppercased; the table scrolls
+       inside its own container, so a phone never scrolls the page sideways. Cells do not wrap:
+       a wrapped address or date would make a row two lines tall for no gain. -->
   <UiTable :caption="t('firewall.bans.tableCaption')">
     <template #head>
       <UiTableRow>
         <UiTableHeaderCell>{{ t('firewall.bans.columns.address') }}</UiTableHeaderCell>
         <UiTableHeaderCell>{{ t('firewall.bans.columns.reason') }}</UiTableHeaderCell>
-        <UiTableHeaderCell>{{ t('firewall.bans.columns.failures') }}</UiTableHeaderCell>
+        <UiTableHeaderCell align="end">{{ t('firewall.bans.columns.failures') }}</UiTableHeaderCell>
         <UiTableHeaderCell>{{ t('firewall.bans.columns.bannedAt') }}</UiTableHeaderCell>
         <UiTableHeaderCell>{{ t('firewall.bans.columns.expiresAt') }}</UiTableHeaderCell>
         <UiTableHeaderCell align="end">{{ t('common.actions') }}</UiTableHeaderCell>
       </UiTableRow>
     </template>
     <UiTableRow v-for="ban in bans" :key="ban.id">
-      <UiTableCell class="font-mono font-medium">{{ ban.ipAddress }}</UiTableCell>
-      <UiTableCell>
+      <UiTableCell mono class="font-medium whitespace-nowrap">{{ ban.ipAddress }}</UiTableCell>
+      <UiTableCell class="whitespace-nowrap">
         <UiBadge :variant="ban.reason === 'bruteForce' ? 'danger' : 'neutral'">
           {{ t(`firewall.bans.reasons.${ban.reason}`) }}
         </UiBadge>
       </UiTableCell>
-      <UiTableCell class="font-mono text-text-secondary">{{ ban.failures }}</UiTableCell>
-      <UiTableCell class="font-mono text-text-muted">
+      <UiTableCell mono align="end" tone="secondary">{{ ban.failures }}</UiTableCell>
+      <UiTableCell mono tone="muted" class="whitespace-nowrap">
         {{ formatDate(ban.bannedAt, localeStore.current) }}
       </UiTableCell>
-      <UiTableCell class="text-text-secondary">{{ expiry(ban) }}</UiTableCell>
+      <UiTableCell tone="secondary" class="whitespace-nowrap">{{ expiry(ban) }}</UiTableCell>
       <UiTableCell align="end">
-        <div class="flex flex-wrap items-center justify-end gap-2">
-          <UiDropdown
-            :label="t('common.actions')"
-            :aria-label="t('firewall.bans.rowActions', { address: ban.ipAddress })"
-            align="end"
-            variant="bare"
-            :chevron="false"
-            :disabled="busy"
-          >
-            <template #trigger>
-              <UiIcon name="ellipsis" size="md" />
-            </template>
-            <UiDropdownItem @select="ask(ban.id)">{{ t('firewall.bans.unban') }}</UiDropdownItem>
-          </UiDropdown>
-        </div>
+        <UiDropdown
+          :label="t('common.actions')"
+          :aria-label="t('firewall.bans.rowActions', { address: ban.ipAddress })"
+          align="end"
+          variant="bare"
+          :chevron="false"
+          :disabled="busy"
+        >
+          <template #trigger>
+            <UiIcon name="ellipsis" size="md" />
+          </template>
+          <UiDropdownItem @select="ask(ban.id)">{{ t('firewall.bans.unban') }}</UiDropdownItem>
+        </UiDropdown>
       </UiTableCell>
     </UiTableRow>
   </UiTable>

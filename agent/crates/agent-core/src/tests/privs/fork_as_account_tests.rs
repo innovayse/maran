@@ -14,8 +14,9 @@
 use std::time::Duration;
 
 use super::{
-    EXIT_DROP_FAILED, EXIT_OK, EXIT_VERIFICATION_FAILED, EXIT_WORK_FAILED, MAXIMUM_GROUPS,
-    Observed, give_up_on_with, outcome_of, verify, wait_until,
+    EXIT_DROP_SETGID_FAILED, EXIT_DROP_SETGROUPS_FAILED, EXIT_DROP_SETUID_FAILED, EXIT_OK,
+    EXIT_VERIFICATION_FAILED, EXIT_WORK_FAILED, MAXIMUM_GROUPS, Observed, give_up_on_with,
+    outcome_of, verify, wait_until,
 };
 use crate::privs::priv_error::PrivError;
 
@@ -38,12 +39,68 @@ fn a_child_that_did_the_work_reports_success() {
     assert_eq!(outcome_of(exited_with(EXIT_OK)), Ok(()));
 }
 
+/// Each of the three drop syscalls comes back under its own name.
+///
+/// One test per call, with the three statuses asserted to be DIFFERENT below, because the whole
+/// value of the change these cover is that the three can be told apart: one shared status is what
+/// made issue #81 cost three wrong hypotheses, each tested from outside against a message that
+/// named a category instead of a call.
 #[test]
-fn a_child_whose_drop_syscall_failed_reports_drop_failed() {
+fn a_child_whose_setgroups_failed_names_setgroups() {
     assert_eq!(
-        outcome_of(exited_with(EXIT_DROP_FAILED)),
-        Err(PrivError::DropFailed)
+        outcome_of(exited_with(EXIT_DROP_SETGROUPS_FAILED)),
+        Err(PrivError::DropFailed {
+            syscall: "setgroups"
+        })
     );
+}
+
+#[test]
+fn a_child_whose_setgid_failed_names_setgid() {
+    assert_eq!(
+        outcome_of(exited_with(EXIT_DROP_SETGID_FAILED)),
+        Err(PrivError::DropFailed { syscall: "setgid" })
+    );
+}
+
+#[test]
+fn a_child_whose_setuid_failed_names_setuid() {
+    assert_eq!(
+        outcome_of(exited_with(EXIT_DROP_SETUID_FAILED)),
+        Err(PrivError::DropFailed { syscall: "setuid" })
+    );
+}
+
+/// The control the three above need: that they are three statuses and not one.
+///
+/// Without it, three constants that happened to share a value would make all three tests pass
+/// while the agent reported "setgroups" for every failure — which is the defect, dressed as a
+/// fix. The statuses are also checked against the other exit codes, since a collision with
+/// EXIT_WORK_FAILED would mis-report work as a drop.
+#[test]
+fn the_three_drop_statuses_are_distinct_from_each_other_and_from_the_rest() {
+    let statuses = [
+        EXIT_OK,
+        EXIT_DROP_SETGROUPS_FAILED,
+        EXIT_DROP_SETGID_FAILED,
+        EXIT_DROP_SETUID_FAILED,
+        EXIT_VERIFICATION_FAILED,
+        EXIT_WORK_FAILED,
+    ];
+
+    for (index, status) in statuses.iter().enumerate() {
+        assert!(
+            !statuses[index + 1..].contains(status),
+            "exit status {status} is used for more than one outcome"
+        );
+
+        // An exit status is one byte: a constant above 255 would be truncated by the kernel and
+        // arrive as a different outcome entirely.
+        assert!(
+            (0..=255).contains(status),
+            "exit status {status} is not a byte"
+        );
+    }
 }
 
 #[test]
@@ -67,10 +124,16 @@ fn a_failed_drop_is_never_reported_as_a_failed_work_closure() {
     // The two say different things to an operator: one is a customer's
     // operation that did not work, the other is the privilege machinery
     // refusing. A mapping that collapsed them would be silent.
-    assert_ne!(
-        outcome_of(exited_with(EXIT_DROP_FAILED)),
-        outcome_of(exited_with(EXIT_WORK_FAILED))
-    );
+    for drop_status in [
+        EXIT_DROP_SETGROUPS_FAILED,
+        EXIT_DROP_SETGID_FAILED,
+        EXIT_DROP_SETUID_FAILED,
+    ] {
+        assert_ne!(
+            outcome_of(exited_with(drop_status)),
+            outcome_of(exited_with(EXIT_WORK_FAILED))
+        );
+    }
 }
 
 #[test]

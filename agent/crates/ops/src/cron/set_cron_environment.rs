@@ -34,8 +34,14 @@ use crate::cron::model::crontab_document::CrontabDocument;
 ///
 /// # Errors
 ///
+/// - [`CronError::Account`] when `account` is not a hosting account this panel
+///   may act on (reserved, absent, a system identity, or with the wrong home).
+///   Checked first, before the crontab or the home is touched.
 /// - [`CronError::CrontabRefused`] when the crontab could not be read, or when
 ///   `crontab` refused the new table. The assignments stay as they were.
+/// - [`CronError::Bound`] when `crontab` outlived its deadline and was killed with its
+///   process group. Not a refusal: the table may or may not have been replaced, so the
+///   caller reads it again before it believes either outcome.
 pub fn set_cron_environment(
     host: &dyn CronHost,
     distro: &dyn DistroAdapter,
@@ -47,13 +53,17 @@ pub fn set_cron_environment(
     // still overwrite whatever landed in between. Per account, process-local —
     // see `cron_lock` for the whole argument.
     let _crontab = cron_lock(account);
+    let managed = host.managed_account(account)?;
 
-    let existing = host.read_crontab(account)?.unwrap_or_default();
+    let existing = host.read_crontab(&managed)?.unwrap_or_default();
     let mut document = CrontabDocument::parse(&existing);
 
     document.set_environment(environment);
 
-    host.install_crontab(account, &document.render(account, distro.sh_binary()))
+    host.install_crontab(
+        &managed,
+        &document.render(managed.name(), distro.sh_binary()),
+    )
 }
 
 #[cfg(test)]

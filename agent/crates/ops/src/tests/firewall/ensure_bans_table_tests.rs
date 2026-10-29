@@ -6,6 +6,9 @@
 use std::sync::Arc;
 use std::thread;
 
+use maran_agent_core::utils::bound_exceeded::BoundExceeded;
+use maran_agent_core::utils::call_class::CallClass;
+
 use crate::firewall::ensure_bans_table::{BANNED_V4_SET, ensure_bans_table};
 use crate::firewall::fake_firewall_host::{FakeFirewallHost, bans_path, distro};
 use crate::firewall::firewall_error::FirewallError;
@@ -98,5 +101,68 @@ fn concurrent_mutations_serialise_on_the_module_lock() {
         host.applies(),
         vec![bans_path()],
         "two concurrent first-bans must load the bans table exactly once"
+    );
+}
+
+/// A table listing killed at its deadline loads NOTHING.
+///
+/// Reading the timeout as "the table is not there" would apply the bans file,
+/// and applying it over a loaded table erases every ban in force. The ban in
+/// this test is the thing that must survive.
+#[test]
+fn a_table_listing_that_times_out_never_reapplies_the_bans_file() {
+    let host = FakeFirewallHost::new().with_bans_table().with_element(
+        BANNED_V4_SET,
+        "198.51.100.7",
+        Some(3600),
+    );
+    host.time_out_on("list");
+
+    let outcome = ensure_bans_table(&host, distro());
+
+    assert!(
+        matches!(
+            outcome,
+            Err(FirewallError::Bound(BoundExceeded::TimedOut { .. }))
+        ),
+        "expected the typed timeout, got {outcome:?}"
+    );
+    assert!(host.applies().is_empty());
+    assert_eq!(host.elements().len(), 1);
+}
+
+/// The table question is a query behind an end-of-options marker, and the
+/// operands are still all there after it.
+#[test]
+fn the_table_listing_is_a_guarded_query() {
+    let host = FakeFirewallHost::new().with_bans_table();
+
+    ensure_bans_table(&host, distro()).expect("ensured");
+
+    let argv = host.nft_call_starting_with("list").expect("a listing");
+    assert_eq!(argv.get(1).map(String::as_str), Some("--"));
+    assert_eq!(argv.get(2).map(String::as_str), Some("list"));
+    assert_eq!(argv.last().map(String::as_str), Some("input"));
+    assert_eq!(host.class_of_call("list"), Some(CallClass::Query));
+}
+
+/// The existence probe lists the table's chain and not the table.
+///
+/// `nft list table` prints every ban element, so its output grows with the
+/// ban count and a large set could exceed the stdout cap just to answer
+/// "is it loaded". A chain listing is the same few lines at any size. This
+/// pins the argv, not `nft`'s behaviour: that a chain listing stays small on
+/// an element-heavy table is observed on the firewall polygon.
+#[test]
+fn the_existence_probe_lists_the_chain_not_the_table() {
+    let host = FakeFirewallHost::new().with_bans_table();
+
+    ensure_bans_table(&host, distro()).expect("ensured");
+
+    let argv = host.nft_call_starting_with("list").expect("a listing");
+    assert!(argv.iter().any(|argument| argument == "chain"), "{argv:?}");
+    assert!(
+        !argv.iter().any(|argument| argument == "table"),
+        "the probe must not list the whole table: {argv:?}"
     );
 }

@@ -6,8 +6,8 @@ use crate::cron::create_cron_entry::create_cron_entry;
 use crate::cron::cron_error::CronError;
 use crate::cron::delete_cron_entry::delete_cron_entry;
 use crate::cron::recording_cron_host::{
-    ABSENT_ID, FIRST_ID, RecordingCronHost, account, cmd_path, command, distro, entry_id,
-    every_five_minutes, exit_path, log_path,
+    ABSENT_ID, FIRST_ID, RecordingCronHost, account, assert_refused_untouched, cmd_path, command,
+    distro, entry_id, every_five_minutes, exit_path, log_path, unmanaged_cases,
 };
 
 /// A deletion takes the marker out of the table and every file with it.
@@ -102,4 +102,17 @@ fn files_that_cannot_be_removed_are_reported_after_the_entry_is_out_of_the_table
         !table.contains(FIRST_ID),
         "the entry must already be out of the table: {table}"
     );
+}
+
+/// An account that is not a hosting account is refused before the table is
+/// read, and everything the host holds is left as it was.
+#[test]
+fn deleting_an_entry_of_an_unmanaged_account_installs_nothing_and_removes_no_files() {
+    // Removal of the entry's files follows the install, so both must stay
+    // untouched.
+    for case in unmanaged_cases() {
+        let result = delete_cron_entry(&case.host, distro(), &case.account, &entry_id(FIRST_ID));
+
+        assert_refused_untouched(&case, result);
+    }
 }

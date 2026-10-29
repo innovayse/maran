@@ -126,10 +126,32 @@ public sealed class RecordingAgentAccountsClient : IAgentAccountsClient
         return Task.FromResult(_failure is null ? Result<ulong>.Ok(4096) : Result<ulong>.Fail(_failure));
     }
 
+    /// <summary>
+    /// How many bytes this double reports each account as using, by account name. An account that is
+    /// not listed uses <see cref="DefaultUsedBytes"/>, so a test that is not about usage arranges
+    /// nothing.
+    /// </summary>
+    public Dictionary<string, ulong> UsedBytes { get; } = [];
+
+    /// <summary>
+    /// Accounts whose quota this double refuses to set, with the failure to answer. Lets a test make
+    /// the agent fail on ONE account of several, which is the only way to see what a handler does with
+    /// the accounts it had already reached.
+    /// </summary>
+    public Dictionary<string, Error> QuotaRefusals { get; } = [];
+
+    /// <summary>What an account uses when <see cref="UsedBytes"/> says nothing about it.</summary>
+    public const ulong DefaultUsedBytes = 2048;
+
     /// <inheritdoc/>
     public Task<Result<bool>> SetQuotaAsync(string username, ulong quotaBytes, CancellationToken cancellationToken)
     {
         Calls.Add($"quota:{username}:{quotaBytes}");
+        if (QuotaRefusals.TryGetValue(username, out var refusal))
+        {
+            return Task.FromResult(Result<bool>.Fail(refusal));
+        }
+
         return Task.FromResult(Answer());
     }
 
@@ -137,8 +159,9 @@ public sealed class RecordingAgentAccountsClient : IAgentAccountsClient
     public Task<Result<AccountUsageDto>> GetUsageAsync(string username, CancellationToken cancellationToken)
     {
         Calls.Add($"usage:{username}");
+        var used = UsedBytes.GetValueOrDefault(username, DefaultUsedBytes);
         return Task.FromResult(_failure is null
-            ? Result<AccountUsageDto>.Ok(new AccountUsageDto(2048, 4096, AccountQuotaState.Enforced, QuotaUnenforceableReason.Unspecified))
+            ? Result<AccountUsageDto>.Ok(new AccountUsageDto(used, 4096, AccountQuotaState.Enforced, QuotaUnenforceableReason.Unspecified))
             : Result<AccountUsageDto>.Fail(_failure));
     }
 

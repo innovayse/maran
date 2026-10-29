@@ -51,7 +51,7 @@ fn a_php_site_is_written_with_its_own_fastcgi_pass() {
     let vhost = host.config(Path::new(&created.config_path)).unwrap();
     assert!(
         vhost.contains(&format!(
-            "fastcgi_pass unix:/run/maran/php/{}-8.3.sock;",
+            "fastcgi_pass unix:/run/maran-php/{}-8.3.sock;",
             input.account.as_str()
         )),
         "the vhost must point at this account's pool for this version: {vhost}"
@@ -191,7 +191,7 @@ fn a_site_with_a_certificate_serves_the_same_body_on_both_ports() {
         "the TLS block must serve the same root: {ssl_block}"
     );
     assert!(ssl_block.contains(&format!(
-        "fastcgi_pass unix:/run/maran/php/{}-8.3.sock;",
+        "fastcgi_pass unix:/run/maran-php/{}-8.3.sock;",
         input.account.as_str()
     )));
     // The logs are the same seam one directive higher: port 80 only redirects,
@@ -282,14 +282,14 @@ fn a_new_php_site_gets_the_pool_its_own_vhost_points_at() {
         .expect("creating a PHP site must write the pool its vhost will point at");
     assert!(
         vhost.contains(&format!(
-            "fastcgi_pass unix:/run/maran/php/{}-8.3.sock;",
+            "fastcgi_pass unix:/run/maran-php/{}-8.3.sock;",
             input.account.as_str()
         )),
         "{vhost}"
     );
     assert!(
         pool.contains(&format!(
-            "listen = /run/maran/php/{}-8.3.sock",
+            "listen = /run/maran-php/{}-8.3.sock",
             input.account.as_str()
         )),
         "the pool must listen on exactly the socket the vhost names: {pool}"
@@ -354,4 +354,168 @@ fn a_php_version_this_host_does_not_have_is_refused_before_any_vhost_is_written(
         other => panic!("expected PhpVersionNotInstalled, got {other:?}"),
     }
     assert_eq!(host.writes(), 0, "no vhost may be left behind");
+}
+
+/// The vhost path of `php_input`'s domain.
+const EXAMPLE_VHOST: &str = "/etc/maran/nginx/sites/example.com.conf";
+
+/// `php_input` with the aliases replaced by `aliases`.
+fn input_with_aliases(aliases: &[&str]) -> CreateSiteInput {
+    CreateSiteInput {
+        aliases: aliases
+            .iter()
+            .map(|alias| Domain::parse(alias).unwrap())
+            .collect(),
+        ..php_input()
+    }
+}
+
+#[test]
+fn a_new_site_introduces_its_vhost_through_the_creation_half_of_the_protocol() {
+    // A replacement would overwrite whatever a concurrent creation just put at
+    // the path; only the creating half refuses it and refuses nginx's warning.
+    let host = FakeSiteHost::passing();
+
+    create_test_site(&host, &php_input()).unwrap();
+
+    assert_eq!(host.create_targets(), vec![PathBuf::from(EXAMPLE_VHOST)]);
+    assert!(
+        host.replaced_targets().is_empty(),
+        "no vhost of a new site may be written by the replacing half: {:?}",
+        host.replaced_targets()
+    );
+}
+
+#[test]
+fn a_new_site_refuses_a_conflict_on_its_domain_and_on_each_alias() {
+    let host = FakeSiteHost::passing();
+    let input = input_with_aliases(&["www.example.com", "shop.example.com"]);
+
+    create_test_site(&host, &input).unwrap();
+
+    let refusals = host.create_refusals();
+    assert_eq!(refusals.len(), 1);
+    for name in ["example.com", "www.example.com", "shop.example.com"] {
+        assert!(
+            refusals[0].contains(&format!("conflicting server name \"{name}\"")),
+            "a conflict on {name} must refuse the creation: {:?}",
+            refusals[0]
+        );
+    }
+}
+
+#[test]
+fn an_alias_equal_to_the_domain_is_refused_before_anything_is_created() {
+    let host = FakeSiteHost::passing();
+    let php_host = FakePhpHost::with_installed(&["8.3"]);
+    let input = input_with_aliases(&["example.com"]);
+
+    let refusal = create_site(&host, &php_host, distro(), &input, TEST_WORKERS, &[]);
+
+    match refusal {
+        Err(SitesOpError::RepeatedHostName { name }) => assert_eq!(name, "example.com"),
+        other => panic!("expected RepeatedHostName, got {other:?}"),
+    }
+    assert!(host.created().is_empty(), "no document root may be made");
+    assert!(host.log_directories().is_empty());
+    assert_eq!(host.writes(), 0);
+    assert!(host.create_targets().is_empty());
+    assert_eq!(php_host.writes(), 0, "no pool may be written either");
+}
+
+#[test]
+fn an_alias_given_twice_is_refused_naming_it() {
+    let host = FakeSiteHost::passing();
+    let input = input_with_aliases(&["www.example.com", "www.example.com"]);
+
+    let refusal = create_test_site(&host, &input);
+
+    match refusal {
+        Err(SitesOpError::RepeatedHostName { name }) => assert_eq!(name, "www.example.com"),
+        other => panic!("expected RepeatedHostName, got {other:?}"),
+    }
+    assert!(host.created().is_empty());
+}
+
+#[test]
+fn a_repeat_in_other_case_is_the_same_name_because_domains_are_lowercased_at_parse() {
+    // The comparison is exact on purpose; this is why that is enough.
+    let host = FakeSiteHost::passing();
+    let input = input_with_aliases(&["EXAMPLE.com"]);
+
+    let refusal = create_test_site(&host, &input);
+
+    assert!(
+        matches!(refusal, Err(SitesOpError::RepeatedHostName { .. })),
+        "expected RepeatedHostName, got {refusal:?}"
+    );
+}
+
+#[test]
+fn distinct_names_are_not_a_repetition() {
+    // The inverse control for the three refusals above: a check that refused
+    // every site with an alias would pass them all.
+    let host = FakeSiteHost::passing();
+    let input = input_with_aliases(&["www.example.com", "shop.example.com", "example.org"]);
+
+    let created = create_test_site(&host, &input);
+
+    assert!(created.is_ok(), "{created:?}");
+    assert_eq!(host.create_targets().len(), 1);
+}
+
+#[test]
+fn a_vhost_that_appeared_after_the_existence_check_is_refused_as_a_taken_name_and_not_overwritten()
+{
+    // The existence check above the write is an ordinary retry's answer; this is
+    // the other site that won the same domain between that check and the write.
+    // Answered under the protocol's lock as a taken name, and the winner's file
+    // is left exactly as it is.
+    let host = FakeSiteHost::passing();
+    host.place_config_after_next_read(Path::new(EXAMPLE_VHOST), "the winner's vhost\n");
+
+    let refusal = create_test_site(&host, &php_input());
+
+    match refusal {
+        Err(SitesOpError::ServerNameTaken { detail, stderr }) => {
+            assert!(detail.contains(EXAMPLE_VHOST), "{detail}");
+            assert!(stderr.is_empty(), "no validator ran: {stderr}");
+        }
+        other => panic!("expected ServerNameTaken, got {other:?}"),
+    }
+    assert_eq!(
+        host.config(Path::new(EXAMPLE_VHOST)).as_deref(),
+        Some("the winner's vhost\n")
+    );
+}
+
+#[test]
+fn a_refused_vhost_leaves_the_document_root_and_the_pool_but_no_vhost() {
+    // What a refusal at the vhost leaves behind is documented on `create_site`
+    // (rules/architecture.md: documentation must describe the code). None of it
+    // serves a request, and a repeated creation converges on all of it.
+    let host = FakeSiteHost::passing();
+    host.place_config_after_next_read(Path::new(EXAMPLE_VHOST), "the winner's vhost\n");
+    let php_host = FakePhpHost::with_installed(&["8.3"]);
+    let input = php_input();
+
+    let refusal = create_site(&host, &php_host, distro(), &input, TEST_WORKERS, &[]);
+
+    assert!(matches!(refusal, Err(SitesOpError::ServerNameTaken { .. })));
+    assert_eq!(host.created().len(), 1, "the document root stays");
+    assert_eq!(host.log_directories(), vec![input.account.clone()]);
+    assert!(
+        php_host
+            .config(Path::new(&format!(
+                "/etc/php/8.3/fpm/pool.d/{}.conf",
+                input.account.as_str()
+            )))
+            .is_some(),
+        "the account's pool for that version stays"
+    );
+    assert_eq!(
+        host.config(Path::new(EXAMPLE_VHOST)).as_deref(),
+        Some("the winner's vhost\n"),
+        "and the only vhost is the winner's"
+    );
 }

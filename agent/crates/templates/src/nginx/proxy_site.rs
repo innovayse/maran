@@ -26,9 +26,13 @@ pub struct ProxySite<'a> {
     /// Additional hostnames served by the same block.
     pub aliases: &'a [String],
     /// Absolute webroot used only to answer the ACME HTTP-01 challenge.
+    ///
+    /// The challenge location is the only place this site opens a file, so it
+    /// carries its own `disable_symlinks if_not_owner;`; [`Self::body`] writes
+    /// no `root` and no link rule.
     pub document_root: &'a str,
-    /// The location rules this site serves, already rendered by
-    /// [`super::site_body::SiteBody`].
+    /// What this site serves — its logs and the location that proxies it —
+    /// already rendered by [`super::site_body::SiteBody`].
     ///
     /// Passed in rather than expanded here so that the SAME string is placed
     /// in this block and in [`SslBlock::server_body`]: a TLS site and its

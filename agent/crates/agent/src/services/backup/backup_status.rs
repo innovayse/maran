@@ -56,6 +56,13 @@ pub fn to_agent_error(error: &BackupError) -> AgentError {
         // been taken, because this refusal happens before anything is dumped.
         // The account's lock was held; nothing ran; retry.
         BackupError::AlreadyRunning => ErrorCode::AccountBusy,
+        // A deadline or an output cap ended the program and its process group was
+        // killed. This is a fault of the host, never a verdict on the request: the
+        // work may or may not have finished, and `tool_output` stays empty because
+        // what the program printed before the kill is neither complete nor safe to
+        // forward. Named ahead of the wildcard so a missing arm cannot compile
+        // silently (threat note, plan item 11).
+        BackupError::Bound(_) => ErrorCode::SystemFailure,
         // Everything else is this machine failing at something it was asked to
         // do — including the two rollback variants, which are the most serious
         // answers this area produces and are system failures with a message

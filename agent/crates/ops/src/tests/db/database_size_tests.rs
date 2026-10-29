@@ -69,3 +69,24 @@ fn the_measurement_names_the_prefixed_database() {
         .expect("a size query was sent");
     assert!(query.contains("table_schema = 'alice_shop'"));
 }
+
+/// A measurement that timed out is a bound, never a size of zero.
+#[test]
+fn a_measurement_that_times_out_is_a_bound_and_not_a_size() {
+    let host = FakeDbHost::with_existing("alice_shop");
+    host.time_out_after(1);
+
+    let failure = database_size(&host, &shop_database()).expect_err("must fail");
+
+    assert!(matches!(failure, DbError::Bound(_)), "{failure:?}");
+}
+
+/// The existence check timing out is a bound, never `NotFound`.
+#[test]
+fn an_existence_check_that_times_out_is_a_bound_and_not_not_found() {
+    let host = FakeDbHost::timing_out_after(0);
+
+    let failure = database_size(&host, &shop_database()).expect_err("must fail");
+
+    assert!(matches!(failure, DbError::Bound(_)), "{failure:?}");
+}

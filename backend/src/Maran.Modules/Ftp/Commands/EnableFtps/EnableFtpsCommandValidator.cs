@@ -28,6 +28,14 @@ namespace Maran.Modules.Ftp.Commands.EnableFtps;
 /// against the module's resources; an English sentence is silently discarded and the caller gets the
 /// generic failure instead.
 /// </para>
+/// <para>
+/// The host name must also pass <see cref="ReservedHostNameRule"/>: an address literal, a loopback
+/// or a special-use name is refused with a message of its own, as a defence in depth for the same
+/// door (the name must already be a served site as well). Only the STATIC set applies here, not the
+/// panel's own name: this command is administrator-only, and an operator may legitimately name the
+/// FTPS endpoint after the panel's host (threat note
+/// docs/superpowers/notes/2026-10-26-reserved-hostnames-threat-note.md, "Decisions taken").
+/// </para>
 /// </remarks>
 public sealed class EnableFtpsCommandValidator : AbstractValidator<EnableFtpsCommand>
 {
@@ -39,7 +47,12 @@ public sealed class EnableFtpsCommandValidator : AbstractValidator<EnableFtpsCom
             .MaximumLength(HostNameRule.MaximumLength)
             .WithMessage(nameof(ErrorMessages.FtpsHostnameTooLong))
             .Must(HostNameRule.IsHostName)
-            .WithMessage(nameof(ErrorMessages.FtpsHostnameInvalidFormat));
+            .WithMessage(nameof(ErrorMessages.FtpsHostnameInvalidFormat))
+            .Must(hostname =>
+            {
+                return !HostNameRule.IsHostName(hostname) || !ReservedHostNameRule.IsReserved(hostname);
+            })
+            .WithMessage(nameof(ErrorMessages.FtpsHostnameReserved));
 
         // Optional, and the absence is spelled EMPTY — the one spelling the agent contract already
         // defines for "do not write the key at all". So the rule applies to a value that is there

@@ -9,6 +9,20 @@
  * button is keyboard-activatable and focusable with no scripted handling,
  * and `switch` is the role assistive technology announces as on/off rather
  * than checked/unchecked.
+ *
+ * LOOK AND MEASUREMENTS. The state is carried by the knob's POSITION and the
+ * track's fill together, never by colour alone. On: a `bg-accent-fill` track
+ * (3.65:1 against a panel) with a white knob (5.14:1 on the fill; `bg-accent`
+ * would be 3.89:1). Off: a `bg-surface-3` track outlined in `border-border-control`
+ * (`--bc`, the control-edge token; the `--b2` border would be 1.47:1, and the track is
+ * the only thing that says "this is a switch"). The outline against the surface the
+ * switch sits on: dark 3.82 on the page, 3.57 on `--s1`, 3.36 on `--s2`, 3.08 on
+ * `--s3`; light 3.39, 3.63, 3.30, 3.07 — over the 3:1 of WCAG 1.4.11. The off knob is
+ * `bg-text-secondary` (6.11:1 against the track in dark, 5.06 in light). The knob is
+ * a fixed colour pair per state because
+ * a white knob is invisible on the off track in the light theme, where
+ * `surface-3` is near-white. The track is 44 by 24px and the whole row,
+ * including the label, is the click target.
  */
 import { computed, useId, type ComputedRef } from 'vue'
 
@@ -34,25 +48,18 @@ const emit = defineEmits<{
 /** Id of the visible label, used to name the switch button via `aria-labelledby`. */
 const labelId: string = useId()
 
-/**
- * Tailwind utility classes for the track, which carries the on/off color. The
- * design only draws the "on" track (the accent); "off" is the sunken surface
- * inside a strong border, the same treatment its other empty wells get.
- */
+/** Tailwind utility classes for the track, which carries the on/off fill and outline. */
 const trackClasses: ComputedRef<string> = computed(() => {
-  return props.modelValue ? 'border-accent bg-accent' : 'border-border-strong bg-surface-3'
+  return props.modelValue ? 'border-accent-fill bg-accent-fill' : 'border-border-control bg-surface-3'
 })
 
 /**
- * Tailwind utility classes positioning and colouring the knob.
- *
- * The colour is not constant: on the accent track a white knob is correct in
- * both themes, but the off track is `surface-3`, which is near-white in the
- * light theme — a white knob there is invisible. Off therefore uses the
- * secondary text token, which clears its track in both themes.
+ * Tailwind utility classes positioning and colouring the knob. Track inner width
+ * is 44px minus the 1px border and 2px inset on each side = 38px; an 18px knob
+ * leaves 20px of travel, which is `translate-x-5`.
  */
 const knobClasses: ComputedRef<string> = computed(() => {
-  return props.modelValue ? 'translate-x-4.5 bg-white' : 'translate-x-0 bg-text-secondary'
+  return props.modelValue ? 'translate-x-5 bg-white' : 'translate-x-0 bg-text-secondary'
 })
 
 /**
@@ -68,27 +75,33 @@ const onToggle = (): void => {
 </script>
 
 <template>
-  <div class="flex items-center gap-2">
+  <div class="flex min-h-8 items-center gap-2.5">
     <button
       type="button"
       role="switch"
       :aria-checked="modelValue"
       :aria-labelledby="labelId"
       :disabled="disabled"
-      class="inline-flex h-5.5 w-10 shrink-0 items-center rounded-full border p-0.5 transition-colors focus-visible:shadow-focus focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-65"
+      class="inline-flex h-6 w-11 shrink-0 items-center rounded-full border p-0.5 transition-colors focus-visible:shadow-focus focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-65"
       :class="trackClasses"
       @click="onToggle"
     >
-      <!-- Track, knob and travel are one arithmetic: 40px wide minus the 1px
-           border and the 2px inset on each side leaves 34px of rail for a 16px
-           knob, so the "on" position is exactly 18px along. -->
       <span
-        class="ui-switch-knob size-4 rounded-full transition-transform duration-150 ease-out"
+        class="ui-switch-knob size-4.5 rounded-full transition-transform duration-150 ease-out"
         :class="knobClasses"
         aria-hidden="true"
       />
     </button>
-    <span :id="labelId" class="text-base text-text-primary">{{ label }}</span>
+    <!-- The label toggles too, so the target is the whole row and not only the
+         44px track. It is a span, not a `<label for>`: the button is named by
+         `aria-labelledby`, and a label for a button would announce twice. -->
+    <span
+      :id="labelId"
+      class="min-w-0 text-sm text-text-primary wrap-anywhere"
+      :class="disabled ? 'cursor-not-allowed opacity-65' : 'cursor-pointer'"
+      @click="onToggle"
+      >{{ label }}</span
+    >
   </div>
 </template>
 

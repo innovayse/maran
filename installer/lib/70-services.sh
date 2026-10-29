@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Step 70: install the hardened systemd units from installer/systemd/ and enable them.
+# Step 70: install the systemd units from installer/systemd/ and enable the panel's two.
+# The package-install template unit is installed too, but never enabled: only the agent starts it.
 # Does not start them yet — 80-nginx.sh must install the vhost first so the api's first
 # health check has something proxying to it, and both are started together at the end
 # of this step's counterpart call order in install.sh (api after nginx is configured
@@ -15,6 +16,18 @@ readonly MARAN_UNIT_DIR="/etc/systemd/system"
 # one place.
 readonly MARAN_TMPFILES_DIR="/etc/tmpfiles.d"
 readonly MARAN_API_TMPFILES_NAME="maran-api.conf"
+# The snippet that builds the PHP-FPM pool socket directory. Unlike the api's it has no
+# placeholders, so it is installed as it stands (installer/systemd/maran-php.tmpfiles.conf says why
+# that directory is not under /run/maran).
+readonly MARAN_PHP_TMPFILES_NAME="maran-php.conf"
+# The directory that snippet builds. The agent writes pool sockets here
+# (AgentPaths::PHP_FPM_SOCKET_DIRECTORY) and the agent unit's ReadWritePaths= names it; a rename
+# here without one there breaks every PHP site.
+readonly MARAN_PHP_SOCKET_DIRECTORY="/run/maran-php"
+# The template unit through which the agent installs a PHP version as root, outside its own sandbox
+# (issue #93). The file name is the contract with the agent: ops/src/php starts
+# maran-php-install@<package>.service, so a rename here without one there installs nothing.
+readonly MARAN_PHP_INSTALL_UNIT_NAME="maran-php-install@.service"
 
 # api_socket_directory: the directory half of MARAN_API_SOCKET_PATH.
 #
@@ -91,12 +104,91 @@ render_api_runtime_dir() {
 # inherits — so this one word is what lets the api reach the only root process on the server. The
 # unit used to be installed unrendered because it named nothing an installer decides; it names the
 # service group now, and that name is decided in install.sh like the port and the socket path.
+# quota_device_binds: the BindPaths= lines that let the agent see the one block device it needs,
+# or a comment saying why there are none.
+#
+# PrivateDevices=true hides every block device from the agent, and `setquota` must stat the device
+# behind the filesystem it limits — so without this, creating a hosting account failed with
+# "Cannot stat() mounted device" and the panel answered 500 (issue #73). The unit's own comment
+# carries the measurement.
+#
+# BOTH names are bound. The mount table usually gives a symlink (`/dev/mapper/vg-lv`) that resolves
+# to the real node (`/dev/dm-0`); setquota opens the name it was handed, and the kernel then needs
+# the target, so binding one of the two is not enough.
+#
+# A host where the device cannot be resolved gets no binds and a comment instead of a broken unit:
+# quotas will not work there, which is a limitation the panel reports through its own
+# QuotaNotEnforceable alert, rather than an install that refuses to finish.
+quota_device_binds() {
+  local target="/home" source resolved
+  source="$(findmnt -no SOURCE --target "$target" 2>/dev/null | head -1)"
+  if [ -z "$source" ] || [ ! -e "$source" ]; then
+    echo "# No block device resolved for ${target}; disk quotas will not be enforceable here."
+    return 0
+  fi
+
+  echo "BindPaths=${source}"
+  resolved="$(readlink -f "$source" 2>/dev/null)"
+  if [ -n "$resolved" ] && [ "$resolved" != "$source" ] && [ -e "$resolved" ]; then
+    echo "BindPaths=${resolved}"
+  fi
+}
+
 render_agent_unit() {
-  local out="$1"
+  local out="$1" binds
   : "${MARAN_GROUP:?must be set by install.sh before this step is sourced}"
-  sed -e "s#__MARAN_GROUP__#${MARAN_GROUP}#g" \
-    "${LIB_DIR}/../systemd/maran-agent.service" > "$out"
+  binds="$(quota_device_binds)"
+  # Rendered through awk rather than sed because the replacement is MULTI-LINE: `sed s###` with a
+  # newline in the replacement is a portability trap, and this one is two lines on most hosts.
+  awk -v group="$MARAN_GROUP" -v binds="$binds" '
+    { gsub(/__MARAN_GROUP__/, group) }
+    /^__MARAN_QUOTA_DEVICE_BINDS__$/ { print binds; next }
+    { print }
+  ' "${LIB_DIR}/../systemd/maran-agent.service" > "$out"
   refuse_unsubstituted_placeholder "$out" maran-agent.service
+}
+
+# render_php_install_unit: renders the package-install template unit for this host's OS family.
+#
+# The two families name different package managers, and a systemd unit interpolates no shell
+# variable, so the family's ExecStart= and Environment= lines are substituted here. Each is ONE fixed
+# argv: an absolute program, fixed options, and %i (the instance, which the agent writes as the
+# adapter's package name) as the last and only package argument. %i is a systemd specifier, not a
+# shell variable, so nothing below touches it. The paths are the ones DistroAdapter::package_manager
+# answers; they are spelled in the unit because systemd needs an absolute path at load time.
+#
+# --no-remove (Debian family) aborts an install that could only proceed by removing another
+# package; dnf removes nothing unless given --allowerasing, which is never passed. The Debian family
+# also sets DEBIAN_FRONTEND=noninteractive on purpose; the RHEL family has no equivalent, so its
+# environment placeholder becomes a comment rather than an empty line.
+#
+# A family other than debian or rhel is a refusal, never a default: a unit rendered for a package
+# manager the host does not have would fail only when an operator first installs a PHP version.
+render_php_install_unit() {
+  local out="$1" exec_start environment
+  : "${MARAN_OS_FAMILY:?must be set by install.sh before this step is sourced}"
+  case "$MARAN_OS_FAMILY" in
+    debian)
+      exec_start="ExecStart=/usr/bin/apt-get install -y --no-remove -- %i"
+      environment="Environment=DEBIAN_FRONTEND=noninteractive"
+      ;;
+    rhel)
+      exec_start="ExecStart=/usr/bin/dnf install -y -- %i"
+      environment="# No debconf on this family, so no frontend variable to set."
+      ;;
+    *)
+      echo "70-services.sh: no package-install unit for OS family '${MARAN_OS_FAMILY}'; aborting." >&2
+      exit 1
+      ;;
+  esac
+  # awk, not sed: the replacement holds `%` and spaces, and sed's `s###` is a portability trap there.
+  # The values are passed with -v, which processes backslash escapes; neither value contains one.
+  awk -v exec_start="$exec_start" -v environment="$environment" '
+    /^__MARAN_PKG_EXEC_START__$/ { print exec_start; next }
+    /^__MARAN_PKG_ENVIRONMENT__$/ { print environment; next }
+    { print }
+  ' "${LIB_DIR}/../systemd/${MARAN_PHP_INSTALL_UNIT_NAME}" > "$out"
+  refuse_unsubstituted_placeholder "$out" "$MARAN_PHP_INSTALL_UNIT_NAME"
 }
 
 install_units() {
@@ -107,8 +199,13 @@ install_units() {
   render_api_runtime_dir "$tmp"
   install -d -m 0755 "$MARAN_TMPFILES_DIR"
   install -m 0644 "$tmp" "${MARAN_TMPFILES_DIR}/${MARAN_API_TMPFILES_NAME}"
+  # Nothing to substitute, so installed straight from the source file.
+  install -m 0644 "${LIB_DIR}/../systemd/maran-php.tmpfiles.conf" "${MARAN_TMPFILES_DIR}/${MARAN_PHP_TMPFILES_NAME}"
   render_agent_unit "$tmp"
   install -m 0644 "$tmp" "${MARAN_UNIT_DIR}/maran-agent.service"
+  # Installed, NEVER enabled: it has no [Install] section and only the agent starts it.
+  render_php_install_unit "$tmp"
+  install -m 0644 "$tmp" "${MARAN_UNIT_DIR}/${MARAN_PHP_INSTALL_UNIT_NAME}"
   rm -f "$tmp"
 }
 
@@ -120,6 +217,35 @@ install_units() {
 # what makes re-running the installer put right a host where the ownership was changed by hand.
 build_api_socket_directory() {
   systemd-tmpfiles --create "${MARAN_TMPFILES_DIR}/${MARAN_API_TMPFILES_NAME}"
+}
+
+# build_php_socket_directory: apply the PHP socket snippet now, for the same reasons as the api's.
+#
+# The agent writes a pool's socket into this directory the first time a PHP site is created, and
+# php-fpm and nginx both resolve a path through it, so it must exist at the right owner and mode
+# before the agent starts. `--create` also corrects a directory changed by hand.
+build_php_socket_directory() {
+  systemd-tmpfiles --create "${MARAN_TMPFILES_DIR}/${MARAN_PHP_TMPFILES_NAME}"
+}
+
+# assert_php_socket_directory: the PHP socket directory observed on this host rather than assumed.
+#
+# Must be 755 root:root. Anything narrower and the web server's user cannot resolve a path inside
+# it, so every PHP site answers 502 while the install reports success; anything writable by
+# another uid and a tenant could bind or unlink a socket under another pool's name.
+assert_php_socket_directory() {
+  local expected="755 root root" observed
+  observed="$(stat -c '%a %U %G' "$MARAN_PHP_SOCKET_DIRECTORY" 2>/dev/null || true)"
+  if [ "$observed" != "$expected" ]; then
+    cat >&2 <<EOF
+70-services.sh: ${MARAN_PHP_SOCKET_DIRECTORY} is '${observed:-absent}' but must be '${expected}'.
+
+It is built by ${MARAN_TMPFILES_DIR}/${MARAN_PHP_TMPFILES_NAME}; check that file and that
+'systemd-tmpfiles --create' accepted it.
+EOF
+    exit 1
+  fi
+  echo "PHP socket directory ${MARAN_PHP_SOCKET_DIRECTORY} is ${expected}."
 }
 
 # assert_api_socket_directory: the boundary itself, observed on this host rather than assumed.
@@ -232,6 +358,9 @@ step_services() {
   # ReadWritePaths= names this directory, so a unit whose directory does not exist does not start.
   build_api_socket_directory
   assert_api_socket_directory
+  # Same precondition for the PHP pool sockets: the agent unit's ReadWritePaths= names this path.
+  build_php_socket_directory
+  assert_php_socket_directory
   # Start the agent first: the api's health check depends on an agent handshake, and
   # starting order here matches the After= dependency declared in maran-api.service.
   systemctl restart maran-agent.service

@@ -3,6 +3,7 @@
 // A failing assertion IS the reporting mechanism for a test.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use maran_agent_core::utils::call_class::CallClass;
 use maran_agent_core::validation::web::domain::Domain;
 
 use crate::ftps::fake_ftps_host::{FakeFtpsHost, HOSTNAME, distro};
@@ -236,4 +237,37 @@ fn a_host_whose_service_manager_cannot_be_started_is_an_error_and_never_a_stoppe
         get_ftps_status(&host, distro(), None).expect_err("no service manager"),
         FtpsError::program_unavailable()
     );
+}
+
+#[test]
+fn asking_whether_the_unit_is_active_is_a_query_with_the_marker_before_the_unit() {
+    let host = FakeFtpsHost::with_certificate().with_running_daemon();
+
+    get_ftps_status(&host, distro(), Some(&hostname())).expect("observed");
+
+    let ask = host
+        .spawns()
+        .into_iter()
+        .find(|spawn| spawn.argv.get(1).is_some_and(|verb| verb == "is-active"))
+        .expect("the unit was asked about");
+    assert_eq!(ask.class, Some(CallClass::Query));
+    assert_eq!(
+        ask.argv[1..],
+        ["is-active", "--", "maran-ftps.service"],
+        "{:?}",
+        ask.argv
+    );
+}
+
+#[test]
+fn an_is_active_that_times_out_is_a_bound_and_not_a_stopped_daemon() {
+    // A killed query has not said "inactive". Reading it as one would report a
+    // running daemon as down.
+    let host = FakeFtpsHost::with_certificate()
+        .with_running_daemon()
+        .timing_out("systemctl");
+
+    let failed = get_ftps_status(&host, distro(), Some(&hostname())).expect_err("timed out");
+
+    assert!(matches!(failed, FtpsError::Bound(_)), "got {failed:?}");
 }

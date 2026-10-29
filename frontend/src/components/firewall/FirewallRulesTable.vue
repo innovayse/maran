@@ -7,10 +7,17 @@
  * be in this table: offering an administrator a "remove" button for the rule holding their session
  * open is the lockout with a button on it. Every row here is a rule somebody asked for.
  *
+ * **Layout (redesign, October 2026).** The table sits in a {@link UiCard} panel and is flat: hairlines
+ * between rows, no zebra, the header in the display face. Ports, protocols and source ranges are
+ * machine text, so every data cell is monospace (`mono`) and is never uppercased. The table scrolls
+ * inside its own container ({@link UiTable}), so a narrow phone never gets a page that scrolls
+ * sideways.
+ *
  * Dumb by the usual contract: props in, emits out. The page owns the store, the confirmation and
  * the request.
  */
 import { useI18n } from 'vue-i18n'
+import UiCard from '../ui/UiCard.vue'
 import UiDropdown from '../ui/UiDropdown.vue'
 import UiDropdownItem from '../ui/UiDropdownItem.vue'
 import UiIcon from '../ui/UiIcon.vue'
@@ -52,47 +59,49 @@ const describe = (rule: FirewallRule): string => {
 </script>
 
 <template>
-  <UiTable :caption="t('firewall.rules.tableCaption')">
-    <template #head>
-      <UiTableRow>
-        <UiTableHeaderCell>{{ t('firewall.rules.columns.port') }}</UiTableHeaderCell>
-        <UiTableHeaderCell>{{ t('firewall.rules.columns.protocol') }}</UiTableHeaderCell>
-        <UiTableHeaderCell>{{ t('firewall.rules.columns.source') }}</UiTableHeaderCell>
-        <UiTableHeaderCell align="end">{{ t('common.actions') }}</UiTableHeaderCell>
+  <UiCard>
+    <UiTable :caption="t('firewall.rules.tableCaption')">
+      <template #head>
+        <UiTableRow>
+          <UiTableHeaderCell>{{ t('firewall.rules.columns.port') }}</UiTableHeaderCell>
+          <UiTableHeaderCell>{{ t('firewall.rules.columns.protocol') }}</UiTableHeaderCell>
+          <UiTableHeaderCell>{{ t('firewall.rules.columns.source') }}</UiTableHeaderCell>
+          <UiTableHeaderCell align="end">{{ t('common.actions') }}</UiTableHeaderCell>
+        </UiTableRow>
+      </template>
+      <UiTableRow
+        v-for="rule in rules"
+        :key="`${rule.protocol}-${portRangeLabel(rule.port, rule.portTo)}-${rule.sourceCidr}`"
+      >
+        <!-- The range as one cell, not a port with a bound hidden elsewhere: what the row says is
+             what the firewall opens. -->
+        <UiTableCell mono class="font-medium whitespace-nowrap">{{ portRangeLabel(rule.port, rule.portTo) }}</UiTableCell>
+        <UiTableCell mono tone="secondary">
+          {{ t(`firewall.protocols.${rule.protocol}`) }}
+        </UiTableCell>
+        <UiTableCell mono tone="secondary" class="whitespace-nowrap">{{ rule.sourceCidr }}</UiTableCell>
+        <UiTableCell align="end">
+          <div class="flex items-center justify-end">
+            <!-- One trigger rather than a button per command, and `align="end"` because this is the
+                 last column: a menu aligned to the start would open off the right edge. -->
+            <UiDropdown
+              :label="t('common.actions')"
+              :aria-label="t('firewall.rules.rowActions', { rule: describe(rule) })"
+              align="end"
+              variant="bare"
+              :chevron="false"
+              :disabled="busy"
+            >
+              <template #trigger>
+                <UiIcon name="ellipsis" size="md" />
+              </template>
+              <UiDropdownItem destructive @select="emit('remove', rule)">
+                {{ t('firewall.rules.remove') }}
+              </UiDropdownItem>
+            </UiDropdown>
+          </div>
+        </UiTableCell>
       </UiTableRow>
-    </template>
-    <UiTableRow
-      v-for="rule in rules"
-      :key="`${rule.protocol}-${portRangeLabel(rule.port, rule.portTo)}-${rule.sourceCidr}`"
-    >
-      <!-- The range as one cell, not a port with a bound hidden elsewhere: what the row says is
-           what the firewall opens. -->
-      <UiTableCell class="font-mono font-medium">{{ portRangeLabel(rule.port, rule.portTo) }}</UiTableCell>
-      <UiTableCell class="font-mono text-text-secondary">
-        {{ t(`firewall.protocols.${rule.protocol}`) }}
-      </UiTableCell>
-      <UiTableCell class="font-mono text-text-secondary">{{ rule.sourceCidr }}</UiTableCell>
-      <UiTableCell align="end">
-        <div class="flex items-center justify-end">
-          <!-- One trigger rather than a button per command, and `align="end"` because this is the
-               last column: a menu aligned to the start would open off the right edge. -->
-          <UiDropdown
-            :label="t('common.actions')"
-            :aria-label="t('firewall.rules.rowActions', { rule: describe(rule) })"
-            align="end"
-            variant="bare"
-            :chevron="false"
-            :disabled="busy"
-          >
-            <template #trigger>
-              <UiIcon name="ellipsis" size="md" />
-            </template>
-            <UiDropdownItem destructive @select="emit('remove', rule)">
-              {{ t('firewall.rules.remove') }}
-            </UiDropdownItem>
-          </UiDropdown>
-        </div>
-      </UiTableCell>
-    </UiTableRow>
-  </UiTable>
+    </UiTable>
+  </UiCard>
 </template>

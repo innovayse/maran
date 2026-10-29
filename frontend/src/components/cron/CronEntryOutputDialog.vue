@@ -19,6 +19,8 @@
 import { computed, type ComputedRef } from 'vue'
 import { useI18n } from 'vue-i18n'
 import UiAlert from '../ui/UiAlert.vue'
+import UiDescriptionItem from '../ui/UiDescriptionItem.vue'
+import UiDescriptionList from '../ui/UiDescriptionList.vue'
 import UiModal from '../ui/UiModal.vue'
 import UiSpinner from '../ui/UiSpinner.vue'
 import { formatUnixTimestamp } from '../../utils/formatUnixTimestamp'
@@ -102,24 +104,36 @@ const close = (): void => {
       {{ t('cron.output.neverRan') }}
     </p>
 
-    <div v-else>
-      <dl class="mb-3 grid grid-cols-2 gap-2 text-sm">
-        <dt class="text-text-muted">{{ t('cron.output.exitCode') }}</dt>
-        <dd class="font-mono text-text-primary">{{ exitCode ?? t('cron.output.notReported') }}</dd>
-        <dt class="text-text-muted">{{ t('cron.output.lastRunAt') }}</dt>
-        <dd class="font-mono text-text-primary">{{ lastRunAt ?? t('cron.output.notReported') }}</dd>
-      </dl>
+    <div v-else class="flex min-w-0 flex-col gap-4">
+      <!-- The exit code carries a named test hook (`cron-exit-code`) rather than being found by its
+           position in the list, so reordering these rows cannot silently change what the spec reads. -->
+      <UiDescriptionList class="rounded-control bg-surface-2 px-4 py-3">
+        <UiDescriptionItem :term="t('cron.output.exitCode')" mono>
+          <span data-testid="cron-exit-code" :class="exitCode !== null && exitCode !== '0' ? 'text-danger' : ''">
+            {{ exitCode ?? t('cron.output.notReported') }}
+          </span>
+        </UiDescriptionItem>
+        <UiDescriptionItem :term="t('cron.output.lastRunAt')" mono>
+          {{ lastRunAt ?? t('cron.output.notReported') }}
+        </UiDescriptionItem>
+      </UiDescriptionList>
 
       <p v-if="outputText === null" class="text-base text-text-secondary">
         {{ t('cron.output.noOutput') }}
       </p>
-      <!-- Interpolated as text, never `v-html`: this is whatever the customer's own command wrote. -->
+      <!-- Interpolated as text, never `v-html`: this is whatever the customer's own command wrote.
+           It scrolls inside itself (both ways, so a long line does not widen the dialog or the page at
+           390px), and is focusable so a keyboard user can scroll it. `min-w-0` lets the flex column
+           shrink below the longest line. -->
       <pre
         v-else
-        class="max-h-80 overflow-auto rounded-lg bg-surface-3 p-3 font-mono text-sm whitespace-pre-wrap break-words text-text-primary"
+        tabindex="0"
+        role="region"
+        :aria-label="t('cron.output.title')"
+        class="m-0 max-h-72 min-w-0 overflow-auto rounded-control border border-border-subtle bg-surface-3 p-3 font-mono text-sm leading-relaxed whitespace-pre-wrap text-text-primary wrap-anywhere focus-visible:shadow-focus focus-visible:outline-none"
       >{{ outputText }}</pre>
 
-      <p class="mt-3 text-sm text-text-muted">{{ t('cron.output.provenance') }}</p>
+      <p class="text-sm text-text-muted">{{ t('cron.output.provenance') }}</p>
     </div>
   </UiModal>
 </template>

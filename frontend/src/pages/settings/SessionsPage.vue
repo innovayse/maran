@@ -7,18 +7,33 @@
  * Every row is the caller's own: the endpoint takes no user parameter, and a
  * session belonging to somebody else answers "not found" rather than "forbidden",
  * so this screen cannot be pointed at another person's devices.
+ *
+ * Laid out as the redesign's screens are (docs/design/redesign-2026-10): the heading block with
+ * its eyebrow and the two commands on its right, then the devices in one panel. Rebuilt from
+ * zero, with the behaviour unchanged:
+ *
+ * - Ending a session confirms first, in a dialog named for the address it ends, and the dialog
+ *   says so when the row is this browser's own. The destructive command is never the default.
+ * - The confirmation lives OUTSIDE the branch that swaps the table for a spinner or an empty
+ *   state, so a refresh cannot unmount it mid-request.
+ * - A table the width of the screen scrolls inside its own container at 390px, so the page
+ *   itself never scrolls sideways; the device name truncates instead of widening the column.
+ * - Only the fields the screen knows are rendered, never the response wholesale (a leaked
+ *   token hash must not reach the page).
  */
 import { computed, onMounted, ref, type ComputedRef, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { RouterLink, useRouter  } from 'vue-router'
+import { useRouter } from 'vue-router'
 import UiAlert from '../../components/ui/UiAlert.vue'
 import UiBadge from '../../components/ui/UiBadge.vue'
 import UiButton from '../../components/ui/UiButton.vue'
+import UiCard from '../../components/ui/UiCard.vue'
 import UiConfirm from '../../components/ui/UiConfirm.vue'
 import UiDropdown from '../../components/ui/UiDropdown.vue'
 import UiDropdownItem from '../../components/ui/UiDropdownItem.vue'
 import UiEmptyState from '../../components/ui/UiEmptyState.vue'
 import UiIcon from '../../components/ui/UiIcon.vue'
+import UiIconTile from '../../components/ui/UiIconTile.vue'
 import UiPageHeading from '../../components/ui/UiPageHeading.vue'
 import UiSpinner from '../../components/ui/UiSpinner.vue'
 import UiTable from '../../components/ui/UiTable.vue'
@@ -128,21 +143,17 @@ onMounted(async () => {
 </script>
 
 <template>
-  <section class="w-full">
+  <section class="flex w-full flex-col gap-4">
     <UiPageHeading
-      class="mb-4"
+      :eyebrow="t('app.sessions.eyebrow')"
       :title="t('app.sessions.heading')"
       :subtitle="t('app.sessions.subtitle')"
     >
       <template #actions>
         <!-- The panel's sign-in policy: how long a session lives, how many failures earn a ban.
              It belongs with access, which is this screen, rather than in the account menu where it
-             read as a setting about the person looking at it. -->
-        <RouterLink
-          class="rounded-lg border border-border-subtle px-3 py-2 text-base text-text-secondary transition-colors hover:text-text-primary focus-visible:shadow-focus focus-visible:outline-none"
-          :to="{ name: 'security-policy' }"
-          >{{ t('app.sessions.securityPolicyLink') }}</RouterLink
-        >
+             read as a setting about the person looking at it. A link, not a button: it navigates. -->
+        <UiButton variant="secondary" :to="{ name: 'security-policy' }">{{ t('app.sessions.securityPolicyLink') }}</UiButton>
         <UiButton
           v-if="authStore.sessions.length > 0"
           variant="destructive"
@@ -165,49 +176,61 @@ onMounted(async () => {
       :description="t('app.sessions.emptyDescription')"
     />
 
-    <UiTable v-else :caption="t('app.sessions.tableCaption')">
-      <template #head>
-        <UiTableRow>
-          <UiTableHeaderCell>{{ t('app.sessions.deviceColumn') }}</UiTableHeaderCell>
-          <UiTableHeaderCell>{{ t('app.sessions.addressColumn') }}</UiTableHeaderCell>
-          <UiTableHeaderCell>{{ t('app.sessions.signedInColumn') }}</UiTableHeaderCell>
-          <UiTableHeaderCell>{{ t('common.actions') }}</UiTableHeaderCell>
-        </UiTableRow>
-      </template>
+    <UiCard v-else>
+      <UiTable :caption="t('app.sessions.tableCaption')">
+        <template #head>
+          <UiTableRow>
+            <UiTableHeaderCell>{{ t('app.sessions.deviceColumn') }}</UiTableHeaderCell>
+            <UiTableHeaderCell>{{ t('app.sessions.addressColumn') }}</UiTableHeaderCell>
+            <UiTableHeaderCell align="end">{{ t('app.sessions.signedInColumn') }}</UiTableHeaderCell>
+            <UiTableHeaderCell align="end">{{ t('common.actions') }}</UiTableHeaderCell>
+          </UiTableRow>
+        </template>
 
-      <UiTableRow v-for="session in authStore.sessions" :key="session.id">
-        <UiTableCell>
-          <span class="block max-w-[320px] truncate">{{ session.userAgent }}</span>
-          <UiBadge v-if="session.isCurrent" variant="success">
-            {{ t('app.sessions.currentDevice') }}
-          </UiBadge>
-        </UiTableCell>
-        <UiTableCell>
-          <span class="font-mono">{{ session.ipAddress }}</span>
-        </UiTableCell>
-        <UiTableCell>{{ formatDate(session.issuedAt, localeStore.current) }}</UiTableCell>
-        <UiTableCell>
-          <!-- One command today and a menu anyway, so the last column has one shape in every
-               table of the panel and an operator learns the control once. The trigger's name
-               carries the row's address, because "Actions" repeated down a column of identical
-               triggers names nothing to a screen reader. -->
-          <UiDropdown
-            :label="t('common.actions')"
-            :aria-label="t('app.sessions.rowActions', { address: session.ipAddress })"
-            align="start"
-            variant="bare"
-            :chevron="false"
-          >
-            <template #trigger>
-              <UiIcon name="ellipsis" size="md" />
-            </template>
-            <UiDropdownItem destructive @select="askToRevoke(session.id)">
-              {{ t('app.sessions.end') }}
-            </UiDropdownItem>
-          </UiDropdown>
-        </UiTableCell>
-      </UiTableRow>
-    </UiTable>
+        <UiTableRow v-for="session in authStore.sessions" :key="session.id">
+          <UiTableCell>
+            <div class="flex items-center gap-3">
+              <!-- Decorative: the device's name beside it is the cell's whole content. -->
+              <UiIconTile name="globe" size="sm" />
+              <div class="flex min-w-0 flex-col items-start gap-1">
+                <span class="block max-w-65 min-w-35 truncate font-semibold text-text-primary">{{
+                  session.userAgent
+                }}</span>
+                <UiBadge v-if="session.isCurrent" variant="success">
+                  {{ t('app.sessions.currentDevice') }}
+                </UiBadge>
+              </div>
+            </div>
+          </UiTableCell>
+          <UiTableCell mono tone="secondary" class="whitespace-nowrap">{{ session.ipAddress }}</UiTableCell>
+          <!-- A timestamp is context, never the thing being scanned for: the faintest text tier. -->
+          <UiTableCell mono tone="muted" align="end" class="whitespace-nowrap">
+            {{ formatDate(session.issuedAt, localeStore.current) }}
+          </UiTableCell>
+          <UiTableCell align="end">
+            <!-- One command today and a menu anyway, so the last column has one shape in every
+                 table of the panel and an operator learns the control once. The trigger's name
+                 carries the row's address, because "Actions" repeated down a column of identical
+                 triggers names nothing to a screen reader. `end` keeps the panel inside the
+                 viewport from the last column. -->
+            <UiDropdown
+              :label="t('common.actions')"
+              :aria-label="t('app.sessions.rowActions', { address: session.ipAddress })"
+              align="end"
+              variant="bare"
+              :chevron="false"
+            >
+              <template #trigger>
+                <UiIcon name="ellipsis" size="md" />
+              </template>
+              <UiDropdownItem destructive @select="askToRevoke(session.id)">
+                {{ t('app.sessions.end') }}
+              </UiDropdownItem>
+            </UiDropdown>
+          </UiTableCell>
+        </UiTableRow>
+      </UiTable>
+    </UiCard>
 
     <!-- Outside the table on purpose: the branch above swaps the table for a spinner or an empty
          state, and a dialog mounted inside it would be unmounted by the very refresh it survives.

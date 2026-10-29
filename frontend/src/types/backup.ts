@@ -161,9 +161,8 @@ export interface RestorePartial {
 /**
  * Typed access to the backups endpoints.
  *
- * Five calls, matching the five routes `BackupsController` publishes. `restore` is one of them:
- * the panel's `POST /api/v1/backups/{id}/restore` landed with Task 10, and the note that used to
- * stand here — that no panel endpoint reached the agent's restore — is no longer true of this tree.
+ * Five calls, matching the five routes `BackupsController` publishes. `restore` is one of them,
+ * backed by the panel's `POST /api/v1/backups/{id}/restore`.
  *
  * Called from Pinia stores only — never from a component (rules/vue.md).
  */

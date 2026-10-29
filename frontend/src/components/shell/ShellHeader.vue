@@ -1,276 +1,207 @@
 <script setup lang="ts">
 /**
- * The shell's top bar: breadcrumbs for the active screen, a separator, the
- * server picker, and the right-aligned interface controls.
+ * The shell's app bar: a 56px rounded panel floating on the desktop, holding the mark and
+ * wordmark, the command-palette trigger, the breadcrumb, and the right-aligned interface
+ * controls (tasks badge, theme, language, the signed-in person's avatar).
  *
- * Values from the design canvas: 46px tall on `--s1` under a `--b1` bottom
- * border, `padding:0 14px`, a 10px gap, 12px breadcrumb text where the trail
- * is `--t2` and the leaf is `--t1` at weight 600, and a 1px × 18px `--b1`
- * separator before the picker.
+ * **The wordmark is a link, not a heading.** Every authenticated page opens with its own `<h1>`
+ * (`UiPageHeading`), and a document has one; the product name is chrome that the page's title
+ * sits under, so it is a plain link to the landing screen inside the banner. The mark is the real
+ * keystone from `/favicon.svg` with no plate behind it (see `UiBrandMark`).
  *
- * The canvas is a desktop artboard only, so the compact behaviour here — the
- * menu button below `lg`, and the disabled placeholders dropping out rather
- * than overflowing the 46px band — is this panel's decision, not the design's.
+ * **The palette trigger is a button styled as a search field**, with a `⌘K` hint. It carries
+ * visible text and a `border-border-control` outline: a control must never be identified by a
+ * fill alone (`--s2` against a panel is 1.06:1), and the subtle border is 1.2 to 1.5:1, so the
+ * outline is the control-strength one. Below `sm` the text and hint are dropped and it collapses
+ * to a 40px icon button with the same accessible name — one element, not a second hidden control,
+ * so the name is never present twice; there the glyph itself is the identifier, so the fill and
+ * outline go with the text. It must never wrap: the placeholder and the hint wrapped onto two
+ * lines at 768px in the mockup, so the text truncates instead.
  *
- * The design derives its breadcrumbs from a screen→path map; the equivalent
- * here is {@link SHELL_ROUTE_LABEL_KEYS} for the shell's own screens plus the
- * module catalogue for everything module-backed, so the trail never names a
- * screen the panel did not report.
+ * **The hamburger exists only while the shell is compact**, where no sidebar column is rendered;
+ * the layout owns that state (one media query, see `DefaultLayout.vue`) and passes it in as
+ * `compact`, so the button and the layout can never disagree about which presentation is showing.
+ * Its `aria-expanded` follows the drawer.
+ *
+ * **The bar gives way by its own width, not the window's.** A media query counts CSS pixels of
+ * the window and ignores the reader's text size, so a bar that fits at 100% overflowed under a
+ * 200% text-only zoom at the same window width: the search field shrank to an icon, its `⌘K` hint
+ * spilled over the tasks badge, and the language button and avatar fell off the canvas (WCAG
+ * 1.4.4 and 1.4.10). The bar is a size container (`@container`) and every step below is a
+ * container query in `rem`, so it follows the text size exactly as the content does. From the
+ * lowest priority up, as the bar narrows:
+ *
+ * 1. The breadcrumb hides before it could be squeezed into "Pa…" (it is the only item that is
+ *    pure orientation; the page's own `<h1>` says the same).
+ * 2. The `⌘K` hint hides when the search field itself is too narrow to hold it (the field is its
+ *    own container), then the field collapses to the icon button, one element at a time, never
+ *    both.
+ * 3. The theme and language labels fall back to their icons (see those components), and the
+ *    wordmark's name steps aside (see `ShellWordmark`).
+ * 4. The avatar is dropped. Nothing becomes unreachable: the account menu is the sidebar's
+ *    identity card, in the sidebar or, when there is none, in the navigation drawer. The banner
+ *    must hold exactly one `aria-haspopup="menu"` element at a phone width, the language picker,
+ *    which the locale specs find that way; a second trigger here would make their clicks ambiguous.
+ *
+ * The theme switch is the one control that does not follow the bar: below `sm` of the window it
+ * lives in the navigation drawer's head (`ShellDrawer`), which the menu button and the tab bar's
+ * "More" both open, so it stays one tap from every screen with its accessible name unchanged. The
+ * drawer decides that by the window, so this bar does too; otherwise there would be a text size at
+ * which neither showed it.
+ *
+ * **If even that is not enough, the row wraps instead of clipping.** At a text size and window
+ * where the four controls that must always be there (menu, search, tasks badge, language) cannot
+ * share one line, the bar grows a second line. A taller bar costs a little page height; a
+ * clipped control costs the person the control. The row's items never shrink below their own
+ * width, so the wrap is the only thing that gives.
+ *
+ * The bar's row is a child of the container because a container's own classes cannot be
+ * container-queried: the gap and padding step down with the bar, and the header could not do that
+ * for itself.
+ *
+ * The icon buttons are the kit button's `icon` size and the search field its `field` variant,
+ * so no class here restates a box the kit already draws.
  */
 import { computed, type ComputedRef } from 'vue'
-import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import UiButton from '../ui/UiButton.vue'
 import UiIcon from '../ui/UiIcon.vue'
+import ShellAvatar from './ShellAvatar.vue'
+import ShellBreadcrumb from './ShellBreadcrumb.vue'
 import ShellLocaleSwitcher from './ShellLocaleSwitcher.vue'
 import ShellTasksBadge from './ShellTasksBadge.vue'
 import ShellThemeSwitcher from './ShellThemeSwitcher.vue'
+import ShellWordmark from './ShellWordmark.vue'
 import type { NavigationEntry } from '../../types/navigation'
-
-/**
- * i18n keys naming the shell's own screens in the breadcrumb trail. Only
- * routes this bundle owns appear here — a module's screen is named by the
- * catalogue entry the panel sent, never by a key invented in the frontend.
- */
-const SHELL_ROUTE_LABEL_KEYS: Record<string, string> = {
-  'system-status': 'app.nav.systemStatus',
-  upgrade: 'app.upgrade.heading',
-  'not-found': 'app.notFound.heading',
-}
-
-/**
- * i18n keys naming a screen that sits BENEATH a module, appended after the
- * module's own crumb. Without this a child route fell through to its raw route
- * name and the trail read "Panel / accounts-new" — a router identifier shown to
- * a customer, in English, whatever language they chose.
- */
-const CHILD_ROUTE_LABEL_KEYS: Record<string, string> = {
-  'accounts-new': 'accounts.form.heading',
-}
 
 /** Props accepted by {@link ShellHeader}. */
 const props = defineProps<{
-  /** Navigation entries the shell is showing, used to name a module-backed screen. */
+  /** Navigation entries the shell is showing, used to name a module-backed screen in the breadcrumb. */
   entries: readonly NavigationEntry[]
   /** Whether the compact navigation drawer is open, reported as `aria-expanded`. */
   navigationOpen: boolean
+  /** Whether the shell is in its compact presentation (a drawer, no sidebar column); owned by the layout. */
+  compact: boolean
 }>()
 
 /** Events emitted by {@link ShellHeader}. */
 const emit = defineEmits<{
   /** The user pressed the menu button; the layout owns the drawer. */
   (e: 'openNavigation'): void
+  /** The user pressed the search field; the layout owns the palette. */
+  (e: 'openPalette'): void
 }>()
 
 const { t } = useI18n()
-const route = useRoute()
 
 /**
- * The breadcrumb trail for the active route: the navigation group, then the
- * screen. One group is all the catalogue supports today (it reports no
- * grouping), so the trail is two levels deep — the design's own shape for a
- * top-level screen.
+ * The classes that swap the search field and the search icon, as whole literal strings so the
+ * stylesheet generator can see them. The field needs about 10rem of its own beside everything
+ * that is always drawn, and a compact bar also carries the menu button and, from 38rem of the
+ * window up, the wordmark's name, so it is given 6rem more before the field is worth drawing: the
+ * field at 640px of window and a normal text size was 90px wide without that, and drawn as a stub
+ * it is worse than an icon. Each pair is exact complements, so exactly one of them is drawn.
  */
-const crumbs: ComputedRef<string[]> = computed(() => {
-  const routeName = typeof route.name === 'string' ? route.name : ''
-  const shellLabelKey = SHELL_ROUTE_LABEL_KEYS[routeName]
-  if (shellLabelKey !== undefined) {
-    return [t('app.nav.groups.panel'), t(shellLabelKey)]
-  }
-
-  // A module screen is named by what the panel called the module. The route's
-  // `meta.module` is the authority — matching on the route NAME missed every
-  // child route, whose name ('accounts-new') is not the module's ('accounts').
-  const moduleName = typeof route.meta.module === 'string' ? route.meta.module : routeName
-  const entry = props.entries.find((candidate) => {
-    return candidate.moduleName === moduleName
-  })
-  const trail = [t('app.nav.groups.panel'), entry?.label ?? moduleName]
-
-  const childLabelKey = CHILD_ROUTE_LABEL_KEYS[routeName]
-  if (childLabelKey !== undefined) {
-    trail.push(t(childLabelKey))
-  }
-
-  return trail
+const searchSwap: ComputedRef<{ field: string; icon: string; group: string }> = computed(() => {
+  return props.compact
+    ? { field: '@max-[42rem]:hidden', icon: '@min-[42rem]:hidden', group: '@max-[42rem]:ml-0' }
+    : { field: '@max-[36rem]:hidden', icon: '@min-[36rem]:hidden', group: '@max-[36rem]:ml-0' }
 })
 </script>
 
 <template>
-  <!-- h-11.5 is the design's 46px header band exactly, on Tailwind's own
-       spacing scale; h-12 would have made it 48px. -->
-  <header
-    class="shell-header flex h-11.5 shrink-0 items-center gap-2.5 border-b border-border-subtle bg-surface-1 px-3.5"
-  >
-    <!-- The menu button opens the off-canvas navigation and exists only below
-         `lg`, where no navigation column is rendered. The icon is drawn inline
-         because the kit's icon set has no menu glyph and `components/ui/**` is
-         not this component's to extend; it is decorative, so the button's
-         accessible name comes from its translated `aria-label`. -->
-    <UiButton
-      class="shell-header-icon lg:hidden"
-      :aria-label="t('app.shell.openNavigation')"
-      :aria-expanded="navigationOpen"
-      @click="emit('openNavigation')"
+  <header class="@container flex-none rounded-panel border border-border-subtle bg-surface-1">
+    <div
+      class="flex min-h-[calc(3.5rem-2px)] flex-wrap items-center gap-x-2 gap-y-1 px-2 py-1.5 @min-[38rem]:gap-x-4 @min-[38rem]:px-4"
     >
-      <UiIcon name="menu" size="md" />
-    </UiButton>
+      <UiButton
+        v-if="compact"
+        variant="ghost"
+        size="icon"
+        class="shrink-0"
+        :aria-label="t('app.shell.openNavigation')"
+        :aria-expanded="navigationOpen"
+        @click="emit('openNavigation')"
+      >
+        <UiIcon name="menu" size="lg" />
+      </UiButton>
 
-    <nav class="min-w-0" :aria-label="t('app.shell.breadcrumbLabel')">
-      <ol class="flex min-w-0 items-center gap-1.5 text-base">
-        <li
-          v-for="(crumb, index) in crumbs"
-          :key="crumb"
-          class="crumb truncate"
-          :class="index === crumbs.length - 1 ? 'font-semibold text-text-primary' : 'text-text-secondary'"
+      <!-- On the desktop this cell is the sidebar column's own width (`w-60`, as in
+           `ShellSidebar.vue`), so the search field starts at the same x as the content panel
+           beside the sidebar. Compact, there is no column to line up with and the cell is as wide
+           as its content. It is also as wide as its content on a bar too narrow to spare 15rem
+           for alignment, which is what a large text size does to a wide window. On a bar under
+           16rem (a phone at 150% text) it is not drawn at all: the landing screen is the first tab
+           and the first entry of the drawer, and the room is worth more to the four controls. -->
+      <div class="shrink-0" :class="compact ? '@max-[16rem]:hidden' : 'w-60 @max-[62rem]:w-auto @max-[16rem]:hidden'">
+        <RouterLink
+          :to="{ name: 'system-status' }"
+          class="inline-flex rounded-control focus-visible:shadow-focus focus-visible:outline-none"
         >
-          {{ crumb }}
-        </li>
-      </ol>
-    </nav>
+          <ShellWordmark collapsible />
+        </RouterLink>
+      </div>
 
-    <span class="mx-0.5 h-4.5 w-px shrink-0 bg-border-subtle max-lg:hidden" aria-hidden="true"></span>
+      <!-- The search is two buttons rather than one that restyles itself: a field with the
+           placeholder and the shortcut hint on a bar wide enough for it (see `searchSwap`), and below that a bare icon
+           button, the same `aria-label` and the same event. The one that does not apply is
+           `display: none`, so the control is never in the accessibility tree twice. The field is
+           a container of its own so the hint leaves when the field is too narrow for it, rather
+           than when the window is. -->
+      <UiButton
+        variant="field"
+        class="@container max-w-md min-w-40 flex-[1000_1_0%]"
+        :class="searchSwap.field"
+        :aria-label="t('app.shell.search')"
+        aria-keyshortcuts="Control+K Meta+K"
+        @click="emit('openPalette')"
+      >
+        <UiIcon name="search" size="md" />
+        <span class="min-w-0 flex-1 truncate text-left">{{ t('app.shell.search') }}</span>
+        <kbd
+          class="shrink-0 rounded-mark border border-border-strong px-1.5 py-0.5 font-sans text-xs font-semibold whitespace-nowrap text-text-muted @max-[16rem]:hidden"
+        >
+          {{ t('app.shell.searchShortcut') }}
+        </kbd>
+      </UiButton>
+      <UiButton
+        variant="quiet"
+        size="icon"
+        class="ml-auto shrink-0"
+        :class="searchSwap.icon"
+        :aria-label="t('app.shell.search')"
+        aria-keyshortcuts="Control+K Meta+K"
+        @click="emit('openPalette')"
+      >
+        <UiIcon name="search" size="md" />
+      </UiButton>
 
-    <!-- The panel exposes no server inventory yet, so the picker states that
-         plainly and stays disabled rather than showing an invented server. -->
-    <UiButton variant="secondary" class="shell-header-picker max-lg:hidden" disabled>
-      <UiIcon name="server" size="md" />
-      <span>{{ t('app.shell.noServerSelected') }}</span>
-      <UiIcon name="chevronDown" size="sm" />
-    </UiButton>
+      <!-- It takes only what the search field leaves beyond its own maximum width (the field's
+           grow factor is a thousand times its own), and the trail hides itself when the whole of
+           it does not fit that (see `ShellBreadcrumb`), so it can never be cut to "Pa…" or touch
+           the hint. The wrapper itself is not drawn below the width at which there could be
+           anything left. -->
+      <div class="hidden min-w-0 flex-[1_1_0%] @min-[70rem]:block">
+        <ShellBreadcrumb :entries="entries" />
+      </div>
 
-    <span class="flex-1"></span>
-
-    <!-- Background work in flight, on every screen. It is a view of the tasks store rather than a
-         fetch of its own, which is what lets it move the moment a task's stream reports a change —
-         no navigation, no reload. It draws nothing while nothing is running. -->
-    <ShellTasksBadge />
-
-    <!-- Below `sm` the theme segment drops out rather than pushing the row wide:
-         the drawer's own footer still carries a theme control, so nothing is lost. -->
-    <ShellThemeSwitcher class="max-sm:hidden" />
-    <ShellLocaleSwitcher />
-
-    <!-- The design's three remaining header controls. Each is rendered and each
-         is disabled, with the reason stated once here rather than three times:
-         none of them has a backend. An assistant with no assistant behind it, a
-         bell with no notification stream, and an avatar with no signed-in user
-         would all have to invent what they display — and an invented "3" unread
-         or a fabricated set of initials is a lie the panel tells a customer
-         every time the page loads. Disabled says "not yet"; populated would say
-         something false. -->
-    <UiButton class="shell-header-ai max-lg:hidden" disabled>
-      <UiIcon name="sparkle" size="md" />
-      {{ t('app.shell.askAi') }}
-    </UiButton>
-
-    <UiButton class="shell-header-icon max-lg:hidden" :aria-label="t('app.shell.notifications')" disabled>
-      <UiIcon name="bell" size="md" />
-    </UiButton>
-
-    <UiButton class="shell-header-avatar max-lg:hidden" :aria-label="t('app.shell.account')" disabled>
-      <UiIcon name="user" size="md" />
-    </UiButton>
+      <div
+        class="ml-auto flex shrink-0 items-center gap-1 @min-[38rem]:gap-2"
+        :class="searchSwap.group"
+      >
+        <!-- Background work in flight, on every screen. It is a view of the tasks store rather
+             than a fetch of its own, which is what lets it move the moment a task's stream
+             reports a change — no navigation, no reload. It draws nothing while nothing runs. -->
+        <ShellTasksBadge />
+        <!-- Below `sm` the theme switch lives in the drawer's head instead (see the doc comment).
+             The wrapper hides this copy with `display: none`, which also removes it from the
+             accessibility tree, so the control is never present twice. -->
+        <div class="max-sm:hidden">
+          <ShellThemeSwitcher />
+        </div>
+        <ShellLocaleSwitcher />
+        <ShellAvatar size="sm" class="ml-1 @max-[30rem]:hidden" />
+      </div>
+    </div>
   </header>
 </template>
-
-<style scoped>
-/* The design draws the trail with "/" separators; rendering them from CSS
-   keeps them out of the accessible name and out of the locale files, since a
-   separator is punctuation rather than copy. */
-.crumb + .crumb::before {
-  content: '/';
-  margin-right: 6px;
-  color: var(--t3);
-}
-
-/* ONE height for every control in this row.
- *
- * They had three. The icon button was 28px, the avatar 26px, and the two
- * labelled buttons derived whatever their padding gave them — `4px 8px` for one
- * and `4px 9px` for the other, so no two of them lined up and the row read as
- * slightly broken rather than deliberately varied. The theme control and the
- * locale switcher each brought a fourth and fifth.
- *
- * 28px because that is the size the design states for the square controls, and
- * the one the rest now match. Each rule below sets its own look — surface,
- * border, radius — and none of them sets a height any more: a control that
- * wants to be a different size in this row is a control that needs a reason,
- * and the reason belongs here where the row is laid out.
- */
-.shell-header > * {
-  flex-shrink: 0;
-}
-
-.shell-header-picker,
-.shell-header-ai,
-.shell-header-icon,
-.shell-header-avatar,
-:deep(.shell-header-theme),
-:deep(.shell-locale) {
-  height: 28px;
-}
-
-/* The kit's button is sized for a labelled action; the header's server picker
-   is chrome, so the shell restates its box. Restating the
-   background and border also overrides the kit's focused border, so each one
-   restates that too — a keyboard user must not get half a focus ring.
-   `display` is deliberately NOT restated: a scoped rule is unlayered CSS and
-   beats every Tailwind utility, so `display: flex` here silently defeated the
-   `max-lg:hidden` that is supposed to drop this control on a phone. The kit's
-   button is already inline-flex, so there was nothing to restate anyway. */
-.shell-header-picker {
-  align-items: center;
-  gap: 6px;
-  padding: 0 8px;
-  background: var(--s2);
-  border: 1px solid var(--b1);
-  border-radius: 6px;
-  color: var(--t2);
-  font-size: var(--text-base);
-  font-weight: 400;
-}
-
-.shell-header-picker:focus-visible {
-  border-color: var(--ac);
-}
-
-/* The design's "Ask AI" button: a violet wash rather than the accent, so it
-   reads as a different kind of action from everything else in the header. */
-.shell-header-ai {
-  gap: 6px;
-  padding: 0 9px;
-  border-radius: 6px;
-  background: var(--pus);
-  border-color: rgb(139 109 240 / 0.35);
-  color: var(--pu);
-  font-size: var(--text-base);
-  font-weight: 500;
-}
-
-/* The design's square header controls: 28px, boxed on --s2. */
-.shell-header-icon {
-  width: 28px;
-  padding: 0;
-  border-radius: 6px;
-  background: var(--s2);
-  border-color: var(--b1);
-  color: var(--t2);
-}
-
-/* The design's avatar: a circle on the raised surface with the stronger border,
-   not a boxed square like the controls beside it. Its diameter is the row's
-   shared height rather than the 26px it used to carry: a circle two pixels
-   shorter than everything beside it reads as a mistake, not as a distinction,
-   and the distinction here is the shape and the surface. It stays disabled —
-   there is no /me endpoint, so the panel has no initials to put in it and draws
-   a neutral glyph instead of inventing a person. */
-.shell-header-avatar {
-  width: 28px;
-  padding: 0;
-  border-radius: 9999px;
-  background: var(--s3);
-  border-color: var(--b2);
-  color: var(--t2);
-}
-</style>

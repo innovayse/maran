@@ -51,6 +51,7 @@ import { computed, ref, watch, type ComputedRef, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import UiAlert from '../ui/UiAlert.vue'
 import UiButton from '../ui/UiButton.vue'
+import UiIcon from '../ui/UiIcon.vue'
 import UiInput from '../ui/UiInput.vue'
 import UiModal from '../ui/UiModal.vue'
 import UiSectionHeading from '../ui/UiSectionHeading.vue'
@@ -168,44 +169,73 @@ watch(
   >
     <UiSpinner v-if="store.acting" :label="t('accounts.delete.working', { account: account.name })" />
 
-    <div v-else class="flex flex-col gap-3">
+    <div v-else class="flex flex-col gap-4">
       <UiAlert v-if="store.errorMessage !== null" variant="error">
         {{ store.errorMessage }}
       </UiAlert>
-      <p v-if="store.errorMessage !== null" class="text-sm">
+      <p v-if="store.errorMessage !== null">
         {{ t('accounts.delete.refusedNote') }}
       </p>
 
-      <UiSectionHeading :title="t('accounts.delete.removedHeading')" />
-      <ul class="list-disc pl-5">
-        <li>{{ t('accounts.delete.removedUser') }}</li>
-        <li>{{ t('accounts.delete.removedHome') }}</li>
-        <li>{{ t('accounts.delete.removedSites') }}</li>
-        <li>{{ t('accounts.delete.removedCertificates') }}</li>
-        <li>{{ t('accounts.delete.removedDatabases') }}</li>
-      </ul>
+      <!-- The first list in the dialog is the list of what is removed: the Playwright spec finds it
+           by being the first `list` role, so nothing with list semantics may be placed above it. The
+           markers are the danger colour so the section reads as loss before any word is read. -->
+      <section class="flex flex-col gap-2">
+        <UiSectionHeading :title="t('accounts.delete.removedHeading')" />
+        <ul class="list-disc space-y-1.5 pl-5 text-text-primary marker:text-danger">
+          <li>{{ t('accounts.delete.removedUser') }}</li>
+          <li>{{ t('accounts.delete.removedHome') }}</li>
+          <li>{{ t('accounts.delete.removedSites') }}</li>
+          <li>{{ t('accounts.delete.removedCertificates') }}</li>
+          <li>{{ t('accounts.delete.removedDatabases') }}</li>
+        </ul>
+      </section>
 
-      <UiSectionHeading :title="t('accounts.delete.backupHeading')" />
-      <!-- The three facts the operator was never told: the copy is taken FIRST, a copy that cannot
-           be made refuses the deletion outright, and the copy stays behind afterwards. The
-           alternative branch is not a softer wording of the same thing — it is the opposite fact,
-           and a panel without the Backups module must not imply a safety net it does not have. -->
-      <template v-if="takesFinalBackup">
-        <p>{{ t('accounts.delete.backupFirst') }}</p>
-        <p class="font-medium text-text-primary">{{ t('accounts.delete.backupRefuses') }}</p>
-        <p class="text-sm">{{ t('accounts.delete.backupOutlives') }}</p>
-      </template>
-      <p v-else class="font-medium text-text-primary">{{ t('accounts.delete.backupNoModule') }}</p>
+      <section class="flex flex-col gap-2">
+        <UiSectionHeading :title="t('accounts.delete.backupHeading')" />
+        <!-- The three facts the operator was never told: the copy is taken FIRST, a copy that cannot
+             be made refuses the deletion outright, and the copy stays behind afterwards. The
+             alternative branch is not a softer wording of the same thing — it is the opposite fact,
+             and a panel without the Backups module must not imply a safety net it does not have, so
+             it is drawn in the warning colour and the other branch in the neutral one. -->
+        <div
+          v-if="takesFinalBackup"
+          class="flex items-start gap-3 rounded-control border border-border-subtle bg-surface-2 p-3"
+        >
+          <UiIcon name="archive" size="md" class="mt-0.5 text-accent-text" />
+          <div class="min-w-0 flex-1 space-y-1.5">
+            <p class="text-text-primary">{{ t('accounts.delete.backupFirst') }}</p>
+            <p class="font-medium text-text-primary">{{ t('accounts.delete.backupRefuses') }}</p>
+            <p>{{ t('accounts.delete.backupOutlives') }}</p>
+          </div>
+        </div>
+        <div
+          v-else
+          class="flex items-start gap-3 rounded-control border border-warning/40 bg-warning/10 p-3"
+        >
+          <UiIcon name="triangleAlert" size="md" class="mt-0.5 text-warning" />
+          <p class="min-w-0 flex-1 font-medium text-text-primary">
+            {{ t('accounts.delete.backupNoModule') }}
+          </p>
+        </div>
+      </section>
 
-      <p class="font-medium text-text-primary">{{ t('accounts.delete.pointOfNoReturn') }}</p>
+      <div class="flex items-start gap-3">
+        <UiIcon name="triangleAlert" size="md" class="mt-0.5 text-danger" />
+        <p class="min-w-0 flex-1 font-medium text-text-primary">
+          {{ t('accounts.delete.pointOfNoReturn') }}
+        </p>
+      </div>
 
-      <UiInput
-        v-model="typed"
-        :label="t('accounts.delete.confirmLabel')"
-        :required="true"
-        autocomplete="off"
-      />
-      <p class="text-sm">{{ t('accounts.delete.confirmHint', { name: account.name }) }}</p>
+      <div class="flex flex-col gap-2 border-t border-border-subtle pt-4">
+        <UiInput
+          v-model="typed"
+          :label="t('accounts.delete.confirmLabel')"
+          :required="true"
+          autocomplete="off"
+        />
+        <p>{{ t('accounts.delete.confirmHint', { name: account.name }) }}</p>
+      </div>
     </div>
 
     <template #footer>

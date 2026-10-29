@@ -17,15 +17,15 @@
  */
 import { ref, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useRouter } from 'vue-router'
 import UiAlert from '../../components/ui/UiAlert.vue'
+import UiAuthHeading from '../../components/ui/UiAuthHeading.vue'
 import UiButton from '../../components/ui/UiButton.vue'
 import UiForm from '../../components/ui/UiForm.vue'
+import UiIcon from '../../components/ui/UiIcon.vue'
 import UiInput from '../../components/ui/UiInput.vue'
 import { useAuthStore } from '../../stores/auth'
 
 const { t } = useI18n()
-const router = useRouter()
 const authStore = useAuthStore()
 
 /** The address being typed. */
@@ -50,51 +50,49 @@ const submit = async (): Promise<void> => {
     submitted.value = true
   }
 }
-
-/**
- * Returns to the sign-in screen.
- * @returns Resolves once the navigation has settled.
- */
-const backToSignIn = async (): Promise<void> => {
-  await router.push({ name: 'login' })
-}
 </script>
 
 <template>
   <div>
-    <h2 class="text-xl font-semibold">{{ t('app.passwordReset.requestTitle') }}</h2>
-    <p class="mt-1 mb-4 text-base text-text-secondary">
-      {{ t('app.passwordReset.requestSubtitle') }}
-    </p>
+    <UiAuthHeading
+      class="mb-6"
+      :title="t('app.passwordReset.requestTitle')"
+      :subtitle="t('app.passwordReset.requestSubtitle')"
+    />
 
     <!-- One confirmation, no alternative. There is no `v-else-if` on this branch and
          there must never be one: a second rendering is a second answer, and the two
          would differ by exactly the fact the backend refuses to disclose. -->
-    <template v-if="submitted">
-      <UiAlert variant="info" class="mb-4">{{ t('app.passwordReset.requestSent') }}</UiAlert>
-      <UiButton variant="secondary" class="w-full justify-center" @click="backToSignIn">
+    <div v-if="submitted" class="flex flex-col gap-5">
+      <UiAlert variant="info">{{ t('app.passwordReset.requestSent') }}</UiAlert>
+      <UiButton variant="secondary" class="w-full justify-center" :to="{ name: 'login' }">
         {{ t('app.passwordReset.backToSignIn') }}
       </UiButton>
-    </template>
+    </div>
 
     <template v-else>
-      <UiAlert v-if="authStore.errorMessage !== null" variant="error" class="mb-4">
+      <UiAlert v-if="authStore.errorMessage !== null" variant="error" class="mb-5">
         {{ authStore.errorMessage }}
       </UiAlert>
 
       <UiForm @submit="submit">
-        <div class="flex flex-col gap-3">
+        <div class="flex flex-col gap-5">
           <UiInput
             v-model="email"
             :label="t('app.auth.emailLabel')"
+            icon="mail"
             :placeholder="t('app.auth.emailPlaceholder')"
             required
             autocomplete="email"
           />
-          <UiButton class="mt-1 w-full justify-center" type="submit" :disabled="authStore.loading">
+
+          <!-- The one primary pill on the screen, full width, with the arrow after its text. -->
+          <UiButton class="w-full justify-center gap-2" type="submit" :disabled="authStore.loading">
             {{ t('app.passwordReset.sendLink') }}
+            <UiIcon name="arrowRight" />
           </UiButton>
-          <UiButton variant="ghost" class="justify-center" @click="backToSignIn">
+
+          <UiButton variant="ghost" class="justify-center" :to="{ name: 'login' }">
             {{ t('app.passwordReset.backToSignIn') }}
           </UiButton>
         </div>

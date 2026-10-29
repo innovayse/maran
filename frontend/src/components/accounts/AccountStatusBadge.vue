@@ -6,7 +6,10 @@
  * present) so it stays accessible without relying on color alone.
  *
  * The rendering itself belongs to `UiBadge` — this component's only job is
- * mapping one domain state onto a badge tone and a label.
+ * mapping one domain state onto a badge tone and a label. An active account is the
+ * green dot; a suspended one is the amber dot — its sites have stopped serving, which
+ * is a state an operator should notice in a column of green, not a neutral grey that
+ * recedes (a grey badge draws no dot at all, so it would read as "no status").
  */
 import { computed, type ComputedRef } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -23,7 +26,7 @@ const { t } = useI18n()
 
 /** Badge tone for the current status; the label below is what actually carries the meaning. */
 const variant: ComputedRef<BadgeVariant> = computed(() => {
-  return props.status === 'active' ? 'success' : 'neutral'
+  return props.status === 'active' ? 'success' : 'warning'
 })
 
 /** i18n-resolved label for the current status. */

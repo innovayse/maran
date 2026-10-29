@@ -38,7 +38,8 @@ public sealed class ResilientAgentSslClient : IAgentSslClient
         SiteDescriptor site,
         CancellationToken cancellationToken)
     {
-        return await _pipeline.ExecuteAsync(
+        return await AgentOperationPipeline.ExecuteAsync(
+            _pipeline,
             async (state, token) =>
             {
                 return await state.Client.InstallCertificateAsync(
@@ -65,7 +66,8 @@ public sealed class ResilientAgentSslClient : IAgentSslClient
         SiteDescriptor site,
         CancellationToken cancellationToken)
     {
-        return await _pipeline.ExecuteAsync(
+        return await AgentOperationPipeline.ExecuteAsync(
+            _pipeline,
             async (state, token) =>
             {
                 return await state.Client.RemoveCertificateAsync(

@@ -1,7 +1,9 @@
 //! The seam between the login operations and the machine they run on.
 
 use maran_agent_core::command_outcome::CommandOutcome;
+use maran_agent_core::utils::call_class::CallClass;
 use maran_agent_core::utils::system_account::SystemAccount;
+use maran_distro::AdapterBinary;
 
 use crate::logins::logins_error::LoginsError;
 
@@ -20,9 +22,9 @@ use crate::logins::logins_error::LoginsError;
 /// [`account_logins`](super::account_logins::account_logins), in the open, where
 /// a test can plant a row in either jail and read the classification back.
 ///
-/// Implementations MUST spawn with an argv array against an absolute path taken
-/// from the `DistroAdapter`, never through a shell and never through a program
-/// name resolved by `PATH` (rules/security.md item 3).
+/// Implementations MUST spawn with an argv array against an [`AdapterBinary`],
+/// the type only the distro crate can build, never through a shell and never
+/// through a program name resolved by `PATH` (rules/security.md item 3).
 pub trait LoginsHost: Send + Sync {
     /// Reads the host's local password database into one row per entry.
     ///
@@ -37,7 +39,8 @@ pub trait LoginsHost: Send + Sync {
     /// business — it answers with the rows it found, and the caller decides.
     fn read_passwd(&self, passwd_database: &str) -> Result<Vec<SystemAccount>, LoginsError>;
 
-    /// Runs `program` with `arguments` and waits for it.
+    /// Runs `program` with `arguments` and waits for it, for at most the
+    /// deadline of `class`.
     ///
     /// Nothing in this area writes to a child's standard input: it reads a
     /// password STATE and turns a lock, and neither carries a secret. The
@@ -46,8 +49,14 @@ pub trait LoginsHost: Send + Sync {
     /// # Errors
     ///
     /// Returns [`LoginsError::SpawnFailed`] with a `code` of `-1` when the
-    /// program cannot be started at all. A non-zero exit is NOT an error here —
-    /// it is returned in the outcome, because each caller reads a status
-    /// differently.
-    fn run(&self, program: &str, arguments: &[&str]) -> Result<CommandOutcome, LoginsError>;
+    /// program cannot be started at all, and [`LoginsError::Bound`] when it
+    /// outran the deadline of `class` or its output ceiling; its whole process
+    /// group was killed. A non-zero exit is NOT an error here — it is returned
+    /// in the outcome, because each caller reads a status differently.
+    fn run(
+        &self,
+        program: &AdapterBinary,
+        arguments: &[&str],
+        class: CallClass,
+    ) -> Result<CommandOutcome, LoginsError>;
 }

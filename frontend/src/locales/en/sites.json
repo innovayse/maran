@@ -10,6 +10,7 @@
       "reverseProxy": "Reverse proxy"
     },
     "list": {
+      "eyebrow": "Hosting",
       "heading": "Sites",
       "subtitle": "Websites served from this server.",
       "createAction": "New site",
@@ -24,7 +25,8 @@
         "status": "Status",
         "createdAt": "Created"
       },
-      "phpVersionsLink": "PHP versions"
+      "phpVersionsLink": "PHP versions",
+      "disabledNotice": "Sites that are disabled: {count}. Their visitors see a suspension page instead of the site."
     },
     "form": {
       "heading": "New site",

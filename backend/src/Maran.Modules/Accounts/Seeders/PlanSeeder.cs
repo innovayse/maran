@@ -52,21 +52,30 @@ public sealed class PlanSeeder
     }
 
     /// <summary>
-    /// Inserts every standard plan that is not already present, keyed by its fixed id. Idempotent:
-    /// running this against a database that already holds the standard plans inserts nothing.
+    /// Inserts the standard plans into a panel that has no plan at all, keyed by their fixed ids.
+    /// Idempotent: running this against a database that already holds any plan inserts nothing.
     /// </summary>
+    /// <remarks>
+    /// <b>Only into a panel with no plans, not "whichever standard plan is absent".</b> The seeder used
+    /// to top the three back up on every start, which was harmless while nothing could remove a plan.
+    /// Now an administrator can delete one, and a deletion that returns at the next restart is a plan
+    /// the operator retired still being on sale. "A fresh installation ships with these" is the
+    /// promise; a panel that holds any plan is not fresh, so a deleted standard plan stays deleted
+    /// and an edited one stays edited. The cost is that an operator who deletes every plan and
+    /// restarts has the three standard ones back — the same state as a new installation, and no
+    /// account could be created in the plan-less one anyway.
+    /// </remarks>
     /// <param name="cancellationToken">Cancels the seed.</param>
     public async Task SeedAsync(CancellationToken cancellationToken)
     {
+        if (await _dbContext.Plans.AsNoTracking().AnyAsync(cancellationToken))
+        {
+            return;
+        }
+
         foreach (var plan in StandardPlans())
         {
-            var alreadySeeded = await _dbContext.Plans
-                .AsNoTracking()
-                .AnyAsync(p => p.Id == plan.Id, cancellationToken);
-            if (!alreadySeeded)
-            {
-                _dbContext.Plans.Add(plan);
-            }
+            _dbContext.Plans.Add(plan);
         }
 
         await _dbContext.SaveChangesAsync(cancellationToken);

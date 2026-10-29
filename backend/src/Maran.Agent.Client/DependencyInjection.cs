@@ -142,9 +142,11 @@ public static class DependencyInjection
 
         // Registers this project's resource manager into the shared pool the panel-wide
         // ResxErrorTextProvider resolves error codes against (rules/csharp.md "The backend owns all
-        // user-facing message text"). Without it the eight Agent* codes this project produces are
-        // claimed by no resource file, and the provider's last-resort fallback shows the customer
-        // the machine code itself instead of a sentence.
+        // user-facing message text"). Without it every Agent* code this project produces is claimed
+        // by no resource file, and the provider's last-resort fallback shows the customer the
+        // machine code itself instead of a sentence. The codes are the <data> keys of
+        // Resources/ErrorMessages.resx (grep -c '<data name="Agent' Resources/ErrorMessages.resx
+        // counts them); no number is written here, because the one that was here had gone stale.
         services.AddSingleton(
             new ResourceManager(ErrorMessagesResourceBaseName, typeof(DependencyInjection).Assembly));
 

@@ -177,3 +177,32 @@ fn an_existence_answer_that_is_not_a_number_is_unparsable_rather_than_absent() {
 
     assert!(matches!(failure, DbError::Unparsable));
 }
+
+/// A user lookup that timed out is a bound, never `NotFound`.
+#[test]
+fn a_lookup_that_times_out_is_a_bound_and_not_not_found() {
+    let host = host_with_shop();
+    host.time_out_after(0);
+
+    let failure =
+        set_database_password(&host, &shop_user(), &replacement()).expect_err("must fail");
+
+    assert!(matches!(failure, DbError::Bound(_)), "{failure:?}");
+}
+
+/// An alter that timed out is a bound and never a success, and the password the
+/// fake holds is the old one: the killed client reported nothing.
+#[test]
+fn an_alter_that_times_out_is_a_bound_and_not_a_success() {
+    let host = host_with_shop();
+    host.time_out_after(1);
+
+    let failure =
+        set_database_password(&host, &shop_user(), &replacement()).expect_err("must fail");
+
+    assert!(matches!(failure, DbError::Bound(_)), "{failure:?}");
+    assert_eq!(
+        host.password_of("alice_shop"),
+        Some("Gen3rated-pw".to_owned())
+    );
+}

@@ -1,6 +1,7 @@
 {
   "databases": {
     "list": {
+      "eyebrow": "MySQL",
       "heading": "Databases",
       "subtitle": "MySQL databases and their dedicated users.",
       "prefixNote": "Every database and user carries the owning account's name as a prefix. The names below are exactly what MySQL holds — use them as they are.",
@@ -22,9 +23,11 @@
       "rowActions": "Actions for {name}",
       "confirmDropTitle": "Drop database {name}",
       "confirmResetPasswordTitle": "Reset the password for {name}",
-      "grantRepairLink": "Grant repair"
+      "grantRepairLink": "Grant repair",
+      "sectionTitle": "All databases"
     },
     "form": {
+      "heading": "New database",
       "fields": {
         "accountId": "Account",
         "name": "Database name",

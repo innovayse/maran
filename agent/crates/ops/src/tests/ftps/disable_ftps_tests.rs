@@ -3,6 +3,8 @@
 // A failing assertion IS the reporting mechanism for a test.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use maran_agent_core::utils::call_class::CallClass;
+
 use crate::ftps::disable_ftps::disable_ftps;
 use crate::ftps::fake_ftps_host::{FakeFtpsHost, distro};
 use crate::ftps::ftps_error::FtpsError;
@@ -24,7 +26,7 @@ fn disabling_stops_the_daemon_and_takes_the_unit_out_of_the_boot_sequence() {
         .expect("the unit was disabled");
     assert_eq!(
         disable.argv[1..],
-        ["disable", "--now", "maran-ftps.service"]
+        ["disable", "--now", "--", "maran-ftps.service"]
     );
 }
 
@@ -74,4 +76,29 @@ fn the_state_is_observed_after_the_command_rather_than_asserted_from_its_success
         .filter_map(|spawn| spawn.argv.get(1).cloned())
         .collect();
     assert_eq!(verbs, ["disable", "is-active"]);
+}
+
+#[test]
+fn disabling_runs_the_service_manager_in_the_reload_class() {
+    let host = FakeFtpsHost::with_certificate().with_running_daemon();
+
+    disable_ftps(&host, distro()).expect("disabled");
+
+    let disable = host
+        .spawns()
+        .into_iter()
+        .find(|spawn| spawn.argv.get(1).is_some_and(|verb| verb == "disable"))
+        .expect("the unit was disabled");
+    assert_eq!(disable.class, Some(CallClass::Reload));
+}
+
+#[test]
+fn a_disable_that_times_out_is_a_bound_and_not_a_refusal() {
+    let host = FakeFtpsHost::with_certificate()
+        .with_running_daemon()
+        .timing_out("systemctl");
+
+    let failed = disable_ftps(&host, distro()).expect_err("timed out");
+
+    assert!(matches!(failed, FtpsError::Bound(_)), "got {failed:?}");
 }

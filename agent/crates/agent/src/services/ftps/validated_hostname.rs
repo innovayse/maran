@@ -9,7 +9,8 @@ use crate::services::wire::invalid_input::invalid_input;
 ///
 /// Empty means "report the daemon and range facts only", which is an answer and
 /// not a refusal: a panel with no hostname persisted yet still gets one. A
-/// non-empty value is revalidated as a domain, because it selects a directory in
+/// non-empty value is revalidated for shape only (read-only status must keep
+/// working for a legacy reserved name), because it selects a directory in
 /// the agent's certificate store.
 ///
 /// # Errors
@@ -19,7 +20,11 @@ pub fn validated_hostname(hostname: &str) -> Result<Option<Domain>, AgentError> 
     match hostname {
         "" => Ok(None),
         candidate => Ok(Some(
-            Domain::parse(candidate).map_err(|error| invalid_input(error.to_string()))?,
+            Domain::parse_existing(candidate).map_err(|error| invalid_input(error.to_string()))?,
         )),
     }
 }
+
+#[cfg(test)]
+#[path = "../../tests/services/ftps/validated_hostname_tests.rs"]
+mod tests;

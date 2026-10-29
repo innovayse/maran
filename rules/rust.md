@@ -228,6 +228,11 @@ agent/
     │                          (how much room the filesystem UNDER a given directory
     │                          still has, asked at the directory the write lands on and
     │                          never at its parent — a parent can be a different mount) ·
+    │                          pkill_uid_arguments.rs · pgrep_live_uid_arguments.rs
+    │                          (the deletion check: live processes of a uid, zombies
+    │                          excluded because they hold nothing) · pkill_answer.rs (the one
+    │                          spelling of a uid-wide pkill and of what its exit status
+    │                          means, shared by suspension and deletion, issue #103) ·
     │                          apply_child_environment.rs
     │                          — the ONE environment any of them gives a child (cleared,
     │                          then the declared entries). A host whose spawn is
@@ -333,7 +338,11 @@ agent/
     │       │                  lock deadlocks on them) ·
     │       │                  config_host.rs (the injectable filesystem/reload seam) ·
     │       │                  write_config_set.rs (several files as one all-or-nothing set) ·
-    │       │                  model/ (config_file.rs · reload.rs · validator.rs) — the ONE
+    │       │                  create_config.rs (the creation half of the protocol: the
+    │       │                  target must not exist, and a warning the caller names in the
+    │       │                  validator's stderr refuses the write) ·
+    │       │                  model/ (config_file.rs · reload.rs · validator.rs ·
+    │       │                  write_intent.rs — the crate-internal Replace/Create intent) — the ONE
     │                          implementation of the config-write protocol every
     │                          area calls. remove_config.rs is that same protocol
     │                          for taking a config AWAY: unlink, validate, reload,
@@ -733,9 +742,26 @@ nginx does not read a file until it is asked to: between the rename and the
 reload the file on disk has changed and the running server has not, so a failed
 validation is still fully recoverable by restoring the previous content — nothing
 in the running process needs to be undone. It is also strictly more useful this
-way: validating against the real tree catches conflicts with OTHER files, such as
-a duplicate `server_name` in a different site's config, which validating one file
-in isolation never could.
+way: validating against the real tree catches the conflicts with OTHER files that
+the validator treats as errors — a second `default_server` on one address, an
+`upstream` declared twice — which validating one file in isolation never could.
+
+A duplicate `server_name` is NOT one of them, and an earlier version of this
+paragraph named it as the example. `nginx -t` prints
+`conflicting server name "<host>" on <address>, ignored` at `warn` and exits 0
+(measured on 1.24.0, issue #85; the other shipped versions are read from nginx's
+source, where the text, the level and the exit path are the same from 1.18.0 to
+1.26.3 — `sites::create_vhost` carries the detail), and the file the include glob
+sorts first then answers for that host — ACME challenge location included. An
+exit status cannot refuse that, so a vhost that INTRODUCES names is written by
+`safe_write::create_config`, which also refuses a target that already exists and
+treats any warning its caller names, found in the validator's standard error, as
+a refusal with the same rollback; `sites::create_vhost` names the warning for
+each of the site's own names, bare and with nginx's leading-dot form, and
+`sites::create_site` refuses a name the request repeats before any of this,
+because nginx words that warning identically. A re-render that replaces a vhost
+does not ask: it restates names the creation already claimed, and the panel has
+no operation that changes a site's names afterwards.
 
 Partial writes are forbidden. An area that needs a variation on this protocol
 extends `safe_write` — it does not write its own copy. Two implementations of a

@@ -21,8 +21,10 @@
 //! than cancelling it, and no tokio API can cancel one; so when the budget
 //! expires the requests are abandoned and the `useradd`, the `rename`, the
 //! database load carry on. `main` then drops the runtime, which joins every
-//! blocking thread with no timeout, so the exit waits for exactly the work the
-//! expiry was supposed to have given up on. A stop is bounded by the unit's
+//! blocking thread with no timeout of its own, so the exit waits for exactly the
+//! work the expiry was supposed to have given up on. Every program that work
+//! starts has a deadline by call class, which makes the wait finite but not
+//! short (only the bulk class runs for hours; a package install is about 35 minutes). A stop is bounded by the unit's
 //! `TimeoutStopSec=45` and the `SIGKILL` behind it; the budget only decides how
 //! early the socket goes away. See [`DRAIN_BUDGET`] for what a kill costs per
 //! operation and what the next start does and does not repair.

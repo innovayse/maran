@@ -5,12 +5,18 @@
       "ariaLabel": "Основная навигация",
       "systemStatus": "Состояние системы",
       "auditJournal": "Журнал аудита",
+      "plans": "Тарифы",
       "lockedBadge": "Заблокировано",
       "groups": {
+        "overview": "Обзор",
+        "hosting": "Хостинг",
+        "security": "Безопасность",
+        "system": "Система",
         "panel": "Панель"
       }
     },
     "shell": {
+      "skipToContent": "Перейти к содержимому",
       "search": "Поиск или переход…",
       "searchShortcut": "⌘K",
       "collapseSidebar": "Свернуть боковую панель",
@@ -19,7 +25,6 @@
       "navigationLabel": "Навигация",
       "toggleTheme": "Переключить тёмную и светлую тему",
       "breadcrumbLabel": "Навигационная цепочка",
-      "noServerSelected": "Сервер не выбран",
       "paletteTitle": "Перейти к",
       "paletteClose": "Закрыть окно перехода",
       "paletteFieldLabel": "Поиск по панели",
@@ -33,15 +38,22 @@
         "dark": "Тёмная",
         "light": "Светлая"
       },
-      "askAi": "Спросить ИИ",
-      "notifications": "Уведомления",
-      "account": "Ваша учётная запись",
       "signedOut": "Никто не вошёл в систему",
       "accountMenu": "Меню аккаунта",
       "menu": {
         "myAccount": "Мой аккаунт",
         "sessions": "Сессии",
         "twoFactor": "Двухфакторная проверка"
+      },
+      "authCredit": "© {year} Maran · разработано Innovayse LLC",
+      "closeNavigation": "Закрыть навигацию",
+      "tabBarLabel": "Разделы",
+      "tabs": {
+        "home": "Главная",
+        "accounts": "Аккаунты",
+        "sites": "Сайты",
+        "databases": "Базы",
+        "more": "Ещё"
       }
     },
     "locale": {

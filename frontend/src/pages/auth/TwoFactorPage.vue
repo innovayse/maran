@@ -3,6 +3,11 @@
  * The second step of signing in: the code from the authenticator app, or one of
  * the recovery codes kept for the day the phone is gone.
  *
+ * Rendered inside the auth layout's centred panel: an accent icon square, the display-type
+ * title, the server's error (verbatim) above the single field, then the pill action and the
+ * switch between the two kinds of code. The field keeps `autocomplete="one-time-code"`, and
+ * its label names which kind of code is expected so assistive technology hears the change.
+ *
  * Reaching this page directly, without having passed the password step, sends the
  * visitor back to the sign-in screen — the store holds no username, so there is
  * nothing here to complete.
@@ -11,8 +16,11 @@ import { computed, onMounted, ref, type ComputedRef, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import UiAlert from '../../components/ui/UiAlert.vue'
+import UiAuthHeading from '../../components/ui/UiAuthHeading.vue'
 import UiButton from '../../components/ui/UiButton.vue'
 import UiForm from '../../components/ui/UiForm.vue'
+import UiIcon from '../../components/ui/UiIcon.vue'
+import UiIconTile from '../../components/ui/UiIconTile.vue'
 import UiInput from '../../components/ui/UiInput.vue'
 import { useAuthStore } from '../../stores/auth'
 
@@ -71,25 +79,35 @@ onMounted(async () => {
 </script>
 
 <template>
-  <UiForm @submit="submit">
-    <h2 class="text-xl font-semibold">{{ t('app.auth.twoFactorTitle') }}</h2>
-    <p class="mt-1 mb-4 text-base text-text-secondary">{{ t('app.auth.twoFactorSubtitle') }}</p>
+  <UiForm class="flex flex-col gap-5" @submit="submit">
+    <!-- The heading stays an h2: the auth layout owns the screen's chrome and the sign-in
+         screen's own title is asserted at that level, so the two steps read as one flow. -->
+    <header class="flex flex-col items-start gap-4">
+      <UiIconTile name="keyRound" size="lg" />
+      <UiAuthHeading :title="t('app.auth.twoFactorTitle')" :subtitle="t('app.auth.twoFactorSubtitle')" />
+    </header>
 
-    <UiAlert v-if="authStore.errorMessage !== null" variant="error" class="mb-4">
+    <UiAlert v-if="authStore.errorMessage !== null" variant="error">
       {{ authStore.errorMessage }}
     </UiAlert>
 
-    <div class="flex flex-col gap-3">
-      <UiInput
-        v-model="code"
-        :label="codeLabel"
-        :placeholder="codePlaceholder"
-        required
-        autocomplete="one-time-code"
-      />
+    <!-- `one-time-code` lets a phone offer the code from the authenticator or a text message.
+         `inputmode` follows the label: the 6-digit code gets the numeric keypad, but a recovery
+         code carries letters, so it must keep the full keyboard. -->
+    <UiInput
+      v-model="code"
+      :label="codeLabel"
+      icon="keyRound"
+      :placeholder="codePlaceholder"
+      required
+      autocomplete="one-time-code"
+      :inputmode="usingRecoveryCode ? 'text' : 'numeric'"
+    />
 
-      <UiButton class="mt-1 w-full justify-center" type="submit" :disabled="authStore.loading">
+    <div class="flex flex-col gap-2">
+      <UiButton class="w-full justify-center gap-2" type="submit" :disabled="authStore.loading">
         {{ authStore.loading ? t('app.auth.signingIn') : t('app.auth.verify') }}
+        <UiIcon v-if="!authStore.loading" name="arrowRight" size="sm" />
       </UiButton>
 
       <UiButton class="w-full justify-center" variant="ghost" @click="toggleRecoveryCode">

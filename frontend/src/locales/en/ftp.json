@@ -1,6 +1,7 @@
 {
   "ftp": {
     "list": {
+      "eyebrow": "Hosting",
       "heading": "File transfer",
       "subtitle": "Every login that reaches one account's files, and which protocol it speaks.",
       "prefixNote": "SFTP and FTPS logins are separate users on this server. Every login carries the owning account's name as a prefix, and the names below are exactly what the server holds — sign in with them as they are.",
@@ -8,6 +9,7 @@
       "emptyTitle": "No file transfer logins yet",
       "emptyDescription": "Create the first login above. Its password is shown once, when it is created.",
       "tableCaption": "SFTP and FTPS logins",
+      "sectionHeading": "Logins",
       "columns": {
         "fullName": "Login",
         "protocol": "Protocol",
@@ -28,6 +30,7 @@
       "ftps": "FTPS"
     },
     "form": {
+      "heading": "New login",
       "fields": {
         "accountId": "Account",
         "protocol": "Protocol",

@@ -10,13 +10,18 @@ namespace Maran.Modules.Sites.Domain.Entities;
 /// the alphabetically first file wins every request for that name, including
 /// <c>/.well-known/acme-challenge/</c>, which is enough to obtain a publicly trusted certificate
 /// for a domain the requester does not own. <c>nginx -t</c> only warns on a conflicting
-/// <c>server_name</c>, so nothing downstream refuses it.
+/// <c>server_name</c> and exits 0, so nginx itself refuses nothing.
 ///
 /// The name is therefore the primary key of this table, which makes the claim exclusive in the
 /// database rather than only in a handler: a pre-check and an insert are not one atomic step, and
 /// two simultaneous requests for the same name must not both succeed. This is the same reasoning
 /// that puts a unique index on <see cref="Site.Domain"/>, extended to the set the vhost actually
 /// answers for — <c>Domain ∪ Aliases</c>.
+///
+/// The key keeps the DATABASE consistent and nothing more. A site is provisioned on the host before
+/// its row is inserted, so a loser of two simultaneous creations that got past the agent's own
+/// refusal has already written its vhost when the key refuses its claims; removing that vhost is the
+/// create handler's work, not this table's.
 ///
 /// Rows are created by <see cref="Site"/>'s constructor and by nothing else, so a site cannot exist
 /// without its claims; they are removed with the site by the relationship's cascade.

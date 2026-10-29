@@ -24,6 +24,7 @@
  */
 import { computed, type ComputedRef } from 'vue'
 import { useI18n } from 'vue-i18n'
+import UiAlert from '../ui/UiAlert.vue'
 import UiButton from '../ui/UiButton.vue'
 import UiModal from '../ui/UiModal.vue'
 import { portRangeLabel } from '../../utils/portRangeLabel'
@@ -94,6 +95,10 @@ const describe = (rule: FirewallRule): string => {
 </script>
 
 <template>
+  <!-- The confirm and cancel controls sit in the modal's pinned footer, not in the scrolling body:
+       on a phone the warning can be taller than the viewport, and a confirmation whose buttons
+       scroll out of sight cannot be answered. Focus order is close, Cancel, then the confirm
+       control, so the first control reached is never the one that goes ahead with the change. -->
   <UiModal
     :open="open"
     :title="title"
@@ -101,31 +106,37 @@ const describe = (rule: FirewallRule): string => {
     @close="emit('close')"
   >
     <div class="flex flex-col gap-3">
-      <ul class="flex flex-col gap-1 rounded-lg border border-border-subtle bg-surface-2 p-3">
-        <li v-for="rule in rules" :key="`${rule.protocol}-${portRangeLabel(rule.port, rule.portTo)}-${rule.sourceCidr}`" class="font-mono text-sm text-text-primary">
+      <ul class="flex flex-col gap-1 rounded-control border border-border-subtle bg-surface-2 p-3">
+        <li
+          v-for="rule in rules"
+          :key="`${rule.protocol}-${portRangeLabel(rule.port, rule.portTo)}-${rule.sourceCidr}`"
+          class="font-mono text-sm text-text-primary wrap-anywhere"
+        >
           {{ describe(rule) }}
         </li>
       </ul>
-      <p class="text-base text-text-secondary">{{ warning }}</p>
-      <p v-if="leavesPortsUnruled" class="text-base text-text-secondary">
-        {{ t('firewall.lockout.lastRuleForPort') }}
-      </p>
+      <UiAlert variant="warning">
+        <p>{{ warning }}</p>
+        <p v-if="leavesPortsUnruled" class="mt-2 font-semibold">
+          {{ t('firewall.lockout.lastRuleForPort') }}
+        </p>
+      </UiAlert>
       <!-- Said on every confirmation, not only the risky-looking ones: the screen genuinely does
            not know which port SSH is on, and an operator who is told so once will check the port
            themselves — which is the only check that can actually be made here. -->
       <p class="text-sm text-text-muted">{{ t('firewall.lockout.sshPortUnknown') }}</p>
-      <div class="mt-1 flex flex-wrap justify-end gap-2">
-        <UiButton variant="secondary" @click="emit('close')">
-          {{ t('common.cancel') }}
-        </UiButton>
-        <UiButton
-          :variant="intent === 'deny' ? 'destructive' : 'primary'"
-          :disabled="busy"
-          @click="emit('confirm')"
-        >
-          {{ confirmLabel }}
-        </UiButton>
-      </div>
     </div>
+    <template #footer>
+      <UiButton variant="secondary" @click="emit('close')">
+        {{ t('common.cancel') }}
+      </UiButton>
+      <UiButton
+        :variant="intent === 'deny' ? 'destructive' : 'primary'"
+        :disabled="busy"
+        @click="emit('confirm')"
+      >
+        {{ confirmLabel }}
+      </UiButton>
+    </template>
   </UiModal>
 </template>

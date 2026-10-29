@@ -1,6 +1,7 @@
 {
   "tasks": {
     "list": {
+      "eyebrow": "Система",
       "heading": "Фоновые задачи",
       "subtitle": "Длительные операции, которые панель выполняет или недавно выполнила — новые сверху.",
       "loading": "Загрузка задач…",
@@ -9,7 +10,10 @@
       "tableCaption": "Фоновые задачи",
       "watch": "Наблюдать",
       "rowActions": "Действия для {subject}",
-      "percentValue": "{percent}%"
+      "percentValue": "{percent}%",
+      "recentHeading": "Недавние операции",
+      "failedNotice": "Неудавшихся задач: {count}. Откройте последнюю, чтобы узнать причину.",
+      "openFailure": "Открыть последнюю ошибку"
     },
     "columns": {
       "kind": "Операция",
@@ -25,7 +29,8 @@
       "AccountSuspension": "Приостановка аккаунта",
       "AccountResumption": "Возобновление аккаунта",
       "BackupCreate": "Создание резервной копии",
-      "BackupRestore": "Восстановление из копии"
+      "BackupRestore": "Восстановление из копии",
+      "PhpVersionInstall": "Установка версии PHP"
     },
     "statuses": {
       "running": "Выполняется",
@@ -37,7 +42,8 @@
       "notReported": "Не сообщено",
       "progressLabel": "Прогресс этой задачи",
       "failedWith": "Операция завершилась ошибкой с кодом {code}.",
-      "noLog": "Пока ничего не сообщено."
+      "noLog": "Пока ничего не сообщено.",
+      "logLabel": "Журнал задачи"
     },
     "badge": {
       "label": "Выполняется фоновых задач: {count}"

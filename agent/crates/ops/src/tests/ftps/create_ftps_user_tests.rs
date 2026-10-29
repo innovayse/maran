@@ -3,6 +3,7 @@
 // A failing assertion IS the reporting mechanism for a test.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use maran_agent_core::utils::call_class::CallClass;
 use maran_agent_core::validation::system::ftps_user_name::FtpsUserName;
 
 use crate::ftps::create_ftps_user::create_ftps_user_under_lock;
@@ -53,7 +54,10 @@ fn the_password_is_set_over_stdin_and_never_appears_in_an_argument_vector() {
         .expect("the creation must succeed");
 
     let spawn = host.last_spawn().expect("a process set the password");
-    assert_eq!(spawn.argv, vec![distro().chpasswd_binary().to_owned()]);
+    assert_eq!(
+        spawn.argv,
+        vec![distro().chpasswd_binary().as_str().to_owned()]
+    );
     assert_eq!(
         spawn.stdin.as_deref(),
         Some("alice_files:Gen3rated-pw\n"),
@@ -153,7 +157,7 @@ fn the_login_is_created_with_no_home_of_its_own_so_useradd_cannot_take_the_chroo
             spawn
                 .argv
                 .first()
-                .is_some_and(|program| program == distro().useradd_binary())
+                .is_some_and(|program| program == distro().useradd_binary().as_str())
         })
         .expect("useradd ran");
     assert!(
@@ -208,7 +212,7 @@ fn creating_a_login_that_already_exists_reports_already_exists_and_does_not_rese
         !host.spawns().iter().any(|spawn| spawn
             .argv
             .first()
-            .is_some_and(|program| program == distro().chpasswd_binary())),
+            .is_some_and(|program| program == distro().chpasswd_binary().as_str())),
         "the password of a login that already exists must NOT be reset: the \
          customer has already been shown the first one"
     );
@@ -343,4 +347,137 @@ fn the_login_name_that_reaches_useradd_is_the_one_the_account_prefix_built() {
         .expect("the creation must succeed");
 
     assert_eq!(host.login_names(), vec![expected]);
+}
+
+/// Asserts that a refused creation built and ran nothing at all.
+fn assert_nothing_was_built(host: &FakeFtpsHost) {
+    assert!(
+        host.last_spawn().is_none(),
+        "no useradd and no chpasswd may run for an unmanaged account"
+    );
+    assert!(
+        host.created_user().is_none() && host.created_directories().is_empty(),
+        "no login and no jail may exist for an unmanaged account"
+    );
+}
+
+#[test]
+fn creating_an_ftps_login_for_a_reserved_account_name_runs_no_useradd() {
+    let host = FakeFtpsHost::for_account("nginx", 1001, 1001);
+
+    let result = create_ftps_user_under_lock(&host, distro(), &request("nginx", "files", PASSWORD));
+
+    assert!(
+        matches!(result, Err(FtpsError::AccountNotManaged)),
+        "{result:?}"
+    );
+    assert_nothing_was_built(&host);
+}
+
+#[test]
+fn creating_an_ftps_login_for_an_account_with_a_system_identity_runs_no_useradd() {
+    let host = FakeFtpsHost::for_account("handmade", 1001, 1001).with_account_row_ids(100, 100);
+
+    let result =
+        create_ftps_user_under_lock(&host, distro(), &request("handmade", "files", PASSWORD));
+
+    assert!(
+        matches!(result, Err(FtpsError::AccountNotManaged)),
+        "{result:?}"
+    );
+    assert_nothing_was_built(&host);
+}
+
+#[test]
+fn creating_an_ftps_login_for_an_account_with_another_home_runs_no_useradd() {
+    let host = FakeFtpsHost::for_account("handmade", 1001, 1001).with_account_home("/srv/handmade");
+
+    let result =
+        create_ftps_user_under_lock(&host, distro(), &request("handmade", "files", PASSWORD));
+
+    assert!(
+        matches!(result, Err(FtpsError::AccountNotManaged)),
+        "{result:?}"
+    );
+    assert_nothing_was_built(&host);
+}
+
+#[test]
+fn creating_a_login_runs_useradd_and_chpasswd_as_mutations() {
+    let host = FakeFtpsHost::for_account(ACCOUNT, 1001, 1001);
+
+    create_ftps_user_under_lock(&host, distro(), &request(ACCOUNT, "files", PASSWORD))
+        .expect("the creation must succeed");
+
+    let useradd = host
+        .spawns()
+        .into_iter()
+        .find(|spawn| spawn.argv[0] == distro().useradd_binary().as_str())
+        .expect("useradd ran");
+    assert_eq!(useradd.class, Some(CallClass::Mutation));
+    let chpasswd = host.last_spawn().expect("chpasswd ran");
+    assert_eq!(chpasswd.class, Some(CallClass::Mutation));
+}
+
+#[test]
+fn useradd_receives_the_end_of_options_marker_immediately_before_the_login_name() {
+    let host = FakeFtpsHost::for_account(ACCOUNT, 1001, 1001);
+
+    create_ftps_user_under_lock(&host, distro(), &request(ACCOUNT, "files", PASSWORD))
+        .expect("the creation must succeed");
+
+    let useradd = host
+        .spawns()
+        .into_iter()
+        .find(|spawn| spawn.argv[0] == distro().useradd_binary().as_str())
+        .expect("useradd ran");
+    let marker = useradd
+        .argv
+        .iter()
+        .position(|argument| argument == "--")
+        .expect("the marker is present");
+    assert_eq!(marker + 2, useradd.argv.len(), "{:?}", useradd.argv);
+    assert_eq!(useradd.argv[marker + 1], "alice_files");
+    // Inverse control: `chpasswd` takes no operand, so it gets no marker.
+    let chpasswd = host.last_spawn().expect("chpasswd ran");
+    assert!(!chpasswd.argv.iter().any(|argument| argument == "--"));
+}
+
+#[test]
+fn a_useradd_that_times_out_is_a_bound_and_sets_no_password() {
+    let host = FakeFtpsHost::for_account(ACCOUNT, 1001, 1001).timing_out("useradd");
+
+    let error = create_ftps_user_under_lock(&host, distro(), &request(ACCOUNT, "files", PASSWORD))
+        .expect_err("must fail");
+
+    assert!(matches!(error, FtpsError::Bound(_)), "got {error:?}");
+    assert!(
+        host.spawns().iter().all(|spawn| spawn.stdin.is_none()),
+        "no password may be written for a login nobody saw created"
+    );
+}
+
+#[test]
+fn a_chpasswd_that_times_out_is_a_bound_and_never_a_rejected_password() {
+    let host = FakeFtpsHost::for_account(ACCOUNT, 1001, 1001).timing_out("chpasswd");
+
+    let error = create_ftps_user_under_lock(&host, distro(), &request(ACCOUNT, "files", PASSWORD))
+        .expect_err("must fail");
+
+    assert!(matches!(error, FtpsError::Bound(_)), "got {error:?}");
+}
+
+#[test]
+fn a_jail_whose_unit_write_times_out_is_a_bound_and_leaves_no_login_behind() {
+    let host = FakeFtpsHost::for_account(ACCOUNT, 1001, 1001).with_config_writes_timing_out();
+
+    let error = create_ftps_user_under_lock(&host, distro(), &request(ACCOUNT, "files", PASSWORD))
+        .expect_err("must fail");
+
+    assert!(matches!(error, FtpsError::Bound(_)), "got {error:?}");
+    assert!(
+        host.login_names().is_empty(),
+        "no login may exist without the jail it logs in to: {:?}",
+        host.login_names()
+    );
 }

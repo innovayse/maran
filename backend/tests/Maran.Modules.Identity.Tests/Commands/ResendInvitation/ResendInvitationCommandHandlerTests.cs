@@ -34,12 +34,11 @@ public sealed class ResendInvitationCommandHandlerTests : IDisposable
     private ResendInvitationCommandHandler NewHandler()
     {
         return new ResendInvitationCommandHandler(
-            _context,
             _bus,
             new IdentityAuditJournal(_audit, _currentUser),
             new InvitationMailComposer(
                 new StubEmailTemplates(), new OptionsWrapper<PanelOptions>(new PanelOptions())),
-            _accountDirectory,
+            new InvitationIssuer(_context, _accountDirectory),
             _clock,
             _currentUser);
     }

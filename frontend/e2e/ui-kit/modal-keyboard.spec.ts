@@ -5,6 +5,7 @@ import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubBackups } from '../fixtures/stub-backups-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubModules } from '../fixtures/stub-modules-route'
+import { stubInvitation } from '../fixtures/stub-invitation-routes'
 import type { Account } from '../../src/types/account'
 import type { Backup } from '../../src/types/backup'
 
@@ -91,6 +92,7 @@ test('the account-deletion dialog takes focus, closes on Escape, and gives focus
   await stubModules(page, [
     { name: 'accounts', displayName: 'Аккаунты', tier: 'included', isEnabled: true },
   ])
+  await stubInvitation(page, ALICE.id, 'pending')
   await page.route(`**/api/v1/accounts/${ALICE.id}`, async (route) => {
     if (route.request().method() !== 'GET') {
       await route.fallback()

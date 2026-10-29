@@ -7,6 +7,8 @@ import AccountDetailPage from '../pages/accounts/AccountDetailPage.vue'
 import AccountsListPage from '../pages/accounts/AccountsListPage.vue'
 import AccountFormPage from '../pages/accounts/AccountFormPage.vue'
 import MyAccountPage from '../pages/accounts/MyAccountPage.vue'
+import PlanFormPage from '../pages/plans/PlanFormPage.vue'
+import PlansListPage from '../pages/plans/PlansListPage.vue'
 import SitesListPage from '../pages/sites/SitesListPage.vue'
 import SiteFormPage from '../pages/sites/SiteFormPage.vue'
 import SiteDetailPage from '../pages/sites/SiteDetailPage.vue'
@@ -41,7 +43,9 @@ import { createModuleAccessGuard } from './moduleAccessGuard'
  * which owns the document's single `<main>` landmark and the module-catalogue-driven
  * sidebar; features add their own routes under `src/pages/<feature>/` as they land,
  * tagging `meta.module` when the route belongs to a licensed module so the
- * module-access guard can gate it.
+ * module-access guard can gate it. Every route also declares `meta.title`, the i18n key of its
+ * screen's name, which `useDocumentTitle` turns into the browser tab's title (WCAG 2.4.2); the key
+ * is the one the screen's own heading uses, so the tab and the page never name a screen two ways.
  * @returns A fresh {@link Router} instance to install with `app.use()`.
  */
 export const createAppRouter = (): Router => {
@@ -54,14 +58,14 @@ export const createAppRouter = (): Router => {
       {
         path: '/',
         component: DefaultLayout,
-        children: [{ path: '', name: 'system-status', component: SystemStatusPage }],
+        children: [{ path: '', name: 'system-status', component: SystemStatusPage, meta: { title: 'app.status.heading' } }],
       },
       {
         path: '/accounts',
         component: DefaultLayout,
         children: [
-          { path: '', name: 'accounts', component: AccountsListPage, meta: { module: 'accounts' } },
-          { path: 'new', name: 'accounts-new', component: AccountFormPage, meta: { module: 'accounts' } },
+          { path: '', name: 'accounts', component: AccountsListPage, meta: { module: 'accounts', title: 'accounts.list.heading' } },
+          { path: 'new', name: 'accounts-new', component: AccountFormPage, meta: { module: 'accounts', title: 'accounts.form.heading' } },
           // Declared after 'new' so the literal segment wins: an :id route placed first would
           // swallow /accounts/new and try to load an account called "new".
           {
@@ -69,7 +73,27 @@ export const createAppRouter = (): Router => {
             name: 'account-detail',
             component: AccountDetailPage,
             props: true,
-            meta: { module: 'accounts' },
+            meta: { module: 'accounts', title: 'accounts.detail.heading' },
+          },
+        ],
+      },
+      {
+        // Plans belong to the Accounts module — they are what an account is created against — so
+        // they carry its `meta.module` and fall behind its licence. They are administrators-only,
+        // and the endpoints are what say so: a customer who types this URL gets the panel's own
+        // refusal rendered on the page, with no second copy of the rule in a route guard.
+        path: '/plans',
+        component: DefaultLayout,
+        children: [
+          { path: '', name: 'plans', component: PlansListPage, meta: { module: 'accounts', title: 'plans.list.heading' } },
+          { path: 'new', name: 'plans-new', component: PlanFormPage, meta: { module: 'accounts', title: 'plans.form.headingNew' } },
+          // After 'new', for the reason the accounts routes give.
+          {
+            path: ':id',
+            name: 'plans-edit',
+            component: PlanFormPage,
+            props: true,
+            meta: { module: 'accounts', title: 'plans.form.headingEdit' },
           },
         ],
       },
@@ -77,8 +101,8 @@ export const createAppRouter = (): Router => {
         path: '/sites',
         component: DefaultLayout,
         children: [
-          { path: '', name: 'sites', component: SitesListPage, meta: { module: 'sites' } },
-          { path: 'new', name: 'sites-new', component: SiteFormPage, meta: { module: 'sites' } },
+          { path: '', name: 'sites', component: SitesListPage, meta: { module: 'sites', title: 'sites.list.heading' } },
+          { path: 'new', name: 'sites-new', component: SiteFormPage, meta: { module: 'sites', title: 'sites.form.heading' } },
           // Declared after 'new' so the literal segment wins: an :id route placed first would
           // swallow /sites/new and try to load a site called "new".
           {
@@ -86,7 +110,7 @@ export const createAppRouter = (): Router => {
             name: 'site-detail',
             component: SiteDetailPage,
             props: true,
-            meta: { module: 'sites' },
+            meta: { module: 'sites', title: 'sites.detail.heading' },
           },
         ],
       },
@@ -97,7 +121,7 @@ export const createAppRouter = (): Router => {
         path: '/databases',
         component: DefaultLayout,
         children: [
-          { path: '', name: 'databases', component: DatabasesPage, meta: { module: 'databases' } },
+          { path: '', name: 'databases', component: DatabasesPage, meta: { module: 'databases', title: 'databases.list.heading' } },
           // Administrators only, and the endpoint is what says so: a customer who types this URL
           // gets the panel's own refusal rendered on the page as a sentence about who may run it.
           // No route guard duplicates that rule — a second copy of an authorization decision is a
@@ -109,7 +133,7 @@ export const createAppRouter = (): Router => {
             path: 'grant-repair',
             name: 'database-grant-repair',
             component: DatabaseGrantRepairPage,
-            meta: { module: 'databases' },
+            meta: { module: 'databases', title: 'databases.grantRepair.heading' },
           },
         ],
       },
@@ -122,7 +146,7 @@ export const createAppRouter = (): Router => {
         path: '/backups',
         component: DefaultLayout,
         children: [
-          { path: '', name: 'backups', component: BackupsPage, meta: { module: 'backups' } },
+          { path: '', name: 'backups', component: BackupsPage, meta: { module: 'backups', title: 'backups.list.heading' } },
           // Administrators only, and the endpoint is what says so: a customer who types this URL
           // gets the panel's own 403 rendered on the page. No route guard duplicates that rule —
           // a second copy of an authorization decision is a second place for it to be wrong.
@@ -130,7 +154,7 @@ export const createAppRouter = (): Router => {
             path: 'schedule',
             name: 'backup-schedule',
             component: BackupSchedulePage,
-            meta: { module: 'backups' },
+            meta: { module: 'backups', title: 'backups.schedule.heading' },
           },
           // Administrators only for the same reason and by the same mechanism: the endpoint
           // answers 403 and the page renders that sentence. The screen reads and never writes —
@@ -139,7 +163,7 @@ export const createAppRouter = (): Router => {
             path: 'destinations',
             name: 'backup-destinations',
             component: BackupDestinationsPage,
-            meta: { module: 'backups' },
+            meta: { module: 'backups', title: 'backups.destinations.heading' },
           },
         ],
       },
@@ -151,7 +175,7 @@ export const createAppRouter = (): Router => {
         path: '/file-transfer',
         component: DefaultLayout,
         children: [
-          { path: '', name: 'file-transfer', component: FileTransferPage, meta: { module: 'sftp' } },
+          { path: '', name: 'file-transfer', component: FileTransferPage, meta: { module: 'sftp', title: 'ftp.list.heading' } },
         ],
       },
       {
@@ -168,7 +192,7 @@ export const createAppRouter = (): Router => {
         path: '/firewall',
         component: DefaultLayout,
         children: [
-          { path: '', name: 'firewall', component: FirewallPage, meta: { module: 'firewall' } },
+          { path: '', name: 'firewall', component: FirewallPage, meta: { module: 'firewall', title: 'firewall.heading' } },
         ],
       },
       {
@@ -177,14 +201,14 @@ export const createAppRouter = (): Router => {
         // privileged read per entry, so it is a dialog opened on demand rather than a page.
         path: '/cron',
         component: DefaultLayout,
-        children: [{ path: '', name: 'cron', component: CronPage, meta: { module: 'cron' } }],
+        children: [{ path: '', name: 'cron', component: CronPage, meta: { module: 'cron', title: 'cron.list.heading' } }],
       },
       {
         // One route: a task's detail is a live stream, which belongs beside the row it came from
         // rather than behind a navigation that would tear the stream down and open another.
         path: '/tasks',
         component: DefaultLayout,
-        children: [{ path: '', name: 'tasks', component: TasksPage, meta: { module: 'tasks' } }],
+        children: [{ path: '', name: 'tasks', component: TasksPage, meta: { module: 'tasks', title: 'tasks.list.heading' } }],
       },
       {
         // One route: the charts, the service states and the per-account disk table are read
@@ -193,7 +217,7 @@ export const createAppRouter = (): Router => {
         path: '/monitoring',
         component: DefaultLayout,
         children: [
-          { path: '', name: 'monitoring', component: MonitoringPage, meta: { module: 'monitoring' } },
+          { path: '', name: 'monitoring', component: MonitoringPage, meta: { module: 'monitoring', title: 'monitoring.heading' } },
         ],
       },
       {
@@ -203,14 +227,14 @@ export const createAppRouter = (): Router => {
         path: '/login',
         component: AuthLayout,
         children: [
-          { path: '', name: 'login', component: LoginPage },
-          { path: 'two-factor', name: 'login-two-factor', component: TwoFactorPage },
+          { path: '', name: 'login', component: LoginPage, meta: { title: 'app.auth.signInTitle' } },
+          { path: 'two-factor', name: 'login-two-factor', component: TwoFactorPage, meta: { title: 'app.auth.twoFactorTitle' } },
         ],
       },
       {
         path: '/setup',
         component: AuthLayout,
-        children: [{ path: '', name: 'setup', component: SetupPage }],
+        children: [{ path: '', name: 'setup', component: SetupPage, meta: { title: 'app.auth.setupTitle' } }],
       },
       {
         // Asking for a reset link and spending one are both unauthenticated by
@@ -218,14 +242,14 @@ export const createAppRouter = (): Router => {
         // sign-in screens' bare layout and appear in no navigation at all.
         path: '/forgot-password',
         component: AuthLayout,
-        children: [{ path: '', name: 'forgot-password', component: ForgotPasswordPage }],
+        children: [{ path: '', name: 'forgot-password', component: ForgotPasswordPage, meta: { title: 'app.passwordReset.requestTitle' } }],
       },
       {
         // The token arrives in the query string, because that is where the reset
         // mail's link puts it; the route itself carries nothing about the account.
         path: '/reset-password',
         component: AuthLayout,
-        children: [{ path: '', name: 'reset-password', component: ResetPasswordPage }],
+        children: [{ path: '', name: 'reset-password', component: ResetPasswordPage, meta: { title: 'app.passwordReset.resetTitle' } }],
       },
       {
         // The token arrives in the query string, exactly as `/reset-password`'s does, because
@@ -234,7 +258,7 @@ export const createAppRouter = (): Router => {
         // never signed in, so it shares the sign-in screens' bare layout.
         path: '/accept-invitation',
         component: AuthLayout,
-        children: [{ path: '', name: 'accept-invitation', component: AcceptInvitationPage }],
+        children: [{ path: '', name: 'accept-invitation', component: AcceptInvitationPage, meta: { title: 'app.acceptInvitation.title' } }],
       },
       {
         path: '/my-account',
@@ -246,7 +270,7 @@ export const createAppRouter = (): Router => {
           // (`GET /api/v1/accounts/me`) already answers "the account YOU own" off the caller's
           // own token and 404s for an administrator, who owns none — a second, client-side copy
           // of that decision would be a second place for it to be wrong.
-          { path: '', name: 'my-account', component: MyAccountPage },
+          { path: '', name: 'my-account', component: MyAccountPage, meta: { title: 'app.shell.menu.myAccount' } },
         ],
       },
       {
@@ -257,7 +281,7 @@ export const createAppRouter = (): Router => {
         // URL; nothing links to it.
         path: '/two-factor-setup',
         component: AuthLayout,
-        children: [{ path: '', name: 'two-factor-setup', component: TwoFactorSettingsPage }],
+        children: [{ path: '', name: 'two-factor-setup', component: TwoFactorSettingsPage, meta: { title: 'app.twoFactor.heading' } }],
       },
       {
         // Account security, not a licensed module: these two screens belong to
@@ -266,8 +290,8 @@ export const createAppRouter = (): Router => {
         path: '/settings',
         component: DefaultLayout,
         children: [
-          { path: 'sessions', name: 'sessions', component: SessionsPage },
-          { path: 'two-factor', name: 'two-factor', component: TwoFactorSettingsPage },
+          { path: 'sessions', name: 'sessions', component: SessionsPage, meta: { title: 'app.sessions.heading' } },
+          { path: 'two-factor', name: 'two-factor', component: TwoFactorSettingsPage, meta: { title: 'app.twoFactor.heading' } },
           // Administrator-only screens, gated by their endpoints rather than by a
           // route guard, for the same reason the audit journal below is: a second
           // copy of an authorization decision is a second place for it to be wrong.
@@ -275,29 +299,29 @@ export const createAppRouter = (): Router => {
           // itself, and mail settings are what alerting AND password reset both
           // depend on, so hiding them behind a licence would disable the panel's
           // ability to send a reset link.
-          { path: 'security-policy', name: 'security-policy', component: SecurityPolicyPage },
-          { path: 'smtp', name: 'smtp-settings', component: SmtpSettingsPage },
+          { path: 'security-policy', name: 'security-policy', component: SecurityPolicyPage, meta: { title: 'app.securityPolicy.heading' } },
+          { path: 'smtp', name: 'smtp-settings', component: SmtpSettingsPage, meta: { title: 'app.smtp.heading' } },
           // PHP runtimes are server-wide and installing one is administrators' work, so this sits
           // with the other administrator screens and carries no `meta.module`: a host with no PHP
           // version installed is a host where no PHP site can be created at all, which is not a
           // state a licence should be able to produce.
-          { path: 'php', name: 'php-versions', component: PhpVersionsPage },
+          { path: 'php', name: 'php-versions', component: PhpVersionsPage, meta: { title: 'php.title' } },
           // The journal is administrators-only, and the endpoint is what says so: a customer who
           // types this URL gets the panel's own refusal rendered on the page. No route guard
           // duplicates that rule here — a second copy of an authorization decision is a second
           // place for it to be wrong, and the client's copy is the one that cannot be trusted.
-          { path: 'audit', name: 'audit', component: AuditPage },
+          { path: 'audit', name: 'audit', component: AuditPage, meta: { title: 'app.audit.heading' } },
         ],
       },
       {
         path: '/upgrade/:module',
         component: DefaultLayout,
-        children: [{ path: '', name: 'upgrade', component: UpgradePage, props: true }],
+        children: [{ path: '', name: 'upgrade', component: UpgradePage, props: true, meta: { title: 'app.upgrade.heading' } }],
       },
       {
         path: '/:pathMatch(.*)*',
         component: DefaultLayout,
-        children: [{ path: '', name: 'not-found', component: NotFoundPage }],
+        children: [{ path: '', name: 'not-found', component: NotFoundPage, meta: { title: 'app.notFound.heading' } }],
       },
     ],
   })

@@ -1,5 +1,7 @@
 using FluentValidation;
+using Maran.Modules.Accounts.Domain.Policies;
 using Maran.Modules.Accounts.Persistence;
+using Maran.Modules.Accounts.Resources;
 using Maran.SharedKernel.Utilities.Mail;
 using Maran.SharedKernel.Utilities.Network;
 
@@ -7,9 +9,9 @@ namespace Maran.Modules.Accounts.Commands.CreateAccount;
 
 /// <summary>
 /// Validates <see cref="CreateAccountCommand"/> before it reaches the handler (rules/security.md
-/// "Input"). <see cref="CreateAccountCommand.Name"/> is re-validated inside the agent too, once the
-/// agent's Accounts operations exist, because the API's validation never substitutes for the
-/// agent's own boundary check.
+/// "Input"). <see cref="CreateAccountCommand.Name"/> is re-validated inside the agent too, which
+/// refuses a reserved name and any user that is not a hosting account, because the API's validation
+/// never substitutes for the agent's own boundary check.
 /// </summary>
 public sealed class CreateAccountCommandValidator : AbstractValidator<CreateAccountCommand>
 {
@@ -20,12 +22,14 @@ public sealed class CreateAccountCommandValidator : AbstractValidator<CreateAcco
     /// translated sentence — the rest of the module does. It names an entry in
     /// <c>Resources/ErrorMessages.resx</c>, which is where that sentence lives.
     /// </summary>
-    private const string PlanNotFoundErrorCode = nameof(Resources.ErrorMessages.PlanNotFound);
+    private const string PlanNotFoundErrorCode = nameof(ErrorMessages.PlanNotFound);
 
     /// <summary>
-    /// The POSIX portable username character set and a conservative length, so a validated name is
-    /// always safe to become the account's eventual Linux user name, a home directory and a systemd
-    /// unit name.
+    /// The agent's account-name alphabet, exactly: a lowercase letter, then 2 to 29 lowercase
+    /// letters, digits or underscores (3 to 30 characters). It mirrors <c>AccountName::parse</c> in
+    /// <c>agent/crates/agent-core/src/validation/system/name.rs</c>, so the API and the agent stop
+    /// disagreeing about which names are valid, and a validated name is always safe to become the
+    /// account's Linux user name, a home directory and a systemd unit name. A hyphen is not in it.
     /// </summary>
     /// <remarks>
     /// <para>
@@ -40,10 +44,25 @@ public sealed class CreateAccountCommandValidator : AbstractValidator<CreateAcco
     /// It stays here rather than moving to <c>SharedKernel/Utilities/</c> because it is asked in
     /// exactly one place. A helper earns that home by answering a general question the panel asks in
     /// more than one place (rules/csharp.md "Cross-cutting infrastructure"); a rule with one call
-    /// site moved down there would be a home built for a duplicate that does not exist.
+    /// site moved down there would be a home built for a duplicate that does not exist. The
+    /// reserved-name rule that follows the pattern is <see cref="ReservedAccountNamePolicy"/>, in
+    /// this module for the same reason.
     /// </para>
     /// </remarks>
-    private const string LinuxUserNamePattern = @"\A[a-z][a-z0-9_-]{2,31}\z";
+    private const string LinuxUserNamePattern = @"\A[a-z][a-z0-9_]{2,29}\z";
+
+    /// <summary>The longest account name the agent accepts.</summary>
+    private const int NameMaximumLength = 30;
+
+    /// <summary>
+    /// The machine code for a name outside the alphabet or length. It is passed as the validation
+    /// message itself, not as an error code: <c>ExceptionMiddleware</c> forwards only a message that
+    /// is entirely alphanumeric and resolves it as a resx key, and discards an English sentence.
+    /// </summary>
+    private const string NameInvalidMessage = nameof(ErrorMessages.AccountNameInvalid);
+
+    /// <summary>The machine code for a reserved name, delivered the same way as <see cref="NameInvalidMessage"/>.</summary>
+    private const string NameReservedMessage = nameof(ErrorMessages.AccountNameReserved);
 
     /// <summary>
     /// A storage bound, not a definition of validity — <c>AccountConfiguration</c> maps
@@ -63,11 +82,21 @@ public sealed class CreateAccountCommandValidator : AbstractValidator<CreateAcco
     {
         _dbContext = dbContext;
 
+        // Stop at the first failure so a malformed name is told it is malformed, and only a
+        // well-formed one is asked whether it is reserved.
         RuleFor(command => command.Name)
+            .Cascade(CascadeMode.Stop)
             .NotEmpty()
-            .MaximumLength(32)
+            .WithMessage(NameInvalidMessage)
+            .MaximumLength(NameMaximumLength)
+            .WithMessage(NameInvalidMessage)
             .Matches(LinuxUserNamePattern)
-            .WithMessage("Name must be a lowercase, Linux-username-safe identifier.");
+            .WithMessage(NameInvalidMessage)
+            .Must(name =>
+            {
+                return !ReservedAccountNamePolicy.IsReserved(name);
+            })
+            .WithMessage(NameReservedMessage);
 
         RuleFor(command => command.PrimaryDomain)
             .NotEmpty()

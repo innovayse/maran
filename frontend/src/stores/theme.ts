@@ -14,8 +14,10 @@ const STORAGE_KEY = 'maran.theme'
  * choice so a reload does not throw the user back to the default.
  *
  * The attribute is written the moment the store is created rather than in a
- * mounted hook: `index.html` paints dark first, so a user who chose light
- * would otherwise see a dark flash before the app caught up.
+ * mounted hook, and `main.ts` creates it at boot, before the app mounts: that is
+ * what makes a chosen theme hold on signed-out pages, which never render the
+ * shell, and keeps a user who chose light from seeing `index.html`'s baseline
+ * dark past the first frame.
  */
 export const useThemeStore = defineStore('theme', () => {
   /** The active interface theme. */

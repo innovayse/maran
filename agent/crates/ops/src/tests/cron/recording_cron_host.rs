@@ -33,6 +33,8 @@ use maran_agent_core::validation::system::cron_entry_id::CronEntryId;
 use maran_agent_core::validation::system::cron_schedule::CronSchedule;
 use maran_agent_core::validation::system::env_var_name::EnvVarName;
 use maran_agent_core::validation::system::env_var_value::EnvVarValue;
+use maran_agent_core::validation::system::managed_account::ManagedAccount;
+use maran_agent_core::validation::system::managed_account_error::ManagedAccountError;
 use maran_agent_core::validation::system::name::AccountName;
 use maran_distro::{DistroAdapter, DistroFamily, adapter_for};
 
@@ -41,9 +43,18 @@ use crate::cron::cron_host::CronHost;
 use crate::cron::model::cron_entry::CronEntry;
 use crate::cron::model::cron_environment::CronEnvironment;
 use crate::cron::model::cron_run_record::CronRunRecord;
+use crate::cron::unmanaged_case::UnmanagedCase;
 
 /// The account every test in this folder works against.
 pub(crate) const TEST_ACCOUNT: &str = "alice";
+
+/// The user id the fake's password row holds for the account: outside the system
+/// range, as a real hosting account's is.
+pub(crate) const ACCOUNT_UID: u32 = 1042;
+
+/// The primary group id the fake's password row holds for the account, different
+/// from [`ACCOUNT_UID`] so a uid passed as a gid cannot pass unnoticed.
+pub(crate) const ACCOUNT_GID: u32 = 1043;
 
 /// The first id the fake mints when a test has not queued one.
 pub(crate) const FIRST_ID: &str = "11111111-1111-4111-8111-111111111111";
@@ -164,6 +175,16 @@ pub(crate) struct RecordingCronHost {
     ids_unavailable: Mutex<bool>,
     /// The rendezvous `read_crontab` waits at, when a test installed one.
     gate: Mutex<Option<Arc<ArrivalGate>>>,
+    /// The user and group id of the account's row in the fake's password
+    /// database, as `managed_account` reads them.
+    account_ids: Mutex<(u32, u32)>,
+    /// The home of the account's row, when a test replaced the managed
+    /// `/home/<name>` with something else.
+    account_home: Mutex<Option<String>>,
+    /// Whether the fake's password database holds a row for the account at all.
+    account_row_present: Mutex<bool>,
+    /// How many times the crontab was read.
+    reads: Mutex<usize>,
 }
 
 impl RecordingCronHost {
@@ -182,7 +203,45 @@ impl RecordingCronHost {
             remove_refuses: Mutex::new(false),
             ids_unavailable: Mutex::new(false),
             gate: Mutex::new(None),
+            account_ids: Mutex::new((ACCOUNT_UID, ACCOUNT_GID)),
+            account_home: Mutex::new(None),
+            account_row_present: Mutex::new(true),
+            reads: Mutex::new(0),
         }
+    }
+
+    /// Gives the account's password row these ids.
+    ///
+    /// For the refusal classes of the managed-account check: a uid or gid below
+    /// the host's floor is a system identity, and 0 is root's.
+    pub(crate) fn with_account_ids(self, uid: u32, gid: u32) -> Self {
+        *self.account_ids.lock().unwrap() = (uid, gid);
+
+        self
+    }
+
+    /// Gives the account's password row this home instead of the managed
+    /// `/home/<name>`.
+    pub(crate) fn with_account_home(self, home: &str) -> Self {
+        *self.account_home.lock().unwrap() = Some(home.to_owned());
+
+        self
+    }
+
+    /// Takes the account's row out of the password database.
+    pub(crate) fn without_account_row(self) -> Self {
+        *self.account_row_present.lock().unwrap() = false;
+
+        self
+    }
+
+    /// How many times the crontab was read.
+    ///
+    /// The observable that says a refusal came BEFORE the table was touched: an
+    /// empty `installs()` alone cannot, because a read-modify-write that was
+    /// refused at the install would have the same one.
+    pub(crate) fn reads(&self) -> usize {
+        *self.reads.lock().unwrap()
     }
 
     /// Makes the first caller of `read_crontab` wait for a second one.
@@ -319,7 +378,29 @@ impl RecordingCronHost {
 }
 
 impl CronHost for RecordingCronHost {
-    fn read_crontab(&self, _account: &AccountName) -> Result<Option<String>, CronError> {
+    /// Decides through the shipped [`ManagedAccount`] rule over a one-row
+    /// password text the fake composes from the ids and home it holds, so the
+    /// fake never has an opinion of its own about who counts as managed.
+    fn managed_account(&self, account: &AccountName) -> Result<ManagedAccount, CronError> {
+        if !*self.account_row_present.lock().unwrap() {
+            return Err(CronError::Account(ManagedAccountError::NotFound));
+        }
+
+        let (uid, gid) = *self.account_ids.lock().unwrap();
+        let home = self
+            .account_home
+            .lock()
+            .unwrap()
+            .clone()
+            .unwrap_or_else(|| format!("/home/{}", account.as_str()));
+        let passwd = format!("{}:x:{uid}:{gid}::{home}:/bin/sh\n", account.as_str());
+
+        ManagedAccount::resolve(account.clone(), &passwd).map_err(CronError::Account)
+    }
+
+    fn read_crontab(&self, _account: &ManagedAccount) -> Result<Option<String>, CronError> {
+        *self.reads.lock().unwrap() += 1;
+
         if let Some(code) = *self.read_refusal.lock().unwrap() {
             return Err(CronError::CrontabRefused { code });
         }
@@ -339,7 +420,7 @@ impl CronHost for RecordingCronHost {
         Ok(text)
     }
 
-    fn install_crontab(&self, _account: &AccountName, contents: &str) -> Result<(), CronError> {
+    fn install_crontab(&self, _account: &ManagedAccount, contents: &str) -> Result<(), CronError> {
         if let Some(code) = *self.install_refusal.lock().unwrap() {
             // Recorded even when refused, so a test can tell "the table was
             // never built" from "the table was built and the program said no".
@@ -371,7 +452,7 @@ impl CronHost for RecordingCronHost {
 
     fn write_command_file(
         &self,
-        account: &AccountName,
+        account: &ManagedAccount,
         entry: &CronEntryId,
         command: &CronCommand,
     ) -> Result<(), CronError> {
@@ -380,7 +461,7 @@ impl CronHost for RecordingCronHost {
         }
 
         self.files.lock().unwrap().insert(
-            cmd_path(account, entry),
+            cmd_path(account.name(), entry),
             // The shipped composition, not the fake's own: the file's format is
             // one unit and both sides of it use the same function.
             CronEntry::file_contents(command),
@@ -391,19 +472,19 @@ impl CronHost for RecordingCronHost {
 
     fn read_command_file(
         &self,
-        account: &AccountName,
+        account: &ManagedAccount,
         entry: &CronEntryId,
     ) -> Result<Option<String>, CronError> {
         if *self.entry_read_refuses.lock().unwrap() {
             return Err(CronError::EntryFileUnreadable);
         }
 
-        Ok(self.file(&cmd_path(account, entry)))
+        Ok(self.file(&cmd_path(account.name(), entry)))
     }
 
     fn remove_entry_files(
         &self,
-        account: &AccountName,
+        account: &ManagedAccount,
         entry: &CronEntryId,
     ) -> Result<(), CronError> {
         if *self.remove_refuses.lock().unwrap() {
@@ -412,9 +493,9 @@ impl CronHost for RecordingCronHost {
 
         let mut files = self.files.lock().unwrap();
         for path in [
-            cmd_path(account, entry),
-            log_path(account, entry),
-            exit_path(account, entry),
+            cmd_path(account.name(), entry),
+            log_path(account.name(), entry),
+            exit_path(account.name(), entry),
         ] {
             files.remove(&path);
         }
@@ -424,7 +505,7 @@ impl CronHost for RecordingCronHost {
 
     fn read_run_record(
         &self,
-        account: &AccountName,
+        account: &ManagedAccount,
         entry: &CronEntryId,
     ) -> Result<Option<CronRunRecord>, CronError> {
         if *self.entry_read_refuses.lock().unwrap() {
@@ -435,13 +516,13 @@ impl CronHost for RecordingCronHost {
             .records
             .lock()
             .unwrap()
-            .get(&exit_path(account, entry))
+            .get(&exit_path(account.name(), entry))
             .cloned())
     }
 
     fn read_output_tail(
         &self,
-        account: &AccountName,
+        account: &ManagedAccount,
         entry: &CronEntryId,
         max_bytes: usize,
     ) -> Result<Option<String>, CronError> {
@@ -449,7 +530,7 @@ impl CronHost for RecordingCronHost {
             return Err(CronError::EntryFileUnreadable);
         }
 
-        Ok(self.file(&log_path(account, entry)).map(|text| {
+        Ok(self.file(&log_path(account.name(), entry)).map(|text| {
             // The tail, as the real host reads it: the end of the file is what
             // a failed run's error is at.
             let start = text.len().saturating_sub(max_bytes);
@@ -529,4 +610,120 @@ pub(crate) fn run_record(exit_code: Option<i32>, seconds_since_epoch: u64) -> Cr
         exit_code,
         ran_at: UNIX_EPOCH + Duration::from_secs(seconds_since_epoch),
     }
+}
+
+/// The crontab line every refusal case starts with, so that "left untouched"
+/// is a comparison and not an absence.
+pub(crate) const VICTIM_TABLE: &str = "* * * * * /usr/bin/true # not the panel's\n";
+
+/// Every class of refusal, each with a crontab worth protecting.
+///
+/// Reserved by list, reserved by the panel's prefix, a user id of 0, a user id
+/// below the floor, a group id below the floor, a home that is not the managed
+/// one, and no row at all. Covering all seven is what stops a gate that checks
+/// only the name, or only the ids, from passing.
+pub(crate) fn unmanaged_cases() -> Vec<UnmanagedCase> {
+    /// One case: a host holding the victim table, shaped by `shape`.
+    fn case(
+        label: &'static str,
+        name: &str,
+        expected: &'static ManagedAccountError,
+        shape: fn(RecordingCronHost) -> RecordingCronHost,
+    ) -> UnmanagedCase {
+        UnmanagedCase {
+            label,
+            account: AccountName::parse(name).expect("a valid account name"),
+            host: shape(RecordingCronHost::with_crontab(VICTIM_TABLE)),
+            expected,
+        }
+    }
+
+    vec![
+        case(
+            "a reserved name",
+            "root",
+            &ManagedAccountError::Reserved,
+            |h| h,
+        ),
+        case(
+            "the panel's own prefix",
+            "maran_cronpfx",
+            &ManagedAccountError::Reserved,
+            |h| h,
+        ),
+        case(
+            "a user id of zero",
+            "cronzero",
+            &ManagedAccountError::SystemIdentity,
+            |h| h.with_account_ids(0, 0),
+        ),
+        case(
+            "a user id below the floor",
+            "cronsysuid",
+            &ManagedAccountError::SystemIdentity,
+            |h| h.with_account_ids(100, ACCOUNT_GID),
+        ),
+        case(
+            "a group id below the floor",
+            "cronsysgid",
+            &ManagedAccountError::SystemIdentity,
+            |h| h.with_account_ids(ACCOUNT_UID, 100),
+        ),
+        case(
+            "a home that is not the managed one",
+            "cronhome",
+            &ManagedAccountError::WrongHome,
+            |h| h.with_account_home("/srv/cronhome"),
+        ),
+        case(
+            "no row in the password database",
+            "cronnorow",
+            &ManagedAccountError::NotFound,
+            RecordingCronHost::without_account_row,
+        ),
+    ]
+}
+
+/// Asserts that an operation was refused as an unmanaged account and left the
+/// host exactly as it found it.
+///
+/// "Exactly" is five facts: the typed refusal, no crontab read (the refusal came
+/// before the table was touched, not at the install), no install, no entry file
+/// written, and the crontab text unchanged.
+pub(crate) fn assert_refused_untouched<T>(case: &UnmanagedCase, result: Result<T, CronError>) {
+    match result.err() {
+        Some(CronError::Account(refusal)) => assert_eq!(
+            &refusal, case.expected,
+            "{}: the refusal names the wrong check",
+            case.label
+        ),
+        other => panic!(
+            "{}: the operation must refuse with the typed account error, got {other:?}",
+            case.label
+        ),
+    }
+    assert_eq!(
+        case.host.reads(),
+        0,
+        "{}: the crontab must not be read for an unmanaged account",
+        case.label
+    );
+    assert!(
+        case.host.installs().is_empty(),
+        "{}: nothing may be installed: {:?}",
+        case.label,
+        case.host.installs()
+    );
+    assert!(
+        case.host.file_paths().is_empty(),
+        "{}: no entry file may be written: {:?}",
+        case.label,
+        case.host.file_paths()
+    );
+    assert_eq!(
+        case.host.crontab().as_deref(),
+        Some(VICTIM_TABLE),
+        "{}: the crontab must be exactly as it was",
+        case.label
+    );
 }

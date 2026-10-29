@@ -1,5 +1,6 @@
 using Maran.Modules.Accounts.Common;
 using Maran.Modules.Accounts.Domain.Entities;
+using Maran.Modules.Accounts.Mappers;
 using Maran.Modules.Accounts.Persistence;
 using Maran.Modules.Accounts.Resources;
 using Microsoft.Extensions.Localization;
@@ -30,7 +31,12 @@ public sealed class ListPlansQueryHandler
         _displayNames = displayNames;
     }
 
-    /// <summary>Returns every plan as a <see cref="PlanDto"/>, ordered by disk quota ascending.</summary>
+    /// <summary>
+    /// Returns every plan as a <see cref="PlanDto"/>, ordered by disk quota ascending and then by id.
+    /// The second key is not decoration: two plans may sell the same disk, and without it the order
+    /// of such a pair is whichever the database happens to return, which makes a screen of plans
+    /// reshuffle itself between two reads of unchanged data.
+    /// </summary>
     /// <param name="query">The (parameterless) list request.</param>
     /// <param name="cancellationToken">Cancels the read.</param>
     /// <returns>A successful result carrying the plans; this operation never fails.</returns>
@@ -39,18 +45,29 @@ public sealed class ListPlansQueryHandler
         var plans = await _dbContext.Plans
             .AsNoTracking()
             .OrderBy(p => p.DiskQuotaMb)
+            .ThenBy(p => p.Id)
             .ToListAsync(cancellationToken);
+
+        // One grouped read for every plan's headcount rather than a count per plan.
+        var accountCounts = await _dbContext.Accounts
+            .AsNoTracking()
+            .GroupBy(a => a.PlanId)
+            .Select(g => new { PlanId = g.Key, Count = g.Count() })
+            .ToDictionaryAsync(
+                g =>
+                {
+                    return g.PlanId;
+                },
+                g =>
+                {
+                    return g.Count;
+                },
+                cancellationToken);
 
         var dtos = plans
             .Select(p =>
             {
-                return new PlanDto(
-                                p.Id,
-                                _displayNames[p.DisplayNameKey],
-                                p.DiskQuotaMb,
-                                p.MaxSites,
-                                p.MaxDatabases,
-                                p.MaxSftpUsers);
+                return PlanMapper.ToDto(p, _displayNames, accountCounts.GetValueOrDefault(p.Id));
             })
             .ToList();
 

@@ -282,3 +282,14 @@ fn the_two_jail_roots_are_separate_directories_and_neither_contains_the_other() 
     assert!(!Path::new(AgentPaths::FTPS_JAIL_ROOT).starts_with(AgentPaths::SFTP_JAIL_ROOT));
     assert!(!Path::new(AgentPaths::SFTP_JAIL_ROOT).starts_with(AgentPaths::FTPS_JAIL_ROOT));
 }
+
+#[test]
+fn the_php_socket_directory_is_not_under_the_agents_private_directory() {
+    let socket_directory = Path::new(AgentPaths::PHP_FPM_SOCKET_DIRECTORY);
+    assert!(
+        !socket_directory.starts_with("/run/maran"),
+        "the web server's user cannot traverse /run/maran (root:maran 0750), \
+         so a socket directory beneath it makes every PHP site answer 502"
+    );
+    assert!(AgentPaths::PHP_FPM_SOCKET_DIRECTORY.starts_with("/run/"));
+}

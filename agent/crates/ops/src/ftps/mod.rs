@@ -46,6 +46,7 @@ mod reload_ftps_tls;
 mod remove_account_ftps;
 mod set_ftps_password;
 mod validate_candidate_config;
+mod wait_for_control_port;
 
 pub use create_ftps_user::create_ftps_user;
 pub use delete_ftps_user::delete_ftps_user;

@@ -15,6 +15,13 @@ use crate::render_error::RenderError;
 /// not disrupted") and Let's Encrypt's HTTP-01 challenge has to find a file
 /// under that root or renewal fails silently — leaving the account to come
 /// back from suspension with an expired certificate.
+///
+/// The challenge location carries `disable_symlinks if_not_owner;`, the rule
+/// [`super::site_body::SiteBody`] explains. Stubs an earlier agent wrote
+/// lack it, and a suspended site is recognised by comparing its file with a
+/// render byte for byte (`ops::sites::is_suspended_vhost`), so
+/// [`Self::render_legacy_config`] renders that older text for the comparison
+/// to accept as well.
 #[derive(Template)]
 // A config file is not a document: `escape = "none"` because HTML-escaping
 // nginx directives corrupts them silently — an apostrophe in a comment came
@@ -37,6 +44,10 @@ pub struct SuspendedSite<'a> {
     pub error_log: &'a str,
 }
 
+/// The rule line the current stub carries and the stubs written before it do
+/// not, exactly as it appears in the render.
+const SYMLINK_RULE_LINE: &str = "        disable_symlinks if_not_owner;\n";
+
 impl SuspendedSite<'_> {
     /// Renders the configuration text.
     ///
@@ -47,4 +58,20 @@ impl SuspendedSite<'_> {
     pub fn render_config(&self) -> Result<String, RenderError> {
         self.render().map_err(RenderError::Askama)
     }
+
+    /// Renders the stub as agents before the symlink rule wrote it.
+    ///
+    /// Used only to recognise stubs already on disk as suspended; never
+    /// written.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`RenderError::Askama`] as [`Self::render_config`] does.
+    pub fn render_legacy_config(&self) -> Result<String, RenderError> {
+        Ok(self.render_config()?.replacen(SYMLINK_RULE_LINE, "", 1))
+    }
 }
+
+#[cfg(test)]
+#[path = "../tests/nginx/suspended_site_tests.rs"]
+mod tests;

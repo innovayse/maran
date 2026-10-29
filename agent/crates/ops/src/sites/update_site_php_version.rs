@@ -48,7 +48,8 @@ use crate::sites::{SiteHost, SitesOpError};
 /// host. Returns [`SitesOpError::ConfigWrite`] carrying the PHP area's failure
 /// when the pool cannot be written, and this area's usual
 /// [`SitesOpError::NginxValidation`], [`SitesOpError::ReloadFailed`] and
-/// [`SitesOpError::Render`] for the vhost half.
+/// [`SitesOpError::Render`] for the vhost half. A program killed at its deadline, in the
+/// pool half or the vhost half, is [`SitesOpError::Bound`] and never a refusal.
 pub fn update_site_php_version(
     host: &dyn SiteHost,
     php_host: &dyn PhpHost,

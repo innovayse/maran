@@ -351,7 +351,11 @@ backend/
 │   │   ├── Errors/                      # AgentErrorTranslator.cs — the ONE place a wire AgentError
 │   │   │                                #   becomes a code, and the ONE place the agent's own text
 │   │   │                                #   is logged (and redacted). Shared by every service
-│   │   │                                #   client, so a redaction is written and kept in one file
+│   │   │                                #   client, so a redaction is written and kept in one file.
+│   │   │                                #   AgentTransportFailure.cs classifies a transport that
+│   │   │                                #   failed (no answer from the agent) into its typed error;
+│   │   │                                #   AgentStreamGuard.cs ends a stream with that error as a
+│   │   │                                #   final event instead of an exception
 │   │   └── Services/<Proto>Service/      # one folder per proto service: client, seam, DTOs
 │   │                                    # (SystemService/, AccountsService/, SitesService/,
 │   │                                    #  SslService/, PhpService/, …)
@@ -1180,7 +1184,8 @@ Maran.Host/
 │   ├── ApiRateLimitPolicy.cs         # per authenticated account
 │   └── ProvisioningRateLimitPolicy.cs# per API key
 └── Resilience/                   # one pipeline per file
-    ├── AgentCallPipeline.cs          # timeout + limited retry on transient agent failures
+    ├── AgentCallPipeline.cs          # the handshake probe: short timeout + retry when unreachable
+    ├── AgentOperationPipeline.cs     # agent work: retry only a failed connect, then a typed 503
     ├── AcmePipeline.cs               # retry with backoff, respects rate limits
     └── OutboundHttpPipeline.cs       # licence server, S3, SMTP
 ```

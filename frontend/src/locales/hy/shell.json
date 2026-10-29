@@ -5,12 +5,18 @@
       "ariaLabel": "Հիմնական նավիգացիա",
       "systemStatus": "Համակարգի կարգավիճակ",
       "auditJournal": "Աուդիտի մատյան",
+      "plans": "Սակագներ",
       "lockedBadge": "Արգելափակված",
       "groups": {
+        "overview": "Ակնարկ",
+        "hosting": "Հոսթինգ",
+        "security": "Անվտանգություն",
+        "system": "Համակարգ",
         "panel": "Վահանակ"
       }
     },
     "shell": {
+      "skipToContent": "Անցնել բովանդակությանը",
       "search": "Որոնել կամ անցնել…",
       "searchShortcut": "⌘K",
       "collapseSidebar": "Ծալել կողային վահանակը",
@@ -19,7 +25,6 @@
       "navigationLabel": "Նավիգացիա",
       "toggleTheme": "Փոխարկել մուգ և բաց թեմաների միջև",
       "breadcrumbLabel": "Նավիգացիոն շղթա",
-      "noServerSelected": "Սերվեր ընտրված չէ",
       "paletteTitle": "Անցնել",
       "paletteClose": "Փակել անցման պատուհանը",
       "paletteFieldLabel": "Որոնում վահանակում",
@@ -33,15 +38,22 @@
         "dark": "Մուգ",
         "light": "Բաց"
       },
-      "askAi": "Հարցնել ԱԲ-ին",
-      "notifications": "Ծանուցումներ",
-      "account": "Ձեր հաշիվը",
       "signedOut": "Ոչ ոք մուտք չի գործել",
       "accountMenu": "Հաշվի ընտրացանկ",
       "menu": {
         "myAccount": "Իմ հաշիվը",
         "sessions": "Սեսիաներ",
         "twoFactor": "Երկքայլ ստուգում"
+      },
+      "authCredit": "© {year} Maran · ստեղծել է Innovayse LLC-ն",
+      "closeNavigation": "Փակել նավիգացիան",
+      "tabBarLabel": "Բաժիններ",
+      "tabs": {
+        "home": "Գլխավոր",
+        "accounts": "Հաշիվներ",
+        "sites": "Կայքեր",
+        "databases": "Բազաներ",
+        "more": "Ավելին"
       }
     },
     "locale": {

@@ -29,8 +29,14 @@
  * server, so a dialog that vanished mid-flight would leave the operator with
  * neither an outcome nor a reason to wait. The caller closes it when the request
  * has settled, and any refusal is rendered by the page underneath.
+ *
+ * **Look.** It owns none: the sheet, backdrop and footer are `UiModal`'s, the
+ * buttons are `UiButton`'s (cancel `secondary`; confirm `destructive`, or the
+ * `primary` pill when the action removes nothing). The one thing added here is
+ * the warning glyph beside a destructive question.
  */
 import UiButton from './UiButton.vue'
+import UiIcon from './UiIcon.vue'
 import UiModal from './UiModal.vue'
 import UiSpinner from './UiSpinner.vue'
 
@@ -103,7 +109,16 @@ const submit = (): void => {
     <!-- Carries a test id because the consequence text is the whole point of this dialog: an
          end-to-end check has to be able to assert the WHOLE sentence, and a substring match on the
          dialog would also pass on copy that had quietly lost a clause. -->
-    <p v-else data-testid="confirm-message">{{ question }}</p>
+    <div v-else class="flex items-start gap-3">
+      <!-- A destructive question carries a warning glyph so its weight does not
+           rest on the red button alone: the icon is a shape, the sentence is
+           text, and neither depends on telling red from grey. `text-danger` on
+           the dialog's `bg-surface-1` is 4.79 / 5.62:1 (dark / light). The glyph
+           is decorative (`aria-hidden` through UiIcon): the sentence beside it
+           says everything it does. -->
+      <UiIcon v-if="destructive" name="triangleAlert" size="md" class="mt-0.5 text-danger" />
+      <p class="min-w-0" data-testid="confirm-message">{{ question }}</p>
+    </div>
 
     <template #footer>
       <!-- Cancel first, and confirm last, so the destructive answer is the one

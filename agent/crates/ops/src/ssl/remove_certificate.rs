@@ -37,7 +37,9 @@ use crate::ssl::ssl_op_error::SslOpError;
 /// [`SslOpError::Render`] when the plain-HTTP vhost cannot be rendered, and
 /// [`SslOpError::NginxValidation`], [`SslOpError::ReloadFailed`] or
 /// [`SslOpError::MaterialWrite`] from the two writes — in the first two cases
-/// with the previous content restored.
+/// with the previous content restored. Returns [`SslOpError::Bound`] when the
+/// validator or the reload outruns its deadline, with the previous content
+/// restored as for a refusal.
 pub fn remove_certificate(
     host: &dyn SslHost,
     distro: &dyn DistroAdapter,

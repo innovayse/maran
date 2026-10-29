@@ -72,7 +72,8 @@ const SUBJECT_AND_ISSUER: [&str; 4] = ["x509", "-noout", "-subject", "-issuer"];
 /// self-signed is installed for the domain, [`SslOpError::MalformedCertificate`]
 /// when the installed certificate or openssl's request cannot be read, and
 /// everything [`install_certificate`] returns, since the generated material
-/// takes exactly the same path into the store as a real one.
+/// takes exactly the same path into the store as a real one. A tool that outruns
+/// its deadline arrives as [`SslOpError::Bound`], never as a verdict.
 pub fn generate_self_signed(
     host: &dyn SslHost,
     distro: &dyn DistroAdapter,
@@ -88,7 +89,7 @@ pub fn generate_self_signed(
         });
     }
 
-    let material = host.generate_material(distro.openssl_binary(), &request_for(site))?;
+    let material = host.generate_material(&distro.openssl_binary(), &request_for(site))?;
     let expiry = install_certificate(host, distro, site, &material)?;
 
     // AFTER the material, and after `install_certificate` has cleared any marker
@@ -174,7 +175,7 @@ fn is_replaceable_placeholder(
     }
 
     let outcome = host.run_with_certificate(
-        distro.openssl_binary(),
+        &distro.openssl_binary(),
         &SUBJECT_AND_ISSUER,
         certificate_pem,
     )?;

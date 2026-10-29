@@ -2,13 +2,14 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use maran_agent_core::utils::call_class::CallClass;
 use maran_agent_core::validation::secrets::password::Password;
 use maran_agent_core::validation::system::name::AccountName;
 use maran_agent_core::validation::system::sftp_user_name::SftpUserName;
 
 use crate::accounts::take_account_lock;
 use crate::sftp::fake_sftp_host::{
-    FakeSftpHost, TEST_PASSWORD, account, distro, web_request, web_user,
+    ACCOUNT_GID, ACCOUNT_UID, FakeSftpHost, TEST_PASSWORD, account, distro, web_request, web_user,
 };
 use crate::sftp::set_sftp_password::{set_sftp_password, set_sftp_password_under_lock};
 use crate::sftp::sftp_error::SftpError;
@@ -305,4 +306,206 @@ fn a_password_change_that_finished_leaves_the_hosting_accounts_lock_free() {
         free.is_some(),
         "the lock must be free once the operation returned"
     );
+}
+
+/// A host holding `name`'s `web` login, and the request pieces for it.
+///
+/// Each refusal test below names its OWN account: the entry point takes the
+/// process-wide per-account lock, which never waits, so two tests sharing a name
+/// on the harness's threads would refuse each other with `AccountBusy` and hide
+/// the refusal under test.
+fn host_and_user_of(name: &str) -> (AccountName, SftpUserName, FakeSftpHost) {
+    let account = AccountName::parse(name).expect("the fixture name is valid");
+    let user = SftpUserName::for_account(&account, "web").expect("valid");
+    let host = FakeSftpHost::new().with_login(user.as_str());
+
+    (account, user, host)
+}
+
+/// Asserts that nothing at all was run or read-and-then-written for a refusal.
+fn assert_nothing_ran(host: &FakeSftpHost) {
+    assert!(
+        host.spawns().is_empty(),
+        "no chpasswd, no getent and no usermod may run for an unmanaged account: {:?}",
+        host.spawns()
+    );
+}
+
+#[test]
+fn setting_an_sftp_password_for_a_reserved_account_name_spawns_nothing() {
+    // The fake holds an ordinary row for this name (an ordinary uid, gid and
+    // home), so only the name itself can refuse it: the answer must not depend
+    // on which other fact the host happens to hold.
+    let (account, user, host) = host_and_user_of("operator");
+
+    let refused = set_sftp_password(&host, distro(), &account, &user, &new_password());
+
+    assert!(
+        matches!(refused, Err(SftpError::AccountNotManaged)),
+        "got {refused:?}"
+    );
+    assert_nothing_ran(&host);
+}
+
+#[test]
+fn setting_an_sftp_password_for_the_panels_own_prefix_spawns_nothing() {
+    let (account, user, host) = host_and_user_of("maran_pwprefix");
+
+    let refused = set_sftp_password(&host, distro(), &account, &user, &new_password());
+
+    assert!(
+        matches!(refused, Err(SftpError::AccountNotManaged)),
+        "got {refused:?}"
+    );
+    assert_nothing_ran(&host);
+}
+
+#[test]
+fn setting_an_sftp_password_for_an_account_with_a_system_user_id_spawns_nothing() {
+    let (account, user, host) = host_and_user_of("sftppwsysuid");
+    let host = host.with_account_ids(100, ACCOUNT_GID);
+
+    let refused = set_sftp_password(&host, distro(), &account, &user, &new_password());
+
+    assert!(
+        matches!(refused, Err(SftpError::AccountNotManaged)),
+        "got {refused:?}"
+    );
+    assert_nothing_ran(&host);
+}
+
+#[test]
+fn setting_an_sftp_password_for_an_account_with_a_system_group_id_spawns_nothing() {
+    // The user id alone is not the test: an ordinary uid with a system primary
+    // group is still a system identity.
+    let (account, user, host) = host_and_user_of("sftppwsysgid");
+    let host = host.with_account_ids(ACCOUNT_UID, 100);
+
+    let refused = set_sftp_password(&host, distro(), &account, &user, &new_password());
+
+    assert!(
+        matches!(refused, Err(SftpError::AccountNotManaged)),
+        "got {refused:?}"
+    );
+    assert_nothing_ran(&host);
+}
+
+#[test]
+fn setting_an_sftp_password_for_a_user_id_of_zero_spawns_nothing() {
+    let (account, user, host) = host_and_user_of("sftppwzero");
+    let host = host.with_account_ids(0, 0);
+
+    let refused = set_sftp_password(&host, distro(), &account, &user, &new_password());
+
+    assert!(
+        matches!(refused, Err(SftpError::AccountNotManaged)),
+        "got {refused:?}"
+    );
+    assert_nothing_ran(&host);
+}
+
+#[test]
+fn setting_an_sftp_password_for_an_account_with_another_home_spawns_nothing() {
+    // An operator's own login with an ordinary uid and a name off the list, but
+    // a home that is not `/home/<name>`.
+    let (account, user, host) = host_and_user_of("sftppwhome");
+    let host = host.with_account_home("/srv/sftppwhome");
+
+    let refused = set_sftp_password(&host, distro(), &account, &user, &new_password());
+
+    assert!(
+        matches!(refused, Err(SftpError::AccountNotManaged)),
+        "got {refused:?}"
+    );
+    assert_nothing_ran(&host);
+}
+
+#[test]
+fn setting_an_sftp_password_for_an_account_with_no_local_row_is_reported_as_missing() {
+    // The answer this area always gave for an account the host does not hold is
+    // kept, and nothing is run for it.
+    let (account, user, host) = host_and_user_of("sftppwnorow");
+    host.forget_the_account();
+
+    let refused = set_sftp_password(&host, distro(), &account, &user, &new_password());
+
+    assert!(
+        matches!(refused, Err(SftpError::AccountMissing)),
+        "got {refused:?}"
+    );
+    assert_nothing_ran(&host);
+}
+
+#[test]
+fn the_refusal_for_an_unmanaged_account_does_not_name_which_check_failed() {
+    // Reserved, system identity and wrong home are one answer, so a caller
+    // probing the rules cannot tell them apart.
+    let (account_a, user_a, host_a) = host_and_user_of("gopher");
+    let (account_b, user_b, host_b) = host_and_user_of("sftppwsame");
+    let host_b = host_b.with_account_home("/srv/sftppwsame");
+
+    let reserved = set_sftp_password(&host_a, distro(), &account_a, &user_a, &new_password())
+        .expect_err("must fail");
+    let wrong_home = set_sftp_password(&host_b, distro(), &account_b, &user_b, &new_password())
+        .expect_err("must fail");
+
+    assert_eq!(format!("{reserved:?}"), format!("{wrong_home:?}"));
+    assert_eq!(reserved.to_string(), wrong_home.to_string());
+}
+
+/// Each tool of the password change runs in the class of what it does.
+#[test]
+fn the_password_change_reads_as_a_query_and_writes_and_relocks_as_mutations() {
+    let host = host_with_the_login().with_locked("alice_web");
+
+    set_sftp_password_under_lock(&host, distro(), &web_user(), &new_password()).expect("set");
+
+    for spawn in host.spawns() {
+        let expected = if spawn.argv[0].ends_with("getent") {
+            CallClass::Query
+        } else {
+            CallClass::Mutation
+        };
+        assert_eq!(spawn.class, expected, "{:?}", spawn.argv);
+    }
+    assert!(
+        host.spawn_of("usermod").is_some(),
+        "the lock was restored, or the loop above did not cover the re-lock"
+    );
+}
+
+/// `getent` and `usermod` put the login after the marker.
+#[test]
+fn getent_and_usermod_receive_the_end_of_options_marker_before_their_operands() {
+    let host = host_with_the_login().with_locked("alice_web");
+
+    set_sftp_password_under_lock(&host, distro(), &web_user(), &new_password()).expect("set");
+
+    let getent = host.spawn_of("getent").expect("getent was run").argv;
+    assert_eq!(
+        getent[1..],
+        ["--", "shadow", "alice_web"].map(str::to_owned),
+        "{getent:?}"
+    );
+    let usermod = host.spawn_of("usermod").expect("usermod was run").argv;
+    assert_eq!(
+        usermod[1..],
+        ["--lock", "--", "alice_web"].map(str::to_owned),
+        "{usermod:?}"
+    );
+    // Inverse control: `chpasswd` takes no operand at all, so it gets no marker.
+    let chpasswd = host.spawn_of("chpasswd").expect("chpasswd was run").argv;
+    assert_eq!(chpasswd.len(), 1, "{chpasswd:?}");
+}
+
+/// A `chpasswd` that outruns its deadline is not a rejected password.
+#[test]
+fn a_chpasswd_that_times_out_is_a_bound_and_not_a_rejected_password() {
+    let host = host_with_the_login();
+    host.time_out("chpasswd");
+
+    let error = set_sftp_password_under_lock(&host, distro(), &web_user(), &new_password())
+        .expect_err("must fail");
+
+    assert!(matches!(error, SftpError::Bound(_)), "got {error:?}");
 }

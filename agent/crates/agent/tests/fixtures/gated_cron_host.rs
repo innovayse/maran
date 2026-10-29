@@ -25,6 +25,7 @@ use std::time::Duration;
 
 use maran_agent_core::validation::system::cron_command::CronCommand;
 use maran_agent_core::validation::system::cron_entry_id::CronEntryId;
+use maran_agent_core::validation::system::managed_account::ManagedAccount;
 use maran_agent_core::validation::system::name::AccountName;
 use maran_distro::DistroAdapter;
 use maran_ops::cron::{CronError, CronHost, CronRunRecord, ProcessCronHost};
@@ -104,7 +105,11 @@ impl GatedCronHost {
 }
 
 impl CronHost for GatedCronHost {
-    fn read_crontab(&self, account: &AccountName) -> Result<Option<String>, CronError> {
+    fn managed_account(&self, account: &AccountName) -> Result<ManagedAccount, CronError> {
+        self.inner.managed_account(account)
+    }
+
+    fn read_crontab(&self, account: &ManagedAccount) -> Result<Option<String>, CronError> {
         let text = self.inner.read_crontab(account)?;
 
         // After the real program answered and before this caller can install
@@ -114,7 +119,7 @@ impl CronHost for GatedCronHost {
         Ok(text)
     }
 
-    fn install_crontab(&self, account: &AccountName, contents: &str) -> Result<(), CronError> {
+    fn install_crontab(&self, account: &ManagedAccount, contents: &str) -> Result<(), CronError> {
         self.inner.install_crontab(account, contents)
     }
 
@@ -124,7 +129,7 @@ impl CronHost for GatedCronHost {
 
     fn write_command_file(
         &self,
-        account: &AccountName,
+        account: &ManagedAccount,
         entry: &CronEntryId,
         command: &CronCommand,
     ) -> Result<(), CronError> {
@@ -133,7 +138,7 @@ impl CronHost for GatedCronHost {
 
     fn read_command_file(
         &self,
-        account: &AccountName,
+        account: &ManagedAccount,
         entry: &CronEntryId,
     ) -> Result<Option<String>, CronError> {
         self.inner.read_command_file(account, entry)
@@ -141,7 +146,7 @@ impl CronHost for GatedCronHost {
 
     fn remove_entry_files(
         &self,
-        account: &AccountName,
+        account: &ManagedAccount,
         entry: &CronEntryId,
     ) -> Result<(), CronError> {
         self.inner.remove_entry_files(account, entry)
@@ -149,7 +154,7 @@ impl CronHost for GatedCronHost {
 
     fn read_run_record(
         &self,
-        account: &AccountName,
+        account: &ManagedAccount,
         entry: &CronEntryId,
     ) -> Result<Option<CronRunRecord>, CronError> {
         self.inner.read_run_record(account, entry)
@@ -157,7 +162,7 @@ impl CronHost for GatedCronHost {
 
     fn read_output_tail(
         &self,
-        account: &AccountName,
+        account: &ManagedAccount,
         entry: &CronEntryId,
         max_bytes: usize,
     ) -> Result<Option<String>, CronError> {

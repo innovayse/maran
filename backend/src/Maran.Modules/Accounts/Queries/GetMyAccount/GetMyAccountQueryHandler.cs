@@ -1,4 +1,5 @@
 using Maran.Modules.Accounts.Common;
+using Maran.Modules.Accounts.Mappers;
 using Maran.Modules.Accounts.Persistence;
 using Maran.Modules.Accounts.Resources;
 using Microsoft.Extensions.Localization;
@@ -71,7 +72,7 @@ public sealed class GetMyAccountQueryHandler
         }
 
         var planDto = new MyAccountPlanDto(
-            _displayNames[row.plan.DisplayNameKey],
+            PlanMapper.DisplayNameOf(row.plan, _displayNames),
             row.plan.DiskQuotaMb,
             row.plan.MaxSites,
             row.plan.MaxDatabases,

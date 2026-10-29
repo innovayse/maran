@@ -3,8 +3,8 @@
  * The File transfer screen: every login that can write into an account's files, whichever daemon
  * accepts it, plus the administrator's view of the FTPS daemon itself.
  *
- * It replaces the SFTP-only screen, and the reason is the fact the old one could not state. SFTP and
- * FTPS logins are DIFFERENT system users on one host. A customer holds both kinds, a suspension has
+ * It is one screen for both protocols, because SFTP and FTPS logins are DIFFERENT system users on
+ * one host. A customer holds both kinds, a suspension has
  * to cover both, and an operator asking "who can write here" is asking one question — so this is one
  * table with a protocol column, not two screens that each look complete.
  *
@@ -37,6 +37,14 @@
  * failure. The backend's already-localized sentence is rendered verbatim and nothing here parses it
  * (rules/vue.md forbids machine text on screen, and a fake distinction would be worse than none).
  *
+ * **What the screen is made of, top to bottom (the redesign's panel language).** The page heading,
+ * then whatever needs attention — a failed FTPS-server call or a rejected create, as notices — then
+ * the administrator's FTPS server panel, then the create form in its own card, then the logins in
+ * theirs. Panels are 16px apart on the content panel; nothing floats bare. The list card swaps its
+ * body between a spinner, the backend's own error, and the table, and an account with no logins at
+ * all gets the empty state instead of a card around nothing. The table scrolls inside its own
+ * container, so the page never scrolls sideways at 390px, in any of the three languages.
+ *
  * Renders a `<section>`, not a `<main>` — the single landmark lives in the layout.
  */
 import {
@@ -51,12 +59,14 @@ import {
 import { useI18n } from 'vue-i18n'
 import UiAlert from '../../components/ui/UiAlert.vue'
 import UiBadge from '../../components/ui/UiBadge.vue'
+import UiCard from '../../components/ui/UiCard.vue'
 import UiConfirm from '../../components/ui/UiConfirm.vue'
 import UiDropdown from '../../components/ui/UiDropdown.vue'
 import UiDropdownItem from '../../components/ui/UiDropdownItem.vue'
 import UiEmptyState from '../../components/ui/UiEmptyState.vue'
 import UiIcon from '../../components/ui/UiIcon.vue'
 import UiPageHeading from '../../components/ui/UiPageHeading.vue'
+import UiSectionHeading from '../../components/ui/UiSectionHeading.vue'
 import UiSpinner from '../../components/ui/UiSpinner.vue'
 import UiTable from '../../components/ui/UiTable.vue'
 import UiTableCell from '../../components/ui/UiTableCell.vue'
@@ -183,6 +193,24 @@ const createErrorMessage: ComputedRef<string | null> = computed(() => {
 /** Whether both halves answered and neither reported a login. */
 const isEmpty: ComputedRef<boolean> = computed(() => {
   return sftpStore.isLoaded && logins.value.length === 0
+})
+
+/**
+ * Which body the logins area shows. One answer rather than a chain of `v-if`s in the template, so
+ * the precedence — loading, then the backend's error, then the empty state, then the table — is
+ * written down once and cannot drift between the card and the empty state.
+ */
+const listView: ComputedRef<'loading' | 'error' | 'empty' | 'table' | 'none'> = computed(() => {
+  if (loading.value) {
+    return 'loading'
+  }
+  if (errorMessage.value !== null) {
+    return 'error'
+  }
+  if (isEmpty.value) {
+    return 'empty'
+  }
+  return logins.value.length > 0 ? 'table' : 'none'
 })
 
 /**
@@ -372,17 +400,26 @@ onBeforeUnmount(dismissCredentials)
 </script>
 
 <template>
-  <section class="w-full">
+  <section class="flex w-full flex-col gap-4">
     <UiPageHeading
-      class="mb-4"
+      :eyebrow="t('ftp.list.eyebrow')"
       :title="t('ftp.list.heading')"
       :subtitle="t('ftp.list.subtitle')"
       :note="t('ftp.list.prefixNote')"
     />
 
+    <!-- What needs attention goes first: a failure on either request is the thing an operator must
+         read before the rest of the screen means anything. The backend's own sentence, verbatim. -->
+    <UiAlert v-if="ftpsServerStore.errorMessage !== null" variant="error">
+      {{ ftpsServerStore.errorMessage }}
+    </UiAlert>
+
+    <UiAlert v-if="createErrorMessage !== null" variant="error">
+      {{ createErrorMessage }}
+    </UiAlert>
+
     <FtpsServerPanel
       v-if="isAdmin && ftpsServerStore.isDisclosed && ftpsServerStore.status !== null"
-      class="mb-6"
       :status="ftpsServerStore.status"
       :rules="firewallStore.rules"
       :acting="ftpsServerStore.acting || firewallStore.acting"
@@ -392,81 +429,76 @@ onBeforeUnmount(dismissCredentials)
       @close-ports="closeFtpsPorts"
     />
 
-    <UiAlert v-if="ftpsServerStore.errorMessage !== null" variant="error" class="mb-4">
-      {{ ftpsServerStore.errorMessage }}
-    </UiAlert>
-
-    <UiAlert v-if="createErrorMessage !== null" variant="error" class="mb-4">
-      {{ createErrorMessage }}
-    </UiAlert>
-
     <FileTransferLoginCreateForm
       ref="form"
-      class="mb-6"
       :accounts="accountsStore.accounts"
       :submitting="sftpStore.creating || ftpUsersStore.creating"
       :ftps-availability="ftpsAvailability"
       @submit="create"
     />
 
-    <UiSpinner v-if="loading" :label="t('ftp.list.loading')" />
-
-    <UiAlert v-else-if="errorMessage !== null" variant="error">{{ errorMessage }}</UiAlert>
-
     <UiEmptyState
-      v-else-if="isEmpty"
+      v-if="listView === 'empty'"
       :title="t('ftp.list.emptyTitle')"
       :description="t('ftp.list.emptyDescription')"
     >
       <template #icon><UiIcon name="folderKey" size="lg" /></template>
     </UiEmptyState>
 
-    <UiTable v-else-if="logins.length > 0" :caption="t('ftp.list.tableCaption')">
-      <template #head>
-        <UiTableRow>
-          <UiTableHeaderCell>{{ t('ftp.list.columns.fullName') }}</UiTableHeaderCell>
-          <UiTableHeaderCell>{{ t('ftp.list.columns.protocol') }}</UiTableHeaderCell>
-          <UiTableHeaderCell>{{ t('ftp.list.columns.account') }}</UiTableHeaderCell>
-          <UiTableHeaderCell>{{ t('ftp.list.columns.createdAt') }}</UiTableHeaderCell>
-          <UiTableHeaderCell align="end">{{ t('common.actions') }}</UiTableHeaderCell>
+    <UiCard v-else-if="listView !== 'none'">
+      <UiSectionHeading class="mb-4" :title="t('ftp.list.sectionHeading')" />
+
+      <UiSpinner v-if="listView === 'loading'" :label="t('ftp.list.loading')" />
+
+      <UiAlert v-else-if="listView === 'error'" variant="error">{{ errorMessage }}</UiAlert>
+
+      <UiTable v-else :caption="t('ftp.list.tableCaption')">
+        <template #head>
+          <UiTableRow>
+            <UiTableHeaderCell>{{ t('ftp.list.columns.fullName') }}</UiTableHeaderCell>
+            <UiTableHeaderCell>{{ t('ftp.list.columns.protocol') }}</UiTableHeaderCell>
+            <UiTableHeaderCell>{{ t('ftp.list.columns.account') }}</UiTableHeaderCell>
+            <UiTableHeaderCell>{{ t('ftp.list.columns.createdAt') }}</UiTableHeaderCell>
+            <UiTableHeaderCell align="end">{{ t('common.actions') }}</UiTableHeaderCell>
+          </UiTableRow>
+        </template>
+        <UiTableRow v-for="login in logins" :key="`${login.protocol}-${login.id}`">
+          <!-- The prefixed login, because it is the one a client accepts. -->
+          <UiTableCell mono class="font-medium whitespace-nowrap">{{ login.fullName }}</UiTableCell>
+          <UiTableCell>
+            <!-- The whole point of the merged screen: two daemons, two system users, one account. -->
+            <UiBadge :variant="login.protocol === 'ftps' ? 'info' : 'neutral'">
+              {{ protocolLabel(login.protocol) }}
+            </UiBadge>
+          </UiTableCell>
+          <UiTableCell tone="secondary" class="whitespace-nowrap">{{ accountName(login.accountId) }}</UiTableCell>
+          <UiTableCell mono tone="muted" class="whitespace-nowrap">
+            {{ formatDate(login.createdAt, localeStore.current) }}
+          </UiTableCell>
+          <UiTableCell align="end">
+            <div class="flex flex-wrap items-center justify-end gap-2">
+              <UiDropdown
+                :label="t('common.actions')"
+                :aria-label="t('ftp.list.rowActions', { name: login.fullName })"
+                align="end"
+                variant="bare"
+                :chevron="false"
+              >
+                <template #trigger>
+                  <UiIcon name="ellipsis" size="md" />
+                </template>
+                <UiDropdownItem @select="ask(login, 'resetPassword')">
+                  {{ t('ftp.list.resetPassword') }}
+                </UiDropdownItem>
+                <UiDropdownItem destructive @select="ask(login, 'remove')">
+                  {{ t('ftp.list.remove') }}
+                </UiDropdownItem>
+              </UiDropdown>
+            </div>
+          </UiTableCell>
         </UiTableRow>
-      </template>
-      <UiTableRow v-for="login in logins" :key="`${login.protocol}-${login.id}`">
-        <!-- The prefixed login, because it is the one a client accepts. -->
-        <UiTableCell class="font-mono font-medium">{{ login.fullName }}</UiTableCell>
-        <UiTableCell>
-          <!-- The whole point of the merged screen: two daemons, two system users, one account. -->
-          <UiBadge :variant="login.protocol === 'ftps' ? 'info' : 'neutral'">
-            {{ protocolLabel(login.protocol) }}
-          </UiBadge>
-        </UiTableCell>
-        <UiTableCell class="text-text-secondary">{{ accountName(login.accountId) }}</UiTableCell>
-        <UiTableCell class="font-mono text-text-muted">
-          {{ formatDate(login.createdAt, localeStore.current) }}
-        </UiTableCell>
-        <UiTableCell align="end">
-          <div class="flex flex-wrap items-center justify-end gap-2">
-            <UiDropdown
-              :label="t('common.actions')"
-              :aria-label="t('ftp.list.rowActions', { name: login.fullName })"
-              align="end"
-              variant="bare"
-              :chevron="false"
-            >
-              <template #trigger>
-                <UiIcon name="ellipsis" size="md" />
-              </template>
-              <UiDropdownItem @select="ask(login, 'resetPassword')">
-                {{ t('ftp.list.resetPassword') }}
-              </UiDropdownItem>
-              <UiDropdownItem destructive @select="ask(login, 'remove')">
-                {{ t('ftp.list.remove') }}
-              </UiDropdownItem>
-            </UiDropdown>
-          </div>
-        </UiTableCell>
-      </UiTableRow>
-    </UiTable>
+      </UiTable>
+    </UiCard>
 
     <UiConfirm
       :open="pendingId.length > 0"

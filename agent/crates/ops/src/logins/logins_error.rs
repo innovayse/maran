@@ -1,5 +1,8 @@
 //! Failures of the file-transfer login enumeration and its lock.
 
+use maran_agent_core::utils::bound_exceeded::BoundExceeded;
+use maran_agent_core::utils::spawn_error::SpawnError;
+
 /// The `code` reported when a program could not be started at all.
 ///
 /// Negative so it can never collide with an exit status, every one of which is
@@ -11,11 +14,12 @@ const PROGRAM_UNAVAILABLE: i32 = -1;
 ///
 /// One exhaustive list for the whole area (rules/rust.md "Errors"), and a
 /// deliberately narrow one: **no variant carries a program's output**. Every
-/// payload is an `i32`, so there is no field a message could be put in. The
+/// payload is an `i32` or a [`BoundExceeded`], which names the program and the
+/// bound that was hit and never a byte the program printed. The
 /// realistic leak here is not a careless log line — it is a tool quoting back
 /// the line it refused, which in this area's neighbourhood contains a
-/// customer's password in full. A shape that cannot hold a string cannot hold
-/// that (rules/security.md item 8).
+/// customer's password in full. A shape with no field for a tool's text cannot
+/// hold that (rules/security.md item 8).
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 #[non_exhaustive]
 pub enum LoginsError {
@@ -54,29 +58,6 @@ pub enum LoginsError {
     #[error("the password status could not be read")]
     StatusUnreadable,
 
-    /// The cull of a suspended account's open sessions refused to run, because
-    /// the account's own password-database row carries uid 0.
-    ///
-    /// Its own variant rather than a folded-in failure, because the two answers
-    /// an operator needs are different: this one says the panel's record names
-    /// something that is not a hosting account, and no retry will change it. The
-    /// account-name grammar accepts `root`, so this is a guard against a name
-    /// collision and not a defensive nicety — see
-    /// `end_account_sessions`.
-    #[error("the hosting account resolves to uid 0, so no session cull was attempted")]
-    SessionCullRefusedUid,
-
-    /// The cull refused because the account's row is not homed where this agent
-    /// homes a hosting account.
-    ///
-    /// Separate from [`Self::SessionCullRefusedUid`] because it catches a
-    /// different collision — a system user at a low uid, `mail` at uid 8 — and
-    /// because a reviewer must be able to see that the two guards are two.
-    #[error(
-        "the hosting account is not homed where this agent homes one, so no session cull was attempted"
-    )]
-    SessionCullRefusedHome,
-
     /// `pkill` answered with neither "signalled" nor "nothing matched" while
     /// ending a suspended account's sessions.
     ///
@@ -101,6 +82,44 @@ pub enum LoginsError {
     /// was locked or unlocked, and the panel's answer is to retry.
     #[error("another operation is already running for the hosting account")]
     AccountBusy,
+
+    /// The name is not a hosting account this panel may act on.
+    ///
+    /// Raised before any login is locked or any process is signalled, for
+    /// every way the managed-account proof can refuse: a reserved name, an id
+    /// below the distro's floor (uid 0 included) and a home other than the one
+    /// this agent gives a hosting account. They are ONE variant with one fixed
+    /// sentence on purpose: separate variants would let a caller tell a reserved
+    /// name from a system identity from a wrong home by the message, which is
+    /// the rule-shape oracle the threat note forbids. A refusal added to the
+    /// type later lands here too, so it fails closed.
+    #[error("the account is not a hosting account")]
+    AccountNotManaged,
+
+    /// A tool of this area outran its deadline or its output ceiling and was
+    /// killed together with its process group.
+    ///
+    /// Never a verdict: a killed `usermod` has not said that the login is locked
+    /// or open, and may have finished on the host after the agent stopped
+    /// waiting, so this is not folded into [`Self::SpawnFailed`] or
+    /// [`Self::SessionCullFailed`], which state what a tool answered.
+    #[error(transparent)]
+    Bound(#[from] BoundExceeded),
+}
+
+impl From<SpawnError> for LoginsError {
+    /// Maps a failed spawn onto this area's list.
+    ///
+    /// A bound becomes [`Self::Bound`]; every other failure means the program
+    /// never produced an answer and becomes `Self::program_unavailable`.
+    /// `SpawnError` is `#[non_exhaustive]`, so a variant added later lands on
+    /// the same answer.
+    fn from(error: SpawnError) -> Self {
+        match error {
+            SpawnError::Bound(bound) => Self::Bound(bound),
+            _ => Self::program_unavailable(),
+        }
+    }
 }
 
 impl LoginsError {
@@ -111,3 +130,7 @@ impl LoginsError {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "../tests/logins/logins_error_tests.rs"]
+mod tests;

@@ -33,6 +33,9 @@ public static class ErrorCodes
     /// <summary>The host name is longer than DNS allows.</summary>
     public const string FtpsHostnameTooLong = "FtpsHostnameTooLong";
 
+    /// <summary>The host name is well-formed but reserved: an address literal or a special-use name.</summary>
+    public const string FtpsHostnameReserved = "FtpsHostnameReserved";
+
     /// <summary>The PASV address is not a literal IPv4 address.</summary>
     public const string FtpsPassiveAddressInvalid = "FtpsPassiveAddressInvalid";
 

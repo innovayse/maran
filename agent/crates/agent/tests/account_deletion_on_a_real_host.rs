@@ -1173,3 +1173,138 @@ fn an_ftps_login_creation_that_overlaps_the_accounts_deletion_leaves_no_orphan_l
         "the account itself must be gone: the deletion reported success"
     );
 }
+
+/// The account the process-cull claim runs against.
+const PROCESS_ACCOUNT: &str = "polyprocs";
+
+/// How many long-running processes the claim plants as the account.
+const PLANTED_PROCESSES: usize = 2;
+
+/// Bit 19 of the effective capability set: `CAP_SYS_PTRACE`.
+const CAP_SYS_PTRACE_BIT: u32 = 19;
+
+/// The pids of every process whose real owner is `uid`, read from `/proc`.
+///
+/// Read directly and not through `pgrep`/`pkill`, the tools the code under test
+/// uses: a probe that shares its blind spot with the thing it checks (a
+/// `hidepid` mount, a `pkill` that matches nothing) would agree with it by
+/// construction. The owner of `/proc/<pid>` is the process's effective uid,
+/// which for the planted processes (dropped with `setpriv --reuid`) is the
+/// real uid too.
+fn pids_of(uid: u32) -> Vec<u32> {
+    use std::os::unix::fs::MetadataExt;
+
+    std::fs::read_dir("/proc")
+        .expect("/proc is readable")
+        .filter_map(Result::ok)
+        .filter_map(|entry| {
+            let pid: u32 = entry.file_name().to_str()?.parse().ok()?;
+            let owner = std::fs::metadata(entry.path()).ok()?.uid();
+            (owner == uid).then_some(pid)
+        })
+        .collect()
+}
+
+/// Whether this process holds `CAP_SYS_PTRACE`, read from its own status.
+///
+/// While it does, `userdel` can stat a foreign uid's `/proc/<pid>/root` and
+/// refuses a busy user itself (exit 8) — which would mask a missing kill. The
+/// production agent lacks the capability by design (#91).
+fn holds_ptrace_capability() -> bool {
+    let status = std::fs::read_to_string("/proc/self/status").expect("/proc/self/status");
+    let effective = status
+        .lines()
+        .find_map(|line| line.strip_prefix("CapEff:"))
+        .expect("CapEff is in /proc/self/status")
+        .trim();
+    let mask = u64::from_str_radix(effective, 16).expect("CapEff is hexadecimal");
+    mask & (1 << CAP_SYS_PTRACE_BIT) != 0
+}
+
+/// Starts one detached `sleep` running as `account`'s uid and gid.
+///
+/// `setsid --fork` makes the sleeper an orphan, reparented to the container's
+/// PID 1 rather than left a child of this test. Whether a killed orphan is then
+/// reaped depends on that PID 1: the polygon runs its container with `--init`,
+/// so it is, but a PID 1 that never `wait()`s (a bare `cargo test`) would leave
+/// it a zombie. The check for survivors ignores zombies in production for the
+/// same reason (they hold nothing), so this test does not depend on reaping
+/// either way. The wrapper process that is waited on here exits immediately.
+fn plant_process(account: &PolygonAccount) {
+    let status = Command::new("setpriv")
+        .arg(format!("--reuid={}", account.ids().uid()))
+        .arg(format!("--regid={}", account.ids().gid()))
+        .arg("--clear-groups")
+        .args(["setsid", "--fork", "sleep", "600"])
+        .status()
+        .expect("setpriv (util-linux) is in the polygon image");
+    assert!(status.success(), "planting a process as the account failed");
+}
+
+#[test]
+#[ignore = "creates and deletes a real account with live processes: polygon only"]
+fn deleting_an_account_ends_its_running_processes_so_a_recreated_account_inherits_none() {
+    // BLIND SPOT, stated where it is measured. The bug is that `userdel` exits 0
+    // on a user with live processes when the caller lacks CAP_SYS_PTRACE. This
+    // test runs `userdel` in-process, with whatever capabilities the container
+    // gave it, so it can only observe that half when the capability is absent.
+    if holds_ptrace_capability() {
+        println!(
+            "UNOBSERVED HERE: this polygon runs with CAP_SYS_PTRACE, so userdel \
+             refuses a busy user itself (exit 8) and would mask a missing kill. \
+             The assertions below still prove the processes are gone; they do \
+             not prove the unfixed binary would have left them."
+        );
+    }
+
+    let account = PolygonAccount::create(PROCESS_ACCOUNT);
+    let name = account.name().clone();
+    let uid = account.ids().uid();
+
+    for _ in 0..PLANTED_PROCESSES {
+        plant_process(&account);
+    }
+    // Positive control: the probe sees what was planted. Without it, "no
+    // process afterwards" would also hold if the planting silently did nothing.
+    assert!(
+        pids_of(uid).len() >= PLANTED_PROCESSES,
+        "the planted processes must be visible as the account's before the \
+         deletion, or nothing below proves anything: {:?}",
+        pids_of(uid)
+    );
+
+    delete_the_account(&name);
+
+    assert!(
+        pids_of(uid).is_empty(),
+        "processes of the deleted account survived: {:?}",
+        pids_of(uid)
+    );
+    assert!(
+        !passwd_holds(name.as_str()),
+        "the account must be gone from the password database"
+    );
+    assert!(!account.home().exists(), "the account's home must be gone");
+
+    // The account created next is handed a uid by useradd. Whether it is the
+    // freed one is useradd's choice, so it is reported and not required — but
+    // whichever uid it is, nothing may already be running as it.
+    let reborn = PolygonAccount::create(PROCESS_ACCOUNT);
+    println!(
+        "freed uid {uid}, new uid {} (reused: {})",
+        reborn.ids().uid(),
+        reborn.ids().uid() == uid
+    );
+    assert!(
+        pids_of(reborn.ids().uid()).is_empty(),
+        "the new account inherited a running process from the previous tenant"
+    );
+
+    // The refusal (ProcessesRemain) needs a process that cannot be killed, which
+    // cannot be made portably here.
+    println!(
+        "UNOBSERVED HERE: ProcessesRemain on a real host (needs an unkillable \
+         process, e.g. uninterruptible sleep); covered with a fake in \
+         ops/src/tests/accounts/end_account_processes_tests.rs"
+    );
+}

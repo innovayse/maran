@@ -9,9 +9,11 @@
 use std::path::Path;
 use std::sync::Mutex;
 
+use maran_agent_core::utils::call_class::CallClass;
 use maran_agent_core::validation::system::name::AccountName;
+use maran_agent_core::validation::web::php_version::PhpVersion;
 
-use maran_distro::DistroFamily;
+use maran_distro::{AdapterBinary, DistroFamily};
 use maran_ops::php::{PhpHost, PhpOpError, PoolTreeDecision};
 use maran_ops::safe_write::model::{Reload, Validator};
 use maran_ops::safe_write::{CommandOutcome, ConfigHost, SafeWriteError};
@@ -62,7 +64,7 @@ impl SiteMaintenanceHost for RecordingHost {
         reload: &Reload<'_>,
     ) -> Result<(), SitesOpError> {
         *self.validator.lock().unwrap() = Some((
-            validator.program.to_owned(),
+            validator.program.to_string(),
             validator
                 .arguments
                 .iter()
@@ -70,7 +72,7 @@ impl SiteMaintenanceHost for RecordingHost {
                 .collect(),
         ));
         *self.reload.lock().unwrap() = Some((
-            reload.program.to_owned(),
+            reload.program.to_string(),
             reload.arguments.iter().map(|a| (*a).to_owned()).collect(),
         ));
 
@@ -112,7 +114,7 @@ fn the_startup_pass_validates_with_the_web_servers_own_validate_only_flag() {
     reconcile_web_tree(&host, adapter);
 
     let (program, arguments) = host.validator.lock().unwrap().clone().unwrap();
-    assert_eq!(program, adapter.nginx_binary());
+    assert_eq!(program, adapter.nginx_binary().as_str());
     assert!(
         program.starts_with('/'),
         "a root process must not spawn a program by a bare name"
@@ -134,10 +136,14 @@ fn a_validated_web_tree_is_reloaded_onto_the_running_server() {
     );
 
     let (program, arguments) = host.reload.lock().unwrap().clone().unwrap();
-    assert_eq!(program, adapter.service_manager());
+    assert_eq!(program, adapter.service_manager().as_str());
     assert_eq!(
         arguments,
-        vec!["reload".to_owned(), adapter.nginx_service().to_owned()]
+        vec![
+            "reload".to_owned(),
+            "--".to_owned(),
+            adapter.nginx_service().to_owned()
+        ]
     );
 }
 
@@ -288,8 +294,13 @@ impl FakePoolHost {
 
 impl ConfigHost for FakePoolHost {
     /// Records the argv; the outcome is decided by the caller below.
-    fn run(&self, program: &str, arguments: &[&str]) -> Result<CommandOutcome, SafeWriteError> {
-        let mut command = vec![program.to_owned()];
+    fn run(
+        &self,
+        program: &AdapterBinary,
+        arguments: &[&str],
+        _class: CallClass,
+    ) -> Result<CommandOutcome, SafeWriteError> {
+        let mut command = vec![program.to_string()];
         command.extend(arguments.iter().map(|argument| (*argument).to_owned()));
         self.calls.lock().unwrap().push(command);
 
@@ -353,14 +364,19 @@ impl PhpHost for FakePoolHost {
         validator: &Validator<'_>,
         reload: &Reload<'_>,
     ) -> Result<(), PhpOpError> {
-        ConfigHost::run(self, validator.program, validator.arguments)?;
+        ConfigHost::run(
+            self,
+            validator.program,
+            validator.arguments,
+            validator.class,
+        )?;
         if self.validation.0 != 0 {
             return Err(PhpOpError::PoolValidation {
                 stderr: self.validation.1.clone(),
             });
         }
 
-        ConfigHost::run(self, reload.program, reload.arguments)?;
+        ConfigHost::run(self, reload.program, reload.arguments, CallClass::Reload)?;
         if self.reload.0 != 0 {
             return Err(PhpOpError::ReloadFailed {
                 stderr: self.reload.1.clone(),
@@ -397,6 +413,8 @@ fn each_installed_versions_tree_is_validated_and_reloaded_through_its_own_servic
     let adapter = maran_distro::adapter_for(DistroFamily::Debian);
     let host = FakePoolHost::new(&["8.3"]);
 
+    let version = PhpVersion::parse("8.3").unwrap();
+
     let outcomes = reconcile_php_pool_trees(&host, adapter);
 
     assert_eq!(outcomes.len(), 1);
@@ -405,10 +423,14 @@ fn each_installed_versions_tree_is_validated_and_reloaded_through_its_own_servic
     assert_eq!(
         host.calls(),
         vec![
-            vec![adapter.php_fpm_binary("8.3"), "-t".to_owned()],
             vec![
-                adapter.service_manager().to_owned(),
+                adapter.php_fpm_binary(&version).to_string(),
+                "-t".to_owned()
+            ],
+            vec![
+                adapter.service_manager().to_string(),
                 "reload".to_owned(),
+                "--".to_owned(),
                 adapter.php_fpm_service("8.3"),
             ],
         ]
@@ -424,6 +446,8 @@ fn a_rejected_pool_tree_is_reported_not_reloaded_and_does_not_stop_the_start() {
     let mut host = FakePoolHost::new(&["8.3"]);
     host.validation = (1, "unexpected end of file".to_owned());
 
+    let version = PhpVersion::parse("8.3").unwrap();
+
     let outcomes = reconcile_php_pool_trees(&host, adapter);
 
     assert_eq!(outcomes.len(), 1);
@@ -431,7 +455,10 @@ fn a_rejected_pool_tree_is_reported_not_reloaded_and_does_not_stop_the_start() {
     assert_eq!(outcomes[0].stderr, "unexpected end of file");
     assert_eq!(
         host.calls(),
-        vec![vec![adapter.php_fpm_binary("8.3"), "-t".to_owned()]],
+        vec![vec![
+            adapter.php_fpm_binary(&version).to_string(),
+            "-t".to_owned()
+        ]],
         "a tree php-fpm refused must not then be reloaded onto the running service"
     );
 }
@@ -450,4 +477,31 @@ fn a_pool_reload_that_refuses_is_reported_apart_from_a_rejected_tree() {
     assert_eq!(outcomes.len(), 1);
     assert_eq!(outcomes[0].decision, PoolTreeDecision::NotReloaded);
     assert!(outcomes[0].stderr.contains("not loaded"));
+}
+
+/// The code lines of `server.rs`, without the comments that describe them.
+fn server_code_lines() -> Vec<&'static str> {
+    SERVER_SOURCE
+        .lines()
+        .map(str::trim_start)
+        .filter(|line| !line.starts_with("//"))
+        .collect()
+}
+
+/// A server-side request timeout drops the handler future and frees nothing: the
+/// blocking work and the lock it holds keep running, and the caller is told a
+/// write failed that then succeeds. A child that runs too long is bounded by its
+/// call class instead (issue #90), so the server must not set one.
+#[test]
+fn the_server_sets_no_request_timeout_and_no_concurrency_limit() {
+    let lines = server_code_lines();
+
+    // Positive control: the scan reads the code that builds the server.
+    assert!(lines.iter().any(|line| line.contains("Server::builder")));
+    assert!(!lines.iter().any(|line| line.contains(".timeout(")));
+    assert!(
+        !lines
+            .iter()
+            .any(|line| line.contains("concurrency_limit_per_connection"))
+    );
 }

@@ -4,6 +4,7 @@ use std::path::{Path, PathBuf};
 
 use crate::backup::model::archive_part::ArchivePart;
 use crate::backup::model::extract_identity::ExtractIdentity;
+use maran_agent_core::end_of_options::END_OF_OPTIONS;
 
 /// The flag that makes `tar` read an archive out.
 const EXTRACT: &str = "--extract";
@@ -192,6 +193,11 @@ impl ExtractSpec {
 
         arguments.push(CHANGE_DIRECTORY.to_owned());
         arguments.push(text(&self.into));
+        // After `-C <into>` on purpose: `-C` is positional among `tar`'s operands
+        // and must be seen before the marker. Not used on the create side, where a
+        // second `-C` follows the first operand and a marker would turn it into a
+        // member name.
+        arguments.push(END_OF_OPTIONS.to_owned());
         arguments.push(self.member().to_owned());
 
         arguments

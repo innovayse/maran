@@ -15,6 +15,7 @@
 import { computed, type ComputedRef } from 'vue'
 import { useI18n } from 'vue-i18n'
 import UiButton from '../ui/UiButton.vue'
+import UiCard from '../ui/UiCard.vue'
 import UiSwitch from '../ui/UiSwitch.vue'
 import UiSectionHeading from '../ui/UiSectionHeading.vue'
 import { ANY_IPV4_SOURCE } from '../../utils/anySourceRange'
@@ -106,13 +107,16 @@ const toggleMysql = (open: boolean): void => {
 </script>
 
 <template>
-  <div class="rounded-xl border border-border-subtle bg-surface-1 p-4.5">
+  <UiCard class="flex flex-col gap-4">
     <UiSectionHeading
       :title="t('firewall.presets.heading')"
       :subtitle="t('firewall.presets.subtitle')"
     />
-    <div class="mt-3.5 flex flex-wrap items-center gap-4">
+    <!-- Stacked on a phone so a long translated label gets the full width instead of forcing the
+         row wider than the screen; side by side from `sm`. -->
+    <div class="flex flex-col items-start gap-4 sm:flex-row sm:flex-wrap sm:items-center">
       <UiButton
+        class="max-w-full px-4"
         variant="secondary"
         :disabled="busy || missingWebRules.length === 0"
         @click="applyWebPreset"
@@ -120,11 +124,12 @@ const toggleMysql = (open: boolean): void => {
         {{ t('firewall.presets.web') }}
       </UiButton>
       <UiSwitch
+        class="max-w-full"
         :model-value="isMysqlOpen"
         :label="t('firewall.presets.mysqlExternal')"
         :disabled="busy"
         @update:model-value="toggleMysql"
       />
     </div>
-  </div>
+  </UiCard>
 </template>

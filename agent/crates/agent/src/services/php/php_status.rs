@@ -10,7 +10,10 @@ use crate::proto::{AgentError, ErrorCode};
 /// grows into the handler, and so one variant maps to one code in exactly one
 /// place (rules/rust.md "Service anatomy").
 ///
-/// `tool_output` carries a failing program's stderr and nothing else. It is
+/// `tool_output` carries a failing program's stderr and nothing else, except
+/// that for the PHP install unit the failure carries `systemctl`'s stderr plus
+/// the unit name and a `journalctl` hint; the package manager's own output
+/// stays in that unit's journal. It is
 /// operator-facing by contract and never rendered to a customer, which is why
 /// the panel logs it rather than showing it (rules/security.md item 8).
 #[must_use]
@@ -49,6 +52,13 @@ pub fn to_agent_error(error: &PhpOpError) -> AgentError {
         // request may be reissued in a moment (`common.proto`). No
         // `tool_output`: no tool ran to produce one.
         PhpOpError::AccountBusy { .. } => (ErrorCode::AccountBusy, String::new()),
+        // A deadline or an output cap ended the program and its process group was
+        // killed. This is a fault of the host, never a verdict on the request: the
+        // work may or may not have finished, and `tool_output` stays empty because
+        // what the program printed before the kill is neither complete nor safe to
+        // forward. Named ahead of the wildcard so a missing arm cannot compile
+        // silently (threat note, plan item 11).
+        PhpOpError::Bound(_) => (ErrorCode::SystemFailure, String::new()),
         // PhpOpError is #[non_exhaustive] (rules/rust.md), so a variant added
         // in the ops crate lands here rather than failing this build. It maps
         // to a system failure: the panel then reports a fault instead of

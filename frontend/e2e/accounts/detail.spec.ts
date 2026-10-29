@@ -2,6 +2,7 @@ import { expect, test, type Page } from '@playwright/test'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubModules } from '../fixtures/stub-modules-route'
+import { stubInvitation } from '../fixtures/stub-invitation-routes'
 import { setPersistedLocale } from '../fixtures/set-locale'
 import type { Account } from '../../src/types/account'
 
@@ -28,6 +29,7 @@ const stubDetail = async (page: Page, account: Account): Promise<void> => {
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, [{ name: 'accounts', displayName: 'Accounts', tier: 'included', isEnabled: true }])
+  await stubInvitation(page, account.id, 'pending')
   await page.route(`**/api/v1/accounts/${account.id}`, async (route) => {
     if (route.request().method() !== 'GET') {
       await route.fallback()

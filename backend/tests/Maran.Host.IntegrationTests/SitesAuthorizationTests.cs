@@ -82,6 +82,9 @@ public sealed class SitesAuthorizationTests : IAsyncLifetime
 
     private readonly TestDatabase _pg;
 
+    /// <summary>The agent socket path nothing serves, which every host this class boots is pinned to.</summary>
+    private readonly UnreachableAgentSocket _agentSocket = UnreachableAgentSocket.Missing();
+
     /// <summary>Binds this test to the PostgreSQL server the assembly shares.</summary>
     /// <param name="postgres">The shared server, injected by the collection fixture.</param>
     public SitesAuthorizationTests(PostgresFixture postgres)
@@ -98,6 +101,8 @@ public sealed class SitesAuthorizationTests : IAsyncLifetime
     /// <summary>Releases what the fixture allocated, asynchronously.</summary>
     public Task DisposeAsync()
     {
+        _agentSocket.Dispose();
+
         return Task.CompletedTask;
     }
 
@@ -131,6 +136,53 @@ public sealed class SitesAuthorizationTests : IAsyncLifetime
 
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
         Assert.NotEqual(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    /// <summary>
+    /// Another tenant's site is still answered not found while the agent is down: an outage does not
+    /// turn the stranger's 404 into an answer that tells the two cases apart.
+    /// </summary>
+    /// <remarks>
+    /// Issue #87 made an unreachable agent a typed 503 on every agent-backed route. The tenant filter
+    /// answers BEFORE the agent is reached, and this pins that order: a route that called the agent
+    /// first would answer 503 for a stranger's identifier and 404 for an invented one, which is the
+    /// existence oracle the 404 rule exists to prevent. The control below proves the route does reach
+    /// the agent for the owner.
+    /// </remarks>
+    [Theory]
+    [MemberData(nameof(SiteScopedEndpoints))]
+    public async Task A_customer_reaching_for_another_tenants_site_is_answered_not_found_while_the_agent_is_down(
+        string method,
+        string path)
+    {
+        await using var factory = CreateFactory();
+        await MigrateAsync(factory);
+        var world = await SeedAsync(factory);
+        using var client = await SignInAsync(factory, "customer");
+
+        var response = await SendAsync(client, method, Substitute(path, world.StrangerSiteId));
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    /// <summary>
+    /// Inverse control for the test above: the customer acting on their OWN site while the agent is
+    /// down is answered 503 with the typed code, which proves the route reaches the agent and that the
+    /// stranger's 404 was the tenant filter and not a route that never got that far.
+    /// </summary>
+    [Fact]
+    public async Task A_customer_acting_on_their_own_site_while_the_agent_is_down_is_answered_unavailable()
+    {
+        await using var factory = CreateFactory();
+        await MigrateAsync(factory);
+        var world = await SeedAsync(factory);
+        using var client = await SignInAsync(factory, "customer");
+
+        var response = await client.PostAsJsonAsync($"/api/v1/sites/{world.OwnSiteId}/enable", new { });
+
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
+        using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        Assert.Equal("AgentUnavailable", body.RootElement.GetProperty("code").GetString());
     }
 
     /// <summary>A customer reading their own site is answered with it.</summary>
@@ -266,6 +318,12 @@ public sealed class SitesAuthorizationTests : IAsyncLifetime
 
             builder.UseSetting("Security:EncryptionKey", Key);
             builder.UseSetting("Jwt:SigningKey", Key);
+
+            // Pinned, so that no test here dials the machine's own agent socket. With nothing behind
+            // the path the agent is DOWN for every request, which is the state the two outage tests
+            // below are about and which no other test in this class reaches (their routes answer
+            // before an agent call is made).
+            builder.UseSetting("Agent:SocketPath", _agentSocket.SocketPath);
 
             // Startup validation refuses to boot without the host's SSH ports and the panel's
             // public port: a defaulted one is a locked-out server (rules/security.md).

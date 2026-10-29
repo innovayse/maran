@@ -1,8 +1,11 @@
 using System.Globalization;
+using Maran.Agent.Client.Channels;
+using Maran.Agent.Client.Services.SystemService;
 using Maran.Modules.Backups.Domain.Entities;
 using Maran.Modules.Backups.Domain.Enums;
 using Maran.Modules.Backups.Queries.ListBackupDestinations;
 using Maran.Modules.Backups.Tests.TestSupport;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Maran.Modules.Backups.Tests.Queries.ListBackupDestinations;
 
@@ -60,6 +63,78 @@ public sealed class ListBackupDestinationsQueryHandlerTests
         await using var dbContext = BackupsTestContext.CreateSeeded(FakeCurrentUser.Admin());
 
         var listed = await Handler(dbContext, StubAgentSystemClient.Unreachable())
+            .HandleAsync(new ListBackupDestinationsQuery(), CancellationToken.None);
+
+        Assert.Null(Assert.Single(listed).Path);
+    }
+
+    /// <summary>
+    /// A real client pointed at a socket that does not exist leaves the path unknown and the list intact.
+    /// </summary>
+    /// <remarks>
+    /// The handler has no catch of its own: the system client answers a dead socket as a failed
+    /// result. This test runs the REAL client over the REAL transport, because a stub that returns a
+    /// failure never exercised the exception a dead socket really raises.
+    /// </remarks>
+    [Fact]
+    public async Task The_destination_list_survives_an_unreachable_agent_without_a_catch_all()
+    {
+        await using var dbContext = BackupsTestContext.CreateSeeded(FakeCurrentUser.Admin());
+        var missing = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"), "agent.sock");
+        using var channel = AgentChannel.CreateUnixSocket(missing);
+        var agent = new AgentSystemClient(channel, NullLogger<AgentSystemClient>.Instance);
+
+        var listed = await new ListBackupDestinationsQueryHandler(dbContext, agent, BackupsTestContext.DestinationNames())
+            .HandleAsync(new ListBackupDestinationsQuery(), CancellationToken.None);
+
+        Assert.Null(Assert.Single(listed).Path);
+    }
+
+    /// <summary>A defect inside the agent client is not reported as an unknown path: it escapes the listing.</summary>
+    /// <remarks>
+    /// The positive control for the handler having no total catch. Every other test here gives the
+    /// handler an outage, which a catch-all returning <c>null</c> would answer identically, so none of
+    /// them can see it come back. An <see cref="InvalidOperationException"/> is no outage the client
+    /// reports as a result; it is a bug, and the listing must fail loudly instead of showing
+    /// "not established" over it. The same pairing as the probe's own
+    /// <c>A_defect_inside_the_client_is_not_reported_as_an_unavailable_agent</c>.
+    /// </remarks>
+    [Fact]
+    public async Task A_defect_inside_the_agent_client_is_not_reported_as_an_unestablished_path()
+    {
+        await using var dbContext = BackupsTestContext.CreateSeeded(FakeCurrentUser.Admin());
+
+        var thrown = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+        {
+            await Handler(dbContext, StubAgentSystemClient.Faulting(new InvalidOperationException("a bug")))
+                .HandleAsync(new ListBackupDestinationsQuery(), CancellationToken.None);
+        });
+
+        Assert.Equal("a bug", thrown.Message);
+    }
+
+    /// <summary>A read the caller cancelled is rethrown, not swallowed as an unknown path.</summary>
+    [Fact]
+    public async Task A_destination_read_the_caller_cancelled_is_rethrown()
+    {
+        await using var dbContext = BackupsTestContext.CreateSeeded(FakeCurrentUser.Admin());
+        using var cancelled = new CancellationTokenSource();
+        await cancelled.CancelAsync();
+
+        await Assert.ThrowsAsync<OperationCanceledException>(async () =>
+        {
+            await Handler(dbContext, StubAgentSystemClient.ObservingCancellation())
+                .HandleAsync(new ListBackupDestinationsQuery(), cancelled.Token);
+        });
+    }
+
+    /// <summary>An agent whose contract the panel does not drive leaves the path unknown and the list intact.</summary>
+    [Fact]
+    public async Task An_agent_outside_the_supported_contract_leaves_the_path_unestablished()
+    {
+        await using var dbContext = BackupsTestContext.CreateSeeded(FakeCurrentUser.Admin());
+
+        var listed = await Handler(dbContext, StubAgentSystemClient.Incompatible())
             .HandleAsync(new ListBackupDestinationsQuery(), CancellationToken.None);
 
         Assert.Null(Assert.Single(listed).Path);

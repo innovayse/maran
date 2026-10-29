@@ -5,7 +5,184 @@ than a strict category list: what changed and why it matters to somebody running
 
 ## Unreleased
 
-Nothing yet.
+**A hung program could freeze the root agent and block every other customer's writes.** Every program
+the agent runs as root was started without a deadline, without an output limit and in the agent's own
+process group. Measured with a validator that never exits, held under the host-wide configuration lock:
+after 75 seconds the call was still running, another tenant's write was still blocked, and both the
+program and its child were alive. A program that printed 5 MiB was held entirely in memory. The agent
+now starts every program through one bounded path:
+
+- **A deadline per kind of call.** Checks and reads get 60 seconds, ordinary changes 120, service
+  reloads 240, database statements 300, package installs 2100, and backup work up to 12 hours. At the
+  deadline the whole process group is killed, not only the leader, and then collected. Measured: the
+  call returned a typed timeout at 60.0 seconds, the program and its child were gone, the previous
+  file content was restored and the other tenant's write finished 3 ms later.
+- **A cap on captured output**, 4 MiB per stream by default. Going over it kills the program and is an
+  error that returns none of the output; exactly 4 MiB is still accepted.
+- **Standard input is never inherited** and the cleared environment is kept.
+- **Programs are named by a type that only the distro layer can create**, always by absolute path, so
+  a bare string can no longer reach a spawn. `--` now ends the options before a user or unit operand
+  wherever the tool supports it.
+- **`tar --list` is bounded** (2,000,000 members, 16 KiB per name, 256 MiB of listing), and a backup is
+  listed once as it is written, so one that restore would refuse is refused at creation. Database
+  clients also ask the server to stop waiting on a lock after 240 seconds.
+
+A timeout reaches the panel as the existing `SYSTEM_FAILURE` code with no tool output, inside a normal
+response, not as a gRPC `DEADLINE_EXCEEDED`: the proto is unchanged and no new error code exists. The
+agent sets no server-wide timeout or concurrency limit, because that would free nothing and would
+report failure for a write that then succeeds. The systemd sandbox needed no syscall or capability
+change.
+
+Known residuals: a killed program's work already handed to the service manager or a database server
+may still finish; backups written by earlier releases are not re-checked; a deadline-kill under the
+real systemd sandbox and the agent-to-API handshake were not measured on the build machine. This
+change alters how the only root process starts every program and needs a second human review before
+it reaches `main` (#90).
+
+**A signed-in customer could reach any API endpoint that forgot to declare its authorization.** The
+fallback policy, which applies to every endpoint with no authorization metadata, only required a
+signed-in user at customer level. Measured against a test-only endpoint with no metadata: a customer
+got 200, and on an unknown path or a wrong HTTP verb a customer got 404 and 405 instead of a refusal.
+The fallback is now administrator-only: anonymous callers get 401, customers get 403 (an empty body)
+and administrators are admitted, so a future endpoint that omits its policy is closed to customers by
+default. The default policy for a bare `[Authorize]` stays customer-level.
+
+Every endpoint now names its policy instead of relying on either default: the dashboard, session
+listing and revoking, sign-out-everywhere and the two-factor management actions are declared as
+customer-level, and the setup controller marks its two anonymous actions individually rather than the
+whole class. Customer behaviour is unchanged, as measured over the dashboard, session, two-factor,
+account and site flows. New tests fail if an action or route-table endpoint names no known policy, if
+the set of anonymous endpoints changes, or if the fallback is weakened. This is an authorization
+change, so it needs a second human review before it reaches `main`.
+
+**Reserved host names are refused for new sites, aliases, certificates and FTPS.** A tenant could
+create a site named for an IP address, `localhost`, a `.local`/`.lan`/`.internal`/`.invalid` name or
+the panel's own host name, and have nginx serve it and ACME try to issue for it. Measured before
+the change: the agent's `Domain::parse` accepted `203.0.113.7`, `localhost`, `x.local` and the
+rest, and the API created a site named `203.0.113.7` and one named for the panel (both 201). The
+API and the agent now refuse the fixed set (a numeric final label, `localhost` and its
+subdomains, the special-use suffixes `local`, `localdomain`, `internal`, `lan`, `home.arpa` and
+`invalid`) on create site, aliases, issue and install certificate and enable FTPS. The API also
+refuses the panel's own name, and its `www.` form, for sites, aliases and certificates (not for
+FTPS), read from the new, optional `Panel__HostName` setting that the installer now writes into
+`panel.env` (a downgrade ignores the extra line). The refusal says only that the name cannot be
+used, in English, Russian and Armenian, and never echoes the name.
+
+The panel vhost's `server_name` is now lower-cased and comes from the same function as the
+certificate step; it falls back to `localhost` (it was `hostname -f`, or `_`), so re-running the
+installer can change it on a host whose name is unusable. No database or proto change. Sites that
+already exist under a reserved name are not removed: they can still be disabled, have their
+certificate removed, be inspected and be deleted, because those paths check the name's shape only.
+
+Not covered: the agent does not know the panel's name, so a compromised API could still ask it for
+a vhost under that name; the primary domain of a new account is not checked; the nginx and ACME
+behaviour was not observed on a real host. This change touches tenant isolation on a root-managed
+host and still needs a second reviewer before it reaches `main`.
+
+**The root agent's systemd unit is hardened further.** The unit that runs the agent as root kept
+the kernel's control-group files writable, let it load kernel modules, accepted 32-bit system calls
+and let it create setuid and setgid files. It now sets `ProtectControlGroups=true`,
+`ProtectKernelModules=true`, `SystemCallArchitectures=native` and `RestrictSUIDSGID=true`;
+`MemoryDenyWriteExecute=true` stays on. Measured on Ubuntu 24.04 (systemd 255) and AlmaLinux 9
+(systemd 252): the agent starts and listens as before, and account, home-mode, site (`nginx -t`,
+`php-fpm -t`, reload), certificate, cron, backup, restore, firewall and SFTP mount-unit operations
+behave the same with the four directives on. The cgroup view becomes read-only, a 32-bit binary is
+killed with SIGSYS, `chmod u+s` is refused, and `systemd-analyze security` exposure falls from 4.4
+to 3.6.
+
+`ProtectProc=invisible` and `ProcSubset=pid` are deliberately not set. `ProcSubset=pid` made `pkill`
+fail on AlmaLinux 9, so a suspended account's processes stayed alive. The unit comments now say so
+and mark what is still unmeasured (quota, other distribution versions, module autoload, cgroup v1).
+Hosts must re-run the installer to receive the new unit. The change needs a second human review
+before it reaches `main`.
+
+**The root FTPS service now runs inside a systemd sandbox.** `maran-ftps.service`, the unit the
+installer installs for the internet-facing, root vsftpd, restricted nothing but its runtime
+directory: `systemd-analyze security` scored it 9.4 UNSAFE on Ubuntu 24.04 and 9.6 on AlmaLinux 9.
+It now sets fourteen groups of directives (kernel tunables, modules, logs, control groups, clock and
+hostname protection, native system calls only, no personality changes, no realtime scheduling, no
+write-and-execute memory, no new setuid or setgid files, a short list of address families, a private
+`/dev`, and a capability bounding set of ten capabilities), and scores 5.9 MEDIUM on both families.
+Measured on Ubuntu 24.04 and AlmaLinux 9 under systemd as PID 1: a real FTPS session with TLS forced
+(plaintext login refused, login, upload, passive listing, `SITE CHMOD`, download, logout) passes
+unchanged, and the process reads back the new bounding set and a seccomp filter.
+
+`ProtectHome`, `NoNewPrivileges`, `ProtectSystem=strict`, `PrivateTmp` and `RestrictNamespaces` stay
+off, with the reasons in the threat note: `RestrictNamespaces` in particular makes vsftpd silently
+drop its per-session isolation on Ubuntu 24.04 while logins still succeed. Hosts must re-run the
+installer to receive the new unit. A new structure check keeps the rejected directives out of the
+unit and the capability set within bounds.
+
+Not shown by these measurements: the installer itself and the panel's enable-FTPS path were not run,
+AlmaLinux's per-session isolation and the stock `/etc/shadow` mode 0000 case were not observable, and
+`RestrictSUIDSGID` cannot be seen from a session because vsftpd masks the mode itself. This change
+touches a root, internet-facing service and still needs a second reviewer before it reaches `main`.
+
+**The panel refuses to start on a published or weak key outside Development and Testing.** The
+repository's sample `.env.example` ships an encryption key and a token-signing key so a development
+loop works out of the box, and nothing stopped an install from running on them: measured with the
+published host and `ASPNETCORE_ENVIRONMENT=Production`, the panel booted on both sample keys, so
+anyone who has read the source could sign an administrator's access token or decrypt the secrets the
+panel stores. Outside Development and Testing the host now refuses to start when either key is the
+published sample, decodes to bytes too structured to be random, or when the signing key equals or
+contains the encryption key; the message names the setting and the problem and never prints the key.
+
+Installs made by the installer are not affected: it generates two separate random keys. A hand-seeded
+install that copied the sample stops at startup. Replacing the signing key costs nothing but a fresh
+sign-in; replacing the encryption key makes the values already encrypted under it unreadable, and
+there is no re-encryption tool yet.
+
+**Installing a PHP version from the panel failed, and could leave the package database broken.** The
+agent ran the package manager itself, inside a sandbox that keeps `/usr` read-only. On Ubuntu 24.04
+the install died on "Read-only file system" part-way through and left fifteen packages half-configured
+in dpkg, which also blocks unattended security updates; on RHEL-family hosts dnf reported the read-only
+mount as a lack of disk space. The agent now asks systemd to start `maran-php-install@<package>.service`,
+a one-shot unit that is never enabled and runs only the family's package manager (`--no-remove` on
+Debian, no `--allowerasing` on RHEL) for that one package, outside the agent's sandbox, which is not
+widened. The install also survives an agent restart or a dropped browser tab. Measured on Ubuntu 24.04
+and Rocky Linux 9: the install now succeeds and the agent's sandbox is unchanged.
+
+Hosts must re-run the installer to receive the unit: a host that took a new agent binary alone fails
+PHP installs with a "unit not found" error, and there is no in-process fallback. The product still
+provisions no Remi or Sury repository, so RHEL-family hosts and Debian releases without the version in
+the distribution archive cannot install it regardless of this change.
+
+**The root daemon no longer acts on accounts it did not create.** Until now the agent checked only
+that an account name was spelled `[a-z][a-z0-9_]{2,29}` and that the user existed. Measured on real
+Ubuntu 24.04 and AlmaLinux 9 containers, suspending, deleting, setting a quota on or rewriting the
+crontab of `root`, `mysql` or `games` all went through to `usermod`, `userdel`, `setquota` and
+`crontab -u`: root's shell was changed to nologin, `mysql` was removed from `passwd`, `shadow` and
+`group`, and `CreateAccount` for `redis` ran `useradd`. Anyone able to reach the panel's API as an
+administrator, or a compromised API, could do the same to the host's own users. The fix is in two
+places, and the agent is the one that enforces it.
+
+- **A managed-account check in the agent.** Every account lifecycle operation (suspend, unsuspend,
+  delete, quota, usage, suspension state), every cron operation, and the SFTP and FTPS login
+  creation and password changes now require proof that the user is a hosting account: the name is
+  not on a reserved list of 103 names (system, daemon, database, web, mail and cloud-image login
+  names, plus anything starting `maran_`), there is exactly one passwd row of that name, its home is
+  exactly `/home/<name>`, and its uid and gid are at or above the host's `UID_MIN` and `GID_MIN`.
+  A refused request runs nothing, not even `id -u`, and answers `INVALID_INPUT` with a fixed sentence
+  that does not say which rule refused; an absent user is still `NOT_FOUND`. `CreateAccount` refuses a
+  reserved name before asking the host anything, and still refuses a user that already exists.
+- **Deletion resolves the account inside its lock and again before `userdel`.** If the uid or gid
+  changed while the cascade ran, the deletion stops with a system failure instead of removing a
+  different user.
+- **The panel refuses the same names, in three languages.** Creating an account through the API with
+  a reserved name now fails validation with `AccountNameReserved`, and the username alphabet is
+  narrowed to exactly the agent's rule: no hyphen, 3 to 30 characters. Both messages exist in
+  English, Russian and Armenian. The account form in the SPA still offers the old hyphen pattern;
+  that is a follow-up.
+
+What an operator will notice: a name such as `admin`, `mysql`, `git` or `ubuntu` can no longer be
+given to a hosting account, and `acme-01` style names are no longer accepted. Existing accounts are
+not touched. `RepairAccountHomeGroups` now skips users the panel does not manage.
+
+Known residual: there is no marker on managed accounts. An ordinary hand-made user at or above the
+id floor, with home `/home/<name>` and a name not on the list, is still manageable. The decision and
+its reasoning are in `docs/superpowers/notes/2026-10-26-account-reserved-names-threat-note.md`.
+This change touches root-run account operations and needs a second human review before it reaches
+`main` (#83).
 
 ## 1.0.0-beta.3 — 2026-10-03
 

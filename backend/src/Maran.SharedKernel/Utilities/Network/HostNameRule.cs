@@ -3,9 +3,11 @@ using System.Text.RegularExpressions;
 namespace Maran.SharedKernel.Utilities.Network;
 
 /// <summary>
-/// What this panel accepts as a DNS host name. The single definition every module shares, so a
-/// site's domain, an alias, a certificate's subject and an account's primary domain cannot drift
-/// into accepting different things.
+/// What this panel accepts as the SHAPE of a DNS host name. The single definition every module
+/// shares, so a site's domain, an alias, a certificate's subject and an account's primary domain
+/// cannot drift into accepting different things. A well-formed name is not necessarily a name a
+/// tenant may claim: <see cref="ReservedHostNameRule"/> is the sibling that refuses address
+/// literals, loopback and special-use names, and callers apply both.
 /// </summary>
 /// <remarks>
 /// <para>

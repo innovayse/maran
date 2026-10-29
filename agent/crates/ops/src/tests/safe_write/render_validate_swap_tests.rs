@@ -16,7 +16,10 @@
 
 use std::sync::Mutex;
 
-use crate::safe_write::model::{Reload, Validator};
+use maran_agent_core::utils::call_class::CallClass;
+use maran_distro::AdapterBinary;
+
+use crate::safe_write::adapter_programs::{mutating_validator, reload, timed_out, validator};
 use crate::safe_write::{CommandOutcome, ConfigHost, SafeWriteError, write_config};
 
 /// A [`ConfigHost`] whose validator and reload steps can each be told what to
@@ -29,6 +32,11 @@ struct FakeConfigHost {
     /// Every `(program, arguments)` pair the host was asked to run, in order —
     /// the thing the "validates and reloads once" test pins.
     calls: Mutex<Vec<(String, Vec<String>)>>,
+    /// The [`CallClass`] of every call, in the same order as `calls`.
+    classes: Mutex<Vec<CallClass>>,
+    /// The step (0 for the validator, 1 for the reload) that answers with a
+    /// bound instead of an outcome, when one is set.
+    bound_at: Option<usize>,
 }
 
 impl FakeConfigHost {
@@ -40,7 +48,33 @@ impl FakeConfigHost {
             reload_status: 0,
             reload_stderr: String::new(),
             calls: Mutex::new(Vec::new()),
+            classes: Mutex::new(Vec::new()),
+            bound_at: None,
         }
+    }
+
+    /// A host whose validator outlives its deadline and is killed.
+    fn validator_timing_out() -> Self {
+        Self {
+            bound_at: Some(0),
+            ..Self::passing()
+        }
+    }
+
+    /// A host whose validator passes and whose reload outlives its deadline.
+    fn reload_timing_out() -> Self {
+        Self {
+            bound_at: Some(1),
+            ..Self::passing()
+        }
+    }
+
+    /// The class of every call, in order.
+    fn classes(&self) -> Vec<CallClass> {
+        self.classes
+            .lock()
+            .expect("the fixture lock is never poisoned")
+            .clone()
     }
 
     /// A host whose validator rejects everything it is given, with `stderr`
@@ -72,12 +106,30 @@ impl FakeConfigHost {
 }
 
 impl ConfigHost for FakeConfigHost {
-    fn run(&self, program: &str, arguments: &[&str]) -> Result<CommandOutcome, SafeWriteError> {
+    fn run(
+        &self,
+        program: &AdapterBinary,
+        arguments: &[&str],
+        class: CallClass,
+    ) -> Result<CommandOutcome, SafeWriteError> {
+        self.classes
+            .lock()
+            .expect("the fixture lock is never poisoned")
+            .push(class);
+        let step = self.calls().len();
+        if self.bound_at == Some(step) {
+            self.calls
+                .lock()
+                .expect("the fixture lock is never poisoned")
+                .push((program.to_string(), Vec::new()));
+            return Err(SafeWriteError::Bound(timed_out(program.as_str())));
+        }
+
         self.calls
             .lock()
             .expect("the fixture lock is never poisoned")
             .push((
-                program.to_owned(),
+                program.to_string(),
                 arguments
                     .iter()
                     .map(|argument| (*argument).to_owned())
@@ -100,23 +152,6 @@ impl ConfigHost for FakeConfigHost {
                 stderr: self.validation_stderr.clone(),
             })
         }
-    }
-}
-
-/// A validator argv stable across the tests below — its content does not
-/// matter to `FakeConfigHost`, only that it is passed through unchanged.
-fn validator() -> Validator<'static> {
-    Validator {
-        program: "/usr/sbin/nginx",
-        arguments: &["-t"],
-    }
-}
-
-/// A reload argv stable across the tests below.
-fn reload() -> Reload<'static> {
-    Reload {
-        program: "/usr/bin/systemctl",
-        arguments: &["reload", "nginx"],
     }
 }
 
@@ -269,6 +304,37 @@ fn a_config_that_validates_replaces_the_previous_one_and_reloads_once() {
     );
 }
 
+#[test]
+fn a_replacement_does_not_refuse_a_warning_the_validator_prints() {
+    // The inverse of the creation's refusal: a re-render of a vhost that is
+    // already served is the same file answering for its own names, and a
+    // warning the validator prints about a name must not stop it. Only
+    // `create_config` is given warnings to refuse.
+    let directory = tempfile::tempdir().unwrap();
+    let target = directory.path().join("site.conf");
+    std::fs::write(&target, b"server { listen 80; }\n").unwrap();
+    let host = FakeConfigHost {
+        validation_stderr:
+            "nginx: [warn] conflicting server name \"alice.test\" on 0.0.0.0:80, ignored".to_owned(),
+        ..FakeConfigHost::passing()
+    };
+
+    let written = write_config(
+        &host,
+        &target,
+        "server { listen 80; index x; }\n",
+        &validator(),
+        &reload(),
+    );
+
+    assert!(written.is_ok(), "{written:?}");
+    assert_eq!(
+        std::fs::read(&target).unwrap(),
+        b"server { listen 80; index x; }\n"
+    );
+    assert_eq!(host.calls().len(), 2, "validator then reload");
+}
+
 /// A [`ConfigHost`] that reads the target at the instant the validator is
 /// invoked, which is exactly the midpoint the kill exposes.
 ///
@@ -296,7 +362,12 @@ impl MidpointHost {
 }
 
 impl ConfigHost for MidpointHost {
-    fn run(&self, _program: &str, _arguments: &[&str]) -> Result<CommandOutcome, SafeWriteError> {
+    fn run(
+        &self,
+        _program: &AdapterBinary,
+        _arguments: &[&str],
+        _class: CallClass,
+    ) -> Result<CommandOutcome, SafeWriteError> {
         let mut seen = self
             .seen_at_validation
             .lock()
@@ -359,4 +430,133 @@ fn the_same_refusal_this_process_survives_leaves_the_previous_bytes_live() {
     let _ = write_config(&host, &target, "new\n", &validator(), &reload());
 
     assert_eq!(std::fs::read(&target).unwrap(), b"old\n");
+}
+
+/// A validator that outlives its deadline is not a verdict, and the file goes back.
+#[test]
+fn a_validator_that_times_out_rolls_the_target_back_and_reports_the_bound() {
+    // The kill ended the program before it answered, so the protocol cannot say the
+    // content was refused: the error must be the bound, and the previous bytes must be
+    // live again, because the rejected content was renamed into place before the
+    // validator ran.
+    let directory = tempfile::tempdir().unwrap();
+    let target = directory.path().join("site.conf");
+    std::fs::write(&target, b"server { listen 80; }\n").unwrap();
+    let host = FakeConfigHost::validator_timing_out();
+
+    let refused = write_config(
+        &host,
+        &target,
+        "server { listen 81; }\n",
+        &validator(),
+        &reload(),
+    );
+
+    assert!(
+        matches!(refused, Err(SafeWriteError::Bound(_))),
+        "a bound is neither a failed validation nor a failed spawn: {refused:?}"
+    );
+    assert_eq!(std::fs::read(&target).unwrap(), b"server { listen 80; }\n");
+    assert_eq!(host.calls().len(), 1, "the reload is never reached");
+}
+
+/// The inverse control: the same write with a validator that answers is accepted.
+#[test]
+fn the_same_write_with_a_validator_that_answers_is_accepted() {
+    let directory = tempfile::tempdir().unwrap();
+    let target = directory.path().join("site.conf");
+    std::fs::write(&target, b"server { listen 80; }\n").unwrap();
+    let host = FakeConfigHost::passing();
+
+    let written = write_config(
+        &host,
+        &target,
+        "server { listen 81; }\n",
+        &validator(),
+        &reload(),
+    );
+
+    assert!(written.is_ok(), "{written:?}");
+    assert_eq!(std::fs::read(&target).unwrap(), b"server { listen 81; }\n");
+}
+
+/// A reload that outlives its deadline puts the previous bytes back too.
+#[test]
+fn a_reload_that_times_out_rolls_the_target_back_and_reports_the_bound() {
+    let directory = tempfile::tempdir().unwrap();
+    let target = directory.path().join("site.conf");
+    std::fs::write(&target, b"server { listen 80; }\n").unwrap();
+    let host = FakeConfigHost::reload_timing_out();
+
+    let refused = write_config(
+        &host,
+        &target,
+        "server { listen 81; }\n",
+        &validator(),
+        &reload(),
+    );
+
+    assert!(
+        matches!(refused, Err(SafeWriteError::Bound(_))),
+        "a bound is neither a failed reload nor a failed spawn: {refused:?}"
+    );
+    assert_eq!(std::fs::read(&target).unwrap(), b"server { listen 80; }\n");
+    assert_eq!(host.calls().len(), 2, "validator then the killed reload");
+}
+
+/// A new file whose validator is killed is unlinked, as for any other refusal.
+#[test]
+fn a_new_file_whose_validator_times_out_is_removed() {
+    // No previous content exists, and a rejected file left behind would break the
+    // NEXT unrelated reload.
+    let directory = tempfile::tempdir().unwrap();
+    let target = directory.path().join("new-site.conf");
+    let host = FakeConfigHost::validator_timing_out();
+
+    let refused = write_config(&host, &target, "server {", &validator(), &reload());
+
+    assert!(
+        matches!(refused, Err(SafeWriteError::Bound(_))),
+        "{refused:?}"
+    );
+    assert!(!target.exists());
+}
+
+/// The bound that comes back is the one the host reported, program and deadline kept.
+#[test]
+fn the_bound_that_comes_back_names_the_program_that_was_killed() {
+    let directory = tempfile::tempdir().unwrap();
+    let target = directory.path().join("site.conf");
+    let host = FakeConfigHost::validator_timing_out();
+
+    let refused = write_config(&host, &target, "server {", &validator(), &reload());
+
+    match refused {
+        Err(SafeWriteError::Bound(bound)) => assert_eq!(bound, timed_out("/usr/sbin/nginx")),
+        other => panic!("expected a bound, got {other:?}"),
+    }
+}
+
+/// The validator runs in its own class and the reload always runs as a reload.
+#[test]
+fn the_protocol_runs_the_validator_in_its_own_class_and_the_reload_as_reload() {
+    let directory = tempfile::tempdir().unwrap();
+    let target = directory.path().join("site.conf");
+
+    let pure = FakeConfigHost::passing();
+    write_config(&pure, &target, "a\n", &validator(), &reload()).unwrap();
+    assert_eq!(
+        pure.classes(),
+        vec![CallClass::Validate, CallClass::Reload],
+        "a pure check is short and the reload is not"
+    );
+
+    // The inverse control: a mutating validator names its own, longer class, so the
+    // protocol is reading `validator.class` and not hard-coding one for both steps.
+    let mutating = FakeConfigHost::passing();
+    write_config(&mutating, &target, "b\n", &mutating_validator(), &reload()).unwrap();
+    assert_eq!(
+        mutating.classes(),
+        vec![CallClass::Reload, CallClass::Reload]
+    );
 }

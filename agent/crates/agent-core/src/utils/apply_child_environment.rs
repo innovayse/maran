@@ -30,11 +30,12 @@ pub const PATH_VARIABLE: &str = "PATH";
 /// The agent itself never needs this: every program it starts is named by an
 /// absolute path from the `DistroAdapter`, and that was verified call site by
 /// call site rather than assumed. It is set for the programs those programs
-/// start — `apt-get` and `dnf` run packaged helpers and maintainer scripts by
-/// bare name, and a package manager handed no `PATH` at all is a PHP install
-/// that fails in a way nothing here would explain. So the choice is not
-/// "`PATH` or no `PATH`"; it is WHICH `PATH`, taken away from whoever last
-/// edited the unit file.
+/// start — `systemctl` and `php-fpm -t` and the helpers they run by bare
+/// name — because a child handed no `PATH` at all fails in a way nothing here
+/// would explain. So the choice is not "`PATH` or no `PATH`"; it is WHICH
+/// `PATH`, taken away from whoever last edited the unit file. The package
+/// manager is not among these children: it runs in the install unit, which
+/// carries its own `PATH=` line.
 ///
 /// Distro-owned directories only. `/usr/local/sbin` and `/usr/local/bin` are
 /// deliberately ABSENT even though they head systemd's compiled-in default,
@@ -58,9 +59,10 @@ pub const CHILD_ENVIRONMENT: [(&str, &str); 2] =
 
 /// Clears `command`'s inherited environment and sets [`CHILD_ENVIRONMENT`].
 ///
-/// Every spawn in this workspace goes through this function — the shared
-/// `spawn_argv`, and equally the handful of spawns that are deliberately
-/// different because they need standard input or a bounded read.
+/// Every spawn in this workspace goes through this function, because every
+/// spawn goes through the bounded core's one `launch_child` — `spawn_argv`, and
+/// equally the calls that pipe standard input, run for a window or run inside a
+/// fork. What a child INHERITS is not one caller's decision.
 ///
 /// # Why clearing, and what it is and is not worth
 ///

@@ -54,6 +54,8 @@ const SHOW_DATABASES: &str = "SHOW DATABASES";
 /// - [`DbError::Unparsable`] when the listing is longer than the agent will
 ///   read.
 /// - [`DbError::ClientFailed`] for any other refusal by the client.
+/// - [`DbError::Bound`] when the client ran past its deadline, so no answer was
+///   read. A statement already sent may nevertheless take effect on the server.
 pub fn list_databases(
     host: &dyn DbHost,
     account: &AccountName,

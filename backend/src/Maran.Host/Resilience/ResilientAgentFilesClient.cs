@@ -35,7 +35,8 @@ public sealed class ResilientAgentFilesClient : IAgentFilesClient
         uint mode,
         CancellationToken cancellationToken)
     {
-        return await _pipeline.ExecuteAsync(
+        return await AgentOperationPipeline.ExecuteAsync(
+            _pipeline,
             async (state, token) =>
             {
                 return await state.Client.WriteFileAsync(
@@ -52,7 +53,8 @@ public sealed class ResilientAgentFilesClient : IAgentFilesClient
         bool recursive,
         CancellationToken cancellationToken)
     {
-        return await _pipeline.ExecuteAsync(
+        return await AgentOperationPipeline.ExecuteAsync(
+            _pipeline,
             async (state, token) =>
             {
                 return await state.Client.DeleteEntryAsync(

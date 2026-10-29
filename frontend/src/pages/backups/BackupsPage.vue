@@ -19,9 +19,8 @@
  * {@link ../../components/ui/UiConfirm.vue}, the panel's one yes/no question.
  * Restore destroys the ACCOUNT — it replaces the home and drops every database in the copy — so it
  * opens {@link ../../components/backups/BackupRestoreDialog.vue}, which states what is replaced and
- * what is not before it will accept a typed confirmation. The note that used to stand here, that no
- * panel endpoint reached the agent's restore, was true when it was written and is false now: the
- * panel publishes `POST /api/v1/backups/{id}/restore`.
+ * what is not before it will accept a typed confirmation. The panel publishes
+ * `POST /api/v1/backups/{id}/restore`, which is what the dialog calls.
  *
  * **Restore is offered on a completed backup and on no other.** A running or failed run produced no
  * artifact and the panel answers `BackupNotRestorable`, so a control on those rows could only ever
@@ -34,17 +33,32 @@
  * choice that does not exist. Where that one place IS, and what the panel can and cannot be told
  * about it, is {@link ./BackupDestinationsPage.vue} — a screen of its own, linked from the heading,
  * because it describes the machine rather than the rows this table holds.
+ *
+ * **A failed backup is the screen's one attention item, and only while it is still true.** A
+ * warning notice opens the screen when an account's most recent FINISHED run failed — a failed
+ * copy is a copy that does not exist, the one fact a list of backups can most dangerously imply the
+ * opposite of. It is not raised for every failed row ever taken: a failure from March that a
+ * completed run has since superseded is history, and a notice that never clears teaches an
+ * operator to stop reading it. A still-running run is not a finished one, so it neither raises the
+ * notice nor clears it.
+ *
+ * **The table lives inside its own `UiCard` and nothing else is allowed to scroll the page.** At
+ * 390px the eight columns are wider than the screen, so `UiTable` scrolls inside its own container
+ * (the specs find that container as `table.parentElement`); the card has `min-w-0` for the same
+ * reason, so a wide table can never size the content panel.
  */
 import { computed, onMounted, ref, type ComputedRef, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { RouterLink } from 'vue-router'
 import UiAlert from '../../components/ui/UiAlert.vue'
+import UiButton from '../../components/ui/UiButton.vue'
+import UiCard from '../../components/ui/UiCard.vue'
 import UiConfirm from '../../components/ui/UiConfirm.vue'
 import UiDropdown from '../../components/ui/UiDropdown.vue'
 import UiDropdownItem from '../../components/ui/UiDropdownItem.vue'
 import UiEmptyState from '../../components/ui/UiEmptyState.vue'
 import UiIcon from '../../components/ui/UiIcon.vue'
 import UiPageHeading from '../../components/ui/UiPageHeading.vue'
+import UiSectionHeading from '../../components/ui/UiSectionHeading.vue'
 import UiSpinner from '../../components/ui/UiSpinner.vue'
 import UiTable from '../../components/ui/UiTable.vue'
 import UiTableCell from '../../components/ui/UiTableCell.vue'
@@ -100,6 +114,56 @@ const confirmationTitle: ComputedRef<string> = computed(() => {
         account: accountName(pending),
         startedAt: formatIsoTimestamp(pending.startedAt, localeStore.current),
       })
+})
+
+/**
+ * The backups whose account's most recent finished run failed, newest failure first.
+ *
+ * Grouped by account because the question an operator asks is "which accounts have no good copy
+ * from their latest attempt", not "how many rows say Failed". A `running` run is skipped: it has no
+ * outcome yet, so it can neither be the failure nor the success that supersedes one. Instants are
+ * compared as parsed times, not as strings, because the panel is free to change the offset it
+ * writes.
+ */
+const unrecoveredFailures: ComputedRef<Backup[]> = computed(() => {
+  const latest = new Map<string, Backup>()
+  for (const backup of store.backups) {
+    if (backup.status === 'running') {
+      continue
+    }
+    const seen = latest.get(backup.accountId)
+    if (seen === undefined || Date.parse(backup.startedAt) > Date.parse(seen.startedAt)) {
+      latest.set(backup.accountId, backup)
+    }
+  }
+  return [...latest.values()]
+    .filter((backup) => {
+      return backup.status === 'failed'
+    })
+    .sort((a, b) => {
+      return Date.parse(b.startedAt) - Date.parse(a.startedAt)
+    })
+})
+
+/**
+ * The sentence the attention notice says, or `null` when nothing needs attention.
+ *
+ * One failure is named — the account and the moment — because that is enough to act on. Several
+ * are counted, since a list of names in a banner would be the table over again.
+ */
+const attentionMessage: ComputedRef<string | null> = computed(() => {
+  const failures = unrecoveredFailures.value
+  if (failures.length === 0) {
+    return null
+  }
+  const [first] = failures
+  if (failures.length === 1 && first !== undefined) {
+    return t('backups.list.attentionOne', {
+      account: accountName(first),
+      startedAt: formatIsoTimestamp(first.startedAt, localeStore.current),
+    })
+  }
+  return t('backups.list.attentionMany', { count: failures.length })
 })
 
 /**
@@ -245,9 +309,9 @@ onMounted(refresh)
 </script>
 
 <template>
-  <section class="w-full">
+  <section class="flex w-full flex-col gap-4">
     <UiPageHeading
-      class="mb-4"
+      :eyebrow="t('backups.list.eyebrow')"
       :title="t('backups.list.heading')"
       :subtitle="t('backups.list.subtitle')"
       :note="t('backups.list.storageNote')"
@@ -256,86 +320,93 @@ onMounted(refresh)
         <!-- The schedule is administrators-only and this link is not the gate: it is offered to
              whoever is looking, and the endpoint behind the page answers 403 to anyone who may not
              read it. A client-side check here would be a second copy of an authorization decision,
-             and the copy that cannot be trusted (rules/vue.md). -->
-        <RouterLink
-          class="rounded-lg border border-border-subtle px-3 py-2 text-base text-text-secondary transition-colors hover:text-text-primary focus-visible:shadow-focus focus-visible:outline-none"
-          :to="{ name: 'backup-schedule' }"
-          >{{ t('backups.list.scheduleLink') }}</RouterLink
-        >
-        <RouterLink
-          class="rounded-lg border border-border-subtle px-3 py-2 text-base text-text-secondary transition-colors hover:text-text-primary focus-visible:shadow-focus focus-visible:outline-none"
-          :to="{ name: 'backup-destinations' }"
-          >{{ t('backups.list.destinationsLink') }}</RouterLink
-        >
+             and the copy that cannot be trusted (rules/vue.md). Both are ghost-weight links: the
+             screen's primary action is the form below, and a pill up here would compete with it. -->
+        <UiButton variant="secondary" :to="{ name: 'backup-schedule' }">{{ t('backups.list.scheduleLink') }}</UiButton>
+        <UiButton variant="secondary" :to="{ name: 'backup-destinations' }">{{ t('backups.list.destinationsLink') }}</UiButton>
       </template>
     </UiPageHeading>
 
-    <UiAlert v-if="store.createErrorMessage !== null" variant="error" class="mb-4">
+    <!-- The one thing that needs attention goes first. Warning, not error: the failure already
+         happened and can be answered by taking another copy, which is the form just below. -->
+    <UiAlert v-if="attentionMessage !== null && !store.loading" variant="warning">
+      {{ attentionMessage }}
+    </UiAlert>
+
+    <UiAlert v-if="store.createErrorMessage !== null" variant="error">
       {{ store.createErrorMessage }}
     </UiAlert>
 
+    <!-- The form draws its own panel, so it is not wrapped in a second one here. -->
     <BackupCreateForm
-      class="mb-6"
       :accounts="accountsStore.accounts"
       :submitting="store.creating"
       @submit="create"
     />
 
-    <UiSpinner v-if="store.loading" :label="t('backups.list.loading')" />
+    <UiCard>
+      <UiSectionHeading class="mb-4" :title="t('backups.list.sectionHeading')" />
 
-    <UiAlert v-else-if="store.errorMessage !== null" variant="error">{{ store.errorMessage }}</UiAlert>
+      <UiSpinner v-if="store.loading" :label="t('backups.list.loading')" />
 
-    <UiEmptyState
-      v-else-if="isEmpty"
-      :title="t('backups.list.emptyTitle')"
-      :description="t('backups.list.emptyDescription')"
-    >
-      <template #icon><UiIcon name="archive" size="lg" /></template>
-    </UiEmptyState>
+      <UiAlert v-else-if="store.errorMessage !== null" variant="error">{{ store.errorMessage }}</UiAlert>
 
-    <UiTable v-else-if="store.backups.length > 0" :caption="t('backups.list.tableCaption')">
-      <template #head>
-        <UiTableRow>
-          <UiTableHeaderCell>{{ t('backups.list.columns.account') }}</UiTableHeaderCell>
-          <UiTableHeaderCell>{{ t('backups.list.columns.status') }}</UiTableHeaderCell>
-          <UiTableHeaderCell>{{ t('backups.list.columns.kind') }}</UiTableHeaderCell>
-          <UiTableHeaderCell>{{ t('backups.list.columns.size') }}</UiTableHeaderCell>
-          <UiTableHeaderCell>{{ t('backups.list.columns.databases') }}</UiTableHeaderCell>
-          <UiTableHeaderCell>{{ t('backups.list.columns.startedAt') }}</UiTableHeaderCell>
-          <UiTableHeaderCell>{{ t('backups.list.columns.finishedAt') }}</UiTableHeaderCell>
-          <UiTableHeaderCell align="end">{{ t('common.actions') }}</UiTableHeaderCell>
-        </UiTableRow>
-      </template>
-      <UiTableRow v-for="backup in store.backups" :key="backup.id">
-        <UiTableCell class="font-medium">{{ accountName(backup) }}</UiTableCell>
-        <UiTableCell>
-          <BackupStatusBadge :status="backup.status" />
-          <!-- Both halves of the failure, and neither instead of the other. The sentence is the
-               backend's own, already localized (rules/vue.md: the SPA owns no text for a server
-               outcome), and it is what a reader reads. The code below it is machine-stable across
-               languages, so it is what an operator quotes in a support ticket and greps a log for —
-               kept as visible, selectable text rather than hidden in a `title`, which no touch
-               device shows, no keyboard reaches and nothing can copy from. A panel older than the
-               display name sends the code alone, and then the code is the whole cell. -->
-          <span v-if="failureName(backup) !== null" class="mt-1 block text-sm text-text-secondary">
-            {{ failureName(backup) }}
-          </span>
-          <span
-            v-if="backup.failureCode.length > 0"
-            class="mt-0.5 block font-mono text-xs text-text-muted"
-          >
-            {{ t('backups.list.failureCode', { code: backup.failureCode }) }}
-          </span>
-        </UiTableCell>
-        <UiTableCell class="text-text-secondary">{{ t(`backups.kind.${backup.kind}`) }}</UiTableCell>
-        <UiTableCell class="font-mono text-text-secondary">{{ size(backup) }}</UiTableCell>
-        <UiTableCell class="font-mono text-text-secondary">{{ backup.databaseCount }}</UiTableCell>
-        <UiTableCell class="font-mono text-text-muted">
-          {{ formatIsoTimestamp(backup.startedAt, localeStore.current) }}
-        </UiTableCell>
-        <UiTableCell class="font-mono text-text-muted">{{ finished(backup) }}</UiTableCell>
-        <UiTableCell align="end">
-          <div class="flex flex-wrap items-center justify-end gap-2">
+      <UiEmptyState
+        v-else-if="isEmpty"
+        :title="t('backups.list.emptyTitle')"
+        :description="t('backups.list.emptyDescription')"
+      >
+        <template #icon><UiIcon name="archive" size="lg" /></template>
+      </UiEmptyState>
+
+      <UiTable v-else-if="store.backups.length > 0" :caption="t('backups.list.tableCaption')">
+        <template #head>
+          <UiTableRow>
+            <UiTableHeaderCell>{{ t('backups.list.columns.account') }}</UiTableHeaderCell>
+            <UiTableHeaderCell>{{ t('backups.list.columns.status') }}</UiTableHeaderCell>
+            <UiTableHeaderCell>{{ t('backups.list.columns.kind') }}</UiTableHeaderCell>
+            <UiTableHeaderCell align="end">{{ t('backups.list.columns.size') }}</UiTableHeaderCell>
+            <UiTableHeaderCell align="end">{{ t('backups.list.columns.databases') }}</UiTableHeaderCell>
+            <UiTableHeaderCell>{{ t('backups.list.columns.startedAt') }}</UiTableHeaderCell>
+            <UiTableHeaderCell>{{ t('backups.list.columns.finishedAt') }}</UiTableHeaderCell>
+            <UiTableHeaderCell align="end">{{ t('common.actions') }}</UiTableHeaderCell>
+          </UiTableRow>
+        </template>
+        <UiTableRow v-for="backup in store.backups" :key="backup.id">
+          <!-- The cell holds the account's name and nothing else: a spec reads it as the cell's
+               whole text, and a name is what the column is for. -->
+          <UiTableCell mono class="font-semibold whitespace-nowrap">{{ accountName(backup) }}</UiTableCell>
+          <UiTableCell>
+            <BackupStatusBadge :status="backup.status" />
+            <!-- Both halves of the failure, and neither instead of the other. The sentence is the
+                 backend's own, already localized (rules/vue.md: the SPA owns no text for a server
+                 outcome), and it is what a reader reads. The code below it is machine-stable across
+                 languages, so it is what an operator quotes in a support ticket and greps a log for —
+                 kept as visible, selectable text rather than hidden in a `title`, which no touch
+                 device shows, no keyboard reaches and nothing can copy from. A panel older than the
+                 display name sends the code alone, and then the code is the whole cell. -->
+            <span
+              v-if="failureName(backup) !== null"
+              class="mt-1.5 block max-w-64 text-sm text-text-secondary wrap-anywhere"
+            >
+              {{ failureName(backup) }}
+            </span>
+            <span
+              v-if="backup.failureCode.length > 0"
+              class="mt-0.5 block font-mono text-xs whitespace-nowrap text-text-muted"
+            >
+              {{ t('backups.list.failureCode', { code: backup.failureCode }) }}
+            </span>
+          </UiTableCell>
+          <UiTableCell tone="secondary">{{ t(`backups.kind.${backup.kind}`) }}</UiTableCell>
+          <UiTableCell mono align="end" class="whitespace-nowrap">{{ size(backup) }}</UiTableCell>
+          <UiTableCell mono tone="secondary" align="end">{{ backup.databaseCount }}</UiTableCell>
+          <!-- A timestamp is context, never the thing being scanned for: the faintest text tier. -->
+          <UiTableCell mono tone="muted" class="whitespace-nowrap">
+            {{ formatIsoTimestamp(backup.startedAt, localeStore.current) }}
+          </UiTableCell>
+          <UiTableCell mono tone="muted" class="whitespace-nowrap">{{ finished(backup) }}</UiTableCell>
+          <UiTableCell align="end">
             <!-- One trigger instead of a button per command, and a menu even on the rows that
                  hold only Delete: a running or failed row is offered no restore, so a table that
                  dropped the menu for a single command would change the shape of its last column
@@ -356,20 +427,17 @@ onMounted(refresh)
               <!-- Offered only where an artifact exists. On a failed or still-running row the panel
                    would answer `BackupNotRestorable`, and a command whose only outcome is a refusal
                    teaches an operator that the screen is unreliable. -->
-              <UiDropdownItem
-                v-if="backup.status === 'completed'"
-                @select="askRestore(backup)"
-              >
+              <UiDropdownItem v-if="backup.status === 'completed'" @select="askRestore(backup)">
                 {{ t('backups.restore.action') }}
               </UiDropdownItem>
               <UiDropdownItem destructive @select="ask(backup.id)">
                 {{ t('common.delete') }}
               </UiDropdownItem>
             </UiDropdown>
-          </div>
-        </UiTableCell>
-      </UiTableRow>
-    </UiTable>
+          </UiTableCell>
+        </UiTableRow>
+      </UiTable>
+    </UiCard>
 
     <!-- One dialog for the whole table rather than one per row: only one deletion can be awaiting
          an answer, and the menu that opened it is already gone by the time it appears. `:open` is

@@ -1,5 +1,6 @@
 //! Taking one php-fpm pool away through the same protocol that writes one.
 
+use maran_agent_core::utils::call_class::CallClass;
 use maran_agent_core::validation::system::name::AccountName;
 use maran_agent_core::validation::web::php_version::PhpVersion;
 use maran_distro::DistroAdapter;
@@ -7,6 +8,7 @@ use maran_distro::DistroAdapter;
 use crate::php::model::pool_paths::PoolPaths;
 use crate::php::write_pool::{RELOAD_SUBCOMMAND, VALIDATE_ARGUMENT};
 use crate::php::{PhpHost, PhpOpError};
+use maran_agent_core::end_of_options::END_OF_OPTIONS;
 
 /// Removes `account`'s pool at `version`, then validates and reloads that
 /// version's php-fpm.
@@ -36,8 +38,10 @@ use crate::php::{PhpHost, PhpOpError};
 /// Returns [`PhpOpError::UnsupportedVersion`] for a version outside the closed
 /// set. Returns [`PhpOpError::PoolValidation`] when `php-fpm -t` refuses the
 /// tree once the file is gone and [`PhpOpError::ReloadFailed`] when the reload
-/// refuses — in both cases the pool has been put back — and
-/// [`PhpOpError::ConfigWrite`] for every other failure of the protocol.
+/// refuses — in both cases the pool has been put back —
+/// [`PhpOpError::Bound`] (also with the pool put back) when a program outlived
+/// its deadline and was killed, and [`PhpOpError::ConfigWrite`] for every other
+/// failure of the protocol.
 pub fn remove_pool(
     host: &dyn PhpHost,
     distro: &dyn DistroAdapter,
@@ -54,15 +58,18 @@ pub fn remove_pool(
     // version's own pool directory. That matters more for a REMOVAL than for a
     // write — a write that escaped its directory creates a file somebody will
     // notice, and an unlink that escaped it destroys one nobody will.
-    let validator_program = distro.php_fpm_binary(version.as_str());
+    let validator_program = distro.php_fpm_binary(version);
     let validator = crate::safe_write::model::Validator {
         program: &validator_program,
         arguments: &[VALIDATE_ARGUMENT],
+        class: CallClass::Validate,
     };
     let service = distro.php_fpm_service(version.as_str());
-    let reload_arguments = [RELOAD_SUBCOMMAND, service.as_str()];
+    // `--` before the unit: `systemctl` reads its options with `getopt_long`.
+    let reload_arguments = [RELOAD_SUBCOMMAND, END_OF_OPTIONS, service.as_str()];
+    let service_manager = distro.service_manager();
     let reload = crate::safe_write::model::Reload {
-        program: distro.service_manager(),
+        program: &service_manager,
         arguments: &reload_arguments,
     };
 

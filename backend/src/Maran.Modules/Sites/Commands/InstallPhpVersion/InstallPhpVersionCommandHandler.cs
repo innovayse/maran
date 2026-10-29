@@ -1,9 +1,11 @@
 using Maran.Agent.Client.Interfaces;
 using Maran.Agent.Client.Services.PhpService;
+using Maran.Modules.Sites.Mappers;
 using Maran.Modules.Sites.Resources;
 using Maran.Modules.Sites.Services;
 using Maran.Sdk.Contracts;
 using Maran.Sdk.Interfaces;
+using PhpVersionDto = Maran.Modules.Sites.Common.PhpVersionDto;
 
 namespace Maran.Modules.Sites.Commands.InstallPhpVersion;
 
@@ -73,7 +75,10 @@ public sealed class InstallPhpVersionCommandHandler
     /// <summary>Installs the version, or reports why it could not be.</summary>
     /// <param name="command">The version to install, and who asked.</param>
     /// <param name="cancellationToken">Cancels the install.</param>
-    /// <returns>The versions this server has after the attempt, or a typed failure.</returns>
+    /// <returns>
+    /// The versions this server has after the attempt, in the panel's outward shape (no FPM socket
+    /// path), or a typed failure.
+    /// </returns>
     public async Task<Result<IReadOnlyList<PhpVersionDto>>> HandleAsync(
         InstallPhpVersionCommand command,
         CancellationToken cancellationToken)
@@ -111,7 +116,7 @@ public sealed class InstallPhpVersionCommandHandler
                 command.UserAgent,
                 cancellationToken);
 
-            return Result<IReadOnlyList<PhpVersionDto>>.Ok(installed.Value);
+            return Result<IReadOnlyList<PhpVersionDto>>.Ok(PhpVersionMapper.From(installed.Value));
         }
 
         var taskId = await _tasks.BeginAsync(
@@ -146,7 +151,7 @@ public sealed class InstallPhpVersionCommandHandler
         var after = await _php.ListVersionsAsync(cancellationToken);
 
         return after.IsSuccess
-            ? Result<IReadOnlyList<PhpVersionDto>>.Ok(after.Value)
+            ? Result<IReadOnlyList<PhpVersionDto>>.Ok(PhpVersionMapper.From(after.Value))
             : Result<IReadOnlyList<PhpVersionDto>>.Fail(after.Error!);
     }
 

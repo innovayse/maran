@@ -28,6 +28,14 @@
  * else — which is why the endpoint is administrator-only — and the screen says that too, because a
  * reader shown an unfamiliar database name will otherwise assume the panel has lost track of one of
  * theirs.
+ *
+ * **Layout (redesign 2026-10).** The page header carries the module name as its eyebrow; the census is
+ * four large figures in one card with the pass named beneath them; the rewritten rows are a table (it
+ * scrolls inside its own container at 390px, never the page); each refused row is its own block with
+ * its three raw columns in monospace, because those values are copied into a database client. There is
+ * deliberately NO attention alert and no success tint anywhere: the screen has no verdict to colour, and
+ * a refused row is drawn as work handed back (a warning badge), not as a failure. The only alert is the
+ * server's own error message.
  */
 import { computed, onMounted, ref, type ComputedRef, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -43,6 +51,10 @@ import UiIcon from '../../components/ui/UiIcon.vue'
 import UiPageHeading from '../../components/ui/UiPageHeading.vue'
 import UiSectionHeading from '../../components/ui/UiSectionHeading.vue'
 import UiSpinner from '../../components/ui/UiSpinner.vue'
+import UiTable from '../../components/ui/UiTable.vue'
+import UiTableCell from '../../components/ui/UiTableCell.vue'
+import UiTableHeaderCell from '../../components/ui/UiTableHeaderCell.vue'
+import UiTableRow from '../../components/ui/UiTableRow.vue'
 import { useDatabaseGrantsStore } from '../../stores/databaseGrants'
 import type { RepairedGrant } from '../../types/grantRepair'
 
@@ -138,15 +150,15 @@ onMounted(() => {
 </script>
 
 <template>
-  <section class="w-full max-w-3xl">
+  <section class="flex w-full flex-col gap-4">
     <UiPageHeading
-      class="mb-4"
+      :eyebrow="t('databases.list.heading')"
       :title="t('databases.grantRepair.heading')"
       :subtitle="t('databases.grantRepair.subtitle')"
       :note="t('databases.grantRepair.adminNote')"
     />
 
-    <UiAlert v-if="store.errorMessage !== null" variant="error" class="mb-4">
+    <UiAlert v-if="store.errorMessage !== null" variant="error">
       {{ store.errorMessage }}
     </UiAlert>
 
@@ -164,9 +176,11 @@ onMounted(() => {
     </UiEmptyState>
 
     <template v-else-if="store.report !== null">
-      <UiCard class="mb-4">
-        <div class="mb-3 flex items-center gap-2">
-          <UiSectionHeading :title="t('databases.grantRepair.census.heading')" />
+      <UiCard>
+        <UiSectionHeading :title="t('databases.grantRepair.census.heading')" />
+        <!-- The pass is named in a badge under the title rather than beside it: the badge text is
+             long in russian and armenian and a beside-the-title badge would squeeze the heading. -->
+        <div class="mt-3">
           <UiBadge :variant="store.report.isReportOnly ? 'info' : 'success'">
             {{
               store.report.isReportOnly
@@ -179,12 +193,16 @@ onMounted(() => {
              what makes this a census of the grant table rather than a list of what happened to be
              interesting. The two labels that change with the pass are the pair that must never be
              confused: "would be narrowed" and "narrowed" are an inspection and an action. -->
-        <UiDescriptionList>
-          <UiDescriptionItem :term="t('databases.grantRepair.census.examined')" mono>
-            {{ store.report.examinedGrants }}
+        <UiDescriptionList class="mt-5 lg:grid-cols-4">
+          <UiDescriptionItem :term="t('databases.grantRepair.census.examined')">
+            <span class="font-display text-3xl font-black tabular-nums">
+              {{ store.report.examinedGrants }}
+            </span>
           </UiDescriptionItem>
-          <UiDescriptionItem :term="t('databases.grantRepair.census.alreadyCorrect')" mono>
-            {{ store.report.alreadyCorrect }}
+          <UiDescriptionItem :term="t('databases.grantRepair.census.alreadyCorrect')">
+            <span class="font-display text-3xl font-black tabular-nums">
+              {{ store.report.alreadyCorrect }}
+            </span>
           </UiDescriptionItem>
           <UiDescriptionItem
             :term="
@@ -192,23 +210,25 @@ onMounted(() => {
                 ? t('databases.grantRepair.census.wouldRepair')
                 : t('databases.grantRepair.census.repaired')
             "
-            mono
           >
-            {{ changedRows.length }}
+            <span class="font-display text-3xl font-black tabular-nums">
+              {{ changedRows.length }}
+            </span>
           </UiDescriptionItem>
-          <UiDescriptionItem :term="t('databases.grantRepair.census.refused')" mono>
-            {{ store.report.refused.length }}
+          <UiDescriptionItem :term="t('databases.grantRepair.census.refused')">
+            <span class="font-display text-3xl font-black tabular-nums">
+              {{ store.report.refused.length }}
+            </span>
           </UiDescriptionItem>
         </UiDescriptionList>
 
-        <p class="mt-3 text-sm text-text-secondary">
+        <p class="mt-5 text-sm text-text-secondary">
           {{ t('databases.grantRepair.census.sumNote') }}
         </p>
       </UiCard>
 
-      <UiCard class="mb-4">
+      <UiCard>
         <UiSectionHeading
-          class="mb-3"
           :title="
             store.report.isReportOnly
               ? t('databases.grantRepair.changed.plannedHeading')
@@ -217,46 +237,58 @@ onMounted(() => {
           :subtitle="t('databases.grantRepair.changed.subtitle')"
         />
 
-        <UiEmptyState
-          v-if="nothingToRepair"
-          :title="t('databases.grantRepair.changed.emptyTitle')"
-          :description="t('databases.grantRepair.changed.emptyDescription')"
-        >
-          <template #icon><UiIcon name="check" aria-hidden="true" /></template>
-        </UiEmptyState>
+        <div v-if="nothingToRepair" class="mt-4 flex items-start gap-3">
+          <UiIcon name="check" aria-hidden="true" class="mt-0.5 shrink-0 text-text-muted" />
+          <div class="min-w-0">
+            <p class="text-sm font-semibold text-text-primary">
+              {{ t('databases.grantRepair.changed.emptyTitle') }}
+            </p>
+            <p class="mt-1 text-sm text-text-secondary">
+              {{ t('databases.grantRepair.changed.emptyDescription') }}
+            </p>
+          </div>
+        </div>
 
-        <div
-          v-for="row in changedRows"
+        <!-- Both branches of the exposure column are sentences, and the empty one is the branch that
+             matters: an empty list is NOT an all-clear. A matching database may have been created
+             and dropped while the row stood, and the pattern was matched when a client connected
+             rather than when the agent looked. -->
+        <UiTable
           v-else
-          :key="`${row.databaseName}/${row.dbUsername}`"
-          class="mb-4 last:mb-0"
+          class="mt-3"
+          :caption="
+            store.report.isReportOnly
+              ? t('databases.grantRepair.changed.plannedHeading')
+              : t('databases.grantRepair.changed.doneHeading')
+          "
         >
-          <UiDescriptionList>
-            <UiDescriptionItem :term="t('databases.grantRepair.changed.database')" mono>
-              {{ row.databaseName }}
-            </UiDescriptionItem>
-            <UiDescriptionItem :term="t('databases.grantRepair.changed.user')" mono>
-              {{ row.dbUsername }}
-            </UiDescriptionItem>
-            <!-- Both branches of the exposure list are sentences, and the empty one is the branch
-                 that matters: an empty list is NOT an all-clear. A matching database may have been
-                 created and dropped while the row stood, and the pattern was matched when a client
-                 connected rather than when the agent looked. -->
-            <UiDescriptionItem :term="t('databases.grantRepair.changed.alsoMatched')">
-              <template v-if="row.alsoMatchedDatabases.length > 0">
-                <span class="font-mono">{{ row.alsoMatchedDatabases.join(', ') }}</span>
-              </template>
+          <template #head>
+            <UiTableRow>
+              <UiTableHeaderCell>{{ t('databases.grantRepair.changed.database') }}</UiTableHeaderCell>
+              <UiTableHeaderCell>{{ t('databases.grantRepair.changed.user') }}</UiTableHeaderCell>
+              <UiTableHeaderCell>
+                {{ t('databases.grantRepair.changed.alsoMatched') }}
+              </UiTableHeaderCell>
+            </UiTableRow>
+          </template>
+          <UiTableRow v-for="row in changedRows" :key="`${row.databaseName}/${row.dbUsername}`">
+            <UiTableCell mono class="whitespace-nowrap">{{ row.databaseName }}</UiTableCell>
+            <UiTableCell mono class="whitespace-nowrap">{{ row.dbUsername }}</UiTableCell>
+            <UiTableCell>
+              <span v-if="row.alsoMatchedDatabases.length > 0" class="font-mono">
+                {{ row.alsoMatchedDatabases.join(', ') }}
+              </span>
               <span v-else class="text-text-secondary">
                 {{ t('databases.grantRepair.changed.alsoMatchedNone') }}
               </span>
-            </UiDescriptionItem>
-          </UiDescriptionList>
-        </div>
+            </UiTableCell>
+          </UiTableRow>
+        </UiTable>
 
         <!-- The paragraph the threat note exists to put on a screen. It is rendered whether the pass
              inspected or acted, and it is the only thing this page says about consequences: a repair
              closes the reach going forward and establishes nothing about whether it was used. -->
-        <p class="mt-3 text-sm text-text-secondary">
+        <p class="mt-4 text-sm text-text-secondary">
           {{ t('databases.grantRepair.changed.exposureNote') }}
         </p>
         <p class="mt-2 text-sm text-text-secondary">
@@ -264,60 +296,66 @@ onMounted(() => {
         </p>
       </UiCard>
 
-      <UiCard class="mb-4">
+      <UiCard>
         <UiSectionHeading
-          class="mb-3"
           :title="t('databases.grantRepair.refused.heading')"
           :subtitle="t('databases.grantRepair.refused.subtitle')"
         />
 
-        <UiEmptyState
-          v-if="store.report.refused.length === 0"
-          :title="t('databases.grantRepair.refused.emptyTitle')"
-          :description="t('databases.grantRepair.refused.emptyDescription')"
-        >
-          <template #icon><UiIcon name="check" aria-hidden="true" /></template>
-        </UiEmptyState>
-
-        <div
-          v-for="row in store.report.refused"
-          v-else
-          :key="`${row.grantHost}/${row.databaseName}/${row.dbUsername}`"
-          class="mb-4 last:mb-0"
-        >
-          <div class="mb-2 flex items-center gap-2">
-            <!-- The backend's own sentence. The machine reason is shown beside it, never instead of
-                 it: an operator quoting a support ticket needs one spelling that does not change
-                 with their language, and rules/vue.md forbids the machine word standing alone. -->
-            <span class="text-sm font-semibold text-text-primary">{{ row.reasonDisplayName }}</span>
-            <UiBadge variant="warning">{{ row.reason }}</UiBadge>
+        <div v-if="store.report.refused.length === 0" class="mt-4 flex items-start gap-3">
+          <UiIcon name="check" aria-hidden="true" class="mt-0.5 shrink-0 text-text-muted" />
+          <div class="min-w-0">
+            <p class="text-sm font-semibold text-text-primary">
+              {{ t('databases.grantRepair.refused.emptyTitle') }}
+            </p>
+            <p class="mt-1 text-sm text-text-secondary">
+              {{ t('databases.grantRepair.refused.emptyDescription') }}
+            </p>
           </div>
-          <UiDescriptionList>
-            <UiDescriptionItem :term="t('databases.grantRepair.refused.grantHost')" mono>
-              {{ row.grantHost }}
-            </UiDescriptionItem>
-            <UiDescriptionItem :term="t('databases.grantRepair.refused.storedName')" mono>
-              {{ row.databaseName }}
-            </UiDescriptionItem>
-            <UiDescriptionItem :term="t('databases.grantRepair.refused.user')" mono>
-              {{ row.dbUsername }}
-            </UiDescriptionItem>
-          </UiDescriptionList>
-          <p class="mt-2 text-sm text-text-secondary">{{ row.reasonAdvice }}</p>
         </div>
 
-        <p class="mt-3 text-sm text-text-secondary">
+        <ul v-else class="mt-4 flex flex-col gap-3">
+          <li
+            v-for="row in store.report.refused"
+            :key="`${row.grantHost}/${row.databaseName}/${row.dbUsername}`"
+            class="rounded-control border border-border-subtle bg-surface-2 p-4"
+          >
+            <div class="flex flex-wrap items-center gap-2">
+              <!-- The backend's own sentence. The machine reason is shown beside it, never instead
+                   of it: an operator quoting a support ticket needs one spelling that does not
+                   change with their language, and rules/vue.md forbids the machine word standing
+                   alone. -->
+              <span class="min-w-0 text-sm font-semibold text-text-primary wrap-anywhere">
+                {{ row.reasonDisplayName }}
+              </span>
+              <UiBadge variant="warning">{{ row.reason }}</UiBadge>
+            </div>
+            <UiDescriptionList class="mt-4 lg:grid-cols-3">
+              <UiDescriptionItem :term="t('databases.grantRepair.refused.grantHost')" mono>
+                {{ row.grantHost }}
+              </UiDescriptionItem>
+              <UiDescriptionItem :term="t('databases.grantRepair.refused.storedName')" mono>
+                {{ row.databaseName }}
+              </UiDescriptionItem>
+              <UiDescriptionItem :term="t('databases.grantRepair.refused.user')" mono>
+                {{ row.dbUsername }}
+              </UiDescriptionItem>
+            </UiDescriptionList>
+            <p class="mt-4 text-sm text-text-secondary wrap-anywhere">{{ row.reasonAdvice }}</p>
+          </li>
+        </ul>
+
+        <p class="mt-4 text-sm text-text-secondary">
           {{ t('databases.grantRepair.refused.notYoursNote') }}
         </p>
       </UiCard>
 
       <UiCard>
         <UiSectionHeading
-          class="mb-3"
           :title="t('databases.grantRepair.action.heading')"
           :subtitle="t('databases.grantRepair.action.subtitle')"
         />
-        <div class="flex flex-wrap items-center gap-3">
+        <div class="mt-4 flex flex-wrap items-center gap-3">
           <UiButton variant="secondary" :disabled="store.loading" @click="refresh">
             {{ t('databases.grantRepair.action.refresh') }}
           </UiButton>
@@ -345,9 +383,7 @@ onMounted(() => {
     <UiConfirm
       :open="pending"
       :title="t('databases.grantRepair.confirm.title')"
-      :question="
-        t('databases.grantRepair.confirm.question', { grants: grantCountPhrase })
-      "
+      :question="t('databases.grantRepair.confirm.question', { grants: grantCountPhrase })"
       :confirm-label="t('databases.grantRepair.confirm.confirm')"
       :cancel-label="t('databases.grantRepair.confirm.cancel')"
       :close-label="t('databases.grantRepair.confirm.close')"

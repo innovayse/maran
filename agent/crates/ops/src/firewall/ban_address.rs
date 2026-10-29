@@ -2,6 +2,7 @@
 
 use std::time::Duration;
 
+use maran_agent_core::utils::call_class::CallClass;
 use maran_agent_core::validation::web::ban_address::BanAddress;
 use maran_distro::DistroAdapter;
 
@@ -11,6 +12,7 @@ use crate::firewall::ensure_bans_table::{
 use crate::firewall::firewall_error::FirewallError;
 use crate::firewall::firewall_host::FirewallHost;
 use crate::firewall::firewall_lock::firewall_lock;
+use maran_agent_core::end_of_options::END_OF_OPTIONS;
 
 /// `nft`'s verb for putting something into a set.
 const ADD: &str = "add";
@@ -98,6 +100,8 @@ const TIMEOUT: &str = "timeout";
 ///   [`FirewallError::StagingFailed`] when the bans table had to be loaded
 ///   and could not be — see
 ///   [`ensure_bans_table`](super::ensure_bans_table::ensure_bans_table).
+/// - [`FirewallError::Bound`] when `nft` was killed at its deadline. The ban
+///   may or may not be in force; adding it again is safe.
 pub fn ban_address(
     host: &dyn FirewallHost,
     distro: &dyn DistroAdapter,
@@ -123,6 +127,7 @@ pub fn ban_address(
         .map(|duration| format!("{}s", duration.as_secs()));
 
     let mut arguments = vec![
+        END_OF_OPTIONS,
         ADD,
         ELEMENT,
         TABLE_FAMILY,
@@ -137,7 +142,7 @@ pub fn ban_address(
     }
     arguments.push(CLOSE_BRACE);
 
-    let added = host.run(distro.nft_binary(), &arguments)?;
+    let added = host.run(&distro.nft_binary(), &arguments, CallClass::Mutation)?;
     if added.status != 0 {
         return Err(FirewallError::NftFailed {
             stderr: added.stderr,

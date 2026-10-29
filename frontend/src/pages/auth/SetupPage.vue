@@ -16,13 +16,20 @@
  *
  * The strength meter is advice. The server's validator is the authority, and a
  * disagreement between them is a bug in this page, never a reason to submit.
+ *
+ * The auth layout owns the mark and the wordmark and gives its pages no `h1`, so the title block
+ * ({@link UiAuthHeading}, an `h2`) is the screen's title.
+ * The strength note is a polite live region WITHOUT `role="status"`: the token notice is found
+ * by that role, and a second status on the screen would make it ambiguous.
  */
 import { computed, onMounted, ref, type ComputedRef, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import UiAlert from '../../components/ui/UiAlert.vue'
+import UiAuthHeading from '../../components/ui/UiAuthHeading.vue'
 import UiButton from '../../components/ui/UiButton.vue'
 import UiForm from '../../components/ui/UiForm.vue'
+import UiIcon from '../../components/ui/UiIcon.vue'
 import UiInput from '../../components/ui/UiInput.vue'
 import UiPasswordInput from '../../components/ui/UiPasswordInput.vue'
 import { useAuthStore } from '../../stores/auth'
@@ -61,19 +68,43 @@ const isLongEnough: ComputedRef<boolean> = computed(() => {
   return password.value.length >= MIN_PASSWORD_LENGTH
 })
 
-/** The advisory strength label shown under the password field. */
-const strengthLabel: ComputedRef<string> = computed(() => {
+/** How strong the password reads, which only picks the label and its colour. */
+const strength: ComputedRef<'none' | 'weak' | 'fair' | 'strong'> = computed(() => {
   if (password.value.length === 0) {
-    return ''
+    return 'none'
   }
 
   if (!isLongEnough.value) {
-    return t('app.auth.passwordStrengthWeak')
+    return 'weak'
   }
 
-  return password.value.length >= 20
-    ? t('app.auth.passwordStrengthStrong')
-    : t('app.auth.passwordStrengthFair')
+  return password.value.length >= 20 ? 'strong' : 'fair'
+})
+
+/** Text colour of the strength note: amber while short, green once strong, quiet in between. */
+const strengthClasses: ComputedRef<string> = computed(() => {
+  switch (strength.value) {
+    case 'weak':
+      return 'text-warning'
+    case 'strong':
+      return 'text-success'
+    default:
+      return 'text-text-secondary'
+  }
+})
+
+/** The advisory strength label shown under the password field. */
+const strengthLabel: ComputedRef<string> = computed(() => {
+  switch (strength.value) {
+    case 'weak':
+      return t('app.auth.passwordStrengthWeak')
+    case 'fair':
+      return t('app.auth.passwordStrengthFair')
+    case 'strong':
+      return t('app.auth.passwordStrengthStrong')
+    default:
+      return ''
+  }
 })
 
 /** The mismatch message shown under the confirmation field, or null while it matches. */
@@ -110,9 +141,8 @@ onMounted(() => {
   // Read to decide what to SAY, never to fill the field in. A repeated key arrives as an
   // array, which is still a token in the address, so the notice covers that shape too.
   const inTheAddress = route.query.token
-  arrivedWithATokenInTheAddress.value = typeof inTheAddress === 'string'
-    ? inTheAddress.length > 0
-    : Array.isArray(inTheAddress)
+  arrivedWithATokenInTheAddress.value =
+    typeof inTheAddress === 'string' ? inTheAddress.length > 0 : Array.isArray(inTheAddress)
 
   if (arrivedWithATokenInTheAddress.value) {
     // The history entry is already written and nothing here can unwrite it. Clearing the
@@ -125,65 +155,80 @@ onMounted(() => {
 
 <template>
   <UiForm @submit="submit">
-    <h2 class="text-xl font-semibold">{{ t('app.auth.setupTitle') }}</h2>
-    <p class="mb-4 text-base text-text-secondary">{{ t('app.auth.setupSubtitle') }}</p>
+    <UiAuthHeading class="mb-6" :title="t('app.auth.setupTitle')" :subtitle="t('app.auth.setupSubtitle')" />
 
-    <UiAlert v-if="arrivedWithATokenInTheAddress" class="mb-4">
+    <!-- Tells a visitor with an old bookmark why the token field is empty; the value was dropped. -->
+    <UiAlert v-if="arrivedWithATokenInTheAddress" class="mb-5">
       {{ t('app.auth.setupTokenNotInTheLink') }}
     </UiAlert>
 
-    <UiAlert v-if="authStore.errorMessage !== null" variant="error" class="mb-4">
+    <!-- The server's own wording, verbatim: it names the rule a password broke. -->
+    <UiAlert v-if="authStore.errorMessage !== null" variant="error" class="mb-5">
       {{ authStore.errorMessage }}
     </UiAlert>
 
-    <div class="flex flex-col gap-3">
+    <div class="flex flex-col gap-5">
       <UiInput
         v-model="token"
         :label="t('app.auth.setupTokenLabel')"
+        icon="keyRound"
         :placeholder="t('app.auth.setupTokenPlaceholder')"
         required
       />
 
-      <UiInput
-        v-model="username"
-        :label="t('app.auth.usernameLabel')"
-        :placeholder="t('app.auth.usernamePlaceholder')"
-        required
-        autocomplete="username"
-      />
-
-      <UiInput
-        v-model="email"
-        type="email"
-        :label="t('app.auth.emailLabel')"
-        :placeholder="t('app.auth.emailPlaceholder')"
-        required
-        autocomplete="email"
-      />
-
-      <div class="flex flex-col gap-1">
-        <UiPasswordInput
-          v-model="password"
-            :label="t('app.auth.passwordLabel')"
-          :placeholder="t('app.auth.passwordPlaceholder')"
+      <!-- The one-time token proves the operator holds the installer's output; everything below
+           it describes the administrator being created. -->
+      <div class="flex flex-col gap-5 border-t border-border-subtle pt-5">
+        <UiInput
+          v-model="username"
+          :label="t('app.auth.usernameLabel')"
+          icon="user"
+          :placeholder="t('app.auth.usernamePlaceholder')"
           required
-          generate
+          autocomplete="username"
+        />
+
+        <UiInput
+          v-model="email"
+          type="email"
+          :label="t('app.auth.emailLabel')"
+          icon="mail"
+          :placeholder="t('app.auth.emailPlaceholder')"
+          required
+          autocomplete="email"
+        />
+
+        <div class="flex flex-col gap-2">
+          <UiPasswordInput
+            v-model="password"
+            :label="t('app.auth.passwordLabel')"
+            icon="lock"
+            :placeholder="t('app.auth.passwordPlaceholder')"
+            required
+            generate
+            autocomplete="new-password"
+          />
+          <p v-if="strengthLabel !== ''" class="text-sm" :class="strengthClasses" aria-live="polite">
+            {{ strengthLabel }}
+          </p>
+        </div>
+
+        <UiPasswordInput
+          v-model="confirmation"
+          :label="t('app.auth.confirmPasswordLabel')"
+          icon="lock"
+          :placeholder="t('app.auth.passwordPlaceholder')"
+          :error="confirmationError"
+          required
           autocomplete="new-password"
         />
-        <p v-if="strengthLabel !== ''" class="text-sm text-text-muted">{{ strengthLabel }}</p>
       </div>
 
-      <UiPasswordInput
-        v-model="confirmation"
-        :label="t('app.auth.confirmPasswordLabel')"
-        :placeholder="t('app.auth.passwordPlaceholder')"
-        :error="confirmationError"
-        required
-        autocomplete="new-password"
-      />
-
-      <UiButton class="mt-1 w-full justify-center" type="submit" :disabled="authStore.loading">
+      <!-- The one primary pill on the screen, full width with the arrow after the text. The arrow
+           is decorative; the text is the name. -->
+      <UiButton class="w-full" type="submit" :disabled="authStore.loading">
         {{ authStore.loading ? t('app.auth.creating') : t('app.auth.createAdministrator') }}
+        <UiIcon name="arrowRight" size="sm" />
       </UiButton>
     </div>
   </UiForm>

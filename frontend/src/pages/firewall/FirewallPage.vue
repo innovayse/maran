@@ -18,6 +18,7 @@
 import { computed, onMounted, ref, useTemplateRef, type ComputedRef, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import UiAlert from '../../components/ui/UiAlert.vue'
+import UiCard from '../../components/ui/UiCard.vue'
 import UiEmptyState from '../../components/ui/UiEmptyState.vue'
 import UiIcon from '../../components/ui/UiIcon.vue'
 import UiPageHeading from '../../components/ui/UiPageHeading.vue'
@@ -256,8 +257,13 @@ onMounted(refresh)
 </script>
 
 <template>
-  <section class="w-full">
-    <UiPageHeading class="mb-4" :title="t('firewall.heading')" :subtitle="t('firewall.subtitle')" :note="t('firewall.sshNote')" />
+  <section class="flex w-full min-w-0 flex-col gap-4">
+    <UiPageHeading
+      :eyebrow="t('firewall.eyebrow')"
+      :title="t('firewall.heading')"
+      :subtitle="t('firewall.subtitle')"
+      :note="t('firewall.sshNote')"
+    />
 
     <UiSpinner v-if="store.loading" :label="t('firewall.loading')" />
 
@@ -266,89 +272,88 @@ onMounted(refresh)
     </UiAlert>
 
     <template v-else>
-      <UiSectionHeading class="mb-3" :title="t('firewall.rules.heading')" />
-
-      <UiAlert v-if="store.ruleErrorMessage !== null" variant="error" class="mb-4">
-        {{ store.ruleErrorMessage }}
-      </UiAlert>
-
       <FirewallPresetButtons
-        class="mb-4"
         :rules="store.rules"
         :busy="store.acting"
         @allow="submitPreset"
         @deny="requestDeny"
       />
 
-      <FirewallRuleForm ref="ruleForm" class="mb-4" :submitting="store.acting" @submit="submitRule" />
+      <UiCard class="flex flex-col gap-4">
+        <UiSectionHeading :title="t('firewall.rules.heading')" />
 
-      <UiEmptyState
-        v-if="hasNoRules"
-        :title="t('firewall.rules.emptyTitle')"
-        :description="t('firewall.rules.emptyDescription')"
-      >
-        <template #icon><UiIcon name="brickWall" size="lg" /></template>
-      </UiEmptyState>
+        <UiAlert v-if="store.ruleErrorMessage !== null" variant="error">
+          {{ store.ruleErrorMessage }}
+        </UiAlert>
 
-      <FirewallRulesTable
-        v-else
-        :rules="store.rules"
-        :busy="store.acting"
-        @remove="removeRule"
-      />
+        <FirewallRuleForm ref="ruleForm" :submitting="store.acting" @submit="submitRule" />
 
-      <UiSectionHeading
-        class="mt-8 mb-3"
-        :title="t('firewall.bans.heading')"
-        :subtitle="t('firewall.bans.subtitle')"
-      />
+        <UiEmptyState
+          v-if="hasNoRules"
+          :title="t('firewall.rules.emptyTitle')"
+          :description="t('firewall.rules.emptyDescription')"
+        >
+          <template #icon><UiIcon name="brickWall" size="lg" /></template>
+        </UiEmptyState>
 
-      <UiAlert v-if="store.banErrorMessage !== null" variant="error" class="mb-4">
-        {{ store.banErrorMessage }}
-      </UiAlert>
+        <FirewallRulesTable v-else :rules="store.rules" :busy="store.acting" @remove="removeRule" />
+      </UiCard>
 
-      <FirewallBanForm ref="banForm" class="mb-4" :submitting="store.acting" @submit="placeBan" />
+      <UiCard class="flex flex-col gap-4">
+        <UiSectionHeading
+          :title="t('firewall.bans.heading')"
+          :subtitle="t('firewall.bans.subtitle')"
+        />
 
-      <UiEmptyState
-        v-if="store.bans.length === 0"
-        :title="t('firewall.bans.emptyTitle')"
-        :description="t('firewall.bans.emptyDescription')"
-      />
+        <UiAlert v-if="store.banErrorMessage !== null" variant="error">
+          {{ store.banErrorMessage }}
+        </UiAlert>
 
-      <FirewallBansTable v-else :bans="store.bans" :busy="store.acting" @unban="liftBan" />
+        <FirewallBanForm ref="banForm" :submitting="store.acting" @submit="placeBan" />
 
-      <UiSectionHeading
-        class="mt-8 mb-1"
-        :title="t('firewall.whitelist.heading')"
-        :subtitle="t('firewall.whitelist.subtitle')"
-      />
-      <!-- The seeded row is not marked as one on the wire, so the screen says what to look for
-           rather than deciding for itself which row the installer left behind. -->
-      <p class="mb-2.5 max-w-[70ch] text-sm text-text-muted">{{ t('firewall.whitelist.seedNote') }}</p>
+        <UiEmptyState
+          v-if="store.bans.length === 0"
+          :title="t('firewall.bans.emptyTitle')"
+          :description="t('firewall.bans.emptyDescription')"
+        />
 
-      <UiAlert v-if="store.whitelistErrorMessage !== null" variant="error" class="mb-4">
-        {{ store.whitelistErrorMessage }}
-      </UiAlert>
+        <FirewallBansTable v-else :bans="store.bans" :busy="store.acting" @unban="liftBan" />
+      </UiCard>
 
-      <FirewallWhitelistForm
-        ref="whitelistForm"
-        class="mb-4"
-        :submitting="store.acting"
-        @submit="addExemption"
-      />
+      <UiCard class="flex flex-col gap-4">
+        <UiSectionHeading
+          :title="t('firewall.whitelist.heading')"
+          :subtitle="t('firewall.whitelist.subtitle')"
+        />
+        <!-- The seeded row is not marked as one on the wire, so the screen says what to look for
+             rather than deciding for itself which row the installer left behind. -->
+        <p class="max-w-prose text-sm text-text-muted wrap-anywhere">
+          {{ t('firewall.whitelist.seedNote') }}
+        </p>
 
-      <UiEmptyState
-        v-if="store.whitelist.length === 0"
-        :title="t('firewall.whitelist.emptyTitle')"
-        :description="t('firewall.whitelist.emptyDescription')"
-      />
+        <UiAlert v-if="store.whitelistErrorMessage !== null" variant="error">
+          {{ store.whitelistErrorMessage }}
+        </UiAlert>
 
-      <FirewallWhitelistTable
-        v-else
-        :entries="store.whitelist"
-        :busy="store.acting"
-        @remove="removeExemption"
-      />
+        <FirewallWhitelistForm
+          ref="whitelistForm"
+          :submitting="store.acting"
+          @submit="addExemption"
+        />
+
+        <UiEmptyState
+          v-if="store.whitelist.length === 0"
+          :title="t('firewall.whitelist.emptyTitle')"
+          :description="t('firewall.whitelist.emptyDescription')"
+        />
+
+        <FirewallWhitelistTable
+          v-else
+          :entries="store.whitelist"
+          :busy="store.acting"
+          @remove="removeExemption"
+        />
+      </UiCard>
     </template>
 
     <!-- `:open` is bound to a value that really changes, and the dialog is NOT wrapped in a `v-if`:

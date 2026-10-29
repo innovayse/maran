@@ -7,8 +7,14 @@ use maran_agent_core::validation::web::php_version::PhpVersion;
 /// A closed list and not a range check, because the two families' repositories
 /// package exactly these: Sury on Debian and Remi on RHEL (spec §4). A version
 /// outside it has no package name to derive, so it is refused by the agent
-/// rather than handed to a package manager to fail on — the caller does not
-/// get to choose what the agent installs (rules/security.md item 12).
+/// rather than handed to the install unit — the caller does not get to choose
+/// what the agent installs (rules/security.md item 12).
+///
+/// This is where the closed set is ENFORCED, and the only place: the install
+/// unit installs whatever package its instance names, and a package manager
+/// treats a name nothing has exactly as a pattern (`.` in `php8.3` matches any
+/// character), so the six strings are not a guarantee about what gets
+/// installed, only about what this agent asks for.
 ///
 /// Ordered oldest first so `list_php_versions` can reverse it to report newest
 /// first without sorting version strings, which compare wrongly as text:

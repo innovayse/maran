@@ -1,4 +1,11 @@
 using System.Net;
+using System.Text.Json;
+using Maran.Agent.Client.Interfaces;
+using Maran.Agent.Client.Services.SystemService;
+using Maran.Host.HealthChecks;
+using Maran.SharedKernel.Results;
+using Microsoft.AspNetCore.TestHost;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Maran.Host.Tests.HealthChecks;
 
@@ -50,7 +57,48 @@ public sealed class HealthEndpointTests : IClassFixture<PanelTestFactory>
 
         var response = await client.GetAsync("/health/ready");
 
-        using var body = System.Text.Json.JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
         Assert.Equal("unavailable", body.RootElement.GetProperty("agent").GetString());
+    }
+
+    /// <summary>An agent whose contract revision the window refused is reported incompatible on the summary.</summary>
+    [Fact]
+    public async Task The_health_summary_reports_an_incompatible_agent()
+    {
+        var refused = new StubAgentSystemClient(
+            Result<AgentInfoDto>.Fail(Error.Of(AgentProtoVersionWindow.IncompatibleCode, ErrorType.Unavailable)));
+
+        var status = await AgentStatusAsync(refused);
+
+        Assert.Equal(AgentHealthProbe.Incompatible, status);
+    }
+
+    /// <summary>An agent inside the window is reported connected on the summary (inverse control).</summary>
+    [Fact]
+    public async Task The_health_summary_reports_a_compatible_agent_as_connected()
+    {
+        var status = await AgentStatusAsync(new RecordingAgentSystemClient());
+
+        Assert.Equal(AgentHealthProbe.Connected, status);
+    }
+
+    /// <summary>Reads the agent word of the <c>/health</c> summary from a host whose agent client is the given stand-in.</summary>
+    /// <param name="agent">The client standing in for the agent.</param>
+    /// <returns>The agent's reported status.</returns>
+    private async Task<string?> AgentStatusAsync(IAgentSystemClient agent)
+    {
+        using var factory = _factory.WithWebHostBuilder(builder =>
+        {
+            builder.ConfigureTestServices(services =>
+            {
+                services.AddSingleton(agent);
+            });
+        });
+        using var client = factory.CreateClient();
+
+        var response = await client.GetAsync("/health");
+
+        using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        return body.RootElement.GetProperty("agent").GetString();
     }
 }

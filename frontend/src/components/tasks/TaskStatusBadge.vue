@@ -4,9 +4,12 @@
  *
  * The three are the module's whole `PanelTaskStatus` enum, and the mapping onto the kit's badge
  * tones is stated here once so a row, a live pane and anything added later cannot colour them
- * differently. The TEXT is this panel's own chrome and comes from the locale files — the status
- * arrives as a machine-stable name (`running`), not as a sentence, which is exactly why it may be
- * translated here without breaking the "the backend owns its text" rule.
+ * differently: running is the accent (work in flight is not a verdict), completed is green, failed
+ * is red. The tone is never the only carrier — the badge always prints the status as a word.
+ *
+ * The TEXT is this panel's own chrome and comes from the locale files — the status arrives as a
+ * machine-stable name (`running`), not as a sentence, which is exactly why it may be translated here
+ * without breaking the "the backend owns its text" rule.
  */
 import { computed, type ComputedRef } from 'vue'
 import { useI18n } from 'vue-i18n'

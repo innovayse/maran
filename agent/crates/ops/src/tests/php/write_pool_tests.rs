@@ -10,6 +10,7 @@
 use std::path::{Path, PathBuf};
 
 use maran_agent_core::agent_paths::AgentPaths;
+use maran_agent_core::utils::call_class::CallClass;
 use maran_agent_core::validation::system::name::AccountName;
 use maran_agent_core::validation::web::php_version::PhpVersion;
 
@@ -566,4 +567,53 @@ fn a_pool_write_that_fails_still_releases_the_accounts_lock() {
     // writer is the operation most likely to take it: `php-fpm -t` refuses
     // whenever anything else on the host is already broken.
     assert!(take_account_lock(&input.account).is_some());
+}
+
+#[test]
+fn a_pool_write_hands_the_protocol_a_short_class_validator_and_a_reload_ended_with_end_of_options()
+{
+    // `php-fpm -t` is a pure check, so it runs in the short class; the service manager
+    // reads the unit after `--`, so a unit name can never be read as an option.
+    let host = FakePhpHost::with_installed(&["8.3"]);
+
+    write_pool_under_lock(&host, distro(), &pool_input(Vec::new())).unwrap();
+
+    let version = PhpVersion::parse("8.3").unwrap();
+    assert_eq!(
+        host.protocol_commands(),
+        vec![
+            vec![
+                distro().php_fpm_binary(&version).to_string(),
+                "-t".to_owned()
+            ],
+            vec![
+                distro().service_manager().to_string(),
+                "reload".to_owned(),
+                "--".to_owned(),
+                distro().php_fpm_service("8.3"),
+            ],
+        ]
+    );
+    assert_eq!(host.protocol_classes(), vec![CallClass::Validate]);
+}
+
+#[test]
+fn a_pool_write_whose_validator_times_out_is_a_bound_and_still_releases_the_accounts_lock() {
+    // A killed `php-fpm -t` is not a verdict on the pool: it must come back as the
+    // bound, not as a validation refusal, and the account must not stay locked.
+    let host = FakePhpHost::with_installed(&["8.3"]);
+    host.time_out_protocol();
+    let input = pool_for("poolbound");
+
+    let outcome = write_pool(&host, distro(), &input);
+
+    assert!(
+        matches!(outcome, Err(PhpOpError::Bound(_))),
+        "expected Bound, got {outcome:?}"
+    );
+    assert!(take_account_lock(&input.account).is_some());
+    assert_eq!(
+        host.config(Path::new("/etc/php/8.3/fpm/pool.d/poolbound.conf")),
+        None
+    );
 }

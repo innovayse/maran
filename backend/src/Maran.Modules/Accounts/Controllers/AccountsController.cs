@@ -150,11 +150,9 @@ public sealed class AccountsController : BaseApiController
     /// <summary>
     /// Lists every plan an account can be created against — the reference data the account-creation
     /// form needs, so the caller never has to know or type a plan id (rules/architecture.md "The
-    /// backend owns the data, the SPA renders it"). Kept on this controller rather than a separate
-    /// <c>PlansController</c>: a plan has no lifecycle of its own in this pass (no create/update/
-    /// delete endpoint — plans are seeded reference data), it exists only to be selected while
-    /// creating an account, and every other list this module exposes lives beside the resource it
-    /// describes the same way.
+    /// backend owns the data, the SPA renders it"). Making, changing and retiring plans is
+    /// <see cref="PlansController"/>'s; this read stays here because the account-creation form is its
+    /// caller and already reaches for everything it needs under <c>/api/v1/accounts</c>.
     /// </summary>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpGet("plans")]

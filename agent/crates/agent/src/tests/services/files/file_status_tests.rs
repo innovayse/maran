@@ -68,3 +68,14 @@ fn no_file_failure_ever_carries_tool_output_because_no_operation_here_spawns_a_t
             .is_empty()
     );
 }
+
+/// `files` spawns no program, so it has no bound to map; a stray arm for one
+/// would be noticed here.
+#[test]
+fn the_files_mapping_names_no_bound_variant() {
+    const SOURCE: &str = include_str!("../../../services/files/file_status.rs");
+
+    // Positive control: the scan reads the real file.
+    assert!(SOURCE.contains("FilesOpError"));
+    assert!(!SOURCE.contains("Bound("));
+}

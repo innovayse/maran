@@ -13,6 +13,7 @@
 //! a process that has dropped to that account (rules/security.md).
 
 mod create_site;
+mod create_vhost;
 // The site tests' in-memory host and inputs, declared ONCE here rather than in
 // each `*_tests.rs`: a file loaded as a module twice is compiled twice, and
 // each copy's unused half is then dead code in the other's eyes. Private to
@@ -24,6 +25,7 @@ pub mod log_sink;
 // be able to start one by another route.
 mod disable_site;
 mod enable_site;
+mod ensure_traversable_directory;
 #[cfg(test)]
 #[path = "../tests/sites/fake_site_host.rs"]
 pub(crate) mod fake_site_host;
@@ -39,6 +41,7 @@ mod remove_vhost;
 // this area produces — a second rendering of a vhost is a second opinion about
 // what the site serves, and the halves drift on the one a browser reaches.
 pub(crate) mod remove_site_pool;
+pub(crate) mod render_legacy_suspended_vhost;
 pub(crate) mod render_suspended_vhost;
 pub(crate) mod render_vhost;
 pub(crate) mod resolved_site_paths;

@@ -1,7 +1,7 @@
 //! The check that a scheduled backup, run unattended, cannot perform for
 //! itself before it is already the operation that needed the answer.
 
-use maran_distro::DistroAdapter;
+use maran_distro::{AdapterBinary, DistroAdapter};
 
 use crate::backup::backup_error::BackupError;
 use crate::backup::executable_lookup::ExecutableLookup;
@@ -11,8 +11,8 @@ use crate::backup::executable_lookup::ExecutableLookup;
 ///
 /// # Why this exists, and where it does and does not run
 ///
-/// `tar_binary`, `gzip_binary` and `database_dump_binary` are `&'static str`
-/// literals measured once, on two polygon images, on one date (2026-09-05).
+/// `tar_binary`, `gzip_binary` and `database_dump_binary` are [`AdapterBinary`]
+/// values wrapping literals measured once, on two polygon images, on one date (2026-09-05).
 /// Nothing
 /// re-asks the question on a real, running host: a package removed, renamed,
 /// or a compatibility symlink an update drops changes nothing this agent has
@@ -53,17 +53,17 @@ pub fn verify_backup_binaries(
     distro: &dyn DistroAdapter,
     lookup: &dyn ExecutableLookup,
 ) -> Result<(), BackupError> {
-    let candidates: [(&'static str, &'static str); 3] = [
+    let candidates: [(&'static str, AdapterBinary); 3] = [
         ("tar", distro.tar_binary()),
         ("gzip", distro.gzip_binary()),
         ("database dump client", distro.database_dump_binary()),
     ];
 
     for (program, path) in candidates {
-        if !lookup.is_executable(path) {
+        if !lookup.is_executable(path.as_str()) {
             return Err(BackupError::BackupBinaryMissing {
                 program: program.to_string(),
-                path: path.to_string(),
+                path: path.as_str().to_owned(),
             });
         }
     }

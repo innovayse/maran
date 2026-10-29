@@ -145,3 +145,9 @@ Thumbs.db
 # an input to anything: scripts/lib/install-polygon.sh prints the path it wrote, and a reader opens
 # that file. Committing them would put a machine-specific transcript in the history of every fix.
 .polygon-logs/
+.taste-skill/
+# Local AI-assistant instructions and settings stay on the owner's machine and out of the
+# repository. git rm --cached was run on the root CLAUDE.md when this entry was added, so the file
+# remains on disk but is no longer tracked.
+/CLAUDE.md
+.claude/

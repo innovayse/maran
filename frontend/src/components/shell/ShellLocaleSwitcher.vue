@@ -1,8 +1,8 @@
 <script setup lang="ts">
 /**
- * The header's language picker.
+ * The app bar's language picker.
  *
- * Its own component rather than markup inside the header, because switching
+ * Its own component rather than markup inside the app bar, because switching
  * language here changes three things at once — the interface copy, the
  * `<html lang>` attribute and the `Accept-Language` header the panel sends —
  * and that knowledge belongs in one place. The locale store is the single
@@ -10,9 +10,21 @@
  *
  * A menu rather than a row of buttons: the list of languages will grow, and a
  * segmented control that grows stops being readable and starts eating the
- * header. The globe carries the meaning, so the trigger needs only the current
- * code beside it — and the trigger's accessible name says "language" out loud,
- * because "EN" on its own tells a screen-reader user nothing.
+ * bar. The globe carries the meaning, so the trigger needs only the current
+ * language beside it — and the trigger's accessible name says "language" out
+ * loud, because "English" on its own tells a screen-reader user nothing.
+ *
+ * **The language name is dropped below `lg`**, leaving the globe alone: at 390px the
+ * bar holds a menu button, the mark, search, theme and this, and a word here is the
+ * difference between all of them fitting and the row pushing the page sideways. It is also
+ * dropped when the app bar it sits in is narrower than 62rem, whatever the window: a large text
+ * size makes a wide window a narrow bar, and a window query cannot see that. With no container
+ * around it (the sign-in screen) only the window test applies. The accessible name does not
+ * change with the width.
+ *
+ * The trigger is the kit dropdown's own button, so its look comes in through the dropdown's
+ * `trigger-variant` and `trigger-size` props (a ghost `bar` button, the theme switch's twin)
+ * rather than through descendant selectors reaching into markup this component does not own.
  */
 import { computed, type ComputedRef } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -42,14 +54,18 @@ const select = (locale: AppLocale): void => {
 
 <template>
   <UiDropdown
-    class="shell-locale"
     align="end"
+    trigger-variant="ghost"
+    trigger-size="bar"
     :label="t(`app.locale.names.${localeStore.current}`)"
     :aria-label="t('app.locale.switcherLabel')"
     :chevron="false"
   >
     <template #leading>
-      <UiIcon name="globe" size="md" />
+      <UiIcon name="globe" size="lg" />
+    </template>
+    <template #trigger>
+      <span class="max-lg:hidden @max-[62rem]:hidden">{{ t(`app.locale.names.${localeStore.current}`) }}</span>
     </template>
 
     <UiDropdownItem
@@ -62,27 +78,3 @@ const select = (locale: AppLocale): void => {
     </UiDropdownItem>
   </UiDropdown>
 </template>
-
-<style scoped>
-/* The header's own control geometry, as the design draws its picker: 4px 8px on
-   a 6px radius, not the kit button's roomier default for a labelled action. */
-.shell-locale :deep(button) {
-  gap: 6px;
-  padding: 4px 8px;
-  border-radius: 6px;
-  font-size: var(--text-base);
-  font-weight: 400;
-  color: var(--t2);
-}
-
-.shell-locale :deep(button:focus-visible) {
-  border-color: var(--ac);
-}
-
-/* The kit's menu is 192px wide because most menus hold sentences; this one holds
-   three two-letter codes, so it sizes to its content instead. */
-.shell-locale :deep(ul) {
-  min-width: 0;
-  width: max-content;
-}
-</style>

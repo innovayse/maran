@@ -25,19 +25,90 @@ RuntimeDirectoryMode=0755
 Restart=on-failure
 RestartSec=2s
 
-# --- Hardening: weighed, and deliberately not prescribed ---------------------------
-# ProtectSystem=, ProtectHome=, PrivateTmp= and NoNewPrivileges= are NOT set here, and
-# the omission is a decision rather than an oversight — see
-# docs/superpowers/notes/2026-09-09-ftps-threat-note.md, "systemd hardening directives".
-# Most of them contradict what this daemon does by design: it chroots into
-# /var/lib/maran-ftps/<account> whose `home` is a bind mount of the customer's real home
-# (ProtectHome=yes would remove the only thing the daemon exists to serve), and it forks
-# children that change uid to the account (NoNewPrivileges=true breaks setuid and the
-# pam_unix helper). A unit that LOOKS hardened while contradicting its daemon is worse
-# than one that states the weighing: the first stops the next reader looking.
+# --- Hardening ----------------------------------------------------------------------
+# This daemon is the most exposed root process the product installs: it listens on the
+# internet and authenticates tenants through PAM. Every directive below removes something
+# vsftpd has no use for, so a tenant who finds a bug in a post-login process has less to
+# aim it at. The plan, the reason each one is expected to hold, and the measured outcome of
+# each, once measured (none is yet), are in docs/superpowers/notes/2026-09-09-ftps-threat-note.md, "Amendment,
+# 2026-10-26: hardening maran-ftps.service one directive at a time (issue #92)".
 #
-# RuntimeDirectory= above is the one containment property that is real here, and it is
-# kept for the reason written beside it rather than for the look of the list.
+# The procedure for every directive in this block is one real FTPS session (TLS forced,
+# login, upload, list, SITE CHMOD, logout) against a daemon running under the unit, on
+# Ubuntu 24.04 and AlmaLinux 9. A directive the measurement rejects is deleted from here and
+# named in the note with the failure observed. This wording is the procedure, not a result:
+# which directives have been measured is recorded in the note's measured-outcomes table, and
+# a directive without a recorded outcome there is an expectation. The other supported
+# systems, aarch64 and SELinux in enforcing mode are unmeasured; the note names that gap.
+# The order below is the note's order.
+
+# 1-6. Kernel and host surfaces the daemon never touches: no /proc/sys or /sys writes, no
+# module loading, no kernel log, no cgroup writes, no clock, no hostname. Each protects
+# the host from a compromised vsftpd process. Rows 1-4 and 13 work through mounts, so the
+# unit is expected to get its own mount namespace; jail mounts the agent makes after the
+# daemon started are expected to propagate into it, and the note's measurement checks that.
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+
+# 7-9. System-call surface the daemon never uses: a non-native ABI, a changed execution
+# domain, realtime scheduling. They shrink what a post-login process can aim a kernel bug at.
+SystemCallArchitectures=native
+LockPersonality=yes
+RestrictRealtime=yes
+
+# 10. No memory that is writable and executable at once, so injected code cannot be run
+# from the heap. vsftpd, PAM and OpenSSL generate no code at run time. This is the row most
+# likely to fail through a library, so the measurement watches the TLS handshake.
+MemoryDenyWriteExecute=yes
+
+# 11. A tenant cannot create a setuid or setgid file through this daemon. vsftpd already
+# masks every mode it sets to 0777, so the kernel is expected to agree with it; that is an
+# expectation until the row 11 probe confirms it.
+RestrictSUIDSGID=yes
+
+# 12. Only the socket families the daemon uses: IP for the control and data channels, unix
+# for the syslog socket and name lookups, netlink for libpam's audit socket.
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX AF_NETLINK
+
+# 13. A private /dev with only API pseudo-devices, and no CAP_MKNOD or CAP_SYS_RAWIO.
+# Whether PAM still reaches the syslog socket is read from the journal, not from the login,
+# because a PAM that cannot log still authenticates.
+PrivateDevices=yes
+
+# 14. The capability bounding set, enumerated rather than the unrestricted root set, which
+# includes CAP_SYS_MODULE, CAP_SYS_PTRACE and CAP_SYS_BOOT. This is the starting set; a
+# member leaves it only on a measurement recorded in the note, never on an expectation.
+#   CAP_NET_BIND_SERVICE   bind port 21
+#   CAP_SYS_CHROOT         the pre-login child and every session chroot
+#   CAP_SETUID CAP_SETGID  every privilege drop, and initgroups for the account
+#   CAP_DAC_OVERRIDE       the privileged parent reads /etc/shadow through pam_unix; a
+#   CAP_DAC_READ_SEARCH    stock RHEL-family host ships it at 0000 and either one alone
+#                          reads it, so the pair is measured together
+#   CAP_CHOWN CAP_FOWNER   not known to be needed; kept until measured removable
+#   CAP_AUDIT_WRITE        libpam's audit records
+#   CAP_SYS_ADMIN          vsftpd's isolate and isolate_network clone new PID, IPC and
+#                          network namespaces per session. If it is missing vsftpd falls
+#                          back to a plain fork without a message, so this member is judged
+#                          by the session processes' namespaces, not by the login.
+CapabilityBoundingSet=CAP_NET_BIND_SERVICE CAP_SYS_CHROOT CAP_SETUID CAP_SETGID CAP_CHOWN \
+  CAP_DAC_OVERRIDE CAP_DAC_READ_SEARCH CAP_FOWNER CAP_AUDIT_WRITE CAP_SYS_ADMIN
+
+# --- Deliberately NOT set -------------------------------------------------------------
+# ProtectSystem=strict, ProtectHome=, PrivateTmp= and NoNewPrivileges= were weighed on
+# 2026-09-09 and stay off by the owner's scope for this change; their reasons are not
+# re-measured here, and the note says which of them are doubtful on mechanism.
+# RestrictNamespaces= stays off for a reason that is a finding, not a guess: on, it would
+# refuse the namespaces isolate and isolate_network create, and vsftpd would fall back to a
+# plain fork, so every login would still succeed with no session isolated and nothing
+# saying so. That is worse than a broken login.
+# See the note's "What stays off, and why" for each.
+#
+# RuntimeDirectory= above is the one containment property that predates this block, and
+# it is kept for the reason written beside it.
 
 [Install]
 WantedBy=multi-user.target

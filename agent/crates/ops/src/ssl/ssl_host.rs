@@ -3,6 +3,7 @@
 use std::path::Path;
 
 use maran_agent_core::command_outcome::CommandOutcome;
+use maran_distro::AdapterBinary;
 
 use crate::safe_write::model::{Reload, Validator};
 use crate::sites::{SiteCertificate, SiteHost};
@@ -30,6 +31,11 @@ pub trait SslHost: SiteHost {
     /// Runs `program` with `arguments`, feeding it the CERTIFICATE on standard
     /// input, and returns everything it said.
     ///
+    /// `program` is an [`AdapterBinary`], the type only the distro crate can
+    /// build. The call class is the implementation's: these are reads of
+    /// material, so the implementation runs them as a query, and on its deadline
+    /// the child and its whole process group are killed.
+    ///
     /// The full outcome — stderr included — is safe to expose here and is worth
     /// exposing: a certificate is public, handed to every visitor during the
     /// handshake, so openssl's complaint about one is exactly the evidence an
@@ -45,12 +51,13 @@ pub trait SslHost: SiteHost {
     /// # Errors
     ///
     /// Returns [`SslOpError::ToolUnavailable`] when the program cannot be
-    /// started or its input cannot be delivered. A non-zero exit is NOT an error
-    /// here — it is returned in the outcome, because each caller reads a refusal
-    /// differently.
+    /// started or its input cannot be delivered, and [`SslOpError::Bound`] when
+    /// it outran its deadline or its output ceiling. A non-zero exit is NOT an
+    /// error here — it is returned in the outcome, because each caller reads a
+    /// refusal differently.
     fn run_with_certificate(
         &self,
-        program: &str,
+        program: &AdapterBinary,
         arguments: &[&str],
         certificate_pem: &str,
     ) -> Result<CommandOutcome, SslOpError>;
@@ -73,10 +80,11 @@ pub trait SslHost: SiteHost {
     /// # Errors
     ///
     /// As [`Self::run_with_certificate`], and never with anything the tool
-    /// printed.
+    /// printed: [`SslOpError::Bound`] names the program and the bound, not a byte
+    /// of its output.
     fn run_with_private_key(
         &self,
-        program: &str,
+        program: &AdapterBinary,
         arguments: &[&str],
         private_key_pem: &str,
     ) -> Result<KeyToolOutcome, SslOpError>;
@@ -116,7 +124,9 @@ pub trait SslHost: SiteHost {
     /// # Errors
     ///
     /// Returns [`SslOpError::NginxValidation`] or [`SslOpError::ReloadFailed`]
-    /// with the previous material restored, and
+    /// with the previous material restored, [`SslOpError::Bound`] when the
+    /// validator or the reload outran its deadline (the previous material is
+    /// restored and the lock released by then), and
     /// [`SslOpError::MaterialWrite`] for every other failure of the protocol —
     /// never carrying the material itself.
     fn write_material(
@@ -190,11 +200,12 @@ pub trait SslHost: SiteHost {
     /// # Errors
     ///
     /// Returns [`SslOpError::ToolUnavailable`] when openssl cannot be run or
-    /// its output cannot be collected, and
+    /// its output cannot be collected, [`SslOpError::Bound`] when it outran its
+    /// deadline (the working directory is removed either way), and
     /// [`SslOpError::MalformedCertificate`] when it refuses the request.
     fn generate_material(
         &self,
-        program: &str,
+        program: &AdapterBinary,
         request: &SelfSignedRequest,
     ) -> Result<CertificateMaterial, SslOpError>;
 }

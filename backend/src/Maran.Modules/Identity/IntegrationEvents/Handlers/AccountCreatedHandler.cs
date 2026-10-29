@@ -50,6 +50,13 @@ namespace Maran.Modules.Identity.IntegrationEvents.Handlers;
 /// never returned, and never logged — <see cref="InvitationTokenHasher.Hash(string)"/> is stored in
 /// its place, and even that digest never reaches a log line.
 /// </para>
+/// <para>
+/// <b>That is why a panel that cannot send mail is not a dead end.</b> On an installation whose SMTP
+/// is not configured this mail is skipped, and this token is then unrecoverable by design: nothing
+/// stores it. The way back in is not to keep a copy but to replace it — the administrator creates a
+/// fresh one-time link from the account's page (<c>IssueInvitationLinkCommandHandler</c>), which
+/// retires this token and hands the new plaintext over once.
+/// </para>
 /// </remarks>
 public sealed class AccountCreatedHandler
 {

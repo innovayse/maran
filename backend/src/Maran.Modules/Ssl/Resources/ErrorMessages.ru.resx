@@ -57,4 +57,7 @@
   <data name="AcmeChallengeTokenInvalid">
     <value>Центр сертификации прислал проверочный токен, который сервер не принимает.</value>
   </data>
+  <data name="CertificateDomainReserved">
+    <value>Для этого имени нельзя выпустить или установить сертификат.</value>
+  </data>
 </root>

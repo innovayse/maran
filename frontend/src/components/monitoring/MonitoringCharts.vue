@@ -6,7 +6,11 @@
  * unit — and six near-identical blocks in a page is six places for one of them to be edited alone.
  *
  * Each plot is a {@link UiChart}, the kit's existing chart primitive and the panel's single
- * non-icon SVG site (rules/vue.md). Nothing here draws.
+ * non-icon SVG site (rules/vue.md). Nothing here draws. The chart itself is unframed, so each one
+ * sits in its own {@link UiCard}: six panels on the content panel, sixteen pixels apart, in one
+ * column on a phone and two from 1024px up (a chart's text is drawn in the SVG's own scaled
+ * coordinates and is already small at a phone's width — halving the width again would make it
+ * unreadable).
  *
  * The series are typed as `ChartPoint` from `utils/chartGeometry`, which is the same shape
  * `UiChart`'s own `UiChartPoint` declares. Deliberately not that one: a type exported from an SFC
@@ -23,6 +27,7 @@
  */
 import { computed, type ComputedRef } from 'vue'
 import { useI18n } from 'vue-i18n'
+import UiCard from '../ui/UiCard.vue'
 import UiChart from '../ui/UiChart.vue'
 import type { ChartPoint } from '../../utils/chartGeometry'
 import {
@@ -116,26 +121,38 @@ const formatFine = (value: number): string => {
 
 <template>
   <div class="grid grid-cols-1 gap-4 lg:grid-cols-2" data-testid="monitoring-charts">
-    <UiChart :series="cpuSeries" :label="t('monitoring.charts.cpu')" :unit="t('monitoring.units.percent')" />
+    <UiCard>
+      <UiChart :series="cpuSeries" :label="t('monitoring.charts.cpu')" :unit="t('monitoring.units.percent')" />
+    </UiCard>
     <!-- The byte units come from `utils/formatBytes` rather than the message bundles: IEC symbols
          are locale-invariant notation, and the disk table on this same screen already reads them
          from there — one authority, or the two drift (they had: `GiB` beside `ГиБ`). -->
-    <UiChart :series="memorySeries" :label="t('monitoring.charts.memory')" :unit="GIBIBYTE_UNIT" />
-    <UiChart :series="diskSeries" :label="t('monitoring.charts.disk')" :unit="GIBIBYTE_UNIT" />
-    <UiChart
-      :series="networkReceiveSeries"
-      :label="t('monitoring.charts.networkReceive')"
-      :unit="MEBIBYTES_PER_SECOND_UNIT"
-      :format-value="formatFine"
-    />
-    <UiChart
-      :series="networkTransmitSeries"
-      :label="t('monitoring.charts.networkTransmit')"
-      :unit="MEBIBYTES_PER_SECOND_UNIT"
-      :format-value="formatFine"
-    />
-    <!-- No unit: a load average is dimensionless, and the word this slot used to carry read as
+    <UiCard>
+      <UiChart :series="memorySeries" :label="t('monitoring.charts.memory')" :unit="GIBIBYTE_UNIT" />
+    </UiCard>
+    <UiCard>
+      <UiChart :series="diskSeries" :label="t('monitoring.charts.disk')" :unit="GIBIBYTE_UNIT" />
+    </UiCard>
+    <UiCard>
+      <UiChart
+        :series="networkReceiveSeries"
+        :label="t('monitoring.charts.networkReceive')"
+        :unit="MEBIBYTES_PER_SECOND_UNIT"
+        :format-value="formatFine"
+      />
+    </UiCard>
+    <UiCard>
+      <UiChart
+        :series="networkTransmitSeries"
+        :label="t('monitoring.charts.networkTransmit')"
+        :unit="MEBIBYTES_PER_SECOND_UNIT"
+        :format-value="formatFine"
+      />
+    </UiCard>
+    <!-- No unit: a load average is dimensionless, and a word after it would read as
          `2.10 нагрузка` — a unit invented in three languages for a number that has none. -->
-    <UiChart :series="loadSeries" :label="t('monitoring.charts.load')" :format-value="formatFine" />
+    <UiCard>
+      <UiChart :series="loadSeries" :label="t('monitoring.charts.load')" :format-value="formatFine" />
+    </UiCard>
   </div>
 </template>

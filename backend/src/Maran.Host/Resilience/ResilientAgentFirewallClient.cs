@@ -16,10 +16,12 @@ namespace Maran.Host.Resilience;
 /// hangs a request exactly as a mutation does, and the defect this repository has already found was
 /// one method quietly left undecorated while the class as a whole looked wired.
 ///
-/// The pipeline retries transport failures, which is safe here for the reason it is safe everywhere
-/// else: each of these operations is idempotent on the agent's side. A re-applied allow converges on
+/// The pipeline retries only a connection to the agent that could not be established, which is safe
+/// here for the reason it is safe everywhere else: a refused connection delivered no request, so the
+/// retry is the first attempt rather than a second copy (see <see cref="AgentOperationPipeline"/>).
+/// Idempotence is not that reason, though these operations have it — a re-applied allow converges on
 /// the same ruleset, and a re-applied ban extends an expiry it already set rather than stacking a
-/// second one.
+/// second one — because idempotence covers repeating an operation, never running two at once.
 /// </remarks>
 public sealed class ResilientAgentFirewallClient : IAgentFirewallClient
 {
@@ -44,7 +46,8 @@ public sealed class ResilientAgentFirewallClient : IAgentFirewallClient
         int panelPort,
         CancellationToken cancellationToken)
     {
-        return await _pipeline.ExecuteAsync(
+        return await AgentOperationPipeline.ExecuteAsync(
+            _pipeline,
             async (state, token) =>
             {
                 return await state.Client.ListRulesAsync(state.SshPorts, state.PanelPort, token);
@@ -63,7 +66,8 @@ public sealed class ResilientAgentFirewallClient : IAgentFirewallClient
         int panelPort,
         CancellationToken cancellationToken)
     {
-        return await _pipeline.ExecuteAsync(
+        return await AgentOperationPipeline.ExecuteAsync(
+            _pipeline,
             async (state, token) =>
             {
                 return await state.Client.AllowPortAsync(
@@ -95,7 +99,8 @@ public sealed class ResilientAgentFirewallClient : IAgentFirewallClient
         int panelPort,
         CancellationToken cancellationToken)
     {
-        return await _pipeline.ExecuteAsync(
+        return await AgentOperationPipeline.ExecuteAsync(
+            _pipeline,
             async (state, token) =>
             {
                 return await state.Client.DenyPortAsync(
@@ -120,7 +125,8 @@ public sealed class ResilientAgentFirewallClient : IAgentFirewallClient
     /// <inheritdoc/>
     public async Task<Result<bool>> BanAsync(string address, TimeSpan? ttl, CancellationToken cancellationToken)
     {
-        return await _pipeline.ExecuteAsync(
+        return await AgentOperationPipeline.ExecuteAsync(
+            _pipeline,
             async (state, token) =>
             {
                 return await state.Client.BanAsync(state.Address, state.Ttl, token);
@@ -132,7 +138,8 @@ public sealed class ResilientAgentFirewallClient : IAgentFirewallClient
     /// <inheritdoc/>
     public async Task<Result<bool>> UnbanAsync(string address, CancellationToken cancellationToken)
     {
-        return await _pipeline.ExecuteAsync(
+        return await AgentOperationPipeline.ExecuteAsync(
+            _pipeline,
             async (state, token) =>
             {
                 return await state.Client.UnbanAsync(state.Address, token);
@@ -144,7 +151,8 @@ public sealed class ResilientAgentFirewallClient : IAgentFirewallClient
     /// <inheritdoc/>
     public async Task<Result<IReadOnlyList<AgentFirewallBan>>> ListBansAsync(CancellationToken cancellationToken)
     {
-        return await _pipeline.ExecuteAsync(
+        return await AgentOperationPipeline.ExecuteAsync(
+            _pipeline,
             async (state, token) =>
             {
                 return await state.ListBansAsync(token);

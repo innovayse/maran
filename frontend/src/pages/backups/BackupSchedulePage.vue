@@ -25,15 +25,24 @@
  * deleted is exempt from retention entirely and is bounded only by an administrator deleting it.
  * The copy is written to this server and is not encrypted at rest. Every one of those is said on
  * the screen, because `retainCount` on its own reads as a promise none of them keep.
+ *
+ * **Layout (redesign 2026-10).** The page header carries the module name as its eyebrow; whatever
+ * needs attention (a refusal, a blank field, the save result, and an unscheduled scope as an amber
+ * warning) comes before the controls; then the scope card, and below it the form beside a column
+ * holding the summary and the four retention caveats. Under 1024px that column stacks under the
+ * form. The retention caveats stay visible text, one per row, because a spec asserts each of them.
  */
 import { computed, ref, watch, type ComputedRef, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import UiAlert from '../../components/ui/UiAlert.vue'
+import UiBadge from '../../components/ui/UiBadge.vue'
 import UiButton from '../../components/ui/UiButton.vue'
 import UiCard from '../../components/ui/UiCard.vue'
 import UiDescriptionItem from '../../components/ui/UiDescriptionItem.vue'
 import UiDescriptionList from '../../components/ui/UiDescriptionList.vue'
 import UiForm from '../../components/ui/UiForm.vue'
+import type { UiIconName } from '../../components/ui/UiIcon.vue'
+import UiIconTile from '../../components/ui/UiIconTile.vue'
 import UiInput from '../../components/ui/UiInput.vue'
 import UiPageHeading from '../../components/ui/UiPageHeading.vue'
 import UiSectionHeading from '../../components/ui/UiSectionHeading.vue'
@@ -64,6 +73,16 @@ const WEEKDAYS: readonly BackupScheduleDay[] = [
   'saturday',
   'sunday',
 ]
+
+/** One caveat about what retention does not cover, with the glyph that marks its row. */
+interface RetentionPoint {
+  /** Stable key for the list row. */
+  key: string
+  /** The glyph marking the row; decorative, the sentence beside it says everything. */
+  icon: UiIconName
+  /** The caveat, already translated. */
+  text: string
+}
 
 /** Problem codes that name one field, and the field each of them marks invalid. */
 const FIELD_OF_CODE: Readonly<Record<string, string>> = {
@@ -137,6 +156,16 @@ const isWeekly: ComputedRef<boolean> = computed(() => {
 /** True when the panel answered and reported that this scope has no schedule at all. */
 const isUnscheduled: ComputedRef<boolean> = computed(() => {
   return store.isLoaded && !store.isConfigured && store.errorMessage === null
+})
+
+/** The four things `retainCount` alone would be read as promising and does not, in reading order. */
+const retentionPoints: ComputedRef<readonly RetentionPoint[]> = computed(() => {
+  return [
+    { key: 'cadence', icon: 'clock', text: t('backups.schedule.retention.cadence') },
+    { key: 'neverBlind', icon: 'hardDrive', text: t('backups.schedule.retention.neverBlind') },
+    { key: 'preDeletion', icon: 'archive', text: t('backups.schedule.retention.preDeletion') },
+    { key: 'storage', icon: 'lock', text: t('backups.schedule.retention.storage') },
+  ]
 })
 
 /** When the schedule last ran, or a placeholder saying it never has. */
@@ -266,119 +295,157 @@ void accountsStore.load()
 </script>
 
 <template>
-  <section class="w-full max-w-2xl">
+  <section class="flex w-full flex-col gap-4">
+    <!-- The eyebrow is the module's own name, so it reuses the list screen's heading: the same word
+         the sidebar and the previous screen use, and no new text for the three languages to carry. -->
     <UiPageHeading
-      class="mb-4"
+      :eyebrow="t('backups.list.heading')"
       :title="t('backups.schedule.heading')"
       :subtitle="t('backups.schedule.subtitle')"
       :note="t('backups.schedule.utcNote')"
     />
 
-    <UiCard class="mb-4">
-      <UiSelect
-        v-model="scope"
-        :label="t('backups.schedule.scope.label')"
-        :options="scopeOptions"
-        :disabled="store.loading || store.saving"
-      />
-      <p class="mt-2 text-sm text-text-secondary">
-        {{
-          scopeAccountId === null
-            ? t('backups.schedule.scope.hostWideHint')
-            : t('backups.schedule.scope.overrideHint')
-        }}
-      </p>
-    </UiCard>
+    <!-- What needs attention comes before the controls: a refusal, a field left blank, the result
+         of the last save, and the fact that this scope is not being backed up at all. -->
+    <UiAlert v-if="bannerError !== null" variant="error">{{ bannerError }}</UiAlert>
 
-    <UiAlert v-if="bannerError !== null" variant="error" class="mb-4">{{ bannerError }}</UiAlert>
+    <UiAlert v-if="localError !== null" variant="error">{{ localError }}</UiAlert>
 
-    <UiAlert v-if="localError !== null" variant="error" class="mb-4">{{ localError }}</UiAlert>
+    <UiAlert v-if="store.saved" variant="success">{{ t('backups.schedule.saved') }}</UiAlert>
 
-    <UiAlert v-if="store.saved" variant="info" class="mb-4">
-      {{ t('backups.schedule.saved') }}
+    <!-- Amber, not blue: an unscheduled server takes no backup of its own accord, which is a
+         condition to act on rather than a fact to note. -->
+    <UiAlert v-if="!store.loading && isUnscheduled" variant="warning">
+      {{ t('backups.schedule.unscheduled') }}
     </UiAlert>
+
+    <!-- Every layout switch on this page reads the width of the box that holds the content
+         (a container query), not the viewport's: under a large system font the sidebar and the
+         text grow, the content panel is left ~700px wide, and the viewport still says "desktop" —
+         a viewport `lg:` grid then squeezed the frequency select to a third of its needed width. -->
+    <UiCard class="@container">
+      <div class="flex flex-col gap-4 @2xl:flex-row @2xl:items-end @2xl:justify-between @2xl:gap-8">
+        <p class="min-w-0 text-sm text-text-secondary break-words @2xl:max-w-xl">
+          {{
+            scopeAccountId === null
+              ? t('backups.schedule.scope.hostWideHint')
+              : t('backups.schedule.scope.overrideHint')
+          }}
+        </p>
+        <UiSelect
+          v-model="scope"
+          class="w-full min-w-0 @2xl:w-80 @2xl:shrink-0"
+          :label="t('backups.schedule.scope.label')"
+          :options="scopeOptions"
+          :disabled="store.loading || store.saving"
+        />
+      </div>
+    </UiCard>
 
     <UiSpinner v-if="store.loading" :label="t('backups.schedule.loading')" />
 
-    <template v-else-if="store.isLoaded">
-      <UiAlert v-if="isUnscheduled" variant="info" class="mb-4">
-        {{ t('backups.schedule.unscheduled') }}
-      </UiAlert>
-
-      <UiCard v-else-if="store.isConfigured" class="mb-4">
-        <UiSectionHeading class="mb-3" :title="t('backups.schedule.summary.heading')" />
-        <UiDescriptionList>
-          <UiDescriptionItem :term="t('backups.schedule.summary.state')">
-            {{ store.schedule?.enabled === true ? t('backups.schedule.summary.on') : t('backups.schedule.summary.off') }}
-          </UiDescriptionItem>
-          <UiDescriptionItem :term="t('backups.schedule.summary.lastRun')" mono>
-            {{ lastRun }}
-          </UiDescriptionItem>
-        </UiDescriptionList>
-      </UiCard>
-
-      <UiCard class="mb-4">
+    <!-- Form and side notes sit in two columns only from `@4xl` (56rem of the panel's width): the
+         form's own two-up rows need ~32rem of their card, and 3/5 of anything narrower than this
+         cannot give it. Below that the notes stack under the form. -->
+    <div v-else-if="store.isLoaded" class="@container">
+    <div class="grid items-start gap-4 @4xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
+      <UiCard class="@container">
         <UiSectionHeading
-          class="mb-3"
+          class="mb-4"
           :title="t('backups.schedule.form.heading')"
           :subtitle="t('backups.schedule.form.subtitle')"
         />
         <UiForm @submit="submit">
-          <div class="flex flex-col gap-3">
-            <UiSelect
-              v-model="frequency"
-              :label="t('backups.schedule.form.frequencyLabel')"
-              :placeholder="t('backups.schedule.form.frequencyPlaceholder')"
-              :options="frequencyOptions"
-              required
-            />
+          <div class="flex flex-col gap-4">
+            <div class="grid gap-4 @lg:grid-cols-2">
+              <UiSelect
+                v-model="frequency"
+                class="min-w-0"
+                :label="t('backups.schedule.form.frequencyLabel')"
+                :placeholder="t('backups.schedule.form.frequencyPlaceholder')"
+                :options="frequencyOptions"
+                required
+              />
 
-            <UiSelect
-              v-if="isWeekly"
-              v-model="dayOfWeekUtc"
-              :label="t('backups.schedule.form.dayLabel')"
-              :placeholder="t('backups.schedule.form.dayPlaceholder')"
-              :options="dayOptions"
-              :error="fieldError('day')"
-              required
-            />
+              <UiSelect
+                v-if="isWeekly"
+                v-model="dayOfWeekUtc"
+                class="min-w-0"
+                :label="t('backups.schedule.form.dayLabel')"
+                :placeholder="t('backups.schedule.form.dayPlaceholder')"
+                :options="dayOptions"
+                :error="fieldError('day')"
+                required
+              />
+            </div>
 
-            <UiInput
-              v-model="hourUtc"
-              :label="t('backups.schedule.form.hourLabel')"
-              :placeholder="t('backups.schedule.form.hourPlaceholder')"
-              :error="fieldError('hour')"
-              required
-            />
+            <div class="grid gap-4 @lg:grid-cols-2">
+              <UiInput
+                v-model="hourUtc"
+                class="min-w-0"
+                :label="t('backups.schedule.form.hourLabel')"
+                :placeholder="t('backups.schedule.form.hourPlaceholder')"
+                :error="fieldError('hour')"
+                required
+              />
 
-            <UiInput
-              v-model="retainCount"
-              :label="t('backups.schedule.form.retainLabel')"
-              :placeholder="t('backups.schedule.form.retainPlaceholder')"
-              :error="fieldError('retain')"
-              required
-            />
+              <UiInput
+                v-model="retainCount"
+                class="min-w-0"
+                :label="t('backups.schedule.form.retainLabel')"
+                :placeholder="t('backups.schedule.form.retainPlaceholder')"
+                :error="fieldError('retain')"
+                required
+              />
+            </div>
 
-            <UiSwitch v-model="enabled" :label="t('backups.schedule.form.enabledLabel')" />
-            <p class="text-sm text-text-secondary">{{ t('backups.schedule.form.enabledHint') }}</p>
+            <div class="flex flex-col gap-2 rounded-control border border-border-subtle bg-surface-2 p-4">
+              <UiSwitch v-model="enabled" :label="t('backups.schedule.form.enabledLabel')" />
+              <p class="text-sm text-text-muted break-words">{{ t('backups.schedule.form.enabledHint') }}</p>
+            </div>
 
-            <UiButton class="mt-1" type="submit" :disabled="store.saving">
+            <UiButton class="w-full @lg:w-auto @lg:self-start" type="submit" :disabled="store.saving">
               {{ store.saving ? t('common.saving') : t('backups.schedule.form.submit') }}
             </UiButton>
           </div>
         </UiForm>
       </UiCard>
 
-      <UiCard>
-        <UiSectionHeading class="mb-3" :title="t('backups.schedule.retention.heading')" />
-        <!-- Every one of these is something `retainCount` on its own would be read as promising and
-             does not. They are on the screen rather than in a doc comment because the operator who
-             types a number is the person who would otherwise believe all four. -->
-        <p class="text-sm text-text-secondary">{{ t('backups.schedule.retention.cadence') }}</p>
-        <p class="mt-2 text-sm text-text-secondary">{{ t('backups.schedule.retention.neverBlind') }}</p>
-        <p class="mt-2 text-sm text-text-secondary">{{ t('backups.schedule.retention.preDeletion') }}</p>
-        <p class="mt-2 text-sm text-text-secondary">{{ t('backups.schedule.retention.storage') }}</p>
-      </UiCard>
-    </template>
+      <div class="flex min-w-0 flex-col gap-4">
+        <UiCard v-if="store.isConfigured">
+          <UiSectionHeading class="mb-4" :title="t('backups.schedule.summary.heading')" />
+          <UiDescriptionList>
+            <UiDescriptionItem :term="t('backups.schedule.summary.state')">
+              <UiBadge :variant="store.schedule?.enabled === true ? 'success' : 'warning'">
+                {{
+                  store.schedule?.enabled === true
+                    ? t('backups.schedule.summary.on')
+                    : t('backups.schedule.summary.off')
+                }}
+              </UiBadge>
+            </UiDescriptionItem>
+            <UiDescriptionItem :term="t('backups.schedule.summary.lastRun')" mono>
+              {{ lastRun }}
+            </UiDescriptionItem>
+          </UiDescriptionList>
+        </UiCard>
+
+        <UiCard>
+          <UiSectionHeading class="mb-4" :title="t('backups.schedule.retention.heading')" />
+          <!-- Every one of these is something `retainCount` on its own would be read as promising and
+               does not. They are on the screen rather than in a doc comment because the operator who
+               types a number is the person who would otherwise believe all four. -->
+          <ul class="flex flex-col gap-4">
+            <li v-for="point in retentionPoints" :key="point.key" class="flex items-start gap-3">
+              <UiIconTile :name="point.icon" size="sm" />
+              <p class="min-w-0 pt-1 text-sm text-text-secondary break-words">
+                {{ point.text }}
+              </p>
+            </li>
+          </ul>
+        </UiCard>
+      </div>
+    </div>
+    </div>
   </section>
 </template>

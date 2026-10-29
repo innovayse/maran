@@ -28,7 +28,7 @@ use crate::sites::{SiteHost, SitesOpError};
 /// or no longer resolves inside the account's home.
 /// Returns [`SitesOpError::NotFound`] when no vhost exists for the domain.
 /// Returns [`SitesOpError::Render`], [`SitesOpError::NginxValidation`],
-/// [`SitesOpError::ReloadFailed`] and [`SitesOpError::ConfigWrite`] as
+/// [`SitesOpError::ReloadFailed`], [`SitesOpError::Bound`] and [`SitesOpError::ConfigWrite`] as
 /// `create_site` does.
 pub fn disable_site(
     host: &dyn SiteHost,

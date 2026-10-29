@@ -2,6 +2,8 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use maran_agent_core::utils::bound_exceeded::BoundExceeded;
+use maran_agent_core::utils::call_class::CallClass;
 use maran_agent_core::validation::web::ban_address::BanAddress;
 
 use crate::firewall::ensure_bans_table::BANNED_V4_SET;
@@ -68,5 +70,46 @@ fn an_unban_that_nft_cannot_run_is_reported() {
         Err(FirewallError::NftFailed {
             stderr: String::from("could not run nft"),
         })
+    );
+}
+
+/// The delete puts an end-of-options marker ahead of its operands, runs as a
+/// mutation, and still names the element after the marker.
+#[test]
+fn the_delete_is_guarded_and_is_a_mutation() {
+    let host = FakeFirewallHost::new().with_bans_table().with_element(
+        BANNED_V4_SET,
+        "198.51.100.7",
+        Some(3600),
+    );
+
+    unban_address(&host, distro(), &address("198.51.100.7")).expect("unbanned");
+
+    let argv = host.nft_call_starting_with("delete").expect("a delete");
+    assert_eq!(argv.get(1).map(String::as_str), Some("--"));
+    assert_eq!(argv.get(2).map(String::as_str), Some("delete"));
+    assert!(argv.iter().any(|argument| argument == "198.51.100.7"));
+    assert_eq!(host.class_of_call("delete"), Some(CallClass::Mutation));
+}
+
+/// A delete killed at its deadline is a bound, and never "there was no such
+/// ban": the program was stopped before it answered.
+#[test]
+fn a_delete_that_times_out_is_a_bound_and_never_not_found() {
+    let host = FakeFirewallHost::new().with_bans_table().with_element(
+        BANNED_V4_SET,
+        "198.51.100.7",
+        Some(3600),
+    );
+    host.time_out_on("delete");
+
+    let outcome = unban_address(&host, distro(), &address("198.51.100.7"));
+
+    assert!(
+        matches!(
+            outcome,
+            Err(FirewallError::Bound(BoundExceeded::TimedOut { .. }))
+        ),
+        "expected the typed timeout, got {outcome:?}"
     );
 }

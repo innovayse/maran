@@ -146,6 +146,7 @@ impl Fixture {
             scratch: self.scratch(),
             owner: current_uid().expect("the current uid is readable"),
             dump_ceiling: 1024,
+            member_ceiling: 1024,
             archive_ceiling: 1024,
         }
     }
@@ -281,6 +282,78 @@ fn the_artifact_is_published_by_rename_so_a_reader_never_sees_a_partial() {
     );
     assert!(fixture.artifact().exists());
     assert!(!PathBuf::from(written).exists());
+}
+
+/// Runs one creation over `fixture` with `count` databases under an explicit
+/// `placement`, for the tests that change a ceiling.
+fn run_placed(
+    placement: &Placement,
+    fixture: &Fixture,
+    host: &RecordingBackupHost,
+    count: usize,
+) -> Result<BackupSummary, BackupError> {
+    let catalog = FakeCatalog {
+        names: databases(count),
+        refuses: false,
+    };
+
+    create_in(
+        placement,
+        host,
+        &catalog,
+        &account(),
+        &backup_id(),
+        &fixture.directory(),
+        &mut sink(),
+    )
+}
+
+/// **A home with more members than the ceiling is refused before anything is
+/// dumped or archived.** The fixture home holds four entries (a directory, a
+/// file and two links); with a ceiling of three the run must stop at the first
+/// walk, with the same status the post-archive listing reports, and must have
+/// started neither a dump nor the archiver nor created the scratch.
+#[test]
+fn a_home_with_more_members_than_the_ceiling_is_refused_before_anything_is_archived() {
+    let fixture = Fixture::new();
+    let host = RecordingBackupHost::new();
+    let placement = Placement {
+        member_ceiling: 3,
+        ..fixture.placement()
+    };
+
+    let refusal = run_placed(&placement, &fixture, &host, 2);
+
+    assert!(matches!(
+        refusal,
+        Err(BackupError::ArchiveFailed {
+            status: LISTING_REFUSED
+        })
+    ));
+    assert!(host.calls_to(DUMP_PROGRAM).is_empty());
+    assert!(host.calls_to(ARCHIVE_PROGRAM).is_empty());
+    assert!(!fixture.scratch().exists());
+    assert!(!fixture.artifact().exists());
+    assert!(!fixture.sidecar().exists());
+}
+
+/// The inverse control: a home exactly AT the ceiling is not refused early (the
+/// post-archive listing is the authority), so the gate is not a refuse-all.
+#[test]
+fn a_home_at_the_member_ceiling_is_archived_normally() {
+    let fixture = Fixture::new();
+    let host = RecordingBackupHost::new();
+    let placement = Placement {
+        member_ceiling: 4,
+        ..fixture.placement()
+    };
+
+    let summary = run_placed(&placement, &fixture, &host, 1);
+
+    assert!(summary.is_ok());
+    assert_eq!(host.calls_to(DUMP_PROGRAM).len(), 1);
+    assert_eq!(host.calls_to(ARCHIVE_PROGRAM).len(), 1);
+    assert!(fixture.artifact().exists());
 }
 
 /// A dump that fails takes the whole backup with it: no artifact, no sidecar,
@@ -889,4 +962,23 @@ fn a_scratch_chain_owned_by_somebody_other_than_the_expected_uid_is_refused() {
     );
 
     assert!(matches!(refusal, Err(BackupError::ScratchUnusable)));
+}
+
+/// An archiver killed at its deadline is a bound, not an archive failure, and
+/// publishes nothing: no artifact, no sidecar, no scratch.
+#[test]
+fn an_archiver_that_times_out_is_a_bound_and_publishes_no_artifact() {
+    let fixture = Fixture::new();
+    let host = RecordingBackupHost::new();
+    host.time_out_archive();
+
+    let refusal = run(&fixture, &host, 1, &mut sink());
+
+    assert!(
+        matches!(refusal, Err(BackupError::Bound(_))),
+        "expected a bound, got {refusal:?}"
+    );
+    assert!(!fixture.artifact().exists());
+    assert!(!fixture.sidecar().exists());
+    assert!(!fixture.scratch().exists());
 }

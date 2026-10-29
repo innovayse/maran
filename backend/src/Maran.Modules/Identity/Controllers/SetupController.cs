@@ -13,11 +13,15 @@ namespace Maran.Modules.Identity.Controllers;
 /// First-run setup: the one path by which a panel with no users gets its administrator. Anonymous
 /// by necessity — there is nobody to authenticate yet — and closed permanently the moment it
 /// succeeds, because the command refuses once any user exists.
+///
+/// Anonymous access is granted per action rather than on the class, as in <c>AuthController</c>: a
+/// class-level <c>[AllowAnonymous]</c> outranks any action-level <c>[Authorize]</c>, so an action
+/// added here later would be open to anyone whatever it declared. Named per action, a new action
+/// that declares nothing falls to the panel's administrator-only fallback instead.
 /// </summary>
 [Route("api/v1/setup")]
 [Tags("Setup")]
 [Produces("application/json")]
-[AllowAnonymous]
 public sealed class SetupController : BaseApiController
 {
     /// <summary>The message bus commands and queries are dispatched through.</summary>
@@ -35,6 +39,7 @@ public sealed class SetupController : BaseApiController
     /// <summary>Reports whether the panel already has an administrator.</summary>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpGet("state")]
+    [AllowAnonymous]
     [ProducesResponseType(typeof(SetupStateDto), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetStateAsync(CancellationToken cancellationToken)
     {
@@ -50,6 +55,7 @@ public sealed class SetupController : BaseApiController
     /// user agent are stamped here.</param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpPost]
+    [AllowAnonymous]
     [EnableRateLimiting(RateLimitPolicies.Login)]
     [ProducesResponseType(typeof(AuthenticatedUserDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]

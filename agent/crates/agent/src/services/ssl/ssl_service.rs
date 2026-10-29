@@ -12,6 +12,7 @@ use crate::proto::{
     RemoveCertificateOk, RemoveCertificateRequest, RemoveCertificateResponse,
     generate_self_signed_response, install_certificate_response, remove_certificate_response,
 };
+use crate::services::sites::validated_existing_site::validated_existing_site;
 use crate::services::sites::validated_site::validated_site;
 use crate::services::ssl::ssl_status::to_agent_error;
 use crate::services::wire::run_blocking::run_blocking;
@@ -97,7 +98,7 @@ impl<H: SslHost + 'static> SslService for SslServiceImpl<H> {
     ) -> Result<Response<RemoveCertificateResponse>, Status> {
         let request = request.into_inner();
 
-        let result = match validated_site(
+        let result = match validated_existing_site(
             &request.account_username,
             &request.domain,
             request.site.as_ref(),

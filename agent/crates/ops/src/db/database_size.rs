@@ -40,6 +40,8 @@ use crate::db::model::database_size_report::DatabaseSizeReport;
 /// - [`DbError::Unparsable`] when the server's answer is not a number.
 /// - [`DbError::AccessDenied`] when the server refuses the agent's connection,
 ///   and [`DbError::ClientFailed`] for any other refusal.
+/// - [`DbError::Bound`] when the client ran past its deadline, so no answer was
+///   read. A statement already sent may nevertheless take effect on the server.
 pub fn database_size(
     host: &dyn DbHost,
     name: &DatabaseName,

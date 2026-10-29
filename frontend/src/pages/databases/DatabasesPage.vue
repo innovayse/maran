@@ -16,20 +16,26 @@
  * line under the heading says whose prefix it is. The prefixed value is the server's — this page
  * never assembles one from an account name and a suffix.
  *
+ * Laid out as the redesign's screens are: the heading block with its eyebrow, then panels sixteen
+ * pixels apart — the rejection notice first when there is one, the create card, and the list card
+ * whose table scrolls inside its own container so the page never moves sideways on a phone.
+ *
  * **The password leaves with the page.** `dismissCredential` runs on unmount as well as on the
  * dialog's close, so a navigation ends the one showing; nothing is written to storage, so a reload
  * ends it too.
  */
 import { computed, onBeforeUnmount, onMounted, ref, useTemplateRef, type ComputedRef, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { RouterLink } from 'vue-router'
 import UiAlert from '../../components/ui/UiAlert.vue'
+import UiButton from '../../components/ui/UiButton.vue'
+import UiCard from '../../components/ui/UiCard.vue'
 import UiConfirm from '../../components/ui/UiConfirm.vue'
 import UiDropdown from '../../components/ui/UiDropdown.vue'
 import UiDropdownItem from '../../components/ui/UiDropdownItem.vue'
 import UiEmptyState from '../../components/ui/UiEmptyState.vue'
 import UiIcon from '../../components/ui/UiIcon.vue'
 import UiPageHeading from '../../components/ui/UiPageHeading.vue'
+import UiSectionHeading from '../../components/ui/UiSectionHeading.vue'
 import UiSpinner from '../../components/ui/UiSpinner.vue'
 import UiTable from '../../components/ui/UiTable.vue'
 import UiTableCell from '../../components/ui/UiTableCell.vue'
@@ -175,9 +181,9 @@ onBeforeUnmount(dismissCredential)
 </script>
 
 <template>
-  <section class="w-full">
+  <section class="flex w-full min-w-0 flex-col gap-4">
     <UiPageHeading
-      class="mb-4"
+      :eyebrow="t('databases.list.eyebrow')"
       :title="t('databases.list.heading')"
       :subtitle="t('databases.list.subtitle')"
       :note="t('databases.list.prefixNote')"
@@ -187,84 +193,87 @@ onBeforeUnmount(dismissCredential)
              whoever is looking, and the page behind it renders the panel's own refusal to anyone who
              may not read it. A client-side check here would be a second copy of an authorization
              decision, and the copy that cannot be trusted (rules/vue.md). -->
-        <RouterLink
-          class="rounded-lg border border-border-subtle px-3 py-2 text-base text-text-secondary transition-colors hover:text-text-primary focus-visible:shadow-focus focus-visible:outline-none"
-          :to="{ name: 'database-grant-repair' }"
-          >{{ t('databases.list.grantRepairLink') }}</RouterLink
-        >
+        <UiButton variant="secondary" :to="{ name: 'database-grant-repair' }">{{ t('databases.list.grantRepairLink') }}</UiButton>
       </template>
     </UiPageHeading>
 
-    <UiAlert v-if="store.createErrorMessage !== null" variant="error" class="mb-4">
+    <!-- A rejected create is the one thing that needs attention, so it comes before the form it
+         belongs to. It is the server's own message, rendered as it was sent. -->
+    <UiAlert v-if="store.createErrorMessage !== null" variant="error">
       {{ store.createErrorMessage }}
     </UiAlert>
 
     <DatabaseCreateForm
       ref="form"
-      class="mb-6"
       :accounts="accountsStore.accounts"
       :submitting="store.creating"
       @submit="create"
     />
 
-    <UiSpinner v-if="store.loading" :label="t('databases.list.loading')" />
+    <UiCard>
+      <UiSectionHeading class="mb-4" :title="t('databases.list.sectionTitle')" />
 
-    <UiAlert v-else-if="store.errorMessage !== null" variant="error">{{ store.errorMessage }}</UiAlert>
+      <UiSpinner v-if="store.loading" :label="t('databases.list.loading')" />
 
-    <UiEmptyState
-      v-else-if="isEmpty"
-      :title="t('databases.list.emptyTitle')"
-      :description="t('databases.list.emptyDescription')"
-    >
-      <template #icon><UiIcon name="database" size="lg" /></template>
-    </UiEmptyState>
+      <UiAlert v-else-if="store.errorMessage !== null" variant="error">{{ store.errorMessage }}</UiAlert>
 
-    <UiTable v-else-if="store.databases.length > 0" :caption="t('databases.list.tableCaption')">
-      <template #head>
-        <UiTableRow>
-          <UiTableHeaderCell>{{ t('databases.list.columns.fullName') }}</UiTableHeaderCell>
-          <UiTableHeaderCell>{{ t('databases.list.columns.dbUserName') }}</UiTableHeaderCell>
-          <UiTableHeaderCell>{{ t('databases.list.columns.account') }}</UiTableHeaderCell>
-          <UiTableHeaderCell>{{ t('databases.list.columns.createdAt') }}</UiTableHeaderCell>
-          <UiTableHeaderCell>{{ t('common.actions') }}</UiTableHeaderCell>
-        </UiTableRow>
-      </template>
-      <UiTableRow v-for="database in store.databases" :key="database.id">
-        <!-- The prefixed name, because it is the one that works in a mysql client. -->
-        <UiTableCell class="font-mono font-medium">{{ database.fullName }}</UiTableCell>
-        <UiTableCell class="font-mono text-text-secondary">{{ database.dbUserName }}</UiTableCell>
-        <UiTableCell class="text-text-secondary">{{ accountName(database.accountId) }}</UiTableCell>
-        <UiTableCell class="font-mono text-text-muted">
-          {{ formatDate(database.createdAt, localeStore.current) }}
-        </UiTableCell>
-        <UiTableCell>
-          <div class="flex flex-wrap items-center justify-end gap-2">
+      <UiEmptyState
+        v-else-if="isEmpty"
+        :title="t('databases.list.emptyTitle')"
+        :description="t('databases.list.emptyDescription')"
+      >
+        <template #icon><UiIcon name="database" size="lg" /></template>
+      </UiEmptyState>
+
+      <!-- No zebra stripes, the account and the dates in the secondary tones, and the one column
+           of commands right-aligned under a heading that says the same. -->
+      <UiTable v-else-if="store.databases.length > 0" :caption="t('databases.list.tableCaption')">
+        <template #head>
+          <UiTableRow>
+            <UiTableHeaderCell>{{ t('databases.list.columns.fullName') }}</UiTableHeaderCell>
+            <UiTableHeaderCell>{{ t('databases.list.columns.dbUserName') }}</UiTableHeaderCell>
+            <UiTableHeaderCell>{{ t('databases.list.columns.account') }}</UiTableHeaderCell>
+            <UiTableHeaderCell>{{ t('databases.list.columns.createdAt') }}</UiTableHeaderCell>
+            <UiTableHeaderCell align="end">{{ t('common.actions') }}</UiTableHeaderCell>
+          </UiTableRow>
+        </template>
+        <UiTableRow v-for="database in store.databases" :key="database.id">
+          <!-- The prefixed name, because it is the one that works in a mysql client. -->
+          <UiTableCell mono class="font-medium whitespace-nowrap">{{ database.fullName }}</UiTableCell>
+          <UiTableCell mono tone="secondary" class="whitespace-nowrap">{{ database.dbUserName }}</UiTableCell>
+          <UiTableCell tone="secondary" class="whitespace-nowrap">{{ accountName(database.accountId) }}</UiTableCell>
+          <UiTableCell mono tone="muted">
+            {{ formatDate(database.createdAt, localeStore.current) }}
+          </UiTableCell>
+          <UiTableCell align="end">
             <!-- One trigger instead of a button per command: the row's actions grow
                  with the module, and a row that grows a button every time is a row
                  that stops fitting on a narrow screen. `align="end"` because this is
                  the last column — a menu aligned to the start would open off the
                  right edge. -->
-            <UiDropdown
-              :label="t('common.actions')"
-              :aria-label="t('databases.list.rowActions', { name: database.fullName })"
-              align="end"
-              variant="bare"
-              :chevron="false"
-            >
-              <template #trigger>
-                <UiIcon name="ellipsis" size="md" />
-              </template>
-              <UiDropdownItem @select="ask(database.id, 'resetPassword')">
-                {{ t('databases.list.resetPassword') }}
-              </UiDropdownItem>
-              <UiDropdownItem destructive @select="ask(database.id, 'drop')">
-                {{ t('databases.list.drop') }}
-              </UiDropdownItem>
-            </UiDropdown>
-          </div>
-        </UiTableCell>
-      </UiTableRow>
-    </UiTable>
+            <div class="flex items-center justify-end">
+              <UiDropdown
+                :label="t('common.actions')"
+                :aria-label="t('databases.list.rowActions', { name: database.fullName })"
+                align="end"
+                variant="bare"
+                :chevron="false"
+              >
+                <template #trigger>
+                  <UiIcon name="ellipsis" size="md" />
+                </template>
+                <UiDropdownItem @select="ask(database.id, 'resetPassword')">
+                  {{ t('databases.list.resetPassword') }}
+                </UiDropdownItem>
+                <UiDropdownItem destructive @select="ask(database.id, 'drop')">
+                  {{ t('databases.list.drop') }}
+                </UiDropdownItem>
+              </UiDropdown>
+            </div>
+          </UiTableCell>
+        </UiTableRow>
+      </UiTable>
+    </UiCard>
 
     <!-- One dialog for the whole table rather than one per row: only one action can be awaiting
          an answer, and the menu that opened it is already gone by the time it appears. `UiModal`

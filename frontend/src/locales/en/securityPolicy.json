@@ -9,7 +9,14 @@
       "maxFailedLoginAttemptsLabel": "Failed sign-ins before an account locks",
       "lockoutMinutesLabel": "How long an account stays locked, in minutes",
       "save": "Save policy",
-      "saved": "The policy has been saved."
+      "saved": "The policy has been saved.",
+      "eyebrow": "Settings",
+      "passwordsTitle": "Passwords",
+      "passwordsHint": "How short a password may be on any account in this panel.",
+      "administratorsTitle": "Administrators",
+      "administratorsHint": "Whether administrators must hold a second sign-in factor.",
+      "lockoutTitle": "Sign-in lockout",
+      "lockoutHint": "How many wrong passwords lock an account, and for how long."
     }
   }
 }

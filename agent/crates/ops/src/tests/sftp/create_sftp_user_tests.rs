@@ -3,6 +3,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use maran_agent_core::utils::call_class::CallClass;
 use maran_agent_core::validation::secrets::password::Password;
 
 use maran_agent_core::validation::system::name::AccountName;
@@ -431,5 +432,177 @@ fn the_hosting_accounts_identity_is_read_again_immediately_before_useradd() {
     assert!(
         host.spawn_of("useradd").is_some(),
         "the login must really have been created: a refusal that refuses everything proves nothing"
+    );
+}
+
+/// Asserts that a refused creation built and ran nothing at all.
+fn assert_nothing_was_built(host: &FakeSftpHost) {
+    assert!(
+        host.spawns().is_empty()
+            && host.users().is_empty()
+            && host.directories().is_empty()
+            && host.configs().is_empty(),
+        "no useradd, no chpasswd, no jail and no unit may exist for an unmanaged account: {:?}",
+        host.spawns()
+    );
+}
+
+/// A request for `name`'s `web` login.
+fn request_of(name: &str) -> SftpUserRequest {
+    let account = AccountName::parse(name).expect("the fixture name is valid");
+
+    SftpUserRequest {
+        user: SftpUserName::for_account(&account, "web").expect("the fixture login is valid"),
+        account,
+        password: Password::parse(TEST_PASSWORD).expect("the fixture password is valid"),
+    }
+}
+
+#[test]
+fn creating_an_sftp_user_for_a_reserved_account_name_runs_no_useradd() {
+    let host = FakeSftpHost::new();
+
+    let error =
+        create_sftp_user_under_lock(&host, distro(), &request_of("nginx")).expect_err("must fail");
+
+    assert!(
+        matches!(error, SftpError::AccountNotManaged),
+        "got {error:?}"
+    );
+    assert_nothing_was_built(&host);
+}
+
+#[test]
+fn creating_an_sftp_user_for_an_account_with_a_system_identity_runs_no_useradd() {
+    // A hand-made user, uid below the floor, whose name is off the list.
+    let host = FakeSftpHost::new().with_account_ids(100, 100);
+
+    let error = create_sftp_user_under_lock(&host, distro(), &request_of("handmade"))
+        .expect_err("must fail");
+
+    assert!(
+        matches!(error, SftpError::AccountNotManaged),
+        "got {error:?}"
+    );
+    assert_nothing_was_built(&host);
+}
+
+#[test]
+fn creating_an_sftp_user_for_an_account_with_another_home_runs_no_useradd() {
+    // The login would share the uid of an operator's own user and give its
+    // holder a jail over that user's files.
+    let host = FakeSftpHost::new().with_account_home("/srv/handmade");
+
+    let error = create_sftp_user_under_lock(&host, distro(), &request_of("handmade"))
+        .expect_err("must fail");
+
+    assert!(
+        matches!(error, SftpError::AccountNotManaged),
+        "got {error:?}"
+    );
+    assert_nothing_was_built(&host);
+}
+
+/// `useradd` runs as a short mutation, and the unit goes through the protocol in
+/// the class of what each step does.
+#[test]
+fn creating_an_sftp_user_runs_useradd_as_a_mutation_and_the_unit_as_a_reload() {
+    let host = FakeSftpHost::new();
+
+    create_sftp_user_under_lock(&host, distro(), &web_request()).expect("created");
+
+    assert_eq!(
+        host.spawn_of("useradd").expect("useradd was run").class,
+        CallClass::Mutation
+    );
+    assert_eq!(
+        host.spawn_of("chpasswd").expect("chpasswd was run").class,
+        CallClass::Mutation
+    );
+    // `daemon-reload` changes the service manager's state: it is not a pure
+    // validator like `nginx -t`, and a Validate deadline would be a quarter of
+    // the time the service manager itself may take.
+    assert_eq!(
+        host.configs()
+            .first()
+            .expect("a unit was written")
+            .validator_class,
+        CallClass::Reload
+    );
+}
+
+/// The login name cannot be read as an option.
+#[test]
+fn useradd_receives_the_end_of_options_marker_immediately_before_the_login_name() {
+    let host = FakeSftpHost::new();
+
+    create_sftp_user_under_lock(&host, distro(), &web_request()).expect("created");
+
+    let argv = host.spawn_of("useradd").expect("useradd was run").argv;
+    let marker = argv
+        .iter()
+        .position(|argument| argument == "--")
+        .expect("the marker is present");
+    assert_eq!(
+        marker + 2,
+        argv.len(),
+        "the login is the only operand: {argv:?}"
+    );
+    assert_eq!(argv[marker + 1], "alice_web");
+    // Inverse control: the marker is not repeated, and no option value sits
+    // behind it (`--home-dir <jail>` stays in front, where it is an option).
+    assert_eq!(
+        argv.iter().filter(|argument| *argument == "--").count(),
+        1,
+        "{argv:?}"
+    );
+}
+
+/// The unit's reload names the unit after the marker.
+#[test]
+fn the_mount_unit_is_enabled_with_the_unit_name_after_the_end_of_options_marker() {
+    let host = FakeSftpHost::new();
+
+    create_sftp_user_under_lock(&host, distro(), &web_request()).expect("created");
+
+    let configs = host.configs();
+    let reload = &configs.first().expect("a unit was written").reload;
+    let marker = reload
+        .iter()
+        .position(|argument| argument == "--")
+        .expect("the marker is present");
+    assert_eq!(marker + 2, reload.len(), "{reload:?}");
+    assert!(reload[marker + 1].ends_with(".mount"), "{reload:?}");
+}
+
+/// A service manager that outruns its deadline is reported as that.
+#[test]
+fn a_jail_whose_unit_times_out_is_a_bound_and_leaves_no_login_behind() {
+    let host = FakeSftpHost::new();
+    host.time_out_config_writes();
+
+    let error =
+        create_sftp_user_under_lock(&host, distro(), &web_request()).expect_err("must fail");
+
+    assert!(matches!(error, SftpError::Bound(_)), "got {error:?}");
+    assert!(
+        host.users().is_empty(),
+        "no login may exist without the jail it logs in to"
+    );
+}
+
+/// A `useradd` that outruns its deadline is reported as that.
+#[test]
+fn a_useradd_that_times_out_is_a_bound_and_never_a_refusal() {
+    let host = FakeSftpHost::new();
+    host.time_out("useradd");
+
+    let error =
+        create_sftp_user_under_lock(&host, distro(), &web_request()).expect_err("must fail");
+
+    assert!(matches!(error, SftpError::Bound(_)), "got {error:?}");
+    assert!(
+        host.spawn_of("chpasswd").is_none(),
+        "no password may be set on a login nobody saw created"
     );
 }

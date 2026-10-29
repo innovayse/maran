@@ -1,6 +1,7 @@
 //! SetAccountLoginsLocked: every key into one account's home turned at once,
 //! and — on the locking direction — every session already inside it ended.
 
+use maran_agent_core::utils::call_class::CallClass;
 use maran_agent_core::validation::system::name::AccountName;
 use maran_distro::DistroAdapter;
 
@@ -10,6 +11,8 @@ use crate::logins::end_account_sessions::end_account_sessions;
 use crate::logins::logins_error::LoginsError;
 use crate::logins::logins_host::LoginsHost;
 use crate::logins::model::account_lock_outcome::AccountLockOutcome;
+use crate::logins::resolve_managed_account::resolve_managed_account;
+use maran_agent_core::end_of_options::END_OF_OPTIONS;
 
 /// The flag that prefixes a password hash so nothing can match it.
 const LOCK: &str = "--lock";
@@ -169,19 +172,22 @@ const UNLOCK: &str = "--unlock";
 ///   already running. Nothing was locked or unlocked.
 /// - [`LoginsError::AccountMissing`] when the password database cannot be read
 ///   or holds no row for the account.
+/// - [`LoginsError::AccountNotManaged`] when the account is reserved, has a
+///   system identity or has the wrong home. Checked first, under the
+///   lock, through the managed-account type: nothing was locked, unlocked or
+///   signalled.
 /// - [`LoginsError::SpawnFailed`] when `usermod` refuses a login for any reason,
 ///   or could not be run at all. The first refusal stops the operation: a
 ///   partially locked account is a state the caller must be able to see, and
 ///   the attestation will report exactly which logins are still open.
 /// - [`LoginsError::StatusUnreadable`] when `passwd -S` printed something this
 ///   agent cannot read for one of the logins.
-/// - [`LoginsError::SessionCullRefusedUid`] and
-///   [`LoginsError::SessionCullRefusedHome`] when the account's own passwd row is
-///   not one this agent will cull the sessions of. The logins ARE locked; the
-///   sessions were not touched.
 /// - [`LoginsError::SessionCullFailed`] when `pkill` refused. The logins are
 ///   locked and some of the account's processes may have been signalled, so the
 ///   suspension is reported as failed and is re-issued rather than believed.
+/// - [`LoginsError::Bound`] when `usermod`, `passwd -S` or `pkill` outran its
+///   deadline. Some logins may be locked and some not, exactly as for a
+///   refusal, so the suspension is reported as failed and is re-issued.
 pub fn set_account_logins_locked(
     host: &dyn LoginsHost,
     distro: &dyn DistroAdapter,
@@ -218,10 +224,23 @@ pub(crate) fn set_account_logins_locked_under_lock(
     account: &AccountName,
     locked: bool,
 ) -> Result<AccountLockOutcome, LoginsError> {
+    // The gate comes before the logins are enumerated: `usermod --lock` on the
+    // logins of, and `pkill --uid` against, an operator's own user or a system
+    // user is the damage this check exists to refuse. The proof it returns is
+    // what the cull below is handed, so the cull holds no rule of its own.
+    let managed = resolve_managed_account(host, distro, account)?;
+
     let flag = if locked { LOCK } else { UNLOCK };
 
     for login in account_logins(host, distro, account)?.logins {
-        let outcome = host.run(distro.usermod_binary(), &[flag, &login.name])?;
+        // `usermod` parses with `getopt_long`, which honours the end-of-options
+        // marker on both families, so a login name can never be read as an
+        // option.
+        let outcome = host.run(
+            &distro.usermod_binary(),
+            &[flag, END_OF_OPTIONS, &login.name],
+            CallClass::Mutation,
+        )?;
         if outcome.status != 0 {
             return Err(LoginsError::SpawnFailed {
                 code: outcome.status,
@@ -230,7 +249,7 @@ pub(crate) fn set_account_logins_locked_under_lock(
     }
 
     let sessions_ended = if locked {
-        let ended = end_account_sessions(host, distro, account)?;
+        let ended = end_account_sessions(host, distro, &managed)?;
         tracing::info!(
             account = account.as_str(),
             processes_signalled = ended,

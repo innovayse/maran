@@ -50,7 +50,7 @@ namespace Maran.Modules.Sites.Persistence.Migrations
                 INSERT INTO sites."SiteHostnames" ("Name", "SiteId")
                 SELECT DISTINCT lower(hostname), site."Id"
                 FROM sites."Sites" AS site
-                CROSS JOIN LATERAL unnest(array_append(site."Aliases", site."Domain")) AS hostname
+                CROSS JOIN LATERAL unnest(array_append(site."Aliases", site."Domain"::text)) AS hostname
                 ON CONFLICT DO NOTHING;
                 """);
         }

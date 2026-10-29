@@ -9,6 +9,9 @@
  * over a harmless action; one who believes it does not, when it does, will not hesitate over a
  * destructive one. Both are the screen's fault.
  *
+ * The overview lays the details in one card and, beside it (below it on a phone), the PHP rebind
+ * card and the lifecycle actions. The Logs and SSL panes are separate components rendered as-is.
+ *
  * Renders a `<section>`, not a `<main>` — the layout owns the landmark.
  */
 import { computed, onBeforeUnmount, onMounted, ref, type ComputedRef, type Ref } from 'vue'
@@ -23,6 +26,7 @@ import UiEmptyState from '../../components/ui/UiEmptyState.vue'
 import UiConfirm from '../../components/ui/UiConfirm.vue'
 import UiSegmentedControl, { type SegmentOption } from '../../components/ui/UiSegmentedControl.vue'
 import UiPageHeading from '../../components/ui/UiPageHeading.vue'
+import UiSectionHeading from '../../components/ui/UiSectionHeading.vue'
 import UiSpinner from '../../components/ui/UiSpinner.vue'
 import PhpVersionSelect from '../../components/sites/PhpVersionSelect.vue'
 import SiteStatusBadge from '../../components/sites/SiteStatusBadge.vue'
@@ -184,39 +188,37 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <section class="w-full">
+  <section class="flex w-full min-w-0 flex-col gap-4">
     <UiSpinner v-if="store.loading" :label="t('sites.detail.loading')" />
 
     <template v-else-if="store.selected !== null">
       <UiPageHeading
-        class="mb-4"
         mono
+        :eyebrow="t('sites.list.heading')"
         :title="store.selected.domain"
         :subtitle="t(`sites.backendType.${store.selected.backendType}`)"
       >
         <template #actions>
           <SiteStatusBadge :status="store.selected.status" />
-          <UiButton variant="ghost" @click="router.push({ name: 'sites' })">
+          <UiButton variant="ghost" :to="{ name: 'sites' }">
             {{ t('sites.detail.backToList') }}
           </UiButton>
         </template>
       </UiPageHeading>
 
-      <UiAlert v-if="store.errorMessage !== null" variant="error" class="mb-4">
+      <UiAlert v-if="store.errorMessage !== null" variant="error">
         {{ store.errorMessage }}
       </UiAlert>
 
-      <div class="mb-4">
-        <UiSegmentedControl
-          :model-value="tab"
-          :options="tabOptions"
-          :label="t('sites.detail.heading')"
-          @update:model-value="onTabChange"
-        />
-      </div>
+      <UiSegmentedControl
+        :model-value="tab"
+        :options="tabOptions"
+        :label="t('sites.detail.heading')"
+        @update:model-value="onTabChange"
+      />
 
-      <template v-if="tab === 'overview'">
-        <UiCard>
+      <div v-if="tab === 'overview'" class="grid min-w-0 gap-4 lg:grid-cols-3">
+        <UiCard class="lg:col-span-2">
           <UiDescriptionList>
             <UiDescriptionItem :term="t('sites.detail.domainLabel')" mono>
               {{ store.selected.domain }}
@@ -264,8 +266,15 @@ onBeforeUnmount(() => {
           </UiDescriptionList>
         </UiCard>
 
-        <UiCard v-if="isPhpSite" class="mt-4">
-          <div class="flex flex-col gap-3">
+        <div class="flex min-w-0 flex-col gap-4">
+          <UiCard v-if="isPhpSite" class="flex flex-col gap-4">
+            <UiSectionHeading :title="t('sites.detail.phpVersionLabel')">
+              <template #action>
+                <span class="font-mono text-lg font-semibold text-text-primary tabular-nums">
+                  {{ store.selected.phpVersion }}
+                </span>
+              </template>
+            </UiSectionHeading>
             <PhpVersionSelect
               v-model="chosenPhpVersion"
               :versions="store.phpVersions"
@@ -276,19 +285,19 @@ onBeforeUnmount(() => {
                 {{ store.acting ? t('sites.detail.working') : t('sites.detail.changePhpVersion') }}
               </UiButton>
             </div>
-          </div>
-        </UiCard>
+          </UiCard>
 
-        <div class="mt-4 flex flex-wrap items-center gap-2">
-          <UiButton v-if="store.selected.status === 'disabled'" variant="secondary" @click="ask('enable')">
-            {{ t('sites.detail.enable') }}
-          </UiButton>
-          <UiButton v-else variant="secondary" @click="ask('disable')">
-            {{ t('sites.detail.disable') }}
-          </UiButton>
-          <UiButton variant="destructive" @click="ask('delete')">{{ t('common.delete') }}</UiButton>
+          <UiCard class="flex flex-wrap items-center gap-2">
+            <UiButton v-if="store.selected.status === 'disabled'" variant="secondary" @click="ask('enable')">
+              {{ t('sites.detail.enable') }}
+            </UiButton>
+            <UiButton v-else variant="secondary" @click="ask('disable')">
+              {{ t('sites.detail.disable') }}
+            </UiButton>
+            <UiButton variant="destructive" @click="ask('delete')">{{ t('common.delete') }}</UiButton>
+          </UiCard>
         </div>
-      </template>
+      </div>
 
       <SiteLogsTab v-else-if="tab === 'logs'" :site-id="props.id" />
 

@@ -2,6 +2,7 @@
 
 #[cfg(doc)]
 use maran_agent_core::agent_paths::AgentPaths;
+use maran_agent_core::utils::bound_exceeded::BoundExceeded;
 
 /// What can go wrong while reading, changing or loading the host firewall.
 ///
@@ -208,4 +209,22 @@ pub enum FirewallError {
     /// far side of the rename.
     #[error("the firewall file could not be staged")]
     StagingFailed,
+
+    /// `nft` was stopped by the agent: it ran past its deadline, or wrote more
+    /// than the host will read, and it was killed together with its process
+    /// group.
+    ///
+    /// Not a verdict on the request. A ruleset load that was killed has neither
+    /// been accepted nor refused, so this is never [`Self::NftFailed`] or
+    /// [`Self::RuleRefusedByNft`], both of which say `nft` answered. What the
+    /// kernel is running after it is unknown, and the same operation retried
+    /// converges: it re-renders, re-checks and loads. The firewall lock is
+    /// released by the return. It carries `nft`'s path and the bound and
+    /// nothing `nft` printed.
+    #[error(transparent)]
+    Bound(#[from] BoundExceeded),
 }
+
+#[cfg(test)]
+#[path = "../tests/firewall/firewall_error_tests.rs"]
+mod tests;

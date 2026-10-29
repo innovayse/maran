@@ -5,7 +5,8 @@
 use crate::cron::create_cron_entry::create_cron_entry;
 use crate::cron::cron_error::CronError;
 use crate::cron::recording_cron_host::{
-    FIRST_ID, RecordingCronHost, account, assignment, command, distro, every_five_minutes,
+    FIRST_ID, RecordingCronHost, account, assert_refused_untouched, assignment, command, distro,
+    every_five_minutes, unmanaged_cases,
 };
 use crate::cron::set_cron_environment::set_cron_environment;
 
@@ -111,4 +112,22 @@ fn a_refused_install_leaves_the_environment_alone() {
 
     assert_eq!(refusal, Err(CronError::CrontabRefused { code: 1 }));
     assert_eq!(host.crontab(), Some(before));
+}
+
+/// An account that is not a hosting account is refused before the table is
+/// read, and everything the host holds is left as it was.
+#[test]
+fn setting_the_environment_of_an_unmanaged_account_reads_and_installs_nothing() {
+    // The highest-risk writer: it puts KEY=value lines into a crontab, and for
+    // `root` that table runs as root.
+    for case in unmanaged_cases() {
+        let result = set_cron_environment(
+            &case.host,
+            distro(),
+            &case.account,
+            vec![assignment("TZ", "UTC")],
+        );
+
+        assert_refused_untouched(&case, result);
+    }
 }

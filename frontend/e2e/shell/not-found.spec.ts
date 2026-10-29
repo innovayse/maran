@@ -19,7 +19,6 @@ test('unknown path renders the not-found page with its i18n copy', async ({ page
 
   // The title is the page's ONLY title, so it has to be a heading and not an
   // emphasized paragraph: this was the one routed screen whose content added
-  // nothing to the document outline. Scoped to <main> because the shell's own
-  // <h1> is the brand, which is a separate, already-filed defect.
+  // nothing to the document outline. Scoped to <main>, where the page's content lives.
   await expect(page404.getByRole('heading', { level: 1, name: 'Page not found' })).toBeVisible()
 })

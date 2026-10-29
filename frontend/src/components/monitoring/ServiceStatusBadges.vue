@@ -16,6 +16,10 @@
  * request's language, rendered verbatim (rules/vue.md: the SPA never holds display text for a
  * server-side thing). The machine `service` member stays what a row is keyed by — stable across
  * languages, which a translated name is not.
+ *
+ * Rendered as a list of tiles (name left, state badge right) that fills whatever width it is given:
+ * the monitoring card and the dashboard's status card both use it, so its props and its
+ * `data-testid` are a contract with both and do not change with its looks.
  */
 import { useI18n } from 'vue-i18n'
 import UiBadge, { type BadgeVariant } from '../ui/UiBadge.vue'
@@ -68,17 +72,21 @@ const labelOf = (state: ServiceState): string => {
 </script>
 
 <template>
-  <div class="flex flex-wrap gap-3" data-testid="monitoring-services">
-    <div
+  <!-- `auto-fill` rather than a fixed column count: this component is rendered at two widths (the
+       full monitoring card and the narrower dashboard card), and the tiles should fill whichever
+       they are given. `min-w-0` + `wrap-anywhere` keep a long translated name inside its tile at
+       390px. -->
+  <ul class="grid grid-cols-[repeat(auto-fill,minmax(14rem,1fr))] gap-3" data-testid="monitoring-services">
+    <li
       v-for="status in statuses"
       :key="status.service"
-      class="flex items-center gap-2 rounded-lg border border-border-subtle bg-surface-2 px-3 py-2"
+      class="flex min-w-0 items-center justify-between gap-3 rounded-control border border-border-subtle bg-surface-2 px-4 py-3"
       :title="status.detail"
     >
       <!-- The localized name, not the machine member: `font-mono` left with the constant it was
            chosen for — a translated phrase is prose, not code. -->
-      <span class="text-sm font-medium text-text-secondary">{{ status.name }}</span>
-      <UiBadge :variant="toneOf(status.state)">{{ labelOf(status.state) }}</UiBadge>
-    </div>
-  </div>
+      <span class="min-w-0 text-sm font-semibold text-text-primary wrap-anywhere">{{ status.name }}</span>
+      <UiBadge :variant="toneOf(status.state)" class="shrink-0">{{ labelOf(status.state) }}</UiBadge>
+    </li>
+  </ul>
 </template>

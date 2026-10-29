@@ -83,6 +83,32 @@ public sealed class CreateAccountAuditTests
         Assert.False(entry.Succeeded);
     }
 
+    /// <summary>
+    /// A name the agent refuses as reserved or not a hosting account is journalled as a failure,
+    /// keeps the refusal's code, and leaves no account row behind.
+    /// </summary>
+    /// <remarks>
+    /// This is the backstop for lists that drift apart: the API's validator normally stops a
+    /// reserved name first (and a validator refusal is, by convention, not journalled), but a name
+    /// only the agent knows reaches the handler, and a run of such probes from one address is what
+    /// the journal exists to make visible.
+    /// </remarks>
+    [Fact]
+    public async Task A_name_the_agent_refuses_as_reserved_is_journalled_as_a_failure_and_stores_no_row()
+    {
+        var world = await WorldAsync(new RecordingAgentAccountsClient(Error.Of("AgentInvalidInput", ErrorType.Validation)));
+
+        var result = await world.CreateAsync("root", "acme.example.com", world.PlanId);
+
+        Assert.Equal("AgentInvalidInput", result.Error!.Code);
+        var entry = Assert.Single(world.Audit.Entries);
+        Assert.Equal(AuditActions.AccountCreated, entry.Action);
+        Assert.Equal("root", entry.Subject);
+        Assert.False(entry.Succeeded);
+        Assert.Equal(Ip, entry.IpAddress);
+        Assert.Empty(await world.DbContext.Accounts.ToListAsync());
+    }
+
     /// <summary>The journalled subject is the account name and never a home directory path.</summary>
     [Fact]
     public async Task The_journalled_subject_is_the_account_name_and_never_a_home_directory_path()
@@ -127,6 +153,7 @@ public sealed class CreateAccountAuditTests
         /// <param name="planId">The seeded plan.</param>
         public World(AccountsDbContext dbContext, RecordingAgentAccountsClient agent, Guid planId)
         {
+            DbContext = dbContext;
             Audit = new RecordingAuditWriter();
             PlanId = planId;
             _handler = new CreateAccountCommandHandler(
@@ -137,6 +164,9 @@ public sealed class CreateAccountAuditTests
                 new StubMessageBus(),
                 NullLogger<CreateAccountCommandHandler>.Instance);
         }
+
+        /// <summary>The module's context, so a test can assert no row was stored.</summary>
+        public AccountsDbContext DbContext { get; }
 
         /// <summary>Everything the handler journalled.</summary>
         public RecordingAuditWriter Audit { get; }

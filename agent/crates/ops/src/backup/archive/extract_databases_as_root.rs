@@ -53,6 +53,7 @@ const DATABASES_DIRECTORY: &str = "databases";
 /// # Errors
 ///
 /// - [`BackupError::ArchiveFailed`] when the member cannot be extracted.
+/// - [`BackupError::Bound`] when the archiver was killed at its deadline.
 /// - [`BackupError::ChecksumUnreadable`] when an expected dump is not there or
 ///   cannot be read to the end.
 /// - [`BackupError::DumpChecksumMismatch`] naming the database whose dump is

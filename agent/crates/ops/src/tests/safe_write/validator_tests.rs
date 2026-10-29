@@ -8,7 +8,8 @@
 use std::path::{Path, PathBuf};
 
 /// Every `Validator { .. }` this crate builds, as
-/// `(path relative to `src/`, the `program:` expression verbatim)`.
+/// `(path relative to `src/`, the `program:` expression verbatim, the `class:`
+/// expression verbatim)`.
 ///
 /// DISCOVERED from the source rather than listed, because a list is blind to
 /// exactly the addition this is watching for: a new area passing a mutating
@@ -20,7 +21,7 @@ use std::path::{Path, PathBuf};
 ///
 /// The test module's own file is excluded, and so is everything under `tests/`:
 /// a fake's fixture building a `Validator` is not a production call site.
-fn validator_call_sites() -> Vec<(String, String)> {
+fn validator_call_sites() -> Vec<(String, String, String)> {
     let source_root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src");
     let mut files = Vec::new();
     collect_rust_files(&source_root, &mut files);
@@ -41,12 +42,17 @@ fn validator_call_sites() -> Vec<(String, String)> {
         }
 
         let contents = std::fs::read_to_string(&file).expect("a source file this crate compiles");
-        for program in programs_in(&contents) {
-            found.push((relative.clone(), program));
+        for (program, class) in sites_in(&contents) {
+            found.push((relative.clone(), program, class));
         }
     }
 
     found
+}
+
+/// One expected row of the census, as the scan reports it.
+fn row(file: &str, program: &str, class: &str) -> (String, String, String) {
+    (file.to_owned(), program.to_owned(), class.to_owned())
 }
 
 /// Every `.rs` file under `directory`, recursively.
@@ -62,27 +68,39 @@ fn collect_rust_files(directory: &Path, into: &mut Vec<PathBuf>) {
     }
 }
 
-/// The `program:` expression of every `Validator { .. }` literal in `contents`.
+/// The `program:` and `class:` expressions of every `Validator { .. }` literal in
+/// `contents`.
 ///
 /// Reads forward from each `Validator {` to the first line whose trimmed start is
-/// `program:`, so the comment paragraphs several of these carry between the brace
-/// and the field are skipped rather than mistaken for it.
-fn programs_in(contents: &str) -> Vec<String> {
-    let mut programs = Vec::new();
+/// `program:` and then to the first one that starts with `class:`, so the comment
+/// paragraphs several of these carry between the brace and the fields are skipped
+/// rather than mistaken for them. A literal with no `class:` line cannot compile,
+/// so a missing one is reported as an empty expression and fails the census loudly.
+fn sites_in(contents: &str) -> Vec<(String, String)> {
+    let mut sites = Vec::new();
     let mut rest = contents;
 
     while let Some(offset) = rest.find("Validator {") {
         rest = &rest[offset + "Validator {".len()..];
+        let mut program = None;
+        let mut class = None;
         for line in rest.lines() {
             let trimmed = line.trim();
-            if let Some(expression) = trimmed.strip_prefix("program:") {
-                programs.push(expression.trim().trim_end_matches(',').to_owned());
+            if program.is_none() {
+                program = trimmed
+                    .strip_prefix("program:")
+                    .map(|expression| expression.trim().trim_end_matches(',').to_owned());
+            } else if let Some(expression) = trimmed.strip_prefix("class:") {
+                class = Some(expression.trim().trim_end_matches(',').to_owned());
                 break;
             }
         }
+        if let Some(program) = program {
+            sites.push((program, class.unwrap_or_default()));
+        }
     }
 
-    programs
+    sites
 }
 
 /// Every validator this crate builds, and the four that are actions rather than
@@ -106,63 +124,63 @@ fn every_validator_is_a_check_except_the_four_that_have_no_check_mode() {
         vec![
             // MUTATING — vsftpd.conf, twice. `systemctl restart`: vsftpd has no
             // check mode at all, so the only way to learn whether the file
-            // parses is to make the daemon read it.
-            (
-                "ftps/enable_ftps.rs".to_owned(),
-                "distro.service_manager()".to_owned()
+            // parses is to make the daemon read it. The longer class, because
+            // the service manager is being asked to change unit state.
+            row(
+                "ftps/enable_ftps.rs",
+                "&service_manager",
+                "CallClass::Reload"
             ),
-            (
-                "ftps/enable_ftps.rs".to_owned(),
-                "distro.service_manager()".to_owned()
+            row(
+                "ftps/enable_ftps.rs",
+                "&service_manager",
+                "CallClass::Reload"
             ),
             // MUTATING — the FTPS jail mount unit. `systemctl daemon-reload`: a
             // systemd unit file has no check-without-load.
-            (
-                "ftps/ensure_account_jail.rs".to_owned(),
-                "distro.service_manager()".to_owned()
+            row(
+                "ftps/ensure_account_jail.rs",
+                "&service_manager",
+                "CallClass::Reload"
             ),
             // Pure — php-fpm's own validate-only flag, per installed version.
             // The expression is a local because the binary's name carries the
             // version, so the adapter is asked for it before the literal is built.
-            (
-                "php/reload_pool_trees.rs".to_owned(),
-                "&validator_program".to_owned()
+            row(
+                "php/reload_pool_trees.rs",
+                "&validator_program",
+                "CallClass::Validate"
             ),
-            (
-                "php/remove_pool.rs".to_owned(),
-                "&validator_program".to_owned()
+            row(
+                "php/remove_pool.rs",
+                "&validator_program",
+                "CallClass::Validate"
             ),
-            (
-                "php/write_pool.rs".to_owned(),
-                "&validator_program".to_owned()
+            row(
+                "php/write_pool.rs",
+                "&validator_program",
+                "CallClass::Validate"
             ),
             // MUTATING — the SFTP jail mount unit, for the same reason as FTPS's.
-            (
-                "sftp/create_sftp_user.rs".to_owned(),
-                "distro.service_manager()".to_owned()
+            row(
+                "sftp/create_sftp_user.rs",
+                "&service_manager",
+                "CallClass::Reload"
             ),
             // Pure — the web server's own validate-only flag, over the real tree.
-            (
-                "sites/reload_web_server.rs".to_owned(),
-                "distro.nginx_binary()".to_owned()
+            // `create_vhost` is the creation twin of `write_vhost`: same binary,
+            // and its caller also reads the validator's stderr for a warning.
+            row("sites/create_vhost.rs", "&nginx", "CallClass::Validate"),
+            row(
+                "sites/reload_web_server.rs",
+                "&nginx",
+                "CallClass::Validate"
             ),
-            (
-                "sites/remove_vhost.rs".to_owned(),
-                "distro.nginx_binary()".to_owned()
-            ),
-            (
-                "sites/write_vhost.rs".to_owned(),
-                "distro.nginx_binary()".to_owned()
-            ),
+            row("sites/remove_vhost.rs", "&nginx", "CallClass::Validate"),
+            row("sites/write_vhost.rs", "&nginx", "CallClass::Validate"),
             // Pure — the TLS material is loaded by nginx, so nginx checks it.
-            (
-                "ssl/remove_material.rs".to_owned(),
-                "distro.nginx_binary()".to_owned()
-            ),
-            (
-                "ssl/write_material.rs".to_owned(),
-                "distro.nginx_binary()".to_owned()
-            ),
+            row("ssl/remove_material.rs", "&nginx", "CallClass::Validate"),
+            row("ssl/write_material.rs", "&nginx", "CallClass::Validate"),
         ],
         "a Validator call site was added, removed or re-aimed. If a tree gained a PURE \
          validator, update the count and the argument in Validator's own doc comment. If a \
@@ -180,9 +198,9 @@ fn every_validator_is_a_check_except_the_four_that_have_no_check_mode() {
 /// behind it rather than a reader's memory.
 #[test]
 fn exactly_four_validators_spawn_the_service_manager_instead_of_a_checker() {
-    let mutating: Vec<(String, String)> = validator_call_sites()
+    let mutating: Vec<(String, String, String)> = validator_call_sites()
         .into_iter()
-        .filter(|(_, program)| program.contains("service_manager"))
+        .filter(|(_, program, _)| program.contains("service_manager"))
         .collect();
 
     assert_eq!(
@@ -196,7 +214,7 @@ fn exactly_four_validators_spawn_the_service_manager_instead_of_a_checker() {
 
 /// The scan finds something, and finds it in more than one area.
 ///
-/// The guard against the whole census becoming vacuous. A `programs_in` that had
+/// The guard against the whole census becoming vacuous. A `sites_in` that had
 /// stopped matching — a rename of the type, a reformat that put `program:` on the
 /// brace line — would return an empty list, and an empty list compared against an
 /// empty expectation is a test that measures nothing (rules/testing.md).
@@ -212,10 +230,46 @@ fn the_scan_actually_finds_validators_across_several_areas() {
 
     let areas: std::collections::BTreeSet<String> = sites
         .iter()
-        .filter_map(|(file, _)| file.split('/').next().map(str::to_owned))
+        .filter_map(|(file, _, _)| file.split('/').next().map(str::to_owned))
         .collect();
     assert!(
         areas.len() >= 4,
         "a validator census that sees one area is not seeing the crate: {areas:?}"
+    );
+}
+
+/// A validator that asks the service manager runs in the long class, and a pure one in
+/// the short class.
+///
+/// The census above pins the whole list; this states the RULE the list follows, so a
+/// new validator is judged by it rather than copied from a neighbour. A mutating
+/// validator given the 60 s class is killed in the middle of a restart, and a pure one
+/// given the 240 s class holds every tenant's write for four minutes.
+#[test]
+fn every_mutating_validator_runs_in_the_reload_class_and_every_pure_one_in_validate() {
+    let sites = validator_call_sites();
+
+    for (file, program, class) in &sites {
+        let expected = if program.contains("service_manager") {
+            "CallClass::Reload"
+        } else {
+            "CallClass::Validate"
+        };
+        assert_eq!(
+            class, expected,
+            "{file} builds a validator over `{program}` and gives it `{class}`"
+        );
+    }
+
+    // The positive control: both sides of the rule were actually exercised.
+    assert!(
+        sites
+            .iter()
+            .any(|(_, _, class)| class == "CallClass::Reload")
+    );
+    assert!(
+        sites
+            .iter()
+            .any(|(_, _, class)| class == "CallClass::Validate")
     );
 }

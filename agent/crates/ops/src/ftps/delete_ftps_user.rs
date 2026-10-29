@@ -1,5 +1,6 @@
 //! DeleteFtpsUser: the login only, never the files behind it.
 
+use maran_agent_core::utils::call_class::CallClass;
 use maran_agent_core::validation::system::ftps_user_name::FtpsUserName;
 use maran_agent_core::validation::system::name::AccountName;
 use maran_distro::DistroAdapter;
@@ -8,6 +9,7 @@ use crate::accounts::take_account_lock;
 use crate::ftps::ftps_error::FtpsError;
 use crate::ftps::ftps_host::FtpsHost;
 use crate::ftps::model::ftps_jail::FtpsJail;
+use maran_agent_core::end_of_options::END_OF_OPTIONS;
 
 /// Removes the system login `user`.
 ///
@@ -56,6 +58,22 @@ use crate::ftps::model::ftps_jail::FtpsJail;
 /// operator's typo and an attacker's probe get one answer; the audit trail is
 /// where the two are told apart.
 ///
+/// # Why this path does not take the managed-account proof
+///
+/// The operations that set a password or create a login resolve the hosting
+/// account through the managed-account type first; this one does not, and that
+/// is a decision rather than a gap. The `userdel` below runs on a name only
+/// after it has been found in the account's own login enumeration, which admits
+/// a passwd row only when its home is exactly this account's jail directory — a
+/// path the agent wrote when it created the login and one no reserved, system
+/// or operator user has. So a name that is reserved, a system identity or an
+/// ordinary host user cannot reach `userdel` through here, whatever account name
+/// the caller supplies: the jail home is the proof, and it is stronger than the
+/// name rules because it is a fact about the row and not about a spelling.
+/// Threading the account proof into the removal body would refuse the deletion
+/// of a login whose account has since become unmanaged, which is a login an
+/// operator needs to be able to remove.
+///
 /// # The lock
 ///
 /// The hosting account's lock (`crate::accounts::account_lock`) is taken as the
@@ -88,6 +106,8 @@ use crate::ftps::model::ftps_jail::FtpsJail;
 ///   all.
 /// - [`FtpsError::SpawnFailed`] when `userdel` refuses for any other reason, or
 ///   could not be run at all.
+/// - [`FtpsError::Bound`] when `userdel` outran its deadline. Whether the login
+///   is gone is then unknown, and a repeat converges on `NotFound` if it is.
 pub fn delete_ftps_user(
     host: &dyn FtpsHost,
     distro: &dyn DistroAdapter,
@@ -127,12 +147,21 @@ pub fn delete_ftps_user(
 /// - [`FtpsError::NotFound`] when `userdel` reports no such login.
 /// - [`FtpsError::SpawnFailed`] when `userdel` refuses for any other reason, or
 ///   could not be run at all.
+/// - [`FtpsError::Bound`] when `userdel` outran its deadline.
 pub(crate) fn delete_ftps_user_under_lock(
     host: &dyn FtpsHost,
     distro: &dyn DistroAdapter,
     user: &FtpsUserName,
 ) -> Result<(), FtpsError> {
-    let outcome = host.run(distro.userdel_binary(), &[user.as_str()])?;
+    // No `--remove`: the jail is root-owned and the home belongs to the account,
+    // so this is a single-entry edit of the password database, `Mutation`
+    // rather than `Bulk`. `userdel` parses with `getopt_long`, which honours the
+    // end-of-options marker on both families.
+    let outcome = host.run(
+        &distro.userdel_binary(),
+        &[END_OF_OPTIONS, user.as_str()],
+        CallClass::Mutation,
+    )?;
     if outcome.status != 0 {
         return Err(FtpsError::from_userdel(outcome.status));
     }

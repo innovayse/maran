@@ -206,3 +206,64 @@ test('every service state the agent reports is shown with its own wording', asyn
   await expect(services.getByText('Stopped')).toBeVisible()
   await expect(services.getByText('Not known')).toBeVisible()
 })
+
+/** The injected stylesheet of WCAG 1.4.12 (text spacing): the minimum overrides a user may apply. */
+const TEXT_SPACING = '* { line-height: 1.5 !important; letter-spacing: .12em !important; word-spacing: .16em !important; }'
+
+/**
+ * Measures every chart's time labels and returns, per chart, the bounding boxes of the labels.
+ * @param page The Playwright page under test.
+ * @returns For each chart, the labels' left and right edges, left to right.
+ */
+const xAxisBoxes = async (page: Page): Promise<{ left: number; right: number; text: string }[][]> => {
+  return page.locator('.ui-chart').evaluateAll((charts) => {
+    return charts.map((chart) => {
+      return Array.from(chart.querySelectorAll('.ui-chart-axis-label.absolute')).map((label) => {
+        const box = label.getBoundingClientRect()
+        return { left: box.left, right: box.right, text: label.textContent ?? '' }
+      })
+    })
+  })
+}
+
+// The proposition (WCAG 1.4.10 reflow, 1.4.12 text spacing): the time labels under each chart never
+// print over one another. Three `d MMM, HH:mm` labels need more room than a 320 px plot has, and the
+// spacing override widens them again at 390; they are absolutely positioned, so only the chart's own
+// collision handling keeps them apart. Breakable: render all three labels unconditionally and the
+// neighbouring boxes overlap at 320; drop the end labels' anchoring and the last one leaves the plot.
+for (const [name, width, css] of [
+  ['320 px', 320, ''],
+  ['390 px with 1.4.12 text spacing', 390, TEXT_SPACING],
+  ['320 px with 1.4.12 text spacing', 320, TEXT_SPACING],
+] as const) {
+  test(`no two time labels of a chart overlap at ${name}`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 844 })
+    await openMonitoring(page)
+    if (css !== '') {
+      await page.addStyleTag({ content: css })
+    }
+    // Let the chart re-measure after the viewport / stylesheet change (it settles on a frame).
+    await expect
+      .poll(async () => {
+        const charts = await xAxisBoxes(page)
+        return charts.every((boxes) => {
+          return boxes.every((box, index) => {
+            return index === 0 || box.left >= (boxes[index - 1]?.right ?? 0)
+          })
+        })
+      })
+      .toBe(true)
+
+    const charts = await xAxisBoxes(page)
+    expect(charts.length).toBeGreaterThan(0)
+    for (const boxes of charts) {
+      // At least the newest label survives, so the axis is never left blank.
+      expect(boxes.length).toBeGreaterThan(0)
+      for (let index = 1; index < boxes.length; index += 1) {
+        expect(boxes[index].left, `${boxes[index - 1].text} vs ${boxes[index].text}`).toBeGreaterThanOrEqual(
+          boxes[index - 1].right,
+        )
+      }
+    }
+  })
+}

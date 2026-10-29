@@ -1,5 +1,7 @@
-//! `SystemService`: the identity handshake the API performs before trusting the
-//! agent.
+//! `SystemService`: the identity handshake. The panel asks it when it starts,
+//! on every health and readiness request, and before it shows the backup root,
+//! and refuses an agent whose contract revision lies outside the window it was
+//! built for. It does not ask before each operation.
 
 use maran_agent_core::validation::system::local_backup_root::LocalBackupRoot;
 use maran_distro::{DistroFamily, DistroInfo};
@@ -11,8 +13,23 @@ use crate::proto::{
     get_agent_info_response,
 };
 
-/// Contract revision this binary implements; bumped once per additive release.
-const PROTO_VERSION: u32 = 1;
+/// Revision of `proto/agent/v1/` this binary is built from: the number the
+/// panel compares against the window it drives (`AgentProtoVersionWindow` in
+/// the backend; rules/proto.md "The contract revision").
+///
+/// Raised by one in the same change as every contract edit that
+/// `maran proto --accept` records, and moved together with the panel's
+/// window. `maran handshake` builds both from one tree and fails unless the
+/// panel reports this agent `connected`, so a revision and a window moved
+/// apart fail that gate. A contract edit that moves NEITHER is caught by the
+/// agent's own test, which digests `contract-baseline.txt` against the newest
+/// recorded revision and fails until this constant is raised.
+///
+/// 1 is every agent built before that policy: the constant stayed at 1
+/// through every contract change until then, so a 1 names no contract and no
+/// panel window contains it. 2 is the contract as of the change that
+/// introduced the policy (issue #88).
+const PROTO_VERSION: u32 = 2;
 
 /// Answers "what agent is this, and what host is it on?".
 pub struct SystemServiceImpl {

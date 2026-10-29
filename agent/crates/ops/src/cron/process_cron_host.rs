@@ -10,9 +10,11 @@ use maran_agent_core::privs::fork_as_account::fork_as_account;
 use maran_agent_core::privs::priv_error::PrivError;
 use maran_agent_core::validation::system::cron_command::CronCommand;
 use maran_agent_core::validation::system::cron_entry_id::CronEntryId;
+use maran_agent_core::validation::system::managed_account::ManagedAccount;
 use maran_agent_core::validation::system::name::AccountName;
 use maran_distro::DistroAdapter;
 
+use crate::accounts::read_managed_account;
 use crate::cron::cron_error::CronError;
 use crate::cron::cron_host::CronHost;
 use crate::cron::crontab_spool::CrontabSpool;
@@ -117,13 +119,22 @@ impl ProcessCronHost {
 }
 
 impl CronHost for ProcessCronHost {
+    /// Resolves the name against the distro's local password database.
+    ///
+    /// The file is read here, whole, and handed to the type as text; the type
+    /// reads nothing itself. A database that cannot be read refuses: absence of
+    /// evidence is not a pass.
+    fn managed_account(&self, account: &AccountName) -> Result<ManagedAccount, CronError> {
+        read_managed_account(self.distro.passwd_database(), account).map_err(CronError::Account)
+    }
+
     /// Delegates to the area's one reader of the cron spool.
-    fn read_crontab(&self, account: &AccountName) -> Result<Option<String>, CronError> {
+    fn read_crontab(&self, account: &ManagedAccount) -> Result<Option<String>, CronError> {
         CrontabSpool::new(self.distro).read(account)
     }
 
     /// Delegates to the area's one writer of the cron spool.
-    fn install_crontab(&self, account: &AccountName, contents: &str) -> Result<(), CronError> {
+    fn install_crontab(&self, account: &ManagedAccount, contents: &str) -> Result<(), CronError> {
         CrontabSpool::new(self.distro).install(account, contents)
     }
 
@@ -139,13 +150,13 @@ impl CronHost for ProcessCronHost {
     /// directory exists with no file and no operation on its way to make one.
     fn write_command_file(
         &self,
-        account: &AccountName,
+        account: &ManagedAccount,
         entry: &CronEntryId,
         command: &CronCommand,
     ) -> Result<(), CronError> {
-        let ids = AccountIds::resolve(account)?;
-        let directory = AgentPaths::account_cron_dir(account);
-        let path = AgentPaths::cron_cmd_path(account, entry);
+        let ids = AccountIds::resolve(account.name())?;
+        let directory = AgentPaths::account_cron_dir(account.name());
+        let path = AgentPaths::cron_cmd_path(account.name(), entry);
         // Composed in the PARENT, before the fork: the less the child does the
         // better (`fork_as_account`'s own contract), and this is a formatting
         // step with no reason to be on that side.
@@ -172,23 +183,23 @@ impl CronHost for ProcessCronHost {
     /// Delegates to the area's one hardened read and adds nothing of its own.
     fn read_command_file(
         &self,
-        account: &AccountName,
+        account: &ManagedAccount,
         entry: &CronEntryId,
     ) -> Result<Option<String>, CronError> {
-        EntryFiles::of(account, entry).command()
+        EntryFiles::of(account.name(), entry).command()
     }
 
     /// Removes the entry's three files, as the account.
     fn remove_entry_files(
         &self,
-        account: &AccountName,
+        account: &ManagedAccount,
         entry: &CronEntryId,
     ) -> Result<(), CronError> {
-        let ids = AccountIds::resolve(account)?;
+        let ids = AccountIds::resolve(account.name())?;
         let paths = [
-            AgentPaths::cron_cmd_path(account, entry),
-            AgentPaths::cron_log_path(account, entry),
-            AgentPaths::cron_exit_path(account, entry),
+            AgentPaths::cron_cmd_path(account.name(), entry),
+            AgentPaths::cron_log_path(account.name(), entry),
+            AgentPaths::cron_exit_path(account.name(), entry),
         ];
 
         fork_as_account(&ids, || {
@@ -214,19 +225,19 @@ impl CronHost for ProcessCronHost {
     /// Delegates to the area's one hardened read and adds nothing of its own.
     fn read_run_record(
         &self,
-        account: &AccountName,
+        account: &ManagedAccount,
         entry: &CronEntryId,
     ) -> Result<Option<CronRunRecord>, CronError> {
-        EntryFiles::of(account, entry).run_record()
+        EntryFiles::of(account.name(), entry).run_record()
     }
 
     /// Delegates to the area's one hardened read and adds nothing of its own.
     fn read_output_tail(
         &self,
-        account: &AccountName,
+        account: &ManagedAccount,
         entry: &CronEntryId,
         max_bytes: usize,
     ) -> Result<Option<String>, CronError> {
-        EntryFiles::of(account, entry).output_tail(max_bytes)
+        EntryFiles::of(account.name(), entry).output_tail(max_bytes)
     }
 }

@@ -29,7 +29,11 @@ test('an administrator steered into enrolment lands there from any URL, with no 
   // This can fail — the same assertion on `/settings/sessions` for an unsteered
   // administrator finds the landmark and goes red.
   await expect(page.getByRole('navigation')).toHaveCount(0)
-  await expect(page.getByRole('heading', { name: 'Two-step verification' })).toBeVisible()
+  // Level 2, and exactly one level 1: the auth layout's wordmark is the screen's h1, so the page's
+  // own title is an h2 here (issue #82). Asserting the title as a bare heading let a second h1
+  // through; the h1 count is the half that protects the outline.
+  await expect(page.getByRole('heading', { name: 'Two-step verification', level: 2 })).toBeVisible()
+  await expect(page.getByRole('heading', { level: 1 })).toHaveCount(1)
 })
 
 test('the navigation this spec looks for is really there when nobody is steered', async ({ page }) => {

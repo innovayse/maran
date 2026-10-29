@@ -1,0 +1,77 @@
+# Installs ONE package through the host's package manager, as root, outside the agent's sandbox
+# (issue #93).
+#
+# Why this unit exists: maran-agent.service runs with ProtectSystem=true, so /usr is read-only to
+# the agent and to every child it forks. A package manager run as the agent's child unpacks into
+# /usr, gets EROFS on the first file and fails, on both families. Widening the agent's own sandbox
+# was rejected (docs/superpowers/notes/2026-10-26-php-package-install-unit-threat-note.md): the
+# agent keeps the sandbox it has, and this unit is the one named, fixed route to a package install.
+#
+# What it is NOT: a daemon. It listens on nothing, has no [Install] section so nothing enables it or
+# starts it at boot, and exits when the package manager exits. Only the agent starts it, as
+#   systemctl start maran-php-install@<package>.service
+# where <package> is the exact name DistroAdapter::php_package answers (php8.3-fpm on the Debian
+# family, php83-php-fpm on the RHEL family), after the agent has checked the PHP version against its
+# closed set. THIS UNIT DOES NOT RE-CHECK THE INSTANCE: the closed set is enforced in the agent, and
+# the agent starts it as root (its User= and capability set are what allow that), and anyone else able
+# to start a system unit is already able to run the package manager directly. This is an "install one named package, remove nothing"
+# route, not a validator.
+#
+# The instance is the WHOLE package argument and arrives as %i, never %I: %I un-escapes `-` into
+# `/`, which would turn php8.3-fpm into php8.3/fpm (a release selector to apt-get) and would let an
+# instance spell a local .deb path. %i is the instance byte for byte.
+#
+# The two placeholder lines below are rendered by installer/lib/70-services.sh from the host's OS
+# family, because a systemd unit interpolates no shell variable and the two families name different
+# programs. Every rendered form is one fixed argv with no shell and no program taken from a variable:
+#   Debian family:  /usr/bin/apt-get install -y --no-remove -- %i   (DEBIAN_FRONTEND=noninteractive)
+#   RHEL family:    /usr/bin/dnf install -y -- %i
+# `--` ends option parsing, so an instance that begins with `-` (maran-php-install@-oDpkg::Pre-Invoke=...)
+# is read as a package name and not as an option that would run a command as root. Its acceptance by
+# both package managers is a phase B measurement (threat note section 2.4).
+# --no-remove makes an install that could only proceed by removing another package abort instead.
+# dnf removes nothing unless given --allowerasing, which is never passed here.
+#
+# What is deliberately absent, so the omission reads as a decision:
+#   * ProtectSystem=, ReadWritePaths=: the job writes /usr, /etc and /var, so there is nothing to
+#     protect and nothing to list.
+#   * PrivateNetwork=: the job downloads. Network access is a stated requirement.
+#   * PrivateTmp=, ProtectHome=, dpkg's --force-conf* options and an `apt-get update` step: each of
+#     them is plausible and none has been measured on both families, and an unmeasured directive on
+#     a package manager is how an install breaks on one distribution only. Add one only with its
+#     measurement. A malicious package is not stopped by any of them anyway: a maintainer script
+#     runs as root and can undo them. They would only guard against accidents.
+#   * EnvironmentFile=: nothing from /etc/maran/agent.env reaches this process.
+#   * Standard input is the systemd default, /dev/null, so nothing can prompt.
+[Unit]
+Description=Maran package install (%i)
+After=network-online.target
+Wants=network-online.target
+# The default start rate limit refuses a sixth start within ten seconds, and the refusal
+# (start-limit-hit) would reach the operator as a package-manager failure that never ran the
+# package manager. Retries cluster exactly when the manager fails fast (a held dpkg lock, an
+# unreachable mirror). The agent is the only starter and its retries are paced by a person or a job
+# timeout, so the limit protects nothing here.
+StartLimitIntervalSec=0
+
+[Service]
+Type=oneshot
+# `systemctl start` on a oneshot returns only when the run is over and exits non-zero if it failed,
+# which is the status the agent reports. `no` (the default, stated) rather than `yes`: with yes, a
+# second start of an instance that had already succeeded would do nothing, even after the package
+# had been removed.
+RemainAfterExit=no
+# systemd's built-in default PATH starts with /usr/local/sbin:/usr/local/bin, the unmanaged
+# directories the agent keeps out of every child's PATH (agent-core apply_child_environment). The
+# children here are maintainer scripts running as root and unsandboxed, so the same PATH is stated.
+Environment=PATH=/usr/sbin:/usr/bin:/sbin:/bin
+__MARAN_PKG_ENVIRONMENT__
+# 0022, not the agent's 0027: files a maintainer script creates must be readable by the web server
+# and the php-fpm workers.
+UMask=0022
+__MARAN_PKG_EXEC_START__
+# oneshot has NO timeout by default, so a stuck mirror would hold the agent's blocking call
+# forever. Thirty minutes is generous on purpose: a timeout kills the package manager part-way,
+# which leaves a half-installed package, the worst state this unit can produce. It is a ceiling for
+# a hung transfer, not an expected duration.
+TimeoutStartSec=1800

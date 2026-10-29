@@ -1,14 +1,15 @@
-//! How large the account's home is, counted the way `tar` will read it.
+//! How large the account's home is and how many members it holds, counted the way `tar` will read it.
 
 use std::fs::read_dir;
 use std::os::unix::fs::MetadataExt as _;
 use std::path::Path;
 
+use crate::backup::archive::home_measure::HomeMeasure;
 use crate::backup::backup_error::BackupError;
 
-/// Measures the account's home, in bytes.
+/// Measures the account's home: its size in bytes and its number of members.
 ///
-/// The number goes into the manifest, where it is what an operator compares a
+/// The byte count goes into the manifest, where it is what an operator compares a
 /// restored account against, so it has to count the same tree `tar` counts —
 /// which is why this walk mirrors two of the archiver's flags rather than being
 /// a generic directory size:
@@ -23,6 +24,12 @@ use crate::backup::backup_error::BackupError;
 ///   what `--one-file-system` does for `tar`. This product bind-mounts the SFTP
 ///   jail under the home, so without this the jail's contents are counted twice.
 ///
+/// Every entry visited is also counted as one member (files, links, special
+/// files and directories, the home itself excluded), in the same walk, so that
+/// `create_backup` can refuse a home with more members than a restore would
+/// accept BEFORE it dumps or archives anything. Counting is saturating: a count
+/// that wrapped would read as a small home.
+///
 /// A directory that cannot be read is a failure and not a zero. A measurement
 /// that silently omits an unreadable subtree is a smaller number that reads
 /// exactly like a smaller home.
@@ -35,7 +42,7 @@ use crate::backup::backup_error::BackupError;
 ///
 /// Returns [`BackupError::HomeUnreadable`] when the home or any directory
 /// beneath it cannot be read.
-pub(crate) fn measure_home_bytes(home: &Path) -> Result<u64, BackupError> {
+pub(crate) fn measure_home_bytes(home: &Path) -> Result<HomeMeasure, BackupError> {
     let root = home
         .symlink_metadata()
         .map_err(|_| BackupError::HomeUnreadable)?;
@@ -46,6 +53,7 @@ pub(crate) fn measure_home_bytes(home: &Path) -> Result<u64, BackupError> {
     let device = root.dev();
     let mut pending = vec![home.to_path_buf()];
     let mut total: u64 = 0;
+    let mut members: u64 = 0;
 
     while let Some(directory) = pending.pop() {
         let entries = read_dir(&directory).map_err(|_| BackupError::HomeUnreadable)?;
@@ -55,6 +63,8 @@ pub(crate) fn measure_home_bytes(home: &Path) -> Result<u64, BackupError> {
                 .path()
                 .symlink_metadata()
                 .map_err(|_| BackupError::HomeUnreadable)?;
+
+            members = members.saturating_add(1);
 
             if metadata.is_dir() {
                 if metadata.dev() == device {
@@ -69,7 +79,10 @@ pub(crate) fn measure_home_bytes(home: &Path) -> Result<u64, BackupError> {
         }
     }
 
-    Ok(total)
+    Ok(HomeMeasure {
+        bytes: total,
+        members,
+    })
 }
 
 #[cfg(test)]

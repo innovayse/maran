@@ -351,8 +351,21 @@ test('the open menu is not clipped by the table it was opened inside', async ({ 
   expect(trigger).not.toBeNull()
   expect(panel).not.toBeNull()
 
-  // Opened downwards, just under the trigger.
-  expect(panel?.y ?? 0).toBeGreaterThanOrEqual(trigger?.y ?? 0)
+  // Anchored to the trigger: its top edge just under the trigger's bottom, or — when the
+  // menu does not fit below — its bottom edge just over the trigger's top. This assertion
+  // used to demand "downwards" only; that was a proxy for "anchored, not left at 0,0" that
+  // held while the row sat high on the screen. The October 2026 redesign's taller page
+  // header put this row near the bottom of the 720px viewport, where the menu (unchanged
+  // behaviour, already in the old component) flips above its trigger so it is drawn whole.
+  // The side is not what this test is about; being next to the trigger is (issue #82).
+  const gap = 8
+  const panelTop = panel?.y ?? 0
+  const panelBottom = panelTop + (panel?.height ?? 0)
+  const triggerTop = trigger?.y ?? 0
+  const triggerBottom = triggerTop + (trigger?.height ?? 0)
+  const anchoredBelow = panelTop >= triggerBottom && panelTop - triggerBottom <= gap
+  const anchoredAbove = panelBottom <= triggerTop && triggerTop - panelBottom <= gap
+  expect(anchoredBelow || anchoredAbove).toBe(true)
   // And aligned to the trigger's right edge, which is what `align="end"` buys in
   // the last column of a table.
   const panelRight = (panel?.x ?? 0) + (panel?.width ?? 0)

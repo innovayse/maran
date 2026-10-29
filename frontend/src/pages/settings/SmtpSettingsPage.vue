@@ -17,9 +17,11 @@ import UiAlert from '../../components/ui/UiAlert.vue'
 import UiButton from '../../components/ui/UiButton.vue'
 import UiCard from '../../components/ui/UiCard.vue'
 import UiForm from '../../components/ui/UiForm.vue'
+import UiIcon from '../../components/ui/UiIcon.vue'
 import UiInput from '../../components/ui/UiInput.vue'
 import UiPageHeading from '../../components/ui/UiPageHeading.vue'
 import UiPasswordInput from '../../components/ui/UiPasswordInput.vue'
+import UiSectionHeading from '../../components/ui/UiSectionHeading.vue'
 import UiSelect, { type SelectOption } from '../../components/ui/UiSelect.vue'
 import { useSmtpSettingsStore } from '../../stores/smtpSettings'
 import type { SmtpSecurity, SmtpSettings } from '../../types/smtpSettings'
@@ -156,75 +158,108 @@ void smtpStore.load()
 </script>
 
 <template>
-  <section class="w-full max-w-2xl">
-    <UiPageHeading class="mb-4" :title="t('app.smtp.heading')" :subtitle="t('app.smtp.subtitle')" />
+  <section class="w-full">
+    <UiPageHeading
+      class="mb-4"
+      :eyebrow="t('app.smtp.eyebrow')"
+      :title="t('app.smtp.heading')"
+      :subtitle="t('app.smtp.subtitle')"
+    />
 
-    <UiAlert v-if="smtpStore.errorMessage !== null" variant="error" class="mb-4">
-      {{ smtpStore.errorMessage }}
-    </UiAlert>
+    <!-- What needs attention comes first: a refusal (the mail server's own words) before
+         the confirmations, which are good news and can wait a line. -->
+    <div class="mb-4 flex flex-col gap-3 empty:hidden">
+      <UiAlert v-if="smtpStore.errorMessage !== null" variant="error">
+        {{ smtpStore.errorMessage }}
+      </UiAlert>
 
-    <UiAlert v-if="smtpStore.saved" variant="info" class="mb-4">{{ t('app.smtp.saved') }}</UiAlert>
+      <UiAlert v-if="smtpStore.saved" variant="success">{{ t('app.smtp.saved') }}</UiAlert>
 
-    <UiAlert v-if="smtpStore.testSent" variant="info" class="mb-4">
-      {{ t('app.smtp.testSent') }}
-    </UiAlert>
+      <UiAlert v-if="smtpStore.testSent" variant="success">{{ t('app.smtp.testSent') }}</UiAlert>
+    </div>
 
-    <UiCard v-if="isLoaded" class="mb-4">
+    <div v-if="isLoaded" class="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,24rem)]">
       <UiForm @submit="submit">
-        <div class="flex flex-col gap-3">
-          <UiInput v-model="host" :label="t('app.smtp.hostLabel')" required />
-          <UiInput v-model="port" :label="t('app.smtp.portLabel')" required />
+        <div class="flex flex-col gap-4">
+          <UiCard>
+            <UiSectionHeading class="mb-4" :title="t('app.smtp.connectionTitle')" />
+            <div class="flex flex-col gap-3">
+              <!-- Host and port are machine text: the mono face, never uppercased. -->
+              <div class="grid gap-3 sm:grid-cols-[minmax(0,1fr)_8rem]">
+                <UiInput v-model="host" :label="t('app.smtp.hostLabel')" mono required />
+                <UiInput v-model="port" :label="t('app.smtp.portLabel')" mono required />
+              </div>
 
-          <UiSelect
-            v-model="security"
-            :label="t('app.smtp.securityLabel')"
-            :options="securityOptions"
-            required
-          />
+              <UiSelect
+                v-model="security"
+                :label="t('app.smtp.securityLabel')"
+                :options="securityOptions"
+                required
+              />
+            </div>
+          </UiCard>
 
-          <UiInput v-model="username" :label="t('app.smtp.usernameLabel')" />
+          <UiCard>
+            <UiSectionHeading class="mb-4" :title="t('app.smtp.credentialsTitle')" />
+            <div class="flex flex-col gap-3">
+              <UiInput v-model="username" :label="t('app.smtp.usernameLabel')" />
 
-          <!-- No `generate`: an existing provider secret is being entered here, not
-               minted. The hint below stands in for the stored value, which nothing
-               on this screen — or in the response behind it — can render. -->
-          <UiPasswordInput
-            v-model="password"
-            :label="t('app.smtp.passwordLabel')"
-            :placeholder="t('app.smtp.passwordPlaceholder')"
-            autocomplete="new-password"
-          />
-          <p class="text-sm text-text-secondary">
-            {{ hasStoredPassword ? t('app.smtp.hasPassword') : t('app.smtp.noPassword') }}
-          </p>
+              <!-- No `generate`: an existing provider secret is being entered here, not
+                   minted. The hint below stands in for the stored value, which nothing
+                   on this screen — or in the response behind it — can render. -->
+              <UiPasswordInput
+                v-model="password"
+                :label="t('app.smtp.passwordLabel')"
+                :placeholder="t('app.smtp.passwordPlaceholder')"
+                autocomplete="new-password"
+              />
+              <p class="flex items-start gap-2 text-sm text-text-secondary">
+                <UiIcon class="mt-0.5 shrink-0" name="lock" size="sm" />
+                <span>{{ hasStoredPassword ? t('app.smtp.hasPassword') : t('app.smtp.noPassword') }}</span>
+              </p>
+            </div>
+          </UiCard>
 
-          <UiInput v-model="fromAddress" :label="t('app.smtp.fromAddressLabel')" required />
-          <UiInput v-model="fromName" :label="t('app.smtp.fromNameLabel')" />
-          <UiInput v-model="alertRecipient" :label="t('app.smtp.alertRecipientLabel')" required />
+          <UiCard>
+            <UiSectionHeading class="mb-4" :title="t('app.smtp.senderTitle')" />
+            <div class="flex flex-col gap-3">
+              <UiInput v-model="fromAddress" :label="t('app.smtp.fromAddressLabel')" required />
+              <UiInput v-model="fromName" :label="t('app.smtp.fromNameLabel')" />
+              <UiInput v-model="alertRecipient" :label="t('app.smtp.alertRecipientLabel')" required />
+            </div>
+          </UiCard>
 
-          <UiButton class="mt-1" type="submit" :disabled="smtpStore.loading">
-            {{ t('app.smtp.save') }}
-          </UiButton>
+          <div>
+            <UiButton type="submit" :disabled="smtpStore.loading">
+              {{ t('app.smtp.save') }}
+            </UiButton>
+          </div>
         </div>
       </UiForm>
-    </UiCard>
 
-    <UiCard v-if="isLoaded">
-      <h2 class="mb-1 text-xl font-semibold">{{ t('app.smtp.testTitle') }}</h2>
-      <p class="mb-3 text-base text-text-secondary">{{ t('app.smtp.testDescription') }}</p>
+      <UiCard>
+        <UiSectionHeading
+          class="mb-4"
+          :title="t('app.smtp.testTitle')"
+          :subtitle="t('app.smtp.testDescription')"
+        />
 
-      <UiForm @submit="sendTest">
-        <div class="flex flex-col gap-3">
-          <UiInput
-            v-model="testRecipient"
-            :label="t('app.smtp.testRecipientLabel')"
-            :placeholder="t('app.auth.emailPlaceholder')"
-            required
-          />
-          <UiButton type="submit" variant="secondary" :disabled="smtpStore.loading">
-            {{ t('app.smtp.sendTest') }}
-          </UiButton>
-        </div>
-      </UiForm>
-    </UiCard>
+        <UiForm @submit="sendTest">
+          <div class="flex flex-col gap-3">
+            <UiInput
+              v-model="testRecipient"
+              :label="t('app.smtp.testRecipientLabel')"
+              :placeholder="t('app.auth.emailPlaceholder')"
+              required
+            />
+            <div>
+              <UiButton type="submit" variant="secondary" :disabled="smtpStore.loading">
+                {{ t('app.smtp.sendTest') }}
+              </UiButton>
+            </div>
+          </div>
+        </UiForm>
+      </UiCard>
+    </div>
   </section>
 </template>

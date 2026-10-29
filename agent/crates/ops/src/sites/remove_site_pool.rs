@@ -33,7 +33,8 @@ use crate::sites::SitesOpError;
 /// # Errors
 ///
 /// Returns whatever [`remove_pool`] refused, mapped into this area's error type
-/// — [`SitesOpError::ConfigWrite`] carrying the PHP area's own failure.
+/// — [`SitesOpError::ConfigWrite`] carrying the PHP area's own failure, or
+/// [`SitesOpError::Bound`] for a program killed at its deadline.
 pub fn remove_site_pool(
     php_host: &dyn PhpHost,
     distro: &dyn DistroAdapter,

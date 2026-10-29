@@ -16,10 +16,13 @@ namespace Maran.Host.Resilience;
 /// loaded, so the operation timeout would abandon one half-done — and the retry is worse than
 /// useless here: a half-streamed restore replayed from the start is a SECOND restore, dropping the
 /// databases the first attempt had already put back. Both streams state their own ending, including
-/// the ending where they stopped without one, so nothing is left hanging silently.
+/// the ending where they stopped without one, so nothing is left hanging silently. A failure of the
+/// transport itself is not one of those endings: with no pipeline here, it leaves the stream as the
+/// exception the transport raised, and the caller deals with it as a torn stream.
 ///
-/// The probe is a network call the agent makes on the panel's behalf and is retried like any other
-/// unary call; retrying it cannot change anything on the server, because it only reads.
+/// The probe is a network call the agent makes on the panel's behalf and is treated like any other
+/// unary call: retried only when the connection to the agent could not be established, and answered
+/// as <c>AgentUnavailable</c> when the agent cannot be reached at all.
 /// </remarks>
 public sealed class ResilientAgentBackupClient : IAgentBackupClient
 {
@@ -72,7 +75,8 @@ public sealed class ResilientAgentBackupClient : IAgentBackupClient
         AgentBackupDestination destination,
         CancellationToken cancellationToken)
     {
-        return await _pipeline.ExecuteAsync(
+        return await AgentOperationPipeline.ExecuteAsync(
+            _pipeline,
             async (state, token) =>
             {
                 return await state.Client.ListAsync(state.AccountUsername, state.Destination, token);
@@ -88,7 +92,8 @@ public sealed class ResilientAgentBackupClient : IAgentBackupClient
         AgentBackupDestination destination,
         CancellationToken cancellationToken)
     {
-        return await _pipeline.ExecuteAsync(
+        return await AgentOperationPipeline.ExecuteAsync(
+            _pipeline,
             async (state, token) =>
             {
                 return await state.Client.DeleteAsync(
@@ -106,7 +111,8 @@ public sealed class ResilientAgentBackupClient : IAgentBackupClient
         AgentBackupDestination destination,
         CancellationToken cancellationToken)
     {
-        return await _pipeline.ExecuteAsync(
+        return await AgentOperationPipeline.ExecuteAsync(
+            _pipeline,
             async (state, token) =>
             {
                 return await state.Client.ProbeAsync(state.Destination, token);

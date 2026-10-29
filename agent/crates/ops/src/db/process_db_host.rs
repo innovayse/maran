@@ -1,11 +1,16 @@
 //! The [`DbHost`] that actually runs the database client on this machine.
 
-use std::io::{Read as _, Write as _};
-use std::os::unix::process::ExitStatusExt as _;
-use std::process::{Command, Stdio};
+use std::path::Path;
 
-use maran_agent_core::utils::apply_child_environment::apply_child_environment;
-use maran_distro::DistroAdapter;
+use maran_agent_core::utils::bound_exceeded::BoundExceeded;
+use maran_agent_core::utils::call_class::CallClass;
+use maran_agent_core::utils::child_input::ChildInput;
+use maran_agent_core::utils::child_output::ChildOutput;
+use maran_agent_core::utils::output_stream::OutputStream;
+use maran_agent_core::utils::run_bounded::run_bounded;
+use maran_agent_core::utils::spawn_error::SpawnError;
+use maran_agent_core::utils::spawn_request::SpawnRequest;
+use maran_distro::{AdapterBinary, DistroAdapter};
 
 use crate::db::db_error::DbError;
 use crate::db::db_host::DbHost;
@@ -23,6 +28,36 @@ use crate::db::db_host::DbHost;
 /// One mebibyte is roughly sixteen thousand names at the sixty-four byte
 /// identifier limit, and every other statement here answers with a single line.
 const MAXIMUM_OUTPUT_BYTES: u64 = 1024 * 1024;
+
+/// The most standard error this host will take from one statement.
+///
+/// The client writes one `ERROR …` line per refused statement and exactly one
+/// statement is sent, so this is a ceiling nobody is expected to meet. Reaching
+/// it is [`DbError::Bound`], not a classification: the text is never read for a
+/// reason except the server's error number.
+const MAXIMUM_ERROR_BYTES: u64 = 64 * 1024;
+
+/// The client option that makes the SERVER stop waiting for a metadata lock
+/// before the agent stops waiting for the client.
+///
+/// A statement such as `DROP DATABASE` or `DROP USER` waits for a metadata lock
+/// held by anyone with an open transaction on the object, and the server's own
+/// default for that wait is a day. The agent kills the client at the
+/// [`CallClass::Database`] deadline (300 s), but a statement the server has
+/// already accepted may be left waiting behind a customer's transaction and take
+/// effect later, long after the agent reported it timed out. Giving the session
+/// a `lock_wait_timeout` of 240 s, 60 s below that deadline, makes the server
+/// abandon the wait first and answer with an error number, so the usual outcome
+/// is a refusal and not a statement that is still pending.
+///
+/// It travels in the argv, not as a second statement: [`is_single_statement`]
+/// refuses anything but one statement, and the option is a constant, so it
+/// holds no customer value (the password-bearing statement still travels on
+/// standard input, `/proc/<pid>/cmdline` shows none of it). `--init-command` is
+/// an option of the MariaDB client, which both families' `mysql` is. It stays
+/// an unmeasured assumption until the polygon suites run it on both families:
+/// a client that rejected it would refuse every statement.
+const LOCK_WAIT_OPTION: &str = "--init-command=SET SESSION lock_wait_timeout=240";
 
 /// The most bytes of statement this host will hand the client.
 ///
@@ -48,8 +83,9 @@ pub struct ProcessDbHost {
     /// construction. It is a platform fact, so it comes from the adapter and
     /// never from a literal in this crate (rules/architecture.md), and it is
     /// stored rather than re-asked so that the argv array cannot be built from
-    /// anything a request influenced.
-    client_binary: String,
+    /// anything a request influenced. An [`AdapterBinary`], which only the
+    /// adapter can make, so no other path can be stored here at all.
+    client_binary: AdapterBinary,
 }
 
 impl ProcessDbHost {
@@ -57,7 +93,7 @@ impl ProcessDbHost {
     #[must_use]
     pub fn new(distro: &dyn DistroAdapter) -> Self {
         Self {
-            client_binary: distro.mysql_client_binary().to_owned(),
+            client_binary: distro.mysql_client_binary(),
         }
     }
 }
@@ -103,16 +139,36 @@ impl DbHost for ProcessDbHost {
     /// because the statement-size ceiling this file declares keeps the
     /// statement far below a pipe's capacity — see `MAXIMUM_STATEMENT_BYTES`.
     ///
+    /// # Bounded
+    ///
+    /// The client runs under the [`CallClass::Database`] deadline, in a process
+    /// group of its own that is killed whole when the deadline passes, with its
+    /// standard output capped at `MAXIMUM_OUTPUT_BYTES` and its standard error
+    /// at `MAXIMUM_ERROR_BYTES`. The two streams are drained concurrently, so a
+    /// client that fills its error pipe before it closes its output can no
+    /// longer wedge the call. The session also carries a server-side
+    /// `lock_wait_timeout` (see `LOCK_WAIT_OPTION`) that fires before the
+    /// deadline.
+    ///
+    /// No `--` is put in the argv: it holds no operand, only two constant
+    /// options, and the statement is on standard input.
+    ///
     /// # Errors
     ///
-    /// - [`DbError::Unparsable`] when the output is not UTF-8, or exceeds
-    ///   the ceiling above.
+    /// - [`DbError::Unparsable`] when the output exceeds the ceiling above.
+    ///   Output that is not valid UTF-8 is read lossily, as the core returns
+    ///   it, rather than refused: every answer this area parses is an
+    ///   identifier or a number.
+    /// - [`DbError::Bound`] when the client was still running at the deadline
+    ///   (the statement MAY nevertheless take effect on the server), or its
+    ///   standard error went past its cap.
     /// - [`DbError::StatementRefused`] when the guard above refuses the
     ///   statement, in which case nothing is spawned at all.
     /// - [`DbError::ClientUnavailable`] when the client could not be started,
     ///   or its input could not be delivered.
-    /// - [`DbError::ClientKilled`] when a signal ended the client before it
-    ///   answered.
+    /// - [`DbError::ClientKilled`] when a signal the agent did not send ended the
+    ///   client before it answered. The core reports such a client as having no
+    ///   exit status and not WHICH signal, so the number is the unknown one.
     /// - Whatever `DbError::from_client` makes of a non-zero exit.
     ///
     /// The first three were one value — `ClientFailed { code: -1 }` — until the
@@ -123,7 +179,7 @@ impl DbHost for ProcessDbHost {
     /// refused, which on two paths is a customer's password
     /// (rules/security.md item 8).
     fn execute(&self, statement: &str) -> Result<String, DbError> {
-        run_client(&self.client_binary, statement)
+        run_client(self.client_binary.as_path(), statement)
     }
 }
 
@@ -135,96 +191,81 @@ impl DbHost for ProcessDbHost {
 /// it received. A test can point this at a stand-in that records its own argv
 /// and its own standard input; it cannot point [`ProcessDbHost`] anywhere,
 /// because that path comes from the `DistroAdapter`, which is exactly the
-/// property `ProcessDbHost` is there to keep.
+/// property `ProcessDbHost` is there to keep. The parameter is a `&Path` and not
+/// an [`AdapterBinary`] because the latter can only be made inside the distro
+/// crate; the only caller that holds a real path is [`ProcessDbHost`], whose
+/// field is one.
+///
+/// The statement is copied once, with its trailing newline, into a buffer that
+/// is overwritten before it is dropped: the core copies it again into the thread
+/// that writes the pipe and overwrites that copy too. Best effort in both
+/// places, and the same discipline as the pipe writer's.
 ///
 /// # Errors
 ///
 /// As documented on [`ProcessDbHost::execute`].
-fn run_client(client_binary: &str, statement: &str) -> Result<String, DbError> {
+fn run_client(client_binary: &Path, statement: &str) -> Result<String, DbError> {
     if !is_single_statement(statement) {
         return Err(DbError::StatementRefused);
     }
 
-    let mut command = Command::new(client_binary);
-    apply_child_environment(&mut command);
-    let mut child = command
-        .args(["--batch", "--skip-column-names"])
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .map_err(|_| DbError::ClientUnavailable)?;
+    // A trailing newline: the client executes what it has at end of input, and
+    // the core closes the pipe after the last byte.
+    let mut script = Vec::with_capacity(statement.len() + 1);
+    script.extend_from_slice(statement.as_bytes());
+    script.push(b'\n');
 
-    let Some(mut stdin) = child.stdin.take() else {
-        let _ = child.kill();
-        let _ = child.wait();
+    let answered = run_bounded(SpawnRequest {
+        program: client_binary,
+        arguments: &["--batch", "--skip-column-names", LOCK_WAIT_OPTION],
+        class: CallClass::Database,
+        input: ChildInput::Bytes(&script),
+        output: ChildOutput::Capture {
+            stdout_cap: MAXIMUM_OUTPUT_BYTES,
+            stderr_cap: MAXIMUM_ERROR_BYTES,
+        },
+    });
+    script.fill(0);
+    // So that the overwrite is not removed as a store to memory about to be freed.
+    std::hint::black_box(&script);
 
-        return Err(DbError::ClientUnavailable);
-    };
+    let outcome = answered.map_err(|error| match error {
+        SpawnError::Bound(bound) => bound_error(bound),
+        _ => DbError::ClientUnavailable,
+    })?;
 
-    // A trailing newline, and the handle dropped straight after: the client
-    // executes what it has at end of input, and a pipe left open is a client
-    // waiting for a statement that has already been written.
-    let written = stdin
-        .write_all(statement.as_bytes())
-        .and_then(|()| stdin.write_all(b"\n"));
-    drop(stdin);
-
-    if written.is_err() {
-        let _ = child.kill();
-        let _ = child.wait();
-
-        return Err(DbError::ClientUnavailable);
-    }
-
-    let Some(stdout) = child.stdout.take() else {
-        let _ = child.kill();
-        let _ = child.wait();
-
-        return Err(DbError::ClientUnavailable);
-    };
-
-    // One byte past the ceiling, so that hitting it is distinguishable from
-    // an answer that happens to be exactly the ceiling long.
-    let mut captured = String::new();
-    let read = stdout
-        .take(MAXIMUM_OUTPUT_BYTES + 1)
-        .read_to_string(&mut captured);
-    if read.is_err() || captured.len() as u64 > MAXIMUM_OUTPUT_BYTES {
-        // The client is still writing into a pipe nobody is draining, so it
-        // would block until this process exits. Killing it is what makes the
-        // ceiling a ceiling rather than a leak of one stuck client per call.
-        let _ = child.kill();
-        let _ = child.wait();
-
-        return Err(DbError::Unparsable);
-    }
-
-    // Standard output is already at end of file and its handle is gone, so
-    // this collects the exit status and standard error only. The client
-    // writes one `ERROR …` line per refused statement, and exactly one
-    // statement was sent.
-    let finished = child
-        .wait_with_output()
-        .map_err(|_| DbError::ClientUnavailable)?;
-
-    if !finished.status.success() {
-        // A status that is not an exit code is a signal, and the two are
-        // different answers to the operator's question: an exit code means the
-        // client ran and the server replied, a signal means something on this
-        // machine killed it mid-statement and nobody knows whether the
+    if outcome.status != 0 {
+        // A status the core reports as -1 is a signal it did not send, and the
+        // two are different answers to the operator's question: an exit code
+        // means the client ran and the server replied, a signal means something
+        // on this machine killed it mid-statement and nobody knows whether the
         // statement took effect. They used to be folded onto the same number.
-        let Some(code) = finished.status.code() else {
-            return Err(DbError::client_killed(finished.status.signal()));
-        };
+        // No exit status is negative, so -1 is not ambiguous.
+        if outcome.status < 0 {
+            return Err(DbError::client_killed(None));
+        }
 
-        return Err(DbError::from_client(
-            code,
-            &String::from_utf8_lossy(&finished.stderr),
-        ));
+        return Err(DbError::from_client(outcome.status, &outcome.stderr));
     }
 
-    Ok(captured)
+    Ok(outcome.stdout)
+}
+
+/// Turns a bound into this area's error.
+///
+/// Standard output past its cap is the area's existing refusal, [`DbError::Unparsable`]:
+/// a listing cut short omits a customer's database, so it is refused and never
+/// truncated. Every other bound — the deadline, and standard error past its cap
+/// — is [`DbError::Bound`], and is never `Unparsable` or `ClientFailed`: a
+/// client that was killed has not answered, and nothing it printed was read.
+fn bound_error(bound: BoundExceeded) -> DbError {
+    match bound {
+        BoundExceeded::OutputTooLarge {
+            stream: OutputStream::Stdout,
+            ..
+        } => DbError::Unparsable,
+        other => DbError::Bound(other),
+    }
 }
 
 /// Whether `statement` is one statement this host is willing to send.

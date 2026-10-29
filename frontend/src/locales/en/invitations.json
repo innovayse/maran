@@ -1,0 +1,20 @@
+{
+  "invitations": {
+    "heading": "Invitation",
+    "subtitle": "The owner sets their own password from a one-time link. You never see it.",
+    "loading": "Checking the invitation…",
+    "state": {
+      "none": "No invitation has been issued: this account has no login yet. Creating a link sets one up.",
+      "pending": "Waiting for the owner to set a password. The invitation works until {date}.",
+      "expired": "The invitation expired before the owner used it. Create a new link to let them in.",
+      "accepted": "The owner has set a password and can sign in. There is no invitation left to hand over."
+    },
+    "createLink": "Create invitation link",
+    "createAnotherLink": "Create a new link",
+    "creating": "Creating…",
+    "replaceNote": "An e-mail is sent only if this panel has a mail server set up. Creating a link replaces any invitation already sent: the earlier link stops working.",
+    "linkLabel": "Invitation link",
+    "linkWarning": "Shown once. Anyone holding this link can set the account's password, so give it to the owner only. It stops working once the owner uses it, or on {date}. Leaving this page forgets it; create another link if you lose it.",
+    "copyLink": "Copy link"
+  }
+}

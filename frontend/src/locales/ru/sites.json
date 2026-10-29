@@ -10,6 +10,7 @@
       "reverseProxy": "Обратный прокси"
     },
     "list": {
+      "eyebrow": "Хостинг",
       "heading": "Сайты",
       "subtitle": "Сайты, обслуживаемые этим сервером.",
       "createAction": "Новый сайт",
@@ -24,7 +25,8 @@
         "status": "Статус",
         "createdAt": "Создан"
       },
-      "phpVersionsLink": "Версии PHP"
+      "phpVersionsLink": "Версии PHP",
+      "disabledNotice": "Отключённых сайтов: {count}. Вместо сайта их посетители видят страницу о приостановке."
     },
     "form": {
       "heading": "Новый сайт",

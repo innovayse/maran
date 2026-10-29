@@ -36,6 +36,7 @@ const MANIFEST_MODE: u32 = 0o600;
 /// - [`BackupError::ManifestUnwritable`] when the manifest cannot be serialised
 ///   or written into the scratch.
 /// - [`BackupError::ArchiveFailed`] when the archiver refuses or cannot be run.
+/// - [`BackupError::Bound`] when the archiver was killed at its deadline.
 pub(crate) fn archive_home(
     host: &dyn BackupHost,
     manifest: &BackupManifest,

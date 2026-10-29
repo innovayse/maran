@@ -3,13 +3,16 @@
 use std::fs;
 use std::os::unix::fs::MetadataExt;
 use std::path::Path;
+use std::time::Duration;
 
+use maran_agent_core::utils::call_class::CallClass;
 use maran_agent_core::utils::directory::directory_size;
 use maran_agent_core::utils::spawn_argv::spawn_argv;
-use maran_distro::DistroAdapter;
+use maran_distro::{AdapterBinary, DistroAdapter};
 
 use crate::accounts::model::home_metadata::HomeMetadata;
 use crate::accounts::{AccountError, CommandOutcome, SystemHost};
+use maran_agent_core::end_of_options::END_OF_OPTIONS;
 
 /// Runs the real `useradd`, `usermod`, `userdel`, `setquota` and friends.
 ///
@@ -51,8 +54,10 @@ impl SystemHost for ProcessSystemHost {
     /// line by concatenation, which is the other half of the same rule.
     ///
     /// The spawn itself is [`spawn_argv`], shared with every other host that runs
-    /// an argv array. The `LC_ALL=C` pin this file used to carry moved there with
-    /// it and is now on every spawn in the agent rather than on this one file's:
+    /// an argv array, and it is bounded: the child gets a group of its own, a
+    /// deadline taken from `class` and a ceiling on what it may print. The
+    /// `LC_ALL=C` pin this file used to carry moved there with it and is now on
+    /// every spawn in the agent rather than on this one file's:
     /// `quota` links gettext, and a translated header made its parse silently
     /// yield "unlimited", while `remove_crontab` reads `crontab`'s own message to
     /// decide there was nothing to remove.
@@ -60,13 +65,19 @@ impl SystemHost for ProcessSystemHost {
     /// # Errors
     ///
     /// Returns [`AccountError::CommandUnavailable`] when the program cannot be
-    /// started, carrying the operating system's reason. A non-zero exit is not an
-    /// error here — it comes back in the outcome for the operations to read.
-    fn run(&self, program: &str, arguments: &[&str]) -> Result<CommandOutcome, AccountError> {
-        spawn_argv(program, arguments).map_err(|error| AccountError::CommandUnavailable {
-            program: program.to_owned(),
-            reason: error.to_string(),
-        })
+    /// started, carrying the operating system's reason, and
+    /// [`AccountError::Bound`] when it outlived its deadline or its output
+    /// ceiling. A bound is never reported as "unavailable": the tool ran, and may
+    /// have done its work. A non-zero exit is not an error here — it comes back
+    /// in the outcome for the operations to read.
+    fn run(
+        &self,
+        program: &AdapterBinary,
+        arguments: &[&str],
+        class: CallClass,
+    ) -> Result<CommandOutcome, AccountError> {
+        spawn_argv(program.as_path(), arguments, class)
+            .map_err(|error| AccountError::from_spawn(program, error))
     }
 
     /// Looks a user up with `id`.
@@ -74,8 +85,18 @@ impl SystemHost for ProcessSystemHost {
     /// `id` answers for every name source the host is configured with — local
     /// files, LDAP, anything in `nsswitch.conf` — where reading `/etc/passwd`
     /// directly would only see one of them and report a name as free that is not.
+    ///
+    /// A `Query`: `id` reads the name services and changes nothing. `--` ends
+    /// option parsing in coreutils' `id` on both families.
     fn user_exists(&self, username: &str) -> Result<bool, AccountError> {
-        Ok(self.run(self.distro.id_binary(), &["-u", username])?.status == 0)
+        Ok(self
+            .run(
+                &self.distro.id_binary(),
+                &["-u", END_OF_OPTIONS, username],
+                CallClass::Query,
+            )?
+            .status
+            == 0)
     }
 
     /// Measures a directory tree by walking it.
@@ -117,6 +138,14 @@ impl SystemHost for ProcessSystemHost {
                 reason: format!("could not read the metadata of {path}"),
             }),
         }
+    }
+
+    /// Sleeps the calling thread for `interval`.
+    ///
+    /// Every caller is already inside the rpc's `spawn_blocking`, so this parks
+    /// a blocking-pool thread and never a runtime worker.
+    fn pause(&self, interval: Duration) {
+        std::thread::sleep(interval);
     }
 }
 

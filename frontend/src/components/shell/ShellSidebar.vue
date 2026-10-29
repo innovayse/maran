@@ -1,41 +1,68 @@
 <script setup lang="ts">
 /**
- * The shell's expanded sidebar: brand block, command trigger, the
- * backend-driven navigation, and a footer holding the theme toggle.
+ * The shell's expanded navigation: the collapse control, the backend-driven entries under small
+ * group labels, and the signed-in person's identity card at the bottom.
  *
- * Every measurement here is taken from the design canvas: 246px wide on
- * `--s1` with a `--b1` right border, a 28px/7px-radius accent brand square,
- * the product name at 13px/600 above an 11px muted line, and navigation rows
- * built to the design's `navBtn` helper — `padding:5px 8px`,
- * `border-radius:6px`, body copy on the shared `--text-base` step, active rows on `--acs` in `--ac`
- * at weight 600.
+ * Two presentations from one component, because the markup inside is identical:
  *
- * The rows themselves are `UiNavLink`s, not the design's `<button>`s: an
- * entry is a destination, so it must be a real link that middle-click,
- * "open in new tab" and screen readers understand (rules/vue.md). The
- * design's row styling is applied to them through scoped `:deep()` rules
- * rather than by editing the kit primitive.
+ * - **In the flow (desktop, 1024px and up):** a 240px rounded panel floating on the desktop
+ *   beside the content panel, an `<aside>`.
+ * - **`compact` (inside the drawer):** the same content with no panel chrome of its own —
+ *   the drawer is the panel, with the mark and the close button above this. A `<div>`,
+ *   because a complementary landmark inside a modal dialog is noise.
+ *
+ * **The entries are `UiNavLink`s, never buttons.** An entry is a destination, so it must be
+ * a real link that middle-click, "open in new tab" and screen readers understand
+ * (rules/vue.md). The current entry is a solid `--acf` fill with white text and the accent
+ * glow (drawn by `UiNavLink`); inactive rows are `--t2` with a `--s2` hover.
+ *
+ * **The list scrolls between a fixed head and a fixed foot.** The identity card must stay on
+ * screen however many modules the licence adds, and in the 390px drawer a long list would
+ * otherwise push the sign-out control off the bottom. `min-h-0` is what lets a flex child
+ * scroll instead of growing past its parent.
+ *
+ * **Entries are grouped by a presentation map, not by the catalogue.** The catalogue reports no
+ * grouping, so `utils/groupNavigation.ts` states which group each entry key is drawn under, and
+ * puts a key it does not know into a trailing fallback group: a newly licensed module must
+ * appear, never vanish because nobody extended a map. There is still exactly ONE navigation
+ * landmark ("Main navigation"): each group is a list inside it, named by its visible label
+ * through `aria-labelledby`, so a screen reader hears "Hosting, list, 5 items" without the page
+ * gaining a landmark per group (specs find the landmark by name and would see several).
+ *
+ * **Group labels wrap.** They are uppercase display text and the panel ships Armenian, whose
+ * long words ("ՀԱՅՏԱՐԱՐՈՒԹՅՈՒՆՆԵՐ") have no break points: left alone they push the panel into a
+ * horizontal scroll at 390px. `wrap-anywhere` lets them break. The collapsed rail stays
+ * ungrouped: 64px has no room for a label, and the rail draws icons only.
+ *
+ * The collapse control is hidden in the drawer: collapsing trades navigation for content
+ * width, and a drawer that is already over the content has nothing to trade. The identity card
+ * carries `data-testid="shell-identity"`, the account-menu spec's hook for asserting the person
+ * is named exactly once inside it.
+ *
+ * The palette trigger and the theme control are no longer here: both live in the app bar on
+ * every width, so the sidebar carries navigation and identity only.
  */
+import { computed, type ComputedRef } from 'vue'
 import { useI18n } from 'vue-i18n'
 import UiBadge from '../ui/UiBadge.vue'
-import UiBrandMark from '../ui/UiBrandMark.vue'
 import UiButton from '../ui/UiButton.vue'
+import UiIcon from '../ui/UiIcon.vue'
 import UiNav from '../ui/UiNav.vue'
 import UiNavItem from '../ui/UiNavItem.vue'
 import UiNavLink from '../ui/UiNavLink.vue'
-import UiIcon from '../ui/UiIcon.vue'
 import ShellUserBlock from './ShellUserBlock.vue'
+import { groupNavigation } from '../../utils/groupNavigation'
 import type { NavigationEntry } from '../../types/navigation'
+import type { NavigationGroup } from '../../types/navigationGroup'
 
 /** Props accepted by {@link ShellSidebar}. */
-withDefaults(
+const props = withDefaults(
   defineProps<{
     /** Navigation entries to render, in catalogue order, as built by `useNavigation`. */
     entries: readonly NavigationEntry[]
     /**
-     * Whether the sidebar is being shown as the compact off-canvas drawer. It
-     * then drops the collapse control: collapsing trades navigation for content
-     * width, and a drawer that is already over the content has nothing to trade.
+     * Whether the sidebar is being shown inside the drawer. It then draws no panel of its own
+     * and drops the collapse control.
      */
     compact?: boolean
   }>(),
@@ -46,23 +73,23 @@ withDefaults(
 const emit = defineEmits<{
   /** Requests that the shell collapse this sidebar into the icon rail. */
   (e: 'collapse'): void
-  /** Requests that the shell flip the interface theme. */
-  (e: 'toggleTheme'): void
-  /** Requests that the shell open the jump-to palette. */
-  (e: 'openPalette'): void
   /**
-   * The user chose a navigation entry. The drawer presentation closes on this;
-   * a drawer left open over the page just navigated to reads as a stuck menu.
+   * The user chose a navigation entry. The drawer presentation closes on this; a drawer left
+   * open over the page just navigated to reads as a stuck menu.
    */
   (e: 'navigate'): void
 }>()
 
 const { t } = useI18n()
 
+/** The entries split into labelled groups; empty groups are already left out. */
+const groups: ComputedRef<NavigationGroup[]> = computed(() => {
+  return groupNavigation(props.entries)
+})
+
 /**
- * Asks the shell to collapse the sidebar. The collapsed/expanded state lives
- * in the layout, which owns both presentations, so this component only
- * reports the intent.
+ * Asks the shell to collapse the sidebar. The collapsed/expanded state lives in the layout,
+ * which owns both presentations, so this component only reports the intent.
  * @returns Nothing; the event is emitted synchronously.
  */
 const collapse = (): void => {
@@ -70,182 +97,78 @@ const collapse = (): void => {
 }
 
 /**
- * Asks the shell to flip the theme. The theme store is the single source of
- * truth and the layout owns the call into it, so this component only reports
- * the intent.
+ * Reports that a destination was chosen, so the drawer can close.
  * @returns Nothing; the event is emitted synchronously.
  */
-const toggleTheme = (): void => {
-  emit('toggleTheme')
+const navigate = (): void => {
+  emit('navigate')
 }
 </script>
 
 <template>
-  <!-- 246px is the design's own sidebar width and Tailwind has nothing within a
-       pixel of it (w-56 is 224px), so the number stays literal here. -->
-  <aside class="flex w-[246px] shrink-0 flex-col border-r border-border-subtle bg-surface-1">
-    <div class="flex items-center gap-2.25 px-3 pt-3 pb-2.5">
-      <UiBrandMark :size="28" />
-      <h1 class="min-w-0 flex-1 truncate leading-tight font-semibold">{{ t('app.title') }}</h1>
-      <UiButton
-        v-if="!compact"
-        variant="ghost"
-        class="shell-icon-button"
-        :aria-label="t('app.shell.collapseSidebar')"
-        :title="t('app.shell.collapseSidebar')"
-        @click="collapse"
-      >
-        <UiIcon name="chevronLeft" />
-      </UiButton>
-    </div>
+  <component
+    :is="compact ? 'div' : 'aside'"
+    class="flex min-h-0 flex-col"
+    :class="
+      compact
+        ? 'flex-1'
+        : 'w-60 flex-none rounded-panel border border-border-subtle bg-surface-1 p-3'
+    "
+  >
+    <!-- The scroll container clips whatever leaves its padding box, and the active row's glow
+         (`--glow`: 30px blur, 8px down, -8px spread) reaches about 22px out sideways and 30px
+         below the row. A wrapper exactly as wide as the rows cut it into a pale rectangle, loud
+         on the light theme. So the wrapper owns the 12px the panel's own padding gives the rows
+         (`px-3` with the matching `-mx-3`, so the rows do not move) and 32px under the last row:
+         the cut then falls on the panel's inner edge, where the glow is a few percent of its
+         strength, and never inside the panel. The padding is not larger because the wrapper
+         cannot reach past the panel's border without painting the glow onto the page behind it.
+         The same box is what keeps the 4px focus ring whole: `pt-1.5` (with `-mt-1.5`, so nothing
+         moves) leaves it room above the collapse button, and the 32px under the last row leaves
+         it room below the last link. -->
+    <div class="-mx-3 -mt-1.5 flex min-h-0 flex-1 flex-col gap-1 overflow-x-hidden overflow-y-auto px-3 pt-1.5 pb-8">
+      <!-- The collapse control gets a row of its own: the group labels are a loop, and a control
+           that belongs to the panel must not move into whichever group happens to be first. -->
+      <div v-if="!compact" class="flex justify-end">
+        <UiButton
+          variant="quiet"
+          size="icon-sm"
+          :aria-label="t('app.shell.collapseSidebar')"
+          :title="t('app.shell.collapseSidebar')"
+          @click="collapse"
+        >
+          <UiIcon name="chevronLeft" size="md" />
+        </UiButton>
+      </div>
 
-    <div class="px-3 pb-2.5">
-      <!-- Opens the jump-to palette. It searches the navigation the panel already
-           holds, not the server: there is no search endpoint, and the palette's
-           scope is stated in its own placeholder rather than implied. -->
-      <UiButton variant="secondary" class="shell-search-trigger" @click="emit('openPalette')">
-        <UiIcon name="search" size="md" />
-        <span class="flex-1 text-left">{{ t('app.shell.search') }}</span>
-        <span class="rounded border border-border-strong px-1 py-px font-mono text-sm">
-          {{ t('app.shell.searchShortcut') }}
-        </span>
-      </UiButton>
-    </div>
-
-    <div class="shell-nav min-h-0 flex-1 overflow-y-auto px-2 pb-3">
-      <p class="shell-nav-group px-2 text-sm font-semibold text-text-muted uppercase">
-        {{ t('app.nav.groups.panel') }}
-      </p>
       <UiNav :label="t('app.nav.ariaLabel')">
-        <UiNavItem v-for="entry in entries" :key="entry.key">
-          <UiNavLink :to="entry.target" :locked="entry.locked" @click="emit('navigate')">
-            <UiIcon :name="entry.icon" />
-            <span class="shell-nav-label">
-              {{ entry.labelKey === null ? entry.label : t(entry.labelKey) }}
-            </span>
-            <template v-if="entry.locked" #badge>
-              <UiBadge>{{ t('app.nav.lockedBadge') }}</UiBadge>
-            </template>
-          </UiNavLink>
+        <UiNavItem v-for="group in groups" :key="group.key" class="mt-2 first:mt-0">
+          <p
+            :id="`nav-group-${group.key}`"
+            class="min-w-0 px-3 pt-2 pb-1 font-display text-xs font-extrabold tracking-caps wrap-anywhere text-text-muted uppercase"
+          >
+            {{ t(group.labelKey) }}
+          </p>
+          <ul class="flex flex-col gap-1" :aria-labelledby="`nav-group-${group.key}`">
+            <UiNavItem v-for="entry in group.entries" :key="entry.key">
+              <UiNavLink :to="entry.target" :locked="entry.locked" @click="navigate">
+                <UiIcon :name="entry.icon" size="lg" />
+                <span class="min-w-0 wrap-anywhere">
+                  {{ entry.labelKey === null ? entry.label : t(entry.labelKey) }}
+                </span>
+                <template v-if="entry.locked" #badge>
+                  <UiBadge>{{ t('app.nav.lockedBadge') }}</UiBadge>
+                </template>
+              </UiNavLink>
+            </UiNavItem>
+          </ul>
         </UiNavItem>
       </UiNav>
     </div>
 
-    <div class="shell-footer flex items-center gap-2 border-t border-border-subtle px-3">
-      <!-- The design's identity block, which is also the account menu's trigger:
-           it names the signed-in person once and takes the width that leaves. -->
+    <!-- The identity card: the one place the signed-in person is named. -->
+    <div data-testid="shell-identity" class="mt-3 flex-none rounded-control border border-border-subtle bg-surface-2 p-3">
       <ShellUserBlock />
-      <UiButton
-        variant="secondary"
-        class="shell-icon-button shell-icon-button--boxed"
-        :aria-label="t('app.shell.toggleTheme')"
-        :title="t('app.shell.toggleTheme')"
-        @click="toggleTheme"
-      >
-        <UiIcon name="moon" size="md" />
-      </UiButton>
     </div>
-  </aside>
+  </component>
 </template>
-
-<style scoped>
-/*
- * The kit primitives now carry the design tokens themselves, so the shell no
- * longer re-colours them: `UiNavLink` already draws the design's `navBtn`
- * (--t2 on nothing, --s3/--t1 on hover, --acs/--ac at 600 when current) and
- * `UiButton` already draws the surfaces and the focus ring. What is left here
- * is only what the kit cannot know: this shell's geometry.
- */
-
-/* UiNav sets its own width and inset for a standalone menu; inside the shell the
-   scroll container owns both, and the nav's own inset would push every row 8px
-   further in than the group label above it. */
-.shell-nav :deep(nav) {
-  width: 100%;
-  padding-inline: 0;
-}
-
-/* The row's default slot is a plain span in the kit; the shell needs it to be
-   the flexible middle so a long module name truncates instead of shoving the
-   locked badge out of the row. */
-.shell-nav :deep(a > span:first-child) {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  min-width: 0;
-  flex: 1;
-}
-
-.shell-nav-label {
-  min-width: 0;
-  flex: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  text-align: left;
-}
-
-/* The design's 24px square chrome controls. The kit's button is sized for a
-   labelled action, so the shell restates the box — and, because restating the
-   background and border also overrides the kit's focus treatment, restates the
-   focused border with it rather than leaving a keyboard user a partial ring. */
-.shell-icon-button {
-  display: grid;
-  place-items: center;
-  width: 24px;
-  height: 24px;
-  padding: 0;
-  border-radius: 6px;
-  background: none;
-  color: var(--t3);
-}
-
-.shell-icon-button--boxed {
-  background: var(--s2);
-  border: 1px solid var(--b1);
-  color: var(--t2);
-}
-
-.shell-icon-button:hover {
-  background: var(--s3);
-  color: var(--t1);
-}
-
-.shell-icon-button:focus-visible {
-  border: 1px solid var(--ac);
-}
-
-/* The design's footer band: 9px vertical, which Tailwind's scale steps over. */
-.shell-footer {
-  padding-top: 9px;
-  padding-bottom: 9px;
-}
-
-/* The design's group label: .07em is a whole step wider than the caps tracking
-   used elsewhere, and 5px below it — small numbers that set how the sidebar
-   breathes, so they are taken literally rather than snapped to the scale. */
-.shell-nav-group {
-  letter-spacing: 0.07em;
-  padding-bottom: 5px;
-}
-
-/* The design's search trigger: full width, boxed on --s2, 12px muted text. */
-.shell-search-trigger {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  width: 100%;
-  padding: 6px 8px;
-  background: var(--s2);
-  border: 1px solid var(--b1);
-  border-radius: 7px;
-  color: var(--t3);
-  font-size: var(--text-base);
-  font-weight: 400;
-  text-align: left;
-}
-
-.shell-search-trigger:focus-visible {
-  border-color: var(--ac);
-}
-</style>

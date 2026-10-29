@@ -14,6 +14,26 @@
  *
  * Options come from the caller — the SPA never invents domain data
  * (rules/vue.md) — and are rendered by `UiOption`.
+ *
+ * AN UNFILLED SELECT PROMPTS, IT DOES NOT STAND BLANK. While nothing is chosen
+ * the trigger shows the caller's `placeholder` (muted, 5.0:1 on the field fill),
+ * and the pickers that open empty — plan, account, PHP version — all pass one
+ * ("Choose a plan"). The defect this guards against rendered a nil GUID left by
+ * an older free-text field as the trigger text, and an empty trigger without a
+ * placeholder collapses to a blank box. The trigger therefore holds NO text
+ * other than the selection or the placeholder (no hidden helper text, no raw
+ * value): `frontend/e2e/ui-kit/unfilled-select-prompt.spec.ts` asserts its exact
+ * text, and a visually hidden extra string would fail it.
+ *
+ * It is found the way `UiInput` is: the trigger's edge is the control-edge token
+ * `border-border-control` (`--bc`), 3.57:1 on `--s1`, 3.36 on `--s2` and 3.08 on `--s3`
+ * in dark, 3.63 / 3.30 / 3.07 in light, because the decorative borders are 1.2 to
+ * 1.5:1 against a panel and the fill (`bg-surface-2`) 1.06:1 (WCAG 1.4.11 asks 3:1).
+ * The visible label and the `shadow-focus` ring sit on top of it. Hovering the trigger
+ * steps the edge to `border-text-secondary` (7.08:1 on a dark panel, 6.00 on a light
+ * one), a 1.98:1 step away from `--bc` in dark and 1.65:1 in light, where the muted
+ * tier would move it only 1.50:1 / 1.49:1 — too small to read as a response. See
+ * {@link UiInput} for the measured figures.
  */
 import { computed, onBeforeUnmount, onMounted, ref, useId, watch, type ComputedRef, type Ref } from 'vue'
 import { nextEnabledIndex } from '../../utils/nextEnabledIndex'
@@ -312,18 +332,26 @@ watch(
 </script>
 
 <template>
-  <div ref="rootElement" class="flex flex-col gap-1" @focusout="onFocusOut">
+      <div ref="rootElement" class="flex min-w-24 flex-col gap-1.5" @focusout="onFocusOut">
+    <!-- `min-w-24` (6rem) is the floor under a select in a flex or grid row: the trigger text
+         truncates and a flex item's automatic minimum is then zero, so at narrow widths selects
+         collapsed to 16 to 33 px showing only an ellipsis. 6rem keeps the chevron, the padding and
+         a few readable characters. -->
     <span
       :id="labelId"
-      class="text-base font-medium"
+      class="text-sm font-medium wrap-anywhere"
       :class="[hasError ? 'text-danger' : 'text-text-secondary', hideLabel ? 'sr-only' : '']"
       >{{ label }}</span
     >
     <div class="relative">
-      <!-- `min-h-10.5` is the height an input renders at (24px of text, 8px of
-           padding each side, 1px of border). Without it a select with no chosen
-           value collapses to its empty line box and sits shorter than the
-           inputs beside it. -->
+      <!-- `min-h-10` is the height an input renders at. Without it a select with
+           no chosen value and no placeholder collapses to its empty line box and
+           sits shorter than the inputs beside it. 16px text below `sm` (14px from
+           `sm` up) for the same reason as UiInput: no zoom-on-focus on a phone.
+           The trigger text truncates rather than wraps, so a long option never
+           pushes the field wider than its column; `title` carries the full selected text so
+           the part the ellipsis hides can still be read on hover (the accessible value already
+           has it). -->
       <button
         ref="triggerElement"
         type="button"
@@ -333,15 +361,16 @@ watch(
         :aria-controls="isOpen ? listboxId : undefined"
         :aria-activedescendant="activeOptionId"
         :aria-labelledby="labelId"
+        :title="selectedOption?.label"
         :aria-required="required ? 'true' : undefined"
         :aria-invalid="hasError"
         :aria-describedby="hasError ? errorId : undefined"
         :disabled="disabled"
-        class="flex min-h-10.5 w-full items-center justify-between gap-2 rounded-lg border bg-surface-2 px-3 py-2 text-left text-base text-text-primary transition-colors focus-visible:outline-none disabled:cursor-not-allowed disabled:text-text-muted disabled:opacity-65"
+        class="flex min-h-10 w-full items-center justify-between gap-2 rounded-control border bg-surface-2 px-3 py-2 text-left text-base text-text-primary transition-colors focus-visible:outline-none disabled:cursor-not-allowed disabled:text-text-muted disabled:opacity-65 sm:text-sm"
         :class="
           hasError
-            ? 'border-[rgb(229_72_77/0.5)] focus-visible:shadow-focus-danger'
-            : 'border-border-subtle focus-visible:border-accent focus-visible:shadow-focus'
+            ? 'border-danger focus-visible:shadow-focus-danger'
+            : 'border-border-control enabled:hover:border-text-secondary focus-visible:border-accent focus-visible:shadow-focus'
         "
         @click="onTriggerClick"
         @keydown.enter="onConfirmKey"
@@ -352,19 +381,30 @@ watch(
         @keydown.end.prevent="moveToEdge('last')"
         @keydown.esc.prevent="close"
       >
-        <span :class="selectedOption === null ? 'text-text-muted' : ''">{{ triggerText }}</span>
-        <UiIcon name="chevronDown" size="sm" class="text-text-muted" />
+        <span class="min-w-0 truncate" :class="selectedOption === null ? 'text-text-muted' : ''">{{
+          triggerText
+        }}</span>
+        <UiIcon
+          name="chevronDown"
+          size="sm"
+          class="shrink-0 text-text-secondary transition-transform motion-reduce:transition-none"
+          :class="isOpen ? 'rotate-180' : ''"
+        />
       </button>
       <!-- The rows are not focusable, so a plain mousedown on one would move focus
            to the body, fire `focusout` on the trigger and dismiss the list before
            the click ever reached the row. Suppressing the default keeps focus on
-           the trigger, which is where the listbox pattern wants it anyway. -->
+           the trigger, which is where the listbox pattern wants it anyway.
+           The popup is the raised `bg-surface-3` step with a stock shadow: on a
+           dark panel the fill alone separates it by only ~1.2:1, so the shadow and
+           the border carry the "this floats" cue. Nothing on it is accent text on
+           a wash, which is the pair that fails over `surface-3` (4.40:1). -->
       <ul
         v-if="isOpen"
         :id="listboxId"
         role="listbox"
         :aria-labelledby="labelId"
-        class="absolute z-10 mt-1 max-h-60 w-full overflow-y-auto rounded-lg border border-border-strong bg-surface-2 p-1.5 shadow-[0_12px_32px_rgb(0_0_0/0.4)]"
+        class="absolute z-10 mt-1.5 max-h-60 w-full overflow-y-auto rounded-control border border-border-strong bg-surface-3 p-1.5 shadow-lg"
         @mousedown.prevent
       >
         <UiOption
@@ -381,6 +421,6 @@ watch(
         />
       </ul>
     </div>
-    <p v-if="hasError" :id="errorId" class="text-base text-danger">{{ error }}</p>
+    <p v-if="hasError" :id="errorId" class="text-sm text-danger wrap-anywhere">{{ error }}</p>
   </div>
 </template>

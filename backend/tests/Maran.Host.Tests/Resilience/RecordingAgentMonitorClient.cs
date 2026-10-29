@@ -1,6 +1,6 @@
-using System.Net.Sockets;
 using Maran.Agent.Client.Interfaces;
 using Maran.Agent.Client.Services.MonitorService;
+using Maran.Host.Tests.Fixtures;
 using Maran.SharedKernel.Results;
 
 namespace Maran.Host.Tests.Resilience;
@@ -77,7 +77,7 @@ internal sealed class RecordingAgentMonitorClient : IAgentMonitorClient
 
         if (Calls <= FailuresBeforeSuccess)
         {
-            throw new SocketException((int)SocketError.ConnectionRefused);
+            throw AgentTransportFaults.ConnectRefused();
         }
 
         if (Hangs)

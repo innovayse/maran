@@ -1,12 +1,15 @@
 //! Failures of the database operations.
 
-/// The signal reported when a client died of one the platform would not name.
+use maran_agent_core::utils::bound_exceeded::BoundExceeded;
+
+/// The signal reported when a client died of a signal and the number is not known.
 ///
-/// It cannot happen on the systems this agent supports — a status that is not
-/// an exit code is a signal, and Linux hands the number back — but a root
-/// daemon does not panic to say so, and reporting a killed client as a client
-/// that was never started would be the very confusion this file has just
-/// removed.
+/// This is now the ordinary report for a client killed from outside: the
+/// bounded spawn core answers a child that a signal it did not send ended with
+/// an exit status of -1 and does not carry which signal. The number is therefore
+/// zero, which is no signal, and means "unknown". It is still a killed client
+/// and not one that was never started, which is the confusion this file exists
+/// to prevent, and a deadline kill is a different variant ([`DbError::Bound`]).
 const UNKNOWN_SIGNAL: i32 = 0;
 
 /// The prefix the client puts in front of the number it failed with.
@@ -50,8 +53,10 @@ const UNKNOWN_DATABASE: i32 = 1049;
 ///
 /// One exhaustive list for the whole area (rules/rust.md "Errors"), and a
 /// deliberately narrow one: **no variant of this enum can hold the client's
-/// output**. Every payload here is an `i32`, so there is no field for a message
-/// to be put in, which is the point rather than an accident. The realistic leak
+/// output**. Every payload here is an `i32` except [`Self::Bound`]'s, which
+/// names the client's own absolute path and the bound that stopped it and
+/// holds nothing the client printed, so there is no field for a message to be
+/// put in, which is the point rather than an accident. The realistic leak
 /// in this area is not a careless log line: it is the server quoting back what
 /// it refused — `Access denied for user 'alice_shop'@'localhost'`, and on some
 /// paths the statement that failed, which for `CREATE USER … IDENTIFIED BY '…'`
@@ -138,8 +143,10 @@ pub enum DbError {
     /// that may well have been executed.
     #[error("the database client was killed by signal {signal}")]
     ClientKilled {
-        /// The signal number, which is a number and not a name for the reason
-        /// the enum's own note gives: no variant here has anywhere to put text.
+        /// The signal number, or zero when it is not known (the spawn core
+        /// reports a client killed from outside without saying which signal).
+        /// A number and not a name for the reason the enum's own note gives:
+        /// no variant here has anywhere to put text.
         signal: i32,
     },
 
@@ -161,6 +168,17 @@ pub enum DbError {
     /// verifies, and an operator needs to be pointed at it by name.
     #[error("the database server refused the agent's connection")]
     AccessDenied,
+
+    /// The client was stopped by the agent: it ran past its deadline, or wrote
+    /// more to its standard error than the host will read.
+    ///
+    /// The statement MAY nevertheless have been, or yet be, executed by the
+    /// server — the client being killed does not recall a statement the server
+    /// has accepted — so this is neither a refusal nor a failure to start, and
+    /// a caller must not retry it as though nothing had happened. It carries the
+    /// client's path and the bound, and nothing the client printed.
+    #[error(transparent)]
+    Bound(#[from] BoundExceeded),
 }
 
 impl DbError {
@@ -192,9 +210,10 @@ impl DbError {
     /// The error for a client the platform reported as killed.
     ///
     /// `signal` is what the operating system said, and [`UNKNOWN_SIGNAL`] is
-    /// what is reported when it said nothing — the caller has already
+    /// what is reported when the number is not known — the caller has already
     /// established that the client produced no exit code, which on every
-    /// supported system means a signal.
+    /// supported system means a signal. The spawn core does not carry the
+    /// number, so the host calls this with `None`.
     pub(crate) fn client_killed(signal: Option<i32>) -> Self {
         Self::ClientKilled {
             signal: signal.unwrap_or(UNKNOWN_SIGNAL),
@@ -218,3 +237,7 @@ fn mysql_error_number(stderr: &str) -> Option<i32> {
         digits.parse().ok()
     })
 }
+
+#[cfg(test)]
+#[path = "../tests/db/db_error_tests.rs"]
+mod tests;

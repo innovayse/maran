@@ -1,6 +1,7 @@
 //! GetServiceStatuses: what the service manager says about the units the panel
 //! watches.
 
+use maran_agent_core::utils::call_class::CallClass;
 use maran_distro::DistroAdapter;
 
 use crate::monitor::model::service_state::ServiceState;
@@ -8,20 +9,10 @@ use crate::monitor::model::service_status::ServiceStatus;
 use crate::monitor::model::unit_report::UnitReport;
 use crate::monitor::monitor_error::MonitorError;
 use crate::monitor::monitor_host::MonitorHost;
+use maran_agent_core::end_of_options::END_OF_OPTIONS;
 
 /// The reporting subcommand. It prints properties and changes nothing.
 const SHOW: &str = "show";
-
-/// The end of `systemctl`'s options, after which every argument is a unit.
-///
-/// Defence in depth, and cheap. The unit names this area asks about come from
-/// the `DistroAdapter`'s closed set — except one, the socket name read out of a
-/// unit's own `TriggeredBy` property, which is checked only for a `.socket`
-/// suffix. A unit called `-H.socket` satisfies that suffix and would reach
-/// `systemctl` looking exactly like its `-H` option, which takes a remote host
-/// to talk to. The string is root-controlled today, so this is not a hole; it
-/// is one token that means nobody has to keep proving it is not one.
-const END_OF_OPTIONS: &str = "--";
 
 /// The properties one call asks for.
 const PROPERTIES: [&str; 4] = [
@@ -73,6 +64,10 @@ const DEACTIVATING: &str = "deactivating";
 /// Returns [`MonitorError::ServiceManagerUnavailable`] when the service manager
 /// cannot be started or refuses the query — which, on a host whose service
 /// manager is not running, is the honest answer for all four units at once.
+///
+/// Returns [`MonitorError::Bound`] when a `systemctl show` was killed at its
+/// deadline. That is not "the unit is down" and not an answer for the units
+/// after it: the whole call fails and the caller samples again later.
 pub fn get_service_statuses(
     host: &dyn MonitorHost,
     distro: &dyn DistroAdapter,
@@ -102,6 +97,8 @@ pub fn get_service_statuses(
 /// query rather than news about the unit: `show` reports on a unit that does
 /// not exist by printing `LoadState=not-found` and exiting zero, which is what
 /// makes "no such unit" an answer instead of an error.
+///
+/// Returns [`MonitorError::Bound`] when the tool was killed at its deadline.
 fn show(
     host: &dyn MonitorHost,
     distro: &dyn DistroAdapter,
@@ -116,7 +113,7 @@ fn show(
     arguments.push(END_OF_OPTIONS);
     arguments.push(unit);
 
-    let outcome = host.run(distro.service_manager(), &arguments)?;
+    let outcome = host.run(&distro.service_manager(), &arguments, CallClass::Query)?;
     if outcome.status != 0 {
         return Err(MonitorError::ServiceManagerUnavailable {
             code: outcome.status,

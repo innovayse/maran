@@ -3,8 +3,11 @@
 use std::path::Path;
 
 use maran_agent_core::command_outcome::CommandOutcome;
+use maran_agent_core::utils::call_class::CallClass;
+use maran_agent_core::validation::system::managed_account::ManagedAccount;
 use maran_agent_core::validation::system::name::AccountName;
 use maran_agent_core::validation::system::sftp_user_name::SftpUserName;
+use maran_distro::AdapterBinary;
 
 use crate::safe_write::model::{Reload, Validator};
 use crate::sftp::model::account_ownership::AccountOwnership;
@@ -21,12 +24,12 @@ use crate::sftp::sftp_error::SftpError;
 /// implementation that really touches the machine stays small enough to read in
 /// full.
 ///
-/// Implementations MUST spawn with an argv array against an absolute path taken
-/// from the `DistroAdapter`, never through a shell and never through a program
-/// name resolved by `PATH` (rules/security.md item 3).
+/// Implementations MUST spawn with an argv array against an [`AdapterBinary`],
+/// the type only the distro crate can build, never through a shell and never
+/// through a program name resolved by `PATH` (rules/security.md item 3).
 pub trait SftpHost: Send + Sync {
     /// Runs `program` with `arguments`, optionally writing `stdin` to its
-    /// standard input, and waits for it.
+    /// standard input, and waits for it, for at most the deadline of `class`.
     ///
     /// `stdin` exists for exactly one caller — `chpasswd`, which takes its
     /// `user:password` line there. A command line is world-readable through
@@ -35,20 +38,24 @@ pub trait SftpHost: Send + Sync {
     /// pipe is what makes that impossible rather than merely unlikely.
     ///
     /// Implementations must close the pipe after writing, or a tool that reads
-    /// to end of input never returns and takes a root daemon's task with it.
+    /// to end of input never returns; the deadline of `class` is the backstop
+    /// that frees the task if one does not.
     ///
     /// # Errors
     ///
     /// Returns [`SftpError::SpawnFailed`] with a `code` of `-1` when the
     /// program cannot be started at all, or when its standard input cannot be
-    /// written. A non-zero exit is NOT an error here — it is returned in the
-    /// outcome, because each caller reads a status differently: `useradd`'s 9
-    /// means "already there" while `userdel`'s 9 means nothing of the sort.
+    /// delivered, and [`SftpError::Bound`] when it outran the deadline of
+    /// `class` or its output ceiling; its whole process group was killed. A
+    /// non-zero exit is NOT an error here — it is returned in the outcome,
+    /// because each caller reads a status differently: `useradd`'s 9 means
+    /// "already there" while `userdel`'s 9 means nothing of the sort.
     fn run(
         &self,
-        program: &str,
+        program: &AdapterBinary,
         arguments: &[&str],
         stdin: Option<&str>,
+        class: CallClass,
     ) -> Result<CommandOutcome, SftpError>;
 
     /// Looks up the numeric identity of the hosting account `account`.
@@ -68,6 +75,28 @@ pub trait SftpHost: Send + Sync {
     /// Returns [`SftpError::AccountMissing`] when the password database holds
     /// no such account, or cannot be read.
     fn account_ownership(&self, account: &AccountName) -> Result<AccountOwnership, SftpError>;
+
+    /// Proves that `account` is a hosting account this panel may act on.
+    ///
+    /// Called first by every login operation that sets a password with
+    /// `chpasswd`, under the account's lock and before anything is created or
+    /// changed: a login is a copy of the account's identity, so a login created
+    /// for an operator's own user shares that user's uid and gives its holder
+    /// the user's home. `passwd_database` is the distro's path of the local
+    /// password database, which the implementation reads whole and hands to
+    /// [`ManagedAccount::resolve`]; nothing else is read.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SftpError::AccountMissing`] when the database has no such row or
+    /// cannot be read (an unreadable database proves nothing, so it refuses),
+    /// and [`SftpError::AccountNotManaged`] when the account is reserved, has a
+    /// system identity, or has the wrong home.
+    fn managed_account(
+        &self,
+        passwd_database: &str,
+        account: &AccountName,
+    ) -> Result<ManagedAccount, SftpError>;
 
     /// Creates `path` and every missing parent, at `mode`, owned by root.
     ///

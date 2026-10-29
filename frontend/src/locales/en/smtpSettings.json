@@ -3,6 +3,10 @@
     "smtp": {
       "heading": "Outgoing mail",
       "subtitle": "The mail server this panel sends alerts and password-reset links through.",
+      "eyebrow": "Outgoing mail",
+      "connectionTitle": "Connection",
+      "credentialsTitle": "Authentication",
+      "senderTitle": "Sender and alerts",
       "hostLabel": "Mail server",
       "portLabel": "Port",
       "securityLabel": "Connection security",

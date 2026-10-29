@@ -59,6 +59,8 @@ use crate::firewall::model::ruleset_ports::RulesetPorts;
 ///   untouched.
 /// - [`FirewallError::RenderFailed`], [`FirewallError::StagingFailed`] and
 ///   [`FirewallError::NftFailed`] as the apply engine documents them.
+/// - [`FirewallError::Bound`] when `nft` was killed at its deadline. See
+///   `apply_ruleset`.
 pub fn allow_port(
     host: &dyn FirewallHost,
     distro: &dyn DistroAdapter,

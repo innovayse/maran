@@ -7,6 +7,8 @@ pub mod sites_service;
 pub mod stream_log_sink;
 pub mod system_sink_clock;
 pub mod tail_terminal;
+pub mod validated_existing_identity;
+pub mod validated_existing_site;
 pub mod validated_identity;
 pub mod validated_overrides;
 pub mod validated_site;

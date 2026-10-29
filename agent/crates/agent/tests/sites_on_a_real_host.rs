@@ -17,6 +17,8 @@
 // workspace-wide bans on unwrap/expect/panic are lifted here only.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+#[path = "fixtures/in_process_agent.rs"]
+mod in_process_agent;
 #[path = "fixtures/polygon_account.rs"]
 mod polygon_account;
 #[path = "fixtures/polygon_config_file.rs"]
@@ -27,13 +29,18 @@ use std::path::Path;
 use std::sync::mpsc;
 use std::time::Duration;
 
+use maran_agent::proto::sites_service_client::SitesServiceClient;
+use maran_agent::proto::{CreateSiteRequest, ErrorCode, SiteBackendType, create_site_response};
 use maran_agent_core::agent_paths::AgentPaths;
 use maran_agent_core::privs::fork_as_account::fork_as_account;
 use maran_agent_core::privs::priv_error::PrivError;
+use maran_agent_core::utils::bound_exceeded::BoundExceeded;
+use maran_agent_core::utils::call_class::CallClass;
 use maran_agent_core::validation::fs::file_mode::FileMode;
 use maran_agent_core::validation::fs::relative_path::RelativePath;
 use maran_agent_core::validation::web::domain::Domain;
 use maran_agent_core::validation::web::php_version::PhpVersion;
+use maran_agent_core::validation::web::upstream::Upstream;
 use maran_distro::{DistroAdapter, adapter_for, detect};
 use maran_ops::files::{ProcessFilesHost, WriteFileInput};
 use maran_ops::php::ProcessPhpHost;
@@ -43,6 +50,7 @@ use maran_ops::sites::{
 };
 use maran_ops::ssl::{ProcessSslHost, delete_site_with_certificate, generate_self_signed};
 
+use in_process_agent::InProcessAgent;
 use polygon_account::PolygonAccount;
 use polygon_config_file::PolygonConfigFile;
 
@@ -95,7 +103,7 @@ fn a_php_site_is_written_and_the_real_nginx_accepts_it() {
 
     let contents = std::fs::read_to_string(vhost).expect("the vhost must be readable");
     assert!(
-        contents.contains("fastcgi_pass unix:/run/maran/php/"),
+        contents.contains("fastcgi_pass unix:/run/maran-php/"),
         "a PHP site's vhost must point at the pool socket the agent owns"
     );
     assert!(
@@ -392,6 +400,25 @@ fn a_real_nginx_serves_a_site_out_of_the_accounts_own_home() {
         .unwrap_or_else(|error| panic!("creating a static site must succeed: {error}"));
     let _vhost = PolygonConfigFile::at(Path::new(&created.config_path));
 
+    // The modes the web worker's traversal depends on, asserted directly: `sites/`
+    // and the document root 0755 whatever umask the daemon runs under, the home
+    // 0750 and never world-readable. (SELinux labels are NOT observed here.)
+    let docroot = Path::new(&created.document_root);
+    let mode_of = |path: &Path| {
+        std::fs::metadata(path)
+            .expect("must exist")
+            .permissions()
+            .mode()
+            & 0o777
+    };
+    assert_eq!(mode_of(docroot), 0o755, "the document root must be 0755");
+    assert_eq!(
+        mode_of(docroot.parent().expect("sites/")),
+        0o755,
+        "sites/ must be 0755"
+    );
+    assert_eq!(mode_of(account.home()), 0o750, "the home must stay 0750");
+
     // Written AS THE ACCOUNT, through the same file operation the panel uses, so the
     // file's owner and mode are a customer's and not root's.
     let page = within("the index write", {
@@ -597,7 +624,8 @@ fn deleting_an_account_leaves_a_host_the_real_php_fpm_will_still_start() {
     // gone but that php-fpm will still start, and only php-fpm can say so — a
     // pool that was emptied, renamed, or left in a directory php-fpm no longer
     // reads would pass a file check and fail this.
-    let checked = std::process::Command::new(polygon_distro().php_fpm_binary(POLYGON_PHP_VERSION))
+    let php_version = PhpVersion::parse(POLYGON_PHP_VERSION).expect("a valid PHP version");
+    let checked = std::process::Command::new(polygon_distro().php_fpm_binary(&php_version))
         .arg(VALIDATE_ARGUMENT)
         .output()
         .expect("the polygon image installs php-fpm");
@@ -1525,6 +1553,19 @@ impl SiteHost for RacingSiteHost {
         self.inner.write_config(target, contents, validator, reload)
     }
 
+    fn create_config(
+        &self,
+        target: &Path,
+        contents: &str,
+        validator: &maran_ops::safe_write::model::Validator<'_>,
+        reload: &maran_ops::safe_write::model::Reload<'_>,
+        refused_warnings: &[String],
+    ) -> Result<(), SitesOpError> {
+        (self.before_write)();
+        self.inner
+            .create_config(target, contents, validator, reload, refused_warnings)
+    }
+
     fn remove_config(
         &self,
         target: &Path,
@@ -1751,4 +1792,1565 @@ fn installing_a_certificate_on_a_suspended_site_leaves_the_real_nginx_serving_th
     );
 
     maran_ops::ssl::purge_certificate(&ssl_host, polygon_distro(), &domain);
+}
+
+// ---------------------------------------------------------------------------
+// Symbolic links a customer plants in a site's own tree (#84).
+//
+// The web server can enter every account's home and a customer can link to any
+// path, so without `disable_symlinks if_not_owner;` a link in one site's root
+// served another account's files. Every refusal below runs three controls in
+// the same run, so a refusal cannot be mistaken for a site that was never
+// served, or for a secret nobody could read:
+//   (c1) the attacking account's own file is served;
+//   (c2) the victim's file IS served on the victim's own site, so the web
+//        server can read it and a refusal comes from the link rule;
+//   (c3) nginx's own error log names the refused path with ELOOP.
+//
+// Stated blind spot: these requests are plain HTTP on port 80. The 443 block of
+// a site with a certificate is held by `php_site_ssl.conf` and the other
+// goldens, not over the wire: the suite has no TLS client.
+// ---------------------------------------------------------------------------
+
+/// The bytes of the victim's private file. A refusal must never contain them.
+const LINK_SECRET: &str = "maran-bob-private-credentials";
+
+/// The bytes of the attacking account's own file, the positive control.
+const LINK_OWN_BODY: &str = "maran-alice-own-page";
+
+/// What nginx's error log says about a path it refused because of a link.
+const REFUSED_LINK_LOG: &str = "(40: Too many levels of symbolic links)";
+
+/// Two accounts, each with a site: `alice` the attacker and `bob` the victim.
+///
+/// Bob's document root holds `wp-config.php` with [`LINK_SECRET`], written as
+/// bob and readable by the web server, which is the reproduction of the issue.
+/// Alice's root holds `alice.txt`, a file any kind of site serves. Fields drop
+/// in declaration order, so the config files go before the accounts do.
+struct LinkFixture {
+    /// Takes alice's vhost away again.
+    _alice_vhost: PolygonConfigFile,
+    /// Takes bob's vhost away again.
+    _bob_vhost: PolygonConfigFile,
+    /// Takes alice's php-fpm pool away again, when her site is a PHP one.
+    _alice_pool: Option<PolygonConfigFile>,
+    /// The account that plants links.
+    alice: PolygonAccount,
+    /// The account whose files a link must not reach.
+    bob: PolygonAccount,
+    /// Alice's site name.
+    alice_domain: Domain,
+    /// Bob's site name.
+    bob_domain: Domain,
+    /// The input alice's site was created from.
+    alice_input: CreateSiteInput,
+}
+
+impl LinkFixture {
+    /// Creates both accounts and both sites, named by `tag`, which must be
+    /// unique per test and at most a few letters.
+    ///
+    /// `php` makes alice's site a PHP one; bob's is always static, because a
+    /// static site serves his file as plain bytes.
+    ///
+    /// # Panics
+    ///
+    /// Panics outside a polygon, or when an account or a site cannot be made.
+    fn new(tag: &str, php: bool) -> Self {
+        PolygonAccount::require_polygon();
+        ensure_nginx_is_running();
+        let alice = PolygonAccount::create(&format!("polylka{tag}"));
+        let bob = PolygonAccount::create(&format!("polylkb{tag}"));
+        let alice_domain =
+            Domain::parse(&format!("alice{tag}.example.test")).expect("a valid domain");
+        let bob_domain = Domain::parse(&format!("bob{tag}.example.test")).expect("a valid domain");
+
+        let alice_input = if php {
+            php_site(&alice, &alice_domain)
+        } else {
+            served_site_input(&alice, &alice_domain)
+        };
+        let alice_pool = php.then(|| pool_guard(&alice));
+        create_polygon_site(&ProcessSiteHost::new(), &alice_input)
+            .unwrap_or_else(|error| panic!("creating alice's site must succeed: {error}"));
+        let alice_vhost =
+            PolygonConfigFile::at(&SitePaths::for_site(alice.name(), &alice_domain).config_path);
+
+        create_polygon_site(
+            &ProcessSiteHost::new(),
+            &served_site_input(&bob, &bob_domain),
+        )
+        .unwrap_or_else(|error| panic!("creating bob's site must succeed: {error}"));
+        let bob_vhost =
+            PolygonConfigFile::at(&SitePaths::for_site(bob.name(), &bob_domain).config_path);
+
+        write_as_account(
+            &alice,
+            &format!("sites/{}/alice.txt", alice_domain.as_str()),
+            LINK_OWN_BODY,
+        );
+        write_as_account(
+            &bob,
+            &format!("sites/{}/wp-config.php", bob_domain.as_str()),
+            LINK_SECRET,
+        );
+
+        Self {
+            _alice_vhost: alice_vhost,
+            _bob_vhost: bob_vhost,
+            _alice_pool: alice_pool,
+            alice,
+            bob,
+            alice_domain,
+            bob_domain,
+            alice_input,
+        }
+    }
+
+    /// Alice's document root.
+    fn alice_root(&self) -> std::path::PathBuf {
+        SitePaths::for_site(self.alice.name(), &self.alice_domain).document_root
+    }
+
+    /// Bob's document root.
+    fn bob_root(&self) -> std::path::PathBuf {
+        SitePaths::for_site(self.bob.name(), &self.bob_domain).document_root
+    }
+
+    /// The absolute path of bob's private file.
+    fn secret_path(&self) -> String {
+        self.bob_root()
+            .join("wp-config.php")
+            .to_str()
+            .expect("the path is UTF-8")
+            .to_owned()
+    }
+
+    /// Alice's site error log.
+    fn alice_error_log(&self) -> std::path::PathBuf {
+        SitePaths::for_site(self.alice.name(), &self.alice_domain).error_log
+    }
+
+    /// Reloads nginx and proves controls (c1) and (c2): alice's own file is
+    /// served, and so is bob's secret on bob's own site.
+    ///
+    /// # Panics
+    ///
+    /// Panics when either control fails, which means the setup is wrong and a
+    /// refusal measured afterwards would measure nothing.
+    fn assert_controls(&self) {
+        reload_polygon_nginx();
+
+        let own = fetch_until(self.alice_domain.as_str(), "/alice.txt", |body| {
+            body.contains(LINK_OWN_BODY)
+        });
+        assert!(
+            own.starts_with("HTTP/1.1 200 ") && own.contains(LINK_OWN_BODY),
+            "control c1: the attacker's own file must be served, or no refusal means anything:\n{own}"
+        );
+
+        let secret = fetch_until(self.bob_domain.as_str(), "/wp-config.php", |body| {
+            body.contains(LINK_SECRET)
+        });
+        assert!(
+            secret.starts_with("HTTP/1.1 200 ") && secret.contains(LINK_SECRET),
+            "control c2: the web server must be able to read the victim's file on the \
+             victim's own site, or a refusal could be a permission bit:\n{secret}"
+        );
+    }
+
+    /// Asks alice's site for `path` and fails the test unless nginx answered
+    /// `status` without the victim's bytes.
+    ///
+    /// # Panics
+    ///
+    /// Panics on a different status or when the secret is in the response.
+    fn assert_refused(&self, path: &str, status: &str) {
+        let response = fetch(self.alice_domain.as_str(), path);
+
+        assert!(
+            response.starts_with(&format!("HTTP/1.1 {status} ")),
+            "a link out of alice's tree must answer {status} for {path}:\n{response}"
+        );
+        assert!(
+            !response.contains(LINK_SECRET),
+            "a link out of alice's tree served bob's private file for {path}:\n{response}"
+        );
+    }
+}
+
+/// Renames `from` to `to` as the account, through the agent's own privilege
+/// drop, like [`symlink_as_account`]: what this proves is what an unprivileged
+/// customer can do with a shell, since the directories above a document root
+/// belong to the customer.
+///
+/// # Panics
+///
+/// Panics when the drop or the `rename` call fails.
+fn rename_as_account(account: &PolygonAccount, from: std::path::PathBuf, to: std::path::PathBuf) {
+    let ids = account.ids();
+    let renamed = within("the customer's rename", move || {
+        fork_as_account(&ids, || {
+            std::fs::rename(&from, &to).map_err(|_| PrivError::WorkFailed)
+        })
+    });
+
+    renamed.expect("an unprivileged account can always rename inside its own home");
+}
+
+/// Reads `path` until it contains `needle` or the deadline passes, returning
+/// whatever it last saw.
+///
+/// Bounded and non-panicking for the reason [`read_until_non_empty`] is: a
+/// missing line must produce the assertion at the call site with the log
+/// printed, not a timeout message.
+fn read_until_contains(path: &Path, needle: &str) -> String {
+    let deadline = std::time::Instant::now() + LOG_DEADLINE;
+    let mut last = std::fs::read_to_string(path).unwrap_or_default();
+
+    while !last.contains(needle) && std::time::Instant::now() < deadline {
+        std::thread::sleep(SERVE_POLL_INTERVAL);
+        last = std::fs::read_to_string(path).unwrap_or_default();
+    }
+
+    last
+}
+
+#[test]
+#[ignore = "plants real symlinks as real accounts and asks a real nginx for them: polygon only"]
+fn a_link_from_a_static_site_to_another_accounts_file_is_not_served() {
+    // The issue's reproduction: the secret is 0644 in bob's own root, alice
+    // links to it from hers. The 404 is what `try_files` makes of a refused
+    // open; it is not the 403 the issue named, and the body check is what says
+    // the bytes did not leave.
+    let fixture = LinkFixture::new("one", false);
+    symlink_as_account(
+        &fixture.alice,
+        &fixture.secret_path(),
+        fixture.alice_root().join("leak.txt"),
+    );
+    fixture.assert_controls();
+
+    fixture.assert_refused("/leak.txt", "404");
+
+    // (c3) the server's own word, which is also what tells a refused link from
+    // a permission error: EACCES here would mean the setup is wrong.
+    let log = read_until_contains(&fixture.alice_error_log(), REFUSED_LINK_LOG);
+    assert!(
+        log.contains(REFUSED_LINK_LOG) && log.contains("leak.txt"),
+        "control c3: the error log must name the refused link with ELOOP:\n{log}"
+    );
+}
+
+#[test]
+#[ignore = "plants a real symlink as a real account and asks a real nginx for it: polygon only"]
+fn a_link_from_a_static_site_to_a_host_file_is_not_served() {
+    let fixture = LinkFixture::new("two", false);
+    symlink_as_account(
+        &fixture.alice,
+        "/etc/passwd",
+        fixture.alice_root().join("passwd.txt"),
+    );
+    fixture.assert_controls();
+
+    let response = fetch(fixture.alice_domain.as_str(), "/passwd.txt");
+
+    assert!(
+        response.starts_with("HTTP/1.1 404 "),
+        "a link to a host file must answer 404:\n{response}"
+    );
+    assert!(
+        !response.contains("root:x:0:0"),
+        "a customer's link served the host's /etc/passwd:\n{response}"
+    );
+}
+
+#[test]
+#[ignore = "plants a real symlink as a real account and asks a real nginx for it: polygon only"]
+fn a_directory_link_into_another_home_is_not_followed() {
+    // A directory link, not a file link: the check walks every component of the
+    // request path, so a link in the middle of it is refused too.
+    let fixture = LinkFixture::new("three", false);
+    symlink_as_account(
+        &fixture.alice,
+        fixture.bob.home().to_str().expect("the path is UTF-8"),
+        fixture.alice_root().join("bobhome"),
+    );
+    fixture.assert_controls();
+
+    fixture.assert_refused(
+        &format!(
+            "/bobhome/sites/{}/wp-config.php",
+            fixture.bob_domain.as_str()
+        ),
+        "404",
+    );
+}
+
+#[test]
+#[ignore = "plants real symlinks as a real account and asks a real nginx for them: polygon only"]
+fn a_customers_links_to_their_own_files_are_still_served() {
+    // The inverse of the refusals above, and what keeps normal sites working:
+    // a link whose owner is the owner of its target is followed, wherever the
+    // target lives in the customer's own home.
+    let fixture = LinkFixture::new("four", false);
+    write_as_account(&fixture.alice, "notes.txt", LINK_OWN_BODY);
+    write_as_account(
+        &fixture.alice,
+        &format!("sites/{}/real.txt", fixture.alice_domain.as_str()),
+        LINK_OWN_BODY,
+    );
+    symlink_as_account(
+        &fixture.alice,
+        "real.txt",
+        fixture.alice_root().join("mine.txt"),
+    );
+    symlink_as_account(
+        &fixture.alice,
+        fixture
+            .alice
+            .home()
+            .join("notes.txt")
+            .to_str()
+            .expect("the path is UTF-8"),
+        fixture.alice_root().join("outside.txt"),
+    );
+    fixture.assert_controls();
+
+    for path in ["/mine.txt", "/outside.txt"] {
+        let response = fetch_until(fixture.alice_domain.as_str(), path, |body| {
+            body.contains(LINK_OWN_BODY)
+        });
+        assert!(
+            response.starts_with("HTTP/1.1 200 ") && response.contains(LINK_OWN_BODY),
+            "a customer's link to their own file must still be served, {path}:\n{response}"
+        );
+    }
+}
+
+#[test]
+#[ignore = "renames and links as a real account and asks a real nginx: polygon only"]
+fn a_document_root_swapped_for_a_link_to_another_accounts_root_is_not_served() {
+    // Why the rule has no `from=`. The customer owns `sites/` and everything
+    // above it, so they can move their document root aside and put a link to
+    // another account's root in its place. A rule that starts checking at the
+    // root would open that link without looking at it.
+    let fixture = LinkFixture::new("five", false);
+    let root = fixture.alice_root();
+    let aside = root.with_file_name(format!("{}.old", fixture.alice_domain.as_str()));
+    rename_as_account(&fixture.alice, root.clone(), aside);
+    symlink_as_account(
+        &fixture.alice,
+        fixture.bob_root().to_str().expect("the path is UTF-8"),
+        root,
+    );
+    reload_polygon_nginx();
+
+    // Controls c1 and c2 cannot use alice's own file here, because her root is
+    // now the swapped link; c2 and the refusal itself are what this asks.
+    let secret = fetch_until(fixture.bob_domain.as_str(), "/wp-config.php", |body| {
+        body.contains(LINK_SECRET)
+    });
+    assert!(
+        secret.starts_with("HTTP/1.1 200 ") && secret.contains(LINK_SECRET),
+        "control c2: bob's own site must serve his file:\n{secret}"
+    );
+
+    fixture.assert_refused("/wp-config.php", "404");
+
+    // The inverse control: a root swapped for a link to ANOTHER DIRECTORY OF
+    // HER OWN is followed, because the link and its target share an owner.
+    let own_target = fixture.alice.home().join("sites").join("own-target");
+    write_as_account(&fixture.alice, "sites/own-target/alice.txt", LINK_OWN_BODY);
+    let second_domain = Domain::parse("alicefive-two.example.test").expect("a valid domain");
+    let second_paths = SitePaths::for_site(fixture.alice.name(), &second_domain);
+    create_polygon_site(
+        &ProcessSiteHost::new(),
+        &served_site_input(&fixture.alice, &second_domain),
+    )
+    .unwrap_or_else(|error| panic!("the second site must be created: {error}"));
+    let _second_vhost = PolygonConfigFile::at(&second_paths.config_path);
+    rename_as_account(
+        &fixture.alice,
+        second_paths.document_root.clone(),
+        second_paths
+            .document_root
+            .with_file_name("alicefive-two.example.test.old"),
+    );
+    symlink_as_account(
+        &fixture.alice,
+        own_target.to_str().expect("the path is UTF-8"),
+        second_paths.document_root,
+    );
+    reload_polygon_nginx();
+
+    let own = fetch_until(second_domain.as_str(), "/alice.txt", |body| {
+        body.contains(LINK_OWN_BODY)
+    });
+    assert!(
+        own.starts_with("HTTP/1.1 200 ") && own.contains(LINK_OWN_BODY),
+        "a root swapped for a link to the customer's own directory must still be served:\n{own}"
+    );
+}
+
+#[test]
+#[ignore = "plants a real symlink as a real account and asks a real nginx for it: polygon only"]
+fn a_link_in_the_challenge_directory_of_a_site_with_a_certificate_is_refused() {
+    // With a certificate the port-80 block holds only the challenge location
+    // and the redirect, so that location's own rule is the only one there. The
+    // challenge location has no `try_files`, so a refusal is nginx's 403.
+    let fixture = LinkFixture::new("six", false);
+    // Controls c1 and c2 are asked BEFORE the certificate lands: afterwards
+    // port 80 redirects everything but the challenge directory.
+    fixture.assert_controls();
+    let ssl_host = ProcessSslHost::new();
+    generate_self_signed(&ssl_host, polygon_distro(), &fixture.alice_input)
+        .unwrap_or_else(|error| panic!("issuing material for alice's site must succeed: {error}"));
+
+    write_as_account(
+        &fixture.alice,
+        &format!(
+            "sites/{}/.well-known/acme-challenge/{ACME_TOKEN}",
+            fixture.alice_domain.as_str()
+        ),
+        ACME_TOKEN_BODY,
+    );
+    symlink_as_account(
+        &fixture.alice,
+        &fixture.secret_path(),
+        fixture
+            .alice_root()
+            .join(".well-known")
+            .join("acme-challenge")
+            .join("leak"),
+    );
+    reload_polygon_nginx();
+
+    // The control that this block really is the certificate one: the site root
+    // redirects to HTTPS.
+    let redirect = fetch_until(fixture.alice_domain.as_str(), "/", |body| {
+        body.starts_with("HTTP/1.1 301 ")
+    });
+    assert!(
+        redirect.starts_with("HTTP/1.1 301 "),
+        "port 80 of a site with a certificate must redirect, or this probe is not on that block:\n{redirect}"
+    );
+
+    let token = fetch(
+        fixture.alice_domain.as_str(),
+        &format!("/.well-known/acme-challenge/{ACME_TOKEN}"),
+    );
+    assert!(
+        token.starts_with("HTTP/1.1 200 ") && token.contains(ACME_TOKEN_BODY),
+        "the real challenge file must still be answered:\n{token}"
+    );
+
+    fixture.assert_refused("/.well-known/acme-challenge/leak", "403");
+
+    maran_ops::ssl::purge_certificate(&ssl_host, polygon_distro(), &fixture.alice_domain);
+}
+
+#[test]
+#[ignore = "plants a real symlink as a real account and asks a real nginx for it: polygon only"]
+fn a_link_in_a_suspended_sites_challenge_directory_is_refused() {
+    // The stub's challenge location serves a customer's tree while the rest of
+    // the site answers the refusal, so a link there is as open as anywhere.
+    let fixture = LinkFixture::new("seven", false);
+    write_as_account(
+        &fixture.alice,
+        &format!(
+            "sites/{}/.well-known/acme-challenge/{ACME_TOKEN}",
+            fixture.alice_domain.as_str()
+        ),
+        ACME_TOKEN_BODY,
+    );
+    symlink_as_account(
+        &fixture.alice,
+        &fixture.secret_path(),
+        fixture
+            .alice_root()
+            .join(".well-known")
+            .join("acme-challenge")
+            .join("leak"),
+    );
+    fixture.assert_controls();
+
+    maran_ops::sites::disable_site(
+        &ProcessSiteHost::new(),
+        polygon_distro(),
+        &fixture.alice_input,
+    )
+    .unwrap_or_else(|error| panic!("suspending alice's site must succeed: {error}"));
+    reload_polygon_nginx();
+
+    // The suspension is observed live first, so what follows is asked of the
+    // stub and not of the vhost the workers still held.
+    let root = fetch_until(fixture.alice_domain.as_str(), "/", |body| {
+        body.contains(SUSPENSION_NOTICE)
+    });
+    assert!(
+        root.starts_with("HTTP/1.1 403 ") && root.contains(SUSPENSION_NOTICE),
+        "the stub must be live before the challenge proves anything:\n{root}"
+    );
+
+    let token = fetch(
+        fixture.alice_domain.as_str(),
+        &format!("/.well-known/acme-challenge/{ACME_TOKEN}"),
+    );
+    assert!(
+        token.starts_with("HTTP/1.1 200 ") && token.contains(ACME_TOKEN_BODY),
+        "a suspended site must still answer its own challenge file:\n{token}"
+    );
+
+    fixture.assert_refused("/.well-known/acme-challenge/leak", "403");
+}
+
+#[test]
+#[ignore = "plants a real symlink as a real account and asks a real nginx for it: polygon only"]
+fn a_link_in_a_proxy_sites_challenge_directory_is_refused() {
+    // A proxied site opens no file except in its challenge location, which is
+    // therefore the only link rule that site has.
+    PolygonAccount::require_polygon();
+    ensure_nginx_is_running();
+    let alice = PolygonAccount::create("polylkaeight");
+    let bob = PolygonAccount::create("polylkbeight");
+    let proxy_domain = Domain::parse("proxyeight.example.test").expect("a valid domain");
+    let bob_domain = Domain::parse("bobeight.example.test").expect("a valid domain");
+
+    // The upstream is a port nothing listens on: only the challenge location is
+    // asked for, and a request to `/` would be a 502 that proves nothing.
+    let input = CreateSiteInput {
+        account: alice.name().clone(),
+        domain: proxy_domain.clone(),
+        aliases: Vec::new(),
+        kind: SiteKind::ReverseProxy {
+            upstream: Upstream::parse("127.0.0.1:9").expect("a valid upstream"),
+        },
+        certificate: None,
+    };
+    create_polygon_site(&ProcessSiteHost::new(), &input)
+        .unwrap_or_else(|error| panic!("creating a proxy site must succeed: {error}"));
+    let _proxy_vhost =
+        PolygonConfigFile::at(&SitePaths::for_site(alice.name(), &proxy_domain).config_path);
+    create_polygon_site(
+        &ProcessSiteHost::new(),
+        &served_site_input(&bob, &bob_domain),
+    )
+    .unwrap_or_else(|error| panic!("creating bob's site must succeed: {error}"));
+    let _bob_vhost =
+        PolygonConfigFile::at(&SitePaths::for_site(bob.name(), &bob_domain).config_path);
+
+    write_as_account(
+        &bob,
+        &format!("sites/{}/wp-config.php", bob_domain.as_str()),
+        LINK_SECRET,
+    );
+    write_as_account(
+        &alice,
+        &format!(
+            "sites/{}/.well-known/acme-challenge/{ACME_TOKEN}",
+            proxy_domain.as_str()
+        ),
+        ACME_TOKEN_BODY,
+    );
+    let secret_path = SitePaths::for_site(bob.name(), &bob_domain)
+        .document_root
+        .join("wp-config.php");
+    symlink_as_account(
+        &alice,
+        secret_path.to_str().expect("the path is UTF-8"),
+        SitePaths::for_site(alice.name(), &proxy_domain)
+            .document_root
+            .join(".well-known")
+            .join("acme-challenge")
+            .join("leak"),
+    );
+    reload_polygon_nginx();
+
+    let secret = fetch_until(bob_domain.as_str(), "/wp-config.php", |body| {
+        body.contains(LINK_SECRET)
+    });
+    assert!(
+        secret.starts_with("HTTP/1.1 200 ") && secret.contains(LINK_SECRET),
+        "control c2: the web server must be able to read the victim's file:\n{secret}"
+    );
+    let token = fetch_until(
+        proxy_domain.as_str(),
+        &format!("/.well-known/acme-challenge/{ACME_TOKEN}"),
+        |body| body.contains(ACME_TOKEN_BODY),
+    );
+    assert!(
+        token.starts_with("HTTP/1.1 200 ") && token.contains(ACME_TOKEN_BODY),
+        "control c1: the proxied site's own challenge file must be answered:\n{token}"
+    );
+
+    let response = fetch(proxy_domain.as_str(), "/.well-known/acme-challenge/leak");
+    assert!(
+        response.starts_with("HTTP/1.1 403 "),
+        "a link in a proxied site's challenge directory must answer 403:\n{response}"
+    );
+    assert!(
+        !response.contains(LINK_SECRET),
+        "a proxied site's challenge location served another account's file:\n{response}"
+    );
+}
+
+#[test]
+#[ignore = "plants real symlinks as a real account and asks a real php site: polygon only"]
+fn a_link_from_a_php_site_into_another_home_is_not_served() {
+    // No `index.php` in the root, so nothing the fall-through reaches can run:
+    // a refused link ends at the `.php` location's `try_files $uri =404`, and a
+    // refused plain file at the fall-through to the same 404. php-fpm need not
+    // be reachable for either.
+    let fixture = LinkFixture::new("nine", true);
+    symlink_as_account(
+        &fixture.alice,
+        &fixture.secret_path(),
+        fixture.alice_root().join("leak.txt"),
+    );
+    symlink_as_account(
+        &fixture.alice,
+        &fixture.secret_path(),
+        fixture.alice_root().join("leak.php"),
+    );
+    fixture.assert_controls();
+
+    fixture.assert_refused("/leak.txt", "404");
+    fixture.assert_refused("/leak.php", "404");
+}
+
+#[test]
+#[ignore = "writes a real suspended vhost and real certificate material: polygon only"]
+fn a_site_suspended_before_the_upgrade_stays_suspended_through_a_certificate_install() {
+    // The stub an agent wrote before the challenge location carried its link
+    // rule is recognised by comparing bytes, so adding the rule to the stub
+    // must not make every stub already on disk read as an ordinary site: the
+    // next unattended renewal would put the suspended customer's page back on
+    // the air. The previous stub is the current one with that one line taken
+    // out, which is exactly what the released agents rendered.
+    PolygonAccount::require_polygon();
+    ensure_nginx_is_running();
+    let account = PolygonAccount::create("polylkupgrade");
+    let domain = Domain::parse("upgrade.example.test").expect("a valid domain");
+    let input = served_polygon_site(&account, &domain);
+    let vhost = SitePaths::for_site(account.name(), &domain).config_path;
+    let _vhost = PolygonConfigFile::at(&vhost);
+
+    maran_ops::sites::disable_site(&ProcessSiteHost::new(), polygon_distro(), &input)
+        .unwrap_or_else(|error| panic!("suspending the site must succeed: {error}"));
+    let current = std::fs::read_to_string(&vhost).expect("the stub must be readable");
+    let rule_line = "        disable_symlinks if_not_owner;\n";
+    assert!(
+        current.contains(rule_line),
+        "the current stub must carry the rule, or there is no previous stub to build:\n{current}"
+    );
+    let previous = current.replacen(rule_line, "", 1);
+    assert_ne!(previous, current);
+    std::fs::write(&vhost, &previous).expect("the previous stub can be written");
+
+    reload_polygon_nginx();
+    let before = fetch_until(domain.as_str(), "/", |body| {
+        body.contains(SUSPENSION_NOTICE)
+    });
+    assert!(
+        before.starts_with("HTTP/1.1 403 "),
+        "the previous stub must be live before the install proves anything:\n{before}"
+    );
+
+    let ssl_host = ProcessSslHost::new();
+    generate_self_signed(&ssl_host, polygon_distro(), &input).unwrap_or_else(|error| {
+        panic!("issuing material for a suspended site must succeed: {error}")
+    });
+
+    assert_eq!(
+        std::fs::read_to_string(&vhost).expect("the stub must still be readable"),
+        previous,
+        "a certificate install must not rewrite a stub an earlier agent wrote"
+    );
+    reload_polygon_nginx();
+    let after = fetch_until(domain.as_str(), "/", |body| {
+        body.contains(SUSPENSION_NOTICE)
+    });
+    assert!(
+        after.starts_with("HTTP/1.1 403 "),
+        "a site suspended before the upgrade must stay suspended:\n{after}"
+    );
+    assert!(
+        !after.contains(SUSPENDED_ACCOUNT_BODY),
+        "the install put a suspended customer's page back on the air:\n{after}"
+    );
+
+    maran_ops::ssl::purge_certificate(&ssl_host, polygon_distro(), &domain);
+}
+
+// ---------------------------------------------------------------------------
+// Host names another vhost already serves (issue #85).
+//
+// `nginx -t` answers a host name two server blocks share with a warning and
+// exit status 0, and then serves the name from whichever file the include glob
+// sorts first. Only a real nginx can say whether the creation protocol turns
+// that warning into a refusal, and whether the refused vhost is gone again.
+// ---------------------------------------------------------------------------
+
+/// The words nginx prints for a host name two server blocks share.
+///
+/// Spelled again here, as [`VALIDATE_ARGUMENT`] is: the production constant is
+/// `pub(crate)`, and a test that took its expectation from the code under test
+/// would pass if that code stopped matching what nginx says.
+const NGINX_CONFLICT_WORDS: &str = "conflicting server name";
+
+/// The page the first owner of a contested host name serves.
+const OWNER_BODY: &str = "maran-hostname-owner";
+
+/// Parses a host name the test wrote by hand.
+///
+/// # Panics
+///
+/// Panics when `text` is not a valid domain, which is a defect of the test.
+fn host_name(text: &str) -> Domain {
+    Domain::parse(text).expect("a valid domain")
+}
+
+/// A static site owned by `account` at `domain`, also serving `aliases`.
+///
+/// Static for the reason [`static_site`] is: the config-write protocol is
+/// entered once, and no pool or php-fpm reload is mixed into the answer.
+fn site_with_aliases(
+    account: &PolygonAccount,
+    domain: &Domain,
+    aliases: &[&str],
+) -> CreateSiteInput {
+    CreateSiteInput {
+        aliases: aliases.iter().map(|alias| host_name(alias)).collect(),
+        ..static_site(account, domain)
+    }
+}
+
+/// Creates a site that must succeed and makes its vhost go away with the test.
+///
+/// # Panics
+///
+/// Panics when the creation is refused.
+fn create_guarded_site(
+    input: &CreateSiteInput,
+) -> (maran_ops::sites::CreatedSite, PolygonConfigFile) {
+    let created = create_polygon_site(&ProcessSiteHost::new(), input).unwrap_or_else(|error| {
+        panic!(
+            "creating {} must succeed in the polygon: {error}",
+            input.domain.as_str()
+        )
+    });
+    let guard = PolygonConfigFile::at(&created.config_path);
+    (created, guard)
+}
+
+/// Fails the test unless `result` is the refusal for a host name already
+/// served, and returns the detail it carried.
+///
+/// # Panics
+///
+/// Panics with `what` and the actual result when it is anything else.
+fn taken_detail(result: Result<maran_ops::sites::CreatedSite, SitesOpError>, what: &str) -> String {
+    match result {
+        Err(SitesOpError::ServerNameTaken { detail, .. }) => detail,
+        other => panic!("{what}: expected ServerNameTaken, got {other:?}"),
+    }
+}
+
+/// Runs the real `nginx -t`, requires it to succeed, and returns what it wrote
+/// to standard error — where nginx puts its warnings.
+///
+/// # Panics
+///
+/// Panics when nginx cannot be run or rejects the tree.
+fn nginx_t_stderr() -> String {
+    let output = std::process::Command::new(polygon_distro().nginx_binary())
+        .arg(VALIDATE_ARGUMENT)
+        .output()
+        .expect("the polygon image installs nginx");
+    let stderr = String::from_utf8_lossy(&output.stderr).into_owned();
+    assert!(
+        output.status.success(),
+        "nginx -t must accept the tree:\n{stderr}"
+    );
+    stderr
+}
+
+/// Fails the test when `stderr` carries nginx's conflict warning about `name`,
+/// bare or with a leading dot.
+///
+/// Named and not general on purpose: the polygon's tree is shared by every
+/// test in the file, and another test may have planted a conflict of its own on
+/// purpose.
+///
+/// # Panics
+///
+/// Panics when the warning about `name` is present.
+fn assert_no_warning_about(stderr: &str, name: &str) {
+    for quoted in [format!("\"{name}\""), format!("\".{name}\"")] {
+        assert!(
+            !stderr.contains(&format!("{NGINX_CONFLICT_WORDS} {quoted}")),
+            "nginx must not warn that {name} is served twice:\n{stderr}"
+        );
+    }
+}
+
+/// Writes a vhost file the way an operator would, beside the agent's own, and
+/// makes it go away with the test.
+///
+/// It listens where the agent's vhosts listen, so a name it shares with one of
+/// them is a conflict on a real address. Written as root: it stands for a file
+/// the agent did not make and does not own.
+///
+/// # Panics
+///
+/// Panics when the file cannot be written.
+fn plant_operator_vhost(file_name: &str, server_names: &str) -> PolygonConfigFile {
+    let path = Path::new(AgentPaths::NGINX_INCLUDE_DIRECTORY).join(file_name);
+    std::fs::write(
+        &path,
+        format!(
+            "server {{\n    listen 80;\n    listen [::]:80;\n    server_name {server_names};\n    return 204;\n}}\n"
+        ),
+    )
+    .expect("an operator's vhost can be written in the polygon");
+    PolygonConfigFile::at(path)
+}
+
+/// How many `server_name` lines of nginx's own dump of the loaded
+/// configuration list `host`.
+///
+/// Asked of `nginx -T`, the server's own answer to "what do you read", so a
+/// file nginx loads is counted whatever it is called and wherever it sits.
+///
+/// # Panics
+///
+/// Panics when nginx cannot be run or rejects the tree.
+fn server_blocks_naming(host: &str) -> usize {
+    let output = std::process::Command::new(polygon_distro().nginx_binary())
+        .arg("-T")
+        .output()
+        .expect("the polygon image installs nginx");
+    assert!(
+        output.status.success(),
+        "nginx -T must succeed:\n{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    String::from_utf8_lossy(&output.stdout)
+        .lines()
+        .filter(|line| {
+            line.trim()
+                .strip_prefix("server_name ")
+                .is_some_and(|names| {
+                    names
+                        .trim_end_matches(';')
+                        .split_whitespace()
+                        .any(|name| name == host)
+                })
+        })
+        .count()
+}
+
+/// What two creations that were lined up inside the protocol answered.
+struct Race {
+    /// What the first creation answered.
+    first: Result<maran_ops::sites::CreatedSite, SitesOpError>,
+    /// What the second creation answered.
+    second: Result<maran_ops::sites::CreatedSite, SitesOpError>,
+    /// Whether each creation really waited for the other to arrive.
+    overlapped: bool,
+}
+
+/// Runs two creations on two threads against the one real nginx, each held
+/// just before it enters the config-write protocol until the other has
+/// arrived there too.
+///
+/// Symmetric on purpose. The hook runs after everything a creation does by
+/// itself, the existence check included, so both creations have already been
+/// told "no vhost for my domain yet" when they meet; which of them takes the
+/// config-tree lock first is left to the scheduler, and the assertions are
+/// written for either order.
+fn race_two_creations(first: CreateSiteInput, second: CreateSiteInput) -> Race {
+    let (to_second, second_hears) = mpsc::channel::<()>();
+    let (to_first, first_hears) = mpsc::channel::<()>();
+    let arrivals = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+
+    let spawn =
+        |input: CreateSiteInput, tell_other: mpsc::Sender<()>, hear_other: mpsc::Receiver<()>| {
+            let arrivals = std::sync::Arc::clone(&arrivals);
+            std::thread::spawn(move || {
+                // Behind a mutex only because the hook is a `Fn` shared across
+                // threads by its type; one thread ever calls it.
+                let hear_other = std::sync::Mutex::new(hear_other);
+                let host = RacingSiteHost {
+                    inner: ProcessSiteHost::new(),
+                    before_write: Box::new(move || {
+                        let _ = tell_other.send(());
+                        let heard = hear_other
+                            .lock()
+                            .expect("the fixture lock is never poisoned")
+                            .recv_timeout(RACE_BUDGET)
+                            .is_ok();
+                        if heard {
+                            arrivals.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                        }
+                    }),
+                };
+                create_racing_site(&host, &input)
+            })
+        };
+
+    let first_thread = spawn(first, to_second, first_hears);
+    let second_thread = spawn(second, to_first, second_hears);
+
+    Race {
+        first: first_thread.join().expect("the first creation must finish"),
+        second: second_thread
+            .join()
+            .expect("the second creation must finish"),
+        overlapped: arrivals.load(std::sync::atomic::Ordering::SeqCst) == 2,
+    }
+}
+
+#[test]
+#[ignore = "writes real vhosts and runs the real nginx -t over both: polygon only"]
+fn a_site_naming_a_host_another_vhost_serves_is_refused_by_the_real_nginx_and_leaves_the_tree_as_it_was()
+ {
+    PolygonAccount::require_polygon();
+    ensure_nginx_is_running();
+    let owner = PolygonAccount::create("polyhnownera");
+    let newcomer = PolygonAccount::create("polyhnnewcma");
+    let shop = host_name("shop.hn1.test");
+    // `aaa` sorts before `shop`: the newcomer's file is the one nginx reads
+    // FIRST, so without the refusal the name would move to the newcomer.
+    let newcomer_domain = host_name("aaa.hn1.test");
+
+    let (owned, _owned_vhost) = create_guarded_site(&site_with_aliases(&owner, &shop, &[]));
+    write_as_account(&owner, "sites/shop.hn1.test/index.html", OWNER_BODY);
+    let owned_before = std::fs::read_to_string(&owned.config_path).expect("the owner's vhost");
+
+    let refused_vhost = SitePaths::for_site(newcomer.name(), &newcomer_domain).config_path;
+    let refusal = create_polygon_site(
+        &ProcessSiteHost::new(),
+        &site_with_aliases(&newcomer, &newcomer_domain, &["shop.hn1.test"]),
+    );
+
+    let detail = taken_detail(refusal, "the real nginx warned about an alias");
+    assert!(
+        detail.contains("conflicting server name \"shop.hn1.test\""),
+        "the refusal must carry nginx's own words about the host, got {detail:?}"
+    );
+    assert!(
+        !refused_vhost.exists(),
+        "a refused site must leave no vhost behind at {refused_vhost:?}"
+    );
+    assert_eq!(
+        std::fs::read_to_string(&owned.config_path).expect("the owner's vhost"),
+        owned_before,
+        "the owner's vhost must be untouched"
+    );
+    assert_no_warning_about(&nginx_t_stderr(), "shop.hn1.test");
+    assert_nginx_loads(Path::new(&owned.config_path));
+    let response = fetch_until("shop.hn1.test", "/", |body| body.contains(OWNER_BODY));
+    assert!(
+        response.contains(OWNER_BODY),
+        "the host name must still be answered by its owner:\n{response}"
+    );
+}
+
+#[test]
+#[ignore = "writes real vhosts and runs the real nginx -t over both: polygon only"]
+fn a_site_whose_domain_another_vhost_already_serves_as_an_alias_is_refused() {
+    PolygonAccount::require_polygon();
+    ensure_nginx_is_running();
+    let owner = PolygonAccount::create("polyhnownerb");
+    let newcomer = PolygonAccount::create("polyhnnewcmb");
+    // The owner's file sorts first and the newcomer's last — the reverse of the
+    // order above — and the contested name is the owner's ALIAS and the
+    // newcomer's DOMAIN.
+    let owner_domain = host_name("aaa.hn2.test");
+    let contested = host_name("zzz.hn2.test");
+
+    let (owned, _owned_vhost) =
+        create_guarded_site(&site_with_aliases(&owner, &owner_domain, &["zzz.hn2.test"]));
+    let owned_before = std::fs::read_to_string(&owned.config_path).expect("the owner's vhost");
+
+    let refused_vhost = SitePaths::for_site(newcomer.name(), &contested).config_path;
+    let refusal = create_polygon_site(
+        &ProcessSiteHost::new(),
+        &site_with_aliases(&newcomer, &contested, &[]),
+    );
+
+    let detail = taken_detail(refusal, "the real nginx warned about the domain");
+    assert!(
+        detail.contains("conflicting server name \"zzz.hn2.test\""),
+        "the refusal must carry nginx's own words about the host, got {detail:?}"
+    );
+    assert!(
+        !refused_vhost.exists(),
+        "a refused site must leave no vhost behind at {refused_vhost:?}"
+    );
+    assert_eq!(
+        std::fs::read_to_string(&owned.config_path).expect("the owner's vhost"),
+        owned_before,
+        "the owner's vhost must be untouched"
+    );
+    assert_no_warning_about(&nginx_t_stderr(), "zzz.hn2.test");
+    assert_nginx_loads(Path::new(&owned.config_path));
+}
+
+#[test]
+#[ignore = "plants a real operator vhost and runs the real nginx -t: polygon only"]
+fn a_name_another_file_serves_with_a_leading_dot_after_this_one_is_refused() {
+    PolygonAccount::require_polygon();
+    ensure_nginx_is_running();
+    let account = PolygonAccount::create("polyhndotlate");
+    let domain = host_name("dot.hn3.test");
+    // `.dot.hn3.test` is `dot.hn3.test` and every subdomain of it. The file
+    // sorts AFTER the agent's, so nginx reads this site's name first and
+    // quotes the later key, WITH its dot, in the warning.
+    let _operator = plant_operator_vhost("zzzz-wild-hn3.conf", ".dot.hn3.test");
+    assert_valid_nginx_tree("the tree with the operator's wildcard file alone");
+
+    let vhost = SitePaths::for_site(account.name(), &domain).config_path;
+    let refusal = create_polygon_site(
+        &ProcessSiteHost::new(),
+        &site_with_aliases(&account, &domain, &[]),
+    );
+
+    let detail = taken_detail(refusal, "the operator's wildcard file serves the name");
+    assert!(
+        detail.contains("conflicting server name \".dot.hn3.test\""),
+        "the refusal must carry nginx's own words, dot included, got {detail:?}"
+    );
+    assert!(!vhost.exists(), "a refused site must leave no vhost behind");
+    assert_no_warning_about(&nginx_t_stderr(), "dot.hn3.test");
+}
+
+#[test]
+#[ignore = "plants a real operator vhost and runs the real nginx -t: polygon only"]
+fn a_name_another_file_serves_with_a_leading_dot_before_this_one_is_refused() {
+    PolygonAccount::require_polygon();
+    ensure_nginx_is_running();
+    let account = PolygonAccount::create("polyhndotearl");
+    let domain = host_name("dot.hn3b.test");
+    // The file sorts BEFORE the agent's, so nginx reads the wildcard first and
+    // the warning quotes this site's own name, bare.
+    let _operator = plant_operator_vhost("aaaa-wild-hn3b.conf", ".dot.hn3b.test");
+    assert_valid_nginx_tree("the tree with the operator's wildcard file alone");
+
+    let vhost = SitePaths::for_site(account.name(), &domain).config_path;
+    let refusal = create_polygon_site(
+        &ProcessSiteHost::new(),
+        &site_with_aliases(&account, &domain, &[]),
+    );
+
+    let detail = taken_detail(refusal, "the operator's wildcard file serves the name");
+    assert!(
+        detail.contains("conflicting server name \"dot.hn3b.test\""),
+        "the refusal must carry nginx's own words about the host, got {detail:?}"
+    );
+    assert!(!vhost.exists(), "a refused site must leave no vhost behind");
+    assert_no_warning_about(&nginx_t_stderr(), "dot.hn3b.test");
+}
+
+#[test]
+#[ignore = "writes real vhosts and runs the real nginx -t over both: polygon only"]
+fn a_site_whose_names_collide_with_nothing_is_created_beside_an_existing_one() {
+    // The inverse control of the refusals above: a check that refused every
+    // creation beside another vhost would pass all of them.
+    PolygonAccount::require_polygon();
+    ensure_nginx_is_running();
+    let owner = PolygonAccount::create("polyhnownerd");
+    let neighbour = PolygonAccount::create("polyhnnewcmd");
+    let shop = host_name("shop.hn4.test");
+    let other = host_name("other.hn4.test");
+
+    let (owned, _owned_vhost) = create_guarded_site(&site_with_aliases(&owner, &shop, &[]));
+    // One alias is `shop.hn4.test` with more on the end: a different host that a
+    // loose match on the bare text would confuse with the owner's.
+    let (created, _created_vhost) = create_guarded_site(&site_with_aliases(
+        &neighbour,
+        &other,
+        &["www.other.hn4.test", "shop.hn4.test.example"],
+    ));
+
+    assert!(Path::new(&created.config_path).exists());
+    assert!(Path::new(&owned.config_path).exists());
+    let stderr = nginx_t_stderr();
+    assert_no_warning_about(&stderr, "shop.hn4.test");
+    assert_no_warning_about(&stderr, "other.hn4.test");
+    assert_nginx_loads(Path::new(&owned.config_path));
+    assert_nginx_loads(Path::new(&created.config_path));
+}
+
+#[test]
+#[ignore = "plants two real operator vhosts and runs the real nginx -t: polygon only"]
+fn a_conflict_between_two_other_files_does_not_block_an_unrelated_site() {
+    // One bad file of someone else's must not turn into a host on which no
+    // site can be created: only the creating site's own names refuse.
+    PolygonAccount::require_polygon();
+    ensure_nginx_is_running();
+    let account = PolygonAccount::create("polyhnunrelat");
+    let _first = plant_operator_vhost("zzzz-a-hn5.conf", "other.hn5.test");
+    let _second = plant_operator_vhost("zzzz-b-hn5.conf", "other.hn5.test");
+    // The positive control: the conflict really is in the tree, and `nginx -t`
+    // really does say so while exiting 0. Without this the test would pass on a
+    // host where the planted files conflicted with nothing.
+    assert!(
+        nginx_t_stderr().contains(&format!("{NGINX_CONFLICT_WORDS} \"other.hn5.test\"")),
+        "the two planted files must conflict in the real nginx"
+    );
+
+    let (created, _vhost) = create_guarded_site(&site_with_aliases(
+        &account,
+        &host_name("unrelated.hn5.test"),
+        &[],
+    ));
+
+    assert_nginx_loads(Path::new(&created.config_path));
+}
+
+#[test]
+#[ignore = "runs two real vhost writes against one real nginx at the same time: polygon only"]
+fn two_creations_racing_for_one_host_name_leave_exactly_one_vhost_answering_for_it() {
+    PolygonAccount::require_polygon();
+    ensure_nginx_is_running();
+    let first = PolygonAccount::create("polyhnracea");
+    let second = PolygonAccount::create("polyhnraceb");
+    // Different domains, so each creation's existence check passes and only the
+    // shared alias can stop the second; `zero` and `shop` sort in either order
+    // depending on which thread is the winner.
+    let first_domain = host_name("shop.hn6.test");
+    let second_domain = host_name("zero.hn6.test");
+    let first_vhost = SitePaths::for_site(first.name(), &first_domain).config_path;
+    let second_vhost = SitePaths::for_site(second.name(), &second_domain).config_path;
+    let _first_guard = PolygonConfigFile::at(&first_vhost);
+    let _second_guard = PolygonConfigFile::at(&second_vhost);
+
+    let race = race_two_creations(
+        site_with_aliases(&first, &first_domain, &[]),
+        site_with_aliases(&second, &second_domain, &["shop.hn6.test"]),
+    );
+
+    // The positive control: both creations really stood at the protocol's door
+    // together, with their existence checks already behind them.
+    assert!(
+        race.overlapped,
+        "each creation must have arrived at the protocol while the other was there"
+    );
+    let (winner, loser_vhost, loser) = match (race.first, race.second) {
+        (Ok(created), Err(error)) => (created, second_vhost, error),
+        (Err(error), Ok(created)) => (created, first_vhost, error),
+        (first, second) => {
+            panic!("exactly one creation must win, got {first:?} and {second:?}")
+        }
+    };
+    assert!(
+        matches!(loser, SitesOpError::ServerNameTaken { .. }),
+        "the loser must be told the name is taken, got {loser:?}"
+    );
+    assert!(
+        Path::new(&winner.config_path).exists(),
+        "the winner's vhost must be on disk"
+    );
+    assert!(
+        !loser_vhost.exists(),
+        "the loser must leave no vhost behind at {loser_vhost:?}"
+    );
+    assert_eq!(
+        server_blocks_naming("shop.hn6.test"),
+        1,
+        "exactly one vhost may answer for the contested name"
+    );
+    assert_no_warning_about(&nginx_t_stderr(), "shop.hn6.test");
+    assert_nginx_loads(Path::new(&winner.config_path));
+}
+
+#[test]
+#[ignore = "runs two real vhost writes against one real nginx at the same time: polygon only"]
+fn two_creations_of_the_same_domain_leave_one_vhost_and_never_overwrite_the_first() {
+    PolygonAccount::require_polygon();
+    ensure_nginx_is_running();
+    let first = PolygonAccount::create("polyhnsamea");
+    let second = PolygonAccount::create("polyhnsameb");
+    let domain = host_name("same.hn7.test");
+    let vhost = SitePaths::for_site(first.name(), &domain).config_path;
+    let _guard = PolygonConfigFile::at(&vhost);
+
+    // The same domain from two accounts: one file name, so both creations pass
+    // the existence check (neither file is there yet) and meet at the write.
+    let race = race_two_creations(
+        site_with_aliases(&first, &domain, &[]),
+        site_with_aliases(&second, &domain, &[]),
+    );
+
+    assert!(
+        race.overlapped,
+        "each creation must have arrived at the protocol while the other was there"
+    );
+    let (winner, winner_home, loser_home, loser) = match (race.first, race.second) {
+        (Ok(created), Err(error)) => (created, first.home(), second.home(), error),
+        (Err(error), Ok(created)) => (created, second.home(), first.home(), error),
+        (first, second) => {
+            panic!("exactly one creation must win, got {first:?} and {second:?}")
+        }
+    };
+    assert!(
+        matches!(loser, SitesOpError::ServerNameTaken { .. }),
+        "the loser must be told the name is taken, got {loser:?}"
+    );
+    let surviving = std::fs::read_to_string(&vhost).expect("the winner's vhost must be on disk");
+    assert!(
+        surviving.contains(&winner.document_root),
+        "the surviving vhost must be the winner's, got:\n{surviving}"
+    );
+    assert!(
+        !surviving.contains(&loser_home.display().to_string()),
+        "the loser's vhost must not have replaced the winner's, got:\n{surviving}"
+    );
+    assert!(
+        winner
+            .document_root
+            .starts_with(&winner_home.display().to_string())
+    );
+    assert_eq!(server_blocks_naming("same.hn7.test"), 1);
+    assert_nginx_loads(&vhost);
+}
+
+/// The name of the include the hung-validator tests plant: sorted after every
+/// vhost the agent writes, and matched by the `*.conf` include.
+const HANG_FILE_NAME: &str = "zz-maran-hang.conf";
+
+/// What a killed program is given, on top of its deadline, to be reaped and
+/// for the rollback to finish, before a hung-validator test declares the bound
+/// broken.
+const REAP_AND_ROLLBACK_BUDGET: Duration = Duration::from_secs(30);
+
+/// How long a write for another account may take once the validator can run
+/// again. A real `nginx -t` plus reload takes a fraction of a second; a lock
+/// still held by the timed-out write would keep this waiting for good.
+const NEXT_WRITE_BUDGET: Duration = Duration::from_secs(15);
+
+/// Plants a first-in-first-out file where nginx's `include` glob finds it.
+///
+/// `nginx -t` opens every file the glob names, and `open(2)` on a FIFO with no
+/// writer blocks for ever: the validator hangs the way a validator stuck on an
+/// unreachable upstream name does, with no dependence on the network. Created
+/// with `mkfifo`, which both families ship in coreutils. The returned guard
+/// removes it again, on a panic too.
+///
+/// # Panics
+///
+/// Panics when the FIFO cannot be made.
+fn plant_hanging_include() -> PolygonConfigFile {
+    let path = Path::new(AgentPaths::NGINX_INCLUDE_DIRECTORY).join(HANG_FILE_NAME);
+    let made = std::process::Command::new("/usr/bin/mkfifo")
+        .arg("--")
+        .arg(&path)
+        .status()
+        .expect("mkfifo can be started");
+    assert!(made.success(), "mkfifo failed to make {path:?}");
+
+    PolygonConfigFile::at(path)
+}
+
+/// Like [`within`], with the budget given by the caller.
+///
+/// # Panics
+///
+/// Panics, naming `what`, when `body` outlasts `budget`.
+fn within_budget<T: Send + 'static>(
+    what: &str,
+    budget: Duration,
+    body: impl FnOnce() -> T + Send + 'static,
+) -> T {
+    let (sender, receiver) = mpsc::channel();
+    std::thread::spawn(move || {
+        let _ = sender.send(body());
+    });
+
+    receiver
+        .recv_timeout(budget)
+        .unwrap_or_else(|_| panic!("{what} did not finish within {budget:?}"))
+}
+
+/// What a bounded `create_site` came back with, reduced to what crosses a
+/// thread boundary.
+struct TimedCreation {
+    /// Whether the call ended in the typed deadline error.
+    timed_out: bool,
+    /// The call's result, for a failure message.
+    summary: String,
+    /// How long the call took.
+    elapsed: Duration,
+}
+
+/// Creates a static site for `account` at `domain` with the real hosts on a
+/// thread of its own and reports how it ended and how long it took.
+fn create_static_site_timed(
+    account: &PolygonAccount,
+    domain: &Domain,
+    what: &str,
+    budget: Duration,
+) -> TimedCreation {
+    let input = static_site(account, domain);
+
+    within_budget(what, budget, move || {
+        let started = std::time::Instant::now();
+        let result = create_polygon_site(&ProcessSiteHost::new(), &input);
+        let elapsed = started.elapsed();
+
+        TimedCreation {
+            timed_out: matches!(
+                result,
+                Err(SitesOpError::Bound(BoundExceeded::TimedOut { .. }))
+            ),
+            summary: format!("{result:?}"),
+            elapsed,
+        }
+    })
+}
+
+/// How long the test waits for something the host does on its own: a probe to
+/// show up in `/proc`, or a killed validator to be gone from it.
+const PROCESS_TABLE_BUDGET: Duration = Duration::from_secs(10);
+
+/// Gap between two looks at the process table.
+const PROCESS_TABLE_POLL: Duration = Duration::from_millis(50);
+
+/// Polls `condition` until it holds or `budget` is spent, and answers whether it
+/// held. A poll with a timeout and not a sleep: the answer comes the moment the
+/// condition is true.
+fn wait_until(budget: Duration, mut condition: impl FnMut() -> bool) -> bool {
+    let deadline = std::time::Instant::now() + budget;
+    loop {
+        if condition() {
+            return true;
+        }
+        if std::time::Instant::now() >= deadline {
+            return false;
+        }
+        std::thread::sleep(PROCESS_TABLE_POLL);
+    }
+}
+
+/// How many live processes are this family's `nginx -t`, found by their exact
+/// argument vector in `/proc`.
+///
+/// Read from `cmdline` and not from a process name, so an `nginx` master or
+/// worker is not counted, and a zombie (whose `cmdline` is empty) is not counted
+/// either: a killed validator that has been reaped and one that is merely waiting
+/// to be reaped are both "gone" for this question.
+///
+/// # Panics
+///
+/// Panics when `/proc` cannot be listed.
+fn running_validators() -> usize {
+    let wanted = format!("{}\0{VALIDATE_ARGUMENT}\0", polygon_distro().nginx_binary());
+
+    std::fs::read_dir("/proc")
+        .expect("/proc can be listed")
+        .filter_map(Result::ok)
+        .filter(|entry| {
+            entry
+                .file_name()
+                .to_string_lossy()
+                .bytes()
+                .all(|byte| byte.is_ascii_digit())
+        })
+        .filter(|entry| {
+            std::fs::read(entry.path().join("cmdline"))
+                .is_ok_and(|cmdline| cmdline == wanted.as_bytes())
+        })
+        .count()
+}
+
+/// Proves, with the FIFO in place, that this family's `nginx -t` really blocks
+/// on it and that [`running_validators`] can see such a process.
+///
+/// The positive control of the "the killed validator is gone" assertion: a scan
+/// that matched nothing, because of how `cmdline` is spelled on this family,
+/// would report every validator gone whether or not the agent had killed it.
+/// The probe is a validator this test starts itself, so it is also the answer to
+/// "does the hang need anything this family's nginx does not do".
+///
+/// # Panics
+///
+/// Panics when the probe cannot be started, does not hang, or is still counted
+/// after it has been killed and reaped.
+fn prove_the_fifo_hangs_a_validator_the_scan_can_see() {
+    let mut probe = std::process::Command::new(polygon_distro().nginx_binary())
+        .arg(VALIDATE_ARGUMENT)
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .spawn()
+        .expect("the polygon image installs nginx");
+
+    let seen = wait_until(PROCESS_TABLE_BUDGET, || running_validators() == 1);
+    probe.kill().expect("the probe can be killed");
+    probe.wait().expect("the probe can be reaped");
+
+    assert!(
+        seen,
+        "with a FIFO in the include directory, `nginx -t` must stay running and be seen once in \
+         /proc; it was not, so the hang this test relies on does not happen on this family"
+    );
+    assert_eq!(
+        running_validators(),
+        0,
+        "the probe was killed and reaped and must no longer be counted"
+    );
+}
+
+#[test]
+#[ignore = "hangs the real nginx -t on purpose and waits out its deadline: polygon only"]
+fn a_validator_that_hangs_on_a_real_host_is_killed_at_its_deadline_the_vhost_is_restored_and_the_next_write_proceeds()
+ {
+    PolygonAccount::require_polygon();
+    ensure_nginx_is_running();
+    let hung = PolygonAccount::create("polyhangone");
+    let next = PolygonAccount::create("polyhangtwo");
+    let hung_domain = Domain::parse("hung.example.test").expect("a valid domain");
+    let next_domain = Domain::parse("next.example.test").expect("a valid domain");
+    let hung_vhost = SitePaths::for_site(hung.name(), &hung_domain).config_path;
+    let next_vhost = SitePaths::for_site(next.name(), &next_domain).config_path;
+    let _next_vhost = PolygonConfigFile::at(&next_vhost);
+
+    let fifo = plant_hanging_include();
+    prove_the_fifo_hangs_a_validator_the_scan_can_see();
+    let deadline = CallClass::Validate.deadline();
+    let outcome = create_static_site_timed(
+        &hung,
+        &hung_domain,
+        "a create_site whose nginx -t hangs",
+        deadline + REAP_AND_ROLLBACK_BUDGET,
+    );
+
+    assert!(
+        outcome.timed_out,
+        "a hung validator must end the write with the typed deadline error, got {}",
+        outcome.summary
+    );
+    assert!(
+        outcome.elapsed >= deadline,
+        "the validator was stopped after {:?}, before its deadline of {deadline:?}",
+        outcome.elapsed
+    );
+    assert!(
+        !hung_vhost.exists(),
+        "a write whose validator was killed must leave no vhost behind at {hung_vhost:?}"
+    );
+    assert!(
+        wait_until(PROCESS_TABLE_BUDGET, || running_validators() == 0),
+        "the validator the agent started must be gone once the write has returned, not left \
+         blocked on the FIFO"
+    );
+
+    // The lock the hung write held is released and the next tenant is not
+    // starved: with the FIFO gone, another account's write completes quickly.
+    drop(fifo);
+    let following = create_static_site_timed(
+        &next,
+        &next_domain,
+        "the create_site that followed the timed-out one",
+        NEXT_WRITE_BUDGET,
+    );
+    assert!(
+        following.summary.starts_with("Ok("),
+        "the write after a timed-out one must succeed, got {}",
+        following.summary
+    );
+    assert!(
+        next_vhost.exists(),
+        "the following write must have written its vhost at {next_vhost:?}"
+    );
+    assert_valid_nginx_tree("the tree after a hung validator was killed and the next write ran");
+}
+
+#[test]
+#[ignore = "hangs the real nginx -t on purpose and waits out its deadline: polygon only"]
+fn a_hung_validator_reaches_the_panel_as_system_failure_over_the_real_rpc() {
+    PolygonAccount::require_polygon();
+    ensure_nginx_is_running();
+    let hung = PolygonAccount::create("polyhangrpc");
+    let next = PolygonAccount::create("polyhangrpctwo");
+    let next_vhost = SitePaths::for_site(
+        next.name(),
+        &Domain::parse("rpcnext.example.test").expect("a valid domain"),
+    )
+    .config_path;
+    let _next_vhost = PolygonConfigFile::at(&next_vhost);
+
+    let deadline = CallClass::Validate.deadline();
+    let runtime = tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()
+        .expect("a tokio runtime");
+
+    let request = |account: &PolygonAccount, domain: &str| CreateSiteRequest {
+        account_username: account.name().as_str().to_owned(),
+        domain: domain.to_owned(),
+        backend_type: SiteBackendType::Static as i32,
+        ..CreateSiteRequest::default()
+    };
+    let hung_request = request(&hung, "rpchung.example.test");
+    let next_request = request(&next, "rpcnext.example.test");
+
+    runtime.block_on(async move {
+        let agent = InProcessAgent::start().await;
+
+        // Planted only now. `serve` validates the web tree once before it binds
+        // (`reconcile_web_tree`), so a FIFO already in place would hang the
+        // agent's STARTUP for a whole deadline and the test would blame the
+        // bind, not the request it is about.
+        let fifo = plant_hanging_include();
+
+        let refused = tokio::time::timeout(
+            deadline + REAP_AND_ROLLBACK_BUDGET,
+            SitesServiceClient::new(agent.channel()).create_site(hung_request),
+        )
+        .await
+        .expect("the rpc answered within the validator's deadline plus the reap budget")
+        .expect("the rpc itself succeeds: the failure is a typed payload")
+        .into_inner();
+
+        match refused.result {
+            Some(create_site_response::Result::Error(error)) => {
+                assert_eq!(
+                    error.code,
+                    ErrorCode::SystemFailure as i32,
+                    "a deadline is a fault of the host: {}",
+                    error.message
+                );
+                assert!(
+                    error.tool_output.is_empty(),
+                    "nothing the killed program printed may be forwarded, got {:?}",
+                    error.tool_output
+                );
+                assert!(
+                    error.message.contains("nginx"),
+                    "the message must name the program that was stopped: {}",
+                    error.message
+                );
+            }
+            other => panic!("a hung validator must answer with a typed error, got {other:?}"),
+        }
+
+        drop(fifo);
+        let following = tokio::time::timeout(
+            NEXT_WRITE_BUDGET,
+            SitesServiceClient::new(agent.channel()).create_site(next_request),
+        )
+        .await
+        .expect("the rpc after a timed-out one answers promptly")
+        .expect("the rpc itself succeeds")
+        .into_inner();
+
+        assert!(
+            matches!(following.result, Some(create_site_response::Result::Ok(_))),
+            "the write after a timed-out one must succeed, got {following:?}"
+        );
+    });
 }

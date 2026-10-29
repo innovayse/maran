@@ -15,13 +15,13 @@ namespace Maran.Host.Resilience;
 /// <remarks>
 /// <para>
 /// <b>Which of these calls the pipeline may repeat, and why every one of them is safe.</b> The
-/// pipeline retries exactly one thing — a <see cref="System.Net.Sockets.SocketException"/>, which is
-/// the failure of a call that could not be made — and it does NOT retry a timeout, because the
-/// panel's timeout does not stop the agent's work, only its watching of it (see
-/// <see cref="AgentOperationPipeline"/>). So the question each method has to answer is not "is this
-/// idempotent" but "is a refused connection safe to dial again", and for all seven the answer is
-/// the same: a connection the kernel refused delivered no request, so the second attempt is the
-/// FIRST attempt at the operation.
+/// pipeline retries exactly one thing — a connection to the agent's socket that could not be
+/// established (<c>AgentTransportFailure.IsConnectFailure</c>), which is the failure of a call that
+/// could not be made — and it does NOT retry a timeout, because the panel's timeout does not stop the
+/// agent's work, only its watching of it (see <see cref="AgentOperationPipeline"/>). So the question
+/// each method has to answer is not "is this idempotent" but "is a refused connection safe to dial
+/// again", and for all seven the answer is the same: a connection the kernel refused delivered no
+/// request, so the second attempt is the FIRST attempt at the operation.
 /// </para>
 /// <para>
 /// The distinction earns its keep on exactly the two calls where a second overlapping copy would be
@@ -32,12 +32,12 @@ namespace Maran.Host.Resilience;
 /// manufacturing it out of one customer request is the defect the timeout arm was removed for.
 /// </para>
 /// <para>
-/// <b>The limit, stated rather than assumed.</b> A socket error raised part-way through a call that
-/// HAD reached the agent is indistinguishable here from a connect failure, so on that path the retry
-/// can still overlap. It is left retried deliberately: the agent's own per-account lock is what
-/// refuses the overlap, and the panel's job is to surface that refusal rather than hold a second
-/// lock of its own. What the panel cannot yet do is surface it WELL — the contract has no busy code,
-/// so the refusal arrives as <c>AgentSystemFailure</c>.
+/// <b>A failure part-way through a call is not retried either.</b> An earlier version of these remarks
+/// admitted that a socket error raised after the request HAD reached the agent was indistinguishable
+/// from a connect failure and would be retried into an overlap. The pipeline now tells the two apart
+/// by the transport's own classification of the connect step, so a call that reached the agent is
+/// attempted once, and its failure is answered as a typed failure — <c>AgentUnavailable</c> when the
+/// agent stopped answering — without a second copy beside it.
 /// </para>
 /// <para>
 /// Every method is decorated, including <see cref="DeleteUserAsync"/>, which is named here because
@@ -72,7 +72,8 @@ public sealed class ResilientAgentFtpsClient : IAgentFtpsClient
         uint maxClients,
         CancellationToken cancellationToken)
     {
-        return await _pipeline.ExecuteAsync(
+        return await AgentOperationPipeline.ExecuteAsync(
+            _pipeline,
             async (state, token) =>
             {
                 return await state.Client.EnableAsync(
@@ -95,7 +96,8 @@ public sealed class ResilientAgentFtpsClient : IAgentFtpsClient
     /// <inheritdoc/>
     public async Task<Result<FtpsStatusDto>> DisableAsync(CancellationToken cancellationToken)
     {
-        return await _pipeline.ExecuteAsync(
+        return await AgentOperationPipeline.ExecuteAsync(
+            _pipeline,
             async (state, token) =>
             {
                 return await state.DisableAsync(token);
@@ -107,7 +109,8 @@ public sealed class ResilientAgentFtpsClient : IAgentFtpsClient
     /// <inheritdoc/>
     public async Task<Result<FtpsStatusDto>> GetStatusAsync(string hostname, CancellationToken cancellationToken)
     {
-        return await _pipeline.ExecuteAsync(
+        return await AgentOperationPipeline.ExecuteAsync(
+            _pipeline,
             async (state, token) =>
             {
                 return await state.Client.GetStatusAsync(state.Hostname, token);
@@ -119,7 +122,8 @@ public sealed class ResilientAgentFtpsClient : IAgentFtpsClient
     /// <inheritdoc/>
     public async Task<Result<FtpsStatusDto>> ReloadTlsAsync(CancellationToken cancellationToken)
     {
-        return await _pipeline.ExecuteAsync(
+        return await AgentOperationPipeline.ExecuteAsync(
+            _pipeline,
             async (state, token) =>
             {
                 return await state.ReloadTlsAsync(token);
@@ -133,7 +137,8 @@ public sealed class ResilientAgentFtpsClient : IAgentFtpsClient
         CreateFtpsUserArguments arguments,
         CancellationToken cancellationToken)
     {
-        return await _pipeline.ExecuteAsync(
+        return await AgentOperationPipeline.ExecuteAsync(
+            _pipeline,
             async (state, token) =>
             {
                 return await state.Client.CreateUserAsync(state.Arguments, token);
@@ -149,7 +154,8 @@ public sealed class ResilientAgentFtpsClient : IAgentFtpsClient
         SensitiveString password,
         CancellationToken cancellationToken)
     {
-        return await _pipeline.ExecuteAsync(
+        return await AgentOperationPipeline.ExecuteAsync(
+            _pipeline,
             async (state, token) =>
             {
                 return await state.Client.SetPasswordAsync(
@@ -168,7 +174,8 @@ public sealed class ResilientAgentFtpsClient : IAgentFtpsClient
         string ftpsUsername,
         CancellationToken cancellationToken)
     {
-        return await _pipeline.ExecuteAsync(
+        return await AgentOperationPipeline.ExecuteAsync(
+            _pipeline,
             async (state, token) =>
             {
                 return await state.Client.DeleteUserAsync(state.AccountUsername, state.FtpsUsername, token);

@@ -1,5 +1,7 @@
 {
   "myAccount": {
+    "eyebrow": "Ваш хостинг-аккаунт",
+    "identityHeading": "Аккаунт",
     "loading": "Загружаем ваш аккаунт…",
     "primaryDomainLabel": "Основной домен",
     "statusLabel": "Статус",
@@ -14,6 +16,7 @@
       "sftpUsers": "Учётные записи SFTP",
       "ftpUsers": "Учётные записи FTPS",
       "cronEntries": "Записи cron"
-    }
+    },
+    "suspendedNotice": "Этот аккаунт приостановлен. Обратитесь к хостинг-провайдеру, чтобы его восстановили."
   }
 }

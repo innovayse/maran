@@ -3,6 +3,8 @@
 use std::path::{Path, PathBuf};
 
 use maran_agent_core::command_outcome::CommandOutcome;
+use maran_agent_core::utils::call_class::CallClass;
+use maran_distro::AdapterBinary;
 
 use crate::firewall::firewall_error::FirewallError;
 
@@ -25,8 +27,15 @@ use crate::firewall::firewall_error::FirewallError;
 /// one thing no test could see.
 ///
 /// Implementations MUST spawn with an argv array against an absolute path
-/// taken from the `DistroAdapter`, never through a shell and never through a
+/// taken from the `DistroAdapter` — which is what an [`AdapterBinary`] is, and
+/// only the adapter can make one — never through a shell and never through a
 /// program name resolved by `PATH` (rules/security.md item 3).
+///
+/// **Every program is bounded.** [`FirewallHost::run`] takes the call's
+/// [`CallClass`], which sets its deadline, and the lock every mutation holds
+/// (`firewall_lock`) is host-wide and waits: an `nft` that
+/// never returned would hold it forever and freeze every other firewall
+/// change. A deadline is what turns that into an error and a released lock.
 ///
 /// Every method here MUST be reached from `tokio::task::spawn_blocking`: each
 /// one waits for a process or for the disk, and a blocking call on a runtime
@@ -35,7 +44,8 @@ use crate::firewall::firewall_error::FirewallError;
 /// which is where every call into this trait comes from — see the module
 /// documentation, which states it in full and names what enforces it.
 pub trait FirewallHost: Send + Sync {
-    /// Runs `program` with `arguments` as an argv array and waits for it.
+    /// Runs `program` with `arguments` as an argv array and waits for it, for
+    /// at most `class`'s deadline.
     ///
     /// # Errors
     ///
@@ -44,7 +54,18 @@ pub trait FirewallHost: Send + Sync {
     /// returned in the outcome, because each caller reads a status
     /// differently: `nft list table` exiting non-zero means "the table is not
     /// there", while `nft -f` exiting non-zero means the apply failed.
-    fn run(&self, program: &str, arguments: &[&str]) -> Result<CommandOutcome, FirewallError>;
+    ///
+    /// Returns [`FirewallError::Bound`] when the program was killed at its
+    /// deadline or wrote more than the implementation will hold. A caller MUST
+    /// propagate it as it is: reading it as a non-zero exit would turn "the
+    /// table is not there" into an answer given by a program that was killed
+    /// before it gave one.
+    fn run(
+        &self,
+        program: &AdapterBinary,
+        arguments: &[&str],
+        class: CallClass,
+    ) -> Result<CommandOutcome, FirewallError>;
 
     /// Reads `path` as UTF-8 text, answering `None` when it is not there.
     ///

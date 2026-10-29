@@ -95,7 +95,7 @@ public sealed class AccountSuspensionCascadeTests
     {
         var agent = new RecordingAgentCronClient
         {
-            SetAccountSuspendedResult = Result<bool>.Fail(Error.Of("AgentUnavailable", ErrorType.Failure)),
+            SetAccountSuspendedResult = Result<bool>.Fail(Error.Of("AgentUnavailable", ErrorType.Unavailable)),
         };
 
         await Assert.ThrowsAsync<InvalidOperationException>(async () =>
@@ -115,7 +115,7 @@ public sealed class AccountSuspensionCascadeTests
     {
         var agent = new RecordingAgentCronClient
         {
-            SetAccountSuspendedResult = Result<bool>.Fail(Error.Of("AgentUnavailable", ErrorType.Failure)),
+            SetAccountSuspendedResult = Result<bool>.Fail(Error.Of("AgentUnavailable", ErrorType.Unavailable)),
         };
 
         await Assert.ThrowsAsync<InvalidOperationException>(async () =>

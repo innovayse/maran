@@ -14,24 +14,29 @@
  * does: a secret is being minted here rather than an existing one entered, and
  * generating also reveals the value so it can be recorded.
  *
+ * A link carrying no token is a stated state of its own — a warning and the way
+ * back, with no form, because that request is certain to be refused.
+ *
  * A refusal is rendered exactly as the panel sent it, beside a way back to the
- * sign-in screen. The backend answers a token that never existed, one that has
+ * sign-in screen and one fixed line saying what to do next (ask for a new
+ * invitation). The backend answers a token that never existed, one that has
  * expired and one already spent with the same message, and nothing on this page
  * inspects it: a screen that told them apart would be the disclosure the single
  * message exists to prevent.
  */
 import { computed, ref, type ComputedRef, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useRoute, useRouter } from 'vue-router'
+import { useRoute } from 'vue-router'
 import UiAlert from '../../components/ui/UiAlert.vue'
+import UiAuthHeading from '../../components/ui/UiAuthHeading.vue'
 import UiButton from '../../components/ui/UiButton.vue'
 import UiForm from '../../components/ui/UiForm.vue'
+import UiIcon from '../../components/ui/UiIcon.vue'
 import UiPasswordInput from '../../components/ui/UiPasswordInput.vue'
 import { useAuthStore } from '../../stores/auth'
 
 const { t } = useI18n()
 const route = useRoute()
-const router = useRouter()
 const authStore = useAuthStore()
 
 /** The password being set. */
@@ -68,60 +73,74 @@ const submit = async (): Promise<void> => {
   mismatch.value = null
   done.value = await authStore.acceptInvitation({ token: token.value, newPassword: password.value })
 }
-
-/**
- * Returns to the sign-in screen — the way back a refused token leaves open.
- * @returns Resolves once the navigation has settled.
- */
-const backToSignIn = async (): Promise<void> => {
-  await router.push({ name: 'login' })
-}
 </script>
 
 <template>
   <div>
-    <h2 class="text-xl font-semibold">{{ t('app.acceptInvitation.title') }}</h2>
-    <p class="mt-1 mb-4 text-base text-text-secondary">{{ t('app.acceptInvitation.subtitle') }}</p>
+    <UiAuthHeading
+      class="mb-6"
+      :title="t('app.acceptInvitation.title')"
+      :subtitle="t('app.acceptInvitation.subtitle')"
+    />
 
-    <template v-if="done">
-      <UiAlert variant="info" class="mb-4">{{ t('app.acceptInvitation.done') }}</UiAlert>
-      <UiButton class="w-full justify-center" @click="backToSignIn">
+    <!-- Done: the password is set, and the only thing left to do is sign in with it. -->
+    <div v-if="done" class="flex flex-col gap-5">
+      <UiAlert variant="success">{{ t('app.acceptInvitation.done') }}</UiAlert>
+      <UiButton class="w-full justify-center" :to="{ name: 'login' }">
+        {{ t('app.acceptInvitation.backToSignIn') }}
+        <UiIcon name="arrowRight" size="sm" />
+      </UiButton>
+    </div>
+
+    <!-- A link that carried no token can never succeed, so the form is not offered: the state is
+         stated, with what to do next, instead of a form that is certain to be refused. -->
+    <div v-else-if="token === ''" class="flex flex-col gap-5">
+      <UiAlert variant="warning">
+        <p class="font-semibold">{{ t('app.acceptInvitation.missingTokenTitle') }}</p>
+        <p class="mt-1">{{ t('app.acceptInvitation.missingTokenBody') }}</p>
+      </UiAlert>
+      <UiButton variant="ghost" class="justify-center" :to="{ name: 'login' }">
         {{ t('app.acceptInvitation.backToSignIn') }}
       </UiButton>
-    </template>
+    </div>
 
-    <template v-else>
-      <!-- The refusal as the backend worded it, and never a word about which kind of
-           refusal it was. The button beneath is the way back: a dead end here would
-           leave somebody with a stale link and no route to the sign-in screen. -->
-      <UiAlert v-if="authStore.errorMessage !== null" variant="error" class="mb-4">
-        {{ authStore.errorMessage }}
-      </UiAlert>
+    <UiForm v-else @submit="submit">
+      <div class="flex flex-col gap-5">
+        <!-- The refusal as the backend worded it, never rewritten and never told apart. The hint
+             beneath it is the same for every refusal, so it says what to do next without
+             disclosing which kind this was; the button at the foot is the way back, because a
+             dead end here would leave somebody with a stale link and no route to sign-in. -->
+        <UiAlert v-if="authStore.errorMessage !== null" variant="error">
+          <p>{{ authStore.errorMessage }}</p>
+          <p class="mt-1 text-text-secondary">{{ t('app.acceptInvitation.refusedHint') }}</p>
+        </UiAlert>
 
-      <UiForm @submit="submit">
-        <div class="flex flex-col gap-3">
-          <UiPasswordInput
-            v-model="password"
-            :label="t('app.auth.passwordLabel')"
-            required
-            autocomplete="new-password"
-            generate
-          />
-          <UiPasswordInput
-            v-model="confirmation"
-            :label="t('app.auth.confirmPasswordLabel')"
-            :error="mismatch"
-            required
-            autocomplete="new-password"
-          />
-          <UiButton class="mt-1 w-full justify-center" type="submit" :disabled="authStore.loading">
-            {{ t('app.acceptInvitation.setPassword') }}
-          </UiButton>
-          <UiButton variant="ghost" class="justify-center" @click="backToSignIn">
-            {{ t('app.acceptInvitation.backToSignIn') }}
-          </UiButton>
-        </div>
-      </UiForm>
-    </template>
+        <UiPasswordInput
+          v-model="password"
+          :label="t('app.auth.passwordLabel')"
+          icon="lock"
+          required
+          autocomplete="new-password"
+          generate
+        />
+        <UiPasswordInput
+          v-model="confirmation"
+          :label="t('app.auth.confirmPasswordLabel')"
+          icon="lock"
+          :error="mismatch"
+          required
+          autocomplete="new-password"
+        />
+
+        <!-- The one primary pill on the screen; everything else here is quieter than it. -->
+        <UiButton class="w-full justify-center" type="submit" :disabled="authStore.loading">
+          {{ t('app.acceptInvitation.setPassword') }}
+          <UiIcon name="arrowRight" size="sm" />
+        </UiButton>
+        <UiButton variant="ghost" class="justify-center" :to="{ name: 'login' }">
+          {{ t('app.acceptInvitation.backToSignIn') }}
+        </UiButton>
+      </div>
+    </UiForm>
   </div>
 </template>

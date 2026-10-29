@@ -1,5 +1,7 @@
 //! Turning FTPS off, and keeping it off across a reboot.
 
+use maran_agent_core::agent_paths::AgentPaths;
+use maran_agent_core::utils::call_class::CallClass;
 use maran_distro::adapter::DistroAdapter;
 
 use crate::ftps::ftps_error::FtpsError;
@@ -27,16 +29,21 @@ use crate::ftps::model::ftps_unit::FtpsUnit;
 ///
 /// Returns [`FtpsError::ServiceRefused`] when the service manager refuses to stop
 /// or disable the unit, and [`FtpsError::SpawnFailed`] when it cannot be started
-/// at all. Returns [`FtpsError::ConfigUnreadable`] when the live configuration
+/// at all, and [`FtpsError::Bound`] when it outruns its deadline. Returns
+/// [`FtpsError::ConfigUnreadable`] when the live configuration
 /// exists and cannot be read while the resulting state is observed.
 pub fn disable_ftps(
     host: &dyn FtpsHost,
     distro: &dyn DistroAdapter,
 ) -> Result<FtpsState, FtpsError> {
-    let outcome = host.run(distro.service_manager(), &FtpsUnit::DISABLE_NOW)?;
+    let outcome = host.run(
+        &distro.service_manager(),
+        &FtpsUnit::DISABLE_NOW,
+        CallClass::Reload,
+    )?;
     if outcome.status != 0 {
         return Err(FtpsError::ServiceRefused {
-            unit: FtpsUnit::DISABLE_NOW[2].to_owned(),
+            unit: AgentPaths::FTPS_UNIT.to_owned(),
         });
     }
 

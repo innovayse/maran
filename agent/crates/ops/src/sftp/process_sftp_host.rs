@@ -2,19 +2,24 @@
 
 use std::fs;
 use std::io;
-use std::io::Write as _;
 use std::os::unix::fs::PermissionsExt as _;
 use std::path::Path;
-use std::process::{Command, Stdio};
 
 use maran_agent_core::command_outcome::CommandOutcome;
 use maran_agent_core::privs::account_ids::AccountIds;
-use maran_agent_core::utils::apply_child_environment::apply_child_environment;
+use maran_agent_core::utils::call_class::CallClass;
+use maran_agent_core::utils::child_input::ChildInput;
+use maran_agent_core::utils::child_output::ChildOutput;
+use maran_agent_core::utils::run_bounded::run_bounded;
 use maran_agent_core::utils::spawn_argv::spawn_argv;
+use maran_agent_core::utils::spawn_request::SpawnRequest;
 use maran_agent_core::utils::system_accounts::system_accounts;
+use maran_agent_core::validation::system::managed_account::ManagedAccount;
 use maran_agent_core::validation::system::name::AccountName;
 use maran_agent_core::validation::system::sftp_user_name::SftpUserName;
+use maran_distro::AdapterBinary;
 
+use crate::accounts::read_managed_account;
 use crate::safe_write::model::{Reload, Validator};
 use crate::safe_write::{ConfigHost, SafeWriteError, write_config};
 use crate::sftp::model::account_ownership::AccountOwnership;
@@ -52,96 +57,90 @@ impl ConfigHost for ProcessSftpHost {
     ///
     /// No shell is involved, at any point (rules/security.md item 3): the
     /// arguments reach `execve` one by one, so there is no command line for
-    /// anything to re-parse. `program` comes from the `DistroAdapter`'s
-    /// allow-list and never from a request.
+    /// anything to re-parse. `program` is an [`AdapterBinary`], which only the
+    /// distro crate can build, so it never comes from a request.
     ///
     /// The spawn itself is [`spawn_argv`], shared with every other host that
     /// runs an argv array — but only THIS impl's spawn. The password change
-    /// below keeps its own `Command`, because it pipes a secret to the child's
-    /// standard input, which is exactly what the shared body does not do.
+    /// below goes through the bounded core with its own input, because it pipes
+    /// a secret to the child's standard input, which is exactly what the
+    /// shared body does not do.
     ///
     /// # Errors
     ///
     /// Returns [`SafeWriteError::SpawnFailed`] when the program cannot be
-    /// started, carrying the operating system's reason. A program that started
-    /// and exited non-zero is not an error: its status comes back in the
-    /// outcome for the protocol above to judge.
-    fn run(&self, program: &str, arguments: &[&str]) -> Result<CommandOutcome, SafeWriteError> {
-        spawn_argv(program, arguments).map_err(|error| SafeWriteError::SpawnFailed {
-            program: program.to_owned(),
-            reason: error.to_string(),
-        })
+    /// started, carrying the operating system's reason, and
+    /// [`SafeWriteError::Bound`] when it outran the deadline of `class` or its
+    /// output ceiling. A program that started and exited non-zero is not an
+    /// error: its status comes back in the outcome for the protocol above to
+    /// judge.
+    fn run(
+        &self,
+        program: &AdapterBinary,
+        arguments: &[&str],
+        class: CallClass,
+    ) -> Result<CommandOutcome, SafeWriteError> {
+        spawn_argv(program.as_path(), arguments, class)
+            .map_err(|error| SafeWriteError::from_spawn(program, error))
     }
 }
 
 impl SftpHost for ProcessSftpHost {
-    /// Spawns `program` with `arguments` as an argv array, writing `stdin` to
-    /// its standard input when there is one.
+    /// Spawns `program` with `arguments` as an argv array, delivering `stdin` to
+    /// its standard input when there is one, for at most the deadline of `class`.
     ///
-    /// No shell, at any point. When there is nothing to write, standard input
+    /// No shell, at any point. When there is nothing to deliver, standard input
     /// is `/dev/null` rather than inherited: a tool that decides to prompt then
-    /// fails instead of hanging a root daemon forever. When there is, the pipe
-    /// is dropped as soon as the line has been written — `chpasswd` reads to end
-    /// of input, and a pipe left open is the same hang by a different route.
+    /// fails instead of hanging a root daemon. When there is, the bounded core
+    /// writes the bytes from its own thread and closes the pipe as soon as the
+    /// line has been written — `chpasswd` reads to end of input — and zeroes its
+    /// copy afterwards. A tool that never reads is stopped by the deadline.
     ///
     /// # Errors
     ///
     /// Returns [`SftpError::SpawnFailed`] with a `code` of `-1` when the
-    /// program cannot be started, its standard input cannot be taken or
-    /// written, or it cannot be waited for.
+    /// program cannot be started, its standard input cannot be delivered, or it
+    /// cannot be waited for, and [`SftpError::Bound`] when it outran its
+    /// deadline or its output ceiling.
     fn run(
         &self,
-        program: &str,
+        program: &AdapterBinary,
         arguments: &[&str],
         stdin: Option<&str>,
+        class: CallClass,
     ) -> Result<CommandOutcome, SftpError> {
-        let mut command = Command::new(program);
-        apply_child_environment(&mut command);
-        let mut child = command
-            .args(arguments)
-            .stdin(if stdin.is_some() {
-                Stdio::piped()
-            } else {
-                Stdio::null()
-            })
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .spawn()
-            .map_err(|_| SftpError::program_unavailable())?;
+        let input = match stdin {
+            Some(line) => ChildInput::Bytes(line.as_bytes()),
+            None => ChildInput::Null,
+        };
 
-        if let Some(line) = stdin {
-            let Some(mut pipe) = child.stdin.take() else {
-                return Err(SftpError::program_unavailable());
-            };
+        Ok(run_bounded(SpawnRequest {
+            program: program.as_path(),
+            arguments,
+            class,
+            input,
+            output: ChildOutput::DEFAULT,
+        })?)
+    }
 
-            let written = pipe.write_all(line.as_bytes());
-            // Closed here, before the wait: the tool reads to end of input, so
-            // waiting on a process whose input pipe is still open waits forever.
-            drop(pipe);
-
-            if written.is_err() {
-                let _ = child.kill();
-                let _ = child.wait();
-
-                return Err(SftpError::program_unavailable());
-            }
-        }
-
-        let output = child
-            .wait_with_output()
-            .map_err(|_| SftpError::program_unavailable())?;
-
-        Ok(CommandOutcome {
-            status: output.status.code().unwrap_or(-1),
-            stdout: String::from_utf8_lossy(&output.stdout).into_owned(),
-            stderr: String::from_utf8_lossy(&output.stderr).into_owned(),
-        })
+    /// Resolves `account` against the local password database, read here whole.
+    ///
+    /// The file is read by this host and handed to the type as text; the type
+    /// reads nothing itself. A file that cannot be read is
+    /// [`SftpError::AccountMissing`], the same answer as an absent row.
+    fn managed_account(
+        &self,
+        passwd_database: &str,
+        account: &AccountName,
+    ) -> Result<ManagedAccount, SftpError> {
+        read_managed_account(passwd_database, account).map_err(SftpError::from_managed_account)
     }
 
     /// Resolves `account` through the host's password database.
     ///
-    /// `AccountIds::resolve` is the one lookup in this repository, reused
-    /// rather than a second `getpwnam` written here: it already refuses `root`,
+    /// `AccountIds::resolve` is the lookup of the ids, reused rather than
+    /// a second `getpwnam` written here, and `managed_account` is the gate that
+    /// runs before it. It already refuses `root`,
     /// the root group and the system id range, so an SFTP login cannot be
     /// created with a privileged identity even if a name that resolves to one
     /// somehow reached this point.
@@ -186,10 +185,13 @@ impl SftpHost for ProcessSftpHost {
     ///
     /// # Errors
     ///
-    /// Returns [`SftpError::JailFailed`] for every failure of the protocol. The
-    /// protocol's own error is deliberately not carried across: its variants
-    /// hold a tool's standard error, and this area's error type has no field
-    /// that could hold one.
+    /// Returns [`SftpError::Bound`] when the protocol's validator or reload
+    /// outran its deadline: the previous content has been restored by then, and
+    /// the bound is reported as itself rather than as a jail that could not be
+    /// built. Returns [`SftpError::JailFailed`] for every other failure of the
+    /// protocol. The protocol's own error is deliberately not carried across:
+    /// its variants hold a tool's standard error, and this area's error type has
+    /// no field that could hold one.
     fn write_config(
         &self,
         target: &Path,
@@ -197,7 +199,8 @@ impl SftpHost for ProcessSftpHost {
         validator: &Validator<'_>,
         reload: &Reload<'_>,
     ) -> Result<(), SftpError> {
-        write_config(self, target, contents, validator, reload).map_err(|_| SftpError::JailFailed)
+        write_config(self, target, contents, validator, reload)
+            .map_err(SftpError::from_config_write)
     }
 
     /// Lists `account`'s logins by reading the host's own passwd file.
@@ -294,3 +297,7 @@ impl SftpHost for ProcessSftpHost {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "../tests/sftp/process_sftp_host_tests.rs"]
+mod tests;

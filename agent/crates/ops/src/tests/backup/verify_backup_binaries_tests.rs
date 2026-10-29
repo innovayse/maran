@@ -12,7 +12,7 @@ use super::*;
 /// A lookup a test can steer: reports every path executable except the ones
 /// named as absent.
 struct FakeLookup {
-    absent: HashSet<&'static str>,
+    absent: HashSet<String>,
 }
 
 impl ExecutableLookup for FakeLookup {
@@ -41,9 +41,10 @@ fn every_binary_present_is_accepted() {
 /// declared — not a generic "a required program is missing".
 #[test]
 fn a_missing_tar_names_the_program_and_its_path() {
-    let path = distro().tar_binary();
+    let binary = distro().tar_binary();
+    let path = binary.as_str();
     let lookup = FakeLookup {
-        absent: HashSet::from([path]),
+        absent: HashSet::from([path.to_owned()]),
     };
 
     let error = verify_backup_binaries(distro(), &lookup).expect_err("tar is reported absent");
@@ -61,9 +62,10 @@ fn a_missing_tar_names_the_program_and_its_path() {
 /// the three programs is absent, not merely that one is.
 #[test]
 fn a_missing_gzip_names_gzip_and_its_path() {
-    let path = distro().gzip_binary();
+    let binary = distro().gzip_binary();
+    let path = binary.as_str();
     let lookup = FakeLookup {
-        absent: HashSet::from([path]),
+        absent: HashSet::from([path.to_owned()]),
     };
 
     let error = verify_backup_binaries(distro(), &lookup).expect_err("gzip is reported absent");
@@ -83,9 +85,10 @@ fn a_missing_gzip_names_gzip_and_its_path() {
 /// a scheduled backup finds it at 03:00.
 #[test]
 fn a_missing_database_dump_client_names_it_and_its_path() {
-    let path = distro().database_dump_binary();
+    let binary = distro().database_dump_binary();
+    let path = binary.as_str();
     let lookup = FakeLookup {
-        absent: HashSet::from([path]),
+        absent: HashSet::from([path.to_owned()]),
     };
 
     let error =

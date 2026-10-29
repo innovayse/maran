@@ -1,8 +1,13 @@
 {
   "monitoring": {
+    "eyebrow": "Server health",
     "heading": "Monitoring",
     "subtitle": "What this server has been doing, and what it is running right now.",
     "loading": "Loading the server's readings",
+    "attention": {
+      "servicesDown": "Not running: {names}",
+      "overQuota": "Over their allowance: {names}"
+    },
     "range": {
       "label": "Chart range",
       "day": "24 h",

@@ -2,6 +2,7 @@
 
 use std::path::Path;
 
+use maran_agent_core::utils::call_class::CallClass;
 use maran_agent_core::validation::system::name::AccountName;
 use maran_distro::DistroAdapter;
 
@@ -9,6 +10,7 @@ use crate::sftp::delete_sftp_user::delete_sftp_user_under_lock;
 use crate::sftp::model::account_jail::AccountJail;
 use crate::sftp::sftp_error::SftpError;
 use crate::sftp::sftp_host::SftpHost;
+use maran_agent_core::end_of_options::END_OF_OPTIONS;
 
 /// The subcommand that turns a unit off and stops it in the same call.
 ///
@@ -79,6 +81,9 @@ const DAEMON_RELOAD: &str = "daemon-reload";
 ///   looks like — or the unit file cannot be taken away.
 /// - [`SftpError::SpawnFailed`] when `userdel` refuses a login for a reason
 ///   other than the login being absent, or could not be run at all.
+/// - [`SftpError::Bound`] when `userdel` or the service manager outran its
+///   deadline. Whether the login or the mount is gone is then unknown, so the
+///   account is not reported as clear of SFTP; a repeat converges.
 pub fn remove_account_sftp(
     host: &dyn SftpHost,
     distro: &dyn DistroAdapter,
@@ -105,7 +110,8 @@ pub fn remove_account_sftp(
 ///
 /// Returns [`SftpError::JailFailed`] when the service manager refuses to stop
 /// the unit, when a directory will not come away — the shape a surviving mount
-/// takes — or when the unit file cannot be removed.
+/// takes — or when the unit file cannot be removed. Returns
+/// [`SftpError::Bound`] when the service manager outruns its deadline.
 fn remove_jail(
     host: &dyn SftpHost,
     distro: &dyn DistroAdapter,
@@ -118,10 +124,13 @@ fn remove_jail(
     // its own deletion over a unit that was correctly never written.
     let installed = host.path_exists(unit_path);
     if installed {
+        // `systemctl` parses with `getopt_long`, which honours the end-of-options
+        // marker, so the unit name after it can never be read as an option.
         let outcome = host.run(
-            distro.service_manager(),
-            &[DISABLE, STOP_NOW, jail.unit_name()],
+            &distro.service_manager(),
+            &[DISABLE, STOP_NOW, END_OF_OPTIONS, jail.unit_name()],
             None,
+            CallClass::Reload,
         )?;
         if outcome.status != 0 {
             return Err(SftpError::JailFailed);
@@ -140,7 +149,12 @@ fn remove_jail(
 
     host.remove_file(unit_path)?;
 
-    let reloaded = host.run(distro.service_manager(), &[DAEMON_RELOAD], None)?;
+    let reloaded = host.run(
+        &distro.service_manager(),
+        &[DAEMON_RELOAD],
+        None,
+        CallClass::Reload,
+    )?;
     if reloaded.status != 0 {
         return Err(SftpError::JailFailed);
     }

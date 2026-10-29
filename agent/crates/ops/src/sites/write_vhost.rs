@@ -2,10 +2,12 @@
 
 use std::path::Path;
 
+use maran_agent_core::utils::call_class::CallClass;
 use maran_distro::DistroAdapter;
 
 use crate::safe_write::model::{Reload, Validator};
 use crate::sites::{SiteHost, SitesOpError};
+use maran_agent_core::end_of_options::END_OF_OPTIONS;
 
 /// The subcommand that makes the service manager re-read a configuration.
 ///
@@ -18,8 +20,10 @@ pub(crate) const VALIDATE_ARGUMENT: &str = "-t";
 
 /// Writes `contents` to `target` with the nginx validator and reload attached.
 ///
-/// Every site operation that produces a configuration goes through here, so
-/// the validator and the reload command are chosen once. Both come from the
+/// Every site operation that REPLACES a configuration goes through here; the
+/// one that introduces a vhost, `create_site`, goes through `create_vhost`,
+/// which builds the same validator and reload from the same constants. Both
+/// come from the
 /// [`DistroAdapter`] — the binary path and the service name differ between
 /// families, and an operation that wrote either as a literal would be guessing
 /// (rules/rust.md "Distro adapter").
@@ -29,28 +33,38 @@ pub(crate) const VALIDATE_ARGUMENT: &str = "-t";
 /// Returns [`SitesOpError::NginxValidation`] when `nginx -t` rejects the
 /// rendered configuration and [`SitesOpError::ReloadFailed`] when the reload
 /// refuses it — in both cases the previous vhost has already been restored, or
-/// removed if the site had none. Returns [`SitesOpError::ConfigWrite`] for
-/// every other failure of the protocol, including a rollback that itself
-/// failed.
+/// removed if the site had none. Returns [`SitesOpError::Bound`] when the
+/// validator or the reload outlived its deadline and was killed, again with the
+/// previous vhost restored; a bound is never reported as a failed validation or
+/// reload. Returns [`SitesOpError::ConfigWrite`] for every other failure of the
+/// protocol, including a rollback that itself failed.
 pub(crate) fn write_vhost(
     host: &dyn SiteHost,
     distro: &dyn DistroAdapter,
     target: &Path,
     contents: &str,
 ) -> Result<(), SitesOpError> {
+    let nginx = distro.nginx_binary();
+    let service_manager = distro.service_manager();
+    // A pure check, so the short class: `nginx -t` reads the tree and changes nothing.
     let validator = Validator {
-        program: distro.nginx_binary(),
+        program: &nginx,
         arguments: &[VALIDATE_ARGUMENT],
+        class: CallClass::Validate,
     };
-    let reload_arguments = [RELOAD_SUBCOMMAND, distro.nginx_service()];
+    // `--` before the unit: `systemctl` reads its options with `getopt_long`, which ends
+    // option parsing at `--`. The program is the adapter's absolute path, and a bare
+    // `"systemctl"` would be worse than a literal, because a root process would then
+    // resolve it through `PATH`.
+    let reload_arguments = [RELOAD_SUBCOMMAND, END_OF_OPTIONS, distro.nginx_service()];
     let reload = Reload {
-        // The absolute path of the service manager, from the adapter. `ops`
-        // names no binary path of its own — and a bare `"systemctl"` would be
-        // worse than the literal, because a root process would then resolve
-        // the program through `PATH`.
-        program: distro.service_manager(),
+        program: &service_manager,
         arguments: &reload_arguments,
     };
 
     host.write_config(target, contents, &validator, &reload)
 }
+
+#[cfg(test)]
+#[path = "../tests/sites/write_vhost_tests.rs"]
+mod tests;

@@ -12,6 +12,14 @@
  * is asked of one account's crontab. The list of accounts comes from the panel; nothing here is a
  * list written into the SPA.
  *
+ * **Layout.** The account picker sits in the page header, because it is the context of everything
+ * below it; the notice for a refused write comes first; then the form, the entries and the
+ * environment, each in its own card. The form stays above the list because the empty state tells
+ * the operator to "add the first entry above". The table scrolls inside its own container at phone
+ * width, and a long command wraps at its spaces (never mid-word with `break-all`, which turns a
+ * path into a column of fragments); a single unbroken token widens the column and the table's own
+ * container scrolls.
+ *
  * One page rather than a list plus a form page: an entry has no detail to open. What its last run
  * left behind is the only thing beyond the row, it costs a privileged read per entry, and it is
  * therefore a dialog opened on demand rather than a column nobody asked for.
@@ -219,25 +227,34 @@ onMounted(start)
 </script>
 
 <template>
-  <section class="w-full">
-    <UiPageHeading class="mb-4" :title="t('cron.list.heading')" :subtitle="t('cron.list.subtitle')" />
+  <section class="flex w-full flex-col gap-4">
+    <!-- The account is the page's context, so its picker sits with the title rather than in a card
+         of its own; under 1024px the header drops it below the title at full width. -->
+    <UiPageHeading
+      :eyebrow="t('cron.list.eyebrow')"
+      :title="t('cron.list.heading')"
+      :subtitle="t('cron.list.subtitle')"
+    >
+      <template #actions>
+        <UiSelect
+          :model-value="store.accountId"
+          :options="accountOptions"
+          :label="t('cron.list.accountLabel')"
+          :placeholder="t('cron.list.accountPlaceholder')"
+          class="w-full min-w-0 lg:w-72"
+          @update:model-value="changeAccount"
+        />
+      </template>
+    </UiPageHeading>
 
-    <UiSelect
-      :model-value="store.accountId"
-      :options="accountOptions"
-      :label="t('cron.list.accountLabel')"
-      :placeholder="t('cron.list.accountPlaceholder')"
-      class="mb-4 max-w-sm"
-      @update:model-value="changeAccount"
-    />
-
-    <UiAlert v-if="store.saveErrorMessage !== null" variant="error" class="mb-4">
+    <!-- What needs attention goes first: a write the panel was refused. -->
+    <UiAlert v-if="store.saveErrorMessage !== null" variant="error">
       {{ store.saveErrorMessage }}
     </UiAlert>
 
-    <UiCard class="mb-6">
+    <UiCard>
       <UiSectionHeading
-        class="mb-3"
+        class="mb-4"
         :title="editing === null ? t('cron.form.createHeading') : t('cron.form.editHeading')"
       />
       <CronEntryForm
@@ -249,54 +266,46 @@ onMounted(start)
       />
     </UiCard>
 
-    <UiCard class="mb-6">
-      <UiSectionHeading class="mb-3" :title="t('cron.environment.heading')" />
-      <UiAlert v-if="store.environmentErrorMessage !== null" variant="error" class="mb-3">
-        {{ store.environmentErrorMessage }}
+    <UiCard>
+      <UiSectionHeading class="mb-4" :title="t('cron.list.entriesHeading')" />
+
+      <UiSpinner v-if="store.loading" :label="t('cron.list.loading')" />
+
+      <UiAlert v-else-if="store.errorMessage !== null" variant="error">
+        {{ store.errorMessage }}
       </UiAlert>
-      <CronEnvironmentEditor
-        :variables="store.environment"
-        :saving="store.savingEnvironment"
-        @save="saveEnvironment"
-      />
-    </UiCard>
 
-    <UiSpinner v-if="store.loading" :label="t('cron.list.loading')" />
+      <UiEmptyState
+        v-else-if="store.isEmpty"
+        :title="t('cron.list.emptyTitle')"
+        :description="t('cron.list.emptyDescription')"
+      >
+        <template #icon><UiIcon name="clock" size="lg" /></template>
+      </UiEmptyState>
 
-    <UiAlert v-else-if="store.errorMessage !== null" variant="error">
-      {{ store.errorMessage }}
-    </UiAlert>
-
-    <UiEmptyState
-      v-else-if="store.isEmpty"
-      :title="t('cron.list.emptyTitle')"
-      :description="t('cron.list.emptyDescription')"
-    >
-      <template #icon><UiIcon name="clock" size="lg" /></template>
-    </UiEmptyState>
-
-    <UiTable v-else-if="store.entries.length > 0" :caption="t('cron.list.tableCaption')">
-      <template #head>
-        <UiTableRow>
-          <UiTableHeaderCell>{{ t('cron.list.columns.schedule') }}</UiTableHeaderCell>
-          <UiTableHeaderCell>{{ t('cron.list.columns.command') }}</UiTableHeaderCell>
-          <UiTableHeaderCell>{{ t('cron.list.columns.state') }}</UiTableHeaderCell>
-          <UiTableHeaderCell>{{ t('common.actions') }}</UiTableHeaderCell>
-        </UiTableRow>
-      </template>
-      <UiTableRow v-for="entry in store.entries" :key="entry.entryId">
-        <UiTableCell class="font-mono">{{ scheduleText(entry) }}</UiTableCell>
-        <!-- The command is shown exactly as the customer wrote it. It can carry a credential, which
-             is why the panel keeps it out of its logs and its audit journal — but it is their own
-             text on their own screen, and masking it would leave them unable to read their job. -->
-        <UiTableCell class="font-mono break-all">{{ entry.command }}</UiTableCell>
-        <UiTableCell>
-          <UiBadge :variant="entry.enabled ? 'success' : 'neutral'">
-            {{ entry.enabled ? t('cron.list.enabled') : t('cron.list.disabled') }}
-          </UiBadge>
-        </UiTableCell>
-        <UiTableCell>
-          <div class="flex flex-wrap items-center justify-end gap-2">
+      <UiTable v-else-if="store.entries.length > 0" :caption="t('cron.list.tableCaption')">
+        <template #head>
+          <UiTableRow>
+            <UiTableHeaderCell>{{ t('cron.list.columns.schedule') }}</UiTableHeaderCell>
+            <UiTableHeaderCell>{{ t('cron.list.columns.command') }}</UiTableHeaderCell>
+            <UiTableHeaderCell>{{ t('cron.list.columns.state') }}</UiTableHeaderCell>
+            <UiTableHeaderCell align="end">{{ t('common.actions') }}</UiTableHeaderCell>
+          </UiTableRow>
+        </template>
+        <UiTableRow v-for="entry in store.entries" :key="entry.entryId">
+          <UiTableCell mono class="whitespace-nowrap">
+            {{ scheduleText(entry) }}
+          </UiTableCell>
+          <!-- The command is shown exactly as the customer wrote it. It can carry a credential, which
+               is why the panel keeps it out of its logs and its audit journal — but it is their own
+               text on their own screen, and masking it would leave them unable to read their job. -->
+          <UiTableCell mono class="min-w-56">{{ entry.command }}</UiTableCell>
+          <UiTableCell>
+            <UiBadge :variant="entry.enabled ? 'success' : 'neutral'">
+              {{ entry.enabled ? t('cron.list.enabled') : t('cron.list.disabled') }}
+            </UiBadge>
+          </UiTableCell>
+          <UiTableCell align="end">
             <UiDropdown
               :label="t('common.actions')"
               :aria-label="t('cron.list.rowActions', { command: entry.command })"
@@ -318,10 +327,22 @@ onMounted(start)
                 {{ t('cron.list.remove') }}
               </UiDropdownItem>
             </UiDropdown>
-          </div>
-        </UiTableCell>
-      </UiTableRow>
-    </UiTable>
+          </UiTableCell>
+        </UiTableRow>
+      </UiTable>
+    </UiCard>
+
+    <UiCard>
+      <UiSectionHeading class="mb-4" :title="t('cron.environment.heading')" />
+      <UiAlert v-if="store.environmentErrorMessage !== null" variant="error" class="mb-4">
+        {{ store.environmentErrorMessage }}
+      </UiAlert>
+      <CronEnvironmentEditor
+        :variables="store.environment"
+        :saving="store.savingEnvironment"
+        @save="saveEnvironment"
+      />
+    </UiCard>
 
     <!-- One dialog for the whole table rather than one per row: only one removal can be awaiting
          an answer, and the menu that opened it is already gone by the time it appears. -->

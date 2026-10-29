@@ -105,3 +105,13 @@ fn a_server_that_refuses_the_connection_is_not_reported_as_an_empty_listing() {
 
     assert!(matches!(failure, DbError::AccessDenied));
 }
+
+/// A listing that timed out is a bound, never an empty list.
+#[test]
+fn a_listing_that_times_out_is_a_bound_and_not_an_empty_listing() {
+    let host = FakeDbHost::timing_out_after(0);
+
+    let failure = list_databases(&host, &account()).expect_err("must fail");
+
+    assert!(matches!(failure, DbError::Bound(_)), "{failure:?}");
+}

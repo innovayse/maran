@@ -371,7 +371,16 @@ render_vhost() {
   # literal here: the path in the vhost and the path in panel.env are the two ends of the same
   # socket, and a mismatch is a panel that answers 502 to every call.
   : "${MARAN_API_SOCKET_PATH:?must be set by install.sh before this step is sourced}"
-  hostname="$(hostname -f 2>/dev/null || echo "_")"
+  # host_display_name, the value 60-config.sh records as Panel__HostName: the vhost and the API's
+  # reserved name must be one string from one function, and the bare `hostname` binary is absent
+  # on some hosts (see 00-common.sh).
+  hostname="$(host_display_name | tr 'A-Z' 'a-z')"
+  # The value goes through sed and into server_name; a machine name with anything but letters,
+  # digits, dots and hyphens would corrupt either, so it is replaced by the safe fallback rather
+  # than written (the same alphabet detect_panel_host_name records in panel.env).
+  case "$hostname" in
+    ""|*[!a-z0-9.-]*) hostname="localhost" ;;
+  esac
   body="$(mktemp)"
   sed \
     -e "s#__MARAN_SERVER_NAME__#${hostname}#g" \

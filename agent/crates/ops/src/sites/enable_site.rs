@@ -29,8 +29,8 @@ use crate::sites::{SiteHost, SitesOpError};
 /// Returns [`SitesOpError::NotFound`] when no vhost exists for the domain —
 /// there is nothing to enable, and creating one here would let a delete be
 /// undone by a retry of an older request. Returns [`SitesOpError::Render`],
-/// [`SitesOpError::NginxValidation`], [`SitesOpError::ReloadFailed`] and
-/// [`SitesOpError::ConfigWrite`] as `create_site` does.
+/// [`SitesOpError::NginxValidation`], [`SitesOpError::ReloadFailed`],
+/// [`SitesOpError::Bound`] and [`SitesOpError::ConfigWrite`] as `create_site` does.
 pub fn enable_site(
     host: &dyn SiteHost,
     distro: &dyn DistroAdapter,

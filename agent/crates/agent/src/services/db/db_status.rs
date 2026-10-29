@@ -39,6 +39,13 @@ pub fn to_agent_error(error: &DbError) -> AgentError {
         DbError::AccessDenied | DbError::ClientFailed { .. } | DbError::Unparsable => {
             ErrorCode::SystemFailure
         }
+        // A deadline or an output cap ended the program and its process group was
+        // killed. This is a fault of the host, never a verdict on the request: the
+        // work may or may not have finished, and `tool_output` stays empty because
+        // what the program printed before the kill is neither complete nor safe to
+        // forward. Named ahead of the wildcard so a missing arm cannot compile
+        // silently (threat note, plan item 11).
+        DbError::Bound(_) => ErrorCode::SystemFailure,
         // DbError is #[non_exhaustive] (rules/rust.md), so a variant added in
         // the ops crate lands here rather than failing this build. It maps to a
         // system failure: the panel then reports a fault instead of silently

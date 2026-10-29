@@ -174,18 +174,4 @@ export interface AccountsApi {
    * @returns The number of bytes the deletion reclaimed, as the agent reported it.
    */
   remove: (id: string, signal?: AbortSignal) => Promise<number>
-
-  /**
-   * Retires every outstanding invitation token for the account's login and sends a new one.
-   *
-   * The single recovery path for both failure modes the feature accepts: a panel with no SMTP
-   * configured when the account was created, and an `AccountCreated` handler that failed after
-   * the account row already existed. Administrator-only on the server
-   * (`InvitationsController`); the SPA adds no matching check (rules/architecture.md — the
-   * endpoint is the boundary).
-   * @param accountId The hosting account whose owner is being (re)invited.
-   * @param signal Optional abort signal to cancel the in-flight request.
-   * @returns True once a new invitation was sent.
-   */
-  resendInvitation: (accountId: string, signal?: AbortSignal) => Promise<boolean>
 }

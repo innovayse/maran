@@ -246,7 +246,7 @@ assert_agent_tooling() {
   local binary
   for binary in /usr/sbin/useradd /usr/sbin/userdel /usr/sbin/usermod /usr/sbin/chpasswd \
                 /usr/bin/passwd /usr/sbin/setquota /usr/bin/quota /usr/bin/tar \
-                /usr/bin/gzip /usr/bin/getent /usr/bin/pkill; do
+                /usr/bin/gzip /usr/bin/getent /usr/bin/pkill /usr/bin/pgrep; do
     [ -x "$binary" ] || missing="${missing} ${binary}"
   done
   if [ -n "$missing" ]; then

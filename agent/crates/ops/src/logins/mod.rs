@@ -53,6 +53,7 @@ mod logins_error;
 mod logins_host;
 pub mod model;
 mod process_logins_host;
+mod resolve_managed_account;
 mod set_account_logins_locked;
 pub(crate) mod systemd_escape;
 

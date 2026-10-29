@@ -23,7 +23,10 @@ public interface IAgentPhpClient
     /// <returns>
     /// Progress events followed by exactly one terminal event naming the outcome — including the case
     /// where the stream ended without the agent reporting one, and the case where the caller
-    /// cancelled, neither of which is a success.
+    /// cancelled, neither of which is a success. A failure of the transport itself (an agent that
+    /// cannot be reached, a connection torn mid-stream) is a failed terminal event carrying
+    /// <c>AgentUnavailable</c>, never an exception; a cancellation that interrupts a read in progress
+    /// surfaces as <see cref="OperationCanceledException"/>.
     /// </returns>
     IAsyncEnumerable<PhpInstallEvent> InstallVersionAsync(string version, CancellationToken cancellationToken);
 }

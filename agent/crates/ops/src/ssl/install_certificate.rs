@@ -71,7 +71,9 @@ use crate::ssl::write_material::write_material;
 /// [`SslOpError::Render`] when the vhost cannot be rendered,
 /// [`SslOpError::NginxValidation`] when nginx rejects it and
 /// [`SslOpError::ReloadFailed`] when the reload refuses it — in both cases with
-/// the previous vhost restored.
+/// the previous vhost restored. Returns [`SslOpError::Bound`] when openssl, the
+/// validator or the reload outruns its deadline, which is not a verdict on the
+/// material.
 pub fn install_certificate(
     host: &dyn SslHost,
     distro: &dyn DistroAdapter,

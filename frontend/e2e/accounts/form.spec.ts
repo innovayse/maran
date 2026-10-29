@@ -5,6 +5,7 @@ import { stubAccounts, stubCreateAccountProblem } from '../fixtures/stub-account
 import type { PanelModule } from '../../src/types/module'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubPlans, THE_PLAN, THREE_PLANS } from '../fixtures/stub-plans-route'
+import { stubInvitation } from '../fixtures/stub-invitation-routes'
 
 /** Catalogue every spec here starts from: the accounts module licensed, so the form is reachable. */
 const LICENSED_ACCOUNTS: PanelModule[] = [
@@ -67,7 +68,10 @@ test('submitting the empty form shows the panel own field messages and sends no 
 
   await expect(page.getByText('Name is required.')).toBeVisible()
   await expect(page.getByText('Primary domain is required.')).toBeVisible()
-  await expect(page.getByText('Plan ID is required.')).toBeVisible()
+  // #80: the control chooses a plan by name, so its label and its error say "Plan", never the DTO
+  // property "Plan ID" (an identifier no operator sees, types or needs).
+  await expect(page.getByText('Choose a plan.')).toBeVisible()
+  await expect(page.getByText('Plan ID')).toHaveCount(0)
   await expect(page.getByText('Owner email is required.')).toBeVisible()
   await expect(page.getByLabel('Name')).toHaveAttribute('aria-invalid', 'true')
   expect(createRequests).toEqual([])
@@ -107,7 +111,7 @@ test('a rejected create renders the backend RFC 7807 detail verbatim and stays o
   await page.goto('/accounts/new')
   await page.getByLabel('Name').fill('alpha')
   await page.getByLabel('Primary domain').fill('alpha.example.com')
-  await page.getByRole('combobox', { name: 'Plan ID' }).click()
+  await page.getByRole('combobox', { name: 'Plan', exact: true }).click()
   await page.getByRole('option', { name: THE_PLAN.displayName, exact: false }).click()
   await page.getByLabel('Owner email').fill('owner@alpha.example.com')
   await page.getByRole('button', { name: 'Create account' }).click()
@@ -116,7 +120,7 @@ test('a rejected create renders the backend RFC 7807 detail verbatim and stays o
   await expect(page).toHaveURL('/accounts/new')
 })
 
-test('a valid submission posts the typed values and returns to the list showing the new account', async ({
+test('a valid submission posts the typed values and opens the new account, where its invitation waits', async ({
   page,
 }) => {
   await stubSignedIn(page)
@@ -124,11 +128,28 @@ test('a valid submission posts the typed values and returns to the list showing 
   await stubModules(page, LICENSED_ACCOUNTS)
   await stubAccounts(page, [])
   await stubPlans(page)
+  // The page the form lands on: the account itself and its invitation.
+  const createdId = '11111111-1111-1111-1111-111111111111'
+  await stubInvitation(page, createdId, 'pending')
+  await page.route(`**/api/v1/accounts/${createdId}`, async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        id: createdId,
+        name: 'alpha',
+        primaryDomain: 'alpha.example.com',
+        planId: THE_PLAN.id,
+        status: 'active',
+        createdAt: '2026-08-29T10:00:00Z',
+      }),
+    })
+  })
 
   await page.goto('/accounts/new')
   await page.getByLabel('Name').fill('alpha')
   await page.getByLabel('Primary domain').fill('alpha.example.com')
-  await page.getByRole('combobox', { name: 'Plan ID' }).click()
+  await page.getByRole('combobox', { name: 'Plan', exact: true }).click()
   await page.getByRole('option', { name: THE_PLAN.displayName, exact: false }).click()
   await page.getByLabel('Owner email').fill('owner@alpha.example.com')
 
@@ -145,8 +166,11 @@ test('a valid submission posts the typed values and returns to the list showing 
     planId: '22222222-2222-2222-2222-222222222222',
     ownerEmail: 'owner@alpha.example.com',
   })
-  await expect(page).toHaveURL('/accounts')
-  await expect(page.getByRole('cell', { name: 'alpha.example.com' })).toBeVisible()
+  // #78: the new account's own page opens, not the list, because the owner cannot sign in until
+  // the invitation reaches them and that page is where the operator can hand it over.
+  await expect(page).toHaveURL(`/accounts/${createdId}`)
+  await expect(page.getByRole('heading', { name: 'alpha' })).toBeVisible()
+  await expect(page.getByTestId('invitation-card')).toBeVisible()
 })
 
 test('cancelling the form returns to the list without creating anything', async ({ page }) => {
@@ -188,7 +212,7 @@ test('every plan the panel offers can actually be clicked, not merely rendered',
   await stubPlans(page, THREE_PLANS)
 
   await page.goto('/accounts/new')
-  await page.getByRole('combobox', { name: 'Plan ID' }).click()
+  await page.getByRole('combobox', { name: 'Plan', exact: true }).click()
 
   for (const plan of THREE_PLANS) {
     const option = page.getByRole('option', { name: plan.displayName, exact: false })
@@ -206,5 +230,5 @@ test('every plan the panel offers can actually be clicked, not merely rendered',
   const last = THREE_PLANS[THREE_PLANS.length - 1]
   await page.getByRole('option', { name: last.displayName, exact: false }).click()
 
-  await expect(page.getByRole('combobox', { name: 'Plan ID' })).toContainText(last.displayName)
+  await expect(page.getByRole('combobox', { name: 'Plan', exact: true })).toContainText(last.displayName)
 })

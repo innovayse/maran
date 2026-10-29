@@ -9,7 +9,9 @@ use std::io::Write as _;
 use std::os::unix::fs::PermissionsExt as _;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
+use std::time::Duration;
 
+use maran_agent_core::utils::bound_exceeded::BoundExceeded;
 use maran_agent_core::validation::db::database_name::DatabaseName;
 use maran_agent_core::validation::system::name::AccountName;
 
@@ -73,6 +75,12 @@ pub(crate) struct RecordingBackupHost {
     dump_failure: Mutex<Option<i32>>,
     /// When set, the archiver writes nothing and fails with this status.
     archive_failure: Mutex<Option<i32>>,
+    /// When set, a dump writes its contents and THEN runs past its deadline.
+    dump_times_out: Mutex<bool>,
+    /// When set, the member listing runs past its deadline.
+    listing_times_out: Mutex<bool>,
+    /// When set, the archiver runs past its deadline.
+    archive_times_out: Mutex<bool>,
     /// What the archiver writes into the artifact.
     archive_contents: Mutex<String>,
     /// When set, the archiver leaves the artifact carrying this mode — a real
@@ -93,6 +101,9 @@ pub(crate) struct RecordingBackupHost {
     loaded: Mutex<Vec<(String, PathBuf)>>,
     /// When set, loading the ARCHIVE's dump for this database fails.
     fail_archive_load_for: Mutex<Option<String>>,
+    /// When set, loading the ARCHIVE's dump for this database runs past its
+    /// deadline.
+    time_out_archive_load_for: Mutex<Option<String>>,
     /// When set, reloading any ROLLBACK dump fails.
     fail_rollback_loads: Mutex<bool>,
     /// The answers `account_identity` gives, one per call, and the last one
@@ -116,6 +127,9 @@ impl RecordingBackupHost {
             dump_contents: Mutex::new("-- dump\n".to_owned()),
             dump_failure: Mutex::new(None),
             archive_failure: Mutex::new(None),
+            archive_times_out: Mutex::new(false),
+            dump_times_out: Mutex::new(false),
+            listing_times_out: Mutex::new(false),
             archive_contents: Mutex::new("gzip-bytes".to_owned()),
             artifact_mode: Mutex::new(None),
             members: Mutex::new(vec![
@@ -129,6 +143,7 @@ impl RecordingBackupHost {
             dropped: Mutex::new(Vec::new()),
             loaded: Mutex::new(Vec::new()),
             fail_archive_load_for: Mutex::new(None),
+            time_out_archive_load_for: Mutex::new(None),
             fail_rollback_loads: Mutex::new(false),
             // Nothing, until a test says otherwise. A fake host has no password
             // database, and defaulting to a plausible pair would let a restore
@@ -174,6 +189,11 @@ impl RecordingBackupHost {
         *self.fail_archive_load_for.lock().unwrap() = Some(database.to_owned());
     }
 
+    /// Makes the load of the archive's dump for `database` run past its deadline.
+    pub(crate) fn time_out_archive_load_for(&self, database: &str) {
+        *self.time_out_archive_load_for.lock().unwrap() = Some(database.to_owned());
+    }
+
     /// Makes every reload of a rollback dump fail.
     pub(crate) fn fail_rollback_loads(&self) {
         *self.fail_rollback_loads.lock().unwrap() = true;
@@ -202,6 +222,21 @@ impl RecordingBackupHost {
     /// Makes the archiver exit non-zero.
     pub(crate) fn fail_archive(&self, status: i32) {
         *self.archive_failure.lock().unwrap() = Some(status);
+    }
+
+    /// Makes every dump write its bytes and then run past its deadline.
+    pub(crate) fn time_out_dumps_after_writing(&self) {
+        *self.dump_times_out.lock().unwrap() = true;
+    }
+
+    /// Makes the member listing run past its deadline.
+    pub(crate) fn time_out_listing(&self) {
+        *self.listing_times_out.lock().unwrap() = true;
+    }
+
+    /// Makes the archiver run past its deadline.
+    pub(crate) fn time_out_archive(&self) {
+        *self.archive_times_out.lock().unwrap() = true;
     }
 
     /// Makes the archiver leave the artifact readable by everybody.
@@ -242,6 +277,13 @@ impl BackupHost for RecordingBackupHost {
         let contents = self.dump_contents.lock().unwrap().clone();
         write_file(into, &contents);
 
+        if *self.dump_times_out.lock().unwrap() {
+            return Err(BackupError::Bound(BoundExceeded::TimedOut {
+                program: String::from("/usr/bin/mariadb-dump"),
+                deadline: Duration::from_secs(43_200),
+            }));
+        }
+
         match *self.dump_failure.lock().unwrap() {
             Some(status) => Err(BackupError::DumpFailed { status }),
             None => Ok(contents.len() as u64),
@@ -256,6 +298,12 @@ impl BackupHost for RecordingBackupHost {
         if let Some(status) = *self.archive_failure.lock().unwrap() {
             return Err(BackupError::ArchiveFailed { status });
         }
+        if *self.archive_times_out.lock().unwrap() {
+            return Err(BackupError::Bound(BoundExceeded::TimedOut {
+                program: String::from("/usr/bin/tar"),
+                deadline: Duration::from_secs(43_200),
+            }));
+        }
 
         let contents = self.archive_contents.lock().unwrap().clone();
         write_file(&spec.artifact, &contents);
@@ -269,6 +317,13 @@ impl BackupHost for RecordingBackupHost {
     fn list_members(&self, artifact: &Path) -> Result<Vec<String>, BackupError> {
         self.commands
             .record(LIST_PROGRAM, &[&artifact.to_string_lossy()]);
+
+        if *self.listing_times_out.lock().unwrap() {
+            return Err(BackupError::Bound(BoundExceeded::TimedOut {
+                program: String::from("/usr/bin/tar"),
+                deadline: Duration::from_secs(43_200),
+            }));
+        }
 
         Ok(self.members.lock().unwrap().clone())
     }
@@ -338,6 +393,13 @@ impl BackupHost for RecordingBackupHost {
             }
         } else if self.fail_archive_load_for.lock().unwrap().as_deref() == Some(database.as_str()) {
             return Err(BackupError::LoadFailed { status: 1 });
+        } else if self.time_out_archive_load_for.lock().unwrap().as_deref()
+            == Some(database.as_str())
+        {
+            return Err(BackupError::Bound(BoundExceeded::TimedOut {
+                program: String::from("/usr/bin/mariadb"),
+                deadline: Duration::from_secs(43_200),
+            }));
         }
 
         Ok(())

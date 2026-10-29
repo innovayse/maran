@@ -10,10 +10,18 @@ option csharp_namespace = "Maran.Agent.V1";
 
 import "agent/v1/common.proto";
 
-// Agent identity and environment, exchanged on every API connect.
+// Agent identity and environment. The API asks for it when it starts, on
+// every health and readiness request, and before it shows the backup root —
+// not on every connect, and not before each operation.
 service SystemService {
-  // Returns agent version and distro info. The API refuses to operate if
-  // proto_version is newer than it understands (upgrade window guard).
+  // Returns agent version and distro info. The API accepts the handshake only
+  // when proto_version lies inside the window of revisions it was built for,
+  // older AND newer refused alike (rules/proto.md "The contract revision").
+  // Outside it the handshake is refused, /health reports the agent
+  // "incompatible", /health/ready answers 503, and the API logs the mismatch
+  // at startup. The API keeps running, and the verdict is asked again on every
+  // health request, so finishing the upgrade clears it without a restart.
+  // Operations are not re-checked per call.
   rpc GetAgentInfo(GetAgentInfoRequest) returns (GetAgentInfoResponse);
 }
 
@@ -36,7 +44,10 @@ message AgentInfo {
   string distro_id = 2;
   // Detected distro family driving the adapter choice.
   DistroFamily family = 3;
-  // Highest contract revision this agent implements (starts at 1).
+  // Revision of this contract (proto/agent/v1/) the agent was built from,
+  // raised by every change the contract baseline records (rules/proto.md
+  // "The contract revision"). 1 is every agent built before revisions were
+  // counted and names no contract; 0 means the sender did not set the field.
   uint32 proto_version = 4;
   // Absolute directory this agent writes account backup archives into, as the
   // agent's own constant `AgentPaths::BACKUP_ROOT` states it, e.g.

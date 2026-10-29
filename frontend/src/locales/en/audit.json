@@ -14,7 +14,9 @@
       "addressColumn": "From",
       "outcomeColumn": "Outcome",
       "succeeded": "Succeeded",
-      "failed": "Failed"
+      "failed": "Failed",
+      "eyebrow": "Security",
+      "failedNotice": "Failed entries in this journal: {count}."
     }
   }
 }

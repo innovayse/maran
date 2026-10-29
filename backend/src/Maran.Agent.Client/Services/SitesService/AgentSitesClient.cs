@@ -206,7 +206,38 @@ public sealed class AgentSitesClient : IAgentSitesClient
     }
 
     /// <inheritdoc/>
-    public async IAsyncEnumerable<SiteLogEvent> TailLogAsync(
+    /// <remarks>
+    /// A transport failure ends the tail in a <see cref="SiteLogEventKind.Failed"/> event carrying the
+    /// code of <see cref="AgentTransportFailure.ToError"/>, never in the raw exception.
+    /// </remarks>
+    public IAsyncEnumerable<SiteLogEvent> TailLogAsync(
+        string accountUsername,
+        string domain,
+        SiteLogSource logSource,
+        uint historyLines,
+        CancellationToken cancellationToken)
+    {
+        return AgentStreamGuard.EndOnTransportFailureAsync(
+            TailLogEventsAsync(accountUsername, domain, logSource, historyLines, cancellationToken),
+            exception =>
+            {
+                return new SiteLogEvent(
+                    SiteLogEventKind.Failed,
+                    string.Empty,
+                    false,
+                    AgentTransportFailure.ToError(exception).Code);
+            },
+            cancellationToken);
+    }
+
+    /// <summary>Streams the log events the agent states, without guarding against the transport failing.</summary>
+    /// <param name="accountUsername">System username of the owning account.</param>
+    /// <param name="domain">The site whose log is followed.</param>
+    /// <param name="logSource">Which log to follow.</param>
+    /// <param name="historyLines">How many existing lines to replay first.</param>
+    /// <param name="cancellationToken">Cancellation for the stream.</param>
+    /// <returns>Line events followed by one terminal event.</returns>
+    private async IAsyncEnumerable<SiteLogEvent> TailLogEventsAsync(
         string accountUsername,
         string domain,
         SiteLogSource logSource,

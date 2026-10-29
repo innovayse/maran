@@ -38,7 +38,8 @@ const MANIFEST_FILE: &str = "manifest.json";
 /// # Errors
 ///
 /// The two above, plus [`BackupError::ArchiveFailed`] when the member cannot be
-/// extracted and [`BackupError::ManifestUnwritable`] when what landed cannot be
+/// extracted, [`BackupError::Bound`] when the archiver was killed at its
+/// deadline, and [`BackupError::ManifestUnwritable`] when what landed cannot be
 /// read or parsed — the same variant the create side uses for the same
 /// document, because "this agent and this manifest could not agree" is one
 /// condition whichever direction it is met from.

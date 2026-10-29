@@ -54,7 +54,7 @@ public sealed class InvitationMailComposer
             : string.Format(
                 CultureInfo.CurrentCulture,
                 _templates["InvitationLink"],
-                $"{_options.PanelUrl.TrimEnd('/')}/accept-invitation?token={Uri.EscapeDataString(token)}");
+                $"{_options.PanelUrl.TrimEnd('/')}{InvitationLinkBuilder.RelativeFor(token)}");
 
         var body = string.Format(CultureInfo.CurrentCulture, _templates["InvitationBody"], instruction);
 

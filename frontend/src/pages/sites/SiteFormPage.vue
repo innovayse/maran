@@ -17,6 +17,7 @@ import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import UiAlert from '../../components/ui/UiAlert.vue'
 import UiButton from '../../components/ui/UiButton.vue'
+import UiCard from '../../components/ui/UiCard.vue'
 import UiForm from '../../components/ui/UiForm.vue'
 import UiInput from '../../components/ui/UiInput.vue'
 import UiSelect, { type SelectOption } from '../../components/ui/UiSelect.vue'
@@ -208,37 +209,45 @@ onMounted(loadReferenceData)
 </script>
 
 <template>
-  <section class="w-full max-w-2xl">
-    <UiPageHeading class="mb-4" :title="t('sites.form.heading')" :subtitle="t('sites.form.subtitle')" />
+  <section class="flex w-full max-w-3xl min-w-0 flex-col gap-4">
+    <UiPageHeading
+      :eyebrow="t('sites.list.heading')"
+      :title="t('sites.form.heading')"
+      :subtitle="t('sites.form.subtitle')"
+    />
 
-    <UiAlert v-if="store.createErrorMessage !== null" variant="error" class="mb-4">
+    <!-- The one thing that needs attention goes first: the server's own refusal, verbatim. -->
+    <UiAlert v-if="store.createErrorMessage !== null" variant="error">
       {{ store.createErrorMessage }}
     </UiAlert>
 
-    <!-- NOT `overflow-hidden`. The footer bar below bleeds to the card's edges and needs its
-         bottom corners rounded, and clipping the card was the way that was done — which also
-         clipped the select's option list, because that list is positioned inside this box. The
-         third plan on this form was rendered, present in the DOM, and unreachable: a hit test at
-         its centre returned the card, so an assertion that the option exists passed while an
-         operator could not choose it. The footer rounds its own corners instead. -->
-    <div class="rounded-xl border border-border-subtle bg-surface-1">
+    <!-- `UiCard` does not clip its content, and that is load-bearing. An earlier version of this
+         card was `overflow-hidden` so the action bar could bleed to its rounded corners, which
+         also clipped the select's option list, because that list is positioned inside this box.
+         The third plan on this form was rendered, present in the DOM, and unreachable: a hit test
+         at its centre returned the card, so an assertion that the option exists passed while an
+         operator could not choose it. The action bar below is therefore an ordinary row, never a
+         strip that needs the card clipped. -->
+    <UiCard>
       <UiForm @submit="submit">
-        <div class="flex flex-col gap-3.5 p-4.5">
-          <UiSelect
-            v-model="accountId"
-            :label="t('sites.form.fields.accountId')"
-            :placeholder="t('sites.form.placeholders.accountId')"
-            :options="accountOptions"
-            :error="accountError"
-            required
-          />
-          <UiInput
-            v-model="domain"
-            :label="t('sites.form.fields.domain')"
-            :placeholder="t('sites.form.placeholders.domain')"
-            :error="domainError"
-            required
-          />
+        <div class="flex flex-col gap-5">
+          <div class="grid gap-4 md:grid-cols-2">
+            <UiSelect
+              v-model="accountId"
+              :label="t('sites.form.fields.accountId')"
+              :placeholder="t('sites.form.placeholders.accountId')"
+              :options="accountOptions"
+              :error="accountError"
+              required
+            />
+            <UiInput
+              v-model="domain"
+              :label="t('sites.form.fields.domain')"
+              :placeholder="t('sites.form.placeholders.domain')"
+              :error="domainError"
+              required
+            />
+          </div>
           <div>
             <UiTextarea
               v-model="aliasesText"
@@ -246,24 +255,26 @@ onMounted(loadReferenceData)
               :error="aliasesError"
               :rows="3"
             />
-            <p class="mt-1 text-sm text-text-muted">{{ t('sites.form.hints.aliases') }}</p>
+            <p class="mt-1.5 text-sm text-text-muted">{{ t('sites.form.hints.aliases') }}</p>
           </div>
-          <SiteBackendFields
-            v-model:backend-type="backendType"
-            v-model:php-version="phpVersion"
-            v-model:proxy-upstream="proxyUpstream"
-            :php-versions="store.phpVersions"
-            :php-version-error="phpVersionError"
-            :proxy-upstream-error="proxyUpstreamError"
-          />
-        </div>
-        <div class="flex justify-end gap-2 rounded-b-xl border-t border-border-subtle bg-surface-2 px-4.5 py-3">
-          <UiButton variant="secondary" type="button" @click="cancel">
-            {{ t('common.cancel') }}
-          </UiButton>
-          <UiButton type="submit" :disabled="store.creating">{{ t('sites.form.submit') }}</UiButton>
+          <div class="border-t border-border-subtle pt-5">
+            <SiteBackendFields
+              v-model:backend-type="backendType"
+              v-model:php-version="phpVersion"
+              v-model:proxy-upstream="proxyUpstream"
+              :php-versions="store.phpVersions"
+              :php-version-error="phpVersionError"
+              :proxy-upstream-error="proxyUpstreamError"
+            />
+          </div>
+          <div class="flex flex-col-reverse gap-2 border-t border-border-subtle pt-5 sm:flex-row sm:justify-end">
+            <UiButton variant="secondary" type="button" @click="cancel">
+              {{ t('common.cancel') }}
+            </UiButton>
+            <UiButton type="submit" :disabled="store.creating">{{ t('sites.form.submit') }}</UiButton>
+          </div>
         </div>
       </UiForm>
-    </div>
+    </UiCard>
   </section>
 </template>

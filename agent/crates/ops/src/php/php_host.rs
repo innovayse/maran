@@ -11,10 +11,10 @@ use crate::safe_write::model::{Reload, Validator};
 /// The operating-system operations the PHP module needs on top of the
 /// config-write protocol's own.
 ///
-/// A supertrait of [`ConfigHost`] rather than a separate seam: installing a
-/// package and reloading php-fpm are the same act — spawning an allow-listed
-/// absolute path with an argv array — so they share one `run`, and one fake
-/// covers the whole area.
+/// A supertrait of [`ConfigHost`] rather than a separate seam: starting the
+/// install unit and reloading php-fpm are the same act — spawning a binary the
+/// distribution adapter named, as an `AdapterBinary`, with an argv array under a
+/// deadline — so they share one `run`, and one fake covers the whole area.
 ///
 /// The write method is on the seam rather than calling
 /// `crate::safe_write::write_config` directly for the reason the site area
@@ -128,8 +128,9 @@ pub trait PhpHost: ConfigHost {
     /// # Errors
     ///
     /// Returns [`PhpOpError::PoolValidation`] or [`PhpOpError::ReloadFailed`]
-    /// with the pool restored, and [`PhpOpError::ConfigWrite`] for every other
-    /// failure of the protocol.
+    /// with the pool restored, [`PhpOpError::Bound`] (also with it restored) when
+    /// a program outlived its deadline and was killed, and
+    /// [`PhpOpError::ConfigWrite`] for every other failure of the protocol.
     fn remove_config(
         &self,
         target: &Path,
@@ -154,7 +155,8 @@ pub trait PhpHost: ConfigHost {
     ///
     /// Returns [`PhpOpError::PoolValidation`] when `php-fpm -t` refuses the
     /// pool tree already on disk, and [`PhpOpError::ReloadFailed`] when the
-    /// service manager refuses to reload it. Returns
+    /// service manager refuses to reload it. Returns [`PhpOpError::Bound`] when
+    /// either program outlived its deadline and was killed, and
     /// [`PhpOpError::ConfigWrite`] when a command cannot be started at all,
     /// which for this area is the missing-package case.
     fn validate_and_reload(

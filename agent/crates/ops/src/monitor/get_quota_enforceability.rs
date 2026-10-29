@@ -4,6 +4,7 @@
 use maran_distro::DistroAdapter;
 
 use maran_agent_core::agent_paths::AgentPaths;
+use maran_agent_core::utils::call_class::CallClass;
 
 use crate::accounts::classify_quota_enforceability;
 use crate::monitor::model::quota_enforceability_status::QuotaEnforceabilityStatus;
@@ -51,15 +52,21 @@ use crate::monitor::monitor_host::MonitorHost;
 /// read, and [`MonitorError::ServiceManagerUnavailable`] when `quotaon`
 /// cannot be started. Neither means "not enforceable" — both mean this agent
 /// could not even ask the question, which the caller must not fold into a
-/// confident negative finding.
+/// confident negative finding. Returns [`MonitorError::Bound`] when `quotaon`
+/// was killed at its deadline, which is the same kind of non-answer.
 pub fn get_quota_enforceability(
     host: &dyn MonitorHost,
     distro: &dyn DistroAdapter,
 ) -> Result<QuotaEnforceabilityStatus, MonitorError> {
     let mounts = host.read_mounts()?;
     let outcome = host.run(
-        distro.quotaon_binary(),
-        &["-p", AgentPaths::ACCOUNT_HOME_ROOT],
+        &distro.quotaon_binary(),
+        // `-p` is a lone option and the mount point a lone operand. quota-tools'
+        // parser (`getopt_long`, the same package on both families) takes `--`
+        // as the end of options, so the guard is added: a constant path costs
+        // nothing to keep apart from an option.
+        &["-p", "--", AgentPaths::ACCOUNT_HOME_ROOT],
+        CallClass::Query,
     )?;
 
     Ok(

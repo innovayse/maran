@@ -1,19 +1,25 @@
 <script setup lang="ts">
 /**
- * One row inside a {@link UiTable}, in either the header or the body slot.
- * Exists so screens never write `<tr>` themselves (rules/vue.md) while the
- * table keeps the real element structure a screen reader navigates by.
+ * One row inside a {@link UiTable}, in either the header or the body slot. It exists so screens
+ * never write `<tr>` themselves (rules/vue.md) while the table keeps the real element structure a
+ * screen reader navigates by.
  *
- * The design separates body rows with a top border and lifts the row to the
- * raised surface on hover; the header row does neither, since its own fill
- * already divides it from the body. Both are expressed as parent-scoped
- * variants so the one component keeps serving both slots.
+ * Every row carries a 1 px hairline underneath; the table's last body row drops it, since the
+ * table's own edge already ends there and a trailing rule would read as an empty row. The rule
+ * under the HEADER row is the one that separates the headings from the data, which is why the
+ * header row keeps its rule. A body row tints to the raised surface on hover, which is the only
+ * cue that a row is the thing the pointer is on; the header row has no hover, because a heading is
+ * not a record. Both differences are parent-scoped variants (`tbody` ancestor) so one component
+ * serves both slots.
+ *
+ * The hairline is `border-border-subtle`, about 1.2:1 against the panel: decoration that groups
+ * rows, never the only thing that says where a row ends (the cell padding does that too).
  */
 </script>
 
 <template>
   <tr
-    class="border-t border-border-subtle transition-colors [thead_&]:border-t-0 [tbody_&]:hover:bg-surface-2"
+    class="border-b border-border-subtle transition-colors motion-reduce:transition-none [tbody_&]:last:border-b-0 [tbody_&]:hover:bg-surface-2"
   >
     <slot />
   </tr>

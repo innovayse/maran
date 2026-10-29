@@ -1,100 +1,64 @@
 <script setup lang="ts">
 /**
- * The sidebar footer's identity block: the signed-in person's avatar, name and
- * role, drawn as the design canvas draws them — a 24px circle on `--s3` inside
- * a `--b2` border with the initials, the name truncating beside it and the role
- * beneath it in `--t3`.
+ * The sidebar's identity card: the signed-in person's avatar, name and role as the
+ * account menu's trigger, and a plain "Sign out" control beneath it.
  *
- * The whole block is ONE control: it is the account menu's trigger, so the
- * person is named exactly once. It used to be an identity block plus a separate
- * dropdown that repeated the same name, and in the 390px drawer that duplicate
- * was fatal — the dropdown took 123px of a 245px footer and left the `flex-1`
- * identity block 26px, enough for "r…" and "Adm". Naming someone twice was the
- * mistake; shrinking the type would only have hidden it.
+ * **The name and the menu are ONE control.** A separate identity block beside a dropdown that
+ * repeats the same name is a bug at 390px: the dropdown takes half of a 245px footer and leaves
+ * the identity block 26px, enough for "r…" and "Adm". Naming someone twice is the mistake;
+ * shrinking the type would only hide it. So the trigger's name line is the only place the person
+ * is named, and it `truncate`s so a long login shortens instead of pushing the card wider. A
+ * line that is cut (the login, or a long role word in another language) carries its whole text as
+ * a `title`, so what the card shortens can still be read. The
+ * account-menu spec finds the card and that line by `data-testid` (`shell-identity`,
+ * `shell-identity-name`) — hooks that say what they are for and survive a restyle.
+ *
+ * **Sign out is also a visible button, not only a menu entry.** The redesign puts
+ * it on the card: ending a session is the one account action a person expects to
+ * find without opening anything. The menu keeps its own "Sign out" item (a keyboard
+ * user inside the menu should not have to leave it to find the button), and both
+ * call the same function.
  *
  * The person comes from the auth store, which holds what the backend reported at
- * sign-in. The canvas's "Dana Keller / Owner" is invented sample data and is not
- * used: a fictional name in front of a real customer is worse than no name
- * (rules/vue.md: the SPA never invents domain data). When nobody is signed in the
- * block says so and offers no menu, which on this shell only happens for the
- * moment before the session is restored.
+ * sign-in. The role is translated here (`app.auth.role.*`) because the contract
+ * carries a machine role (`admin`, `customer`) and no localized label beside it —
+ * a documented exception to "the backend owns server-side text" that holds only
+ * while the role set stays these two words; an unknown role renders as its key.
+ * When nobody is signed in the card says so and offers no menu, which on this
+ * shell only happens for the moment before the session is restored.
  */
 import { computed, type ComputedRef } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
+import UiButton from '../ui/UiButton.vue'
 import UiDropdown from '../ui/UiDropdown.vue'
 import UiDropdownItem from '../ui/UiDropdownItem.vue'
 import UiIcon from '../ui/UiIcon.vue'
+import ShellAvatar from './ShellAvatar.vue'
 import { useAuthStore } from '../../stores/auth'
-
-/**
- * The signed-in person, as the sidebar needs to show them.
- *
- * Shaped for the user the panel will report once authentication lands, not for
- * today's absence of one: the fields are exactly what the footer draws, all
- * three already produced by the backend — the initials included, because
- * deriving them in the browser means guessing which part of a name is the
- * family name, and that guess is wrong in most of the world.
- */
-export interface ShellUser {
-  /** Short initials for the avatar, as the backend produced them. */
-  initials: string
-  /** Display name, shown on one truncating line. */
-  name: string
-  /**
-   * The role this person holds, as a display string.
-   *
-   * This one is translated by the SPA, not by the backend: the panel reports a
-   * machine role (`admin`, `customer`) because the router and this menu branch
-   * on it, and the contract carries no localized label beside it. So the two
-   * words live in `app.auth.role.*` and are looked up here. That is a
-   * documented exception to "the backend owns the text of anything server-side"
-   * (rules/vue.md), and it is the SPA's own chrome only for as long as the role
-   * set stays these two words; a role the locale files do not know renders as
-   * its key. Closing it properly means the panel reporting a display name
-   * alongside the machine role — a backend change, noted rather than guessed at
-   * here. This comment previously claimed the backend had already localized it,
-   * which was never true of any version of this file.
-   */
-  role: string
-}
 
 const { t } = useI18n()
 const router = useRouter()
 const authStore = useAuthStore()
 
-/**
- * The signed-in person in the shape the footer draws, or `null` when there is none.
- *
- * The initials are taken from the username rather than a display name the panel does
- * not have: a login name is chosen by its owner and its first characters are theirs,
- * where splitting a full name into given and family parts guesses wrong in most of
- * the world.
- */
-const user: ComputedRef<ShellUser | null> = computed(() => {
-  const signedIn = authStore.user
-  if (signedIn === null) {
-    return null
-  }
-
-  return {
-    initials: signedIn.username.slice(0, 2).toUpperCase(),
-    name: signedIn.username,
-    role: t(`app.auth.role.${signedIn.role}`),
-  }
+/** The login name, or `null` when nobody is signed in. */
+const name: ComputedRef<string | null> = computed(() => {
+  return authStore.user?.username ?? null
 })
 
+/** The signed-in person's role as a display string, or `null` when nobody is signed in. */
+const role: ComputedRef<string | null> = computed(() => {
+  const signedIn = authStore.user
+  return signedIn === null ? null : t(`app.auth.role.${signedIn.role}`)
+})
 
 /**
  * Whether to offer the "my account" entry.
  *
- * Its own question, and the only role test this menu still makes: it asks
- * different question — does the signed-in person own a hosting account at all
- * — which `accountId` answers directly rather than by inference from a role.
- * `/api/v1/accounts/me` 404s for anybody with no account (every administrator
- * included), so hiding the link for `accountId === null` avoids offering a
- * screen that can only answer "not found", the same reasoning the journal and
- * the security screens above use in the other direction.
+ * Its own question, and the only role test this menu makes: does the signed-in
+ * person own a hosting account at all. `/api/v1/accounts/me` 404s for anybody with
+ * no account (every administrator included), so hiding the link for
+ * `accountId === null` avoids offering a screen that can only answer "not found".
  */
 const hasOwnAccount: ComputedRef<boolean> = computed(() => {
   return authStore.user !== null && authStore.user.accountId !== null
@@ -102,11 +66,11 @@ const hasOwnAccount: ComputedRef<boolean> = computed(() => {
 
 /**
  * Opens one of the account pages.
- * @param name The route name to navigate to.
+ * @param target The route name to navigate to.
  * @returns Resolves once the navigation has settled.
  */
-const go = async (name: string): Promise<void> => {
-  await router.push({ name })
+const go = async (target: string): Promise<void> => {
+  await router.push({ name: target })
 }
 
 /**
@@ -120,63 +84,50 @@ const signOut = async (): Promise<void> => {
 </script>
 
 <template>
-  <!-- Signed in: avatar, name and role are the account menu's trigger, so the
-       footer names the person once and the menu opens from where a user
-       expects — the block showing who they are. -->
-  <UiDropdown
-    v-if="user !== null"
-    class="min-w-0 flex-1"
-    align="start"
-    variant="bare"
-    :label="user.name"
-    :aria-label="t('app.shell.accountMenu')"
-  >
-    <template #trigger>
-      <!-- The design's 24px avatar circle: raised surface, stronger border. -->
-      <span
-        class="grid h-6 w-6 shrink-0 place-items-center rounded-full border border-border-strong bg-surface-3 text-sm font-semibold text-text-secondary"
-        aria-hidden="true"
-      >
-        {{ user.initials }}
-      </span>
-      <span class="min-w-0 flex-1 text-left">
-        <span class="block truncate text-base font-medium text-text-primary">{{ user.name }}</span>
-        <span class="block truncate text-base text-text-muted">{{ user.role }}</span>
-      </span>
-    </template>
-
-    <!-- Sessions, two-factor and the audit journal are real pages with real tests, and until
-         this menu existed the only way to reach any of them was to type its URL: a screen
-         nothing links to is a screen nobody has. -->
-    <!-- Only offered to a person who owns an account: the endpoint behind it answers "the
-         account YOU own" and 404s for anybody without one. -->
-    <UiDropdownItem v-if="hasOwnAccount" @select="go('my-account')">
-      {{ t('app.shell.menu.myAccount') }}
-    </UiDropdownItem>
-    <UiDropdownItem @select="go('sessions')">{{ t('app.shell.menu.sessions') }}</UiDropdownItem>
-    <UiDropdownItem @select="go('two-factor')">{{ t('app.shell.menu.twoFactor') }}</UiDropdownItem>
-    <!-- What is NOT here any more, and why.
-         This menu had grown into the place every unlinked screen was put: the audit journal,
-         outgoing mail, the security policy and the server's PHP runtimes. None of them is a
-         setting about the person signed in, and the first two already had their own entries in
-         the sidebar — the same screen offered twice under two different names.
-         The two that had no other way in were given one where they belong: PHP versions on the
-         sites list, since only sites consume a runtime, and the security policy on the access
-         screen, since it governs signing in. What remains below is this person's own account. -->
-    <UiDropdownItem destructive @select="signOut">{{ t('app.auth.signOut') }}</UiDropdownItem>
-  </UiDropdown>
-
-  <!-- Nobody signed in: there is no account to offer a menu for, so the block is
-       plain text beside a generic mark. -->
-  <template v-else>
-    <span
-      class="grid h-6 w-6 shrink-0 place-items-center rounded-full border border-border-strong bg-surface-3 text-text-secondary"
-      aria-hidden="true"
+  <div class="flex min-w-0 flex-col gap-3">
+    <!-- Signed in: avatar, name and role are the account menu's trigger, so the card
+         names the person once and the menu opens from where a user expects — the
+         block showing who they are. -->
+    <UiDropdown
+      v-if="name !== null"
+      class="min-w-0"
+      align="start"
+      variant="bare"
+      :label="name"
+      :aria-label="t('app.shell.accountMenu')"
     >
-      <UiIcon name="user" size="md" />
-    </span>
-    <span class="min-w-0 flex-1 truncate text-base text-text-muted">
-      {{ t('app.shell.signedOut') }}
-    </span>
-  </template>
+      <template #trigger>
+        <ShellAvatar />
+        <span class="min-w-0 flex-1 text-left">
+          <span class="block truncate text-sm font-bold text-text-primary" data-testid="shell-identity-name" :title="name">{{ name }}</span>
+          <span class="block truncate text-xs text-text-muted" :title="role ?? undefined">{{ role }}</span>
+        </span>
+      </template>
+
+      <!-- Only offered to a person who owns an account: the endpoint behind it answers
+           "the account YOU own" and 404s for anybody without one. -->
+      <UiDropdownItem v-if="hasOwnAccount" @select="go('my-account')">
+        {{ t('app.shell.menu.myAccount') }}
+      </UiDropdownItem>
+      <UiDropdownItem @select="go('sessions')">{{ t('app.shell.menu.sessions') }}</UiDropdownItem>
+      <UiDropdownItem @select="go('two-factor')">{{ t('app.shell.menu.twoFactor') }}</UiDropdownItem>
+      <!-- Sessions, two-factor and the audit journal are the only entries on purpose: this
+           menu had grown into the place every unlinked screen was put, and none of the
+           others (audit, mail, security policy, PHP runtimes) is a setting about the person
+           signed in. They are reached from the navigation and from the screens that use them. -->
+      <UiDropdownItem destructive @select="signOut">{{ t('app.auth.signOut') }}</UiDropdownItem>
+    </UiDropdown>
+
+    <!-- Nobody signed in: there is no account to offer a menu for, so the card is
+         plain text beside a neutral mark. -->
+    <div v-else class="flex min-w-0 items-center gap-3">
+      <ShellAvatar />
+      <span class="min-w-0 flex-1 truncate text-sm text-text-muted">{{ t('app.shell.signedOut') }}</span>
+    </div>
+
+    <UiButton v-if="name !== null" variant="secondary" class="w-full justify-center" @click="signOut">
+      <UiIcon name="logOut" size="md" />
+      {{ t('app.auth.signOut') }}
+    </UiButton>
+  </div>
 </template>

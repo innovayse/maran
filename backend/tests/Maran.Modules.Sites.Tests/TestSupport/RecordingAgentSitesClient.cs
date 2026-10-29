@@ -20,6 +20,12 @@ public sealed class RecordingAgentSitesClient : IAgentSitesClient
     /// <summary>The error every call answers with, or null to succeed.</summary>
     private readonly Error? _failure;
 
+    /// <summary>When set, refuses only <see cref="CreateAsync"/> with this error, leaving deletes to succeed.</summary>
+    public Error? CreateFailure { get; init; }
+
+    /// <summary>When set, refuses only <see cref="DeleteAsync"/> with this error.</summary>
+    public Error? DeleteFailure { get; init; }
+
     /// <summary>Operations this client was asked to perform, in order.</summary>
     public List<string> Calls { get; } = [];
 
@@ -63,9 +69,10 @@ public sealed class RecordingAgentSitesClient : IAgentSitesClient
     {
         Calls.Add($"create:{accountUsername}:{domain}:{kind}:{phpVersion}:{string.Join('|', aliases)}:{maxChildren}");
         Tokens.Add(cancellationToken);
-        return Task.FromResult(_failure is null
+        var failure = CreateFailure ?? _failure;
+        return Task.FromResult(failure is null
             ? Result<CreatedSiteDto>.Ok(new CreatedSiteDto($"/home/{accountUsername}/sites/{domain}"))
-            : Result<CreatedSiteDto>.Fail(_failure));
+            : Result<CreatedSiteDto>.Fail(failure));
     }
 
     /// <inheritdoc/>
@@ -121,7 +128,7 @@ public sealed class RecordingAgentSitesClient : IAgentSitesClient
     {
         Calls.Add($"delete:{accountUsername}:{domain}:{retiredPhpVersion}");
         Tokens.Add(cancellationToken);
-        return Task.FromResult(Answer());
+        return Task.FromResult(DeleteFailure is null ? Answer() : Result<bool>.Fail(DeleteFailure));
     }
 
     /// <summary>The events a tail yields, in order. Empty means a stream that ends saying nothing.</summary>

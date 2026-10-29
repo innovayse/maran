@@ -44,6 +44,9 @@ use crate::backup::backup_host::BackupHost;
 ///   database is untouched, so this is still the recoverable side of the line.
 /// - [`BackupError::LoadFailed`] when the dump could not be loaded. The
 ///   database is now gone and the caller owes a rollback.
+/// - [`BackupError::Bound`] when either client run was killed at its deadline.
+///   Nothing says how far the server got, so the caller treats the database as
+///   possibly dropped and owes the same rollback it owes a failed load.
 pub(crate) fn replace_database(
     host: &dyn BackupHost,
     database: &DatabaseName,

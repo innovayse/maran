@@ -555,6 +555,29 @@ detect_seed_whitelist_cidr() {
   echo "$cidr"
 }
 
+# detect_panel_host_name: the host name the panel's own vhost answers to, lower-cased, for
+# panel.env's Panel__HostName — or nothing when there is no real name to record.
+#
+# It uses the same function and the same lower-casing as 80-nginx.sh's render_vhost
+# (host_display_name), so the name the API reserves and the name nginx serves come from one source.
+# The two are separate evaluations, and they differ in the fallback: here nothing is recorded for an
+# unusable name, the vhost falls back to `localhost`. Printed only when it is a
+# single-line name of letters, digits, dots and hyphens: the value goes into a config file, and a
+# newline or other byte in a machine name would otherwise become a second setting there
+# (rules/security.md, config-file injection). Nothing is printed for `_` or `localhost` either;
+# the static reserved set already covers `localhost`, and an absent key means "no host-specific
+# reservation", never a reserved placeholder.
+detect_panel_host_name() {
+  local name
+  name="$(host_display_name | tr 'A-Z' 'a-z')"
+  case "$name" in
+    ""|"_"|"localhost") return 0 ;;
+    *[!a-z0-9.-]*) return 0 ;;
+  esac
+  [ "${#name}" -le 253 ] || return 0
+  echo "$name"
+}
+
 # write_config: renders panel.env to a temp file first, then atomically renames it into
 # place, so a crash mid-write can never leave a half-written secrets file readable by
 # the wrong mode/owner. Preserves an already-generated encryption key on re-run (see
@@ -562,7 +585,7 @@ detect_seed_whitelist_cidr() {
 # encrypted data in PostgreSQL.
 write_config() {
   local encryption_key="$1" setup_token="$2" signing_key="$3" ssh_ports="$4" seed_cidr="$5" tmp
-  local proxy_uid="$6"
+  local proxy_uid="$6" panel_host_name="${7:-}"
   # Demanded here, before the temp file exists, and not left to the interpolation forty lines
   # below: under `set -u` an unset value aborts mid-write, and what it aborts is a 0600 file
   # holding the encryption key and the token signing key, left in /etc/maran with nothing to
@@ -638,6 +661,16 @@ write_config() {
     echo "# to be the trap here: the panel would be reachable right after the install and cut off the"
     echo "# moment any rule changed, with nobody able to log in and undo it."
     echo "Firewall__PanelPort=${MARAN_PANEL_PORT}"
+    if [ -n "$panel_host_name" ]; then
+      echo ""
+      echo "# The host name the panel's own vhost answers to, from the same value 80-nginx.sh renders"
+      echo "# into its server_name. Not a secret; re-detected on every re-run. The panel refuses it,"
+      echo "# and its www. form, as a site or certificate host name for a customer, because a"
+      echo "# customer vhost under it would be answered by that customer's files and could obtain a"
+      echo "# trusted certificate for it. Absent means no host-specific refusal; the fixed set of"
+      echo "# reserved names (addresses, localhost, special-use suffixes) applies either way."
+      echo "Panel__HostName=${panel_host_name}"
+    fi
     if [ -n "$seed_cidr" ]; then
       echo ""
       echo "# The address this installer was run from, seeded as the first firewall whitelist row so"
@@ -751,7 +784,14 @@ step_config() {
   proxy_uid="$(id -u "$MARAN_WEB_SERVER_USER")"
   echo "The panel will accept connections on its socket from ${MARAN_WEB_SERVER_USER} (uid ${proxy_uid}) only."
 
-  write_config "$key" "$token" "$signing_key" "$ssh_ports" "$seed_cidr" "$proxy_uid"
+  # Host fact like the two above: re-detected, never read back from the old file.
+  local panel_host_name
+  panel_host_name="$(detect_panel_host_name)"
+  if [ -z "$panel_host_name" ]; then
+    echo "No usable host name for the panel; only the fixed reserved names will be refused to customers."
+  fi
+
+  write_config "$key" "$token" "$signing_key" "$ssh_ports" "$seed_cidr" "$proxy_uid" "$panel_host_name"
   write_agent_env
   echo "Config written with mode 0640, owner root:${MARAN_GROUP}. Secret values were not logged."
 }

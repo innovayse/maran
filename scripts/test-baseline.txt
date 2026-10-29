@@ -1,6 +1,62 @@
 # Committed per-target test baseline. Recorded by 'maran test --accept'; commit the diff.
 # stack<TAB>target<TAB>passed<TAB>failed<TAB>ignored
 #
+# RE-MEASURED 2026-10-29 (issue #103, account processes ended before userdel): account_deletion_on_a_real_host
+# 5->6 ignored (new real-host test; all 6 passed on the polygon of PR #123). Unit rows left to CI.
+# RE-MEASURED 2026-10-28 (issue #90, every spawned root process bounded, rebased on dev ac9a5b5): rust 33 targets,
+# 2661 passed / 0 failed / 147 ignored. NEW targets: bound_errors, bound_is_mapped_in_every_status_file,
+# safe_write_bound_on_real_processes. Rows moved: maran_agent 372->410, backup_on_a_real_host 0->0, binary_paths_on_a_real_host 0->0, bound_is_mapped_in_every_status_file new->4, php_install_rpc 6->7, sites_on_a_real_host 0->0, maran_agent_core 424->486, maran_distro 42->57, maran_ops 1348->1624, bound_errors new->9, safe_write_bound_on_real_processes new->6, doc-tests 0->1, doc-tests 0->1.
+# RE-MEASURED 2026-10-28 (issue #89, administrator-only authorization fallback, rebased on dev b0444fe):
+# backend projects measured one by one with -m:1, 17 projects, 0 failed. Rows raised: ArchitectureTests 80->91, Host.Tests 346->355, Identity.Tests 275->282, Accounts.Tests 279->428, Backups.Tests 198->204, Cron.Tests 182->187, Databases.Tests 101->106, Firewall.Tests 249->255, Ftp.Tests 128->133, Licensing.Tests 47->51, Monitoring.Tests 66->70, Notifications.Tests 48->52, Sftp.Tests 80->84, Sites.Tests 219->222, Ssl.Tests 205->209, Tasks.Tests 54->58.
+# Accounts includes the reserved-name tests of #83, measured here for the first time. Sdk 212 unchanged.
+# Host.IntegrationTests ran per class for the measurement (12 classes, 100/0); its row is left to CI.
+# RE-MEASURED 2026-10-28 (issue #96, reserved and panel host names refused, on dev 7b9f603): rust 30 targets
+# 2248 passed / 0 failed / 141 ignored (maran_agent 351->372, handshake 8->9, maran_agent_core 404->424,
+# maran_ops 1347->1348). Backend projects measured one by one with -m:1: SharedKernel 187->230, Sdk 208->212,
+# Host.Tests 323->346, Sites 188->219, Ssl 159->205, Ftp 109->128, ArchitectureTests 80 unchanged.
+# Host.IntegrationTests ran filtered to ReservedHostName only (47/0); its row is left to CI.
+# RE-MEASURED 2026-10-27 (issue #86, published and weak keys refused outside Development and Testing, rebased on dev
+# with #85): backend projects measured one by one with -m:1 (the whole-solution run is OOM-killed here):
+# SharedKernel 168->187 and Host.Tests 281->323 (the key policy and the host's refusal); ArchitectureTests 80
+# unchanged. No rust change on this branch. Host.IntegrationTests not measured here; CI measures it.
+# RE-MEASURED 2026-10-27 (issue #85, duplicate host names and the create-site race, rebased on dev with #87 and #88):
+# rust 30 targets 2205 passed / 0 failed / 141 ignored. maran_agent 347->351, handshake 7->8, maran_ops 1322->1347,
+# sites_on_a_real_host ignored 26->34. Backend measured one by one with -m:1: Sites 176->188; Agent.Client 371,
+# Sdk 208 and ArchitectureTests 80 unchanged. Host.IntegrationTests not measured here; CI measures it.
+# RE-MEASURED 2026-10-27 (issues #87, #88, agent outage and contract revision, rebased on dev): rust 30 targets
+# 2175 passed / 0 failed / 133 ignored (maran_agent 347). Backend projects measured one by one with -m:1 because the
+# whole-solution run is OOM-killed on this workstation: Agent.Client 371, Backups 198, Cron 182, Sdk 208,
+# ArchitectureTests 80, Host.Tests 281 (Sftp 80 and Sites 176 unchanged). Host.IntegrationTests not measured here; CI measures it.
+# RE-MEASURED 2026-10-27 (issue #83, reserved account names, rebased on dev with #84 and #93): rust 30 targets,
+# 2171 passed / 0 failed / 133 ignored. maran_agent 343, maran_agent_core 404, maran_ops 1322, handshake 7, NEW row
+# account_identity_on_a_real_host 0/0/6. Backend rows not re-measured here (the full backend run is OOM-killed on
+# this workstation); CI measures it.
+# RE-MEASURED 2026-10-27 after rebasing on #84: rust 29 targets, 2044 passed / 0 failed / 127 ignored, TEST VERDICT OK; maran_ops 1263.
+# RE-MEASURED 2026-10-26 (issue #93, PHP package install unit): rust 2008/0/117 (28 targets), `maran test rust` found
+# one finding, the new target php_install_rpc, and no failure. Rose, none fell: maran_agent 321->324,
+# php_install_rpc NEW at 6, maran_agent_core 353->356, maran_distro 40->42, maran_ops 1233->1252.
+# (The accept path rewrites this file from the run alone; the prose below was restored from the committed version.)
+# RE-MEASURED 2026-10-26 (issue #84, nginx symlink rule): rust rows now sum to 2019/0/127 over 28 targets (the run collected 2024 passed: five other rows already ran above their recorded count, and gaining is silent), from a `maran test rust`
+# run printing `28 targets: 2024 passed / 0 failed / 127 ignored`. Edited by hand, not `--accept`. Rows
+# that moved: maran_ops 1233->1252, maran_templates 0->13, golden_test 19->22, sites_on_a_real_host
+# ignored 16->26 (the polygon link tests); NEW row nginx_link_rule_test 9. NOTHING FELL. backend and spa unchanged.
+#
+# RE-MEASURED 2026-10-26 (issues #78, #79, #80): rust 1975/0/117, backend 3435/0/0, spa 593/0/1. Backend and spa
+# re-recorded (`maran test backend --accept`, `maran test spa --accept`); rust unchanged. Rows ROSE,
+# none fell: Accounts.Tests and Identity.Tests gained the plan create/update/delete and invitation-link
+# suites, Host.IntegrationTests gained InvitationLinkEndpointTests and PlansEndpointTests (real
+# PostgreSQL), and the spa gained accounts/invitation-link.spec.ts and plans/plans.spec.ts. The backend
+# rows recorded before this were older than the work since #29, so part of the backend rise is tests
+# that already existed and simply had not been re-measured.
+#
+# RE-MEASURED 2026-10-26 (UI redesign, issue #82): rust 1975/0/117, backend 3222/0/0, spa 561/0/1. Only the spa
+# stack was re-recorded (`maran test spa --accept`); rust and backend are unchanged by #82 and their
+# rows are the ones already here. Twelve spa rows are NEW, each a spec the redesign added to hold an
+# acceptance criterion or a defect found while building it (mobile drawer, no horizontal scroll at
+# 390 px in en/ru/hy, narrow tables, app bar fit, text zoom, focus return, palette combobox, document
+# titles, persisted theme on signed-out pages, long badges); dashboard.spec.ts was already in the
+# suite but missing from this file. No row fell.
+#
 # RE-MEASURED 2026-09-19 (quota enforceability, issue #29): rust 1960/0/116, backend 3142/0/0,
 # spa 370/0/1 — every stack sum verified against the run it came from. Three rows moved and none
 # fell: Monitoring 53->60 and Ssl 158->159 on the backend, monitoring.spec.ts 6->7 on the spa.
@@ -216,56 +272,63 @@
 # The header above was regenerated away by 'maran test spa --accept' and is restored here by
 # hand: the accept path rewrites this file from the run alone and keeps no prose, so every
 # re-measurement note in it is one --accept away from being lost. Worth fixing in the script.
-rust	maran_agent [unittests src/lib.rs]	321	0	0
+rust	maran_agent [unittests src/lib.rs]	410	0	0
 rust	maran_agent [unittests src/main.rs]	0	0	0
-rust	account_deletion_on_a_real_host [tests/account_deletion_on_a_real_host.rs]	0	0	5
-rust	backup_on_a_real_host [tests/backup_on_a_real_host.rs]	0	0	12
-rust	binary_paths_on_a_real_host [tests/binary_paths_on_a_real_host.rs]	0	0	1
+rust	account_deletion_on_a_real_host [tests/account_deletion_on_a_real_host.rs]	0	0	6
+rust	account_identity_on_a_real_host [tests/account_identity_on_a_real_host.rs]	0	0	6
+rust	backup_on_a_real_host [tests/backup_on_a_real_host.rs]	0	0	13
+rust	binary_paths_on_a_real_host [tests/binary_paths_on_a_real_host.rs]	0	0	4
 rust	cron_on_a_real_host [tests/cron_on_a_real_host.rs]	0	0	6
 rust	databases_on_a_real_host [tests/databases_on_a_real_host.rs]	0	0	8
 rust	firewall_on_a_real_host [tests/firewall_on_a_real_host.rs]	0	0	10
 rust	ftps_on_a_real_host [tests/ftps_on_a_real_host.rs]	0	0	15
-rust	handshake [tests/handshake.rs]	6	0	0
+rust	handshake [tests/handshake.rs]	9	0	0
 rust	monitor_on_a_real_host [tests/monitor_on_a_real_host.rs]	0	0	8
+rust	php_install_rpc [tests/php_install_rpc.rs]	7	0	0
 rust	php_pools_on_a_real_host [tests/php_pools_on_a_real_host.rs]	0	0	3
 rust	privileges_on_a_real_host [tests/privileges_on_a_real_host.rs]	0	0	15
 rust	restore_recovery_on_a_real_host [tests/restore_recovery_on_a_real_host.rs]	0	0	4
 rust	sftp_on_a_real_host [tests/sftp_on_a_real_host.rs]	0	0	13
 rust	shutdown_signal [tests/shutdown_signal.rs]	3	0	0
-rust	sites_on_a_real_host [tests/sites_on_a_real_host.rs]	0	0	16
-rust	maran_agent_core [unittests src/lib.rs]	353	0	0
-rust	maran_distro [unittests src/lib.rs]	40	0	0
-rust	maran_ops [unittests src/lib.rs]	1233	0	1
-rust	maran_templates [unittests src/lib.rs]	0	0	0
-rust	golden_test [tests/golden_test.rs]	19	0	0
+rust	sites_on_a_real_host [tests/sites_on_a_real_host.rs]	0	0	36
+rust	maran_agent_core [unittests src/lib.rs]	486	0	0
+rust	maran_distro [unittests src/lib.rs]	57	0	0
+rust	maran_ops [unittests src/lib.rs]	1624	0	1
+rust	maran_templates [unittests src/lib.rs]	13	0	0
+rust	golden_test [tests/golden_test.rs]	22	0	0
+rust	nginx_link_rule_test [tests/nginx_link_rule_test.rs]	9	0	0
 rust	doc-tests maran_agent	0	0	0
 rust	doc-tests maran_agent_core	0	0	0
-rust	doc-tests maran_distro	0	0	0
-rust	doc-tests maran_ops	0	0	0
+rust	doc-tests maran_distro	1	0	0
+rust	doc-tests maran_ops	1	0	0
 rust	doc-tests maran_templates	0	0	0
-backend	Maran.Agent.Client.Tests.dll	328	0	0
-backend	Maran.Modules.Backups.Tests.dll	191	0	0
-backend	Maran.SharedKernel.Tests.dll	168	0	0
-backend	Maran.Modules.Notifications.Tests.dll	48	0	0
-backend	Maran.Modules.Tasks.Tests.dll	54	0	0
-backend	Maran.Modules.Monitoring.Tests.dll	66	0	0
-backend	Maran.Modules.Sftp.Tests.dll	80	0	0
-backend	Maran.Modules.Ftp.Tests.dll	109	0	0
-backend	Maran.Modules.Cron.Tests.dll	181	0	0
-backend	Maran.Modules.Sites.Tests.dll	176	0	0
-backend	Maran.Modules.Firewall.Tests.dll	249	0	0
-backend	Maran.Modules.Accounts.Tests.dll	199	0	0
-backend	Maran.Modules.Databases.Tests.dll	101	0	0
-backend	Maran.Modules.Ssl.Tests.dll	159	0	0
-backend	Maran.Modules.Identity.Tests.dll	203	0	0
-backend	Maran.Modules.Licensing.Tests.dll	47	0	0
-backend	Maran.Sdk.Tests.dll	197	0	0
-backend	Maran.ArchitectureTests.dll	58	0	0
-backend	Maran.Host.Tests.dll	241	0	0
-backend	Maran.Host.IntegrationTests.dll	367	0	0
+rust	bound_is_mapped_in_every_status_file [tests/bound_is_mapped_in_every_status_file.rs]	4	0	0
+rust	bound_errors [tests/bound_errors.rs]	9	0	0
+rust	safe_write_bound_on_real_processes [tests/safe_write_bound_on_real_processes.rs]	6	0	0
+backend	Maran.Agent.Client.Tests.dll	371	0	0
+backend	Maran.SharedKernel.Tests.dll	230	0	0
+backend	Maran.Modules.Identity.Tests.dll	282	0	0
+backend	Maran.Modules.Sftp.Tests.dll	84	0	0
+backend	Maran.Modules.Notifications.Tests.dll	52	0	0
+backend	Maran.Modules.Tasks.Tests.dll	58	0	0
+backend	Maran.Modules.Ftp.Tests.dll	133	0	0
+backend	Maran.Modules.Monitoring.Tests.dll	70	0	0
+backend	Maran.Modules.Backups.Tests.dll	204	0	0
+backend	Maran.Modules.Licensing.Tests.dll	51	0	0
+backend	Maran.Modules.Firewall.Tests.dll	255	0	0
+backend	Maran.Modules.Cron.Tests.dll	187	0	0
+backend	Maran.Modules.Accounts.Tests.dll	428	0	0
+backend	Maran.Modules.Databases.Tests.dll	106	0	0
+backend	Maran.Modules.Ssl.Tests.dll	209	0	0
+backend	Maran.Sdk.Tests.dll	212	0	0
+backend	Maran.Modules.Sites.Tests.dll	222	0	0
+backend	Maran.ArchitectureTests.dll	91	0	0
+backend	Maran.Host.Tests.dll	355	0	0
+backend	Maran.Host.IntegrationTests.dll	415	0	0
 spa	accounts/delete.spec.ts	6	0	0
 spa	accounts/detail.spec.ts	10	0	0
 spa	accounts/form.spec.ts	7	0	0
+spa	accounts/invitation-link.spec.ts	8	0	0
 spa	accounts/list.spec.ts	3	0	0
 spa	admin/audit.spec.ts	3	0	0
 spa	admin/smtp-settings.spec.ts	2	0	0
@@ -277,6 +340,7 @@ spa	auth/login.spec.ts	7	0	0
 spa	auth/reset-password.spec.ts	2	0	0
 spa	auth/sessions.spec.ts	6	0	0
 spa	auth/setup.spec.ts	8	0	0
+spa	auth/theme-persists.spec.ts	3	0	0
 spa	auth/two-factor-setup.spec.ts	2	0	0
 spa	auth/two-factor.spec.ts	5	0	0
 spa	backups/destinations.spec.ts	9	0	0
@@ -290,6 +354,7 @@ spa	cron/environment.spec.ts	5	0	0
 spa	cron/raw-refusal.spec.ts	4	0	0
 spa	cron/schedule.spec.ts	2	0	0
 spa	customer-area.spec.ts	2	0	0
+spa	dashboard.spec.ts	6	0	0
 spa	databases/create.spec.ts	5	0	0
 spa	databases/credentials.spec.ts	15	0	0
 spa	databases/grant-repair.spec.ts	11	0	0
@@ -306,9 +371,13 @@ spa	firewall/presets.spec.ts	6	0	0
 spa	firewall/ranges.spec.ts	5	0	0
 spa	firewall/whitelist.spec.ts	7	0	0
 spa	golden-path/account-to-ssl.spec.ts	0	0	1
-spa	monitoring/monitoring.spec.ts	7	0	0
+spa	monitoring/monitoring.spec.ts	10	0	0
+spa	plans/plans.spec.ts	15	0	0
 spa	shell/account-menu.spec.ts	4	0	0
+spa	shell/app-bar-fits.spec.ts	16	0	0
+spa	shell/command-palette-a11y.spec.ts	3	0	0
 spa	shell/command-palette.spec.ts	1	0	0
+spa	shell/document-title.spec.ts	5	0	0
 spa	shell/health-server-error.spec.ts	1	0	0
 spa	shell/health-status.spec.ts	2	0	0
 spa	shell/health-unreachable.spec.ts	1	0	0
@@ -317,6 +386,7 @@ spa	shell/licence-gating.spec.ts	11	0	0
 spa	shell/locale-persistence.spec.ts	3	0	0
 spa	shell/locale-switch.spec.ts	5	0	0
 spa	shell/locale.spec.ts	4	0	0
+spa	shell/mobile-drawer.spec.ts	15	0	0
 spa	shell/module-landing-coverage.spec.ts	2	0	0
 spa	shell/not-found.spec.ts	1	0	0
 spa	shell/renders-title.spec.ts	1	0	0
@@ -330,8 +400,14 @@ spa	tasks/badge.spec.ts	3	0	0
 spa	tasks/list.spec.ts	7	0	0
 spa	tasks/log-fidelity.spec.ts	2	0	0
 spa	tasks/progress-unit.spec.ts	1	0	0
+spa	ui-kit/badge-narrow.spec.ts	2	0	0
 spa	ui-kit/chart.spec.ts	5	0	0
 spa	ui-kit/dropdown-landing-focus.spec.ts	5	0	0
+spa	ui-kit/focus-return.spec.ts	3	0	0
 spa	ui-kit/modal-keyboard.spec.ts	2	0	0
+spa	ui-kit/no-horizontal-scroll-admin.spec.ts	66	0	0
+spa	ui-kit/no-horizontal-scroll-other.spec.ts	54	0	0
+spa	ui-kit/table-narrow.spec.ts	19	0	0
+spa	ui-kit/text-zoom.spec.ts	3	0	0
 spa	ui-kit/unfilled-select-prompt.spec.ts	3	0	0
 spa	upgrade/tier-name.spec.ts	3	0	0

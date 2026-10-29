@@ -1,3 +1,4 @@
+using Maran.Modules.Accounts.Domain.Entities;
 using Maran.Modules.Accounts.Persistence;
 using Maran.Modules.Accounts.Seeders;
 using Microsoft.EntityFrameworkCore;
@@ -158,5 +159,39 @@ public sealed class PlanSeederTests
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
             .Options;
         return new AccountsDbContext(options);
+    }
+
+    /// <summary>Seeding does not bring back a standard plan an operator deleted.</summary>
+    [Fact]
+    public async Task Seeding_does_not_bring_back_a_standard_plan_an_operator_deleted()
+    {
+        // Deleting a plan became possible with plan management. Before, the seeder topped up absent
+        // plans on every start, which would now undo a deliberate deletion at the next restart.
+        await using var dbContext = CreateDbContext();
+        var seeder = new PlanSeeder(dbContext);
+        await seeder.SeedAsync(CancellationToken.None);
+        dbContext.Plans.Remove(await dbContext.Plans.SingleAsync(p => p.Id == PlanSeeder.StarterPlanId));
+        await dbContext.SaveChangesAsync();
+
+        await seeder.SeedAsync(CancellationToken.None);
+
+        Assert.Equal(2, await dbContext.Plans.CountAsync());
+        Assert.DoesNotContain(await dbContext.Plans.ToListAsync(), plan =>
+        {
+            return plan.Id == PlanSeeder.StarterPlanId;
+        });
+    }
+
+    /// <summary>Seeding adds nothing to a panel that already has a plan of the operator's own.</summary>
+    [Fact]
+    public async Task Seeding_adds_nothing_to_a_panel_that_already_has_a_plan_of_the_operators_own()
+    {
+        await using var dbContext = CreateDbContext();
+        dbContext.Plans.Add(Plan.Define(Guid.NewGuid(), "Agency", 10_240, 10, 5, 4, 2, 3, 8));
+        await dbContext.SaveChangesAsync();
+
+        await new PlanSeeder(dbContext).SeedAsync(CancellationToken.None);
+
+        Assert.Equal("Agency", Assert.Single(await dbContext.Plans.ToListAsync()).Name);
     }
 }

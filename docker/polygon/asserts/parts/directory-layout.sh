@@ -53,16 +53,12 @@
 # happen. `stat` without `-L` reports the link's own mode (0777 on Linux, always) and the
 # link's owner, so neither of those would have caught it either.
 #
-# /run/maran's mode is put back afterwards. This image sets it 0755 on purpose for the
-# php-pool suites and step 40 sets 0750; the Dockerfile re-applies 0755 after its own call
-# to this function, and this restores it so the assertion cannot depend on which of the two
-# ran last.
+# /run/maran is asserted at the 0750 root:<service group> step 40 sets, and nothing in this image
+# loosens it any more: the PHP pool sockets live in /run/maran-php, which the image builds from the
+# installer's own tmpfiles snippet and which is asserted here at root:root 0755. Both modes are
+# literals on purpose (docker/README.md): an expectation read back out of the file that makes the
+# directory would agree with it whatever it said.
 assert_the_directory_layout_is_what_it_claims() {
-  local run_maran_mode_before=''
-  if [ -d /run/maran ]; then
-    run_maran_mode_before="$(stat -c '%a' /run/maran)"
-  fi
-
   run_user_step 'create_service_user >/dev/null
 create_directory_layout' \
     || fail "step 40's create_directory_layout failed inside the polygon"
@@ -103,7 +99,8 @@ create_directory_layout' \
     "/home/.maran-restore:0:0:711" \
     "/var/lib/maran-scratch:0:0:700" \
     "/var/lib/maran-sftp:0:0:700" \
-    "/run/maran:0:${panel_gid}:750"; do
+    "/run/maran:0:${panel_gid}:750" \
+    "/run/maran-php:0:0:755"; do
     assert_directory_is "${entry%%:*}" "${entry#*:}"
     checked=$((checked + 1))
   done
@@ -114,8 +111,8 @@ create_directory_layout' \
   # anywhere. A count is not decoration on that axis: it is the only thing that observes the
   # list's SIZE, which is the property the assertions themselves cannot see. Raise it with the
   # list.
-  [ "$checked" -eq 11 ] \
-    || fail "the directory layout list checked ${checked} paths, not the 11 step 40 creates. A path has been dropped from the list, and a check that is not in the list is not a check that failed — it is one that no longer exists."
+  [ "$checked" -eq 12 ] \
+    || fail "the directory layout list checked ${checked} paths, not the 12 this list names (11 from step 40 and the PHP socket directory from its tmpfiles snippet). A path has been dropped from the list, and a check that is not in the list is not a check that failed — it is one that no longer exists."
 
   # The scratch is a SIBLING of /var/lib/maran, never a child, and the reason is the whole
   # fix: the owner of a directory can rename an entry inside it aside and leave a symlink
@@ -184,13 +181,63 @@ create_directory_layout' \
     *) fail "/var/log/maran/sites does not resolve to itself — the root-owned site log root is a link somewhere else, and the root nginx master creates and appends to every site's access_log and error_log through it" ;;
   esac
 
-  if [ -n "$run_maran_mode_before" ]; then
-    chmod "$run_maran_mode_before" /run/maran
+  assert_the_web_user_reaches_php_sockets_and_not_the_agent_directory
+
+  echo "Step 40's directory layout verified: twelve directories, each a real directory with its own owner and mode, and every root-written log leaf under a root-only ancestry."
+  echo "UNOBSERVED HERE: only the two directories the INSTALLER creates are asserted above — /var/log/maran and /var/log/maran/sites. The per-account level, /var/log/maran/sites/<account> root:root 0750, is created by the agent as root at site-create time (SiteHost::create_site_log_directory), never by the installer, because the installer does not know the accounts and an account created later must get one anyway. It is asserted where it is made: agent/crates/agent/tests/sites_on_a_real_host.rs, every_directory_the_site_log_tree_is_made_of_belongs_to_root. Nothing here can see it, and a reader must not take the rows above as covering the whole tree."
+  echo "UNOBSERVED HERE: the ancestry above is the state step 40 leaves behind, not a guarantee about later. Neither of the two root writers that made this directory a defect runs in this image — install.sh's own \`tee -a\` and the root nginx master's access_log/error_log opens — and the nginx one could not be gated even where it does run, because nginx re-creates those files itself on every start, reload and SIGUSR1, after every check the installer performs. The ownership asserted above is the whole defence, not a check in front of the write."
+}
+
+# assert_the_web_user_reaches_php_sockets_and_not_the_agent_directory: issue #101, observed as the
+# web server's own uid.
+#
+# nginx connects to a pool socket as the web user, which is neither root nor in the service group.
+# The pool sockets used to sit under /run/maran (root:<service group> 0750), where that user could
+# not resolve the path, so every PHP site answered 502 — and the polygon never saw it because the
+# image had loosened /run/maran to 0755. The modes asserted above are the cause; this is the
+# EFFECT, asked of the kernel with the web user's credentials and no supplementary groups
+# (`setpriv --clear-groups`, so a group the polygon's root shell happens to carry cannot grant
+# the access that is being tested).
+#
+# Both directions are asserted. The negative one (/run/maran must stay closed to that uid) is what
+# stops the fix being "open everything", and the planted mutation proves the positive probe can
+# fail: with /run/maran-php at 0750 the same command must refuse, and the readback confirms the
+# plant took effect before the verdict is believed.
+#
+# The web user's name is its group's name on both families (www-data, nginx); the group is
+# detected by the installer's own detect_web_server_identity, not spelled here.
+assert_the_web_user_reaches_php_sockets_and_not_the_agent_directory() {
+  local web_name web_uid web_gid
+  web_name="$(web_server_group_for_this_family)"
+  web_uid="$(id -u "$web_name" 2>/dev/null)" \
+    || fail "no account named ${web_name} (the web server's group, read from the installer) exists in this image, so nothing can be probed as the web user"
+  web_gid="$(id -g "$web_name")"
+
+  # Prove the PHP socket directory is the installer's, then probe it as the web user.
+  systemd-tmpfiles --create "$PHP_TMPFILES"
+  as_the_web_user() {
+    setpriv --reuid="$web_uid" --regid="$web_gid" --clear-groups -- "$@"
+  }
+  as_the_web_user test -x /run/maran-php \
+    || fail "the web user (${web_name}, uid ${web_uid}) cannot traverse /run/maran-php. nginx connects to every PHP pool socket as that uid, so every PHP site would answer 502 with a clean install behind it."
+  if as_the_web_user test -x /run/maran; then
+    fail "the web user (${web_name}, uid ${web_uid}) CAN traverse /run/maran. That directory holds the agent's socket and must stay closed to every uid outside the service group; the pool sockets belong in /run/maran-php."
   fi
 
-  echo "Step 40's directory layout verified: eleven directories, each a real directory with its own owner and mode, and every root-written log leaf under a root-only ancestry."
-  echo "UNOBSERVED HERE: only the two directories the INSTALLER creates are asserted above — /var/log/maran and /var/log/maran/sites. The per-account level, /var/log/maran/sites/<account> root:root 0750, is created by the agent as root at site-create time (SiteHost::create_site_log_directory), never by the installer, because the installer does not know the accounts and an account created later must get one anyway. It is asserted where it is made: agent/crates/agent/tests/sites_on_a_real_host.rs, every_directory_the_site_log_tree_is_made_of_belongs_to_root. Nothing here can see it, and a reader must not take the eleven rows above as covering the whole tree."
-  echo "UNOBSERVED HERE: the ancestry above is the state step 40 leaves behind, not a guarantee about later. Neither of the two root writers that made this directory a defect runs in this image — install.sh's own \`tee -a\` and the root nginx master's access_log/error_log opens — and the nginx one could not be gated even where it does run, because nginx re-creates those files itself on every start, reload and SIGUSR1, after every check the installer performs. The ownership asserted above is the whole defence, not a check in front of the write."
+  # The probe must be able to fail: close /run/maran-php, read the mode back, require the refusal,
+  # then put the real snippet back and require acceptance again.
+  chmod 0750 /run/maran-php
+  [ "$(stat -c '%a' /run/maran-php)" = 750 ] \
+    || fail "chmod 0750 /run/maran-php did not take effect, so the control below would measure nothing"
+  if as_the_web_user test -x /run/maran-php; then
+    fail "the web-user probe accepted /run/maran-php at mode 0750. A check that cannot fail would have passed the 502 this exists to catch."
+  fi
+  systemd-tmpfiles --create "$PHP_TMPFILES"
+  as_the_web_user test -x /run/maran-php \
+    || fail "systemd-tmpfiles --create did not restore /run/maran-php to a directory the web user can traverse"
+  unset -f as_the_web_user
+  echo "The web user (${web_name}) traverses /run/maran-php and not /run/maran; the probe refused when /run/maran-php was planted at 0750."
+  echo "UNOBSERVED HERE: nginx and php-fpm are not run as that uid, no socket is connected to, and SELinux is off in this image (RHEL enforcing is untested)."
 }
 
 # assert_directory_is: one path against `uid:gid:mode`, with the three questions asked

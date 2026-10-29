@@ -18,10 +18,14 @@ pub struct HomeGroupRepairReport {
     /// How many hosting accounts on this host were examined.
     ///
     /// A passwd row counts as a hosting account when its name parses as an
-    /// [`maran_agent_core::validation::system::name::AccountName`] — nothing
-    /// stronger, because whether its home is where this agent would have put
-    /// it is one of the things the repair is deciding, not a precondition of
-    /// being counted.
+    /// [`maran_agent_core::validation::system::name::AccountName`] and
+    /// [`maran_agent_core::validation::system::managed_account::ManagedAccount`]
+    /// admits it, with one exception: a row refused for its home still
+    /// counts, whatever its ids (the type checks the home before the ids), because
+    /// whether its home is where this agent would have put it is one of the things
+    /// the repair is deciding, not a precondition of being counted. A reserved name
+    /// and a name with no single row are not counted; a system identity is counted
+    /// only when its home is also wrong.
     pub examined: usize,
 
     /// How many accounts' homes were already group-owned by the web server's

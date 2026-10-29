@@ -57,4 +57,7 @@
   <data name="AcmeChallengeTokenInvalid">
     <value>The certificate authority sent a verification token this server will not accept.</value>
   </data>
+  <data name="CertificateDomainReserved">
+    <value>A certificate cannot be issued or installed for this name.</value>
+  </data>
 </root>

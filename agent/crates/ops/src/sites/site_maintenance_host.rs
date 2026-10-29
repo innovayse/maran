@@ -25,8 +25,9 @@ pub trait SiteMaintenanceHost: Send + Sync {
     ///
     /// Returns [`SitesOpError::NginxValidation`] when the validator refuses
     /// the configuration already on disk, and [`SitesOpError::ReloadFailed`]
-    /// when the reload refuses it. Nothing is rolled back, because nothing was
-    /// changed.
+    /// when the reload refuses it, and [`SitesOpError::Bound`] when either
+    /// program outlived its deadline and was killed. Nothing is rolled back,
+    /// because nothing was changed.
     fn validate_and_reload(
         &self,
         validator: &Validator<'_>,

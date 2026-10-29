@@ -18,15 +18,21 @@
  * authority either way and its already-localized refusal is what the operator reads — a client-side
  * check errs permissive on purpose (rules/security.md: enforcement is the backend's).
  *
+ * **It is its own panel.** The form draws a `UiCard` with a section heading, so the page composes it
+ * like any other panel of the screen and passes no wrapper; the accent submit pill and its hint sit
+ * in one row under the fields and stack below 640px so neither is squeezed into a one-word column.
+ *
  * Dumb by the usual contract: props in, emits out. It never touches a store or the API layer, and it
  * refuses to emit until its own rules pass.
  */
 import { computed, ref, type ComputedRef, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import UiButton from '../ui/UiButton.vue'
+import UiCard from '../ui/UiCard.vue'
 import UiForm from '../ui/UiForm.vue'
 import UiInput from '../ui/UiInput.vue'
 import UiRadioGroup, { type RadioOption } from '../ui/UiRadioGroup.vue'
+import UiSectionHeading from '../ui/UiSectionHeading.vue'
 import UiSelect, { type SelectOption } from '../ui/UiSelect.vue'
 import type { Account } from '../../types/account'
 import type { CreateFileTransferLoginRequest } from '../../types/fileTransferLogin'
@@ -175,9 +181,10 @@ defineExpose({ reset })
 </script>
 
 <template>
-  <div class="rounded-xl border border-border-subtle bg-surface-1">
+  <UiCard>
+    <UiSectionHeading class="mb-4" :title="t('ftp.form.heading')" />
     <UiForm @submit="submit">
-      <div class="grid gap-3.5 p-4.5 sm:grid-cols-2">
+      <div class="grid gap-4 sm:grid-cols-2">
         <UiSelect
           v-model="accountId"
           :label="t('ftp.form.fields.accountId')"
@@ -209,12 +216,12 @@ defineExpose({ reset })
           </p>
         </div>
       </div>
-      <div
-        class="flex flex-wrap items-center justify-between gap-2 rounded-b-xl border-t border-border-subtle bg-surface-2 px-4.5 py-3"
-      >
-        <p class="text-sm text-text-muted">{{ t('ftp.form.hint') }}</p>
-        <UiButton type="submit" :disabled="submitting">{{ t('ftp.form.submit') }}</UiButton>
+      <div class="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <p class="min-w-0 text-sm text-text-muted">{{ t('ftp.form.hint') }}</p>
+        <UiButton class="shrink-0 self-start sm:self-auto" type="submit" :disabled="submitting">
+          {{ t('ftp.form.submit') }}
+        </UiButton>
       </div>
     </UiForm>
-  </div>
+  </UiCard>
 </template>

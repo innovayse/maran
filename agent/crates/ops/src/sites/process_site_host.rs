@@ -7,12 +7,17 @@ use maran_agent_core::agent_paths::AgentPaths;
 use maran_agent_core::privs::account_ids::AccountIds;
 use maran_agent_core::privs::fork_as_account::fork_as_account;
 use maran_agent_core::privs::priv_error::PrivError;
+use maran_agent_core::utils::call_class::CallClass;
 use maran_agent_core::utils::spawn_argv::spawn_argv;
 use maran_agent_core::validation::fs::path::resolve_in_home;
 use maran_agent_core::validation::system::name::AccountName;
+use maran_distro::AdapterBinary;
 
 use crate::safe_write::model::{Reload, Validator};
-use crate::safe_write::{CommandOutcome, ConfigHost, SafeWriteError, remove_config, write_config};
+use crate::safe_write::{
+    CommandOutcome, ConfigHost, SafeWriteError, create_config, remove_config, write_config,
+};
+use crate::sites::ensure_traversable_directory::ensure_traversable_directory;
 use crate::sites::follow_log::follow_log;
 use crate::sites::log_sink::LogSink;
 use crate::sites::model::log_tail_request::LogTailRequest;
@@ -47,26 +52,32 @@ impl ConfigHost for ProcessSiteHost {
     ///
     /// No shell is involved, at any point (rules/security.md item 3): the
     /// arguments reach `execve` one by one, so there is no command line for
-    /// anything to re-parse. `program` comes from the `DistroAdapter`'s
-    /// allow-list and never from a request.
+    /// anything to re-parse. `program` is an `AdapterBinary`, which only the
+    /// `DistroAdapter` can construct, and never comes from a request.
     ///
     /// The spawn itself is [`spawn_argv`], shared with every other host that
-    /// runs an argv array: the locale pin, the closed standard input and the
-    /// signal-killed `-1` are settled once there rather than five times here.
+    /// runs an argv array: the locale pin, the closed standard input, the
+    /// signal-killed `-1`, the process group, the deadline taken from `class`
+    /// and the output ceiling are settled once there rather than five times
+    /// here.
     ///
     /// # Errors
     ///
     /// Returns [`SafeWriteError::SpawnFailed`] when the program cannot be
     /// started — `nginx` not installed, not executable — carrying the
-    /// operating system's reason. A program that started and exited non-zero
-    /// is not an error: its status comes back in the outcome, and whether that
-    /// means a validator refused or a reload refused is the protocol's
-    /// decision, not this host's.
-    fn run(&self, program: &str, arguments: &[&str]) -> Result<CommandOutcome, SafeWriteError> {
-        spawn_argv(program, arguments).map_err(|error| SafeWriteError::SpawnFailed {
-            program: program.to_owned(),
-            reason: error.to_string(),
-        })
+    /// operating system's reason, and [`SafeWriteError::Bound`] when it outlived
+    /// its deadline or its output ceiling and was killed with its process group.
+    /// A program that started and exited non-zero is not an error: its status
+    /// comes back in the outcome, and whether that means a validator refused or
+    /// a reload refused is the protocol's decision, not this host's.
+    fn run(
+        &self,
+        program: &AdapterBinary,
+        arguments: &[&str],
+        class: CallClass,
+    ) -> Result<CommandOutcome, SafeWriteError> {
+        spawn_argv(program.as_path(), arguments, class)
+            .map_err(|error| SafeWriteError::from_spawn(program, error))
     }
 }
 
@@ -159,6 +170,11 @@ impl SiteHost for ProcessSiteHost {
     /// Creates the directories in a forked child that has dropped to the
     /// account.
     ///
+    /// Every level below the home is created `0755` by an explicit `chmod`, and an
+    /// earlier release's narrower level is repaired (`ensure_traversable_directory`):
+    /// the agent runs under `UMask=0027`, and a umask-narrowed `sites/` made the
+    /// web worker answer 404 for every new site. The home stays `0750`.
+    ///
     /// The ids are resolved here, at the moment of use, and never cached: an
     /// account deleted and recreated between two operations gets a different
     /// uid, and a cached one would write into whoever now holds it.
@@ -173,9 +189,11 @@ impl SiteHost for ProcessSiteHost {
         // creates directories and nothing else. It must not allocate freely
         // (only the forking thread survives into it), which is why the paths
         // are built by the parent and merely read here.
+        let home = Path::new(AgentPaths::ACCOUNT_HOME_ROOT).join(account.as_str());
         fork_as_account(&ids, || {
             for directory in directories {
-                std::fs::create_dir_all(directory).map_err(|_| PrivError::WorkFailed)?;
+                ensure_traversable_directory(&home, directory)
+                    .map_err(|_| PrivError::WorkFailed)?;
             }
             Ok(())
         })?;
@@ -194,6 +212,26 @@ impl SiteHost for ProcessSiteHost {
         reload: &Reload<'_>,
     ) -> Result<(), SitesOpError> {
         Ok(write_config(self, target, contents, validator, reload)?)
+    }
+
+    /// Delegates to the creation half of the same protocol, again passing
+    /// itself as the [`ConfigHost`].
+    fn create_config(
+        &self,
+        target: &Path,
+        contents: &str,
+        validator: &Validator<'_>,
+        reload: &Reload<'_>,
+        refused_warnings: &[String],
+    ) -> Result<(), SitesOpError> {
+        Ok(create_config(
+            self,
+            target,
+            contents,
+            validator,
+            reload,
+            refused_warnings,
+        )?)
     }
 
     /// Delegates to the removal half of the same protocol.
@@ -222,19 +260,29 @@ impl SiteHost for ProcessSiteHost {
 
 impl SiteMaintenanceHost for ProcessSiteHost {
     /// Runs the validator, then the reload, and writes nothing.
+    ///
+    /// Not under the config-tree lock, and with the same classes the protocol
+    /// uses: the validator's own class and [`CallClass::Reload`]. A bound at
+    /// either step is returned as [`SitesOpError::Bound`] and never as a failed
+    /// validation or a failed reload.
     fn validate_and_reload(
         &self,
         validator: &Validator<'_>,
         reload: &Reload<'_>,
     ) -> Result<(), SitesOpError> {
-        let checked = ConfigHost::run(self, validator.program, validator.arguments)?;
+        let checked = ConfigHost::run(
+            self,
+            validator.program,
+            validator.arguments,
+            validator.class,
+        )?;
         if checked.status != 0 {
             return Err(SitesOpError::NginxValidation {
                 stderr: checked.stderr,
             });
         }
 
-        let reloaded = ConfigHost::run(self, reload.program, reload.arguments)?;
+        let reloaded = ConfigHost::run(self, reload.program, reload.arguments, CallClass::Reload)?;
         if reloaded.status != 0 {
             return Err(SitesOpError::ReloadFailed {
                 stderr: reloaded.stderr,

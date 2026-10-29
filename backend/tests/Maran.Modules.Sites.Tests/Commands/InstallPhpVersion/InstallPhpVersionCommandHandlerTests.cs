@@ -127,7 +127,7 @@ public sealed class InstallPhpVersionCommandHandlerTests
     [Fact]
     public async Task An_unreadable_installed_list_refuses_before_anything_is_installed()
     {
-        var php = new RecordingAgentPhpClient(Error.Of("AgentUnavailable", ErrorType.Failure));
+        var php = new RecordingAgentPhpClient(Error.Of("AgentUnavailable", ErrorType.Unavailable));
         var tasks = new RecordingTaskRecorder();
         var audit = new RecordingAuditWriter();
         var handler = Handler(php, tasks, audit);

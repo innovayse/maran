@@ -66,6 +66,8 @@ const SHOW_LOCAL_USERS: &str = "SELECT User FROM mysql.user WHERE Host = 'localh
 /// - [`DbError::ClientFailed`] for any other refusal, on the first statement
 ///   that is refused. Everything before it is dropped and everything after it
 ///   is untouched, which is safe to retry.
+/// - [`DbError::Bound`] when the client ran past its deadline, so no answer was
+///   read. A statement already sent may nevertheless take effect on the server.
 pub fn drop_account_databases(host: &dyn DbHost, account: &AccountName) -> Result<(), DbError> {
     let databases = list_databases(host, account)?;
     let users = account_users(host, account)?;

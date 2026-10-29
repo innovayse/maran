@@ -19,12 +19,21 @@
  *   stopping a service is not editing a firewall, so this is the only place that leftover surface
  *   becomes visible.
  *
+ * **Layout (October 2026 redesign).** One `UiCard`, in the order an operator needs it: the heading,
+ * then whichever firewall warning applies (the one thing that needs attention goes first, amber,
+ * with its fix beside it), then the nine measured facts, then the notes the status adds, then the
+ * enable form. The panel setting and the service state are badges — each is drawn ONCE, because the
+ * end-to-end suite finds those words by exact text and a second copy would be an ambiguous match.
+ * A turned-off daemon is a neutral badge, never a red one: it is a setting, not a failure.
+ *
  * Dumb by the usual contract: props in, emits out. The page owns both stores.
  */
 import { computed, ref, type ComputedRef, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import UiAlert from '../ui/UiAlert.vue'
+import UiBadge, { type BadgeVariant } from '../ui/UiBadge.vue'
 import UiButton from '../ui/UiButton.vue'
+import UiCard from '../ui/UiCard.vue'
 import UiDescriptionItem from '../ui/UiDescriptionItem.vue'
 import UiDescriptionList from '../ui/UiDescriptionList.vue'
 import UiForm from '../ui/UiForm.vue'
@@ -127,6 +136,22 @@ const passiveRangeText: ComputedRef<string> = computed(() => {
     : t('common.emptyValue')
 })
 
+/** The tone of the "Panel setting" badge: the intention, shown as a setting and never as a failure. */
+const settingTone: ComputedRef<BadgeVariant> = computed(() => {
+  return props.status.enabled ? 'info' : 'neutral'
+})
+
+/**
+ * The tone of the "Service" badge. Green only for a daemon that is up; a daemon the panel wants on
+ * but the host is not running is amber, and one that is off by choice is merely neutral.
+ */
+const serviceTone: ComputedRef<BadgeVariant> = computed(() => {
+  if (props.status.running) {
+    return 'success'
+  }
+  return props.status.enabled ? 'warning' : 'neutral'
+})
+
 /**
  * Asks the page to bring the daemon up for the typed hostname.
  * @returns Nothing; emits synchronously.
@@ -161,15 +186,41 @@ const closePorts = (): void => {
 </script>
 
 <template>
-  <section class="rounded-xl border border-border-subtle bg-surface-1 p-4.5">
+  <UiCard>
     <UiSectionHeading :title="t('ftp.server.heading')" :subtitle="t('ftp.server.description')" />
 
-    <UiDescriptionList class="mt-3">
+    <!-- The one thing that needs attention goes first. Both warnings are derived from the firewall
+         the page handed in; each carries the fix, and the fix is offered, never applied. -->
+    <div v-if="isListeningAndUnreachable || isDisabledAndOpen" class="mt-4 flex flex-col gap-3">
+      <UiAlert v-if="isListeningAndUnreachable" variant="warning">
+        <span data-testid="ftps-unreachable">{{ t('ftp.server.warnings.unreachable') }}</span>
+        <template #actions>
+          <UiButton variant="secondary" :disabled="acting" @click="openPorts">
+            {{ t('ftp.server.warnings.openPorts') }}
+          </UiButton>
+        </template>
+      </UiAlert>
+
+      <UiAlert v-if="isDisabledAndOpen" variant="warning">
+        <span data-testid="ftps-lingering">{{ t('ftp.server.warnings.lingering') }}</span>
+        <template #actions>
+          <UiButton variant="secondary" :disabled="acting" @click="closePorts">
+            {{ t('ftp.server.warnings.closePorts') }}
+          </UiButton>
+        </template>
+      </UiAlert>
+    </div>
+
+    <UiDescriptionList class="mt-5">
       <UiDescriptionItem :term="t('ftp.server.fields.state')">
-        {{ status.enabled ? t('ftp.server.states.enabled') : t('ftp.server.states.disabled') }}
+        <UiBadge :variant="settingTone">
+          {{ status.enabled ? t('ftp.server.states.enabled') : t('ftp.server.states.disabled') }}
+        </UiBadge>
       </UiDescriptionItem>
       <UiDescriptionItem :term="t('ftp.server.fields.running')">
-        {{ status.running ? t('ftp.server.states.running') : t('ftp.server.states.stopped') }}
+        <UiBadge :variant="serviceTone">
+          {{ status.running ? t('ftp.server.states.running') : t('ftp.server.states.stopped') }}
+        </UiBadge>
       </UiDescriptionItem>
       <UiDescriptionItem :term="t('ftp.server.fields.hostname')" mono>
         {{ status.hostname ?? t('common.emptyValue') }}
@@ -190,34 +241,20 @@ const closePorts = (): void => {
 
     <!-- Settled row 6's last mile: the host decided, the agent reported, the panel persisted, and
          this is the line the operator actually reads. Shown exactly when the status says so. -->
-    <p v-if="status.ipv4Only" data-testid="ftps-ipv4-only" class="mt-3 text-sm text-text-muted">
+    <p v-if="status.ipv4Only" data-testid="ftps-ipv4-only" class="mt-4 text-sm text-text-muted">
       {{ t('ftp.server.ipv4Only') }}
     </p>
 
     <p
       v-if="status.certificateIsSelfSigned"
       data-testid="ftps-self-signed"
-      class="mt-2 text-sm text-text-muted"
+      class="mt-3 text-sm text-text-muted"
     >
       {{ t('ftp.server.selfSigned') }}
     </p>
 
-    <UiAlert v-if="isListeningAndUnreachable" variant="error" class="mt-3">
-      <span data-testid="ftps-unreachable">{{ t('ftp.server.warnings.unreachable') }}</span>
-      <UiButton class="mt-2" variant="secondary" :disabled="acting" @click="openPorts">
-        {{ t('ftp.server.warnings.openPorts') }}
-      </UiButton>
-    </UiAlert>
-
-    <UiAlert v-if="isDisabledAndOpen" variant="error" class="mt-3">
-      <span data-testid="ftps-lingering">{{ t('ftp.server.warnings.lingering') }}</span>
-      <UiButton class="mt-2" variant="secondary" :disabled="acting" @click="closePorts">
-        {{ t('ftp.server.warnings.closePorts') }}
-      </UiButton>
-    </UiAlert>
-
-    <UiForm class="mt-4" @submit="enable">
-      <div class="grid gap-3.5 sm:grid-cols-2">
+    <UiForm class="mt-5 border-t border-border-subtle pt-5" @submit="enable">
+      <div class="grid gap-4 sm:grid-cols-2">
         <UiInput
           v-model="hostname"
           :label="t('ftp.server.form.hostname')"
@@ -230,13 +267,13 @@ const closePorts = (): void => {
           :placeholder="t('ftp.server.form.passiveAddressPlaceholder')"
         />
       </div>
-      <div class="mt-3 flex flex-wrap items-center gap-2">
+      <div class="mt-4 flex flex-wrap items-center gap-3">
         <UiButton type="submit" :disabled="acting">{{ t('ftp.server.form.enable') }}</UiButton>
         <UiButton variant="secondary" :disabled="acting" @click="disable">
           {{ t('ftp.server.form.disable') }}
         </UiButton>
       </div>
-      <p class="mt-2 text-sm text-text-muted">{{ t('ftp.server.form.note') }}</p>
+      <p class="mt-3 text-sm text-text-muted">{{ t('ftp.server.form.note') }}</p>
     </UiForm>
-  </section>
+  </UiCard>
 </template>

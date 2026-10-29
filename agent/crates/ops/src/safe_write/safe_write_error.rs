@@ -1,12 +1,19 @@
 //! Failures of the config-write protocol.
 
+use maran_agent_core::utils::bound_exceeded::BoundExceeded;
+use maran_agent_core::utils::spawn_error::SpawnError;
+use maran_distro::AdapterBinary;
+
 /// What can go wrong while rendering, validating, swapping in or reloading a
 /// system configuration file.
 ///
 /// Every variant from [`Self::ValidationFailed`] onward is a point at which
-/// [`super::render_validate_swap::write_config`] has already put the previous
+/// the shared body of [`super::render_validate_swap::write_config`] and
+/// [`super::create_config::create_config`] has already put the previous
 /// content back — the variant tells an operator which step refused, not
-/// whether the target file is now safe. Two are exceptions.
+/// whether the target file is now safe. [`Self::TargetExists`] stands before
+/// that line because it is refused before anything is touched. Two of the
+/// later ones are exceptions.
 /// [`Self::RollbackFailed`] means the restoration itself did not happen, which
 /// is why it carries both errors rather than collapsing into the first one.
 /// [`Self::SpawnFailed`] says the step did not refuse at all — its program
@@ -48,10 +55,25 @@ pub enum SafeWriteError {
     /// The atomic rename of the temporary file onto the target failed.
     ///
     /// A failed rename does not modify the target — either the whole
-    /// directory entry moves or it does not — so this is the last variant
-    /// that needs no rollback of its own.
+    /// directory entry moves or it does not — so it needs no rollback of its
+    /// own. Neither does [`Self::TargetExists`] below it, the last variant
+    /// for which nothing was touched.
     #[error("could not swap the new configuration into place")]
     Rename,
+
+    /// A creation found its target already there, so it changed nothing.
+    ///
+    /// Only [`super::create_config::create_config`] produces it: a replacement
+    /// replaces by definition. Reached either at the capture, under the
+    /// config-tree lock, or at the rename, which a creation makes without
+    /// replacing so that a file appearing in between is refused by the kernel.
+    /// In both cases the file at the target is somebody else's and is left
+    /// exactly as it was.
+    #[error("a configuration already exists at {target}")]
+    TargetExists {
+        /// The path that was already taken, for an operator's log.
+        target: String,
+    },
 
     /// The validating tool (`nginx -t`, `php-fpm -t`, …) rejected the
     /// rendered configuration.
@@ -61,6 +83,22 @@ pub enum SafeWriteError {
     /// unaffected.
     #[error("configuration validation failed: {stderr}")]
     ValidationFailed {
+        /// The validator's standard error, for an operator's log.
+        stderr: String,
+    },
+
+    /// The validator exited 0, but its standard error carried a warning the
+    /// caller named as a refusal.
+    ///
+    /// Only [`super::create_config::create_config`] produces it. It exists
+    /// because a zero exit is not every validator's whole verdict: `nginx -t`
+    /// accepts a tree in which two vhosts name the same host, warning that it
+    /// ignored one of them. The new file has been removed, so the tree is as
+    /// it was before the write.
+    #[error("configuration validation passed with a refused warning: {warning}")]
+    RefusedWarning {
+        /// The warning, exactly as the caller named it.
+        warning: String,
         /// The validator's standard error, for an operator's log.
         stderr: String,
     },
@@ -93,6 +131,20 @@ pub enum SafeWriteError {
         reason: String,
     },
 
+    /// The validator or the reload outlived its deadline, or wrote more than its
+    /// output ceiling, and was killed together with its whole process group.
+    ///
+    /// **Not a verdict on the configuration**, and so never a
+    /// [`Self::ValidationFailed`] or a [`Self::ReloadFailed`]: the program was
+    /// stopped before it could answer, and a reload that was killed may still have
+    /// taken effect in the service manager. It stands where the validator or the
+    /// reload would have stood, so the restoration that follows it is the
+    /// restoration that step would have had, and the config-tree lock is released
+    /// by the return. Carries the program's path and the bound and never a byte
+    /// the program printed.
+    #[error(transparent)]
+    Bound(#[from] BoundExceeded),
+
     /// The previous configuration could not be restored after a later step
     /// failed.
     ///
@@ -108,3 +160,28 @@ pub enum SafeWriteError {
         rollback_error: String,
     },
 }
+
+impl SafeWriteError {
+    /// Folds a failed spawn of `program` into the config-write error surface.
+    ///
+    /// The one home of a mapping every [`super::ConfigHost::run`] implementation
+    /// needs: a bound the core enforced ([`SpawnError::Bound`]) passes through as
+    /// [`Self::Bound`], so a deadline stays distinguishable from a refusal, and
+    /// every other failure becomes [`Self::SpawnFailed`] naming `program` and the
+    /// core's reason. The caller supplies the typed [`AdapterBinary`] so the
+    /// `program` field is the binary the host chose, not text parsed back out of
+    /// the core's message.
+    pub fn from_spawn(program: &AdapterBinary, error: SpawnError) -> Self {
+        match error {
+            SpawnError::Bound(bound) => Self::Bound(bound),
+            other => Self::SpawnFailed {
+                program: program.to_string(),
+                reason: other.to_string(),
+            },
+        }
+    }
+}
+
+#[cfg(test)]
+#[path = "../tests/safe_write/safe_write_error_tests.rs"]
+mod tests;

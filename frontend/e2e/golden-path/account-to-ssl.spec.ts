@@ -50,7 +50,7 @@ import { expect, test, type APIRequestContext, type Page } from '@playwright/tes
  * docker run -d --name maran-golden -p 8081:80 \
  *   -v "$PWD/agent/target/debug/maran-agent:/usr/local/bin/maran-agent:ro" \
  *   -v "/run/user/$(id -u)/maran:/run/maran" maran-polygon-ubuntu24 sleep infinity
- * docker exec maran-golden sh -c 'mkdir -p /run/maran/php; nginx; \
+ * docker exec maran-golden sh -c 'mkdir -p /run/maran-php; nginx; \
  *   maran-agent --socket /run/maran/agent.sock --allow-uid '"$(id -u)"' &'
  * docker exec maran-golden chgrp "$(id -g)" /run/maran/agent.sock
  * # then set Agent__SocketPath=/run/user/<uid>/maran/agent.sock in .env and restart `maran dev`
@@ -225,16 +225,18 @@ test.describe('the golden path: install, account, site, certificate', () => {
     // The plans are read from the panel, so an empty list here means nothing seeded them — which
     // is worth failing on explicitly, because a fresh installation with no plan cannot create any
     // account at all and the form gives no hint why.
-    await page.getByRole('combobox', { name: 'Plan ID' }).click()
+    // #80: the control is labelled "Plan"; "Plan ID" was the DTO property leaking.
+    await page.getByRole('combobox', { name: 'Plan', exact: true }).click()
     const plans = page.getByRole('option')
     await expect(plans, 'this panel has no plans, so no account can be created').not.toHaveCount(0)
     await plans.first().click()
     await page.getByRole('button', { name: 'Create account' }).click()
 
-    // The list is the operator's own confirmation, and it is read back from the panel rather than
-    // from the response the form received: a row here means the account survived the round trip.
-    await expect(page).toHaveURL(/\/accounts/, { timeout: HOST_OPERATION_TIMEOUT })
-    await expect(page.getByRole('link', { name: ACCOUNT_NAME })).toBeVisible({
+    // The new account's own page is the operator's confirmation (#78: creating opens it, because
+    // the invitation is handed over from there), and it is read back from the panel rather than
+    // from the response the form received: its name here means the account survived the round trip.
+    await expect(page).toHaveURL(/\/accounts\/[0-9a-f-]{36}$/, { timeout: HOST_OPERATION_TIMEOUT })
+    await expect(page.getByRole('heading', { name: ACCOUNT_NAME })).toBeVisible({
       timeout: HOST_OPERATION_TIMEOUT,
     })
 

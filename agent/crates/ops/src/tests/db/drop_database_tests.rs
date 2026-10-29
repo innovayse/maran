@@ -101,3 +101,32 @@ fn a_server_that_refuses_because_the_database_is_unknown_reports_not_found() {
 
     assert!(matches!(failure, DbError::NotFound));
 }
+
+/// A client that hangs on the existence check is a bound, never `NotFound`.
+#[test]
+fn a_client_that_times_out_on_the_existence_check_is_a_bound_and_not_not_found() {
+    let host = host_with_shop();
+    host.time_out_after(0);
+
+    let failure = drop_database(&host, &shop_database(), &shop_user()).expect_err("must fail");
+
+    assert!(matches!(failure, DbError::Bound(_)), "{failure:?}");
+    assert_eq!(host.databases().len(), 1, "nothing was dropped");
+}
+
+/// A client that hangs on any later statement is still a bound: the drop of the
+/// database may have been accepted, so a success must not be reported.
+#[test]
+fn a_client_that_hangs_after_the_check_is_a_bound_and_not_a_success() {
+    for answered in 1..=2 {
+        let host = host_with_shop();
+        host.time_out_after(answered);
+
+        let outcome = drop_database(&host, &shop_database(), &shop_user());
+
+        assert!(
+            matches!(outcome, Err(DbError::Bound(_))),
+            "after {answered} answers: {outcome:?}"
+        );
+    }
+}

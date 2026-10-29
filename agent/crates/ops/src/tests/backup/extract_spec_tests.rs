@@ -228,3 +228,33 @@ fn the_archive_is_named_exactly_once() {
         );
     }
 }
+
+/// The member is named after an end-of-options marker, and the marker comes
+/// after `-C <into>`: `-C` is positional among `tar`'s operands and a marker
+/// ahead of it would turn the directory into a member name.
+#[test]
+fn the_member_follows_an_end_of_options_marker_that_follows_the_target_directory() {
+    for part in [
+        ArchivePart::Home { account: account() },
+        ArchivePart::Databases,
+        ArchivePart::Manifest,
+    ] {
+        let arguments = spec(part).arguments(COMPRESSOR);
+
+        let marker = arguments
+            .iter()
+            .position(|argument| argument == "--")
+            .unwrap_or_else(|| panic!("no end-of-options marker: {arguments:?}"));
+        let directory = arguments
+            .iter()
+            .position(|argument| argument == "-C")
+            .unwrap_or_else(|| panic!("no -C: {arguments:?}"));
+
+        assert_eq!(marker, arguments.len() - 2, "{arguments:?}");
+        assert!(directory + 1 < marker, "{arguments:?}");
+        assert_eq!(
+            arguments.get(directory + 1).map(String::as_str),
+            Some("/var/lib/maran/scratch")
+        );
+    }
+}

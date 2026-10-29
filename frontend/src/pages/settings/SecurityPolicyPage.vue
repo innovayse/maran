@@ -18,6 +18,7 @@ import UiCard from '../../components/ui/UiCard.vue'
 import UiForm from '../../components/ui/UiForm.vue'
 import UiInput from '../../components/ui/UiInput.vue'
 import UiPageHeading from '../../components/ui/UiPageHeading.vue'
+import UiSectionHeading from '../../components/ui/UiSectionHeading.vue'
 import UiSwitch from '../../components/ui/UiSwitch.vue'
 import { useSecurityPolicyStore } from '../../stores/securityPolicy'
 import type { SecurityPolicy } from '../../types/securityPolicy'
@@ -89,54 +90,84 @@ void policyStore.load()
 </script>
 
 <template>
-  <section class="w-full max-w-2xl">
-    <UiPageHeading class="mb-4" :title="t('app.securityPolicy.heading')" :subtitle="t('app.securityPolicy.subtitle')" />
+  <section class="flex w-full max-w-3xl flex-col gap-4">
+    <UiPageHeading
+      :eyebrow="t('app.securityPolicy.eyebrow')"
+      :title="t('app.securityPolicy.heading')"
+      :subtitle="t('app.securityPolicy.subtitle')"
+    />
 
-    <UiAlert v-if="policyStore.errorMessage !== null" variant="error" class="mb-4">
+    <UiAlert v-if="policyStore.errorMessage !== null" variant="error">
       {{ policyStore.errorMessage }}
     </UiAlert>
 
-    <UiAlert v-if="policyStore.saved" variant="info" class="mb-4">
+    <UiAlert v-if="policyStore.saved" variant="success">
       {{ t('app.securityPolicy.saved') }}
     </UiAlert>
 
-    <UiCard v-if="isLoaded">
-      <UiForm @submit="submit">
-        <div class="flex flex-col gap-3">
+    <!-- One form around three panels: the endpoint stores the whole policy at once, so
+         there is one submit and no per-panel save that could write half of it. -->
+    <UiForm v-if="isLoaded" @submit="submit">
+      <div class="flex flex-col gap-4">
+        <UiCard>
+          <UiSectionHeading
+            class="mb-4"
+            :title="t('app.securityPolicy.passwordsTitle')"
+            :subtitle="t('app.securityPolicy.passwordsHint')"
+          />
           <UiInput
             v-model="minimumPasswordLength"
             :label="t('app.securityPolicy.minimumPasswordLengthLabel')"
             required
           />
+        </UiCard>
 
-          <UiSwitch
-            v-model="forceTwoFactorForAdmins"
-            :label="t('app.securityPolicy.forceTwoFactorLabel')"
+        <UiCard>
+          <UiSectionHeading
+            class="mb-4"
+            :title="t('app.securityPolicy.administratorsTitle')"
+            :subtitle="t('app.securityPolicy.administratorsHint')"
           />
+          <div class="flex flex-col gap-4">
+            <UiSwitch
+              v-model="forceTwoFactorForAdmins"
+              :label="t('app.securityPolicy.forceTwoFactorLabel')"
+            />
 
-          <!-- The warning is the reason this switch is not just another field: an
-               administrator who turns it on and then cannot complete enrolment has
-               locked themselves out of their own panel, and the only way back is a
-               command on the server. -->
-          <UiAlert variant="error">{{ t('app.securityPolicy.forceTwoFactorWarning') }}</UiAlert>
+            <!-- The warning is the reason this switch is not just another field: an
+                 administrator who turns it on and then cannot complete enrolment has
+                 locked themselves out of their own panel, and the only way back is a
+                 command on the server. -->
+            <UiAlert variant="warning">{{ t('app.securityPolicy.forceTwoFactorWarning') }}</UiAlert>
+          </div>
+        </UiCard>
 
-          <UiInput
-            v-model="maxFailedLoginAttempts"
-            :label="t('app.securityPolicy.maxFailedLoginAttemptsLabel')"
-            required
+        <UiCard>
+          <UiSectionHeading
+            class="mb-4"
+            :title="t('app.securityPolicy.lockoutTitle')"
+            :subtitle="t('app.securityPolicy.lockoutHint')"
           />
+          <div class="grid gap-4 sm:grid-cols-2">
+            <UiInput
+              v-model="maxFailedLoginAttempts"
+              :label="t('app.securityPolicy.maxFailedLoginAttemptsLabel')"
+              required
+            />
+            <UiInput
+              v-model="lockoutMinutes"
+              :label="t('app.securityPolicy.lockoutMinutesLabel')"
+              required
+            />
+          </div>
+        </UiCard>
 
-          <UiInput
-            v-model="lockoutMinutes"
-            :label="t('app.securityPolicy.lockoutMinutesLabel')"
-            required
-          />
-
-          <UiButton class="mt-1" type="submit" :disabled="policyStore.loading">
+        <div class="flex justify-end">
+          <UiButton type="submit" :disabled="policyStore.loading">
             {{ t('app.securityPolicy.save') }}
           </UiButton>
         </div>
-      </UiForm>
-    </UiCard>
+      </div>
+    </UiForm>
   </section>
 </template>

@@ -2,6 +2,8 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use maran_agent_core::utils::call_class::CallClass;
+
 use crate::logins::account_logins::account_logins;
 use crate::logins::fake_logins_host::{
     ACCOUNT_UID, FakeLoginsHost, OTHER_UID, account, account_row, distro,
@@ -340,4 +342,33 @@ fn a_jailed_row_on_a_foreign_uid_is_neither_reported_nor_counted() {
         observed.unmanaged, 0,
         "a row on another uid is not what the unmanaged count means"
     );
+}
+
+#[test]
+fn a_passwd_status_read_that_times_out_is_a_bound_and_not_an_unlocked_login() {
+    // A killed `passwd -S` has said nothing about the login. Reading the kill as
+    // "unlocked" would tell the panel a suspended account can still sign in, or
+    // as "locked" that it cannot: both are invented.
+    let host = FakeLoginsHost::with_passwd(&[account_row(), ("alice_web", ACCOUNT_UID, SFTP_JAIL)]);
+    host.time_out("passwd");
+
+    let failed = account_logins(&host, distro(), &account());
+
+    assert!(
+        matches!(failed, Err(LoginsError::Bound(_))),
+        "got {failed:?}"
+    );
+}
+
+#[test]
+fn every_login_is_asked_about_as_a_query_and_the_run_asked_something() {
+    // A question, not a state change: its deadline is the query one. The loop
+    // is vacuous over an empty list, so the count is asserted first.
+    let host = FakeLoginsHost::with_passwd(&[account_row(), ("alice_web", ACCOUNT_UID, SFTP_JAIL)]);
+
+    account_logins(&host, distro(), &account()).expect("observed");
+
+    let spawns = host.spawns();
+    assert_eq!(spawns.len(), 1, "{spawns:?}");
+    assert_eq!(spawns[0].class, CallClass::Query);
 }

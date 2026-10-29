@@ -134,3 +134,110 @@ fn a_busy_account_is_not_the_answer_for_a_suspended_login_left_open() {
         assert_ne!(code_of(&error), code_of(&FtpsError::AccountBusy));
     }
 }
+
+#[test]
+fn a_user_that_is_not_a_hosting_account_is_an_invalid_input_and_never_a_fault() {
+    // The managed-account proof refused the name before anything was created or
+    // changed. A request fault: the user may well exist (so not NOT_FOUND) and
+    // nothing on the host is broken (so not SYSTEM_FAILURE).
+    let refusal = code_of(&FtpsError::AccountNotManaged);
+
+    assert_eq!(refusal, ErrorCode::InvalidInput as i32);
+    for wrong in [
+        ErrorCode::SystemFailure,
+        ErrorCode::NotFound,
+        ErrorCode::AccountBusy,
+        ErrorCode::AlreadyExists,
+    ] {
+        assert_ne!(refusal, wrong as i32);
+    }
+}
+
+#[test]
+fn an_account_that_is_not_there_and_one_that_is_not_managed_are_different_answers() {
+    // The inverse control: a missing account stays NOT_FOUND, so the new arm
+    // cannot have swallowed it.
+    assert_eq!(
+        code_of(&FtpsError::AccountMissing),
+        ErrorCode::NotFound as i32
+    );
+    assert_ne!(
+        code_of(&FtpsError::AccountMissing),
+        code_of(&FtpsError::AccountNotManaged)
+    );
+}
+
+#[test]
+fn the_not_managed_sentence_is_fixed_and_names_no_rule() {
+    let wire = to_agent_error(&FtpsError::AccountNotManaged);
+
+    assert_eq!(wire.message, "the account is not a hosting account");
+    assert_eq!(wire.tool_output, "");
+}
+
+use std::time::Duration;
+
+use maran_agent_core::utils::bound_exceeded::BoundExceeded;
+use maran_agent_core::utils::output_stream::OutputStream;
+
+/// The unit under test, read so that the arm that names the bound by itself can
+/// be checked; see [`the_bound_variant_is_mapped_by_name_ahead_of_the_wildcard`].
+const MAPPING_SOURCE: &str = include_str!("../../../services/ftps/ftps_status.rs");
+
+/// A deadline that passed, as the bounded spawn core reports it.
+fn timed_out() -> FtpsError {
+    FtpsError::Bound(BoundExceeded::TimedOut {
+        program: "/usr/sbin/stand-in".to_owned(),
+        deadline: Duration::from_secs(60),
+    })
+}
+
+/// An output cap that was crossed, as the bounded spawn core reports it.
+fn output_too_large() -> FtpsError {
+    FtpsError::Bound(BoundExceeded::OutputTooLarge {
+        program: "/usr/sbin/stand-in".to_owned(),
+        stream: OutputStream::Stdout,
+        cap: 4_194_304,
+    })
+}
+
+/// A deadline is a fault of the host: a system failure, no tool text, and a
+/// message that names the program that was killed.
+#[test]
+fn a_timeout_is_a_system_failure_with_no_tool_output_and_a_message_naming_the_program() {
+    let wire = to_agent_error(&timed_out());
+
+    assert_eq!(wire.code, ErrorCode::SystemFailure as i32);
+    assert!(wire.tool_output.is_empty());
+    assert!(wire.message.contains("/usr/sbin/stand-in"));
+}
+
+/// An output cap is the same kind of fault as a deadline.
+#[test]
+fn an_output_overflow_is_a_system_failure_with_no_tool_output_and_a_message_naming_the_program() {
+    let wire = to_agent_error(&output_too_large());
+
+    assert_eq!(wire.code, ErrorCode::SystemFailure as i32);
+    assert!(wire.tool_output.is_empty());
+    assert!(wire.message.contains("/usr/sbin/stand-in"));
+}
+
+/// The wildcard arm answers `SystemFailure` too, so deleting the explicit arm
+/// changes no behaviour and the two tests above cannot notice it. This one reads
+/// the source: the bound must be named, and named before the wildcard.
+#[test]
+fn the_bound_variant_is_mapped_by_name_ahead_of_the_wildcard() {
+    let code_lines: Vec<&str> = MAPPING_SOURCE
+        .lines()
+        .map(str::trim_start)
+        .filter(|line| !line.starts_with("//"))
+        .collect();
+    let wildcard = code_lines.iter().position(|line| line.starts_with("_ =>"));
+    let bound = code_lines
+        .iter()
+        .position(|line| line.starts_with("FtpsError::Bound("));
+
+    // Positive control: the scan does find the wildcard it is measured against.
+    let wildcard = wildcard.expect("the mapping ends in a wildcard arm");
+    assert!(bound.expect("the bound variant has its own arm") < wildcard);
+}

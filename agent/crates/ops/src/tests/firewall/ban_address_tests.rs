@@ -5,6 +5,8 @@
 
 use std::time::Duration;
 
+use maran_agent_core::utils::bound_exceeded::BoundExceeded;
+use maran_agent_core::utils::call_class::CallClass;
 use maran_agent_core::validation::web::ban_address::BanAddress;
 
 use crate::firewall::ban_address::ban_address;
@@ -70,7 +72,8 @@ fn a_timed_ban_asks_nft_for_a_timeout_in_seconds() {
     assert_eq!(
         argv,
         vec![
-            distro().nft_binary().to_owned(),
+            distro().nft_binary().to_string(),
+            String::from("--"),
             String::from("add"),
             String::from("element"),
             String::from("inet"),
@@ -194,4 +197,52 @@ fn a_ban_that_nft_cannot_run_is_reported() {
             stderr: String::from("could not run nft"),
         })
     );
+}
+
+/// The element add comes after an end-of-options marker, so nothing after it
+/// can be read as an option.
+///
+/// The inverse control is in the first assertion: the verb and the operands
+/// are all still there after the marker, so the marker was added and nothing
+/// was dropped.
+#[test]
+fn the_add_puts_an_end_of_options_marker_ahead_of_its_operands() {
+    let host = FakeFirewallHost::new().with_bans_table();
+
+    ban_address(&host, distro(), &address("198.51.100.7"), None).expect("banned");
+
+    let argv = host.nft_call_starting_with("add").expect("an add");
+    assert_eq!(argv.get(1).map(String::as_str), Some("--"));
+    assert_eq!(argv.get(2).map(String::as_str), Some("add"));
+    assert!(argv.iter().any(|argument| argument == "198.51.100.7"));
+}
+
+/// Adding an element is a mutation, and the table check before it is a query.
+#[test]
+fn a_ban_adds_as_a_mutation_after_a_table_check_that_is_a_query() {
+    let host = FakeFirewallHost::new();
+
+    ban_address(&host, distro(), &address("198.51.100.7"), None).expect("banned");
+
+    assert_eq!(host.class_of_call("add"), Some(CallClass::Mutation));
+    assert_eq!(host.class_of_call("list"), Some(CallClass::Query));
+}
+
+/// An add killed at its deadline is a bound, not an `nft` failure, and no
+/// element is recorded as banned.
+#[test]
+fn an_add_that_times_out_is_a_bound_and_bans_nothing() {
+    let host = FakeFirewallHost::new().with_bans_table();
+    host.time_out_on("add");
+
+    let outcome = ban_address(&host, distro(), &address("198.51.100.7"), None);
+
+    assert!(
+        matches!(
+            outcome,
+            Err(FirewallError::Bound(BoundExceeded::TimedOut { .. }))
+        ),
+        "expected the typed timeout, got {outcome:?}"
+    );
+    assert!(host.elements().is_empty());
 }

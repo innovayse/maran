@@ -1,5 +1,8 @@
 //! Failures of the certificate operations.
 
+use maran_agent_core::utils::bound_exceeded::BoundExceeded;
+use maran_agent_core::utils::spawn_error::SpawnError;
+
 use crate::safe_write::SafeWriteError;
 use crate::sites::SitesOpError;
 
@@ -145,6 +148,19 @@ pub enum SslOpError {
         /// content was restored.
         reason: String,
     },
+
+    /// A program of this area outran its deadline or its output ceiling and was
+    /// killed together with its process group.
+    ///
+    /// Never a verdict on the configuration or the certificate: a killed
+    /// `nginx -t` has not said that the configuration is invalid, and a killed
+    /// reload may have finished on the host after the agent stopped waiting. So
+    /// this is not folded into [`Self::NginxValidation`], [`Self::ReloadFailed`]
+    /// or [`Self::ToolUnavailable`], each of which states what a tool answered
+    /// or that it never ran. It carries the program's path and the bound, and
+    /// never a byte the program printed, so it cannot hold key material.
+    #[error(transparent)]
+    Bound(#[from] BoundExceeded),
 }
 
 impl From<SitesOpError> for SslOpError {
@@ -164,6 +180,9 @@ impl From<SitesOpError> for SslOpError {
             SitesOpError::ReloadFailed { stderr } => Self::ReloadFailed { stderr },
             SitesOpError::Render { reason } => Self::Render { reason },
             SitesOpError::NotFound { domain } => Self::SiteNotFound { domain },
+            // A bound stays a bound: a killed validator or reload is not a
+            // write failure.
+            SitesOpError::Bound(bound) => Self::Bound(bound),
             other => Self::ConfigWrite {
                 reason: other.to_string(),
             },
@@ -180,9 +199,52 @@ impl From<SafeWriteError> for SslOpError {
         match error {
             SafeWriteError::ValidationFailed { stderr } => Self::NginxValidation { stderr },
             SafeWriteError::ReloadFailed { stderr } => Self::ReloadFailed { stderr },
+            SafeWriteError::Bound(bound) => Self::Bound(bound),
             other => Self::MaterialWrite {
                 reason: other.to_string(),
             },
         }
     }
 }
+
+impl From<SpawnError> for SslOpError {
+    /// Folds a failed spawn into this area's list.
+    ///
+    /// A bound becomes [`SslOpError::Bound`]. Every other failure means the tool
+    /// never produced an answer and becomes [`SslOpError::ToolUnavailable`],
+    /// whose reason is the spawn error's own text: it names the program and,
+    /// for a start or wait failure, the operating system's reason, and for a
+    /// failed delivery of input it names nothing but the program, because the
+    /// bytes being delivered are sometimes a private key.
+    fn from(error: SpawnError) -> Self {
+        match error {
+            SpawnError::Bound(bound) => Self::Bound(bound),
+            other => Self::ToolUnavailable {
+                reason: other.to_string(),
+            },
+        }
+    }
+}
+
+impl SslOpError {
+    /// Maps a failed run of a tool through the protocol's `run` seam onto this
+    /// area's list.
+    ///
+    /// A bound stays [`Self::Bound`]. Every other failure means the tool never
+    /// produced an answer and becomes [`Self::ToolUnavailable`] with the error's
+    /// own text, which names the program and never a byte of input. Not
+    /// `From<SafeWriteError>`: that conversion is for a failed WRITE and would
+    /// report an unstartable tool as a material-write failure.
+    pub(crate) fn from_tool_run(error: SafeWriteError) -> Self {
+        match error {
+            SafeWriteError::Bound(bound) => Self::Bound(bound),
+            other => Self::ToolUnavailable {
+                reason: other.to_string(),
+            },
+        }
+    }
+}
+
+#[cfg(test)]
+#[path = "../tests/ssl/ssl_op_error_tests.rs"]
+mod tests;

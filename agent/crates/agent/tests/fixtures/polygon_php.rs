@@ -50,7 +50,7 @@ impl PolygonPhp {
     ///
     /// Panics when php-fpm cannot be run at all.
     pub fn tree_refusal(distro: &dyn DistroAdapter) -> Option<String> {
-        let binary = distro.php_fpm_binary(Self::VERSION);
+        let binary = distro.php_fpm_binary(&Self::version());
         let output = std::process::Command::new(&binary)
             .arg(VALIDATE_ARGUMENT)
             .output()

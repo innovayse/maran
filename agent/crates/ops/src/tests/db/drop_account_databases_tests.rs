@@ -154,3 +154,41 @@ fn a_server_that_refuses_the_listing_fails_the_whole_removal() {
 
     assert!(matches!(failure, DbError::ClientFailed { code: 2013 }));
 }
+
+/// A cascade whose client hangs at any statement is a bound and never a
+/// success: the caller is about to run `userdel` on a success.
+#[test]
+fn a_client_that_hangs_at_any_statement_fails_the_whole_removal_with_a_bound() {
+    let clean = FakeDbHost::new();
+    create(&clean, "alice", "shop", "shop");
+    let before = clean.statements().len();
+    drop_account_databases(&clean, &account()).expect("dropped");
+    let total = clean.statements().len() - before;
+    assert!(
+        total > 2,
+        "the vacuity guard: a removal sends several statements"
+    );
+
+    for answered in 0..total {
+        let host = FakeDbHost::new();
+        create(&host, "alice", "shop", "shop");
+        host.time_out_after(answered);
+        let setup = host.statements().len();
+
+        let outcome = drop_account_databases(&host, &account());
+
+        assert!(
+            matches!(outcome, Err(DbError::Bound(_))),
+            "after {answered} answers: {outcome:?}"
+        );
+        // The removal STOPS at the statement that hung. The fake times out on
+        // every statement after the first, so a removal that swallowed the
+        // bound and pressed on would still end in a bound from a later
+        // statement; only the count of statements sent shows it pressed on.
+        assert_eq!(
+            host.statements().len() - setup,
+            answered + 1,
+            "after {answered} answers the removal sent a statement past the one that hung"
+        );
+    }
+}

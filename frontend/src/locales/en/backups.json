@@ -3,10 +3,12 @@
     "list": {
       "heading": "Backups",
       "subtitle": "Copies of an account's files and the contents of its databases.",
+      "eyebrow": "Protection",
       "storageNote": "Every copy is written to this server and stays on it. Restoring from one replaces the account's home directory and every database the copy holds, and nothing else.",
       "loading": "Loading backups…",
       "emptyTitle": "No backups yet",
       "emptyDescription": "Take the first one above. It holds the account's files and a dump of each of its databases.",
+      "sectionHeading": "Backup history",
       "tableCaption": "Backups taken of this panel's accounts",
       "rowActions": "Actions for the backup of {account}",
       "failureCode": "Code: {code}",
@@ -24,7 +26,9 @@
       "confirm": "Yes, delete it",
       "working": "Working…",
       "scheduleLink": "Backup schedule",
-      "destinationsLink": "Backup destinations"
+      "destinationsLink": "Backup destinations",
+      "attentionOne": "The latest backup of {account}, from {startedAt}, failed. No later one has completed.",
+      "attentionMany": "Accounts whose latest backup failed: {count}. None of them has a later one that completed."
     },
     "status": {
       "running": "Running",

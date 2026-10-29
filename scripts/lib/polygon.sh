@@ -347,7 +347,7 @@ polygon_run() {
   mkdir -p "$target_dir"
   local status=0
   timeout --signal=TERM --kill-after=60 "${MARAN_POLYGON_TIMEOUT:-3600}" \
-    docker run --rm --privileged --name "$name" \
+    docker run --rm --init --privileged --name "$name" \
     -v "$snapshot:/maran" \
     -v "$target_dir:/tmp/target" \
     -w /maran/agent \

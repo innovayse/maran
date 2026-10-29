@@ -1,5 +1,6 @@
-//! Multi-PHP: which versions this host has, installing one from the family's
-//! repository, and the one php-fpm pool each account gets per version.
+//! Multi-PHP: which versions this host has, installing one through the
+//! installer's root install unit, and the one php-fpm pool each account gets
+//! per version.
 //!
 //! The area has no proto service of its own — it is driven by `sites` and by
 //! `accounts` — but it is a full area all the same: one injectable host trait,
@@ -8,7 +9,7 @@
 //!
 //! Two rules shape everything here. The supported versions are a CLOSED set
 //! (spec §11), so a version outside 7.4–8.4 is refused by the agent rather
-//! than handed to a package manager: what the agent installs is not the
+//! than handed to the install unit: what the agent installs is not the
 //! caller's choice. And the customer's php.ini settings are a whitelist with
 //! bounds, re-validated here rather than trusted from the panel
 //! (rules/security.md item 1) — a name that is not on the list is refused, not

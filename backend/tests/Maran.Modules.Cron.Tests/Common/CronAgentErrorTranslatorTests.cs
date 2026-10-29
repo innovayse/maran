@@ -85,6 +85,20 @@ public sealed class CronAgentErrorTranslatorTests
         Assert.Contains("AgentSystemFailure", line, StringComparison.Ordinal);
     }
 
+    /// <summary>An agent that could not be reached stays unavailable, so the API answers 503 and not 500.</summary>
+    [Fact]
+    public void An_unreachable_agent_is_passed_through_as_unavailable()
+    {
+        var translated = CronAgentErrorTranslator.Translate(
+            new CapturingLogger<CronAgentErrorTranslatorTests>(),
+            Error.Of("AgentUnavailable", ErrorType.Unavailable),
+            "ListEntriesAsync",
+            EntryId);
+
+        Assert.Equal("AgentUnavailable", translated.Code);
+        Assert.Equal(ErrorType.Unavailable, translated.Type);
+    }
+
     /// <summary>Translates one agent code through a throwaway logger.</summary>
     /// <param name="agentCode">The code the agent client produced.</param>
     /// <returns>The error this module answers with.</returns>

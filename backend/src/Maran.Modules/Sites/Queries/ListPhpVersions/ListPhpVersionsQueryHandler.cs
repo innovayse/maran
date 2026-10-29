@@ -1,5 +1,6 @@
 using Maran.Agent.Client.Interfaces;
 using Maran.Modules.Sites.Common;
+using Maran.Modules.Sites.Mappers;
 
 namespace Maran.Modules.Sites.Queries.ListPhpVersions;
 
@@ -7,7 +8,7 @@ namespace Maran.Modules.Sites.Queries.ListPhpVersions;
 /// <remarks>
 /// Host-level reference data, not tenant data: multi-PHP is installed once per server and then
 /// bound to any number of sites, so there is nothing here to scope to an account. The agent's
-/// answer is reshaped into the module's own <see cref="PhpVersionDto"/>, which drops the FPM socket
+/// answer is reshaped by <see cref="PhpVersionMapper"/> into the module's own <see cref="PhpVersionDto"/>, which drops the FPM socket
 /// directory — a filesystem path has no business on a customer's screen (rules/security.md).
 /// </remarks>
 public sealed class ListPhpVersionsQueryHandler
@@ -36,12 +37,7 @@ public sealed class ListPhpVersionsQueryHandler
             return Result<IReadOnlyList<PhpVersionDto>>.Fail(versions.Error!);
         }
 
-        IReadOnlyList<PhpVersionDto> installed = versions.Value
-            .Select(version =>
-            {
-                return new PhpVersionDto(version.Version, version.IsDefault);
-            })
-            .ToList();
+        var installed = PhpVersionMapper.From(versions.Value);
 
         return Result<IReadOnlyList<PhpVersionDto>>.Ok(installed);
     }

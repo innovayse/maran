@@ -1,6 +1,7 @@
 using Maran.Host.Resilience;
+using Maran.Host.Tests.Fixtures;
+using Maran.SharedKernel.Results;
 using Maran.SharedKernel.Security;
-using Polly.Timeout;
 
 namespace Maran.Host.Tests.Resilience;
 
@@ -15,6 +16,25 @@ public sealed class ResilientAgentDbClientTests
 {
     /// <summary>Deadline for any test that waits on the pipeline.</summary>
     private static readonly TimeSpan TestTimeout = TimeSpan.FromSeconds(30);
+
+    /// <summary>A transport outage on a listing is answered as an unavailable agent, not thrown.</summary>
+    /// <remarks>
+    /// The inner fake throws what the real transport throws for a refused connection
+    /// (<see cref="AgentTransportFaults.ConnectRefused"/>), so the answer is the decorator's to give: the
+    /// pipeline retries the refused connect twice and the shared mapping answers 503's error code.
+    /// </remarks>
+    [Fact]
+    public async Task A_transport_outage_on_a_listing_answers_agent_unavailable_instead_of_throwing()
+    {
+        var inner = new RecordingAgentDbClient { FailuresBeforeSuccess = int.MaxValue };
+
+        var result = await Decorate(inner).ListAsync("alice", default).WaitAsync(TestTimeout);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("AgentUnavailable", result.Error!.Code);
+        Assert.Equal(ErrorType.Unavailable, result.Error.Type);
+        Assert.Equal(3, inner.Calls);
+    }
 
     /// <summary>The password a creation call carries through the decorator.</summary>
     private static readonly SensitiveString Password = new("Tz7-quiet-mule-42");
@@ -124,10 +144,11 @@ public sealed class ResilientAgentDbClientTests
     {
         var inner = new RecordingAgentDbClient { Hangs = true };
 
-        await Assert.ThrowsAsync<TimeoutRejectedException>(async () =>
-        {
-            await Decorate(inner).ListAsync("alice", default).WaitAsync(TestTimeout);
-        });
+        var result = await Decorate(inner).ListAsync("alice", default).WaitAsync(TestTimeout);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("AgentUnavailable", result.Error!.Code);
+        Assert.Equal(ErrorType.Unavailable, result.Error.Type);
     }
 
     /// <summary>The grant repair goes through the pipeline and forwards the pass it was asked for.</summary>
@@ -161,10 +182,11 @@ public sealed class ResilientAgentDbClientTests
     {
         var inner = new RecordingAgentDbClient { Hangs = true };
 
-        await Assert.ThrowsAsync<TimeoutRejectedException>(async () =>
-        {
-            await Decorate(inner).RepairGrantsAsync(false, default).WaitAsync(TestTimeout);
-        });
+        var result = await Decorate(inner).RepairGrantsAsync(false, default).WaitAsync(TestTimeout);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("AgentUnavailable", result.Error!.Code);
+        Assert.Equal(ErrorType.Unavailable, result.Error.Type);
     }
 
     /// <summary>Wraps the recording client in the decorator under the real pipeline.</summary>

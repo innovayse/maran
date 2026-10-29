@@ -210,8 +210,7 @@ forget_nginx_service_records() {
 # and error_log and `nginx -t` opens both. The group is created by step 40's own function. The
 # directory is made here with step 40's own owner, group and mode instead of by calling
 # create_directory_layout, and that is stated rather than hidden: that function also re-modes
-# /run/maran to 0750 root:<service group>, which this image sets 0755 on purpose for the php-pool suites,
-# and step 80 never reads it.
+# /run/maran to 0750 root:<service group>, which step 80 never reads.
 #
 # `-o root` and not the service account, matching step 40 since the log-directory split: the two files the
 # vhost names here are opened by the ROOT nginx master, so the directory holding them is root's

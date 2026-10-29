@@ -29,7 +29,13 @@
  *
  * **No credential is displayed, because none is received.** No destination on this build holds one;
  * `BackupDestination` declares no secret member, so a key the server one day started sending would
- * not reach this template at all.
+ * not reach this template at all. Should a destination ever carry credentials, they stay write-only:
+ * never rendered back after saving and never logged.
+ *
+ * **Layout (redesign 2026-10).** The header carries the module name as its eyebrow; each recorded
+ * destination, the kinds of storage and the "what this does not cover" lines are `UiCard` panels in a
+ * two-column grid from 1024px up and one column below it. A failed read is the first thing on the
+ * screen. The empty state sits inside a card rather than floating on the content panel.
  */
 import { computed, onMounted, type ComputedRef } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -40,6 +46,7 @@ import UiDescriptionItem from '../../components/ui/UiDescriptionItem.vue'
 import UiDescriptionList from '../../components/ui/UiDescriptionList.vue'
 import UiEmptyState from '../../components/ui/UiEmptyState.vue'
 import UiIcon from '../../components/ui/UiIcon.vue'
+import UiIconTile from '../../components/ui/UiIconTile.vue'
 import UiPageHeading from '../../components/ui/UiPageHeading.vue'
 import UiSectionHeading from '../../components/ui/UiSectionHeading.vue'
 import UiSpinner from '../../components/ui/UiSpinner.vue'
@@ -89,39 +96,43 @@ onMounted(() => {
 </script>
 
 <template>
-  <section class="w-full max-w-2xl">
+  <section class="w-full">
     <UiPageHeading
       class="mb-4"
+      :eyebrow="t('backups.list.heading')"
       :title="t('backups.destinations.heading')"
       :subtitle="t('backups.destinations.subtitle')"
       :note="t('backups.destinations.readOnlyNote')"
     />
 
+    <!-- The one thing that needs attention goes first: a refusal or a failed read. It is the
+         backend's own localized sentence, so the SPA holds no copy of it. -->
     <UiAlert v-if="store.errorMessage !== null" variant="error" class="mb-4">
       {{ store.errorMessage }}
     </UiAlert>
 
     <UiSpinner v-if="store.loading" :label="t('backups.destinations.loading')" />
 
-    <template v-else-if="store.isLoaded">
-      <UiEmptyState
-        v-if="isEmpty"
-        class="mb-6"
-        :title="t('backups.destinations.emptyTitle')"
-        :description="t('backups.destinations.emptyDescription')"
-      >
-        <template #icon>
-          <UiIcon name="archive" aria-hidden="true" />
-        </template>
-      </UiEmptyState>
+    <div v-else-if="store.isLoaded" class="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:items-start">
+      <UiCard v-if="isEmpty" class="lg:col-span-2">
+        <UiEmptyState
+          :title="t('backups.destinations.emptyTitle')"
+          :description="t('backups.destinations.emptyDescription')"
+        >
+          <template #icon>
+            <UiIcon name="archive" aria-hidden="true" />
+          </template>
+        </UiEmptyState>
+      </UiCard>
 
-      <UiCard v-for="destination in store.destinations" :key="destination.id" class="mb-4">
-        <div class="mb-3 flex items-center gap-2">
+      <UiCard v-for="destination in store.destinations" :key="destination.id">
+        <div class="mb-4 flex items-center gap-3">
+          <UiIconTile name="hardDrive" />
           <!-- The heading is the backend's localized name; the stored one is shown as a field
                below whenever the two differ. They differ for exactly one row — the destination this
                panel seeded and named itself in English — so an operator-named destination is
                headed by the words the operator typed, never by a translation of them. -->
-          <UiSectionHeading :title="destination.displayName" />
+          <UiSectionHeading class="min-w-0 flex-1" :title="destination.displayName" />
           <UiBadge v-if="destination.isDefault" variant="info">
             {{ t('backups.destinations.default') }}
           </UiBadge>
@@ -150,7 +161,7 @@ onMounted(() => {
             :term="t('backups.destinations.fields.path')"
             :mono="destination.path !== null"
           >
-            <template v-if="destination.path !== null">{{ destination.path }}</template>
+            <span v-if="destination.path !== null" class="break-all">{{ destination.path }}</span>
             <span v-else class="text-text-secondary">{{
               t('backups.destinations.pathUnestablished')
             }}</span>
@@ -159,23 +170,29 @@ onMounted(() => {
             {{ recordedAt(destination.createdAt) }}
           </UiDescriptionItem>
         </UiDescriptionList>
-        <p v-if="destination.isDefault" class="mt-3 text-sm text-text-secondary">
+        <p v-if="destination.isDefault" class="mt-4 text-sm text-text-secondary">
           {{ t('backups.destinations.defaultHint') }}
         </p>
       </UiCard>
 
-      <UiCard class="mb-4">
+      <UiCard>
         <UiSectionHeading
-          class="mb-3"
+          class="mb-4"
           :title="t('backups.destinations.kindsHeading')"
           :subtitle="t('backups.destinations.kindsSubtitle')"
         />
         <!-- Both kinds the panel knows about, and which of them this build writes to. There is no
              control here on purpose: the endpoint that would record a destination refuses every
              request it can be given, so a button would offer a choice that does not exist. -->
-        <div v-for="entry in KINDS" :key="entry.kind" class="mb-3 last:mb-0">
-          <div class="flex items-center gap-2">
-            <span class="text-sm font-semibold text-text-primary">{{ kindText.label(entry.kind) }}</span>
+        <div
+          v-for="entry in KINDS"
+          :key="entry.kind"
+          class="border-t border-border-subtle py-3 first:border-t-0 first:pt-0 last:pb-0"
+        >
+          <div class="flex flex-wrap items-center gap-2">
+            <span class="text-sm font-semibold text-text-primary">{{
+              kindText.label(entry.kind)
+            }}</span>
             <UiBadge :variant="entry.admits ? 'success' : 'neutral'">
               {{
                 entry.admits
@@ -189,7 +206,7 @@ onMounted(() => {
       </UiCard>
 
       <UiCard>
-        <UiSectionHeading class="mb-3" :title="t('backups.destinations.aboutHeading')" />
+        <UiSectionHeading class="mb-4" :title="t('backups.destinations.aboutHeading')" />
         <!-- Each of these is something a page listing a storage location is read as promising and
              does not. They are on the screen rather than in a doc comment because the operator
              reading a path is the person who would otherwise believe all three. -->
@@ -197,8 +214,10 @@ onMounted(() => {
         <p class="mt-2 text-sm text-text-secondary">
           {{ t('backups.destinations.about.notEncrypted') }}
         </p>
-        <p class="mt-2 text-sm text-text-secondary">{{ t('backups.destinations.about.adminOnly') }}</p>
+        <p class="mt-2 text-sm text-text-secondary">
+          {{ t('backups.destinations.about.adminOnly') }}
+        </p>
       </UiCard>
-    </template>
+    </div>
   </section>
 </template>

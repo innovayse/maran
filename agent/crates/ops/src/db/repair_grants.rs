@@ -119,6 +119,8 @@ const ALL_PRIVILEGES: &str = "GRANT ALL PRIVILEGES ON ";
 ///   agent will read, or a row is not the three fields it asked for.
 /// - [`DbError::ClientFailed`] for any other refusal by the server, on the first
 ///   statement refused.
+/// - [`DbError::Bound`] when the client ran past its deadline, so no answer was
+///   read. A statement already sent may nevertheless take effect on the server.
 pub fn repair_grants(host: &dyn DbHost, report_only: bool) -> Result<GrantRepairReport, DbError> {
     let rows = grant_rows(host)?;
     let databases = server_databases(host)?;

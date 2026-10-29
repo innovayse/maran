@@ -8,10 +8,17 @@
  * where the lockout confirmation lives. It also refuses to emit until its own rules pass, so the
  * round trip it saves is a real saving rather than a message printed beside a request that went
  * anyway.
+ *
+ * **Layout (redesign, October 2026).** One {@link UiCard}: the four fields in a grid that is one
+ * column on a phone, two on a tablet and four on a desktop, then a hairline and a footer with the
+ * hint on the left and the submit pill on the right (full width on a phone). The grid aligns to the
+ * top so a field's error message grows downwards instead of stretching its neighbours. The root is
+ * the card itself, so a class the page passes (its bottom margin) lands on the panel.
  */
 import { computed, ref, type ComputedRef, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import UiButton from '../ui/UiButton.vue'
+import UiCard from '../ui/UiCard.vue'
 import UiForm from '../ui/UiForm.vue'
 import UiInput from '../ui/UiInput.vue'
 import UiSelect, { type SelectOption } from '../ui/UiSelect.vue'
@@ -188,9 +195,9 @@ defineExpose({ reset })
 </script>
 
 <template>
-  <div class="rounded-xl border border-border-subtle bg-surface-1">
+  <UiCard>
     <UiForm @submit="submit">
-      <div class="grid gap-3.5 p-4.5 sm:grid-cols-4">
+      <div class="grid items-start gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <UiInput
           v-model="port"
           :label="t('firewall.rules.form.fields.port')"
@@ -219,13 +226,13 @@ defineExpose({ reset })
         />
       </div>
       <div
-        class="flex flex-wrap items-center justify-between gap-2 rounded-b-xl border-t border-border-subtle bg-surface-2 px-4.5 py-3"
+        class="mt-5 flex flex-col gap-3 border-t border-border-subtle pt-4 sm:flex-row sm:items-center sm:justify-between sm:gap-4"
       >
-        <p class="text-sm text-text-muted">{{ t('firewall.rules.form.hint') }}</p>
-        <UiButton type="submit" :disabled="submitting">
+        <p class="min-w-0 text-sm text-text-muted">{{ t('firewall.rules.form.hint') }}</p>
+        <UiButton type="submit" class="shrink-0" :disabled="submitting">
           {{ t('firewall.rules.form.submit') }}
         </UiButton>
       </div>
     </UiForm>
-  </div>
+  </UiCard>
 </template>

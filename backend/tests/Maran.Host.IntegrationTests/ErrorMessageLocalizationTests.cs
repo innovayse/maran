@@ -65,6 +65,30 @@ public sealed class ErrorMessageLocalizationTests : IAsyncLifetime
     /// <summary>The Russian resx text of an SFTP login-name refusal, from a different module.</summary>
     private const string SftpNameRussian = "Имя пользователя SFTP может содержать только строчные латинские буквы";
 
+    /// <summary>The neutral resx text of the reserved-account-name refusal, in full.</summary>
+    private const string ReservedNameEnglish =
+        "This account name is reserved for the system and cannot be used. Choose another name.";
+
+    /// <summary>The Russian resx text of the reserved-account-name refusal.</summary>
+    private const string ReservedNameRussian =
+        "Это имя аккаунта зарезервировано системой и не может быть использовано. Выберите другое имя.";
+
+    /// <summary>The Armenian resx text of the reserved-account-name refusal.</summary>
+    private const string ReservedNameArmenian =
+        "Այս անվանումը վերապահված է համակարգի համար և չի կարող օգտագործվել։ Ընտրեք այլ անվանում։";
+
+    /// <summary>The neutral resx text of the malformed-account-name refusal, in full.</summary>
+    private const string InvalidNameEnglish =
+        "This account name is not valid. Use 3 to 30 lowercase letters, digits or underscores, starting with a letter.";
+
+    /// <summary>The Russian resx text of the malformed-account-name refusal.</summary>
+    private const string InvalidNameRussian =
+        "Недопустимое имя аккаунта. Используйте от 3 до 30 строчных латинских букв, цифр или знаков подчёркивания, начиная с буквы.";
+
+    /// <summary>The Armenian resx text of the malformed-account-name refusal.</summary>
+    private const string InvalidNameArmenian =
+        "Հաշվի անվանումը անթույլատրելի է։ Օգտագործեք 3-ից 30 փոքրատառ լատինական տառ, թվանշան կամ ընդգծման նշան, սկսած տառով։";
+
     private readonly TestDatabase _pg;
 
     /// <summary>Binds this test to the PostgreSQL server the assembly shares.</summary>
@@ -181,6 +205,105 @@ public sealed class ErrorMessageLocalizationTests : IAsyncLifetime
         var detail = await RefusedPassiveAddressDetailAsync(client);
 
         Assert.Contains(PassiveAddressEnglish, detail, StringComparison.Ordinal);
+    }
+
+    /// <summary>Each supported language with the reserved-name refusal that language's resx holds.</summary>
+    public static TheoryData<string, string> ReservedNameRefusalPerLanguage()
+    {
+        return new TheoryData<string, string>
+        {
+            { "en", ReservedNameEnglish },
+            { "ru", ReservedNameRussian },
+            { "hy", ReservedNameArmenian },
+        };
+    }
+
+    /// <summary>Each supported language with the malformed-name refusal that language's resx holds.</summary>
+    public static TheoryData<string, string> InvalidNameRefusalPerLanguage()
+    {
+        return new TheoryData<string, string>
+        {
+            { "en", InvalidNameEnglish },
+            { "ru", InvalidNameRussian },
+            { "hy", InvalidNameArmenian },
+        };
+    }
+
+    /// <summary>A reserved account name is refused in the language the panel asked for, over real HTTP.</summary>
+    /// <param name="language">The <c>Accept-Language</c> the panel sends.</param>
+    /// <param name="expected">That language's own resx value for the refusal.</param>
+    [Theory]
+    [MemberData(nameof(ReservedNameRefusalPerLanguage))]
+    public async Task A_reserved_account_name_is_refused_in_the_language_the_panel_asked_for(
+        string language, string expected)
+    {
+        await using var factory = CreateFactory();
+        await MigrateAsync(factory);
+        await SeedAsync(factory);
+        using var client = await SignInAsync(factory, "admin");
+        client.DefaultRequestHeaders.AcceptLanguage.Clear();
+        client.DefaultRequestHeaders.AcceptLanguage.Add(new StringWithQualityHeaderValue(language));
+
+        var detail = await RefusedAccountNameDetailAsync(factory, client, "root");
+
+        Assert.Equal(expected, detail);
+    }
+
+    /// <summary>A malformed account name is refused in the language the panel asked for, over real HTTP.</summary>
+    /// <param name="language">The <c>Accept-Language</c> the panel sends.</param>
+    /// <param name="expected">That language's own resx value for the refusal.</param>
+    [Theory]
+    [MemberData(nameof(InvalidNameRefusalPerLanguage))]
+    public async Task A_malformed_account_name_is_refused_in_the_language_the_panel_asked_for(
+        string language, string expected)
+    {
+        await using var factory = CreateFactory();
+        await MigrateAsync(factory);
+        await SeedAsync(factory);
+        using var client = await SignInAsync(factory, "admin");
+        client.DefaultRequestHeaders.AcceptLanguage.Clear();
+        client.DefaultRequestHeaders.AcceptLanguage.Add(new StringWithQualityHeaderValue(language));
+
+        var detail = await RefusedAccountNameDetailAsync(factory, client, "acme-01");
+
+        Assert.Equal(expected, detail);
+    }
+
+    /// <summary>
+    /// The two account-name refusals are different sentences in every language, so a reserved name
+    /// is never reported as a malformed one nor the reverse.
+    /// </summary>
+    [Fact]
+    public void The_reserved_and_malformed_refusals_are_different_words_in_every_language()
+    {
+        Assert.NotEqual(ReservedNameEnglish, InvalidNameEnglish);
+        Assert.NotEqual(ReservedNameRussian, InvalidNameRussian);
+        Assert.NotEqual(ReservedNameArmenian, InvalidNameArmenian);
+        Assert.Equal(
+            3,
+            new[] { ReservedNameEnglish, ReservedNameRussian, ReservedNameArmenian }.Distinct(StringComparer.Ordinal).Count());
+    }
+
+    /// <summary>Asks the accounts surface to create an account with <paramref name="name"/> and returns the refusal's detail.</summary>
+    /// <param name="factory">The booted host.</param>
+    /// <param name="client">A signed-in client carrying the language under test.</param>
+    /// <param name="name">The account name to submit.</param>
+    /// <returns>The <c>detail</c> member of the problem document.</returns>
+    private static async Task<string> RefusedAccountNameDetailAsync(
+        WebApplicationFactory<Program> factory, HttpClient client, string name)
+    {
+        Guid planId;
+        using (var scope = factory.Services.CreateScope())
+        {
+            var accounts = scope.ServiceProvider.GetRequiredService<AccountsDbContext>();
+            planId = await accounts.Plans.Select(plan => plan.Id).FirstAsync();
+        }
+
+        var response = await client.PostAsJsonAsync(
+            "/api/v1/accounts",
+            new { Name = name, PrimaryDomain = "name-check.example.com", PlanId = planId, OwnerEmail = "owner@example.com" });
+
+        return await DetailOfAsync(response);
     }
 
     /// <summary>Asks the FTPS surface to accept an IPv6 passive address and returns the refusal's detail.</summary>

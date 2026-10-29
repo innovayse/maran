@@ -3,9 +3,11 @@
 use std::fs;
 
 use maran_agent_core::command_outcome::CommandOutcome;
+use maran_agent_core::utils::call_class::CallClass;
 use maran_agent_core::utils::spawn_argv::spawn_argv;
 use maran_agent_core::utils::system_account::SystemAccount;
 use maran_agent_core::utils::system_accounts::system_accounts;
+use maran_distro::AdapterBinary;
 
 use crate::logins::logins_error::LoginsError;
 use crate::logins::logins_host::LoginsHost;
@@ -59,20 +61,33 @@ impl LoginsHost for ProcessLoginsHost {
         Ok(system_accounts(&passwd))
     }
 
-    /// Spawns `program` with `arguments` as an argv array.
+    /// Spawns `program` with `arguments` as an argv array, for at most the
+    /// deadline of `class`.
     ///
     /// No shell is involved, at any point (rules/security.md item 3): the
     /// arguments reach `execve` one by one, so there is no command line for
-    /// anything to re-parse. `program` comes from the `DistroAdapter`'s
-    /// allow-list and never from a request. The spawn itself is [`spawn_argv`],
-    /// shared with every other host that runs an argv array and needs nothing
-    /// on the child's standard input.
+    /// anything to re-parse. `program` is an [`AdapterBinary`], which only the
+    /// distro crate can build, so it never comes from a request. The spawn itself
+    /// is [`spawn_argv`], shared with every other host that runs an argv array
+    /// and needs nothing on the child's standard input: the child gets
+    /// `/dev/null`, its own process group and a deadline, and the group is
+    /// killed when the deadline passes.
     ///
     /// # Errors
     ///
     /// Returns [`LoginsError::SpawnFailed`] with a `code` of `-1` when the
-    /// program cannot be started at all.
-    fn run(&self, program: &str, arguments: &[&str]) -> Result<CommandOutcome, LoginsError> {
-        spawn_argv(program, arguments).map_err(|_| LoginsError::program_unavailable())
+    /// program cannot be started at all, and [`LoginsError::Bound`] when it
+    /// outran its deadline or its output ceiling.
+    fn run(
+        &self,
+        program: &AdapterBinary,
+        arguments: &[&str],
+        class: CallClass,
+    ) -> Result<CommandOutcome, LoginsError> {
+        Ok(spawn_argv(program.as_path(), arguments, class)?)
     }
 }
+
+#[cfg(test)]
+#[path = "../tests/logins/process_logins_host_tests.rs"]
+mod tests;

@@ -44,6 +44,52 @@ use super::model::quota_unenforceable_reason::QuotaUnenforceableReason;
 /// mounted with a quota-accounting option (`usrquota`, `uquota`, or
 /// `usrjquota` — one covers ext-family filesystems, the other two XFS).
 #[must_use]
+/// The argument `setquota` and `quotaon` should be given for the filesystem that holds `path`:
+/// its BLOCK DEVICE.
+///
+/// Both tools take a mount point or a device, and only the device is right here — for a reason
+/// that is invisible from outside the agent. systemd gives this service a mount namespace, and
+/// `ReadWritePaths=/home` is implemented as a BIND MOUNT of /home onto itself. So the agent's own
+/// `/proc/mounts` lists `/home` as a mount point while the host's does not:
+///
+/// ```text
+/// host:   (no entry for /home — it is a directory of /)
+/// agent:  /dev/mapper/vg-root /home ext4 rw,nosuid,relatime,quota,usrquota
+/// ```
+///
+/// Resolving a mount POINT therefore gives `/home` inside the agent, and `setquota /home` answers
+/// "Mountpoint (or device) /home not found or has no quota enabled" — the bind is not the
+/// filesystem the quota subsystem is keyed to. The device is the same string in both views.
+///
+/// The longest mount point that is a prefix of `path` wins, which is what the kernel means by "the
+/// filesystem this path is on". A prefix must end at a boundary, so `/homer` never matches
+/// `/home`. Returns `None` when the table names no device for it, which a caller reports rather
+/// than guessing a path that cannot be right (issue #73).
+pub(crate) fn quota_device_for<'a>(mounts_text: &'a str, path: &str) -> Option<&'a str> {
+    let mut best: Option<(&str, &str)> = None;
+    for line in mounts_text.lines() {
+        let mut fields = line.split_whitespace();
+        let Some(device) = fields.next() else {
+            continue;
+        };
+        let Some(mount_point) = fields.next() else {
+            continue;
+        };
+        let contains = mount_point == "/"
+            || path == mount_point
+            || path
+                .strip_prefix(mount_point)
+                .is_some_and(|rest| rest.starts_with('/'));
+        if !contains {
+            continue;
+        }
+        if best.is_none_or(|(_, previous)| mount_point.len() >= previous.len()) {
+            best = Some((device, mount_point));
+        }
+    }
+    best.map(|(device, _)| device)
+}
+
 fn mounted_with_quota_accounting(mounts_text: &str, mountpoint: &str) -> bool {
     mounts_text.lines().any(|line| {
         let mut fields = line.split_whitespace();

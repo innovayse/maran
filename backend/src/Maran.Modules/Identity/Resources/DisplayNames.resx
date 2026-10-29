@@ -108,6 +108,15 @@
   <data name="AuditActionAccountHomeGroupsRepaired">
     <value>Account home groups repaired</value>
   </data>
+  <data name="AuditActionPlanCreated">
+    <value>Plan created</value>
+  </data>
+  <data name="AuditActionPlanUpdated">
+    <value>Plan updated</value>
+  </data>
+  <data name="AuditActionPlanDeleted">
+    <value>Plan deleted</value>
+  </data>
   <data name="AuditActionSftpUserCreated">
     <value>SFTP login created</value>
   </data>
@@ -237,10 +246,25 @@
   <data name="AuditActionCustomerInvited">
     <value>Customer invited</value>
   </data>
+  <data name="AuditActionInvitationLinkIssued">
+    <value>Invitation link created</value>
+  </data>
   <data name="AuditActionInvitationAccepted">
     <value>Invitation accepted</value>
   </data>
   <data name="AuditActionInvitationAcceptRefused">
     <value>Invitation acceptance refused</value>
+  </data>
+  <data name="InvitationStateNone">
+    <value>No invitation yet</value>
+  </data>
+  <data name="InvitationStatePending">
+    <value>Invitation pending</value>
+  </data>
+  <data name="InvitationStateExpired">
+    <value>Invitation expired</value>
+  </data>
+  <data name="InvitationStateAccepted">
+    <value>Invitation accepted</value>
   </data>
 </root>

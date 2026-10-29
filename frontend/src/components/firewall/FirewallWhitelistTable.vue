@@ -112,6 +112,9 @@ watch(
 </script>
 
 <template>
+  <!-- `UiTable` scrolls inside its own container, so at 390px the table keeps its columns and the
+       page never moves sideways: the machine-text columns refuse to wrap, the note is the one that
+       does. -->
   <UiTable :caption="t('firewall.whitelist.tableCaption')">
     <template #head>
       <UiTableRow>
@@ -122,33 +125,33 @@ watch(
       </UiTableRow>
     </template>
     <UiTableRow v-for="entry in entries" :key="entry.id">
-      <UiTableCell class="font-mono font-medium">{{ entry.cidr }}</UiTableCell>
-      <!-- The panel's own words, shown as written: this is what tells an operator that a row is the
-           installer's seed rather than one of theirs. -->
-      <UiTableCell class="text-text-secondary">
-        <span class="block max-w-[420px] truncate">{{ entry.note }}</span>
+      <!-- A range is machine text: the mono face, as typed, never uppercased. -->
+      <UiTableCell mono class="font-medium whitespace-nowrap">{{ entry.cidr }}</UiTableCell>
+      <!-- The panel's own words, shown whole and as written: this is what tells an operator that a
+           row is the installer's seed rather than one of theirs, so it wraps instead of being cut
+           off with an ellipsis. -->
+      <UiTableCell tone="secondary" class="min-w-56">
+        <span class="block max-w-md wrap-anywhere">{{ entry.note }}</span>
       </UiTableCell>
-      <UiTableCell class="font-mono text-text-muted">
+      <UiTableCell mono tone="muted" class="whitespace-nowrap">
         {{ formatDate(entry.createdAt, localeStore.current) }}
       </UiTableCell>
       <UiTableCell align="end">
-        <div class="flex flex-wrap items-center justify-end gap-2">
-          <UiDropdown
-            :label="t('common.actions')"
-            :aria-label="t('firewall.whitelist.rowActions', { cidr: entry.cidr })"
-            align="end"
-            variant="bare"
-            :chevron="false"
-            :disabled="busy"
-          >
-            <template #trigger>
-              <UiIcon name="ellipsis" size="md" />
-            </template>
-            <UiDropdownItem destructive @select="ask(entry.id)">
-              {{ t('firewall.whitelist.remove') }}
-            </UiDropdownItem>
-          </UiDropdown>
-        </div>
+        <UiDropdown
+          :label="t('common.actions')"
+          :aria-label="t('firewall.whitelist.rowActions', { cidr: entry.cidr })"
+          align="end"
+          variant="bare"
+          :chevron="false"
+          :disabled="busy"
+        >
+          <template #trigger>
+            <UiIcon name="ellipsis" size="md" />
+          </template>
+          <UiDropdownItem destructive @select="ask(entry.id)">
+            {{ t('firewall.whitelist.remove') }}
+          </UiDropdownItem>
+        </UiDropdown>
       </UiTableCell>
     </UiTableRow>
   </UiTable>

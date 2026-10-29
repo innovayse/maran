@@ -11,6 +11,7 @@
 //! (rules/architecture.md).
 
 pub mod adapter;
+pub mod adapter_binary;
 pub mod adapter_for;
 pub mod debian;
 pub mod detection;
@@ -19,6 +20,7 @@ pub mod rhel;
 pub mod vsftpd_tls_version_keys;
 
 pub use adapter::DistroAdapter;
+pub use adapter_binary::AdapterBinary;
 pub use adapter_for::adapter_for;
 pub use detection::detect::detect;
 pub use detection::detect_error::DetectError;

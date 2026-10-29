@@ -15,6 +15,10 @@ use crate::services::wire::invalid_input::invalid_input;
 /// the domain becomes a path segment, a `server_name` and a
 /// certificate directory, so both are checked where they are used.
 ///
+/// The reserved host-name set is enforced here, so this is the identity of a site
+/// being created or re-served. The cleanup and read-only rpcs use
+/// `validated_existing_identity`, which checks the shape alone.
+///
 /// # Errors
 ///
 /// Returns the wire error for a name or a domain the agent will not accept.
@@ -28,3 +32,7 @@ pub fn validated_identity(
 
     Ok((account, domain))
 }
+
+#[cfg(test)]
+#[path = "../../tests/services/sites/validated_identity_tests.rs"]
+mod tests;

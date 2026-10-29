@@ -1027,6 +1027,7 @@ dependencies = [
 name = "maran-distro"
 version = "1.0.0-beta.3"
 dependencies = [
+ "maran-agent-core",
  "thiserror",
 ]
 

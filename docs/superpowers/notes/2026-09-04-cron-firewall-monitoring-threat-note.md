@@ -827,7 +827,8 @@ An administrator whose panel forces a second factor and who holds none is issued
 carrying `tfa_setup`, and `TwoFactorEnrolmentCompleteHandler` refuses every endpoint not
 marked `[AllowDuringTwoFactorEnrolment]`. The requirement is attached to *both* panel
 policies and to `DefaultPolicy` as well as `FallbackPolicy`, because a bare `[Authorize]`
-evaluates the default policy — and several auth endpoints carry exactly that. The
+evaluates the default policy, so a module's bare form is steered too (no endpoint uses it
+today: every one names its policy). The
 restriction is global and the exemption is per endpoint, so an endpoint added tomorrow is
 refused by default and the failure mode of forgetting the marker is somebody locked out of
 a screen, which is loud, rather than a screen quietly left open.

@@ -2,16 +2,32 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use maran_agent_core::utils::call_class::CallClass;
+use maran_agent_core::validation::system::managed_account::ManagedAccount;
+
 use crate::logins::end_account_sessions::end_account_sessions;
 use crate::logins::fake_logins_host::{
     ACCOUNT_UID, FakeLoginsHost, OTHER_UID, account, account_row, distro,
 };
 use crate::logins::logins_error::LoginsError;
 
+/// The proof the cull is handed, resolved from the one row `alice` has.
+///
+/// Built through the real resolution and not a stand-in: the refusals (a
+/// reserved name, a system id, a foreign home) belong to the managed-account
+/// type and are tested there and through `resolve_managed_account`, so this
+/// suite only needs a proof that is genuine.
+fn managed() -> ManagedAccount {
+    let (name, uid, home) = account_row();
+    let passwd = format!("{name}:x:{uid}:{uid}::{home}:/bin/sh\n");
+
+    ManagedAccount::resolve(account(), &passwd).expect("alice is a hosting account")
+}
+
 /// The argv the cull is expected to run, as a host's `ps` would show it.
 fn expected_argv(uid: u32) -> Vec<String> {
     vec![
-        distro().pkill_binary().to_owned(),
+        distro().pkill_binary().as_str().to_owned(),
         "--signal".to_owned(),
         "KILL".to_owned(),
         "--count".to_owned(),
@@ -26,7 +42,7 @@ fn every_process_running_as_the_account_is_signalled_and_counted() {
         .with_process(ACCOUNT_UID)
         .with_process(ACCOUNT_UID);
 
-    let ended = end_account_sessions(&host, distro(), &account()).expect("culled");
+    let ended = end_account_sessions(&host, distro(), &managed()).expect("culled");
 
     assert_eq!(ended, 2, "the count is what an operator is told");
     assert!(host.running_processes().is_empty());
@@ -39,7 +55,7 @@ fn the_cull_names_the_accounts_own_uid_and_takes_the_program_from_the_adapter() 
     // uid, at the wrong signal, or through a program name PATH would resolve.
     let host = FakeLoginsHost::with_passwd(&[account_row()]).with_process(ACCOUNT_UID);
 
-    end_account_sessions(&host, distro(), &account()).expect("culled");
+    end_account_sessions(&host, distro(), &managed()).expect("culled");
 
     let argv: Vec<Vec<String>> = host.spawns().into_iter().map(|spawn| spawn.argv).collect();
     assert_eq!(argv, vec![expected_argv(ACCOUNT_UID)]);
@@ -54,7 +70,7 @@ fn a_process_belonging_to_another_account_survives_the_cull() {
         .with_process(ACCOUNT_UID)
         .with_process(OTHER_UID);
 
-    let ended = end_account_sessions(&host, distro(), &account()).expect("culled");
+    let ended = end_account_sessions(&host, distro(), &managed()).expect("culled");
 
     assert_eq!(ended, 1);
     assert_eq!(host.running_processes(), vec![OTHER_UID]);
@@ -67,50 +83,9 @@ fn an_account_with_nothing_running_is_a_success_and_not_a_failure() {
     // refuse the suspension of every idle account on the host.
     let host = FakeLoginsHost::with_passwd(&[account_row()]);
 
-    let ended = end_account_sessions(&host, distro(), &account()).expect("culled");
+    let ended = end_account_sessions(&host, distro(), &managed()).expect("culled");
 
     assert_eq!(ended, 0);
-}
-
-#[test]
-fn an_account_whose_row_carries_uid_zero_is_refused_before_anything_is_signalled() {
-    // The guard whose absence is catastrophic rather than merely wrong: the
-    // account-name grammar accepts `root`, and `pkill --uid 0` on a real host
-    // ends systemd, sshd, the database and the panel. The home is the one this
-    // agent gives a hosting account, so the OTHER guard cannot be what refuses
-    // this row — the two are mutated and scored separately.
-    let host = FakeLoginsHost::with_passwd(&[("alice", 0, "/home/alice")]);
-
-    let refused = end_account_sessions(&host, distro(), &account());
-
-    assert!(
-        matches!(refused, Err(LoginsError::SessionCullRefusedUid)),
-        "got {refused:?}"
-    );
-    assert!(
-        host.spawns().is_empty(),
-        "nothing may be run once the uid has been refused"
-    );
-}
-
-#[test]
-fn an_account_not_homed_where_this_agent_homes_one_is_refused_before_anything_is_signalled() {
-    // A hosting account colliding with a pre-existing system user: `mail` at
-    // uid 8 passes the uid guard and must still be refused, because this agent
-    // did not create it and its processes are the host's mail daemon. The uid is
-    // non-zero, so the other guard cannot be what refuses this row.
-    let host = FakeLoginsHost::with_passwd(&[("alice", 8, "/var/spool/mail")]);
-
-    let refused = end_account_sessions(&host, distro(), &account());
-
-    assert!(
-        matches!(refused, Err(LoginsError::SessionCullRefusedHome)),
-        "got {refused:?}"
-    );
-    assert!(
-        host.spawns().is_empty(),
-        "nothing may be run once the home has been refused"
-    );
 }
 
 #[test]
@@ -121,7 +96,7 @@ fn a_refusing_pkill_fails_the_cull_rather_than_reporting_a_count() {
     let host = FakeLoginsHost::with_passwd(&[account_row()]).with_process(ACCOUNT_UID);
     host.refuse_pkill_with(2);
 
-    let refused = end_account_sessions(&host, distro(), &account());
+    let refused = end_account_sessions(&host, distro(), &managed());
 
     assert!(
         matches!(refused, Err(LoginsError::SessionCullFailed { code: 2 })),
@@ -130,32 +105,37 @@ fn a_refusing_pkill_fails_the_cull_rather_than_reporting_a_count() {
 }
 
 #[test]
-fn a_password_database_that_cannot_be_read_refuses_instead_of_culling_nothing() {
-    // The vacuity guard on the axis that can go blind: an unreadable database
-    // yields no row, and "no row" must never degrade into a cull of uid 0 or
-    // into a silent success.
+fn the_cull_runs_as_a_mutation_and_names_no_end_of_options_marker() {
+    // Pins the class (a kill is a short state change, not a query: a Query
+    // deadline would also be 60 s but would read as a question to the next
+    // maintainer) and the inverse control of the `--` guard: the uid is the
+    // argument of `--uid`, so nothing follows it for a marker to protect, and a
+    // `--` in front of it would make `pkill` read the uid as an operand.
     let host = FakeLoginsHost::with_passwd(&[account_row()]).with_process(ACCOUNT_UID);
-    host.refuse_to_be_read();
 
-    let refused = end_account_sessions(&host, distro(), &account());
+    end_account_sessions(&host, distro(), &managed()).expect("culled");
 
+    let spawns = host.spawns();
+    assert_eq!(spawns.len(), 1, "{spawns:?}");
+    assert_eq!(spawns[0].class, CallClass::Mutation);
     assert!(
-        matches!(refused, Err(LoginsError::AccountMissing)),
-        "got {refused:?}"
+        !spawns[0].argv.iter().any(|argument| argument == "--"),
+        "got {:?}",
+        spawns[0].argv
     );
-    assert_eq!(host.running_processes(), vec![ACCOUNT_UID]);
 }
 
 #[test]
-fn a_database_holding_no_row_for_the_account_is_refused() {
-    let host =
-        FakeLoginsHost::with_passwd(&[("bob", OTHER_UID, "/home/bob")]).with_process(OTHER_UID);
+fn a_pkill_that_times_out_is_a_bound_and_not_a_count_of_zero() {
+    // How many processes were signalled before the kill is unknown, so the
+    // answer is an error. Zero would tell a suspension that nothing was running.
+    let host = FakeLoginsHost::with_passwd(&[account_row()]).with_process(ACCOUNT_UID);
+    host.time_out("pkill");
 
-    let refused = end_account_sessions(&host, distro(), &account());
+    let failed = end_account_sessions(&host, distro(), &managed());
 
     assert!(
-        matches!(refused, Err(LoginsError::AccountMissing)),
-        "got {refused:?}"
+        matches!(failed, Err(LoginsError::Bound(_))),
+        "got {failed:?}"
     );
-    assert_eq!(host.running_processes(), vec![OTHER_UID]);
 }

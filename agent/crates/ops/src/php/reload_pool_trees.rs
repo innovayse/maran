@@ -1,6 +1,8 @@
 //! Validating every installed version's php-fpm pool tree on disk, and
 //! reloading the services that accept theirs — writing nothing.
 
+use maran_agent_core::utils::call_class::CallClass;
+use maran_agent_core::validation::web::php_version::PhpVersion;
 use maran_distro::DistroAdapter;
 
 use crate::php::model::pool_tree_decision::PoolTreeDecision;
@@ -8,6 +10,7 @@ use crate::php::model::pool_tree_outcome::PoolTreeOutcome;
 use crate::php::write_pool::{RELOAD_SUBCOMMAND, VALIDATE_ARGUMENT};
 use crate::php::{PhpHost, PhpOpError, list_php_versions};
 use crate::safe_write::model::{Reload, Validator};
+use maran_agent_core::end_of_options::END_OF_OPTIONS;
 
 /// Validates the pool tree of every installed PHP version and reloads the
 /// services whose trees pass.
@@ -61,6 +64,10 @@ use crate::safe_write::model::{Reload, Validator};
 /// reason the nightly backup sweep encloses each account. The enumeration's own
 /// fallible signature is folded the same way: a host that cannot be asked which
 /// versions it has yields no outcomes.
+///
+/// A validator or reload that outlived its deadline and was killed is reported as
+/// [`PoolTreeDecision::NotReloaded`] with the bound's text, never as `Refused`: the
+/// program was stopped before it could give a verdict on the tree.
 #[must_use]
 pub fn reload_pool_trees(host: &dyn PhpHost, distro: &dyn DistroAdapter) -> Vec<PoolTreeOutcome> {
     let Ok(installed) = list_php_versions(host, distro) else {
@@ -77,19 +84,37 @@ pub fn reload_pool_trees(host: &dyn PhpHost, distro: &dyn DistroAdapter) -> Vec<
 ///
 /// Split out so the loop above reads as the enumeration it is, and so the
 /// argv-building lives beside the single version it describes.
+///
+/// The version arrives as the text the enumeration produced and is parsed here,
+/// because the adapter names a php-fpm binary only for a [`PhpVersion`]. A version
+/// that does not parse is reported as not reloaded and nothing is run for it; the
+/// enumeration is a closed list of supported versions, so this is a defence and not
+/// a path anything takes today.
 fn reload_one(host: &dyn PhpHost, distro: &dyn DistroAdapter, version: String) -> PoolTreeOutcome {
-    let validator_program = distro.php_fpm_binary(&version);
+    let Ok(parsed) = PhpVersion::parse(&version) else {
+        return PoolTreeOutcome {
+            version,
+            decision: PoolTreeDecision::NotReloaded,
+            stderr: "the version is not a valid PHP version, so no program was run for it"
+                .to_owned(),
+        };
+    };
+
+    let validator_program = distro.php_fpm_binary(&parsed);
     let validator = Validator {
         program: &validator_program,
         arguments: &[VALIDATE_ARGUMENT],
+        class: CallClass::Validate,
     };
     let service = distro.php_fpm_service(&version);
-    let reload_arguments = [RELOAD_SUBCOMMAND, service.as_str()];
+    // `--` before the unit: `systemctl` reads its options with `getopt_long`.
+    let reload_arguments = [RELOAD_SUBCOMMAND, END_OF_OPTIONS, service.as_str()];
+    // The absolute path of the service manager, from the adapter: `ops` names no binary
+    // path of its own, and a bare `"systemctl"` would be a program a root process
+    // resolves through `PATH`.
+    let service_manager = distro.service_manager();
     let reload = Reload {
-        // The absolute path of the service manager, from the adapter: `ops`
-        // names no binary path of its own, and a bare `"systemctl"` would be a
-        // program a root process resolves through `PATH`.
-        program: distro.service_manager(),
+        program: &service_manager,
         arguments: &reload_arguments,
     };
 

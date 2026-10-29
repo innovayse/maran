@@ -5,6 +5,7 @@
       "suspended": "Suspended"
     },
     "list": {
+      "eyebrow": "Hosting",
       "heading": "Accounts",
       "subtitle": "Hosting accounts on this server.",
       "createAction": "New account",
@@ -30,28 +31,29 @@
       "subtitle": "The panel checks these values before sending them, and the server checks them again.",
       "fields": {
         "primaryDomain": "Primary domain",
-        "planId": "Plan ID",
+        "plan": "Plan",
         "ownerEmail": "Owner email"
       },
       "placeholders": {
         "name": "example",
         "primaryDomain": "example.com",
-        "planId": "Choose a plan",
+        "plan": "Choose a plan",
         "ownerEmail": "owner{'@'}example.com"
       },
       "submit": "Create account",
       "errors": {
         "nameRequired": "Name is required.",
-        "nameInvalid": "Name must be a lowercase, Linux-username-safe identifier (letters, digits, hyphen, underscore, starting with a letter, 3-32 characters).",
+        "nameInvalid": "Name must be a lowercase, Linux-username-safe identifier (letters, digits, underscore, starting with a letter, 3-30 characters).",
         "primaryDomainRequired": "Primary domain is required.",
         "primaryDomainInvalid": "Primary domain must be a valid domain name.",
-        "planIdRequired": "Plan ID is required.",
+        "planRequired": "Choose a plan.",
         "ownerEmailRequired": "Owner email is required.",
         "ownerEmailInvalid": "Owner email must be a valid email address."
       },
       "planOption": "{name} — {disk} MB, {sites} sites"
     },
     "detail": {
+      "heading": "Account",
       "loading": "Loading the account…",
       "notFoundTitle": "Account not found",
       "notFoundDescription": "It may have been deleted since this link was made.",
@@ -67,7 +69,8 @@
       "confirmSuspendTitle": "Suspend account {account}",
       "confirmReactivateTitle": "Reactivate account {account}",
       "resendInvitation": "Resend invitation",
-      "invitationResent": "A new invitation has been sent. The panel cannot confirm it was delivered — its mail queue does not retry."
+      "invitationResent": "A new invitation has been sent. The panel cannot confirm it was delivered — its mail queue does not retry.",
+      "suspendedNotice": "This account is suspended. Its sites are not serving and its user cannot sign in."
     },
     "delete": {
       "title": "Delete {account}",

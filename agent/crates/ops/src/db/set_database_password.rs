@@ -68,6 +68,8 @@ const USER_HOST: &str = "localhost";
 ///   that is not a number.
 /// - [`DbError::ClientFailed`] when the server refuses a statement for any other
 ///   reason, carrying its error number and none of its output.
+/// - [`DbError::Bound`] when the client ran past its deadline, so no answer was
+///   read. A statement already sent may nevertheless take effect on the server.
 pub fn set_database_password(
     host: &dyn DbHost,
     user: &DbUserName,

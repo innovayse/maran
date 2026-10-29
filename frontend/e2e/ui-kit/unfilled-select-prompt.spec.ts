@@ -52,7 +52,8 @@ test('the plan chooser prompts for a choice instead of showing an identifier', a
   // redirect cannot pass this spec by having nothing to find.
   await expect(page.getByRole('heading', { name: 'New account' })).toBeVisible()
 
-  const chooser = page.getByRole('combobox', { name: 'Plan ID' })
+  // #80: labelled "Plan", not the DTO property "Plan ID".
+  const chooser = page.getByRole('combobox', { name: 'Plan', exact: true })
   await expect(chooser).toHaveText('Choose a plan')
   // Named separately from the text assertion above, because this is the regression itself: the
   // form must not offer a nil GUID anywhere on the screen, opened or closed.

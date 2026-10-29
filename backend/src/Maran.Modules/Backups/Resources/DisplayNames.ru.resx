@@ -63,6 +63,9 @@
   <data name="BackupFailureAgentLimitReached">
     <value>Лимит тарифа по этому аккаунту уже был исчерпан</value>
   </data>
+  <data name="BackupFailureAgentUnavailable">
+    <value>Сервер не отвечал</value>
+  </data>
   <data name="BackupDestinationDefault">
     <value>Локальное хранилище</value>
   </data>

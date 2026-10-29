@@ -1,5 +1,11 @@
 //! Failures of the SFTP user operations.
 
+use maran_agent_core::utils::bound_exceeded::BoundExceeded;
+use maran_agent_core::utils::spawn_error::SpawnError;
+use maran_agent_core::validation::system::managed_account_error::ManagedAccountError;
+
+use crate::safe_write::SafeWriteError;
+
 /// The `code` reported when a program could not be started at all.
 ///
 /// Negative so it can never collide with an exit status, every one of which is
@@ -24,11 +30,12 @@ const NO_SUCH_USER: i32 = 6;
 ///
 /// One exhaustive list for the whole area (rules/rust.md "Errors"), and a
 /// deliberately narrow one: **no variant carries a program's output**. Every
-/// payload is an `i32`, so there is no field a message could be put in. The
-/// realistic leak here is not a careless log line — it is `chpasswd` or PAM
-/// quoting back the line it refused, which contains the customer's password in
-/// full. A shape that cannot hold a string cannot hold that
-/// (rules/security.md item 8).
+/// payload is an `i32` or a [`BoundExceeded`], which names the program's path
+/// and the bound that was hit and never a byte the program printed, so there is
+/// no field a tool's message could be put in. The realistic leak here is not a
+/// careless log line — it is `chpasswd` or PAM quoting back the line it
+/// refused, which contains the customer's password in full. A shape that cannot
+/// hold a tool's text cannot hold that (rules/security.md item 8).
 ///
 /// The cost to an operator is accepted and real: a refusal that is not one of
 /// the named conditions arrives as [`Self::SpawnFailed`] with the tool's exit
@@ -146,6 +153,44 @@ pub enum SftpError {
     /// operation must never produce.
     #[error("the hosting account's identity changed while the login was being created")]
     AccountIdentityChanged,
+
+    /// The name is not a hosting account this panel may act on: it is reserved,
+    /// has a system identity, or does not have the managed home.
+    ///
+    /// Raised before any jail, login or password is touched. A name with no row
+    /// in the local password database at all is [`Self::AccountMissing`]
+    /// instead. Deliberately one variant for the three refusals, and without the
+    /// reason: naming which check failed would describe the rules to whoever is
+    /// probing them. The reason is carried only by the wrapped value of the
+    /// type that decided; this variant drops it.
+    #[error("the account is not a hosting account")]
+    AccountNotManaged,
+
+    /// A tool of this area outran its deadline or its output ceiling and was
+    /// killed together with its process group.
+    ///
+    /// Never a verdict: a killed `useradd` has not said that the login exists
+    /// or does not, and may have finished on the host after the agent stopped
+    /// waiting, so this is not folded into [`Self::SpawnFailed`] (a status the
+    /// tool returned) or [`Self::JailFailed`] (a jail the agent could not
+    /// build).
+    #[error(transparent)]
+    Bound(#[from] BoundExceeded),
+}
+
+impl From<SpawnError> for SftpError {
+    /// Maps a failed spawn onto this area's list.
+    ///
+    /// A bound becomes [`Self::Bound`]; every other failure means the program
+    /// never produced an answer and becomes `Self::program_unavailable`.
+    /// `SpawnError` is `#[non_exhaustive]`, so a variant added later lands on
+    /// the same answer.
+    fn from(error: SpawnError) -> Self {
+        match error {
+            SpawnError::Bound(bound) => Self::Bound(bound),
+            _ => Self::program_unavailable(),
+        }
+    }
 }
 
 impl SftpError {
@@ -176,4 +221,36 @@ impl SftpError {
             code: PROGRAM_UNAVAILABLE,
         }
     }
+
+    /// Maps a failure of the config-write protocol onto this area's list.
+    ///
+    /// A bound ([`SafeWriteError::Bound`]) stays a [`Self::Bound`]: the previous
+    /// content has been restored by the protocol, and a deadline is not a jail
+    /// that could not be built. Every other failure is [`Self::JailFailed`]; the
+    /// protocol's variants hold a tool's standard error and this area has no
+    /// field that could hold one.
+    pub(crate) fn from_config_write(error: SafeWriteError) -> Self {
+        match error {
+            SafeWriteError::Bound(bound) => Self::Bound(bound),
+            _ => Self::JailFailed,
+        }
+    }
+
+    /// Maps the refusal of a managed-account resolution onto this area's list.
+    ///
+    /// An absent row is [`Self::AccountMissing`], the answer the area always
+    /// gave for an account the host does not hold; every other refusal
+    /// (reserved, system identity, wrong home) is [`Self::AccountNotManaged`].
+    /// `ManagedAccountError` is `#[non_exhaustive]`, so a refusal added later
+    /// lands on the stricter answer.
+    pub(crate) fn from_managed_account(error: ManagedAccountError) -> Self {
+        match error {
+            ManagedAccountError::NotFound => Self::AccountMissing,
+            _ => Self::AccountNotManaged,
+        }
+    }
 }
+
+#[cfg(test)]
+#[path = "../tests/sftp/sftp_error_tests.rs"]
+mod tests;

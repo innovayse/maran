@@ -310,3 +310,23 @@ fn an_identical_range_reports_already_exists_and_a_different_one_does_not() {
 
     assert!(live(&host).contains("tcp dport 30000-30050 accept"));
 }
+
+/// An allow whose load was killed at its deadline is a bound, not a success and
+/// not an `nft` failure, and it does not keep the host-wide firewall lock: the
+/// next allow, on another host, completes.
+#[test]
+fn an_allow_whose_load_times_out_is_a_bound_and_releases_the_firewall_lock() {
+    let rule = open_rule(8080, NftablesProtocol::Tcp);
+    let hung = FakeFirewallHost::with_rules(&[]);
+    hung.time_out_on("-f");
+
+    let outcome = allow_port(&hung, distro(), &ports(), &rule);
+
+    assert!(
+        matches!(outcome, Err(FirewallError::Bound(_))),
+        "expected a bound, got {outcome:?}"
+    );
+
+    let healthy = FakeFirewallHost::with_rules(&[]);
+    assert_eq!(allow_port(&healthy, distro(), &ports(), &rule), Ok(()));
+}

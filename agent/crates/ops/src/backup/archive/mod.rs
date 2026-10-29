@@ -12,6 +12,7 @@ pub(crate) mod checksum_file;
 pub(crate) mod dump_database;
 pub(crate) mod extract_databases_as_root;
 pub(crate) mod extract_home_as_account;
+pub(crate) mod home_measure;
 pub(crate) mod measure_home;
 pub(crate) mod read_manifest;
 pub(crate) mod replace_database;

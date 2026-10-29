@@ -19,6 +19,7 @@ import { computed, ref, watch, type ComputedRef, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import UiButton from '../ui/UiButton.vue'
 import UiForm from '../ui/UiForm.vue'
+import UiIcon from '../ui/UiIcon.vue'
 import UiInput from '../ui/UiInput.vue'
 import { isReservedCronEnvironmentName } from '../../utils/cronEnvironmentName'
 import type { CronEnvironmentVariable } from '../../types/cronEnvironmentVariable'
@@ -143,50 +144,61 @@ watch(
 </script>
 
 <template>
-  <UiForm @submit="save">
-    <p class="mb-2 text-sm text-text-secondary">{{ t('cron.environment.description') }}</p>
+  <UiForm class="flex flex-col gap-4" @submit="save">
+    <p class="text-sm text-text-secondary">{{ t('cron.environment.description') }}</p>
 
-    <div v-for="(row, index) in rows" :key="index" class="mb-3">
-      <div class="flex flex-wrap items-end gap-2">
-        <UiInput
-          :model-value="row.name"
-          :label="t('common.name')"
-          class="min-w-40 flex-1"
-          @update:model-value="changeName(index, $event)"
-        />
-        <UiInput
-          :model-value="row.value"
-          :label="t('cron.environment.fields.value')"
-          class="min-w-40 flex-1"
-          @update:model-value="changeValue(index, $event)"
-        />
-        <UiButton
-          variant="secondary"
-          :aria-label="t('cron.environment.removeRow', { name: row.name })"
-          @click="removeRow(index)"
+    <ul v-if="rows.length > 0" class="flex flex-col gap-3">
+      <li
+        v-for="(row, index) in rows"
+        :key="index"
+        class="rounded-control border border-border-subtle bg-surface-2 p-3"
+      >
+        <div class="grid items-end gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
+          <UiInput
+            :model-value="row.name"
+            :label="t('common.name')"
+            class="min-w-0"
+            @update:model-value="changeName(index, $event)"
+          />
+          <UiInput
+            :model-value="row.value"
+            :label="t('cron.environment.fields.value')"
+            class="min-w-0"
+            @update:model-value="changeValue(index, $event)"
+          />
+          <UiButton
+            variant="secondary"
+            class="justify-self-start"
+            :aria-label="t('cron.environment.removeRow', { name: row.name })"
+            @click="removeRow(index)"
+          >
+            {{ t('cron.environment.remove') }}
+          </UiButton>
+        </div>
+
+        <!-- Advice, not a gate: the row stays submittable and the panel's own refusal is what the
+             operator will see if they send it anyway. -->
+        <p
+          v-if="isReserved(row.name)"
+          class="mt-2 flex items-start gap-2 text-sm text-warning wrap-anywhere"
         >
-          {{ t('cron.environment.remove') }}
-        </UiButton>
-      </div>
+          <UiIcon name="triangleAlert" size="sm" class="mt-0.5 shrink-0" />
+          <span>{{ t('cron.environment.reservedHint', { name: row.name }) }}</span>
+        </p>
+      </li>
+    </ul>
 
-      <!-- Advice, not a gate: the row stays submittable and the panel's own refusal is what the
-           operator will see if they send it anyway. -->
-      <p v-if="isReserved(row.name)" class="mt-1 text-sm text-warning">
-        {{ t('cron.environment.reservedHint', { name: row.name }) }}
-      </p>
-    </div>
-
-    <p v-if="reservedNames.length > 0" class="mb-2 text-sm text-text-muted">
+    <p v-if="reservedNames.length > 0" class="text-sm text-text-muted">
       {{ t('cron.environment.reservedNote') }}
     </p>
 
-    <div class="flex items-center gap-2">
+    <div class="flex flex-wrap items-center gap-2">
       <UiButton variant="secondary" @click="addRow">{{ t('cron.environment.add') }}</UiButton>
       <UiButton type="submit" :disabled="saving">
         {{ saving ? t('common.saving') : t('cron.environment.save') }}
       </UiButton>
     </div>
 
-    <p class="mt-2 text-sm text-text-muted">{{ t('cron.environment.replaceWarning') }}</p>
+    <p class="text-sm text-text-muted">{{ t('cron.environment.replaceWarning') }}</p>
   </UiForm>
 </template>

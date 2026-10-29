@@ -16,6 +16,7 @@
 import { computed, ref, type ComputedRef, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import UiButton from '../ui/UiButton.vue'
+import UiCard from '../ui/UiCard.vue'
 import UiForm from '../ui/UiForm.vue'
 import UiInput from '../ui/UiInput.vue'
 import type { BanAddressRequest } from '../../types/firewall'
@@ -117,29 +118,35 @@ defineExpose({ reset })
 </script>
 
 <template>
-  <div class="rounded-xl border border-border-subtle bg-surface-1">
+  <UiCard>
     <UiForm @submit="submit">
-      <div class="grid gap-3.5 p-4.5 sm:grid-cols-2">
-        <UiInput
-          v-model="address"
-          :label="t('firewall.bans.form.fields.address')"
-          :placeholder="t('firewall.bans.form.placeholders.address')"
-          :error="addressError"
-          required
-        />
-        <UiInput
-          v-model="durationMinutes"
-          :label="t('firewall.bans.form.fields.durationMinutes')"
-          :placeholder="t('firewall.bans.form.placeholders.durationMinutes')"
-          :error="durationError"
-        />
+      <!-- Two columns from a tablet; one on a phone. `min-w-0` so a long error message wraps
+           inside its column instead of widening the card past the viewport. -->
+      <div class="grid gap-4 sm:grid-cols-2">
+        <div class="min-w-0">
+          <UiInput
+            v-model="address"
+            :label="t('firewall.bans.form.fields.address')"
+            :placeholder="t('firewall.bans.form.placeholders.address')"
+            :error="addressError"
+            required
+          />
+        </div>
+        <div class="min-w-0">
+          <UiInput
+            v-model="durationMinutes"
+            :label="t('firewall.bans.form.fields.durationMinutes')"
+            :placeholder="t('firewall.bans.form.placeholders.durationMinutes')"
+            :error="durationError"
+          />
+        </div>
       </div>
       <div
-        class="flex flex-wrap items-center justify-between gap-2 rounded-b-xl border-t border-border-subtle bg-surface-2 px-4.5 py-3"
+        class="mt-5 flex flex-wrap items-center justify-between gap-x-4 gap-y-3 border-t border-border-subtle pt-4"
       >
-        <p class="text-sm text-text-muted">{{ t('firewall.bans.form.hint') }}</p>
+        <p class="min-w-0 flex-1 basis-60 text-sm text-text-muted">{{ t('firewall.bans.form.hint') }}</p>
         <UiButton type="submit" :disabled="submitting">{{ t('firewall.bans.form.submit') }}</UiButton>
       </div>
     </UiForm>
-  </div>
+  </UiCard>
 </template>

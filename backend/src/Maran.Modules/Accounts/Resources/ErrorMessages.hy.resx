@@ -13,16 +13,31 @@
     <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
   </resheader>
   <data name="AccountNotFound">
-    <value>Հաշիվը չի գտնվել։</value>
+    <value>Այս հաշիվը չի գտնվել։</value>
   </data>
   <data name="AccountNameTaken">
     <value>Այս հաշվի անունն արդեն զբաղված է։</value>
+  </data>
+  <data name="AccountNameInvalid">
+    <value>Հաշվի անվանումը անթույլատրելի է։ Օգտագործեք 3-ից 30 փոքրատառ լատինական տառ, թվանշան կամ ընդգծման նշան, սկսած տառով։</value>
+  </data>
+  <data name="AccountNameReserved">
+    <value>Այս անվանումը վերապահված է համակարգի համար և չի կարող օգտագործվել։ Ընտրեք այլ անվանում։</value>
   </data>
   <data name="AccountDomainTaken">
     <value>Այս տիրույթն արդեն օգտագործվում է այլ հաշվի կողմից։</value>
   </data>
   <data name="PlanNotFound">
     <value>Սակագինը չի գտնվել։</value>
+  </data>
+  <data name="PlanNameTaken">
+    <value>Այս անունով սակագին արդեն կա։</value>
+  </data>
+  <data name="PlanInUse">
+    <value>Սակագինը չի ջնջվել։ Դրա վրա դեռ հաշիվներ կան։ Նախ այդ հաշիվները տեղափոխեք այլ սակագնի կամ ջնջեք դրանք։</value>
+  </data>
+  <data name="PlanQuotaBelowUsage">
+    <value>Սակագինը չի փոփոխվել։ Դրա վրա գտնվող մի հաշիվ արդեն օգտագործում է ավելի շատ սկավառակ, քան թույլ է տալիս նոր քվոտան, և այն իջեցնելուց հետո այդ հաշիվը չի կարողանա ֆայլեր գրել։ Մեծացրեք քվոտան կամ նախ ազատեք տեղ, կամ այդ հաշիվը տեղափոխեք այլ սակագնի։</value>
   </data>
   <data name="AccountCleanupFailed">
     <value>Հաշիվը չի ջնջվել․ չհաջողվեց նախ հեռացնել դրան պատկանողը։ Ոչինչ չի փոխվել, փորձեք կրկին։</value>

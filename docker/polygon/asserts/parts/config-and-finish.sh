@@ -10,6 +10,113 @@
 # each constant lives beside the only assertions that use it.
 
 
+# panel_host_name_for: runs the installer's own detect_panel_host_name with host_display_name
+# replaced by a stand-in that prints `$1` through printf (so `\n` can plant a second line), and
+# prints what the function answered. The step is the real one, sourced unmodified after the shared
+# helpers; only the machine's name is the stand-in.
+panel_host_name_for() {
+  bash -c 'set -euo pipefail
+. "$1"
+. "$2"
+fake_name="$3"
+host_display_name() { printf "${fake_name}\n"; }
+detect_panel_host_name' _ "$COMMON_LIB" "$CONFIG_STEP" "$1"
+}
+
+# panel_env_written_with: runs the installer's own write_config, unmodified, against a scratch
+# directory, with `$1` as the panel host name argument, and prints the panel.env it produced. Only
+# the things that need a real machine are stand-ins: the service identity check, chown and chmod.
+# The rendering, and the `if [ -n ... ]` guarding the Panel__HostName line, are the real ones.
+panel_env_written_with() {
+  local scratch output
+  scratch="$(mktemp -d)"
+  output="$(bash -c 'set -euo pipefail
+. "$1"
+# 60-config.sh declares MARAN_CONFIG_DIR readonly, so it cannot be reassigned after sourcing; the
+# one line that names the directory is pointed at the scratch directory as the step is read, and
+# every other line is the real one. MARAN_CONFIG_FILE follows from it by the step itself.
+. <(sed -e "s#^readonly MARAN_CONFIG_DIR=.*#readonly MARAN_CONFIG_DIR=\"$3\"#" "$2")
+MARAN_PANEL_PORT=8443
+MARAN_API_SOCKET_PATH=/run/maran/api.sock
+MARAN_USER=maran
+MARAN_GROUP=maran
+require_service_identity() { :; }
+chown() { :; }
+chmod() { :; }
+write_config key token signing 22 "" 101 "$4"
+cat "$MARAN_CONFIG_FILE"' _ "$COMMON_LIB" "$CONFIG_STEP" "$scratch" "$1")" || { rm -rf "$scratch"; fail "write_config failed when run for real"; }
+  rm -rf "$scratch"
+  printf '%s\n' "$output"
+}
+
+# assert_the_panel_host_name_is_recorded_from_the_name_the_vhost_serves: issue #96. panel.env's
+# Panel__HostName is what the API refuses to customers as the panel's own name, so it must be the
+# very name nginx serves. Propositions, each with a planted break:
+#   1. the value is host_display_name lower-cased, and a name that is not a plain single-line
+#      host name (the injection shapes) or is a placeholder records NOTHING, never `_`;
+#   2. 60-config.sh writes Panel__HostName only from the detected value and 80-nginx.sh renders its
+#      server_name from the same host_display_name, not from a second evaluation;
+#   3. panel.env.example documents the key.
+assert_the_panel_host_name_is_recorded_from_the_name_the_vhost_serves() {
+  local answer placeholder hostile too_long documented
+
+  answer="$(panel_host_name_for 'Shop.Example.COM')"
+  [ "$answer" = "shop.example.com" ] \
+    || fail "detect_panel_host_name answered '${answer}' for 'Shop.Example.COM'; expected shop.example.com"
+
+  for placeholder in '_' 'localhost' 'LocalHost'; do
+    answer="$(panel_host_name_for "$placeholder")"
+    [ -z "$answer" ] \
+      || fail "detect_panel_host_name answered '${answer}' for the placeholder '${placeholder}'; it must record nothing,
+because a written placeholder would reserve a name that is not the panel's."
+  done
+
+  for hostile in 'a\nPanel__Other=1' 'a b' 'a;b' 'a=b' 'a_b' 'a/b'; do
+    answer="$(panel_host_name_for "$hostile")"
+    [ -z "$answer" ] \
+      || fail "detect_panel_host_name answered '${answer}' for the hostile name '${hostile}'; a byte outside letters, digits,
+dots and hyphens must record nothing, or a machine name becomes a second setting in panel.env."
+  done
+
+  too_long="$(printf 'a%.0s' $(seq 1 254))"
+  answer="$(panel_host_name_for "$too_long")"
+  [ -z "$answer" ] || fail "detect_panel_host_name accepted a 254-character name; the limit is 253"
+  too_long="$(printf 'a%.0s' $(seq 1 253))"
+  answer="$(panel_host_name_for "$too_long")"
+  [ "$answer" = "$too_long" ] || fail "detect_panel_host_name refused a 253-character name, the longest valid one"
+
+  grep -q 'Panel__HostName=\${panel_host_name}' "$CONFIG_STEP" \
+    || fail "60-config.sh no longer writes Panel__HostName from the detected panel_host_name"
+  grep -q 'panel_host_name="\$(detect_panel_host_name)"' "$CONFIG_STEP" \
+    || fail "step_config no longer takes the panel host name from detect_panel_host_name"
+  grep -q 'host_display_name' "$NGINX_STEP" \
+    || fail "80-nginx.sh no longer renders server_name from host_display_name, the value panel.env records;
+the vhost and the API's reserved name can now drift apart."
+  if grep -v '^[[:space:]]*#' "$NGINX_STEP" | grep -q 'hostname -f'; then
+    fail "80-nginx.sh evaluates 'hostname -f' on its own again; the vhost's server_name is no longer the recorded value"
+  fi
+
+  documented="$(grep -oE '^Panel__HostName=' "$PANEL_ENV_EXAMPLE" || true)"
+  [ -n "$documented" ] || fail "panel.env.example no longer documents Panel__HostName, which the installer writes"
+
+  # The behaviour itself, not the text of the source: write_config is executed. The positive control
+  # is the non-empty run, which must contain exactly one line; the empty run must contain none.
+  local written_with_name written_without_name count
+  written_with_name="$(panel_env_written_with 'shop.example.com')"
+  count="$(printf '%s\n' "$written_with_name" | grep -c '^Panel__HostName=shop.example.com$' || true)"
+  [ "$count" = "1" ] || fail "write_config wrote ${count} 'Panel__HostName=shop.example.com' lines for a detected name; expected exactly one"
+  printf '%s\n' "$written_with_name" | grep -q '^Firewall__PanelPort=8443$' \
+    || fail "the executed write_config produced no Firewall__PanelPort line, so this check cannot see what it reports on"
+  written_without_name="$(panel_env_written_with '')"
+  printf '%s\n' "$written_without_name" | grep -q '^Firewall__PanelPort=8443$' \
+    || fail "the executed write_config produced no Firewall__PanelPort line for the empty run, so this check is blind"
+  if printf '%s\n' "$written_without_name" | grep -q '^Panel__HostName='; then
+    fail "write_config wrote a Panel__HostName line although no host name was detected; absent must mean absent"
+  fi
+
+  echo "Panel__HostName is the lower-cased name the vhost serves; placeholders, injection shapes and over-long names record nothing."
+}
+
 # assert_panel_port_has_one_authority: the panel's public port is decided in exactly one
 # place — `MARAN_PANEL_PORT` at the top of install.sh — and every reader derives from it.
 # One reader cannot: the `listen` line of the nginx vhost, because a configuration file

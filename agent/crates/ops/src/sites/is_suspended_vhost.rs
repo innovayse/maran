@@ -3,6 +3,7 @@
 use crate::sites::SitesOpError;
 use crate::sites::model::create_site_input::CreateSiteInput;
 use crate::sites::model::site_paths::SitePaths;
+use crate::sites::render_legacy_suspended_vhost::render_legacy_suspended_vhost;
 use crate::sites::render_suspended_vhost::render_suspended_vhost;
 
 /// Whether `contents` is the suspended rendering of this site.
@@ -29,10 +30,10 @@ use crate::sites::render_suspended_vhost::render_suspended_vhost;
 /// enabled vhost rather than remembered by those three.
 ///
 /// The complete set of callers that must ask is derivable rather than
-/// remembered: it is the callers of `write_vhost` that render through
-/// `render_vhost`, since `render_vhost` is the ONLY producer of an enabled
-/// vhost. There are five, and each is accounted for —
-/// `create_site` refuses a domain whose vhost already exists, so it can never
+/// remembered: it is the callers of `render_vhost`, since `render_vhost` is
+/// the ONLY producer of an enabled vhost. There are five, and each is
+/// accounted for — `create_site` hands its render to `create_vhost`, which —
+/// unlike `write_vhost` — refuses a target that already exists, so it can never
 /// overwrite a suspended one; `enable_site` un-suspends deliberately, which is
 /// what it is for; and the other three call this function.
 ///
@@ -55,7 +56,15 @@ pub(crate) fn is_suspended_vhost(
 
     let suspended = render_suspended_vhost(input.domain.as_str(), &aliases, paths)?;
 
-    Ok(contents == suspended)
+    if contents == suspended {
+        return Ok(true);
+    }
+
+    // A stub an earlier agent wrote lacks the challenge location's symlink
+    // rule and is still a suspension.
+    let legacy = render_legacy_suspended_vhost(input.domain.as_str(), &aliases, paths)?;
+
+    Ok(contents == legacy)
 }
 
 #[cfg(test)]

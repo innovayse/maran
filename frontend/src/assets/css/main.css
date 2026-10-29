@@ -2,37 +2,79 @@
 @import "tailwindcss";
 
 /*
- * Design tokens, taken verbatim from the ServerPanel design canvas.
+ * Design tokens for the redesign (#82). Names are the design's own (--s1, --b1, --t1,
+ * --ac). They are terse to the point of being cryptic, and they are kept exactly so
+ * anyway: the moment they are renamed here, a value in the mockup can no longer be
+ * traced to a value in the code, and the two drift apart with nobody able to prove it.
  *
- * Dark is the default and light is the override, in that order, because the
- * design is authored dark-first: a panel is looked at for hours, often beside a
- * terminal, and the light theme is the deviation rather than the baseline.
+ * Dark is the default and light is the override, in that order, because the design is
+ * authored dark-first: a panel is looked at for hours, often beside a terminal.
  *
- * The names are the design's own (--s1, --b1, --t1, --ac). They are terse to the
- * point of being cryptic, and they are kept exactly so anyway: the moment they
- * are renamed here, a value in the canvas can no longer be traced to a value in
- * the code, and the two drift apart with nobody able to prove it.
+ * THE BLUES. Every blue below is one step of the ramp in the keystone mark
+ * (frontend/public/favicon.svg), #E4F0FF down to #0C2E63, lit at #2E7BFF. Which step
+ * goes where was decided by measuring WCAG contrast, never by eye; the figures are in
+ * the comment on each token. Colour is split by JOB because one blue cannot do all of
+ * them:
+ *
+ *   --ac   the mark's lit core. GRAPHICS ONLY: meters, glows, the focus ring.
+ *   --acf  a FILL that carries white text.
+ *   --ach  the hover of --acf.
+ *   --act  blue TEXT and icons.
+ *   --acl  the light step, for graphics.
+ *
+ * WHY --acf EXISTS. White text on --ac (#2E7BFF) is 3.89:1. 14px semibold needs 4.5:1
+ * (WCAG "large text" starts at 18.66px bold, not 14px), so the mark's own core blue
+ * FAILS under white text, and it is the first thing anyone reaches for on an active nav
+ * item or a primary button. --acf is the next step down the ramp, #2468DC, and carries
+ * white at 5.14:1. Never put text on --ac.
  */
 :root,
 html[data-theme='dark'] {
-  /* Surfaces, from the page floor upward. */
-  --bg: #0a0b0d;
-  --s1: #101216;
-  --s2: #16191e;
-  --s3: #1d2126;
+  color-scheme: dark;
 
-  /* Borders: b1 separates, b2 emphasises. */
+  /* Surfaces, from the app desktop upward. --bg is the darkest step, so a panel (--s1) reads
+     as raised from it even with no shadow. */
+  --bg: #07080a;
+  --s1: #101216; /* a panel */
+  --s2: #16191e; /* raised, hover */
+  --s3: #1d2126; /* pressed, deeper */
+
+  /* Borders: b1 separates, b2 emphasises. Decorative; never the only cue that a control
+     exists (b2 is 1.47:1 on a panel, below the 3:1 a boundary would need on its own). */
   --b1: #23262c;
   --b2: #2e3339;
+  /* The boundary of a FORM CONTROL — a text field, a select, a search box. Not --b1/--b2: those
+     are 1.2-1.5:1 against a panel and fine for decoration, but WCAG 1.4.11 needs 3:1 for the
+     visual information that identifies a control, and a field's fill (--s2) is only 1.06:1 against
+     the panel it sits on — so in the dark theme the border was the only thing showing where a
+     field is, and it was invisible. Measured against every surface a field can sit on:
+     3.57 on --s1, 3.36 on --s2, 3.08 on --s3. */
+  --bc: #656d76;
 
-  /* Text, in descending prominence. */
+  /* Text, in descending prominence. Measured on --bg / --s1 / --s2:
+     t1 16.77 / 15.70 / 14.75, t2 7.56 / 7.08 / 6.65, t3 5.72 / 5.36 / 5.03. */
   --t1: #e9ebee;
   --t2: #98a0a8;
-  --t3: #6a7178;
+  /*
+   * t3 is the faintest TEXT tier, and it must still be text: the utility it backs
+   * (`text-text-muted`) is used for real labels, captions and secondary lines throughout
+   * the panel, so the token cannot be treated as decoration only. It must clear 4.5:1 on
+   * every surface text sits on, and it is set here, in the token, rather than at each call
+   * site. #828a92 is 5.72 / 5.36 / 5.03:1 on bg / s1 / s2 and is still visibly dimmer
+   * than t2.
+   */
+  --t3: #828a92;
 
-  /* Accent and its wash, used for selection and active navigation. */
+  /* Accent. --ac: graphics only, 4.52:1 against the --s2 track and 3.89:1 against --b1
+     (graphics need 3:1). --acs: the wash behind icon squares, badges and active hover;
+     --act on it is 5.15:1 over a panel and 4.78:1 over --s2, but 4.40:1 over --s3, so
+     do not put accent text on a wash laid over the pressed surface. */
   --ac: #2e7bff;
-  --acs: rgb(46 123 255 / 0.14);
+  --acs: rgb(46 123 255 / 0.15);
+  --acf: #2468dc; /* fill under white text: 5.14:1 */
+  --ach: #1b55be; /* hover of --acf, white on it 6.80:1 */
+  --act: #5290ff; /* accent text and icons on the dark: 6.06:1 on a panel */
+  --acl: #8fbcff; /* light accent, graphics: 9.65:1 on a panel */
 
   /* Status. Never the only carrier of meaning — text always accompanies them. */
   --gr: #2fb574;
@@ -47,18 +89,76 @@ html[data-theme='dark'] {
   --sk: linear-gradient(90deg, #181b20 8%, #22262c 18%, #181b20 33%);
 }
 
+/*
+ * Values that do not change with the theme: the glow under the active nav item and the
+ * primary pill, and the radii every panel and control shares.
+ *
+ * Concentric radii. A shape nested inside another keeps an even gap around its corners
+ * only when its radius is the outer radius MINUS the padding between the two; a nested
+ * element that reuses the outer radius looks pinched at every corner. So the radius of
+ * anything inset takes a named token derived from its outer shape, instead of a hand-typed
+ * `calc()` or a stock `rounded-md` that happens to be near:
+ *
+ *  - --r-inset: a control inside a control's 4px padding (a segment in the segmented
+ *    control, the reveal / clear button in a field, a close button in a modal or toast):
+ *    --r-control (12px) - 4px.
+ *  - --r-row: a row inside a menu or listbox panel's 6px padding (a dropdown item, an
+ *    option): --r-control (12px) - 6px.
+ *  - --r-mark: a small glyph box that is not nested but must still read as a sibling of
+ *    the controls (the checkbox): a third of --r-control, so it stays a rounded square
+ *    rather than turning into a circle at 20px.
+ *
+ * They are written as calc() on --r-control so changing the control radius moves every
+ * dependent radius with it.
+ */
+:root {
+  --glow: 0 8px 30px -8px rgb(46 123 255 / 0.55);
+  --r-panel: 16px;
+  --r-control: 12px;
+  --r-inset: calc(var(--r-control) - 4px);
+  --r-row: calc(var(--r-control) - 6px);
+  --r-mark: calc(var(--r-control) / 3);
+}
+
+/*
+ * Light theme, derived from the same ramp. Where a dark value cannot work on white it is
+ * replaced by a darker step of the SAME blue, with the measurement that forced it:
+ *
+ *  - --act: the contract value #2468dc is 5.14:1 on white but only 4.32:1 / 4.20:1 once
+ *    the accent wash sits on the page or on --s2, which is exactly where active hover
+ *    lives. #1b55be (the ramp step below) clears 4.5:1 on all four surfaces and on the
+ *    wash over each (5.15 to 6.80).
+ *  - --acl: the lighter steps of the ramp are LESS visible on white, so "light accent"
+ *    here is the lit core itself, 3.89:1 on a panel, 3.63:1 on the page (graphics).
+ *  - --t3: #8b939b was 3.11:1 on white; #636b73 is 5.05 / 5.41 / 4.91 on bg / s1 / s2
+ *    and 4.57 on s3 (same pre-existing defect as the dark tier, fixed in the token).
+ *  - status and --pu: the dark-theme hues are 2 to 3:1 on white, so as TEXT they fail.
+ *    The darker steps below are 4.9 to 5.8:1 on a panel and --s2.
+ *
+ * --ac, --acf and --ach are inherited unchanged: --ac is 3.89:1 against white and 3.53 /
+ * 3.08:1 against the --s2 / --b1 tracks; white on --acf is 5.14:1.
+ */
 html[data-theme='light'] {
+  color-scheme: light;
+
   --bg: #f6f7f9;
   --s1: #ffffff;
   --s2: #f2f4f6;
   --s3: #e9ecf0;
   --b1: #e2e5ea;
   --b2: #d2d6dd;
+  --bc: #80878f;  /* 3.63 on --s1, 3.30 on --s2, 3.07 on --s3 */
   --t1: #14171b;
   --t2: #5c646d;
-  --t3: #8b939b;
-  --acs: rgb(46 123 255 / 0.09);
-  --pus: rgb(139 109 240 / 0.09);
+  --t3: #636b73;
+  --acs: rgb(46 123 255 / 0.1);
+  --act: #1b55be;
+  --acl: #2e7bff;
+  --gr: #17794a;
+  --am: #8f5c00;
+  --rd: #c42b31;
+  --pu: #6b4bd6;
+  --pus: rgb(107 75 214 / 0.09);
   --sk: linear-gradient(90deg, #eff1f4 8%, #e4e7eb 18%, #eff1f4 33%);
 }
 
@@ -74,40 +174,66 @@ html[data-theme='light'] {
   --color-surface-3: var(--s3);
   --color-border-subtle: var(--b1);
   --color-border-strong: var(--b2);
+  --color-border-control: var(--bc);
   --color-text-primary: var(--t1);
   --color-text-secondary: var(--t2);
   --color-text-muted: var(--t3);
   --color-accent: var(--ac);
   --color-accent-soft: var(--acs);
+  --color-accent-fill: var(--acf);
+  --color-accent-hover: var(--ach);
+  --color-accent-text: var(--act);
+  --color-accent-light: var(--acl);
   --color-success: var(--gr);
   --color-warning: var(--am);
   --color-danger: var(--rd);
   --color-violet: var(--pu);
   --color-violet-soft: var(--pus);
 
-  --font-sans: 'Public Sans', system-ui, sans-serif;
-  --font-mono: 'Azeret Mono', ui-monospace, monospace;
+  --shadow-glow: var(--glow);
+  --radius-panel: var(--r-panel);
+  --radius-control: var(--r-control);
+  --radius-inset: var(--r-inset);
+  --radius-row: var(--r-row);
+  --radius-mark: var(--r-mark);
+
+  /*
+   * Families. Archivo (black, 800 to 900) for titles, figures and uppercase labels; Inter
+   * for text; JetBrains Mono for figures that must align. Maran ships en, ru and hy, and
+   * no single face covers all three: Archivo has no Cyrillic, so Russian display text
+   * falls through to Inter, which does; none of the three has Armenian, so that falls
+   * through to Noto Sans Armenian. Latin glyphs always come from the primary face. The
+   * files are self-hosted (public/fonts); the panel makes no request to a font CDN.
+   */
+  --font-display: 'Archivo', 'Inter', 'Noto Sans Armenian', system-ui, sans-serif;
+  --font-sans: 'Inter', 'Noto Sans Armenian', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Noto Sans Armenian', ui-monospace, monospace;
 
   /*
    * No font-size scale is defined here. Tailwind's own steps carry all of it — `text-sm`
    * for body copy, `text-2xl` for page titles — and a parallel scale would be a second
    * vocabulary that only this repository understands.
    *
-   * The panel used to sit one step lower, matching the canvas's 13px base. That reads
-   * correctly in a mockup at 100% on a laptop and reads as fine print on a desktop
-   * monitor, which is where an operator spends hours on tables of domains and log lines.
-   * The fix was to move every component up one stock step, not to invent sizes between
-   * the stock ones.
+   * The panel sits one stock step above the mockup's 13px base. 13px reads correctly in
+   * a mockup at 100% on a laptop and as fine print on a desktop monitor, which is where
+   * an operator spends hours on tables of domains and log lines. So every component takes
+   * the next stock step up rather than a size invented between the stock ones.
    */
 
   /* Letter-spacing: caps need air, large text needs less. */
   --tracking-caps: 0.06em;
   --tracking-title: -0.02em;
 
-  /* The focus ring. One definition, so every focusable thing looks focused the
-     same way — and so a change to it cannot be half-applied. */
-  --shadow-focus: 0 0 0 3px var(--acs);
-  --shadow-focus-danger: 0 0 0 3px rgb(229 72 77 / 0.14);
+  /*
+   * The focus ring. One definition, so every focusable thing looks focused the same way
+   * — and so a change to it cannot be half-applied. It is a solid 2px accent ring set off
+   * from the control by a 2px gap in the page colour, so it stays visible on an accent
+   * fill, where a ring of the same blue would vanish. A focus indicator needs 3:1, which a
+   * translucent wash of the accent cannot give; --ac is 4.81:1 on a dark panel and
+   * 3.89:1 on a light one.
+   */
+  --shadow-focus: 0 0 0 2px var(--bg), 0 0 0 4px var(--ac);
+  --shadow-focus-danger: 0 0 0 2px var(--bg), 0 0 0 4px var(--rd);
 }
 
 /*
@@ -122,11 +248,11 @@ html[data-theme='light'] {
     margin: 0;
     background: var(--bg);
     color: var(--t1);
-    font-family: 'Public Sans', system-ui, sans-serif;
+    font-family: var(--font-sans);
     /* The document base, matching Tailwind's own `text-base` — the same 16px the web
-       defaults to. The panel started a step lower, from the canvas's 13px, and that read
-       as fine print on a desktop monitor at arm's length. Text with a class of its own
-       does not depend on this; it matters for the few places that inherit. */
+       defaults to. The mockup's 13px base reads as fine print on a desktop monitor at
+       arm's length. Text with a class of its own does not depend on this; it matters for
+       the few places that inherit. */
     font-size: 1rem;
     letter-spacing: -0.005em;
     -webkit-font-smoothing: antialiased;
@@ -136,12 +262,14 @@ html[data-theme='light'] {
   /* Only a link that has not been given a colour of its own: the sidebar's entries
      and every kit component set theirs, and this must not fight them. */
   a:not([class*='text-']) {
-    color: var(--ac);
+    color: var(--act);
     text-decoration: none;
   }
 
+  /* Underline rather than a lighter blue: the lighter step is not readable as text on
+     the light theme, and a hover cue must work in both. */
   a:not([class*='text-']):hover {
-    color: #5c99ff;
+    text-decoration: underline;
   }
 
   input,
@@ -156,9 +284,11 @@ html[data-theme='light'] {
     height: 9px;
   }
 
+  /* --r-mark (a third of the control radius, 4px) rather than a hand-typed value: on a 9px
+     thumb it leaves a rounded bar, and it moves with the rest of the radius family. */
   ::-webkit-scrollbar-thumb {
     background: var(--b2);
-    border-radius: 5px;
+    border-radius: var(--r-mark);
   }
 
   ::-webkit-scrollbar-track {

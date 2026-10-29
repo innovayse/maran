@@ -4,6 +4,8 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use maran_agent_core::agent_paths::AgentPaths;
+use maran_agent_core::utils::bound_exceeded::BoundExceeded;
+use maran_agent_core::utils::call_class::CallClass;
 
 use crate::firewall::apply_ruleset::apply_ruleset;
 use crate::firewall::fake_firewall_host::{
@@ -219,4 +221,101 @@ fn an_nft_that_cannot_be_started_leaves_the_ruleset_alone() {
         host.file(&ruleset_path()).as_deref(),
         Some("the previous ruleset")
     );
+}
+
+/// The syntax check is a validator and the load is a mutation, and the two
+/// classes are not interchangeable: the check is what a wedged `nft` would
+/// stall first, and the load is the one that changes the live firewall.
+#[test]
+fn the_check_runs_as_a_validator_and_the_load_as_a_mutation() {
+    let host = FakeFirewallHost::new();
+
+    apply_ruleset(
+        &host,
+        distro(),
+        AgentPaths::nftables_ruleset_path(),
+        &rendered(&[]),
+    )
+    .expect("applied");
+
+    assert_eq!(host.class_of_call("--check"), Some(CallClass::Validate));
+    assert_eq!(host.class_of_call("-f"), Some(CallClass::Mutation));
+}
+
+/// A check killed at its deadline is a bound, the staged file is removed and
+/// the live ruleset file is still the previous one.
+///
+/// A timeout is not a refusal: `nft` was killed before it said anything about
+/// the ruleset, so reporting `RuleRefusedByNft` would blame the ruleset for a
+/// wedged tool.
+#[test]
+fn a_check_that_times_out_is_a_bound_and_leaves_the_live_file_alone() {
+    let host = FakeFirewallHost::new();
+    host.put_file(&ruleset_path(), "the previous ruleset");
+    host.time_out_on("--check");
+
+    let outcome = apply_ruleset(
+        &host,
+        distro(),
+        AgentPaths::nftables_ruleset_path(),
+        &rendered(&[]),
+    );
+
+    assert!(
+        matches!(
+            outcome,
+            Err(FirewallError::Bound(BoundExceeded::TimedOut { .. }))
+        ),
+        "expected the typed timeout, got {outcome:?}"
+    );
+    assert!(host.steps().contains(&String::from(DISCARD_STEP)));
+    assert!(!host.steps().contains(&String::from(COMMIT_STEP)));
+    assert_eq!(
+        host.file(&ruleset_path()).as_deref(),
+        Some("the previous ruleset")
+    );
+}
+
+/// The inverse control for the test above: a check that runs and refuses is
+/// still a refusal and not a bound, so the two answers stay different.
+#[test]
+fn a_check_that_refuses_is_still_a_refusal_and_not_a_bound() {
+    let host = FakeFirewallHost::new();
+    host.refuse_check_with("Error: syntax error");
+
+    let outcome = apply_ruleset(
+        &host,
+        distro(),
+        AgentPaths::nftables_ruleset_path(),
+        &rendered(&[]),
+    );
+
+    assert!(matches!(
+        outcome,
+        Err(FirewallError::RuleRefusedByNft { .. })
+    ));
+}
+
+/// A load killed at its deadline, after the rename, is a bound and never
+/// `NftFailed`: the file is committed and the live ruleset may or may not be.
+#[test]
+fn a_load_that_times_out_is_a_bound_and_never_an_nft_failure() {
+    let host = FakeFirewallHost::new();
+    host.time_out_on("-f");
+
+    let outcome = apply_ruleset(
+        &host,
+        distro(),
+        AgentPaths::nftables_ruleset_path(),
+        &rendered(&[]),
+    );
+
+    assert!(
+        matches!(
+            outcome,
+            Err(FirewallError::Bound(BoundExceeded::TimedOut { .. }))
+        ),
+        "expected the typed timeout, got {outcome:?}"
+    );
+    assert!(host.steps().contains(&String::from(COMMIT_STEP)));
 }

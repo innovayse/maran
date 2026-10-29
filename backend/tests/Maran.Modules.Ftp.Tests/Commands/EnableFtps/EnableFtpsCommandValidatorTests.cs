@@ -41,6 +41,64 @@ public sealed class EnableFtpsCommandValidatorTests
         });
     }
 
+    /// <summary>A hostname in the reserved set is refused with the reserved code.</summary>
+    /// <remarks>
+    /// Well formed, so the shape rule accepts every one of these; the name is written into the FTPS
+    /// configuration and must be a real, public name.
+    /// </remarks>
+    [Theory]
+    [InlineData("203.0.113.7")]
+    [InlineData("127.0.0.1")]
+    [InlineData("shop.123")]
+    [InlineData("foo.localhost")]
+    [InlineData("FOO.LOCAL")]
+    [InlineData("x.localdomain")]
+    [InlineData("x.internal")]
+    [InlineData("x.lan")]
+    public void A_hostname_in_the_reserved_set_is_refused_with_the_reserved_code(string hostname)
+    {
+        var result = _validator.Validate(new EnableFtpsCommand(hostname));
+
+        Assert.False(result.IsValid);
+        Assert.Contains(result.Errors, failure =>
+        {
+            return failure.ErrorMessage == ErrorCodes.FtpsHostnameReserved;
+        });
+    }
+
+    /// <summary>A hostname that merely resembles a reserved one is accepted.</summary>
+    /// <remarks>The inverse control: a validator refusing every name would pass every test above.</remarks>
+    [Theory]
+    [InlineData("mylocal.com")]
+    [InlineData("localhost.example.com")]
+    [InlineData("internal.example.com")]
+    [InlineData("web2.example.com")]
+    [InlineData("ftp.example.test")]
+    public void A_hostname_that_is_not_reserved_is_accepted(string hostname)
+    {
+        var result = _validator.Validate(new EnableFtpsCommand(hostname));
+
+        Assert.True(result.IsValid);
+    }
+
+    /// <summary>A malformed hostname that also ends in a reserved suffix is reported once, as malformed.</summary>
+    [Theory]
+    [InlineData("bad..local")]
+    [InlineData("under_score.localhost")]
+    public void A_malformed_hostname_is_not_also_reported_as_reserved(string hostname)
+    {
+        var result = _validator.Validate(new EnableFtpsCommand(hostname));
+
+        Assert.DoesNotContain(result.Errors, failure =>
+        {
+            return failure.ErrorMessage == ErrorCodes.FtpsHostnameReserved;
+        });
+        Assert.Contains(result.Errors, failure =>
+        {
+            return failure.ErrorMessage == ErrorCodes.FtpsHostnameInvalidFormat;
+        });
+    }
+
     /// <summary>A passive address carrying a newline is refused.</summary>
     /// <remarks>The same config-injection surface, on the second value an operator types.</remarks>
     [Fact]

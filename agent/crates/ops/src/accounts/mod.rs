@@ -8,10 +8,12 @@
 mod account_error;
 mod account_lock;
 mod account_operations;
+mod end_account_processes;
 pub mod model;
 mod process_system_host;
 mod quota_blocks;
 mod quota_enforceability;
+mod read_managed_account;
 mod system_host;
 
 pub use account_error::AccountError;
@@ -31,4 +33,5 @@ pub use model::repaired_home::RepairedHome;
 pub use model::stored_password::StoredPassword;
 pub use process_system_host::ProcessSystemHost;
 pub(crate) use quota_enforceability::classify as classify_quota_enforceability;
+pub(crate) use read_managed_account::read_managed_account;
 pub use system_host::SystemHost;

@@ -8,6 +8,9 @@ server {
     # so this location stays reachable even when everything else redirects.
     location ^~ /.well-known/acme-challenge/ {
         root {{ document_root }};
+        # A link is followed only when it and its target share an owner
+        # (see SiteBody).
+        disable_symlinks if_not_owner;
         default_type "text/plain";
     }
 

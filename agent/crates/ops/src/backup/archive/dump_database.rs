@@ -116,6 +116,7 @@ pub(crate) fn dump_path(databases_directory: &Path, database: &DatabaseName) -> 
 /// # Errors
 ///
 /// - [`BackupError::DumpFailed`] when the client refused or could not be run.
+/// - [`BackupError::Bound`] when the client was killed at its deadline.
 /// - [`BackupError::DumpTooLarge`] when what it wrote exceeds `ceiling`.
 /// - [`BackupError::ChecksumUnreadable`] when the file it wrote cannot be read
 ///   back.

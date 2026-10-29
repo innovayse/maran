@@ -22,7 +22,7 @@ fn the_oldest_supported_version_parses() {
 #[test]
 fn a_version_containing_a_newline_is_rejected() {
     // The attack this type exists for. Written into
-    // `fastcgi_pass unix:/run/maran/php/acme-<version>.sock;` verbatim, the
+    // `fastcgi_pass unix:/run/maran-php/acme-<version>.sock;` verbatim, the
     // rest of the value becomes directives of the caller's choosing inside a
     // config file root wrote — and `nginx -t` accepts it, because it is valid.
     let refused = PhpVersion::parse("8.3\n    root /etc;\n");

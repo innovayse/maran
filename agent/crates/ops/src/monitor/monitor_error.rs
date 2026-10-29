@@ -1,5 +1,7 @@
 //! Failures of the read-only monitoring operations.
 
+use maran_agent_core::utils::bound_exceeded::BoundExceeded;
+
 /// The `code` reported when a program could not be started at all.
 ///
 /// Negative so it can never collide with an exit status, every one of which is
@@ -21,8 +23,11 @@ pub(crate) const PROGRAM_UNAVAILABLE: i32 = -1;
 /// service manager is an error here.
 ///
 /// No variant carries a program's output, for the reason the SFTP area's does
-/// not: a shape with no string field cannot leak one.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
+/// not. [`Self::Bound`] carries a program's path and the bound it broke, which
+/// is configuration and a number, and never a byte the program printed.
+///
+/// The enum is not `Copy`: [`Self::Bound`] owns the program's path as a string.
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 #[non_exhaustive]
 pub enum MonitorError {
     /// The kernel's own statistics could not be read, or could not be
@@ -108,6 +113,19 @@ pub enum MonitorError {
     /// statistics, and the remedies do not overlap.
     #[error("the host's IPv4 routing table could not be read")]
     Ipv4RoutesUnavailable,
+
+    /// A program this area ran was stopped by the agent: it ran past its
+    /// deadline, or wrote more than the host will read, and it was killed
+    /// together with its process group.
+    ///
+    /// Not [`Self::ServiceManagerUnavailable`] and not a verdict on a unit: a
+    /// `systemctl show` that was killed has not said the unit is down, and a
+    /// `quotaon -p` that was killed has not said the filesystem cannot enforce
+    /// a quota. The caller reports "could not find out" and tries again on the
+    /// next sample. It carries the program's path and the bound, nothing the
+    /// program printed.
+    #[error(transparent)]
+    Bound(#[from] BoundExceeded),
 }
 
 impl MonitorError {
@@ -118,3 +136,7 @@ impl MonitorError {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "../tests/monitor/monitor_error_tests.rs"]
+mod tests;

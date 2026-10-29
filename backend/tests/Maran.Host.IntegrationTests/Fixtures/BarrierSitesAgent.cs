@@ -38,6 +38,9 @@ public sealed class BarrierSitesAgent : IAgentSitesClient
     /// <summary>The PHP version each delete was asked to retire, in call order.</summary>
     private readonly List<string> _retiredPhpVersions = [];
 
+    /// <summary>The domain each delete was asked to remove, in call order.</summary>
+    private readonly List<string> _deletedDomains = [];
+
     /// <summary>How many callers must arrive before any of them is allowed to continue.</summary>
     private readonly int _expected;
 
@@ -78,6 +81,24 @@ public sealed class BarrierSitesAgent : IAgentSitesClient
         }
     }
 
+    /// <summary>
+    /// When set, every creation is refused with this error immediately, writing nothing and skipping the
+    /// barrier: how a test scripts the agent's own refusal of a name another vhost already serves.
+    /// </summary>
+    public Error? RefuseCreationWith { get; init; }
+
+    /// <summary>The domain each delete was asked to remove, which names the vhost the panel took down.</summary>
+    public IReadOnlyList<string> DeletedDomains
+    {
+        get
+        {
+            lock (_deletedDomains)
+            {
+                return [.. _deletedDomains];
+            }
+        }
+    }
+
     /// <summary>Provisions the site, but not before every expected caller has reached this point.</summary>
     /// <param name="accountUsername">The owning account's system user name.</param>
     /// <param name="domain">The site's primary domain.</param>
@@ -102,6 +123,11 @@ public sealed class BarrierSitesAgent : IAgentSitesClient
     {
         Interlocked.Increment(ref _createCalls);
 
+        if (RefuseCreationWith is not null)
+        {
+            return Result<CreatedSiteDto>.Fail(RefuseCreationWith);
+        }
+
         if (Interlocked.Increment(ref _arrived) >= _expected)
         {
             _released.TrySetResult();
@@ -114,7 +140,7 @@ public sealed class BarrierSitesAgent : IAgentSitesClient
 
     /// <summary>Removes the vhost, recording what the caller asked to retire with it.</summary>
     /// <param name="accountUsername">The owning account's system user name; ignored.</param>
-    /// <param name="domain">The site's primary domain; ignored.</param>
+    /// <param name="domain">The site's primary domain, recorded as the vhost taken down.</param>
     /// <param name="retiredPhpVersion">The pool version to retire, which a compensation leaves empty.</param>
     /// <param name="cancellationToken">Cancellation for the call; ignored.</param>
     /// <returns>Success.</returns>
@@ -127,6 +153,11 @@ public sealed class BarrierSitesAgent : IAgentSitesClient
         lock (_retiredPhpVersions)
         {
             _retiredPhpVersions.Add(retiredPhpVersion);
+        }
+
+        lock (_deletedDomains)
+        {
+            _deletedDomains.Add(domain);
         }
 
         return Task.FromResult(Result<bool>.Ok(true));

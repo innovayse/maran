@@ -41,6 +41,17 @@ use crate::backup::model::extract_spec::ExtractSpec;
 /// a runtime worker stalls every other in-flight command (rules/rust.md "Async
 /// and blocking"). The obligation is restated on each method, because a caller
 /// reads the method they are calling.
+///
+/// **Every program an implementation starts is bounded.** "As long as a
+/// customer's data takes" is a long time and not an unlimited one: each spawn
+/// runs under a deadline of its call class (the dump, the archive, the listing,
+/// the extraction, the drop and the load under the twelve-hour bulk class; the
+/// drop is a restore's point of no return, so the database class's shorter
+/// deadline would kill it mid-way), in a process group of its own that is killed whole when
+/// the deadline passes. A kill, and an output stream that outgrows its cap, are
+/// [`BackupError::Bound`] on every method below, and are never one of the
+/// variants that say a program ran and refused: a program that was stopped has
+/// not been shown to have failed.
 pub trait BackupHost: Send + Sync {
     /// The current time, in seconds since the Unix epoch.
     ///
@@ -96,7 +107,8 @@ pub trait BackupHost: Send + Sync {
     /// Returns [`BackupError::DumpFailed`] when the client refuses or cannot be
     /// run, and when the file it was told to write cannot be measured
     /// afterwards — a dump whose size is unknown is a dump nothing downstream
-    /// can check.
+    /// can check. Returns [`BackupError::Bound`] when the client was killed at
+    /// its deadline.
     fn dump_database(&self, database: &DatabaseName, into: &Path) -> Result<u64, BackupError>;
 
     /// Runs the archiver over `spec` and answers the artifact's size in bytes.
@@ -118,6 +130,8 @@ pub trait BackupHost: Send + Sync {
     ///
     /// Returns [`BackupError::ArchiveFailed`] when the archiver refuses or
     /// cannot be run, and when the artifact cannot be measured afterwards.
+    /// Returns [`BackupError::Bound`] when the archiver was killed at its
+    /// deadline.
     fn create_archive(&self, spec: &ArchiveSpec) -> Result<u64, BackupError>;
 
     /// Lists every member name in `artifact`, writing nothing anywhere.
@@ -135,11 +149,23 @@ pub trait BackupHost: Send + Sync {
     ///
     /// Implementations MUST be called from `tokio::task::spawn_blocking`.
     ///
+    /// **The listing is bounded, and a bound refuses the archive.** The
+    /// artifact is customer-supplied and this runs as root, so an implementation
+    /// MUST bound the time the listing takes, the bytes it reads and the number
+    /// and length of the names it keeps, and MUST return an error when any of
+    /// them is reached. It MUST NOT return the names read so far: the pre-scan
+    /// decides on the WHOLE listing, and a listing cut short and handed on as
+    /// complete would let a member placed after the cut through to the
+    /// extraction.
+    ///
     /// # Errors
     ///
     /// Returns [`BackupError::ArchiveFailed`] when the archiver refuses or
     /// cannot be run — which for this method includes an artifact that is not a
-    /// readable gzip stream at all.
+    /// readable gzip stream at all — and when the listing is past the
+    /// implementation's member-count or name-length bound. Returns
+    /// [`BackupError::Bound`] when the archiver was killed at its deadline or
+    /// wrote more than the implementation will hold.
     ///
     /// An implementation that decompresses through a named program MUST name it
     /// absolutely, exactly as [`Self::create_archive`] must: this method reads
@@ -188,7 +214,12 @@ pub trait BackupHost: Send + Sync {
     ///
     /// Returns [`BackupError::ArchiveFailed`] when the artifact cannot be
     /// opened, and when the archiver refuses or cannot be run — INCLUDING when
-    /// it refuses inside the unprivileged child.
+    /// it refuses inside the unprivileged child (which is also how an
+    /// archiver killed at its deadline in there is reported, because a typed
+    /// bound cannot cross the fork).
+    ///
+    /// Returns [`BackupError::Bound`] when an archiver run as root was killed at
+    /// its deadline.
     ///
     /// Returns [`BackupError::ExtractionIdentityUnavailable`] only when the
     /// account the home must be extracted as could not be ENTERED: not
@@ -221,7 +252,7 @@ pub trait BackupHost: Send + Sync {
     /// # Errors
     ///
     /// Returns [`BackupError::DropFailed`] when the client refuses or cannot be
-    /// run.
+    /// run, and [`BackupError::Bound`] when it was killed at its deadline.
     fn drop_database(&self, database: &DatabaseName) -> Result<(), BackupError>;
 
     /// Loads the SQL at `from` into the server, re-creating `database`.
@@ -250,6 +281,7 @@ pub trait BackupHost: Send + Sync {
     /// # Errors
     ///
     /// Returns [`BackupError::LoadFailed`] when the client refuses, cannot be
-    /// run, or the dump file cannot be read.
+    /// run, or the dump file cannot be read, and [`BackupError::Bound`] when it
+    /// was killed at its deadline.
     fn load_dump(&self, database: &DatabaseName, from: &Path) -> Result<(), BackupError>;
 }

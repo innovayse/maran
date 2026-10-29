@@ -39,6 +39,7 @@ const SECONDS_PER_DAY: i64 = 86_400;
 /// # Errors
 ///
 /// Returns [`SslOpError::ToolUnavailable`] when openssl cannot be run,
+/// [`SslOpError::Bound`] when it outruns its deadline,
 /// [`SslOpError::MalformedCertificate`] when it will not read the certificate,
 /// and [`SslOpError::ExpiryUnreadable`] when the date it printed is not the
 /// format above — never a guessed expiry, which would be a site that silently
@@ -49,7 +50,7 @@ pub(crate) fn certificate_expiry(
     material: &CertificateMaterial,
 ) -> Result<i64, SslOpError> {
     let outcome = host.run_with_certificate(
-        distro.openssl_binary(),
+        &distro.openssl_binary(),
         &END_DATE,
         material.certificate_pem(),
     )?;

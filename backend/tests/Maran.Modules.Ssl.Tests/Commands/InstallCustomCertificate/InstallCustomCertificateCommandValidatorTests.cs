@@ -1,13 +1,17 @@
 using FluentValidation.TestHelper;
 using Maran.Modules.Ssl.Commands.InstallCustomCertificate;
+using Maran.Modules.Ssl.Tests.TestSupport;
 
 namespace Maran.Modules.Ssl.Tests.Commands.InstallCustomCertificate;
 
 /// <summary>Boundary validation of the customer-supplied install (rules/security.md item 1).</summary>
 public sealed class InstallCustomCertificateCommandValidatorTests
 {
+    /// <summary>The name the stub directory calls the panel's own.</summary>
+    private const string PanelName = "panel.example.net";
+
     /// <summary>The validator under test.</summary>
-    private readonly InstallCustomCertificateCommandValidator _validator = new();
+    private readonly InstallCustomCertificateCommandValidator _validator = new(new StubPanelHostDirectory(PanelName));
 
     /// <summary>Builds a command with one field varied.</summary>
     /// <param name="domain">The domain to submit.</param>
@@ -82,5 +86,80 @@ public sealed class InstallCustomCertificateCommandValidatorTests
         // exported by a different tool; the agent verifies the key against the certificate.
         _validator.TestValidate(Command(privateKeyPem: privateKeyPem))
             .ShouldNotHaveValidationErrorFor(command => command.PrivateKeyPem);
+    }
+
+    /// <summary>A domain in the static reserved set is rejected with the reserved key.</summary>
+    [Theory]
+    [InlineData("203.0.113.7")]
+    [InlineData("127.0.0.1")]
+    [InlineData("shop.123")]
+    [InlineData("foo.localhost")]
+    [InlineData("FOO.LOCAL")]
+    [InlineData("x.localdomain")]
+    [InlineData("x.internal")]
+    [InlineData("x.lan")]
+    public void A_domain_in_the_reserved_set_is_rejected_with_the_reserved_key(string domain)
+    {
+        // Well formed, so the shape rule accepts it; a certificate request for it must still never
+        // reach the certificate authority or a vhost.
+        _validator.TestValidate(Command(domain: domain))
+            .ShouldHaveValidationErrorFor(command => command.Domain)
+            .WithErrorMessage("CertificateDomainReserved");
+    }
+
+    /// <summary>The panel's own name, its www form and any casing of either are rejected.</summary>
+    [Theory]
+    [InlineData("panel.example.net")]
+    [InlineData("www.panel.example.net")]
+    [InlineData("Panel.Example.NET")]
+    public void The_panels_own_name_is_rejected_with_the_reserved_key(string domain)
+    {
+        _validator.TestValidate(Command(domain: domain))
+            .ShouldHaveValidationErrorFor(command => command.Domain)
+            .WithErrorMessage("CertificateDomainReserved");
+    }
+
+    /// <summary>A name beside the panel's, or merely resembling a reserved one, is accepted.</summary>
+    /// <remarks>The inverse control: a validator that refused everything would pass every rejection test.</remarks>
+    [Theory]
+    [InlineData("shop.panel.example.net")]
+    [InlineData("example.net")]
+    [InlineData("mylocal.com")]
+    [InlineData("localhost.example.com")]
+    [InlineData("internal.example.com")]
+    [InlineData("web2.example.com")]
+    [InlineData("shop.example.test")]
+    public void A_name_that_is_not_reserved_is_accepted(string domain)
+    {
+        _validator.TestValidate(Command(domain: domain))
+            .ShouldNotHaveValidationErrorFor(command => command.Domain);
+    }
+
+    /// <summary>With no panel name configured only the static set applies.</summary>
+    [Fact]
+    public void With_no_panel_name_configured_a_panel_like_name_is_accepted()
+    {
+        var validator = new InstallCustomCertificateCommandValidator(new StubPanelHostDirectory());
+
+        validator.TestValidate(Command(domain: "panel.example.net"))
+            .ShouldNotHaveValidationErrorFor(command => command.Domain);
+        validator.TestValidate(Command(domain: "203.0.113.7"))
+            .ShouldHaveValidationErrorFor(command => command.Domain)
+            .WithErrorMessage("CertificateDomainReserved");
+    }
+
+    /// <summary>A malformed name that also ends in a reserved suffix is reported once, as malformed.</summary>
+    [Theory]
+    [InlineData("bad..local")]
+    [InlineData("under_score.localhost")]
+    public void A_malformed_name_is_not_also_reported_as_reserved(string domain)
+    {
+        var result = _validator.TestValidate(Command(domain: domain));
+
+        var messages = result.Errors.Select(failure =>
+        {
+            return failure.ErrorMessage;
+        }).ToList();
+        Assert.Equal(["CertificateDomainInvalidFormat"], messages);
     }
 }

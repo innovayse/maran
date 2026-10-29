@@ -4,7 +4,9 @@
 
 use crate::cron::cron_error::CronError;
 use crate::cron::get_cron_environment::get_cron_environment;
-use crate::cron::recording_cron_host::{RecordingCronHost, account, assignment, distro};
+use crate::cron::recording_cron_host::{
+    RecordingCronHost, account, assert_refused_untouched, assignment, distro, unmanaged_cases,
+};
 use crate::cron::set_cron_environment::set_cron_environment;
 
 /// An account with no crontab has no assignments.
@@ -73,4 +75,16 @@ fn a_crontab_that_cannot_be_read_stops_the_listing() {
     let refusal = get_cron_environment(&host, &account());
 
     assert_eq!(refusal, Err(CronError::CrontabRefused { code: 7 }));
+}
+
+/// An account that is not a hosting account is refused before the table is
+/// read, and everything the host holds is left as it was.
+#[test]
+fn reading_the_environment_of_an_unmanaged_account_reads_no_crontab() {
+    // Reading root's table as root is itself the disclosure.
+    for case in unmanaged_cases() {
+        let result = get_cron_environment(&case.host, &case.account);
+
+        assert_refused_untouched(&case, result);
+    }
 }

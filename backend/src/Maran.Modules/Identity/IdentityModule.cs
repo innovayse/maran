@@ -82,6 +82,8 @@ public sealed class IdentityModule : IPanelModule
         services.AddScoped<IAuditWriter, DatabaseAuditWriter>();
         services.AddScoped<IdentityAuditJournal>();
         services.AddScoped<InvitationMailComposer>();
+        services.AddScoped<InvitationLinkBuilder>();
+        services.AddScoped<InvitationIssuer>();
         services.AddScoped<AuditActionDisplayNames>();
 
         // Singleton: it holds one row for the life of the process and is read on the sign-in path,

@@ -4,6 +4,8 @@
 // A failing assertion IS the reporting mechanism for a test.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use maran_agent_core::utils::call_class::CallClass;
+
 use crate::ftps::fake_ftps_host::{FakeFtpsHost, account, distro};
 use crate::ftps::ftps_error::FtpsError;
 use crate::ftps::remove_account_ftps::remove_account_ftps;
@@ -29,7 +31,7 @@ fn every_login_the_account_holds_is_removed_before_the_jail_comes_down() {
         .collect();
     let last_userdel = order
         .iter()
-        .rposition(|line| line.starts_with(distro().userdel_binary()))
+        .rposition(|line| line.starts_with(distro().userdel_binary().as_str()))
         .expect("userdel ran");
     let disable = order
         .iter()
@@ -163,4 +165,61 @@ fn a_password_database_that_cannot_be_read_stops_the_teardown_rather_than_report
         "{result:?}"
     );
     assert!(host.directory_still_exists(host.jail().directory()));
+}
+
+#[test]
+fn the_teardown_runs_userdel_as_a_mutation_and_the_service_manager_as_a_reload() {
+    let host = FakeFtpsHost::for_account(ACCOUNT, 1001, 1001)
+        .with_jail_still_mounted()
+        .with_existing_login("alice_files");
+
+    remove_account_ftps(&host, distro(), &account(ACCOUNT)).expect("the teardown must succeed");
+
+    let spawns = host.spawns();
+    assert!(!spawns.is_empty());
+    for spawn in spawns {
+        let expected = if spawn.argv[0].ends_with("userdel") {
+            CallClass::Mutation
+        } else {
+            CallClass::Reload
+        };
+        assert_eq!(spawn.class, Some(expected), "{:?}", spawn.argv);
+    }
+}
+
+#[test]
+fn the_mount_unit_is_disabled_with_its_name_after_the_end_of_options_marker() {
+    let host = FakeFtpsHost::for_account(ACCOUNT, 1001, 1001).with_jail_still_mounted();
+
+    remove_account_ftps(&host, distro(), &account(ACCOUNT)).expect("the teardown must succeed");
+
+    let disable = host
+        .spawns()
+        .into_iter()
+        .find(|spawn| spawn.argv.get(1).is_some_and(|verb| verb == "disable"))
+        .expect("the mount unit was stopped");
+    let marker = disable
+        .argv
+        .iter()
+        .position(|argument| argument == "--")
+        .expect("the marker is present");
+    assert_eq!(marker + 2, disable.argv.len(), "{:?}", disable.argv);
+    assert!(
+        disable.argv[marker + 1].ends_with(".mount"),
+        "{:?}",
+        disable.argv
+    );
+}
+
+#[test]
+fn a_mount_that_cannot_be_stopped_in_time_is_a_bound_and_the_unit_file_stays() {
+    let host = FakeFtpsHost::for_account(ACCOUNT, 1001, 1001)
+        .with_jail_still_mounted()
+        .timing_out("systemctl");
+
+    let result = remove_account_ftps(&host, distro(), &account(ACCOUNT));
+
+    assert!(matches!(result, Err(FtpsError::Bound(_))), "{result:?}");
+    assert!(host.is_mounted(), "nothing came down");
+    assert!(host.unit_file_exists(host.jail().unit_path()));
 }

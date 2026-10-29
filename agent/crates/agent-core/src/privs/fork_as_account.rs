@@ -9,9 +9,28 @@ use super::priv_error::PrivError;
 /// Child exit status meaning the work ran as the account and succeeded.
 const EXIT_OK: i32 = 0;
 
-/// Child exit status meaning one of the three drop syscalls returned an error.
-/// No work was done.
-const EXIT_DROP_FAILED: i32 = 76;
+/// Child exit status meaning `setgroups` returned an error. No work was done.
+///
+/// One status PER SYSCALL rather than one for the three of them together, and the reason is a
+/// day spent on issue #81: "privilege drop failed in child" names a category, and a category
+/// cannot be reproduced. Three hypotheses were tested from outside — the capability set, all
+/// nineteen of the unit's sandbox directives, and the multithreaded-fork hazard in glibc's
+/// setxid broadcast — and every one of them was wrong, because the message could not say which
+/// of the three calls had failed. A check must be able to observe what it reports on
+/// (rules/testing.md), and this one could not.
+///
+/// The errno itself is still not carried, and that is deliberate rather than an omission: the
+/// only way back from this child is the exit status, because a pipe from an unprivileged child
+/// into the root parent is a surface this module exists to avoid (see `fork_as_account`). The
+/// syscall's identity is what makes the failure reproducible by hand; the errno follows from
+/// reproducing it.
+const EXIT_DROP_SETGROUPS_FAILED: i32 = 73;
+
+/// Child exit status meaning `setgid` returned an error. No work was done.
+const EXIT_DROP_SETGID_FAILED: i32 = 74;
+
+/// Child exit status meaning `setuid` returned an error. No work was done.
+const EXIT_DROP_SETUID_FAILED: i32 = 75;
 
 /// Child exit status meaning the drop was accepted but did not fully apply.
 /// `EX_NOPERM` from `sysexits.h`. No work was done.
@@ -267,7 +286,7 @@ where
 ///
 /// # Errors
 ///
-/// Returns [`EXIT_DROP_FAILED`] when a syscall failed and
+/// Returns the exit status naming the syscall that failed, and
 /// [`EXIT_VERIFICATION_FAILED`] when the credentials afterwards are not the ones
 /// that were asked for.
 fn drop_to(ids: &AccountIds) -> Result<(), i32> {
@@ -280,20 +299,20 @@ fn drop_to(ids: &AccountIds) -> Result<(), i32> {
     // It is called FIRST because it needs the CAP_SETGID that `setuid` below
     // gives away; see the ordering note on `fork_as_account`.
     if unsafe { libc::setgroups(1, only_group.as_ptr()) } != 0 {
-        return Err(EXIT_DROP_FAILED);
+        return Err(EXIT_DROP_SETGROUPS_FAILED);
     }
 
     // SAFETY: `setgid` takes an integer and touches no memory. Called before
     // `setuid` for the same reason: afterwards the process cannot change its gid.
     if unsafe { libc::setgid(gid) } != 0 {
-        return Err(EXIT_DROP_FAILED);
+        return Err(EXIT_DROP_SETGID_FAILED);
     }
 
     // SAFETY: `setuid` takes an integer and touches no memory. It is last, and it
     // is irreversible here — the process is root, so it sets the real, effective
     // and saved uid together, leaving no saved id to return through.
     if unsafe { libc::setuid(uid) } != 0 {
-        return Err(EXIT_DROP_FAILED);
+        return Err(EXIT_DROP_SETUID_FAILED);
     }
 
     verify(uid, gid, &observe())
@@ -679,7 +698,11 @@ fn outcome_of(status: libc::c_int) -> Result<(), PrivError> {
 
     match libc::WEXITSTATUS(status) {
         EXIT_OK => Ok(()),
-        EXIT_DROP_FAILED => Err(PrivError::DropFailed),
+        EXIT_DROP_SETGROUPS_FAILED => Err(PrivError::DropFailed {
+            syscall: "setgroups",
+        }),
+        EXIT_DROP_SETGID_FAILED => Err(PrivError::DropFailed { syscall: "setgid" }),
+        EXIT_DROP_SETUID_FAILED => Err(PrivError::DropFailed { syscall: "setuid" }),
         EXIT_VERIFICATION_FAILED => Err(PrivError::VerificationFailed),
         EXIT_WORK_FAILED => Err(PrivError::WorkFailed),
         other => Err(PrivError::UnexpectedExit { status: other }),

@@ -28,7 +28,8 @@ use crate::proto::{
 use crate::services::sites::site_status::to_agent_error;
 use crate::services::sites::stream_log_sink::StreamLogSink;
 use crate::services::sites::tail_terminal::tail_terminal;
-use crate::services::sites::validated_identity::validated_identity;
+use crate::services::sites::validated_existing_identity::validated_existing_identity;
+use crate::services::sites::validated_existing_site::validated_existing_site;
 use crate::services::sites::validated_overrides::validated_overrides;
 use crate::services::sites::validated_site::validated_site;
 use crate::services::wire::invalid_input::invalid_input;
@@ -98,7 +99,11 @@ where
         }
     }
 
-    /// The site description a re-rendering rpc carries, validated.
+    /// The site description a re-rendering rpc carries, validated, with the
+    /// reserved host name set enforced for the domain and every alias.
+    ///
+    /// Used by create, enable and switching PHP version; disable, delete, log
+    /// tail and inspection take the shape-only existing-site path instead.
     ///
     /// # Errors
     ///
@@ -285,7 +290,7 @@ where
         request: Request<DisableSiteRequest>,
     ) -> Result<Response<DisableSiteResponse>, Status> {
         let request = request.into_inner();
-        let result = match Self::site(
+        let result = match validated_existing_site(
             &request.account_username,
             &request.domain,
             request.site.as_ref(),
@@ -325,27 +330,26 @@ where
         // up. `SiteIdentity` is the operation's input for exactly that reason:
         // a service with only these two facts must not be able to assert the
         // others.
-        let result = match validated_identity(&request.account_username, &request.domain).and_then(
-            |(account, domain)| {
-                // Revalidated like every other input, and ABSENT is a MEANING
-                // rather than a default: the empty string is the panel saying
-                // "leave the pool alone", which is what it says for a static
-                // site and for a PHP site whose account still has other sites
-                // on the same version. A version that is present but malformed
-                // is refused rather than read as absent — the two must never
-                // collapse into each other, because one leaves a pool standing
-                // and the other takes one away.
-                let retired = if request.retired_php_version.is_empty() {
-                    None
-                } else {
-                    Some(
-                        PhpVersion::parse(&request.retired_php_version)
-                            .map_err(|error| invalid_input(error.to_string()))?,
-                    )
-                };
-                Ok((account, domain, retired))
-            },
-        ) {
+        let identity = validated_existing_identity(&request.account_username, &request.domain);
+        let result = match identity.and_then(|(account, domain)| {
+            // Revalidated like every other input, and ABSENT is a MEANING
+            // rather than a default: the empty string is the panel saying
+            // "leave the pool alone", which is what it says for a static
+            // site and for a PHP site whose account still has other sites
+            // on the same version. A version that is present but malformed
+            // is refused rather than read as absent — the two must never
+            // collapse into each other, because one leaves a pool standing
+            // and the other takes one away.
+            let retired = if request.retired_php_version.is_empty() {
+                None
+            } else {
+                Some(
+                    PhpVersion::parse(&request.retired_php_version)
+                        .map_err(|error| invalid_input(error.to_string()))?,
+                )
+            };
+            Ok((account, domain, retired))
+        }) {
             Ok((account, domain, retired)) => {
                 let (host, php_host, distro) = (
                     Arc::clone(&self.host),
@@ -417,7 +421,7 @@ where
             Ok(ProtoSiteLogKind::Unspecified) | Err(_) => None,
         };
 
-        let identity = validated_identity(&request.account_username, &request.domain);
+        let identity = validated_existing_identity(&request.account_username, &request.domain);
 
         match (identity, kind) {
             (Ok((account, domain)), Some(kind)) => {

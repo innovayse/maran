@@ -10,7 +10,10 @@ namespace Maran.Agent.Client.Interfaces;
 /// <remarks>
 /// Every method returns a <see cref="Result{T}"/> rather than throwing: an account that
 /// already exists, or one the agent cannot find, is an answer the caller acts on, not an
-/// exception (rules/csharp.md "Errors: Result, not exceptions").
+/// exception (rules/csharp.md "Errors: Result, not exceptions"). An agent that cannot be reached
+/// at all is answered the same way, as <c>AgentUnavailable</c>, by the resilience decorator the
+/// Host registers over this contract; the implementation in this project lets the transport's
+/// exception out, so that decorator's retry can see it (<see cref="Errors.AgentTransportFailure"/>).
 /// </remarks>
 public interface IAgentAccountsClient
 {

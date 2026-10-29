@@ -6,11 +6,21 @@
  * — a dozen announcing placeholders would flood a screen reader instead of
  * informing it.
  *
- * The design does not pulse its placeholders, it sweeps them: the `--sk`
- * gradient is painted 800px wide and slid across the shape on a 1.3s linear
- * loop. That is why the animation lives in a `<style>` block here rather than
- * in a utility class — a keyframe set is the one thing Tailwind's utilities
- * cannot express, and the token file is not this component's to extend.
+ * It sweeps rather than pulses: the `--sk` gradient (a token, so it follows
+ * the theme) is painted 800px wide and slid across the shape on a 1.3s linear
+ * loop. The animation lives in a `<style>` block rather than a utility class
+ * because a keyframe set is the one thing Tailwind's utilities cannot
+ * express, and the token file is not this component's to extend.
+ *
+ * Under `prefers-reduced-motion` the sweep stops and the placeholder holds a
+ * flat wash of the pressed surface instead of freezing mid-gradient, where it
+ * would look like a stripe of half-painted content. It still reads as "not
+ * content yet" from the flat shape alone.
+ *
+ * It carries no information and is hidden from assistive technology, so the
+ * 3:1 bar for meaningful graphics does not apply; it is kept faint on purpose,
+ * because a placeholder that stood out against its panel would pull the eye
+ * away from the content about to replace it.
  */
 import { computed, type ComputedRef } from 'vue'
 
@@ -26,9 +36,9 @@ const props = withDefaults(
 )
 
 /**
- * Tailwind utility classes describing the placeholder's shape and height. The
- * line heights are the design's own — 11px for a body line, with a step either
- * side of it — and the 5px radius is what its skeleton rows use throughout.
+ * Tailwind utility classes describing the placeholder's shape and height. A
+ * line is a pill, a block takes the panel radius it stands in for, and a
+ * circle is a circle.
  */
 const shapeClasses: ComputedRef<string> = computed(() => {
   const heights: Record<'sm' | 'md' | 'lg', string> = {
@@ -38,12 +48,12 @@ const shapeClasses: ComputedRef<string> = computed(() => {
   }
   switch (props.shape) {
     case 'block':
-      return props.size === 'lg' ? 'h-32 w-full rounded-xl' : 'h-20 w-full rounded-xl'
+      return props.size === 'lg' ? 'h-32 w-full rounded-panel' : 'h-20 w-full rounded-panel'
     case 'circle':
       return props.size === 'lg' ? 'size-11 rounded-full' : 'size-7 rounded-full'
     case 'line':
     default:
-      return `${heights[props.size]} w-full rounded-md`
+      return `${heights[props.size]} w-full rounded-full`
   }
 })
 </script>
@@ -59,11 +69,12 @@ const shapeClasses: ComputedRef<string> = computed(() => {
   animation: ui-skeleton-shimmer 1.3s linear infinite;
 }
 
-/* Halted for a reader who asked for less motion; the placeholder still reads as
-   "not content yet" from its flat wash alone. */
+/* Halted for a reader who asked for less motion, and flattened to one wash so
+   the frozen frame is not a stripe of gradient. */
 @media (prefers-reduced-motion: reduce) {
   .ui-skeleton {
     animation: none;
+    background: var(--s3);
   }
 }
 

@@ -30,6 +30,12 @@ namespace Maran.Modules.Cron.Mappers;
 /// between them is an operator's question and the log line is where an operator reads it.
 /// </para>
 /// <para>
+/// <b>One outcome is passed through unchanged: an agent that could not be reached.</b> It arrives with
+/// <see cref="ErrorType.Unavailable"/> and the code <c>AgentUnavailable</c>, a fixed sentence the
+/// panel owns that carries nothing the agent said, so it holds no customer text and re-coding it
+/// would only turn a 503 "try again" into the 500 "something broke" that an outage is not.
+/// </para>
+/// <para>
 /// <b>The allowance refusal gets its own sentence and not the generic one, which is the whole point
 /// of mapping it here.</b> It is the CONCURRENT loser: the customer had room when the panel looked,
 /// and did not by the time the agent installed. Left on the default arm it would reach them as
@@ -91,7 +97,9 @@ public static class CronAgentErrorTranslator
     {
         LogAgentRefusal(logger, operation, subject, agentError.Code, null);
 
-        return ToError(agentError.Code);
+        return agentError.Type == ErrorType.Unavailable
+            ? Error.Of(agentError.Code, ErrorType.Unavailable)
+            : ToError(agentError.Code);
     }
 
     /// <summary>Maps one agent error code onto this module's own, code and kind together.</summary>

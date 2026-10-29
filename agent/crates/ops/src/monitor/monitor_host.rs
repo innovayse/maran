@@ -3,6 +3,8 @@
 use std::path::Path;
 
 use maran_agent_core::command_outcome::CommandOutcome;
+use maran_agent_core::utils::call_class::CallClass;
+use maran_distro::AdapterBinary;
 
 use crate::monitor::model::filesystem_usage::FilesystemUsage;
 use crate::monitor::monitor_error::MonitorError;
@@ -20,8 +22,8 @@ use crate::monitor::monitor_error::MonitorError;
 /// Every method is READ-ONLY. Nothing in this area changes the machine, and the
 /// trait is shaped so that nothing in it could: there is no write, no unit
 /// start, no unit stop. The one method that spawns a program is
-/// [`Self::run`], and its only caller asks the service manager to `show` —
-/// a subcommand that reports and does not act.
+/// [`Self::run`], and its callers ask the service manager to `show` and
+/// `quotaon` to print (`-p`) — subcommands that report and do not act.
 ///
 /// Implementations MUST spawn with an argv array against an absolute path taken
 /// from the `DistroAdapter`, never through a shell and never through a program
@@ -82,7 +84,11 @@ pub trait MonitorHost: Send + Sync {
     /// cannot be queried.
     fn filesystem_usage(&self, path: &Path) -> Result<FilesystemUsage, MonitorError>;
 
-    /// Runs `program` with `arguments` and waits for it.
+    /// Runs `program` with `arguments` and waits for it, for at most `class`'s
+    /// deadline.
+    ///
+    /// `program` is an [`AdapterBinary`]: an absolute path only the
+    /// `DistroAdapter` can produce.
     ///
     /// # Errors
     ///
@@ -90,7 +96,16 @@ pub trait MonitorHost: Send + Sync {
     /// `-1` when the program cannot be started at all. A non-zero exit is NOT
     /// an error here — it is returned in the outcome, because what a status
     /// means is the caller's business and not this seam's.
-    fn run(&self, program: &str, arguments: &[&str]) -> Result<CommandOutcome, MonitorError>;
+    ///
+    /// Returns [`MonitorError::Bound`] when the program was killed at its
+    /// deadline or wrote more than the implementation will hold. A caller MUST
+    /// propagate it and never read it as a unit being down.
+    fn run(
+        &self,
+        program: &AdapterBinary,
+        arguments: &[&str],
+        class: CallClass,
+    ) -> Result<CommandOutcome, MonitorError>;
 
     /// The text of the host's local password database.
     ///

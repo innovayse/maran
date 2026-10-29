@@ -19,9 +19,11 @@
 use std::sync::Mutex;
 
 use maran_agent_core::command_outcome::CommandOutcome;
+use maran_agent_core::utils::bound_exceeded::BoundExceeded;
+use maran_agent_core::utils::call_class::CallClass;
 use maran_agent_core::utils::system_account::SystemAccount;
 use maran_agent_core::validation::system::name::AccountName;
-use maran_distro::{DistroAdapter, DistroFamily, adapter_for};
+use maran_distro::{AdapterBinary, DistroAdapter, DistroFamily, adapter_for};
 
 use crate::logins::logins_error::LoginsError;
 use crate::logins::logins_host::LoginsHost;
@@ -40,6 +42,9 @@ pub(crate) struct RecordedSpawn {
     /// The whole argument vector, the program first — which is what a `ps`
     /// listing on the host would show.
     pub(crate) argv: Vec<String>,
+    /// The call class the code asked the spawn for, which decides the deadline
+    /// the real host would have enforced.
+    pub(crate) class: CallClass,
 }
 
 /// A [`LoginsHost`] that keeps a password database and a set of locked logins
@@ -81,6 +86,12 @@ pub(crate) struct FakeLoginsHost {
     /// `None` means answer as the real tool does — 0 having signalled what it
     /// matched, 1 having matched nothing.
     pkill_status: Mutex<Option<i32>>,
+    /// The program name (its last path component) that outruns its deadline,
+    /// when a test installed one.
+    ///
+    /// The spawn is recorded first and then fails with a
+    /// [`LoginsError::Bound`], as the real host fails after killing the group.
+    times_out: Mutex<Option<String>>,
 }
 
 impl FakeLoginsHost {
@@ -111,6 +122,7 @@ impl FakeLoginsHost {
             passwd_output: Mutex::new(None),
             processes: Mutex::new(Vec::new()),
             pkill_status: Mutex::new(None),
+            times_out: Mutex::new(None),
         }
     }
 
@@ -124,6 +136,12 @@ impl FakeLoginsHost {
     /// Makes `pkill` answer `status` whatever it matched.
     pub(crate) fn refuse_pkill_with(&self, status: i32) {
         *self.pkill_status.lock().unwrap() = Some(status);
+    }
+
+    /// Makes the program named `name` (`usermod`, `passwd` or `pkill`) outrun
+    /// its deadline.
+    pub(crate) fn time_out(&self, name: &str) {
+        *self.times_out.lock().unwrap() = Some(name.to_owned());
     }
 
     /// The real uid of every process still running on the "host", in order.
@@ -315,10 +333,27 @@ impl LoginsHost for FakeLoginsHost {
     /// A program the fake does not know panics rather than answering blandly: a
     /// fake that shrugs at an unexpected tool is a fake that lets an operation
     /// run anything and still pass.
-    fn run(&self, program: &str, arguments: &[&str]) -> Result<CommandOutcome, LoginsError> {
+    fn run(
+        &self,
+        program: &AdapterBinary,
+        arguments: &[&str],
+        class: CallClass,
+    ) -> Result<CommandOutcome, LoginsError> {
+        let program = program.as_str();
         let mut argv = vec![program.to_owned()];
         argv.extend(arguments.iter().map(|argument| (*argument).to_owned()));
-        self.spawns.lock().unwrap().push(RecordedSpawn { argv });
+        self.spawns
+            .lock()
+            .unwrap()
+            .push(RecordedSpawn { argv, class });
+
+        let timed_out = self.times_out.lock().unwrap().clone();
+        if timed_out.is_some_and(|name| program.ends_with(name.as_str())) {
+            return Err(LoginsError::Bound(BoundExceeded::TimedOut {
+                program: program.to_owned(),
+                deadline: class.deadline(),
+            }));
+        }
 
         if program.ends_with("usermod") {
             return Ok(self.usermod(arguments));

@@ -14,7 +14,7 @@ namespace Maran.Modules.Accounts.Commands.CreateAccount;
 /// caller must not be able to state, and the pair of attributes on them is what makes that true —
 /// see their own documentation.
 /// </remarks>
-/// <param name="Name">The account's unique, Linux-username-safe short name.</param>
+/// <param name="Name">The account's unique short name, in the agent's account alphabet and not a reserved system name.</param>
 /// <param name="PrimaryDomain">The account's primary domain.</param>
 /// <param name="PlanId">The id of the plan bounding this account's resource limits.</param>
 /// <param name="OwnerEmail">

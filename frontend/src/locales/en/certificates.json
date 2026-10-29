@@ -29,6 +29,13 @@
       "certificatePemRequired": "The certificate chain is required.",
       "privateKeyPemRequired": "The private key is required."
     },
-    "confirmRemoveTitle": "Remove the certificate for {domain}"
+    "confirmRemoveTitle": "Remove the certificate for {domain}",
+    "daysLeftLabel": "Days left",
+    "renew": "Renew now",
+    "alerts": {
+      "expired": "The certificate for {domain} expired on {date}. Visitors see a browser security warning until a new one is installed.",
+      "expiring": "The certificate for {domain} expires on {date}. Renew it before then, or visitors will see a browser security warning.",
+      "renewalFailed": "The panel could not renew the certificate for {domain} automatically. Failed attempts in a row: {count}."
+    }
   }
 }

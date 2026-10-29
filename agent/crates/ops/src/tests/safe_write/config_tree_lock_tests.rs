@@ -18,7 +18,10 @@ use std::sync::mpsc::{Receiver, Sender, channel};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-use crate::safe_write::model::{Reload, Validator};
+use maran_agent_core::utils::call_class::CallClass;
+use maran_distro::AdapterBinary;
+
+use crate::safe_write::adapter_programs::{reload, timed_out, validator};
 use crate::safe_write::{CommandOutcome, ConfigHost, SafeWriteError, write_config};
 
 /// How long the first writer's validator waits to be told the second writer
@@ -76,7 +79,12 @@ struct FirstWriterHost {
 }
 
 impl ConfigHost for FirstWriterHost {
-    fn run(&self, _program: &str, arguments: &[&str]) -> Result<CommandOutcome, SafeWriteError> {
+    fn run(
+        &self,
+        _program: &AdapterBinary,
+        arguments: &[&str],
+        _class: CallClass,
+    ) -> Result<CommandOutcome, SafeWriteError> {
         // Only the validator observes; the reload that follows it must not
         // wait a second budget or re-read anything.
         if arguments.first() == Some(&"-t") {
@@ -122,7 +130,12 @@ struct SecondWriterHost {
 }
 
 impl ConfigHost for SecondWriterHost {
-    fn run(&self, _program: &str, arguments: &[&str]) -> Result<CommandOutcome, SafeWriteError> {
+    fn run(
+        &self,
+        _program: &AdapterBinary,
+        arguments: &[&str],
+        _class: CallClass,
+    ) -> Result<CommandOutcome, SafeWriteError> {
         if arguments.first() == Some(&"-t") {
             note(&self.journal, "second: validating");
             // A send with no listener is not a failure here: the first writer
@@ -136,22 +149,6 @@ impl ConfigHost for SecondWriterHost {
             stdout: String::new(),
             stderr: String::new(),
         })
-    }
-}
-
-/// The validator argv both hosts branch on.
-fn validator() -> Validator<'static> {
-    Validator {
-        program: "/usr/sbin/nginx",
-        arguments: &["-t"],
-    }
-}
-
-/// The reload argv, which neither host does anything with.
-fn reload() -> Reload<'static> {
-    Reload {
-        program: "/usr/bin/systemctl",
-        arguments: &["reload", "nginx"],
     }
 }
 
@@ -272,5 +269,112 @@ fn a_writer_validating_cannot_see_another_writers_swapped_in_content() {
         ],
         "the second writer must have entered the protocol while the first was validating, \
          and must not have reached its own validator until the first had finished"
+    );
+}
+
+/// A writer whose validator blocks until told, and is then killed at its deadline.
+struct TimingOutWriterHost {
+    /// Told when this host's validator has been entered.
+    entered_validator: Sender<()>,
+    /// Waited on until the test lets the "deadline" pass.
+    deadline_passes: Mutex<Receiver<()>>,
+}
+
+impl ConfigHost for TimingOutWriterHost {
+    fn run(
+        &self,
+        program: &AdapterBinary,
+        arguments: &[&str],
+        _class: CallClass,
+    ) -> Result<CommandOutcome, SafeWriteError> {
+        if arguments.first() == Some(&"-t") {
+            self.entered_validator
+                .send(())
+                .expect("the test thread is still listening");
+            self.deadline_passes
+                .lock()
+                .expect("the fixture lock is never poisoned")
+                .recv_timeout(Duration::from_secs(30))
+                .expect("the test lets the deadline pass");
+
+            return Err(SafeWriteError::Bound(timed_out(program.as_str())));
+        }
+
+        Ok(CommandOutcome {
+            status: 0,
+            stdout: String::new(),
+            stderr: String::new(),
+        })
+    }
+}
+
+/// A validator killed at its deadline releases the lock, so another tenant is not held.
+#[test]
+fn a_writer_whose_validator_times_out_releases_the_lock_and_another_tenants_write_proceeds() {
+    let directory = tempfile::tempdir().expect("a temporary directory");
+    let first_target = directory.path().join("first.conf");
+    let second_target = directory.path().join("second.conf");
+    seed(&first_target, FIRST_PREVIOUS);
+    seed(&second_target, SECOND_PREVIOUS);
+
+    let (entered_validator, validator_entered) = channel();
+    let (let_deadline_pass, deadline_passes) = channel();
+    let first_host = TimingOutWriterHost {
+        entered_validator,
+        deadline_passes: Mutex::new(deadline_passes),
+    };
+    let first_thread = {
+        let target = first_target.clone();
+        std::thread::spawn(move || {
+            write_config(&first_host, &target, FIRST_NEW, &validator(), &reload())
+        })
+    };
+    validator_entered
+        .recv_timeout(Duration::from_secs(30))
+        .expect("the first writer must reach its validator");
+
+    let (swapped, second_reached) = channel();
+    let second_thread = {
+        let target = second_target.clone();
+        let journal: Journal = Arc::new(Mutex::new(Vec::new()));
+        std::thread::spawn(move || {
+            let host = SecondWriterHost { journal, swapped };
+            write_config(&host, &target, SECOND_NEW, &validator(), &reload())
+        })
+    };
+
+    // The positive control: while the first validator is still running the lock IS
+    // held, so the other tenant does not reach its validator. Without this the test
+    // below would pass for a lock that was never taken.
+    assert!(
+        second_reached.recv_timeout(OVERLAP_BUDGET).is_err(),
+        "the second writer must wait while the first writer's validator runs"
+    );
+
+    // The deadline passes: the first validator is killed and the first writer returns.
+    let_deadline_pass
+        .send(())
+        .expect("the first writer is listening");
+    let first = first_thread.join().expect("the first writer must finish");
+
+    assert!(
+        matches!(first, Err(SafeWriteError::Bound(_))),
+        "the first writer reports the bound: {first:?}"
+    );
+    assert_eq!(
+        std::fs::read_to_string(&first_target).expect("the first target is readable"),
+        FIRST_PREVIOUS,
+        "the first writer's target is restored"
+    );
+
+    // The finding: the lock was released by that return, so the other tenant proceeds.
+    second_reached
+        .recv_timeout(Duration::from_secs(30))
+        .expect("the second writer must reach its validator once the lock is released");
+    let second = second_thread.join().expect("the second writer must finish");
+    assert!(second.is_ok(), "{second:?}");
+    assert_eq!(
+        std::fs::read_to_string(&second_target).expect("the second target is readable"),
+        SECOND_NEW
     );
 }

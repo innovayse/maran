@@ -2,42 +2,54 @@
 
 use std::fs::File;
 use std::path::Path;
-use std::process::{Command, Stdio};
+use std::process::Stdio;
 use std::sync::{Mutex, PoisonError};
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use maran_agent_core::privs::account_ids::AccountIds;
 use maran_agent_core::privs::fork_as_account::fork_as_account;
 use maran_agent_core::privs::priv_error::PrivError;
-use maran_agent_core::utils::apply_child_environment::apply_child_environment;
-use maran_agent_core::utils::spawn_argv::spawn_argv;
+use maran_agent_core::utils::call_class::CallClass;
+use maran_agent_core::utils::child_input::ChildInput;
+use maran_agent_core::utils::run_unthreaded::run_unthreaded;
 use maran_agent_core::validation::db::database_name::DatabaseName;
 use maran_agent_core::validation::system::name::AccountName;
-use maran_distro::DistroAdapter;
+use maran_distro::{AdapterBinary, DistroAdapter};
 use rustix::io::dup;
 use rustix::stdio::{dup2_stdin, stdin};
 
 use crate::backup::archive::dump_database::dump_arguments;
 use crate::backup::backup_error::{BackupError, PROGRAM_UNAVAILABLE};
 use crate::backup::backup_host::BackupHost;
+use crate::backup::bound_or::bound_or;
+use crate::backup::list_archive_members::list_archive_members;
 use crate::backup::model::account_identity::AccountIdentity;
 use crate::backup::model::archive_spec::ArchiveSpec;
 use crate::backup::model::extract_identity::ExtractIdentity;
 use crate::backup::model::extract_spec::ExtractSpec;
+use crate::backup::run_discarding::run_discarding;
 
-/// The flag that lists an archive's members without extracting anything.
-const LIST: &str = "--list";
-
-/// The flag that names the decompressor, by absolute path.
+/// How long the account-side archiver may run before this agent kills it.
 ///
-/// The same spelling the two argv builders use, and here for the same reason:
-/// `--gzip` would have `tar` resolve a bare `gzip` through `PATH` in a child of
-/// this root daemon. `--list` reads a customer-supplied artifact, so it gets
-/// the same treatment as the extraction that follows it.
-const COMPRESS_PROGRAM: &str = "--use-compress-program=";
-
-/// The flag naming the archive file to read.
-const FILE: &str = "--file";
+/// **Strictly below `fork_as_account`'s own patience** (120 s, a private
+/// constant in `agent-core::privs`, so it cannot be named here). That outer
+/// limit kills only the forked child, and the archiver is that child's child:
+/// were it to fire first, `tar` and its compressor would be orphaned and
+/// would go on writing into the customer's home after the agent reported
+/// failure. With this deadline the inner kill fires first, takes the archiver
+/// and its compressor down together as one process group, and leaves room
+/// inside the outer 120 s for the 5 s reap. The consequence, stated rather
+/// than hidden: **a home that takes longer than this to extract is NOT
+/// restored.** The extraction is killed, the restore unwinds, and the failure
+/// reaches the panel as `ARCHIVER_REFUSED_UNDER_ACCOUNT`, which it reads as
+/// "the archiver refused" and not as "the deadline passed", because a typed
+/// bound cannot cross `fork_as_account`'s single exit status. This is NOT the
+/// twelve hours the [`CallClass::Bulk`] table promises the rest of this area.
+/// The limit pre-dates this bound (the outer 120 s used to kill only the forked
+/// child and orphan `tar`); lifting it means giving `fork_as_account` a
+/// patience argument, which is a change to `privs/` and carries its own threat
+/// note and second reviewer, so it is tracked as a separate issue.
+const ACCOUNT_ARCHIVER_DEADLINE: Duration = Duration::from_secs(100);
 
 /// The client flags that make a load read SQL and print nothing conversational.
 ///
@@ -95,10 +107,12 @@ const ARCHIVER_REFUSED_UNDER_ACCOUNT: i32 = -2;
 /// **What the lock does NOT cover, stated rather than hidden:** any OTHER
 /// `fork_as_account` child forked during the window inherits descriptor 0 as
 /// well. That is harmless only because of a property this agent has and must
-/// keep — every other spawn either nulls its child's standard input
-/// (`spawn_argv`, which is all of them) or names it explicitly (`load_dump`,
-/// this method) — so no program the agent starts ever reads an inherited
-/// descriptor 0. A future spawn that inherits standard input would break that,
+/// keep — every other spawn names its child's standard input explicitly
+/// (`run_bounded` takes a [`ChildInput`] that has no inheriting variant;
+/// `load_dump` hands it a file; `run_unthreaded` takes the `Stdio` it is given
+/// and this method's account-side call is the only one that passes
+/// `Stdio::inherit()`) — so no program the agent starts ever reads an
+/// inherited descriptor 0. A future spawn that inherits standard input would break that,
 /// and would leak one customer's archive into another customer's process.
 static STDIN_IS_THE_ARTIFACT: Mutex<()> = Mutex::new(());
 
@@ -116,21 +130,22 @@ static STDIN_IS_THE_ARTIFACT: Mutex<()> = Mutex::new(());
 /// influenced by anything a request carried.
 pub struct ProcessBackupHost {
     /// Absolute path of `tar`.
-    tar_binary: String,
+    tar_binary: AdapterBinary,
     /// Absolute path of the compressor `tar` is told to run.
     ///
     /// Held here beside `tar`'s own path because it is the same kind of fact —
     /// a platform binary the adapter measured — and because holding it is what
     /// keeps a bare name out of every argv this host builds. It is handed to
-    /// the two argv builders and used once directly, by `list_members`.
-    gzip_binary: String,
+    /// the two argv builders and used once directly, by `list_members`. It is
+    /// never spawned by this agent itself: `tar` starts it.
+    gzip_binary: AdapterBinary,
     /// Absolute path of the database dump client — the REAL binary on each
     /// family, never the compatibility symlink beside it.
-    dump_binary: String,
+    dump_binary: AdapterBinary,
     /// Absolute path of the database client a restore drops with and loads
     /// through. A different binary from the dump client: one writes SQL out and
     /// the other reads SQL in.
-    client_binary: String,
+    client_binary: AdapterBinary,
 }
 
 impl ProcessBackupHost {
@@ -138,10 +153,10 @@ impl ProcessBackupHost {
     #[must_use]
     pub fn new(distro: &dyn DistroAdapter) -> Self {
         Self {
-            tar_binary: distro.tar_binary().to_owned(),
-            gzip_binary: distro.gzip_binary().to_owned(),
-            dump_binary: distro.database_dump_binary().to_owned(),
-            client_binary: distro.mysql_client_binary().to_owned(),
+            tar_binary: distro.tar_binary(),
+            gzip_binary: distro.gzip_binary(),
+            dump_binary: distro.database_dump_binary(),
+            client_binary: distro.mysql_client_binary(),
         }
     }
 }
@@ -185,25 +200,45 @@ impl BackupHost for ProcessBackupHost {
     /// anything to re-parse, and the dump reaches its file through the client's
     /// own `--result-file` rather than through a redirect.
     ///
-    /// The client's own output is captured and DISCARDED. It is diagnostic
-    /// only, and it is the one place a customer's rows can appear in text: a
-    /// client refusing halfway prints the statement it choked on. Nothing in
-    /// this area has a field to put it in ([`BackupError`]'s shape is the
-    /// argument), so it is dropped here rather than carried one frame further.
+    /// The client's own output is DISCARDED, never read: the child's standard
+    /// output and error go to the null device. It is diagnostic only, and it is
+    /// the one place a customer's rows can appear in text: a client refusing
+    /// halfway prints the statement it choked on. Nothing in this area has a
+    /// field to put it in ([`BackupError`]'s shape is the argument), so this
+    /// process never holds a byte of it.
+    ///
+    /// The run is bounded: the [`CallClass::Bulk`] deadline (twelve hours,
+    /// because a dump's length is the customer's database's), after which the
+    /// client and its whole process group are killed and the call returns
+    /// [`BackupError::Bound`]. No `--` is put before the database name: the
+    /// name is a [`DatabaseName`], which is prefixed with the owning account's
+    /// name and therefore cannot begin with a dash, and the dump client's
+    /// handling of `--` has not been measured on both families.
     ///
     /// # Errors
     ///
     /// [`BackupError::DumpFailed`] for a client that could not be started
     /// (status `PROGRAM_UNAVAILABLE`), one that exited non-zero, and one
     /// whose result file cannot be measured afterwards.
+    /// [`BackupError::Bound`] when the deadline passed.
     fn dump_database(&self, database: &DatabaseName, into: &Path) -> Result<u64, BackupError> {
         let arguments = dump_arguments(database, into);
         let borrowed: Vec<&str> = arguments.iter().map(String::as_str).collect();
 
-        let outcome =
-            spawn_argv(&self.dump_binary, &borrowed).map_err(|_| BackupError::DumpFailed {
-                status: PROGRAM_UNAVAILABLE,
-            })?;
+        let outcome = run_discarding(
+            self.dump_binary.as_path(),
+            &borrowed,
+            CallClass::Bulk,
+            ChildInput::Null,
+        )
+        .map_err(|error| {
+            bound_or(
+                error,
+                BackupError::DumpFailed {
+                    status: PROGRAM_UNAVAILABLE,
+                },
+            )
+        })?;
         if outcome.status != 0 {
             return Err(BackupError::DumpFailed {
                 status: outcome.status,
@@ -223,64 +258,76 @@ impl BackupHost for ProcessBackupHost {
     /// product's safety depends on are stated once, next to the reasons for
     /// them, rather than in a spawn nothing asserts on.
     ///
+    /// The run is bounded exactly as [`Self::dump_database`]'s is, and its
+    /// output is discarded for the same reason. The finished archive is then
+    /// listed with [`Self::list_members`]'s bounds, so an archive restore would
+    /// refuse is refused here instead. **No `--` is put in this argv,
+    /// and it must never be:** GNU `tar` takes `-C` positionally among its
+    /// operands, so a `--` ahead of the member operands would turn the second
+    /// `-C` into a member name.
+    ///
     /// # Errors
     ///
     /// [`BackupError::ArchiveFailed`], as [`Self::dump_database`] reports its
-    /// own three cases.
+    /// own three cases, and [`BackupError::Bound`] when the deadline passed.
     fn create_archive(&self, spec: &ArchiveSpec) -> Result<u64, BackupError> {
-        let arguments = spec.arguments(&self.gzip_binary);
+        let arguments = spec.arguments(self.gzip_binary.as_str());
         let borrowed: Vec<&str> = arguments.iter().map(String::as_str).collect();
 
-        let outcome =
-            spawn_argv(&self.tar_binary, &borrowed).map_err(|_| BackupError::ArchiveFailed {
-                status: PROGRAM_UNAVAILABLE,
-            })?;
+        let outcome = run_discarding(
+            self.tar_binary.as_path(),
+            &borrowed,
+            CallClass::Bulk,
+            ChildInput::Null,
+        )
+        .map_err(|error| {
+            bound_or(
+                error,
+                BackupError::ArchiveFailed {
+                    status: PROGRAM_UNAVAILABLE,
+                },
+            )
+        })?;
         if outcome.status != 0 {
             return Err(BackupError::ArchiveFailed {
                 status: outcome.status,
             });
         }
 
-        spec.artifact
+        let bytes = spec
+            .artifact
             .symlink_metadata()
             .map(|metadata| metadata.len())
             .map_err(|_| BackupError::ArchiveFailed {
                 status: PROGRAM_UNAVAILABLE,
-            })
+            })?;
+
+        // Restore refuses a listing past `MAXIMUM_MEMBERS` / `LISTING_STDOUT_CAP`
+        // (see `list_members`), and the size ceiling `CreateBackup` applies
+        // counts bytes and not members. Listing the archive just written, with
+        // the SAME bounds restore will use, makes creation refuse at the figure
+        // restore refuses at: a backup that cannot be restored is never
+        // reported as created. This is the AUTHORITY; `create_backup` already
+        // refused a home whose walk counted more members than the ceiling
+        // before any work began, so this listing only fails at the end for a
+        // home near the ceiling or for a listing past the byte cap.
+        self.list_members(&spec.artifact)?;
+
+        Ok(bytes)
     }
 
     /// Lists `artifact`'s members with `tar --list`, extracting nothing.
     ///
-    /// The names come back exactly as the archive stores them. Nothing is
-    /// trimmed, unescaped or normalised here: this output is the pre-scan's
-    /// evidence, and a host that tidied a `..` away would be deciding the
-    /// question the scan exists to ask.
+    /// Delegates to `list_archive_members`, which owns the bounds (deadline,
+    /// output caps, member count, name length) and the rule that a bound refuses
+    /// the archive and never truncates the listing.
     ///
     /// # Errors
     ///
-    /// [`BackupError::ArchiveFailed`], including for an artifact that is not a
-    /// readable gzip stream at all.
+    /// As `list_archive_members`: [`BackupError::ArchiveFailed`] or
+    /// [`BackupError::Bound`].
     fn list_members(&self, artifact: &Path) -> Result<Vec<String>, BackupError> {
-        let compressor = format!("{COMPRESS_PROGRAM}{}", self.gzip_binary);
-        let arguments = [LIST, &compressor, FILE, &artifact.to_string_lossy()];
-        let borrowed: Vec<&str> = arguments.iter().map(AsRef::as_ref).collect();
-
-        let outcome =
-            spawn_argv(&self.tar_binary, &borrowed).map_err(|_| BackupError::ArchiveFailed {
-                status: PROGRAM_UNAVAILABLE,
-            })?;
-        if outcome.status != 0 {
-            return Err(BackupError::ArchiveFailed {
-                status: outcome.status,
-            });
-        }
-
-        Ok(outcome
-            .stdout
-            .lines()
-            .filter(|line| !line.is_empty())
-            .map(str::to_owned)
-            .collect())
+        list_archive_members(&self.tar_binary, &self.gzip_binary, artifact)
     }
 
     /// Extracts one member, as root or as the account, exactly as the spec's
@@ -318,6 +365,19 @@ impl BackupHost for ProcessBackupHost {
     /// failure paths too. The root-side extractions need none of that: nothing
     /// is forked, so the open file is passed straight to the child.
     ///
+    /// # Deadlines, and what a kill reaches
+    ///
+    /// Root's extractions (the manifest and the dumps) run for at most the
+    /// [`CallClass::Bulk`] deadline. The account's half runs for at most
+    /// `ACCOUNT_ARCHIVER_DEADLINE`, inside its own process group, so that the
+    /// kill takes `tar` and its compressor down together before
+    /// `fork_as_account`'s own, shorter-reaching, limit can fire. **That is
+    /// 100 s, not twelve hours:** a home whose extraction takes longer is not
+    /// restored, and the failure reads as an archiver refusal (see
+    /// `ACCOUNT_ARCHIVER_DEADLINE`). Both starts
+    /// use the core's unthreaded path: no thread is started here, and the
+    /// forked child of a multi-threaded process must not start one.
+    ///
     /// # Errors
     ///
     /// [`BackupError::ArchiveFailed`] when the artifact cannot be OPENED
@@ -326,6 +386,12 @@ impl BackupHost for ProcessBackupHost {
     /// child (`ARCHIVER_REFUSED_UNDER_ACCOUNT`, because the child's exit
     /// status does not survive `fork_as_account`).
     ///
+    /// [`BackupError::Bound`] when a root-side extraction passed its deadline.
+    /// An account-side archiver that passed its deadline is reported as
+    /// `ARCHIVER_REFUSED_UNDER_ACCOUNT`, because the only channel out of the
+    /// forked child is one exit status of `fork_as_account`'s own making and a
+    /// typed bound cannot cross it.
+    ///
     /// [`BackupError::ExtractionIdentityUnavailable`] ONLY when the account
     /// really could not be entered: it could not be resolved, the drop
     /// syscalls failed or did not verify, no child could be forked, or the
@@ -333,7 +399,7 @@ impl BackupHost for ProcessBackupHost {
     /// refused is NOT this variant — that distinction is the whole reason this
     /// method matches on `PrivError` instead of discarding it.
     fn extract(&self, spec: &ExtractSpec) -> Result<(), BackupError> {
-        let arguments = spec.arguments(&self.gzip_binary);
+        let arguments = spec.arguments(self.gzip_binary.as_str());
         let artifact = File::open(&spec.artifact).map_err(|_| BackupError::ArchiveFailed {
             status: PROGRAM_UNAVAILABLE,
         })?;
@@ -341,7 +407,12 @@ impl BackupHost for ProcessBackupHost {
         match spec.identity() {
             ExtractIdentity::Root => {
                 let borrowed: Vec<&str> = arguments.iter().map(String::as_str).collect();
-                run_archiver(&self.tar_binary, &borrowed, Stdio::from(artifact))
+                run_archiver(
+                    self.tar_binary.as_path(),
+                    &borrowed,
+                    Stdio::from(artifact),
+                    CallClass::Bulk.deadline(),
+                )
             }
             ExtractIdentity::Account(account) => {
                 let ids = AccountIds::resolve(&account)
@@ -372,8 +443,13 @@ impl BackupHost for ProcessBackupHost {
                     // `Stdio::inherit()` and not a file: the child holds the
                     // artifact on descriptor 0 and holds no other descriptor at
                     // all.
-                    run_archiver(&program, &borrowed, Stdio::inherit())
-                        .map_err(|_| PrivError::WorkFailed)
+                    run_archiver(
+                        program.as_path(),
+                        &borrowed,
+                        Stdio::inherit(),
+                        ACCOUNT_ARCHIVER_DEADLINE,
+                    )
+                    .map_err(|_| PrivError::WorkFailed)
                 });
 
                 let restored = dup2_stdin(&daemon_stdin);
@@ -404,17 +480,42 @@ impl BackupHost for ProcessBackupHost {
     /// and is authenticated by the uid doing the connecting, which is the same
     /// arrangement the database area already relies on.
     ///
+    /// The run is bounded by the [`CallClass::Bulk`] deadline and not the
+    /// database class's, and its output is discarded. This statement is a
+    /// restore's point of no return (`replace_database`): it drops a database of
+    /// up to the dump ceiling's size, and a client killed at the shorter
+    /// deadline does not stop a drop the server has already begun. That would
+    /// leave the half-dropped state the restore's recovery exists for, so the
+    /// long deadline is what keeps the kill rare, and a kill that does happen
+    /// reaches the caller as [`BackupError::Bound`], which `restore_backup`
+    /// answers with the same unwind it uses for any failure after the drop. The
+    /// statement is not given a server-side lock wait limit here: a drop that
+    /// waits on a customer's open transaction is stopped by the agent killing
+    /// the client at the deadline, but the server may keep waiting for it (a
+    /// residual recorded in the threat note).
+    ///
     /// # Errors
     ///
-    /// [`BackupError::DropFailed`].
+    /// [`BackupError::DropFailed`], and [`BackupError::Bound`] when the
+    /// deadline passed.
     fn drop_database(&self, database: &DatabaseName) -> Result<(), BackupError> {
         let statement = format!("{DROP_STATEMENT} `{}`", database.as_str());
         let borrowed = [CLIENT_BATCH, CLIENT_EXECUTE, statement.as_str()];
 
-        let outcome =
-            spawn_argv(&self.client_binary, &borrowed).map_err(|_| BackupError::DropFailed {
-                status: PROGRAM_UNAVAILABLE,
-            })?;
+        let outcome = run_discarding(
+            self.client_binary.as_path(),
+            &borrowed,
+            CallClass::Bulk,
+            ChildInput::Null,
+        )
+        .map_err(|error| {
+            bound_or(
+                error,
+                BackupError::DropFailed {
+                    status: PROGRAM_UNAVAILABLE,
+                },
+            )
+        })?;
         if outcome.status != 0 {
             return Err(BackupError::DropFailed {
                 status: outcome.status,
@@ -433,15 +534,17 @@ impl BackupHost for ProcessBackupHost {
     /// (rules/rust.md, "never read a customer file into memory whole"). There
     /// is no shell and therefore no redirect (rules/security.md item 3).
     ///
-    /// **The client's own output is never captured: both streams are
-    /// `Stdio::null()`, so the kernel discards it and this process never holds
-    /// a byte of it.** The doc here used to say it was "captured and
-    /// DISCARDED", which is what the sibling [`Self::dump_database`] does —
-    /// `spawn_argv` reads the output into a `CommandOutcome` and this area then
-    /// drops it — and the wording was borrowed rather than checked.
+    /// **The client's own output is never captured: both streams are the
+    /// null device, so the kernel discards it and this process never holds a
+    /// byte of it.** The dump, the archive and the drop work the same way
+    /// (`ChildOutput::Discard`).
     ///
-    /// The reason there is nothing to capture is the same either way, and it is
-    /// why `/dev/null` is the better of the two: this is the one place a
+    /// The run is bounded by the [`CallClass::Bulk`] deadline (a dump is a
+    /// customer's whole database), after which the client and its process
+    /// group are killed.
+    ///
+    /// The reason there is nothing to capture is why the null device is the
+    /// right place for it: this is the one place a
     /// customer's rows can appear as text — a client refusing halfway prints the
     /// statement it choked on — and nothing in this area has a field to put it
     /// in. Not reading it at all means the rows are never in this root process's
@@ -452,7 +555,7 @@ impl BackupHost for ProcessBackupHost {
     /// # Errors
     ///
     /// [`BackupError::LoadFailed`], including for a dump file that cannot be
-    /// opened.
+    /// opened, and [`BackupError::Bound`] when the deadline passed.
     fn load_dump(&self, _database: &DatabaseName, from: &Path) -> Result<(), BackupError> {
         let dump = File::open(from).map_err(|_| BackupError::LoadFailed {
             status: PROGRAM_UNAVAILABLE,
@@ -476,21 +579,24 @@ impl BackupHost for ProcessBackupHost {
         // reason. The bad outcome the argument was written against — landing
         // silently in some other database — is not reachable from a connection
         // that has no default database at all.
-        let mut command = Command::new(&self.client_binary);
-        apply_child_environment(&mut command);
-        let status = command
-            .args([CLIENT_BATCH])
-            .stdin(Stdio::from(dump))
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .status()
-            .map_err(|_| BackupError::LoadFailed {
-                status: PROGRAM_UNAVAILABLE,
-            })?;
+        let outcome = run_discarding(
+            self.client_binary.as_path(),
+            &[CLIENT_BATCH],
+            CallClass::Bulk,
+            ChildInput::File(dump),
+        )
+        .map_err(|error| {
+            bound_or(
+                error,
+                BackupError::LoadFailed {
+                    status: PROGRAM_UNAVAILABLE,
+                },
+            )
+        })?;
 
-        if status.code().unwrap_or(PROGRAM_UNAVAILABLE) != 0 {
+        if outcome.status != 0 {
             return Err(BackupError::LoadFailed {
-                status: status.code().unwrap_or(PROGRAM_UNAVAILABLE),
+                status: outcome.status,
             });
         }
 
@@ -503,19 +609,24 @@ impl BackupHost for ProcessBackupHost {
 ///
 /// Free-standing rather than a method, because it is called from inside a
 /// forked child where `self` is a reference into a process that no longer has
-/// the parent's threads. It takes the program, the argv and the descriptor the
-/// archive arrives on, and nothing else.
+/// the parent's threads. It takes the program, the argv, the descriptor the
+/// archive arrives on and the deadline, and nothing else.
 ///
-/// **Not `spawn_argv`, and the reason is that function's own contract:** it
-/// gives its child a CLOSED standard input, which is right for every spawn that
-/// must not be able to prompt, and fatal for one whose archive arrives there.
-/// `spawn_argv` says so in as many words — a caller whose child needs stdin
-/// keeps its spawn beside itself, as [`ProcessBackupHost::load_dump`] already
-/// does. The environment is still [`apply_child_environment`]'s and nothing
-/// else, so no `TAR_OPTIONS` or `LD_PRELOAD` from the unit reaches the
-/// archiver, and there is no shell at any point (rules/security.md item 3).
+/// **Not `run_bounded`, and the reason is the fork:** `run_bounded` starts a
+/// reader thread per captured stream, and a thread started in the child of a
+/// fork of a multi-threaded process is a thread holding locks no other thread
+/// will release. [`run_unthreaded`] starts none: it nulls both output streams
+/// and polls for the exit. It also takes the standard input as the `Stdio` it
+/// is given, which is what an archive arriving on a descriptor needs. The
+/// environment is still the core's cleared one, so no `TAR_OPTIONS` or
+/// `LD_PRELOAD` from the unit reaches the archiver, and there is no shell at
+/// any point (rules/security.md item 3).
 ///
-/// Both output streams are `Stdio::null()`. There is nothing in
+/// The archiver runs in a process group of its own, and the group is killed at
+/// `deadline`. That is what reaches the compressor `tar` starts, which a kill
+/// of `tar`'s pid alone would orphan.
+///
+/// Both output streams are the null device. There is nothing in
 /// [`BackupError`] to carry a diagnostic, and this half of the area reads a
 /// CUSTOMER-supplied archive: a `tar` that refuses prints the member name it
 /// choked on, which is attacker-chosen text. Not reading it means it is never
@@ -524,24 +635,29 @@ impl BackupHost for ProcessBackupHost {
 /// # Errors
 ///
 /// [`BackupError::ArchiveFailed`], with [`PROGRAM_UNAVAILABLE`] when the
-/// archiver could not be started or was killed by a signal.
-fn run_archiver(program: &str, arguments: &[&str], archive: Stdio) -> Result<(), BackupError> {
-    let mut command = Command::new(program);
-    apply_child_environment(&mut command);
-    let status = command
-        .args(arguments)
-        .stdin(archive)
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .status()
-        .map_err(|_| BackupError::ArchiveFailed {
-            status: PROGRAM_UNAVAILABLE,
-        })?;
-
-    let code = status.code().unwrap_or(PROGRAM_UNAVAILABLE);
+/// archiver could not be started or was killed by a signal the core did not
+/// send, and [`BackupError::Bound`] when `deadline` passed.
+fn run_archiver(
+    program: &Path,
+    arguments: &[&str],
+    archive: Stdio,
+    deadline: Duration,
+) -> Result<(), BackupError> {
+    let code = run_unthreaded(program, arguments, archive, deadline).map_err(|error| {
+        bound_or(
+            error,
+            BackupError::ArchiveFailed {
+                status: PROGRAM_UNAVAILABLE,
+            },
+        )
+    })?;
     if code != 0 {
         return Err(BackupError::ArchiveFailed { status: code });
     }
 
     Ok(())
 }
+
+#[cfg(test)]
+#[path = "../tests/backup/process_backup_host_tests.rs"]
+mod tests;

@@ -16,7 +16,13 @@
       "copyCodes": "Copy codes",
       "disableDescription": "Enter a current code, or one of your recovery codes, to turn this off.",
       "disableCodeLabel": "Code",
-      "disable": "Turn off"
+      "disable": "Turn off",
+      "eyebrow": "Security",
+      "disableTitle": "Turning it off",
+      "disableConfirmTitle": "Turn off two-step verification",
+      "disableConfirmQuestion": "Signing in will need only your password. Anyone who learns it can get into this panel, and your recovery codes will stop working.",
+      "disableConfirm": "Yes, turn off",
+      "disabling": "Turning off…"
     }
   }
 }

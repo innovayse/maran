@@ -13,6 +13,7 @@ server {
     # else on the site answers with the fixed refusal below.
     location ^~ /.well-known/acme-challenge/ {
         root {{ document_root }};
+        disable_symlinks if_not_owner;
         default_type "text/plain";
     }
 
@@ -40,6 +41,13 @@ server {
   editor, a restore, a `sed -i`) stops matching, the site reads as not
   suspended, and the next certificate renewal or PHP-version change puts the
   suspended customer's site back on the air.
+
+  The challenge location carries `disable_symlinks if_not_owner;` like every
+  other `root` the agent writes. Stubs written before that line existed are
+  still recognised as suspended: `SuspendedSite::render_legacy_config` renders
+  the older text, and the ops comparison accepts either. Any further change to
+  what this template renders must keep the previous render recognisable the
+  same way, or it wakes every stub already on disk.
 
   A comment rather than a blank line because a blank line at the end of a file
   is the first thing a tidy-up deletes, and its deletion would look harmless.

@@ -1,5 +1,7 @@
 {
   "myAccount": {
+    "eyebrow": "Ձեր հոսթինգային հաշիվը",
+    "identityHeading": "Հաշիվ",
     "loading": "Ձեր հաշիվը բեռնվում է…",
     "primaryDomainLabel": "Հիմնական դոմեն",
     "statusLabel": "Կարգավիճակ",
@@ -14,6 +16,7 @@
       "sftpUsers": "SFTP մուտքեր",
       "ftpUsers": "FTPS մուտքեր",
       "cronEntries": "Cron գրառումներ"
-    }
+    },
+    "suspendedNotice": "Այս հաշիվը կասեցված է։ Վերականգնելու համար դիմեք ձեր հոսթինգ-մատակարարին։"
   }
 }

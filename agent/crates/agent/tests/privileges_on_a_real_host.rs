@@ -266,7 +266,14 @@ fn a_child_that_is_already_unprivileged_cannot_drop_again() {
     // when the inner call failed the way it must.
     let outcome = within("the nested drop", move || {
         fork_as_account(&ids, || match fork_as_account(&ids, || Ok(())) {
-            Err(PrivError::DropFailed) => Ok(()),
+            // NAMED, not merely a drop failure: this test knows which of the three calls the
+            // nested fork cannot make — `setgroups`, for want of CAP_SETGID in an already
+            // dropped process — so it asserts that name. Before the statuses were split this
+            // could only say "a drop failed", which is exactly the blindness issue #81 cost a
+            // day to.
+            Err(PrivError::DropFailed {
+                syscall: "setgroups",
+            }) => Ok(()),
             _ => Err(PrivError::WorkFailed),
         })
     });

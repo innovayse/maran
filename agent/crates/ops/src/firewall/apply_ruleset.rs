@@ -2,6 +2,7 @@
 
 use std::path::Path;
 
+use maran_agent_core::utils::call_class::CallClass;
 use maran_distro::DistroAdapter;
 
 use crate::firewall::firewall_error::FirewallError;
@@ -84,6 +85,11 @@ const FILE: &str = "-f";
 ///   the new one in that case — it passed the check and the rename happened —
 ///   so a retry of the same operation converges rather than needing a
 ///   cleanup.
+/// - [`FirewallError::Bound`] when `nft` was killed at its deadline or wrote
+///   more than the host will read. If it was the check, the live ruleset is
+///   untouched and the staged file is gone; if it was the load, the file at
+///   `target` is the new one and the kernel may hold either ruleset, which a
+///   retry converges on.
 pub(crate) fn apply_ruleset(
     host: &dyn FirewallHost,
     distro: &dyn DistroAdapter,
@@ -106,7 +112,11 @@ pub(crate) fn apply_ruleset(
         return Err(FirewallError::StagingFailed);
     };
 
-    let checked = match host.run(distro.nft_binary(), &[CHECK, FILE, staged_path]) {
+    let checked = match host.run(
+        &distro.nft_binary(),
+        &[CHECK, FILE, staged_path],
+        CallClass::Validate,
+    ) {
         Ok(outcome) => outcome,
         Err(error) => {
             host.discard_file(&staged);
@@ -139,7 +149,11 @@ pub(crate) fn apply_ruleset(
     // new entry and would do nothing for the rename's durability.
     host.sync_directory(target)?;
 
-    let loaded = host.run(distro.nft_binary(), &[FILE, target_path])?;
+    let loaded = host.run(
+        &distro.nft_binary(),
+        &[FILE, target_path],
+        CallClass::Mutation,
+    )?;
     if loaded.status != 0 {
         return Err(FirewallError::NftFailed {
             stderr: loaded.stderr,

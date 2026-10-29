@@ -17,7 +17,9 @@ fn every_file_under_the_home_is_counted() {
     create_dir(home.path().join("sub")).expect("the fixture directory");
     write(home.path().join("sub").join("b"), b"12345").expect("the fixture file");
 
-    let bytes = measure_home_bytes(home.path()).expect("the home is readable");
+    let bytes = measure_home_bytes(home.path())
+        .expect("the home is readable")
+        .bytes;
 
     assert_eq!(bytes, 9);
 }
@@ -32,7 +34,9 @@ fn a_symlink_is_counted_as_a_link_and_never_followed() {
     write(elsewhere.path().join("big"), vec![b'x'; 4096]).expect("the fixture file");
     symlink(elsewhere.path().join("big"), home.path().join("secrets")).expect("the planted link");
 
-    let bytes = measure_home_bytes(home.path()).expect("the home is readable");
+    let bytes = measure_home_bytes(home.path())
+        .expect("the home is readable")
+        .bytes;
 
     assert!(bytes < 4096, "the link's target was followed: {bytes}");
 }
@@ -45,7 +49,9 @@ fn a_symlink_to_a_directory_is_not_descended_into() {
     write(elsewhere.path().join("big"), vec![b'x'; 4096]).expect("the fixture file");
     symlink(elsewhere.path(), home.path().join("etc")).expect("the planted link");
 
-    let bytes = measure_home_bytes(home.path()).expect("the home is readable");
+    let bytes = measure_home_bytes(home.path())
+        .expect("the home is readable")
+        .bytes;
 
     assert!(bytes < 4096, "the linked directory was walked: {bytes}");
 }
@@ -80,4 +86,32 @@ fn a_home_that_is_not_there_is_refused() {
     let refusal = measure_home_bytes(&parent.path().join("absent"));
 
     assert!(matches!(refusal, Err(BackupError::HomeUnreadable)));
+}
+
+/// **Every entry is a member: files, directories and symlinks, the home itself
+/// excluded.** Counting only files would let a home of millions of empty
+/// directories or links through the early refusal.
+#[test]
+fn members_counts_files_directories_and_symlinks() {
+    let home = TempDir::new().expect("a temporary directory");
+    create_dir(home.path().join("d1")).expect("the fixture directory");
+    create_dir(home.path().join("d1").join("d2")).expect("the fixture directory");
+    write(home.path().join("a"), b"1").expect("the fixture file");
+    write(home.path().join("d1").join("b"), b"1").expect("the fixture file");
+    write(home.path().join("d1").join("d2").join("c"), b"1").expect("the fixture file");
+    symlink("/etc", home.path().join("link")).expect("the planted link");
+
+    let measure = measure_home_bytes(home.path()).expect("the home is readable");
+
+    assert_eq!(measure.members, 6);
+}
+
+/// An empty home holds no members.
+#[test]
+fn an_empty_home_has_no_members() {
+    let home = TempDir::new().expect("a temporary directory");
+
+    let measure = measure_home_bytes(home.path()).expect("the home is readable");
+
+    assert_eq!(measure.members, 0);
 }

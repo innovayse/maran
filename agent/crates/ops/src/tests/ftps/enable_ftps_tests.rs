@@ -4,7 +4,11 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use std::io::ErrorKind;
+use std::time::Duration;
 
+use maran_agent_core::utils::call_class::CallClass;
+
+use crate::ftps::disable_ftps::disable_ftps;
 use crate::ftps::enable_ftps::enable_ftps;
 use crate::ftps::fake_ftps_host::{FakeFtpsHost, configuration, configuration_behind_nat, distro};
 use crate::ftps::ftps_error::FtpsError;
@@ -117,9 +121,9 @@ fn a_unit_the_service_manager_will_not_start_rolls_the_config_back_and_returns_t
 
 #[test]
 fn an_enable_with_nothing_to_go_back_to_stops_the_daemon_and_returns_the_original_error() {
-    // There was no previous configuration, so there is nothing to restore. The
-    // refused file stays on disk — it is inert, vsftpd reads it only at a start —
-    // and what matters is that nothing is serving it and the caller is told why.
+    // There was no previous configuration, so there is nothing to restore. What
+    // matters is that nothing is serving the refused file and the caller is told
+    // why; that the file is gone too is the next test.
     let host = FakeFtpsHost::with_certificate().silent_on_control_port();
     let refused = enable_ftps(&host, distro(), &configuration()).expect_err("silent port");
 
@@ -130,6 +134,105 @@ fn an_enable_with_nothing_to_go_back_to_stops_the_daemon_and_returns_the_origina
             .any(|spawn| spawn.argv.get(1).is_some_and(|verb| verb == "stop")),
         "the daemon must not be left serving a configuration that was rolled back"
     );
+}
+
+#[test]
+fn a_failed_first_enable_removes_the_rendered_config_it_wrote() {
+    // Leaving the refused file made the next enable of the same settings look
+    // converged, so nothing was restarted and a stopped daemon was reported up.
+    let host = FakeFtpsHost::with_certificate().silent_on_control_port();
+    enable_ftps(&host, distro(), &configuration()).expect_err("silent port");
+
+    assert_eq!(host.written_configs().len(), 1, "the file was written once");
+    assert_eq!(
+        host.live_config(),
+        None,
+        "a failed first enable must leave no configuration behind"
+    );
+}
+
+#[test]
+fn a_daemon_that_binds_its_port_a_moment_after_the_restart_is_enabled_not_rolled_back() {
+    // vsftpd binds 33-74 ms after `systemctl restart` returns; a single probe
+    // right after the restart used to roll a healthy daemon back.
+    let host = FakeFtpsHost::with_certificate().answering_after(Duration::from_millis(60));
+    let state = enable_ftps(&host, distro(), &configuration()).expect("enabled after a wait");
+
+    assert!(state.running);
+    assert!(state.control_port_answered);
+    assert_eq!(host.written_configs().len(), 1);
+    assert!(
+        !host
+            .spawns()
+            .iter()
+            .any(|spawn| spawn.argv.get(1).is_some_and(|verb| verb == "stop")),
+        "a daemon that came up must not be stopped"
+    );
+}
+
+#[test]
+fn a_daemon_that_never_answers_is_rolled_back_after_the_bounded_wait_and_not_forever() {
+    let host = FakeFtpsHost::with_certificate().silent_on_control_port();
+    let refused = enable_ftps(&host, distro(), &configuration()).expect_err("silent port");
+
+    assert_eq!(refused, FtpsError::NotListening);
+    assert_eq!(
+        host.elapsed(),
+        Duration::from_secs(10),
+        "the wait must run to its deadline and stop there"
+    );
+}
+
+#[test]
+fn a_retry_after_a_failed_first_enable_starts_the_daemon_and_reports_it_running() {
+    // The two defects together: the first enable fails and used to leave its
+    // file, the retry then found the file converged and reported success over a
+    // stopped daemon.
+    let host = FakeFtpsHost::with_certificate().answering_after(Duration::from_secs(60));
+    enable_ftps(&host, distro(), &configuration()).expect_err("first enable fails");
+    let restarts_before = host.restart_count();
+
+    host.set_bind_delay(Duration::ZERO);
+    let state = enable_ftps(&host, distro(), &configuration()).expect("the retry succeeds");
+
+    assert!(state.running, "success must mean the daemon is running");
+    assert!(state.control_port_answered);
+    assert_eq!(
+        host.restart_count(),
+        restarts_before + 1,
+        "the retry must actually start the daemon"
+    );
+}
+
+#[test]
+fn a_converged_config_with_a_stopped_daemon_restarts_it_instead_of_reporting_success() {
+    // A disable leaves the file behind; enabling the same settings again must
+    // start the daemon rather than call the untouched file "converged".
+    let host = FakeFtpsHost::with_certificate();
+    enable_ftps(&host, distro(), &configuration()).expect("first enable");
+    disable_ftps(&host, distro()).expect("disable");
+    let restarts_before = host.restart_count();
+
+    let state = enable_ftps(&host, distro(), &configuration()).expect("re-enabled");
+
+    assert!(state.running);
+    assert!(state.control_port_answered);
+    assert_eq!(host.restart_count(), restarts_before + 1);
+}
+
+#[test]
+fn a_converged_config_whose_running_daemon_is_silent_is_never_reported_as_enabled() {
+    let healthy = FakeFtpsHost::with_certificate();
+    enable_ftps(&healthy, distro(), &configuration()).expect("render the expected config");
+    let rendered = healthy.live_config().expect("rendered");
+
+    let host = FakeFtpsHost::with_certificate()
+        .with_live_config(&rendered)
+        .with_running_daemon()
+        .silent_on_control_port();
+    let refused = enable_ftps(&host, distro(), &configuration()).expect_err("silent daemon");
+
+    assert_eq!(refused, FtpsError::NotListening);
 }
 
 #[test]
@@ -212,7 +315,7 @@ fn the_candidate_is_validated_before_anything_is_swapped_in() {
     let spawns = host.spawns();
     let candidate = spawns
         .iter()
-        .position(|spawn| spawn.argv[0] == distro().vsftpd_binary())
+        .position(|spawn| spawn.argv[0] == distro().vsftpd_binary().as_str())
         .expect("the candidate was run");
     let restart = spawns
         .iter()
@@ -240,4 +343,48 @@ fn a_live_configuration_that_cannot_be_read_stops_the_enable_before_it_writes() 
 
     assert_eq!(failed, FtpsError::ConfigUnreadable);
     assert!(host.written_configs().is_empty());
+}
+
+#[test]
+fn the_restart_that_judges_the_new_file_runs_in_the_reload_class() {
+    // A restart may take the service manager's stop timeout plus its start
+    // timeout; a Validate or Query deadline would kill a healthy restart.
+    let host = FakeFtpsHost::with_certificate();
+    enable_ftps(&host, distro(), &configuration()).expect("enabled");
+
+    let restart = host
+        .spawns()
+        .into_iter()
+        .find(|spawn| spawn.argv.get(1).is_some_and(|verb| verb == "restart"))
+        .expect("the daemon was restarted");
+    assert_eq!(restart.class, Some(CallClass::Reload));
+    assert_eq!(
+        restart.argv[1..],
+        ["restart", "--", "maran-ftps.service"],
+        "{:?}",
+        restart.argv
+    );
+}
+
+#[test]
+fn a_restart_that_times_out_restores_the_previous_configuration_and_reports_a_bound() {
+    let host = FakeFtpsHost::with_certificate()
+        .with_live_config("listen=NO\n")
+        .with_config_writes_timing_out();
+
+    let failed = enable_ftps(&host, distro(), &configuration()).expect_err("timed out");
+
+    assert!(matches!(failed, FtpsError::Bound(_)), "got {failed:?}");
+    assert_ne!(
+        failed,
+        FtpsError::ServiceRefused {
+            unit: "maran-ftps.service".to_owned()
+        },
+        "a killed restart said nothing about the file"
+    );
+    assert_eq!(
+        host.live_config().as_deref(),
+        Some("listen=NO\n"),
+        "the previous configuration must be back on disk"
+    );
 }

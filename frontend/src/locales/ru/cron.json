@@ -3,6 +3,8 @@
     "list": {
       "heading": "Планировщик",
       "subtitle": "Что запускает crontab этого аккаунта — прочитано с сервера, а не запомнено панелью.",
+      "eyebrow": "Автоматизация",
+      "entriesHeading": "Задания",
       "accountLabel": "Аккаунт",
       "accountPlaceholder": "Выберите аккаунт",
       "loading": "Загрузка заданий…",
@@ -22,7 +24,7 @@
       "lastOutput": "Последний запуск",
       "remove": "Удалить",
       "confirmRemove": "Удалить это задание? Вместе с ним удалятся файл команды и данные последнего запуска.",
-      "confirmRemoveTitle": "Удалить задачу {command}",
+      "confirmRemoveTitle": "Удалить задание {command}",
       "confirm": "Да, удалить",
       "working": "Выполняется…",
       "rowActions": "Действия для {command}"

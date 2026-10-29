@@ -128,7 +128,7 @@ fn the_mysql_client_the_adapter_names_exists_on_this_family() {
     // ClientFailed { code: -1 } with nothing to fix.
     let client = polygon_distro().mysql_client_binary();
     assert!(
-        Path::new(client).exists(),
+        Path::new(&client).exists(),
         "the adapter names {client} as this family's client and it is not there"
     );
 }

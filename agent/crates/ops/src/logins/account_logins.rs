@@ -1,5 +1,6 @@
 //! Asking the password database which credentials into an account's home exist.
 
+use maran_agent_core::utils::call_class::CallClass;
 use maran_agent_core::utils::system_account::SystemAccount;
 use maran_agent_core::validation::system::ftps_user_name::FtpsUserName;
 use maran_agent_core::validation::system::name::AccountName;
@@ -106,6 +107,8 @@ const LOCKED_PASSWORD_PREFIX: char = 'L';
 /// - [`LoginsError::AccountMissing`] when the password database cannot be read,
 ///   or holds no row for the account itself.
 /// - [`LoginsError::SpawnFailed`] when `passwd -S` refuses or could not be run.
+/// - [`LoginsError::Bound`] when `passwd -S` outran its deadline: the state of
+///   the login is then unknown, which is not the same as open or locked.
 /// - [`LoginsError::StatusUnreadable`] when it printed something this agent
 ///   cannot read as the state of the login it asked about.
 pub fn account_logins(
@@ -227,9 +230,15 @@ fn login_locked(
     distro: &dyn DistroAdapter,
     username: &str,
 ) -> Result<bool, LoginsError> {
+    // No end-of-options marker: the Debian family's `passwd` parses with
+    // `getopt_long`, but the RHEL family's is a `popt` program whose handling of
+    // `--` has not been measured on both families, and a guard that one family
+    // answers differently is worse than none. The name is a validated account
+    // name regardless.
     let outcome = host.run(
-        distro.passwd_binary(),
+        &distro.passwd_binary(),
         &[PASSWORD_STATUS_ARGUMENT, username],
+        CallClass::Query,
     )?;
     if outcome.status != 0 {
         return Err(LoginsError::SpawnFailed {

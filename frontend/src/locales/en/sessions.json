@@ -1,6 +1,7 @@
 {
   "app": {
     "sessions": {
+      "eyebrow": "Security",
       "heading": "Signed-in devices",
       "subtitle": "Every device currently signed in to your account.",
       "loading": "Loading devices…",

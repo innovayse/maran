@@ -8,10 +8,12 @@ use crate::render_error::RenderError;
 /// is installed.
 ///
 /// Holds only what a TLS block adds over a plain one: the certificate paths
-/// and the protocol policy. The `server_name`/`root`/location directives are
-/// specific to the site shape (PHP, static, proxy) and are supplied by the
-/// caller as [`Self::server_body`] rather than known here, so this type does
-/// not need to grow a case for every site shape that can carry TLS.
+/// and the protocol policy, plus the `server_name` it repeats from
+/// [`Self::domain`] and [`Self::aliases`]. The logs, the `root` and link rule
+/// a file-serving site writes, and the location directives are specific to
+/// the site shape (PHP, static, proxy) and are supplied by the caller as
+/// [`Self::server_body`] rather than known here, so this type does not need
+/// to grow a case for every site shape that can carry TLS.
 ///
 /// [`Self::server_body`] is NOT assembled by hand: it is the string
 /// [`super::site_body::SiteBody`] rendered, and the caller places that same
@@ -37,8 +39,9 @@ pub struct SslBlock<'a> {
     pub certificate_path: &'a str,
     /// Absolute path of the private key.
     pub certificate_key_path: &'a str,
-    /// The site-specific `root`, `index` and `location` rules to place inside
-    /// the 443 server block — the rendering of
+    /// The site-specific body to place inside the 443 server block — its logs
+    /// and `location` rules, and for a file-serving site its `root`, `index`
+    /// and rule for following symbolic links — the rendering of
     /// [`super::site_body::SiteBody`], never a string built at the call site.
     pub server_body: &'a str,
 }

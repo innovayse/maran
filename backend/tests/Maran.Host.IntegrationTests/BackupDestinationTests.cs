@@ -49,6 +49,9 @@ public sealed class BackupDestinationTests : IAsyncLifetime
     /// <summary>The database this test class owns on the shared PostgreSQL server.</summary>
     private readonly TestDatabase _pg;
 
+    /// <summary>The agent socket path nothing serves.</summary>
+    private readonly UnreachableAgentSocket _agentSocket = UnreachableAgentSocket.Missing();
+
     /// <summary>Binds this test to the PostgreSQL server the assembly shares.</summary>
     /// <param name="postgres">The shared server, injected by the collection fixture.</param>
     public BackupDestinationTests(PostgresFixture postgres)
@@ -77,6 +80,8 @@ public sealed class BackupDestinationTests : IAsyncLifetime
     /// <returns>The completed task; the shared server owns the database's life.</returns>
     public Task DisposeAsync()
     {
+        _agentSocket.Dispose();
+
         return Task.CompletedTask;
     }
 
@@ -150,6 +155,32 @@ public sealed class BackupDestinationTests : IAsyncLifetime
         // camelCase, which is what the panel's JSON options do to every enum member on this wire.
         Assert.Equal("local", only.GetProperty("kind").GetString());
         Assert.Equal(JsonValueKind.Null, only.GetProperty("path").ValueKind);
+    }
+
+    /// <summary>
+    /// An administrator reads the destinations while the agent socket is missing: the answer is 200 with
+    /// the list intact and the local path unknown, not a 500.
+    /// </summary>
+    /// <remarks>
+    /// The handler used to catch every exception to keep this answer, which hid defects of its own. Issue
+    /// #87 mapped the transport failure to a typed result, the catch-all went, and this pins that the
+    /// outage still reads as "path unknown" through the real channel to a path nothing serves.
+    /// </remarks>
+    [Fact]
+    public async Task An_administrator_reads_the_destinations_while_the_agent_socket_is_missing()
+    {
+        await using var factory = CreateFactory();
+        await MigrateAsync(factory);
+        await SeedAsync(factory);
+        await ReconcileAsync(factory);
+        using var client = await SignInAsync(factory, "admin");
+
+        var response = await client.GetAsync("/api/v1/backup-destinations");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        var listed = Assert.Single(body.RootElement.EnumerateArray().ToList());
+        Assert.Equal(JsonValueKind.Null, listed.GetProperty("path").ValueKind);
     }
 
     /// <summary>An administrator asking for S3-compatible storage is refused by name.</summary>
@@ -332,6 +363,10 @@ public sealed class BackupDestinationTests : IAsyncLifetime
 
             builder.UseSetting("Security:EncryptionKey", Key);
             builder.UseSetting("Jwt:SigningKey", Key);
+
+            // Pinned to a path nothing serves, so the list below is read with the agent down
+            // whatever the machine running the tests has at the default socket.
+            builder.UseSetting("Agent:SocketPath", _agentSocket.SocketPath);
 
             foreach (var setting in FirewallSettings.Required())
             {

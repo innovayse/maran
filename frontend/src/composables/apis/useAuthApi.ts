@@ -53,10 +53,8 @@ export const useAuthApi = (): AuthApi => {
    * @returns The sign-in result, which may report that a second factor is owed.
    */
   const login = (request: LoginRequest, signal?: AbortSignal): Promise<LoginResult> => {
-    // The username travels in the body only. It used to be repeated in the query string, for a
-    // rate limiter that keyed on it — a key the caller could change at will, so it bounded
-    // nothing and has been removed. A login name in a URL is written to every access log and
-    // proxy along the way; in the body it is not.
+    // The username travels in the body only, never in the query string. A login name in a URL is
+    // written to every access log and proxy along the way; in the body it is not.
     return api.post<LoginResult>(`${AUTH_PATH}/login`, request, signal, false)
   }
 

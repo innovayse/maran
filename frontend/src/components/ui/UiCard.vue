@@ -1,22 +1,25 @@
 <script setup lang="ts">
 /**
- * Minimal content card: a bordered, padded container used to group related
- * information. First primitive of the shared UI kit (`src/components/ui/`);
- * feature views compose it instead of hand-rolling bordered containers.
- * Takes no props and emits no events — it only lays out its default slot.
+ * The panel of the redesign: a bordered, padded container that groups related
+ * information. Takes no props and emits no events — it only lays out its
+ * default slot, and a caller adds spacing (`class="mb-4"`) rather than the
+ * card baking in a margin its call sites would have to undo.
  *
- * The design draws every card the same way: the raised surface on a subtle
- * border, a 10px radius, 14px of padding and no shadow — depth comes from the
- * surface ramp, not from a drop shadow. The border strengthens on hover
- * because most cards in the design are clickable; on a static card the change
- * is invisible, since nothing else moves with it.
+ * It is flat at rest: the surface and a subtle border mark it off, with no
+ * shadow, so depth comes from the surface ramp. It carries NO hover treatment:
+ * a border that strengthens on hover tells the user the card is clickable, and
+ * on a static card that is a lie — it invites a click that does nothing. A card that IS a link is drawn by
+ * the component that owns the link (it lifts 2px and takes an accent border, as
+ * the dashboard's figure cards do) and uses this one only for the box.
+ *
+ * `min-w-0` is load-bearing: a card is routinely a grid or flex child, and
+ * without it a long unbroken value (a domain, a path, an Armenian word) forces
+ * the track wider than the screen and the page scrolls sideways at 390px.
  */
 </script>
 
 <template>
-  <div
-    class="rounded-xl border border-border-subtle bg-surface-1 p-5 transition-colors hover:border-border-strong"
-  >
+  <div class="min-w-0 rounded-panel border border-border-subtle bg-surface-1 p-5">
     <slot />
   </div>
 </template>

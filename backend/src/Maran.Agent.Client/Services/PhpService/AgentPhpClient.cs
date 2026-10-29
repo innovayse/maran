@@ -56,7 +56,31 @@ public sealed class AgentPhpClient : IAgentPhpClient
     }
 
     /// <inheritdoc/>
-    public async IAsyncEnumerable<PhpInstallEvent> InstallVersionAsync(
+    /// <remarks>
+    /// A transport failure ends the stream in a <see cref="PhpInstallEventKind.Failed"/> event carrying
+    /// the code of <see cref="AgentTransportFailure.ToError"/>, never in the raw exception.
+    /// </remarks>
+    public IAsyncEnumerable<PhpInstallEvent> InstallVersionAsync(string version, CancellationToken cancellationToken)
+    {
+        return AgentStreamGuard.EndOnTransportFailureAsync(
+            InstallEventsAsync(version, cancellationToken),
+            exception =>
+            {
+                return new PhpInstallEvent(
+                    PhpInstallEventKind.Failed,
+                    0,
+                    string.Empty,
+                    string.Empty,
+                    AgentTransportFailure.ToError(exception).Code);
+            },
+            cancellationToken);
+    }
+
+    /// <summary>Streams the install events the agent states, without guarding against the transport failing.</summary>
+    /// <param name="version">The PHP version to install.</param>
+    /// <param name="cancellationToken">Cancellation for the stream.</param>
+    /// <returns>Progress events followed by exactly one terminal event.</returns>
+    private async IAsyncEnumerable<PhpInstallEvent> InstallEventsAsync(
         string version,
         [EnumeratorCancellation] CancellationToken cancellationToken)
     {

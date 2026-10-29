@@ -11,6 +11,13 @@ interface is built from.
 They are saved here because the Claude Design connection is not always
 available, and the UI work must not stall when it is not.
 
+## Superseded for visual design
+
+The October 2026 redesign (`redesign-2026-10/README.md`) replaces this canvas as the source of truth
+for the panel's **look**: palette, typefaces, radii and shell structure. The canvas stays here as a
+record of the earlier design and for screens the redesign has not reached yet; where the two disagree,
+the redesign wins.
+
 ## Rules
 
 These files are a **read-only reference**. The source of truth is the Claude

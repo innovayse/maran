@@ -5,12 +5,18 @@
       "ariaLabel": "Main navigation",
       "systemStatus": "System status",
       "auditJournal": "Audit journal",
+      "plans": "Plans",
       "lockedBadge": "Locked",
       "groups": {
+        "overview": "Overview",
+        "hosting": "Hosting",
+        "security": "Security",
+        "system": "System",
         "panel": "Panel"
       }
     },
     "shell": {
+      "skipToContent": "Skip to content",
       "search": "Search or jump to…",
       "searchShortcut": "⌘K",
       "collapseSidebar": "Collapse the sidebar",
@@ -19,7 +25,6 @@
       "navigationLabel": "Navigation",
       "toggleTheme": "Switch between the dark and light theme",
       "breadcrumbLabel": "Breadcrumb",
-      "noServerSelected": "No server selected",
       "paletteTitle": "Jump to",
       "paletteClose": "Close the jump-to palette",
       "paletteFieldLabel": "Search the panel",
@@ -33,15 +38,22 @@
         "dark": "Dark",
         "light": "Light"
       },
-      "askAi": "Ask AI",
-      "notifications": "Notifications",
-      "account": "Your account",
       "signedOut": "Nobody is signed in",
       "accountMenu": "Account menu",
       "menu": {
         "myAccount": "My account",
         "sessions": "Sessions",
         "twoFactor": "Two-step verification"
+      },
+      "authCredit": "© {year} Maran · made by Innovayse LLC",
+      "closeNavigation": "Close the navigation",
+      "tabBarLabel": "Sections",
+      "tabs": {
+        "home": "Home",
+        "accounts": "Accounts",
+        "sites": "Sites",
+        "databases": "Databases",
+        "more": "More"
       }
     },
     "locale": {

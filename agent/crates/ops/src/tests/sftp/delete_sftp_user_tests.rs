@@ -3,6 +3,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use maran_agent_core::utils::call_class::CallClass;
 use maran_agent_core::validation::system::name::AccountName;
 use maran_agent_core::validation::system::sftp_user_name::SftpUserName;
 
@@ -46,6 +47,7 @@ fn deleting_an_sftp_user_removes_the_login_without_removing_its_files() {
         userdel.argv,
         vec![
             "/usr/sbin/userdel".to_owned(),
+            "--".to_owned(),
             login_of(&account).as_str().to_owned()
         ]
     );
@@ -207,4 +209,34 @@ fn a_deletion_that_finished_leaves_the_hosting_accounts_lock_free() {
         take_account_lock(&account).is_some(),
         "the lock must be free once the operation returned"
     );
+}
+
+/// Removing one login is a single-entry edit, not a bulk removal.
+#[test]
+fn deleting_an_sftp_user_runs_userdel_as_a_mutation_and_not_as_a_bulk_removal() {
+    // `Bulk` is for `userdel --remove`, which walks a whole home. This call has
+    // no `--remove`, so the 12 hour deadline of `Bulk` would let a wedged
+    // `userdel` hold the account lock for half a day.
+    let account = account("sftpdelclass");
+    let host = host_with_login(&account);
+
+    delete_sftp_user(&host, distro(), &account, &login_of(&account)).expect("deleted");
+
+    assert_eq!(
+        host.spawn_of("userdel").expect("userdel was run").class,
+        CallClass::Mutation
+    );
+}
+
+/// A `userdel` that outruns its deadline is not "the login is gone".
+#[test]
+fn a_userdel_that_times_out_is_a_bound_and_not_a_missing_login() {
+    let account = account("sftpdeltimeout");
+    let host = host_with_login(&account);
+    host.time_out("userdel");
+
+    let error =
+        delete_sftp_user(&host, distro(), &account, &login_of(&account)).expect_err("must fail");
+
+    assert!(matches!(error, SftpError::Bound(_)), "got {error:?}");
 }

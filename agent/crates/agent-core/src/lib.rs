@@ -14,6 +14,8 @@
 
 pub mod agent_paths;
 pub mod command_outcome;
+/// The `--` operand that ends option parsing, shared by every `ops` area that runs a `getopt`-style program.
+pub mod end_of_options;
 pub mod privs;
 pub mod secret_string;
 pub mod utils;

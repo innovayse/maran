@@ -37,7 +37,8 @@ public sealed class ResilientAgentMonitorClient : IAgentMonitorClient
     /// <inheritdoc/>
     public async Task<Result<AgentHostMetrics>> GetHostMetricsAsync(CancellationToken cancellationToken)
     {
-        return await _pipeline.ExecuteAsync(
+        return await AgentOperationPipeline.ExecuteAsync(
+            _pipeline,
             async (state, token) =>
             {
                 return await state.GetHostMetricsAsync(token);
@@ -50,7 +51,8 @@ public sealed class ResilientAgentMonitorClient : IAgentMonitorClient
     public async Task<Result<IReadOnlyList<AgentServiceStatus>>> GetServiceStatusesAsync(
         CancellationToken cancellationToken)
     {
-        return await _pipeline.ExecuteAsync(
+        return await AgentOperationPipeline.ExecuteAsync(
+            _pipeline,
             async (state, token) =>
             {
                 return await state.GetServiceStatusesAsync(token);
@@ -63,7 +65,8 @@ public sealed class ResilientAgentMonitorClient : IAgentMonitorClient
     public async Task<Result<IReadOnlyList<AgentAccountDiskUsage>>> GetAccountsDiskUsageAsync(
         CancellationToken cancellationToken)
     {
-        return await _pipeline.ExecuteAsync(
+        return await AgentOperationPipeline.ExecuteAsync(
+            _pipeline,
             async (state, token) =>
             {
                 return await state.GetAccountsDiskUsageAsync(token);
@@ -75,7 +78,8 @@ public sealed class ResilientAgentMonitorClient : IAgentMonitorClient
     /// <inheritdoc/>
     public async Task<Result<AgentSftpJailStatus>> GetSftpJailStatusAsync(CancellationToken cancellationToken)
     {
-        return await _pipeline.ExecuteAsync(
+        return await AgentOperationPipeline.ExecuteAsync(
+            _pipeline,
             async (state, token) =>
             {
                 return await state.GetSftpJailStatusAsync(token);
@@ -88,7 +92,8 @@ public sealed class ResilientAgentMonitorClient : IAgentMonitorClient
     public async Task<Result<AgentQuotaEnforceability>> GetQuotaEnforceabilityAsync(
         CancellationToken cancellationToken)
     {
-        return await _pipeline.ExecuteAsync(
+        return await AgentOperationPipeline.ExecuteAsync(
+            _pipeline,
             async (state, token) =>
             {
                 return await state.GetQuotaEnforceabilityAsync(token);
@@ -101,7 +106,8 @@ public sealed class ResilientAgentMonitorClient : IAgentMonitorClient
     public async Task<Result<AgentServerFingerprint>> GetServerFingerprintAsync(
         CancellationToken cancellationToken)
     {
-        return await _pipeline.ExecuteAsync(
+        return await AgentOperationPipeline.ExecuteAsync(
+            _pipeline,
             async (state, token) =>
             {
                 return await state.GetServerFingerprintAsync(token);

@@ -82,16 +82,88 @@ public sealed class CreateAccountCommandValidatorTests : IDisposable
         result.ShouldHaveValidationErrorFor(c => c.Name);
     }
 
-    /// <summary>Name longer than thirty two characters fails on the name property.</summary>
+    /// <summary>Name longer than thirty characters fails on the name property.</summary>
     [Fact]
-    public async Task Name_longer_than_thirty_two_characters_fails_on_the_name_property()
+    public async Task Name_longer_than_thirty_characters_fails_on_the_name_property()
     {
-        var tooLong = "a" + new string('b', 32); // 33 characters, one past the limit.
+        var tooLong = "a" + new string('b', 30); // 31 characters, one past the limit.
         var command = ValidCommand() with { Name = tooLong };
 
         var result = await _validator.TestValidateAsync(command);
 
         result.ShouldHaveValidationErrorFor(c => c.Name);
+    }
+
+    /// <summary>A name of exactly thirty characters passes, so the bound is not one too tight.</summary>
+    [Fact]
+    public async Task A_thirty_character_name_passes()
+    {
+        var atTheLimit = "a" + new string('b', 29); // 30 characters.
+        var command = ValidCommand() with { Name = atTheLimit };
+
+        var result = await _validator.TestValidateAsync(command);
+
+        result.ShouldNotHaveValidationErrorFor(c => c.Name);
+    }
+
+    /// <summary>A hyphen is not in the agent's alphabet, so a hyphenated name fails on the name property.</summary>
+    [Theory]
+    [InlineData("acme-01")]
+    [InlineData("a-b")]
+    [InlineData("www-data")]
+    public async Task Name_with_a_hyphen_fails_on_the_name_property(string hyphenated)
+    {
+        var command = ValidCommand() with { Name = hyphenated };
+
+        var result = await _validator.TestValidateAsync(command);
+
+        result.ShouldHaveValidationErrorFor(c => c.Name)
+            .WithErrorMessage("AccountNameInvalid");
+    }
+
+    /// <summary>A malformed name is told it is malformed, never that it is reserved.</summary>
+    [Fact]
+    public async Task A_malformed_name_gets_the_invalid_code_and_not_the_reserved_one()
+    {
+        var command = ValidCommand() with { Name = "Root" };
+
+        var result = await _validator.TestValidateAsync(command);
+
+        var error = Assert.Single(result.ShouldHaveValidationErrorFor(c => c.Name));
+        Assert.Equal("AccountNameInvalid", error.ErrorMessage);
+    }
+
+    /// <summary>A reserved name fails on the name property with the reserved code.</summary>
+    [Theory]
+    [InlineData("root")]
+    [InlineData("redis")]
+    [InlineData("maran")]
+    [InlineData("maran_api")]
+    [InlineData("ubuntu")]
+    public async Task A_reserved_name_fails_with_the_reserved_code(string reserved)
+    {
+        // The code is the validation message itself: the exception middleware resolves a bare
+        // alphanumeric message as a resx key, so this is what the operator's language is chosen by.
+        var command = ValidCommand() with { Name = reserved };
+
+        var result = await _validator.TestValidateAsync(command);
+
+        result.ShouldHaveValidationErrorFor(c => c.Name)
+            .WithErrorMessage("AccountNameReserved");
+    }
+
+    /// <summary>Ordinary names are not reserved.</summary>
+    [Theory]
+    [InlineData("acme")]
+    [InlineData("client_42")]
+    [InlineData("a23")]
+    public async Task A_valid_ordinary_name_is_not_reserved(string ordinary)
+    {
+        var command = ValidCommand() with { Name = ordinary };
+
+        var result = await _validator.TestValidateAsync(command);
+
+        result.ShouldNotHaveValidationErrorFor(c => c.Name);
     }
 
     /// <summary>Name with an illegal character or shape fails on the name property.</summary>
@@ -103,6 +175,7 @@ public sealed class CreateAccountCommandValidatorTests : IDisposable
     [InlineData("acme user")] // whitespace
     [InlineData("acme;rm -rf /")] // command-injection-shaped payload
     [InlineData("../etc/passwd")] // path-traversal-shaped payload
+    [InlineData("acme-01")] // a hyphen is not in the agent's alphabet
     [InlineData("acme.example")] // dot is not in the portable username set
     public async Task Name_with_an_illegal_character_or_shape_fails_on_the_name_property(string illegal)
     {
@@ -116,7 +189,6 @@ public sealed class CreateAccountCommandValidatorTests : IDisposable
     /// <summary>Name matching the portable username pattern passes.</summary>
     [Theory]
     [InlineData("acme")]
-    [InlineData("acme-01")]
     [InlineData("acme_01")]
     [InlineData("a23")]
     public async Task Name_matching_the_portable_username_pattern_passes(string legal)

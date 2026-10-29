@@ -100,31 +100,32 @@ defineExpose({ reset })
 </script>
 
 <template>
-  <div class="rounded-xl border border-border-subtle bg-surface-1">
-    <UiForm @submit="submit">
-      <div class="grid gap-3.5 p-4.5 sm:grid-cols-2">
-        <UiInput
-          v-model="cidr"
-          :label="t('firewall.whitelist.form.fields.cidr')"
-          :placeholder="t('firewall.whitelist.form.placeholders.cidr')"
-          :error="cidrError"
-          required
-        />
-        <UiInput
-          v-model="note"
-          :label="t('firewall.whitelist.form.fields.note')"
-          :placeholder="t('firewall.whitelist.form.placeholders.note')"
-          :error="noteError"
-        />
-      </div>
-      <div
-        class="flex flex-wrap items-center justify-between gap-2 rounded-b-xl border-t border-border-subtle bg-surface-2 px-4.5 py-3"
-      >
-        <p class="text-sm text-text-muted">{{ t('firewall.whitelist.form.hint') }}</p>
-        <UiButton type="submit" :disabled="submitting">
-          {{ t('firewall.whitelist.form.submit') }}
-        </UiButton>
-      </div>
-    </UiForm>
-  </div>
+  <!-- An inset well on the card that holds it, not a second card: the page's panel is the box. -->
+  <UiForm class="block rounded-control border border-border-subtle bg-surface-2" @submit="submit">
+    <div class="grid gap-4 p-4 sm:grid-cols-2">
+      <UiInput
+        v-model="cidr"
+        :label="t('firewall.whitelist.form.fields.cidr')"
+        :placeholder="t('firewall.whitelist.form.placeholders.cidr')"
+        :error="cidrError"
+        required
+      />
+      <UiInput
+        v-model="note"
+        :label="t('firewall.whitelist.form.fields.note')"
+        :placeholder="t('firewall.whitelist.form.placeholders.note')"
+        :error="noteError"
+      />
+    </div>
+    <div
+      class="flex flex-col gap-3 border-t border-border-subtle px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
+    >
+      <p class="text-sm text-text-muted wrap-anywhere">
+        {{ t('firewall.whitelist.form.hint') }}
+      </p>
+      <UiButton type="submit" class="self-start sm:self-auto" :disabled="submitting">
+        {{ t('firewall.whitelist.form.submit') }}
+      </UiButton>
+    </div>
+  </UiForm>
 </template>

@@ -1,5 +1,6 @@
 //! CreateFtpsUser: the account's jail, then the login that lands in it.
 
+use maran_agent_core::utils::call_class::CallClass;
 use maran_distro::DistroAdapter;
 
 use crate::accounts::take_account_lock;
@@ -9,6 +10,7 @@ use crate::ftps::ftps_host::FtpsHost;
 use crate::ftps::model::ftps_jail::FtpsJail;
 use crate::ftps::model::ftps_user_request::FtpsUserRequest;
 use crate::ftps::set_ftps_password::write_password;
+use maran_agent_core::end_of_options::END_OF_OPTIONS;
 
 /// Tells `useradd` not to create or touch the home directory it is given.
 ///
@@ -130,6 +132,8 @@ const NON_UNIQUE: &str = "--non-unique";
 ///
 /// - [`FtpsError::AccountBusy`] when another operation for the hosting account
 ///   is already running. Nothing was created.
+/// - [`FtpsError::AccountNotManaged`] when the hosting account is reserved, a
+///   system identity or has the wrong home. Checked first: nothing is created.
 /// - [`FtpsError::AccountMissing`] when the hosting account is not on this host.
 ///   Checked first, before anything is created.
 /// - [`FtpsError::JailFailed`] when the jail's directories cannot be created, or
@@ -144,6 +148,9 @@ const NON_UNIQUE: &str = "--non-unique";
 /// - [`FtpsError::PasswordRejected`] when `chpasswd` refuses the password.
 /// - [`FtpsError::SpawnFailed`] when `useradd` refuses for any other reason, or
 ///   could not be run at all.
+/// - [`FtpsError::Bound`] when `useradd`, `chpasswd` or the service manager
+///   outran its deadline. Whether the login exists is then unknown, and a repeat
+///   converges on [`FtpsError::AlreadyExists`] if it does.
 pub fn create_ftps_user(
     host: &dyn FtpsHost,
     distro: &dyn DistroAdapter,
@@ -177,6 +184,13 @@ pub(crate) fn create_ftps_user_under_lock(
     distro: &dyn DistroAdapter,
     request: &FtpsUserRequest,
 ) -> Result<(), FtpsError> {
+    // The gate, before any host fact is read or anything is built: the login
+    // is created with the account's own uid and gid, so an account that is a
+    // system user, an operator's own login or a reserved name must be refused
+    // here and not discovered by what `useradd` does with it. The proof is not
+    // kept; the identity re-read below is what guards the window after it.
+    host.managed_account(distro.passwd_database(), &request.account)?;
+
     let ownership = host.account_ownership(&request.account)?;
 
     let jail = FtpsJail::for_account(&request.account, distro.systemd_unit_directory());
@@ -195,8 +209,11 @@ pub(crate) fn create_ftps_user_under_lock(
     // request carried, so there is nothing here for a caller to influence.
     let (uid, gid) = (ownership.uid.to_string(), ownership.gid.to_string());
 
+    // `useradd` parses with `getopt_long`, which honours the end-of-options
+    // marker on both families, so the login name that follows it can never be
+    // read as an option.
     let outcome = host.run(
-        distro.useradd_binary(),
+        &distro.useradd_binary(),
         &[
             HOME_DIRECTORY,
             jail.directory(),
@@ -210,8 +227,10 @@ pub(crate) fn create_ftps_user_under_lock(
             &uid,
             GID,
             &gid,
+            END_OF_OPTIONS,
             request.user.as_str(),
         ],
+        CallClass::Mutation,
     )?;
 
     if outcome.status != 0 {

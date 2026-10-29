@@ -42,7 +42,8 @@ public sealed class ResilientAgentDbClient : IAgentDbClient
         SensitiveString password,
         CancellationToken cancellationToken)
     {
-        return await _pipeline.ExecuteAsync(
+        return await AgentOperationPipeline.ExecuteAsync(
+            _pipeline,
             async (state, token) =>
             {
                 return await state.Client.CreateAsync(
@@ -67,7 +68,8 @@ public sealed class ResilientAgentDbClient : IAgentDbClient
         string dbUsername,
         CancellationToken cancellationToken)
     {
-        return await _pipeline.ExecuteAsync(
+        return await AgentOperationPipeline.ExecuteAsync(
+            _pipeline,
             async (state, token) =>
             {
                 return await state.Client.DropAsync(
@@ -87,7 +89,8 @@ public sealed class ResilientAgentDbClient : IAgentDbClient
         SensitiveString password,
         CancellationToken cancellationToken)
     {
-        return await _pipeline.ExecuteAsync(
+        return await AgentOperationPipeline.ExecuteAsync(
+            _pipeline,
             async (state, token) =>
             {
                 return await state.Client.SetPasswordAsync(
@@ -105,7 +108,8 @@ public sealed class ResilientAgentDbClient : IAgentDbClient
         string accountUsername,
         CancellationToken cancellationToken)
     {
-        return await _pipeline.ExecuteAsync(
+        return await AgentOperationPipeline.ExecuteAsync(
+            _pipeline,
             async (state, token) =>
             {
                 return await state.Client.ListAsync(state.AccountUsername, token);
@@ -120,7 +124,8 @@ public sealed class ResilientAgentDbClient : IAgentDbClient
         string databaseName,
         CancellationToken cancellationToken)
     {
-        return await _pipeline.ExecuteAsync(
+        return await AgentOperationPipeline.ExecuteAsync(
+            _pipeline,
             async (state, token) =>
             {
                 return await state.Client.GetSizeAsync(state.AccountUsername, state.DatabaseName, token);
@@ -142,7 +147,8 @@ public sealed class ResilientAgentDbClient : IAgentDbClient
         bool reportOnly,
         CancellationToken cancellationToken)
     {
-        return await _pipeline.ExecuteAsync(
+        return await AgentOperationPipeline.ExecuteAsync(
+            _pipeline,
             async (state, token) =>
             {
                 return await state.Client.RepairGrantsAsync(state.ReportOnly, token);

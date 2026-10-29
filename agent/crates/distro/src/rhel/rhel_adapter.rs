@@ -1,6 +1,9 @@
 //! The RHEL-family adapter implementation.
 
+use maran_agent_core::validation::web::php_version::PhpVersion;
+
 use crate::DistroAdapter;
+use crate::adapter_binary::AdapterBinary;
 use crate::family::DistroFamily;
 use crate::rhel::{rhel_packages, rhel_paths, rhel_services};
 use crate::vsftpd_tls_version_keys::VsftpdTlsVersionKeys;
@@ -19,7 +22,7 @@ impl DistroAdapter for RhelAdapter {
         rhel_paths::nologin_shell()
     }
 
-    fn nginx_binary(&self) -> &'static str {
+    fn nginx_binary(&self) -> AdapterBinary {
         rhel_services::nginx_binary()
     }
 
@@ -27,7 +30,7 @@ impl DistroAdapter for RhelAdapter {
         rhel_services::nginx_service()
     }
 
-    fn service_manager(&self) -> &'static str {
+    fn service_manager(&self) -> AdapterBinary {
         rhel_services::service_manager()
     }
 
@@ -47,7 +50,7 @@ impl DistroAdapter for RhelAdapter {
         rhel_services::php_fpm_service(version)
     }
 
-    fn php_fpm_binary(&self, version: &str) -> String {
+    fn php_fpm_binary(&self, version: &PhpVersion) -> AdapterBinary {
         rhel_services::php_fpm_binary(version)
     }
 
@@ -55,7 +58,7 @@ impl DistroAdapter for RhelAdapter {
         rhel_packages::php_package(version)
     }
 
-    fn openssl_binary(&self) -> &'static str {
+    fn openssl_binary(&self) -> AdapterBinary {
         rhel_services::openssl_binary()
     }
 
@@ -63,19 +66,19 @@ impl DistroAdapter for RhelAdapter {
         rhel_packages::package_manager()
     }
 
-    fn tar_binary(&self) -> &'static str {
+    fn tar_binary(&self) -> AdapterBinary {
         rhel_services::tar_binary()
     }
 
-    fn gzip_binary(&self) -> &'static str {
+    fn gzip_binary(&self) -> AdapterBinary {
         rhel_services::gzip_binary()
     }
 
-    fn database_dump_binary(&self) -> &'static str {
+    fn database_dump_binary(&self) -> AdapterBinary {
         rhel_services::database_dump_binary()
     }
 
-    fn mysql_client_binary(&self) -> &'static str {
+    fn mysql_client_binary(&self) -> AdapterBinary {
         rhel_services::mysql_client_binary()
     }
 
@@ -87,7 +90,7 @@ impl DistroAdapter for RhelAdapter {
         rhel_services::sftp_group()
     }
 
-    fn vsftpd_binary(&self) -> &'static str {
+    fn vsftpd_binary(&self) -> AdapterBinary {
         rhel_services::vsftpd_binary()
     }
 
@@ -99,55 +102,59 @@ impl DistroAdapter for RhelAdapter {
         rhel_services::vsftpd_tls_version_keys()
     }
 
-    fn useradd_binary(&self) -> &'static str {
+    fn useradd_binary(&self) -> AdapterBinary {
         rhel_services::useradd_binary()
     }
 
-    fn userdel_binary(&self) -> &'static str {
+    fn userdel_binary(&self) -> AdapterBinary {
         rhel_services::userdel_binary()
     }
 
-    fn usermod_binary(&self) -> &'static str {
+    fn usermod_binary(&self) -> AdapterBinary {
         rhel_services::usermod_binary()
     }
 
-    fn getent_binary(&self) -> &'static str {
+    fn getent_binary(&self) -> AdapterBinary {
         rhel_services::getent_binary()
     }
 
-    fn setquota_binary(&self) -> &'static str {
+    fn setquota_binary(&self) -> AdapterBinary {
         rhel_services::setquota_binary()
     }
 
-    fn quota_binary(&self) -> &'static str {
+    fn quota_binary(&self) -> AdapterBinary {
         rhel_services::quota_binary()
     }
 
-    fn quotaon_binary(&self) -> &'static str {
+    fn quotaon_binary(&self) -> AdapterBinary {
         rhel_services::quotaon_binary()
     }
 
-    fn pkill_binary(&self) -> &'static str {
+    fn pkill_binary(&self) -> AdapterBinary {
         rhel_services::pkill_binary()
     }
 
-    fn passwd_binary(&self) -> &'static str {
+    fn pgrep_binary(&self) -> AdapterBinary {
+        rhel_services::pgrep_binary()
+    }
+
+    fn passwd_binary(&self) -> AdapterBinary {
         rhel_services::passwd_binary()
     }
 
-    fn id_binary(&self) -> &'static str {
+    fn id_binary(&self) -> AdapterBinary {
         rhel_services::id_binary()
     }
 
-    fn chmod_binary(&self) -> &'static str {
+    fn chmod_binary(&self) -> AdapterBinary {
         rhel_services::chmod_binary()
     }
 
-    fn chgrp_binary(&self) -> &'static str {
+    fn chgrp_binary(&self) -> AdapterBinary {
         rhel_services::chgrp_binary()
     }
 
-    fn chpasswd_binary(&self) -> &'static str {
+    fn chpasswd_binary(&self) -> AdapterBinary {
         rhel_services::chpasswd_binary()
     }
 
@@ -159,7 +166,7 @@ impl DistroAdapter for RhelAdapter {
         rhel_services::passwd_database()
     }
 
-    fn crontab_binary(&self) -> &'static str {
+    fn crontab_binary(&self) -> AdapterBinary {
         rhel_services::crontab_binary()
     }
 
@@ -167,7 +174,7 @@ impl DistroAdapter for RhelAdapter {
         rhel_services::sh_binary()
     }
 
-    fn nft_binary(&self) -> &'static str {
+    fn nft_binary(&self) -> AdapterBinary {
         rhel_services::nft_binary()
     }
 

@@ -127,8 +127,7 @@ test('a caller the tasks surface does not exist for gets no badge and no shell e
 
   await page.goto('/')
 
-  // Named, not "some level-1 heading": the shell's own brand mark is an <h1> too, so an unnamed
-  // query matches two elements and the assertion says nothing about the screen having rendered.
+  // Named, so the assertion says which screen rendered rather than that some heading exists.
   await expect(page.getByRole('heading', { level: 1, name: 'System status' })).toBeVisible()
   await expect(badge(page)).toHaveCount(0)
   await expect(page.getByRole('banner').getByText('Not found.')).toHaveCount(0)

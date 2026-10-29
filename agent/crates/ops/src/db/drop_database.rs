@@ -50,6 +50,8 @@ const USER_HOST: &str = "localhost";
 /// - [`DbError::AccessDenied`] when the server refuses the agent's connection.
 /// - [`DbError::ClientFailed`] when the server refuses a statement for any other
 ///   reason.
+/// - [`DbError::Bound`] when the client ran past its deadline, so no answer was
+///   read. A statement already sent may nevertheless take effect on the server.
 pub fn drop_database(
     host: &dyn DbHost,
     name: &DatabaseName,

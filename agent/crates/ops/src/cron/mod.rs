@@ -67,6 +67,15 @@
 //! process-local, and its own documentation says exactly what that does and
 //! does not cover.
 //!
+//! **Every operation names its account to the host by a proof, not a name.**
+//! Before it reads or installs anything, each one asks the host for a
+//! [`ManagedAccount`](maran_agent_core::validation::system::managed_account::ManagedAccount)
+//! — a user that is not reserved, is in the local password database, is above
+//! the host's id floors and has exactly the managed home — and every other host
+//! method takes that proof. So `crontab -u root` is not a call this area can
+//! make. The operations that hold `cron_lock` ask INSIDE it, so the resolution
+//! and the use are one critical section; the proof is never stored.
+//!
 //! **The privilege split runs through the host trait.** `crontab(1)` writes the
 //! spool as root, because where that spool lives and how the daemon learns it
 //! changed are the program's business on each family. Everything under the
@@ -135,6 +144,9 @@ pub(crate) mod recording_cron_host;
 mod set_account_cron_suspended;
 mod set_cron_entry_enabled;
 mod set_cron_environment;
+#[cfg(test)]
+#[path = "../tests/cron/unmanaged_case.rs"]
+pub(crate) mod unmanaged_case;
 mod update_cron_entry;
 
 // Crate-visible and not public: the sentence both cron lineages print for an

@@ -9,7 +9,6 @@ using Maran.SharedKernel.Interfaces;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Polly.Registry;
-using Polly.Timeout;
 
 namespace Maran.Host.Tests.Composition;
 
@@ -255,18 +254,13 @@ public sealed class ContainerResolutionTests : IClassFixture<PanelTestFactory>
         var sftp = new ResilientAgentSftpClient(new RecordingAgentSftpClient { Hangs = true }, pipelines);
         var ftps = new ResilientAgentFtpsClient(new RecordingAgentFtpsClient { Hangs = true }, pipelines);
 
-        await Assert.ThrowsAsync<TimeoutRejectedException>(async () =>
-        {
-            await database.ListAsync("alice", default).WaitAsync(ComposedTimeoutDeadline);
-        });
-        await Assert.ThrowsAsync<TimeoutRejectedException>(async () =>
-        {
-            await sftp.DeleteAsync("alice", "web", default).WaitAsync(ComposedTimeoutDeadline);
-        });
-        await Assert.ThrowsAsync<TimeoutRejectedException>(async () =>
-        {
-            await ftps.DeleteUserAsync("alice", "files", default).WaitAsync(ComposedTimeoutDeadline);
-        });
+        var listed = await database.ListAsync("alice", default).WaitAsync(ComposedTimeoutDeadline);
+        var deletedSftp = await sftp.DeleteAsync("alice", "web", default).WaitAsync(ComposedTimeoutDeadline);
+        var deletedFtps = await ftps.DeleteUserAsync("alice", "files", default).WaitAsync(ComposedTimeoutDeadline);
+
+        Assert.Equal("AgentUnavailable", listed.Error?.Code);
+        Assert.Equal("AgentUnavailable", deletedSftp.Error?.Code);
+        Assert.Equal("AgentUnavailable", deletedFtps.Error?.Code);
     }
 
     /// <summary>Both named agent pipelines are registered.</summary>

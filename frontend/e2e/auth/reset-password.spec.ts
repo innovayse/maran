@@ -22,7 +22,8 @@ test('a spent or expired token shows the panel’s refusal and a way back', asyn
 
   // The way back. Without it the person is left on a dead screen holding a stale
   // link, with the sign-in page reachable only by editing the URL.
-  await page.getByRole('button', { name: 'Back to sign in' }).click()
+  // a navigation is a link, not a button — issue #82
+  await page.getByRole('link', { name: 'Back to sign in' }).click()
   await expect(page).toHaveURL('/login')
 })
 

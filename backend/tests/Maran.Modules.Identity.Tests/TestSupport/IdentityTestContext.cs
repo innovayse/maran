@@ -31,6 +31,17 @@ public static class IdentityTestContext
         return new IdentityDbContext(options, new AesGcmEncryptionService(EncryptionKey));
     }
 
+    /// <summary>Builds the localizer over this module's REAL display-name resource files.</summary>
+    /// <returns>The localizer, reading <c>Resources/DisplayNames*.resx</c> as it does in the panel.</returns>
+    public static IStringLocalizer<DisplayNames> DisplayNameResources()
+    {
+        var factory = new ResourceManagerStringLocalizerFactory(
+            new OptionsWrapper<LocalizationOptions>(new LocalizationOptions()),
+            NullLoggerFactory.Instance);
+
+        return new StringLocalizer<DisplayNames>(factory);
+    }
+
     /// <summary>Builds the action-name resolver over this module's REAL resource files.</summary>
     /// <returns>The resolver, reading <c>Resources/DisplayNames*.resx</c> as it does in the panel.</returns>
     /// <remarks>

@@ -31,7 +31,9 @@ use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
 use maran_agent_core::command_outcome::CommandOutcome;
-use maran_distro::{DistroAdapter, DistroFamily, adapter_for};
+use maran_agent_core::utils::bound_exceeded::BoundExceeded;
+use maran_agent_core::utils::call_class::CallClass;
+use maran_distro::{AdapterBinary, DistroAdapter, DistroFamily, adapter_for};
 
 use crate::monitor::model::filesystem_usage::FilesystemUsage;
 use crate::monitor::{MonitorError, MonitorHost};
@@ -139,6 +141,8 @@ pub(crate) struct FakeMonitorHost {
     sizes: Mutex<BTreeMap<PathBuf, u64>>,
     /// Every command the host was asked to spawn, as `program` plus its argv.
     commands: Mutex<Vec<Vec<String>>>,
+    /// The call class of every command, in the same order as `commands`.
+    classes: Mutex<Vec<CallClass>>,
     /// What `read_machine_id` answers: `Ok(Some(_))`, `Ok(None)` for a
     /// legitimately absent file, or `Err(_)` for a genuine read failure.
     machine_id: Mutex<Result<Option<String>, MonitorError>>,
@@ -172,6 +176,7 @@ impl FakeMonitorHost {
             )),
             sizes: Mutex::new(BTreeMap::new()),
             commands: Mutex::new(Vec::new()),
+            classes: Mutex::new(Vec::new()),
             machine_id: Mutex::new(Ok(Some(DEFAULT_MACHINE_ID.to_owned()))),
             ipv4_routes: Mutex::new(Ok(DEFAULT_IPV4_ROUTES.to_owned())),
         }
@@ -232,6 +237,16 @@ impl FakeMonitorHost {
     /// Makes the service manager impossible to start at all.
     pub(crate) fn with_absent_service_manager(self) -> Self {
         *self.service_manager.lock().unwrap() = Err(MonitorError::program_unavailable());
+        self
+    }
+
+    /// Makes the service manager be killed at its deadline on every call, the
+    /// way the bounded spawn reports a program that never returned.
+    pub(crate) fn with_timed_out_service_manager(self) -> Self {
+        *self.service_manager.lock().unwrap() = Err(MonitorError::Bound(BoundExceeded::TimedOut {
+            program: String::from("/usr/bin/systemctl"),
+            deadline: CallClass::Query.deadline(),
+        }));
         self
     }
 
@@ -333,6 +348,11 @@ impl FakeMonitorHost {
     pub(crate) fn commands(&self) -> Vec<Vec<String>> {
         self.commands.lock().unwrap().clone()
     }
+
+    /// The call class of every command the host was asked to spawn, in order.
+    pub(crate) fn classes(&self) -> Vec<CallClass> {
+        self.classes.lock().unwrap().clone()
+    }
 }
 
 impl MonitorHost for FakeMonitorHost {
@@ -387,7 +407,7 @@ impl MonitorHost for FakeMonitorHost {
     /// about — the real query is the one thing behind this seam a test cannot
     /// aim at a filesystem of its own choosing.
     fn filesystem_usage(&self, _path: &Path) -> Result<FilesystemUsage, MonitorError> {
-        *self.filesystem.lock().unwrap()
+        self.filesystem.lock().unwrap().clone()
     }
 
     /// Records the command and answers as the configured service manager would.
@@ -396,12 +416,18 @@ impl MonitorHost for FakeMonitorHost {
     /// unit the test did not teach the host about answers `LoadState=not-found`,
     /// which is what a real `systemctl show` says about a unit that is not
     /// installed.
-    fn run(&self, program: &str, arguments: &[&str]) -> Result<CommandOutcome, MonitorError> {
-        let mut command = vec![program.to_owned()];
+    fn run(
+        &self,
+        program: &AdapterBinary,
+        arguments: &[&str],
+        class: CallClass,
+    ) -> Result<CommandOutcome, MonitorError> {
+        let mut command = vec![program.as_str().to_owned()];
         command.extend(arguments.iter().map(|argument| (*argument).to_owned()));
         self.commands.lock().unwrap().push(command);
+        self.classes.lock().unwrap().push(class);
 
-        let status = (*self.service_manager.lock().unwrap())?;
+        let status = self.service_manager.lock().unwrap().clone()?;
         if status != 0 {
             return Ok(CommandOutcome {
                 status,

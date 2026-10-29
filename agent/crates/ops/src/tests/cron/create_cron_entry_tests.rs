@@ -9,8 +9,8 @@ use crate::cron::create_cron_entry::create_cron_entry;
 use crate::cron::cron_error::CronError;
 use crate::cron::model::crontab_document::CrontabDocument;
 use crate::cron::recording_cron_host::{
-    FIRST_ID, RecordingCronHost, SECOND_ID, THIRD_ID, account, cmd_path, command, distro, entry_id,
-    every_five_minutes, schedule,
+    FIRST_ID, RecordingCronHost, SECOND_ID, THIRD_ID, account, assert_refused_untouched, cmd_path,
+    command, distro, entry_id, every_five_minutes, schedule, unmanaged_cases,
 };
 
 /// The command file holds the command exactly, and one newline after it.
@@ -541,4 +541,24 @@ fn two_creations_racing_one_below_the_allowance_install_exactly_one() {
         "the winning creation answered Ok with an id, so its entry must be in \
          the table:\n{table}"
     );
+}
+
+/// An account that is not a hosting account is refused before the table is
+/// read, and everything the host holds is left as it was.
+#[test]
+fn creating_an_entry_for_an_unmanaged_account_reads_and_installs_nothing() {
+    // No id is minted and no command file is written either: nothing below the
+    // gate may run.
+    for case in unmanaged_cases() {
+        let result = create_cron_entry(
+            &case.host,
+            distro(),
+            &case.account,
+            &every_five_minutes(),
+            &command("echo one"),
+            None,
+        );
+
+        assert_refused_untouched(&case, result);
+    }
 }

@@ -1,6 +1,8 @@
 //! Why a per-account cron operation could not be done.
 
 use maran_agent_core::privs::priv_error::PrivError;
+use maran_agent_core::utils::bound_exceeded::BoundExceeded;
+use maran_agent_core::validation::system::managed_account_error::ManagedAccountError;
 
 /// The `code` reported when `crontab` could not be started, or could not be
 /// handed a table at all.
@@ -15,9 +17,11 @@ pub(crate) const PROGRAM_UNAVAILABLE: i32 = -1;
 ///
 /// One exhaustive list for the whole area (rules/rust.md "Errors"), and a
 /// deliberately narrow one: **no variant carries a program's output or a
-/// path**. [`Self::Privilege`] is the one variant that is not an `i32` payload
-/// itself — it wraps [`PrivError`], a type one crate away in `agent-core` — but
-/// the same guarantee holds one level down: every `PrivError` variant is a unit
+/// path**. [`Self::Privilege`] and [`Self::Account`] are the two variants that
+/// are not an `i32` payload itself — they wrap [`PrivError`] and
+/// [`ManagedAccountError`], types one crate away in `agent-core` — but the same
+/// guarantee holds one level down: every `ManagedAccountError` variant is a
+/// unit variant, and every `PrivError` variant is a unit
 /// variant or carries only integers (an errno, a signal, a raw or translated
 /// exit status), and the enum is `#[non_exhaustive]`, so a new variant added
 /// there cannot silently start carrying a path or a program's output either.
@@ -64,6 +68,18 @@ pub enum CronError {
     #[error("privileged work as the account failed: {0}")]
     Privilege(#[from] PrivError),
 
+    /// The name does not belong to a hosting account this panel may act on: it
+    /// is reserved, has no usable local row, has a system identity or has the
+    /// wrong home.
+    ///
+    /// Raised before the crontab or anything in the account's home is touched.
+    /// The wrapped reason is carried for a caller that wants to inspect it (nothing
+    /// in the cron area logs it); its wording names no rule
+    /// and carries no path, so the guarantee above about payloads holds here
+    /// too, and the message below says nothing about WHICH check failed.
+    #[error("the account is not a hosting account")]
+    Account(ManagedAccountError),
+
     /// `crontab` refused the table, or could not be run at all.
     ///
     /// The live crontab is whatever it was before in either case: the program
@@ -75,6 +91,20 @@ pub enum CronError {
         /// could not be given a table to read.
         code: i32,
     },
+
+    /// `crontab` outlived its deadline and was killed together with its whole
+    /// process group.
+    ///
+    /// **Not a refusal**, and so never a [`Self::CrontabRefused`]: the program
+    /// was stopped before it answered, so the account's table may or may not have
+    /// been replaced, and the statement above that the live crontab is unchanged
+    /// holds for a refusal and not for this. The caller reads the table again
+    /// before it believes either outcome. A table larger than the read ceiling is
+    /// NOT this variant; it keeps its own code on [`Self::CrontabRefused`].
+    /// Carries the program's path and the deadline and never a byte the program
+    /// printed.
+    #[error(transparent)]
+    Bound(#[from] BoundExceeded),
 
     /// An entry's command file could not be written, or the account's cron
     /// directory could not be created.

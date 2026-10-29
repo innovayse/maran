@@ -17,7 +17,7 @@ namespace Maran.Modules.Identity.Controllers;
 [Route("api/v1/sessions")]
 [Tags("Sessions")]
 [Produces("application/json")]
-[Authorize]
+[Authorize(Policy = AuthorizationPolicies.AnyAuthenticated)]
 [EnableRateLimiting(RateLimitPolicies.Api)]
 public sealed class SessionsController : BaseApiController
 {

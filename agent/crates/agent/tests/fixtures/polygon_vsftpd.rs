@@ -19,12 +19,9 @@
 //! DAEMON and the CONFIGURATION under test are the real ones even though the
 //! thing that would launch them on a server is not.
 //!
-//! One consequence is visible in [`PolygonVsftpd::apply`] and is not smoothed
-//! over: the FIRST enable on a host with no daemon running gets
-//! `FtpsError::NotListening` back, because the shim's restart brought nothing up
-//! and the control port therefore answered nothing. `enable_ftps` leaves the
-//! refused file on disk in that case, deliberately and by its own documented
-//! behaviour, which is what this fixture then starts the daemon against.
+//! One consequence is visible in [`PolygonVsftpd::apply`]: the shim's restart
+//! brings nothing up, so the fixture starts the daemon itself WHILE `enable_ftps`
+//! is still waiting for the control port, which is what a real restart does.
 
 use std::io::ErrorKind;
 use std::net::TcpStream;
@@ -113,26 +110,57 @@ impl PolygonVsftpd {
         );
     }
 
-    /// Applies `configuration` through `enable_ftps` and starts the daemon on
-    /// the file it left behind.
+    /// Applies `configuration` through `enable_ftps` and starts the daemon on the
+    /// file the enable swapped in, while the enable is still waiting for it.
     ///
-    /// The enable's own outcome is returned rather than swallowed, so a test
-    /// that cares about it can assert on it. It is not asserted here because
-    /// both outcomes are legitimate in a container: `NotListening` the first
-    /// time, when nothing was up for the control-port probe to reach, and `Ok`
-    /// afterwards, when the previous daemon was still answering while the new
-    /// file was swapped in.
+    /// The enable runs on a scoped thread. Its restart is answered by the shim
+    /// and starts nothing, so the enable then waits for a greeting that only this
+    /// fixture can provide: the main thread polls (bounded by [`START_TIMEOUT`])
+    /// until the agent's own configuration file exists, starts the daemon on it,
+    /// and joins the enable. The daemon therefore answers inside the enable's
+    /// wait, as it does after a real `systemctl restart`, and the enable's own
+    /// outcome is `Ok`. Starting the daemon only after a failed enable would be
+    /// wrong: a refused enable rolls its file back, leaving nothing to start on.
     ///
     /// # Panics
     ///
-    /// Panics when the daemon cannot be started or does not accept a connection
-    /// within [`START_TIMEOUT`].
+    /// Panics when the configuration file never appears within
+    /// [`START_TIMEOUT`], when the enable does not succeed, or for the reasons
+    /// [`Self::start`] does.
     pub fn apply(configuration: &FtpsConfiguration) -> (Self, Result<FtpsState, FtpsError>) {
         Self::require_polygon();
         Self::prepare_runtime_directories();
 
-        let outcome = enable_ftps(&ProcessFtpsHost::new(), Self::distro(), configuration);
-        let daemon = Self::start();
+        let (daemon, outcome) = std::thread::scope(|scope| {
+            let enabling =
+                scope.spawn(|| enable_ftps(&ProcessFtpsHost::new(), Self::distro(), configuration));
+
+            let deadline = Instant::now() + START_TIMEOUT;
+            while !Path::new(AgentPaths::VSFTPD_CONFIG_PATH).exists() {
+                if enabling.is_finished() {
+                    panic!(
+                        "enable_ftps returned before {} existed: {:?}",
+                        AgentPaths::VSFTPD_CONFIG_PATH,
+                        enabling.join()
+                    );
+                }
+                assert!(
+                    Instant::now() < deadline,
+                    "enable_ftps never wrote {} within {START_TIMEOUT:?}",
+                    AgentPaths::VSFTPD_CONFIG_PATH
+                );
+                std::thread::sleep(START_POLL_INTERVAL);
+            }
+
+            let daemon = Self::start();
+            let outcome = enabling.join().expect("the enable thread must not panic");
+            (daemon, outcome)
+        });
+
+        assert!(
+            outcome.is_ok(),
+            "enable_ftps must succeed once the daemon answers inside its wait: {outcome:?}"
+        );
 
         (daemon, outcome)
     }

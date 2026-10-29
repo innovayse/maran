@@ -1,6 +1,8 @@
 //! Rebuilding a site's full description from what the panel restated.
 
+use maran_agent_core::validation::system::name::AccountName;
 use maran_agent_core::validation::web::domain::Domain;
+use maran_agent_core::validation::web::domain_error::DomainError;
 use maran_agent_core::validation::web::php_version::PhpVersion;
 use maran_agent_core::validation::web::upstream::Upstream;
 use maran_ops::sites::{CreateSiteInput, SiteCertificate, SiteKind};
@@ -12,14 +14,21 @@ use crate::services::wire::invalid_input::invalid_input;
 /// Rebuilds the full site description from the identity and the panel's
 /// [`SiteSpec`].
 ///
-/// Every operation that re-renders a vhost — enabling, disabling, switching
-/// PHP version, installing or removing a certificate — must render the SAME
+/// Every operation that re-renders a vhost must render the SAME
 /// text `create_site` rendered, and that text is a function of the backend,
 /// the aliases and whether a certificate is installed. Those facts are the
 /// panel's: it is where a site is created, re-planned and given a certificate,
 /// and the vhost on disk is a rendering of them rather than a second copy to
 /// read back. So the panel restates them, and the agent revalidates every one
 /// of them here before any of it reaches a template.
+///
+/// This is the variant for the operations that create or re-render serving
+/// configuration for a name: create, enable, switch PHP version, issue and
+/// install a certificate. It refuses the reserved host name set for the domain
+/// and for every alias. Disabling and removing a certificate use
+/// [`super::validated_existing_site::validated_existing_site`] instead, which
+/// checks shape only, so a site created under a now-reserved name stays
+/// manageable.
 ///
 /// An absent spec is refused rather than defaulted. proto3 cannot tell
 /// "absent" from "static with no aliases", so accepting the default would let
@@ -30,14 +39,33 @@ use crate::services::wire::invalid_input::invalid_input;
 ///
 /// Returns the wire error when the spec is absent, when its backend is
 /// unspecified, when a PHP site names no valid version, when a proxied site
-/// names no valid upstream, or when any alias is not a valid hostname.
+/// names no valid upstream, when any alias is not a valid hostname, or when the
+/// domain or any alias is a reserved host name (an address literal, the
+/// loopback family, a special-use suffix).
 pub fn validated_site(
     account_username: &str,
     domain: &str,
     spec: Option<&SiteSpec>,
 ) -> Result<CreateSiteInput, AgentError> {
-    let (account, domain) = validated_identity(account_username, domain)?;
+    let identity = validated_identity(account_username, domain)?;
 
+    site_from_spec(identity, spec, Domain::parse)
+}
+
+/// Builds the site description from an already validated identity and the
+/// spec, parsing each alias with `parse_alias`.
+///
+/// Shared by [`validated_site`] (aliases must not be reserved) and the
+/// existing-site variant (aliases are only checked for shape).
+///
+/// # Errors
+///
+/// Returns the wire error when the spec is absent or any part of it is refused.
+pub(super) fn site_from_spec(
+    (account, domain): (AccountName, Domain),
+    spec: Option<&SiteSpec>,
+    parse_alias: fn(&str) -> Result<Domain, DomainError>,
+) -> Result<CreateSiteInput, AgentError> {
     let spec = spec.ok_or_else(|| {
         invalid_input("the site description is required: this rpc re-renders the vhost".to_owned())
     })?;
@@ -45,7 +73,7 @@ pub fn validated_site(
     let aliases = spec
         .aliases
         .iter()
-        .map(|alias| Domain::parse(alias).map_err(|error| invalid_input(error.to_string())))
+        .map(|alias| parse_alias(alias).map_err(|error| invalid_input(error.to_string())))
         .collect::<Result<Vec<Domain>, AgentError>>()?;
 
     let kind = match SiteBackendType::try_from(spec.backend_type) {
@@ -83,3 +111,7 @@ pub fn validated_site(
         certificate,
     })
 }
+
+#[cfg(test)]
+#[path = "../../tests/services/sites/validated_site_tests.rs"]
+mod tests;

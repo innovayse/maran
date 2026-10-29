@@ -19,6 +19,7 @@ use crate::backup::backup_error::BackupError;
 use crate::backup::backup_host::BackupHost;
 use crate::backup::backup_root::prepare_account_directory;
 use crate::backup::database_catalog::DatabaseCatalog;
+use crate::backup::list_archive_members::{LISTING_REFUSED, MAXIMUM_MEMBERS};
 use crate::backup::model::archive_spec::ArchiveSpec;
 use crate::backup::model::backup_manifest::{BackupManifest, MANIFEST_VERSION};
 use crate::backup::model::backup_stage::BackupStage;
@@ -99,6 +100,11 @@ struct Placement {
     owner: u32,
     /// The per-database dump ceiling, in bytes.
     dump_ceiling: u64,
+    /// The most members the home may hold, counted by the measuring walk
+    /// before any dump is taken. `MAXIMUM_MEMBERS` on a real host: the figure a
+    /// restore refuses a listing at, so creation refuses early what restore
+    /// would refuse late.
+    member_ceiling: u64,
     /// The finished-artifact ceiling, in bytes.
     archive_ceiling: u64,
 }
@@ -131,10 +137,15 @@ struct Placement {
 /// 3. Refuse [`BackupError::AlreadyExists`] if an artifact with this id is
 ///    already published — BEFORE any dump. A retry of a creation whose response
 ///    was lost must cost a `stat`, not an hour.
-/// 4. `dumping_databases`: one dump per database, hashed as it lands.
-/// 5. `archiving_files`: measure the home, write the manifest, run the
-///    archiver, hash the artifact.
-/// 6. Check the artifact's own ownership and mode, then publish it by rename
+/// 4. Measure the home with one directory walk and refuse
+///    [`BackupError::ArchiveFailed`] (`LISTING_REFUSED`) when it holds more
+///    members than a restore would accept — BEFORE the scratch or any dump
+///    exists, so a refused home costs one walk and nothing else.
+/// 5. `dumping_databases`: one dump per database, hashed as it lands.
+/// 6. `archiving_files`: write the manifest, run the archiver, hash the
+///    artifact, and list the finished archive with the bounds a restore
+///    applies (the authority, and the only check on the listing's byte cap).
+/// 7. Check the artifact's own ownership and mode, then publish it by rename
 ///    and write the sidecar.
 ///
 /// The `uploading` stage belongs to a remote destination and is not reported
@@ -166,6 +177,7 @@ pub fn create_backup(
         scratch: AgentPaths::backup_scratch_dir(backup_id),
         owner: ROOT_UID,
         dump_ceiling: MAXIMUM_DUMP_BYTES,
+        member_ceiling: MAXIMUM_MEMBERS as u64,
         archive_ceiling: MAXIMUM_ARCHIVE_BYTES,
     };
 
@@ -250,6 +262,24 @@ fn assemble(
     partial: &Path,
     sink: &mut dyn ProgressSink,
 ) -> Result<BackupSummary, BackupError> {
+    // First of all, before the scratch exists and before a single dump is
+    // taken: one directory walk decides whether a restore could ever accept
+    // this home's listing. A home with more members than the ceiling would
+    // otherwise be dumped and archived for up to hours and only then be refused
+    // by the post-archive listing. The refusal is made only when the walk is
+    // SURE (it counts the home itself, and the archive adds just a handful of
+    // members), and it reports the same `LISTING_REFUSED` status the late
+    // listing would, so the panel reads one error whichever check fires. The
+    // post-archive listing stays as the authority, and as the only check on the
+    // listing's byte cap.
+    let home = placement.home_root.join(account.as_str());
+    let measure = measure_home_bytes(&home)?;
+    if measure.members > placement.member_ceiling {
+        return Err(BackupError::ArchiveFailed {
+            status: LISTING_REFUSED,
+        });
+    }
+
     let databases_directory = open_scratch(
         &placement.scratch_base,
         &placement.scratch_root,
@@ -277,13 +307,12 @@ fn assemble(
         );
     }
 
-    let home = placement.home_root.join(account.as_str());
     let manifest = BackupManifest {
         version: MANIFEST_VERSION,
         account: account.as_str().to_owned(),
         backup_id: backup_id.as_str().to_owned(),
         created_at_unix: host.now_unix(),
-        home_bytes: measure_home_bytes(&home)?,
+        home_bytes: measure.bytes,
         databases,
         agent_version: env!("CARGO_PKG_VERSION").to_owned(),
     };

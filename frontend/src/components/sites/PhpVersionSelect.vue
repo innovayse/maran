@@ -74,7 +74,7 @@ const onUpdate = (value: string): void => {
     {{ t('sites.form.noPhpVersions') }}
   </UiAlert>
 
-  <div v-else>
+  <div v-else class="flex min-w-0 flex-col gap-2">
     <UiSelect
       :model-value="modelValue"
       :label="t('sites.form.fields.phpVersion')"
@@ -85,6 +85,6 @@ const onUpdate = (value: string): void => {
       required
       @update:model-value="onUpdate"
     />
-    <p class="mt-1 text-sm text-text-muted">{{ t('sites.form.hints.phpVersion') }}</p>
+    <p class="text-xs text-text-muted wrap-anywhere">{{ t('sites.form.hints.phpVersion') }}</p>
   </div>
 </template>

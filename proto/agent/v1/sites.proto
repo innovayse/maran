@@ -15,8 +15,11 @@ import "agent/v1/php.proto";
 service SitesService {
   // Creates a site: allocates the document root under the account's home
   // (creating it if absent), renders and validates a vhost include for the
-  // requested backend, and reloads the web server. Idempotent: a site
-  // already existing for the same account+domain returns AlreadyExists.
+  // requested backend, and reloads the web server. A site already existing
+  // for the same account+domain returns ALREADY_EXISTS, and so does a request
+  // whose domain or alias another vhost already serves (the document root,
+  // log directory and PHP pool may remain). A request that repeats a name
+  // returns INVALID_INPUT.
   rpc CreateSite(CreateSiteRequest) returns (CreateSiteResponse);
 
   // Switches a PHP-backed site to a different installed PHP version and

@@ -92,3 +92,18 @@ fn a_refused_member_name_is_truncated() {
 
     assert_eq!(rendered.len(), 96);
 }
+
+/// A listing that timed out is a bound, and no member list comes back: a
+/// listing cut short is never scanned as if it were whole.
+#[test]
+fn a_listing_that_times_out_is_a_bound_and_yields_no_member_list() {
+    let host = RecordingBackupHost::new();
+    host.time_out_listing();
+
+    let outcome = scan_members(&host, &PathBuf::from("/var/backups/maran/alice/one.tar.gz"));
+
+    assert!(
+        matches!(outcome, Err(BackupError::Bound(_))),
+        "expected a bound, got {outcome:?}"
+    );
+}

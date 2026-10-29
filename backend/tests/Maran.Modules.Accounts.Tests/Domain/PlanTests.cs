@@ -158,4 +158,114 @@ public sealed class PlanTests
 
         Assert.Equal(9, plan.MaxCronEntries);
     }
+
+    /// <summary>A plan an operator defines carries its name in both the name and the key.</summary>
+    [Fact]
+    public void A_plan_an_operator_defines_carries_its_name_in_both_the_name_and_the_key()
+    {
+        // The previous release reads only the key column, and the database refuses a row where the
+        // two differ, so the entity must never be able to produce one.
+        var plan = Plan.Define(Guid.NewGuid(), "Agency", 10_240, 10, 5, 4, 2, 3, 8);
+
+        Assert.Equal("Agency", plan.Name);
+        Assert.Equal("Agency", plan.DisplayNameKey);
+    }
+
+    /// <summary>A plan the panel ships has no name of its own.</summary>
+    [Fact]
+    public void A_plan_the_panel_ships_has_no_name_of_its_own()
+    {
+        // Null is what makes it read in each customer's language, and what a rename must replace.
+        var plan = new Plan(Guid.NewGuid(), "PlanStarterName", 5_120, 5, 2, 3, 5, 5);
+
+        Assert.Null(plan.Name);
+    }
+
+    /// <summary>A plan cannot be defined without a name.</summary>
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void A_plan_cannot_be_defined_without_a_name(string name)
+    {
+        Assert.ThrowsAny<ArgumentException>(() =>
+        {
+            return Plan.Define(Guid.NewGuid(), name, 10_240, 10, 5, 4, 2, 3, 8);
+        });
+    }
+
+    /// <summary>A defined plan carries each limit it was given in its own property.</summary>
+    [Fact]
+    public void A_defined_plan_carries_each_limit_it_was_given_in_its_own_property()
+    {
+        // Every figure differs from every other, so an argument list that fed a property from its
+        // neighbour (Define takes FTPS before cron, the constructor the other way round) fails here.
+        var plan = Plan.Define(Guid.NewGuid(), "Agency", 10_240, 11, 5, 4, 2, 3, 8);
+
+        Assert.Equal(10_240, plan.DiskQuotaMb);
+        Assert.Equal(11, plan.MaxSites);
+        Assert.Equal(5, plan.MaxDatabases);
+        Assert.Equal(4, plan.MaxSftpUsers);
+        Assert.Equal(2, plan.MaxFtpUsers);
+        Assert.Equal(3, plan.MaxCronEntries);
+        Assert.Equal(8, plan.MaxPhpWorkersPerPool);
+    }
+
+    /// <summary>Renaming a plan changes the name and the key together.</summary>
+    [Fact]
+    public void Renaming_a_plan_changes_the_name_and_the_key_together()
+    {
+        var plan = new Plan(Guid.NewGuid(), "PlanStarterName", 5_120, 5, 2, 3, 5, 5);
+
+        plan.Rename("Entry");
+
+        Assert.Equal("Entry", plan.Name);
+        Assert.Equal("Entry", plan.DisplayNameKey);
+    }
+
+    /// <summary>A plan cannot be renamed to nothing.</summary>
+    [Fact]
+    public void A_plan_cannot_be_renamed_to_nothing()
+    {
+        var plan = Plan.Define(Guid.NewGuid(), "Agency", 10_240, 10, 5, 4, 2, 3, 8);
+
+        Assert.ThrowsAny<ArgumentException>(() =>
+        {
+            plan.Rename(" ");
+        });
+        Assert.Equal("Agency", plan.Name);
+    }
+
+    /// <summary>Changing a plan's limits replaces every one of them.</summary>
+    [Fact]
+    public void Changing_a_plans_limits_replaces_every_one_of_them()
+    {
+        var plan = Plan.Define(Guid.NewGuid(), "Agency", 10_240, 10, 5, 4, 2, 3, 8);
+
+        plan.ChangeLimits(20_480, 21, 15, 14, 12, 13, 18);
+
+        Assert.Equal(20_480, plan.DiskQuotaMb);
+        Assert.Equal(21, plan.MaxSites);
+        Assert.Equal(15, plan.MaxDatabases);
+        Assert.Equal(14, plan.MaxSftpUsers);
+        Assert.Equal(12, plan.MaxFtpUsers);
+        Assert.Equal(13, plan.MaxCronEntries);
+        Assert.Equal(18, plan.MaxPhpWorkersPerPool);
+        Assert.Equal("Agency", plan.Name);
+    }
+
+    /// <summary>Changing a plan's limits to a value it could not be created with is refused and changes nothing.</summary>
+    [Fact]
+    public void Changing_a_plans_limits_to_a_value_it_could_not_be_created_with_is_refused_and_changes_nothing()
+    {
+        var plan = Plan.Define(Guid.NewGuid(), "Agency", 10_240, 10, 5, 4, 2, 3, 8);
+
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+        {
+            plan.ChangeLimits(20_480, 21, 0, 14, 12, 13, 18);
+        });
+
+        // The guard runs before the first assignment, so a refused edit is not half-applied.
+        Assert.Equal(10_240, plan.DiskQuotaMb);
+        Assert.Equal(5, plan.MaxDatabases);
+    }
 }

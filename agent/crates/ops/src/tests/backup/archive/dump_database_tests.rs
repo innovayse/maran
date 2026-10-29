@@ -104,3 +104,19 @@ fn a_client_that_fails_reports_its_status_alone() {
         Err(BackupError::DumpFailed { status: 2 })
     ));
 }
+
+/// A dump killed at its deadline after it wrote bytes is a bound and describes
+/// nothing: the partial file is never checksummed into a manifest entry.
+#[test]
+fn a_dump_that_times_out_after_writing_is_a_bound_and_describes_nothing() {
+    let directory = TempDir::new().unwrap();
+    let host = RecordingBackupHost::new();
+    host.time_out_dumps_after_writing();
+
+    let outcome = dump_database(&host, &database(), directory.path(), u64::MAX);
+
+    assert!(
+        matches!(outcome, Err(BackupError::Bound(_))),
+        "expected a bound, got {outcome:?}"
+    );
+}

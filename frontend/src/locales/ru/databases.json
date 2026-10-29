@@ -1,6 +1,7 @@
 {
   "databases": {
     "list": {
+      "eyebrow": "MySQL",
       "heading": "Базы данных",
       "subtitle": "Базы данных MySQL и их выделенные пользователи.",
       "prefixNote": "Имя каждой базы и каждого пользователя начинается с имени владеющего аккаунта. Ниже показаны имена ровно в том виде, в каком их хранит MySQL, — используйте их как есть.",
@@ -22,9 +23,11 @@
       "rowActions": "Действия для {name}",
       "confirmDropTitle": "Удалить базу данных {name}",
       "confirmResetPasswordTitle": "Сбросить пароль для {name}",
-      "grantRepairLink": "Исправление прав"
+      "grantRepairLink": "Исправление прав",
+      "sectionTitle": "Все базы данных"
     },
     "form": {
+      "heading": "Новая база данных",
       "fields": {
         "accountId": "Аккаунт",
         "name": "Имя базы данных",

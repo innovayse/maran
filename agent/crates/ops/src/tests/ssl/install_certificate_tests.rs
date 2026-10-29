@@ -2,9 +2,10 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use maran_agent_core::utils::call_class::CallClass;
 use maran_agent_core::validation::web::domain::Domain;
 
-use crate::sites::fake_site_host::{create_test_site, distro, php_input};
+use crate::sites::fake_site_host::{create_test_site, distro, legacy_suspended_text, php_input};
 use crate::sites::{SiteCertificate, SitePaths, disable_site};
 use crate::ssl::fake_ssl_host::{
     EXPIRY_UNIX, Event, FakeSslHost, KEY_PEM, matching_material, mismatched_material,
@@ -290,4 +291,81 @@ fn installing_a_certificate_on_a_suspended_site_places_the_material_and_leaves_t
         writes_before,
         "the suspended vhost must not be rewritten at all"
     );
+}
+
+#[test]
+fn installing_a_certificate_on_a_site_serving_the_earlier_stub_leaves_the_stub() {
+    let host = host_with_site();
+    let input = php_input();
+    let config_path = SitePaths::for_site(&input.account, &input.domain).config_path;
+    let legacy = legacy_suspended_text(&host, &input, "example.com");
+    host.place_config(&config_path, &legacy);
+    let writes_before = host.vhost_writes();
+
+    install_certificate(&host, distro(), &input, &matching_material()).unwrap();
+
+    assert_eq!(
+        host.config(&config_path).unwrap(),
+        legacy,
+        "a renewal must not wake a site suspended before the upgrade"
+    );
+    assert_eq!(host.vhost_writes(), writes_before);
+}
+
+#[test]
+fn an_install_whose_key_check_times_out_is_a_bound_and_writes_nothing() {
+    let host = host_with_site();
+    let writes_before = host.vhost_writes();
+    host.time_out_openssl();
+
+    let failure =
+        install_certificate(&host, distro(), &php_input(), &matching_material()).unwrap_err();
+
+    assert!(matches!(failure, SslOpError::Bound(_)), "{failure:?}");
+    assert_eq!(host.stored_count(), 0);
+    assert_eq!(host.vhost_writes(), writes_before);
+}
+
+#[test]
+fn an_install_whose_material_write_times_out_is_a_bound_and_leaves_the_vhost_alone() {
+    let host = host_with_site();
+    let writes_before = host.vhost_writes();
+    host.time_out_material_writes();
+
+    let failure =
+        install_certificate(&host, distro(), &php_input(), &matching_material()).unwrap_err();
+
+    assert!(matches!(failure, SslOpError::Bound(_)), "{failure:?}");
+    assert_eq!(host.stored_count(), 0);
+    assert_eq!(
+        host.vhost_writes(),
+        writes_before,
+        "the vhost must not point at material that was never confirmed"
+    );
+}
+
+#[test]
+fn the_material_write_validates_with_nginx_as_a_validate_and_reloads_with_the_marker() {
+    let host = host_with_site();
+
+    install_certificate(&host, distro(), &php_input(), &matching_material()).unwrap();
+
+    let protocols = host.protocols();
+    assert_eq!(protocols.len(), 1, "{protocols:?}");
+    let protocol = &protocols[0];
+    assert_eq!(protocol.validator_class, CallClass::Validate);
+    assert_eq!(
+        protocol.validator,
+        vec![distro().nginx_binary().as_str().to_owned(), "-t".to_owned()]
+    );
+    // `--` before the unit name, and the unit name is the last operand.
+    let marker = protocol
+        .reload
+        .iter()
+        .position(|argument| argument == "--")
+        .expect("the marker is present");
+    assert_eq!(marker + 2, protocol.reload.len(), "{:?}", protocol.reload);
+    assert_eq!(protocol.reload[0], distro().service_manager().as_str());
+    assert_eq!(protocol.reload[1], "reload");
+    assert_eq!(protocol.reload[marker + 1], distro().nginx_service());
 }

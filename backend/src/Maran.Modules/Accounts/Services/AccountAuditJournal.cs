@@ -21,7 +21,12 @@ namespace Maran.Modules.Accounts.Services;
 /// already taken, and a lookup for an account id that does not exist are all events an operator
 /// later needs. Written inline, the failure entry is the one every early <c>return</c> walks past.
 ///
-/// The subject is always the account's NAME, never the agent's output and never a path: the agent's
+/// Plan management is journalled through the same type. A plan edit reaches every account on the plan
+/// and can move kernel-enforced disk quotas, and a deletion removes the plan's row for good, so they
+/// are the same kind of operation nothing else keeps a record of; their subject is the plan's stored
+/// name (<c>Plan.DisplayNameKey</c>), which reads the same whoever asks and in whatever language.
+///
+/// For an account, the subject is always the account's NAME, never the agent's output and never a path: the agent's
 /// text names absolute paths, uids and mounts on the host, the home directory is derived from the
 /// name anyway, and the journal is never deleted (rules/security.md item 8).
 /// </remarks>

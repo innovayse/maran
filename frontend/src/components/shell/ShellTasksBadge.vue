@@ -1,7 +1,7 @@
 <script setup lang="ts">
 /**
- * The header's running-tasks badge: how much background work the panel has in flight right now, on
- * every screen.
+ * The app bar's running-tasks badge: how much background work the panel has in flight
+ * right now, on every screen.
  *
  * **It is a view of the tasks store, not a second source of truth.** The count is a computed over
  * the same array the tasks page renders from, so a frame arriving on a task's stream moves this
@@ -17,6 +17,10 @@
  * Nothing is drawn when nothing is running. A badge reading "0" is a control that is never right
  * about anything, and the sidebar already carries the way in to the feed.
  *
+ * **The link's text is the number and nothing else.** The tasks spec asserts the link's text is
+ * exactly the count, so the explanation ("N background tasks running") lives in the accessible
+ * name, never in visible or screen-reader-only text. The count is white on `--acf` (5.14:1).
+ *
  * A listing the caller may not read answers 404 rather than an empty 200 — that is the module's own
  * decision, so a customer is not told there is an administrator-only feed they were refused. It
  * needs no handling here: the store keeps the panel's message for the page to render, and this
@@ -24,8 +28,7 @@
  */
 import { onBeforeUnmount, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
-import UiBadge from '../ui/UiBadge.vue'
-import UiNavLink from '../ui/UiNavLink.vue'
+import UiIcon from '../ui/UiIcon.vue'
 import { useTasksStore } from '../../stores/tasks'
 
 const { t } = useI18n()
@@ -55,14 +58,15 @@ onBeforeUnmount(stop)
 </script>
 
 <template>
-  <!-- Wrapped so the kit's full-width nav link sizes to its own content in the header's flex row
-       rather than stretching across it. -->
-  <div v-if="store.runningCount > 0" class="shrink-0">
-    <UiNavLink
-      :to="{ name: 'tasks' }"
-      :aria-label="t('tasks.badge.label', { count: store.runningCount })"
-    >
-      <UiBadge variant="info">{{ store.runningCount }}</UiBadge>
-    </UiNavLink>
-  </div>
+  <RouterLink
+    v-if="store.runningCount > 0"
+    :to="{ name: 'tasks' }"
+    class="flex h-10 shrink-0 items-center gap-2 rounded-full px-3 text-text-secondary transition-colors hover:bg-surface-2 hover:text-text-primary focus-visible:shadow-focus focus-visible:outline-none motion-reduce:transition-none"
+    :aria-label="t('tasks.badge.label', { count: store.runningCount })"
+  >
+    <UiIcon name="listChecks" size="lg" />
+    <span
+      class="min-w-6 rounded-full bg-accent-fill px-1.5 text-center text-xs font-bold text-white tabular-nums"
+    >{{ store.runningCount }}</span>
+  </RouterLink>
 </template>

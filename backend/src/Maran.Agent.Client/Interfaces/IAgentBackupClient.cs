@@ -15,6 +15,14 @@ namespace Maran.Agent.Client.Interfaces;
 /// <c>AgentNotImplemented</c> code and must be shown as itself. It is never a generic failure, and
 /// there is no fallback to a local destination anywhere in this client — a backup silently written
 /// somewhere other than where the operator asked is worse than a refusal.
+///
+/// The "exactly one terminal event" of the two streams is a promise about every way the AGENT can end
+/// them. A failure of the transport itself — an agent that cannot be reached, a connection torn
+/// mid-stream — ends a stream in a failed terminal event carrying <c>AgentUnavailable</c>
+/// (<see cref="Errors.AgentTransportFailure"/>), never in the raw exception; a cancellation that
+/// interrupts a read in progress surfaces as <see cref="OperationCanceledException"/>. The unary calls
+/// answer an unreachable agent with the same code, through the resilience decorator the Host
+/// registers over this contract.
 /// </remarks>
 public interface IAgentBackupClient
 {

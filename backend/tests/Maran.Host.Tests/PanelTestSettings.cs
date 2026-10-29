@@ -7,8 +7,9 @@ namespace Maran.Host.Tests;
 public static class PanelTestSettings
 {
     /// <summary>
-    /// A throwaway base64 256-bit key. Encryption is exercised by its own unit tests; host tests
-    /// only need startup validation to pass, and this value never leaves the test process.
+    /// The development encryption key this repository publishes. Startup refuses it outside the
+    /// Development and Testing environments; test hosts run as Testing, which is the only reason it
+    /// is accepted. It protects nothing and must never be used on a real server.
     /// </summary>
     public const string EncryptionKey = "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=";
 
@@ -16,8 +17,9 @@ public static class PanelTestSettings
     public const string EncryptionKeyPath = "Security:EncryptionKey";
 
     /// <summary>
-    /// A throwaway base64 signing key for access tokens. Token issuing has its own unit tests; a
-    /// host test only needs startup validation to accept the key.
+    /// The development signing key this repository publishes, accepted only because test hosts run
+    /// as Testing (startup refuses it elsewhere). It protects nothing and must never be used on a
+    /// real server.
     /// </summary>
     public const string JwtSigningKey = "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=";
 

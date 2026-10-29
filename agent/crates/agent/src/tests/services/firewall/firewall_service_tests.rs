@@ -22,7 +22,8 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use maran_agent_core::command_outcome::CommandOutcome;
-use maran_distro::{DistroFamily, adapter_for};
+use maran_agent_core::utils::call_class::CallClass;
+use maran_distro::{AdapterBinary, DistroFamily, adapter_for};
 use maran_ops::firewall::{FirewallError, FirewallHost};
 use tonic::Request;
 
@@ -46,7 +47,12 @@ struct UnseededHost;
 
 impl FirewallHost for UnseededHost {
     /// Answers as `nft` does for a set in a table that is not loaded.
-    fn run(&self, _program: &str, _arguments: &[&str]) -> Result<CommandOutcome, FirewallError> {
+    fn run(
+        &self,
+        _program: &AdapterBinary,
+        _arguments: &[&str],
+        _class: CallClass,
+    ) -> Result<CommandOutcome, FirewallError> {
         Ok(CommandOutcome {
             status: NFT_ABSENT_SET,
             stdout: String::new(),

@@ -18,6 +18,10 @@
  * would tell the reader a limit is in force when the panel itself already knows it is not, which
  * is exactly the defect issue #29 exists to fix — so this row renders the used figure plain, with
  * a badge, instead of a bar that implies enforcement.
+ *
+ * Laid out as the design's accounts table: the account in mono, the two byte figures right-aligned
+ * (heading and cells share one alignment), and the ratio bar last with its percentage printed
+ * beside it. The table scrolls inside its own container on a phone, never the page.
  */
 import { useI18n } from 'vue-i18n'
 import UiBadge from '../ui/UiBadge.vue'
@@ -81,24 +85,24 @@ const notEnforcedRatioText = (row: AccountDiskUsage): string => {
     <template #head>
       <UiTableRow>
         <UiTableHeaderCell>{{ t('monitoring.disk.columnAccount') }}</UiTableHeaderCell>
-        <UiTableHeaderCell>{{ t('monitoring.disk.columnUsed') }}</UiTableHeaderCell>
-        <UiTableHeaderCell>{{ t('monitoring.disk.columnQuota') }}</UiTableHeaderCell>
+        <UiTableHeaderCell align="end">{{ t('monitoring.disk.columnUsed') }}</UiTableHeaderCell>
+        <UiTableHeaderCell align="end">{{ t('monitoring.disk.columnQuota') }}</UiTableHeaderCell>
         <UiTableHeaderCell>{{ t('monitoring.disk.columnRatio') }}</UiTableHeaderCell>
       </UiTableRow>
     </template>
 
     <UiTableRow v-for="row in rows" :key="row.accountId" data-testid="account-disk-row">
-      <UiTableCell>
-        <span class="font-mono">{{ row.username }}</span>
-      </UiTableCell>
-      <UiTableCell>{{ usedText(row.usedBytes) }}</UiTableCell>
-      <UiTableCell>
-        <span>{{ quotaText(row.quotaBytes) }}</span>
+      <UiTableCell mono class="whitespace-nowrap">{{ row.username }}</UiTableCell>
+      <!-- Figures are right-aligned machine text; the "not measured" words are prose and stay in
+           the body face inside the same cell. -->
+      <UiTableCell align="end" :mono="row.usedBytes !== null">{{ usedText(row.usedBytes) }}</UiTableCell>
+      <UiTableCell align="end" :mono="row.quotaBytes !== 0">
         <!-- The badge's title comes from the backend's own note — the SPA never invents the
              wording for why a real, paid-for allowance is not being applied right now. -->
-        <UiBadge v-if="!row.enforceable" variant="warning" class="ml-1" :title="row.note ?? undefined">
+        <UiBadge v-if="!row.enforceable" variant="warning" class="mr-2" :title="row.note ?? undefined">
           {{ t('monitoring.disk.notEnforcedBadge') }}
         </UiBadge>
+        <span>{{ quotaText(row.quotaBytes) }}</span>
       </UiTableCell>
       <UiTableCell>
         <!-- No bar at all for an unmeasured account: an empty bar is a picture of "using nothing",
@@ -114,13 +118,16 @@ const notEnforcedRatioText = (row: AccountDiskUsage): string => {
         <span v-else-if="!row.enforceable" class="text-sm text-text-muted" :title="row.note ?? undefined">{{
           notEnforcedRatioText(row)
         }}</span>
-        <UiMeter
-          v-else
-          :value="row.usedBytes"
-          :max="row.quotaBytes"
-          :label="t('monitoring.disk.meterLabel', { username: row.username })"
-          :value-text="ratioText(row)"
-        />
+        <!-- The cells beside the bar print the used and allowed figures, not the ratio, so the bar's
+             own visible percentage is kept: the bar is never an anonymous stripe. -->
+        <div v-else class="min-w-44">
+          <UiMeter
+            :value="row.usedBytes"
+            :max="row.quotaBytes"
+            :label="t('monitoring.disk.meterLabel', { username: row.username })"
+            :value-text="ratioText(row)"
+          />
+        </div>
       </UiTableCell>
     </UiTableRow>
   </UiTable>

@@ -42,4 +42,10 @@
   <data name="AgentLimitReached">
     <value>Your plan's limit for this kind of item was already reached, so nothing was created. Delete one you no longer need, or ask for a larger plan, then try again.</value>
   </data>
+  <data name="AgentUnavailable">
+    <value>Your server is not answering right now, so this request could not be confirmed. Please try again in a minute, and contact support if it keeps happening.</value>
+  </data>
+  <data name="AgentIncompatible">
+    <value>The panel and the service that manages your server are at different versions, so this request was not carried out. An update may still be in progress; please try again later, and contact support if it keeps happening.</value>
+  </data>
 </root>

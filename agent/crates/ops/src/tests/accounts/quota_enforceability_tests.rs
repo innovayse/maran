@@ -84,3 +84,64 @@ fn a_mount_option_for_a_different_mountpoint_does_not_count() {
         Err(QuotaUnenforceableReason::MountedWithoutQuotaAccounting)
     );
 }
+
+/// The home root on a host where it is a directory of the root filesystem — the stock Ubuntu
+/// layout, on which every account creation failed because `/home` was handed to `setquota` as if
+/// it were a filesystem (issue #73).
+#[test]
+fn the_device_of_a_home_inside_the_root_filesystem_is_the_root_device() {
+    let mounts = "/dev/mapper/vg-root / ext4 rw,relatime,usrquota 0 0\n\
+                  tmpfs /run tmpfs rw,nosuid 0 0\n";
+
+    assert_eq!(
+        super::quota_device_for(mounts, "/home"),
+        Some("/dev/mapper/vg-root")
+    );
+}
+
+/// The agent's OWN view, which is the one that matters and the one that misled a mount-point
+/// resolution: `ReadWritePaths=/home` is a bind mount, so inside the service's namespace /home IS
+/// a mount point — of the same device. Resolving the device gives the same answer in both views.
+#[test]
+fn the_bind_mount_the_agent_sees_resolves_to_the_same_device() {
+    let mounts = "/dev/mapper/vg-root / ext4 rw,relatime 0 0\n\
+                  /dev/mapper/vg-root /home ext4 rw,nosuid,relatime,quota,usrquota 0 0\n";
+
+    assert_eq!(
+        super::quota_device_for(mounts, "/home"),
+        Some("/dev/mapper/vg-root")
+    );
+}
+
+/// A home on a genuinely separate filesystem resolves to that filesystem's device.
+#[test]
+fn a_home_on_its_own_filesystem_resolves_to_its_own_device() {
+    let mounts = "/dev/mapper/vg-root / ext4 rw,relatime 0 0\n\
+                  /dev/mapper/vg-home /home ext4 rw,relatime,usrquota 0 0\n";
+
+    assert_eq!(
+        super::quota_device_for(mounts, "/home"),
+        Some("/dev/mapper/vg-home")
+    );
+}
+
+/// A prefix has to end at a path boundary, or `/homer` would claim `/home`'s accounts and quotas
+/// would be written to the wrong filesystem.
+#[test]
+fn a_mount_point_that_merely_starts_the_same_does_not_claim_the_path() {
+    let mounts = "/dev/mapper/vg-root / ext4 rw 0 0\n\
+                  /dev/mapper/vg-other /homer ext4 rw 0 0\n";
+
+    assert_eq!(
+        super::quota_device_for(mounts, "/home"),
+        Some("/dev/mapper/vg-root")
+    );
+}
+
+/// An empty or unreadable mount table yields nothing rather than a guess: the caller reports that
+/// quotas cannot be enforced, which is true, instead of running setquota against a path that
+/// cannot be right.
+#[test]
+fn an_empty_mount_table_resolves_to_nothing() {
+    assert_eq!(super::quota_device_for("", "/home"), None);
+}

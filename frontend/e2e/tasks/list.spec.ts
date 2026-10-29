@@ -18,7 +18,8 @@ const LICENSED: PanelModule[] = [
 
 const INSTALL: PanelTask = {
   id: '33333333-3333-3333-3333-333333333333',
-  kind: 'PhpVersionInstall',
+  // The old stand-in, `PhpVersionInstall`, became a real, labelled kind (issue #82); this one is defined by no backend.
+  kind: 'FutureUnlistedKind',
   subject: 'php8.4',
   correlationId: 'c0rr-3l4t10n',
   status: 'running',
@@ -169,6 +170,6 @@ test('a kind this bundle has no word for is shown as the panel sent it', async (
   await page.goto('/tasks')
 
   const row = page.getByRole('row').filter({ hasText: INSTALL.subject })
-  await expect(row).toContainText('PhpVersionInstall')
+  await expect(row).toContainText('FutureUnlistedKind')
   await expect(row).not.toContainText('tasks.kinds.')
 })

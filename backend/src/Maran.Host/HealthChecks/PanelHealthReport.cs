@@ -6,6 +6,13 @@ namespace Maran.Host.HealthChecks;
 /// pressure, so it stays a flat, stable shape.
 /// </summary>
 /// <param name="Status">Panel status: <c>ok</c> when the process serves requests.</param>
-/// <param name="Agent">Agent connectivity: <c>connected</c> or <c>unavailable</c>.</param>
-/// <param name="Database">Database reachability: <c>reachable</c>, <c>unreachable</c> or <c>not_configured</c>.</param>
+/// <param name="Agent">
+/// What the agent is to this panel: <c>connected</c>, <c>unavailable</c>, or <c>incompatible</c> when
+/// it answered in a contract revision outside the window this panel drives
+/// (<see cref="AgentHealthProbe"/>). Scripts match these words by value, so they are a contract.
+/// </param>
+/// <param name="Database">
+/// Database reachability: <c>reachable</c>, <c>no_schema</c>, <c>unreachable</c> or
+/// <c>not_configured</c> (<see cref="DatabaseHealthProbe"/>).
+/// </param>
 public sealed record PanelHealthReport(string Status, string Agent, string Database);

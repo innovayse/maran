@@ -65,7 +65,8 @@ const CANDIDATE_DEADLINE: Duration = Duration::from_millis(1500);
 /// because this platform's build prints nothing. Returns
 /// [`FtpsError::SpawnFailed`] when the loopback port could not be obtained or the
 /// daemon could not be started at all — an operator installing a missing package
-/// and one fixing a refused configuration are doing different work.
+/// and one fixing a refused configuration are doing different work. Returns
+/// [`FtpsError::Bound`] when the daemon printed more than the output ceiling.
 pub fn validate_candidate_config(
     host: &dyn FtpsHost,
     distro: &dyn DistroAdapter,
@@ -87,7 +88,7 @@ pub fn validate_candidate_config(
     ];
 
     match host.run_candidate(
-        distro.vsftpd_binary(),
+        &distro.vsftpd_binary(),
         contents,
         &arguments,
         CANDIDATE_DEADLINE,

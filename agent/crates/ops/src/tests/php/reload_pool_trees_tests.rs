@@ -6,9 +6,19 @@
 //! file by file as every other test file in this tree declares it.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use maran_agent_core::utils::call_class::CallClass;
+use maran_agent_core::validation::web::php_version::PhpVersion;
+
 use crate::php::fake_php_host::{FakePhpHost, distro};
 use crate::php::model::pool_tree_decision::PoolTreeDecision;
 use crate::php::reload_pool_trees;
+
+/// The adapter's php-fpm binary for `version`, as text.
+fn php_fpm_binary(version: &str) -> String {
+    distro()
+        .php_fpm_binary(&PhpVersion::parse(version).unwrap())
+        .to_string()
+}
 
 /// A host with no PHP installed has no pool tree, and the pass says so by
 /// answering nothing rather than by inventing a verdict about a directory that
@@ -60,10 +70,11 @@ fn the_pass_spawns_the_versions_own_validator_and_then_its_own_service_reload() 
     assert_eq!(
         host.commands(),
         vec![
-            vec![distro().php_fpm_binary("8.3"), "-t".to_owned()],
+            vec![php_fpm_binary("8.3"), "-t".to_owned()],
             vec![
-                distro().service_manager().to_owned(),
+                distro().service_manager().to_string(),
                 "reload".to_owned(),
+                "--".to_owned(),
                 distro().php_fpm_service("8.3"),
             ],
         ]
@@ -88,7 +99,7 @@ fn a_rejected_pool_tree_is_reported_with_its_reason_and_not_reloaded() {
     );
     assert_eq!(
         host.commands(),
-        vec![vec![distro().php_fpm_binary("8.3"), "-t".to_owned()]],
+        vec![vec![php_fpm_binary("8.3"), "-t".to_owned()]],
         "a tree the validator refused must not be reloaded onto the running service"
     );
 }
@@ -140,4 +151,38 @@ fn the_pass_writes_no_pool_file() {
 
     assert_eq!(host.writes(), 0);
     assert_eq!(host.removals(), 0);
+}
+
+/// A validator that outlives its deadline is neither a refusal nor a reload.
+#[test]
+fn reconciling_pool_trees_maps_a_bound_to_not_reloaded_and_never_to_a_refusal() {
+    // `Refused` means php-fpm read the tree and rejected it, and the operator goes and
+    // edits a pool file. A killed validator said nothing about the files.
+    let host = FakePhpHost::with_installed(&["8.3"]);
+    host.time_out_validation();
+
+    let outcomes = reload_pool_trees(&host, distro());
+
+    assert_eq!(outcomes.len(), 1);
+    assert_eq!(outcomes[0].decision, PoolTreeDecision::NotReloaded);
+    assert!(
+        outcomes[0].stderr.contains("did not finish"),
+        "the bound is what the operator reads: {}",
+        outcomes[0].stderr
+    );
+    assert_eq!(
+        host.commands().len(),
+        1,
+        "a tree whose validator never answered is not reloaded"
+    );
+}
+
+/// The pass asks the validator in the short class and the reload in the long one.
+#[test]
+fn reloading_the_pool_trees_runs_the_validator_in_its_class_and_the_reload_as_reload() {
+    let host = FakePhpHost::with_installed(&["8.3"]);
+
+    let _outcomes = reload_pool_trees(&host, distro());
+
+    assert_eq!(host.classes(), vec![CallClass::Validate, CallClass::Reload]);
 }

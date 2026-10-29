@@ -10,6 +10,12 @@
  * says "look at this" beside every row taken in the last minute teaches an operator to ignore the
  * colour. `failed` is `danger` because a failed backup is a copy that does not exist, which is
  * exactly the fact a list of backups can most dangerously imply the opposite of.
+ *
+ * The kit's badge carries its state in the word and in a status-coloured dot, never in a coloured
+ * text on a wash of itself (that pairing fails contrast), so the tone chosen here is a wash and a
+ * dot and the label stays primary text. The label is the SPA's own chrome in all three languages
+ * and wraps rather than widening the Status column, which is what keeps an Armenian or Russian
+ * word from pushing the table past its scroll container.
  */
 import { computed, type ComputedRef } from 'vue'
 import { useI18n } from 'vue-i18n'

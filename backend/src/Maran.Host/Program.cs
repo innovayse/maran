@@ -1,5 +1,6 @@
 using Maran.Agent.Client;
 using Maran.Host.Configuration;
+using Maran.Host.Dashboard;
 using Maran.Host.Extensions;
 using Maran.Host.HealthChecks;
 using Maran.Host.Modules;
@@ -101,6 +102,7 @@ public sealed class Program
 
         app.MapPanelHealth();
         app.MapModuleCatalogue();
+        app.MapDashboard();
         app.MapControllers();
 
         app.Run();

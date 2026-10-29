@@ -2,6 +2,7 @@
 
 use std::time::Duration;
 
+use maran_agent_core::utils::call_class::CallClass;
 use maran_agent_core::validation::web::ban_address::BanAddress;
 use maran_distro::DistroAdapter;
 use serde_json::Value;
@@ -10,6 +11,7 @@ use crate::firewall::ensure_bans_table::{BANNED_V4_SET, BANNED_V6_SET, BANS_TABL
 use crate::firewall::firewall_error::FirewallError;
 use crate::firewall::firewall_host::FirewallHost;
 use crate::firewall::model::active_ban::ActiveBan;
+use maran_agent_core::end_of_options::END_OF_OPTIONS;
 
 /// Asks `nft` for machine-readable output instead of its own listing syntax.
 const JSON: &str = "-j";
@@ -78,6 +80,8 @@ const EXPIRES_KEY: &str = "expires";
 ///   and this agent does not know. It is deliberately not silence: reporting
 ///   an empty ban list because the output could not be parsed is how a panel
 ///   comes to believe an attacker is blocked.
+/// - [`FirewallError::Bound`] when `nft` was killed at its deadline or listed
+///   more than the host will read. The list is never returned cut short.
 pub fn list_bans(
     host: &dyn FirewallHost,
     distro: &dyn DistroAdapter,
@@ -86,8 +90,17 @@ pub fn list_bans(
 
     for set in [BANNED_V4_SET, BANNED_V6_SET] {
         let listed = host.run(
-            distro.nft_binary(),
-            &[JSON, LIST, SET, TABLE_FAMILY, BANS_TABLE, set],
+            &distro.nft_binary(),
+            &[
+                JSON,
+                END_OF_OPTIONS,
+                LIST,
+                SET,
+                TABLE_FAMILY,
+                BANS_TABLE,
+                set,
+            ],
+            CallClass::Query,
         )?;
         if listed.status != 0 {
             continue;

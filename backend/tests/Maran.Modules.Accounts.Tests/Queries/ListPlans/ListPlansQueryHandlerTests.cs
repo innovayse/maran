@@ -80,6 +80,73 @@ public sealed class ListPlansQueryHandlerTests
         }));
     }
 
+    /// <summary>A plan an operator named is listed under its own name, not a resource lookup.</summary>
+    [Fact]
+    public async Task A_plan_an_operator_named_is_listed_under_its_own_name_not_a_resource_lookup()
+    {
+        await using var dbContext = CreateDbContext();
+        dbContext.Plans.Add(Plan.Define(Guid.NewGuid(), "Agency", 10_240, 10, 5, 4, 2, 3, 8));
+        await dbContext.SaveChangesAsync();
+        var handler = new ListPlansQueryHandler(dbContext, new UppercasingDisplayNamesLocalizer());
+
+        var result = await handler.HandleAsync(new ListPlansQuery(), CancellationToken.None);
+
+        // The uppercasing double would have answered "AGENCY" had the handler gone to the resources.
+        var dto = Assert.Single(result.Value);
+        Assert.Equal("Agency", dto.DisplayName);
+        Assert.Equal(2, dto.MaxFtpUsers);
+        Assert.Equal(3, dto.MaxCronEntries);
+        Assert.Equal(8, dto.MaxPhpWorkersPerPool);
+    }
+
+    /// <summary>Each plan reports how many accounts are on it, and an unused plan reports zero.</summary>
+    [Fact]
+    public async Task Each_plan_reports_how_many_accounts_are_on_it_and_an_unused_plan_reports_zero()
+    {
+        await using var dbContext = CreateDbContext();
+        var busy = Plan.Define(Guid.NewGuid(), "Busy", 5_120, 5, 2, 3, 0, 5, 5);
+        var quiet = Plan.Define(Guid.NewGuid(), "Quiet", 10_240, 5, 2, 3, 0, 5, 5);
+        var created = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
+        dbContext.Plans.AddRange(busy, quiet);
+        dbContext.Accounts.AddRange(
+            new Account(Guid.NewGuid(), "olive", "olive.example.com", busy.Id, created),
+            new Account(Guid.NewGuid(), "pepper", "pepper.example.com", busy.Id, created));
+        await dbContext.SaveChangesAsync();
+        var handler = new ListPlansQueryHandler(dbContext, new UppercasingDisplayNamesLocalizer());
+
+        var result = await handler.HandleAsync(new ListPlansQuery(), CancellationToken.None);
+
+        var busyDto = result.Value.Single(dto =>
+        {
+            return dto.Id == busy.Id;
+        });
+        var quietDto = result.Value.Single(dto =>
+        {
+            return dto.Id == quiet.Id;
+        });
+        Assert.Equal(2, busyDto.AccountCount);
+        Assert.Equal(0, quietDto.AccountCount);
+    }
+
+    /// <summary>Two plans with the same disk are listed in a stable order.</summary>
+    [Fact]
+    public async Task Two_plans_with_the_same_disk_are_listed_in_a_stable_order()
+    {
+        await using var dbContext = CreateDbContext();
+        var first = Plan.Define(Guid.Parse("00000000-0000-4000-8000-000000000001"), "B", 5_120, 5, 2, 3, 0, 5, 5);
+        var second = Plan.Define(Guid.Parse("00000000-0000-4000-8000-000000000002"), "A", 5_120, 5, 2, 3, 0, 5, 5);
+        dbContext.Plans.AddRange(second, first);
+        await dbContext.SaveChangesAsync();
+        var handler = new ListPlansQueryHandler(dbContext, new UppercasingDisplayNamesLocalizer());
+
+        var result = await handler.HandleAsync(new ListPlansQuery(), CancellationToken.None);
+
+        Assert.Equal([first.Id, second.Id], result.Value.Select(dto =>
+        {
+            return dto.Id;
+        }));
+    }
+
     /// <summary>
     /// A deterministic <see cref="IStringLocalizer{T}"/> double that upper-cases the key it is
     /// given, so a test can assert the handler passed the plan's exact display-name key through

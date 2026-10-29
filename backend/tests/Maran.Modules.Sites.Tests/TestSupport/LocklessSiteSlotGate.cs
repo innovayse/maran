@@ -45,9 +45,37 @@ public sealed class LocklessSiteSlotGate : ISiteSlotGate
     /// </remarks>
     public bool RefuseNextClaim { get; set; }
 
+    /// <summary>Set by a test to make the next claim throw this, which is where production's refused insert surfaces.</summary>
+    /// <remarks>
+    /// The real gate throws <c>DbUpdateException</c> from <c>SaveChangesAsync</c>; here it is thrown
+    /// before any write, which is the same observable state — nothing committed — the handler relies on.
+    /// </remarks>
+    public Exception? ThrowOnNextClaim { get; set; }
+
+    /// <summary>Set by a test to run once at the start of the next claim, to commit a rival's row "while the host work was running".</summary>
+    /// <remarks>
+    /// The handler's pre-check reads committed rows before the agent is called, so a rival that must
+    /// pass it has to commit after it; this hook is that moment.
+    /// </remarks>
+    public Func<Task>? BeforeNextClaim { get; set; }
+
     /// <inheritdoc />
     public async Task<bool> TryTakeAsync(Site site, int allowance, CancellationToken cancellationToken)
     {
+        if (BeforeNextClaim is not null)
+        {
+            var hook = BeforeNextClaim;
+            BeforeNextClaim = null;
+            await hook();
+        }
+
+        if (ThrowOnNextClaim is not null)
+        {
+            var failure = ThrowOnNextClaim;
+            ThrowOnNextClaim = null;
+            throw failure;
+        }
+
         if (RefuseNextClaim)
         {
             RefuseNextClaim = false;

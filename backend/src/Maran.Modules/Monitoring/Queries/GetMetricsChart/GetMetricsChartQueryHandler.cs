@@ -42,7 +42,7 @@ public sealed class GetMetricsChartQueryHandler
     /// </summary>
     /// <remarks>
     /// <para>
-    /// <c>// raw-sql: date_bin has no LINQ translation, and neither does "the last value in each
+    /// <c>// raw-sql: fixed-origin time bucketing (epoch floor, which PostgreSQL 13 supports; date_bin is 14+) has no LINQ translation, and neither does "the last value in each
     /// group ordered by time". Both are the whole point of this query (R10), so the alternative is
     /// not different LINQ but streaming every raw row to the application and grouping it there.</c>
     /// </para>
@@ -51,6 +51,11 @@ public sealed class GetMetricsChartQueryHandler
     /// folds unquoted names to lower case (rules/csharp.md "Database naming"). The schema is
     /// <see cref="MonitoringDbContext.SchemaName"/>, written out here because a statement cannot
     /// parameterise an identifier.
+    /// </para>
+    /// <para>
+    /// The bucket start is <c>origin + floor((t - origin) / width) * width</c> computed on epoch
+    /// seconds, because <c>date_bin</c> exists only from PostgreSQL 14 and the supported systems
+    /// (rules/architecture.md) include distributions that ship 13.
     /// </para>
     /// <para>
     /// <c>(array_agg(x ORDER BY t DESC))[1]</c> is "the newest reading in this bucket". PostgreSQL
@@ -65,7 +70,11 @@ public sealed class GetMetricsChartQueryHandler
     /// </remarks>
     private const string BucketSql = """
         SELECT
-            date_bin(@bucket, s."CapturedAt", @origin) AS "BucketStart",
+            to_timestamp(
+                extract(epoch FROM @origin)::double precision
+                + floor((extract(epoch FROM s."CapturedAt")::double precision
+                         - extract(epoch FROM @origin)::double precision) / @bucketSeconds)
+                * @bucketSeconds) AS "BucketStart",
             AVG(s."CpuPercent")::double precision AS "CpuPercent",
             AVG(s."MemoryUsedBytes")::double precision AS "MemoryUsedBytes",
             AVG(s."MemoryTotalBytes")::double precision AS "MemoryTotalBytes",
@@ -113,7 +122,7 @@ public sealed class GetMetricsChartQueryHandler
         var rows = await _dbContext.MetricBuckets
             .FromSqlRaw(
                 BucketSql,
-                new NpgsqlParameter("bucket", NpgsqlDbType.Interval) { Value = window.Bucket },
+                new NpgsqlParameter("bucketSeconds", NpgsqlDbType.Double) { Value = window.Bucket.TotalSeconds },
                 new NpgsqlParameter("origin", NpgsqlDbType.TimestampTz) { Value = ChartWindow.BucketOrigin },
                 new NpgsqlParameter("since", NpgsqlDbType.TimestampTz) { Value = since })
             .AsNoTracking()

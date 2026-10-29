@@ -1,20 +1,25 @@
 //! The host's cron spool, reached the only way this agent reaches it.
 
 use std::fs::{self, OpenOptions, Permissions};
-use std::io::{self, Read as _, Write as _};
+use std::io::Write as _;
 use std::os::unix::fs::{OpenOptionsExt as _, PermissionsExt as _};
-use std::path::PathBuf;
-use std::process::{ChildStderr, Command, Stdio};
-use std::thread;
+use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use maran_agent_core::agent_paths::AgentPaths;
 use maran_agent_core::command_outcome::CommandOutcome;
-use maran_agent_core::utils::apply_child_environment::apply_child_environment;
-use maran_agent_core::validation::system::name::AccountName;
+use maran_agent_core::utils::bound_exceeded::BoundExceeded;
+use maran_agent_core::utils::call_class::CallClass;
+use maran_agent_core::utils::child_input::ChildInput;
+use maran_agent_core::utils::child_output::ChildOutput;
+use maran_agent_core::utils::run_bounded::run_bounded;
+use maran_agent_core::utils::spawn_error::SpawnError;
+use maran_agent_core::utils::spawn_request::SpawnRequest;
+use maran_agent_core::validation::system::managed_account::ManagedAccount;
 use maran_distro::DistroAdapter;
 
 use crate::cron::cron_error::{CronError, PROGRAM_UNAVAILABLE};
+use maran_agent_core::end_of_options::END_OF_OPTIONS;
 
 /// `crontab`'s flag for naming the account whose table is meant.
 const USER_FLAG: &str = "-u";
@@ -75,22 +80,24 @@ const TABLE_TOO_LARGE: i32 = -2;
 /// Prefix every temporary crontab this host writes carries.
 const TABLE_PREFIX: &str = "crontab";
 
-// The environment this file's spawns are given.
+// The environment and the bounds this file's spawns are given.
 //
-// This file's spawns are deliberately not `spawn_argv` — they pipe stdin and
-// carry a cron-specific unavailable sentinel — but their environment must be
-// the same one, and a second list is how the two would drift.
+// Both of this file's spawns go through the bounded core (`run_bounded`), which
+// clears the environment the same way every other spawn in the agent does, gives the
+// child a process group of its own, a deadline taken from its call class and a ceiling
+// on each output stream. Their cron-specific sentinel ([`PROGRAM_UNAVAILABLE`]) stays
+// here, in the mapping from the core's error.
 //
-// It matters more here than almost anywhere: the absent-crontab answer is
-// decided by matching a MESSAGE ([`NO_CRONTAB_MARKER`]), so the language that
-// message is printed in is part of that control decision. Inheriting the
-// daemon's environment would make it ambient state — whatever `LANG` the unit
-// file, the installer or the operator's shell happened to leave behind — and a
-// control decision must not rest on that.
+// The cleared environment matters more here than almost anywhere: the absent-crontab
+// answer is decided by matching a MESSAGE ([`NO_CRONTAB_MARKER`]), so the language that
+// message is printed in is part of that control decision. Inheriting the daemon's
+// environment would make it ambient state — whatever `LANG` the unit file, the installer
+// or the operator's shell happened to leave behind — and a control decision must not rest
+// on that.
 //
-// It changes the direction of nothing: an unmatched message was already a
-// refusal rather than a wrong "this account has no crontab", so what this
-// removes is a source of spurious refusals on a non-English host, not a hole.
+// It changes the direction of nothing: an unmatched message was already a refusal rather
+// than a wrong "this account has no crontab", so what this removes is a source of
+// spurious refusals on a non-English host, not a hole.
 
 /// One account's crontab, read and installed through `crontab(1)`.
 ///
@@ -101,6 +108,11 @@ const TABLE_PREFIX: &str = "crontab";
 /// family. Asking the program to do the work is what keeps all four out of
 /// `ops`. Nothing here touches a customer's home; the two operations that do
 /// fork and drop first.
+///
+/// **The `-u` argument is always a [`ManagedAccount`]**, never a bare name, so
+/// `crontab -u root` and every other system user's table are unreachable from
+/// here: the proof was resolved by the caller and is checked before this
+/// program is ever run.
 ///
 /// **There is no partial install.** The table replaces what was there or it
 /// does not, which is what lets every operation in this area render the WHOLE
@@ -118,7 +130,10 @@ const TABLE_PREFIX: &str = "crontab";
 ///
 /// **Both methods MUST be called from `tokio::task::spawn_blocking`**: they
 /// spawn a program and wait for it, which on a runtime worker stalls every
-/// other in-flight command (rules/rust.md "Async and blocking").
+/// other in-flight command (rules/rust.md "Async and blocking"). The wait is
+/// bounded: the program is killed with its whole process group at the deadline of
+/// its call class, so a hung `crontab` ends a task instead of holding a
+/// `cron_lock` for as long as the hang lasts.
 pub(crate) struct CrontabSpool {
     /// Where `crontab` lives on this family.
     distro: &'static dyn DistroAdapter,
@@ -130,21 +145,27 @@ impl CrontabSpool {
         Self { distro }
     }
 
-    /// Reads `account`'s table with `crontab -u <account> -l`, bounded.
+    /// Reads the managed `account`'s table with `crontab -u <account> -l`, bounded.
     ///
     /// The read is bounded at [`CRONTAB_CEILING`] because the answer is an
-    /// account's own file; what the answer MEANS is decided by
-    /// [`read_outcome`], which a test can drive.
+    /// account's own file, and under the [`CallClass::Query`] deadline; what the
+    /// answer MEANS is decided by [`read_outcome`], which a test can drive.
+    ///
+    /// No `--` here: `-l` ends the argument list, so no operand follows the
+    /// options and there is nothing for a guard to protect.
     ///
     /// # Errors
     ///
     /// Returns [`CronError::CrontabRefused`] when the program refuses for a
     /// reason that is not "this account has no table", cannot be run at all, or
-    /// answers more than the ceiling.
-    pub(crate) fn read(&self, account: &AccountName) -> Result<Option<String>, CronError> {
-        let outcome = Self::run_bounded(
-            self.distro.crontab_binary(),
-            &[USER_FLAG, account.as_str(), LIST_FLAG],
+    /// answers more than the ceiling, and [`CronError::Bound`] when it outlives
+    /// its deadline and is killed.
+    pub(crate) fn read(&self, account: &ManagedAccount) -> Result<Option<String>, CronError> {
+        let program = self.distro.crontab_binary();
+        let outcome = Self::run(
+            program.as_path(),
+            &read_arguments(account.name().as_str()),
+            CallClass::Query,
             CRONTAB_CEILING,
         )?;
 
@@ -157,13 +178,26 @@ impl CrontabSpool {
     ///
     /// Returns [`CronError::CrontabRefused`] when the table cannot be staged,
     /// when the program cannot be run, or when it refuses the table — with the
-    /// program's own exit status in the last case.
-    pub(crate) fn install(&self, account: &AccountName, contents: &str) -> Result<(), CronError> {
+    /// program's own exit status in the last case — and [`CronError::Bound`] when
+    /// it outlives its [`CallClass::Mutation`] deadline and is killed, in which
+    /// case the table may or may not have been replaced.
+    pub(crate) fn install(
+        &self,
+        account: &ManagedAccount,
+        contents: &str,
+    ) -> Result<(), CronError> {
         let path = Self::write_table(contents)?;
 
+        // `--` before the file: `crontab` reads its options with `getopt` on both lineages
+        // (Debian's cron and cronie), which ends option parsing at `--`. The path is
+        // absolute and agent-made, so the guard is defence in depth and not a fix.
+        let program = self.distro.crontab_binary();
+        let path_text = path.display().to_string();
         let outcome = Self::run(
-            self.distro.crontab_binary(),
-            &[USER_FLAG, account.as_str(), &path.display().to_string()],
+            program.as_path(),
+            &install_arguments(account.name().as_str(), &path_text),
+            CallClass::Mutation,
+            ChildOutput::DEFAULT_CAP,
         );
 
         // Best effort, and before the outcome is examined so that no early
@@ -180,150 +214,51 @@ impl CrontabSpool {
         Ok(())
     }
 
-    /// Runs `program` with `arguments` as an argv array and waits for it.
+    /// Runs `program` with `arguments` as an argv array and waits for it, bounded.
     ///
     /// No shell, at any point (rules/security.md item 3): the arguments reach
     /// `execve` one by one, so there is no command line for anything to
-    /// re-parse. `program` is an absolute path from the `DistroAdapter` and
-    /// never a name resolved through `PATH`. Standard input is `/dev/null`
-    /// rather than inherited, so a tool that decides to prompt fails instead of
-    /// hanging a root daemon forever.
+    /// re-parse. `program` is an absolute path taken from an `AdapterBinary` by
+    /// the caller and never a name resolved through `PATH`; it is a `&Path` here
+    /// because this body is private to the spool, which is what lets a test point it
+    /// at a stand-in without a public constructor for the adapter's type.
     ///
-    /// Used for the INSTALL, whose output is a refusal message rather than an
-    /// account's file. The listing uses [`Self::run_bounded`] instead.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`CronError::CrontabRefused`] with a `code` of
-    /// [`PROGRAM_UNAVAILABLE`] when the program cannot be started or waited
-    /// for. A non-zero exit is not an error here — it is returned in the
-    /// outcome, because each caller reads a status differently.
-    fn run(program: &str, arguments: &[&str]) -> Result<CommandOutcome, CronError> {
-        let mut command = Command::new(program);
-        apply_child_environment(&mut command);
-        let output = command
-            .args(arguments)
-            .stdin(Stdio::null())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .output()
-            .map_err(|_| CronError::CrontabRefused {
-                code: PROGRAM_UNAVAILABLE,
-            })?;
-
-        Ok(CommandOutcome {
-            // -1 for a process killed by a signal: it did not exit, and
-            // reporting 0 would read as success to every caller.
-            status: output.status.code().unwrap_or(PROGRAM_UNAVAILABLE),
-            stdout: String::from_utf8_lossy(&output.stdout).into_owned(),
-            stderr: String::from_utf8_lossy(&output.stderr).into_owned(),
-        })
-    }
-
-    /// Runs `program` with `arguments` and reads at most `ceiling` bytes of its
-    /// standard output.
-    ///
-    /// [`Self::run`]'s `Command::output()` reads to end of output, which is
-    /// correct for a program whose answer this agent chose and wrong for one
-    /// whose answer is an account's own file. This is the same spawn with the
-    /// read bounded: `ceiling + 1` bytes are taken, so exceeding the ceiling is
-    /// DETECTED rather than silently truncated, and a program that has more to
-    /// say is killed rather than left blocked on a pipe nobody is draining.
-    ///
-    /// Standard error is read afterwards and bounded too. It is small for every
-    /// program this area runs, and it is read second because the answer that
-    /// has to be bounded is the one on standard output.
+    /// The spawn is the bounded core's. Standard input is `/dev/null`, so a tool
+    /// that decides to prompt fails instead of hanging; the child is in a process
+    /// group of its own and is killed with it at `class`'s deadline; and each of
+    /// its two output streams is read concurrently under `ceiling`, so a child
+    /// that floods standard error cannot block on a full pipe and an answer larger
+    /// than the ceiling is DETECTED (`ceiling + 1` bytes are the signal) rather
+    /// than silently truncated. A table above the ceiling is refused whole,
+    /// because half a crontab parsed and re-installed would delete the other half.
     ///
     /// # Errors
     ///
     /// Returns [`CronError::CrontabRefused`] with a `code` of
-    /// [`PROGRAM_UNAVAILABLE`] when the program cannot be started, its output
-    /// cannot be taken or read, or it cannot be waited for; and with a `code` of
-    /// [`TABLE_TOO_LARGE`] when it wrote more than `ceiling` bytes.
-    fn run_bounded(
-        program: &str,
+    /// [`PROGRAM_UNAVAILABLE`] when the program cannot be started, its input or
+    /// output cannot be handled, or it cannot be waited for; with a `code` of
+    /// [`TABLE_TOO_LARGE`] when it wrote more than `ceiling` bytes to either
+    /// stream; and [`CronError::Bound`] when it outlived its deadline. A timeout
+    /// is never reported under either code: "the program never ran" and "its
+    /// answer was too large" are both false of a program that was running when it
+    /// was stopped.
+    fn run(
+        program: &Path,
         arguments: &[&str],
+        class: CallClass,
         ceiling: u64,
     ) -> Result<CommandOutcome, CronError> {
-        let unavailable = || CronError::CrontabRefused {
-            code: PROGRAM_UNAVAILABLE,
-        };
-
-        let mut command = Command::new(program);
-        apply_child_environment(&mut command);
-        let mut child = command
-            .args(arguments)
-            .stdin(Stdio::null())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .spawn()
-            .map_err(|_| unavailable())?;
-
-        let (Some(mut output), Some(errors)) = (child.stdout.take(), child.stderr.take()) else {
-            let _ = child.kill();
-            let _ = child.wait();
-
-            return Err(unavailable());
-        };
-
-        // Standard error is consumed CONCURRENTLY with standard output, from
-        // the moment the child exists, and this thread is the whole of that
-        // property. A pipe nobody is reading fills at about 64 KiB, and a child
-        // blocked writing into a full one never exits — so reading standard
-        // output to its end FIRST and standard error afterwards deadlocks both,
-        // in the root daemon, with no timeout anywhere to end it. Measured: with
-        // the two reads sequential, the named test never returns.
-        //
-        // That is precisely the class `Command::output()` avoids by reading the
-        // two concurrently, and `output()` is what this function replaced; the
-        // property has to come back with it rather than rest on an argument
-        // about how `crontab(1)` happens to behave.
-        let collector = thread::spawn(move || drain_bounded(errors, ceiling));
-
-        // One byte past the ceiling, so a table exactly at it is accepted and
-        // one byte over is refused rather than quietly shortened.
-        let mut stdout = Vec::new();
-        let taken = output
-            .by_ref()
-            .take(ceiling.saturating_add(1))
-            .read_to_end(&mut stdout);
-
-        if taken.is_err() || stdout.len() as u64 > ceiling {
-            let too_large = taken.is_ok();
-            // Killed rather than drained: the point of a ceiling is not to read
-            // the rest more politely. The kill closes the child's end of both
-            // pipes, so the drain reaches end of input and the join below
-            // returns rather than waiting on a process that is gone.
-            let _ = child.kill();
-            let _ = child.wait();
-            let _ = collector.join();
-
-            return Err(CronError::CrontabRefused {
-                code: if too_large {
-                    TABLE_TOO_LARGE
-                } else {
-                    PROGRAM_UNAVAILABLE
-                },
-            });
-        }
-
-        // Joined BEFORE the wait, so no path can return while the thread still
-        // holds the pipe. The drain ends at end of input, which the child
-        // reaches by exiting — and nothing this function does can stop it
-        // exiting any more.
-        //
-        // `unwrap_or_default` and not `unwrap`: the drain has no panicking path,
-        // and if it somehow acquired one, empty standard error means the
-        // absent-crontab branch in `read_outcome` is simply not taken. That is a
-        // refusal, which is the direction this whole area fails in.
-        let stderr = collector.join().unwrap_or_default();
-        let status = child.wait().map_err(|_| unavailable())?;
-
-        Ok(CommandOutcome {
-            status: status.code().unwrap_or(PROGRAM_UNAVAILABLE),
-            stdout: String::from_utf8_lossy(&stdout).into_owned(),
-            stderr: String::from_utf8_lossy(&stderr).into_owned(),
+        run_bounded(SpawnRequest {
+            program,
+            arguments,
+            class,
+            input: ChildInput::Null,
+            output: ChildOutput::Capture {
+                stdout_cap: ceiling,
+                stderr_cap: ceiling,
+            },
         })
+        .map_err(spawn_failure)
     }
 
     /// Writes `contents` into a fresh file in the root-owned scratch directory
@@ -375,64 +310,56 @@ impl CrontabSpool {
     }
 }
 
+/// The argument vector of `crontab -u <account> -l`.
+///
+/// No `--`: `-l` ends the argument list, so no operand follows the options.
+fn read_arguments(account: &str) -> [&str; 3] {
+    [USER_FLAG, account, LIST_FLAG]
+}
+
+/// The argument vector of `crontab -u <account> -- <file>`.
+///
+/// `--` sits between the options and the file, so the file can never be read as an
+/// option; the path is absolute and agent-made, so this is defence in depth.
+fn install_arguments<'a>(account: &'a str, file: &'a str) -> [&'a str; 4] {
+    [USER_FLAG, account, END_OF_OPTIONS, file]
+}
+
+/// Maps a failure of the bounded core onto this area's error.
+///
+/// A bound on the OUTPUT keeps the code this area already gave an answer that was too
+/// large ([`TABLE_TOO_LARGE`]), because a caller and an operator read that number as
+/// "the program ran and its answer was too much to take". A bound on TIME is
+/// [`CronError::Bound`] and nothing else. Every other failure to run the program is
+/// [`PROGRAM_UNAVAILABLE`], the sentinel for "it never got as far as answering".
+fn spawn_failure(error: SpawnError) -> CronError {
+    match error {
+        SpawnError::Bound(BoundExceeded::OutputTooLarge { .. }) => CronError::CrontabRefused {
+            code: TABLE_TOO_LARGE,
+        },
+        SpawnError::Bound(bound) => CronError::Bound(bound),
+        _ => CronError::CrontabRefused {
+            code: PROGRAM_UNAVAILABLE,
+        },
+    }
+}
+
 /// The bounded spawn, reachable by a test.
 ///
-/// [`CrontabSpool::run_bounded`] is an associated function of a type a test
-/// cannot usefully build — it would need a real `DistroAdapter` and a real
-/// account — while the two properties worth testing are properties of the SPAWN
-/// itself: which environment the child gets, and whether a child that floods
-/// standard error can still exit. This is the same split
-/// `ops::sites`' `follow_as` uses, and it is `#[cfg(test)]` so nothing outside
-/// the tests can reach the spawn by another route.
+/// [`CrontabSpool::run`] is an associated function of a type a test cannot
+/// usefully build — it would need a real `DistroAdapter` and a real account —
+/// while the properties worth testing are properties of the SPAWN itself: which
+/// environment the child gets, and whether a child that floods standard error can
+/// still exit. It is `#[cfg(test)]` so nothing outside the tests can reach the spawn
+/// by another route, and it takes the path, not an `AdapterBinary`, which a test
+/// cannot construct.
 #[cfg(test)]
 fn run_bounded_for_test(
-    program: &str,
+    program: &Path,
     arguments: &[&str],
     ceiling: u64,
 ) -> Result<CommandOutcome, CronError> {
-    CrontabSpool::run_bounded(program, arguments, ceiling)
-}
-
-/// Reads at most `ceiling` bytes from `stream`, then reads the rest away.
-///
-/// Run on its own thread by [`CrontabSpool::run_bounded`], for the whole life of
-/// the child. Two halves, and **the deadlock is removed by the thread, not by
-/// either of them** — that is written down here because an earlier version of
-/// this comment credited the second half with it and was measured to be wrong:
-///
-/// 1. **Keep a bounded prefix.** Standard error is a program's own message, but
-///    it is a program handed an account's file, so what it echoes back is not
-///    bounded by anything this agent chose. `Read::take` bounds what is kept.
-/// 2. **Then read the remainder and throw it away.** What this buys is the
-///    child's own EXIT STATUS. Stopping at the ceiling would return from this
-///    function and drop `stream`, closing the read end — after which the child's
-///    next write earns `SIGPIPE` and it dies by a signal, so `code()` is `None`
-///    and the caller is told `-1` instead of what the program actually decided.
-///    Measured: with the drain removed, a child that outruns the ceiling comes
-///    back as `-1`; with it, as its own status.
-///
-///    It is NOT what stops the hang. Closing the read end unblocks the child
-///    just as well, by killing it — which is why removing this line leaves
-///    `a_child_that_floods_standard_error_does_not_deadlock_the_read` green and
-///    reddens `a_child_that_outruns_the_ceiling_still_reports_its_own_status`
-///    instead.
-///
-/// It returns bytes rather than a `Result`: a stream that cannot be read has
-/// nothing to say, and the caller has no different action for the two cases.
-fn drain_bounded(mut stream: ChildStderr, ceiling: u64) -> Vec<u8> {
-    let mut kept = Vec::new();
-    if stream
-        .by_ref()
-        .take(ceiling)
-        .read_to_end(&mut kept)
-        .is_err()
-    {
-        return kept;
-    }
-
-    let _ = io::copy(&mut stream, &mut io::sink());
-
-    kept
+    CrontabSpool::run(program, arguments, CallClass::Query, ceiling)
 }
 
 /// Decides what one run of `crontab -u <account> -l` means.

@@ -269,3 +269,37 @@ fn a_grant_row_the_server_printed_short_is_unparsable() {
 
     assert_eq!(repair_grants(&host, false), Err(DbError::Unparsable));
 }
+
+/// A client that hangs at any statement of a repair makes the pass a bound, and
+/// a revoke is never sent without its replacement grant before it.
+#[test]
+fn a_client_that_hangs_during_a_repair_is_a_bound_and_never_leaves_a_revoke_ahead_of_its_grant() {
+    let clean = host_with_the_defective_row();
+    repair_grants(&clean, false).expect("the pass must succeed");
+    let total = clean.statements().len();
+    assert!(
+        total > 2,
+        "the vacuity guard: a repair sends several statements"
+    );
+
+    for answered in 0..total {
+        let host = host_with_the_defective_row();
+        host.time_out_after(answered);
+
+        let outcome = repair_grants(&host, false);
+
+        assert!(
+            matches!(outcome, Err(DbError::Bound(_))),
+            "after {answered} answers: {outcome:?}"
+        );
+        let statements = host.statements();
+        let grant = statements.iter().position(|s| s.starts_with("GRANT "));
+        let revoke = statements.iter().position(|s| s.starts_with("REVOKE "));
+        if let Some(revoke) = revoke {
+            assert!(
+                grant.is_some_and(|grant| grant < revoke),
+                "a revoke was sent ahead of its grant: {statements:?}"
+            );
+        }
+    }
+}

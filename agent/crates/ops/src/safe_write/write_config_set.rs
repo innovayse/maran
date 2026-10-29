@@ -5,6 +5,8 @@ use std::io::Write as _;
 use std::os::unix::fs::PermissionsExt as _;
 use std::path::Path;
 
+use maran_agent_core::utils::call_class::CallClass;
+
 use crate::safe_write::config_tree_lock::config_tree_lock;
 use crate::safe_write::model::config_file::ConfigFile;
 use crate::safe_write::model::{Reload, Validator};
@@ -48,7 +50,10 @@ use crate::safe_write::{ConfigHost, RollbackGuard, SafeWriteError};
 /// when a swap fails, with every target already swapped restored. Returns
 /// [`SafeWriteError::ValidationFailed`] or [`SafeWriteError::ReloadFailed`] with
 /// ALL targets restored, [`SafeWriteError::SpawnFailed`] with the same
-/// restoration when one of those programs could not be started at all, and
+/// restoration when one of those programs could not be started at all,
+/// [`SafeWriteError::Bound`] with the same restoration when one of them outlived
+/// its deadline or its output ceiling and was killed (a bound is not a verdict,
+/// so it is never a failed validation or a failed reload), and
 /// [`SafeWriteError::RollbackFailed`] when one of those restorations also
 /// failed.
 pub fn write_config_set(
@@ -99,7 +104,7 @@ pub fn write_config_set(
         }
     }
 
-    let validation = match host.run(validator.program, validator.arguments) {
+    let validation = match host.run(validator.program, validator.arguments, validator.class) {
         Ok(outcome) => outcome,
         Err(error) => return finish_with_rollback(&mut guards, error),
     };
@@ -112,7 +117,7 @@ pub fn write_config_set(
         );
     }
 
-    match host.run(reload.program, reload.arguments) {
+    match host.run(reload.program, reload.arguments, CallClass::Reload) {
         Ok(outcome) if outcome.status == 0 => {
             for guard in guards {
                 guard.commit();

@@ -18,6 +18,7 @@
 import { computed, ref, type ComputedRef, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import UiButton from '../ui/UiButton.vue'
+import UiCard from '../ui/UiCard.vue'
 import UiForm from '../ui/UiForm.vue'
 import UiSelect, { type SelectOption } from '../ui/UiSelect.vue'
 import type { Account } from '../../types/account'
@@ -74,9 +75,11 @@ const submit = (): void => {
 </script>
 
 <template>
-  <div class="rounded-xl border border-border-subtle bg-surface-1">
-    <UiForm @submit="submit">
-      <div class="grid gap-3.5 p-4.5 sm:grid-cols-2">
+  <!-- One panel: the picker, then the hint and the pill on a row that wraps under it on a phone.
+       The card is the form's own root, so a caller's `class` (spacing) lands on it. -->
+  <UiCard>
+    <UiForm class="flex flex-col gap-4" @submit="submit">
+      <div class="max-w-md">
         <UiSelect
           v-model="accountId"
           :label="t('backups.form.fields.accountId')"
@@ -86,14 +89,12 @@ const submit = (): void => {
           required
         />
       </div>
-      <div
-        class="flex flex-wrap items-center justify-between gap-2 rounded-b-xl border-t border-border-subtle bg-surface-2 px-4.5 py-3"
-      >
-        <p class="text-sm text-text-muted">{{ t('backups.form.hint') }}</p>
+      <div class="flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
+        <p class="min-w-0 flex-1 basis-64 text-sm text-text-muted">{{ t('backups.form.hint') }}</p>
         <UiButton type="submit" :disabled="submitting">
           {{ submitting ? t('backups.form.submitting') : t('backups.form.submit') }}
         </UiButton>
       </div>
     </UiForm>
-  </div>
+  </UiCard>
 </template>

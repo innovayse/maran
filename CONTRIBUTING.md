@@ -4,6 +4,10 @@ Maran is source-available and commercial. You can read every line, run it, chang
 yourself, and send changes back — the licence (BSL 1.1) is about selling it as a service,
 not about who may work on it.
 
+New here? Start with an issue labelled
+[`good first issue`](https://github.com/innovayse/maran/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22),
+and ask anything on the [Innovayse Discord](https://discord.gg/NfqTkyTgD).
+
 The rules below are not style preferences. They are the reason a root daemon written by
 several people is safe to run on somebody else's server.
 

@@ -14,7 +14,9 @@
       "addressColumn": "Откуда",
       "outcomeColumn": "Результат",
       "succeeded": "Успешно",
-      "failed": "Отказ"
+      "failed": "Отказ",
+      "eyebrow": "Безопасность",
+      "failedNotice": "Записей журнала с отказом: {count}."
     }
   }
 }

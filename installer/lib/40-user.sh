@@ -293,6 +293,11 @@ create_directory_layout() {
   # (see installer/systemd/maran-agent.service); created here too so the directory
   # exists immediately for the rest of this install run, before services first start.
   install -d -o root -g "$MARAN_GROUP" -m 0750 /run/maran
+  # /run/maran-php holds the PHP-FPM pool sockets, beside /run/maran rather than under it so the
+  # web user can reach them (issue #101). Boot recreates it from the tmpfiles snippet that
+  # 70-services.sh installs; created here too because the agent unit names it in ReadWritePaths=,
+  # and a missing mandatory path kills that unit with 226/NAMESPACE before it runs (issue #41).
+  install -d -o root -g root -m 0755 /run/maran-php
 }
 
 # remove_unless_root_only_directory: deletes whatever occupies the path unless it is

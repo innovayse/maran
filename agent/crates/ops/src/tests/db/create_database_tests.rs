@@ -264,3 +264,41 @@ fn the_dedicated_user_may_connect_only_from_this_host() {
         "the user must be bound to this host: {created}"
     );
 }
+
+/// A client that runs past its deadline on the very first question is a bound,
+/// and nothing was created.
+#[test]
+fn a_client_that_times_out_on_the_existence_check_is_a_bound_and_creates_nothing() {
+    let host = FakeDbHost::timing_out_after(0);
+
+    let failure = create_database(&host, &shop_request()).expect_err("must fail");
+
+    assert!(matches!(failure, DbError::Bound(_)), "{failure:?}");
+    assert!(host.databases().is_empty());
+    assert!(host.users().is_empty());
+}
+
+/// Whichever statement the client hangs on, the answer is a bound and never a
+/// success. The cutoff walks the whole sequence, so a statement whose bound was
+/// swallowed cannot hide.
+#[test]
+fn a_client_that_hangs_on_any_statement_makes_the_whole_creation_a_bound() {
+    let clean = FakeDbHost::new();
+    create_database(&clean, &shop_request()).expect("created");
+    let total = clean.statements().len();
+    assert!(
+        total > 2,
+        "the vacuity guard: a creation sends several statements"
+    );
+
+    for answered in 0..total {
+        let host = FakeDbHost::timing_out_after(answered);
+
+        let outcome = create_database(&host, &shop_request());
+
+        assert!(
+            matches!(outcome, Err(DbError::Bound(_))),
+            "after {answered} answers: {outcome:?}"
+        );
+    }
+}

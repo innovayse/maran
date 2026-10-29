@@ -200,30 +200,6 @@ export const useAccountsStore = defineStore('accounts', () => {
   }
 
   /**
-   * Resends the invitation for the account's owner: retires every outstanding token and sends a
-   * new one. Administrator-only on the server; this store adds no matching check of its own
-   * (rules/architecture.md — the endpoint is the boundary, not the SPA).
-   *
-   * The panel's mail queue is deliberately non-durable, so a `true` here means the invitation
-   * was SENT, never that it was delivered — the caller renders that distinction, not this action.
-   * @param id The account whose owner is being (re)invited.
-   * @returns True once a new invitation was sent.
-   */
-  const resendInvitation = async (id: string): Promise<boolean> => {
-    acting.value = true
-    errorMessage.value = null
-    try {
-      await api.resendInvitation(id)
-      return true
-    } catch (error) {
-      errorMessage.value = error instanceof ApiError ? error.message : null
-      return false
-    } finally {
-      acting.value = false
-    }
-  }
-
-  /**
    * Runs one lifecycle call and folds the account it returns back into both the held list and
    * {@link selected}, so a list opened behind a detail page does not go stale.
    * @param call The lifecycle call to make.
@@ -270,6 +246,5 @@ export const useAccountsStore = defineStore('accounts', () => {
     reactivate,
     remove,
     loadMine,
-    resendInvitation,
   }
 })

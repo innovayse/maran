@@ -4,6 +4,8 @@
 
 use std::time::Duration;
 
+use maran_agent_core::utils::bound_exceeded::BoundExceeded;
+use maran_agent_core::utils::call_class::CallClass;
 use maran_agent_core::validation::web::ban_address::BanAddress;
 
 use crate::firewall::ensure_bans_table::{BANNED_V4_SET, BANNED_V6_SET};
@@ -246,4 +248,42 @@ fn a_set_member_that_is_not_an_address_is_refused() {
         list_bans(&host, distro()),
         Err(FirewallError::UnreadableNftOutput)
     );
+}
+
+/// A listing killed at its deadline is a bound and never an empty list or a
+/// skipped set: a ban list cut short is a panel believing an address is not
+/// blocked.
+#[test]
+fn a_listing_that_times_out_is_a_bound_and_never_an_empty_list() {
+    let host = FakeFirewallHost::new().with_bans_table().with_element(
+        BANNED_V4_SET,
+        "198.51.100.7",
+        Some(3600),
+    );
+    host.time_out_on("list");
+
+    let outcome = list_bans(&host, distro());
+
+    assert!(
+        matches!(
+            outcome,
+            Err(FirewallError::Bound(BoundExceeded::TimedOut { .. }))
+        ),
+        "expected the typed timeout, got {outcome:?}"
+    );
+}
+
+/// The listing is a query, with the JSON switch ahead of the end-of-options
+/// marker (a switch after it would be an operand) and the operands after it.
+#[test]
+fn the_listing_is_a_query_with_the_json_switch_ahead_of_the_marker() {
+    let host = FakeFirewallHost::new().with_bans_table();
+
+    list_bans(&host, distro()).expect("listed");
+
+    let argv = host.nft_call_starting_with("list").expect("a listing");
+    assert_eq!(argv.get(1).map(String::as_str), Some("-j"));
+    assert_eq!(argv.get(2).map(String::as_str), Some("--"));
+    assert_eq!(argv.get(3).map(String::as_str), Some("list"));
+    assert_eq!(host.class_of_call("list"), Some(CallClass::Query));
 }

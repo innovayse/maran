@@ -1,7 +1,8 @@
 using Maran.Agent.Client.Services.FtpsService;
 using Maran.Host.Resilience;
+using Maran.Host.Tests.Fixtures;
+using Maran.SharedKernel.Results;
 using Maran.SharedKernel.Security;
-using Polly.Timeout;
 
 namespace Maran.Host.Tests.Resilience;
 
@@ -17,6 +18,25 @@ public sealed class ResilientAgentFtpsClientTests
 {
     /// <summary>Deadline for any test that waits on the pipeline.</summary>
     private static readonly TimeSpan TestTimeout = TimeSpan.FromSeconds(30);
+
+    /// <summary>A transport outage on a user deletion is answered as an unavailable agent, not thrown.</summary>
+    /// <remarks>
+    /// The inner fake throws what the real transport throws for a refused connection
+    /// (<see cref="AgentTransportFaults.ConnectRefused"/>), so the answer is the decorator's to give: the
+    /// pipeline retries the refused connect twice and the shared mapping answers 503's error code.
+    /// </remarks>
+    [Fact]
+    public async Task A_transport_outage_on_a_user_deletion_answers_agent_unavailable_instead_of_throwing()
+    {
+        var inner = new RecordingAgentFtpsClient { FailuresBeforeSuccess = int.MaxValue };
+
+        var result = await Decorate(inner).DeleteUserAsync("alice", "files", default).WaitAsync(TestTimeout);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("AgentUnavailable", result.Error!.Code);
+        Assert.Equal(ErrorType.Unavailable, result.Error.Type);
+        Assert.Equal(3, inner.Calls);
+    }
 
     /// <summary>The password a change call carries through the decorator.</summary>
     private static readonly SensitiveString Password = new("Vd2-amber-heron-77");
@@ -54,12 +74,13 @@ public sealed class ResilientAgentFtpsClientTests
     {
         var inner = new RecordingAgentFtpsClient { Hangs = true };
 
-        await Assert.ThrowsAsync<TimeoutRejectedException>(async () =>
-        {
-            await Decorate(inner)
-                .EnableAsync("ftp.example.test", 30000, 30100, string.Empty, 42, default)
-                .WaitAsync(TestTimeout);
-        });
+        var result = await Decorate(inner)
+            .EnableAsync("ftp.example.test", 30000, 30100, string.Empty, 42, default)
+            .WaitAsync(TestTimeout);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("AgentUnavailable", result.Error!.Code);
+        Assert.Equal(ErrorType.Unavailable, result.Error.Type);
     }
 
     /// <summary>Disable retries a transport failure through the pipeline.</summary>
@@ -149,10 +170,11 @@ public sealed class ResilientAgentFtpsClientTests
     {
         var inner = new RecordingAgentFtpsClient { Hangs = true };
 
-        await Assert.ThrowsAsync<TimeoutRejectedException>(async () =>
-        {
-            await Decorate(inner).DeleteUserAsync("alice", "files", default).WaitAsync(TestTimeout);
-        });
+        var result = await Decorate(inner).DeleteUserAsync("alice", "files", default).WaitAsync(TestTimeout);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("AgentUnavailable", result.Error!.Code);
+        Assert.Equal(ErrorType.Unavailable, result.Error.Type);
     }
 
     /// <summary>A creation the agent never answers is abandoned rather than started a second time.</summary>
@@ -168,10 +190,11 @@ public sealed class ResilientAgentFtpsClientTests
     {
         var inner = new RecordingAgentFtpsClient { Hangs = true };
 
-        await Assert.ThrowsAsync<TimeoutRejectedException>(async () =>
-        {
-            await Decorate(inner).CreateUserAsync(Arguments, default).WaitAsync(TestTimeout);
-        });
+        var result = await Decorate(inner).CreateUserAsync(Arguments, default).WaitAsync(TestTimeout);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("AgentUnavailable", result.Error!.Code);
+        Assert.Equal(ErrorType.Unavailable, result.Error.Type);
 
         Assert.Equal(1, inner.Calls);
     }

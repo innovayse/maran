@@ -5,7 +5,10 @@
       "subtitle": "The link you followed lets you set a password for your new account, once.",
       "setPassword": "Set the password",
       "done": "Your password has been set. Sign in with it to reach your account.",
-      "backToSignIn": "Back to sign in"
+      "backToSignIn": "Back to sign in",
+      "missingTokenTitle": "This invitation link is incomplete",
+      "missingTokenBody": "Open the link from your invitation e-mail again, or ask whoever invited you to send a new one.",
+      "refusedHint": "If the link has expired or was already used, ask whoever invited you to send a new invitation."
     }
   }
 }

@@ -8,6 +8,8 @@
 use super::get_service_statuses;
 use crate::monitor::fake_monitor_host::{FakeMonitorHost, distro, rhel_distro};
 use crate::monitor::{MonitorError, ServiceState, ServiceStatus};
+use maran_agent_core::utils::bound_exceeded::BoundExceeded;
+use maran_agent_core::utils::call_class::CallClass;
 
 /// A unit that is up.
 const RUNNING: &str = "LoadState=loaded\nActiveState=active\nSubState=running\nTriggeredBy=";
@@ -235,11 +237,9 @@ fn the_service_manager_is_only_ever_asked_to_report() {
 
     get_service_statuses(&host, distro()).expect("the service manager answers");
 
+    let manager = distro().service_manager();
     for command in host.commands() {
-        assert_eq!(
-            command.first().map(String::as_str),
-            Some(distro().service_manager())
-        );
+        assert_eq!(command.first().map(String::as_str), Some(manager.as_str()));
         assert_eq!(command.get(1).map(String::as_str), Some("show"));
     }
 }
@@ -295,4 +295,38 @@ fn no_unit_name_but_the_adapters_own_reaches_the_service_manager() {
             "an unexpected unit name was asked about: {unit}"
         );
     }
+}
+
+#[test]
+fn every_service_manager_call_is_a_query() {
+    let host = FakeMonitorHost::from_ubuntu_captures()
+        .with_unit("ssh", AWAITING_SOCKET)
+        .with_unit("ssh.socket", LISTENING);
+
+    get_service_statuses(&host, distro()).expect("the service manager answers");
+
+    let classes = host.classes();
+    assert!(
+        !classes.is_empty(),
+        "the vacuity guard: nothing was spawned"
+    );
+    assert!(
+        classes.iter().all(|class| *class == CallClass::Query),
+        "a report must run in the query class: {classes:?}"
+    );
+}
+
+#[test]
+fn a_service_manager_killed_at_its_deadline_is_a_bound_and_not_a_down_unit() {
+    let host = FakeMonitorHost::from_ubuntu_captures().with_timed_out_service_manager();
+
+    let outcome = get_service_statuses(&host, distro());
+
+    assert!(
+        matches!(
+            outcome,
+            Err(MonitorError::Bound(BoundExceeded::TimedOut { .. }))
+        ),
+        "expected the typed timeout, got {outcome:?}"
+    );
 }

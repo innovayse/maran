@@ -4,6 +4,7 @@
 pub mod config_file;
 pub mod reload;
 pub mod validator;
+pub(crate) mod write_intent;
 
 pub use config_file::ConfigFile;
 pub use reload::Reload;

@@ -1,5 +1,6 @@
 //! The one mapping from cron operation failures onto the wire error.
 
+use maran_agent_core::validation::system::managed_account_error::ManagedAccountError;
 use maran_ops::cron::CronError;
 
 use crate::proto::{AgentError, ErrorCode};
@@ -31,6 +32,12 @@ pub fn to_agent_error(error: &CronError) -> AgentError {
         // and updating, toggling or reading the output of one the account does
         // not own is the same shape of answer.
         CronError::NotFound => ErrorCode::NotFound,
+        // The account has no row in the local password database: the same
+        // answer an absent entry gets, and the account lifecycle's own.
+        CronError::Account(ManagedAccountError::NotFound) => ErrorCode::NotFound,
+        // Reserved, system identity or wrong home: a request about an account
+        // this panel does not manage. The sentence is fixed and names no rule.
+        CronError::Account(_) => ErrorCode::InvalidInput,
         // `common.proto`: the request stated an allowance and the account has
         // already reached it. Its own code and NOT `AlreadyExists`, which the
         // panel answers 409 "you already have that entry" with, and not
@@ -48,6 +55,13 @@ pub fn to_agent_error(error: &CronError) -> AgentError {
         | CronError::EntryFileUnreadable
         | CronError::EntryFileUnremovable
         | CronError::EntryIdUnavailable => ErrorCode::SystemFailure,
+        // A deadline or an output cap ended the program and its process group was
+        // killed. This is a fault of the host, never a verdict on the request: the
+        // work may or may not have finished, and `tool_output` stays empty because
+        // what the program printed before the kill is neither complete nor safe to
+        // forward. Named ahead of the wildcard so a missing arm cannot compile
+        // silently (threat note, plan item 11).
+        CronError::Bound(_) => ErrorCode::SystemFailure,
         // CronError is #[non_exhaustive] (rules/rust.md), so a variant added in
         // the ops crate lands here rather than failing this build. It maps to a
         // system failure: the panel then reports a fault instead of silently

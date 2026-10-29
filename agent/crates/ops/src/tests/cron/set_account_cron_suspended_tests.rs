@@ -7,8 +7,8 @@ use crate::cron::create_cron_entry::create_cron_entry;
 use crate::cron::cron_error::CronError;
 use crate::cron::list_cron_entries::list_cron_entries;
 use crate::cron::recording_cron_host::{
-    FIRST_ID, RecordingCronHost, SECOND_ID, account, command, distro, entry_id, every_five_minutes,
-    schedule,
+    FIRST_ID, RecordingCronHost, SECOND_ID, account, assert_refused_untouched, command, distro,
+    entry_id, every_five_minutes, schedule, unmanaged_cases,
 };
 use crate::cron::set_account_cron_suspended::set_account_cron_suspended;
 use crate::cron::set_cron_entry_enabled::set_cron_entry_enabled;
@@ -207,4 +207,17 @@ fn a_refused_install_leaves_the_account_the_way_it_was() {
 
     assert!(matches!(refused, Err(CronError::CrontabRefused { .. })));
     assert_eq!(host.crontab(), Some(before));
+}
+
+/// An account that is not a hosting account is refused before the table is
+/// read, and everything the host holds is left as it was.
+#[test]
+fn suspending_the_cron_of_an_unmanaged_account_installs_nothing() {
+    // Suspension rewrites the whole table; for an operator's own user that is
+    // their crontab rewritten by root.
+    for case in unmanaged_cases() {
+        let result = set_account_cron_suspended(&case.host, distro(), &case.account, true);
+
+        assert_refused_untouched(&case, result);
+    }
 }

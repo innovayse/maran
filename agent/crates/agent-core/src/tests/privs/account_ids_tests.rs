@@ -28,6 +28,19 @@ fn current_username() -> Option<String> {
     if name.is_empty() { None } else { Some(name) }
 }
 
+/// The home directory of the account this test process runs as, if known.
+///
+/// Read through `getent` rather than the code under test.
+fn current_home() -> Option<String> {
+    let name = current_username()?;
+    let output = Command::new("/usr/bin/getent")
+        .args(["passwd", &name])
+        .output()
+        .ok()?;
+    let line = String::from_utf8(output.stdout).ok()?;
+    line.trim().split(':').nth(5).map(str::to_owned)
+}
+
 #[test]
 fn unknown_account_is_refused_rather_than_panicking() {
     let name = AccountName::parse("nosuchaccount_maran").expect("fixture name is valid");
@@ -71,6 +84,18 @@ fn resolving_the_current_user_returns_this_processs_own_ids() {
         // A build agent running as a service identity below the host's UID_MIN.
         // The refusal is the correct answer, so it is asserted rather than skipped.
         assert_eq!(resolved, Err(PrivError::SystemAccount));
+        return;
+    }
+
+    if resolved == Err(PrivError::SystemAccount) {
+        // A developer or CI account may be on the reserved list (`ubuntu`) or have
+        // a home other than `/home/<name>`; the identity rule refuses it, which
+        // is the correct answer, so it is asserted rather than skipped.
+        assert!(
+            ManagedAccount::refuse_reserved(&name).is_err()
+                || current_home().is_none_or(|home| home != format!("/home/{username}")),
+            "a non-reserved account with the managed home must resolve"
+        );
         return;
     }
 
@@ -277,4 +302,53 @@ fn a_missing_gid_min_falls_back_without_borrowing_the_uid_floor() {
     let contents = "UID_MIN 4000\n";
 
     assert_eq!(id_floor(contents, "GID_MIN"), FALLBACK_MINIMUM_ID);
+}
+
+#[test]
+fn an_ordinary_name_with_its_own_home_is_a_managed_identity() {
+    let name = AccountName::parse("acme").expect("fixture name is valid");
+
+    assert_eq!(is_managed_identity(&name, "/home/acme"), Ok(()));
+}
+
+#[test]
+fn a_reserved_name_is_not_a_managed_identity_even_with_its_own_home() {
+    // `ubuntu` has uid 1000 and home /home/ubuntu on a stock cloud image: the
+    // floor and the home both pass, so only the reserved list refuses it.
+    let name = AccountName::parse("ubuntu").expect("fixture name is valid");
+
+    assert_eq!(
+        is_managed_identity(&name, "/home/ubuntu"),
+        Err(PrivError::SystemAccount)
+    );
+}
+
+#[test]
+fn a_name_with_the_panel_prefix_is_not_a_managed_identity() {
+    let name = AccountName::parse("maran_api").expect("fixture name is valid");
+
+    assert_eq!(
+        is_managed_identity(&name, "/home/maran_api"),
+        Err(PrivError::SystemAccount)
+    );
+}
+
+#[test]
+fn a_home_other_than_the_managed_home_is_not_a_managed_identity() {
+    let name = AccountName::parse("acme").expect("fixture name is valid");
+
+    for home in [
+        "/home/other",
+        "/home/acme/",
+        "/home/acme/sub",
+        "/var/lib/acme",
+        "/srv/sftp/acme",
+        "",
+    ] {
+        assert_eq!(
+            is_managed_identity(&name, home),
+            Err(PrivError::SystemAccount),
+            "home {home:?} must be refused"
+        );
+    }
 }

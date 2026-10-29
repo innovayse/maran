@@ -4,6 +4,9 @@
 //! (rules/architecture.md). [`crate::adapter_for()`] is what chooses
 //! the implementation.
 
+use maran_agent_core::validation::web::php_version::PhpVersion;
+
+use crate::adapter_binary::AdapterBinary;
 use crate::family::DistroFamily;
 use crate::vsftpd_tls_version_keys::VsftpdTlsVersionKeys;
 
@@ -56,7 +59,14 @@ pub trait DistroAdapter: Send + Sync {
     /// Both families install nginx at `/usr/sbin/nginx`, but the value still comes
     /// from the adapter rather than a literal in `ops`: a binary is only spawnable
     /// because this trait named it, not because the path happens to agree today.
-    fn nginx_binary(&self) -> &'static str;
+    ///
+    /// Like every `*_binary` method below that names a program the agent
+    /// executes, it returns an [`AdapterBinary`], a type only this crate can
+    /// construct, so the allow-list is enforced by the compiler: a seam that
+    /// takes `&AdapterBinary` cannot be handed a string from anywhere else.
+    /// (`sh_binary` stays text on purpose: it is written into a crontab line
+    /// and never executed by the agent.)
+    fn nginx_binary(&self) -> AdapterBinary;
 
     /// Name of the nginx service unit, for `systemctl reload`/`restart`.
     fn nginx_service(&self) -> &'static str;
@@ -71,7 +81,7 @@ pub trait DistroAdapter: Send + Sync {
     /// one, and a bare `"systemctl"` written to get past that check would be
     /// a program resolved through `PATH` by a root process, which is worse
     /// than the literal it replaced.
-    fn service_manager(&self) -> &'static str;
+    fn service_manager(&self) -> AdapterBinary;
 
     /// The user the web server runs as, which must own nothing and be able to
     /// read a site's document root.
@@ -109,8 +119,13 @@ pub trait DistroAdapter: Send + Sync {
     ///
     /// Sury and Remi both install a version-suffixed binary rather than a single
     /// `php-fpm`, since several PHP versions run side by side on the same host —
-    /// `/usr/sbin/php-fpm8.3` against `/usr/sbin/php-fpm83`.
-    fn php_fpm_binary(&self, version: &str) -> String;
+    /// `/usr/sbin/php-fpm8.3` against `/opt/remi/php83/root/usr/sbin/php-fpm`.
+    ///
+    /// Takes the validated [`PhpVersion`] and not text: this is the one path
+    /// built with `format!`, and it is exactly as closed as the version
+    /// grammar (two ASCII-digit components), so it cannot carry a separator,
+    /// a `..` or a control character.
+    fn php_fpm_binary(&self, version: &PhpVersion) -> AdapterBinary;
 
     /// Name of the OS package that provides php-fpm for `version`.
     ///
@@ -128,14 +143,17 @@ pub trait DistroAdapter: Send + Sync {
     /// serves before a real certificate arrives. Both families install it at
     /// the same path today; it is still asked of the adapter, because `ops`
     /// names no absolute binary path of its own.
-    fn openssl_binary(&self) -> &'static str;
+    fn openssl_binary(&self) -> AdapterBinary;
 
-    /// Absolute path of the package manager binary, for the process-execution
-    /// allow-list.
+    /// Absolute path of the package manager binary.
     ///
     /// `/usr/bin/apt-get` on the Debian family, `/usr/bin/dnf` on the RHEL
     /// family — the two package repositories the spec fixes (§4) are reached
-    /// through these.
+    /// through these. The agent does NOT spawn it: a package install runs in
+    /// the installer's `maran-php-install@.service` unit, outside the agent's
+    /// sandbox. This is the program that unit's rendered `ExecStart=` names;
+    /// the installer (`installer/lib/70-services.sh`) holds a second literal
+    /// copy of the same path, so the two must be changed together.
     fn package_manager(&self) -> &'static str;
 
     /// Absolute path of `tar`, for the process-execution allow-list.
@@ -145,7 +163,7 @@ pub trait DistroAdapter: Send + Sync {
     /// look the compressor up on `PATH`. Both families install `tar` at
     /// `/usr/bin/tar` — verified `command -v tar` on both polygon images, in
     /// both cases the real file and not a symlink.
-    fn tar_binary(&self) -> &'static str;
+    fn tar_binary(&self) -> AdapterBinary;
 
     /// Absolute path of `gzip`, and the value every backup and restore argv
     /// carries as `tar`'s `--use-compress-program`.
@@ -163,7 +181,7 @@ pub trait DistroAdapter: Send + Sync {
     /// after `tar` has already started writing. Both families install it at
     /// `/usr/bin/gzip` — verified `command -v gzip` on both polygon images, in
     /// both cases the real file and not a symlink.
-    fn gzip_binary(&self) -> &'static str;
+    fn gzip_binary(&self) -> AdapterBinary;
 
     /// Absolute path of the database dump client, for the process-execution
     /// allow-list.
@@ -193,7 +211,7 @@ pub trait DistroAdapter: Send + Sync {
     /// both — this crate states the fact and leaves what `ops::backup` does
     /// with it to that area's own argv, per rules/rust.md ("ops never names a
     /// platform literal").
-    fn database_dump_binary(&self) -> &'static str;
+    fn database_dump_binary(&self) -> AdapterBinary;
 
     /// Absolute path of the `mysql` client binary, for the process-execution
     /// allow-list.
@@ -204,7 +222,7 @@ pub trait DistroAdapter: Send + Sync {
     /// does not wonder whether one family was copied by mistake — and it is
     /// still asked of the adapter, because a binary is spawnable only because
     /// this trait named it, and `ops` names no absolute path of its own.
-    fn mysql_client_binary(&self) -> &'static str;
+    fn mysql_client_binary(&self) -> AdapterBinary;
 
     /// Name of the database service unit, for `systemctl restart`.
     ///
@@ -247,7 +265,7 @@ pub trait DistroAdapter: Send + Sync {
     /// rule on [`DistroAdapter`] says to answer. It is asked of the adapter all
     /// the same, because a binary is spawnable only because this trait named
     /// it, and `ops` names no absolute path of its own.
-    fn vsftpd_binary(&self) -> &'static str;
+    fn vsftpd_binary(&self) -> AdapterBinary;
 
     /// Name of the group whose membership is the entire authorization to use
     /// FTPS.
@@ -303,16 +321,16 @@ pub trait DistroAdapter: Send + Sync {
     /// path of its own, and a bare `"useradd"` written to satisfy that check
     /// would be a program a root daemon resolves through `PATH`, which is worse
     /// than the literal it replaced.
-    fn useradd_binary(&self) -> &'static str;
+    fn useradd_binary(&self) -> AdapterBinary;
 
     /// Absolute path of `userdel`, for the process-execution allow-list.
-    fn userdel_binary(&self) -> &'static str;
+    fn userdel_binary(&self) -> AdapterBinary;
 
     /// Absolute path of `usermod`, for the process-execution allow-list.
     ///
     /// Suspending and unsuspending an account lock and unlock its password with
     /// this program.
-    fn usermod_binary(&self) -> &'static str;
+    fn usermod_binary(&self) -> AdapterBinary;
 
     /// Absolute path of `pkill`, for the process-execution allow-list.
     ///
@@ -330,7 +348,19 @@ pub trait DistroAdapter: Send + Sync {
     /// `agent/crates/agent/tests/binary_paths_on_a_real_host.rs` stats what this
     /// returns on a host of each family, so a family that stops shipping it
     /// fails by name rather than at exec time on a customer's server.
-    fn pkill_binary(&self) -> &'static str;
+    fn pkill_binary(&self) -> AdapterBinary;
+
+    /// Absolute path of `pgrep`, for the process-execution allow-list.
+    ///
+    /// Account deletion asks it whether any LIVE process of the uid is left
+    /// (`pgrep --count --runstates <non-zombie states> --uid <uid>`), after
+    /// `pkill` has signalled them. `pkill --signal 0` cannot be that check: it
+    /// matches zombies, which hold nothing and cannot be killed, so a host whose
+    /// orphans are not reaped promptly would refuse every deletion.
+    ///
+    /// Same package as [`Self::pkill_binary`] on both families (`procps`,
+    /// `procps-ng`), so the installer needs no new dependency.
+    fn pgrep_binary(&self) -> AdapterBinary;
 
     /// Absolute path of `passwd`, for the process-execution allow-list.
     ///
@@ -351,7 +381,7 @@ pub trait DistroAdapter: Send + Sync {
     /// `passwd` package supplies all five. It is the only tool this adapter
     /// declares with that shape, and a minimal RHEL host without that package
     /// fails this call at exec time — which is why `installer/` names it.
-    fn passwd_binary(&self) -> &'static str;
+    fn passwd_binary(&self) -> AdapterBinary;
 
     /// Absolute path of `getent`, for the process-execution allow-list.
     ///
@@ -367,10 +397,10 @@ pub trait DistroAdapter: Send + Sync {
     /// classified where it is read and the bytes are dropped, so no hash
     /// reaches a return value, an error, a log line or the wire
     /// (rules/security.md item 8).
-    fn getent_binary(&self) -> &'static str;
+    fn getent_binary(&self) -> AdapterBinary;
 
     /// Absolute path of `setquota`, for the process-execution allow-list.
-    fn setquota_binary(&self) -> &'static str;
+    fn setquota_binary(&self) -> AdapterBinary;
 
     /// Absolute path of `quota`, for the process-execution allow-list.
     ///
@@ -380,7 +410,7 @@ pub trait DistroAdapter: Send + Sync {
     /// shipping to a host that has no `quota` package, and it is stated here
     /// rather than implied, because an earlier version of this comment claimed
     /// the opposite and no test contradicted it.
-    fn quota_binary(&self) -> &'static str;
+    fn quota_binary(&self) -> AdapterBinary;
 
     /// Absolute path of `quotaon`, for the process-execution allow-list.
     ///
@@ -390,27 +420,27 @@ pub trait DistroAdapter: Send + Sync {
     /// without `-p` — turning accounting ON is an operator's decision, never
     /// this agent's (rules/architecture.md; the reasoning is repeated at the
     /// call site rather than here, so it is read where the risk is).
-    fn quotaon_binary(&self) -> &'static str;
+    fn quotaon_binary(&self) -> AdapterBinary;
 
     /// Absolute path of `id`, for the process-execution allow-list.
     ///
     /// The accounts area asks it for a name's numeric uid, so the answer covers
     /// every name source the host is configured with rather than only the local
     /// password file.
-    fn id_binary(&self) -> &'static str;
+    fn id_binary(&self) -> AdapterBinary;
 
     /// Absolute path of `chmod`, for the process-execution allow-list.
-    fn chmod_binary(&self) -> &'static str;
+    fn chmod_binary(&self) -> AdapterBinary;
 
     /// Absolute path of `chgrp`, for the process-execution allow-list.
-    fn chgrp_binary(&self) -> &'static str;
+    fn chgrp_binary(&self) -> AdapterBinary;
 
     /// Absolute path of `chpasswd`, for the process-execution allow-list.
     ///
     /// How a password reaches it, and why that way, belongs to the operation
     /// that sets one: `ops::sftp`'s `set_sftp_password` carries the reasoning
     /// beside the code that must keep it true.
-    fn chpasswd_binary(&self) -> &'static str;
+    fn chpasswd_binary(&self) -> AdapterBinary;
 
     /// Directory a unit file must be written to for the service manager to
     /// read it.
@@ -453,7 +483,7 @@ pub trait DistroAdapter: Send + Sync {
     /// Debian family and from `cronie` on the RHEL family — which is an
     /// agreement between two packages rather than a rule, verified on both
     /// polygon images and asked of the adapter all the same.
-    fn crontab_binary(&self) -> &'static str;
+    fn crontab_binary(&self) -> AdapterBinary;
 
     /// Absolute path of the POSIX shell a crontab line names.
     ///
@@ -484,7 +514,7 @@ pub trait DistroAdapter: Send + Sync {
     /// documented interface the rule under [`DistroAdapter`] says to answer.
     /// The RHEL family's unit file spells the same file `/sbin/nft`, through
     /// that directory's merged-`/usr` symlink rather than as a second binary.
-    fn nft_binary(&self) -> &'static str;
+    fn nft_binary(&self) -> AdapterBinary;
 
     /// The file the packaged nftables service reads at boot, and therefore the
     /// one file the installer wires the agent's include lines into.

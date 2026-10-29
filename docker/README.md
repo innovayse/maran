@@ -48,7 +48,7 @@
   - nginx from Ubuntu, php-fpm 8.3 from Sury — the repository the Debian adapter's package and service names are written against.
   - A pinned Rust toolchain, `protoc` and a C linker, so the agent's tests compile *inside* the image.
   - nginx includes `/etc/maran/nginx/sites` because the image RUNS `installer/lib/80-nginx.sh`'s `install_agent_config_include` — the installer's own code, not a copy of it. That is deliberate: the image used to make the edit itself, so every site test asserted a precondition the image had manufactured, and the fact that the installer did neither the directory nor the include went unseen by the whole suite. A build of these images is now the check that the installer still does it.
-  - Creates `/run/maran` and `/run/maran/php`; `/etc/maran/nginx/sites` and `/etc/maran/certificates` come from the installer step above.
+  - Creates `/run/maran`, and `/run/maran-php` from the installer's own tmpfiles snippet; `/etc/maran/nginx/sites` and `/etc/maran/certificates` come from the installer step above.
   - MariaDB and OpenSSH the same way: the packages come from `installer/lib/85-mysql.sh`'s own `mysql_packages_for_family`, and the SFTP group, jail base directory and sshd `Match` block come from running `installer/lib/86-sftp.sh`'s `install_sftp_prerequisites` — see `polygon/asserts/assert-installer-steps.sh` below.
   - **The build context is the repository root**, not `docker/polygon`, because the image copies a file out of `installer/`. See the build commands below.
 
@@ -68,6 +68,7 @@
     - The expected owners and modes are written out as **literals here on purpose**, which is the opposite of the rule the `create_directory_layout` block in the Dockerfiles follows, and the difference is worth stating. There, calling the installer instead of repeating its `install -d` means the polygon's directories are made the way a real install makes them. Here the literals ARE the check: an assertion that reads its expectation out of the code it is checking agrees with that code by construction and can never fail, which is exactly how a mode gets loosened with nothing going red. Same arrangement as `check-structure.sh` comparing `ReadWritePaths=` against `agent_paths.rs`.
     - Both installer gates get an **inverse control**, because the positive assertions above would pass just as happily with the gates deleted — `install -d` had already made the directories right. Step 40's `assert_root_only_directory` is handed a symlink, a `panel`-owned directory, a group-readable one and a world-writable one and must abort on each with the right diagnosis, then handed the real thing and must accept it. Step 50's gate is inline in `prepare_staging_dir`, which `rm -rf`s and re-creates before it looks at anything, so root always repairs a planted directory and the gate would never see one; it is driven instead by an `install(1)` stand-in placed first on the step's PATH — the same mechanism `run_nginx_step` uses for a hostile nginx — which creates the directory 0777, and then as a symlink. A marker file proves the stand-in was actually reached, so a PATH prefix that failed to take effect cannot pass as a refusal that never happened.
     - The systemd half is asserted as **text, and says so in its own output**: every writable root the two fixes touch appears in `maran-agent.service`'s `ReadWritePaths=`, the release staging directory appears in NO unit's, and `EnvironmentFile=` comes before `Environment=PATH=` — that ordering is what stops a `PATH=` line in `agent.env` from beating the deliberately empty PATH, the unit parses and starts either way, and nothing else in this repository observes it. The assertion then prints an `UNOBSERVED HERE` block naming what a booted host would have to show instead, because this image boots no systemd and a text check that reads like a runtime check is the defect this file exists to avoid.
+    - The package-install unit the agent starts to install a PHP version (`maran-php-install@.service`, issue #93) is asserted from **what step 70's own render and install functions produce**, on both families in every image (rendering is text), and never from the template source. One fixed `ExecStart=` per family with the instance only as `%i`, a `Type=oneshot` that nothing can enable, a finite timeout, the start rate limit off in `[Unit]`, and a stated `PATH`, `UMask` and debconf frontend; each checker is written to refuse a copy carrying the defect it exists for before the shipped render is trusted to it (PENDING: not yet run on either image; this claim stands only after phase B has run the assertions and their planted controls on both). A second assertion runs `install_units` and stats the installed file (`644 root root`, no enablement link, repaired when its mode is damaged), and the agent unit is checked to never list `/usr` in `ReadWritePaths=`. Like the systemd half above it prints `UNOBSERVED HERE`: this image boots no systemd, so nothing starts the unit and nothing observes the environment, umask or cgroup a real package manager ran with.
     - Every one of these has been proved in both directions on both images: ten planted violations — a loosened mode, a symlink in place of a directory, a `panel`-owned scratch, the scratch and the staging directory each moved back to their pre-fix locations, each gate neutered to `return 0`, the two `Environment` lines swapped, a writable root dropped from `ReadWritePaths=` and the staging directory added to it — each one refused with a message naming what it found, and the unmodified tree accepted.
   - It also holds the two assertions the **backup root** owes, one per direction of the same
     promise. `assert_preflight_warns_about_backup_space_without_refusing` drives step 10's
@@ -301,14 +302,14 @@ docker run --rm \
 
 ## Running the Polygon Suites
 
-Thirteen test files are `#[ignore]`d by default and run only inside a polygon:
+Fourteen test files are `#[ignore]`d by default and run only inside a polygon:
 `sites_on_a_real_host.rs`, `php_pools_on_a_real_host.rs`,
 `privileges_on_a_real_host.rs`, `databases_on_a_real_host.rs`,
 `monitor_on_a_real_host.rs`, `binary_paths_on_a_real_host.rs`,
 `sftp_on_a_real_host.rs`, `account_deletion_on_a_real_host.rs`,
 `firewall_on_a_real_host.rs`, `cron_on_a_real_host.rs`,
-`backup_on_a_real_host.rs`, `restore_recovery_on_a_real_host.rs` and
-`ftps_on_a_real_host.rs`. They create real system accounts and real database
+`backup_on_a_real_host.rs`, `restore_recovery_on_a_real_host.rs`,
+`ftps_on_a_real_host.rs` and `account_identity_on_a_real_host.rs`. They create real system accounts and real database
 users, write real vhosts and pools, mount real filesystems, log in to a real
 sshd and drop real privileges, so they refuse to run unless the image's
 `MARAN_POLYGON` marker is set and the process is root — asked to run anywhere
@@ -375,7 +376,7 @@ PAM stack includes `pam_loginuid`:
 docker run --rm --privileged -v "$PWD:/maran" -w /maran/agent -e CARGO_TARGET_DIR=/tmp/target \
   maran-polygon-ubuntu24 \
   cargo test --test sftp_on_a_real_host --test ftps_on_a_real_host \
-    --test account_deletion_on_a_real_host \
+    --test account_deletion_on_a_real_host --test account_identity_on_a_real_host \
     --test backup_on_a_real_host \
     --test firewall_on_a_real_host --test cron_on_a_real_host \
     --no-fail-fast \

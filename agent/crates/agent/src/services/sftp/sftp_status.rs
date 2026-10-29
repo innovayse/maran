@@ -29,6 +29,9 @@ pub fn to_agent_error(error: &SftpError) -> AgentError {
         // variant in `ops`, because it sends an operator somewhere else: one
         // means the login is gone, the other that the account was never made.
         SftpError::NotFound | SftpError::AccountMissing => ErrorCode::NotFound,
+        // The name is not a managed hosting account (reserved, system identity or
+        // wrong home). A request fault with a fixed sentence that names no rule.
+        SftpError::AccountNotManaged => ErrorCode::InvalidInput,
         // The one failure that leaves a login the customer cannot use: the
         // account exists and the password it was to be reached with was not
         // set. VALIDATION_FAILED rather than SYSTEM_FAILURE because that is
@@ -50,6 +53,13 @@ pub fn to_agent_error(error: &SftpError) -> AgentError {
         // caller found it and the same request may be reissued in a moment
         // (`common.proto`, `ERROR_CODE_ACCOUNT_BUSY`).
         SftpError::AccountBusy => ErrorCode::AccountBusy,
+        // A deadline or an output cap ended the program and its process group was
+        // killed. This is a fault of the host, never a verdict on the request: the
+        // work may or may not have finished, and `tool_output` stays empty because
+        // what the program printed before the kill is neither complete nor safe to
+        // forward. Named ahead of the wildcard so a missing arm cannot compile
+        // silently (threat note, plan item 11).
+        SftpError::Bound(_) => ErrorCode::SystemFailure,
         // SftpError is #[non_exhaustive] (rules/rust.md), so a variant added in
         // the ops crate lands here rather than failing this build. It maps to a
         // system failure: the panel then reports a fault instead of silently

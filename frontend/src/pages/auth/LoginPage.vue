@@ -11,8 +11,10 @@ import { ref, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import UiAlert from '../../components/ui/UiAlert.vue'
+import UiAuthHeading from '../../components/ui/UiAuthHeading.vue'
 import UiButton from '../../components/ui/UiButton.vue'
 import UiForm from '../../components/ui/UiForm.vue'
+import UiIcon from '../../components/ui/UiIcon.vue'
 import UiInput from '../../components/ui/UiInput.vue'
 import UiPasswordInput from '../../components/ui/UiPasswordInput.vue'
 import { useAuthStore } from '../../stores/auth'
@@ -27,14 +29,6 @@ const username: Ref<string> = ref('')
 
 /** The password being typed. Held only until the request is sent. */
 const password: Ref<string> = ref('')
-
-/**
- * Opens the screen that asks for a password-reset link.
- * @returns Resolves once the navigation has settled.
- */
-const forgotPassword = async (): Promise<void> => {
-  await router.push({ name: 'forgot-password' })
-}
 
 /**
  * Signs in, then goes wherever the visitor was originally headed.
@@ -62,17 +56,19 @@ const submit = async (): Promise<void> => {
 
 <template>
   <UiForm @submit="submit">
-    <h2 class="text-xl font-semibold">{{ t('app.auth.signInTitle') }}</h2>
-    <p class="mt-1 mb-4 text-base text-text-secondary">{{ t('app.auth.signInSubtitle') }}</p>
+    <UiAuthHeading class="mb-6" :title="t('app.auth.signInTitle')" :subtitle="t('app.auth.signInSubtitle')" />
 
-    <UiAlert v-if="authStore.errorMessage !== null" variant="error" class="mb-4">
+    <!-- The server's own wording, verbatim and never rewritten here: the page adds no hint about
+         whether the name or the password was the wrong half. -->
+    <UiAlert v-if="authStore.errorMessage !== null" variant="error" class="mb-5">
       {{ authStore.errorMessage }}
     </UiAlert>
 
-    <div class="flex flex-col gap-3">
+    <div class="flex flex-col gap-5">
       <UiInput
         v-model="username"
         :label="t('app.auth.usernameLabel')"
+        icon="user"
         :placeholder="t('app.auth.usernamePlaceholder')"
         required
         autocomplete="username"
@@ -81,18 +77,21 @@ const submit = async (): Promise<void> => {
       <UiPasswordInput
         v-model="password"
         :label="t('app.auth.passwordLabel')"
+        icon="lock"
         :placeholder="t('app.auth.passwordPlaceholder')"
         required
         autocomplete="current-password"
       />
 
-      <UiButton class="mt-1 w-full justify-center" type="submit" :disabled="authStore.loading">
+      <!-- The one primary pill on the screen; everything else here is quieter than it. -->
+      <UiButton class="w-full justify-center" type="submit" :disabled="authStore.loading">
         {{ authStore.loading ? t('app.auth.signingIn') : t('app.auth.signIn') }}
+        <UiIcon name="arrowRight" size="sm" />
       </UiButton>
 
       <!-- The panel mints reset tokens, and until this link existed there was no
-           screen from which to ask for one. -->
-      <UiButton variant="ghost" class="justify-center" @click="forgotPassword">
+           screen from which to ask for one. It only navigates, so it is a link. -->
+      <UiButton variant="ghost" class="justify-center" :to="{ name: 'forgot-password' }">
         {{ t('app.passwordReset.forgotPassword') }}
       </UiButton>
     </div>

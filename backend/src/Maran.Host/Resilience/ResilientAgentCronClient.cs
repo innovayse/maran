@@ -38,7 +38,8 @@ public sealed class ResilientAgentCronClient : IAgentCronClient
         string accountUsername,
         CancellationToken cancellationToken)
     {
-        return await _pipeline.ExecuteAsync(
+        return await AgentOperationPipeline.ExecuteAsync(
+            _pipeline,
             async (state, token) =>
             {
                 return await state.Client.ListEntriesAsync(state.AccountUsername, token);
@@ -55,7 +56,8 @@ public sealed class ResilientAgentCronClient : IAgentCronClient
         uint? maxEntries,
         CancellationToken cancellationToken)
     {
-        return await _pipeline.ExecuteAsync(
+        return await AgentOperationPipeline.ExecuteAsync(
+            _pipeline,
             async (state, token) =>
             {
                 return await state.Client.CreateEntryAsync(
@@ -77,7 +79,8 @@ public sealed class ResilientAgentCronClient : IAgentCronClient
         string command,
         CancellationToken cancellationToken)
     {
-        return await _pipeline.ExecuteAsync(
+        return await AgentOperationPipeline.ExecuteAsync(
+            _pipeline,
             async (state, token) =>
             {
                 return await state.Client.UpdateEntryAsync(
@@ -97,7 +100,8 @@ public sealed class ResilientAgentCronClient : IAgentCronClient
         string entryId,
         CancellationToken cancellationToken)
     {
-        return await _pipeline.ExecuteAsync(
+        return await AgentOperationPipeline.ExecuteAsync(
+            _pipeline,
             async (state, token) =>
             {
                 return await state.Client.DeleteEntryAsync(state.AccountUsername, state.EntryId, token);
@@ -112,7 +116,8 @@ public sealed class ResilientAgentCronClient : IAgentCronClient
         bool suspended,
         CancellationToken cancellationToken)
     {
-        return await _pipeline.ExecuteAsync(
+        return await AgentOperationPipeline.ExecuteAsync(
+            _pipeline,
             async (state, token) =>
             {
                 return await state.Client.SetAccountSuspendedAsync(
@@ -129,7 +134,8 @@ public sealed class ResilientAgentCronClient : IAgentCronClient
         bool enabled,
         CancellationToken cancellationToken)
     {
-        return await _pipeline.ExecuteAsync(
+        return await AgentOperationPipeline.ExecuteAsync(
+            _pipeline,
             async (state, token) =>
             {
                 return await state.Client.SetEntryEnabledAsync(
@@ -148,7 +154,8 @@ public sealed class ResilientAgentCronClient : IAgentCronClient
         string entryId,
         CancellationToken cancellationToken)
     {
-        return await _pipeline.ExecuteAsync(
+        return await AgentOperationPipeline.ExecuteAsync(
+            _pipeline,
             async (state, token) =>
             {
                 return await state.Client.GetEntryOutputAsync(state.AccountUsername, state.EntryId, token);
@@ -162,7 +169,8 @@ public sealed class ResilientAgentCronClient : IAgentCronClient
         string accountUsername,
         CancellationToken cancellationToken)
     {
-        return await _pipeline.ExecuteAsync(
+        return await AgentOperationPipeline.ExecuteAsync(
+            _pipeline,
             async (state, token) =>
             {
                 return await state.Client.GetEnvironmentAsync(state.AccountUsername, token);
@@ -177,7 +185,8 @@ public sealed class ResilientAgentCronClient : IAgentCronClient
         IReadOnlyList<AgentCronEnvVar> variables,
         CancellationToken cancellationToken)
     {
-        return await _pipeline.ExecuteAsync(
+        return await AgentOperationPipeline.ExecuteAsync(
+            _pipeline,
             async (state, token) =>
             {
                 return await state.Client.SetEnvironmentAsync(state.AccountUsername, state.Variables, token);

@@ -1,9 +1,11 @@
 //! Resolving a hosting account's numeric ids from the system's user database.
 
-use std::ffi::CString;
+use std::ffi::{CStr, CString};
 use std::mem::MaybeUninit;
 
 use super::priv_error::PrivError;
+use crate::agent_paths::AgentPaths;
+use crate::validation::system::managed_account::ManagedAccount;
 use crate::validation::system::name::AccountName;
 
 /// First buffer size handed to `getpwnam_r` when `sysconf` has no opinion.
@@ -78,7 +80,12 @@ impl AccountIds {
     /// the name; [`PrivError::RootAccount`] when the entry resolves to uid 0;
     /// [`PrivError::RootGroup`] when its primary group is gid 0;
     /// [`PrivError::SystemAccount`] when either id is below the host's floor for a
-    /// human account; and [`PrivError::LookupFailed`] when the database itself
+    /// human account, when the name is on the reserved list, or when the entry's
+    /// home is not `<ACCOUNT_HOME_ROOT>/<name>` (the same identity rules
+    /// [`ManagedAccount`] applies, written once in that type and asked here so
+    /// that every caller that acts as an account's uid — files, sites, ssl, php,
+    /// backup, cron — refuses an operator's own login rather than only the
+    /// lifecycle operations doing so); and [`PrivError::LookupFailed`] when the database itself
     /// could not be read — which is deliberately distinct from the account being
     /// absent, because treating an unreadable database as "no such account" is how
     /// a lookup failure turns into a wrong answer.
@@ -140,13 +147,30 @@ impl AccountIds {
             // SAFETY: `code == 0` and `found` is non-null, which is `getpwnam_r`'s
             // contract for "the entry was written into `entry`", so `entry` is
             // initialised. `found` points at `entry` itself; reading through
-            // `entry` keeps the borrow visible to the compiler. Only the two
-            // integer fields are read — never the `char *` fields, which point
-            // into `buffer` and would dangle once it is dropped.
+            // `entry` keeps the borrow visible to the compiler. The two integer
+            // fields are read directly; the one `char *` field read below is
+            // copied out while `buffer` is still alive.
             let resolved = unsafe { entry.assume_init() };
 
+            // The numeric floors come first so uid 0 and gid 0 keep their specific
+            // errors (`RootAccount`, `RootGroup`) instead of being reported as a
+            // reserved name.
             let (uid_minimum, gid_minimum) = account_id_floors();
             is_hosting_account(resolved.pw_uid, resolved.pw_gid, uid_minimum, gid_minimum)?;
+
+            // A null home from an unusual name service is an entry with no home at
+            // all, which is not a managed home; refuse it before dereferencing.
+            if resolved.pw_dir.is_null() {
+                return Err(PrivError::SystemAccount);
+            }
+
+            // SAFETY: `resolved.pw_dir` is non-null (checked above) and is a
+            // NUL-terminated string `getpwnam_r` wrote into `buffer` (its contract
+            // when it returns 0 with a non-null result). `buffer` is still alive
+            // here: it is dropped only when this loop iteration ends, after the
+            // string has been copied out.
+            let home = unsafe { CStr::from_ptr(resolved.pw_dir) }.to_string_lossy();
+            is_managed_identity(username, &home)?;
 
             return Ok(Self {
                 uid: resolved.pw_uid,
@@ -168,6 +192,28 @@ impl AccountIds {
     }
 }
 
+/// Refuses a name or a home that no hosting account of this agent has.
+///
+/// The reserved list is the managed-account type's own (asked, not copied), and
+/// the home must be exactly `<ACCOUNT_HOME_ROOT>/<name>` — what the agent gives
+/// an account it creates. Split out like [`is_hosting_account`] so the decision
+/// is tested without a real user database. Both refusals are
+/// [`PrivError::SystemAccount`], one answer that names no rule.
+///
+/// # Errors
+///
+/// Returns [`PrivError::SystemAccount`] when `name` is reserved or `home` is not
+/// the managed home of `name`.
+fn is_managed_identity(name: &AccountName, home: &str) -> Result<(), PrivError> {
+    ManagedAccount::refuse_reserved(name).map_err(|_| PrivError::SystemAccount)?;
+
+    if home != format!("{}/{}", AgentPaths::ACCOUNT_HOME_ROOT, name.as_str()) {
+        return Err(PrivError::SystemAccount);
+    }
+
+    Ok(())
+}
+
 /// Refuses ids that belong to root or to a service identity.
 ///
 /// Split out from [`AccountIds::resolve`] so the decision can be tested against
@@ -185,7 +231,7 @@ impl AccountIds {
 /// Returns [`PrivError::RootAccount`] for uid 0, [`PrivError::RootGroup`] for
 /// gid 0, and [`PrivError::SystemAccount`] when the uid is below `uid_minimum`
 /// or the gid is below `gid_minimum`.
-fn is_hosting_account(
+pub(crate) fn is_hosting_account(
     uid: libc::uid_t,
     gid: libc::gid_t,
     uid_minimum: u32,
@@ -226,7 +272,7 @@ fn is_hosting_account(
 ///
 /// Deliberately not cached: the parse is a few lines over a file the page cache
 /// already holds, and a cached floor would go stale if an operator retuned it.
-fn account_id_floors() -> (u32, u32) {
+pub(crate) fn account_id_floors() -> (u32, u32) {
     // `unwrap_or_default` rather than an early return: an unreadable file and a
     // file with neither key must give the same answer, and an empty string is
     // exactly a file with neither key.

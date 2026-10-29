@@ -32,13 +32,13 @@
  * then offers no way to try again at all: a blind second attempt over a half-replaced account is how
  * the retry destroys what the first attempt left usable.
  *
- * **The untouched arm itself carries two sentences, not one.** It used to say "correct the
- * confirmation and try again" whatever had failed, and the panel answers that arm for a refused
- * confirmation AND for a copy the server could not use — a digest that did not match, a tampered or
- * truncated artifact. Retyping the account name has never fixed the second, so during a recovery
- * the screen was sending the operator to the one thing that cannot help. The instruction to retype
- * is now shown for the two confirmation codes only; every other untouched ending is told that
- * nothing was changed and that retyping will not change the answer.
+ * **The untouched arm itself carries two sentences, not one.** The panel answers that arm for a
+ * refused confirmation AND for a copy the server could not use — a digest that did not match, a
+ * tampered or truncated artifact. Retyping the account name never fixes the second, so telling the
+ * operator to "correct the confirmation and try again" whatever had failed would send them, during a
+ * recovery, to the one thing that cannot help. The instruction to retype is shown for the two
+ * confirmation codes only; every other untouched ending is told that nothing was changed and that
+ * retyping will not change the answer.
  */
 import { computed, ref, watch, type ComputedRef, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -198,7 +198,10 @@ watch(
   >
     <UiSpinner v-if="store.restoring" :label="t('backups.restore.working', { account: subject })" />
 
-    <div v-else-if="changed" class="flex flex-col gap-3">
+    <!-- The changed arm: the account HAS been altered. The server's own message first, then what
+         that means, then the one instruction that matters — in an amber notice, because it is the
+         thing the operator must not skip past. -->
+    <div v-else-if="changed" class="flex flex-col gap-4">
       <UiAlert variant="error">{{ store.restoreErrorMessage }}</UiAlert>
       <UiSectionHeading :title="t('backups.restore.changedTitle')" />
       <p>{{ t('backups.restore.changedBody') }}</p>
@@ -207,8 +210,11 @@ watch(
            WHEN IT STOPPED, on the server's own statement — not which ones, and not that those are
            now consistent. A restore with no databases in scope shows no databases line rather than
            an empty "0 of 0". -->
-      <template v-if="store.restorePartial !== null">
-        <p class="text-sm">{{ t('backups.restore.changedCountsIntro') }}</p>
+      <div
+        v-if="store.restorePartial !== null"
+        class="flex flex-col gap-3 rounded-control border border-border-subtle bg-surface-2 p-4"
+      >
+        <p>{{ t('backups.restore.changedCountsIntro') }}</p>
         <UiDescriptionList>
           <UiDescriptionItem :term="t('backups.restore.changedFiles')">
             {{
@@ -230,34 +236,38 @@ watch(
             }}
           </UiDescriptionItem>
         </UiDescriptionList>
-      </template>
-      <p class="font-medium text-text-primary">{{ t('backups.restore.changedNoRetry') }}</p>
-      <p class="text-sm">{{ t('backups.restore.changedNoList') }}</p>
+      </div>
+      <UiAlert variant="warning">
+        <p class="font-medium">{{ t('backups.restore.changedNoRetry') }}</p>
+      </UiAlert>
+      <p class="text-text-muted">{{ t('backups.restore.changedNoList') }}</p>
     </div>
 
-    <div v-else-if="succeeded && store.restoreOutcome !== null" class="flex flex-col gap-3">
+    <div v-else-if="succeeded && store.restoreOutcome !== null" class="flex flex-col gap-4">
       <UiSectionHeading :title="t('backups.restore.doneTitle', { account: subject })" />
-      <UiDescriptionList>
-        <UiDescriptionItem :term="t('backups.restore.doneFiles')">
-          {{
-            store.restoreOutcome.filesRestored
-              ? t('backups.restore.doneFilesReplaced')
-              : t('backups.restore.doneFilesUntouched')
-          }}
-        </UiDescriptionItem>
-        <UiDescriptionItem :term="t('backups.restore.doneDatabases')" mono>
-          {{
-            t('backups.restore.doneDatabasesValue', {
-              restored: store.restoreOutcome.databasesRestored,
-              total: store.restoreOutcome.databasesTotal,
-            })
-          }}
-        </UiDescriptionItem>
-      </UiDescriptionList>
-      <p class="text-sm">{{ t('backups.restore.doneNote') }}</p>
+      <div class="rounded-control border border-border-subtle bg-surface-2 p-4">
+        <UiDescriptionList>
+          <UiDescriptionItem :term="t('backups.restore.doneFiles')">
+            {{
+              store.restoreOutcome.filesRestored
+                ? t('backups.restore.doneFilesReplaced')
+                : t('backups.restore.doneFilesUntouched')
+            }}
+          </UiDescriptionItem>
+          <UiDescriptionItem :term="t('backups.restore.doneDatabases')" mono>
+            {{
+              t('backups.restore.doneDatabasesValue', {
+                restored: store.restoreOutcome.databasesRestored,
+                total: store.restoreOutcome.databasesTotal,
+              })
+            }}
+          </UiDescriptionItem>
+        </UiDescriptionList>
+      </div>
+      <p class="text-text-muted">{{ t('backups.restore.doneNote') }}</p>
     </div>
 
-    <div v-else class="flex flex-col gap-3">
+    <div v-else class="flex flex-col gap-4">
       <UiAlert v-if="store.restoreErrorMessage !== null" variant="error">
         {{ store.restoreErrorMessage }}
       </UiAlert>
@@ -266,52 +276,67 @@ watch(
            not, and telling an operator mid-recovery to "correct the confirmation" over a corrupt
            artifact sends them down a dead end no amount of retyping leaves. -->
       <template v-if="store.restoreErrorMessage !== null">
-        <p v-if="confirmationRefused" class="text-sm">
+        <p v-if="confirmationRefused">
           {{ t('backups.restore.untouchedConfirmation') }}
         </p>
-        <p v-else class="text-sm">{{ t('backups.restore.untouchedCopy') }}</p>
+        <p v-else>{{ t('backups.restore.untouchedCopy') }}</p>
       </template>
 
-      <p class="font-medium text-text-primary">
-        {{ t('backups.restore.takenAt', { taken: takenAt }) }}
-      </p>
-      <p>{{ t('backups.restore.lostSince') }}</p>
+      <!-- Which copy, and what it costs: the instant the copy was taken, and that everything newer
+           is gone. Raised, so it reads as the headline of the dialog rather than one more paragraph. -->
+      <div class="flex flex-col gap-1.5 rounded-control border border-border-subtle bg-surface-2 p-4">
+        <p class="font-medium text-text-primary">
+          {{ t('backups.restore.takenAt', { taken: takenAt }) }}
+        </p>
+        <p>{{ t('backups.restore.lostSince') }}</p>
+      </div>
 
-      <UiSectionHeading :title="t('backups.restore.replacedHeading')" />
-      <ul class="list-disc pl-5">
-        <li>{{ t('backups.restore.replacedHome') }}</li>
-        <li>{{ t('backups.restore.replacedDatabases', { databases: backup.databaseCount }) }}</li>
-      </ul>
+      <div class="flex flex-col gap-2">
+        <UiSectionHeading :title="t('backups.restore.replacedHeading')" />
+        <ul class="list-disc space-y-1 pl-5 marker:text-text-muted">
+          <li>{{ t('backups.restore.replacedHome') }}</li>
+          <li>{{ t('backups.restore.replacedDatabases', { databases: backup.databaseCount }) }}</li>
+        </ul>
+      </div>
 
-      <UiSectionHeading :title="t('backups.restore.keptHeading')" />
-      <ul class="list-disc pl-5">
-        <li>{{ t('backups.restore.keptSites') }}</li>
-        <li>{{ t('backups.restore.keptOwnership') }}</li>
-      </ul>
-      <p class="text-sm">{{ t('backups.restore.keptExplanation') }}</p>
+      <div class="flex flex-col gap-2">
+        <UiSectionHeading :title="t('backups.restore.keptHeading')" />
+        <ul class="list-disc space-y-1 pl-5 marker:text-text-muted">
+          <li>{{ t('backups.restore.keptSites') }}</li>
+          <li>{{ t('backups.restore.keptOwnership') }}</li>
+        </ul>
+        <p class="text-text-muted">{{ t('backups.restore.keptExplanation') }}</p>
+      </div>
 
       <!-- The two sentences that decide whether this dialog is worth anything: there is a point
            after which nothing here can undo the operation, and there is no copy of the account as
            it stands now to fall back on. Nothing in the panel takes a pre-restore backup today —
            `BackupKind.PreRestore` exists and no code path produces one — so a screen implying a
-           safety net would be inventing it. -->
-      <p class="font-medium text-text-primary">{{ t('backups.restore.pointOfNoReturn') }}</p>
-      <p class="font-medium text-text-primary">{{ t('backups.restore.noSafetyCopy') }}</p>
+           safety net would be inventing it. They are the one thing that needs attention, so they
+           are the amber notice, directly above the field that commits to them. -->
+      <UiAlert variant="warning">
+        <div class="flex flex-col gap-2 font-medium">
+          <p>{{ t('backups.restore.pointOfNoReturn') }}</p>
+          <p>{{ t('backups.restore.noSafetyCopy') }}</p>
+        </div>
+      </UiAlert>
 
-      <UiInput
-        v-model="typed"
-        :label="t('backups.restore.confirmLabel')"
-        :required="true"
-        autocomplete="off"
-      />
-      <!-- Two hints, because the honest instruction differs. When the panel names the account the
-           operator is told exactly what to type; when it does not — a copy whose account has since
-           been deleted — telling them to type the identifier shown above would be telling them to
-           type the wrong thing, so they are told what the value IS and the server judges it. -->
-      <p v-if="accountUsername !== null" class="text-sm">
-        {{ t('backups.restore.confirmHint', { name: accountUsername }) }}
-      </p>
-      <p v-else class="text-sm">{{ t('backups.restore.confirmHintUnknown') }}</p>
+      <div class="flex flex-col gap-2">
+        <UiInput
+          v-model="typed"
+          :label="t('backups.restore.confirmLabel')"
+          :required="true"
+          autocomplete="off"
+        />
+        <!-- Two hints, because the honest instruction differs. When the panel names the account the
+             operator is told exactly what to type; when it does not — a copy whose account has since
+             been deleted — telling them to type the identifier shown above would be telling them to
+             type the wrong thing, so they are told what the value IS and the server judges it. -->
+        <p v-if="accountUsername !== null" class="text-text-muted">
+          {{ t('backups.restore.confirmHint', { name: accountUsername }) }}
+        </p>
+        <p v-else class="text-text-muted">{{ t('backups.restore.confirmHintUnknown') }}</p>
+      </div>
     </div>
 
     <template #footer>

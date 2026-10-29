@@ -15,6 +15,15 @@
  * Items are supplied through the default slot as `UiDropdownItem` components;
  * choosing one closes the menu.
  *
+ * **Look.** The panel floats, so it is the one place a shadow is right: a
+ * `bg-surface-1` `rounded-control` panel with a strong border and `shadow-xl`,
+ * its rows (`UiDropdownItem`) concentric inside its 6px padding. The boxed
+ * trigger is a `bg-surface-2` control with a visible label, so it is never
+ * identified by its border alone; primary text on it is 14.75 / 16.31:1 and
+ * the `bg-surface-3` hover is 13.55 / 15.17:1 (dark / light). The `bare`
+ * trigger only gains the `bg-surface-3` hover, over content that already
+ * reads as a control. Every trigger is at least 40px tall in its boxed form.
+ *
  * The landing item is the FIRST one for a menu of commands and the CHOSEN one
  * for a menu that picks a value — see {@link landingIndex} for why a menu of
  * `menuitemradio` items that opened on its first item silently changed the
@@ -43,6 +52,8 @@
  */
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, useId, type ComputedRef, type Ref } from 'vue'
 import UiIcon from './UiIcon.vue'
+import type { ButtonSize, ButtonVariant } from './UiButton.vue'
+import { buttonClasses } from '../../utils/buttonClasses'
 
 /**
  * How the trigger is drawn. `button` is the kit's boxed control; `bare` draws
@@ -63,6 +74,14 @@ const TRIGGER_GAP = 4
  * against the edge, not to reserve a margin the design does not draw.
  */
 const VIEWPORT_MARGIN = 8
+
+/**
+ * Text, spacing and focus classes of the dropdown's own trigger, beneath the box `variant` adds.
+ * Not applied when `triggerVariant` is set: the button styling owns every one of these properties
+ * then, and a second owner is exactly the conflict that used to need important modifiers.
+ */
+const OWN_TRIGGER_CLASSES =
+  'inline-flex items-center gap-1.5 text-sm text-text-primary transition-colors focus-visible:shadow-focus focus-visible:outline-none disabled:cursor-not-allowed disabled:text-text-muted'
 
 /** Props accepted by {@link UiDropdown}. */
 const props = withDefaults(
@@ -96,8 +115,25 @@ const props = withDefaults(
      * content already carries its own shape.
      */
     variant?: UiDropdownVariant
+    /**
+     * Draws the trigger as a `UiButton` of this variant instead of the dropdown's own boxed or
+     * bare trigger, for a menu that belongs in a toolbar next to other buttons (the language
+     * picker). It replaces `variant`'s box entirely; the ARIA wiring and the keyboard handling are
+     * the same either way. Leave it unset for the default trigger.
+     */
+    triggerVariant?: ButtonVariant
+    /** Geometry of the trigger when `triggerVariant` is set (see `ButtonSize`); ignored otherwise. */
+    triggerSize?: ButtonSize
   }>(),
-  { align: 'start', disabled: false, ariaLabel: undefined, chevron: true, variant: 'button' },
+  {
+    align: 'start',
+    disabled: false,
+    ariaLabel: undefined,
+    chevron: true,
+    variant: 'button',
+    triggerVariant: undefined,
+    triggerSize: 'md',
+  },
 )
 
 /** Stable, unique ids tying the trigger to the menu it controls. */
@@ -171,11 +207,21 @@ const side: Ref<UiDropdownSide> = ref('below')
  */
 const anchor: Ref<{ top: number; left: number }> = ref({ top: 0, left: 0 })
 
-/** Classes positioning the trigger's box, which the `bare` variant does not draw. */
+/**
+ * Classes of the trigger button. A `triggerVariant` hands the whole look to the kit's button
+ * styling, so the trigger is the same button a caller would have rendered with `UiButton` and no
+ * ancestor has to reach into this component's markup to restyle it; otherwise the box is the
+ * dropdown's own (boxed or bare) on top of the shared text and focus classes.
+ */
 const triggerClasses: ComputedRef<string> = computed(() => {
-  return props.variant === 'bare'
-    ? 'w-full rounded-lg px-1.5 py-1 enabled:hover:bg-surface-3'
-    : 'rounded-lg border border-border-subtle bg-surface-2 px-4 py-2 font-medium enabled:hover:border-border-strong enabled:hover:bg-surface-3'
+  if (props.triggerVariant !== undefined) {
+    return buttonClasses(props.triggerVariant, props.triggerSize)
+  }
+  const box =
+    props.variant === 'bare'
+      ? 'w-full rounded-control px-1.5 py-1 enabled:hover:bg-surface-3'
+      : 'min-h-10 rounded-control border border-border-subtle bg-surface-2 px-4 py-2 font-medium enabled:hover:border-border-strong enabled:hover:bg-surface-3'
+  return `${OWN_TRIGGER_CLASSES} ${box}`
 })
 
 /** Inline placement of the panel, in viewport coordinates. */
@@ -196,6 +242,13 @@ const panelStyle: ComputedRef<Record<string, string>> = computed(() => {
  * Downwards stays the preference — it is where a menu is expected — and the
  * panel flips up only when it does not fit below AND fits better above, so a
  * viewport too short for the menu either way keeps the familiar direction.
+ *
+ * "Fits below" is judged on the panel's real bottom edge — trigger, the
+ * {@link TRIGGER_GAP} and the panel's height — against the viewport less its
+ * {@link VIEWPORT_MARGIN}, exactly; there is no tolerance that lets a panel hang
+ * off the bottom. A menu that does not fit under its trigger is drawn above it,
+ * whole, rather than below it, clipped: the side is a consequence of where the
+ * trigger happens to sit on the screen, never a promise a caller may rely on.
  * @returns Nothing; the side updates synchronously.
  */
 const updateSide = (): void => {
@@ -215,7 +268,10 @@ const updateSide = (): void => {
   const roomBelow = window.innerHeight - triggerRect.bottom - VIEWPORT_MARGIN
   const roomAbove = triggerRect.top - VIEWPORT_MARGIN
 
-  side.value = panelRect.height > roomBelow && roomAbove > roomBelow ? 'above' : 'below'
+  const bottomIfBelow = triggerRect.bottom + TRIGGER_GAP + panelRect.height
+  const fitsBelow = bottomIfBelow <= window.innerHeight - VIEWPORT_MARGIN
+
+  side.value = !fitsBelow && roomAbove > roomBelow ? 'above' : 'below'
 
   // `end` aligns the panel's right edge with the trigger's, which is what keeps
   // a menu in the last column of a table from opening off the right of the
@@ -389,6 +445,25 @@ const close = (): void => {
 }
 
 /**
+ * Leaves the menu on Tab or Shift+Tab: closes it and lets the browser continue from the TRIGGER.
+ *
+ * The panel is teleported to the end of `<body>`, so the browser's own idea of "the next tabbable
+ * after the focused menu item" is the end of the document, and from there Tab wraps to the top —
+ * the skip link. WAI-ARIA's menu button pattern wants the opposite: Tab closes the menu and moves
+ * on from the button the user opened it with.
+ *
+ * The key is deliberately NOT cancelled. Focusing the trigger inside the keydown handler moves the
+ * point the browser's default Tab action starts from, so that default then lands on the element
+ * after the trigger (before it, for Shift+Tab) in the real document order. Doing the move by hand
+ * would mean re-implementing "what is tabbable here" — hidden, inert, `tabindex`, shadow DOM — and
+ * getting it subtly wrong.
+ * @returns Nothing; the panel closes and focus moves synchronously.
+ */
+const onMenuTab = (): void => {
+  close()
+}
+
+/**
  * Closes the panel without moving focus, for dismissals the user did not
  * initiate from the keyboard (an outside click), where stealing focus back
  * would fight what the user just did.
@@ -493,8 +568,8 @@ const onMenuClickCapture = (): void => {
 }
 
 /**
- * Closes the panel when focus leaves the component entirely (a Tab out of the
- * last item), which is the menu pattern's expected dismissal.
+ * Closes the panel when focus leaves the component entirely by a route other than Tab
+ * (which {@link onMenuTab} handles) — a pointer press elsewhere, a script moving focus.
  * @param event The native focusout event.
  * @returns Nothing; state updates synchronously.
  */
@@ -625,7 +700,6 @@ onBeforeUnmount((): void => {
       :aria-expanded="isOpen"
       :aria-controls="isOpen ? menuId : undefined"
       :disabled="disabled"
-      class="inline-flex items-center gap-1.5 text-base text-text-primary transition-colors focus-visible:border-accent focus-visible:shadow-focus focus-visible:outline-none disabled:cursor-not-allowed disabled:text-text-muted disabled:opacity-65"
       :class="triggerClasses"
       @mousedown.prevent="onTriggerMouseDown"
       @click="onTriggerClick"
@@ -654,7 +728,7 @@ onBeforeUnmount((): void => {
         ref="menuElement"
         role="menu"
         :aria-labelledby="triggerId"
-        class="fixed z-50 min-w-48 rounded-lg border border-border-strong bg-surface-2 p-1.5 shadow-[0_12px_32px_rgb(0_0_0/0.4)]"
+        class="fixed z-50 min-w-48 rounded-control border border-border-strong bg-surface-1 p-1.5 shadow-xl"
         :style="panelStyle"
         @click="onMenuClick"
         @click.capture="onMenuClickCapture"
@@ -664,6 +738,7 @@ onBeforeUnmount((): void => {
         @keydown.home.prevent="focusItemAt(0)"
         @keydown.end.prevent="focusItemAt(items().length - 1)"
         @keydown.esc.prevent="close"
+        @keydown.tab="onMenuTab"
       >
         <slot />
       </ul>

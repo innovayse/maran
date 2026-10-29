@@ -302,9 +302,9 @@ test('the sidebar links to the backups screen and the page opens with one headin
   // `exact` because a substring match on a page whose empty state reads "No backups yet" would
   // match that too, and a strict-mode collision here would hide the count assertion below.
   await expect(page.getByRole('heading', { level: 1, name: 'Backups', exact: true })).toBeVisible()
-  // Two `<h1>` per signed-in page is this shell's filed structural defect: the sidebar brand and
-  // the page heading. This page must add no third — it contributes exactly one of its own.
-  await expect(page.getByRole('heading', { level: 1 })).toHaveCount(2)
+  // A signed-in page has exactly one `<h1>`: its own title (the shell's wordmark is a link, not a
+  // heading — issue #82). This page must add no second.
+  await expect(page.getByRole('heading', { level: 1 })).toHaveCount(1)
 })
 
 // Three identical glyphs in a column of three rows tell the reader nothing the labels do not.

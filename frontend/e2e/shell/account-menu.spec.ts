@@ -64,9 +64,13 @@ test('the identity block is the only place the signed-in name appears, and it ge
   const trigger = page.getByRole('button', { name: 'Account menu' })
   await expect(trigger).toBeVisible()
   // One control, not two: the name is inside the trigger and nowhere else in the footer.
-  await expect(page.locator('.shell-footer').getByText(stubbedAdministrator.username, { exact: true })).toHaveCount(1)
+  // Found by `data-testid`, not by a styling class: the hook names what the element is, so
+  // restyling the card (or the line inside it) cannot silently turn this assertion into a no-op.
+  await expect(
+    page.getByTestId('shell-identity').getByText(stubbedAdministrator.username, { exact: true }),
+  ).toHaveCount(1)
 
-  const name = trigger.locator('span.truncate').first()
+  const name = page.getByTestId('shell-identity-name')
   const width = await name.evaluate((element: HTMLElement): number => {
     return element.clientWidth
   })

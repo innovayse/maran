@@ -7,8 +7,11 @@ use std::thread;
 use std::time::Duration;
 
 use maran_agent_core::command_outcome::CommandOutcome;
+use maran_agent_core::utils::call_class::CallClass;
 use maran_agent_core::utils::directory::directory_size;
 use maran_agent_core::utils::spawn_argv::spawn_argv;
+use maran_agent_core::utils::spawn_error::SpawnError;
+use maran_distro::AdapterBinary;
 
 use crate::monitor::model::filesystem_usage::FilesystemUsage;
 use crate::monitor::monitor_error::MonitorError;
@@ -157,19 +160,30 @@ impl MonitorHost for ProcessMonitorHost {
     /// allow-list and never from a request, and so does every argument — this
     /// area accepts no unit name from a caller at all.
     ///
-    /// The spawn itself is [`spawn_argv`], shared with every other host that
-    /// runs an argv array. Standard input is closed rather than inherited
-    /// there too — a tool that decides to prompt fails instead of hanging a
-    /// root daemon forever — and it pins `LC_ALL=C`, which this file did not
-    /// do before: a gain, since this area parses the service manager's own
-    /// words to decide whether a unit is running.
+    /// The spawn itself is [`spawn_argv`], the bounded default shared with
+    /// every other host that runs an argv array. Standard input is closed
+    /// rather than inherited there too — a tool that decides to prompt fails
+    /// instead of hanging a root daemon forever — it pins `LC_ALL=C`, which
+    /// this area relies on when it parses the service manager's own words to
+    /// decide whether a unit is running, and the child runs in a process group
+    /// of its own that is killed whole at `class`'s deadline. Its output is
+    /// held up to the core's default cap; both calls here print a few lines.
     ///
     /// # Errors
     ///
     /// Returns [`MonitorError::ServiceManagerUnavailable`] with a `code` of
     /// `-1` when the program cannot be started or waited for.
-    fn run(&self, program: &str, arguments: &[&str]) -> Result<CommandOutcome, MonitorError> {
-        spawn_argv(program, arguments).map_err(|_| MonitorError::program_unavailable())
+    ///
+    /// Returns [`MonitorError::Bound`] when the program was killed at its
+    /// deadline or wrote more than the cap. It is never folded into the
+    /// `-1` answer: that one says the tool never ran.
+    fn run(
+        &self,
+        program: &AdapterBinary,
+        arguments: &[&str],
+        class: CallClass,
+    ) -> Result<CommandOutcome, MonitorError> {
+        spawn_argv(program.as_path(), arguments, class).map_err(spawn_failure)
     }
 
     /// Reads the host's own passwd file.
@@ -235,6 +249,19 @@ impl MonitorHost for ProcessMonitorHost {
     /// read.
     fn read_ipv4_routes(&self) -> Result<String, MonitorError> {
         fs::read_to_string(PROC_NET_ROUTE).map_err(|_| MonitorError::Ipv4RoutesUnavailable)
+    }
+}
+
+/// Turns the bounded core's failure into this area's error.
+///
+/// A deadline or an output cap is [`MonitorError::Bound`], carried by name: it
+/// is never the `-1` "the tool never ran" answer, because a program that was
+/// killed has been shown to have run. Every other failure (not started, not
+/// waited for) is [`MonitorError::program_unavailable`].
+fn spawn_failure(error: SpawnError) -> MonitorError {
+    match error {
+        SpawnError::Bound(bound) => MonitorError::Bound(bound),
+        _ => MonitorError::program_unavailable(),
     }
 }
 

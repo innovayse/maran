@@ -4,6 +4,7 @@
 use std::path::Path;
 
 use maran_agent_core::agent_paths::AgentPaths;
+use maran_agent_core::utils::call_class::CallClass;
 use maran_distro::adapter::DistroAdapter;
 use maran_templates::vsftpd::vsftpd_daemon_config::VsftpdDaemonConfig;
 
@@ -16,6 +17,7 @@ use crate::ftps::model::ftps_unit::FtpsUnit;
 use crate::ftps::model::listen_mode::ListenMode;
 use crate::ftps::probe_listen_mode::probe_listen_mode;
 use crate::ftps::validate_candidate_config::validate_candidate_config;
+use crate::ftps::wait_for_control_port::wait_for_control_port;
 use crate::safe_write::model::{Reload, Validator};
 use crate::ssl::CertificateState;
 
@@ -54,9 +56,15 @@ const FTPS_LOG_PATH: &str = "/var/log/maran/ftps.log";
 
 /// Configures and starts this host's FTPS daemon.
 ///
-/// Idempotent: applying a configuration the host already has writes nothing and
-/// restarts nothing. That is not a nicety — a nightly reconcile that re-applied
-/// the same file would bounce every live FTP session on the server once a day.
+/// Idempotent: applying a configuration the host already has, while the daemon
+/// is running and answering, writes nothing and restarts nothing. That is not a
+/// nicety — a nightly reconcile that re-applied the same file would bounce every
+/// live FTP session on the server once a day.
+///
+/// "Already has" is judged on the daemon as well as the file. The same bytes on
+/// disk with the daemon stopped (a disable leaves the file, and so did a failed
+/// first enable before it removed it) are NOT converged: the operation falls
+/// through to the write, which restarts the unit, and only then reports.
 ///
 /// # It refuses rather than creating certificate material
 ///
@@ -78,11 +86,15 @@ const FTPS_LOG_PATH: &str = "/var/log/maran/ftps.log";
 ///
 /// **After the swap**, the config-write protocol restarts the unit and asks
 /// whether it is active, and then this function asks the daemon itself for a
-/// `220` greeting on the control port. That is the layer that catches what no
+/// `220` greeting on the control port — waiting up to a bounded deadline for it,
+/// because `Type=simple` returns from the restart before the socket is bound
+/// (see `wait_for_control_port`). That is the layer that catches what no
 /// parse can: a certificate whose key does not match parses perfectly and fails
 /// at the first handshake; a port something else already holds leaves a unit
 /// systemd is happy with. Either answer being no restores the previous
-/// configuration, restarts the daemon on it, and returns the original error.
+/// configuration, restarts the daemon on it, and returns the original error. With
+/// no previous configuration the daemon is stopped and the refused file removed,
+/// so a later enable of the same settings cannot mistake it for a live one.
 ///
 /// **What neither layer can see**, said plainly so nobody concludes that
 /// "validated twice" means "cannot be silently unmade": an edit made to the live
@@ -144,10 +156,13 @@ const FTPS_LOG_PATH: &str = "/var/log/maran/ftps.log";
 /// daemon refuses the candidate, again with nothing written. Returns
 /// [`FtpsError::ServiceRefused`] when the unit will not come up on the new
 /// configuration and [`FtpsError::NotListening`] when it comes up and the control
-/// port stays silent — both with the previous configuration restored and the
+/// port stays silent for the whole bounded wait — both with the previous configuration restored and the
 /// daemon restarted on it. Returns [`FtpsError::Render`],
 /// [`FtpsError::ConfigUnreadable`], [`FtpsError::ConfigWrite`] and
-/// [`FtpsError::SpawnFailed`] for the mechanical failures they name.
+/// [`FtpsError::SpawnFailed`] for the mechanical failures they name. Returns
+/// [`FtpsError::Bound`] when the candidate daemon, the restart or the status
+/// check outruns its deadline; the configuration is then restored exactly as for
+/// a refusal, but the error says the agent did not get an answer.
 pub fn enable_ftps(
     host: &dyn FtpsHost,
     distro: &dyn DistroAdapter,
@@ -170,10 +185,16 @@ pub fn enable_ftps(
     let target = Path::new(AgentPaths::VSFTPD_CONFIG_PATH);
     let previous = host.read_config(target)?;
     if previous.as_deref() == Some(rendered.as_str()) {
-        // Converged. Nothing is written and nothing is restarted — the state is
-        // still OBSERVED below, so a caller that arrives here is told what the
-        // daemon is doing rather than what this function decided not to do.
-        return get_ftps_status(host, distro, Some(&configuration.hostname));
+        // The file is converged; the DAEMON is what must be too. Identical bytes
+        // on disk say nothing about whether anything is serving them: a disable
+        // leaves the file behind, and returning success from here would report
+        // `running: false` as an enabled FTPS. So convergence needs the unit
+        // running AND the control port answering; anything else falls through to
+        // the write below, whose restart is what starts the daemon.
+        let state = get_ftps_status(host, distro, Some(&configuration.hostname))?;
+        if state.running && state.control_port_answered {
+            return Ok(state);
+        }
     }
 
     validate_candidate_config(host, distro, &rendered)?;
@@ -187,12 +208,16 @@ pub fn enable_ftps(
     // `is-active` is therefore a second, genuinely different question, not a
     // restatement of the first. Both are steps the protocol restores the previous
     // content on, which is exactly the behaviour wanted for each.
+    let service_manager = distro.service_manager();
     let daemon_reads_the_file = Validator {
-        program: distro.service_manager(),
+        program: &service_manager,
         arguments: &FtpsUnit::RESTART,
+        // A restart changes the service manager's state, so it is a `Reload`
+        // and not a pure validation.
+        class: CallClass::Reload,
     };
     let the_unit_is_still_up = Reload {
-        program: distro.service_manager(),
+        program: &service_manager,
         arguments: &FtpsUnit::IS_ACTIVE,
     };
 
@@ -212,8 +237,15 @@ pub fn enable_ftps(
         return Err(refused);
     }
 
+    // The restart returned when the process was forked, not when the socket was
+    // bound, so the first probe can land before vsftpd listens. Wait for it.
+    if !wait_for_control_port(host) {
+        restore_previous(host, distro, target, &rendered, previous.as_deref());
+        return Err(FtpsError::NotListening);
+    }
+
     let state = get_ftps_status(host, distro, Some(&configuration.hostname))?;
-    if !state.control_port_answered {
+    if !state.running || !state.control_port_answered {
         restore_previous(host, distro, target, &rendered, previous.as_deref());
         return Err(FtpsError::NotListening);
     }
@@ -278,7 +310,11 @@ fn restart_on_the_restored_file(
     distro: &dyn DistroAdapter,
     original: &FtpsError,
 ) {
-    if let Err(failed) = host.run(distro.service_manager(), &FtpsUnit::RESTART) {
+    if let Err(failed) = host.run(
+        &distro.service_manager(),
+        &FtpsUnit::RESTART,
+        CallClass::Reload,
+    ) {
         tracing::error!(
             original = %original,
             rollback = %failed,
@@ -295,9 +331,12 @@ fn restart_on_the_restored_file(
 /// restarted onto it, which is the half `write_config`'s own rollback cannot do.
 ///
 /// With none — an enable that had nothing to go back to — the daemon is stopped
-/// and the refused file is left on disk. Removing it would buy nothing: the file
-/// is inert, vsftpd reads it only when the unit starts, and the next enable
-/// replaces it whole. Leaving it lets an operator look at what was refused.
+/// and the refused file is REMOVED. An earlier version left it on disk as inert
+/// ("vsftpd reads it only at a start"), which was wrong in the way that matters:
+/// the next enable of the same settings rendered identical bytes, found the file
+/// "converged", restarted nothing and reported success over a stopped daemon.
+/// The host is put back the way it was found, and it was found with no file.
+/// Removal is idempotent on the host seam, so a file already gone is success.
 ///
 /// Never returns an error. `original` is what the caller is owed and what the
 /// caller gets; a rollback that also failed is logged, because it is the state an
@@ -346,22 +385,24 @@ fn restore_previous(
     }
 
     let original = FtpsError::NotListening;
+    let service_manager = distro.service_manager();
     let outcome = match previous {
         Some(bytes) => host.write_config(
             Path::new(AgentPaths::VSFTPD_CONFIG_PATH),
             bytes,
             &Validator {
-                program: distro.service_manager(),
+                program: &service_manager,
                 arguments: &FtpsUnit::RESTART,
+                class: CallClass::Reload,
             },
             &Reload {
-                program: distro.service_manager(),
+                program: &service_manager,
                 arguments: &FtpsUnit::IS_ACTIVE,
             },
         ),
         None => host
-            .run(distro.service_manager(), &FtpsUnit::STOP)
-            .map(|_| ()),
+            .run(&service_manager, &FtpsUnit::STOP, CallClass::Reload)
+            .and_then(|_| host.remove_file(target)),
     };
 
     if let Err(failed) = outcome {

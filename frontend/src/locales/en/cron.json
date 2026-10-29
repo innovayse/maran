@@ -3,6 +3,8 @@
     "list": {
       "heading": "Scheduled tasks",
       "subtitle": "What this account's crontab runs, read from the server rather than remembered by the panel.",
+      "eyebrow": "Automation",
+      "entriesHeading": "Entries",
       "accountLabel": "Account",
       "accountPlaceholder": "Choose an account",
       "loading": "Loading scheduled tasks…",

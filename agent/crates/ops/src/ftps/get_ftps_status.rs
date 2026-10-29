@@ -4,6 +4,7 @@
 use std::path::Path;
 
 use maran_agent_core::agent_paths::AgentPaths;
+use maran_agent_core::utils::call_class::CallClass;
 use maran_agent_core::validation::web::domain::Domain;
 use maran_distro::adapter::DistroAdapter;
 
@@ -18,10 +19,10 @@ use crate::ftps::model::listen_mode::ListenMode;
 /// Explicit FTPS on 21 (`AUTH TLS`, RFC 4217) rather than implicit FTPS on 990:
 /// one port to open, and the port an operator already understands. Not
 /// configurable, so it is a constant here and not a field of anything.
-const CONTROL_PORT: u16 = 21;
+pub(crate) const CONTROL_PORT: u16 = 21;
 
 /// The greeting a healthy FTP control connection opens with.
-const GREETING: &str = "220";
+pub(crate) const GREETING: &str = "220";
 
 /// Reads the FTPS daemon's state off the host: the service manager's answer, the
 /// control port's answer, and the configuration file the daemon actually serves.
@@ -67,13 +68,18 @@ const GREETING: &str = "220";
 /// Returns [`FtpsError::SpawnFailed`] when the service manager cannot be started
 /// at all — a host whose `systemctl` is missing cannot be reported on, and
 /// answering `running: false` there would be an I/O failure wearing the shape of
-/// an observation.
+/// an observation. Returns [`FtpsError::Bound`] when the service manager outruns
+/// its deadline, for the same reason.
 pub fn get_ftps_status(
     host: &dyn FtpsHost,
     distro: &dyn DistroAdapter,
     hostname: Option<&Domain>,
 ) -> Result<FtpsState, FtpsError> {
-    let active = host.run(distro.service_manager(), &FtpsUnit::IS_ACTIVE)?;
+    let active = host.run(
+        &distro.service_manager(),
+        &FtpsUnit::IS_ACTIVE,
+        CallClass::Query,
+    )?;
     let greeting = host.control_port_greeting(CONTROL_PORT);
     let live = host.read_config(Path::new(AgentPaths::VSFTPD_CONFIG_PATH))?;
 

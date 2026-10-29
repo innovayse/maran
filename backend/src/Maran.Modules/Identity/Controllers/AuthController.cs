@@ -170,7 +170,7 @@ public sealed class AuthController : BaseApiController
     /// </remarks>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpPost("logout-all")]
-    [Authorize]
+    [Authorize(Policy = AuthorizationPolicies.AnyAuthenticated)]
     [ProducesResponseType(typeof(bool), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public async Task<IActionResult> LogoutEverywhereAsync(CancellationToken cancellationToken)
@@ -221,7 +221,7 @@ public sealed class AuthController : BaseApiController
     /// <summary>Starts a two-factor enrolment: returns a secret, enables nothing.</summary>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpPost("two-factor/enrol")]
-    [Authorize]
+    [Authorize(Policy = AuthorizationPolicies.AnyAuthenticated)]
     [AllowDuringTwoFactorEnrolment]
     [ProducesResponseType(typeof(TotpEnrolmentDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
@@ -236,7 +236,7 @@ public sealed class AuthController : BaseApiController
     /// agent are stamped here.</param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpPost("two-factor/confirm")]
-    [Authorize]
+    [Authorize(Policy = AuthorizationPolicies.AnyAuthenticated)]
     [AllowDuringTwoFactorEnrolment]
     [ProducesResponseType(typeof(RecoveryCodesDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
@@ -259,7 +259,7 @@ public sealed class AuthController : BaseApiController
     /// are stamped here.</param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpPost("two-factor/disable")]
-    [Authorize]
+    [Authorize(Policy = AuthorizationPolicies.AnyAuthenticated)]
     [ProducesResponseType(typeof(bool), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]

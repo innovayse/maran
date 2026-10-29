@@ -14,6 +14,8 @@ export type NavigationIcon =
   | 'grid'
   /** The accounts module. */
   | 'users'
+  /** The plans screen, the packages accounts are created on. */
+  | 'package'
   /** The sites module. */
   | 'earth'
   /** The databases module. */

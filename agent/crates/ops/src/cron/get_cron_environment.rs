@@ -24,12 +24,18 @@ use crate::cron::model::crontab_document::CrontabDocument;
 ///
 /// # Errors
 ///
+/// - [`CronError::Account`] when `account` is not a hosting account this panel
+///   may act on (reserved, absent, a system identity, or with the wrong home).
+///   Checked first, before the crontab or the home is touched.
 /// - [`CronError::CrontabRefused`] when the crontab could not be read.
+/// - [`CronError::Bound`] when `crontab` outlived its deadline and was killed with its
+///   process group. Nothing was changed.
 pub fn get_cron_environment(
     host: &dyn CronHost,
     account: &AccountName,
 ) -> Result<Vec<CronEnvironment>, CronError> {
-    let Some(text) = host.read_crontab(account)? else {
+    let managed = host.managed_account(account)?;
+    let Some(text) = host.read_crontab(&managed)? else {
         return Ok(Vec::new());
     };
 

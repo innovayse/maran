@@ -15,19 +15,24 @@
  * expired and one already spent with the same message, and nothing on this page
  * inspects it: a screen that told them apart would be the disclosure the single
  * message exists to prevent.
+ *
+ * "The link no longer works" is still a STATED state, not a generic failure: the
+ * refusal sits in its own alert with the way forward beside it — ask for a new
+ * link — and the way back. The alert never says which kind of dead link it was.
  */
 import { computed, ref, type ComputedRef, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useRoute, useRouter } from 'vue-router'
+import { useRoute } from 'vue-router'
 import UiAlert from '../../components/ui/UiAlert.vue'
+import UiAuthHeading from '../../components/ui/UiAuthHeading.vue'
 import UiButton from '../../components/ui/UiButton.vue'
 import UiForm from '../../components/ui/UiForm.vue'
+import UiIcon from '../../components/ui/UiIcon.vue'
 import UiPasswordInput from '../../components/ui/UiPasswordInput.vue'
 import { useAuthStore } from '../../stores/auth'
 
 const { t } = useI18n()
 const route = useRoute()
-const router = useRouter()
 const authStore = useAuthStore()
 
 /** The password being set. */
@@ -64,41 +69,43 @@ const submit = async (): Promise<void> => {
   mismatch.value = null
   done.value = await authStore.resetPassword({ token: token.value, newPassword: password.value })
 }
-
-/**
- * Returns to the sign-in screen — the way back a refused token leaves open.
- * @returns Resolves once the navigation has settled.
- */
-const backToSignIn = async (): Promise<void> => {
-  await router.push({ name: 'login' })
-}
 </script>
 
 <template>
   <div>
-    <h2 class="text-xl font-semibold">{{ t('app.passwordReset.resetTitle') }}</h2>
-    <p class="mt-1 mb-4 text-base text-text-secondary">{{ t('app.passwordReset.resetSubtitle') }}</p>
+    <UiAuthHeading
+      class="mb-6"
+      :title="t('app.passwordReset.resetTitle')"
+      :subtitle="t('app.passwordReset.resetSubtitle')"
+    />
 
-    <template v-if="done">
-      <UiAlert variant="info" class="mb-4">{{ t('app.passwordReset.resetDone') }}</UiAlert>
-      <UiButton class="w-full justify-center" @click="backToSignIn">
+    <div v-if="done" class="flex flex-col gap-5">
+      <UiAlert variant="success">{{ t('app.passwordReset.resetDone') }}</UiAlert>
+      <UiButton class="w-full justify-center" :to="{ name: 'login' }">
         {{ t('app.passwordReset.backToSignIn') }}
+        <UiIcon name="arrowRight" size="sm" />
       </UiButton>
-    </template>
+    </div>
 
     <template v-else>
       <!-- The refusal as the backend worded it, and never a word about which kind of
-           refusal it was. The button beneath is the way back: a dead end here would
-           leave somebody with a stale link and no route to the sign-in screen. -->
-      <UiAlert v-if="authStore.errorMessage !== null" variant="error" class="mb-4">
+           refusal it was. Beside it, the way forward: a stale link is cured by asking for a
+           new one, and a dead end here would leave somebody with no route to do that. -->
+      <UiAlert v-if="authStore.errorMessage !== null" variant="error" class="mb-5">
         {{ authStore.errorMessage }}
+        <template #actions>
+          <UiButton variant="ghost" :to="{ name: 'forgot-password' }">
+            {{ t('app.passwordReset.requestNewLink') }}
+          </UiButton>
+        </template>
       </UiAlert>
 
       <UiForm @submit="submit">
-        <div class="flex flex-col gap-3">
+        <div class="flex flex-col gap-5">
           <UiPasswordInput
             v-model="password"
             :label="t('app.auth.passwordLabel')"
+            icon="lock"
             required
             autocomplete="new-password"
             generate
@@ -106,14 +113,18 @@ const backToSignIn = async (): Promise<void> => {
           <UiPasswordInput
             v-model="confirmation"
             :label="t('app.auth.confirmPasswordLabel')"
+            icon="lock"
             :error="mismatch"
             required
             autocomplete="new-password"
           />
-          <UiButton class="mt-1 w-full justify-center" type="submit" :disabled="authStore.loading">
+
+          <!-- The one primary pill on the screen; the way back is quieter than it. -->
+          <UiButton class="w-full justify-center" type="submit" :disabled="authStore.loading">
             {{ t('app.passwordReset.setPassword') }}
+            <UiIcon name="arrowRight" size="sm" />
           </UiButton>
-          <UiButton variant="ghost" class="justify-center" @click="backToSignIn">
+          <UiButton variant="ghost" class="justify-center" :to="{ name: 'login' }">
             {{ t('app.passwordReset.backToSignIn') }}
           </UiButton>
         </div>

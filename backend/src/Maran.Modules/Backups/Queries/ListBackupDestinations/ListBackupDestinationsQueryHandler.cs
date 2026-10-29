@@ -91,41 +91,37 @@ public sealed class ListBackupDestinationsQueryHandler
     /// <returns>The directory the agent stated, or <c>null</c> when it stated none.</returns>
     /// <remarks>
     /// <para>
-    /// A failed handshake, an agent older than the field and an agent that is not there at all are
-    /// the same answer to the only question asked here — "does the panel know the path?" — and all
-    /// of them are <c>null</c>. They are not merged into a value: there is no directory this method
-    /// may return that the agent did not name.
+    /// A failed handshake — whatever its code: an agent that is not there at all, one that refused
+    /// the call, one whose contract the panel does not drive — and an agent older than the field are
+    /// the same answer to the only question asked here, "does the panel know the path?", and all of
+    /// them are <c>null</c>. They are not merged into a value: there is no directory this method may
+    /// return that the agent did not name.
     /// </para>
     /// <para>
-    /// <b>The catch is deliberately total, for the reason <c>AgentHealthProbe</c> gives.</b> A dead
-    /// unix socket surfaces as a transport exception, and the panel has no handler that turns one
-    /// into an answer; letting it out of here would turn the whole destinations screen into a 500,
-    /// so an operator whose agent is down could not even see WHICH destinations exist or reach the
-    /// history and schedules keyed to them — during, most likely, the incident that stopped the
-    /// agent. Only this one question is made total: every operation that acts on a destination still
-    /// fails loudly, because "the agent is unreachable" is not an acceptable silence when a backup
-    /// was supposed to be taken. A cancelled request is not a failed handshake and is rethrown.
+    /// <b>No catch, because an unreachable agent is already an answer.</b> This method used to catch
+    /// every exception, on the ground that a dead unix socket surfaced as a transport exception the
+    /// panel had no handler for, and letting it out would have turned the whole destinations screen
+    /// into a 500 — so an operator whose agent is down could not even see WHICH destinations exist,
+    /// during, most likely, the incident that stopped the agent. The system client now answers a
+    /// transport failure as a failed result (<c>AgentUnavailable</c>) rather than throwing it, so that
+    /// case reaches the <c>null</c> above without a catch, and the screen still lists every
+    /// destination. Only this one question is answered by withholding: every operation that acts on a
+    /// destination still fails loudly, because "the agent is unreachable" is not an acceptable silence
+    /// when a backup was supposed to be taken.
+    /// </para>
+    /// <para>
+    /// What still leaves this method is what should: the caller's cancellation, which arrives as
+    /// <see cref="OperationCanceledException"/> and is not a failed handshake, and an exception that is
+    /// a defect rather than an outage, which the last-resort handler reports instead of a catch here
+    /// hiding it as "path not known".
     /// </para>
     /// </remarks>
     private async Task<string?> EstablishLocalRootAsync(CancellationToken cancellationToken)
     {
-        try
-        {
-            var info = await _agent.GetInfoAsync(cancellationToken);
+        var info = await _agent.GetInfoAsync(cancellationToken);
 
-            return info.IsSuccess && !string.IsNullOrEmpty(info.Value.BackupRoot)
-                ? info.Value.BackupRoot
-                : null;
-        }
-        catch (OperationCanceledException)
-        {
-            throw;
-        }
-#pragma warning disable CA1031 // Every failure mode is one answer here; see the remarks above.
-        catch (Exception)
-#pragma warning restore CA1031
-        {
-            return null;
-        }
+        return info.IsSuccess && !string.IsNullOrEmpty(info.Value.BackupRoot)
+            ? info.Value.BackupRoot
+            : null;
     }
 }

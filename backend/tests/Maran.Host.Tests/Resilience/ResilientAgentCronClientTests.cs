@@ -1,6 +1,7 @@
 using Maran.Agent.Client.Services.CronService;
 using Maran.Host.Resilience;
-using Polly.Timeout;
+using Maran.Host.Tests.Fixtures;
+using Maran.SharedKernel.Results;
 
 namespace Maran.Host.Tests.Resilience;
 
@@ -15,6 +16,25 @@ public sealed class ResilientAgentCronClientTests
 {
     /// <summary>Deadline for any test that waits on the pipeline.</summary>
     private static readonly TimeSpan TestTimeout = TimeSpan.FromSeconds(30);
+
+    /// <summary>A transport outage on a listing is answered as an unavailable agent, not thrown.</summary>
+    /// <remarks>
+    /// The inner fake throws what the real transport throws for a refused connection
+    /// (<see cref="AgentTransportFaults.ConnectRefused"/>), so the answer is the decorator's to give: the
+    /// pipeline retries the refused connect twice and the shared mapping answers 503's error code.
+    /// </remarks>
+    [Fact]
+    public async Task A_transport_outage_on_a_listing_answers_agent_unavailable_instead_of_throwing()
+    {
+        var inner = new RecordingAgentCronClient { FailuresBeforeSuccess = int.MaxValue };
+
+        var result = await Decorate(inner).ListEntriesAsync("alice", default).WaitAsync(TestTimeout);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("AgentUnavailable", result.Error!.Code);
+        Assert.Equal(ErrorType.Unavailable, result.Error.Type);
+        Assert.Equal(3, inner.Calls);
+    }
 
     /// <summary>The schedule the tests that carry one send.</summary>
     private static readonly AgentCronSchedule Schedule = new("30", "3", "*", "*", "*");
@@ -156,10 +176,11 @@ public sealed class ResilientAgentCronClientTests
     {
         var inner = new RecordingAgentCronClient { Hangs = true };
 
-        await Assert.ThrowsAsync<TimeoutRejectedException>(async () =>
-        {
-            await Decorate(inner).ListEntriesAsync("alice", default).WaitAsync(TestTimeout);
-        });
+        var result = await Decorate(inner).ListEntriesAsync("alice", default).WaitAsync(TestTimeout);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("AgentUnavailable", result.Error!.Code);
+        Assert.Equal(ErrorType.Unavailable, result.Error.Type);
     }
 
     /// <summary>Wraps the recording client in the decorator under the real pipeline.</summary>

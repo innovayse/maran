@@ -43,7 +43,8 @@ use crate::sites::{SiteHost, SitesOpError};
 /// caller reads as a converged retry rather than a failure.
 /// [`SitesOpError::NginxValidation`] and [`SitesOpError::ReloadFailed`] are
 /// returned with the vhost restored; [`SitesOpError::ConfigWrite`] covers
-/// every other failure of the protocol.
+/// every other failure of the protocol. [`SitesOpError::Bound`] is a program killed at its
+/// deadline, with the vhost restored as well, and no verdict on the tree.
 pub fn delete_site(
     host: &dyn SiteHost,
     php_host: &dyn PhpHost,

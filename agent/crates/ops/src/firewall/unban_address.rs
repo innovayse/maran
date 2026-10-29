@@ -1,6 +1,7 @@
 //! UnbanAddress: take one address back out of the ban sets.
 
 use maran_agent_core::command_outcome::CommandOutcome;
+use maran_agent_core::utils::call_class::CallClass;
 use maran_agent_core::validation::web::ban_address::BanAddress;
 use maran_distro::DistroAdapter;
 
@@ -9,6 +10,7 @@ use crate::firewall::ensure_bans_table::{BANS_TABLE, TABLE_FAMILY};
 use crate::firewall::firewall_error::FirewallError;
 use crate::firewall::firewall_host::FirewallHost;
 use crate::firewall::firewall_lock::firewall_lock;
+use maran_agent_core::end_of_options::END_OF_OPTIONS;
 
 /// `nft`'s verb for taking something out of a set.
 const DELETE: &str = "delete";
@@ -38,6 +40,8 @@ const DELETE: &str = "delete";
 ///
 /// - [`FirewallError::NotFound`] when no ban on that address is in force.
 /// - [`FirewallError::NftFailed`] when `nft` cannot be started.
+/// - [`FirewallError::Bound`] when `nft` was killed at its deadline. The ban
+///   may or may not still be in force; removing it again is safe.
 pub fn unban_address(
     host: &dyn FirewallHost,
     distro: &dyn DistroAdapter,
@@ -73,7 +77,7 @@ pub fn unban_address(
 /// # Errors
 ///
 /// Returns [`FirewallError::NftFailed`] when `nft` cannot be started or
-/// waited for.
+/// waited for, and [`FirewallError::Bound`] when it was killed at its deadline.
 fn delete_ban_element(
     host: &dyn FirewallHost,
     distro: &dyn DistroAdapter,
@@ -82,8 +86,9 @@ fn delete_ban_element(
     let element = address.to_string();
 
     host.run(
-        distro.nft_binary(),
+        &distro.nft_binary(),
         &[
+            END_OF_OPTIONS,
             DELETE,
             ELEMENT,
             TABLE_FAMILY,
@@ -93,6 +98,7 @@ fn delete_ban_element(
             element.as_str(),
             CLOSE_BRACE,
         ],
+        CallClass::Mutation,
     )
 }
 

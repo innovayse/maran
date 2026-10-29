@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /**
- * The product's own mark, as drawn in the shell and on the sign-in screen.
+ * The product's own mark, as drawn in the app bar, the drawer and the sign-in screen.
  *
  * **Why this is not a `UiIcon`.** Every other glyph in this panel comes from
  * `lucide-vue-next` through that one wrapper, and rules/vue.md says so. A brand
@@ -10,38 +10,36 @@
  * `/favicon.svg` those other two use, which is what makes them the same object
  * instead of three drawings that happen to resemble each other.
  *
- * **What it replaced, and why that was wrong.** The shell drew the letter `M`
- * in an accent square — a placeholder from before the mark existed, still in
- * place long after it did, while the browser tab beside it already showed the
- * real thing. Worse, that letter came from the locale files as
- * `app.brandInitial`, so a translator doing exactly what those files invite
- * would have written a Cyrillic `М`, and the panel's mark would have changed
- * shape with the interface language. The key is gone; the product name stays a
- * locale key, because that is where this codebase keeps it.
+ * **The mark is not a locale string.** A letter taken from the locale files would
+ * change shape with the interface language (a translator writing a Cyrillic `М`),
+ * so the mark is an image and only the product name is a locale key, because that
+ * is where this codebase keeps it.
  *
- * **No accent plate behind it.** The mark carries its own blues; a filled
- * square behind it would put one blue on another and lose the stone's edges.
- * The mark is the thing, not decoration inside a tile.
+ * **No plate behind it — and none may be added.** The mark is a keystone cut
+ * from one ramp of blue; a filled square behind it would put one blue on
+ * another and lose the stone's edges (the approved mockup says the same: "the
+ * keystone carries its own blues"). The mark sits straight on the panel. This
+ * component draws no background, border or padding for that reason, so a caller
+ * cannot get a plate by accident either.
  *
  * Always decorative, like `UiIcon`, and for the same reason: every caller
- * draws the product name beside it — the collapsed rail draws it too, as
- * screen-reader-only text inside its heading. A mark carrying its own
- * accessible name there would make the heading say "Maran" twice.
+ * draws the product name beside it, and a mark carrying its own accessible
+ * name there would make the heading say "Maran" twice.
  */
 
 withDefaults(
   defineProps<{
-    /** Edge length in pixels. The shell uses 28; the sign-in screen's wide panel, 40. */
+    /** Edge length in pixels. The app bar and the drawer use 30; the auth layout uses 40. */
     size?: number
   }>(),
-  { size: 28 },
+  { size: 30 },
 )
 </script>
 
 <template>
   <img
     src="/favicon.svg"
-    class="shrink-0 select-none"
+    class="block shrink-0 select-none"
     :width="size"
     :height="size"
     alt=""

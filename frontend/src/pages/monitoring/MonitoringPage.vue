@@ -15,6 +15,17 @@
  * The two ranges come back bucketed differently — five minutes over a day, thirty over a week — so
  * a week cannot be assembled from a day, and a day shown out of a week would be six times coarser
  * than the one the operator selected.
+ *
+ * **What needs attention goes first.** A failed read is an error notice above everything. Once the
+ * readings are in, the single most urgent fact — a watched service that is stopped, otherwise an
+ * account at or past an allowance this server enforces — is a warning notice (amber, never blue)
+ * above the panels, so an operator does not have to scan three cards to find it. Only ONE such
+ * notice is drawn: two warnings side by side is a list, and a list is not "the one thing".
+ * A service whose state is merely not known is never counted as stopped (a socket-activated unit is
+ * inactive from boot), and an account whose quota is not enforced is never counted as over it.
+ *
+ * Every panel is a {@link UiCard}, sixteen pixels apart, on the content panel; the page itself
+ * holds no markup of its own beyond the kit's.
  */
 import { computed, onMounted, type ComputedRef } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -53,6 +64,49 @@ const hasNoAccounts: ComputedRef<boolean> = computed(() => {
 })
 
 /**
+ * The localized names of the watched services that are stopped, in the panel's own order. A service
+ * whose state is not known is deliberately left out: see the component doc comment.
+ */
+const stoppedServiceNames: ComputedRef<string[]> = computed(() => {
+  return store.services
+    .filter((status) => {
+      return status.state === 'stopped'
+    })
+    .map((status) => {
+      return status.name
+    })
+})
+
+/**
+ * The usernames of accounts whose measured use has reached an allowance this server enforces. An
+ * unmeasured account, a zero allowance and an unenforced allowance are all left out: none of them
+ * is a measurement that says the account is over anything.
+ */
+const overQuotaUsernames: ComputedRef<string[]> = computed(() => {
+  return store.accountDiskUsage
+    .filter((row) => {
+      return row.enforceable && row.quotaBytes > 0 && row.usedBytes !== null && row.usedBytes >= row.quotaBytes
+    })
+    .map((row) => {
+      return row.username
+    })
+})
+
+/**
+ * The one warning the page leads with, or `null` when nothing needs attention. Stopped services
+ * outrank accounts over their allowance: a stopped service explains the rest.
+ */
+const attentionText: ComputedRef<string | null> = computed(() => {
+  if (stoppedServiceNames.value.length > 0) {
+    return t('monitoring.attention.servicesDown', { names: stoppedServiceNames.value.join(', ') })
+  }
+  if (overQuotaUsernames.value.length > 0) {
+    return t('monitoring.attention.overQuota', { names: overQuotaUsernames.value.join(', ') })
+  }
+  return null
+})
+
+/**
  * Switches the charts to another range, which re-reads them from the panel.
  *
  * The segmented control speaks in strings, since it is a generic primitive; the cast is confined to
@@ -72,8 +126,12 @@ onMounted(() => {
 </script>
 
 <template>
-  <section class="flex flex-col gap-6">
-    <UiPageHeading :title="t('monitoring.heading')" :subtitle="t('monitoring.subtitle')">
+  <section class="flex flex-col gap-4">
+    <UiPageHeading
+      :eyebrow="t('monitoring.eyebrow')"
+      :title="t('monitoring.heading')"
+      :subtitle="t('monitoring.subtitle')"
+    >
       <template #actions>
         <UiSegmentedControl
           :model-value="store.range"
@@ -89,8 +147,10 @@ onMounted(() => {
     <UiSpinner v-if="store.loading" :label="t('monitoring.loading')" />
 
     <template v-else>
+      <UiAlert v-if="attentionText !== null" variant="warning">{{ attentionText }}</UiAlert>
+
       <UiCard>
-        <UiSectionHeading class="mb-3" :title="t('monitoring.services.title')" />
+        <UiSectionHeading class="mb-4" :title="t('monitoring.services.title')" />
         <UiEmptyState
           v-if="hasNoServices"
           :title="t('monitoring.services.emptyTitle')"
@@ -102,7 +162,7 @@ onMounted(() => {
       <MonitoringCharts :buckets="store.buckets" />
 
       <UiCard>
-        <UiSectionHeading class="mb-3" :title="t('monitoring.disk.title')" />
+        <UiSectionHeading class="mb-4" :title="t('monitoring.disk.title')" />
         <UiAlert v-if="store.diskErrorMessage !== null" variant="error">{{ store.diskErrorMessage }}</UiAlert>
         <UiEmptyState
           v-else-if="hasNoAccounts"

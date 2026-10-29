@@ -193,3 +193,70 @@ fn the_mapping_adds_no_text_of_its_own_to_any_variant() {
         );
     }
 }
+
+use std::time::Duration;
+
+use maran_agent_core::utils::bound_exceeded::BoundExceeded;
+use maran_agent_core::utils::output_stream::OutputStream;
+
+/// The unit under test, read so that the arm that names the bound by itself can
+/// be checked; see [`the_bound_variant_is_mapped_by_name_ahead_of_the_wildcard`].
+const MAPPING_SOURCE: &str = include_str!("../../../services/ssl/ssl_status.rs");
+
+/// A deadline that passed, as the bounded spawn core reports it.
+fn timed_out() -> SslOpError {
+    SslOpError::Bound(BoundExceeded::TimedOut {
+        program: "/usr/sbin/stand-in".to_owned(),
+        deadline: Duration::from_secs(60),
+    })
+}
+
+/// An output cap that was crossed, as the bounded spawn core reports it.
+fn output_too_large() -> SslOpError {
+    SslOpError::Bound(BoundExceeded::OutputTooLarge {
+        program: "/usr/sbin/stand-in".to_owned(),
+        stream: OutputStream::Stdout,
+        cap: 4_194_304,
+    })
+}
+
+/// A deadline is a fault of the host: a system failure, no tool text, and a
+/// message that names the program that was killed.
+#[test]
+fn a_timeout_is_a_system_failure_with_no_tool_output_and_a_message_naming_the_program() {
+    let wire = to_agent_error(&timed_out());
+
+    assert_eq!(wire.code, ErrorCode::SystemFailure as i32);
+    assert!(wire.tool_output.is_empty());
+    assert!(wire.message.contains("/usr/sbin/stand-in"));
+}
+
+/// An output cap is the same kind of fault as a deadline.
+#[test]
+fn an_output_overflow_is_a_system_failure_with_no_tool_output_and_a_message_naming_the_program() {
+    let wire = to_agent_error(&output_too_large());
+
+    assert_eq!(wire.code, ErrorCode::SystemFailure as i32);
+    assert!(wire.tool_output.is_empty());
+    assert!(wire.message.contains("/usr/sbin/stand-in"));
+}
+
+/// The wildcard arm answers `SystemFailure` too, so deleting the explicit arm
+/// changes no behaviour and the two tests above cannot notice it. This one reads
+/// the source: the bound must be named, and named before the wildcard.
+#[test]
+fn the_bound_variant_is_mapped_by_name_ahead_of_the_wildcard() {
+    let code_lines: Vec<&str> = MAPPING_SOURCE
+        .lines()
+        .map(str::trim_start)
+        .filter(|line| !line.starts_with("//"))
+        .collect();
+    let wildcard = code_lines.iter().position(|line| line.starts_with("_ =>"));
+    let bound = code_lines
+        .iter()
+        .position(|line| line.starts_with("SslOpError::Bound("));
+
+    // Positive control: the scan does find the wildcard it is measured against.
+    let wildcard = wildcard.expect("the mapping ends in a wildcard arm");
+    assert!(bound.expect("the bound variant has its own arm") < wildcard);
+}

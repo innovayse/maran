@@ -10,9 +10,23 @@
  * into a support ticket. A toast is for outcomes that need acknowledging, not
  * deciding. Its text is supplied by the caller — already translated chrome, or
  * a message the backend localized (rules/vue.md); the primitive holds no copy.
+ *
+ * **Look.** A floating `bg-surface-1` panel (it hovers over the page, so a shadow
+ * is correct here) with a tinted square on the left holding the status glyph.
+ * Status is carried by the SHAPE of that glyph — tick, info disc, warning
+ * triangle, alert disc — and by the caller's text, never by colour alone.
+ *
+ * **Contrast, measured (dark / light theme).** Each glyph sits on a 15% wash of
+ * its own status colour over `bg-surface-1`, and is graphics (3:1 needed):
+ * success 5.73 / 4.40:1, warning 6.46 / 4.60:1, danger 4.15 / 4.44:1, and the
+ * info glyph (`text-accent-text` on `bg-accent-soft`) 5.16 / 6.03:1. All of
+ * them also clear 4.15:1, so nothing relies on the graphics allowance. The
+ * message is `text-text-primary` on the panel, 15.70 / 17.98:1, and the meta line
+ * `text-text-muted`, 5.36 / 5.41:1. The close control is 28px square, over the
+ * 24px minimum target.
  */
 import { onBeforeUnmount, onMounted, ref, useId, type ComputedRef, type Ref, computed } from 'vue'
-import UiIcon from './UiIcon.vue'
+import UiIcon, { type UiIconName } from './UiIcon.vue'
 
 /** Tone of a {@link UiToast}, controlling its colour and how urgently it is announced. */
 export type ToastVariant = 'success' | 'info' | 'warning' | 'danger'
@@ -56,24 +70,40 @@ const messageId: string = useId()
 const timer: Ref<ReturnType<typeof setTimeout> | null> = ref(null)
 
 /**
- * Tailwind utility classes for the selected variant.
- *
- * The design tints only the toast's left edge — the panel itself stays the
- * ordinary raised surface — so the tone reads at a glance without the whole
- * notification turning into a coloured block. Colour never carries the meaning
- * alone: the caller always supplies text, so a user who cannot distinguish the
- * tones still reads what happened.
+ * Tailwind utility classes for the status square, by variant: its wash and the
+ * glyph's colour. Each pairing is measured in this component's header. The info
+ * tone uses the accent wash with `text-accent-text`, the pair the design README
+ * measures at 5.15:1 over `bg-surface-1`; it must never sit over `bg-surface-3`
+ * (4.40:1).
  */
 const variantClasses: ComputedRef<string> = computed(() => {
   switch (props.variant) {
     case 'success':
-      return 'border-l-success'
+      return 'bg-success/15 text-success'
     case 'warning':
-      return 'border-l-warning'
+      return 'bg-warning/15 text-warning'
     case 'danger':
-      return 'border-l-danger'
+      return 'bg-danger/15 text-danger'
     default:
-      return 'border-l-accent'
+      return 'bg-accent-soft text-accent-text'
+  }
+})
+
+/**
+ * The glyph for the selected variant. A different SHAPE per tone, because the
+ * tint alone cannot tell a success from a failure to a user who cannot
+ * distinguish the colours.
+ */
+const glyph: ComputedRef<UiIconName> = computed(() => {
+  switch (props.variant) {
+    case 'success':
+      return 'circleCheck'
+    case 'warning':
+      return 'triangleAlert'
+    case 'danger':
+      return 'circleAlert'
+    default:
+      return 'info'
   }
 })
 
@@ -132,8 +162,7 @@ onBeforeUnmount(stopTimer)
 
 <template>
   <div
-    class="pointer-events-auto flex max-w-[340px] items-center gap-2.5 rounded-lg border border-border-strong border-l-2 bg-surface-1 px-4 py-3 text-base text-text-primary shadow-[0_12px_32px_rgb(0_0_0/0.35)]"
-    :class="variantClasses"
+    class="pointer-events-auto flex w-full max-w-sm items-center gap-3 rounded-panel border border-border-strong bg-surface-1 p-3 text-sm text-text-primary shadow-xl"
     role="status"
     :aria-live="politeness"
     @mouseenter="stopTimer"
@@ -142,7 +171,12 @@ onBeforeUnmount(stopTimer)
     @focusout="startTimer"
     @keydown.esc="dismiss"
   >
-    <div :id="messageId" class="min-w-0 flex-1">
+    <!-- Decorative: the status is repeated in the caller's text, and UiIcon hides
+         the glyph from assistive technology. -->
+    <span class="grid size-9 shrink-0 place-items-center rounded-inset" :class="variantClasses">
+      <UiIcon :name="glyph" size="md" />
+    </span>
+    <div :id="messageId" class="min-w-0 flex-1 wrap-anywhere">
       <div class="font-medium"><slot /></div>
       <!-- The design's second line: the machine detail behind the outcome (host,
            size, duration), set in mono because that is what it always is. It is
@@ -152,7 +186,7 @@ onBeforeUnmount(stopTimer)
     </div>
     <button
       type="button"
-      class="inline-flex size-5 shrink-0 items-center justify-center rounded-md text-text-muted transition-colors hover:bg-surface-3 hover:text-text-primary focus-visible:shadow-focus focus-visible:outline-none"
+      class="inline-flex size-7 shrink-0 items-center justify-center rounded-inset text-text-muted transition-colors hover:bg-surface-3 hover:text-text-primary focus-visible:shadow-focus focus-visible:outline-none"
       :aria-label="closeLabel"
       :aria-describedby="messageId"
       @click="dismiss"

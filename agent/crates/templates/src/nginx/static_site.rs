@@ -25,8 +25,14 @@ pub struct StaticSite<'a> {
     /// Additional hostnames served by the same block.
     pub aliases: &'a [String],
     /// Absolute document root under the account's home.
+    ///
+    /// Written here only as the ACME challenge location's own `root`, which
+    /// carries its own `disable_symlinks if_not_owner;`: with a certificate
+    /// this block holds that location and a redirect and none of
+    /// [`Self::body`], so it inherits no link rule from it.
     pub document_root: &'a str,
-    /// The location rules this site serves, already rendered by
+    /// What this site serves — its logs, `root`, `index`, rule for following
+    /// symbolic links and locations — already rendered by
     /// [`super::site_body::SiteBody`].
     ///
     /// Passed in rather than expanded here so that the SAME string is placed

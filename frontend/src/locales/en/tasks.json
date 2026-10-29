@@ -1,6 +1,7 @@
 {
   "tasks": {
     "list": {
+      "eyebrow": "System",
       "heading": "Background tasks",
       "subtitle": "Long operations the panel is running, or has recently run, newest first.",
       "loading": "Loading tasks…",
@@ -9,7 +10,10 @@
       "tableCaption": "Background tasks",
       "watch": "Live view",
       "rowActions": "Actions for {subject}",
-      "percentValue": "{percent}%"
+      "percentValue": "{percent}%",
+      "recentHeading": "Recent operations",
+      "failedNotice": "Failed tasks: {count}. Open the latest one to see why.",
+      "openFailure": "Open the latest failure"
     },
     "columns": {
       "kind": "Operation",
@@ -25,7 +29,8 @@
       "AccountSuspension": "Suspending an account",
       "AccountResumption": "Reactivating an account",
       "BackupCreate": "Taking a backup",
-      "BackupRestore": "Restoring a backup"
+      "BackupRestore": "Restoring a backup",
+      "PhpVersionInstall": "Installing a PHP version"
     },
     "statuses": {
       "running": "Running",
@@ -37,7 +42,8 @@
       "notReported": "Not reported",
       "progressLabel": "Progress of this task",
       "failedWith": "The operation failed with the code {code}.",
-      "noLog": "Nothing has been reported yet."
+      "noLog": "Nothing has been reported yet.",
+      "logLabel": "Task log"
     },
     "badge": {
       "label": "{count} background tasks running"

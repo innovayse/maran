@@ -1,17 +1,25 @@
 <script setup lang="ts">
 /**
- * The header's theme control: one button that flips the theme.
+ * The app bar's theme control: one button that flips the theme.
  *
- * It used to draw both options side by side, and the reasoning then was that a
- * toggle "only says what will happen next, so the user has to reason backwards
- * to learn which theme is active". That is a real objection, and it is answered
- * here rather than ignored: the button shows the theme that is ACTIVE, by icon
- * and by name, and flipping is what clicking it does. Nothing has to be reasoned
- * backwards.
+ * The light theme is KEPT (main.css carries measured light values), so the control
+ * stays. It shows the theme that is ACTIVE — by icon, and by name from the `xl`
+ * breakpoint where there is room — and flipping is what clicking it does. The
+ * objection to a bare toggle ("it only says what will happen next, so the user has
+ * to reason backwards") is answered by that icon rather than ignored; the
+ * accessible name states the action, as it always did.
  *
- * One control rather than two also ends a duplication the shell carried: the
- * sidebar's footer already flips the theme through the same store, so the panel
- * offered the same setting in two different shapes on the same screen.
+ * One control rather than two sets: the sidebar footer used to carry a second copy of
+ * this same setting, in a different shape, one of them a moon that showed the moon
+ * whichever theme was in force. The app bar is the only home now, on every width.
+ *
+ * "Where there is room" is judged twice: by the window (`xl`) and by the app bar the control sits in
+ * (a container query, 76rem). The second is what a large text size changes: the window is still
+ * wide, the bar is not, and a name drawn anyway pushed the language picker off the canvas. Where
+ * there is no container around it (the navigation drawer) the second test never applies.
+ *
+ * The geometry is the kit button's `bar` size: a 40px square that a visible label widens,
+ * the same box the language picker next to it takes. Nothing is restated here.
  */
 import { computed, type ComputedRef } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -42,28 +50,14 @@ const flip = (): void => {
 </script>
 
 <template>
-  <UiButton class="shell-header-theme" :aria-label="t('app.shell.toggleTheme')" @click="flip">
-    <UiIcon :name="icon" size="md" />
-    <span>{{ label }}</span>
+  <UiButton
+    variant="ghost"
+    size="bar"
+    :aria-label="t('app.shell.toggleTheme')"
+    :title="t('app.shell.toggleTheme')"
+    @click="flip"
+  >
+    <UiIcon :name="icon" size="lg" />
+    <span class="max-xl:hidden @max-[76rem]:hidden">{{ label }}</span>
   </UiButton>
 </template>
-
-<style scoped>
-/* Boxed on the raised surface like the header's other chrome, and the same
-   height as every control beside it — see ShellHeader's own style block, which
-   owns that height for all of them. */
-.shell-header-theme {
-  gap: 6px;
-  padding: 0 9px;
-  border-radius: 6px;
-  background: var(--s2);
-  border: 1px solid var(--b1);
-  color: var(--t2);
-  font-size: var(--text-base);
-  font-weight: 400;
-}
-
-.shell-header-theme:focus-visible {
-  border-color: var(--ac);
-}
-</style>

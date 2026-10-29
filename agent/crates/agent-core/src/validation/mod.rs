@@ -4,8 +4,11 @@
 //! rather than one per call site (rules/security.md: defense in depth).
 //!
 //! Every module here is a validated name — a constructor that can fail, and a
-//! type whose existence is the proof it succeeded. A type that only hides a
-//! value rather than validating it does not belong in this tree — see
+//! type whose existence is the proof it succeeded. The one exception in kind is
+//! `system::managed_account`, which is proof about the HOST rather than about a
+//! spelling: it holds as of the moment it was resolved, can expire the way
+//! `privs::account_ids::AccountIds` can, and is never cached. A type that only
+//! hides a value rather than validating it does not belong in this tree — see
 //! [`crate::secret_string`].
 //!
 //! Grouped by the domain the value ends up in, so a reader finds a validator by

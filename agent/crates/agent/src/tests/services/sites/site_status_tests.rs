@@ -36,6 +36,71 @@ fn a_domain_already_configured_here_is_already_exists_so_a_retried_create_reads_
 }
 
 #[test]
+fn a_host_name_another_vhost_serves_is_already_exists_so_the_panel_reads_it_as_a_taken_domain() {
+    // The panel answers this code on a create with "domain taken" and removes
+    // nothing; VALIDATION_FAILED would read as a rendered configuration the
+    // host refused, which no customer fixes by choosing another name.
+    assert_eq!(
+        code_of(&SitesOpError::ServerNameTaken {
+            detail: "conflicting server name \"shop.example\"".to_owned(),
+            stderr: "nginx: [warn] conflicting server name \"shop.example\"".to_owned(),
+        }),
+        ErrorCode::AlreadyExists as i32
+    );
+}
+
+#[test]
+fn a_name_the_request_repeats_is_invalid_input_and_not_a_claim_another_site_holds() {
+    // The distinction the variant exists for: ALREADY_EXISTS would tell the
+    // panel a name is taken on this host when the caller's own request is
+    // wrong.
+    assert_eq!(
+        code_of(&SitesOpError::RepeatedHostName {
+            name: "example.com".to_owned(),
+        }),
+        ErrorCode::InvalidInput as i32
+    );
+}
+
+#[test]
+fn a_refused_warning_reaches_the_panel_as_already_exists_with_nginxs_stderr() {
+    let stderr = "nginx: [warn] conflicting server name \"shop.example\" on 0.0.0.0:80, ignored";
+    let error = SitesOpError::from(SafeWriteError::RefusedWarning {
+        warning: "conflicting server name \"shop.example\"".to_owned(),
+        stderr: stderr.to_owned(),
+    });
+
+    let wire = to_agent_error(&error);
+
+    assert_eq!(wire.code, ErrorCode::AlreadyExists as i32);
+    assert_eq!(wire.tool_output, stderr);
+    assert!(
+        wire.message
+            .contains("conflicting server name \"shop.example\""),
+        "the operator's log line must name the host: {}",
+        wire.message
+    );
+}
+
+#[test]
+fn a_target_that_already_existed_reaches_the_panel_as_already_exists_with_no_tool_output() {
+    let error = SitesOpError::from(SafeWriteError::TargetExists {
+        target: "/etc/maran/nginx/sites/shop.example.conf".to_owned(),
+    });
+
+    let wire = to_agent_error(&error);
+
+    assert_eq!(wire.code, ErrorCode::AlreadyExists as i32);
+    assert!(wire.tool_output.is_empty(), "no validator ran");
+    assert!(
+        wire.message
+            .contains("/etc/maran/nginx/sites/shop.example.conf"),
+        "{}",
+        wire.message
+    );
+}
+
+#[test]
 fn a_domain_that_is_not_configured_here_is_not_found_so_a_retried_delete_reads_as_done() {
     assert_eq!(
         code_of(&SitesOpError::NotFound {
@@ -104,7 +169,7 @@ fn every_fault_of_this_machine_is_a_system_failure_and_none_of_them_is_reported_
 }
 
 #[test]
-fn only_the_two_failures_that_ran_a_tool_carry_that_tools_output() {
+fn only_the_failures_that_ran_a_tool_carry_that_tools_output() {
     assert_eq!(
         to_agent_error(&SitesOpError::NginxValidation {
             stderr: "nginx: configuration file test failed".to_owned(),
@@ -118,6 +183,18 @@ fn only_the_two_failures_that_ran_a_tool_carry_that_tools_output() {
         })
         .tool_output,
         "job for nginx.service failed"
+    );
+    // The third: a host name refused because nginx's own warning named it. The
+    // validator ran and exited 0, and what it printed is the operator's
+    // evidence.
+    assert_eq!(
+        to_agent_error(&SitesOpError::ServerNameTaken {
+            detail: "conflicting server name \"shop.example\"".to_owned(),
+            stderr: "nginx: [warn] conflicting server name \"shop.example\" on 0.0.0.0:80, ignored"
+                .to_owned(),
+        })
+        .tool_output,
+        "nginx: [warn] conflicting server name \"shop.example\" on 0.0.0.0:80, ignored"
     );
 }
 
@@ -150,6 +227,13 @@ fn a_failure_that_ran_no_tool_carries_no_tool_output_at_all() {
         },
         SitesOpError::LogUnreadable {
             path: "/home/alice/logs/example.com.access.log".to_owned(),
+        },
+        SitesOpError::ServerNameTaken {
+            detail: "a vhost already exists at /etc/maran/nginx/sites/example.com.conf".to_owned(),
+            stderr: String::new(),
+        },
+        SitesOpError::RepeatedHostName {
+            name: "example.com".to_owned(),
         },
     ] {
         assert!(to_agent_error(&error).tool_output.is_empty());
@@ -199,4 +283,71 @@ fn a_program_that_could_not_be_started_reaches_the_panel_as_a_system_failure_nam
         wire.tool_output.is_empty(),
         "no tool ran, so none has output"
     );
+}
+
+use std::time::Duration;
+
+use maran_agent_core::utils::bound_exceeded::BoundExceeded;
+use maran_agent_core::utils::output_stream::OutputStream;
+
+/// The unit under test, read so that the arm that names the bound by itself can
+/// be checked; see [`the_bound_variant_is_mapped_by_name_ahead_of_the_wildcard`].
+const MAPPING_SOURCE: &str = include_str!("../../../services/sites/site_status.rs");
+
+/// A deadline that passed, as the bounded spawn core reports it.
+fn timed_out() -> SitesOpError {
+    SitesOpError::Bound(BoundExceeded::TimedOut {
+        program: "/usr/sbin/stand-in".to_owned(),
+        deadline: Duration::from_secs(60),
+    })
+}
+
+/// An output cap that was crossed, as the bounded spawn core reports it.
+fn output_too_large() -> SitesOpError {
+    SitesOpError::Bound(BoundExceeded::OutputTooLarge {
+        program: "/usr/sbin/stand-in".to_owned(),
+        stream: OutputStream::Stdout,
+        cap: 4_194_304,
+    })
+}
+
+/// A deadline is a fault of the host: a system failure, no tool text, and a
+/// message that names the program that was killed.
+#[test]
+fn a_timeout_is_a_system_failure_with_no_tool_output_and_a_message_naming_the_program() {
+    let wire = to_agent_error(&timed_out());
+
+    assert_eq!(wire.code, ErrorCode::SystemFailure as i32);
+    assert!(wire.tool_output.is_empty());
+    assert!(wire.message.contains("/usr/sbin/stand-in"));
+}
+
+/// An output cap is the same kind of fault as a deadline.
+#[test]
+fn an_output_overflow_is_a_system_failure_with_no_tool_output_and_a_message_naming_the_program() {
+    let wire = to_agent_error(&output_too_large());
+
+    assert_eq!(wire.code, ErrorCode::SystemFailure as i32);
+    assert!(wire.tool_output.is_empty());
+    assert!(wire.message.contains("/usr/sbin/stand-in"));
+}
+
+/// The wildcard arm answers `SystemFailure` too, so deleting the explicit arm
+/// changes no behaviour and the two tests above cannot notice it. This one reads
+/// the source: the bound must be named, and named before the wildcard.
+#[test]
+fn the_bound_variant_is_mapped_by_name_ahead_of_the_wildcard() {
+    let code_lines: Vec<&str> = MAPPING_SOURCE
+        .lines()
+        .map(str::trim_start)
+        .filter(|line| !line.starts_with("//"))
+        .collect();
+    let wildcard = code_lines.iter().position(|line| line.starts_with("_ =>"));
+    let bound = code_lines
+        .iter()
+        .position(|line| line.starts_with("SitesOpError::Bound("));
+
+    // Positive control: the scan does find the wildcard it is measured against.
+    let wildcard = wildcard.expect("the mapping ends in a wildcard arm");
+    assert!(bound.expect("the bound variant has its own arm") < wildcard);
 }

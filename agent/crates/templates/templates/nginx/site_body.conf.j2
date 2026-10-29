@@ -1,3 +1,31 @@
+{#
+  This comment renders nothing (askama drops it, and the `-` before its close
+  drops the newline after it), so the reasoning below costs no vhost a byte.
+
+  Both file-serving arms set the link rule once at server level, beside their
+  `root`, so every location in the block inherits it: a symbolic link on the
+  path, from / through the requested file, is followed only when the link and
+  what it finally resolves to have the same owner. The worker can enter every
+  account's home and a customer can link to any path, so without it a link in
+  one site's root served another account's files, or the host's. There is no
+  `from=` on purpose: nginx opens that prefix without checking it, and the
+  customer owns the directories above the root, so a root renamed aside and
+  replaced by a link would be served unchecked. The proxy arm writes no `root`
+  and opens no file, so it carries no rule.
+
+  What each arm then answers differently, read from nginx's source and not
+  measured: `try_files` and `index` test a candidate by OPENING it, so the
+  worker needs read permission where a `stat()` used to be enough. In the PHP
+  arm a script the worker cannot read reads as missing to `try_files` and as
+  forbidden to the `index` test, and a refused link falls through to
+  `index.php` (a refused `.php` link stops at `try_files $uri =404`). In the
+  static arm a directory the worker can enter but not list reads as missing to
+  the `$uri/` test, and a refused link answers 404.
+
+  The full argument is the doc comment on `SiteBody` (src/nginx/site_body.rs);
+  keep the two in step, and keep the rendered text to the directive and its
+  one-line pointer.
+-#}
 {% if upstream.is_some() %}    access_log {{ access_log }};
     error_log {{ error_log }};
 
@@ -13,6 +41,9 @@
 
     root {{ document_root }};
     index index.php index.html;
+
+    # A link is followed only when it and its target share an owner; no from= on purpose.
+    disable_symlinks if_not_owner;
 
     location / {
         try_files $uri $uri/ /index.php?$query_string;
@@ -42,6 +73,9 @@
 
     root {{ document_root }};
     index index.html index.htm;
+
+    # A link is followed only when it and its target share an owner; no from= on purpose.
+    disable_symlinks if_not_owner;
 
     location / {
         try_files $uri $uri/ =404;

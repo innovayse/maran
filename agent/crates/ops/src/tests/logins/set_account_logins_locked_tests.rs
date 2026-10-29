@@ -3,6 +3,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use maran_agent_core::utils::call_class::CallClass;
 use maran_agent_core::validation::system::name::AccountName;
 
 use crate::accounts::take_account_lock;
@@ -290,13 +291,15 @@ fn nothing_is_deleted_and_the_lock_is_turned_with_the_flag_that_keeps_the_hash()
         locks,
         vec![
             vec![
-                distro().usermod_binary().to_owned(),
+                distro().usermod_binary().as_str().to_owned(),
                 "--lock".to_owned(),
+                "--".to_owned(),
                 "alice_files".to_owned()
             ],
             vec![
-                distro().usermod_binary().to_owned(),
+                distro().usermod_binary().as_str().to_owned(),
                 "--lock".to_owned(),
+                "--".to_owned(),
                 "alice_web".to_owned()
             ],
         ]
@@ -477,4 +480,209 @@ fn a_suspension_that_finished_leaves_the_accounts_lock_free() {
         free.is_some(),
         "the lock must be free once the operation returned"
     );
+}
+
+/// Asserts that suspending `account` over `host` is refused with a variant
+/// `expected` accepts, and that nothing at all was run.
+fn assert_refused_before_any_command(
+    host: &FakeLoginsHost,
+    account: &AccountName,
+    expected: fn(&LoginsError) -> bool,
+) {
+    let refused = set_account_logins_locked_under_lock(host, distro(), account, true);
+
+    match refused {
+        Err(error) => assert!(expected(&error), "the wrong refusal: {error:?}"),
+        Ok(_) => panic!("the suspension was not refused"),
+    }
+    assert!(
+        host.spawns().is_empty(),
+        "usermod and pkill must not run once the account is refused: {:?}",
+        host.spawns()
+    );
+}
+
+#[test]
+fn a_reserved_name_is_refused_before_usermod_or_pkill_runs() {
+    // The name grammar accepts `root`, and `usermod --lock` plus `pkill --uid`
+    // against the real root would take the host down. The row is otherwise
+    // perfect (a managed home, an id above the floor), so only the reserved
+    // list can be what refuses it.
+    let root = AccountName::parse("root").expect("the grammar accepts it");
+    let host = FakeLoginsHost::with_passwd(&[("root", ACCOUNT_UID, "/home/root")])
+        .with_process(ACCOUNT_UID);
+
+    assert_refused_before_any_command(&host, &root, |error| {
+        matches!(error, LoginsError::AccountNotManaged)
+    });
+    assert_eq!(host.running_processes(), vec![ACCOUNT_UID]);
+}
+
+#[test]
+fn a_system_identity_is_refused_before_usermod_or_pkill_runs() {
+    // The managed home, so the home check cannot be what refuses this row.
+    let host = FakeLoginsHost::with_passwd(&[("alice", 0, "/home/alice")]).with_process(0);
+
+    assert_refused_before_any_command(&host, &account(), |error| {
+        matches!(error, LoginsError::AccountNotManaged)
+    });
+    assert_eq!(host.running_processes(), vec![0]);
+}
+
+#[test]
+fn an_id_below_the_floor_is_refused_even_when_it_is_not_zero() {
+    // `mail` is uid 8 on every supported image: non-zero, so a guard that only
+    // compared against zero would let it through.
+    let host = FakeLoginsHost::with_passwd(&[("alice", 8, "/home/alice")]).with_process(8);
+
+    assert_refused_before_any_command(&host, &account(), |error| {
+        matches!(error, LoginsError::AccountNotManaged)
+    });
+}
+
+#[test]
+fn a_home_other_than_the_managed_one_is_refused_before_anything_runs() {
+    let host = FakeLoginsHost::with_passwd(&[("alice", ACCOUNT_UID, "/var/spool/mail")])
+        .with_process(ACCOUNT_UID);
+
+    assert_refused_before_any_command(&host, &account(), |error| {
+        matches!(error, LoginsError::AccountNotManaged)
+    });
+}
+
+#[test]
+fn the_unlock_direction_is_gated_by_the_same_proof_and_runs_nothing() {
+    // The gate is not a property of the locking direction: unlocking the
+    // logins of an operator's own user is as much a change to a login this
+    // agent did not create. Every refusal reads as the one variant.
+    let rows: [(&str, &str, u32, &str); 4] = [
+        ("root", "root", ACCOUNT_UID, "/home/root"),
+        ("alice", "alice", 0, "/home/alice"),
+        ("alice", "alice", 8, "/home/alice"),
+        ("alice", "alice", ACCOUNT_UID, "/var/spool/mail"),
+    ];
+    for (requested, row_name, uid, home) in rows {
+        let name = AccountName::parse(requested).expect("the grammar accepts it");
+        let host = FakeLoginsHost::with_passwd(&[(row_name, uid, home)]);
+
+        let refused = set_account_logins_locked_under_lock(&host, distro(), &name, false);
+
+        assert!(
+            matches!(refused, Err(LoginsError::AccountNotManaged)),
+            "{requested} {uid} {home}: got {refused:?}"
+        );
+        assert!(host.spawns().is_empty(), "{:?}", host.spawns());
+    }
+}
+
+#[test]
+fn an_absent_account_is_refused_before_anything_runs() {
+    let host = FakeLoginsHost::with_passwd(&[("bob", OTHER_UID, "/home/bob")]);
+
+    assert_refused_before_any_command(&host, &account(), |error| {
+        matches!(error, LoginsError::AccountMissing)
+    });
+}
+
+#[test]
+fn a_hosting_account_passes_the_same_gate_that_refuses_the_rows_above() {
+    // The accepting control: the refusals above would all hold for a gate that
+    // refused everything.
+    let host = FakeLoginsHost::with_passwd(&[account_row()]).with_process(ACCOUNT_UID);
+
+    set_account_logins_locked_under_lock(&host, distro(), &account(), true).expect("suspended");
+
+    assert!(!host.spawns().is_empty());
+    assert!(host.running_processes().is_empty());
+}
+
+#[test]
+fn a_usermod_that_times_out_is_a_bound_and_never_a_spawn_failure() {
+    // A killed `usermod` has said neither "locked" nor "refused". Folding the
+    // kill into `SpawnFailed { code }` would invent an exit status the tool never
+    // returned.
+    let host = one_of_each();
+    host.time_out("usermod");
+
+    let outcome = set_account_logins_locked_under_lock(&host, distro(), &account(), true);
+
+    assert!(
+        matches!(outcome, Err(LoginsError::Bound(_))),
+        "got {outcome:?}"
+    );
+}
+
+#[test]
+fn a_passwd_status_read_that_times_out_is_a_bound() {
+    let host = one_of_each();
+    host.time_out("passwd");
+
+    let outcome = set_account_logins_locked_under_lock(&host, distro(), &account(), true);
+
+    assert!(
+        matches!(outcome, Err(LoginsError::Bound(_))),
+        "got {outcome:?}"
+    );
+}
+
+#[test]
+fn a_cull_that_times_out_fails_the_suspension_with_a_bound() {
+    // Some processes may have been signalled and some not, so the suspension is
+    // reported as failed, exactly as for a refusing `pkill`.
+    let host = one_of_each().with_process(ACCOUNT_UID);
+    host.time_out("pkill");
+
+    let outcome = set_account_logins_locked_under_lock(&host, distro(), &account(), true);
+
+    assert!(
+        matches!(outcome, Err(LoginsError::Bound(_))),
+        "got {outcome:?}"
+    );
+}
+
+#[test]
+fn each_tool_of_the_lock_runs_in_the_class_of_what_it_does() {
+    // `usermod` and `pkill` change state (Mutation, 120 s); `passwd -S` is a
+    // question (Query). A wrong class is a wrong deadline: a Reload class would
+    // let a wedged `usermod` hold the account lock for four minutes.
+    let host = one_of_each().with_process(ACCOUNT_UID);
+
+    set_account_logins_locked_under_lock(&host, distro(), &account(), true).expect("locked");
+
+    for spawn in host.spawns() {
+        let expected = if spawn.argv[0].ends_with("passwd") {
+            CallClass::Query
+        } else {
+            CallClass::Mutation
+        };
+        assert_eq!(spawn.class, expected, "{:?}", spawn.argv);
+    }
+    assert!(
+        host.spawns()
+            .iter()
+            .any(|spawn| spawn.argv[0].ends_with("passwd")),
+        "the status read must have run, or the loop above proved nothing"
+    );
+}
+
+#[test]
+fn passwd_status_is_asked_without_an_end_of_options_marker() {
+    // The inverse control of the `--` guard on `usermod`: `passwd` is the one
+    // tool of this area whose handling of `--` differs between the families, so
+    // it is deliberately NOT guarded and a marker appearing here is a change
+    // somebody has to have measured.
+    let host = one_of_each();
+
+    set_account_logins_locked_under_lock(&host, distro(), &account(), true).expect("locked");
+
+    let status_reads: Vec<Vec<String>> = host
+        .spawns()
+        .into_iter()
+        .map(|spawn| spawn.argv)
+        .filter(|argv| argv[0].ends_with("passwd"))
+        .collect();
+    assert!(!status_reads.is_empty());
+    for argv in status_reads {
+        assert!(!argv.iter().any(|argument| argument == "--"), "{argv:?}");
+    }
 }

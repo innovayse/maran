@@ -15,11 +15,19 @@
  * panel did not disclose the status (it is administrator-only) the fields are rendered as UNKNOWN
  * with a sentence saying to ask the administrator, because a guessed host name is worse than no host
  * name.
+ *
+ * **The secret is handled exactly as the SFTP dialog handles it:** the notice is amber (attention,
+ * not failure), the password is selectable text beside a copy control that keeps its translated
+ * accessible name ("Copy password", then "Copied"), and the value is never logged, stored or put in
+ * an attribute. The four connection facts sit in a two-column list that collapses to one column on
+ * a phone, so a long host name wraps inside the sheet instead of widening the page.
  */
 import { computed, ref, watch, type ComputedRef, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import UiAlert from '../ui/UiAlert.vue'
 import UiButton from '../ui/UiButton.vue'
+import UiDescriptionItem from '../ui/UiDescriptionItem.vue'
+import UiDescriptionList from '../ui/UiDescriptionList.vue'
 import UiIcon from '../ui/UiIcon.vue'
 import UiModal from '../ui/UiModal.vue'
 
@@ -120,55 +128,36 @@ watch(
     :dismissible="false"
     @close="close"
   >
-    <UiAlert variant="error" class="mb-4">{{ t('ftp.credential.warning') }}</UiAlert>
+    <UiAlert variant="warning" class="mb-4">{{ t('ftp.credential.warning') }}</UiAlert>
 
-    <dl class="flex flex-col gap-3">
-      <div>
-        <dt class="text-xs font-medium tracking-wide text-text-muted uppercase">
-          {{ t('ftp.credential.hostLabel') }}
-        </dt>
-        <dd data-testid="ftp-credential-host" class="mt-0.5 font-mono text-base break-all text-text-primary">
-          {{ hostText }}
-        </dd>
-      </div>
-      <div>
-        <dt class="text-xs font-medium tracking-wide text-text-muted uppercase">
-          {{ t('ftp.credential.portLabel') }}
-        </dt>
-        <dd data-testid="ftp-credential-port" class="mt-0.5 font-mono text-base text-text-primary">
-          {{ portText }}
-        </dd>
-      </div>
-      <div>
-        <dt class="text-xs font-medium tracking-wide text-text-muted uppercase">
-          {{ t('ftp.credential.protocolLabel') }}
-        </dt>
-        <dd class="mt-0.5 text-base text-text-primary">{{ t('ftp.credential.protocolValue') }}</dd>
-      </div>
-      <div>
-        <dt class="text-xs font-medium tracking-wide text-text-muted uppercase">
-          {{ t('ftp.credential.loginLabel') }}
-        </dt>
-        <dd class="mt-0.5 font-mono text-base break-all text-text-primary">{{ fullName }}</dd>
-      </div>
-      <div>
-        <dt class="text-xs font-medium tracking-wide text-text-muted uppercase">
-          {{ t('ftp.credential.passwordLabel') }}
-        </dt>
+    <UiDescriptionList>
+      <UiDescriptionItem :term="t('ftp.credential.hostLabel')" mono>
+        <span data-testid="ftp-credential-host">{{ hostText }}</span>
+      </UiDescriptionItem>
+      <UiDescriptionItem :term="t('ftp.credential.portLabel')" mono>
+        <span data-testid="ftp-credential-port">{{ portText }}</span>
+      </UiDescriptionItem>
+      <UiDescriptionItem :term="t('ftp.credential.protocolLabel')">
+        {{ t('ftp.credential.protocolValue') }}
+      </UiDescriptionItem>
+      <UiDescriptionItem :term="t('ftp.credential.loginLabel')" mono>
+        {{ fullName }}
+      </UiDescriptionItem>
+      <UiDescriptionItem :term="t('ftp.credential.passwordLabel')" mono class="sm:col-span-2">
         <!-- Selectable text, not a masked field: the clipboard may be unavailable, and the only
              other way to keep this value is to read or select it. -->
-        <dd
+        <span
           data-testid="ftp-password"
-          class="mt-0.5 rounded-lg border border-border-subtle bg-surface-2 px-3 py-2 font-mono text-base break-all text-text-primary"
+          class="mt-1 block rounded-control border border-border-strong bg-surface-2 px-3 py-2.5 text-base text-text-primary wrap-anywhere"
         >
           {{ password }}
-        </dd>
-      </div>
-    </dl>
+        </span>
+      </UiDescriptionItem>
+    </UiDescriptionList>
 
     <!-- Not decoration. One certificate serves the whole host, so this name is the only one it
          matches; any other name is a mismatch the customer cannot tell from an attack. -->
-    <p class="mt-3 text-sm text-text-muted">{{ t('ftp.credential.hostNote') }}</p>
+    <p class="mt-4 text-sm text-text-muted">{{ t('ftp.credential.hostNote') }}</p>
 
     <p v-if="isConnectionUndisclosed" class="mt-2 text-sm text-text-muted">
       {{ t('ftp.credential.hostUndisclosed') }}

@@ -54,6 +54,10 @@ public sealed class AccountsModule : IPanelModule
         // Scoped, because it reads the request's own ICurrentUser for the journal's actor.
         services.AddScoped<AccountAuditJournal>();
 
+        // Scoped, because it reads the request's DbContext and resolves shipped plans' names in the
+        // request's culture.
+        services.AddScoped<PlanNameDirectory>();
+
         // The one window other modules have onto this module's data (rules/architecture.md
         // "Cross-module needs go through Wolverine messages or Sdk abstractions"). Scoped, because
         // it reads the request's own DbContext and applies the request's own tenant scope.
