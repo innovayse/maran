@@ -37,6 +37,9 @@ public sealed class AdminResetPasswordCliCommand : ICliCommand
     /// <summary>The flag that permits writing the link to a pipe or file.</summary>
     private const string AllowNonTerminalFlag = "--allow-non-terminal";
 
+    /// <summary>The marker after which every argument is the identifier, never a flag.</summary>
+    private const string EndOfOptions = "--";
+
     /// <summary>The operator recorded when sudo did not name one.</summary>
     private const string DefaultOperator = "root";
 
@@ -130,10 +133,27 @@ public sealed class AdminResetPasswordCliCommand : ICliCommand
         string? target = null;
         var clearTwoFactor = false;
         var allowNonTerminal = false;
+        var endOfOptions = false;
 
         foreach (var argument in arguments)
         {
-            if (string.Equals(argument, ClearTwoFactorFlag, StringComparison.Ordinal))
+            // `--` ends the options: the installed wrapper always passes it before the identifier, so an
+            // identifier that starts with a dash is never read as a flag. Refusing it as an unknown
+            // option made every real invocation a usage error (#68's real-install run found it).
+            if (endOfOptions)
+            {
+                if (target is not null)
+                {
+                    return null;
+                }
+
+                target = argument;
+            }
+            else if (string.Equals(argument, EndOfOptions, StringComparison.Ordinal))
+            {
+                endOfOptions = true;
+            }
+            else if (string.Equals(argument, ClearTwoFactorFlag, StringComparison.Ordinal))
             {
                 clearTwoFactor = true;
             }

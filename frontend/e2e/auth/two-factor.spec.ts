@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { stubLogin, stubSignedOut, stubbedSignIn } from '../fixtures/stub-auth-routes'
+import { stubLogin, stubSignedOut, stubbedTwoFactorSignIn } from '../fixtures/stub-auth-routes'
 import { stubEmptyModules } from '../fixtures/stub-modules-route'
 import { stubHealthy } from '../fixtures/stub-health-route'
 
@@ -37,7 +37,7 @@ test('entering the authenticator code completes the sign-in', async ({ page }) =
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify(stubbedSignIn),
+      body: JSON.stringify(stubbedTwoFactorSignIn),
     })
   })
 

@@ -29,6 +29,9 @@ const isCi = process.env.CI === 'true' || process.env.CI === '1'
 
 export default defineConfig({
   testDir: './e2e',
+  // The installed-panel browser stage needs a panel a real installer set up, so it has its own
+  // config (playwright.install.config.ts) and never joins this suite or its baseline.
+  testIgnore: ['**/e2e/install/**'],
   fullyParallel: true,
   forbidOnly: isCi,
   retries: isCi ? 1 : 0,

@@ -5,6 +5,26 @@ than a strict category list: what changed and why it matters to somebody running
 
 ## Unreleased
 
+**The break-glass `maran` commands work on a real install.** `maran admin-reset-password` exited
+with a usage error on every call, because the command refused the `--` its own wrapper passes before
+the identifier. `maran collect-diagnostics` refused every bundle, because it took the panel address
+setting `PasswordReset__PanelUrl` for a secret (its name contains "password") and found the address
+in the logs; and the reason was never printed, because an earlier step had sent the rest of the
+command's error output to nowhere. A setting is now a secret only when its name ends in one of the
+secret words, as the panel's own redaction rule says.
+
+**Signing in with a second factor now works.** After a correct authenticator or recovery code the
+panel sent the user back to the sign-in screen, and only a reload let them in: the screen read the
+answer to the code step in the shape of the first step's answer and found no session in it. The
+browser test that should have caught it answered with the same wrong shape, so both agreed with each
+other and not with the server; it now answers exactly as the server does.
+
+**The install test can now open the panel in a real browser.** `maran installer --browser` creates the
+first administrator through the setup screen in Chromium, signs in and requires the dashboard, over
+the panel's own TLS listener. Until now every check reached the panel with a command-line client that
+accepted a certificate browsers refuse, which is how an installed panel that no browser could open
+went unnoticed.
+
 **Deleting an account left things behind that a new account could inherit.** After the processes were
 ended, the user's number (uid) still keyed several places `userdel` does not clean: jobs queued with
 `at`, files in `/tmp`, `/var/tmp` and `/dev/shm`, shared memory, message queues and semaphores, and a

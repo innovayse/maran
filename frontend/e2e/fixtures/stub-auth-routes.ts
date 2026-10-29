@@ -143,3 +143,11 @@ export const stubbedSignIn: LoginResult = SIGNED_IN
  * store reads `accessToken` from the top level and finds an envelope instead.
  */
 export const stubbedRefresh: AuthenticatedSession = SIGNED_IN_SESSION
+
+/**
+ * What a stubbed `/auth/two-factor` returns: the signed-in half flat, like refresh, because once
+ * the code is accepted no further factor can be owed. The suite once answered this route with the
+ * login envelope, which the store then read the same way — so the stub and the code agreed with
+ * each other and not with the backend, and every real 2FA sign-in landed back on /login (#68).
+ */
+export const stubbedTwoFactorSignIn: AuthenticatedSession = SIGNED_IN_SESSION

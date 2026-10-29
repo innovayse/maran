@@ -36,11 +36,13 @@ mode="local"
 keep="no"
 bundle=""
 publish=""
+browser="no"
 arch="x86_64"
 
 usage() {
   cat >&2 <<'USAGE'
-usage: maran installer [--os <version>] [--mode local|get] [--keep]
+usage: maran installer [--os <version>] [--mode local|get|offline] [--bundle PATH] [--arch <a>]
+                       [--publish PORT] [--browser] [--keep]
 
   --os <version>  any folder under docker/polygon/images (default: ubuntu24). An unknown value
                   prints the list rather than guessing at a family.
@@ -60,6 +62,11 @@ usage: maran installer [--os <version>] [--mode local|get] [--keep]
   --publish PORT  map the panel's 8443 onto PORT on this machine, so a real BROWSER can open it.
                   curl can reach the panel without this; a browser is the only thing that can find
                   a TLS defect curl is happy with (issue #67).
+  --browser       after the install checks pass, open /setup in a real Chromium (Playwright,
+                  frontend/playwright.install.config.ts), create the first administrator through
+                  the UI, sign in through /login and require the dashboard. Implies --publish
+                  (18443 unless --publish names a port). Needs frontend/node_modules and a
+                  Playwright chromium on THIS machine; their absence fails the verdict.
   --keep          leave the container running afterwards for inspection.
 
 The verdict is built from systemd and the panel, never from the installer's exit code alone:
@@ -75,6 +82,7 @@ while [ $# -gt 0 ]; do
     --bundle) bundle="${2:?--bundle needs a path}"; shift 2 ;;
     --arch) arch="${2:?--arch needs a value}"; shift 2 ;;
     --publish) publish="${2:?--publish needs a port}"; shift 2 ;;
+    --browser) browser="yes"; shift ;;
     --keep) keep="yes"; shift ;;
     -h|--help) usage ;;
     *) echo "install-polygon.sh: unknown argument '$1'" >&2; usage ;;
@@ -93,6 +101,12 @@ case "$os" in
     ;;
 esac
 dockerfile="install-${family}.Dockerfile"
+
+# The browser stage reaches the panel from THIS machine, so it needs the port published. Implied
+# rather than demanded: a --browser run with nothing published could only ever fail on reachability.
+if [ "$browser" = "yes" ] && [ -z "$publish" ]; then
+  publish="18443"
+fi
 
 # The architecture under test. It changes the docker platform and nothing else: the same per-version
 # base.txt serves both, because every pinned digest is a manifest LIST covering both architectures.
@@ -347,6 +361,12 @@ stage_lockout_recovery() {
   local old_password="Polygon-Old-Password-1" new_password="Polygon-New-Password-2"
   local setup_token code batch attempt non_401=0 out status link token journal
 
+  # When the browser stage ran, it already created this exact administrator through the UI and
+  # spent the one-time token; posting it again would be refused and scored as a recovery failure.
+  # The sign-in below with the old password is the positive control either way.
+  if [ "$browser_admin_created" = "yes" ]; then
+    echo "    lockout-recovery: the first administrator was created by the browser stage; API setup skipped"
+  else
   setup_token="$(docker exec "$container" sed -n 's/^Setup__Token=//p' /etc/maran/panel.env 2>/dev/null | tr -d '\r' || true)"
   # The vacuity guard: an empty token makes the setup refuse and every later line report on a
   # panel that has no administrator, which would read as five unrelated failures.
@@ -358,6 +378,7 @@ stage_lockout_recovery() {
   code="$(panel_post /api/v1/setup "{\"token\":\"${setup_token}\",\"username\":\"${admin_user}\",\"email\":\"${admin_email}\",\"password\":\"${old_password}\"}")"
   recovery_expect "completing first-admin setup" "$code" "200"
   [ "$code" = "200" ] || return 0
+  fi
 
   # The positive control for everything about locking: this exact credential is ACCEPTED now, so a
   # refusal of it later is attributable to the lock and not to a wrong password.
@@ -535,13 +556,84 @@ stage_diagnostics() {
   echo "    UNOBSERVED HERE: customer-identifying data (domain names, IP addresses) is not removed by design, and a real operator's journal is far larger than this fresh install's."
 }
 
+# ---------------------------------------------------------------------------------------------
+# The real-browser stage (issue #68), opt-in with --browser.
+#
+# Every check above talks to the panel with `curl -k`, and two defects shipped straight past it: an
+# Ed25519 self-signed certificate that Chromium refuses with ERR_SSL_VERSION_OR_CIPHER_MISMATCH
+# (#67) — curl negotiates it without complaint — and a panel whose database had no schema (#66),
+# which no curl here asked a question deep enough to notice. This stage opens the panel the way an
+# operator does: Chromium, through nginx and its certificate, on the published loopback port. It
+# creates the first administrator through /setup, signs in through /login and requires the
+# dashboard. ignoreHTTPSErrors forgives the self-signed TRUST failure, which is by design; it does
+# not forgive a handshake Chromium refuses, which is the #67 class.
+#
+# It runs BEFORE the recovery stage because both need the one-time setup token, and it creates the
+# same administrator the recovery stage then locks out, so the two compose instead of colliding.
+#
+# How it was shown to fail (rules/testing.md, "a check must be able to observe what it reports on"):
+# the spec run against a URL with no server fails on ERR_CONNECTION_REFUSED, and run against an
+# `openssl s_server` presenting an Ed25519 certificate it fails on ERR_SSL_VERSION_OR_CIPHER_MISMATCH
+# at the first navigation; both reproducible with the hand-run command in playwright.install.config.ts.
+# ---------------------------------------------------------------------------------------------
+browser_admin_created="no"
+browser_log="${log_dir}/browser-${os}-${arch}-${mode}.log"
+
+stage_browser() {
+  local setup_token status=0
+  : > "$browser_log"
+
+  # The toolchain is this machine's, not the container's. A missing one is a FAILURE of the stage
+  # the operator asked for, never a quiet skip: a --browser run that printed OK without a browser
+  # having opened anything is the exact false pass this stage exists to remove.
+  if [ ! -d "${root}/frontend/node_modules/@playwright/test" ]; then
+    note "browser: frontend/node_modules/@playwright/test is absent (run: cd frontend && npm ci), so no browser opened the panel"
+    return 0
+  fi
+
+  setup_token="$(docker exec "$container" sed -n 's/^Setup__Token=//p' /etc/maran/panel.env 2>/dev/null | tr -d '\r' || true)"
+  # The vacuity guard: with no token the setup form is refused and the stage would report a UI
+  # defect that is really an installer one. Fail, never skip.
+  if [ "${#setup_token}" -lt 8 ]; then
+    note "browser: /etc/maran/panel.env carries no Setup__Token of at least 8 characters, so the browser could not create an administrator and nothing was observed"
+    return 0
+  fi
+
+  # The token travels in the environment, never on a command line another user can read, and the
+  # spec never prints it. The run's output goes to its own log beside the install log.
+  (
+    cd "${root}/frontend" \
+      && MARAN_INSTALLED_URL="https://127.0.0.1:${publish}" \
+         MARAN_SETUP_TOKEN="$setup_token" \
+         MARAN_ADMIN_USERNAME="polygonadmin" \
+         MARAN_ADMIN_EMAIL="polygon.admin@example.test" \
+         MARAN_ADMIN_PASSWORD="Polygon-Old-Password-1" \
+         npx playwright test -c playwright.install.config.ts
+  ) >"$browser_log" 2>&1 || status=$?
+
+  # Scored on the printed result as well as the status: a run that collected nothing exits
+  # non-zero in Playwright, but "1 passed" is the line that says the one test actually ran.
+  if [ "$status" -eq 0 ] && grep -qE '^[[:space:]]*1 passed' "$browser_log"; then
+    browser_admin_created="yes"
+    recovery_checks=$((recovery_checks + 1))
+    echo "    browser: Chromium negotiated TLS with the panel, created the administrator through /setup, signed in through /login and saw the dashboard"
+    echo "    UNOBSERVED HERE: other browsers' TLS stacks (only Chromium ran), and a certificate trusted by a real CA — the self-signed trust failure is forgiven by design."
+  else
+    note "browser: the Playwright stage failed (exit ${status}); see ${browser_log#"$root"/}"
+    grep -E 'ERR_[A-Z_]+|Error:|expect\(' "$browser_log" | head -5 | sed 's/^/      /' >&2 || true
+  fi
+}
+
 if [ "$failures" -eq 0 ]; then
+  if [ "$browser" = "yes" ]; then
+    stage_browser
+  fi
   stage_lockout_recovery
   stage_diagnostics
   [ "$recovery_checks" -ge 20 ] \
     || note "the lockout-recovery and diagnostics stages made only ${recovery_checks} checks, fewer than the 20 they make when nothing stops them early; a stage that returned early observed little (see ${recovery_log#"$root"/})"
 else
-  echo "    lockout-recovery and diagnostics stages NOT RUN: the install itself failed above, and a recovery stage scored on a half-installed panel would be reporting on the install."
+  echo "    browser (when asked), lockout-recovery and diagnostics stages NOT RUN: the install itself failed above, and a recovery stage scored on a half-installed panel would be reporting on the install."
 fi
 
 if [ "$keep" = "yes" ]; then

@@ -38,6 +38,9 @@ A PR missing any of these is incomplete, independent of code quality.
 
   `maran structure` rejects an inline `mod tests {` and a `*_tests.rs` outside the `src/tests/` mirror.
 - Frontend: **no colocated unit tests** — the SPA is verified end-to-end. Playwright specs live in `frontend/e2e/` with fixtures in `e2e/fixtures/`; the shell's own gates are `lint`, `typecheck` and `build`.
+  The one exception is `e2e/install/`: specs that need a panel a real installer set up, run only
+  through `playwright.install.config.ts` by `maran installer --browser` (docker/README.md), and
+  ignored by the everyday config so `maran test spa` and its baseline never collect them.
 
 ## Naming
 

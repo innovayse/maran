@@ -1,6 +1,6 @@
 {
   "extends": "@vue/tsconfig/tsconfig.json",
-  "include": ["vite.config.ts", "eslint.config.ts", "playwright.config.ts"],
+  "include": ["vite.config.ts", "eslint.config.ts", "playwright.config.ts", "playwright.install.config.ts"],
   "compilerOptions": {
     "composite": true,
     "noEmit": true,
