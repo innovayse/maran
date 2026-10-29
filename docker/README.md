@@ -659,7 +659,8 @@ stops NOTHING" by its own header, and four defects hid behind exactly that (#39,
 
 ## The install polygon: the documented install path on a real init
 
-    maran installer [--os <version>] [--mode local|get|offline] [--bundle PATH] [--keep]
+    maran installer [--os <version>] [--mode local|get|offline] [--bundle PATH] [--arch <a>]
+                    [--publish PORT] [--browser] [--keep]
 
 `<version>` is any folder under `docker/polygon/images`: thirteen at the time of writing, covering
 Ubuntu 22.04/24.04/26.04, Debian 12/13, and AlmaLinux, Rocky Linux and Oracle Linux 8/9/10 — except
@@ -686,6 +687,25 @@ active, `/run/maran/agent.sock` `660 root:maran`, `/run/maran-api/api.sock` `660
 `/health` containing `"agent":"connected"` and `"database":"reachable"`, `/setup` 200. The exit code
 is checked too but cannot carry the verdict alone — it was 0 on the install whose root daemon was
 dead (#42).
+
+**`--browser` adds a real-browser stage (issue #68).** Every check above reaches the panel with
+`curl -k`, and two defects went straight past it: an Ed25519 self-signed certificate Chromium refuses
+with `ERR_SSL_VERSION_OR_CIPHER_MISMATCH` (#67) — curl negotiates it happily — and a panel whose
+database had no schema (#66). With `--browser` (which publishes the panel on `127.0.0.1:18443` unless
+`--publish` names a port), the harness reads `Setup__Token` from `/etc/maran/panel.env` in the
+container and runs `frontend/e2e/install/installed-panel.spec.ts` through
+`frontend/playwright.install.config.ts` on THIS machine: Chromium opens `/setup`, the spec requires
+that TLS was negotiated, creates the first administrator through the form, signs in through `/login`
+and requires the main navigation and the `System status` heading. `ignoreHTTPSErrors` forgives the
+self-signed trust failure, which is by design; it does not forgive a handshake Chromium refuses,
+which is the #67 class. The administrator it creates is the one the lockout-recovery stage then
+locks out, so that stage skips its own API setup. Missing `frontend/node_modules`, an empty token,
+a failed spec or a run that did not print `1 passed` all fail the verdict — never a skip. The output
+is in `.polygon-logs/browser-<os>-<arch>-<mode>.log`. The everyday suite ignores `e2e/install/`, so
+`maran test spa` and its baseline never collect it. It was shown able to fail: against a port with
+no server it fails on `ERR_CONNECTION_REFUSED`, and against `openssl s_server` presenting an Ed25519
+certificate it fails on `ERR_SSL_VERSION_OR_CIPHER_MISMATCH` at the first navigation. Only Chromium
+runs; other browsers' TLS stacks are unobserved.
 
 The three modes answer three different questions. `local` installs from the working tree over the
 released artifacts, so an installer fix is testable with no release at all. `offline` installs a

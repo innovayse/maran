@@ -5,6 +5,18 @@ than a strict category list: what changed and why it matters to somebody running
 
 ## Unreleased
 
+**Signing in with a second factor now works.** After a correct authenticator or recovery code the
+panel sent the user back to the sign-in screen, and only a reload let them in: the screen read the
+answer to the code step in the shape of the first step's answer and found no session in it. The
+browser test that should have caught it answered with the same wrong shape, so both agreed with each
+other and not with the server; it now answers exactly as the server does.
+
+**The install test can now open the panel in a real browser.** `maran installer --browser` creates the
+first administrator through the setup screen in Chromium, signs in and requires the dashboard, over
+the panel's own TLS listener. Until now every check reached the panel with a command-line client that
+accepted a certificate browsers refuse, which is how an installed panel that no browser could open
+went unnoticed.
+
 **A published release can no longer ship without both architectures.** A build, sign or
 verify run with `--publish` now refuses unless both x86_64 and aarch64 are present: `build --publish`
 requires `--arch both`, and signing and verification refuse a manifest missing any of the api, agent or

@@ -205,8 +205,8 @@ export const useAuthStore = defineStore('auth', () => {
     loading.value = true
     errorMessage.value = null
     try {
-      const result = await api.verifyTwoFactor({ username: twoFactorUsername.value, password, code })
-      accept(result.session)
+      const session = await api.verifyTwoFactor({ username: twoFactorUsername.value, password, code })
+      accept(session)
       twoFactorUsername.value = null
       return true
     } catch (error) {

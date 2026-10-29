@@ -62,10 +62,14 @@ export const useAuthApi = (): AuthApi => {
    * Completes a sign-in that stopped for a second factor.
    * @param request The credentials from the first step plus the code.
    * @param signal Optional abort signal to cancel the in-flight request.
-   * @returns The completed sign-in result.
+   *
+   * Answers with the signed-in half directly, like `refresh`, and NOT the login envelope: once the
+   * code is accepted no further factor can be owed, so the backend returns the session itself.
+   * Reading it as the envelope found `session` undefined and signed nobody in (issue #68).
+   * @returns The new token and the user it belongs to.
    */
-  const verifyTwoFactor = (request: VerifyTwoFactorRequest, signal?: AbortSignal): Promise<LoginResult> => {
-    return api.post<LoginResult>(`${AUTH_PATH}/two-factor`, request, signal, false)
+  const verifyTwoFactor = (request: VerifyTwoFactorRequest, signal?: AbortSignal): Promise<AuthenticatedSession> => {
+    return api.post<AuthenticatedSession>(`${AUTH_PATH}/two-factor`, request, signal, false)
   }
 
   /**
