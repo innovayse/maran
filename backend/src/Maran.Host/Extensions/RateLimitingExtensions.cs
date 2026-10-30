@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Runtime.CompilerServices;
 using System.Threading.RateLimiting;
 using Maran.Host.Configuration;
 using Maran.Host.RateLimiting;
@@ -63,6 +64,61 @@ public static class RateLimitingExtensions
         });
 
         return services;
+    }
+
+    /// <summary>
+    /// Adds ASP.NET Core's rate-limiting middleware so that, once the host has stopped, the limiter
+    /// it creates no longer holds the host (issue #124).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>The defect this works around is the framework's.</b> The middleware builds a partitioned
+    /// limiter when the pipeline is built, and that limiter runs a 100 ms replenishment timer until it
+    /// is disposed. The middleware is not disposable and nothing disposes the limiter, so the timer —
+    /// rooted by the process-wide timer queue — outlives the host, and the limiter's partition
+    /// function holds the middleware, whose <c>next</c> is the rest of the pipeline and through it the
+    /// whole container. (A second path, through the execution context the timer captured, is cut for
+    /// every startup timer at once in <c>Program.Main</c>.)
+    /// </para>
+    /// <para>
+    /// <b>What that cost, measured.</b> A panel builds its pipeline once, so in production this is one
+    /// timer for the life of the process. A test process builds one host per test, and every host it
+    /// had disposed stayed reachable: a heap snapshot mid-run held one live <c>Host</c>,
+    /// <c>TestServer</c> and <c>WolverineRuntime</c> per finished test (61 after about a hundred tests),
+    /// <c>gcroot</c> led each through this limiter, and with this one middleware removed the same
+    /// snapshot held 4. The integration suite grew past a 6 GB cap on a workstation and took GitHub's
+    /// 16 GB runners down with it.
+    /// </para>
+    /// <para>
+    /// <b>How the path is cut.</b> The middleware is built in a branch whose terminal step reaches the
+    /// rest of the pipeline through a holder that is emptied when the application stops, so after
+    /// shutdown the limiter keeps the middleware and nothing behind it. While the host runs, a request
+    /// passes through exactly as it did through <c>UseRateLimiter()</c> in this position: after routing
+    /// and authentication, so endpoint policies and the caller's identity are both visible to it. A
+    /// request still in flight after the application has stopped gets an empty response instead of
+    /// running the rest of a pipeline that is being torn down.
+    /// </para>
+    /// </remarks>
+    /// <param name="app">The application pipeline builder.</param>
+    /// <returns>The same builder, for chaining.</returns>
+    public static IApplicationBuilder UsePanelRateLimiting(this IApplicationBuilder app)
+    {
+        var lifetime = app.ApplicationServices.GetRequiredService<IHostApplicationLifetime>();
+
+        return app.Use(next =>
+        {
+            var rest = new StrongBox<RequestDelegate?>(next);
+            lifetime.ApplicationStopped.Register(() => { rest.Value = null; });
+
+            var branch = app.New();
+            branch.UseRateLimiter();
+            branch.Run(context =>
+            {
+                return rest.Value is { } downstream ? downstream(context) : Task.CompletedTask;
+            });
+
+            return branch.Build();
+        });
     }
 
     /// <summary>
