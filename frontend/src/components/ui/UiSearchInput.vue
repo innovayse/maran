@@ -129,14 +129,16 @@ const onClear = (): void => {
 </script>
 
 <template>
-  <div class="flex flex-col gap-1.5">
-    <label :for="fieldId" class="text-sm font-medium text-text-secondary wrap-anywhere">{{ label }}</label>
+  <div class="flex flex-col gap-1">
+    <label :for="fieldId" class="text-sm font-medium text-text-secondary wrap-anywhere">{{
+      label
+    }}</label>
     <div class="relative flex items-center">
       <!-- Decorative glyph: the field is already named by its label, so the
            magnifier repeats nothing to a screen reader. -->
       <UiIcon name="search" size="sm" class="pointer-events-none absolute left-3 text-text-muted" />
       <!-- The side paddings are geometry, not taste: `pl-9` clears the magnifier
-           at `left-3`, `pr-11` clears the 32px clear button at `right-1`. Move
+           at `left-3`, `pr-[calc(var(--d-inset)+0.5rem)]` clears the `size-inset` clear button at `right-1`. Move
            either inset and the text runs under the glyph. 16px text below `sm`
            so a phone browser does not zoom on focus; see UiInput. -->
       <input
@@ -150,14 +152,14 @@ const onClear = (): void => {
         :aria-autocomplete="inputRole === 'combobox' ? 'list' : undefined"
         :value="modelValue"
         :placeholder="placeholder"
-        class="min-h-10 w-full rounded-control border border-border-control bg-surface-2 py-2 pr-11 pl-9 text-base text-text-primary transition-colors placeholder:text-text-muted hover:border-text-secondary focus-visible:border-accent focus-visible:shadow-focus focus-visible:outline-none sm:text-sm"
+        class="min-h-control w-full rounded-control border border-border-control bg-surface-2 py-1.5 pr-[calc(var(--d-inset)+0.5rem)] pl-9 text-base text-text-primary transition-colors placeholder:text-text-muted enabled:hover:border-text-muted focus-visible:border-accent focus-visible:shadow-focus focus-visible:outline-none sm:text-sm"
         @input="onInput"
         @keydown.enter.prevent="onEnter"
       />
       <button
         v-if="hasValue"
         type="button"
-        class="absolute right-1 inline-flex size-8 items-center justify-center rounded-inset text-text-secondary transition-colors hover:bg-surface-3 hover:text-text-primary focus-visible:shadow-focus focus-visible:outline-none"
+        class="absolute right-1 inline-flex size-inset items-center justify-center rounded-inset text-text-secondary transition-colors hover:bg-surface-3 hover:text-text-primary focus-visible:shadow-focus focus-visible:outline-none"
         @click="onClear"
       >
         <!-- Decorative glyph: the button's accessible name comes from the caller-translated label. -->

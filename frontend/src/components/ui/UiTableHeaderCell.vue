@@ -40,7 +40,7 @@ const alignment: ComputedRef<string> = computed(() => {
 
 <template>
   <th
-    class="px-3 pt-1 pb-3 font-display text-xs font-extrabold tracking-caps whitespace-nowrap text-text-muted uppercase"
+    class="px-3 pt-0.5 pb-2 font-display text-xs font-extrabold tracking-caps whitespace-nowrap text-text-muted uppercase"
     :class="alignment"
     scope="col"
   >

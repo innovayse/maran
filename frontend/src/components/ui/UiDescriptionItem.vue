@@ -47,10 +47,12 @@ const valueClass = (): string => {
 
 <template>
   <div class="min-w-0">
-    <dt class="font-display text-xs font-extrabold tracking-caps text-text-muted uppercase wrap-anywhere">
+    <dt
+      class="font-display text-xs font-extrabold tracking-caps text-text-muted uppercase wrap-anywhere"
+    >
       {{ term }}
     </dt>
-    <dd class="mt-1 text-sm text-text-primary wrap-anywhere" :class="valueClass()">
+    <dd class="mt-0.5 text-sm text-text-primary wrap-anywhere" :class="valueClass()">
       <slot />
     </dd>
   </div>

@@ -146,9 +146,9 @@ const visibleText: ComputedRef<string> = computed(() => {
 </script>
 
 <template>
-  <div class="flex w-full items-center gap-3">
+  <div class="flex w-full items-center gap-2">
     <div
-      class="h-1.5 min-w-12 flex-1 overflow-hidden rounded-full bg-surface-3"
+      class="h-1 min-w-12 flex-1 overflow-hidden rounded-full bg-surface-3"
       role="progressbar"
       :aria-label="label"
       :aria-valuenow="value"

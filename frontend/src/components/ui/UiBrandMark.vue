@@ -29,10 +29,10 @@
 
 withDefaults(
   defineProps<{
-    /** Edge length in pixels. The app bar and the drawer use 30; the auth layout uses 40. */
+    /** Edge length in pixels. The app bar and the drawer use 26 by default; the auth layout uses 40. */
     size?: number
   }>(),
-  { size: 30 },
+  { size: 26 },
 )
 </script>
 

@@ -42,15 +42,15 @@ const props = withDefaults(
  */
 const shapeClasses: ComputedRef<string> = computed(() => {
   const heights: Record<'sm' | 'md' | 'lg', string> = {
-    sm: 'h-2.5',
-    md: 'h-3',
-    lg: 'h-3.5',
+    sm: 'h-2',
+    md: 'h-2.5',
+    lg: 'h-3',
   }
   switch (props.shape) {
     case 'block':
-      return props.size === 'lg' ? 'h-32 w-full rounded-panel' : 'h-20 w-full rounded-panel'
+      return props.size === 'lg' ? 'h-24 w-full rounded-panel' : 'h-16 w-full rounded-panel'
     case 'circle':
-      return props.size === 'lg' ? 'size-11 rounded-full' : 'size-7 rounded-full'
+      return props.size === 'lg' ? 'size-9 rounded-full' : 'size-6 rounded-full'
     case 'line':
     default:
       return `${heights[props.size]} w-full rounded-full`

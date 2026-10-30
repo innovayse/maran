@@ -70,4 +70,25 @@ export interface NavigationEntry {
   icon: NavigationIcon
   /** Whether the licence does not currently permit this module — rendered as visibly locked, not hidden. */
   locked: boolean
+  /**
+   * The module's own pages, landing page first, drawn as a collapsible submenu (issue #195). One
+   * level deep: a child never has children of its own. Empty for a single-page entry, for a locked
+   * module (its only destination is the upgrade page) and for every child.
+   */
+  children: NavigationEntry[]
+}
+
+/** One page inside a module's submenu. */
+export interface NavigationChildSpec {
+  /** Stable key, unique across the whole sidebar (used for `:key` and DOM ids). */
+  key: string
+  /** Route name the child leads to. */
+  route: string
+  /** i18n key of the child's label; the SPA owns these, they name its own screens. */
+  labelKey: string
+  /**
+   * Offered only to a role above customer. Advice, not a gate: the endpoint refuses a customer
+   * whatever the sidebar shows, and an unknown role errs permissive (rules/architecture.md).
+   */
+  adminOnly: boolean
 }

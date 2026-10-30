@@ -9,9 +9,9 @@
  * Emits `select` and lets the dropdown close itself — an item never reaches
  * into its parent's state. Only `UiDropdown` renders it.
  *
- * The row is a `rounded-row` button inside the panel's 6px padding, which makes
- * its corners concentric with the panel's 12px ones. The label is pushed apart
- * from whatever trails it (a tick, a shortcut, a count) by 12px. A destructive
+ * The row is a `rounded-row` button inside the panel's `p-menu` (4px) padding, which makes
+ * its corners concentric with the panel's 10px ones. The label is pushed apart
+ * from whatever trails it (a tick, a shortcut, a count) by 8px. A destructive
  * command is the only one that changes colour.
  *
  * **Contrast, measured (dark / light theme).** The hover and focus fill is
@@ -80,8 +80,12 @@ const onClick = (): void => {
       :aria-checked="checked"
       tabindex="-1"
       :disabled="disabled"
-      class="flex min-h-9 w-full items-center justify-between gap-3 rounded-row px-3 py-2 text-left text-sm transition-colors enabled:hover:bg-surface-2 focus-visible:bg-surface-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:text-text-muted"
-      :class="destructive ? 'text-danger focus-visible:shadow-focus-danger' : 'text-text-primary focus-visible:shadow-focus'"
+      class="flex min-h-row w-full items-center justify-between gap-2 rounded-row px-2.5 py-1.5 text-left text-sm transition-colors enabled:hover:bg-surface-2 focus-visible:bg-surface-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:text-text-muted"
+      :class="
+        destructive
+          ? 'text-danger focus-visible:shadow-focus-danger'
+          : 'text-text-primary focus-visible:shadow-focus'
+      "
       @click="onClick"
     >
       <slot />

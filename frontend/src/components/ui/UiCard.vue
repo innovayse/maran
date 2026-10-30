@@ -19,7 +19,7 @@
 </script>
 
 <template>
-  <div class="min-w-0 rounded-panel border border-border-subtle bg-surface-1 p-5">
+  <div class="min-w-0 rounded-panel border border-border-subtle bg-surface-1 p-4">
     <slot />
   </div>
 </template>

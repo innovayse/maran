@@ -35,9 +35,9 @@ export type UiIconTileSize = 'sm' | 'md' | 'lg'
  * one in a large tile reads as lost.
  */
 const STEPS: Record<UiIconTileSize, { tile: string; glyph: UiIconSize }> = {
-  sm: { tile: 'size-8', glyph: 'md' },
-  md: { tile: 'size-10', glyph: 'md' },
-  lg: { tile: 'size-12', glyph: 'lg' },
+  sm: { tile: 'size-7', glyph: 'sm' },
+  md: { tile: 'size-8', glyph: 'md' },
+  lg: { tile: 'size-10', glyph: 'lg' },
 }
 
 /** Props accepted by {@link UiIconTile}. */

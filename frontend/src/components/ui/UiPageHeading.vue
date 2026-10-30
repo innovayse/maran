@@ -96,13 +96,13 @@ const slots = useSlots()
 /**
  * The typography classes for the `<h1>`.
  *
- * The display title is `text-2xl` and steps up to `text-3xl` only when the
+ * The display title is `text-xl` and steps up to `text-2xl` only when the
  * container is wide (`@3xl`), so a long word has room to fit at a sensible length.
  */
 const titleClass: ComputedRef<string> = computed(() => {
   return props.mono
-    ? 'font-mono text-2xl font-semibold text-text-primary break-words @3xl:text-3xl'
-    : 'font-display text-2xl leading-tight font-black tracking-title text-text-primary uppercase break-words @3xl:text-3xl'
+    ? 'font-mono text-xl font-semibold text-text-primary break-words @3xl:text-2xl'
+    : 'font-display text-xl leading-tight font-black tracking-title text-text-primary uppercase break-words @3xl:text-2xl'
 })
 </script>
 
@@ -110,21 +110,25 @@ const titleClass: ComputedRef<string> = computed(() => {
   <!-- The outer block is the container; the row inside it reads that container's width. A
        container cannot restyle itself by its own size, hence two elements. -->
   <div class="@container">
-    <div class="flex flex-col items-start gap-4 @3xl:flex-row @3xl:flex-wrap @3xl:items-end @3xl:justify-between @3xl:gap-6">
+    <div
+      class="flex flex-col items-start gap-3 @3xl:flex-row @3xl:flex-wrap @3xl:items-end @3xl:justify-between @3xl:gap-4"
+    >
       <!-- `@3xl:min-w-64`: in the side-by-side layout the title never gets narrower than 16rem; if
            the actions would take it below that, the row wraps and they drop under the title. -->
       <div class="min-w-0 @3xl:min-w-64 @3xl:flex-1">
         <p
           v-if="eyebrow !== undefined"
-          class="mb-1.5 font-display text-xs font-extrabold tracking-caps text-accent-text uppercase break-words"
+          class="mb-1 font-display text-xs font-extrabold tracking-caps text-accent-text uppercase break-words"
         >
           {{ eyebrow }}
         </p>
         <h1 :class="titleClass">{{ title }}</h1>
-        <p v-if="subtitle !== undefined" class="mt-2 text-base text-text-secondary break-words">
+        <p v-if="subtitle !== undefined" class="mt-1 text-sm text-text-secondary break-words">
           {{ subtitle }}
         </p>
-        <p v-if="note !== undefined" class="mt-1 text-sm text-text-muted break-words">{{ note }}</p>
+        <p v-if="note !== undefined" class="mt-0.5 text-sm text-text-muted break-words">
+          {{ note }}
+        </p>
       </div>
       <div v-if="slots.actions" class="flex flex-wrap items-center gap-2">
         <slot name="actions" />

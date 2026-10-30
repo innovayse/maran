@@ -40,8 +40,8 @@
  * **Accessible name.** The slot is the name. A button whose only content is an
  * icon MUST pass its own translated `aria-label` (it falls through to the
  * `<button>`): an icon is `aria-hidden` by default, so without a label the
- * control has no name at all. Every size is at least 32px on each side (`icon-sm`; 40px
- * for the rest), so the 24x24px minimum target (WCAG 2.5.8) is cleared with room to spare.
+ * control has no name at all. Every size is at least 28px on each side (`icon-sm`, the field-inset
+ * size; the control height for the rest), so the 24x24px minimum target (WCAG 2.5.8) is cleared.
  *
  * **Size.** `size` is the geometry and `variant` the look; they are independent, and neither is
  * restated by a caller. The class string is built by `buttonClasses` so that each CSS property has
@@ -75,14 +75,15 @@ import { buttonClasses } from '../../utils/buttonClasses'
  * Declared here rather than in `src/types/` because it describes this
  * component's props and means nothing without it (rules/vue.md).
  */
-export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'quiet' | 'field' | 'destructive' | 'ai'
+export type ButtonVariant =
+  'primary' | 'secondary' | 'ghost' | 'quiet' | 'field' | 'destructive' | 'ai'
 
 /**
  * Geometry of a {@link UiButton}, independent of its variant.
  *
- * - `md`: the default, a labelled action at least 40px tall.
- * - `bar`: a 40px-tall app-bar action that holds an icon with an optional label beside it.
- * - `icon`: a 40px square holding one icon, for a control with no visible text.
+ * - `md`: the default, a labelled action as tall as a field (the `--d-control` token: 34px on desktop, 44px on a phone).
+ * - `bar`: a control-height app-bar action that holds an icon with an optional label beside it.
+ * - `icon`: a control-height square holding one icon, for a control with no visible text.
  * - `icon-sm`: the same at 32px, for a control tucked into a panel's corner.
  * - `tab`: a stacked icon-over-label cell, for a tab bar.
  *

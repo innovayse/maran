@@ -13,6 +13,18 @@
         "security": "Security",
         "system": "System",
         "panel": "Panel"
+      },
+      "expandSection": "Show the {name} pages",
+      "children": {
+        "accountsList": "Account list",
+        "accountsNew": "New account",
+        "sitesList": "Site list",
+        "sitesNew": "New site",
+        "databasesList": "Database list",
+        "databasesGrantRepair": "Grant repair",
+        "backupsList": "Backup list",
+        "backupsSchedule": "Schedule",
+        "backupsDestinations": "Destinations"
       }
     },
     "shell": {

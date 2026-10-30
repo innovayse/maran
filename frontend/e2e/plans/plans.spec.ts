@@ -28,7 +28,11 @@ const BUSINESS = MANAGED_PLANS[1]
  * @param refusals Writes the stubbed server refuses.
  * @returns What the stubbed endpoints received.
  */
-const open = async (page: Page, path: string, refusals: PlanRefusals = {}): Promise<PlanRequests> => {
+const open = async (
+  page: Page,
+  path: string,
+  refusals: PlanRefusals = {},
+): Promise<PlanRequests> => {
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, LICENSED_ACCOUNTS)
@@ -74,18 +78,26 @@ test('the list shows every plan with its limits as numbers, and "None" where a p
   await expect(business.getByRole('cell').nth(6)).toHaveText('10')
 
   // A figure is mono and right-aligned, so a column lines up on the digit.
-  const align = await starter.getByRole('cell').nth(2).evaluate((cell) => {
-    const style = getComputedStyle(cell)
-    return { textAlign: style.textAlign, family: style.fontFamily }
-  })
+  const align = await starter
+    .getByRole('cell')
+    .nth(2)
+    .evaluate((cell) => {
+      const style = getComputedStyle(cell)
+      return { textAlign: style.textAlign, family: style.fontFamily }
+    })
   expect(align.textAlign).toBe('right')
   expect(align.family).toContain('JetBrains Mono')
 })
 
-test('the sidebar offers Plans in the Hosting group and it leads to the screen', async ({ page }) => {
+test('the sidebar offers Plans inside the Accounts submenu and it leads to the screen', async ({
+  page,
+}) => {
   await open(page, '/')
 
   const nav = page.getByRole('navigation', { name: 'Main navigation' })
+  // Plans is a child of Accounts (issue #195): the section is closed away from its pages.
+  await expect(nav.getByRole('link', { name: 'Plans' })).toHaveCount(0)
+  await nav.getByRole('button', { name: 'Show the Accounts pages' }).click()
   await nav.getByRole('link', { name: 'Plans' }).click()
 
   await expect(page).toHaveURL('/plans')
@@ -104,7 +116,9 @@ test('an empty panel says there are no plans and offers to define the first', as
   await expect(page).toHaveURL('/plans/new')
 })
 
-test('submitting the empty form shows the panel own field messages and sends nothing', async ({ page }) => {
+test('submitting the empty form shows the panel own field messages and sends nothing', async ({
+  page,
+}) => {
   const requests = await open(page, '/plans/new')
 
   await page.getByRole('button', { name: 'Create plan' }).click()
@@ -158,7 +172,9 @@ test('a valid plan is posted as typed and shows up in the list', async ({ page }
   await expect(page.getByRole('row', { name: /Agency/ })).toBeVisible()
 })
 
-test('a refused create renders the server sentence verbatim and keeps what was typed', async ({ page }) => {
+test('a refused create renders the server sentence verbatim and keeps what was typed', async ({
+  page,
+}) => {
   const detail = 'Another plan already has this name.'
   await open(page, '/plans/new', { create: detail })
 
@@ -195,7 +211,12 @@ test('editing a plan starts from its figures and puts the whole plan', async ({ 
     maxCronEntries: 20,
     maxPhpWorkersPerPool: 10,
   })
-  await expect(page.getByRole('row', { name: /Business/ }).getByRole('cell').nth(2)).toHaveText('51200')
+  await expect(
+    page
+      .getByRole('row', { name: /Business/ })
+      .getByRole('cell')
+      .nth(2),
+  ).toHaveText('51200')
 })
 
 test('editing a plan with accounts on it says the edit reaches them, and warns when the disk is lowered', async ({
@@ -203,7 +224,9 @@ test('editing a plan with accounts on it says the edit reaches them, and warns w
 }) => {
   await open(page, `/plans/${STARTER.id}`)
 
-  await expect(page.getByText('3 accounts are on this plan. The new limits apply to all of them at once.')).toBeVisible()
+  await expect(
+    page.getByText('3 accounts are on this plan. The new limits apply to all of them at once.'),
+  ).toBeVisible()
   await expect(page.getByText('If any account already uses more than the new figure')).toBeVisible()
   // Not lowered yet, so no warning under the disk field.
   await expect(page.getByText('The disk quota goes down')).toHaveCount(0)
@@ -234,7 +257,9 @@ test('an unknown plan id says the plan was not found', async ({ page }) => {
   await expect(page.getByText('Plan not found')).toBeVisible()
 })
 
-test('deleting asks first, names the plan, and removes it only when confirmed', async ({ page }) => {
+test('deleting asks first, names the plan, and removes it only when confirmed', async ({
+  page,
+}) => {
   const requests = await open(page, '/plans')
 
   await page.getByRole('button', { name: 'Delete Business' }).click()
@@ -265,7 +290,9 @@ test('a plan accounts are on says so in the dialog, and the server refusal is sh
 
   await page.getByRole('button', { name: 'Delete Starter' }).click()
   const dialog = page.getByRole('dialog', { name: 'Delete plan Starter' })
-  await expect(dialog).toContainText('3 accounts are on this plan, so the panel will refuse to delete it')
+  await expect(dialog).toContainText(
+    '3 accounts are on this plan, so the panel will refuse to delete it',
+  )
   await dialog.getByRole('button', { name: 'Delete', exact: true }).click()
 
   await expect(page.getByText(detail, { exact: true })).toBeVisible()
@@ -274,7 +301,9 @@ test('a plan accounts are on says so in the dialog, and the server refusal is sh
   await expect(page.getByRole('row', { name: /Starter/ })).toBeVisible()
 })
 
-test('a customer who opens the screen reads the server refusal in place of the list', async ({ page }) => {
+test('a customer who opens the screen reads the server refusal in place of the list', async ({
+  page,
+}) => {
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, LICENSED_ACCOUNTS)
@@ -292,7 +321,9 @@ test('a customer who opens the screen reads the server refusal in place of the l
   await expect(page.getByRole('table')).toHaveCount(0)
 })
 
-test('the Plans screen has no horizontal scroll at 390 px in English and Armenian', async ({ browser }) => {
+test('the Plans screen has no horizontal scroll at 390 px in English and Armenian', async ({
+  browser,
+}) => {
   for (const locale of ['en', 'hy'] as const) {
     const context = await browser.newContext({ viewport: { width: 390, height: 844 } })
     const page = await context.newPage()
@@ -312,7 +343,9 @@ test('the Plans screen has no horizontal scroll at 390 px in English and Armenia
         mainBox: main?.clientWidth ?? 0,
       }
     })
-    expect(widths.document, `${locale}: the document scrolls sideways`).toBeLessThanOrEqual(widths.viewport)
+    expect(widths.document, `${locale}: the document scrolls sideways`).toBeLessThanOrEqual(
+      widths.viewport,
+    )
     expect(widths.main, `${locale}: the main panel overflows`).toBeLessThanOrEqual(widths.mainBox)
 
     await page.goto('/plans/new')

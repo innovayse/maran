@@ -27,9 +27,13 @@ defineProps<{
 
 <template>
   <div class="min-w-0">
-    <h2 class="font-display text-3xl font-black tracking-caps text-text-primary uppercase wrap-anywhere">
+    <h2
+      class="font-display text-2xl font-black tracking-caps text-text-primary uppercase wrap-anywhere"
+    >
       {{ title }}
     </h2>
-    <p v-if="subtitle !== undefined" class="mt-2 text-base text-text-secondary wrap-anywhere">{{ subtitle }}</p>
+    <p v-if="subtitle !== undefined" class="mt-1.5 text-sm text-text-secondary wrap-anywhere">
+      {{ subtitle }}
+    </p>
   </div>
 </template>

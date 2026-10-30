@@ -13,6 +13,18 @@
         "security": "Безопасность",
         "system": "Система",
         "panel": "Панель"
+      },
+      "expandSection": "Показать разделы «{name}»",
+      "children": {
+        "accountsList": "Все аккаунты",
+        "accountsNew": "Новый аккаунт",
+        "sitesList": "Все сайты",
+        "sitesNew": "Новый сайт",
+        "databasesList": "Все базы данных",
+        "databasesGrantRepair": "Восстановление прав",
+        "backupsList": "Все копии",
+        "backupsSchedule": "Расписание",
+        "backupsDestinations": "Хранилища"
       }
     },
     "shell": {

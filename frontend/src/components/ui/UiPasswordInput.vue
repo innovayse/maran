@@ -96,13 +96,13 @@ const emit = defineEmits<{
 const { t } = useI18n()
 
 /**
- * Shared look of the two in-field controls: a 32px square (above the 24px target
+ * Shared look of the two in-field controls: a `size-inset` square (28px from tablet up, 40px on a phone; above the 24px target
  * minimum), a radius concentric with the field's (the field's `--r-control` minus
  * the 4px the controls are inset by, which is `rounded-inset`, so the corners keep an even gap), and a
  * `shadow-focus` ring so a keyboard user can see which one they are on.
  */
 const CONTROL_CLASSES: string =
-  'inline-flex size-8 items-center justify-center rounded-inset text-text-secondary transition-colors hover:bg-surface-3 hover:text-text-primary focus-visible:shadow-focus focus-visible:outline-none disabled:cursor-not-allowed disabled:text-text-muted disabled:hover:bg-transparent'
+  'inline-flex size-inset items-center justify-center rounded-inset text-text-secondary transition-colors hover:bg-surface-3 hover:text-text-primary focus-visible:shadow-focus focus-visible:outline-none disabled:cursor-not-allowed disabled:text-text-muted disabled:hover:bg-transparent'
 
 /**
  * Whether the value is currently shown as text. Always starts hidden: a page
@@ -186,7 +186,7 @@ const onGenerate = (): void => {
         :aria-controls="inputId"
         @click="onGenerate"
       >
-        <UiIcon name="dices" size="md" />
+        <UiIcon name="dices" size="sm" />
       </button>
       <!-- `aria-label` is the control's ONLY name now that the words are not
            rendered: the icon is decorative and announces nothing. `aria-controls`
@@ -201,7 +201,7 @@ const onGenerate = (): void => {
         :disabled="props.disabled"
         @click="onToggle"
       >
-        <UiIcon :name="toggleIcon" size="md" />
+        <UiIcon :name="toggleIcon" size="sm" />
       </button>
     </template>
   </UiInput>

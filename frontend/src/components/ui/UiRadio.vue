@@ -22,7 +22,7 @@
  * 3.07 — all over the 3:1 of WCAG 1.4.11. Selected: a
  * `bg-accent-fill` disc (3.65:1 against a panel) holding a white dot at 5.14:1,
  * so selection is carried by the dot's presence as well as by colour. The row is
- * at least 32px tall.
+ * `min-h-choice` tall: 28px from tablet up, 44px on a phone.
  */
 import { useId } from 'vue'
 
@@ -65,7 +65,7 @@ const onChange = (): void => {
 <template>
   <label
     :for="fieldId"
-    class="flex min-h-8 w-fit max-w-full items-center gap-2.5 text-sm text-text-primary"
+    class="flex min-h-choice w-fit max-w-full items-center gap-2 text-sm text-text-primary"
     :class="disabled ? 'cursor-not-allowed opacity-65' : 'cursor-pointer'"
   >
     <input
@@ -79,11 +79,11 @@ const onChange = (): void => {
       @change="onChange"
     />
     <span
-      class="inline-flex size-5 shrink-0 items-center justify-center rounded-full border transition-colors peer-focus-visible:shadow-focus"
+      class="inline-flex size-4 shrink-0 items-center justify-center rounded-full border transition-colors peer-focus-visible:shadow-focus"
       :class="checked ? 'border-accent-fill bg-accent-fill' : 'border-border-control bg-surface-2'"
       aria-hidden="true"
     >
-      <span v-if="checked" class="size-2 rounded-full bg-white" />
+      <span v-if="checked" class="size-1.5 rounded-full bg-white" />
     </span>
     <span class="min-w-0 wrap-anywhere">{{ label }}</span>
   </label>

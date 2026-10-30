@@ -134,7 +134,7 @@ const onInput = (event: Event): void => {
 </script>
 
 <template>
-  <div class="flex flex-col gap-1.5">
+  <div class="flex flex-col gap-1">
     <!-- The label turns red with the field: an invalid field is readable as
          invalid from the label down, not from the border (which is too faint to
          carry it). The message below says WHY, so colour is never the only cue. -->
@@ -161,13 +161,13 @@ const onInput = (event: Event): void => {
         :aria-required="required ? 'true' : undefined"
         :aria-invalid="hasError"
         :aria-describedby="hasError ? errorId : undefined"
-        class="ui-input-field min-h-10 w-full rounded-control border bg-surface-2 py-2 text-base text-text-primary transition-colors placeholder:text-text-muted focus-visible:outline-none disabled:cursor-not-allowed disabled:text-text-muted disabled:opacity-100 disabled:[-webkit-text-fill-color:var(--t3)] sm:text-sm"
+        class="ui-input-field min-h-control w-full rounded-control border bg-surface-2 py-1.5 text-base text-text-primary transition-colors placeholder:text-text-muted focus-visible:outline-none disabled:cursor-not-allowed disabled:text-text-muted disabled:opacity-100 disabled:[-webkit-text-fill-color:var(--t3)] sm:text-sm"
         :class="[
           hasError
             ? 'border-danger focus-visible:shadow-focus-danger'
             : 'border-border-control enabled:hover:border-text-muted focus-visible:border-accent focus-visible:shadow-focus disabled:border-border-subtle',
-          $slots.trailing ? 'pr-18' : 'pr-3',
-          icon ? 'pl-10' : 'pl-3',
+          $slots.trailing ? 'pr-[calc(var(--d-inset)*2+0.5rem)]' : 'pr-3',
+          icon ? 'pl-9' : 'pl-3',
           mono ? 'font-mono' : '',
         ]"
         @input="onInput"
@@ -177,7 +177,7 @@ const onInput = (event: Event): void => {
            lands in the input underneath. -->
       <span
         v-if="icon"
-        class="pointer-events-none absolute inset-y-0 left-3.5 flex items-center"
+        class="pointer-events-none absolute inset-y-0 left-3 flex items-center"
         :class="hasError ? 'text-danger' : 'text-text-muted'"
       >
         <UiIcon :name="icon" size="sm" />

@@ -148,17 +148,21 @@ const iconClasses: ComputedRef<string> = computed(() => {
 
 <template>
   <div
-    class="flex flex-wrap items-start gap-x-3 gap-y-3 rounded-panel border px-4 py-3 text-sm leading-normal text-text-primary"
+    class="flex flex-wrap items-start gap-x-2.5 gap-y-2 rounded-panel border px-3 py-2.5 text-sm leading-normal text-text-primary"
     :class="toneClasses"
   >
-    <div class="flex min-w-0 flex-1 basis-60 items-start gap-3">
+    <div class="flex min-w-0 flex-1 basis-60 items-start gap-2.5">
       <!-- Decorative: UiIcon hides itself from assistive technology, and the
            message beside it already says everything the glyph does. -->
       <span class="mt-px shrink-0" :class="iconClasses"><UiIcon :name="iconName" /></span>
       <!-- The live region is the element that holds the message itself, not the
            whole notice: assertive for errors so screen readers interrupt, polite
            otherwise. See "Where the live region sits" in the doc comment. -->
-      <div class="min-w-0 flex-1 wrap-anywhere" role="status" :aria-live="isError ? 'assertive' : 'polite'">
+      <div
+        class="min-w-0 flex-1 wrap-anywhere"
+        role="status"
+        :aria-live="isError ? 'assertive' : 'polite'"
+      >
         <slot />
       </div>
     </div>

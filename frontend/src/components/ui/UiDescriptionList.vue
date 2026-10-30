@@ -19,7 +19,7 @@
 </script>
 
 <template>
-  <dl class="grid gap-x-6 gap-y-4 sm:grid-cols-2">
+  <dl class="grid gap-x-5 gap-y-3 sm:grid-cols-2">
     <slot />
   </dl>
 </template>

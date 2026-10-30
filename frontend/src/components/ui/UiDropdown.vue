@@ -50,7 +50,16 @@
  * panel against it and a scroll that carries the trigger off screen closes the
  * menu — see {@link onAnyScroll} for why closing on ANY move was not tenable.
  */
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, useId, type ComputedRef, type Ref } from 'vue'
+import {
+  computed,
+  nextTick,
+  onBeforeUnmount,
+  onMounted,
+  ref,
+  useId,
+  type ComputedRef,
+  type Ref,
+} from 'vue'
 import UiIcon from './UiIcon.vue'
 import type { ButtonSize, ButtonVariant } from './UiButton.vue'
 import { buttonClasses } from '../../utils/buttonClasses'
@@ -220,7 +229,7 @@ const triggerClasses: ComputedRef<string> = computed(() => {
   const box =
     props.variant === 'bare'
       ? 'w-full rounded-control px-1.5 py-1 enabled:hover:bg-surface-3'
-      : 'min-h-10 rounded-control border border-border-subtle bg-surface-2 px-4 py-2 font-medium enabled:hover:border-border-strong enabled:hover:bg-surface-3'
+      : 'min-h-control rounded-control border border-border-subtle bg-surface-2 px-3 py-1.5 font-medium enabled:hover:border-border-strong enabled:hover:bg-surface-3'
   return `${OWN_TRIGGER_CLASSES} ${box}`
 })
 
@@ -657,12 +666,18 @@ const onAnyScroll = (): void => {
   // Sub-pixel tolerance: a fractional layout position must not read as movement,
   // and re-placing on every frame of a smooth scroll that changed nothing is
   // work for no one.
-  if (Math.abs(rect.top - anchor.value.top) <= 0.5 && Math.abs(rect.left - anchor.value.left) <= 0.5) {
+  if (
+    Math.abs(rect.top - anchor.value.top) <= 0.5 &&
+    Math.abs(rect.left - anchor.value.left) <= 0.5
+  ) {
     return
   }
 
   const isOnScreen =
-    rect.bottom > 0 && rect.top < window.innerHeight && rect.right > 0 && rect.left < window.innerWidth
+    rect.bottom > 0 &&
+    rect.top < window.innerHeight &&
+    rect.right > 0 &&
+    rect.left < window.innerWidth
   if (isOnScreen) {
     updateSide()
     return
@@ -728,7 +743,7 @@ onBeforeUnmount((): void => {
         ref="menuElement"
         role="menu"
         :aria-labelledby="triggerId"
-        class="fixed z-50 min-w-48 rounded-control border border-border-strong bg-surface-1 p-1.5 shadow-xl"
+        class="fixed z-50 min-w-44 rounded-control border border-border-strong bg-surface-1 p-menu shadow-xl"
         :style="panelStyle"
         @click="onMenuClick"
         @click.capture="onMenuClickCapture"

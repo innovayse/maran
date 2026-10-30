@@ -5,6 +5,17 @@ than a strict category list: what changed and why it matters to somebody running
 
 ## Unreleased
 
+**The sidebar has submenus.** A module with more than one page (Accounts with its list, the new-account
+form and Plans; Sites; Databases; Backups with its schedule and destinations) is now a section that
+opens and closes. The section holding the page you are on opens by itself, even from a bookmark;
+which sections you keep open is remembered in your browser. The chevron says whether it is open to a
+screen reader, and the arrow keys move through the menu. With the sidebar collapsed, pointing at or
+tabbing to an icon shows its pages beside the rail, and the jump-to search finds the pages too.
+
+**The navigation is denser.** The sidebar is 216 px instead of 240, rows and icons are smaller and the
+app bar is 48 px tall, so more of a work screen fits without scrolling. On a phone the menu rows stay
+44 px tall for touch.
+
 **The break-glass `maran` commands work on a real install.** `maran admin-reset-password` exited
 with a usage error on every call, because the command refused the `--` its own wrapper passes before
 the identifier. `maran collect-diagnostics` refused every bundle, because it took the panel address

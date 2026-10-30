@@ -3,6 +3,7 @@ import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { useModulesStore } from '../stores/modules'
 import { NO_LANDING_ROUTE, moduleLandingRoute } from '../router/moduleLandingRoute'
+import { moduleNavigationChildren } from '../router/moduleNavigationChildren'
 import { moduleNavigationIcon } from '../utils/moduleNavigationIcon'
 import type { NavigationEntry } from '../types/navigation'
 
@@ -21,12 +22,6 @@ const SYSTEM_STATUS_ROUTE = 'system-status'
 const AUDIT_ROUTE = 'audit'
 
 /**
- * Route name of the plans screen. Plans are the Accounts module's reference data, edited by the
- * administrator only, so its entry is the shell's own and travels with the accounts entry.
- */
-const PLANS_ROUTE = 'plans'
-
-/**
  * Route name of the upgrade prompt a locked module's entry points to.
  */
 const UPGRADE_ROUTE = 'upgrade'
@@ -42,6 +37,12 @@ const UPGRADE_ROUTE = 'upgrade'
  * A module's label is the panel's own, already localized, so no translation key
  * is added here for one. Where a module's entry LEADS is this SPA's own fact and
  * is stated in `router/moduleLandingRoute.ts`, never guessed from its name.
+ *
+ * A module with more than one page carries them as `children` (issue #195), as declared in
+ * `router/moduleNavigationChildren.ts`: a child whose route is not registered is dropped, and an
+ * administrator-only child is offered to roles above customer only (advice — the backend still
+ * enforces). A section left with a single child is drawn as a plain link: a submenu that repeats
+ * its parent and nothing else is noise.
  *
  * @returns A computed list of {@link NavigationEntry} to render in order.
  */
@@ -59,6 +60,7 @@ export const useNavigation = (): ComputedRef<NavigationEntry[]> => {
       moduleName: null,
       icon: 'pulse',
       locked: false,
+      children: [],
     }
 
     // Whether to offer the administrator-only entries (the audit journal, the plans screen). NOT a
@@ -85,9 +87,30 @@ export const useNavigation = (): ComputedRef<NavigationEntry[]> => {
       // DOES have a screen must never land there — which is what "Users and access" and "SSL
       // certificates" both did, because the entry guessed that a module named `x` has a route
       // named `x` and sent everything else to the upgrade wall.
-      const reachable =
-        module.isEnabled && typeof landing === 'string' && router.hasRoute(landing)
+      const reachable = module.isEnabled && typeof landing === 'string' && router.hasRoute(landing)
       const upgrade = { name: UPGRADE_ROUTE, params: { module: module.name } }
+
+      // The submenu exists only for a usable module: a locked one has a single destination, the
+      // upgrade page, and children leading elsewhere would be doors to a wall.
+      const children: NavigationEntry[] = reachable
+        ? moduleNavigationChildren(module.name).flatMap((child): NavigationEntry[] => {
+            if (!router.hasRoute(child.route) || (child.adminOnly && !isNotCustomer)) {
+              return []
+            }
+            return [
+              {
+                key: child.key,
+                target: { name: child.route },
+                labelKey: child.labelKey,
+                label: null,
+                moduleName: module.name,
+                icon: moduleNavigationIcon(module.name),
+                locked: false,
+                children: [],
+              },
+            ]
+          })
+        : []
 
       const entry: NavigationEntry = {
         key: module.name,
@@ -104,23 +127,7 @@ export const useNavigation = (): ComputedRef<NavigationEntry[]> => {
         // not know keeps the neutral glyph rather than a guess made from its name.
         icon: moduleNavigationIcon(module.name),
         locked: !module.isEnabled,
-      }
-
-      // Plans are the Accounts module's own reference data, so the entry exists only while that
-      // module is usable, and sits directly under it. Like the journal it is not a gate: the
-      // endpoints refuse a customer whatever the sidebar shows, and a role it does not recognise
-      // errs permissive.
-      if (module.name === 'accounts' && module.isEnabled && isNotCustomer) {
-        const plansEntry: NavigationEntry = {
-          key: 'plans',
-          target: { name: PLANS_ROUTE },
-          labelKey: 'app.nav.plans',
-          label: null,
-          moduleName: null,
-          icon: 'package',
-          locked: false,
-        }
-        return [entry, plansEntry]
+        children: children.length > 1 ? children : [],
       }
 
       return [entry]
@@ -138,6 +145,7 @@ export const useNavigation = (): ComputedRef<NavigationEntry[]> => {
             moduleName: null,
             icon: 'scrollText',
             locked: false,
+            children: [],
           },
         ]
       : []

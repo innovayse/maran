@@ -57,6 +57,17 @@ const listElement: Ref<HTMLElement | null> = ref(null)
 const searchField: Ref<InstanceType<typeof UiSearchInput> | null> = ref(null)
 
 /**
+ * Every destination the palette offers: each entry followed by its submenu children (issue #195),
+ * so "Schedule" or "New site" can be jumped to directly. A child whose label repeats its parent's
+ * landing page still appears, because its own label is what someone types.
+ */
+const destinations: ComputedRef<readonly NavigationEntry[]> = computed(() => {
+  return props.entries.flatMap((entry): NavigationEntry[] => {
+    return [entry, ...entry.children]
+  })
+})
+
+/**
  * Entries whose label contains the query, case-insensitively.
  *
  * Matching is a plain substring over the label the backend supplied, not a fuzzy
@@ -66,10 +77,10 @@ const searchField: Ref<InstanceType<typeof UiSearchInput> | null> = ref(null)
 const matches: ComputedRef<readonly NavigationEntry[]> = computed(() => {
   const needle = query.value.trim().toLocaleLowerCase()
   if (needle === '') {
-    return props.entries
+    return destinations.value
   }
 
-  return props.entries.filter((entry) => {
+  return destinations.value.filter((entry) => {
     return entryLabel(entry).toLocaleLowerCase().includes(needle)
   })
 })
