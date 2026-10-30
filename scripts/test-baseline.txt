@@ -1,6 +1,15 @@
 # Committed per-target test baseline. Recorded by 'maran test --accept'; commit the diff.
 # stack<TAB>target<TAB>passed<TAB>failed<TAB>ignored
 #
+# RE-MEASURED 2026-10-30 (issue #204, upstream refusals 502/409/503, quiet signed-out refresh, site not-found): edited by hand.
+# One clean whole-solution `maran test backend` run: 20 targets: 4683 passed / 0 failed / 0 ignored, TEST VERDICT: OK.
+# Host.IntegrationTests 659->662 (UpstreamRefusalStatusTests x2, the present-but-invalid refresh cookie control),
+# Modules.Ssl.Tests 221->224, Modules.Databases.Tests 111->112, Modules.Notifications.Tests 52->53, Sdk.Tests 246->249.
+# Agent.Client 375, Ftp 154 and Backups 215 measured unchanged (tests renamed and re-asserted, none added).
+# Host.IntegrationTests also ran filtered to UpstreamRefusal, Session, Ssl, Ftp, Notification, Smtp, Backup and Database
+# classes (160/0). spa: full `E2E_PORT=5199 npx playwright test` run, 785 passed / 0 failed / 2 skipped;
+# sites/detail.spec.ts 5->8, auth/signed-out-console.spec.ts new at 2.
+#
 # RE-MEASURED 2026-10-30 (issue #203, the two-factor page shows one flow per state; 409 conflicts): edited by hand.
 # One clean whole-solution `maran test backend` run: 20 targets: 4672 passed / 0 failed / 0 ignored, TEST VERDICT: OK.
 # Modules.Identity.Tests 312->318 (begin, confirm and disable handler conflict tests + inverse controls); Sdk.Tests 246
@@ -379,7 +388,7 @@ backend	Maran.Agent.Client.Tests.dll	375	0	0
 backend	Maran.SharedKernel.Tests.dll	343	0	0
 backend	Maran.Modules.Identity.Tests.dll	318	0	0
 backend	Maran.Modules.Sftp.Tests.dll	89	0	0
-backend	Maran.Modules.Notifications.Tests.dll	52	0	0
+backend	Maran.Modules.Notifications.Tests.dll	53	0	0
 backend	Maran.Modules.Tasks.Tests.dll	76	0	0
 backend	Maran.Modules.Ftp.Tests.dll	154	0	0
 backend	Maran.Modules.Monitoring.Tests.dll	70	0	0
@@ -388,13 +397,13 @@ backend	Maran.Modules.Licensing.Tests.dll	51	0	0
 backend	Maran.Modules.Firewall.Tests.dll	255	0	0
 backend	Maran.Modules.Cron.Tests.dll	190	0	0
 backend	Maran.Modules.Accounts.Tests.dll	498	0	0
-backend	Maran.Modules.Databases.Tests.dll	111	0	0
-backend	Maran.Modules.Ssl.Tests.dll	221	0	0
-backend	Maran.Sdk.Tests.dll	246	0	0
+backend	Maran.Modules.Databases.Tests.dll	112	0	0
+backend	Maran.Modules.Ssl.Tests.dll	224	0	0
+backend	Maran.Sdk.Tests.dll	249	0	0
 backend	Maran.Modules.Sites.Tests.dll	266	0	0
 backend	Maran.ArchitectureTests.dll	91	0	0
 backend	Maran.Host.Tests.dll	392	0	0
-backend	Maran.Host.IntegrationTests.dll	659	0	0
+backend	Maran.Host.IntegrationTests.dll	662	0	0
 spa	accounts/delete.spec.ts	6	0	0
 spa	accounts/detail.spec.ts	10	0	0
 spa	accounts/edit.spec.ts	9	0	0
@@ -413,6 +422,7 @@ spa	auth/login.spec.ts	7	0	0
 spa	auth/reset-password.spec.ts	2	0	0
 spa	auth/sessions.spec.ts	6	0	0
 spa	auth/setup.spec.ts	8	0	0
+spa	auth/signed-out-console.spec.ts	2	0	0
 spa	auth/theme-persists.spec.ts	3	0	0
 spa	auth/two-factor-settings.spec.ts	5	0	0
 spa	auth/two-factor-setup.spec.ts	2	0	0
@@ -485,7 +495,7 @@ spa	shell/sidebar-state.spec.ts	6	0	0
 spa	shell/sidebar-submenu.spec.ts	7	0	0
 spa	shell/theme-switch.spec.ts	2	0	0
 spa	sites/account-filter.spec.ts	3	0	0
-spa	sites/detail.spec.ts	5	0	0
+spa	sites/detail.spec.ts	8	0	0
 spa	sites/form.spec.ts	5	0	0
 spa	sites/list.spec.ts	15	0	0
 spa	sites/log-stream.spec.ts	7	0	0

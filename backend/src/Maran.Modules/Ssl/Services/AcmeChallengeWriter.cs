@@ -64,7 +64,8 @@ public sealed class AcmeChallengeWriter : IAcmeChallengeWriter
     {
         if (!IsBase64Url(token))
         {
-            return Result<bool>.Fail(Error.Of(nameof(ErrorMessages.AcmeChallengeTokenInvalid), ErrorType.Failure));
+            return Result<bool>.Fail(
+                Error.Of(nameof(ErrorMessages.AcmeChallengeTokenInvalid), ErrorType.UpstreamRefused));
         }
 
         var written = await _files.WriteFileAsync(
@@ -86,7 +87,8 @@ public sealed class AcmeChallengeWriter : IAcmeChallengeWriter
     {
         if (!IsBase64Url(token))
         {
-            return Result<bool>.Fail(Error.Of(nameof(ErrorMessages.AcmeChallengeTokenInvalid), ErrorType.Failure));
+            return Result<bool>.Fail(
+                Error.Of(nameof(ErrorMessages.AcmeChallengeTokenInvalid), ErrorType.UpstreamRefused));
         }
 
         return await _files.DeleteEntryAsync(

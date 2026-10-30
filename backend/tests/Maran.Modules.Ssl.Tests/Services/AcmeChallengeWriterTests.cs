@@ -95,6 +95,7 @@ public sealed class AcmeChallengeWriterTests
 
         Assert.False(result.IsSuccess);
         Assert.Equal("AcmeChallengeTokenInvalid", result.Error!.Code);
+        Assert.Equal(ErrorType.UpstreamRefused, result.Error.Type);
         Assert.Empty(files.Writes);
     }
 

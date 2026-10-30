@@ -163,6 +163,57 @@ public sealed class AcmeClientTests : IDisposable
 
         Assert.False(result.IsSuccess);
         Assert.DoesNotContain("SECRET-DETAIL-PROSE", result.Error!.Code, StringComparison.Ordinal);
+        Assert.Equal(ErrorType.UpstreamRefused, result.Error.Type);
+    }
+
+    /// <summary>An authority that judges the challenge invalid is an upstream refusal, not a local fault.</summary>
+    /// <remarks>
+    /// The panel wrote the challenge and the authority said no, so the answer is a 502
+    /// (<see cref="ErrorType.UpstreamRefused"/>) and never the 500 of something broken here.
+    /// </remarks>
+    [Fact]
+    public async Task An_authority_that_judges_the_challenge_invalid_is_an_upstream_refusal()
+    {
+        _authority.FailsValidation = true;
+
+        var result = await OrderAsync();
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("AcmeValidationFailed", result.Error!.Code);
+        Assert.Equal(ErrorType.UpstreamRefused, result.Error.Type);
+    }
+
+    /// <summary>A chain the authority sends that does not parse is an upstream refusal.</summary>
+    [Fact]
+    public async Task A_chain_the_authority_sends_that_does_not_parse_is_an_upstream_refusal()
+    {
+        using var garbling = new FakeAcmeAuthority("not a certificate");
+
+        var result = await ClientFor(new StubHttpClientFactory(garbling))
+            .OrderAsync(new AcmeOrderRequest("example.com", "acct"), CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("AcmeCertificateUnreadable", result.Error!.Code);
+        Assert.Equal(ErrorType.UpstreamRefused, result.Error.Type);
+    }
+
+    /// <summary>A challenge file the panel could not write stays a local fault.</summary>
+    /// <remarks>
+    /// The inverse control for the refusals above: the authority did nothing wrong here, the write on
+    /// this server failed, so the kind stays <see cref="ErrorType.Failure"/> (500). A change sending
+    /// every ACME failure to 502 fails this test.
+    /// </remarks>
+    [Fact]
+    public async Task A_challenge_file_the_panel_could_not_write_stays_a_local_fault()
+    {
+        var failingFiles = new RecordingAgentFilesClient(Error.Of("AgentSystemFailure", ErrorType.Failure));
+
+        var result = await ClientFor(new StubHttpClientFactory(_authority), failingFiles)
+            .OrderAsync(new AcmeOrderRequest("example.com", "acct"), CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("AcmeChallengeWriteFailed", result.Error!.Code);
+        Assert.Equal(ErrorType.Failure, result.Error.Type);
     }
 
     /// <summary>The client asks the factory for the named governed acme client.</summary>
@@ -199,8 +250,9 @@ public sealed class AcmeClientTests : IDisposable
 
     /// <summary>Builds the production client over this class's doubles.</summary>
     /// <param name="factory">The HTTP client factory to hand it.</param>
+    /// <param name="files">The agent files double the challenge is written through; this class's own by default.</param>
     /// <returns>The client under test.</returns>
-    private AcmeClient ClientFor(IHttpClientFactory factory)
+    private AcmeClient ClientFor(IHttpClientFactory factory, RecordingAgentFilesClient? files = null)
     {
         var options = new OptionsWrapper<AcmeOptions>(new AcmeOptions
         {
@@ -218,7 +270,7 @@ public sealed class AcmeClientTests : IDisposable
         return new AcmeClient(
             factory,
             options,
-            new AcmeChallengeWriter(_files),
+            new AcmeChallengeWriter(files ?? _files),
             new AcmeAccountStore(_dbContext, new FakeClock(Expiry), NullLogger<AcmeAccountStore>.Instance),
             new AdvancingClock(Expiry),
             NullLogger<AcmeClient>.Instance);

@@ -24,6 +24,6 @@ public sealed record AcmeAttempt(bool Succeeded, bool RetryableNonce, string Bod
     {
         return Succeeded
             ? Result<string>.Ok(Body)
-            : Result<string>.Fail(Error.Of(nameof(ErrorMessages.AcmeOrderRejected), ErrorType.Failure));
+            : Result<string>.Fail(Error.Of(nameof(ErrorMessages.AcmeOrderRejected), ErrorType.UpstreamRefused));
     }
 }

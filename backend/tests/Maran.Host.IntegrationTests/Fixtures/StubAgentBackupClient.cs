@@ -126,6 +126,6 @@ public sealed class StubAgentBackupClient : IAgentBackupClient
         CancellationToken cancellationToken)
     {
         return Task.FromResult(
-            Result<AgentPublicReadVerdict>.Fail(Error.Of("AgentNotImplemented", ErrorType.Failure)));
+            Result<AgentPublicReadVerdict>.Fail(Error.Of("AgentNotImplemented", ErrorType.Unavailable)));
     }
 }

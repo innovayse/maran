@@ -42,6 +42,13 @@ import { createModuleAccessGuard } from './moduleAccessGuard'
 import { createRoleGuard } from './roleGuard'
 
 /**
+ * A route segment naming a site by its id, which the panel only ever issues as a UUID. A segment of
+ * any other shape (`/sites/php`) cannot name a site, so the route does not match it and the visitor
+ * lands on the not-found screen without a request being made (issue #204).
+ */
+const SITE_ID_SEGMENT = ':id([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})'
+
+/**
  * Creates the application router. Every route nests under {@link DefaultLayout},
  * which owns the document's single `<main>` landmark and the module-catalogue-driven
  * sidebar; features add their own routes under `src/pages/<feature>/` as they land,
@@ -110,10 +117,10 @@ export const createAppRouter = (): Router => {
         children: [
           { path: '', name: 'sites', component: SitesListPage, meta: { module: 'sites', title: 'sites.list.heading' } },
           { path: 'new', name: 'sites-new', component: SiteFormPage, meta: { module: 'sites', title: 'sites.form.heading' } },
-          // Declared after 'new' so the literal segment wins: an :id route placed first would
-          // swallow /sites/new and try to load a site called "new".
+          // The UUID pattern keeps this route off /sites/new and off any other segment that
+          // cannot name a site, so neither reaches the detail page.
           {
-            path: ':id',
+            path: SITE_ID_SEGMENT,
             name: 'site-detail',
             component: SiteDetailPage,
             props: true,

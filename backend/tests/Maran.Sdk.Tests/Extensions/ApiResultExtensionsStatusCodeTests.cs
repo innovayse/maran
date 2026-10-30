@@ -18,7 +18,7 @@ namespace Maran.Sdk.Tests.Extensions;
 /// file guarded was the inference silently ceasing to match — which had already happened once,
 /// answering 400 to every missing account. That inference is gone: <see cref="Error"/> carries an
 /// <see cref="ErrorType"/> that the compiler demands at every construction site, and
-/// <c>ApiResultExtensions</c> reads nothing but that. So the mapping under test is now seven arms
+/// <c>ApiResultExtensions</c> reads nothing but that. So the mapping under test is now eight arms
 /// wide and is asserted exhaustively, and what needs guarding moved to the OTHER half — whether
 /// each shipped code has had its kind decided by a person.
 /// </para>
@@ -60,6 +60,7 @@ public sealed class ApiResultExtensionsStatusCodeTests
             [ErrorType.Unauthorized] = StatusCodes.Status401Unauthorized,
             [ErrorType.Forbidden] = StatusCodes.Status403Forbidden,
             [ErrorType.Unavailable] = StatusCodes.Status503ServiceUnavailable,
+            [ErrorType.UpstreamRefused] = StatusCodes.Status502BadGateway,
             [ErrorType.Failure] = StatusCodes.Status500InternalServerError,
         };
 
@@ -115,6 +116,23 @@ public sealed class ApiResultExtensionsStatusCodeTests
         var response = Translate(code, type);
 
         Assert.Equal(StatusOfKind[type], response.StatusCode);
+    }
+
+    /// <summary>An outside party's refusal answers 502 and carries its code, not the 500 of a local fault.</summary>
+    /// <remarks>
+    /// Paired with its inverse control: the same translation of a real local fault still answers
+    /// 500, so a mapping that sent every server-side kind to 502 would fail here.
+    /// </remarks>
+    [Fact]
+    public void An_upstream_refusal_answers_bad_gateway_while_a_local_fault_stays_500()
+    {
+        var refused = Translate("AcmeAccountRejected", ErrorType.UpstreamRefused);
+        var fault = Translate("AcmeChallengeWriteFailed", ErrorType.Failure);
+
+        var problem = Assert.IsType<ProblemDetails>(refused.Value);
+        Assert.Equal(StatusCodes.Status502BadGateway, refused.StatusCode);
+        Assert.Equal("AcmeAccountRejected", problem.Extensions["code"]);
+        Assert.Equal(StatusCodes.Status500InternalServerError, fault.StatusCode);
     }
 
     /// <summary>A failure response carries the machine code that produced it.</summary>

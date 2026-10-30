@@ -82,6 +82,7 @@ public sealed class AcmeAccountStoreTests : IDisposable
 
         Assert.False(result.IsSuccess);
         Assert.Equal("AcmeAccountRejected", result.Error!.Code);
+        Assert.Equal(ErrorType.UpstreamRefused, result.Error.Type);
         Assert.Empty(await _dbContext.AcmeAccounts.ToListAsync());
     }
 

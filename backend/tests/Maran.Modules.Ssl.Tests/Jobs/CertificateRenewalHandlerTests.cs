@@ -126,7 +126,7 @@ public sealed class CertificateRenewalHandlerTests
     public async Task A_failed_renewal_records_a_code_on_the_row_without_moving_the_expiry()
     {
         using var fixture = new SslHandlerFixture(
-            ["soon.example.com"], acmeFailure: Error.Of("AcmeValidationFailed", ErrorType.Failure));
+            ["soon.example.com"], acmeFailure: Error.Of("AcmeValidationFailed", ErrorType.UpstreamRefused));
         await SeedAsync(fixture, "soon.example.com", 5);
 
         var renewed = await HandlerFor(fixture).HandleAsync(new CertificateRenewalRequested(), CancellationToken.None);
@@ -143,7 +143,7 @@ public sealed class CertificateRenewalHandlerTests
     public async Task A_failed_renewal_is_journalled_so_an_operator_can_see_it_without_watching_the_job()
     {
         using var fixture = new SslHandlerFixture(
-            ["soon.example.com"], acmeFailure: Error.Of("AcmeValidationFailed", ErrorType.Failure));
+            ["soon.example.com"], acmeFailure: Error.Of("AcmeValidationFailed", ErrorType.UpstreamRefused));
         await SeedAsync(fixture, "soon.example.com", 5);
 
         await HandlerFor(fixture).HandleAsync(new CertificateRenewalRequested(), CancellationToken.None);

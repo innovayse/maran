@@ -32,14 +32,15 @@ public sealed class BackupDestinationResolverTests
         Assert.Equal(string.Empty, resolved.Value.Agent.Path);
     }
 
-    /// <summary>A server with no default destination refuses rather than inventing one.</summary>
+    /// <summary>A server with no default destination refuses as a conflict rather than inventing one.</summary>
     /// <remarks>
-    /// The alternative — rebuilding a destination from configuration — would write backups against a
-    /// destination the panel has no record of, invisible to retention and stamping a null onto rows
-    /// that were supposed to stop carrying one.
+    /// A conflict (409) and not a fault (500): the server is working, its configuration is simply
+    /// incomplete for this request. The alternative — rebuilding a destination from configuration —
+    /// would write backups against a destination the panel has no record of, invisible to retention
+    /// and stamping a null onto rows that were supposed to stop carrying one.
     /// </remarks>
     [Fact]
-    public async Task A_server_with_no_default_destination_refuses_by_name()
+    public async Task A_server_with_no_default_destination_refuses_as_a_conflict_by_name()
     {
         await using var dbContext = BackupsTestContext.Create(FakeCurrentUser.Admin());
         var resolver = new BackupDestinationResolver(dbContext);
@@ -48,7 +49,7 @@ public sealed class BackupDestinationResolverTests
 
         Assert.False(resolved.IsSuccess);
         Assert.Equal("BackupDestinationNotConfigured", resolved.Error!.Code);
-        Assert.Equal(ErrorType.Failure, resolved.Error.Type);
+        Assert.Equal(ErrorType.Conflict, resolved.Error.Type);
     }
 
     /// <summary>A destination that is not there is a not-found, not a fall back to the default.</summary>

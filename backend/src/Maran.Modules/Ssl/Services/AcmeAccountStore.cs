@@ -105,7 +105,8 @@ public sealed class AcmeAccountStore
             var created = await session.PostAsync(Member(document, "newAccount"), payload, cancellationToken);
             if (!created.IsSuccess || created.Value.Location.Length == 0)
             {
-                return Result<AcmeRegistration>.Fail(Error.Of(nameof(ErrorMessages.AcmeAccountRejected), ErrorType.Failure));
+                return Result<AcmeRegistration>.Fail(
+                    Error.Of(nameof(ErrorMessages.AcmeAccountRejected), ErrorType.UpstreamRefused));
             }
 
             _dbContext.AcmeAccounts.Add(new AcmeAccount(

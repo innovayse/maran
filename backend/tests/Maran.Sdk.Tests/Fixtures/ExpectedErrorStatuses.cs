@@ -22,7 +22,10 @@ namespace Maran.Sdk.Tests.Fixtures;
 /// codes naming a server failure — <c>AcmeAuthorityUnreachable</c>, <c>DatabaseProvisioningFailed</c>,
 /// <c>MailDeliveryFailed</c>, <c>AgentSystemFailure</c> and the rest — were pinned at 400 here,
 /// which recorded the panel telling a customer their request was malformed when the server had
-/// failed. They are <see cref="ErrorType.Failure"/> and <see cref="ErrorType.Unavailable"/> now.
+/// failed. They are <see cref="ErrorType.Failure"/> and <see cref="ErrorType.Unavailable"/> now, and
+/// the ones where an outside party answered and refused — the certificate authority, a mail server —
+/// are <see cref="ErrorType.UpstreamRefused"/> (502), so a refusal no longer reads as the panel's own
+/// fault.
 /// </para>
 /// <para>
 /// <see cref="AnsweredOutsideResultTranslation"/> holds the codes that never reach
@@ -52,14 +55,14 @@ public static class ExpectedErrorStatuses
             ["AccountStatusUnknown"] = ErrorType.Validation,
             ["AccountSuspensionFailed"] = ErrorType.Failure,
             ["AccountSuspensionNotObserved"] = ErrorType.Failure,
-            ["AcmeAccountRejected"] = ErrorType.Failure,
+            ["AcmeAccountRejected"] = ErrorType.UpstreamRefused,
             ["AcmeAuthorityUnreachable"] = ErrorType.Unavailable,
-            ["AcmeCertificateUnreadable"] = ErrorType.Failure,
-            ["AcmeChallengeTokenInvalid"] = ErrorType.Failure,
+            ["AcmeCertificateUnreadable"] = ErrorType.UpstreamRefused,
+            ["AcmeChallengeTokenInvalid"] = ErrorType.UpstreamRefused,
             ["AcmeChallengeUnavailable"] = ErrorType.Unavailable,
             ["AcmeChallengeWriteFailed"] = ErrorType.Failure,
-            ["AcmeOrderRejected"] = ErrorType.Failure,
-            ["AcmeValidationFailed"] = ErrorType.Failure,
+            ["AcmeOrderRejected"] = ErrorType.UpstreamRefused,
+            ["AcmeValidationFailed"] = ErrorType.UpstreamRefused,
             ["AcmeValidationTimedOut"] = ErrorType.Unavailable,
             ["AgentAlreadyExists"] = ErrorType.Conflict,
             ["AgentCertificateUnreadable"] = ErrorType.Validation,
@@ -69,7 +72,7 @@ public static class ExpectedErrorStatuses
             ["AgentInvalidResponse"] = ErrorType.Failure,
             ["AgentLimitReached"] = ErrorType.Conflict,
             ["AgentNotFound"] = ErrorType.NotFound,
-            ["AgentNotImplemented"] = ErrorType.Failure,
+            ["AgentNotImplemented"] = ErrorType.Unavailable,
             ["AgentPrivateKeyMismatch"] = ErrorType.Validation,
             ["AgentPrivateKeyUnreadable"] = ErrorType.Validation,
             ["AgentSystemFailure"] = ErrorType.Failure,
@@ -98,7 +101,7 @@ public static class ExpectedErrorStatuses
             ["BackupScheduleDayRequired"] = ErrorType.Validation,
             ["BackupScheduleHourOutOfRange"] = ErrorType.Validation,
             ["BackupDestinationNotFound"] = ErrorType.NotFound,
-            ["BackupDestinationNotConfigured"] = ErrorType.Failure,
+            ["BackupDestinationNotConfigured"] = ErrorType.Conflict,
             ["BackupDestinationRemoteUnsupported"] = ErrorType.Validation,
             ["BackupDestinationLocalAlreadyDefined"] = ErrorType.Conflict,
             ["BackupDestinationNameInvalid"] = ErrorType.Validation,
@@ -152,7 +155,7 @@ public static class ExpectedErrorStatuses
             ["FtpUserNameTooLong"] = ErrorType.Validation,
             ["FtpUserNotFound"] = ErrorType.NotFound,
             ["FtpUserProvisioningFailed"] = ErrorType.Failure,
-            ["FtpsCertificateMissing"] = ErrorType.Failure,
+            ["FtpsCertificateMissing"] = ErrorType.Conflict,
             ["FtpsHostnameInvalidFormat"] = ErrorType.Validation,
             ["FtpsHostnameNotServed"] = ErrorType.Validation,
             ["FtpsHostnameReserved"] = ErrorType.Validation,
@@ -178,8 +181,9 @@ public static class ExpectedErrorStatuses
             ["ListSearchTooLong"] = ErrorType.Validation,
             ["ListSortUnknown"] = ErrorType.Validation,
             ["InvalidTwoFactorCodeUnauthorized"] = ErrorType.Unauthorized,
-            ["MailDeliveryFailed"] = ErrorType.Failure,
+            ["MailDeliveryFailed"] = ErrorType.UpstreamRefused,
             ["MailRecipientInvalid"] = ErrorType.Validation,
+            ["MailServerUnreachable"] = ErrorType.Unavailable,
             ["PasswordResetEmailInvalid"] = ErrorType.Validation,
             ["PasswordResetTokenInvalid"] = ErrorType.Validation,
             // The break-glass console recovery (#130). NotFound: no login has that name or address.

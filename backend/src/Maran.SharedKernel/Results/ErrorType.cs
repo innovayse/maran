@@ -69,6 +69,19 @@ public enum ErrorType
     Unavailable,
 
     /// <summary>
+    /// A party outside this panel answered, and its answer was a refusal — the certificate authority
+    /// declined a registration or an order, a mail server rejected a message. Answers 502.
+    /// </summary>
+    /// <remarks>
+    /// Distinct from <see cref="Unavailable"/>, where nothing answered and trying again is the advice,
+    /// and from <see cref="Failure"/>, where this server is the thing that broke. Here the request
+    /// was relayed correctly and the upstream said no, so a 500 would blame the panel and a 4xx would
+    /// blame the caller's request; 502 says the gateway's own upstream refused. The refusal is
+    /// classified where the upstream's answer is read, never inferred later from the code.
+    /// </remarks>
+    UpstreamRefused,
+
+    /// <summary>
     /// The panel or the server failed at something the caller could not have influenced, including a
     /// server whose own configuration is incomplete. Answers 500.
     /// </summary>

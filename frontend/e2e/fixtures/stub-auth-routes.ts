@@ -67,7 +67,10 @@ export const stubSignedIn = async (page: Page, user: AuthenticatedUser = ADMINIS
 
 /**
  * Fulfils the guard's endpoints as a panel nobody is signed in to: setup is done,
- * and the refresh cookie is gone.
+ * and the browser holds no refresh cookie — so refresh answers 204 with no body,
+ * which is what the backend says when no cookie was sent (issue #204). A cookie
+ * that was sent and refused is a different case, answered 401; a spec about that
+ * stubs it itself.
  * @param page The Playwright page whose network the routes are installed on.
  * @returns Resolves once the routes are installed.
  */
@@ -75,11 +78,7 @@ export const stubSignedOut = async (page: Page): Promise<void> => {
   await stubSetupState(page, { isComplete: true })
 
   await page.route('**/api/v1/auth/refresh', async (route) => {
-    await route.fulfill({
-      status: 401,
-      contentType: 'application/problem+json',
-      body: JSON.stringify({ code: 'RefreshTokenInvalidUnauthorized', detail: 'Your session has ended.' }),
-    })
+    await route.fulfill({ status: 204 })
   })
 }
 

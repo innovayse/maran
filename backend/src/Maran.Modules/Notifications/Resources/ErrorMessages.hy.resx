@@ -16,7 +16,7 @@
     <value>Ելքային փոստի կարգավորումները դեռ սահմանված չեն, ուստի ոչինչ չի ուղարկվել։</value>
   </data>
   <data name="MailDeliveryFailed">
-    <value>Փոստային սերվերը մերժեց նամակը կամ հասանելի չէ։</value>
+    <value>Փոստային սերվերը մերժեց նամակը։</value>
   </data>
   <data name="SmtpHostInvalid">
     <value>Փոստային սերվերի անունը պարտադիր է և պետք է լինի սովորական տեքստի մեկ տող։</value>
@@ -44,5 +44,8 @@
   </data>
   <data name="MailRecipientInvalid">
     <value>Ստացողը պետք է լինի մեկ պարզ էլ․ փոստի հասցե՝ առանց ցուցադրվող անվան։</value>
+  </data>
+  <data name="MailServerUnreachable">
+    <value>Նշված հասցեով փոստային սերվերը չպատասխանեց։ Ստուգեք հոսթը և պորտը կամ փորձեք ավելի ուշ։</value>
   </data>
 </root>

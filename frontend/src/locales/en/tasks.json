@@ -76,7 +76,11 @@
       "AccountSuspensionFailed": "The account was not suspended: something it runs could not be stopped first. Nothing has been changed; please try again.",
       "AccountSuspensionNotObserved": "The account was not suspended: the server could not be observed to have stopped it. Nothing has been changed; please try again.",
       "AccountResumptionFailed": "The account was not reactivated: something it runs could not be started again. Nothing has been changed; please try again.",
-      "AccountResumptionNotObserved": "The account was not reactivated: the server could not be observed to have started it again. Nothing has been changed; please try again."
+      "AccountResumptionNotObserved": "The account was not reactivated: the server could not be observed to have started it again. Nothing has been changed; please try again.",
+      "BackupOutcomeUnobserved": "The panel stopped following this backup before your server reported a result, so it cannot say whether the copy was finished. It is recorded as failed and is not offered for restore. Start a new backup, and contact support if this keeps happening.",
+      "BackupScheduledRunAborted": "The scheduled backup stopped before the server agent reported how it ended.",
+      "RestoreOutcomeUnobserved": "The panel stopped following this restore before your server reported a result, so it cannot say how far it got. The account may already have been replaced: check its files and databases before starting another restore, and contact support if you are unsure.",
+      "TaskAbandonedByRestart": "The panel restarted while this task was running, so it did not finish."
     }
   }
 }

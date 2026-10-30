@@ -129,9 +129,9 @@ public sealed class SessionEndpointTests : IAsyncLifetime
         Assert.DoesNotContain(refreshToken, cookie, StringComparison.Ordinal);
     }
 
-    /// <summary>Refreshing with no cookie at all returns 401 rather than 500.</summary>
+    /// <summary>Refreshing with no cookie at all answers 204 with no session and sets no cookie.</summary>
     [Fact]
-    public async Task Refreshing_with_no_cookie_at_all_returns_401_rather_than_500()
+    public async Task Refreshing_with_no_cookie_at_all_answers_no_content_and_sets_no_cookie()
     {
         await using var factory = CreateFactory();
         await SeedAsync(factory, "admin");
@@ -139,7 +139,31 @@ public sealed class SessionEndpointTests : IAsyncLifetime
 
         var response = await client.PostAsync("/api/v1/auth/refresh", content: null);
 
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+        Assert.Empty(await response.Content.ReadAsStringAsync());
+        Assert.False(response.Headers.Contains("Set-Cookie"));
+    }
+
+    /// <summary>
+    /// Refreshing with a cookie that is present but invalid is still refused with 401 and the cookie
+    /// is cleared — the inverse control for the no-cookie 204 above.
+    /// </summary>
+    [Fact]
+    public async Task Refreshing_with_a_present_but_invalid_cookie_is_still_refused()
+    {
+        await using var factory = CreateFactory();
+        await SeedAsync(factory, "admin");
+        using var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Add("Cookie", "maran_refresh=not-a-token-this-panel-issued");
+        client.DefaultRequestHeaders.Add(CsrfHeaderMiddleware.HeaderName, "1");
+
+        var response = await client.PostAsync("/api/v1/auth/refresh", content: null);
+
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        Assert.Equal("RefreshTokenInvalidUnauthorized", body.RootElement.GetProperty("code").GetString());
+        var cookie = Assert.Single(response.Headers.GetValues("Set-Cookie"));
+        Assert.StartsWith("maran_refresh=;", cookie, StringComparison.Ordinal);
     }
 
     /// <summary>Presenting a spent refresh cookie a second time is refused.</summary>

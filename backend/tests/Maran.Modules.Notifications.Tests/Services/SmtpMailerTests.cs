@@ -1,8 +1,11 @@
+using System.Net;
+using System.Net.Sockets;
 using Maran.Modules.Notifications.Domain.Entities;
 using Maran.Modules.Notifications.Domain.Enums;
 using Maran.Modules.Notifications.Persistence;
 using Maran.Modules.Notifications.Services;
 using Maran.Modules.Notifications.Tests.TestSupport;
+using Maran.SharedKernel.Results;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Maran.Modules.Notifications.Tests.Services;
@@ -39,8 +42,11 @@ public sealed class SmtpMailerTests
     /// </remarks>
     private const string SmtpNotConfiguredCode = "SmtpNotConfigured";
 
-    /// <summary>The code the mailer reports when the mail server refused or could not be reached.</summary>
+    /// <summary>The code the mailer reports when the mail server answered and refused.</summary>
     private const string MailDeliveryFailedCode = "MailDeliveryFailed";
+
+    /// <summary>The code the mailer reports when no mail server answered at all.</summary>
+    private const string MailServerUnreachableCode = "MailServerUnreachable";
 
     /// <summary>How long the far end of the socket is given to finish with a connection.</summary>
     /// <remarks>
@@ -113,6 +119,7 @@ public sealed class SmtpMailerTests
         if (!expected.Delivered)
         {
             Assert.Equal(MailDeliveryFailedCode, result.Error!.Code);
+            Assert.Equal(ErrorType.UpstreamRefused, result.Error.Type);
         }
     }
 
@@ -137,6 +144,30 @@ public sealed class SmtpMailerTests
 
         Assert.False(result.IsSuccess);
         Assert.Equal(MailDeliveryFailedCode, result.Error!.Code);
+        Assert.Equal(ErrorType.UpstreamRefused, result.Error.Type);
+    }
+
+    /// <summary>A port nothing listens on is an unreachable mail server, not a refusal.</summary>
+    /// <remarks>
+    /// No SMTP conversation took place, so the answer is <see cref="ErrorType.Unavailable"/> (503,
+    /// "try again") under its own code. The test above is the inverse control: a server that DID
+    /// answer and then gave up stays <see cref="ErrorType.UpstreamRefused"/>, so a classifier that
+    /// sent every failure to one kind fails one of the two.
+    /// </remarks>
+    [Fact]
+    public async Task A_port_nothing_listens_on_is_an_unreachable_mail_server_and_not_a_refusal()
+    {
+        await using var dbContext = NotificationsTestContext.Create();
+        await SeedAsync(dbContext, ClosedLoopbackPort(), SmtpSecurity.None);
+
+        using var scopes = Scopes(dbContext);
+        var mailer = new SmtpMailer(scopes.Settings, NullLogger<SmtpMailer>.Instance);
+
+        var result = await mailer.SendAsync("ops@example.com", "Subject", "Body", CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal(MailServerUnreachableCode, result.Error!.Code);
+        Assert.Equal(ErrorType.Unavailable, result.Error.Type);
     }
 
     /// <summary>The provider's own words never leave the mailer as a result value.</summary>
@@ -205,6 +236,17 @@ public sealed class SmtpMailerTests
                 $"{security} was added to SmtpSecurity without pinning the socket option it maps to. "
                 + "Add its case here rather than letting it inherit ToSocketOptions' discard arm."),
         };
+    }
+
+    /// <summary>A loopback port the kernel just handed out and nothing is listening on any more.</summary>
+    /// <returns>The port number; a connection to it is refused at once.</returns>
+    private static int ClosedLoopbackPort()
+    {
+        var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        var port = ((IPEndPoint)listener.LocalEndpoint).Port;
+        listener.Stop();
+        return port;
     }
 
     /// <summary>Builds the container the settings cache resolves its scopes from.</summary>

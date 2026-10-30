@@ -36,6 +36,7 @@ import SiteSslTab from './SiteSslTab.vue'
 import { useLocaleStore } from '../../stores/locale'
 import { useSitesStore } from '../../stores/sites'
 import { formatDate } from '../../utils/formatDate'
+import type { SiteDetail } from '../../types/site'
 
 /** Which pane of the detail page is on screen. */
 type DetailTab = 'overview' | 'logs' | 'ssl'
@@ -63,6 +64,14 @@ const pending: Ref<PendingAction> = ref(null)
 /** The PHP version selected in the rebind picker, seeded from the site once it loads. */
 const chosenPhpVersion: Ref<string> = ref('')
 
+/**
+ * The site on screen once the panel has answered with it; `null` in every other state the store
+ * reports (loading, not found, failed), which the template renders from the store's `detail` itself.
+ */
+const site: ComputedRef<SiteDetail | null> = computed(() => {
+  return store.detail.state === 'found' ? store.detail.site : null
+})
+
 /** The three panes, in the order the design lists them. */
 const tabOptions: ComputedRef<SegmentOption[]> = computed(() => {
   return [
@@ -74,7 +83,7 @@ const tabOptions: ComputedRef<SegmentOption[]> = computed(() => {
 
 /** The confirmation's title, naming the domain and what would be done to it. */
 const confirmationTitle: ComputedRef<string> = computed(() => {
-  const domain = store.selected?.domain ?? ''
+  const domain = site.value?.domain ?? ''
   switch (pending.value) {
     case 'enable':
       return t('sites.detail.confirmEnableTitle', { domain })
@@ -111,15 +120,13 @@ const confirmationText: ComputedRef<string> = computed(() => {
 
 /** Whether the loaded site runs on PHP, which is the only case a runtime can be rebound in. */
 const isPhpSite: ComputedRef<boolean> = computed(() => {
-  return store.selected?.backendType === 'php'
+  return site.value?.backendType === 'php'
 })
 
 /** Whether the rebind picker currently names a different version than the site is bound to. */
 const canApplyPhpVersion: ComputedRef<boolean> = computed(() => {
-  const selected = store.selected
-  return (
-    selected !== null && chosenPhpVersion.value.length > 0 && chosenPhpVersion.value !== selected.phpVersion
-  )
+  const current = site.value
+  return current !== null && chosenPhpVersion.value.length > 0 && chosenPhpVersion.value !== current.phpVersion
 })
 
 /**
@@ -183,9 +190,9 @@ const applyPhpVersion = async (): Promise<void> => {
  */
 const load = async (): Promise<void> => {
   await store.loadOne(props.id)
-  const selected = store.selected
-  if (selected !== null && selected.backendType === 'php') {
-    chosenPhpVersion.value = selected.phpVersion
+  const loaded = site.value
+  if (loaded !== null && loaded.backendType === 'php') {
+    chosenPhpVersion.value = loaded.phpVersion
     await store.loadPhpVersions()
   }
 }
@@ -202,17 +209,17 @@ onBeforeUnmount(() => {
 
 <template>
   <section class="flex w-full min-w-0 flex-col gap-4">
-    <UiSpinner v-if="store.loading" :label="t('sites.detail.loading')" />
+    <UiSpinner v-if="store.detail.state === 'loading'" :label="t('sites.detail.loading')" />
 
-    <template v-else-if="store.selected !== null">
+    <template v-else-if="site !== null">
       <UiPageHeading
         mono
         :eyebrow="t('sites.list.heading')"
-        :title="store.selected.domain"
-        :subtitle="t(`sites.backendType.${store.selected.backendType}`)"
+        :title="site.domain"
+        :subtitle="t(`sites.backendType.${site.backendType}`)"
       >
         <template #actions>
-          <SiteStatusBadge :status="store.selected.status" />
+          <SiteStatusBadge :status="site.status" />
           <!-- A way back is navigation, so it looks like a link, not a button (#218). -->
           <RouterLink
             :to="{ name: 'sites' }"
@@ -239,47 +246,47 @@ onBeforeUnmount(() => {
         <UiCard class="lg:col-span-2">
           <UiDescriptionList>
             <UiDescriptionItem :term="t('sites.detail.domainLabel')" mono>
-              {{ store.selected.domain }}
+              {{ site.domain }}
             </UiDescriptionItem>
             <UiDescriptionItem :term="t('sites.detail.aliasesLabel')" mono>
               {{
-                store.selected.aliases.length > 0
-                  ? store.selected.aliases.join(', ')
+                site.aliases.length > 0
+                  ? site.aliases.join(', ')
                   : t('sites.detail.noAliases')
               }}
             </UiDescriptionItem>
             <UiDescriptionItem :term="t('sites.detail.backendTypeLabel')">
-              {{ t(`sites.backendType.${store.selected.backendType}`) }}
+              {{ t(`sites.backendType.${site.backendType}`) }}
             </UiDescriptionItem>
             <UiDescriptionItem
-              v-if="store.selected.phpVersion.length > 0"
+              v-if="site.phpVersion.length > 0"
               :term="t('sites.detail.phpVersionLabel')"
               mono
             >
-              {{ store.selected.phpVersion }}
+              {{ site.phpVersion }}
             </UiDescriptionItem>
             <UiDescriptionItem
-              v-if="store.selected.proxyUpstream.length > 0"
+              v-if="site.proxyUpstream.length > 0"
               :term="t('sites.detail.proxyUpstreamLabel')"
               mono
             >
-              {{ store.selected.proxyUpstream }}
+              {{ site.proxyUpstream }}
             </UiDescriptionItem>
             <UiDescriptionItem :term="t('sites.detail.documentRootLabel')" mono>
-              {{ store.selected.documentRoot }}
+              {{ site.documentRoot }}
             </UiDescriptionItem>
             <UiDescriptionItem :term="t('sites.detail.statusLabel')">
-              <SiteStatusBadge :status="store.selected.status" />
+              <SiteStatusBadge :status="site.status" />
             </UiDescriptionItem>
             <UiDescriptionItem :term="t('sites.detail.certificateLabel')">
               {{
-                store.selected.hasCertificate
+                site.hasCertificate
                   ? t('sites.detail.certificateInstalled')
                   : t('sites.detail.certificateMissing')
               }}
             </UiDescriptionItem>
             <UiDescriptionItem :term="t('sites.detail.createdAtLabel')">
-              {{ formatDate(store.selected.createdAt, localeStore.current) }}
+              {{ formatDate(site.createdAt, localeStore.current) }}
             </UiDescriptionItem>
           </UiDescriptionList>
         </UiCard>
@@ -289,7 +296,7 @@ onBeforeUnmount(() => {
             <UiSectionHeading :title="t('sites.detail.phpVersionLabel')">
               <template #action>
                 <span class="font-mono text-lg font-semibold text-text-primary tabular-nums">
-                  {{ store.selected.phpVersion }}
+                  {{ site.phpVersion }}
                 </span>
               </template>
             </UiSectionHeading>
@@ -306,7 +313,7 @@ onBeforeUnmount(() => {
           </UiCard>
 
           <UiCard class="flex flex-wrap items-center gap-2">
-            <UiButton v-if="store.selected.status === 'disabled'" variant="secondary" @click="ask('enable')">
+            <UiButton v-if="site.status === 'disabled'" variant="secondary" @click="ask('enable')">
               {{ t('sites.detail.enable') }}
             </UiButton>
             <UiButton v-else variant="secondary" @click="ask('disable')">
@@ -319,7 +326,7 @@ onBeforeUnmount(() => {
 
       <SiteLogsTab v-else-if="tab === 'logs'" :site-id="props.id" />
 
-      <SiteSslTab v-else :site-id="props.id" :domain="store.selected.domain" />
+      <SiteSslTab v-else :site-id="props.id" :domain="site.domain" />
 
       <!-- Outside the tab branches, and bound to a value that really changes rather than wrapped
            in a `v-if`: a dialog created with `open` already true never runs `UiModal`s
@@ -339,7 +346,11 @@ onBeforeUnmount(() => {
       />
     </template>
 
-    <UiAlert v-else-if="store.errorMessage !== null" variant="error">{{ store.errorMessage }}</UiAlert>
+    <!-- A 404 is the not-found state below, never this alert: the panel answered, and what it said
+         is that no such site exists for the caller (issue #204). -->
+    <UiAlert v-else-if="store.detail.state === 'failed'" variant="error">
+      {{ store.detail.message ?? t('app.status.unreachable') }}
+    </UiAlert>
 
     <UiEmptyState
       v-else

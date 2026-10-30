@@ -121,3 +121,60 @@ test('a PHP site offers to rebind only to a version this host has installed', as
   await expect(page.getByRole('option', { name: 'PHP 8.3 (server default)' })).toBeVisible()
   await expect(page.getByRole('option')).toHaveCount(2)
 })
+
+// Issue #204, item 6: a site id is a UUID, so `/sites/php` cannot name a site. The router refuses
+// the shape itself and shows the not-found screen, without asking the panel for a site called "php".
+test('a site address that is not a UUID shows the not-found screen without asking the panel', async ({ page }) => {
+  await stubDetailDependencies(page)
+  const siteReads: string[] = []
+  page.on('request', (request) => {
+    if (/\/api\/v1\/sites\/[^/?]+$/.test(request.url())) {
+      siteReads.push(request.url())
+    }
+  })
+
+  await page.goto('/sites/php')
+
+  await expect(page.getByRole('heading', { level: 1, name: 'Page not found' })).toBeVisible()
+  await expect(page.getByText('Not Found', { exact: true })).toHaveCount(0)
+  expect(siteReads).toEqual([])
+})
+
+// A well-formed id the panel does not know answers 404, and that is the site's not-found state —
+// never an error alert repeating the transport's "Not Found" (issue #204, item 6).
+test('an unknown site id shows the site not-found state rather than an error alert', async ({ page }) => {
+  const unknownId = '44444444-4444-4444-4444-444444444444'
+  await stubDetailDependencies(page)
+  await page.route(`**/api/v1/sites/${unknownId}`, async (route) => {
+    await route.fulfill({
+      status: 404,
+      contentType: 'application/problem+json',
+      body: JSON.stringify({ code: 'SiteNotFound', title: 'Not Found', status: 404 }),
+    })
+  })
+
+  await page.goto(`/sites/${unknownId}`)
+
+  await expect(page.getByText('Site not found')).toBeVisible()
+  // The problem's own title is what the error alert used to print; the not-found state never does.
+  await expect(page.getByText('Not Found', { exact: true })).toHaveCount(0)
+})
+
+// The inverse control for the test above: a refusal that is NOT a 404 is still an error, shown
+// with the panel's own text, so the not-found state is not simply what every failure renders as.
+test('a site read the panel fails for another reason shows the panel message as an error', async ({ page }) => {
+  const failingId = '77777777-7777-7777-7777-777777777777'
+  await stubDetailDependencies(page)
+  await page.route(`**/api/v1/sites/${failingId}`, async (route) => {
+    await route.fulfill({
+      status: 503,
+      contentType: 'application/problem+json',
+      body: JSON.stringify({ code: 'AgentUnavailable', detail: 'The server agent is not answering.', status: 503 }),
+    })
+  })
+
+  await page.goto(`/sites/${failingId}`)
+
+  await expect(page.getByText('The server agent is not answering.')).toBeVisible()
+  await expect(page.getByText('Site not found')).toHaveCount(0)
+})

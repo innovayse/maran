@@ -105,16 +105,17 @@ public sealed class IssueCertificateCommandHandlerTests
         Assert.Empty(await fixture.DbContext.Certificates.ToListAsync());
     }
 
-    /// <summary>A failed order leaves no row and installs nothing.</summary>
+    /// <summary>A failed order leaves no row, installs nothing, and keeps the authority's refusal kind.</summary>
     [Fact]
     public async Task A_failed_order_leaves_no_row_and_installs_nothing()
     {
-        using var fixture = new SslHandlerFixture([Domain], acmeFailure: Error.Of("AcmeValidationFailed", ErrorType.Failure));
+        using var fixture = new SslHandlerFixture([Domain], acmeFailure: Error.Of("AcmeValidationFailed", ErrorType.UpstreamRefused));
 
         var result = await HandlerFor(fixture).HandleAsync(Command(), CancellationToken.None);
 
         Assert.False(result.IsSuccess);
         Assert.Equal("AcmeValidationFailed", result.Error!.Code);
+        Assert.Equal(ErrorType.UpstreamRefused, result.Error.Type);
         Assert.Empty(await fixture.DbContext.Certificates.ToListAsync());
         Assert.Empty(fixture.Agent.Installs);
         Assert.Empty(fixture.Sites.Attached);

@@ -28,6 +28,7 @@ usage() {
 usage: maran <command> [arguments]
 
   dev        the whole stack: db, agent, API, SPA; --selfcheck proves it (run-dev.sh)
+  env        selftest: .env applies under the caller's own values     (dev-env-selftest.sh)
   check      toolchain preflight: is this machine able to build       (preflight.sh)
   structure  file and folder laws that no compiler can express        (check-structure.sh)
   proto      contract lint + the additive law; --accept records a change (proto-lint.sh)
@@ -60,6 +61,7 @@ shift
 
 case "$command_name" in
   dev)       exec "$root/scripts/lib/run-dev.sh" "$@" ;;
+  env)       exec bash "$root/scripts/lib/dev-env-selftest.sh" "$@" ;;
   check)     exec bash "$root/scripts/lib/preflight.sh" "$@" ;;
   structure) exec bash "$root/scripts/lib/check-structure.sh" "$@" ;;
   proto)     exec bash "$root/scripts/lib/proto-lint.sh" "$@" ;;

@@ -85,32 +85,37 @@ public sealed class DropDatabaseCommandHandler
         if (account is null)
         {
             return await FailAsync(
-                command, database.Name, Error.Of(nameof(ErrorMessages.AccountNotFound), ErrorType.NotFound), cancellationToken);
+                command,
+                database.FullName,
+                Error.Of(nameof(ErrorMessages.AccountNotFound), ErrorType.NotFound),
+                cancellationToken);
         }
 
         var dropped = await _agent.DropAsync(
             account.Username, database.Name, database.DbUserNameSuffix, cancellationToken);
         if (!dropped.IsSuccess)
         {
-            return await FailAsync(command, database.Name, dropped.Error!, cancellationToken);
+            return await FailAsync(command, database.FullName, dropped.Error!, cancellationToken);
         }
 
-        // Captured before the row goes: the journal records the name, which is the only thing about
-        // a dropped database anybody will later be able to search for.
-        var name = database.Name;
+        // Captured before the row goes: the journal records the full name the server knew the
+        // database by (the account prefix included), which is the only thing about a dropped
+        // database anybody will later be able to search for — the suffix alone is ambiguous across
+        // accounts.
+        var fullName = database.FullName;
 
         _dbContext.Databases.Remove(database);
         await _dbContext.SaveChangesAsync(cancellationToken);
 
         await _journal.RecordSuccessAsync(
-            AuditActions.DatabaseDropped, name, command.IpAddress, command.UserAgent, cancellationToken);
+            AuditActions.DatabaseDropped, fullName, command.IpAddress, command.UserAgent, cancellationToken);
 
         return Result<bool>.Ok(true);
     }
 
     /// <summary>Journals a refused drop and returns it as the typed failure.</summary>
     /// <param name="command">The drop that was refused.</param>
-    /// <param name="subject">The database's name, or the supplied identifier when no row was found.</param>
+    /// <param name="subject">The database's full name, or the supplied identifier when no row was found.</param>
     /// <param name="error">The typed failure to answer with, code and kind together.</param>
     /// <param name="cancellationToken">Cancels the journal write.</param>
     /// <returns>The failed result carrying <paramref name="error"/>.</returns>

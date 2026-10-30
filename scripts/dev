@@ -80,30 +80,40 @@ unset MARAN_ROOT
 # measuring with the wrong compiler: a bare-PATH `dotnet` here is the 8.0 snap at /snap/bin/dotnet,
 # and two lanes lost their counts to `NETSDK1045` before that guard existed.
 #
-# MARAN_ENV_APPLIED remembers which names came from the file, so re-sourcing after an edit still
-# picks the edit up (the file may overwrite its own earlier value) while a genuine override from
-# the caller is never touched. It is exported because the override must survive into the
-# subprocesses — `maran`, and the scripts it runs — that source this file again.
+# WHICH VALUES CAME FROM THE FILE is remembered per name, as the VALUE the file applied:
+# `MARAN_ENV_FILE_VALUE__<name>` holds what `.env` last exported for `<name>`. A name whose current
+# value equals that record is the file's own, so re-sourcing after an edit still picks the edit up
+# (the file may overwrite its own earlier value). A name holding anything else was set by the
+# caller — before the first source, or after it, as in `Database__Database=x maran dev` typed in a
+# shell that already sourced this file — and it stands. Remembering only the NAME, as this once
+# did, could not see the second case: the name was on the list, so the caller's value was replaced
+# by `.env`'s on the next source and the override vanished without a word (issue #204). The records
+# are exported because the override must survive into the subprocesses — `maran`, and the scripts
+# it runs — that source this file again.
+
+# maran_env_from_file NAME: true when NAME is set to exactly the value `.env` last applied for it,
+# i.e. nobody has overridden it since. False for a name the file never supplied, and for one whose
+# value the caller changed — both are the caller's.
+maran_env_from_file() {
+  local record="MARAN_ENV_FILE_VALUE__$1"
+  [ -n "${!record+set}" ] && [ -n "${!1+set}" ] && [ "${!1}" = "${!record}" ]
+}
+
 if [ -r "$MARAN_ENV_FILE" ]; then
   while IFS= read -r maran_env_line || [ -n "$maran_env_line" ]; do
     case "$maran_env_line" in
       ''|'#'*) continue ;;
       *=*)
         maran_env_name="${maran_env_line%%=*}"
-        # Set by someone other than this file? Then it is an override, and it stands.
-        if [ -n "${!maran_env_name+set}" ] &&
-           ! case " ${MARAN_ENV_APPLIED:-} " in *" $maran_env_name "*) true ;; *) false ;; esac; then
+        # Set, and not to the value this file applied? Then it is an override, and it stands.
+        if [ -n "${!maran_env_name+set}" ] && ! maran_env_from_file "$maran_env_name"; then
           continue
         fi
         export "$maran_env_name=${maran_env_line#*=}"
-        case " ${MARAN_ENV_APPLIED:-} " in
-          *" $maran_env_name "*) : ;;
-          *) MARAN_ENV_APPLIED="${MARAN_ENV_APPLIED:-} $maran_env_name" ;;
-        esac
+        export "MARAN_ENV_FILE_VALUE__$maran_env_name=${maran_env_line#*=}"
         ;;
     esac
   done < "$MARAN_ENV_FILE"
-  export MARAN_ENV_APPLIED
   unset maran_env_line maran_env_name
 fi
 unset MARAN_ENV_FILE

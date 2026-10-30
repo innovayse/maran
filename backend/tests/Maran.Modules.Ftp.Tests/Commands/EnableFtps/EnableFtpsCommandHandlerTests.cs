@@ -122,16 +122,16 @@ public sealed class EnableFtpsCommandHandlerTests
         Assert.False(entry.Succeeded);
     }
 
-    /// <summary>A missing certificate is reported as a server failure, never as bad input.</summary>
+    /// <summary>A missing certificate is reported as a conflict, never as bad input or a server fault.</summary>
     /// <remarks>
     /// The kind is the assertion that matters. <c>ErrorType.Validation</c> answers 400 and sends the
-    /// operator back to correct a form in which nothing is wrong; the hostname is theirs, the panel
-    /// serves a site for it, and the same request succeeds unchanged once certificate material
-    /// exists. <c>ErrorType.Failure</c> is documented as covering a server whose own configuration is
-    /// incomplete, which is this.
+    /// operator back to correct a form in which nothing is wrong; <c>ErrorType.Failure</c> answers 500
+    /// and reports a fault nobody can find. The hostname is theirs, the panel serves a site for it,
+    /// and the same request succeeds unchanged once certificate material exists — the request
+    /// disagrees with the server's current state, which is <c>ErrorType.Conflict</c> (409).
     /// </remarks>
     [Fact]
-    public async Task A_missing_certificate_is_reported_as_a_server_failure_and_not_as_bad_input()
+    public async Task A_missing_certificate_is_reported_as_a_conflict_and_not_as_bad_input_or_a_fault()
     {
         using var context = new FtpTestContext();
         context.Sites.Serve(ServedHostname);
@@ -142,7 +142,7 @@ public sealed class EnableFtpsCommandHandlerTests
 
         Assert.False(result.IsSuccess);
         Assert.Equal(ErrorCodes.FtpsCertificateMissing, result.Error!.Code);
-        Assert.Equal(ErrorType.Failure, result.Error.Type);
+        Assert.Equal(ErrorType.Conflict, result.Error.Type);
     }
 
     /// <summary>An agent failure that is not a missing certificate is passed through unchanged.</summary>
@@ -151,7 +151,8 @@ public sealed class EnableFtpsCommandHandlerTests
     /// <c>FtpsCertificateMissing</c> would pass the missing-certificate test and tell an operator
     /// with a broken daemon to go and issue a certificate they already have. The agent's per-account
     /// lock refuses rather than waits and the contract carries no busy code, so a concurrent
-    /// operation arrives here as exactly this: <c>AgentSystemFailure</c>, passed through.
+    /// operation arrives here as exactly this: <c>AgentSystemFailure</c>, passed through — and its kind
+    /// stays the local fault's 500, not the missing certificate's 409.
     /// </remarks>
     [Fact]
     public async Task An_agent_failure_that_is_not_a_missing_certificate_is_passed_through_unchanged()
@@ -165,6 +166,7 @@ public sealed class EnableFtpsCommandHandlerTests
 
         Assert.False(result.IsSuccess);
         Assert.Equal("AgentSystemFailure", result.Error!.Code);
+        Assert.Equal(ErrorType.Failure, result.Error.Type);
     }
 
     /// <summary>A refused enable writes no settings row.</summary>

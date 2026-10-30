@@ -57,6 +57,9 @@ public sealed class BackupDestinationResolver
     /// The remote refusal is the SAME code and the same kind the save endpoint answers with, not a
     /// second one meaning the same thing. One condition with two codes is two strings a screen has to
     /// branch on and two resx entries that can drift into saying different things about one state.
+    /// No default destination is <see cref="ErrorType.Conflict"/> (409): nothing broke and the
+    /// request is well-formed, it disagrees with the server's current configuration and succeeds
+    /// unchanged once a default destination exists.
     /// </remarks>
     public async Task<Result<ResolvedBackupDestination>> ResolveAsync(
         Guid? destinationId,
@@ -72,7 +75,7 @@ public sealed class BackupDestinationResolver
         {
             return destinationId is null
                 ? Result<ResolvedBackupDestination>.Fail(
-                    Error.Of(nameof(ErrorMessages.BackupDestinationNotConfigured), ErrorType.Failure))
+                    Error.Of(nameof(ErrorMessages.BackupDestinationNotConfigured), ErrorType.Conflict))
                 : Result<ResolvedBackupDestination>.Fail(
                     Error.Of(nameof(ErrorMessages.BackupDestinationNotFound), ErrorType.NotFound));
         }

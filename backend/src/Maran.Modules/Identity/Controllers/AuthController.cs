@@ -98,21 +98,29 @@ public sealed class AuthController : BaseApiController
     /// design: the caller's access token has usually expired by the time they get here, which is
     /// the whole reason this endpoint exists — the refresh cookie is the credential.
     /// </summary>
+    /// <remarks>
+    /// Three answers, one per case: 200 with a session when the cookie is good, 401 when a cookie was
+    /// presented and refused, and 204 when no cookie was presented at all. The last is not a refusal:
+    /// nothing was offered, so nothing was checked, and the answer is simply "there is no session" —
+    /// which is what every signed-out page load asks. It discloses nothing the caller did not already
+    /// hold, since it depends only on whether the caller's own request carried the cookie.
+    /// </remarks>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpPost("refresh")]
     [AllowAnonymous]
     [ProducesResponseType(typeof(AuthenticatedSessionDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public async Task<IActionResult> RefreshAsync(CancellationToken cancellationToken)
     {
         var refreshToken = Request.Cookies[RefreshCookie.Name];
         if (string.IsNullOrEmpty(refreshToken))
         {
-            // No cookie at all is a plain "sign in again", not a server fault: a first-time visitor
-            // and a visitor whose cookie expired are the same case, and both belong on the login
-            // screen rather than looking at a 500.
-            return ToActionResult(Result<AuthenticatedSessionDto>.Fail(
-                Error.Of(nameof(Resources.ErrorMessages.RefreshTokenInvalidUnauthorized), ErrorType.Unauthorized)));
+            // No cookie is not a failed credential, it is the absence of one: a first-time visitor
+            // and a visitor who signed out are the same case. Answering 204 keeps the signed-out
+            // page load free of an error, while a cookie that IS presented still faces the full
+            // check below and is refused with 401 when it fails.
+            return NoContent();
         }
 
         var command = new RefreshSessionCommand(refreshToken, ClientIpAddress, CallerUserAgent);

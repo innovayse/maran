@@ -1,5 +1,6 @@
 using Maran.Modules.Ssl.Services;
 using Maran.Modules.Ssl.Tests.TestSupport;
+using Maran.SharedKernel.Results;
 
 namespace Maran.Modules.Ssl.Tests.Services;
 
@@ -102,6 +103,7 @@ public sealed class AcmeSessionTests : IDisposable
         var result = await session.PostAsync(FakeAcmeAuthority.BaseUrl + "/new-order", "{}", CancellationToken.None);
 
         Assert.Equal("AcmeOrderRejected", result.Error!.Code);
+        Assert.Equal(ErrorType.UpstreamRefused, result.Error.Type);
     }
 
     /// <summary>The location header is carried alongside the body because acme puts identity there.</summary>

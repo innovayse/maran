@@ -77,13 +77,16 @@ export const useAuthApi = (): AuthApi => {
    * Exchanges the refresh cookie for a new access token, rotating the cookie.
    *
    * Answers with the signed-in half directly rather than the login envelope: a
-   * refresh has no "a second factor is owed" case — the cookie either still stands
-   * or the call fails — so there is no absent session to represent.
+   * refresh has no "a second factor is owed" case. The backend answers 204 with no
+   * body when the browser sent no refresh cookie at all — there is no session to
+   * renew, which is not an error — and that empty answer is returned as `null`. A
+   * cookie that was sent and refused still fails with a 401.
    * @param signal Optional abort signal to cancel the in-flight request.
-   * @returns The new token and the user it belongs to.
+   * @returns The new token and the user it belongs to, or `null` when there is no session.
    */
-  const refresh = (signal?: AbortSignal): Promise<AuthenticatedSession> => {
-    return api.post<AuthenticatedSession>(`${AUTH_PATH}/refresh`, undefined, signal, false)
+  const refresh = async (signal?: AbortSignal): Promise<AuthenticatedSession | null> => {
+    const session = await api.post<AuthenticatedSession | undefined>(`${AUTH_PATH}/refresh`, undefined, signal, false)
+    return session ?? null
   }
 
   /**
