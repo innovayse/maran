@@ -156,7 +156,7 @@ public sealed class CertificatesAuthorizationTests : IAsyncLifetime
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
-        var domains = body.RootElement.EnumerateArray().Select(certificate =>
+        var domains = body.RootElement.GetProperty("items").EnumerateArray().Select(certificate =>
         {
             return certificate.GetProperty("domain").GetString();
         }).ToList();

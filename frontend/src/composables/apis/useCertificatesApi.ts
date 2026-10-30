@@ -5,6 +5,7 @@ import type {
   InstallCustomCertificateRequest,
   IssueCertificateRequest,
 } from '../../types/certificate'
+import type { Paged } from '../../types/list'
 
 /** The endpoint certificates are listed, issued, installed and removed through. */
 const CERTIFICATES_PATH = '/api/v1/certificates'
@@ -29,18 +30,23 @@ export const useCertificatesApi = (): CertificatesApi => {
   /**
    * Lists the certificates installed for one site.
    *
-   * The panel's collection endpoint answers with everything the CALLER may see, already scoped to
-   * their tenancy, and this narrows that to the one site whose tab is open. The narrowing is here
-   * rather than in the store because it is a property of the endpoint, not of any screen.
+   * The panel's collection endpoint is a paged list of everything the CALLER may see, already scoped
+   * to their tenancy; the `siteId` filter narrows it on the server to the one site whose tab is open.
+   *
+   * **One page with no size named is the whole of a site's certificates, by the domain model.** A
+   * certificate is issued or installed only for a site's own domain (the Ssl module resolves the
+   * site by that domain), and the panel holds one certificate per domain across the server
+   * (`IX_Certificates_Domain`, unique). So a site holds at most one certificate, and the panel's
+   * default page (`PageDefaults.Size`) holds it with room to spare: no size is asked for, so there
+   * is no cap of this call's own to outgrow.
    * @param siteId The site to read.
    * @param signal Optional abort signal to cancel the in-flight request.
    * @returns The certificates installed for that site.
    */
   const list = async (siteId: string, signal?: AbortSignal): Promise<Certificate[]> => {
-    const all = await api.get<Certificate[]>(CERTIFICATES_PATH, signal)
-    return all.filter((certificate) => {
-      return certificate.siteId === siteId
-    })
+    const params = new URLSearchParams({ siteId })
+    const page = await api.get<Paged<Certificate>>(`${CERTIFICATES_PATH}?${params.toString()}`, signal)
+    return page.items
   }
 
   /**

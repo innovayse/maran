@@ -3,7 +3,7 @@ import { describeTableLoading } from '../fixtures/expect-table-loading'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubModules } from '../fixtures/stub-modules-route'
-import { stubManagedPlans } from '../fixtures/stub-plans-route'
+import { PLANS_PATTERN, stubManagedPlans } from '../fixtures/stub-plans-route'
 import type { PanelModule } from '../../src/types/module'
 
 // The plans table while the list is on the way (#243): drawn from its own column schema.
@@ -31,7 +31,7 @@ describeTableLoading('plans list', {
   },
   stubFailure: async (page) => {
     await signIn(page)
-    await page.route('**/api/v1/plans', async (route) => {
+    await page.route(PLANS_PATTERN, async (route) => {
       await route.fulfill({
         status: 500,
         contentType: 'application/problem+json',
@@ -39,7 +39,7 @@ describeTableLoading('plans list', {
       })
     })
   },
-  pattern: '**/api/v1/plans',
+  pattern: PLANS_PATTERN,
   path: '/plans',
   table: 'Plans and their limits',
   rowText: 'Starter',

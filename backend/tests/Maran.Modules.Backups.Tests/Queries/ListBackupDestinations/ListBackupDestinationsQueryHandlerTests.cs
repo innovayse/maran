@@ -5,6 +5,7 @@ using Maran.Modules.Backups.Domain.Entities;
 using Maran.Modules.Backups.Domain.Enums;
 using Maran.Modules.Backups.Queries.ListBackupDestinations;
 using Maran.Modules.Backups.Tests.TestSupport;
+using Maran.SharedKernel.Pagination;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Maran.Modules.Backups.Tests.Queries.ListBackupDestinations;
@@ -18,9 +19,9 @@ namespace Maran.Modules.Backups.Tests.Queries.ListBackupDestinations;
 /// </remarks>
 public sealed class ListBackupDestinationsQueryHandlerTests
 {
-    /// <summary>The default destination is answered first, showing the directory the agent stated.</summary>
+    /// <summary>The default destination shows the directory the agent stated.</summary>
     [Fact]
-    public async Task The_default_destination_is_answered_first_with_the_agents_backup_root()
+    public async Task The_default_destination_shows_the_agents_backup_root()
     {
         await using var dbContext = BackupsTestContext.CreateSeeded(FakeCurrentUser.Admin());
         dbContext.BackupDestinations.Add(new BackupDestination(
@@ -32,12 +33,15 @@ public sealed class ListBackupDestinationsQueryHandlerTests
             BackupsTestContext.SeedInstant));
         await dbContext.SaveChangesAsync();
 
-        var listed = await Handler(dbContext, StubAgentSystemClient.Reporting(BackupsTestContext.AgentBackupRoot))
-            .HandleAsync(new ListBackupDestinationsQuery(), CancellationToken.None);
+        var listed = (await Handler(dbContext, StubAgentSystemClient.Reporting(BackupsTestContext.AgentBackupRoot))
+            .HandleAsync(new ListBackupDestinationsQuery(), CancellationToken.None)).Value.Items;
 
         Assert.Equal(2, listed.Count);
-        Assert.True(listed[0].IsDefault);
-        Assert.Equal(BackupsTestContext.AgentBackupRoot, listed[0].Path);
+        var seeded = Assert.Single(listed, destination =>
+        {
+            return destination.IsDefault;
+        });
+        Assert.Equal(BackupsTestContext.AgentBackupRoot, seeded.Path);
     }
 
     /// <summary>A directory the agent states is shown as it stated it, not as the panel expected it.</summary>
@@ -50,8 +54,8 @@ public sealed class ListBackupDestinationsQueryHandlerTests
     {
         await using var dbContext = BackupsTestContext.CreateSeeded(FakeCurrentUser.Admin());
 
-        var listed = await Handler(dbContext, StubAgentSystemClient.Reporting("/mnt/volume/maran"))
-            .HandleAsync(new ListBackupDestinationsQuery(), CancellationToken.None);
+        var listed = (await Handler(dbContext, StubAgentSystemClient.Reporting("/mnt/volume/maran"))
+            .HandleAsync(new ListBackupDestinationsQuery(), CancellationToken.None)).Value.Items;
 
         Assert.Equal("/mnt/volume/maran", Assert.Single(listed).Path);
     }
@@ -62,8 +66,8 @@ public sealed class ListBackupDestinationsQueryHandlerTests
     {
         await using var dbContext = BackupsTestContext.CreateSeeded(FakeCurrentUser.Admin());
 
-        var listed = await Handler(dbContext, StubAgentSystemClient.Unreachable())
-            .HandleAsync(new ListBackupDestinationsQuery(), CancellationToken.None);
+        var listed = (await Handler(dbContext, StubAgentSystemClient.Unreachable())
+            .HandleAsync(new ListBackupDestinationsQuery(), CancellationToken.None)).Value.Items;
 
         Assert.Null(Assert.Single(listed).Path);
     }
@@ -84,8 +88,8 @@ public sealed class ListBackupDestinationsQueryHandlerTests
         using var channel = AgentChannel.CreateUnixSocket(missing);
         var agent = new AgentSystemClient(channel, NullLogger<AgentSystemClient>.Instance);
 
-        var listed = await new ListBackupDestinationsQueryHandler(dbContext, agent, BackupsTestContext.DestinationNames())
-            .HandleAsync(new ListBackupDestinationsQuery(), CancellationToken.None);
+        var listed = (await new ListBackupDestinationsQueryHandler(dbContext, agent, BackupsTestContext.DestinationNames())
+            .HandleAsync(new ListBackupDestinationsQuery(), CancellationToken.None)).Value.Items;
 
         Assert.Null(Assert.Single(listed).Path);
     }
@@ -134,8 +138,8 @@ public sealed class ListBackupDestinationsQueryHandlerTests
     {
         await using var dbContext = BackupsTestContext.CreateSeeded(FakeCurrentUser.Admin());
 
-        var listed = await Handler(dbContext, StubAgentSystemClient.Incompatible())
-            .HandleAsync(new ListBackupDestinationsQuery(), CancellationToken.None);
+        var listed = (await Handler(dbContext, StubAgentSystemClient.Incompatible())
+            .HandleAsync(new ListBackupDestinationsQuery(), CancellationToken.None)).Value.Items;
 
         Assert.Null(Assert.Single(listed).Path);
     }
@@ -150,8 +154,8 @@ public sealed class ListBackupDestinationsQueryHandlerTests
     {
         await using var dbContext = BackupsTestContext.CreateSeeded(FakeCurrentUser.Admin());
 
-        var listed = await Handler(dbContext, StubAgentSystemClient.Reporting(string.Empty))
-            .HandleAsync(new ListBackupDestinationsQuery(), CancellationToken.None);
+        var listed = (await Handler(dbContext, StubAgentSystemClient.Reporting(string.Empty))
+            .HandleAsync(new ListBackupDestinationsQuery(), CancellationToken.None)).Value.Items;
 
         Assert.Null(Assert.Single(listed).Path);
     }
@@ -162,8 +166,8 @@ public sealed class ListBackupDestinationsQueryHandlerTests
     {
         await using var dbContext = BackupsTestContext.Create(FakeCurrentUser.Admin());
 
-        var listed = await Handler(dbContext, StubAgentSystemClient.Unreachable())
-            .HandleAsync(new ListBackupDestinationsQuery(), CancellationToken.None);
+        var listed = (await Handler(dbContext, StubAgentSystemClient.Unreachable())
+            .HandleAsync(new ListBackupDestinationsQuery(), CancellationToken.None)).Value.Items;
 
         Assert.Empty(listed);
     }
@@ -191,8 +195,8 @@ public sealed class ListBackupDestinationsQueryHandlerTests
     {
         await using var dbContext = BackupsTestContext.CreateSeeded(FakeCurrentUser.Admin());
 
-        var listed = await Handler(dbContext, StubAgentSystemClient.Reporting(BackupsTestContext.AgentBackupRoot))
-            .HandleAsync(new ListBackupDestinationsQuery(), CancellationToken.None);
+        var listed = (await Handler(dbContext, StubAgentSystemClient.Reporting(BackupsTestContext.AgentBackupRoot))
+            .HandleAsync(new ListBackupDestinationsQuery(), CancellationToken.None)).Value.Items;
 
         var destination = Assert.Single(listed);
         Assert.Equal("Local storage", destination.Name);
@@ -225,8 +229,8 @@ public sealed class ListBackupDestinationsQueryHandlerTests
         {
             CultureInfo.CurrentUICulture = new CultureInfo("ru");
 
-            var listed = await Handler(dbContext, StubAgentSystemClient.Reporting(BackupsTestContext.AgentBackupRoot))
-                .HandleAsync(new ListBackupDestinationsQuery(), CancellationToken.None);
+            var listed = (await Handler(dbContext, StubAgentSystemClient.Reporting(BackupsTestContext.AgentBackupRoot))
+                .HandleAsync(new ListBackupDestinationsQuery(), CancellationToken.None)).Value.Items;
 
             var destination = Assert.Single(listed);
             Assert.Equal("Local storage", destination.Name);
@@ -236,5 +240,50 @@ public sealed class ListBackupDestinationsQueryHandlerTests
         {
             CultureInfo.CurrentUICulture = previous;
         }
+    }
+
+    /// <summary>A search on the name and a kind filter each narrow the page and its total.</summary>
+    [Fact]
+    public async Task A_name_search_and_a_kind_filter_each_narrow_the_page_and_its_total()
+    {
+        await using var dbContext = BackupsTestContext.CreateSeeded(FakeCurrentUser.Admin());
+        dbContext.BackupDestinations.Add(new BackupDestination(
+            Guid.NewGuid(),
+            "Off-site 100%",
+            BackupDestinationKind.S3,
+            string.Empty,
+            isDefault: false,
+            BackupsTestContext.SeedInstant));
+        await dbContext.SaveChangesAsync();
+        var handler = Handler(dbContext, StubAgentSystemClient.Reporting(BackupsTestContext.AgentBackupRoot));
+
+        var searched = (await handler.HandleAsync(
+            new ListBackupDestinationsQuery(Search: SearchTerm.Of("100%")), CancellationToken.None)).Value;
+        Assert.Equal("Off-site 100%", Assert.Single(searched.Items).Name);
+        Assert.Equal(1, searched.Total);
+
+        // The % is literal text, not a wildcard: a term that only a wildcard reading would match finds nothing.
+        var literal = (await handler.HandleAsync(
+            new ListBackupDestinationsQuery(Search: SearchTerm.Of("site%x")), CancellationToken.None)).Value;
+        Assert.Empty(literal.Items);
+        Assert.Equal(0, literal.Total);
+
+        var local = (await handler.HandleAsync(
+            new ListBackupDestinationsQuery(Kind: BackupDestinationKind.Local), CancellationToken.None)).Value;
+        Assert.Equal(BackupDestinationKind.Local, Assert.Single(local.Items).Kind);
+    }
+
+    /// <summary>A page past the end answers empty with the true total and the page asked for.</summary>
+    [Fact]
+    public async Task A_page_past_the_end_answers_empty_with_the_true_total()
+    {
+        await using var dbContext = BackupsTestContext.CreateSeeded(FakeCurrentUser.Admin());
+
+        var page = (await Handler(dbContext, StubAgentSystemClient.Reporting(BackupsTestContext.AgentBackupRoot))
+            .HandleAsync(new ListBackupDestinationsQuery(Page: 4), CancellationToken.None)).Value;
+
+        Assert.Empty(page.Items);
+        Assert.Equal(1, page.Total);
+        Assert.Equal(4, page.Page);
     }
 }

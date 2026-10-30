@@ -247,8 +247,6 @@ test('the plan picker shows sizes in human units and counts in plural forms', as
       displayName: 'Rev',
       diskQuotaMb: 2,
       maxSites: 1,
-      maxDatabases: 1,
-      maxSftpUsers: 1,
     },
   ])
 
@@ -258,4 +256,31 @@ test('the plan picker shows sizes in human units and counts in plural forms', as
   await expect(page.getByRole('option', { name: 'Unlimited — 1 TiB, 500 sites' })).toBeVisible()
   await expect(page.getByRole('option', { name: 'Starter — 5 GiB, 5 sites' })).toBeVisible()
   await expect(page.getByRole('option', { name: 'Rev — 2 MiB, 1 site', exact: true })).toBeVisible()
+})
+
+// #196: the plan picker is searched on the server, one page per search, never a whole list held in
+// the browser, so a plan past any first page is still reachable.
+test('the plan picker searches the panel and offers what it answers', async ({ page }) => {
+  await stubSignedIn(page)
+  await stubHealthy(page)
+  await stubModules(page, LICENSED_ACCOUNTS)
+  await stubAccounts(page, [])
+  await stubPlans(page, THREE_PLANS)
+  const searches: string[] = []
+  page.on('request', (request) => {
+    const url = new URL(request.url())
+    if (url.pathname === '/api/v1/plans/choices') {
+      searches.push(url.searchParams.get('search') ?? '')
+    }
+  })
+
+  await page.goto('/accounts/new')
+  await page.getByRole('combobox', { name: 'Plan', exact: true }).click()
+  await page.getByRole('searchbox', { name: 'Search' }).fill('unlim')
+
+  await expect(page.getByRole('option')).toHaveCount(1)
+  await expect(page.getByRole('option', { name: 'Unlimited', exact: false })).toBeVisible()
+  await expect.poll(() => {
+    return searches.at(-1)
+  }).toBe('unlim')
 })

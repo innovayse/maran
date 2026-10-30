@@ -1,6 +1,6 @@
 import { useApi } from '../useApi'
-import { accountListQuery } from '../../utils/accountListQuery'
-import type { AccountListFilter } from '../../types/accountListFilter'
+import { listQuery } from '../../utils/listQuery'
+import type { ListRequest, Paged } from '../../types/list'
 import type {
   CreateDatabaseRequest,
   CreatedDatabase,
@@ -11,6 +11,11 @@ import type {
 
 /** The endpoint databases are listed and created through. */
 const DATABASES_PATH = '/api/v1/databases'
+
+/** The list endpoint's parameter for each filter the databases page reads from its URL. */
+const LIST_FILTER_PARAMS: Readonly<Record<string, string>> = {
+  account: 'accountId',
+}
 
 /**
  * Builds the databases API on top of the shared low-level client.
@@ -28,14 +33,15 @@ export const useDatabasesApi = (): DatabasesApi => {
   const api = useApi()
 
   /**
-   * Lists the databases the caller may see. Another customer's rows are not in the answer at all —
-   * the server scopes the query, so there is nothing here to filter.
-   * @param filter The account the list is narrowed to; empty for every row the caller may see.
+   * Lists one page of the databases the caller may see. Another customer's rows are not in the
+   * answer at all — the server scopes the query and ANDs an account filter with it, so a customer
+   * naming another account receives an empty page with a total of zero.
+   * @param request The page, size, search, sort and the account filter.
    * @param signal Optional abort signal to cancel the in-flight request.
-   * @returns The databases, in the order the panel reports them.
+   * @returns The page the panel answered.
    */
-  const list = (filter: AccountListFilter, signal?: AbortSignal): Promise<Database[]> => {
-    return api.get<Database[]>(`${DATABASES_PATH}${accountListQuery(filter)}`, signal)
+  const list = (request: ListRequest, signal?: AbortSignal): Promise<Paged<Database>> => {
+    return api.get<Paged<Database>>(`${DATABASES_PATH}${listQuery(request, LIST_FILTER_PARAMS)}`, signal)
   }
 
   /**

@@ -111,4 +111,16 @@
   <data name="BackupArtifactUnvouched">
     <value>The panel stopped following this backup before your server reported a result. A copy of that backup IS on your server, but the panel never recorded its checksum, so it cannot verify the copy and will not offer it for restore. It is recorded as failed and the copy was not deleted — ask support to release the space, or start a new backup.</value>
   </data>
+  <data name="BackupStatusUnknown">
+    <value>That is not a backup status.</value>
+  </data>
+  <data name="BackupKindUnknown">
+    <value>That is not a kind of backup.</value>
+  </data>
+  <data name="BackupDestinationKindUnknown">
+    <value>That is not a kind of backup destination.</value>
+  </data>
+  <data name="BackupDateRangeInverted">
+    <value>The start of the date range must not be later than its end.</value>
+  </data>
 </root>

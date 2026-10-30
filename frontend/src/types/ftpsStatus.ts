@@ -28,6 +28,16 @@ export type FtpsDesiredState = 'neverConfigured' | 'on' | 'off'
 export type FtpsAgreement = 'consistent' | 'runningButOff' | 'onButNotRunning' | 'runningButNotAnswering'
 
 /**
+ * What the panel has told this caller about the FTPS daemon, which is not the same question as
+ * whether it is running.
+ *
+ * `unknown` is a member because it is a real answer and not a missing one: `GET /api/v1/ftps-server`
+ * is administrator-only, so a customer's panel genuinely does not know. Folding it into `off` would
+ * disable FTPS for every customer on a server where it works.
+ */
+export type FtpsAvailability = 'available' | 'off' | 'unknown'
+
+/**
  * Why an FTPS server request failed, as the store holds it.
  *
  * Two kinds, because a failure either carries the backend's own already-localized sentence or it

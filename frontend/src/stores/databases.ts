@@ -2,8 +2,7 @@ import { defineStore } from 'pinia'
 import { ref, type Ref } from 'vue'
 import { useDatabasesApi } from '../composables/apis/useDatabasesApi'
 import { ApiError } from '../composables/useApi'
-import type { AccountListFilter } from '../types/accountListFilter'
-import type { LoadingState } from '../types/loading'
+import type { ListLoad, ListRequest } from '../types/list'
 import type {
   CreateDatabaseRequest,
   Database,
@@ -11,8 +10,8 @@ import type {
 } from '../types/database'
 
 /**
- * Owns the customer databases list, the create workflow, and the one-time credential a create or a
- * password reset produces. The databases page reads state from here and calls its actions — it
+ * Owns the page of the databases list on screen, the create workflow, and the one-time credential a
+ * create or a password reset produces. The databases page reads state from here and calls its actions — it
  * never touches the API composable directly (rules/vue.md: "API composables are called from Pinia
  * stores ONLY").
  *
@@ -27,7 +26,7 @@ import type {
 export const useDatabasesStore = defineStore('databases', () => {
   const api = useDatabasesApi()
 
-  /** The databases as last reported by the panel; empty before the first successful load. */
+  /** The rows of the list page last answered by the panel; empty before the first answer. */
   const databases: Ref<Database[]> = ref([])
 
   /** True while a create request is in flight. */
@@ -36,25 +35,16 @@ export const useDatabasesStore = defineStore('databases', () => {
   /** True while a mutation (password reset, drop) is in flight. */
   const acting: Ref<boolean> = ref(false)
 
-  /** Where the read of the list stands; every failure sets `error`, whatever its cause. */
-  const loadState: Ref<LoadingState> = ref('loading')
-
-  /**
-   * Backend-localized message from the most recent failed read, or `null` when the last one
-   * succeeded or the failure carried no message (the panel was unreachable). Rendered verbatim.
-   */
-  const errorMessage: Ref<string | null> = ref(null)
-
   /**
    * Backend-localized message from the most recent failed mutation (password reset, drop), or
-   * `null`. Kept apart from {@link errorMessage} so a refused drop is reported above the list
-   * rather than replacing it.
+   * `null`. Kept apart from the list's own read state, which the page's `useServerTable` holds, so a
+   * refused drop is reported above the list rather than replacing it.
    */
   const actionErrorMessage: Ref<string | null> = ref(null)
 
   /**
    * Backend-localized message from the most recent failed create attempt, or `null`. Kept apart
-   * from {@link errorMessage} so a rejected form does not blank the list's own error.
+   * from the list's read state so a rejected form does not blank the list's own error.
    */
   const createErrorMessage: Ref<string | null> = ref(null)
 
@@ -68,19 +58,18 @@ export const useDatabasesStore = defineStore('databases', () => {
   const revealedCredential: Ref<RevealedDatabaseCredential | null> = ref(null)
 
   /**
-   * Loads the database list, replacing what is held.
-   * @param filter The account the list is narrowed to; empty for every row the caller may see.
-   * @returns Resolves once the request has settled, successfully or not.
+   * Loads one page of the database list into {@link databases} and reports how the read ended, for
+   * the page's `useServerTable`.
+   * @param request The page, size, search, sort and filters, as the URL describes them.
+   * @returns The page, the panel's refusal with its message, or `unreachable` when no answer arrived.
    */
-  const load = async (filter: AccountListFilter): Promise<void> => {
-    loadState.value = 'loading'
+  const list = async (request: ListRequest): Promise<ListLoad<Database>> => {
     try {
-      databases.value = await api.list(filter)
-      errorMessage.value = null
-      loadState.value = 'loaded'
+      const page = await api.list(request)
+      databases.value = page.items
+      return { kind: 'loaded', page }
     } catch (error) {
-      errorMessage.value = error instanceof ApiError ? error.message : null
-      loadState.value = 'error'
+      return error instanceof ApiError ? { kind: 'refused', message: error.message } : { kind: 'unreachable' }
     }
   }
 
@@ -94,7 +83,9 @@ export const useDatabasesStore = defineStore('databases', () => {
   }
 
   /**
-   * Creates a database and holds the password it answered with for exactly one showing.
+   * Creates a database and holds the password it answered with for exactly one showing. The held
+   * page is not patched: where the new row falls depends on the server's sort, search and paging,
+   * so the page reads its list again after an accepted create.
    * @param request The owning account and the two names the customer chose.
    * @returns True when the panel created the database — the caller reads
    * {@link createErrorMessage} for the reason when it did not.
@@ -103,23 +94,8 @@ export const useDatabasesStore = defineStore('databases', () => {
     creating.value = true
     try {
       const created = await api.create(request)
-      // The list-shaped row is built from the create response rather than re-fetched: the
-      // password must not be put into `databases`, where a later render could show it beside a
-      // row long after the operator dismissed the dialog.
-      databases.value = [
-        ...databases.value,
-        {
-          id: created.id,
-          accountId: created.accountId,
-          // The create answer carries no owner name, and the SPA does not join one from an account
-          // list: the row says "not named" until the next list read brings the panel's name.
-          ownerName: '',
-          name: created.name,
-          fullName: created.fullName,
-          dbUserName: created.dbUserName,
-          createdAt: created.createdAt,
-        },
-      ]
+      // The password goes into the credential and nowhere else — never into `databases`, where a
+      // later render could show it beside a row long after the operator dismissed the dialog.
       revealedCredential.value = {
         databaseFullName: created.fullName,
         dbUserName: created.dbUserName,
@@ -169,7 +145,9 @@ export const useDatabasesStore = defineStore('databases', () => {
   }
 
   /**
-   * Drops a database, removing it from the held list. The data goes with it.
+   * Drops a database. The data goes with it. The held page is not patched: the total and the rows
+   * that move up from the next page are the server's, so the page reads its list again after an
+   * accepted drop.
    * @param id The database to drop.
    * @returns True when the panel dropped it.
    */
@@ -177,9 +155,6 @@ export const useDatabasesStore = defineStore('databases', () => {
     acting.value = true
     try {
       await api.remove(id)
-      databases.value = databases.value.filter((database) => {
-        return database.id !== id
-      })
       actionErrorMessage.value = null
       return true
     } catch (error) {
@@ -194,12 +169,10 @@ export const useDatabasesStore = defineStore('databases', () => {
     databases,
     creating,
     acting,
-    loadState,
-    errorMessage,
     actionErrorMessage,
     createErrorMessage,
     revealedCredential,
-    load,
+    list,
     create,
     resetPassword,
     remove,

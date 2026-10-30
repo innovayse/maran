@@ -7,7 +7,7 @@
  *
  * **The URL is the list's state** (`useServerTable`): page, page size, search, sort and the `plan`
  * and `status` filters all live in the query, so a list can be shared, reloaded and walked back
- * through. `?plan=<id>` is the link the plans screen opens when a plan cannot be deleted; it is one
+ * through. The plan filter is a server-searched picker (`/api/v1/plans/choices`), and `?plan=<id>` is the link the plans screen opens when a plan cannot be deleted; it is one
  * filter of the schema like the other, shown as a removable chip.
  *
  * **Nothing is filtered here.** The search box, the filter sheet and the sort headers only change
@@ -26,7 +26,7 @@
  *   the specs and a screen-reader user look for.
  * - The backend's own error text is rendered verbatim, never replaced by SPA copy.
  */
-import { computed, onMounted, ref, type ComputedRef, type Ref } from 'vue'
+import { computed, ref, watch, type ComputedRef, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { RouterLink } from 'vue-router'
 import UiActiveFilter from '../../components/ui/UiActiveFilter.vue'
@@ -34,6 +34,7 @@ import UiAlert from '../../components/ui/UiAlert.vue'
 import UiAvatar from '../../components/ui/UiAvatar.vue'
 import UiButton from '../../components/ui/UiButton.vue'
 import UiCard from '../../components/ui/UiCard.vue'
+import UiCombobox from '../../components/ui/UiCombobox.vue'
 import UiEmptyState from '../../components/ui/UiEmptyState.vue'
 import UiFilterSheet from '../../components/ui/UiFilterSheet.vue'
 import UiFilterTrigger from '../../components/ui/UiFilterTrigger.vue'
@@ -45,7 +46,9 @@ import UiLoadingRegion from '../../components/ui/UiLoadingRegion.vue'
 import UiTable from '../../components/ui/UiTable.vue'
 import type { UiTableColumn } from '../../types/tableColumn'
 import AccountStatusBadge from '../../components/accounts/AccountStatusBadge.vue'
+import type { AccountPickerState } from '../../composables/useAccountChoice'
 import { useListLabels } from '../../composables/useListLabels'
+import { usePlanChoice } from '../../composables/usePlanChoice'
 import { useServerTable } from '../../composables/useServerTable'
 import { useAccountsStore } from '../../stores/accounts'
 import { useLocaleStore } from '../../stores/locale'
@@ -63,6 +66,7 @@ const { t } = useI18n()
 const store = useAccountsStore()
 const localeStore = useLocaleStore()
 const labels = useListLabels()
+const { picker: planPicker, search: searchPlans } = usePlanChoice()
 
 const table = useServerTable<Account>({
   filters: {
@@ -101,14 +105,17 @@ const answeredNothing: ComputedRef<boolean> = computed(() => {
   return table.state.value.status === 'loaded' && table.total.value === 0
 })
 
-/** The plans the filter offers, by the names the panel reports, after an "any plan" choice. */
-const planOptions: ComputedRef<SelectOption[]> = computed(() => {
-  return [
-    { value: '', label: t('common.list.any') },
-    ...store.plans.map((plan) => {
-      return { value: plan.id, label: plan.displayName }
-    }),
-  ]
+/**
+ * The plan filter's picker: the page of plans matching its search, after an "any plan" choice,
+ * which is counted into the total so the "more matches" line stays right.
+ */
+const planFilterPicker: ComputedRef<AccountPickerState> = computed(() => {
+  const state = planPicker.value
+  return {
+    ...state,
+    options: [{ value: '', label: t('common.list.any') }, ...state.options],
+    total: state.total + 1,
+  }
 })
 
 /** The account states the filter offers, after an "any state" choice. */
@@ -145,16 +152,13 @@ const chips: ComputedRef<ActiveFilterChip[]> = computed(() => {
 })
 
 /**
- * Names a plan by the name the panel reports; the id while the plans have not arrived.
+ * Names a plan by its own read (`GET /api/v1/plans/{id}`), so any plan the URL names is named, not
+ * only one on some page of choices; the id while that read is in flight or if it failed.
  * @param id The plan's identity.
  * @returns The plan's display name, or the id.
  */
 const planName = (id: string): string => {
-  return (
-    store.plans.find((plan) => {
-      return plan.id === id
-    })?.displayName ?? id
-  )
+  return store.planNames[id] ?? id
 }
 
 /**
@@ -182,10 +186,19 @@ const clearAll = async (): Promise<void> => {
   await table.clearFilters()
 }
 
-// The plans name the plan filter's chip and fill its choices; the list does not wait for them.
-onMounted(() => {
-  void store.loadPlans()
-})
+// The plan the URL narrows to is named for its chip and the picker; the list does not wait for it,
+// and the picker searches its own choices when opened.
+watch(
+  (): string => {
+    return table.filters.value.plan
+  },
+  (id: string): void => {
+    if (id !== '') {
+      void store.loadPlanName(id)
+    }
+  },
+  { immediate: true },
+)
 </script>
 
 <template>
@@ -303,7 +316,14 @@ onMounted(() => {
       @close="closeFilters"
     >
       <template #default="{ draft }">
-        <UiSelect v-model="draft.plan" :label="t('accounts.list.filters.plan')" :options="planOptions" />
+        <UiCombobox
+          v-model="draft.plan"
+          v-bind="planFilterPicker"
+          :label="t('accounts.list.filters.plan')"
+          :placeholder="t('common.list.any')"
+          :selected-label="table.filters.value.plan === '' ? undefined : planName(table.filters.value.plan)"
+          @search="searchPlans"
+        />
         <UiSelect v-model="draft.status" :label="t('accounts.list.filters.status')" :options="statusOptions" />
       </template>
     </UiFilterSheet>

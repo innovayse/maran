@@ -3,65 +3,40 @@ import { ref, type Ref } from 'vue'
 import { useBackupDestinationsApi } from '../composables/apis/useBackupDestinationsApi'
 import { ApiError } from '../composables/useApi'
 import type { BackupDestination } from '../types/backupDestination'
-import type { LoadingState } from '../types/loading'
+import type { ListLoad, ListRequest } from '../types/list'
 
 /**
- * Owns the list of places this server records backups as living. The destinations page reads state
- * from here and calls its actions — it never touches the API layer (rules/vue.md: "API composables
- * are called from Pinia stores ONLY").
+ * Owns the backup destinations list. The destinations page reads state from here and calls its
+ * action — it never touches the API composable directly (rules/vue.md: "API composables are called
+ * from Pinia stores ONLY").
  *
- * **An empty list is a success, not a failure, and the screen says which.** A panel whose startup
- * reconciliation has not run yet answers `200 []`; that is a real answer about the server and is
- * held apart from a failure in {@link loadState}, `loaded` with an empty {@link destinations}, so the screen
- * never renders "nothing configured" over a request that actually broke.
- *
- * **Nothing here holds a credential.** The endpoint carries none — no destination on this build has
- * one — and the shape the store keeps is `BackupDestination`, which declares no secret member. A
- * store that kept the raw payload would be the place a future credential silently arrived and sat
- * in memory for a screen to print.
+ * Error text is never generated here: a refusal's already-localized message is handed to the list
+ * verbatim (rules/vue.md: "the backend owns their text").
  */
 export const useBackupDestinationsStore = defineStore('backupDestinations', () => {
   const api = useBackupDestinationsApi()
 
-  /** The destinations the panel reports, in the order it returned them: the default one first. */
+  /** The rows of the list page last answered by the panel; empty before the first answer. */
   const destinations: Ref<BackupDestination[]> = ref([])
 
-  /** Where the read stands; every failure sets `error`, whatever its cause. */
-  const loadState: Ref<LoadingState> = ref('loading')
-
   /**
-   * Backend-localized message from the last failed read, or `null`.
-   *
-   * Rendered verbatim. A customer who reaches this screen is answered 403 and reads the panel's own
-   * sentence here; the SPA holds no copy of that text (rules/vue.md — the backend owns it).
+   * Loads one page of the destinations into {@link destinations} and reports how the read ended,
+   * for the destinations page's `useServerTable`.
+   * @param request The page, size, search, sort and filters, as the URL describes them.
+   * @returns The page, the panel's refusal with its message, or `unreachable` when no answer arrived.
    */
-  const errorMessage: Ref<string | null> = ref(null)
-
-  /**
-   * Reads every destination, replacing whatever was held.
-   *
-   * The held list is cleared BEFORE the request rather than after it: a failed reload that left the
-   * previous answer on screen would show a destination list beside an error saying the list could
-   * not be read.
-   * @returns Resolves once the request has settled, successfully or not.
-   */
-  const load = async (): Promise<void> => {
-    loadState.value = 'loading'
-    destinations.value = []
-    errorMessage.value = null
+  const list = async (request: ListRequest): Promise<ListLoad<BackupDestination>> => {
     try {
-      destinations.value = await api.list()
-      loadState.value = 'loaded'
+      const page = await api.list(request)
+      destinations.value = page.items
+      return { kind: 'loaded', page }
     } catch (error) {
-      errorMessage.value = error instanceof ApiError ? error.message : null
-      loadState.value = 'error'
+      return error instanceof ApiError ? { kind: 'refused', message: error.message } : { kind: 'unreachable' }
     }
   }
 
   return {
     destinations,
-    loadState,
-    errorMessage,
-    load,
+    list,
   }
 })

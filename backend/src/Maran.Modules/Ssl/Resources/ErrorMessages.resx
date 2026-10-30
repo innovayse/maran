@@ -75,4 +75,7 @@
   <data name="CertificateDomainReserved">
     <value>A certificate cannot be issued or installed for this name.</value>
   </data>
+  <data name="CertificateStatusUnknown">
+    <value>That is not a certificate status.</value>
+  </data>
 </root>

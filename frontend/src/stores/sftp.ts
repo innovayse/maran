@@ -2,8 +2,7 @@ import { defineStore } from 'pinia'
 import { ref, type Ref } from 'vue'
 import { useSftpApi } from '../composables/apis/useSftpApi'
 import { ApiError } from '../composables/useApi'
-import type { AccountListFilter } from '../types/accountListFilter'
-import type { LoadingState } from '../types/loading'
+import type { ListLoad, ListRequest } from '../types/list'
 import type {
   CreateSftpUserRequest,
   RevealedSftpCredential,
@@ -11,10 +10,10 @@ import type {
 } from '../types/sftpUser'
 
 /**
- * Owns the customer SFTP logins list, the create workflow, and the one-time credential a create or
- * a password reset produces. The SFTP page reads state from here and calls its actions — it never
- * touches the API composable directly (rules/vue.md: "API composables are called from Pinia stores
- * ONLY").
+ * Owns one page of the customer SFTP logins, the create workflow, and the one-time credential a
+ * create or a password reset produces. The SFTP logins page reads state from here and calls its
+ * actions — it never touches the API composable directly (rules/vue.md: "API composables are called
+ * from Pinia stores ONLY").
  *
  * Error text is never generated here: when the backend rejects a request, its already-localized
  * `title`/`detail` is stored verbatim (rules/vue.md: "the backend owns their text").
@@ -27,7 +26,7 @@ import type {
 export const useSftpStore = defineStore('sftp', () => {
   const api = useSftpApi()
 
-  /** The logins as last reported by the panel; empty before the first successful load. */
+  /** The rows of the list page last answered by the panel; empty before the first answer. */
   const sftpUsers: Ref<SftpUser[]> = ref([])
 
   /** True while a create request is in flight. */
@@ -36,25 +35,15 @@ export const useSftpStore = defineStore('sftp', () => {
   /** True while a mutation (password reset, removal) is in flight. */
   const acting: Ref<boolean> = ref(false)
 
-  /** Where the read of the list stands; every failure sets `error`, whatever its cause. */
-  const loadState: Ref<LoadingState> = ref('loading')
-
-  /**
-   * Backend-localized message from the most recent failed read, or `null` when it succeeded or the
-   * failure carried no message (the panel was unreachable). Rendered verbatim.
-   */
-  const errorMessage: Ref<string | null> = ref(null)
-
   /**
    * Backend-localized message from the most recent failed mutation (password reset, removal), or
-   * `null`. Kept apart from {@link errorMessage} so a refused removal is reported above the list
-   * rather than replacing it.
+   * `null`. Reported above the list rather than in place of it.
    */
   const actionErrorMessage: Ref<string | null> = ref(null)
 
   /**
    * Backend-localized message from the most recent failed create attempt, or `null`. Kept apart
-   * from {@link errorMessage} so a rejected form does not blank the list's own error.
+   * from the list's own state so a rejected form does not blank the list.
    */
   const createErrorMessage: Ref<string | null> = ref(null)
 
@@ -68,19 +57,18 @@ export const useSftpStore = defineStore('sftp', () => {
   const revealedCredential: Ref<RevealedSftpCredential | null> = ref(null)
 
   /**
-   * Loads the login list, replacing what is held.
-   * @param filter The account the list is narrowed to; empty for every row the caller may see.
-   * @returns Resolves once the request has settled, successfully or not.
+   * Loads one page of the login list into {@link sftpUsers} and reports how the read ended, for the
+   * list page's `useServerTable`.
+   * @param request The page, size, search, sort and account filter, as the URL describes them.
+   * @returns The page, the panel's refusal with its message, or `unreachable` when no answer arrived.
    */
-  const load = async (filter: AccountListFilter): Promise<void> => {
-    loadState.value = 'loading'
+  const list = async (request: ListRequest): Promise<ListLoad<SftpUser>> => {
     try {
-      sftpUsers.value = await api.list(filter)
-      errorMessage.value = null
-      loadState.value = 'loaded'
+      const page = await api.list(request)
+      sftpUsers.value = page.items
+      return { kind: 'loaded', page }
     } catch (error) {
-      errorMessage.value = error instanceof ApiError ? error.message : null
-      loadState.value = 'error'
+      return error instanceof ApiError ? { kind: 'refused', message: error.message } : { kind: 'unreachable' }
     }
   }
 
@@ -94,7 +82,9 @@ export const useSftpStore = defineStore('sftp', () => {
   }
 
   /**
-   * Creates an SFTP login and holds the password it answered with for exactly one showing.
+   * Creates an SFTP login and holds the password it answered with for exactly one showing. The held
+   * page is not patched: where the new row falls depends on the server's sort and search, so the
+   * list page reads its page again.
    * @param request The owning account and the name the customer chose.
    * @returns True when the panel created the login — the caller reads {@link createErrorMessage}
    * for the reason when it did not.
@@ -103,22 +93,8 @@ export const useSftpStore = defineStore('sftp', () => {
     creating.value = true
     try {
       const created = await api.create(request)
-      // The list-shaped row is built from the create response rather than re-fetched: the
-      // password must not be put into `sftpUsers`, where a later render could show it beside a
-      // row long after the operator dismissed the dialog.
-      sftpUsers.value = [
-        ...sftpUsers.value,
-        {
-          id: created.id,
-          accountId: created.accountId,
-          // The create answer carries no owner name, and the SPA does not join one from an account
-          // list: the row says "not named" until the next list read brings the panel's name.
-          ownerName: '',
-          name: created.name,
-          fullName: created.fullName,
-          createdAt: created.createdAt,
-        },
-      ]
+      // Only the login and its password are kept, and only here: the password must never reach
+      // `sftpUsers`, where a later render could show it beside a row.
       revealedCredential.value = { fullName: created.fullName, password: created.password }
       createErrorMessage.value = null
       return true
@@ -156,7 +132,8 @@ export const useSftpStore = defineStore('sftp', () => {
   }
 
   /**
-   * Removes a login, dropping it from the held list. The account's files stay on disk.
+   * Removes a login, dropping it from the held page; the list page then reads the page again so it
+   * refills from the next one. The account's files stay on disk.
    * @param id The login to remove.
    * @returns True when the panel removed it.
    */
@@ -181,12 +158,10 @@ export const useSftpStore = defineStore('sftp', () => {
     sftpUsers,
     creating,
     acting,
-    loadState,
-    errorMessage,
     actionErrorMessage,
     createErrorMessage,
     revealedCredential,
-    load,
+    list,
     create,
     resetPassword,
     remove,

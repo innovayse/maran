@@ -32,40 +32,50 @@
  * not reach this template at all. Should a destination ever carry credentials, they stay write-only:
  * never rendered back after saving and never logged.
  *
- * **Layout (redesign 2026-10).** The header carries the module name as its eyebrow; each recorded
- * destination, the kinds of storage and the "what this does not cover" lines are `UiCard` panels in a
- * two-column grid from 1024px up and one column below it. A failed read is the first thing on the
- * screen. The empty state sits inside a card rather than floating on the content panel.
+ * **The destinations are a server page** (`useServerTable`), like every other list: page, page size,
+ * the search on the name, the sort (`name`, `createdAt`) and the `kind` filter live in the URL, and
+ * the panel searches, sorts, filters and counts. The list is small, so the panel pages it in memory;
+ * that is its business, and the contract here is the same as for a list of thousands.
+ *
+ * **Layout (redesign 2026-10).** The header carries the module name as its eyebrow; the recorded
+ * destinations are one table in a card, and the kinds of storage and the "what this does not cover"
+ * lines are `UiCard` panels in a two-column grid from 1024px up and one column below it. A failed
+ * read takes the table's place. The default destination carries its badge in its name cell, and
+ * its stored name under the heading name whenever the two differ.
  */
-import { computed, onMounted, type ComputedRef } from 'vue'
+import { computed, ref, type ComputedRef, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
+import UiActiveFilter from '../../components/ui/UiActiveFilter.vue'
 import UiAlert from '../../components/ui/UiAlert.vue'
 import UiBadge from '../../components/ui/UiBadge.vue'
+import UiButton from '../../components/ui/UiButton.vue'
 import UiCard from '../../components/ui/UiCard.vue'
-import UiDescriptionItem from '../../components/ui/UiDescriptionItem.vue'
-import UiDescriptionList from '../../components/ui/UiDescriptionList.vue'
 import UiEmptyState from '../../components/ui/UiEmptyState.vue'
+import UiFilterSheet from '../../components/ui/UiFilterSheet.vue'
+import UiFilterTrigger from '../../components/ui/UiFilterTrigger.vue'
 import UiIcon from '../../components/ui/UiIcon.vue'
 import UiIconTile from '../../components/ui/UiIconTile.vue'
-import UiPageHeading from '../../components/ui/UiPageHeading.vue'
-import UiSectionHeading from '../../components/ui/UiSectionHeading.vue'
 import UiLoadingRegion from '../../components/ui/UiLoadingRegion.vue'
-import UiSkeleton from '../../components/ui/UiSkeleton.vue'
+import UiPageHeading from '../../components/ui/UiPageHeading.vue'
+import UiPagination from '../../components/ui/UiPagination.vue'
+import UiSearchInput from '../../components/ui/UiSearchInput.vue'
+import UiSectionHeading from '../../components/ui/UiSectionHeading.vue'
+import UiSelect, { type SelectOption } from '../../components/ui/UiSelect.vue'
+import UiTable from '../../components/ui/UiTable.vue'
+import type { UiTableColumn } from '../../types/tableColumn'
 import { useBackupDestinationKindText } from '../../composables/useBackupDestinationKindText'
+import { useListLabels } from '../../composables/useListLabels'
+import { useServerTable } from '../../composables/useServerTable'
 import { useBackupDestinationsStore } from '../../stores/backupDestinations'
 import { useLocaleStore } from '../../stores/locale'
 import { formatIsoTimestamp } from '../../utils/formatIsoTimestamp'
-import type { BackupDestinationKind } from '../../types/backupDestination'
+import type { ActiveFilterChip, ListLoad, ListRequest } from '../../types/list'
+import type { BackupDestination, BackupDestinationKind } from '../../types/backupDestination'
 
 /**
- * The kinds of storage the panel knows about, and whether this build can write to one.
- *
- * `admits` is a client-side statement about a CAPABILITY, never a security decision: the panel
- * refuses a remote destination at two boundaries of its own regardless of what this bundle
- * believes. It is written so the screen can only ever promise LESS than the server does — a build
- * that quietly gained the remote arm would be understated here until this line changed, which is
- * the harmless direction. The reverse, a screen claiming S3 works, is the one that costs somebody
- * their backups.
+ * The kinds of storage the panel knows, and whether this build writes to each. The second half is
+ * a statement about this build's code rather than about any row, which is why it is not read from
+ * a destination: the screen states it even on a server that has recorded none.
  */
 const KINDS: readonly { kind: BackupDestinationKind; admits: boolean }[] = [
   { kind: 'local', admits: true },
@@ -76,153 +86,296 @@ const { t } = useI18n()
 const kindText = useBackupDestinationKindText()
 const store = useBackupDestinationsStore()
 const localeStore = useLocaleStore()
+const labels = useListLabels()
 
+const table = useServerTable<BackupDestination>({
+  filters: {
+    kind: {
+      /**
+       * Honours only a kind the panel knows, so a hand-edited link never reaches the server.
+       * @param value The `?kind=` value.
+       * @returns True for a known kind.
+       */
+      accepts: (value: string): boolean => {
+        return KINDS.some((entry) => {
+          return entry.kind === value
+        })
+      },
+    },
+  },
+  /**
+   * Reads one page through the store.
+   * @param request The page the URL describes.
+   * @returns How the read ended.
+   */
+  load: (request: ListRequest): Promise<ListLoad<BackupDestination>> => {
+    return store.list(request)
+  },
+})
 
-/** Whether the panel answered successfully and reported no destination at all. */
-const isEmpty: ComputedRef<boolean> = computed(() => {
-  return store.loadState === 'loaded' && store.destinations.length === 0
+/** Whether the filter sheet is open. */
+const filtersOpen: Ref<boolean> = ref(false)
+
+/** Whether the list is narrowed by a search or a filter, so an empty answer means "no match". */
+const isNarrowed: ComputedRef<boolean> = computed(() => {
+  return table.request.value.search !== '' || table.activeFilterCount.value > 0
+})
+
+/** Whether the latest answer arrived and holds no rows at all. */
+const answeredNothing: ComputedRef<boolean> = computed(() => {
+  return table.state.value.status === 'loaded' && table.total.value === 0
+})
+
+/** Whether the page on screen holds the default destination, which the hint below the table explains. */
+const hasDefault: ComputedRef<boolean> = computed(() => {
+  return store.destinations.some((destination) => {
+    return destination.isDefault
+  })
+})
+
+/** The table's columns: its header, its cells and its loading placeholder all read this one list. */
+const columns: ComputedRef<UiTableColumn[]> = computed(() => {
+  return [
+    { key: 'name', label: t('backups.destinations.columns.name'), kind: 'identity', sortField: 'name' },
+    { key: 'kind', label: t('backups.destinations.columns.kind'), kind: 'text' },
+    { key: 'path', label: t('backups.destinations.columns.path'), kind: 'mono' },
+    {
+      key: 'recordedAt',
+      label: t('backups.destinations.columns.recordedAt'),
+      kind: 'date',
+      align: 'end',
+      sortField: 'createdAt',
+    },
+  ]
+})
+
+/** The kinds the filter offers, after an "any kind" choice. */
+const kindOptions: ComputedRef<SelectOption[]> = computed(() => {
+  return [
+    { value: '', label: t('common.list.any') },
+    ...KINDS.map((entry) => {
+      return { value: entry.kind, label: kindText.label(entry.kind) }
+    }),
+  ]
+})
+
+/** One removable chip per applied filter. */
+const chips: ComputedRef<ActiveFilterChip[]> = computed(() => {
+  // The URL value was honoured only if it names a known kind, so it is found here when it is set.
+  const applied = KINDS.find((entry) => {
+    return entry.kind === table.filters.value.kind
+  })
+  return applied === undefined
+    ? []
+    : [labels.chip('kind', t('backups.destinations.filters.kind'), kindText.label(applied.kind))]
 })
 
 /**
- * Renders a destination's timestamp in the interface language.
- * @param at The ISO-8601 instant the panel reported.
- * @returns The formatted timestamp.
+ * When the panel first recorded a destination, in the reader's language.
+ * @param at The instant as the panel sent it.
+ * @returns The formatted instant.
  */
 const recordedAt = (at: string): string => {
   return formatIsoTimestamp(at, localeStore.current)
 }
 
-onMounted(() => {
-  void store.load()
-})
+/**
+ * Opens the filter sheet.
+ * @returns Nothing.
+ */
+const openFilters = (): void => {
+  filtersOpen.value = true
+}
+
+/**
+ * Closes the filter sheet.
+ * @returns Nothing.
+ */
+const closeFilters = (): void => {
+  filtersOpen.value = false
+}
+
+/**
+ * Clears the search and the filter, the way back from a question that matched nothing.
+ * @returns Resolves once the filter left the URL; the search follows after the box's pause.
+ */
+const clearAll = async (): Promise<void> => {
+  table.search.value = ''
+  await table.clearFilters()
+}
 </script>
 
 <template>
-  <section class="w-full">
+  <section class="flex w-full min-w-0 flex-col gap-4">
     <UiPageHeading
-      class="mb-4"
       :eyebrow="t('backups.list.heading')"
       :title="t('backups.destinations.heading')"
       :subtitle="t('backups.destinations.subtitle')"
       :note="t('backups.destinations.readOnlyNote')"
     />
 
-    <UiLoadingRegion :state="store.loadState">
-      <!-- A refusal or a failed read is the backend's own localized sentence, so the SPA holds no
-           copy of it. -->
-      <template #error>
-        <UiAlert variant="error">{{ store.errorMessage ?? t('common.list.unreachable') }}</UiAlert>
-      </template>
+    <UiCard class="min-w-0">
+      <UiSectionHeading class="mb-4" :title="t('backups.destinations.sectionHeading')" />
 
-      <div class="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:items-start">
-        <!-- A destination is a card of its own, so the wait for them is one card's placeholder; the
-             two cards after it describe this build and are there from the first frame. -->
-        <UiSkeleton v-if="store.loadState === 'loading'" shape="card" />
-        <UiCard v-if="isEmpty" class="lg:col-span-2">
+      <div class="flex flex-col gap-4">
+        <div class="flex flex-wrap items-end gap-3">
+          <UiSearchInput
+            v-model="table.search.value"
+            class="min-w-55 max-w-85 flex-1"
+            :label="t('backups.destinations.searchLabel')"
+            :placeholder="t('backups.destinations.searchPlaceholder')"
+            :clear-label="t('backups.destinations.searchClear')"
+          />
+          <UiFilterTrigger
+            :label="t('common.list.filters')"
+            :active-count="table.activeFilterCount.value"
+            :active-label="t('common.list.filtersApplied', { n: table.activeFilterCount.value }, table.activeFilterCount.value)"
+            @click="openFilters"
+          />
+        </div>
+
+        <UiActiveFilter
+          v-if="chips.length > 0"
+          :chips="chips"
+          :clear-label="t('common.list.clearAll')"
+          @remove="table.clearFilter"
+          @clear="table.clearFilters"
+        />
+
+        <UiLoadingRegion :state="table.loadingState.value">
+          <!-- A refusal is the backend's own localized sentence, so the SPA holds no copy of it. -->
+          <template #error>
+            <UiAlert v-if="table.state.value.status === 'refused'" variant="error">
+              {{ table.state.value.message }}
+            </UiAlert>
+            <UiAlert v-else variant="error">{{ t('common.list.unreachable') }}</UiAlert>
+          </template>
+
           <UiEmptyState
+            v-if="answeredNothing && !isNarrowed"
             :title="t('backups.destinations.emptyTitle')"
             :description="t('backups.destinations.emptyDescription')"
           >
-            <template #icon>
-              <UiIcon name="archive" aria-hidden="true" />
-            </template>
+            <template #icon><UiIcon name="archive" aria-hidden="true" /></template>
           </UiEmptyState>
-        </UiCard>
 
-        <UiCard v-for="destination in store.destinations" :key="destination.id">
-          <div class="mb-4 flex items-center gap-3">
-            <UiIconTile name="hardDrive" />
-            <!-- The heading is the backend's localized name; the stored one is shown as a field
-                 below whenever the two differ. They differ for exactly one row — the destination this
-                 panel seeded and named itself in English — so an operator-named destination is
-                 headed by the words the operator typed, never by a translation of them. -->
-            <UiSectionHeading class="min-w-0 flex-1" :title="destination.displayName" />
-            <UiBadge v-if="destination.isDefault" variant="info">
-              {{ t('backups.destinations.default') }}
+          <UiEmptyState
+            v-else-if="answeredNothing"
+            :title="t('backups.destinations.noResultsTitle')"
+            :description="t('backups.destinations.noResultsDescription')"
+          >
+            <UiButton variant="secondary" @click="clearAll">{{ t('common.list.clearSearchAndFilters') }}</UiButton>
+          </UiEmptyState>
+
+          <div v-else class="flex flex-col gap-4">
+            <UiTable
+              :caption="t('backups.destinations.tableCaption')"
+              :columns="columns"
+              :rows="store.destinations"
+              row-key="id"
+              :loading="table.state.value.status === 'loading'"
+              :skeleton-rows="table.pageSize.value"
+              :sort="table.sort.value"
+              @sort="table.toggleSort"
+            >
+              <template #cell-name="{ row }">
+                <div class="flex min-w-48 items-center gap-3">
+                  <UiIconTile name="hardDrive" />
+                  <div class="flex min-w-0 flex-col">
+                    <!-- The heading is the backend's localized name; the stored one follows whenever
+                         the two differ — for exactly one row, the destination this panel seeded and
+                         named itself in English — because the stored name is what `psql` prints and
+                         a support ticket names. -->
+                    <span class="flex flex-wrap items-center gap-2">
+                      {{ row.displayName }}
+                      <UiBadge v-if="row.isDefault" variant="info">{{ t('backups.destinations.default') }}</UiBadge>
+                    </span>
+                    <span v-if="row.displayName !== row.name" class="font-mono text-xs text-text-muted">
+                      {{ t('common.list.chip', { filter: t('backups.destinations.fields.storedName'), value: row.name }) }}
+                    </span>
+                  </div>
+                </div>
+              </template>
+              <template #cell-kind="{ row }">{{ kindText.label(row.kind) }}</template>
+              <template #cell-path="{ row }">
+                <!-- Keyed on the KIND, not on the value: "we could not ask the agent where it
+                     writes" is the fact an operator most needs during the incident that stopped the
+                     agent, and an empty cell would read as a screen that lost interest. -->
+                <span v-if="row.path !== null" class="break-all">{{ row.path }}</span>
+                <span v-else-if="row.kind === 'local'" class="font-sans whitespace-normal text-text-secondary">{{
+                  t('backups.destinations.pathUnestablished')
+                }}</span>
+                <span v-else>{{ t('common.emptyValue') }}</span>
+              </template>
+              <template #cell-recordedAt="{ row }">{{ recordedAt(row.createdAt) }}</template>
+            </UiTable>
+
+            <p v-if="hasDefault" class="text-sm text-text-secondary">{{ t('backups.destinations.defaultHint') }}</p>
+
+            <UiPagination
+              v-if="table.state.value.status === 'loaded'"
+              :page="table.page.value"
+              :page-size="table.pageSize.value"
+              :total="table.total.value"
+              :page-sizes="table.pageSizes"
+              :labels="labels.pagination.value"
+              @update:page="table.setPage"
+              @update:page-size="table.setPageSize"
+            />
+          </div>
+        </UiLoadingRegion>
+      </div>
+    </UiCard>
+
+    <div class="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:items-start">
+      <UiCard>
+        <UiSectionHeading
+          class="mb-4"
+          :title="t('backups.destinations.kindsHeading')"
+          :subtitle="t('backups.destinations.kindsSubtitle')"
+        />
+        <!-- Both kinds the panel knows about, and which of them this build writes to. There is no
+             control here on purpose: the endpoint that would record a destination refuses every
+             request it can be given, so a button would offer a choice that does not exist. -->
+        <div
+          v-for="entry in KINDS"
+          :key="entry.kind"
+          class="border-t border-border-subtle py-3 first:border-t-0 first:pt-0 last:pb-0"
+        >
+          <div class="flex flex-wrap items-center gap-2">
+            <span class="text-sm font-semibold text-text-primary">{{ kindText.label(entry.kind) }}</span>
+            <UiBadge :variant="entry.admits ? 'success' : 'neutral'">
+              {{ entry.admits ? t('backups.destinations.available') : t('backups.destinations.unavailable') }}
             </UiBadge>
           </div>
-          <UiDescriptionList>
-            <UiDescriptionItem :term="t('backups.destinations.fields.kind')">
-              {{ kindText.label(destination.kind) }}
-            </UiDescriptionItem>
-            <!-- Only when the heading is not already this value. The stored name is what the row
-                 holds, what `psql` prints and what a support ticket names, so it must stay reachable
-                 once the heading starts showing a translation of it — and repeating it under a
-                 heading that already says it would be noise on every operator-named row. -->
-            <UiDescriptionItem
-              v-if="destination.displayName !== destination.name"
-              :term="t('backups.destinations.fields.storedName')"
-              mono
-            >
-              {{ destination.name }}
-            </UiDescriptionItem>
-            <!-- Shown for a local destination whether or not the path is known. The row is keyed on
-                 the KIND, not on the value: "we could not ask the agent where it writes" is the fact
-                 an operator most needs during the incident that stopped the agent, and a row that
-                 vanished instead would read as a screen that had simply lost interest. -->
-            <UiDescriptionItem
-              v-if="destination.kind === 'local'"
-              :term="t('backups.destinations.fields.path')"
-              :mono="destination.path !== null"
-            >
-              <span v-if="destination.path !== null" class="break-all">{{ destination.path }}</span>
-              <span v-else class="text-text-secondary">{{
-                t('backups.destinations.pathUnestablished')
-              }}</span>
-            </UiDescriptionItem>
-            <UiDescriptionItem :term="t('backups.destinations.fields.recordedAt')" mono>
-              {{ recordedAt(destination.createdAt) }}
-            </UiDescriptionItem>
-          </UiDescriptionList>
-          <p v-if="destination.isDefault" class="mt-4 text-sm text-text-secondary">
-            {{ t('backups.destinations.defaultHint') }}
-          </p>
-        </UiCard>
+          <p class="mt-1 text-sm text-text-secondary">{{ kindText.description(entry.kind) }}</p>
+        </div>
+      </UiCard>
 
-        <UiCard>
-          <UiSectionHeading
-            class="mb-4"
-            :title="t('backups.destinations.kindsHeading')"
-            :subtitle="t('backups.destinations.kindsSubtitle')"
-          />
-          <!-- Both kinds the panel knows about, and which of them this build writes to. There is no
-               control here on purpose: the endpoint that would record a destination refuses every
-               request it can be given, so a button would offer a choice that does not exist. -->
-          <div
-            v-for="entry in KINDS"
-            :key="entry.kind"
-            class="border-t border-border-subtle py-3 first:border-t-0 first:pt-0 last:pb-0"
-          >
-            <div class="flex flex-wrap items-center gap-2">
-              <span class="text-sm font-semibold text-text-primary">{{
-                kindText.label(entry.kind)
-              }}</span>
-              <UiBadge :variant="entry.admits ? 'success' : 'neutral'">
-                {{
-                  entry.admits
-                    ? t('backups.destinations.available')
-                    : t('backups.destinations.unavailable')
-                }}
-              </UiBadge>
-            </div>
-            <p class="mt-1 text-sm text-text-secondary">{{ kindText.description(entry.kind) }}</p>
-          </div>
-        </UiCard>
+      <UiCard>
+        <UiSectionHeading class="mb-4" :title="t('backups.destinations.aboutHeading')" />
+        <!-- Each of these is something a page listing a storage location is read as promising and
+             does not. They are on the screen rather than in a doc comment because the operator
+             reading a path is the person who would otherwise believe all three. -->
+        <p class="text-sm text-text-secondary">{{ t('backups.destinations.about.notEditable') }}</p>
+        <p class="mt-2 text-sm text-text-secondary">{{ t('backups.destinations.about.notEncrypted') }}</p>
+        <p class="mt-2 text-sm text-text-secondary">{{ t('backups.destinations.about.adminOnly') }}</p>
+      </UiCard>
+    </div>
 
-        <UiCard>
-          <UiSectionHeading class="mb-4" :title="t('backups.destinations.aboutHeading')" />
-          <!-- Each of these is something a page listing a storage location is read as promising and
-               does not. They are on the screen rather than in a doc comment because the operator
-               reading a path is the person who would otherwise believe all three. -->
-          <p class="text-sm text-text-secondary">{{ t('backups.destinations.about.notEditable') }}</p>
-          <p class="mt-2 text-sm text-text-secondary">
-            {{ t('backups.destinations.about.notEncrypted') }}
-          </p>
-          <p class="mt-2 text-sm text-text-secondary">
-            {{ t('backups.destinations.about.adminOnly') }}
-          </p>
-        </UiCard>
-      </div>
-    </UiLoadingRegion>
+    <UiFilterSheet
+      :open="filtersOpen"
+      :model-value="table.filters.value"
+      :title="t('common.list.filters')"
+      :close-label="t('common.close')"
+      :apply-label="t('common.list.apply')"
+      :reset-label="t('common.list.reset')"
+      @update:model-value="table.setFilters"
+      @close="closeFilters"
+    >
+      <template #default="{ draft }">
+        <UiSelect v-model="draft.kind" :label="t('backups.destinations.filters.kind')" :options="kindOptions" />
+      </template>
+    </UiFilterSheet>
   </section>
 </template>

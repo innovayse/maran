@@ -12,8 +12,7 @@
     "copied": "Copied",
     "done": "Done",
     "accountFilter": {
-      "only": "Only {account}",
-      "showAll": "Show all"
+      "only": "Only {account}"
     },
     "list": {
       "label": "Pagination",

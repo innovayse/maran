@@ -25,8 +25,8 @@
 // not that any click leads there.
 //
 // The property is static: a route name is reachable when at least one link source targets it —
-// a `:to="{ name: '…' }"` in a component, a navigation entry built by `useNavigation`, or a module
-// landing route (which the sidebar turns into an entry for every module the panel reports). Pages
+// a `:to="{ name: '…' }"` in a component, a navigation entry built by `useNavigation`, a module's
+// submenu child (`moduleNavigationChildren.ts`), or a module landing route (which the sidebar turns into an entry for every module the panel reports). Pages
 // deliberately outside the shell's links — the unauthenticated screens the auth guard steers
 // visitors to, the catch-all, the screens the account menu opens with a programmatic push — are
 // declared in DELIBERATELY_UNLINKED below, each with the reason, and a declaration that stops
@@ -63,6 +63,12 @@ const NAVIGATION_FILE = join(FRONTEND_ROOT, 'src', 'composables', 'useNavigation
 
 /** The module-to-route map the sidebar links every reported module through — the other one. */
 const LANDING_ROUTES_FILE = join(FRONTEND_ROOT, 'src', 'router', 'moduleLandingRoute.ts')
+
+/** The module-to-submenu map the sidebar links a module's child pages through. */
+const NAVIGATION_CHILDREN_FILE = join(FRONTEND_ROOT, 'src', 'router', 'moduleNavigationChildren.ts')
+
+/** One `route: 'route-name'` field of a submenu child in that map. */
+const CHILD_ROUTE_VALUE = /\broute:\s*'([\w-]+)'/g
 
 /** A `name: '…'` route name in a route record. The router names every route, so this is the census. */
 const ROUTE_NAME = /\bname:\s*'([\w-]+)'/g
@@ -188,6 +194,19 @@ const collectLinkTargets = (problems) => {
   if (landingTargets === 0) {
     problems.push(
       'src/router/moduleLandingRoute.ts: no landing route parsed — the landing-route scan measured nothing',
+    )
+  }
+
+  // Source 4: the submenu children the sidebar renders under a module's entry.
+  const children = readFileSync(NAVIGATION_CHILDREN_FILE, 'utf8')
+  let childTargets = 0
+  for (const match of children.matchAll(CHILD_ROUTE_VALUE)) {
+    targets.add(match[1])
+    childTargets++
+  }
+  if (childTargets === 0) {
+    problems.push(
+      'src/router/moduleNavigationChildren.ts: no `route: …` child parsed — the submenu scan measured nothing',
     )
   }
 

@@ -12,8 +12,7 @@
     "copied": "Скопировано",
     "done": "Готово",
     "accountFilter": {
-      "only": "Только {account}",
-      "showAll": "Показать все"
+      "only": "Только {account}"
     },
     "list": {
       "label": "Постраничная навигация",

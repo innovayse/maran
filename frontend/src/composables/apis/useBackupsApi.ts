@@ -1,8 +1,12 @@
 import { useApi } from '../useApi'
 import { accountListQuery } from '../../utils/accountListQuery'
+import { listQuery } from '../../utils/listQuery'
+import { localDayBoundary } from '../../utils/localDayBoundary'
 import type { AccountListFilter } from '../../types/accountListFilter'
+import type { ListRequest, Paged } from '../../types/list'
 import type {
   Backup,
+  BackupAttention,
   BackupsApi,
   CreateBackupRequest,
   RestoreBackupRequest,
@@ -12,10 +16,37 @@ import type {
 /** The collection endpoint backups are listed and created through. */
 const BACKUPS_PATH = '/api/v1/backups'
 
+/** The list endpoint's parameter for each filter the backups page reads from its URL. */
+const LIST_FILTER_PARAMS: Readonly<Record<string, string>> = {
+  account: 'accountId',
+  status: 'status',
+  kind: 'kind',
+  from: 'from',
+  to: 'to',
+}
+
+/**
+ * The request as the endpoint takes it: the date window is picked as calendar days, and the panel
+ * filters instants, so `from` becomes the first instant of its day and `to` the last of its own, in
+ * the reader's time zone. Every other field travels as the URL holds it.
+ * @param request The page the URL describes.
+ * @returns The same request with the window's days turned into instants.
+ */
+const withInstantWindow = (request: ListRequest): ListRequest => {
+  const filters = { ...request.filters }
+  if ('from' in filters) {
+    filters.from = localDayBoundary(filters.from, 'start')
+  }
+  if ('to' in filters) {
+    filters.to = localDayBoundary(filters.to, 'end')
+  }
+  return { ...request, filters }
+}
+
 /**
  * Builds the backups API on top of the shared low-level client.
  *
- * Five calls, matching the five routes `BackupsController` publishes, and no sixth. In particular
+ * Six calls, matching the six routes `BackupsController` publishes, and no seventh. In particular
  * there is **no download**: the panel deliberately exposes no endpoint that returns an archive's
  * bytes, because an archive holds an account's files and the contents of its databases, and an
  * operator retrieves one from the server where the file already is.
@@ -25,14 +56,24 @@ export const useBackupsApi = (): BackupsApi => {
   const api = useApi()
 
   /**
-   * Lists the backups the caller may see. Another customer's rows are not in the answer at all —
-   * the server scopes the query, so there is nothing here to filter.
-   * @param filter The account the list is narrowed to; empty for every row the caller may see.
+   * Reads one page of the backups the caller may see. Another customer's rows are not in the answer
+   * at all — the server scopes the query, so there is nothing here to filter.
+   * @param request The page, size, search, sort and the account, status, kind, from and to filters.
    * @param signal Optional abort signal to cancel the in-flight request.
-   * @returns The backups, in the order the panel reports them.
+   * @returns The page the panel answered.
    */
-  const list = (filter: AccountListFilter, signal?: AbortSignal): Promise<Backup[]> => {
-    return api.get<Backup[]>(`${BACKUPS_PATH}${accountListQuery(filter)}`, signal)
+  const list = (request: ListRequest, signal?: AbortSignal): Promise<Paged<Backup>> => {
+    return api.get<Paged<Backup>>(`${BACKUPS_PATH}${listQuery(withInstantWindow(request), LIST_FILTER_PARAMS)}`, signal)
+  }
+
+  /**
+   * Asks how many accounts' latest finished backup failed, and which failure is the newest.
+   * @param filter The account the question is narrowed to; empty for every account the caller may see.
+   * @param signal Optional abort signal to cancel the in-flight request.
+   * @returns The panel's answer.
+   */
+  const attention = (filter: AccountListFilter, signal?: AbortSignal): Promise<BackupAttention> => {
+    return api.get<BackupAttention>(`${BACKUPS_PATH}/attention${accountListQuery(filter)}`, signal)
   }
 
   /**
@@ -91,5 +132,5 @@ export const useBackupsApi = (): BackupsApi => {
     return api.post<RestoreOutcome>(`${BACKUPS_PATH}/${id}/restore`, request, signal)
   }
 
-  return { list, get, create, remove, restore }
+  return { list, attention, get, create, remove, restore }
 }

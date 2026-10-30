@@ -1,8 +1,9 @@
 import type { Page } from '@playwright/test'
+import { pagedAnswer, type PagedRules } from './paged-answer'
 import type { CreatedDatabase, Database, DatabasePassword } from '../../src/types/database'
 
-/** The collection endpoint the databases list and the create form both talk to. */
-const DATABASES_PATTERN = '**/api/v1/databases'
+/** The collection endpoint the databases list and the create form both talk to, with or without a query. */
+const DATABASES_PATTERN = /\/api\/v1\/databases(\?.*)?$/
 
 /** The single-database endpoint, which answers the drop. */
 const DATABASE_PATTERN = '**/api/v1/databases/*'
@@ -19,19 +20,43 @@ export const stubbedCreatedPassword = 'Cr34ted-P4ssw0rd-Once'
 /** The password a stubbed reset answers with, distinct from the created one so a spec can tell them apart. */
 export const stubbedResetPassword = 'R3set-P4ssw0rd-Once'
 
+/** How the databases endpoint searches, sorts and filters, as the panel does. */
+const DATABASE_RULES: PagedRules<Database> = {
+  matches: (database, term) => {
+    return database.fullName.toLowerCase().includes(term)
+  },
+  sorts: {
+    name: (database) => {
+      return database.fullName
+    },
+    createdAt: (database) => {
+      return database.createdAt
+    },
+  },
+  filters: {
+    accountId: (database, value) => {
+      return database.accountId === value
+    },
+  },
+}
+
 /**
- * Fulfils `GET /api/v1/databases` with the given list and answers a `POST` by echoing the
- * submitted body back as a created database, prefixed the way the server prefixes it and carrying
- * a password.
+ * Fulfils `GET /api/v1/databases` as a page honouring `page`, `pageSize`, `search`, `sort` and
+ * `accountId`, and answers a `POST` by echoing the submitted body back as a created database,
+ * prefixed the way the server prefixes it and carrying a password; the created row joins the
+ * catalogue, so the list read the page makes after a create lists it.
  *
  * The prefix is applied HERE, in the stub, because it is the server's job: the SPA under test must
  * render the `fullName` it was sent rather than assembling one, and a stub that echoed the bare
  * suffix would let a page that assembles its own names pass.
  * @param page The Playwright page whose network the route is installed on.
- * @param databases The databases the stub reports for the list request.
- * @returns Resolves once the route is installed.
+ * @param databases The databases the stub knows, in their default order.
+ * @returns A function reporting every list request so far, oldest first, so a spec can read what
+ * the page asked the panel for.
  */
-export const stubDatabases = async (page: Page, databases: Database[]): Promise<void> => {
+export const stubDatabases = async (page: Page, databases: Database[]): Promise<() => readonly URL[]> => {
+  const listRequests: URL[] = []
+
   await page.route(DATABASES_PATTERN, async (route) => {
     if (route.request().method() === 'POST') {
       const submitted = route.request().postDataJSON() as {
@@ -65,12 +90,17 @@ export const stubDatabases = async (page: Page, databases: Database[]): Promise<
       return
     }
 
+    listRequests.push(new URL(route.request().url()))
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify(databases),
+      body: JSON.stringify(pagedAnswer(databases, route.request().url(), DATABASE_RULES)),
     })
   })
+
+  return () => {
+    return listRequests
+  }
 }
 
 /**
@@ -91,7 +121,7 @@ export const stubDatabasesProblem = async (page: Page, detail: string): Promise<
 }
 
 /**
- * Serves an empty `GET /api/v1/databases` list but rejects `POST` with an RFC 7807 problem body,
+ * Serves an empty `GET /api/v1/databases` page but rejects `POST` with an RFC 7807 problem body,
  * so a spec can assert the create form surfaces the server's own message rather than invented copy.
  * @param page The Playwright page whose network the route is installed on.
  * @param detail The backend-localized message the stub reports in `detail`.
@@ -107,7 +137,11 @@ export const stubCreateDatabaseProblem = async (page: Page, detail: string): Pro
       })
       return
     }
-    await route.fulfill({ status: 200, contentType: 'application/json', body: '[]' })
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(pagedAnswer<Database>([], route.request().url(), DATABASE_RULES)),
+    })
   })
 }
 

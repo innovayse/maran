@@ -13,8 +13,8 @@ namespace Maran.Modules.Accounts.Mappers;
 /// It translates and never decides (rules/csharp.md "A mapper translates; it never decides"): the
 /// choice between the two names is not a judgement about the plan but a fact about it — a plan an
 /// operator named carries that text, and a plan the panel ships carries a resource key — so reading
-/// it off the plan is a restatement. It exists so that the three readers of a plan's name (the plan
-/// list, the customer's own account, and the answer to every plan mutation) cannot come to disagree
+/// it off the plan is a restatement. It exists so that the readers of a plan's name (the plan list, the
+/// plan picker, the customer's own account, and the answer to every plan mutation) cannot come to disagree
 /// about it, which is how a customer would end up reading a different name for their plan than the
 /// administrator who sold it.
 /// </remarks>
@@ -50,5 +50,14 @@ public static class PlanMapper
             plan.MaxCronEntries,
             plan.MaxPhpWorkersPerPool,
             accountCount);
+    }
+
+    /// <summary>Projects one plan onto the picker's wire shape.</summary>
+    /// <param name="plan">The plan to project.</param>
+    /// <param name="displayNames">Resolves a shipped plan's resource key in the request's culture.</param>
+    /// <returns>The plan's identity, name and the two limits a picker prints.</returns>
+    public static PlanChoiceDto ToChoiceDto(Plan plan, IStringLocalizer<DisplayNames> displayNames)
+    {
+        return new PlanChoiceDto(plan.Id, DisplayNameOf(plan, displayNames), plan.DiskQuotaMb, plan.MaxSites);
     }
 }

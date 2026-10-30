@@ -11,8 +11,10 @@ import {
 } from '../fixtures/stub-ftp-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubModules } from '../fixtures/stub-modules-route'
+import { stubMyAccount } from '../fixtures/stub-my-account-route'
 import { stubSftpUsers } from '../fixtures/stub-sftp-routes'
-import type { Account } from '../../src/types/account'
+import type { Account, MyAccount } from '../../src/types/account'
+import type { AuthenticatedUser } from '../../src/types/auth'
 import type { FirewallRule } from '../../src/types/firewall'
 import type { FtpsStatus } from '../../src/types/ftpsStatus'
 import type { PanelModule } from '../../src/types/module'
@@ -31,6 +33,30 @@ const ALICE: Account = {
   createdAt: '2026-08-01T10:00:00Z',
 }
 
+const OWN_ACCOUNT: MyAccount = {
+  id: '66666666-6666-6666-6666-666666666666',
+  name: 'olive',
+  primaryDomain: 'olive.example.com',
+  status: 'active',
+  plan: {
+    displayName: 'Starter',
+    diskQuotaMb: 1024,
+    maxSites: 5,
+    maxDatabases: 5,
+    maxSftpUsers: 5,
+    maxFtpUsers: 5,
+    maxCronEntries: 5,
+  },
+}
+
+const CUSTOMER: AuthenticatedUser = {
+  id: '00000000-0000-0000-0000-000000000099',
+  username: 'olive',
+  email: 'olive@example.com',
+  role: 'customer',
+  accountId: OWN_ACCOUNT.id,
+}
+
 /** The rules that let the daemon's own ports through, matching the numbers the status reports. */
 const FTPS_RULES: FirewallRule[] = [
   { port: 21, portTo: null, protocol: 'tcp', sourceCidr: '0.0.0.0/0' },
@@ -46,13 +72,6 @@ const UNRELATED_RULE: FirewallRule = {
 }
 
 /**
- * Opens the merged screen for an administrator with a given daemon state and firewall.
- * @param page The Playwright page under test.
- * @param status The FTPS daemon state the panel reports.
- * @param rules The port rules the firewall is running.
- * @returns Resolves once the screen has been opened.
- */
-/**
  * The server panel's own heading — the positive control every negative assertion below needs.
  *
  * Without it a `toHaveCount(0)` on a line INSIDE the panel passes whenever the panel itself failed
@@ -66,6 +85,13 @@ const SERVER_PANEL = (page: Page): Locator => {
   return page.getByRole('heading', { level: 2, name: 'FTPS service' })
 }
 
+/**
+ * Opens the FTPS page for an administrator with a given daemon state and firewall.
+ * @param page The Playwright page under test.
+ * @param status The FTPS daemon state the panel reports.
+ * @param rules The port rules the firewall is running.
+ * @returns Resolves once the page has been opened.
+ */
 const openScreen = async (
   page: Page,
   status: FtpsStatus,
@@ -77,9 +103,8 @@ const openScreen = async (
   await stubAccounts(page, [ALICE])
   await stubFirewall(page, { rules, bans: [], whitelist: [] })
   await stubFtpsServer(page, status)
-  await stubSftpUsers(page, [])
   await stubFtpUsers(page, [])
-  await page.goto('/file-transfer')
+  await page.goto('/file-transfer/ftps')
 }
 
 // Settled row 6's last mile: the host decided, the agent reported, the panel persisted, and this is
@@ -177,8 +202,8 @@ test('the placeholder-certificate line on the server panel follows the status', 
   await expect(page.getByTestId('ftps-self-signed')).toHaveCount(0)
 })
 
-// The panel refuses the status to a customer, and that refusal is not a failure: the screen must
-// still render the customer's own half rather than a red banner about a correct 403.
+// The panel refuses the status to anyone but an administrator, and that refusal is not a failure:
+// the page must still render the caller's own logins rather than a red banner about a correct 403.
 test('a caller refused the status sees no server panel and no error', async ({ page }) => {
   await stubSignedIn(page)
   await stubHealthy(page)
@@ -186,18 +211,53 @@ test('a caller refused the status sees no server panel and no error', async ({ p
   await stubAccounts(page, [ALICE])
   await stubFirewall(page, { rules: [], bans: [], whitelist: [] })
   await stubFtpsServerForbidden(page)
-  await stubSftpUsers(page, [])
   await stubFtpUsers(page, [])
-  await page.goto('/file-transfer')
+  await page.goto('/file-transfer/ftps')
 
   // The positive control, and it is not optional: both assertions below are absences, and an
   // absence on a screen that has not finished loading is true of every screen. Measured here — a
   // mutation that stored the 403 as a failure SURVIVED until this line existed, because the two
   // checks ran while the page still read "Loading logins…".
-  await expect(page.getByText('No file transfer logins yet')).toBeVisible()
+  await expect(page.getByText('No FTPS logins yet')).toBeVisible()
   await expect(SERVER_PANEL(page)).toHaveCount(0)
   await expect(page.getByText('Administrators only.')).toHaveCount(0)
-  await expect(page.getByRole('button', { name: 'Create login' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Create FTPS login' })).toBeEnabled()
+})
+
+// A customer's page does not even ask: the role already says the answer is 403.
+test('a customer sees no server panel, and the page never asks for the status', async ({ page }) => {
+  const statusReads: string[] = []
+  page.on('request', (request) => {
+    if (new URL(request.url()).pathname === '/api/v1/ftps-server') {
+      statusReads.push(request.url())
+    }
+  })
+  await stubSignedIn(page, CUSTOMER)
+  await stubHealthy(page)
+  await stubModules(page, LICENSED)
+  await stubMyAccount(page, OWN_ACCOUNT)
+  await stubFtpsServerForbidden(page)
+  await stubFtpUsers(page, [])
+  await page.goto('/file-transfer/ftps')
+
+  await expect(page.getByText('No FTPS logins yet')).toBeVisible()
+  await expect(SERVER_PANEL(page)).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Create FTPS login' })).toBeEnabled()
+  expect(statusReads).toEqual([])
+})
+
+// The card is the FTPS module's, so it belongs to the FTPS page. The inverse control is the
+// administrator's FTPS page in the same state, where it is drawn.
+test('the server panel is on the FTPS page and not on the SFTP page', async ({ page }) => {
+  await stubSftpUsers(page, [])
+  await openScreen(page, runningFtpsStatus, FTPS_RULES)
+  await expect(SERVER_PANEL(page)).toBeVisible()
+
+  await page.goto('/file-transfer/sftp')
+
+  await expect(page.getByRole('heading', { level: 1, name: 'SFTP logins' })).toBeVisible()
+  await expect(page.getByText('No SFTP logins yet')).toBeVisible()
+  await expect(SERVER_PANEL(page)).toHaveCount(0)
 })
 
 // The offer beside the warning has to do something. It sends exactly the ports the status named.

@@ -175,7 +175,7 @@ public sealed class DatabasesAuthorizationTests : IAsyncLifetime
         var response = await client.GetAsync("/api/v1/databases");
 
         using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
-        var names = body.RootElement.EnumerateArray().Select(row =>
+        var names = body.RootElement.GetProperty("items").EnumerateArray().Select(row =>
         {
             return row.GetProperty("fullName").GetString();
         }).ToList();
@@ -202,7 +202,8 @@ public sealed class DatabasesAuthorizationTests : IAsyncLifetime
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
-        Assert.Equal(0, body.RootElement.GetArrayLength());
+        Assert.Equal(0, body.RootElement.GetProperty("items").GetArrayLength());
+        Assert.Equal(0, body.RootElement.GetProperty("total").GetInt32());
     }
 
     /// <summary>Two tenants both hold a database named shop because the names are prefixed.</summary>

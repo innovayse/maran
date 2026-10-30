@@ -26,7 +26,15 @@
       "sectionTitle": "Все базы данных",
       "created": "База данных создана.",
       "confirmDropAction": "Удалить базу данных",
-      "confirmResetPasswordAction": "Сбросить пароль"
+      "confirmResetPasswordAction": "Сбросить пароль",
+      "searchLabel": "Поиск баз данных",
+      "searchPlaceholder": "Поиск по имени базы данных…",
+      "searchClear": "Очистить поиск",
+      "noResultsTitle": "Подходящих баз данных нет",
+      "noResultsDescription": "Измените запрос или фильтр либо сбросьте их, чтобы увидеть все базы данных.",
+      "filters": {
+        "account": "Аккаунт"
+      }
     },
     "form": {
       "heading": "Новая база данных",

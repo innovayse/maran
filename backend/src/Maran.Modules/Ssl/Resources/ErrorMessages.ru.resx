@@ -75,4 +75,7 @@
   <data name="CertificateDomainReserved">
     <value>Для этого имени нельзя выпустить или установить сертификат.</value>
   </data>
+  <data name="CertificateStatusUnknown">
+    <value>Это не статус сертификата.</value>
+  </data>
 </root>

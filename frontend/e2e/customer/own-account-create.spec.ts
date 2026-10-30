@@ -3,7 +3,6 @@ import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubBackups } from '../fixtures/stub-backups-routes'
 import { stubCronEntries, stubCronEnvironment } from '../fixtures/stub-cron-routes'
 import { stubDatabases } from '../fixtures/stub-databases-routes'
-import { stubFtpUsers } from '../fixtures/stub-ftp-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubModules } from '../fixtures/stub-modules-route'
 import { forbidAccountsList, stubMyAccount } from '../fixtures/stub-my-account-route'
@@ -102,16 +101,14 @@ test('a customer creates a database for their own account without a picker', asy
 test('a customer creates an SFTP login for their own account without a picker', async ({ page }) => {
   const accountsCalls = await signInCustomer(page)
   await stubSftpUsers(page, [])
-  await stubFtpUsers(page, [])
 
-  await page.goto('/file-transfer')
+  await page.goto('/file-transfer/sftp')
   await expect(page.getByRole('textbox', { name: 'Login name' })).toBeVisible()
   await expect(page.getByRole('combobox', { name: 'Account' })).toHaveCount(0)
 
-  await page.getByRole('radiogroup').getByText('SFTP', { exact: true }).click()
   await page.getByRole('textbox', { name: 'Login name' }).fill('deploy')
   const post = nextPost(page, /\/api\/v1\/sftp-users$/)
-  await page.getByRole('button', { name: 'Create login' }).click()
+  await page.getByRole('button', { name: 'Create SFTP login' }).click()
 
   expect((await post).postDataJSON()).toMatchObject({ accountId: OWN_ACCOUNT.id, name: 'deploy' })
   expect(accountsCalls()).toBe(0)

@@ -102,6 +102,32 @@ public sealed class PlansEndpointTests : IAsyncLifetime
         Assert.Equal(1, await accounts.Plans.CountAsync());
     }
 
+    /// <summary>
+    /// The plan reads beside the list — one plan by id and the picker's choices — refuse a customer
+    /// with 403 and an anonymous caller with 401, like every other plan route.
+    /// </summary>
+    /// <param name="path">The read, with <c>{id}</c> standing for the seeded plan.</param>
+    /// <param name="anonymous">Whether the caller is signed out rather than a customer.</param>
+    [Theory]
+    [InlineData("/api/v1/plans/{id}", false)]
+    [InlineData("/api/v1/plans/choices", false)]
+    [InlineData("/api/v1/plans/{id}", true)]
+    [InlineData("/api/v1/plans/choices", true)]
+    public async Task The_plan_reads_refuse_a_customer_with_forbidden_and_an_anonymous_caller_with_unauthorized(
+        string path,
+        bool anonymous)
+    {
+        await using var factory = EndpointHarness.CreateFactory(_pg);
+        await EndpointHarness.MigrateAsync(factory);
+        var (planId, accountId) = await EndpointHarness.SeedAccountAsync(factory, "olive");
+        await EndpointHarness.SeedCustomerAsync(factory, "olive", accountId);
+        using var client = anonymous ? factory.CreateClient() : await EndpointHarness.SignInAsync(factory, "olive");
+
+        var response = await client.GetAsync(path.Replace("{id}", planId.ToString(), StringComparison.Ordinal));
+
+        Assert.Equal(anonymous ? HttpStatusCode.Unauthorized : HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
     /// <summary>An administrator creates a plan, lists it, edits it and deletes it, each journalled.</summary>
     [Fact]
     public async Task An_administrator_creates_a_plan_lists_it_edits_it_and_deletes_it_each_journalled()
@@ -371,7 +397,7 @@ public sealed class PlansEndpointTests : IAsyncLifetime
         Assert.Equal(20_480, Assert.Single(await ListAsync(admin)).GetProperty("diskQuotaMb").GetInt32());
     }
 
-    /// <summary>Reads the plan list as an administrator.</summary>
+    /// <summary>Reads the first page of the plan list as an administrator; every test here holds fewer plans than a page.</summary>
     /// <param name="admin">A client signed in as the administrator.</param>
     private static async Task<List<JsonElement>> ListAsync(HttpClient admin)
     {
@@ -379,7 +405,7 @@ public sealed class PlansEndpointTests : IAsyncLifetime
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
         using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
-        return body.RootElement.EnumerateArray().Select(element =>
+        return body.RootElement.GetProperty("items").EnumerateArray().Select(element =>
         {
             return element.Clone();
         }).ToList();

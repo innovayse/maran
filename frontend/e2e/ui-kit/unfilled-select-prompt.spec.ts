@@ -66,20 +66,21 @@ test('the account pickers of every create form prompt for a choice instead of st
   await stubShell(page, [
     { name: 'databases', displayName: 'Databases', tier: 'included', isEnabled: true },
     { name: 'sftp', displayName: 'SFTP', tier: 'included', isEnabled: true },
+    { name: 'ftp', displayName: 'FTPS', tier: 'included', isEnabled: true },
     { name: 'backups', displayName: 'Backups', tier: 'included', isEnabled: true },
     { name: 'sites', displayName: 'Sites', tier: 'included', isEnabled: true },
   ])
   await stubAccounts(page, [ALICE])
   await stubDatabases(page, [])
   await stubSftpUsers(page, [])
-  // The SFTP screen became the merged File transfer screen, which reads the FTPS module too.
+  // File transfer is two pages, one per module, and each has its own create form.
   await stubFtpUsers(page, [])
   await stubFtpsServer(page, runningFtpsStatus)
   await stubBackups(page, [])
   await stubSites(page, [])
   await stubPhpVersions(page, [{ version: '8.3', isDefault: true }])
 
-  for (const path of ['/databases', '/file-transfer', '/backups', '/sites/new']) {
+  for (const path of ['/databases', '/file-transfer/sftp', '/file-transfer/ftps', '/backups', '/sites/new']) {
     await page.goto(path)
 
     const picker = page.getByRole('combobox', { name: 'Account' })

@@ -197,13 +197,13 @@ POST /api/v1/sites/php-versions/install  ->  InstallPhpVersionCommand
   GET /api/v1/accounts/choices
   GET /api/v1/accounts/me
   GET /api/v1/accounts/me/resource-summary
-  GET /api/v1/accounts/plans
   GET /api/v1/accounts/{}
   GET /api/v1/accounts/{}/resource-summary
   GET /api/v1/audit
   GET /api/v1/backup-destinations
   GET /api/v1/backup-schedules
   GET /api/v1/backups
+  GET /api/v1/backups/attention
   GET /api/v1/backups/{}
   GET /api/v1/certificates
   GET /api/v1/cron-entries
@@ -226,6 +226,8 @@ POST /api/v1/sites/php-versions/install  ->  InstallPhpVersionCommand
   GET /api/v1/monitoring/services
   GET /api/v1/notifications/smtp
   GET /api/v1/plans
+  GET /api/v1/plans/choices
+  GET /api/v1/plans/{}
   GET /api/v1/profile
   GET /api/v1/security-policy
   GET /api/v1/sessions

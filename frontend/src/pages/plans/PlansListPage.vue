@@ -1,9 +1,20 @@
 <script setup lang="ts">
 /**
- * Plans screen: the list of every plan with its limits, and the way to define, edit and delete
- * them. Renders a `<section>`, not a `<main>` — the single `<main>` landmark lives in the layout
- * this page is nested under. State comes exclusively from the plans store and the page never
- * touches the API layer (rules/vue.md: API composables are called from stores only).
+ * Plans screen: one server page of the plans at a time, with their limits, searched by name and
+ * sorted by the panel, and the way to define, edit and delete them. Renders a `<section>`, not a
+ * `<main>` — the single `<main>` landmark lives in the layout this page is nested under. State
+ * comes exclusively from the plans store and the page never touches the API layer (rules/vue.md:
+ * API composables are called from stores only).
+ *
+ * **The URL is the list's state** (`useServerTable`): page, page size, search and sort live in the
+ * query, so a list can be shared, reloaded and walked back through. Nothing is searched or sorted
+ * here; the panel answers with the matching page and the total across every page. The name, the
+ * account count and the disk sort; the name sorts and searches as the reader sees it, in their
+ * language.
+ *
+ * **Two kinds of nothing.** The panel reporting no plans at all is the empty state, with the way to
+ * define the first. A search matching none is the no-results state, with the way back to every
+ * plan; confusing them would tell an operator their plans were gone.
  *
  * **Administrators only, by the endpoints and not by this page.** A customer who reaches the
  * screen gets the panel's own refusal rendered in place of the table; no role check here would be
@@ -34,18 +45,35 @@ import UiCard from '../../components/ui/UiCard.vue'
 import UiEmptyState from '../../components/ui/UiEmptyState.vue'
 import UiIcon from '../../components/ui/UiIcon.vue'
 import UiPageHeading from '../../components/ui/UiPageHeading.vue'
+import UiPagination from '../../components/ui/UiPagination.vue'
+import UiSearchInput from '../../components/ui/UiSearchInput.vue'
 import UiLoadingRegion from '../../components/ui/UiLoadingRegion.vue'
 import UiToast from '../../components/ui/UiToast.vue'
 import UiTable from '../../components/ui/UiTable.vue'
 import type { UiTableColumn } from '../../types/tableColumn'
 import PlanDeleteDialog from '../../components/plans/PlanDeleteDialog.vue'
+import { useListLabels } from '../../composables/useListLabels'
+import { useServerTable } from '../../composables/useServerTable'
 import { usePlansStore } from '../../stores/plans'
 import { formatMegabytes } from '../../utils/formatBytes'
+import type { ListLoad, ListRequest } from '../../types/list'
 import type { ManagedPlan } from '../../types/plan'
 import { takeFlashNotice } from '../../utils/flashNotice'
 
 const { t } = useI18n()
 const store = usePlansStore()
+const labels = useListLabels()
+
+const table = useServerTable<ManagedPlan>({
+  /**
+   * Reads one page through the store.
+   * @param request The page the URL describes.
+   * @returns How the read ended.
+   */
+  load: (request: ListRequest): Promise<ListLoad<ManagedPlan>> => {
+    return store.list(request)
+  },
+})
 
 /** The plan whose deletion awaits confirmation, or `null` when none does. */
 const pending: Ref<ManagedPlan | null> = ref(null)
@@ -53,18 +81,22 @@ const pending: Ref<ManagedPlan | null> = ref(null)
 /** The success toast's text, or `null` while none is showing. */
 const notice: Ref<string | null> = ref(null)
 
-/** Whether the panel answered successfully and reported no plans at all. */
-const isEmpty: ComputedRef<boolean> = computed(() => {
-  return store.loadState === 'loaded' && store.plans.length === 0
+/** Whether the list is narrowed by a search, so an empty answer means "no match". */
+const isNarrowed: ComputedRef<boolean> = computed(() => {
+  return table.request.value.search !== ''
 })
 
+/** Whether the latest answer arrived and holds no rows at all. */
+const answeredNothing: ComputedRef<boolean> = computed(() => {
+  return table.state.value.status === 'loaded' && table.total.value === 0
+})
 
 /** The table's columns: its header, its cells and its loading placeholder all read this one list. */
 const columns: ComputedRef<UiTableColumn[]> = computed(() => {
   return [
-    { key: 'name', label: t('common.name'), kind: 'identity' },
-    { key: 'accounts', label: t('plans.list.columns.accounts'), kind: 'number' },
-    { key: 'diskQuota', label: t('plans.list.columns.diskQuota'), kind: 'number' },
+    { key: 'name', label: t('common.name'), kind: 'identity', sortField: 'name' },
+    { key: 'accounts', label: t('plans.list.columns.accounts'), kind: 'number', sortField: 'accounts' },
+    { key: 'diskQuota', label: t('plans.list.columns.diskQuota'), kind: 'number', sortField: 'diskQuota' },
     { key: 'sites', label: t('plans.list.columns.sites'), kind: 'number' },
     { key: 'databases', label: t('plans.list.columns.databases'), kind: 'number' },
     { key: 'sftpUsers', label: t('plans.list.columns.sftpUsers'), kind: 'number' },
@@ -83,15 +115,6 @@ const columns: ComputedRef<UiTableColumn[]> = computed(() => {
  */
 const optionalCount = (figure: number): string => {
   return figure === 0 ? t('plans.list.none') : String(figure)
-}
-
-/**
- * Loads the plans.
- * @returns Resolves once the request has settled, successfully or not.
- */
-const refresh = async (): Promise<void> => {
-  store.clearErrors()
-  await store.load()
 }
 
 /**
@@ -120,10 +143,22 @@ const confirm = async (): Promise<void> => {
   if (pending.value === null) {
     return
   }
-  await store.remove(pending.value.id)
+  const removed = await store.remove(pending.value.id)
   // Closed after the request settles rather than before it is sent: the dialog holds the spinner
   // that tells the administrator the panel is working.
   pending.value = null
+  if (removed) {
+    // The page is read again so the total, and a plan moving up from the next page, are the panel's.
+    await table.reload()
+  }
+}
+
+/**
+ * Clears the search, the way back from a question that matched nothing.
+ * @returns Nothing; the URL follows after the box's pause.
+ */
+const clearSearch = (): void => {
+  table.search.value = ''
 }
 
 /**
@@ -134,9 +169,10 @@ const dismissNotice = (): void => {
   notice.value = null
 }
 
-onMounted(async () => {
+onMounted(() => {
   notice.value = takeFlashNotice()
-  await refresh()
+  // A refusal from an earlier visit is not this visit's; the list itself loads from the URL.
+  store.clearErrors()
 })
 </script>
 
@@ -158,58 +194,99 @@ onMounted(async () => {
       {{ store.deleteErrorMessage }}
     </UiAlert>
 
-    <UiLoadingRegion :state="store.loadState">
-      <template #error>
-        <UiAlert variant="error">{{ store.errorMessage ?? t('common.list.unreachable') }}</UiAlert>
-      </template>
+    <UiEmptyState
+      v-if="answeredNothing && !isNarrowed"
+      :title="t('plans.list.emptyTitle')"
+      :description="t('plans.list.emptyDescription')"
+    >
+      <template #icon><UiIcon name="package" size="lg" /></template>
+      <UiButton :to="{ name: 'plans-new' }">{{ t('plans.list.createAction') }}</UiButton>
+    </UiEmptyState>
 
-      <UiEmptyState v-if="isEmpty" :title="t('plans.list.emptyTitle')" :description="t('plans.list.emptyDescription')">
-        <template #icon><UiIcon name="package" size="lg" /></template>
-        <UiButton :to="{ name: 'plans-new' }">{{ t('plans.list.createAction') }}</UiButton>
-      </UiEmptyState>
+    <UiCard v-else>
+      <div class="flex flex-col gap-4">
+        <UiSearchInput
+          v-model="table.search.value"
+          class="min-w-55 max-w-85"
+          :label="t('plans.list.searchLabel')"
+          :placeholder="t('plans.list.searchPlaceholder')"
+          :clear-label="t('plans.list.searchClear')"
+        />
 
-      <UiCard v-else>
-        <UiTable
-          :caption="t('plans.list.tableCaption')"
-          :columns="columns"
-          :rows="store.plans"
-          row-key="id"
-          :loading="store.loadState === 'loading'"
-        >
-          <template #cell-name="{ row }">{{ row.displayName }}</template>
-          <template #cell-accounts="{ row }">{{ row.accountCount }}</template>
-          <template #cell-diskQuota="{ row }">{{ formatMegabytes(row.diskQuotaMb) }}</template>
-          <template #cell-sites="{ row }">{{ row.maxSites }}</template>
-          <template #cell-databases="{ row }">{{ row.maxDatabases }}</template>
-          <template #cell-sftpUsers="{ row }">{{ row.maxSftpUsers }}</template>
-          <template #cell-ftpUsers="{ row }">{{ optionalCount(row.maxFtpUsers) }}</template>
-          <template #cell-cronEntries="{ row }">{{ optionalCount(row.maxCronEntries) }}</template>
-          <template #cell-phpWorkers="{ row }">{{ row.maxPhpWorkersPerPool }}</template>
-          <template #cell-actions="{ row }">
-            <!-- Two icon buttons, each named for the plan it acts on: the glyph carries no text,
-                 and two rows' "Edit" must not be the same accessible name. -->
-            <div class="flex items-center justify-end gap-1">
-              <UiButton
-                variant="ghost"
-                size="icon-sm"
-                :to="{ name: 'plans-edit', params: { id: row.id } }"
-                :aria-label="t('plans.list.edit', { name: row.displayName })"
-              >
-                <UiIcon name="pencil" size="md" />
-              </UiButton>
-              <UiButton
-                variant="ghost"
-                size="icon-sm"
-                :aria-label="t('plans.list.delete', { name: row.displayName })"
-                @click="ask(row)"
-              >
-                <UiIcon name="trash" size="md" />
-              </UiButton>
-            </div>
+        <UiLoadingRegion :state="table.loadingState.value">
+          <template #error>
+            <UiAlert v-if="table.state.value.status === 'refused'" variant="error">
+              {{ table.state.value.message }}
+            </UiAlert>
+            <UiAlert v-else variant="error">{{ t('common.list.unreachable') }}</UiAlert>
           </template>
-        </UiTable>
-      </UiCard>
-    </UiLoadingRegion>
+
+          <UiEmptyState
+            v-if="answeredNothing"
+            :title="t('plans.list.noResultsTitle')"
+            :description="t('plans.list.noResultsDescription')"
+          >
+            <UiButton variant="secondary" @click="clearSearch">{{ t('plans.list.searchClear') }}</UiButton>
+          </UiEmptyState>
+
+          <div v-else class="flex flex-col gap-4">
+            <UiTable
+              :caption="t('plans.list.tableCaption')"
+              :columns="columns"
+              :rows="store.plans"
+              row-key="id"
+              :loading="table.state.value.status === 'loading'"
+              :skeleton-rows="table.pageSize.value"
+              :sort="table.sort.value"
+              @sort="table.toggleSort"
+            >
+              <template #cell-name="{ row }">{{ row.displayName }}</template>
+              <template #cell-accounts="{ row }">{{ row.accountCount }}</template>
+              <template #cell-diskQuota="{ row }">{{ formatMegabytes(row.diskQuotaMb) }}</template>
+              <template #cell-sites="{ row }">{{ row.maxSites }}</template>
+              <template #cell-databases="{ row }">{{ row.maxDatabases }}</template>
+              <template #cell-sftpUsers="{ row }">{{ row.maxSftpUsers }}</template>
+              <template #cell-ftpUsers="{ row }">{{ optionalCount(row.maxFtpUsers) }}</template>
+              <template #cell-cronEntries="{ row }">{{ optionalCount(row.maxCronEntries) }}</template>
+              <template #cell-phpWorkers="{ row }">{{ row.maxPhpWorkersPerPool }}</template>
+              <template #cell-actions="{ row }">
+                <!-- Two icon buttons, each named for the plan it acts on: the glyph carries no text,
+                     and two rows' "Edit" must not be the same accessible name. -->
+                <div class="flex items-center justify-end gap-1">
+                  <UiButton
+                    variant="ghost"
+                    size="icon-sm"
+                    :to="{ name: 'plans-edit', params: { id: row.id } }"
+                    :aria-label="t('plans.list.edit', { name: row.displayName })"
+                  >
+                    <UiIcon name="pencil" size="md" />
+                  </UiButton>
+                  <UiButton
+                    variant="ghost"
+                    size="icon-sm"
+                    :aria-label="t('plans.list.delete', { name: row.displayName })"
+                    @click="ask(row)"
+                  >
+                    <UiIcon name="trash" size="md" />
+                  </UiButton>
+                </div>
+              </template>
+            </UiTable>
+
+            <UiPagination
+              v-if="table.state.value.status === 'loaded'"
+              :page="table.page.value"
+              :page-size="table.pageSize.value"
+              :total="table.total.value"
+              :page-sizes="table.pageSizes"
+              :labels="labels.pagination.value"
+              @update:page="table.setPage"
+              @update:page-size="table.setPageSize"
+            />
+          </div>
+        </UiLoadingRegion>
+      </div>
+    </UiCard>
 
     <!-- One dialog for the whole table: only one deletion can be awaiting an answer. Always mounted
          and opened by `pending` being set, so it animates and `UiModal` returns focus to the

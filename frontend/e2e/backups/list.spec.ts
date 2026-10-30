@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test'
+import { expect, test, type Page } from '@playwright/test'
 import { stubAccounts } from '../fixtures/stub-accounts-route'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubBackupDeletion, stubBackups, stubBackupsProblem } from '../fixtures/stub-backups-routes'
@@ -261,8 +261,9 @@ test('deleting a backup asks first, sends nothing until it is confirmed, then re
   await stubHealthy(page)
   await stubModules(page, LICENSED)
   await stubAccounts(page, [ALICE])
-  await stubBackups(page, [COMPLETED])
-  const deletions = await stubBackupDeletion(page)
+  const backups: Backup[] = [COMPLETED]
+  await stubBackups(page, backups)
+  const deletions = await stubBackupDeletion(page, backups)
 
   await page.goto('/backups')
   await page.getByRole('button', { name: 'Actions for the backup of alice' }).click()
@@ -448,8 +449,9 @@ test('dismissing the delete confirmation sends no request, and confirm is not th
   await stubHealthy(page)
   await stubModules(page, LICENSED)
   await stubAccounts(page, [ALICE])
-  await stubBackups(page, [COMPLETED])
-  const deletions = await stubBackupDeletion(page)
+  const backups: Backup[] = [COMPLETED]
+  await stubBackups(page, backups)
+  const deletions = await stubBackupDeletion(page, backups)
 
   await page.goto('/backups')
   await page.getByRole('button', { name: 'Actions for the backup of alice' }).click()
@@ -535,4 +537,154 @@ test('a Russian panel names the failure in Russian and keeps the English code be
   await expect(row).toContainText('alice')
   await expect(row).toContainText('Серверу не удалось создать копию')
   await expect(row).toContainText('AgentSystemFailure')
+})
+
+/** A copy from the month before, so a date window has something to leave out. */
+const AUGUST: Backup = {
+  ...COMPLETED,
+  id: '77777777-7777-7777-7777-777777777777',
+  sizeBytes: 9_000_000,
+  startedAt: '2026-08-01T03:00:00Z',
+  finishedAt: '2026-08-01T03:04:00Z',
+}
+
+/**
+ * Opens the backups screen over a history, newest first as the panel orders it.
+ * @param page The Playwright page.
+ * @param backups The history the stubbed panel holds.
+ * @returns Every list request the page made, oldest first.
+ */
+const openHistory = async (page: Page, backups: Backup[]): Promise<() => readonly URL[]> => {
+  await stubSignedIn(page)
+  await stubHealthy(page)
+  await stubModules(page, LICENSED)
+  await stubAccounts(page, [ALICE])
+  return await stubBackups(page, backups)
+}
+
+test('the history is a server page: the search reaches the panel and narrows the rows', async ({ page }) => {
+  const requests = await openHistory(page, [ORPHANED, COMPLETED, AUGUST])
+
+  await page.goto('/backups')
+  await expect(page.getByRole('cell', { name: 'bob', exact: true })).toBeVisible()
+
+  await page.getByRole('searchbox', { name: 'Search backups' }).fill('bob')
+
+  await expect(page).toHaveURL(/search=bob/)
+  await expect(page.getByRole('cell', { name: 'alice', exact: true })).toHaveCount(0)
+  await expect(page.getByRole('cell', { name: 'bob', exact: true })).toBeVisible()
+  expect(requests().at(-1)?.searchParams.get('search')).toBe('bob')
+})
+
+test('a column heading sorts the history by size on the server', async ({ page }) => {
+  const requests = await openHistory(page, [COMPLETED, AUGUST])
+
+  await page.goto('/backups')
+  const heading = page.getByRole('columnheader', { name: 'Size' })
+  await heading.getByRole('button').click()
+
+  await expect(page).toHaveURL(/sort=size/)
+  await expect(heading).toHaveAttribute('aria-sort', 'ascending')
+  await expect(page.getByRole('row').nth(1)).toContainText('1.5 MiB')
+  expect(requests().at(-1)?.searchParams.get('sort')).toBe('size')
+})
+
+test('status, reason and a date window applied in the sheet become chips and reach the panel', async ({ page }) => {
+  const requests = await openHistory(page, [ORPHANED, COMPLETED, AUGUST])
+
+  await page.goto('/backups')
+  await page.getByTestId('filter-trigger').click()
+  const dialog = page.getByRole('dialog', { name: 'Filters' })
+  await dialog.getByRole('combobox', { name: 'Reason' }).click()
+  await page.getByRole('option', { name: 'Manual' }).click()
+  await dialog.getByLabel('Started from').fill('2026-09-01')
+  await dialog.getByLabel('Started until').fill('2026-09-30')
+  await dialog.getByRole('button', { name: 'Apply' }).click()
+
+  await expect(page).toHaveURL(/kind=manual/)
+  await expect(page).toHaveURL(/from=2026-09-01/)
+  await expect(page).toHaveURL(/to=2026-09-30/)
+  // The window is sent as the reader's day boundaries, never as the bare day.
+  const expectedFrom = await page.evaluate(() => {
+    return new Date(2026, 8, 1).toISOString()
+  })
+  const sent = requests().at(-1)
+  expect(sent?.searchParams.get('kind')).toBe('manual')
+  expect(sent?.searchParams.get('from')).toBe(expectedFrom)
+  expect(sent?.searchParams.get('to')).toMatch(/^2026-(09-30|10-01)T/)
+  // Only alice's September manual copy is inside the window and of that reason.
+  await expect(page.getByRole('cell', { name: 'alice', exact: true })).toHaveCount(1)
+  await expect(page.getByRole('cell', { name: 'bob', exact: true })).toHaveCount(0)
+
+  const chips = page.getByTestId('active-filter-chips')
+  await expect(chips).toContainText('Reason: Manual')
+  await expect(chips).toContainText('Started from')
+  // Without its lower bound the window reaches back to August, and alice's August copy joins.
+  await page.getByRole('button', { name: /^Remove filter: Started from/ }).click()
+  await expect(page).not.toHaveURL(/from=/)
+  await expect(page.getByRole('cell', { name: 'alice', exact: true })).toHaveCount(2)
+
+  await page.getByRole('button', { name: 'Clear all' }).click()
+  await expect(page).toHaveURL(/\/backups$/)
+  await expect(page.getByRole('cell', { name: 'alice', exact: true })).toHaveCount(2)
+})
+
+test('an inverted window is refused by the panel and its sentence is shown', async ({ page }) => {
+  await openHistory(page, [COMPLETED])
+  // The panel refuses an inverted window with its own localized sentence; the screen shows it as is.
+  await page.route(/\/api\/v1\/backups\?.*from=/, async (route) => {
+    await route.fulfill({
+      status: 400,
+      contentType: 'application/problem+json',
+      body: JSON.stringify({ code: 'BackupDateRangeInverted', title: 'Invalid', detail: 'The start is after the end.' }),
+    })
+  })
+
+  await page.goto('/backups?from=2026-09-30&to=2026-09-01')
+
+  await expect(page.getByText('The start is after the end.')).toBeVisible()
+  await expect(page.getByRole('table')).toHaveCount(0)
+})
+
+test('a search matching nothing is the no-results state, not the empty history', async ({ page }) => {
+  await openHistory(page, [COMPLETED])
+
+  await page.goto('/backups?search=nobody')
+
+  await expect(page.getByText('No backups match')).toBeVisible()
+  await expect(page.getByText('No backups yet')).toHaveCount(0)
+  await page.getByRole('button', { name: 'Clear search and filters' }).click()
+  await expect(page.getByRole('cell', { name: 'alice', exact: true })).toBeVisible()
+})
+
+test('the history pages on the server and keeps the page in the URL', async ({ page }) => {
+  const catalogue = Array.from({ length: 12 }, (_, index): Backup => {
+    return { ...COMPLETED, id: `00000000-0000-0000-0000-0000000000${String(index).padStart(2, '0')}` }
+  })
+  const requests = await openHistory(page, catalogue)
+
+  await page.goto('/backups?pageSize=10')
+  await expect(page.getByRole('cell', { name: 'alice', exact: true })).toHaveCount(10)
+
+  await page.getByRole('navigation', { name: 'Pagination' }).getByRole('button', { name: 'Next page' }).click()
+
+  await expect(page).toHaveURL(/page=2/)
+  await expect(page.getByRole('cell', { name: 'alice', exact: true })).toHaveCount(2)
+  expect(requests().at(-1)?.searchParams.get('page')).toBe('2')
+})
+
+test('the attention notice is the panel answer, about every page, not the rows on screen', async ({ page }) => {
+  // The failure is on the second page; the notice still names it, because the panel answers it.
+  const catalogue = [
+    ...Array.from({ length: 10 }, (_, index): Backup => {
+      return { ...COMPLETED, id: `00000000-0000-0000-0000-0000000001${String(index).padStart(2, '0')}`, accountId: `00000000-0000-0000-0000-0000000002${String(index).padStart(2, '0')}`, ownerName: `user${index}` }
+    }),
+    FAILED,
+  ]
+  await openHistory(page, catalogue)
+
+  await page.goto('/backups?pageSize=10')
+
+  await expect(page.getByRole('cell', { name: 'user0', exact: true })).toBeVisible()
+  await expect(page.getByText(/The latest backup of alice, from .*, failed\./)).toBeVisible()
 })

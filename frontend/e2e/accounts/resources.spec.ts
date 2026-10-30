@@ -131,13 +131,29 @@ test('each resource links to its module list narrowed to the account', async ({ 
   const expected: Record<string, string> = {
     Sites: `/sites?account=${ACCOUNT.id}`,
     Databases: `/databases?account=${ACCOUNT.id}`,
-    'SFTP logins': `/file-transfer?account=${ACCOUNT.id}`,
+    'SFTP logins': `/file-transfer/sftp?account=${ACCOUNT.id}`,
     'Cron entries': `/cron?account=${ACCOUNT.id}`,
     Backups: `/backups?account=${ACCOUNT.id}`,
   }
   for (const [name, href] of Object.entries(expected)) {
     await expect(card.getByRole('link', { name, exact: true })).toHaveAttribute('href', href)
   }
+})
+
+// FTPS logins have their own page under File transfer, so the row links there and not to the SFTP one.
+test('the FTPS logins resource links to the FTPS page narrowed to the account', async ({ page }) => {
+  await stubDetail(page)
+  // Registered after the detail's own summary, so this one answers.
+  await stubAccountResources(page, {
+    accountId: ACCOUNT.id,
+    resources: [{ kind: 'ftpLogins', state: 'counted', used: 1, limitKind: 'limited', limit: 3 }],
+  })
+
+  await page.goto(`/accounts/${ACCOUNT.id}`)
+
+  await expect(
+    page.getByTestId('account-resources').getByRole('link', { name: 'FTPS logins', exact: true }),
+  ).toHaveAttribute('href', `/file-transfer/ftps?account=${ACCOUNT.id}`)
 })
 
 for (const locale of ['en', 'hy'] as const) {

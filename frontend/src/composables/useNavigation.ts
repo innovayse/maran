@@ -52,9 +52,11 @@ const DESTINATION_LABEL_KEYS: Readonly<Record<string, string>> = {
  * is stated in `router/moduleLandingRoute.ts`, never guessed from its name.
  *
  * A module with more than one page carries them as `children` (issue #195), as declared in
- * `router/moduleNavigationChildren.ts`: a child whose route is not registered is dropped, and an
- * administrator-only child is offered to roles above customer only (advice — the backend still
- * enforces). A section left with a single child is drawn as a plain link: a submenu that repeats
+ * `router/moduleNavigationChildren.ts`: a child whose route is not registered is dropped, a child
+ * whose route belongs to another module (its `meta.module`) is dropped while that module is not
+ * enabled — the "FTPS logins" page sits under the SFTP module's entry and would otherwise lead an
+ * unlicensed panel to the upgrade wall from inside a usable submenu — and an administrator-only
+ * child is offered to roles above customer only (advice — the backend still enforces). A section left with a single child is drawn as a plain link: a submenu that repeats
  * its parent and nothing else is noise.
  *
  * @returns A computed list of {@link NavigationEntry} to render in order.
@@ -81,6 +83,18 @@ export const useNavigation = (): ComputedRef<NavigationEntry[]> => {
     // permissive, so a role it does not recognise is offered the entry (rules/security.md).
     const offersAdminEntries = isAdmin.value
 
+    // The modules a child page may belong to and still be offered; the route guard is the gate,
+    // this only keeps the submenu from linking into it.
+    const enabledModules = new Set(
+      modulesStore.modules
+        .filter((module) => {
+          return module.isEnabled
+        })
+        .map((module) => {
+          return module.name
+        }),
+    )
+
     const moduleEntries: NavigationEntry[] = modulesStore.modules.flatMap((module) => {
       const landing = moduleLandingRoute(module.name)
 
@@ -104,6 +118,10 @@ export const useNavigation = (): ComputedRef<NavigationEntry[]> => {
       const children: NavigationEntry[] = reachable
         ? moduleNavigationChildren(module.name).flatMap((child): NavigationEntry[] => {
             if (!router.hasRoute(child.route) || (child.adminOnly && !offersAdminEntries)) {
+              return []
+            }
+            const childModule = router.resolve({ name: child.route }).meta.module
+            if (typeof childModule === 'string' && !enabledModules.has(childModule)) {
               return []
             }
             return [

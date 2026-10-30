@@ -1,14 +1,26 @@
 using Maran.Agent.Client.Interfaces;
+using Maran.Modules.Databases.Common;
+using Maran.Modules.Databases.Domain.Entities;
+using Maran.Modules.Databases.Persistence;
 using Maran.Modules.Databases.Queries.ListDatabases;
 using Maran.Modules.Databases.Tests.TestSupport;
 using Maran.Sdk.Contracts;
+using Maran.SharedKernel.Pagination;
+using Maran.SharedKernel.Results;
 using Microsoft.EntityFrameworkCore;
 
 namespace Maran.Modules.Databases.Tests.Queries.ListDatabases;
 
 /// <summary>Where a listing's rows come from, and — just as importantly — where they do not.</summary>
+/// <remarks>
+/// UNOBSERVED HERE: the search. It is an <c>ILIKE</c>, which only PostgreSQL translates, so the
+/// InMemory provider cannot run it; <c>DatabaseListEndpointTests</c> covers it against a real server.
+/// </remarks>
 public sealed class ListDatabasesQueryHandlerTests
 {
+    /// <summary>The instant the ordered rows are created at unless a test spreads them out.</summary>
+    private static readonly DateTimeOffset Epoch = new(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
+
     private static readonly Guid OwnerAccountId = Guid.Parse("aaaaaaaa-0000-4000-8000-000000000001");
     private static readonly Guid StrangerAccountId = Guid.Parse("bbbbbbbb-0000-4000-8000-000000000002");
 
@@ -28,7 +40,7 @@ public sealed class ListDatabasesQueryHandlerTests
             .HandleAsync(new ListDatabasesQuery(), CancellationToken.None);
 
         Assert.True(result.IsSuccess);
-        Assert.Equal(["shop"], result.Value.Select(row =>
+        Assert.Equal(["shop"], result.Value.Items.Select(row =>
         {
             return row.Name;
         }));
@@ -150,7 +162,7 @@ public sealed class ListDatabasesQueryHandlerTests
         var result = await new ListDatabasesQueryHandler(context, new StubAccountDirectory())
             .HandleAsync(new ListDatabasesQuery(), CancellationToken.None);
 
-        Assert.Equal(["ledger"], result.Value.Select(row =>
+        Assert.Equal(["ledger"], result.Value.Items.Select(row =>
         {
             return row.Name;
         }));
@@ -169,7 +181,8 @@ public sealed class ListDatabasesQueryHandlerTests
         var result = await new ListDatabasesQueryHandler(context, new StubAccountDirectory())
             .HandleAsync(new ListDatabasesQuery(), CancellationToken.None);
 
-        Assert.Equal(2, result.Value.Count);
+        Assert.Equal(2, result.Value.Items.Count);
+        Assert.Equal(2, result.Value.Total);
     }
 
     /// <summary>A listing carries the fully qualified names an application needs and no password.</summary>
@@ -183,13 +196,13 @@ public sealed class ListDatabasesQueryHandlerTests
         var result = await new ListDatabasesQueryHandler(context, new StubAccountDirectory())
             .HandleAsync(new ListDatabasesQuery(), CancellationToken.None);
 
-        var row = Assert.Single(result.Value);
+        var row = Assert.Single(result.Value.Items);
         Assert.Equal("alice_shop", row.FullName);
         Assert.Equal("alice_shop", row.DbUserName);
 
         // Structural, not a spot check: the DTO must have no password-shaped member at all.
         Assert.DoesNotContain(
-            typeof(Modules.Databases.Common.DatabaseDto).GetProperties(),
+            typeof(DatabaseDto).GetProperties(),
             property =>
             {
                 return property.Name.Contains("Password", StringComparison.OrdinalIgnoreCase);
@@ -208,7 +221,6 @@ public sealed class ListDatabasesQueryHandlerTests
         await seed.SaveChangesAsync();
     }
 
-
     /// <summary>An administrator naming one account is listed only that account's databases.</summary>
     /// <remarks>
     /// Run as an administrator, whom no tenant filter narrows, so the other account's row is visible
@@ -222,31 +234,32 @@ public sealed class ListDatabasesQueryHandlerTests
 
         using var context = DatabasesTestContext.Create(FakeCurrentUser.Admin(), shared);
         var result = await new ListDatabasesQueryHandler(context, new StubAccountDirectory())
-            .HandleAsync(new ListDatabasesQuery(StrangerAccountId), CancellationToken.None);
+            .HandleAsync(new ListDatabasesQuery(AccountId: StrangerAccountId), CancellationToken.None);
 
-        Assert.Equal(["ledger"], result.Value.Select(row =>
+        Assert.Equal(["ledger"], result.Value.Items.Select(row =>
         {
             return row.Name;
         }));
     }
 
-    /// <summary>A customer naming another account is listed nothing.</summary>
+    /// <summary>A customer naming another account is listed nothing, with a total of zero.</summary>
     /// <remarks>
     /// The account filter is ANDed with the tenant filter, never in place of it: the customer's own
     /// row exists and is not returned either, because it is not the account they named.
     /// </remarks>
     [Fact]
-    public async Task A_customer_naming_another_account_is_listed_nothing()
+    public async Task A_customer_naming_another_account_is_listed_nothing_with_a_total_of_zero()
     {
         var shared = Guid.NewGuid().ToString();
         await SeedAsync(shared);
 
         using var context = DatabasesTestContext.Create(FakeCurrentUser.Customer(OwnerAccountId), shared);
         var result = await new ListDatabasesQueryHandler(context, new StubAccountDirectory())
-            .HandleAsync(new ListDatabasesQuery(StrangerAccountId), CancellationToken.None);
+            .HandleAsync(new ListDatabasesQuery(AccountId: StrangerAccountId), CancellationToken.None);
 
         Assert.True(result.IsSuccess);
-        Assert.Empty(result.Value);
+        Assert.Empty(result.Value.Items);
+        Assert.Equal(0, result.Value.Total);
     }
 
     /// <summary>
@@ -269,11 +282,11 @@ public sealed class ListDatabasesQueryHandlerTests
             .HandleAsync(new ListDatabasesQuery(), CancellationToken.None);
 
         Assert.True(result.IsSuccess);
-        Assert.Equal("alice", result.Value.Single(row =>
+        Assert.Equal("alice", result.Value.Items.Single(row =>
         {
             return row.AccountId == OwnerAccountId;
         }).OwnerName);
-        Assert.Equal(string.Empty, result.Value.Single(row =>
+        Assert.Equal(string.Empty, result.Value.Items.Single(row =>
         {
             return row.AccountId == StrangerAccountId;
         }).OwnerName);
@@ -282,5 +295,128 @@ public sealed class ListDatabasesQueryHandlerTests
         Assert.Equal(
             new[] { OwnerAccountId, StrangerAccountId }.Order(),
             batch.Order());
+    }
+
+    /// <summary>With no sort named, databases are listed oldest first.</summary>
+    [Fact]
+    public async Task With_no_sort_named_databases_are_listed_oldest_first()
+    {
+        // Inserted out of order so the assertion cannot pass by insertion-order accident.
+        var shared = Guid.NewGuid().ToString();
+        await SeedRowsAsync(
+            shared,
+            RowAt("second", Epoch.AddDays(1)),
+            RowAt("first", Epoch),
+            RowAt("third", Epoch.AddDays(2)));
+
+        using var context = DatabasesTestContext.Create(FakeCurrentUser.Admin(), shared);
+        var result = await HandleAsync(context, new ListDatabasesQuery());
+
+        Assert.Equal(["first", "second", "third"], Names(result.Value.Items));
+    }
+
+    /// <summary>A descending name sort orders the page by the full name, last first.</summary>
+    [Fact]
+    public async Task A_descending_name_sort_orders_the_page_by_the_full_name_last_first()
+    {
+        var shared = Guid.NewGuid().ToString();
+        await SeedRowsAsync(shared, RowAt("bravo", Epoch), RowAt("charlie", Epoch), RowAt("alpha", Epoch));
+
+        using var context = DatabasesTestContext.Create(FakeCurrentUser.Admin(), shared);
+        var result = await HandleAsync(
+            context,
+            new ListDatabasesQuery(Sort: SortRequest.Parse("-" + DatabaseSortFields.Name)));
+
+        Assert.Equal(["charlie", "bravo", "alpha"], Names(result.Value.Items));
+    }
+
+    /// <summary>The second page holds the rows after the first, and the total counts every match.</summary>
+    [Fact]
+    public async Task The_second_page_holds_the_rows_after_the_first_and_the_total_counts_every_match()
+    {
+        var shared = Guid.NewGuid().ToString();
+        await SeedRowsAsync(shared, [.. Enumerable.Range(0, 12).Select(day =>
+        {
+            return RowAt($"db{day:D2}", Epoch.AddDays(day));
+        })]);
+
+        using var context = DatabasesTestContext.Create(FakeCurrentUser.Admin(), shared);
+        var result = await HandleAsync(context, new ListDatabasesQuery(Page: 2, PageSize: 10));
+
+        Assert.Equal(12, result.Value.Total);
+        Assert.Equal(2, result.Value.Page);
+        Assert.Equal(10, result.Value.PageSize);
+        Assert.Equal(["db10", "db11"], Names(result.Value.Items));
+    }
+
+    /// <summary>A page past the last one answers empty with the true total and the page asked for.</summary>
+    [Fact]
+    public async Task A_page_past_the_last_one_answers_empty_with_the_true_total_and_the_page_asked_for()
+    {
+        var shared = Guid.NewGuid().ToString();
+        await SeedAsync(shared);
+
+        using var context = DatabasesTestContext.Create(FakeCurrentUser.Admin(), shared);
+        var result = await HandleAsync(context, new ListDatabasesQuery(Page: 5, PageSize: 10));
+
+        Assert.Empty(result.Value.Items);
+        Assert.Equal(2, result.Value.Total);
+        Assert.Equal(5, result.Value.Page);
+    }
+
+    /// <summary>An empty page names no account to the directory.</summary>
+    [Fact]
+    public async Task An_empty_page_names_no_account_to_the_directory()
+    {
+        using var context = DatabasesTestContext.Create(FakeCurrentUser.Admin());
+        var directory = new StubAccountDirectory();
+
+        var result = await new ListDatabasesQueryHandler(context, directory)
+            .HandleAsync(new ListDatabasesQuery(), CancellationToken.None);
+
+        Assert.Empty(result.Value.Items);
+        Assert.Empty(Assert.Single(directory.NameLookups));
+    }
+
+    /// <summary>Runs the handler with a directory that knows no account.</summary>
+    /// <param name="context">The context to read through.</param>
+    /// <param name="query">The list request.</param>
+    private static Task<Result<PagedResult<DatabaseDto>>> HandleAsync(
+        DatabasesDbContext context,
+        ListDatabasesQuery query)
+    {
+        return new ListDatabasesQueryHandler(context, new StubAccountDirectory())
+            .HandleAsync(query, CancellationToken.None);
+    }
+
+    /// <summary>The customer-facing names of a page, in page order.</summary>
+    /// <param name="items">The page's rows.</param>
+    private static List<string> Names(IReadOnlyList<DatabaseDto> items)
+    {
+        return items
+            .Select(database =>
+            {
+                return database.Name;
+            })
+            .ToList();
+    }
+
+    /// <summary>Builds one of the owner's databases created at <paramref name="createdAt"/>.</summary>
+    /// <param name="name">The name the customer asked for.</param>
+    /// <param name="createdAt">The creation instant.</param>
+    private static Database RowAt(string name, DateTimeOffset createdAt)
+    {
+        return new Database(
+            Guid.NewGuid(), OwnerAccountId, name, $"alice_{name}", $"alice_{name}", name, createdAt);
+    }
+
+    /// <summary>Writes the given rows into one store, as an administrator.</summary>
+    /// <param name="databaseName">The shared in-memory database.</param>
+    /// <param name="rows">The rows to write.</param>
+    private static async Task SeedRowsAsync(string databaseName, params Database[] rows)
+    {
+        using var seed = DatabasesTestContext.Create(FakeCurrentUser.Admin(), databaseName);
+        seed.Databases.AddRange(rows);
+        await seed.SaveChangesAsync();
     }
 }

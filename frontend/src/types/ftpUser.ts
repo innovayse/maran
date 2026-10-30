@@ -1,11 +1,11 @@
-import type { AccountListFilter } from './accountListFilter'
+import type { ListRequest, Paged } from './list'
 /**
  * The customer FTPS login domain: the row, the request that creates one, and the two responses that
  * carry a password exactly once.
  *
  * It mirrors the backend's `Ftp` module DTOs field-for-field, the way `sftpUser.ts` mirrors the
  * `Sftp` module's. The two stay separate types for the same reason the two modules stay separate on
- * the server; what merges them is `types/fileTransferLogin.ts`, in the SPA, where the merge belongs.
+ * the server, and each is listed on a page of its own.
  */
 
 /**
@@ -35,12 +35,9 @@ export interface FtpUser {
    */
   fullName: string
   /**
-   * Which daemon the backend says accepts this login, as the server spells it.
-   *
-   * It is on the wire rather than assumed by the SPA because the merged screen renders a
-   * backend-supplied fact, not one derived from which URL was called. The value is narrowed to
-   * `types/fileTransferLogin.ts`'s union at the store boundary; a token this bundle does not know is
-   * refused there rather than rendered.
+   * Which daemon the backend says accepts this login, as the server spells it (`Ftps`). Mirrored for
+   * completeness; the FTPS logins page lists this module's logins only, so it has no column to
+   * render it in.
    */
   protocol: string
   /** The instant the login was created, as an ISO-8601 string. */
@@ -103,12 +100,12 @@ export interface FtpUserPassword {
  */
 export interface FtpUsersApi {
   /**
-   * Lists the FTPS logins the caller may see.
-   * @param filter The account the list is narrowed to; empty for every row the caller may see.
+   * Lists one page of the FTPS logins the caller may see.
+   * @param request The page, size, search, sort and the account filter.
    * @param signal Optional abort signal to cancel the in-flight request.
-   * @returns The logins, in the order the panel reports them.
+   * @returns The page the panel answered, with the total across every page.
    */
-  list: (filter: AccountListFilter, signal?: AbortSignal) => Promise<FtpUser[]>
+  list: (request: ListRequest, signal?: AbortSignal) => Promise<Paged<FtpUser>>
 
   /**
    * Creates an FTPS login.
@@ -151,3 +148,6 @@ export interface RevealedFtpCredential {
   /** The generated password, exactly as the panel sent it. */
   password: string
 }
+
+/** An action the panel offers on an FTPS login's row, confirmed by the operator before it is sent. */
+export type FtpUserAction = 'resetPassword' | 'remove'

@@ -2,18 +2,24 @@
   "ftp": {
     "list": {
       "eyebrow": "Hosting",
-      "heading": "File transfer",
-      "subtitle": "Every login that reaches one account's files, and which protocol it speaks.",
-      "prefixNote": "SFTP and FTPS logins are separate users on this server. Every login carries the owning account's name as a prefix, and the names below are exactly what the server holds — sign in with them as they are.",
-      "emptyTitle": "No file transfer logins yet",
+      "heading": "FTPS logins",
+      "subtitle": "Logins that reach one account's files over FTPS.",
+      "prefixNote": "FTPS logins are separate users from SFTP logins on this server. Every login carries the owning account's name as a prefix, and the names below are exactly what the server holds — sign in with them as they are.",
+      "emptyTitle": "No FTPS logins yet",
       "emptyDescription": "Create the first login above. Its password is shown once, when it is created.",
-      "tableCaption": "SFTP and FTPS logins",
-      "sectionHeading": "Logins",
+      "noResultsTitle": "No FTPS logins match",
+      "noResultsDescription": "Change the search or the filter, or clear them to see every FTPS login.",
+      "tableCaption": "FTPS logins",
+      "searchLabel": "Search FTPS logins",
+      "searchPlaceholder": "Search by login…",
+      "searchClear": "Clear the search",
       "columns": {
         "fullName": "Login",
-        "protocol": "Protocol",
         "account": "Account",
         "createdAt": "Created"
+      },
+      "filters": {
+        "account": "Account"
       },
       "resetPassword": "Reset password",
       "remove": "Remove",
@@ -27,15 +33,10 @@
       "confirmRemoveAction": "Remove login",
       "confirmResetPasswordAction": "Reset password"
     },
-    "protocols": {
-      "sftp": "SFTP",
-      "ftps": "FTPS"
-    },
     "form": {
-      "heading": "New login",
+      "heading": "New FTPS login",
       "fields": {
         "accountId": "Account",
-        "protocol": "Protocol",
         "name": "Login name"
       },
       "placeholders": {
@@ -43,8 +44,8 @@
         "accountId": "Choose an account"
       },
       "hint": "Lowercase letters and digits only. The account's name is added in front of it.",
-      "ftpsOffNote": "FTPS is turned off on this server, so no FTPS login can be created yet. An administrator turns the service on; SFTP is unaffected.",
-      "submit": "Create login",
+      "ftpsOffNote": "FTPS is turned off on this server, so no FTPS login can be created yet. An administrator turns the service on; SFTP logins are unaffected.",
+      "submit": "Create FTPS login",
       "errors": {
         "accountRequired": "Choose the account that will own the login.",
         "nameRequired": "Login name is required.",

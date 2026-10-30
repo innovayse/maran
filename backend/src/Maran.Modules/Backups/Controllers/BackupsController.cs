@@ -3,6 +3,7 @@ using Maran.Modules.Backups.Commands.DeleteBackup;
 using Maran.Modules.Backups.Commands.RestoreBackup;
 using Maran.Modules.Backups.Common;
 using Maran.Modules.Backups.Queries.GetBackup;
+using Maran.Modules.Backups.Queries.GetBackupAttention;
 using Maran.Modules.Backups.Queries.ListBackups;
 using Maran.Sdk.Contracts;
 using Maran.Sdk.Controllers;
@@ -47,17 +48,37 @@ public sealed class BackupsController : BaseApiController
         _bus = bus;
     }
 
-    /// <summary>Lists the backups the caller may see, newest first.</summary>
-    /// <param name="query">The optional <c>accountId</c> filter, ANDed with the caller's tenant scope.</param>
+    /// <summary>Reads one page of the backups the caller may see, newest first by default.</summary>
+    /// <param name="query">
+    /// Paging, search, sort, and the optional account, status, kind and start-window filters. The
+    /// account filter is ANDed with the caller's tenant scope.
+    /// </param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpGet]
-    [ProducesResponseType(typeof(IReadOnlyList<BackupDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(PagedResult<BackupDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public async Task<IActionResult> GetAllAsync(
         [FromQuery] ListBackupsQuery query,
         CancellationToken cancellationToken)
     {
-        return ToActionResult(await _bus.InvokeAsync<Result<IReadOnlyList<BackupDto>>>(query, cancellationToken));
+        return ToActionResult(await _bus.InvokeAsync<Result<PagedResult<BackupDto>>>(query, cancellationToken));
+    }
+
+    /// <summary>
+    /// Counts the accounts whose most recent finished backup failed, and names the newest such
+    /// failure — the history's attention item, asked of the server because the history is paged.
+    /// </summary>
+    /// <param name="query">The optional <c>accountId</c>, ANDed with the caller's tenant scope.</param>
+    /// <param name="cancellationToken">Cancellation token for the request.</param>
+    [HttpGet("attention")]
+    [ProducesResponseType(typeof(BackupAttentionDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<IActionResult> GetAttentionAsync(
+        [FromQuery] GetBackupAttentionQuery query,
+        CancellationToken cancellationToken)
+    {
+        return ToActionResult(await _bus.InvokeAsync<Result<BackupAttentionDto>>(query, cancellationToken));
     }
 
     /// <summary>Reads one backup. Another customer's backup answers 404, not 403.</summary>

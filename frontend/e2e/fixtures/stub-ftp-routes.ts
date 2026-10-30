@@ -1,9 +1,10 @@
 import type { Page } from '@playwright/test'
+import { pagedAnswer, type PagedRules } from './paged-answer'
 import type { CreatedFtpUser, FtpUser, FtpUserPassword } from '../../src/types/ftpUser'
 import type { FtpsStatus } from '../../src/types/ftpsStatus'
 
-/** The collection endpoint the FTPS list and the create form both talk to. */
-const FTP_USERS_PATTERN = '**/api/v1/ftp-users'
+/** The collection endpoint the FTPS list and the create form both talk to, with or without a query. */
+const FTP_USERS_PATTERN = /\/api\/v1\/ftp-users(\?.*)?$/
 
 /** The single-login endpoint, which answers the removal. */
 const FTP_USER_PATTERN = '**/api/v1/ftp-users/*'
@@ -79,18 +80,43 @@ export const neverConfiguredFtpsStatus: FtpsStatus = {
   desiredState: 'neverConfigured',
 }
 
+/** How the FTPS logins endpoint searches, sorts and filters, as the panel does. */
+const FTP_USER_RULES: PagedRules<FtpUser> = {
+  matches: (user, term) => {
+    return user.fullName.toLowerCase().includes(term)
+  },
+  sorts: {
+    name: (user) => {
+      return user.fullName
+    },
+    createdAt: (user) => {
+      return user.createdAt
+    },
+  },
+  filters: {
+    accountId: (user, value) => {
+      return user.accountId === value
+    },
+  },
+}
+
 /**
- * Fulfils `GET /api/v1/ftp-users` with the given list and answers a `POST` by echoing the submitted
- * body back as a created login, prefixed the way the host prefixes it and carrying a password.
+ * Fulfils `GET /api/v1/ftp-users` as a page honouring `page`, `pageSize`, `search`, `sort` and
+ * `accountId`, and answers a `POST` by echoing the submitted body back as a created login, prefixed
+ * the way the host prefixes it and carrying a password. The created row joins the catalogue, so the
+ * page's re-read after a create shows it.
  *
  * The prefix and the protocol are both applied HERE, in the stub, because both are the server's:
  * the SPA under test must render what it was sent rather than assembling a name or assuming a
  * protocol, and a stub that answered neither would let a page that invents them pass.
  * @param page The Playwright page whose network the route is installed on.
- * @param users The logins the stub reports for the list request.
- * @returns Resolves once the route is installed.
+ * @param users The logins the stub knows, in their default order.
+ * @returns A function reporting every list request so far, oldest first, so a spec can read what
+ * the page asked the panel for.
  */
-export const stubFtpUsers = async (page: Page, users: FtpUser[]): Promise<void> => {
+export const stubFtpUsers = async (page: Page, users: FtpUser[]): Promise<() => readonly URL[]> => {
+  const listRequests: URL[] = []
+
   await page.route(FTP_USERS_PATTERN, async (route) => {
     if (route.request().method() === 'POST') {
       const submitted = route.request().postDataJSON() as { accountId: string; name: string }
@@ -120,12 +146,17 @@ export const stubFtpUsers = async (page: Page, users: FtpUser[]): Promise<void> 
       return
     }
 
+    listRequests.push(new URL(route.request().url()))
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify(users),
+      body: JSON.stringify(pagedAnswer(users, route.request().url(), FTP_USER_RULES)),
     })
   })
+
+  return () => {
+    return listRequests
+  }
 }
 
 /**
@@ -155,7 +186,7 @@ export const stubFtpUsersProblem = async (
 }
 
 /**
- * Serves an empty `GET /api/v1/ftp-users` list but rejects `POST` with an RFC 7807 problem body.
+ * Serves an empty `GET /api/v1/ftp-users` page but rejects `POST` with an RFC 7807 problem body.
  * @param page The Playwright page whose network the route is installed on.
  * @param detail The backend-localized message the stub reports in `detail`.
  * @returns Resolves once the route is installed.
@@ -170,7 +201,11 @@ export const stubCreateFtpUserProblem = async (page: Page, detail: string): Prom
       })
       return
     }
-    await route.fulfill({ status: 200, contentType: 'application/json', body: '[]' })
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ items: [], total: 0, page: 1, pageSize: 25 }),
+    })
   })
 }
 

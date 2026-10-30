@@ -1,8 +1,11 @@
+using Maran.Modules.Backups.Common;
 using Maran.Modules.Backups.Domain.Entities;
 using Maran.Modules.Backups.Domain.Enums;
 using Maran.Modules.Backups.Queries.ListBackups;
 using Maran.Modules.Backups.Tests.TestSupport;
 using Maran.Sdk.Contracts;
+using Maran.SharedKernel.Pagination;
+using Maran.SharedKernel.Results;
 
 namespace Maran.Modules.Backups.Tests.Queries.ListBackups;
 
@@ -35,7 +38,7 @@ public sealed class ListBackupsQueryHandlerTests
             .HandleAsync(new ListBackupsQuery(), CancellationToken.None);
 
         Assert.True(result.IsSuccess);
-        Assert.Equal([myRow.Id], result.Value.Select(backup =>
+        Assert.Equal([myRow.Id], result.Value.Items.Select(backup =>
         {
             return backup.Id;
         }));
@@ -65,7 +68,8 @@ public sealed class ListBackupsQueryHandlerTests
                 context, BackupsTestContext.FailureNames(), new StubAccountDirectory())
             .HandleAsync(new ListBackupsQuery(), CancellationToken.None);
 
-        Assert.Equal(3, result.Value.Count);
+        Assert.Equal(3, result.Value.Total);
+        Assert.Equal(3, result.Value.Items.Count);
     }
 
     /// <summary>The newest backup is listed first.</summary>
@@ -95,7 +99,7 @@ public sealed class ListBackupsQueryHandlerTests
                 context, BackupsTestContext.FailureNames(), new StubAccountDirectory())
             .HandleAsync(new ListBackupsQuery(), CancellationToken.None);
 
-        Assert.Equal([newest.Id, oldest.Id], result.Value.Select(backup =>
+        Assert.Equal([newest.Id, oldest.Id], result.Value.Items.Select(backup =>
         {
             return backup.Id;
         }));
@@ -111,7 +115,8 @@ public sealed class ListBackupsQueryHandlerTests
             .HandleAsync(new ListBackupsQuery(), CancellationToken.None);
 
         Assert.True(result.IsSuccess);
-        Assert.Empty(result.Value);
+        Assert.Empty(result.Value.Items);
+        Assert.Equal(0, result.Value.Total);
     }
 
     /// <summary>A failed row is listed with the failure NAMED, beside the code it is named from.</summary>
@@ -142,7 +147,7 @@ public sealed class ListBackupsQueryHandlerTests
                 context, BackupsTestContext.FailureNames(), new StubAccountDirectory())
             .HandleAsync(new ListBackupsQuery(), CancellationToken.None);
 
-        var listed = Assert.Single(result.Value);
+        var listed = Assert.Single(result.Value.Items);
         Assert.Equal("AgentSystemFailure", listed.FailureCode);
         Assert.Equal("The server could not complete the backup", listed.FailureDisplayName);
     }
@@ -169,7 +174,7 @@ public sealed class ListBackupsQueryHandlerTests
                 context, BackupsTestContext.FailureNames(), new StubAccountDirectory())
             .HandleAsync(new ListBackupsQuery(), CancellationToken.None);
 
-        var listed = Assert.Single(result.Value);
+        var listed = Assert.Single(result.Value.Items);
         Assert.Equal(string.Empty, listed.FailureCode);
         Assert.Equal(string.Empty, listed.FailureDisplayName);
     }
@@ -198,9 +203,9 @@ public sealed class ListBackupsQueryHandlerTests
         await using var context = BackupsTestContext.Create(FakeCurrentUser.Admin(), database);
         var result = await new ListBackupsQueryHandler(
                 context, BackupsTestContext.FailureNames(), new StubAccountDirectory())
-            .HandleAsync(new ListBackupsQuery(theirs), CancellationToken.None);
+            .HandleAsync(new ListBackupsQuery(AccountId: theirs), CancellationToken.None);
 
-        Assert.Equal([theirRow.Id], result.Value.Select(backup =>
+        Assert.Equal([theirRow.Id], result.Value.Items.Select(backup =>
         {
             return backup.Id;
         }));
@@ -228,10 +233,11 @@ public sealed class ListBackupsQueryHandlerTests
         await using var context = BackupsTestContext.Create(FakeCurrentUser.Customer(mine), database);
         var result = await new ListBackupsQueryHandler(
                 context, BackupsTestContext.FailureNames(), new StubAccountDirectory())
-            .HandleAsync(new ListBackupsQuery(theirs), CancellationToken.None);
+            .HandleAsync(new ListBackupsQuery(AccountId: theirs), CancellationToken.None);
 
         Assert.True(result.IsSuccess);
-        Assert.Empty(result.Value);
+        Assert.Empty(result.Value.Items);
+        Assert.Equal(0, result.Value.Total);
     }
 
     /// <summary>
@@ -266,14 +272,14 @@ public sealed class ListBackupsQueryHandlerTests
             .HandleAsync(new ListBackupsQuery(), CancellationToken.None);
 
         Assert.True(result.IsSuccess);
-        var liveBackup = result.Value.Single(backup =>
+        var liveBackup = result.Value.Items.Single(backup =>
         {
             return backup.Id == liveRow.Id;
         });
         Assert.Equal("cust01", liveBackup.OwnerName);
         Assert.Equal(string.Empty, liveBackup.OrphanedAccountUsername);
 
-        var orphanBackup = result.Value.Single(backup =>
+        var orphanBackup = result.Value.Items.Single(backup =>
         {
             return backup.Id == orphanRow.Id;
         });
@@ -282,5 +288,113 @@ public sealed class ListBackupsQueryHandlerTests
 
         var batch = Assert.Single(accounts.NameLookups);
         Assert.Equal(new[] { live, deleted }.Order(), batch.Order());
+    }
+
+    /// <summary>The status, kind and start-window filters each narrow the page and its total.</summary>
+    [Fact]
+    public async Task The_status_kind_and_date_filters_each_narrow_the_page_and_its_total()
+    {
+        var accountId = Guid.NewGuid();
+        var database = Guid.NewGuid().ToString();
+        var early = BackupsTestContext.CompletedRow(accountId);
+        var failed = new Backup(
+            Guid.NewGuid(), accountId, null, BackupKind.Manual, BackupsTestContext.SeedInstant.AddDays(2));
+        failed.Failed("AgentSystemFailure", BackupsTestContext.SeedInstant.AddDays(2));
+        var scheduled = new Backup(
+            Guid.NewGuid(), accountId, null, BackupKind.Scheduled, BackupsTestContext.SeedInstant.AddDays(5));
+
+        await using (var seeding = BackupsTestContext.Create(FakeCurrentUser.Admin(), database))
+        {
+            seeding.Backups.AddRange(early, failed, scheduled);
+            await seeding.SaveChangesAsync();
+        }
+
+        await using var context = BackupsTestContext.Create(FakeCurrentUser.Admin(), database);
+        var handler = new ListBackupsQueryHandler(
+            context, BackupsTestContext.FailureNames(), new StubAccountDirectory());
+
+        var byStatus = await handler.HandleAsync(
+            new ListBackupsQuery(Status: BackupStatus.Failed), CancellationToken.None);
+        Assert.Equal([failed.Id], Ids(byStatus.Value));
+        Assert.Equal(1, byStatus.Value.Total);
+
+        var byKind = await handler.HandleAsync(
+            new ListBackupsQuery(Kind: BackupKind.Scheduled), CancellationToken.None);
+        Assert.Equal([scheduled.Id], Ids(byKind.Value));
+
+        var byWindow = await handler.HandleAsync(
+            new ListBackupsQuery(
+                From: BackupsTestContext.SeedInstant.AddDays(1),
+                To: BackupsTestContext.SeedInstant.AddDays(2)),
+            CancellationToken.None);
+        Assert.Equal([failed.Id], Ids(byWindow.Value));
+    }
+
+    /// <summary>Both ends of the start window are inclusive.</summary>
+    [Fact]
+    public async Task A_backup_started_exactly_on_either_bound_is_inside_the_window()
+    {
+        var accountId = Guid.NewGuid();
+        var database = Guid.NewGuid().ToString();
+        var row = BackupsTestContext.CompletedRow(accountId);
+
+        await using (var seeding = BackupsTestContext.Create(FakeCurrentUser.Admin(), database))
+        {
+            seeding.Backups.Add(row);
+            await seeding.SaveChangesAsync();
+        }
+
+        await using var context = BackupsTestContext.Create(FakeCurrentUser.Admin(), database);
+        var result = await new ListBackupsQueryHandler(
+                context, BackupsTestContext.FailureNames(), new StubAccountDirectory())
+            .HandleAsync(
+                new ListBackupsQuery(From: row.StartedAt, To: row.StartedAt),
+                CancellationToken.None);
+
+        Assert.Equal([row.Id], Ids(result.Value));
+    }
+
+    /// <summary>A size sort orders by the artifact's size, and a page past the end answers empty with the total.</summary>
+    [Fact]
+    public async Task A_size_sort_orders_by_size_and_a_page_past_the_end_is_empty_with_the_true_total()
+    {
+        var accountId = Guid.NewGuid();
+        var database = Guid.NewGuid().ToString();
+        var small = new Backup(Guid.NewGuid(), accountId, null, BackupKind.Manual, BackupsTestContext.SeedInstant);
+        small.Completed(10, "aa", 0, BackupsTestContext.SeedInstant);
+        var large = new Backup(Guid.NewGuid(), accountId, null, BackupKind.Manual, BackupsTestContext.SeedInstant);
+        large.Completed(1000, "bb", 0, BackupsTestContext.SeedInstant);
+
+        await using (var seeding = BackupsTestContext.Create(FakeCurrentUser.Admin(), database))
+        {
+            seeding.Backups.AddRange(small, large);
+            await seeding.SaveChangesAsync();
+        }
+
+        await using var context = BackupsTestContext.Create(FakeCurrentUser.Admin(), database);
+        var handler = new ListBackupsQueryHandler(
+            context, BackupsTestContext.FailureNames(), new StubAccountDirectory());
+
+        var bySize = await handler.HandleAsync(
+            new ListBackupsQuery(Sort: SortRequest.Parse("-" + BackupSortFields.Size)), CancellationToken.None);
+        Assert.Equal([large.Id, small.Id], Ids(bySize.Value));
+
+        var pastTheEnd = await handler.HandleAsync(new ListBackupsQuery(Page: 9), CancellationToken.None);
+        Assert.Empty(pastTheEnd.Value.Items);
+        Assert.Equal(2, pastTheEnd.Value.Total);
+        Assert.Equal(9, pastTheEnd.Value.Page);
+    }
+
+    /// <summary>The ids of a page's rows, in order.</summary>
+    /// <param name="page">The page.</param>
+    /// <returns>The ids.</returns>
+    private static List<Guid> Ids(PagedResult<BackupDto> page)
+    {
+        return page.Items
+            .Select(backup =>
+            {
+                return backup.Id;
+            })
+            .ToList();
     }
 }

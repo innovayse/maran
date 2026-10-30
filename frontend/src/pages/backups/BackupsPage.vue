@@ -1,86 +1,83 @@
 <script setup lang="ts">
 /**
- * Backups screen: the take-a-backup-now form and the list of what has been taken. Renders a
- * `<section>`, not a `<main>` — the single `<main>` landmark lives in the layout this page is
- * nested under. State comes exclusively from the backups store; the page never touches the API
- * layer (rules/vue.md: API composables are called from stores only).
+ * Backups screen: the take-a-backup-now form and the history of what has been taken. Renders a
+ * `<section>`, not a `<main>` — the single `<main>` landmark lives in the layout. State comes from
+ * the backups store only; the page never touches the API layer (rules/vue.md).
  *
- * One page rather than a list plus a detail page, because a backup has no detail to open: every
- * field the panel holds about one is a column here, and `GET /api/v1/backups/{id}` answers the
- * same shape the list already carries.
+ * The page composes and owns state; the parts are their own components, props in and events out:
+ * {@link ../../components/backups/BackupAttentionNotice.vue} (whether an account's latest finished
+ * run failed — asked of the panel, because it is about every row and the screen holds one page),
+ * {@link ../../components/backups/BackupCreateForm.vue},
+ * {@link ../../components/backups/BackupHistoryTable.vue} (the rows and their menu, where restore is
+ * offered on a completed backup only) and
+ * {@link ../../components/backups/BackupHistoryFilterSheet.vue}.
  *
- * **A row's commands live behind one menu, not a button each.** The last column holds a single
- * trigger whose accessible name carries the row's account, and the commands are inside it. A menu
- * even where a row offers only Delete: a running or failed row is offered no restore, so a table
- * that dropped the menu for a single command would change the shape of its last column from row to
- * row, and an operator would have to re-find the control on every line.
+ * **The history is a server page** (`useServerTable`): page, page size, the search on the account,
+ * the sort (`startedAt`, `size`) and the `account`, `status`, `kind`, `from` and `to` filters live in
+ * the URL, and the panel searches, filters, sorts and counts. Creating or deleting a backup reads
+ * the current page again rather than patching it: where a row falls is the server's to decide.
  *
- * **The two actions are not shaped alike.** Delete destroys a copy and is confirmed by
- * {@link ../../components/ui/UiConfirm.vue}, the panel's one yes/no question.
- * Restore destroys the ACCOUNT — it replaces the home and drops every database in the copy — so it
- * opens {@link ../../components/backups/BackupRestoreDialog.vue}, which states what is replaced and
- * what is not before it will accept a typed confirmation. The panel publishes
- * `POST /api/v1/backups/{id}/restore`, which is what the dialog calls.
+ * **The two actions are not shaped alike.** Delete destroys a copy and is confirmed by `UiConfirm`.
+ * Restore destroys the ACCOUNT, so it opens `BackupRestoreDialog`, which states what is replaced
+ * before it accepts a typed confirmation.
  *
- * **Restore is offered on a completed backup and on no other.** A running or failed run produced no
- * artifact and the panel answers `BackupNotRestorable`, so a control on those rows could only ever
- * refuse — and a control that cannot act is the same promise as a control that does not exist,
- * made in the other direction.
- *
- * **The screen does not say where the bytes go beyond "this server".** The panel's create endpoint
- * takes no destination, and both the agent and the panel refuse a remote one, so a destination
- * column would be a field with one possible value and a destination picker would advertise a
- * choice that does not exist. Where that one place IS, and what the panel can and cannot be told
- * about it, is {@link ./BackupDestinationsPage.vue} — a screen of its own, linked from the heading,
- * because it describes the machine rather than the rows this table holds.
- *
- * **A failed backup is the screen's one attention item, and only while it is still true.** A
- * warning notice opens the screen when an account's most recent FINISHED run failed — a failed
- * copy is a copy that does not exist, the one fact a list of backups can most dangerously imply the
- * opposite of. It is not raised for every failed row ever taken: a failure from March that a
- * completed run has since superseded is history, and a notice that never clears teaches an
- * operator to stop reading it. A still-running run is not a finished one, so it neither raises the
- * notice nor clears it.
- *
- * **The table lives inside its own `UiCard` and nothing else is allowed to scroll the page.** At
- * 390px the eight columns are wider than the screen, so `UiTable` scrolls inside its own container
- * (the specs find that container as `table.parentElement`); the card has `min-w-0` for the same
- * reason, so a wide table can never size the content panel.
+ * Where the bytes rest is {@link ./BackupDestinationsPage.vue}, linked from the heading. The history
+ * card has `min-w-0`, so the table scrolls inside its own container and never sizes the panel.
  */
-import { computed, onMounted, ref, watch, type ComputedRef, type Ref } from 'vue'
+import { computed, ref, watch, type ComputedRef, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import UiActiveFilter from '../../components/ui/UiActiveFilter.vue'
 import UiAlert from '../../components/ui/UiAlert.vue'
 import UiButton from '../../components/ui/UiButton.vue'
 import UiCard from '../../components/ui/UiCard.vue'
 import UiConfirm from '../../components/ui/UiConfirm.vue'
-import UiDropdown from '../../components/ui/UiDropdown.vue'
-import UiDropdownItem from '../../components/ui/UiDropdownItem.vue'
 import UiEmptyState from '../../components/ui/UiEmptyState.vue'
+import UiFilterTrigger from '../../components/ui/UiFilterTrigger.vue'
 import UiIcon from '../../components/ui/UiIcon.vue'
-import UiPageHeading from '../../components/ui/UiPageHeading.vue'
-import UiSectionHeading from '../../components/ui/UiSectionHeading.vue'
 import UiLoadingRegion from '../../components/ui/UiLoadingRegion.vue'
-import UiTable from '../../components/ui/UiTable.vue'
-import type { UiTableColumn } from '../../types/tableColumn'
+import UiPageHeading from '../../components/ui/UiPageHeading.vue'
+import UiPagination from '../../components/ui/UiPagination.vue'
+import UiSearchInput from '../../components/ui/UiSearchInput.vue'
+import UiSectionHeading from '../../components/ui/UiSectionHeading.vue'
+import BackupAttentionNotice from '../../components/backups/BackupAttentionNotice.vue'
 import BackupCreateForm from '../../components/backups/BackupCreateForm.vue'
+import BackupHistoryFilterSheet from '../../components/backups/BackupHistoryFilterSheet.vue'
+import BackupHistoryTable from '../../components/backups/BackupHistoryTable.vue'
 import BackupRestoreDialog from '../../components/backups/BackupRestoreDialog.vue'
-import BackupStatusBadge from '../../components/backups/BackupStatusBadge.vue'
 import { useAccountChoice } from '../../composables/useAccountChoice'
 import { useAccountFilter } from '../../composables/useAccountFilter'
+import { useBackupHistoryFilters } from '../../composables/useBackupHistoryFilters'
 import { useCallerRole } from '../../composables/useCallerRole'
+import { useListLabels } from '../../composables/useListLabels'
+import { useServerTable } from '../../composables/useServerTable'
 import { useBackupsStore } from '../../stores/backups'
 import { useLocaleStore } from '../../stores/locale'
-import { formatBytes } from '../../utils/formatBytes'
+import { backupAccountName } from '../../utils/backupAccountName'
 import { formatIsoTimestamp } from '../../utils/formatIsoTimestamp'
+import type { ActiveFilterChip, ListLoad, ListRequest } from '../../types/list'
 import type { Backup, CreateBackupRequest } from '../../types/backup'
 
 const { t } = useI18n()
 const store = useBackupsStore()
 const { fixedAccountId, picker: accountPicker, search: searchAccounts } = useAccountChoice()
-const { filter: accountListFilter, isActive: isAccountFiltered, text: accountFilterText, clear: clearAccountFilter } = useAccountFilter()
-const { isAdmin } = useCallerRole()
+const { filter: accountListFilter, spec: accountSpec, name: accountFilterName } = useAccountFilter()
+const { isAdmin, isCustomer } = useCallerRole()
 const localeStore = useLocaleStore()
+const labels = useListLabels()
+
+const historyFilters = useBackupHistoryFilters(accountSpec)
+
+const table = useServerTable<Backup>({
+  filters: historyFilters.schema,
+  /**
+   * Reads one page through the store.
+   * @param request The page the URL describes.
+   * @returns How the read ended.
+   */
+  load: (request: ListRequest): Promise<ListLoad<Backup>> => {
+    return store.list(request)
+  },
+})
 
 /** The backup whose deletion is awaiting confirmation, or the empty string when none is. */
 const pendingId: Ref<string> = ref('')
@@ -94,33 +91,29 @@ const pendingId: Ref<string> = ref('')
  */
 const restoreTarget: Ref<Backup | null> = ref(null)
 
+/** Whether the filter sheet is open. */
+const filtersOpen: Ref<boolean> = ref(false)
 
-/** The table's columns: its header, its cells and its loading placeholder all read this one list. */
-const columns: ComputedRef<UiTableColumn[]> = computed(() => {
-  return [
-    { key: 'account', label: t('backups.list.columns.account'), kind: 'identifier' },
-    { key: 'status', label: t('backups.list.columns.status'), kind: 'badge' },
-    { key: 'kind', label: t('backups.list.columns.kind'), kind: 'text' },
-    { key: 'size', label: t('backups.list.columns.size'), kind: 'number' },
-    { key: 'databases', label: t('backups.list.columns.databases'), kind: 'number' },
-    { key: 'startedAt', label: t('backups.list.columns.startedAt'), kind: 'date' },
-    { key: 'finishedAt', label: t('backups.list.columns.finishedAt'), kind: 'date' },
-    { key: 'actions', label: t('common.actions'), kind: 'actions' },
-  ]
+/** Whether the list is narrowed by a search or a filter, so an empty answer means "no match". */
+const isNarrowed: ComputedRef<boolean> = computed(() => {
+  return table.request.value.search !== '' || table.activeFilterCount.value > 0
 })
 
-/** Whether the panel answered successfully and reported no backups at all. */
-const isEmpty: ComputedRef<boolean> = computed(() => {
-  return store.loadState === 'loaded' && store.backups.length === 0
+/** Whether the latest answer arrived and holds no rows at all. */
+const answeredNothing: ComputedRef<boolean> = computed(() => {
+  return table.state.value.status === 'loaded' && table.total.value === 0
+})
+
+/** One removable chip per applied filter. */
+const chips: ComputedRef<ActiveFilterChip[]> = computed(() => {
+  return historyFilters.chips(table.filters.value, accountFilterName.value)
 })
 
 /** The backup the confirmation is open for, or `null` when none is. */
 const pendingBackup: ComputedRef<Backup | null> = computed(() => {
-  return (
-    store.backups.find((backup) => {
-      return backup.id === pendingId.value
-    }) ?? null
-  )
+  return store.backups.find((backup) => {
+    return backup.id === pendingId.value
+  }) ?? null
 })
 
 /** The confirmation's accessible name, naming the copy that would be destroyed. */
@@ -129,151 +122,35 @@ const confirmationTitle: ComputedRef<string> = computed(() => {
   return pending === null
     ? ''
     : t('backups.list.confirmDeleteTitle', {
-        account: accountName(pending),
+        account: backupAccountName(pending, t('common.emptyValue')),
         startedAt: formatIsoTimestamp(pending.startedAt, localeStore.current),
       })
 })
 
 /**
- * The backups whose account's most recent finished run failed, newest failure first.
- *
- * Grouped by account because the question an operator asks is "which accounts have no good copy
- * from their latest attempt", not "how many rows say Failed". A `running` run is skipped: it has no
- * outcome yet, so it can neither be the failure nor the success that supersedes one. Instants are
- * compared as parsed times, not as strings, because the panel is free to change the offset it
- * writes.
- */
-const unrecoveredFailures: ComputedRef<Backup[]> = computed(() => {
-  const latest = new Map<string, Backup>()
-  for (const backup of store.backups) {
-    if (backup.status === 'running') {
-      continue
-    }
-    const seen = latest.get(backup.accountId)
-    if (seen === undefined || Date.parse(backup.startedAt) > Date.parse(seen.startedAt)) {
-      latest.set(backup.accountId, backup)
-    }
-  }
-  return [...latest.values()]
-    .filter((backup) => {
-      return backup.status === 'failed'
-    })
-    .sort((a, b) => {
-      return Date.parse(b.startedAt) - Date.parse(a.startedAt)
-    })
-})
-
-/**
- * The sentence the attention notice says, or `null` when nothing needs attention.
- *
- * One failure is named — the account and the moment — because that is enough to act on. Several
- * are counted, since a list of names in a banner would be the table over again.
- */
-const attentionMessage: ComputedRef<string | null> = computed(() => {
-  const failures = unrecoveredFailures.value
-  if (failures.length === 0) {
-    return null
-  }
-  const [first] = failures
-  if (failures.length === 1 && first !== undefined) {
-    return t('backups.list.attentionOne', {
-      account: accountName(first),
-      startedAt: formatIsoTimestamp(first.startedAt, localeStore.current),
-    })
-  }
-  return t('backups.list.attentionMany', { count: failures.length }, failures.length)
-})
-
-/**
- * Names the account a backup belongs to, for a column that would otherwise print a GUID.
- *
- * The live account's name, as the panel put it on the row (`ownerName`), is asked first, and the
- * backup's own `orphanedAccountUsername` second.
- * That order matters: while an account exists its current name is the truthful one, and a name
- * copied onto the row at deletion time is the only one left once it does not. The placeholder is
- * reached only by a row that is neither — which no row the panel writes should be.
- * @param backup The backup the row is drawn for.
- * @returns The account's short name, the name preserved at deletion, or a placeholder.
- */
-const accountName = (backup: Backup): string => {
-  if (backup.ownerName !== '') {
-    return backup.ownerName
-  }
-  return backup.orphanedAccountUsername === '' ? t('common.emptyValue') : backup.orphanedAccountUsername
-}
-
-/**
- * The size a row shows.
- *
- * A running or failed backup has no artifact, and its `sizeBytes` is zero — which formatted as
- * "0 B" would read as an archive that exists and is empty, rather than as no archive at all.
- * @param backup The backup the row is drawn for.
- * @returns The formatted size, or a placeholder when there is no artifact.
- */
-const size = (backup: Backup): string => {
-  return backup.status === 'completed' ? formatBytes(backup.sizeBytes) : t('common.emptyValue')
-}
-
-/**
- * The sentence a failed row shows above its code.
- *
- * The text is the backend's, already localized for the language `useApi` asked in — the panel holds
- * no name of its own for a server outcome (rules/vue.md). `null` when there is nothing to say: a
- * row that did not fail, or a panel older than the field, which sends the code alone.
- * @param backup The backup the row is drawn for.
- * @returns The localized failure name, or `null` when the row has none.
- */
-const failureName = (backup: Backup): string | null => {
-  // Read through a `typeof` rather than a plain length check: the declared type says `string`, but
-  // the value comes off the wire, and a panel older than the field sends the key not at all. A
-  // screen that threw on the row it exists to explain would be the worse failure.
-  const name: unknown = backup.failureDisplayName
-  return typeof name === 'string' && name.length > 0 ? name : null
-}
-
-/**
- * When the run ended, or a placeholder while it is still going.
- * @param backup The backup the row is drawn for.
- * @returns The formatted instant, or a placeholder when the run has not ended.
- */
-const finished = (backup: Backup): string => {
-  return backup.finishedAt === null
-    ? t('common.emptyValue')
-    : formatIsoTimestamp(backup.finishedAt, localeStore.current)
-}
-
-/**
- * Loads the backup list, narrowed to the account the URL names when it names one.
- * @returns Resolves once the request has settled.
- */
-const loadList = async (): Promise<void> => {
-  await store.load(accountListFilter.value)
-}
-
-/**
- * Loads the backup list. The create form's account picker reads its own choices when opened.
- * @returns Resolves once the request has settled.
+ * Reads the current page and the attention answer again, after a backup was taken or deleted.
+ * @returns Resolves once both have settled.
  */
 const refresh = async (): Promise<void> => {
-  await loadList()
+  await Promise.all([table.reload(), store.loadAttention(accountListFilter.value)])
 }
 
 /**
- * Sends a create request the form has already validated.
+ * Sends a create request the form has already validated, then reads the history again.
  * @param request The account the form collected.
- * @returns Resolves once the attempt has settled.
+ * @returns Resolves once the attempt and the reread have settled.
  */
 const create = async (request: CreateBackupRequest): Promise<void> => {
-  await store.create(request)
+  if (await store.create(request)) {
+    await refresh()
+  }
 }
 
 /**
  * Names the account a restore would replace, or `null` when the panel did not name it on the row.
  *
- * `null` rather than the placeholder {@link accountName} returns: the dialog compares what is typed
- * against this value, and a translated "unknown account" string would be a confirmation nobody can
- * satisfy. Not knowing the name is the case where the client must stop judging and let the server
- * answer.
+ * `null` rather than a placeholder: the dialog compares what is typed against it, and a translated
+ * "unknown account" would be a confirmation nobody can satisfy; the server judges instead.
  * @param backup The backup a restore is asked of.
  * @returns The live account's system user name, or `null` when it is not known here.
  */
@@ -316,21 +193,56 @@ const cancel = (): void => {
 }
 
 /**
- * Carries out the confirmed deletion.
- * @returns Resolves once the request has settled.
+ * Carries out the confirmed deletion, then reads the history again.
+ * @returns Resolves once the request and the reread have settled.
  */
 const confirm = async (): Promise<void> => {
-  await store.remove(pendingId.value)
+  const removed = await store.remove(pendingId.value)
 
   // Closed after the request settles rather than before it is sent: the dialog holds the
   // spinner that tells the operator the panel is working.
   pendingId.value = ''
+  if (removed) {
+    await refresh()
+  }
 }
 
-onMounted(refresh)
+/**
+ * Opens the filter sheet.
+ * @returns Nothing.
+ */
+const openFilters = (): void => {
+  filtersOpen.value = true
+}
 
-// "Show all" and a link to another account change only the query, so the page is not remounted.
-watch(() => {return accountListFilter.value.accountId}, loadList)
+/**
+ * Closes the filter sheet.
+ * @returns Nothing.
+ */
+const closeFilters = (): void => {
+  filtersOpen.value = false
+}
+
+/**
+ * Clears the search and every filter, the way back from a question that matched nothing.
+ * @returns Resolves once the filters left the URL; the search follows after the box's pause.
+ */
+const clearAll = async (): Promise<void> => {
+  table.search.value = ''
+  await table.clearFilters()
+}
+
+// The attention notice follows the account the history is narrowed to, and only that: it is about
+// the accounts' latest runs, not about the page the search and other filters happen to show.
+watch(
+  (): string | undefined => {
+    return accountListFilter.value.accountId
+  },
+  (): void => {
+    void store.loadAttention(accountListFilter.value)
+  },
+  { immediate: true },
+)
 </script>
 
 <template>
@@ -342,20 +254,14 @@ watch(() => {return accountListFilter.value.accountId}, loadList)
       :note="t('backups.list.storageNote')"
     >
       <template #actions>
-        <!-- The schedule and the destinations are administrators-only. Hiding the links from a
-             customer is presentation, not the gate: the endpoints behind them refuse a customer on
-             their own (rules/security.md). Both are ghost-weight links: the screen's primary action
-             is the form below, and a pill up here would compete with it. -->
+        <!-- Administrators only, as presentation: the endpoints refuse a customer on their own. -->
         <UiButton v-if="isAdmin" variant="secondary" :to="{ name: 'backup-schedule' }">{{ t('backups.list.scheduleLink') }}</UiButton>
         <UiButton v-if="isAdmin" variant="secondary" :to="{ name: 'backup-destinations' }">{{ t('backups.list.destinationsLink') }}</UiButton>
       </template>
     </UiPageHeading>
 
-    <!-- The one thing that needs attention goes first. Warning, not error: the failure already
-         happened and can be answered by taking another copy, which is the form just below. -->
-    <UiAlert v-if="attentionMessage !== null && store.loadState === 'loaded'" variant="warning">
-      {{ attentionMessage }}
-    </UiAlert>
+    <!-- The one thing that needs attention goes first. -->
+    <BackupAttentionNotice :attention="store.attention" />
 
     <UiAlert v-if="store.createErrorMessage !== null" variant="error">
       {{ store.createErrorMessage }}
@@ -365,7 +271,6 @@ watch(() => {return accountListFilter.value.accountId}, loadList)
       {{ store.removeErrorMessage }}
     </UiAlert>
 
-    <!-- The form draws its own panel, so it is not wrapped in a second one here. -->
     <BackupCreateForm
       :account-picker="accountPicker"
       :fixed-account-id="fixedAccountId"
@@ -374,102 +279,100 @@ watch(() => {return accountListFilter.value.accountId}, loadList)
       @submit="create"
     />
 
-    <UiActiveFilter
-      v-if="isAccountFiltered"
-      :text="accountFilterText"
-      :clear-label="t('common.accountFilter.showAll')"
-      @clear="clearAccountFilter"
-    />
-
-    <UiCard>
+    <UiCard class="min-w-0">
       <UiSectionHeading class="mb-4" :title="t('backups.list.sectionHeading')" />
 
-      <UiLoadingRegion :state="store.loadState">
-        <template #error>
-          <UiAlert variant="error">{{ store.errorMessage ?? t('common.list.unreachable') }}</UiAlert>
-        </template>
+      <div class="flex flex-col gap-4">
+        <div class="flex flex-wrap items-end gap-3">
+          <UiSearchInput
+            v-model="table.search.value"
+            class="min-w-55 max-w-85 flex-1"
+            :label="t('backups.list.searchLabel')"
+            :placeholder="t('backups.list.searchPlaceholder')"
+            :clear-label="t('backups.list.searchClear')"
+          />
+          <UiFilterTrigger
+            :label="t('common.list.filters')"
+            :active-count="table.activeFilterCount.value"
+            :active-label="t('common.list.filtersApplied', { n: table.activeFilterCount.value }, table.activeFilterCount.value)"
+            @click="openFilters"
+          />
+        </div>
 
-        <UiEmptyState
-          v-if="isEmpty"
-          :title="t('backups.list.emptyTitle')"
-          :description="t('backups.list.emptyDescription')"
-        >
-          <template #icon><UiIcon name="archive" size="lg" /></template>
-        </UiEmptyState>
+        <UiActiveFilter
+          v-if="chips.length > 0"
+          :chips="chips"
+          :clear-label="t('common.list.clearAll')"
+          @remove="table.clearFilter"
+          @clear="table.clearFilters"
+        />
 
-        <UiTable
-          v-else
-          :caption="t('backups.list.tableCaption')"
-          :columns="columns"
-          :rows="store.backups"
-          row-key="id"
-          :loading="store.loadState === 'loading'"
-        >
-          <!-- The cell holds the account's name and nothing else: a spec reads it as the cell's
-               whole text, and a name is what the column is for. -->
-          <template #cell-account="{ row }">{{ accountName(row) }}</template>
-          <template #cell-status="{ row }">
-            <BackupStatusBadge :status="row.status" />
-            <!-- Both halves of the failure, and neither instead of the other. The sentence is the
-                 backend's own, already localized (rules/vue.md: the SPA owns no text for a server
-                 outcome), and it is what a reader reads. The code below it is machine-stable across
-                 languages, so it is what an operator quotes in a support ticket and greps a log for —
-                 kept as visible, selectable text rather than hidden in a `title`, which no touch
-                 device shows, no keyboard reaches and nothing can copy from. A panel older than the
-                 display name sends the code alone, and then the code is the whole cell. The sentence
-                 wraps although the badge column does not. -->
-            <span
-              v-if="failureName(row) !== null"
-              class="mt-1.5 block max-w-64 text-sm whitespace-normal text-text-secondary wrap-anywhere"
-            >
-              {{ failureName(row) }}
-            </span>
-            <span v-if="row.failureCode.length > 0" class="mt-0.5 block font-mono text-xs text-text-muted">
-              {{ t('backups.list.failureCode', { code: row.failureCode }) }}
-            </span>
+        <UiLoadingRegion :state="table.loadingState.value">
+          <template #error>
+            <UiAlert v-if="table.state.value.status === 'refused'" variant="error">
+              {{ table.state.value.message }}
+            </UiAlert>
+            <UiAlert v-else variant="error">{{ t('common.list.unreachable') }}</UiAlert>
           </template>
-          <template #cell-kind="{ row }">{{ t(`backups.kind.${row.kind}`) }}</template>
-          <template #cell-size="{ row }">{{ size(row) }}</template>
-          <template #cell-databases="{ row }">{{ row.databaseCount }}</template>
-          <template #cell-startedAt="{ row }">{{ formatIsoTimestamp(row.startedAt, localeStore.current) }}</template>
-          <template #cell-finishedAt="{ row }">{{ finished(row) }}</template>
-          <template #cell-actions="{ row }">
-            <!-- One trigger instead of a button per command, and a menu even on the rows that
-                 hold only Delete: a running or failed row is offered no restore, so a table that
-                 dropped the menu for a single command would change the shape of its last column
-                 from row to row and an operator would have to re-find the control on every line.
-                 `align="end"` because this is the last column — a menu aligned to the start would
-                 open off the right edge. The trigger's name carries the row's account, because
-                 "Actions" repeated down the column names nothing to a screen reader. -->
-            <UiDropdown
-              :label="t('common.actions')"
-              :aria-label="t('backups.list.rowActions', { account: accountName(row) })"
-              align="end"
-              variant="bare"
-              :chevron="false"
-            >
-              <template #trigger>
-                <UiIcon name="ellipsis" size="md" />
-              </template>
-              <!-- Offered only where an artifact exists. On a failed or still-running row the panel
-                   would answer `BackupNotRestorable`, and a command whose only outcome is a refusal
-                   teaches an operator that the screen is unreliable. -->
-              <UiDropdownItem v-if="row.status === 'completed'" @select="askRestore(row)">
-                {{ t('backups.restore.action') }}
-              </UiDropdownItem>
-              <UiDropdownItem destructive @select="ask(row.id)">
-                {{ t('common.delete') }}
-              </UiDropdownItem>
-            </UiDropdown>
-          </template>
-        </UiTable>
-      </UiLoadingRegion>
+
+          <!-- Two kinds of nothing: no backup at all is the empty state, and the form above is the
+               way to take the first; a search or filter matching none is the way back to all. -->
+          <UiEmptyState
+            v-if="answeredNothing && !isNarrowed"
+            :title="t('backups.list.emptyTitle')"
+            :description="t('backups.list.emptyDescription')"
+          >
+            <template #icon><UiIcon name="archive" size="lg" /></template>
+          </UiEmptyState>
+
+          <UiEmptyState
+            v-else-if="answeredNothing"
+            :title="t('backups.list.noResultsTitle')"
+            :description="t('backups.list.noResultsDescription')"
+          >
+            <UiButton variant="secondary" @click="clearAll">{{ t('common.list.clearSearchAndFilters') }}</UiButton>
+          </UiEmptyState>
+
+          <div v-else class="flex flex-col gap-4">
+            <BackupHistoryTable
+              :rows="store.backups"
+              :loading="table.state.value.status === 'loading'"
+              :skeleton-rows="table.pageSize.value"
+              :sort="table.sort.value"
+              @sort="table.toggleSort"
+              @restore="askRestore"
+              @delete="ask"
+            />
+
+            <UiPagination
+              v-if="table.state.value.status === 'loaded'"
+              :page="table.page.value"
+              :page-size="table.pageSize.value"
+              :total="table.total.value"
+              :page-sizes="table.pageSizes"
+              :labels="labels.pagination.value"
+              @update:page="table.setPage"
+              @update:page-size="table.setPageSize"
+            />
+          </div>
+        </UiLoadingRegion>
+      </div>
     </UiCard>
 
-    <!-- One dialog for the whole table rather than one per row: only one deletion can be awaiting
-         an answer, and the menu that opened it is already gone by the time it appears. `:open` is
-         bound to a value that really changes and the dialog is NOT wrapped in a `v-if`, so
-         `UiModal`s open-watcher runs and its focus trap is live. -->
+    <!-- A customer's history is already their own account's; there is no account to narrow to. -->
+    <BackupHistoryFilterSheet
+      :open="filtersOpen"
+      :model-value="table.filters.value"
+      :show-account="!isCustomer"
+      :account-picker="accountPicker"
+      :account-name="accountFilterName"
+      @update:model-value="table.setFilters"
+      @close="closeFilters"
+      @search-accounts="searchAccounts"
+    />
+
+    <!-- One dialog for the whole table, not wrapped in a `v-if`, so `UiModal`s open-watcher runs and
+         its focus trap is live. -->
     <UiConfirm
       :open="pendingId.length > 0"
       :title="confirmationTitle"
@@ -483,9 +386,7 @@ watch(() => {return accountListFilter.value.accountId}, loadList)
       @confirm="confirm"
     />
 
-    <!-- `v-if` because `backup` is required and `restoreTarget` is nullable; the dialog is created
-         with `open` already true, which `UiModal`s immediate open-watcher handles (focus enters,
-         Escape reaches it, focus returns to the control that opened it). -->
+    <!-- `v-if` because `backup` is required; `UiModal`s immediate open-watcher handles `open` true. -->
     <BackupRestoreDialog
       v-if="restoreTarget !== null"
       :open="restoreTarget !== null"

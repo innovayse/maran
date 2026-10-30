@@ -22,7 +22,7 @@ export type CertificateSource =
   /** Supplied by the customer. Never re-ordered, never overwritten by renewal. */
   | "custom";
 
-/** Outward view of one installed certificate, exactly as `GET /api/v1/certificates` reports it. */
+/** Outward view of one installed certificate, exactly as a row of `GET /api/v1/certificates` reports it. */
 export interface Certificate {
   /** The certificate's identity. */
   id: string;

@@ -1,6 +1,6 @@
 import { useApi } from '../useApi'
-import { accountListQuery } from '../../utils/accountListQuery'
-import type { AccountListFilter } from '../../types/accountListFilter'
+import { listQuery } from '../../utils/listQuery'
+import type { ListRequest, Paged } from '../../types/list'
 import type {
   CreateFtpUserRequest,
   CreatedFtpUser,
@@ -11,6 +11,11 @@ import type {
 
 /** The endpoint FTPS logins are listed and created through. */
 const FTP_USERS_PATH = '/api/v1/ftp-users'
+
+/** The list endpoint's parameter for each filter the FTPS logins page reads from its URL. */
+const LIST_FILTER_PARAMS: Readonly<Record<string, string>> = {
+  account: 'accountId',
+}
 
 /**
  * Builds the FTPS users API on top of the shared low-level client.
@@ -25,14 +30,14 @@ export const useFtpUsersApi = (): FtpUsersApi => {
   const api = useApi()
 
   /**
-   * Lists the FTPS logins the caller may see. Another customer's rows are not in the answer at all —
-   * the server scopes the query, so there is nothing here to filter.
-   * @param filter The account the list is narrowed to; empty for every row the caller may see.
+   * Lists one page of the FTPS logins the caller may see. Another customer's rows are not in the
+   * answer at all — the server scopes the query and its total, so there is nothing here to filter.
+   * @param request The page, size, search, sort and the account filter.
    * @param signal Optional abort signal to cancel the in-flight request.
-   * @returns The logins, in the order the panel reports them.
+   * @returns The page the panel answered, with the total across every page.
    */
-  const list = (filter: AccountListFilter, signal?: AbortSignal): Promise<FtpUser[]> => {
-    return api.get<FtpUser[]>(`${FTP_USERS_PATH}${accountListQuery(filter)}`, signal)
+  const list = (request: ListRequest, signal?: AbortSignal): Promise<Paged<FtpUser>> => {
+    return api.get<Paged<FtpUser>>(`${FTP_USERS_PATH}${listQuery(request, LIST_FILTER_PARAMS)}`, signal)
   }
 
   /**

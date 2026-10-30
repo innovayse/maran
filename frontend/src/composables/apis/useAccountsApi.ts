@@ -20,6 +20,12 @@ const ACCOUNTS_PATH = '/api/v1/accounts'
 /** The endpoint a picker reads account names through: identity and name only, one page at a time. */
 const ACCOUNT_CHOICES_PATH = '/api/v1/accounts/choices'
 
+/** The endpoint the plan pickers search: identity, name and two limits, one page per search. */
+const PLAN_CHOICES_PATH = '/api/v1/plans/choices'
+
+/** The endpoint one plan is read through, to name a plan the open page of choices may not hold. */
+const PLANS_PATH = '/api/v1/plans'
+
 /** The list endpoint's parameter for each filter the accounts list page reads from its URL. */
 const LIST_FILTER_PARAMS: Readonly<Record<string, string>> = { plan: 'planId', status: 'status' }
 
@@ -74,16 +80,33 @@ export const useAccountsApi = (): AccountsApi => {
   }
 
   /**
-   * Lists the plans an account can be created against.
+   * Lists the plans a picker offers: the first page, alphabetical, of those matching the search.
    *
    * The form needs this so a person picks a plan by name instead of typing an
    * identifier: a free-text id field is a missing endpoint wearing a costume
    * (rules/architecture.md, "the backend owns the data").
+   * @param search Narrows by name; empty for the first plans.
+   * @param pageSize How many choices to ask for; one of the sizes the panel accepts.
    * @param signal Optional abort signal to cancel the in-flight request.
-   * @returns The plans, already localized by the backend.
+   * @returns The matching plans, already localized by the backend, with how many match in all.
    */
-  const listPlans = (signal?: AbortSignal): Promise<Plan[]> => {
-    return api.get<Plan[]>(`${ACCOUNTS_PATH}/plans`, signal)
+  const planChoices = (search: string, pageSize: number, signal?: AbortSignal): Promise<Paged<Plan>> => {
+    const params = new URLSearchParams({ pageSize: String(pageSize) })
+    // An empty search is left out: the panel refuses an empty parameter rather than reading it as none.
+    if (search !== '') {
+      params.set('search', search)
+    }
+    return api.get<Paged<Plan>>(`${PLAN_CHOICES_PATH}?${params.toString()}`, signal)
+  }
+
+  /**
+   * Reads one plan by id.
+   * @param id The plan's identity.
+   * @param signal Optional abort signal to cancel the in-flight request.
+   * @returns The plan.
+   */
+  const getPlan = (id: string, signal?: AbortSignal): Promise<Plan> => {
+    return api.get<Plan>(`${PLANS_PATH}/${id}`, signal)
   }
 
   /**
@@ -184,7 +207,8 @@ export const useAccountsApi = (): AccountsApi => {
     list,
     choices,
     create,
-    listPlans,
+    planChoices,
+    getPlan,
     get,
     changePlan,
     changeOwnerEmail,

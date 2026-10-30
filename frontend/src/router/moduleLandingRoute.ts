@@ -46,13 +46,11 @@ const LANDING_ROUTES: Readonly<Record<string, string | typeof NO_LANDING_ROUTE>>
   accounts: 'accounts',
   sites: 'sites',
   databases: 'databases',
-  // The merged File transfer screen. Both transfer modules land on it, and only the `sftp` key
-  // carries a route: SFTP is the half that is always present, so gating the screen on `ftp` would
-  // hide the SFTP logins on a panel without FTPS.
-  sftp: 'file-transfer',
-  // No page of its own by design: the FTPS module's whole interface — the login rows, the create
-  // form's second protocol and the administrator's daemon panel — lives inside the File transfer
-  // screen the `sftp` key names. A sidebar entry for it would be a second door to one room.
+  // The "File transfer" entry. It lands on the SFTP logins page, the half every panel has, and opens
+  // into a submenu of the two protocol pages (`moduleNavigationChildren.ts`).
+  sftp: 'file-transfer-sftp',
+  // No sidebar entry of its own by design: the FTPS logins page is the second child of the "File
+  // transfer" entry the `sftp` key names, so a top-level entry would be a second door to one room.
   ftp: NO_LANDING_ROUTE,
   firewall: 'firewall',
   // The Identity module's own screens are the signed-in user's security ones. Sessions is the

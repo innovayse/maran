@@ -5,10 +5,11 @@
  * layout this page is nested under. State comes exclusively from the plans store; the page never
  * touches the API layer (rules/vue.md: API composables are called from stores only).
  *
- * **An edit loads the list fresh and finds its plan in it.** The server has no single-plan read
- * and none is needed: a panel holds a handful of plans. It reloads even when the list is already
- * in the store, because the account count the edit notice states is a live fact and a stale one
- * would tell an administrator that nobody is on a plan somebody has just been put on.
+ * **An edit reads its one plan fresh** (`GET /api/v1/plans/{id}`), never the list: the list is
+ * paged, so the plan a link names need not be on any page held. It is read even when the plan was
+ * read before, because the account count the edit notice states is a live fact and a stale one
+ * would tell an administrator that nobody is on a plan somebody has just been put on. An id the
+ * panel does not know reads as "not found", with the way back to the list.
  *
  * **The form that edits is not created until the plan it edits is known.** `PlanForm` takes its
  * starting values once, when it is created, so a form mounted before the plan arrived would show
@@ -48,9 +49,9 @@ const isEditing: ComputedRef<boolean> = computed(() => {
   return props.id !== undefined
 })
 
-/** The plan being edited, or `undefined` while it is not in the list (not loaded, or deleted). */
+/** The plan being edited, or `undefined` while it has not arrived or the panel has no such plan. */
 const plan: ComputedRef<ManagedPlan | undefined> = computed(() => {
-  return props.id === undefined ? undefined : store.find(props.id)
+  return props.id === undefined ? undefined : (store.selected ?? undefined)
 })
 
 /** The heading's key: it names the job the page is doing. */
@@ -64,8 +65,8 @@ const headingKey: ComputedRef<string> = computed(() => {
  */
 const prepare = async (): Promise<void> => {
   store.clearErrors()
-  if (isEditing.value) {
-    await store.load()
+  if (props.id !== undefined) {
+    await store.loadOne(props.id)
   }
 }
 
@@ -113,7 +114,7 @@ onMounted(prepare)
     </UiAlert>
 
     <UiLoadingRegion v-if="isEditing" :state="store.loadState">
-      <!-- A customer who opens the edit URL lands here too: the list endpoint refused them, and
+      <!-- A customer who opens the edit URL lands here too: the plan endpoint refused them, and
            its message is shown instead of the form. -->
       <template #error>
         <UiAlert variant="error">{{ store.errorMessage ?? t('common.list.unreachable') }}</UiAlert>

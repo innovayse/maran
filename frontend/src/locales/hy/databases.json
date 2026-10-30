@@ -26,7 +26,15 @@
       "sectionTitle": "Բոլոր բազաները",
       "created": "Տվյալների բազան ստեղծվեց։",
       "confirmDropAction": "Ջնջել բազան",
-      "confirmResetPasswordAction": "Վերականգնել գաղտնաբառը"
+      "confirmResetPasswordAction": "Վերականգնել գաղտնաբառը",
+      "searchLabel": "Բազաների որոնում",
+      "searchPlaceholder": "Որոնել ըստ բազայի անվան…",
+      "searchClear": "Մաքրել որոնումը",
+      "noResultsTitle": "Համապատասխան բազաներ չկան",
+      "noResultsDescription": "Փոխեք որոնումը կամ զտիչը, կամ մաքրեք դրանք՝ բոլոր բազաները տեսնելու համար։",
+      "filters": {
+        "account": "Հաշիվ"
+      }
     },
     "form": {
       "heading": "Նոր տվյալների բազա",

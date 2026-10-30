@@ -1,11 +1,16 @@
 import { useApi } from '../useApi'
+import { listQuery } from '../../utils/listQuery'
+import type { ListRequest, Paged } from '../../types/list'
 import type { ManagedPlan, PlanRequest, PlansApi } from '../../types/plan'
 
 /**
- * The endpoint plans are managed through. Distinct from `/api/v1/accounts/plans`, the read the
- * account form's picker uses: this one is administrator-only and carries the account count.
+ * The endpoint plans are managed through: administrator-only, and the rows carry the account count.
+ * The plan pickers read `/api/v1/plans/choices` instead, through the accounts API.
  */
 const PLANS_PATH = '/api/v1/plans'
+
+/** The plans list takes no typed filter; its only parameters are the page, search and sort. */
+const LIST_FILTER_PARAMS: Readonly<Record<string, string>> = {}
 
 /**
  * Builds the plans API on top of the shared low-level client.
@@ -19,12 +24,23 @@ export const usePlansApi = (): PlansApi => {
   const api = useApi()
 
   /**
-   * Lists every plan.
+   * Lists one page of plans.
+   * @param request The page, size, search and sort.
    * @param signal Optional abort signal to cancel the in-flight request.
-   * @returns The plans with their limits and account counts.
+   * @returns The page the panel answered, each plan with its limits and account count.
    */
-  const list = (signal?: AbortSignal): Promise<ManagedPlan[]> => {
-    return api.get<ManagedPlan[]>(PLANS_PATH, signal)
+  const list = (request: ListRequest, signal?: AbortSignal): Promise<Paged<ManagedPlan>> => {
+    return api.get<Paged<ManagedPlan>>(`${PLANS_PATH}${listQuery(request, LIST_FILTER_PARAMS)}`, signal)
+  }
+
+  /**
+   * Reads one plan.
+   * @param id The plan's identity.
+   * @param signal Optional abort signal to cancel the in-flight request.
+   * @returns The plan with its limits and account count.
+   */
+  const get = (id: string, signal?: AbortSignal): Promise<ManagedPlan> => {
+    return api.get<ManagedPlan>(`${PLANS_PATH}/${id}`, signal)
   }
 
   /**
@@ -58,5 +74,5 @@ export const usePlansApi = (): PlansApi => {
     return api.delete<boolean>(`${PLANS_PATH}/${id}`, signal)
   }
 
-  return { list, create, update, remove }
+  return { list, get, create, update, remove }
 }

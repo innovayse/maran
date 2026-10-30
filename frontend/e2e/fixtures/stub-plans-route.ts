@@ -1,4 +1,5 @@
 import type { Page, Route } from '@playwright/test'
+import { pagedAnswer, type PagedRules } from './paged-answer'
 import type { Plan } from '../../src/types/account'
 import type { ManagedPlan, PlanRequest } from '../../src/types/plan'
 
@@ -11,12 +12,62 @@ export const THE_PLAN: Plan = {
   displayName: 'Starter',
   diskQuotaMb: 5120,
   maxSites: 5,
-  maxDatabases: 5,
-  maxSftpUsers: 5,
+}
+
+/** The plan pickers' capped read, with or without its query string. */
+const CHOICES_PATTERN = /\/api\/v1\/plans\/choices(\?.*)?$/
+
+/** The plan-management list read and create, with or without the list's query string. */
+export const PLANS_PATTERN = /\/api\/v1\/plans(\?.*)?$/
+
+/** One plan by id: the edit screen's read, the update and the delete. */
+const PLAN_PATTERN = /\/api\/v1\/plans\/([0-9a-f-]{36})$/
+
+/**
+ * A number as text that sorts the way the number does, for the paged stub's text comparison.
+ * @param figure A non-negative whole number.
+ * @returns The figure zero-padded to a fixed width.
+ */
+const sortableNumber = (figure: number): string => {
+  return String(figure).padStart(12, '0')
+}
+
+/** How the picker stub answers: searched by name, alphabetical, as the panel's choices are. */
+const CHOICE_RULES: PagedRules<Plan> = {
+  matches: (plan: Plan, term: string): boolean => {
+    return plan.displayName.toLowerCase().includes(term)
+  },
+  sorts: {
+    name: (plan: Plan): string => {
+      return plan.displayName
+    },
+  },
+  filters: {},
+}
+
+/** How the management stub answers the list's search and sorts, as the panel's plans list does. */
+const MANAGED_RULES: PagedRules<ManagedPlan> = {
+  matches: (plan: ManagedPlan, term: string): boolean => {
+    return plan.displayName.toLowerCase().includes(term)
+  },
+  sorts: {
+    name: (plan: ManagedPlan): string => {
+      return plan.displayName
+    },
+    diskQuota: (plan: ManagedPlan): string => {
+      return sortableNumber(plan.diskQuotaMb)
+    },
+    accounts: (plan: ManagedPlan): string => {
+      return sortableNumber(plan.accountCount)
+    },
+  },
+  filters: {},
 }
 
 /**
- * Fulfils `GET /api/v1/accounts/plans` so the form's plan picker has something to offer.
+ * Fulfils `GET /api/v1/plans/choices` so the plan pickers have something to offer — one page,
+ * alphabetical, searched and cut the way the panel's paging contract does it — and
+ * `GET /api/v1/plans/{id}`, which names a plan the URL carries.
  *
  * The picker exists because a plan id is server-owned reference data: the form asks the
  * backend what may be chosen rather than letting a person type an identifier
@@ -26,12 +77,27 @@ export const THE_PLAN: Plan = {
  * @returns Resolves once the route is installed.
  */
 export const stubPlans = async (page: Page, plans: Plan[] = [THE_PLAN]): Promise<void> => {
-  await page.route('**/api/v1/accounts/plans', async (route) => {
+  const alphabetical = [...plans].sort((left, right) => {
+    return left.displayName.localeCompare(right.displayName)
+  })
+  await page.route(CHOICES_PATTERN, async (route) => {
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify(plans),
+      body: JSON.stringify(pagedAnswer(alphabetical, route.request().url(), CHOICE_RULES)),
     })
+  })
+  // One plan by id: what names the accounts list's plan-filter chip for a plan the URL carries.
+  await page.route(PLAN_PATTERN, async (route) => {
+    const id = new URL(route.request().url()).pathname.split('/').pop() ?? ''
+    const plan = plans.find((candidate) => {
+      return candidate.id === id
+    })
+    if (route.request().method() !== 'GET' || plan === undefined) {
+      await route.fallback()
+      return
+    }
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(plan) })
   })
 }
 
@@ -49,16 +115,12 @@ export const THREE_PLANS: Plan[] = [
     displayName: 'Business',
     diskQuotaMb: 25600,
     maxSites: 25,
-    maxDatabases: 10,
-    maxSftpUsers: 10,
   },
   {
     id: '44444444-4444-4444-4444-444444444444',
     displayName: 'Unlimited',
     diskQuotaMb: 1048576,
     maxSites: 500,
-    maxDatabases: 500,
-    maxSftpUsers: 100,
   },
 ]
 
@@ -130,9 +192,11 @@ export interface PlanRefusals {
 }
 
 /**
- * Fulfils the plan-management endpoints: `GET` and `POST` on `/api/v1/plans`, `PUT` and `DELETE`
- * on `/api/v1/plans/{id}`. The list is held in memory and changes as the page changes it, the way
- * the server's does, so the list a form returns to shows the result.
+ * Fulfils the plan-management endpoints: `GET` (one page, searched and sorted the way the panel's
+ * paging contract does it) and `POST` on `/api/v1/plans`, `GET`, `PUT` and `DELETE` on
+ * `/api/v1/plans/{id}`. The list is held in memory and changes as the page changes it, the way the
+ * server's does, so the list a form returns to shows the result. Its order is the panel's default:
+ * smallest disk first.
  * @param page The Playwright page whose network the route is installed on.
  * @param plans The plans the panel starts with; mutated by successful writes.
  * @param refusals Writes to refuse with a problem body instead of performing them.
@@ -161,7 +225,7 @@ export const stubManagedPlans = async (
     })
   }
 
-  await page.route('**/api/v1/plans', async (route) => {
+  await page.route(PLANS_PATTERN, async (route) => {
     if (route.request().method() === 'POST') {
       const body = route.request().postDataJSON() as PlanRequest
       requests.created.push(body)
@@ -186,11 +250,18 @@ export const stubManagedPlans = async (
       return
     }
 
-    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(plans) })
+    const smallestDiskFirst = [...plans].sort((left, right) => {
+      return left.diskQuotaMb - right.diskQuotaMb
+    })
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(pagedAnswer(smallestDiskFirst, route.request().url(), MANAGED_RULES)),
+    })
   })
 
-  await page.route('**/api/v1/plans/*', async (route) => {
-    const id = route.request().url().split('/').pop() ?? ''
+  await page.route(PLAN_PATTERN, async (route) => {
+    const id = new URL(route.request().url()).pathname.split('/').pop() ?? ''
     const index = plans.findIndex((plan) => {
       return plan.id === id
     })
@@ -221,6 +292,15 @@ export const stubManagedPlans = async (
       }
       plans.splice(index, 1)
       await route.fulfill({ status: 200, contentType: 'application/json', body: 'true' })
+      return
+    }
+
+    if (route.request().method() === 'GET') {
+      if (current === undefined) {
+        await route.fulfill({ status: 404, contentType: 'application/problem+json', body: JSON.stringify({ code: 'PlanNotFound', title: 'Not found', detail: 'No such plan.' }) })
+        return
+      }
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(current) })
       return
     }
 

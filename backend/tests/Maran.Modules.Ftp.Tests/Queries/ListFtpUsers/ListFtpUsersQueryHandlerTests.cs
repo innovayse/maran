@@ -1,7 +1,9 @@
 using Maran.Agent.Client.Interfaces;
+using Maran.Modules.Ftp.Common;
 using Maran.Modules.Ftp.Domain.Entities;
 using Maran.Modules.Ftp.Queries.ListFtpUsers;
 using Maran.Modules.Ftp.Tests.TestSupport;
+using Maran.SharedKernel.Pagination;
 
 namespace Maran.Modules.Ftp.Tests.Queries.ListFtpUsers;
 
@@ -16,6 +18,9 @@ public sealed class ListFtpUsersQueryHandlerTests
 
     /// <summary>A different account, whose logins must not appear in the answer.</summary>
     private static readonly Guid CustomerB = new("0f5c2a13-8b46-4d7e-a1c9-25e7b4d6f083");
+
+    /// <summary>The instant the paging tests' logins are created at, a day apart from one another.</summary>
+    private static readonly DateTimeOffset Epoch = new(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
 
     /// <summary>The listing carries the caller's own logins and nothing else.</summary>
     /// <remarks>
@@ -37,7 +42,7 @@ public sealed class ListFtpUsersQueryHandlerTests
             new ListFtpUsersQuery(), CancellationToken.None);
 
         Assert.True(result.IsSuccess);
-        var login = Assert.Single(result.Value);
+        var login = Assert.Single(result.Value.Items);
         Assert.Equal("files", login.Name);
         Assert.Equal("acme_files", login.FullName);
         Assert.Equal(CustomerA, login.AccountId);
@@ -45,10 +50,8 @@ public sealed class ListFtpUsersQueryHandlerTests
 
     /// <summary>Every listed login carries the protocol label the backend owns.</summary>
     /// <remarks>
-    /// The merged "File transfer" screen renders logins from two modules and must be told which
-    /// daemon each belongs to by the server. A row arriving without the token is rendered by the SPA
-    /// as whatever the caller declared the endpoint answers by construction, which is exactly the
-    /// guess this field exists to remove.
+    /// A client must be told which daemon each login belongs to by the server, not left to infer it
+    /// from which endpoint answered: the inference is exactly the guess this field exists to remove.
     /// </remarks>
     [Fact]
     public async Task Every_listed_login_carries_the_backend_owned_protocol_label()
@@ -60,8 +63,8 @@ public sealed class ListFtpUsersQueryHandlerTests
         var result = await context.ListUsersHandler.HandleAsync(
             new ListFtpUsersQuery(), CancellationToken.None);
 
-        Assert.Equal(2, result.Value.Count);
-        Assert.All(result.Value, login =>
+        Assert.Equal(2, result.Value.Items.Count);
+        Assert.All(result.Value.Items, login =>
         {
             Assert.Equal("Ftps", login.Protocol);
         });
@@ -137,9 +140,9 @@ public sealed class ListFtpUsersQueryHandlerTests
         await SeedAsync(context, CustomerB, "beta", "secrets");
 
         var result = await context.ListUsersHandler.HandleAsync(
-            new ListFtpUsersQuery(CustomerB), CancellationToken.None);
+            new ListFtpUsersQuery(AccountId: CustomerB), CancellationToken.None);
 
-        var login = Assert.Single(result.Value);
+        var login = Assert.Single(result.Value.Items);
         Assert.Equal("beta_secrets", login.FullName);
     }
 
@@ -159,10 +162,10 @@ public sealed class ListFtpUsersQueryHandlerTests
         await SeedAsync(context, CustomerA, "acme", "files");
 
         var result = await context.ListUsersHandler.HandleAsync(
-            new ListFtpUsersQuery(CustomerB), CancellationToken.None);
+            new ListFtpUsersQuery(AccountId: CustomerB), CancellationToken.None);
 
         Assert.True(result.IsSuccess);
-        Assert.Empty(result.Value);
+        Assert.Empty(result.Value.Items);
     }
 
     /// <summary>
@@ -184,11 +187,11 @@ public sealed class ListFtpUsersQueryHandlerTests
             new ListFtpUsersQuery(), CancellationToken.None);
 
         Assert.True(result.IsSuccess);
-        Assert.Equal("acme", result.Value.Single(row =>
+        Assert.Equal("acme", result.Value.Items.Single(row =>
         {
             return row.AccountId == CustomerA;
         }).OwnerName);
-        Assert.Equal(string.Empty, result.Value.Single(row =>
+        Assert.Equal(string.Empty, result.Value.Items.Single(row =>
         {
             return row.AccountId == CustomerB;
         }).OwnerName);
@@ -197,5 +200,109 @@ public sealed class ListFtpUsersQueryHandlerTests
         Assert.Equal(
             new[] { CustomerA, CustomerB }.Order(),
             batch.Order());
+    }
+
+    /// <summary>With no sort named, logins are listed oldest first.</summary>
+    [Fact]
+    public async Task With_no_sort_named_logins_are_listed_oldest_first()
+    {
+        // Inserted out of order so the assertion cannot pass by insertion-order accident.
+        using var context = new FtpTestContext(new TestCurrentUser(), Guid.NewGuid().ToString());
+        await SeedLoginsAsync(context, ("second", 1), ("first", 0), ("third", 2));
+
+        var result = await context.ListUsersHandler.HandleAsync(new ListFtpUsersQuery(), CancellationToken.None);
+
+        Assert.Equal(["acme_first", "acme_second", "acme_third"], FullNames(result.Value.Items));
+    }
+
+    /// <summary>A descending name sort orders the page by the login the host holds, last first.</summary>
+    [Fact]
+    public async Task A_descending_name_sort_orders_by_the_login_the_host_holds_last_first()
+    {
+        using var context = new FtpTestContext(new TestCurrentUser(), Guid.NewGuid().ToString());
+        await SeedLoginsAsync(context, ("bravo", 0), ("charlie", 1), ("alpha", 2));
+
+        var result = await context.ListUsersHandler.HandleAsync(
+            new ListFtpUsersQuery(Sort: SortRequest.Parse("-name")), CancellationToken.None);
+
+        Assert.Equal(["acme_charlie", "acme_bravo", "acme_alpha"], FullNames(result.Value.Items));
+    }
+
+    /// <summary>The second page holds the rows after the first, and the total counts every match.</summary>
+    [Fact]
+    public async Task The_second_page_holds_the_rows_after_the_first_and_the_total_counts_every_match()
+    {
+        using var context = new FtpTestContext(new TestCurrentUser(), Guid.NewGuid().ToString());
+        await SeedLoginsAsync(context, [.. Enumerable.Range(0, 12).Select(day =>
+        {
+            return ($"login{day:D2}", day);
+        })]);
+
+        var result = await context.ListUsersHandler.HandleAsync(
+            new ListFtpUsersQuery(Page: 2, PageSize: 10), CancellationToken.None);
+
+        Assert.Equal(12, result.Value.Total);
+        Assert.Equal(2, result.Value.Page);
+        Assert.Equal(10, result.Value.PageSize);
+        Assert.Equal(["acme_login10", "acme_login11"], FullNames(result.Value.Items));
+    }
+
+    /// <summary>A page past the last one answers empty with the true total and the page asked for.</summary>
+    [Fact]
+    public async Task A_page_past_the_last_one_answers_empty_with_the_true_total_and_the_page_asked_for()
+    {
+        using var context = new FtpTestContext(new TestCurrentUser(), Guid.NewGuid().ToString());
+        await SeedAsync(context, CustomerA, "acme", "files");
+        await SeedAsync(context, CustomerB, "beta", "secrets");
+
+        var result = await context.ListUsersHandler.HandleAsync(
+            new ListFtpUsersQuery(Page: 5, PageSize: 10), CancellationToken.None);
+
+        Assert.Empty(result.Value.Items);
+        Assert.Equal(2, result.Value.Total);
+        Assert.Equal(5, result.Value.Page);
+    }
+
+    /// <summary>A customer's total counts only their own logins, never another tenant's.</summary>
+    [Fact]
+    public async Task A_customers_total_counts_only_their_own_logins()
+    {
+        var databaseName = Guid.NewGuid().ToString();
+        using var owner = Context(CustomerB, databaseName);
+        await SeedAsync(owner, CustomerB, "beta", "secrets");
+
+        using var context = Context(CustomerA, databaseName);
+        await SeedAsync(context, CustomerA, "acme", "files");
+
+        var result = await context.ListUsersHandler.HandleAsync(new ListFtpUsersQuery(), CancellationToken.None);
+
+        Assert.Equal(1, result.Value.Total);
+    }
+
+    /// <summary>Seeds logins for <see cref="CustomerA"/>, each created the given days after the epoch.</summary>
+    /// <param name="context">The assembled module whose database receives the rows.</param>
+    /// <param name="logins">Each login's suffix and its creation day.</param>
+    private static async Task SeedLoginsAsync(FtpTestContext context, params (string Name, int Day)[] logins)
+    {
+        foreach (var (name, day) in logins)
+        {
+            context.Database.FtpUsers.Add(
+                new FtpUser(Guid.NewGuid(), CustomerA, name, $"acme_{name}", Epoch.AddDays(day)));
+        }
+
+        await context.Database.SaveChangesAsync(CancellationToken.None);
+    }
+
+    /// <summary>The full names on a page, in order.</summary>
+    /// <param name="rows">The page's rows.</param>
+    /// <returns>Each row's full name.</returns>
+    private static List<string> FullNames(IEnumerable<FtpUserDto> rows)
+    {
+        return rows
+            .Select(row =>
+            {
+                return row.FullName;
+            })
+            .ToList();
     }
 }

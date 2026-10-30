@@ -7,9 +7,9 @@ namespace Maran.Modules.Sftp.Domain.Policies;
 /// <remarks>
 /// <para>
 /// It exists because the label is a fact the BACKEND owns (rules/architecture.md "The backend owns
-/// the data, the SPA renders it"). The SPA merges this module's logins with the Ftp module's onto
-/// one "File transfer" screen, and until this constant existed the SFTP half of that table said
-/// what it was only because of which URL had answered it. A row labelled by its ORIGIN rather than
+/// the data, the SPA renders it"). The SPA shows this module's logins on a page of their own, beside
+/// the Ftp module's on another, and until this constant existed an SFTP row said what it was only
+/// because of which URL had answered it. A row labelled by its ORIGIN rather than
 /// by its content is right exactly as long as nobody adds a third source, and the failure it
 /// produces is a customer pointed at the wrong client for a login that is not the protocol the
 /// label claims.

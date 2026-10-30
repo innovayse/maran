@@ -1,6 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
 import { stubAccountNames, stubAccounts } from '../fixtures/stub-accounts-route'
-import { stubAccountFilteredList } from '../fixtures/stub-account-filtered-list'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubModules } from '../fixtures/stub-modules-route'
@@ -12,7 +11,7 @@ import type { PanelModule } from '../../src/types/module'
 import type { Database } from '../../src/types/database'
 
 // Issue #223: the account page links to this list as `?account=<id>`. The list then asks the panel
-// for that account's rows only, says so, and offers the way back; a customer's list is already
+// for that account's rows only, says so with a removable chip, and offers the way back; a customer's list is already
 // their own, so the parameter changes nothing for them.
 
 const LICENSED: PanelModule[] = [{ name: 'databases', displayName: 'Databases', tier: 'included', isEnabled: true }]
@@ -73,7 +72,7 @@ const BLOG: Database = {
 }
 
 /**
- * Signs in, installs the screen's own stubs, then the filtered list read on top of them.
+ * Signs in and installs the screen's stubs.
  * @param page The Playwright page.
  * @param user The signed-in user; the administrator when omitted.
  * @returns What each list read sent as `accountId`, `''` for none.
@@ -85,8 +84,12 @@ const openScreen = async (page: Page, user?: AuthenticatedUser): Promise<() => r
   await stubAccounts(page, [ALICE, BOB])
   await stubAccountNames(page, [ALICE, BOB])
   await stubMyAccount(page, OWN_ACCOUNT)
-  await stubDatabases(page, [])
-  return await stubAccountFilteredList(page, '/api/v1/databases', [SHOP, BLOG])
+  const requests = await stubDatabases(page, [SHOP, BLOG])
+  return () => {
+    return requests().map((url) => {
+      return url.searchParams.get('accountId') ?? ''
+    })
+  }
 }
 
 test('a list opened for one account asks for that account and says so', async ({ page }) => {
@@ -94,17 +97,17 @@ test('a list opened for one account asks for that account and says so', async ({
 
   await page.goto(`/databases?account=${ALICE.id}`)
 
-  await expect(page.getByTestId('active-filter')).toContainText('Only alice')
+  await expect(page.getByTestId('active-filter')).toContainText('Account: alice')
   await expect(page.getByText('alice_shop', { exact: true }).first()).toBeVisible()
   await expect(page.getByText('bob_blog', { exact: true })).toHaveCount(0)
   expect(requested()).toContain(ALICE.id)
 })
 
-test('show all drops the account from the URL and lists every row again', async ({ page }) => {
+test('removing the account chip drops it from the URL and lists every row again', async ({ page }) => {
   const requested = await openScreen(page)
 
   await page.goto(`/databases?account=${ALICE.id}`)
-  await page.getByRole('button', { name: 'Show all' }).click()
+  await page.getByRole('button', { name: 'Remove filter: Account: alice' }).click()
 
   await expect(page).not.toHaveURL(/account=/)
   await expect(page.getByTestId('active-filter')).toHaveCount(0)

@@ -5,6 +5,7 @@ import { describeRegionLoading } from '../fixtures/expect-region-loading'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import {
   CERTIFICATE_SITE_ID,
+  CERTIFICATES_PATTERN,
   certificateFor,
   stubCertificates,
   stubCertificatesProblem,
@@ -46,8 +47,6 @@ const REFUSAL = 'The server agent is not answering.'
 /** The site read, and nothing else under `/sites/`. */
 const SITE_PATTERN = `**/api/v1/sites/${SITE.id}`
 
-/** The certificate list read. */
-const CERTIFICATES_PATTERN = '**/api/v1/certificates'
 
 /**
  * Signs in and stubs the shell and the site's neighbours.

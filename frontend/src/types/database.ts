@@ -1,4 +1,5 @@
-import type { AccountListFilter } from './accountListFilter'
+import type { ListRequest, Paged } from './list'
+
 /**
  * Outward view of one customer MySQL database, mirroring the backend's `DatabaseDto`
  * field-for-field.
@@ -114,12 +115,12 @@ export interface RevealedDatabaseCredential {
  */
 export interface DatabasesApi {
   /**
-   * Lists the databases the caller may see.
-   * @param filter The account the list is narrowed to; empty for every row the caller may see.
+   * Lists one page of the databases the caller may see.
+   * @param request The page, size, search, sort and the account filter.
    * @param signal Optional abort signal to cancel the in-flight request.
-   * @returns The databases, in the order the panel reports them.
+   * @returns The page the panel answered.
    */
-  list: (filter: AccountListFilter, signal?: AbortSignal) => Promise<Database[]>
+  list: (request: ListRequest, signal?: AbortSignal) => Promise<Paged<Database>>
 
   /**
    * Creates a database and its dedicated user.
@@ -145,3 +146,6 @@ export interface DatabasesApi {
    */
   remove: (id: string, signal?: AbortSignal) => Promise<boolean>
 }
+
+/** An action the panel offers on a database's row, confirmed by the operator before it is sent. */
+export type DatabaseAction = 'resetPassword' | 'drop'
