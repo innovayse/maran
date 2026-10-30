@@ -30,6 +30,9 @@ const open = async (page: Page, path: string): Promise<void> => {
   await page.goto(path)
 }
 
+/** The router's active class as a whole class name, the one the nav row's fill is keyed on. */
+const LIT = /(^|\s)router-link-active(\s|$)/
+
 test('a section toggles open and closed and says so with aria-expanded', async ({ page }) => {
   await open(page, '/')
   const nav = page.getByRole('navigation', { name: 'Main navigation' })
@@ -60,6 +63,12 @@ test('a deep link opens its section and highlights the current child', async ({ 
     'true',
   )
   await expect(nav.getByRole('link', { name: 'New site' })).toHaveAttribute('aria-current', 'page')
+  // Only the current child is lit: "Site list" shares the `/sites` prefix and must stay dark
+  // (issue #219), while the section's own row keeps the prefix match. The class is matched as a
+  // whole word, because the row's Tailwind utilities spell `[&.router-link-active]` too.
+  await expect(nav.getByRole('link', { name: 'New site' })).toHaveClass(LIT)
+  await expect(nav.getByRole('link', { name: 'Site list' })).not.toHaveClass(LIT)
+  await expect(nav.getByRole('link', { name: 'Sites', exact: true })).toHaveClass(LIT)
   // The other section stays as it was.
   await expect(nav.getByRole('button', { name: 'Show the Accounts pages' })).toHaveAttribute(
     'aria-expanded',

@@ -46,7 +46,9 @@
  *
  * **`nested`** draws a submenu child (issue #195): no icon slot is expected, a smaller block
  * padding, and the same active fill as a top-level row so the current page is found the same way
- * at either level.
+ * at either level. A child is lit only on its exact page: siblings share a path prefix
+ * (`/accounts` and `/accounts/new`), so the router's prefix match would light two children at once
+ * (issue #209). The section's own row still carries the prefix match.
  */
 import { onMounted, onUpdated, ref, type Ref } from 'vue'
 import type { RouteLocationRaw } from 'vue-router'
@@ -94,6 +96,8 @@ onUpdated(readText)
        the thing that must never be missing. -->
   <RouterLink
     :to="to"
+    :active-class="nested ? 'nav-ancestor' : undefined"
+    :exact-active-class="nested ? 'router-link-active' : undefined"
     class="flex items-center gap-2.5 rounded-control text-sm font-medium text-text-secondary transition-colors hover:bg-surface-2 hover:text-text-primary focus-visible:shadow-focus focus-visible:outline-none motion-reduce:transition-none [&.router-link-active]:bg-accent-fill [&.router-link-active]:text-white [&.router-link-active]:shadow-glow [&.router-link-active]:hover:bg-accent-hover [&.router-link-active]:hover:text-white [&.router-link-active]:focus-visible:shadow-focus"
     :class="
       compact
