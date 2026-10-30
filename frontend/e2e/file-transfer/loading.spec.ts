@@ -1,5 +1,10 @@
-import type { Page } from '@playwright/test'
-import { describeTableLoading } from '../fixtures/expect-table-loading'
+import { test, type Page } from '@playwright/test'
+import {
+  expectTableFastLoad,
+  expectTableSlowFailure,
+  expectTableSlowLoad,
+  type TableLoadingScenario,
+} from '../fixtures/expect-table-loading'
 import { stubAccounts } from '../fixtures/stub-accounts-route'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubFirewall } from '../fixtures/stub-firewall-routes'
@@ -63,7 +68,8 @@ const signIn = async (page: Page): Promise<void> => {
   await stubFtpsServer(page, runningFtpsStatus)
 }
 
-describeTableLoading('SFTP logins', {
+/** How the SFTP logins screen is opened and answered. */
+const SFTP_LOGINS_SCENARIO: TableLoadingScenario = {
   stub: async (page) => {
     await signIn(page)
     await stubSftpUsers(page, [WEB])
@@ -77,9 +83,22 @@ describeTableLoading('SFTP logins', {
   table: 'SFTP logins',
   rowText: 'alice_web',
   failureText: 'The logins could not be read.',
+}
+
+test('SFTP logins: a slow answer shows placeholder rows under the real header, then the rows', async ({ page }) => {
+  await expectTableSlowLoad(page, SFTP_LOGINS_SCENARIO)
 })
 
-describeTableLoading('FTPS logins', {
+test('SFTP logins: a fast answer shows no placeholder', async ({ page }) => {
+  await expectTableFastLoad(page, SFTP_LOGINS_SCENARIO)
+})
+
+test('SFTP logins: a slow failure is an alert, never a skeleton', async ({ page }) => {
+  await expectTableSlowFailure(page, SFTP_LOGINS_SCENARIO)
+})
+
+/** How the FTPS logins screen is opened and answered. */
+const FTPS_LOGINS_SCENARIO: TableLoadingScenario = {
   stub: async (page) => {
     await signIn(page)
     await stubFtpUsers(page, [UPLOAD])
@@ -93,4 +112,16 @@ describeTableLoading('FTPS logins', {
   table: 'FTPS logins',
   rowText: 'alice_upload',
   failureText: 'The logins could not be read.',
+}
+
+test('FTPS logins: a slow answer shows placeholder rows under the real header, then the rows', async ({ page }) => {
+  await expectTableSlowLoad(page, FTPS_LOGINS_SCENARIO)
+})
+
+test('FTPS logins: a fast answer shows no placeholder', async ({ page }) => {
+  await expectTableFastLoad(page, FTPS_LOGINS_SCENARIO)
+})
+
+test('FTPS logins: a slow failure is an alert, never a skeleton', async ({ page }) => {
+  await expectTableSlowFailure(page, FTPS_LOGINS_SCENARIO)
 })

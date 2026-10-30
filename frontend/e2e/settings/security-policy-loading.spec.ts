@@ -1,5 +1,10 @@
-import type { Page } from '@playwright/test'
-import { describeRegionLoading } from '../fixtures/expect-region-loading'
+import { test, type Page } from '@playwright/test'
+import {
+  expectRegionFastLoad,
+  expectRegionSlowFailure,
+  expectRegionSlowLoad,
+  type RegionLoadingScenario,
+} from '../fixtures/expect-region-loading'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubEmptyModules } from '../fixtures/stub-modules-route'
@@ -25,7 +30,8 @@ const shell = async (page: Page): Promise<void> => {
   await stubEmptyModules(page)
 }
 
-describeRegionLoading('security policy', {
+/** How the security policy screen is opened and answered. */
+const SECURITY_POLICY_SCENARIO: RegionLoadingScenario = {
   stub: async (page) => {
     await shell(page)
     await page.route(POLICY_PATTERN, async (route) => {
@@ -51,4 +57,16 @@ describeRegionLoading('security policy', {
   // through the status turning "Loaded" and every placeholder leaving.
   contentText: 'Save policy',
   failureText: REFUSAL,
+}
+
+test('security policy: a slow answer shows placeholders under the real labels, then the content', async ({ page }) => {
+  await expectRegionSlowLoad(page, SECURITY_POLICY_SCENARIO)
+})
+
+test('security policy: a fast answer shows no placeholder', async ({ page }) => {
+  await expectRegionFastLoad(page, SECURITY_POLICY_SCENARIO)
+})
+
+test('security policy: a slow failure is an alert, never a skeleton', async ({ page }) => {
+  await expectRegionSlowFailure(page, SECURITY_POLICY_SCENARIO)
 })

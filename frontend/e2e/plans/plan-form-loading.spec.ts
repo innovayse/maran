@@ -1,5 +1,10 @@
-import type { Page } from '@playwright/test'
-import { describeRegionLoading } from '../fixtures/expect-region-loading'
+import { test, type Page } from '@playwright/test'
+import {
+  expectRegionFastLoad,
+  expectRegionSlowFailure,
+  expectRegionSlowLoad,
+  type RegionLoadingScenario,
+} from '../fixtures/expect-region-loading'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubModules } from '../fixtures/stub-modules-route'
@@ -23,7 +28,8 @@ const shell = async (page: Page): Promise<void> => {
   await stubModules(page, LICENSED)
 }
 
-describeRegionLoading('plan edit form', {
+/** How the plan edit form screen is opened and answered. */
+const PLAN_EDIT_FORM_SCENARIO: RegionLoadingScenario = {
   stub: async (page) => {
     await shell(page)
     await stubManagedPlans(page)
@@ -48,4 +54,16 @@ describeRegionLoading('plan edit form', {
   },
   contentText: 'An edit reaches the accounts already on this plan',
   failureText: REFUSAL,
+}
+
+test('plan edit form: a slow answer shows placeholders under the real labels, then the content', async ({ page }) => {
+  await expectRegionSlowLoad(page, PLAN_EDIT_FORM_SCENARIO)
+})
+
+test('plan edit form: a fast answer shows no placeholder', async ({ page }) => {
+  await expectRegionFastLoad(page, PLAN_EDIT_FORM_SCENARIO)
+})
+
+test('plan edit form: a slow failure is an alert, never a skeleton', async ({ page }) => {
+  await expectRegionSlowFailure(page, PLAN_EDIT_FORM_SCENARIO)
 })

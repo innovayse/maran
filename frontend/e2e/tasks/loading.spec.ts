@@ -1,5 +1,10 @@
-import type { Page } from '@playwright/test'
-import { describeTableLoading } from '../fixtures/expect-table-loading'
+import { test, type Page } from '@playwright/test'
+import {
+  expectTableFastLoad,
+  expectTableSlowFailure,
+  expectTableSlowLoad,
+  type TableLoadingScenario,
+} from '../fixtures/expect-table-loading'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubModules } from '../fixtures/stub-modules-route'
@@ -39,7 +44,8 @@ const signIn = async (page: Page): Promise<void> => {
   await stubModules(page, LICENSED)
 }
 
-describeTableLoading('tasks list', {
+/** How the tasks list screen is opened and answered. */
+const TASKS_LIST_SCENARIO: TableLoadingScenario = {
   stub: async (page) => {
     await signIn(page)
     await stubTasks(page, [INSTALL])
@@ -53,4 +59,16 @@ describeTableLoading('tasks list', {
   table: 'Background tasks',
   rowText: 'php8.4',
   failureText: 'The tasks could not be read.',
+}
+
+test('tasks list: a slow answer shows placeholder rows under the real header, then the rows', async ({ page }) => {
+  await expectTableSlowLoad(page, TASKS_LIST_SCENARIO)
+})
+
+test('tasks list: a fast answer shows no placeholder', async ({ page }) => {
+  await expectTableFastLoad(page, TASKS_LIST_SCENARIO)
+})
+
+test('tasks list: a slow failure is an alert, never a skeleton', async ({ page }) => {
+  await expectTableSlowFailure(page, TASKS_LIST_SCENARIO)
 })

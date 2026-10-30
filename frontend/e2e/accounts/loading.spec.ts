@@ -1,5 +1,10 @@
-import type { Page } from '@playwright/test'
-import { describeTableLoading } from '../fixtures/expect-table-loading'
+import { test, type Page } from '@playwright/test'
+import {
+  expectTableFastLoad,
+  expectTableSlowFailure,
+  expectTableSlowLoad,
+  type TableLoadingScenario,
+} from '../fixtures/expect-table-loading'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubModules } from '../fixtures/stub-modules-route'
 import { stubAccounts, stubAccountsProblem } from '../fixtures/stub-accounts-route'
@@ -33,7 +38,8 @@ const signIn = async (page: Page): Promise<void> => {
   await stubPlans(page, [])
 }
 
-describeTableLoading('accounts list', {
+/** How the accounts list screen is opened and answered. */
+const ACCOUNTS_LIST_SCENARIO: TableLoadingScenario = {
   stub: async (page) => {
     await signIn(page)
     await stubAccounts(page, [ALPHA])
@@ -47,4 +53,16 @@ describeTableLoading('accounts list', {
   table: 'Hosting accounts',
   rowText: 'alpha.example.com',
   failureText: 'The accounts could not be read.',
+}
+
+test('accounts list: a slow answer shows placeholder rows under the real header, then the rows', async ({ page }) => {
+  await expectTableSlowLoad(page, ACCOUNTS_LIST_SCENARIO)
+})
+
+test('accounts list: a fast answer shows no placeholder', async ({ page }) => {
+  await expectTableFastLoad(page, ACCOUNTS_LIST_SCENARIO)
+})
+
+test('accounts list: a slow failure is an alert, never a skeleton', async ({ page }) => {
+  await expectTableSlowFailure(page, ACCOUNTS_LIST_SCENARIO)
 })

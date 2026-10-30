@@ -1,5 +1,10 @@
-import type { Page } from '@playwright/test'
-import { describeTableLoading } from '../fixtures/expect-table-loading'
+import { test, type Page } from '@playwright/test'
+import {
+  expectTableFastLoad,
+  expectTableSlowFailure,
+  expectTableSlowLoad,
+  type TableLoadingScenario,
+} from '../fixtures/expect-table-loading'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import {
   stubBackupDestinations,
@@ -53,7 +58,8 @@ const signIn = async (page: Page): Promise<void> => {
   await stubModules(page, LICENSED)
 }
 
-describeTableLoading('backups list', {
+/** How the backups list screen is opened and answered. */
+const BACKUPS_LIST_SCENARIO: TableLoadingScenario = {
   stub: async (page) => {
     await signIn(page)
     await stubBackups(page, [COMPLETED])
@@ -67,9 +73,22 @@ describeTableLoading('backups list', {
   table: "Backups taken of this panel's accounts",
   rowText: 'alice',
   failureText: 'The backups could not be read.',
+}
+
+test('backups list: a slow answer shows placeholder rows under the real header, then the rows', async ({ page }) => {
+  await expectTableSlowLoad(page, BACKUPS_LIST_SCENARIO)
 })
 
-describeTableLoading('destinations list', {
+test('backups list: a fast answer shows no placeholder', async ({ page }) => {
+  await expectTableFastLoad(page, BACKUPS_LIST_SCENARIO)
+})
+
+test('backups list: a slow failure is an alert, never a skeleton', async ({ page }) => {
+  await expectTableSlowFailure(page, BACKUPS_LIST_SCENARIO)
+})
+
+/** How the backup destinations screen is opened and answered. */
+const DESTINATIONS_LIST_SCENARIO: TableLoadingScenario = {
   stub: async (page) => {
     await signIn(page)
     await stubBackupDestinations(page, [LOCAL])
@@ -83,4 +102,16 @@ describeTableLoading('destinations list', {
   table: 'Places this server records its backups as living',
   rowText: '/var/backups/maran',
   failureText: 'This screen is for administrators.',
+}
+
+test('destinations list: a slow answer shows placeholder rows under the real header, then the rows', async ({ page }) => {
+  await expectTableSlowLoad(page, DESTINATIONS_LIST_SCENARIO)
+})
+
+test('destinations list: a fast answer shows no placeholder', async ({ page }) => {
+  await expectTableFastLoad(page, DESTINATIONS_LIST_SCENARIO)
+})
+
+test('destinations list: a slow failure is an alert, never a skeleton', async ({ page }) => {
+  await expectTableSlowFailure(page, DESTINATIONS_LIST_SCENARIO)
 })

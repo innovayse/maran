@@ -1,8 +1,8 @@
 import { earlySkeletons, recordSkeletonFlashes } from './skeleton-flash'
-import { expect, test, type Page } from '@playwright/test'
+import { expect, type Page } from '@playwright/test'
 import { delayRoute } from './delay-route'
 
-/** How one table screen is opened and answered, for {@link describeTableLoading}. */
+/** How one table screen is opened and answered, for the `expectTable*` checks. */
 export interface TableLoadingScenario {
   /** Installs every stub the screen needs with a successful answer for its list. */
   stub: (page: Page) => Promise<void>
@@ -39,54 +39,66 @@ const headerBox = async (page: Page, table: string): Promise<{ y: number; height
 }
 
 /**
- * Registers the four loading checks every table screen makes (#243): placeholder rows under the
- * real header with one polite status, then the rows; the header not moving when the rows land; no
- * placeholder at all for a fast answer; and a slow failure that is an alert, never a skeleton.
- * @param name The screen's name, prefixed to every test title.
+ * Asserts the slow path (#243): placeholders show under the real header or labels with one polite
+ * status, then the content lands and nothing above it moved.
+ * Called from the spec's own `test`, so Playwright attributes the test to that spec, not to this file.
+ * @param page The Playwright page.
  * @param scenario How the screen is opened and answered.
- * @returns Nothing; the tests are registered with Playwright.
+ * @returns Resolves once every assertion held.
  */
-export const describeTableLoading = (name: string, scenario: TableLoadingScenario): void => {
-  test(`${name}: a slow answer shows placeholder rows under the real header, then the rows`, async ({ page }) => {
-    await scenario.stub(page)
-    await delayRoute(page, scenario.pattern, SLOW_MS)
-    await page.goto(scenario.path)
+export const expectTableSlowLoad = async (page: Page, scenario: TableLoadingScenario): Promise<void> => {
+  await scenario.stub(page)
+  await delayRoute(page, scenario.pattern, SLOW_MS)
+  await page.goto(scenario.path)
 
-    const table = page.getByRole('table', { name: scenario.table })
-    await expect(table.getByRole('columnheader').first()).toBeVisible()
-    await expect(page.locator('[data-skeleton^="cell-"]').first()).toBeVisible()
-    await expect(page.getByTestId('loading-status')).toHaveText('Loading…')
-    const before = await headerBox(page, scenario.table)
+  const table = page.getByRole('table', { name: scenario.table })
+  await expect(table.getByRole('columnheader').first()).toBeVisible()
+  await expect(page.locator('[data-skeleton^="cell-"]').first()).toBeVisible()
+  await expect(page.getByTestId('loading-status')).toHaveText('Loading…')
+  const before = await headerBox(page, scenario.table)
 
-    await expect(table.getByText(scenario.rowText).first()).toBeVisible()
-    await expect(page.getByTestId('loading-status')).toHaveText('Loaded')
-    await expect(page.locator('[data-skeleton]')).toHaveCount(0)
-    // The header the placeholders stood under is the header the rows land under: nothing above
-    // the rows moves when they arrive.
-    expect(await headerBox(page, scenario.table)).toEqual(before)
-  })
+  await expect(table.getByText(scenario.rowText).first()).toBeVisible()
+  await expect(page.getByTestId('loading-status')).toHaveText('Loaded')
+  await expect(page.locator('[data-skeleton]')).toHaveCount(0)
+  // The header the placeholders stood under is the header the rows land under: nothing above
+  // the rows moves when they arrive.
+  expect(await headerBox(page, scenario.table)).toEqual(before)
+}
 
-  test(`${name}: a fast answer shows no placeholder`, async ({ page }) => {
-    await scenario.stub(page)
-    await delayRoute(page, scenario.pattern, FAST_MS)
-    await recordSkeletonFlashes(page)
-    await page.goto(scenario.path)
+/**
+ * Asserts the fast path (#243): an answer quicker than the 150 ms delay never shows a placeholder.
+ * Called from the spec's own `test`, so Playwright attributes the test to that spec, not to this file.
+ * @param page The Playwright page.
+ * @param scenario How the screen is opened and answered.
+ * @returns Resolves once every assertion held.
+ */
+export const expectTableFastLoad = async (page: Page, scenario: TableLoadingScenario): Promise<void> => {
+  await scenario.stub(page)
+  await delayRoute(page, scenario.pattern, FAST_MS)
+  await recordSkeletonFlashes(page)
+  await page.goto(scenario.path)
 
-    // Every frame from the first, for longer than the answer and the 150 ms delay together: no
-    // placeholder may be seen in the first 150 ms of its wait, although they are mounted to hold
-    // the space (see `recordSkeletonFlashes` for why the wait, not the stub, is the clock).
-    await page.waitForTimeout(400)
-    expect(await earlySkeletons(page)).toEqual([])
-    await expect(page.getByRole('table', { name: scenario.table }).getByText(scenario.rowText).first()).toBeVisible()
-  })
+  // Every frame from the first, for longer than the answer and the 150 ms delay together: no
+  // placeholder may be seen in the first 150 ms of its wait, although they are mounted to hold
+  // the space (see `recordSkeletonFlashes` for why the wait, not the stub, is the clock).
+  await page.waitForTimeout(400)
+  expect(await earlySkeletons(page)).toEqual([])
+  await expect(page.getByRole('table', { name: scenario.table }).getByText(scenario.rowText).first()).toBeVisible()
+}
 
-  test(`${name}: a slow failure is an alert, never a skeleton`, async ({ page }) => {
-    await scenario.stubFailure(page)
-    await delayRoute(page, scenario.pattern, SLOW_MS)
-    await page.goto(scenario.path)
+/**
+ * Asserts the failure path (#243): a slow refusal is an alert, never a skeleton.
+ * Called from the spec's own `test`, so Playwright attributes the test to that spec, not to this file.
+ * @param page The Playwright page.
+ * @param scenario How the screen is opened and answered.
+ * @returns Resolves once every assertion held.
+ */
+export const expectTableSlowFailure = async (page: Page, scenario: TableLoadingScenario): Promise<void> => {
+  await scenario.stubFailure(page)
+  await delayRoute(page, scenario.pattern, SLOW_MS)
+  await page.goto(scenario.path)
 
-    await expect(page.getByText(scenario.failureText)).toBeVisible()
-    await expect(page.locator('[data-skeleton]')).toHaveCount(0)
-    await expect(page.getByRole('table', { name: scenario.table })).toHaveCount(0)
-  })
+  await expect(page.getByText(scenario.failureText)).toBeVisible()
+  await expect(page.locator('[data-skeleton]')).toHaveCount(0)
+  await expect(page.getByRole('table', { name: scenario.table })).toHaveCount(0)
 }

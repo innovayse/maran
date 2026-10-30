@@ -1,5 +1,10 @@
-import type { Page } from '@playwright/test'
-import { describeRegionLoading } from '../fixtures/expect-region-loading'
+import { test, type Page } from '@playwright/test'
+import {
+  expectRegionFastLoad,
+  expectRegionSlowFailure,
+  expectRegionSlowLoad,
+  type RegionLoadingScenario,
+} from '../fixtures/expect-region-loading'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubMyAccountResources } from '../fixtures/stub-account-resources-route'
 import { stubHealthy } from '../fixtures/stub-health-route'
@@ -53,7 +58,8 @@ const stubShell = async (page: Page): Promise<void> => {
   await stubMyAccountResources(page, { accountId: OWN_ACCOUNT.id, resources: [] })
 }
 
-describeRegionLoading('my account', {
+/** How the my account screen is opened and answered. */
+const MY_ACCOUNT_SCENARIO: RegionLoadingScenario = {
   stub: async (page) => {
     await stubShell(page)
     await stubMyAccount(page, OWN_ACCOUNT)
@@ -75,4 +81,16 @@ describeRegionLoading('my account', {
   },
   contentText: 'olive.example.com',
   failureText: REFUSAL,
+}
+
+test('my account: a slow answer shows placeholders under the real labels, then the content', async ({ page }) => {
+  await expectRegionSlowLoad(page, MY_ACCOUNT_SCENARIO)
+})
+
+test('my account: a fast answer shows no placeholder', async ({ page }) => {
+  await expectRegionFastLoad(page, MY_ACCOUNT_SCENARIO)
+})
+
+test('my account: a slow failure is an alert, never a skeleton', async ({ page }) => {
+  await expectRegionSlowFailure(page, MY_ACCOUNT_SCENARIO)
 })
