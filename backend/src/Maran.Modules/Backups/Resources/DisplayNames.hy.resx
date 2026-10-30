@@ -13,7 +13,7 @@
     <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
   </resheader>
   <data name="BackupsModuleDisplayName">
-    <value>Պահուստային պատճեններ</value>
+    <value>Պահուստներ</value>
   </data>
   <data name="BackupFailureBackupStreamDropped">
     <value>Կապը սերվերի հետ ընդհատվեց</value>
