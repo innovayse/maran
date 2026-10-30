@@ -106,6 +106,38 @@ public sealed class IssueInvitationLinkCommandHandlerTests : IDisposable
         Assert.Equal(Now + InvitationToken.Lifetime, result.Value.ExpiresAt);
     }
 
+    /// <summary>An invited login whose account is suspended gets no link, keeps its token and the refusal is journalled.</summary>
+    [Fact]
+    public async Task An_invited_login_whose_account_is_suspended_gets_no_link_keeps_its_token_and_the_refusal_is_journalled()
+    {
+        var user = await SeedInvitedLoginAsync("the-mailed-token");
+        user.Suspend();
+        await _context.SaveChangesAsync();
+
+        var result = await NewHandler().HandleAsync(Command(), CancellationToken.None);
+
+        Assert.Equal("InvitationAccountSuspended", result.Error!.Code);
+        Assert.Equal(ErrorType.Conflict, result.Error.Type);
+        var outstanding = Assert.Single(await _context.InvitationTokens.ToListAsync());
+        Assert.Null(outstanding.UsedAt);
+        Assert.False(Assert.Single(_audit.Written).Succeeded);
+    }
+
+    /// <summary>A suspended account with no login gets no link and no login is created for it.</summary>
+    [Fact]
+    public async Task A_suspended_account_with_no_login_gets_no_link_and_no_login_is_created_for_it()
+    {
+        _accountDirectory.Add(AccountId, "owner-one", maxFtpUsers: 1, AccountState.Suspended);
+
+        var result = await NewHandler().HandleAsync(Command(), CancellationToken.None);
+
+        Assert.Equal("InvitationAccountSuspended", result.Error!.Code);
+        Assert.Equal(ErrorType.Conflict, result.Error.Type);
+        Assert.Empty(await _context.Users.ToListAsync());
+        Assert.Empty(await _context.InvitationTokens.ToListAsync());
+        Assert.False(Assert.Single(_audit.Written).Succeeded);
+    }
+
     /// <summary>Without a configured panel address the link is root-relative.</summary>
     [Fact]
     public async Task Without_a_configured_panel_address_the_link_is_root_relative()

@@ -57,6 +57,12 @@
   <data name="AuditActionAccountReactivated">
     <value>Аккаунт возобновлён</value>
   </data>
+  <data name="AuditActionAccountPlanChanged">
+    <value>Тариф аккаунта изменён</value>
+  </data>
+  <data name="AuditActionAccountOwnerEmailChanged">
+    <value>Email владельца аккаунта изменён</value>
+  </data>
   <data name="AuditActionAccountDeleted">
     <value>Аккаунт удалён</value>
   </data>

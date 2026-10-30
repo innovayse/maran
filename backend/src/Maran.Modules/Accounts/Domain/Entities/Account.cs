@@ -7,14 +7,16 @@ namespace Maran.Modules.Accounts.Domain.Entities;
 /// a plan id that bounds its resource limits, and a suspension state (spec §8).
 /// </summary>
 /// <remarks>
-/// <b><see cref="OwnerEmail"/> is not a duplicate of <c>Identity.Domain.Entities.User.Email</c>,
-/// and the two are allowed to diverge.</b> This one is the account's own contact address — the
-/// administrator's record of who to reach about the hosting itself — and it is set once, from
-/// whoever created the account, independently of any login. <c>User.Email</c> is a login's own
-/// address, changeable by whoever holds that login without touching the account it owns. They
+/// <b><see cref="OwnerEmail"/> is not a duplicate of <c>Identity.Domain.Entities.User.Email</c>.</b>
+/// This one is the account's own contact address — the administrator's record of who to reach about
+/// the hosting itself — kept independently of any login. <c>User.Email</c> is the address the
+/// login's own mails (its invitation, its password resets) are sent to, and Identity owns it. They
 /// start equal, because <c>CreateAccountCommand.OwnerEmail</c> is the same value
-/// <see cref="Maran.Sdk.Events.AccountCreated"/> carries to the login Identity creates, but nothing
-/// keeps them equal afterwards. Storing it here — rather than solely on the login, as a single
+/// <see cref="Maran.Sdk.Events.AccountCreated"/> carries to the login Identity creates, and an
+/// administrator's change of the owner address (<c>ChangeAccountOwnerEmailCommandHandler</c>) moves
+/// both together, so the invitation and the password-reset mails follow it. An account with no login
+/// at that moment has nothing to move; its login is later recreated from this row
+/// (<c>InvitationIssuer</c>) and so starts from the new address. Storing it here — rather than solely on the login, as a single
 /// unduplicated copy — is the deliberate correction to that earlier design: the login and its
 /// contact address used to be inseparable, and a login that failed to get created (an
 /// <c>AccountCreatedHandler</c> that never reached <c>SaveChanges</c>) took the account's only
@@ -81,6 +83,25 @@ public sealed class Account
     {
         Name = string.Empty;
         PrimaryDomain = string.Empty;
+    }
+
+    /// <summary>Moves the account onto another plan, which from now on bounds its limits.</summary>
+    /// <param name="planId">The plan the account is now sold.</param>
+    /// <remarks>
+    /// Whether the account FITS the plan is not this method's question: the disk usage it would have
+    /// to fit under lives on the host, and only the handler can ask the agent
+    /// (<c>ChangeAccountPlanCommandHandler</c>).
+    /// </remarks>
+    public void ChangePlan(Guid planId)
+    {
+        PlanId = planId;
+    }
+
+    /// <summary>Replaces the account's own contact address.</summary>
+    /// <param name="ownerEmail">The new, validated address.</param>
+    public void ChangeOwnerEmail(string ownerEmail)
+    {
+        OwnerEmail = ownerEmail;
     }
 
     /// <summary>Marks the account suspended. Idempotent: suspending an already-suspended account is a no-op.</summary>

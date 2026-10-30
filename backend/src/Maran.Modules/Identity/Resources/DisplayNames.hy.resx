@@ -57,6 +57,12 @@
   <data name="AuditActionAccountReactivated">
     <value>Հաշիվը վերագործարկվեց</value>
   </data>
+  <data name="AuditActionAccountPlanChanged">
+    <value>Հաշվի սակագինը փոխվեց</value>
+  </data>
+  <data name="AuditActionAccountOwnerEmailChanged">
+    <value>Հաշվի սեփականատիրոջ էլ. հասցեն փոխվեց</value>
+  </data>
   <data name="AuditActionAccountDeleted">
     <value>Հաշիվը ջնջվեց</value>
   </data>

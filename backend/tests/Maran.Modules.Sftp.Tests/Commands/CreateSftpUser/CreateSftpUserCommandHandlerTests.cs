@@ -372,7 +372,7 @@ public sealed class CreateSftpUserCommandHandlerTests
             SlotGate = new LocklessSftpUserSlotGate(Context);
             Handler = new CreateSftpUserCommandHandler(
                 Context,
-                new StubAccountDirectory(new AccountSnapshot(AccountId, username, 5, 5, maxSftpUsers, 5, 5, 1_024)),
+                new StubAccountDirectory(new AccountSnapshot(AccountId, username, 5, 5, maxSftpUsers, 5, 5, 1_024, AccountState.Active)),
                 Agent,
                 SlotGate,
                 new SftpAuditJournal(Audit, currentUser),

@@ -164,7 +164,7 @@ public sealed class DeleteSftpUserCommandHandlerTests
             var currentUser = FakeCurrentUser.Customer(OwnerAccountId);
             Handler = new DeleteSftpUserCommandHandler(
                 SftpTestContext.Create(currentUser, store),
-                new StubAccountDirectory(new AccountSnapshot(OwnerAccountId, "alice", 5, 5, 5, 5, 5, 1_024)),
+                new StubAccountDirectory(new AccountSnapshot(OwnerAccountId, "alice", 5, 5, 5, 5, 5, 1_024, AccountState.Active)),
                 Agent,
                 new SftpAuditJournal(Audit, currentUser));
         }

@@ -285,24 +285,25 @@ test('deleting asks first, names the plan, and removes it only when confirmed', 
   expect(requests.deleted).toEqual([BUSINESS.id])
 })
 
-test('a plan accounts are on says so in the dialog, and the server refusal is shown verbatim', async ({
+test('a plan accounts are on cannot be deleted: the button is disabled, the reason is shown, and the accounts are one link away', async ({
   page,
 }) => {
-  const detail =
-    'This plan was not deleted: accounts are still on it. Move those accounts to another plan or delete them first.'
-  const requests = await open(page, '/plans', { remove: detail })
+  const requests = await open(page, '/plans')
 
   await page.getByRole('button', { name: 'Delete Starter' }).click()
   const dialog = page.getByRole('dialog', { name: 'Delete plan Starter' })
-  await expect(dialog).toContainText(
-    '3 accounts are on this plan, so the panel will refuse to delete it',
+  await expect(dialog.getByTestId('confirm-message')).toHaveText(
+    '3 accounts are on this plan, so it cannot be deleted.',
   )
-  await dialog.getByRole('button', { name: 'Delete', exact: true }).click()
+  await expect(dialog).toContainText('open the account and use "Change plan"')
+  // A deletion the panel would refuse is not offered: the button is there, and disabled.
+  const remove = dialog.getByRole('button', { name: 'Delete', exact: true })
+  await expect(remove).toBeDisabled()
+  expect(requests.deleted).toEqual([])
 
-  await expect(page.getByText(detail, { exact: true })).toBeVisible()
-  expect(requests.deleted).toEqual([STARTER.id])
-  // The plan is still there: the server changed nothing and so does the list.
-  await expect(page.getByRole('row', { name: /Starter/ })).toBeVisible()
+  // The way out: the accounts list, narrowed to this plan.
+  await dialog.getByRole('link', { name: 'Show the 3 accounts on this plan' }).click()
+  await expect(page).toHaveURL(new RegExp(`/accounts\\?plan=${STARTER.id}$`))
 })
 
 test('a customer who opens the screen reads the server refusal in place of the list', async ({

@@ -1,5 +1,14 @@
 import { useApi } from '../useApi'
-import type { Account, AccountsApi, CreateAccountRequest, MyAccount, Plan } from '../../types/account'
+import type {
+  Account,
+  AccountDetail,
+  AccountsApi,
+  ChangeAccountOwnerEmailRequest,
+  ChangeAccountPlanRequest,
+  CreateAccountRequest,
+  MyAccount,
+  Plan,
+} from '../../types/account'
 
 /** The endpoint hosting accounts are listed and created through. */
 const ACCOUNTS_PATH = '/api/v1/accounts'
@@ -56,8 +65,34 @@ export const useAccountsApi = (): AccountsApi => {
    * @param signal Optional abort signal to cancel the in-flight request.
    * @returns The account, as the panel currently has it.
    */
-  const get = (id: string, signal?: AbortSignal): Promise<Account> => {
-    return api.get<Account>(`${ACCOUNTS_PATH}/${id}`, signal)
+  const get = (id: string, signal?: AbortSignal): Promise<AccountDetail> => {
+    return api.get<AccountDetail>(`${ACCOUNTS_PATH}/${id}`, signal)
+  }
+
+  /**
+   * Moves an account to another plan.
+   * @param id The account's identity.
+   * @param request The plan to move it to.
+   * @param signal Optional abort signal to cancel the in-flight request.
+   * @returns The account as it now stands.
+   */
+  const changePlan = (id: string, request: ChangeAccountPlanRequest, signal?: AbortSignal): Promise<AccountDetail> => {
+    return api.put<AccountDetail>(`${ACCOUNTS_PATH}/${id}/plan`, request, signal)
+  }
+
+  /**
+   * Changes an account's owner address.
+   * @param id The account's identity.
+   * @param request The new address.
+   * @param signal Optional abort signal to cancel the in-flight request.
+   * @returns The account as it now stands.
+   */
+  const changeOwnerEmail = (
+    id: string,
+    request: ChangeAccountOwnerEmailRequest,
+    signal?: AbortSignal,
+  ): Promise<AccountDetail> => {
+    return api.put<AccountDetail>(`${ACCOUNTS_PATH}/${id}/owner-email`, request, signal)
   }
 
   /**
@@ -99,5 +134,5 @@ export const useAccountsApi = (): AccountsApi => {
     return api.get<MyAccount>(MY_ACCOUNT_PATH, signal)
   }
 
-  return { list, create, listPlans, get, suspend, reactivate, remove, getMine }
+  return { list, create, listPlans, get, changePlan, changeOwnerEmail, suspend, reactivate, remove, getMine }
 }

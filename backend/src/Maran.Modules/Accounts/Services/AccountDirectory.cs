@@ -1,3 +1,4 @@
+using Maran.Modules.Accounts.Domain.Enums;
 using Maran.Modules.Accounts.Persistence;
 using Maran.Sdk.Contracts;
 using Maran.Sdk.Interfaces;
@@ -69,6 +70,7 @@ public sealed class AccountDirectory : IAccountDirectory
                     plan.MaxCronEntries,
                     plan.MaxPhpWorkersPerPool,
                     plan.DiskQuotaMb,
+                    account.Status == AccountStatus.Suspended ? AccountState.Suspended : AccountState.Active,
                     plan.MaxFtpUsers,
                     account.OwnerEmail))
             .SingleOrDefaultAsync(cancellationToken);
@@ -120,6 +122,7 @@ public sealed class AccountDirectory : IAccountDirectory
                     plan.MaxCronEntries,
                     plan.MaxPhpWorkersPerPool,
                     plan.DiskQuotaMb,
+                    account.Status == AccountStatus.Suspended ? AccountState.Suspended : AccountState.Active,
                     plan.MaxFtpUsers,
                     account.OwnerEmail))
             .ToListAsync(cancellationToken);

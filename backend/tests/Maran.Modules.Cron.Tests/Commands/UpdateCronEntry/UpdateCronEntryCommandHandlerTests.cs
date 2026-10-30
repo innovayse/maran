@@ -121,7 +121,7 @@ public sealed class UpdateCronEntryCommandHandlerTests
         {
             var currentUser = FakeCurrentUser.Customer(AccountId);
             Handler = new UpdateCronEntryCommandHandler(
-                new StubAccountDirectory(new AccountSnapshot(AccountId, "alice", 5, 5, 5, 5, 5, 1_024)),
+                new StubAccountDirectory(new AccountSnapshot(AccountId, "alice", 5, 5, 5, 5, 5, 1_024, AccountState.Active)),
                 Agent,
                 new CronAuditJournal(Audit, currentUser),
                 Logger);

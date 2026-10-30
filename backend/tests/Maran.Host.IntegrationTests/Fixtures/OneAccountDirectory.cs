@@ -45,6 +45,7 @@ public sealed class OneAccountDirectory : IAccountDirectory
             MaxCronEntries: 1,
             MaxPhpWorkersPerPool: 1,
             DiskQuotaMb: 1024,
+            State: AccountState.Active,
             MaxFtpUsers: maxFtpUsers);
     }
 

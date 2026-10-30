@@ -23,6 +23,10 @@
  * A failed copy is swallowed on purpose and leaves the button unchanged rather than claiming the
  * panel did something wrong.
  *
+ * **A suspended account is offered nothing (#216).** The panel refuses both actions for it, so the
+ * card hides them and says that the account must be reactivated first, rather than offering
+ * buttons that can only answer with a refusal. The server is the boundary; this is the advice.
+ *
  * Administrator-only on the server (`InvitationsController`); this card adds no matching role
  * check of its own (rules/architecture.md — the endpoint is the boundary).
  */
@@ -43,6 +47,11 @@ import { formatDate } from '../../utils/formatDate'
 const props = defineProps<{
   /** The hosting account whose owner's invitation this card shows. */
   accountId: string
+  /**
+   * Whether the account is suspended. The panel issues no invitation for a suspended account
+   * (`InvitationAccountSuspended`), so the card offers none and says why instead.
+   */
+  suspended: boolean
 }>()
 
 const { t } = useI18n()
@@ -188,9 +197,13 @@ onBeforeUnmount(store.forget)
           </div>
         </div>
 
-        <p class="text-sm text-text-muted">{{ t('invitations.replaceNote') }}</p>
+        <UiAlert v-if="suspended" variant="info" data-testid="invitation-suspended">
+          {{ t('invitations.suspendedNote') }}
+        </UiAlert>
 
-        <div class="flex flex-wrap items-center gap-2">
+        <p v-if="!suspended" class="text-sm text-text-muted">{{ t('invitations.replaceNote') }}</p>
+
+        <div v-if="!suspended" class="flex flex-wrap items-center gap-2">
           <UiButton :disabled="store.acting" @click="createLink">
             {{
               store.acting

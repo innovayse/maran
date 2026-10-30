@@ -168,7 +168,7 @@ public sealed class SaveBackupScheduleCommandHandlerTests
         {
             Handler = new SaveBackupScheduleCommandHandler(
                 BackupsTestContext.Create(_currentUser, _database),
-                new StubAccountDirectory(new AccountSnapshot(knownAccountId, "cust01", 1, 1, 1, 1, 1, 1024)),
+                new StubAccountDirectory(new AccountSnapshot(knownAccountId, "cust01", 1, 1, 1, 1, 1, 1024, AccountState.Active)),
                 new BackupAuditJournal(Audit, _currentUser),
                 new FakeClock(Now));
         }

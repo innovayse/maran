@@ -1,4 +1,3 @@
-using Maran.Agent.Client.Interfaces;
 using Maran.Modules.Accounts.Common;
 using Maran.Modules.Accounts.Domain.Entities;
 using Maran.Modules.Accounts.Mappers;
@@ -93,8 +92,8 @@ public sealed class UpdatePlanCommandHandler
     /// <summary>The Accounts module's database context.</summary>
     private readonly AccountsDbContext _dbContext;
 
-    /// <summary>The agent, which owns the disk quota of every account on the host.</summary>
-    private readonly IAgentAccountsClient _agent;
+    /// <summary>Measures and applies disk quotas on the host, shared with an account's plan change.</summary>
+    private readonly AccountDiskQuotaEnforcer _quotas;
 
     /// <summary>Decides whether the requested name is already some other plan's.</summary>
     private readonly PlanNameDirectory _names;
@@ -107,19 +106,19 @@ public sealed class UpdatePlanCommandHandler
 
     /// <summary>Creates the handler.</summary>
     /// <param name="dbContext">The Accounts module's database context.</param>
-    /// <param name="agent">The agent, which owns the disk quota of every account on the host.</param>
+    /// <param name="quotas">Measures and applies disk quotas on the host.</param>
     /// <param name="names">Decides whether the requested name is already some other plan's.</param>
     /// <param name="journal">This module's audit journal.</param>
     /// <param name="displayNames">Resolves display names in the request's culture.</param>
     public UpdatePlanCommandHandler(
         AccountsDbContext dbContext,
-        IAgentAccountsClient agent,
+        AccountDiskQuotaEnforcer quotas,
         PlanNameDirectory names,
         AccountAuditJournal journal,
         IStringLocalizer<DisplayNames> displayNames)
     {
         _dbContext = dbContext;
-        _agent = agent;
+        _quotas = quotas;
         _names = names;
         _journal = journal;
         _displayNames = displayNames;
@@ -223,37 +222,23 @@ public sealed class UpdatePlanCommandHandler
             .OrderBy(a => a.Name)
             .Select(a => a.Name)
             .ToListAsync(cancellationToken);
-        var newQuotaBytes = QuotaBytes(newQuotaMb);
-
         if (newQuotaMb < plan.DiskQuotaMb)
         {
             // Every account is measured BEFORE any is changed, so a refusal leaves none of them
             // touched. See the type's remarks for why a lowered quota that does not fit is refused.
-            foreach (var accountName in accountNames)
+            var fits = await _quotas.AllFitAsync(accountNames, newQuotaMb, cancellationToken);
+            if (!fits.IsSuccess)
             {
-                var usage = await _agent.GetUsageAsync(accountName, cancellationToken);
-                if (!usage.IsSuccess)
-                {
-                    return usage.Error!;
-                }
+                return fits.Error!;
+            }
 
-                if (usage.Value.UsedBytes > newQuotaBytes)
-                {
-                    return Error.Of(nameof(ErrorMessages.PlanQuotaBelowUsage), ErrorType.Conflict);
-                }
+            if (!fits.Value)
+            {
+                return Error.Of(nameof(ErrorMessages.PlanQuotaBelowUsage), ErrorType.Conflict);
             }
         }
 
-        foreach (var accountName in accountNames)
-        {
-            var applied = await _agent.SetQuotaAsync(accountName, newQuotaBytes, cancellationToken);
-            if (!applied.IsSuccess)
-            {
-                return applied.Error!;
-            }
-        }
-
-        return null;
+        return await _quotas.ApplyAsync(accountNames, newQuotaMb, cancellationToken);
     }
 
     /// <summary>Journals a refused edit and returns it as the typed failure.</summary>
@@ -272,13 +257,5 @@ public sealed class UpdatePlanCommandHandler
             AuditActions.PlanUpdated, subject, command.IpAddress, command.UserAgent, cancellationToken);
 
         return Result<PlanDto>.Fail(error);
-    }
-
-    /// <summary>Converts a plan's disk allowance to the bytes the agent's quota calls use.</summary>
-    /// <param name="quotaMb">The quota in megabytes.</param>
-    /// <returns>The quota in bytes.</returns>
-    private static ulong QuotaBytes(int quotaMb)
-    {
-        return (ulong)quotaMb * 1024UL * 1024UL;
     }
 }

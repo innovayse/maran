@@ -223,7 +223,7 @@ public sealed class EnableSiteCommandHandlerTests
                 MaxSftpUsers: 3,
                 MaxCronEntries: 7,
                 MaxPhpWorkersPerPool: 10,
-                DiskQuotaMb: 1_024));
+                DiskQuotaMb: 1_024, AccountState.Active));
         return new EnableSiteCommandHandler(
             context,
             accounts,

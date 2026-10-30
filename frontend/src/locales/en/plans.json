@@ -24,8 +24,10 @@
       "delete": "Delete {name}",
       "deleteTitle": "Delete plan {name}",
       "deleteQuestionFree": "The plan is removed and nothing can be created on it any more. No account is on it, so no customer is affected.",
-      "deleteQuestionInUse": "{count} account is on this plan, so the panel will refuse to delete it and change nothing. Move that account to another plan or delete it first. | {count} accounts are on this plan, so the panel will refuse to delete it and change nothing. Move those accounts to another plan or delete them first.",
-      "working": "Deleting the plan…"
+      "working": "Deleting the plan…",
+      "deleteBlocked": "{count} account is on this plan, so it cannot be deleted. | {count} accounts are on this plan, so it cannot be deleted.",
+      "deleteBlockedHowTo": "Move each account to another plan first: open the account and use \"Change plan\". Then delete this plan.",
+      "showAccountsOnPlan": "Show the account on this plan | Show the {count} accounts on this plan"
     },
     "form": {
       "eyebrow": "Plans",

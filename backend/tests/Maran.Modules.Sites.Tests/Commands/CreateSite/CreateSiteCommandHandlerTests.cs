@@ -731,7 +731,7 @@ public sealed class CreateSiteCommandHandlerTests
                 MaxSftpUsers: 3,
                 MaxCronEntries: 7,
                 MaxPhpWorkersPerPool: 10,
-                DiskQuotaMb: 1_024));
+                DiskQuotaMb: 1_024, AccountState.Active));
         }
 
         /// <summary>Arms the slot gate so the next claim loses to a rival that commits first, as the hostname key refuses it.</summary>

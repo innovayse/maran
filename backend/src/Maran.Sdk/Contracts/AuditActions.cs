@@ -57,6 +57,20 @@ public static class AuditActions
     public const string AccountReactivated = "AccountReactivated";
 
     /// <summary>
+    /// An account was moved to another plan, and with it its disk quota on the host. Recorded on the
+    /// refusals too — above all the refusal because the account does not fit the new plan's quota.
+    /// The subject is the account's name and both plans, never a translation.
+    /// </summary>
+    public const string AccountPlanChanged = "AccountPlanChanged";
+
+    /// <summary>
+    /// An account's owner address was changed, and with it the address its login's invitation and
+    /// password resets go to. The subject is the account's name; the addresses are not journalled,
+    /// because the journal is never deleted and an address is personal data.
+    /// </summary>
+    public const string AccountOwnerEmailChanged = "AccountOwnerEmailChanged";
+
+    /// <summary>
     /// An account was deleted, and with it its system user, its home directory, every database it
     /// owned and every file-transfer login it owned, of either daemon. The most destructive
     /// operation the panel offers and the

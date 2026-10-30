@@ -24,7 +24,9 @@
         "primaryDomain": "Primary domain",
         "status": "Status",
         "createdAt": "Created"
-      }
+      },
+      "planFilter": "Showing the accounts on the plan {plan}.",
+      "clearPlanFilter": "Show all accounts"
     },
     "form": {
       "heading": "New account",
@@ -73,7 +75,10 @@
       "invitationResent": "A new invitation has been sent. The panel cannot confirm it was delivered — its mail queue does not retry.",
       "suspendedNotice": "This account is suspended. Its sites are not serving and its user cannot sign in.",
       "confirmSuspendAction": "Suspend account",
-      "confirmReactivateAction": "Reactivate account"
+      "confirmReactivateAction": "Reactivate account",
+      "planLabel": "Plan",
+      "ownerEmailLabel": "Owner email",
+      "ownerEmailUnknown": "Not recorded"
     },
     "delete": {
       "title": "Delete {account}",
@@ -94,6 +99,21 @@
       "confirmLabel": "Type the account name to confirm",
       "confirmHint": "Type {name} exactly, including its capitalisation.",
       "submit": "Delete this account"
+    },
+    "edit": {
+      "planAction": "Change plan",
+      "ownerEmailAction": "Change owner email",
+      "planTitle": "Change the plan of {account}",
+      "ownerEmailTitle": "Change the owner email of {account}",
+      "planHint": "The account's disk quota on the server changes with the plan. A plan whose quota is smaller than what the account already stores is refused.",
+      "ownerEmailHint": "The owner's login is mailed at this address: its invitation and every password reset go here from now on.",
+      "planSubmit": "Change plan",
+      "ownerEmailSubmit": "Change email",
+      "planUnchanged": "The account is already on this plan.",
+      "ownerEmailUnchanged": "This is already the owner email.",
+      "saving": "Saving…",
+      "planSaved": "The plan was changed.",
+      "ownerEmailSaved": "The owner email was changed."
     }
   }
 }

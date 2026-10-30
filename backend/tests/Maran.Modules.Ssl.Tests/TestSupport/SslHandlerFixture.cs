@@ -109,7 +109,7 @@ public sealed class SslHandlerFixture : IDisposable
         }).ToArray();
         Sites = new StubSiteDirectory(Snapshots);
         Accounts = knowsAccount
-            ? new StubAccountDirectory(new AccountSnapshot(AccountId, Username, 10, 10, 10, 10, 10, 1_024))
+            ? new StubAccountDirectory(new AccountSnapshot(AccountId, Username, 10, 10, 10, 10, 10, 1_024, AccountState.Active))
             : new StubAccountDirectory();
         Acme = new StubAcmeClient(acmeFailure);
         Agent = new RecordingAgentSslClient(agentFailure);

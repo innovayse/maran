@@ -24,7 +24,9 @@
         "primaryDomain": "Основной домен",
         "status": "Статус",
         "createdAt": "Создан"
-      }
+      },
+      "planFilter": "Показаны аккаунты на тарифе {plan}.",
+      "clearPlanFilter": "Показать все аккаунты"
     },
     "form": {
       "heading": "Новый аккаунт",
@@ -73,7 +75,10 @@
       "invitationResent": "Новое приглашение отправлено. Панель не может подтвердить его доставку — очередь почты не повторяет отправку.",
       "suspendedNotice": "Аккаунт приостановлен. Его сайты не отвечают, а пользователь не может войти.",
       "confirmSuspendAction": "Приостановить аккаунт",
-      "confirmReactivateAction": "Возобновить аккаунт"
+      "confirmReactivateAction": "Возобновить аккаунт",
+      "planLabel": "Тариф",
+      "ownerEmailLabel": "Email владельца",
+      "ownerEmailUnknown": "Не указан"
     },
     "delete": {
       "title": "Удаление {account}",
@@ -94,6 +99,21 @@
       "confirmLabel": "Введите имя аккаунта для подтверждения",
       "confirmHint": "Введите {name} в точности, с тем же регистром.",
       "submit": "Удалить этот аккаунт"
+    },
+    "edit": {
+      "planAction": "Сменить тариф",
+      "ownerEmailAction": "Сменить email владельца",
+      "planTitle": "Смена тарифа аккаунта {account}",
+      "ownerEmailTitle": "Смена email владельца аккаунта {account}",
+      "planHint": "Вместе с тарифом меняется дисковая квота аккаунта на сервере. Тариф с квотой меньше, чем аккаунт уже хранит, будет отклонён.",
+      "ownerEmailHint": "На этот адрес отправляются письма учётной записи владельца: приглашение и каждый сброс пароля теперь будут приходить сюда.",
+      "planSubmit": "Сменить тариф",
+      "ownerEmailSubmit": "Сменить email",
+      "planUnchanged": "Аккаунт уже на этом тарифе.",
+      "ownerEmailUnchanged": "Это уже email владельца.",
+      "saving": "Сохранение…",
+      "planSaved": "Тариф изменён.",
+      "ownerEmailSaved": "Email владельца изменён."
     }
   }
 }

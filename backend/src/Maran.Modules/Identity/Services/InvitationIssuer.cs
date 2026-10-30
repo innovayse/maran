@@ -3,6 +3,7 @@ using Maran.Modules.Identity.Domain.Enums;
 using Maran.Modules.Identity.Models;
 using Maran.Modules.Identity.Persistence;
 using Maran.Modules.Identity.Resources;
+using Maran.Sdk.Contracts;
 using Maran.Sdk.Interfaces;
 using Maran.SharedKernel.Security;
 using Maran.SharedKernel.Utilities.Tokens;
@@ -38,6 +39,18 @@ namespace Maran.Modules.Identity.Services;
 /// <c>reset-password</c>'s own rate limit, and a <see cref="UserState.Suspended"/> login was active
 /// before it was suspended, so it already has a real password: <see cref="User.Activate"/> would
 /// overwrite it and silently lift the suspension.
+/// </para>
+/// <para>
+/// <b>An invited login whose account is suspended is refused too</b>
+/// (<c>InvitationAccountSuspended</c>). Suspension keeps an invited login
+/// <see cref="UserState.Invited"/> and records the suspension in
+/// <see cref="User.IsAccountSuspended"/> instead (<see cref="User.Suspend"/>), so the state test above
+/// does not see it. Accepting such an invitation would still leave the login suspended
+/// (<see cref="User.Activate"/>), but handing a suspended account's owner a fresh credential —
+/// mailed, or as a link the administrator passes on — is an offer the suspension exists to withdraw.
+/// An account with no login at all is refused the same way: its directory entry carries the
+/// account's state (<see cref="AccountSnapshot.State"/>), and a suspended one gets no login created
+/// and no token issued.
 /// </para>
 /// <para>
 /// <b>The missing-login insert races, and the loser is told so.</b> Two administrators asking at
@@ -78,8 +91,8 @@ public sealed class InvitationIssuer
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     /// <returns>
     /// The issued invitation; <c>Ok(null)</c> when a concurrent call won the race to create the login
-    /// (see the type's remarks) and nothing was issued here; or a typed refusal — no such account, or
-    /// a login that already has a password.
+    /// (see the type's remarks) and nothing was issued here; or a typed refusal — no such account, a
+    /// login that already has a password, or an account that is suspended.
     /// </returns>
     public async Task<Result<IssuedInvitation?>> IssueAsync(
         Guid accountId,
@@ -91,24 +104,30 @@ public sealed class InvitationIssuer
 
         if (user is null)
         {
-            var (accountExists, created) = await CreateMissingLoginAsync(accountId, now, cancellationToken);
-            if (!accountExists)
+            var created = await CreateMissingLoginAsync(accountId, now, cancellationToken);
+            if (!created.IsSuccess)
             {
-                return Result<IssuedInvitation?>.Fail(
-                    Error.Of(nameof(ErrorMessages.InvitationAccountNotFound), ErrorType.NotFound));
+                return Result<IssuedInvitation?>.Fail(created.Error!);
             }
 
-            if (created is null)
+            if (created.Value is null)
             {
                 return Result<IssuedInvitation?>.Ok(null);
             }
 
-            user = created;
+            user = created.Value;
         }
         else if (user.State != UserState.Invited)
         {
             return Result<IssuedInvitation?>.Fail(
                 Error.Of(nameof(ErrorMessages.InvitationLoginNotPending), ErrorType.Conflict));
+        }
+        else if (user.IsAccountSuspended)
+        {
+            // See the type's remarks: a suspended account is offered no way in. The login carries
+            // the account's suspension itself (User.Suspend, run by the suspension cascade).
+            return Result<IssuedInvitation?>.Fail(
+                Error.Of(nameof(ErrorMessages.InvitationAccountSuspended), ErrorType.Conflict));
         }
 
         foreach (var outstanding in await _dbContext.InvitationTokens
@@ -136,11 +155,12 @@ public sealed class InvitationIssuer
     /// <param name="now">The current instant, taken from <see cref="IClock"/>.</param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     /// <returns>
-    /// <c>(false, null)</c> when no such account exists; <c>(true, null)</c> when the account exists
-    /// but a concurrent call already won the race to create its login (see the type's remarks); or
-    /// <c>(true, user)</c> with the newly created, saved login.
+    /// <c>InvitationAccountNotFound</c> when no such account exists; <c>InvitationAccountSuspended</c>
+    /// when it is suspended, and then no login is created; <c>Ok(null)</c> when a concurrent call
+    /// already won the race to create its login (see the type's remarks); or the newly created,
+    /// saved login.
     /// </returns>
-    private async Task<(bool AccountExists, User? User)> CreateMissingLoginAsync(
+    private async Task<Result<User?>> CreateMissingLoginAsync(
         Guid accountId,
         DateTimeOffset now,
         CancellationToken cancellationToken)
@@ -148,7 +168,14 @@ public sealed class InvitationIssuer
         var account = await _accountDirectory.FindAsync(accountId, cancellationToken);
         if (account is null)
         {
-            return (false, null);
+            return Result<User?>.Fail(Error.Of(nameof(ErrorMessages.InvitationAccountNotFound), ErrorType.NotFound));
+        }
+
+        if (account.State == AccountState.Suspended)
+        {
+            // See the type's remarks: a suspended account is offered no way in, and a login created
+            // here would be one.
+            return Result<User?>.Fail(Error.Of(nameof(ErrorMessages.InvitationAccountSuspended), ErrorType.Conflict));
         }
 
         // OwnerEmail is null only for an account that predates the column (Account.OwnerEmail's own
@@ -177,9 +204,9 @@ public sealed class InvitationIssuer
             // entity is detached rather than left tracked as a still-pending add on a context the
             // rest of the caller keeps using.
             _dbContext.Entry(user).State = EntityState.Detached;
-            return (true, null);
+            return Result<User?>.Ok(null);
         }
 
-        return (true, user);
+        return Result<User?>.Ok(user);
     }
 }

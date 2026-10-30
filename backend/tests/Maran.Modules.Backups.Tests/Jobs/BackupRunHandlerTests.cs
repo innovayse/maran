@@ -281,12 +281,12 @@ public sealed class BackupRunHandlerTests
 
             var snapshots = new List<AccountSnapshot>
             {
-                new(accountId, Username, 1, 1, 1, 1, 1, 1024),
+                new(accountId, Username, 1, 1, 1, 1, 1, 1024, AccountState.Active),
             };
 
             if (secondAccountId is not null)
             {
-                snapshots.Add(new AccountSnapshot(secondAccountId.Value, "cust02", 1, 1, 1, 1, 1, 1024));
+                snapshots.Add(new AccountSnapshot(secondAccountId.Value, "cust02", 1, 1, 1, 1, 1, 1024, AccountState.Active));
             }
 
             _accounts = new StubAccountDirectory([.. snapshots]);

@@ -1,6 +1,11 @@
 # Committed per-target test baseline. Recorded by 'maran test --accept'; commit the diff.
 # stack<TAB>target<TAB>passed<TAB>failed<TAB>ignored
 #
+# RE-MEASURED 2026-10-30 (issue #216, account plan and owner email edits; AccountSnapshot gained a required State):
+# edited by hand. Modules.Accounts.Tests 434->454 and Modules.Identity.Tests 306->312 and Sdk.Tests 222->224 (two new codes), 0 failed; ArchitectureTests 91
+# unchanged. Host.IntegrationTests ran filtered to AccountEditEndpointTests, AccountsAuthorizationTests,
+# PlansEndpointTests, InvitationLinkEndpointTests, AccountsEndpointTests and StartupPhpSiteReconcilerTests (66/0); its row is left to CI.
+# spa: NEW row accounts/edit.spec.ts 9; plans/plans.spec.ts stays 15. Full suite 703 passed / 0 failed / 3 skipped.
 # RE-MEASURED 2026-10-30 (issue #215, the FTPS card tells one story and every switch answers): edited by hand.
 # Modules.Ftp.Tests 133->149 (mapper's 12-row desired x observed table + 1, disable handler +3), 0 failed;
 # ArchitectureTests 91 and Sdk.Tests 222 unchanged. rust ftps_on_a_real_host 15->16 IGNORED (the stand-in's
@@ -347,7 +352,7 @@ rust	bound_errors [tests/bound_errors.rs]	9	0	0
 rust	safe_write_bound_on_real_processes [tests/safe_write_bound_on_real_processes.rs]	6	0	0
 backend	Maran.Agent.Client.Tests.dll	375	0	0
 backend	Maran.SharedKernel.Tests.dll	230	0	0
-backend	Maran.Modules.Identity.Tests.dll	306	0	0
+backend	Maran.Modules.Identity.Tests.dll	312	0	0
 backend	Maran.Modules.Sftp.Tests.dll	84	0	0
 backend	Maran.Modules.Notifications.Tests.dll	52	0	0
 backend	Maran.Modules.Tasks.Tests.dll	76	0	0
@@ -357,16 +362,17 @@ backend	Maran.Modules.Backups.Tests.dll	210	0	0
 backend	Maran.Modules.Licensing.Tests.dll	51	0	0
 backend	Maran.Modules.Firewall.Tests.dll	255	0	0
 backend	Maran.Modules.Cron.Tests.dll	187	0	0
-backend	Maran.Modules.Accounts.Tests.dll	434	0	0
+backend	Maran.Modules.Accounts.Tests.dll	454	0	0
 backend	Maran.Modules.Databases.Tests.dll	106	0	0
 backend	Maran.Modules.Ssl.Tests.dll	221	0	0
-backend	Maran.Sdk.Tests.dll	222	0	0
+backend	Maran.Sdk.Tests.dll	224	0	0
 backend	Maran.Modules.Sites.Tests.dll	232	0	0
 backend	Maran.ArchitectureTests.dll	91	0	0
 backend	Maran.Host.Tests.dll	392	0	0
 backend	Maran.Host.IntegrationTests.dll	415	0	0
 spa	accounts/delete.spec.ts	6	0	0
 spa	accounts/detail.spec.ts	10	0	0
+spa	accounts/edit.spec.ts	9	0	0
 spa	accounts/form.spec.ts	8	0	0
 spa	accounts/invitation-link.spec.ts	8	0	0
 spa	accounts/list.spec.ts	3	0	0

@@ -81,6 +81,9 @@
   <data name="InvitationLoginNotPending">
     <value>There is nothing to invite this account's owner to: the login already has a password.</value>
   </data>
+  <data name="InvitationAccountSuspended">
+    <value>No invitation can be issued while this account is suspended. Reactivate the account first.</value>
+  </data>
   <data name="AdminRecoveryUserNotFound">
     <value>No user with that e-mail address or username exists.</value>
   </data>

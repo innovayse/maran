@@ -2,6 +2,7 @@ using Maran.Modules.Accounts.Domain.Entities;
 using Maran.Modules.Accounts.Persistence;
 using Maran.Modules.Accounts.Services;
 using Maran.Modules.Accounts.Tests.TestSupport;
+using Maran.Sdk.Contracts;
 using Microsoft.EntityFrameworkCore;
 
 namespace Maran.Modules.Accounts.Tests.Services;
@@ -42,6 +43,30 @@ public sealed class AccountDirectoryTests
         // 17 is unlike every other integer on this plan, so a projection that dropped it reads 0 —
         // the record's default — and a projection that picked up its neighbour reads 3 or 11.
         Assert.Equal(17, snapshot.MaxFtpUsers);
+    }
+
+    /// <summary>Both directory reads state whether the account is active or suspended.</summary>
+    [Fact]
+    public async Task Both_directory_reads_state_whether_the_account_is_active_or_suspended()
+    {
+        await using var dbContext = CreateDbContext();
+        var activeId = await SeedAsync(dbContext, "acme");
+        var suspendedId = await SeedAsync(dbContext, "paused");
+        (await dbContext.Accounts.SingleAsync(account => account.Id == suspendedId)).Suspend();
+        await dbContext.SaveChangesAsync();
+        var directory = new AccountDirectory(dbContext, FakeCurrentUser.Admin());
+
+        Assert.Equal(AccountState.Active, (await directory.FindAsync(activeId, CancellationToken.None))!.State);
+        Assert.Equal(AccountState.Suspended, (await directory.FindAsync(suspendedId, CancellationToken.None))!.State);
+        var listed = await directory.ListAsync(CancellationToken.None);
+        Assert.Equal(AccountState.Suspended, Assert.Single(listed, snapshot =>
+        {
+            return snapshot.Id == suspendedId;
+        }).State);
+        Assert.Equal(AccountState.Active, Assert.Single(listed, snapshot =>
+        {
+            return snapshot.Id == activeId;
+        }).State);
     }
 
     /// <summary>Every account in the host wide list carries its plans ftps allowance.</summary>

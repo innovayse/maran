@@ -1,3 +1,5 @@
+using Maran.Modules.Accounts.Commands.ChangeAccountOwnerEmail;
+using Maran.Modules.Accounts.Commands.ChangeAccountPlan;
 using Maran.Modules.Accounts.Commands.CreateAccount;
 using Maran.Modules.Accounts.Commands.DeleteAccount;
 using Maran.Modules.Accounts.Commands.ReactivateAccount;
@@ -111,6 +113,50 @@ public sealed class AccountsController : BaseApiController
     {
         var command = new ReactivateAccountCommand(id, ClientIpAddress, CallerUserAgent);
         var result = await _bus.InvokeAsync<Result<AccountDto>>(command, cancellationToken);
+        return ToActionResult(result);
+    }
+
+    /// <summary>
+    /// Moves an account to another plan. Refused with 409 when the account already uses more disk
+    /// than the new plan allows; see <c>ChangeAccountPlanCommandHandler</c> for why.
+    /// </summary>
+    /// <param name="id">The account to move.</param>
+    /// <param name="command">The plan to move it to. Its account id, address and agent are stamped here.</param>
+    /// <param name="cancellationToken">Cancellation token for the request.</param>
+    [HttpPut("{id:guid}/plan")]
+    [ProducesResponseType(typeof(AccountDetailDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> ChangePlanAsync(
+        Guid id,
+        [FromBody] ChangeAccountPlanCommand command,
+        CancellationToken cancellationToken)
+    {
+        var stamped = command with { AccountId = id, IpAddress = ClientIpAddress, UserAgent = CallerUserAgent };
+        var result = await _bus.InvokeAsync<Result<AccountDetailDto>>(stamped, cancellationToken);
+        return ToActionResult(result);
+    }
+
+    /// <summary>
+    /// Changes an account's owner address, and with it the address its login's invitation and
+    /// password resets are mailed to. Refused with 409 when another login already holds the address.
+    /// </summary>
+    /// <param name="id">The account to change.</param>
+    /// <param name="command">The new address. Its account id, address and agent are stamped here.</param>
+    /// <param name="cancellationToken">Cancellation token for the request.</param>
+    [HttpPut("{id:guid}/owner-email")]
+    [ProducesResponseType(typeof(AccountDetailDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> ChangeOwnerEmailAsync(
+        Guid id,
+        [FromBody] ChangeAccountOwnerEmailCommand command,
+        CancellationToken cancellationToken)
+    {
+        var stamped = command with { AccountId = id, IpAddress = ClientIpAddress, UserAgent = CallerUserAgent };
+        var result = await _bus.InvokeAsync<Result<AccountDetailDto>>(stamped, cancellationToken);
         return ToActionResult(result);
     }
 

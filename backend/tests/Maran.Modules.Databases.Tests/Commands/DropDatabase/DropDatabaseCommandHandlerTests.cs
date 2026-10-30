@@ -154,7 +154,7 @@ public sealed class DropDatabaseCommandHandlerTests
             var currentUser = FakeCurrentUser.Customer(OwnerAccountId);
             Handler = new DropDatabaseCommandHandler(
                 DatabasesTestContext.Create(currentUser, store),
-                new StubAccountDirectory(new AccountSnapshot(OwnerAccountId, "alice", 5, 5, 5, 5, 5, 1_024)),
+                new StubAccountDirectory(new AccountSnapshot(OwnerAccountId, "alice", 5, 5, 5, 5, 5, 1_024, AccountState.Active)),
                 Agent,
                 new DatabaseAuditJournal(Audit, currentUser));
         }

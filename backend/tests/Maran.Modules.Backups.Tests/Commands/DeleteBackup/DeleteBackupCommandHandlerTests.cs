@@ -267,7 +267,7 @@ public sealed class DeleteBackupCommandHandlerTests
             Handler = new DeleteBackupCommandHandler(
                 dbContext,
                 new StubAccountDirectory(
-                    new AccountSnapshot(knownAccountId, Username, 1, 1, 1, 1, 1, 1024)),
+                    new AccountSnapshot(knownAccountId, Username, 1, 1, 1, 1, 1, 1024, AccountState.Active)),
                 Agent,
                 new BackupAuditJournal(Audit, _currentUser),
                 new BackupDestinationResolver(dbContext));

@@ -23,8 +23,9 @@ public sealed class StubAccountDirectory : IAccountDirectory
     /// <param name="accountId">The account's identity.</param>
     /// <param name="username">The account's Linux system user name.</param>
     /// <param name="maxFtpUsers">How many FTPS logins the account's plan allows.</param>
+    /// <param name="state">Whether the account is in service or suspended.</param>
     /// <returns>The snapshot that was registered, so a test can assert against the same values.</returns>
-    public AccountSnapshot Add(Guid accountId, string username, int maxFtpUsers)
+    public AccountSnapshot Add(Guid accountId, string username, int maxFtpUsers, AccountState state = AccountState.Active)
     {
         var snapshot = new AccountSnapshot(
             accountId,
@@ -35,6 +36,7 @@ public sealed class StubAccountDirectory : IAccountDirectory
             MaxCronEntries: 1,
             MaxPhpWorkersPerPool: 1,
             DiskQuotaMb: 1024,
+            State: state,
             MaxFtpUsers: maxFtpUsers,
             OwnerEmail: $"{username}@example.com");
 

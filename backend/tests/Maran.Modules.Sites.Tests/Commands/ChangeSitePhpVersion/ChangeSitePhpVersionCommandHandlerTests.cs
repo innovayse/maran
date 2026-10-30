@@ -309,7 +309,7 @@ public sealed class ChangeSitePhpVersionCommandHandlerTests
             MaxSftpUsers: 3,
             MaxCronEntries: 7,
             MaxPhpWorkersPerPool: maxPhpWorkersPerPool,
-            DiskQuotaMb: 1_024));
+            DiskQuotaMb: 1_024, AccountState.Active));
         return new ChangeSitePhpVersionCommandHandler(
             context,
             accounts,

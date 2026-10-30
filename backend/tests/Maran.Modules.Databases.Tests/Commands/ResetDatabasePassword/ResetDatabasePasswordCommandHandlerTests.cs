@@ -198,7 +198,7 @@ public sealed class ResetDatabasePasswordCommandHandlerTests
             var currentUser = FakeCurrentUser.Customer(OwnerAccountId);
             Handler = new ResetDatabasePasswordCommandHandler(
                 DatabasesTestContext.Create(currentUser, store),
-                new StubAccountDirectory(new AccountSnapshot(OwnerAccountId, "alice", 5, 5, 5, 5, 5, 1_024)),
+                new StubAccountDirectory(new AccountSnapshot(OwnerAccountId, "alice", 5, 5, 5, 5, 5, 1_024, AccountState.Active)),
                 Agent,
                 new DatabaseAuditJournal(Audit, currentUser));
         }

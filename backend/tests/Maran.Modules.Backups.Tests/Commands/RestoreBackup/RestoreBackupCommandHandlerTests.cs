@@ -499,7 +499,7 @@ public sealed class RestoreBackupCommandHandlerTests
 
             Handler = new RestoreBackupCommandHandler(
                 dbContext,
-                new StubAccountDirectory(new AccountSnapshot(accountId, Username, 1, 1, 1, 1, 1, 1024)),
+                new StubAccountDirectory(new AccountSnapshot(accountId, Username, 1, 1, 1, 1, 1, 1024, AccountState.Active)),
                 new StubAccountDatabaseDirectory(accountId, "cust01_shop", "cust01_blog"),
                 new RestoreRunner(Agent, Tasks),
                 new BackupDestinationResolver(dbContext),

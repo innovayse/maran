@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 import { ref, type Ref } from 'vue'
 import { useAccountsApi } from '../composables/apis/useAccountsApi'
 import { ApiError } from '../composables/useApi'
-import type { Account, CreateAccountRequest, MyAccount, Plan } from '../types/account'
+import type { Account, AccountDetail, CreateAccountRequest, MyAccount, Plan } from '../types/account'
 
 /**
  * Owns the hosting accounts list and the create-account workflow. The list and form pages read
@@ -37,7 +37,7 @@ export const useAccountsStore = defineStore('accounts', () => {
   const creating: Ref<boolean> = ref(false)
 
   /** The account the detail page is showing, or `null` before one is loaded. */
-  const selected: Ref<Account | null> = ref(null)
+  const selected: Ref<AccountDetail | null> = ref(null)
 
   /** True while a suspend, reactivate or delete request is in flight. */
   const acting: Ref<boolean> = ref(false)
@@ -47,6 +47,15 @@ export const useAccountsStore = defineStore('accounts', () => {
    * last attempt succeeded or has not been made yet. Rendered verbatim by the form page.
    */
   const createErrorMessage: Ref<string | null> = ref(null)
+
+  /** True while a plan or owner-address change is in flight. */
+  const editing: Ref<boolean> = ref(false)
+
+  /**
+   * Backend-localized message from the most recent refused plan or owner-address change, or
+   * `null` when the last one succeeded or none has been made. Rendered by the edit dialogs.
+   */
+  const editErrorMessage: Ref<string | null> = ref(null)
 
   /** The caller's own account, its status, and its plan's limits — `null` before it is loaded. */
   const mine: Ref<MyAccount | null> = ref(null)
@@ -132,6 +141,38 @@ export const useAccountsStore = defineStore('accounts', () => {
   }
 
   /**
+   * Moves the account to another plan and stores it as the panel reports it back.
+   * @param id The account to move.
+   * @param planId The plan to move it to.
+   * @returns True when the panel accepted the change; otherwise `editErrorMessage` says why.
+   */
+  const changePlan = async (id: string, planId: string): Promise<boolean> => {
+    return await edit(() => {
+      return api.changePlan(id, { planId })
+    })
+  }
+
+  /**
+   * Changes the account's owner address and stores the account as the panel reports it back.
+   * @param id The account to change.
+   * @param ownerEmail The new address.
+   * @returns True when the panel accepted the change; otherwise `editErrorMessage` says why.
+   */
+  const changeOwnerEmail = async (id: string, ownerEmail: string): Promise<boolean> => {
+    return await edit(() => {
+      return api.changeOwnerEmail(id, { ownerEmail })
+    })
+  }
+
+  /**
+   * Forgets the last edit refusal, so a dialog opened again starts clean.
+   * @returns Nothing.
+   */
+  const clearEditError = (): void => {
+    editErrorMessage.value = null
+  }
+
+  /**
    * Suspends the account and stores the state the panel reports back.
    * @param id The account to suspend.
    * @returns True when the panel accepted the change.
@@ -209,7 +250,9 @@ export const useAccountsStore = defineStore('accounts', () => {
     acting.value = true
     try {
       const changed = await call()
-      selected.value = changed
+      // A lifecycle call answers with the list shape, which carries no plan name or owner
+      // address; those did not change, so the detail already held keeps them.
+      selected.value = selected.value === null ? null : { ...selected.value, ...changed }
       accounts.value = accounts.value.map((account) => {
         return account.id === changed.id ? changed : account
       })
@@ -225,6 +268,30 @@ export const useAccountsStore = defineStore('accounts', () => {
     }
   }
 
+  /**
+   * Runs one edit and stores the account it returns as {@link selected}, folding the list fields
+   * back into the held list too.
+   * @param call The edit to make.
+   * @returns True when the panel accepted the change.
+   */
+  const edit = async (call: () => Promise<AccountDetail>): Promise<boolean> => {
+    editing.value = true
+    try {
+      const changed = await call()
+      selected.value = changed
+      accounts.value = accounts.value.map((account) => {
+        return account.id === changed.id ? changed : account
+      })
+      editErrorMessage.value = null
+      return true
+    } catch (error) {
+      editErrorMessage.value = error instanceof ApiError ? error.message : null
+      return false
+    } finally {
+      editing.value = false
+    }
+  }
+
   return {
     accounts,
     plans,
@@ -235,6 +302,8 @@ export const useAccountsStore = defineStore('accounts', () => {
     createErrorMessage,
     selected,
     acting,
+    editing,
+    editErrorMessage,
     mine,
     mineLoading,
     mineErrorMessage,
@@ -242,6 +311,9 @@ export const useAccountsStore = defineStore('accounts', () => {
     loadPlans,
     create,
     loadOne,
+    changePlan,
+    changeOwnerEmail,
+    clearEditError,
     suspend,
     reactivate,
     remove,

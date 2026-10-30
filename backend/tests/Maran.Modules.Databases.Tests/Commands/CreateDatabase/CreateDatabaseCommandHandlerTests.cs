@@ -386,7 +386,7 @@ public sealed class CreateDatabaseCommandHandlerTests
             SlotGate = new LocklessDatabaseSlotGate(Context);
             Handler = new CreateDatabaseCommandHandler(
                 Context,
-                new StubAccountDirectory(new AccountSnapshot(AccountId, username, 5, maxDatabases, 5, 5, 5, 1_024)),
+                new StubAccountDirectory(new AccountSnapshot(AccountId, username, 5, maxDatabases, 5, 5, 5, 1_024, AccountState.Active)),
                 Agent,
                 SlotGate,
                 new DatabaseAuditJournal(Audit, currentUser),

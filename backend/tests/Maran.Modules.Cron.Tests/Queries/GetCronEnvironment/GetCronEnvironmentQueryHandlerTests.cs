@@ -95,7 +95,7 @@ public sealed class GetCronEnvironmentQueryHandlerTests
         public World()
         {
             Handler = new GetCronEnvironmentQueryHandler(
-                new StubAccountDirectory(new AccountSnapshot(AccountId, "alice", 5, 5, 5, 5, 5, 1_024)),
+                new StubAccountDirectory(new AccountSnapshot(AccountId, "alice", 5, 5, 5, 5, 5, 1_024, AccountState.Active)),
                 Agent,
                 Logger);
         }
