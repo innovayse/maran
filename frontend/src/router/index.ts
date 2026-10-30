@@ -8,6 +8,7 @@ import AccountDetailPage from '../pages/accounts/AccountDetailPage.vue'
 import AccountsListPage from '../pages/accounts/AccountsListPage.vue'
 import AccountFormPage from '../pages/accounts/AccountFormPage.vue'
 import MyAccountPage from '../pages/accounts/MyAccountPage.vue'
+import ProfilePage from '../pages/ProfilePage.vue'
 import PlanFormPage from '../pages/plans/PlanFormPage.vue'
 import PlansListPage from '../pages/plans/PlansListPage.vue'
 import SitesListPage from '../pages/sites/SitesListPage.vue'
@@ -261,6 +262,14 @@ export const createAppRouter = (): Router => {
         path: '/accept-invitation',
         component: AuthLayout,
         children: [{ path: '', name: 'accept-invitation', component: AcceptInvitationPage, meta: { title: 'app.acceptInvitation.title' } }],
+      },
+      {
+        // The signed-in person's own profile, for every role: the USER, not a hosting account. No
+        // `meta.module` (it is not a licensed module) and no role flag — an administrator and a
+        // customer each read their own profile off their own token.
+        path: '/profile',
+        component: DefaultLayout,
+        children: [{ path: '', name: 'profile', component: ProfilePage, meta: { title: 'app.profile.heading' } }],
       },
       {
         path: '/my-account',

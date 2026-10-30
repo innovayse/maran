@@ -115,6 +115,13 @@ public static class DisplayNameExemptions
             "Administrator or customer, decided by this product and shown in the shell's own "
             + "chrome beside the user's name."),
         new(
+            "Maran.Modules.Identity.Common.ProfileDto",
+            "Role",
+            DisplayNameExemptionKind.SpaOwnedVocabulary,
+            "app.auth.role.{member}",
+            "The same administrator-or-customer vocabulary as AuthenticatedUserDto.Role, shown on "
+            + "the profile page through the same keys."),
+        new(
             "Maran.Modules.Monitoring.Common.MetricsChartDto",
             "Range",
             DisplayNameExemptionKind.NotAnOperatorFacingName,

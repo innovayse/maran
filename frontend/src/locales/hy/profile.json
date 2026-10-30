@@ -1,0 +1,24 @@
+{
+  "app": {
+    "profile": {
+      "heading": "Պրոֆիլ և անվտանգություն",
+      "subtitle": "Ում անունով եք մուտք գործել և ինչպես է պաշտպանված ձեր մուտքը։",
+      "loading": "Պրոֆիլը բեռնվում է…",
+      "identityHeading": "Պրոֆիլ",
+      "usernameLabel": "Օգտանուն",
+      "emailLabel": "Էլ. փոստ",
+      "roleLabel": "Դեր",
+      "securityHeading": "Անվտանգություն",
+      "twoFactorLabel": "Երկքայլ ստուգում",
+      "twoFactorOn": "Միացված է",
+      "twoFactorOff": "Անջատված է",
+      "manageTwoFactor": "Կարգավորել երկքայլ ստուգումը",
+      "sessionsLabel": "Մուտք գործած սարքեր",
+      "sessionCount": "{count} սարք",
+      "manageSessions": "Կառավարել սարքերը",
+      "hostingHeading": "Հոսթինգի հաշիվ",
+      "hostingDescription": "Ձեր կայքերը, սակագինը և սահմանաչափերը գտնվում են հոսթինգի հաշվում։",
+      "openHostingAccount": "Բացել իմ հոսթինգի հաշիվը"
+    }
+  }
+}

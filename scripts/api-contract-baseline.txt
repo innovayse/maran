@@ -219,6 +219,7 @@ POST /api/v1/sites/php-versions/install  ->  InstallPhpVersionCommand
   GET /api/v1/monitoring/services
   GET /api/v1/notifications/smtp
   GET /api/v1/plans
+  GET /api/v1/profile
   GET /api/v1/security-policy
   GET /api/v1/sessions
   GET /api/v1/setup/state
