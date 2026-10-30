@@ -320,6 +320,7 @@ const BACKUP_SCHEDULE: BackupSchedule = {
   retainCount: 4,
   enabled: true,
   lastRunAt: '2026-09-01T02:00:00Z',
+  nextRunAt: '2026-09-02T02:00:00Z',
 }
 
 const DESTINATIONS = [

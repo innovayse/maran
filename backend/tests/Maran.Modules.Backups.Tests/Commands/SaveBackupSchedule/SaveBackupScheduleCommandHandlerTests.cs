@@ -18,6 +18,9 @@ public sealed class SaveBackupScheduleCommandHandlerTests
     /// <summary>The instant the handler's clock reports.</summary>
     private static readonly DateTimeOffset Now = new(2026, 1, 1, 4, 0, 0, TimeSpan.Zero);
 
+    /// <summary>The first 03:00 after <see cref="Now"/>: when a daily 03:00 schedule saved then first runs.</summary>
+    private static readonly DateTimeOffset NextThreeOClock = new(2026, 1, 2, 3, 0, 0, TimeSpan.Zero);
+
     /// <summary>A first save creates the host-wide schedule.</summary>
     [Fact]
     public async Task A_first_save_creates_the_host_wide_schedule()
@@ -33,11 +36,13 @@ public sealed class SaveBackupScheduleCommandHandlerTests
         Assert.Equal(3, result.Value.HourUtc);
         Assert.Equal(7, result.Value.RetainCount);
 
-        // Stamped as switched on, which is what stops the first run happening within five minutes.
-        Assert.Equal(Now, result.Value.LastRunAt);
+        // Nothing has run, and the first run is the next 03:00 — not the save (issue #224).
+        Assert.Null(result.Value.LastRunAt);
+        Assert.Equal(NextThreeOClock, result.Value.NextRunAt);
 
         var stored = Assert.Single(await world.Read().BackupSchedules.IgnoreQueryFilters().ToListAsync());
         Assert.Equal(result.Value.Id, stored.Id);
+        Assert.Equal(Now, stored.EnabledAt);
 
         var entry = Assert.Single(world.Audit.Entries);
         Assert.Equal(AuditActions.BackupScheduleSaved, entry.Action);
@@ -68,6 +73,27 @@ public sealed class SaveBackupScheduleCommandHandlerTests
         var stored = Assert.Single(await world.Read().BackupSchedules.IgnoreQueryFilters().ToListAsync());
         Assert.Equal(5, stored.HourUtc);
         Assert.Equal(30, stored.RetainCount);
+    }
+
+    /// <summary>Saving a schedule switched off records no run and answers with no next run.</summary>
+    /// <remarks>
+    /// The inverse control for the first test's next-run assertion: a mapper that computed a next run
+    /// for every row, enabled or not, would show a switched-off schedule as about to act.
+    /// </remarks>
+    [Fact]
+    public async Task Saving_a_disabled_schedule_records_no_run_and_no_next_run()
+    {
+        var world = new World(Guid.NewGuid());
+
+        var result = await world.Handler.HandleAsync(Command(null) with { Enabled = false }, CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.False(result.Value.Enabled);
+        Assert.Null(result.Value.LastRunAt);
+        Assert.Null(result.Value.NextRunAt);
+
+        var stored = Assert.Single(await world.Read().BackupSchedules.IgnoreQueryFilters().ToListAsync());
+        Assert.Null(stored.EnabledAt);
     }
 
     /// <summary>An account's own schedule is a different row from the host-wide one.</summary>

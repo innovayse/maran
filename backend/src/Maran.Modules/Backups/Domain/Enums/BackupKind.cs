@@ -6,10 +6,10 @@ namespace Maran.Modules.Backups.Domain.Enums;
 /// pruned", and a copy taken as a safety net before a destructive operation must not become an
 /// ordinary daily that retention eats (the plan's R12).
 ///
-/// All four values are declared now, and only <see cref="Manual"/> is produced today. This is the
-/// one place a value ahead of its caller is right rather than speculative: the column is persisted
-/// with the value's NAME, so adding a member later renumbers nothing but adding one to the middle
-/// of a numeric mapping would — and, more importantly, retention and the deletion cascade are
+/// All four values were declared before their writers existed; every one but
+/// <see cref="PreRestore"/> is produced today. This is the one place a value ahead of its caller is
+/// right rather than speculative: the column is persisted with the value's NAME, so adding a member
+/// later renumbers nothing but adding one to the middle of a numeric mapping would — and, more importantly, retention and the deletion cascade are
 /// written against the closed set, so a reader can see today which kinds they must never touch.
 /// </remarks>
 public enum BackupKind
@@ -17,12 +17,12 @@ public enum BackupKind
     /// <summary>A customer or an administrator asked for it.</summary>
     Manual = 0,
 
-    /// <summary>A schedule asked for it. Nothing produces this yet — schedules are later work.</summary>
+    /// <summary>A schedule asked for it; <c>BackupRunHandler</c> is its only writer.</summary>
     Scheduled = 1,
 
     /// <summary>
-    /// Taken automatically before an account is deleted, and never pruned. Nothing produces this yet —
-    /// the final backup before a deletion is later work.
+    /// Taken automatically before an account is deleted, and never pruned; <c>AccountBackupService</c>
+    /// writes it.
     /// </summary>
     PreDeletion = 2,
 

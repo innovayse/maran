@@ -53,7 +53,7 @@ public sealed class SaveBackupScheduleCommandHandler
     /// <param name="dbContext">The Backups module's database context.</param>
     /// <param name="accounts">The window onto whether the named account exists.</param>
     /// <param name="journal">This module's audit journal.</param>
-    /// <param name="clock">The injected time source used to stamp an enabled schedule.</param>
+    /// <param name="clock">The injected time source used to record when a schedule was switched on.</param>
     public SaveBackupScheduleCommandHandler(
         BackupsDbContext dbContext,
         IAccountDirectory accounts,
@@ -120,8 +120,8 @@ public sealed class SaveBackupScheduleCommandHandler
         }
 
         // Reconfigure runs for a new schedule too, because a new schedule is created disabled and it
-        // is this call that switches it on — including the stamp that stops the very first run from
-        // happening the moment the form is saved.
+        // is this call that switches it on — recording EnabledAt, from which the first run is the
+        // next named hour rather than the moment the form is saved.
         schedule.Reconfigure(
             command.DestinationId,
             command.Frequency,

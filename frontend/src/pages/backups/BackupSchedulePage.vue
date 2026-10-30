@@ -176,6 +176,12 @@ const lastRun: ComputedRef<string> = computed(() => {
     : formatIsoTimestamp(at, localeStore.current)
 })
 
+/** When the schedule will next run, or `null` while it is switched off and nothing is coming. */
+const nextRun: ComputedRef<string | null> = computed(() => {
+  const at = store.schedule?.nextRunAt ?? null
+  return at === null ? null : formatIsoTimestamp(at, localeStore.current)
+})
+
 /** The message for the banner: the last failure, unless a field is already showing it. */
 const bannerError: ComputedRef<string | null> = computed(() => {
   return store.errorCode in FIELD_OF_CODE ? null : store.errorMessage
@@ -423,6 +429,9 @@ void accountsStore.load()
                     : t('backups.schedule.summary.off')
                 }}
               </UiBadge>
+            </UiDescriptionItem>
+            <UiDescriptionItem v-if="nextRun !== null" :term="t('backups.schedule.summary.nextRun')" mono>
+              {{ nextRun }}
             </UiDescriptionItem>
             <UiDescriptionItem :term="t('backups.schedule.summary.lastRun')" mono>
               {{ lastRun }}
