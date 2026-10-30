@@ -1,4 +1,5 @@
 using Maran.Modules.Ftp.Commands.EnableFtps;
+using Maran.Modules.Ftp.Domain.Enums;
 using Maran.Modules.Ftp.Domain.Policies;
 using Maran.Modules.Ftp.Queries.GetFtpsStatus;
 using Maran.Modules.Ftp.Tests.TestSupport;
@@ -35,7 +36,7 @@ public sealed class GetFtpsStatusQueryHandlerTests
         Assert.True(result.Value.Running);
         Assert.True(result.Value.ControlPortAnswered);
         Assert.True(result.Value.CertificatePresent);
-        Assert.True(result.Value.Enabled);
+        Assert.Equal(FtpsDesiredState.On, result.Value.DesiredState);
     }
 
     /// <summary>A server where ftps was never enabled reports the absence as an absence.</summary>
@@ -55,7 +56,7 @@ public sealed class GetFtpsStatusQueryHandlerTests
 
         Assert.True(result.IsSuccess);
         Assert.Null(result.Value.Hostname);
-        Assert.False(result.Value.Enabled);
+        Assert.Equal(FtpsDesiredState.NeverConfigured, result.Value.DesiredState);
         Assert.Equal(string.Empty, context.Agent.LastStatusHostname);
     }
 

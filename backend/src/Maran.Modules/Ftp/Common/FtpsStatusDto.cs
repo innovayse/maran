@@ -1,12 +1,15 @@
+using Maran.Modules.Ftp.Domain.Enums;
+
 namespace Maran.Modules.Ftp.Common;
 
 /// <summary>
-/// What an administrator's FTPS screen is told: what the agent MEASURED on the host, plus the two
-/// facts only the panel holds — the hostname it persisted and the control port it chose.
+/// What an administrator's FTPS screen is told: what the agent MEASURED on the host, plus the facts
+/// only the panel holds — the hostname it persisted, what it wants the daemon to be doing, and the
+/// control port it chose — and the backend's verdict on whether the wanting and the measuring agree.
 /// </summary>
 /// <remarks>
 /// <para>
-/// <b>Nothing in here is what the panel asked for.</b> Every daemon fact is read back out of the
+/// <b>Only <see cref="DesiredState"/> is what the panel asked for.</b> Every daemon fact is read back out of the
 /// configuration the daemon was started against, on the host, by the agent. A status assembled from
 /// the panel's own settings row would agree with the panel by construction: it would report a
 /// healthy daemon on a server where the unit had crashed, and — the case
@@ -25,10 +28,16 @@ namespace Maran.Modules.Ftp.Common;
 /// a customer told to connect to a name the certificate was not issued for gets a name-mismatch
 /// warning and no way to tell it from an attack.
 /// </param>
-/// <param name="Enabled">
-/// Whether the panel currently wants the daemon running. The panel's INTENTION, and the only field
-/// here that is one — it is beside the measurements so a screen can show the disagreement rather
-/// than pick a side.
+/// <param name="DesiredState">
+/// What the panel wants the daemon to be doing — the INTENTION, and the only field here that is one.
+/// Three-valued, because a server nobody has configured and a server an administrator switched off
+/// are different situations and a boolean folded the first into the second.
+/// </param>
+/// <param name="Agreement">
+/// Whether <paramref name="DesiredState"/> and the observed <paramref name="Running"/> and
+/// <paramref name="ControlPortAnswered"/> tell the same story, decided by
+/// <c>FtpsAgreementPolicy</c>. On the wire so the screen explains the disagreement the backend found
+/// instead of re-deriving the rule.
 /// </param>
 /// <param name="Running">The service manager reports the FTPS unit active.</param>
 /// <param name="ControlPortAnswered">
@@ -66,7 +75,8 @@ namespace Maran.Modules.Ftp.Common;
 /// </param>
 public sealed record FtpsStatusDto(
     string? Hostname,
-    bool Enabled,
+    FtpsDesiredState DesiredState,
+    FtpsAgreement Agreement,
     bool Running,
     bool ControlPortAnswered,
     bool ForcedTls,

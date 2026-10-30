@@ -19,12 +19,25 @@
  *   stopping a service is not editing a firewall, so this is the only place that leftover surface
  *   becomes visible.
  *
+ * **Intention and observation, and the backend's verdict on them.** `desiredState` is what the panel
+ * wants (never configured, on, off); `running` and `controlPortAnswered` are what the host showed;
+ * `agreement` is the backend's decision on whether those tell one story. When they do not, the card
+ * says which way in amber — it explains the verdict and never re-derives it. "Running" is said only
+ * when the unit is active AND its control port greeted: an active unit that does not answer serves
+ * nobody, and calling it running was half of the contradiction this card used to show.
+ *
+ * **A control that can do nothing says why, instead of doing nothing.** Turning FTPS off is disabled
+ * exactly when the panel already has it off (or never configured) and the service is not running —
+ * there is nothing to stop — and the reason is printed beside it. When the service runs although the
+ * panel has it off, the same button is the repair, and is labelled "Stop the service".
+ *
  * **Layout (October 2026 redesign).** One `UiCard`, in the order an operator needs it: the heading,
- * then whichever firewall warning applies (the one thing that needs attention goes first, amber,
- * with its fix beside it), then the nine measured facts, then the notes the status adds, then the
- * enable form. The panel setting and the service state are badges — each is drawn ONCE, because the
- * end-to-end suite finds those words by exact text and a second copy would be an ambiguous match.
- * A turned-off daemon is a neutral badge, never a red one: it is a setting, not a failure.
+ * then the failure of the last switch (if any, red), then the disagreement and whichever firewall
+ * warning applies (amber, each with its fix beside it), then the measured facts, then the notes the
+ * status adds, then the enable form. The panel setting and the service state are badges — each is
+ * drawn ONCE, because the end-to-end suite finds those words by exact text and a second copy would be
+ * an ambiguous match. A turned-off daemon is a neutral badge, never a red one: it is a setting, not a
+ * failure.
  *
  * Dumb by the usual contract: props in, emits out. The page owns both stores.
  */
@@ -40,7 +53,7 @@ import UiForm from '../ui/UiForm.vue'
 import UiInput from '../ui/UiInput.vue'
 import UiSectionHeading from '../ui/UiSectionHeading.vue'
 import type { FirewallRule } from '../../types/firewall'
-import type { FtpsStatus } from '../../types/ftpsStatus'
+import type { FtpsAgreement, FtpsServerFailure, FtpsStatus } from '../../types/ftpsStatus'
 
 /** Props accepted by {@link FtpsServerPanel}. */
 const props = defineProps<{
@@ -50,6 +63,11 @@ const props = defineProps<{
   rules: readonly FirewallRule[]
   /** Whether a request that changes the daemon or the firewall is already in flight. */
   acting: boolean
+  /**
+   * Why the last enable or disable failed, or `null` when it did not. Shown here, on the card whose
+   * button was pressed, rather than at the top of the page.
+   */
+  failure: FtpsServerFailure | null
 }>()
 
 /** Events emitted by {@link FtpsServerPanel}. */
@@ -124,9 +142,69 @@ const isListeningAndUnreachable: ComputedRef<boolean> = computed(() => {
   return props.status.controlPortAnswered && !isReachable.value
 })
 
-/** The daemon is off and its ports are still open, which is surface nobody is serving. */
+/** The panel does not want the daemon and its ports are still open, which is surface nobody should serve. */
 const isDisabledAndOpen: ComputedRef<boolean> = computed(() => {
-  return !props.status.enabled && hasLingeringRules.value
+  return props.status.desiredState !== 'on' && hasLingeringRules.value
+})
+
+/** Whether the service is serving: active AND greeting on its control port. Either alone is not. */
+const isServing: ComputedRef<boolean> = computed(() => {
+  return props.status.running && props.status.controlPortAnswered
+})
+
+/** The amber explanation of the backend's verdict, or `null` when intention and observation agree. */
+const agreementText: ComputedRef<string | null> = computed(() => {
+  // A record keyed by every verdict, so a new one the backend adds is a type error here.
+  const explanations: Record<FtpsAgreement, string | null> = {
+    consistent: null,
+    runningButOff: t('ftp.server.agreement.runningButOff'),
+    onButNotRunning: t('ftp.server.agreement.onButNotRunning'),
+    runningButNotAnswering: t('ftp.server.agreement.runningButNotAnswering'),
+  }
+  return explanations[props.status.agreement]
+})
+
+/** The failure of the last switch, worded: the backend's own sentence, or the generic one. */
+const failureText: ComputedRef<string | null> = computed(() => {
+  if (props.failure === null) {
+    return null
+  }
+  return props.failure.kind === 'server' ? props.failure.message : t('ftp.server.feedback.unexpectedFailure')
+})
+
+/**
+ * Why turning FTPS off can do nothing right now, or `null` when it can. It can whenever the panel
+ * wants the daemon on, and whenever the service is running at all — the latter is the repair for a
+ * daemon running against the panel's setting.
+ */
+const disableReason: ComputedRef<string | null> = computed(() => {
+  if (props.status.running || props.status.desiredState === 'on') {
+    return null
+  }
+  return props.status.desiredState === 'neverConfigured'
+    ? t('ftp.server.form.disableReasonNeverConfigured')
+    : t('ftp.server.form.disableReasonOff')
+})
+
+/** The disable button's label: the repair's own name when the service runs against the setting. */
+const disableLabel: ComputedRef<string> = computed(() => {
+  return props.status.agreement === 'runningButOff'
+    ? t('ftp.server.form.stopService')
+    : t('ftp.server.form.disable')
+})
+
+/** The "Panel setting" badge's text, one per desired state. */
+const settingText: ComputedRef<string> = computed(() => {
+  // One key per wire value, which is what the display-name law checks in all three locales.
+  return t(`ftp.server.desiredStates.${props.status.desiredState}`)
+})
+
+/** The "Service" badge's text: running only when serving, a distinct word for active-but-silent. */
+const serviceText: ComputedRef<string> = computed(() => {
+  if (isServing.value) {
+    return t('ftp.server.states.running')
+  }
+  return props.status.running ? t('ftp.server.states.notAnswering') : t('ftp.server.states.stopped')
 })
 
 /** The passive range as one readable value, or the placeholder when the daemon has no live one. */
@@ -138,18 +216,18 @@ const passiveRangeText: ComputedRef<string> = computed(() => {
 
 /** The tone of the "Panel setting" badge: the intention, shown as a setting and never as a failure. */
 const settingTone: ComputedRef<BadgeVariant> = computed(() => {
-  return props.status.enabled ? 'info' : 'neutral'
+  return props.status.desiredState === 'on' ? 'info' : 'neutral'
 })
 
 /**
- * The tone of the "Service" badge. Green only for a daemon that is up; a daemon the panel wants on
- * but the host is not running is amber, and one that is off by choice is merely neutral.
+ * The tone of the "Service" badge. Green only for a daemon that is serving; any disagreement the
+ * backend found is amber, and a daemon that is off by choice is merely neutral.
  */
 const serviceTone: ComputedRef<BadgeVariant> = computed(() => {
-  if (props.status.running) {
+  if (isServing.value && props.status.agreement === 'consistent') {
     return 'success'
   }
-  return props.status.enabled ? 'warning' : 'neutral'
+  return props.status.agreement === 'consistent' ? 'neutral' : 'warning'
 })
 
 /**
@@ -189,9 +267,21 @@ const closePorts = (): void => {
   <UiCard>
     <UiSectionHeading :title="t('ftp.server.heading')" :subtitle="t('ftp.server.description')" />
 
-    <!-- The one thing that needs attention goes first. Both warnings are derived from the firewall
-         the page handed in; each carries the fix, and the fix is offered, never applied. -->
-    <div v-if="isListeningAndUnreachable || isDisabledAndOpen" class="mt-4 flex flex-col gap-3">
+    <!-- What needs attention goes first: the last switch's failure, then the backend's verdict on
+         intention against observation, then the two firewall warnings derived from the rules the page
+         handed in. Each warning carries its fix, and the fix is offered, never applied. -->
+    <div
+      v-if="failureText !== null || agreementText !== null || isListeningAndUnreachable || isDisabledAndOpen"
+      class="mt-4 flex flex-col gap-3"
+    >
+      <UiAlert v-if="failureText !== null" variant="error">
+        <span data-testid="ftps-action-failure">{{ failureText }}</span>
+      </UiAlert>
+
+      <UiAlert v-if="agreementText !== null" variant="warning">
+        <span data-testid="ftps-agreement">{{ agreementText }}</span>
+      </UiAlert>
+
       <UiAlert v-if="isListeningAndUnreachable" variant="warning">
         <span data-testid="ftps-unreachable">{{ t('ftp.server.warnings.unreachable') }}</span>
         <template #actions>
@@ -213,14 +303,10 @@ const closePorts = (): void => {
 
     <UiDescriptionList class="mt-5">
       <UiDescriptionItem :term="t('ftp.server.fields.state')">
-        <UiBadge :variant="settingTone">
-          {{ status.enabled ? t('ftp.server.states.enabled') : t('ftp.server.states.disabled') }}
-        </UiBadge>
+        <UiBadge :variant="settingTone">{{ settingText }}</UiBadge>
       </UiDescriptionItem>
       <UiDescriptionItem :term="t('ftp.server.fields.running')">
-        <UiBadge :variant="serviceTone">
-          {{ status.running ? t('ftp.server.states.running') : t('ftp.server.states.stopped') }}
-        </UiBadge>
+        <UiBadge :variant="serviceTone">{{ serviceText }}</UiBadge>
       </UiDescriptionItem>
       <UiDescriptionItem :term="t('ftp.server.fields.hostname')" mono>
         {{ status.hostname ?? t('common.emptyValue') }}
@@ -269,10 +355,15 @@ const closePorts = (): void => {
       </div>
       <div class="mt-4 flex flex-wrap items-center gap-3">
         <UiButton type="submit" :disabled="acting">{{ t('ftp.server.form.enable') }}</UiButton>
-        <UiButton variant="secondary" :disabled="acting" @click="disable">
-          {{ t('ftp.server.form.disable') }}
+        <UiButton variant="secondary" :disabled="acting || disableReason !== null" @click="disable">
+          {{ disableLabel }}
         </UiButton>
       </div>
+      <!-- The reason the switch cannot act, printed beside it: a disabled control with no reason
+           is the silent button this card used to have. -->
+      <p v-if="disableReason !== null" data-testid="ftps-disable-reason" class="mt-3 text-sm text-text-muted">
+        {{ disableReason }}
+      </p>
       <p class="mt-3 text-sm text-text-muted">{{ t('ftp.server.form.note') }}</p>
     </UiForm>
   </UiCard>

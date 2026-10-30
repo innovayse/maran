@@ -1,5 +1,6 @@
 using Maran.Agent.Client.Interfaces;
 using Maran.Modules.Ftp.Common;
+using Maran.Modules.Ftp.Domain.Policies;
 using Maran.Modules.Ftp.Mappers;
 using Maran.Modules.Ftp.Persistence;
 using Maran.Modules.Ftp.Services;
@@ -15,7 +16,9 @@ namespace Maran.Modules.Ftp.Commands.DisableFtps;
 /// <b>There is no "not enabled" refusal, and that is deliberate.</b> The agent's disable is
 /// idempotent, so a server whose daemon is already down converges rather than fails — and a panel
 /// that refused would leave an operator unable to switch off a daemon the panel had lost track of,
-/// which is precisely the state they most want to be able to end.
+/// which is precisely the state they most want to be able to end. The answer then carries
+/// <c>NeverConfigured</c> rather than <c>Off</c>: stopping a service writes no row, so it does not
+/// turn "nobody chose" into "somebody chose off".
 /// </para>
 /// <para>
 /// The agent runs first, as on the enable path and for the mirror-image reason. A stopped daemon
@@ -90,6 +93,9 @@ public sealed class DisableFtpsCommandHandler
         await _journal.RecordSuccessAsync(
             FtpAuditJournal.FtpsDisabled, subject, command.IpAddress, command.UserAgent, cancellationToken);
 
-        return Result<FtpsStatusDto>.Ok(FtpsStatusMapper.ToDto(disabled.Value, settings));
+        return Result<FtpsStatusDto>.Ok(FtpsStatusMapper.ToDto(
+            disabled.Value,
+            settings?.Hostname,
+            FtpsDesiredStatePolicy.Of(settings)));
     }
 }

@@ -192,6 +192,20 @@ public static class DisplayNameExemptions
             + "and the day a screen does show it this entry stops being true — which is what the "
             + "evidence check is for."),
         new(
+            "Maran.Modules.Ftp.Common.FtpsStatusDto",
+            "DesiredState",
+            DisplayNameExemptionKind.SpaOwnedVocabulary,
+            "ftp.server.desiredStates.{member}",
+            "Never configured, on and off are the three things the panel can want of its one FTPS "
+            + "daemon, drawn as the panel-setting badge; the set is closed by the domain."),
+        new(
+            "Maran.Modules.Ftp.Common.FtpsStatusDto",
+            "Agreement",
+            DisplayNameExemptionKind.NotAnOperatorFacingName,
+            "frontend/src/components/ftp/FtpsServerPanel.vue",
+            "A verdict the server panel turns into an explanatory sentence, or into nothing when "
+            + "intention and observation agree; it is never printed as the name of anything."),
+        new(
             "Maran.Modules.Tasks.Common.PanelTaskDto",
             "Status",
             DisplayNameExemptionKind.SpaOwnedVocabulary,

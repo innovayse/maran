@@ -37,8 +37,14 @@
  * failure. The backend's already-localized sentence is rendered verbatim and nothing here parses it
  * (rules/vue.md forbids machine text on screen, and a fake distinction would be worse than none).
  *
+ * **Every FTPS switch answers.** Turning FTPS on or off shows a toast worded from the state the
+ * panel measured AFTER the change — "turned off, but the service is still running" is a different
+ * sentence from "turned off", and a success toast over the first would be the silent button again in
+ * a friendlier colour. A failed switch is shown on the server panel itself, and both switches re-read
+ * the firewall afterwards so its warnings answer to the moment after the change.
+ *
  * **What the screen is made of, top to bottom (the redesign's panel language).** The page heading,
- * then whatever needs attention — a failed FTPS-server call or a rejected create, as notices — then
+ * then whatever needs attention — a failed FTPS status read or a rejected create, as notices — then
  * the administrator's FTPS server panel, then the create form in its own card, then the logins in
  * theirs. Panels are 16px apart on the content panel; nothing floats bare. The list card swaps its
  * body between a spinner, the backend's own error, and the table, and an account with no logins at
@@ -72,7 +78,7 @@ import UiTable from '../../components/ui/UiTable.vue'
 import UiTableCell from '../../components/ui/UiTableCell.vue'
 import UiTableHeaderCell from '../../components/ui/UiTableHeaderCell.vue'
 import UiTableRow from '../../components/ui/UiTableRow.vue'
-import UiToast from '../../components/ui/UiToast.vue'
+import UiToast, { type ToastVariant } from '../../components/ui/UiToast.vue'
 import FileTransferLoginCreateForm from '../../components/ftp/FileTransferLoginCreateForm.vue'
 import FtpUserCreatedDialog from '../../components/ftp/FtpUserCreatedDialog.vue'
 import FtpsServerPanel from '../../components/ftp/FtpsServerPanel.vue'
@@ -86,7 +92,7 @@ import { useLocaleStore } from '../../stores/locale'
 import { useSftpStore } from '../../stores/sftp'
 import { fileTransferProtocolOf } from '../../utils/fileTransferProtocolOf'
 import { formatDate } from '../../utils/formatDate'
-import type { EnableFtpsRequest } from '../../types/ftpsStatus'
+import type { EnableFtpsRequest, FtpsStatus } from '../../types/ftpsStatus'
 import type { FirewallRule } from '../../types/firewall'
 import type {
   CreateFileTransferLoginRequest,
@@ -113,8 +119,14 @@ const sftpStore = useSftpStore()
 /** The create form, so an accepted create can empty the field it owns. */
 const form = useTemplateRef<{ reset: () => void }>('form')
 
-/** The success toast's text after a create, or `null` while none is showing. */
+/** The toast's text after a create or an FTPS switch, or `null` while none is showing. */
 const notice: Ref<string | null> = ref(null)
+
+/**
+ * The toast's tone: success when the outcome is what was asked for, warning when the panel measured
+ * something else afterwards.
+ */
+const noticeVariant: Ref<ToastVariant> = ref('success')
 
 /** The login whose action is awaiting confirmation, or the empty string when none is. */
 const pendingId: Ref<string> = ref('')
@@ -221,7 +233,20 @@ const ftpsAvailability: ComputedRef<'available' | 'off' | 'unknown'> = computed(
   if (!ftpsServerStore.isDisclosed || ftpsServerStore.status === null) {
     return 'unknown'
   }
-  return ftpsServerStore.status.enabled ? 'available' : 'off'
+  return ftpsServerStore.status.desiredState === 'on' ? 'available' : 'off'
+})
+
+/**
+ * Why the FTPS status could not be read, worded: the backend's own sentence, or the generic one. A
+ * failed read leaves no status to draw the server panel from, so this is the one FTPS failure the
+ * page itself shows.
+ */
+const ftpsLoadFailureText: ComputedRef<string | null> = computed(() => {
+  const failure = ftpsServerStore.loadFailure
+  if (failure === null) {
+    return null
+  }
+  return failure.kind === 'server' ? failure.message : t('ftp.server.feedback.unexpectedFailure')
 })
 
 /** The name of the row whose action is awaiting an answer, so the dialog says what it asks about. */
@@ -303,6 +328,7 @@ const create = async (request: CreateFileTransferLoginRequest): Promise<void> =>
       : await sftpStore.create({ accountId: request.accountId, name: request.name })
 
   if (accepted) {
+    noticeVariant.value = 'success'
     notice.value = t('ftp.list.created', { name: request.name })
     form.value?.reset()
   }
@@ -357,23 +383,72 @@ const dismissCredentials = (): void => {
 }
 
 /**
- * Turns the FTPS daemon on and re-reads the firewall, so the reachability warning reflects the
- * moment after the change rather than the one before it.
+ * Words the toast for the state the panel measured after an FTPS switch.
+ *
+ * Worded from the backend's verdict rather than from which button was pressed: the answer to "turn
+ * it off" can be a service that is still running, and the toast must say so.
+ * @param status The status the switch answered with.
+ * @returns Nothing; sets the toast.
+ */
+const announceFtpsOutcome = (status: FtpsStatus): void => {
+  noticeVariant.value = status.agreement === 'consistent' ? 'success' : 'warning'
+
+  switch (status.agreement) {
+    case 'runningButOff':
+      notice.value = t('ftp.server.feedback.disabledStillRunning')
+      return
+    case 'onButNotRunning':
+      notice.value = t('ftp.server.feedback.enabledNotRunning')
+      return
+    case 'runningButNotAnswering':
+      notice.value = t('ftp.server.feedback.enabledNotAnswering')
+      return
+    case 'consistent':
+      break
+  }
+
+  if (status.desiredState === 'on') {
+    notice.value = t('ftp.server.feedback.enabled', { port: status.controlPort })
+    return
+  }
+  notice.value =
+    status.desiredState === 'off' ? t('ftp.server.feedback.disabled') : t('ftp.server.feedback.stopped')
+}
+
+/**
+ * Re-reads the firewall after an FTPS switch, then announces what the switch answered with.
+ *
+ * The re-read follows EVERY switch, whether it succeeded or not: either the reachability warning or
+ * the lingering-ports warning depends on the daemon's new state, and a warning computed against the
+ * old one is the screen disagreeing with itself.
+ * @param accepted Whether the panel answered the switch with a status.
+ * @returns Resolves once the firewall has been re-read.
+ */
+const settleFtpsSwitch = async (accepted: boolean): Promise<void> => {
+  await firewallStore.load()
+
+  if (accepted && ftpsServerStore.status !== null) {
+    announceFtpsOutcome(ftpsServerStore.status)
+  }
+}
+
+/**
+ * Turns the FTPS daemon on, re-reads the firewall, and says what the panel measured afterwards.
  * @param request The hostname and passive address the panel form collected.
  * @returns Resolves once both requests have settled.
  */
 const enableFtps = async (request: EnableFtpsRequest): Promise<void> => {
-  await ftpsServerStore.enable(request)
-  await firewallStore.load()
+  await settleFtpsSwitch(await ftpsServerStore.enable(request))
 }
 
 /**
- * Turns the FTPS daemon off. The firewall is deliberately left alone; the panel's second warning is
- * what makes the ports it left open visible.
- * @returns Resolves once the request has settled.
+ * Turns the FTPS daemon off, re-reads the firewall, and says what the panel measured afterwards.
+ * The firewall itself is deliberately left alone; the panel's lingering-ports warning is what makes
+ * the ports a stopped daemon left open visible, and it is computed against the re-read rules.
+ * @returns Resolves once both requests have settled.
  */
 const disableFtps = async (): Promise<void> => {
-  await ftpsServerStore.disable()
+  await settleFtpsSwitch(await ftpsServerStore.disable())
 }
 
 /**
@@ -420,8 +495,8 @@ onBeforeUnmount(dismissCredentials)
 
     <!-- What needs attention goes first: a failure on either request is the thing an operator must
          read before the rest of the screen means anything. The backend's own sentence, verbatim. -->
-    <UiAlert v-if="ftpsServerStore.errorMessage !== null" variant="error">
-      {{ ftpsServerStore.errorMessage }}
+    <UiAlert v-if="ftpsLoadFailureText !== null" variant="error">
+      {{ ftpsLoadFailureText }}
     </UiAlert>
 
     <UiAlert v-if="createErrorMessage !== null" variant="error">
@@ -433,6 +508,7 @@ onBeforeUnmount(dismissCredentials)
       :status="ftpsServerStore.status"
       :rules="firewallStore.rules"
       :acting="ftpsServerStore.acting || firewallStore.acting"
+      :failure="ftpsServerStore.actionFailure"
       @enable="enableFtps"
       @disable="disableFtps"
       @open-ports="openFtpsPorts"
@@ -545,7 +621,12 @@ onBeforeUnmount(dismissCredentials)
       @close="dismissCredentials"
     />
     <div class="pointer-events-none fixed inset-x-4 bottom-4 z-50 flex justify-end sm:left-auto">
-      <UiToast v-if="notice !== null" variant="success" :close-label="t('common.close')" @dismiss="dismissNotice">
+      <UiToast
+        v-if="notice !== null"
+        :variant="noticeVariant"
+        :close-label="t('common.close')"
+        @dismiss="dismissNotice"
+      >
         {{ notice }}
       </UiToast>
     </div>

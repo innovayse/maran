@@ -1,7 +1,9 @@
 using Maran.Modules.Ftp.Commands.DisableFtps;
 using Maran.Modules.Ftp.Commands.EnableFtps;
+using Maran.Modules.Ftp.Domain.Enums;
 using Maran.Modules.Ftp.Services;
 using Maran.Modules.Ftp.Tests.TestSupport;
+using Maran.SharedKernel.Results;
 using Microsoft.EntityFrameworkCore;
 
 namespace Maran.Modules.Ftp.Tests.Commands.DisableFtps;
@@ -75,6 +77,69 @@ public sealed class DisableFtpsCommandHandlerTests
         Assert.Equal(FtpAuditJournal.FtpsDisabled, entry.Action);
         Assert.Equal(FtpsHostname, entry.Subject);
         Assert.True(entry.Succeeded);
+    }
+
+    /// <summary>Disabling ftps on a never-enabled server answers never configured and writes no row.</summary>
+    /// <remarks>
+    /// Stopping a service is not a choice about FTPS: a server nobody configured must still read as
+    /// never configured afterwards, not as one an administrator turned off.
+    /// </remarks>
+    [Fact]
+    public async Task Disabling_ftps_on_a_server_that_never_enabled_it_answers_never_configured_and_writes_no_row()
+    {
+        using var context = new FtpTestContext();
+        context.Agent.NextStatus = context.Agent.NextStatus with { Running = false, ControlPortAnswered = false };
+
+        var result = await context.DisableHandler.HandleAsync(new DisableFtpsCommand(), CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(FtpsDesiredState.NeverConfigured, result.Value.DesiredState);
+        Assert.Equal(FtpsAgreement.Consistent, result.Value.Agreement);
+        Assert.False(await context.Database.FtpsSettings.AnyAsync(CancellationToken.None));
+    }
+
+    /// <summary>Disabling ftps that is already off reaches the agent and reports a daemon still running.</summary>
+    /// <remarks>
+    /// The repair for "running but off" is this same command, so it must reach the host even when the
+    /// row already says off — and when the host still reports the unit active afterwards, the answer
+    /// says so rather than claiming the off the operator asked for.
+    /// </remarks>
+    [Fact]
+    public async Task Disabling_ftps_that_is_already_off_reaches_the_agent_and_reports_a_daemon_still_running()
+    {
+        using var context = await EnabledContextAsync();
+        await context.DisableHandler.HandleAsync(new DisableFtpsCommand(), CancellationToken.None);
+        context.Agent.NextStatus = context.Agent.NextStatus with { Running = true };
+
+        var result = await context.DisableHandler.HandleAsync(new DisableFtpsCommand(), CancellationToken.None);
+
+        Assert.Equal(2, context.Agent.DisableCalls);
+        Assert.True(result.IsSuccess);
+        Assert.Equal(FtpsDesiredState.Off, result.Value.DesiredState);
+        Assert.Equal(FtpsAgreement.RunningButOff, result.Value.Agreement);
+    }
+
+    /// <summary>A disable the agent refuses leaves the row as it was and journals the failure.</summary>
+    /// <remarks>
+    /// The agent runs first: a row saying "off" over a daemon the host could not stop is a panel
+    /// reporting a closed door that is open.
+    /// </remarks>
+    [Fact]
+    public async Task A_disable_the_agent_refuses_leaves_the_row_on_and_journals_the_failure()
+    {
+        using var context = await EnabledContextAsync();
+        context.Agent.NextDisableError = Error.Of("AgentSystemFailure", ErrorType.Failure);
+        var before = context.Entries.Count;
+
+        var result = await context.DisableHandler.HandleAsync(new DisableFtpsCommand(), CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("AgentSystemFailure", result.Error!.Code);
+        var row = await context.Database.FtpsSettings.SingleAsync(CancellationToken.None);
+        Assert.True(row.Enabled);
+        var entry = context.Entries[before];
+        Assert.Equal(FtpAuditJournal.FtpsDisabled, entry.Action);
+        Assert.False(entry.Succeeded);
     }
 
     /// <summary>Builds a context with FTPS already enabled for <see cref="FtpsHostname"/>.</summary>

@@ -39,6 +39,9 @@ public sealed class RecordingFtpsAgent : IAgentFtpsClient
     /// <summary>The failure <see cref="EnableAsync"/> answers with, or null to answer with the observation.</summary>
     public Error? NextEnableError { get; set; }
 
+    /// <summary>The failure <see cref="DisableAsync"/> answers with, or null to answer normally.</summary>
+    public Error? NextDisableError { get; set; }
+
     /// <summary>The failure <see cref="ReloadTlsAsync"/> answers with, or null to answer with the observation.</summary>
     public Error? NextReloadError { get; set; }
 
@@ -109,6 +112,12 @@ public sealed class RecordingFtpsAgent : IAgentFtpsClient
     public Task<Result<FtpsStatusDto>> DisableAsync(CancellationToken cancellationToken)
     {
         DisableCalls++;
+
+        if (NextDisableError is not null)
+        {
+            return Task.FromResult(Result<FtpsStatusDto>.Fail(NextDisableError));
+        }
+
         return Task.FromResult(Result<FtpsStatusDto>.Ok(NextStatus));
     }
 

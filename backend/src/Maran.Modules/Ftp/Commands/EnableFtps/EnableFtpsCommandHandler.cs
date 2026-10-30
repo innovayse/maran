@@ -151,7 +151,10 @@ public sealed class EnableFtpsCommandHandler
             command.UserAgent,
             cancellationToken);
 
-        return Result<FtpsStatusDto>.Ok(FtpsStatusMapper.ToDto(enabled.Value, settings));
+        return Result<FtpsStatusDto>.Ok(FtpsStatusMapper.ToDto(
+            enabled.Value,
+            settings.Hostname,
+            FtpsDesiredStatePolicy.Of(settings)));
     }
 
     /// <summary>

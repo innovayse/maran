@@ -78,13 +78,17 @@
         "forcedTls": "Encryption",
         "certificate": "Certificate file"
       },
+      "desiredStates": {
+        "neverConfigured": "Never configured",
+        "on": "Turned on",
+        "off": "Turned off"
+      },
       "states": {
-        "enabled": "Turned on",
-        "disabled": "Turned off",
         "running": "Running",
         "stopped": "Stopped",
         "tlsForced": "TLS required for logins and transfers",
-        "tlsUnknown": "Not confirmed as required"
+        "tlsUnknown": "Not confirmed as required",
+        "notAnswering": "Not answering"
       },
       "ipv4Only": "This host has no IPv6 address, so the daemon is bound to IPv4 only.",
       "selfSigned": "The certificate is a placeholder this panel generated. Every client will warn until a real one is issued for this host name.",
@@ -94,6 +98,11 @@
         "lingering": "FTPS is turned off and its ports are still open in the firewall. Stopping a service does not close a port.",
         "closePorts": "Close the FTPS ports"
       },
+      "agreement": {
+        "runningButOff": "The service is running although FTPS is turned off in the panel. Customers can still reach it; stop the service to match the setting.",
+        "onButNotRunning": "FTPS is turned on in the panel, but the service is not running. Turning FTPS on again re-applies the configuration and starts it.",
+        "runningButNotAnswering": "The service is running, but its control port gave no greeting on this host, so no client can be served."
+      },
       "form": {
         "hostname": "Host name to serve",
         "hostnamePlaceholder": "panel.example.com",
@@ -101,7 +110,19 @@
         "passiveAddressPlaceholder": "203.0.113.10",
         "enable": "Turn FTPS on",
         "disable": "Turn FTPS off",
-        "note": "Customers connect to this host name, because the server presents one certificate for the whole panel. Turning the service on does not open the firewall — that is offered separately, so a new listening port is never a surprise."
+        "note": "Customers connect to this host name, because the server presents one certificate for the whole panel. Turning the service on does not open the firewall — that is offered separately, so a new listening port is never a surprise.",
+        "stopService": "Stop the service",
+        "disableReasonNeverConfigured": "FTPS has never been turned on on this server, and the service is not running.",
+        "disableReasonOff": "FTPS is already turned off and the service is not running."
+      },
+      "feedback": {
+        "enabled": "FTPS is turned on and answering on port {port}.",
+        "enabledNotRunning": "FTPS is turned on, but the service is not running.",
+        "enabledNotAnswering": "FTPS is turned on, but the service is not answering yet.",
+        "disabled": "FTPS is turned off and the service is stopped.",
+        "stopped": "The FTPS service is stopped.",
+        "disabledStillRunning": "FTPS is turned off, but the service is still running.",
+        "unexpectedFailure": "The request did not complete. Check that the panel is reachable and try again."
       }
     }
   }

@@ -226,7 +226,7 @@ test('the open-ports offer installs rules for the ports the server reported', as
 //
 // It renders false when UNKNOWN by design (no live configuration, an unreadable file, an older
 // agent), so the two states are "required" and "not confirmed as required" — never "off", which
-// would be a claim the agent did not make. It sits beside the panel's own `Enabled` intention so an
+// would be a claim the agent did not make. It sits beside the panel's own `desiredState` intention so an
 // operator can see the two disagree rather than be shown one of them as the truth.
 test('the forced-TLS fact is stated in both directions and never as the panel intention', async ({
   page,
@@ -239,7 +239,7 @@ test('the forced-TLS fact is stated in both directions and never as the panel in
   // The panel still believes FTPS is enabled here. A screen that took the intention as the answer
   // would keep reporting enforced encryption over a daemon reporting that it enforces none.
   await page.unrouteAll({ behavior: 'ignoreErrors' })
-  await openScreen(page, { ...runningFtpsStatus, enabled: true, forcedTls: false }, FTPS_RULES)
+  await openScreen(page, { ...runningFtpsStatus, desiredState: 'on', forcedTls: false }, FTPS_RULES)
   await expect(SERVER_PANEL(page)).toBeVisible()
   await expect(page.getByText('Not confirmed as required', { exact: true })).toBeVisible()
   await expect(page.getByText('TLS required for logins and transfers', { exact: true })).toHaveCount(0)

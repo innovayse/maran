@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 import { ref, type Ref } from 'vue'
 import { useFtpsServerApi } from '../composables/apis/useFtpsServerApi'
 import { ApiError } from '../composables/useApi'
-import type { EnableFtpsRequest, FtpsStatus } from '../types/ftpsStatus'
+import type { EnableFtpsRequest, FtpsServerFailure, FtpsStatus } from '../types/ftpsStatus'
 
 /** The HTTP status the panel answers a caller who may not read the FTPS server's state. */
 const FORBIDDEN = 403
@@ -15,11 +15,18 @@ const FORBIDDEN = 403
  * path on the host, which is operator-facing text a customer must never be shown. The refusal lands
  * in {@link isDisclosed} as `false`, and the screens read that as "this panel will not tell me",
  * which is a different sentence from "FTPS is off" and from "the server is broken". Folding it into
- * {@link errorMessage} would put a red alert on every customer's file transfer screen for a request
+ * {@link loadFailure} would put a red alert on every customer's file transfer screen for a request
  * the panel was right to refuse.
  *
- * Error text is never generated here: a real failure's already-localized `detail` is stored verbatim
- * (rules/vue.md).
+ * **Every other failure is kept, and kept as a failure.** A real failure's already-localized
+ * `detail` is stored verbatim (rules/vue.md); a failure that carries no sentence — the request never
+ * reached the panel, or the answer had no text — is stored as `unexpected`, which the screen words
+ * with its own generic sentence. It is never dropped: a click that changes nothing and says nothing
+ * is the defect this distinction exists to end.
+ *
+ * Loading and acting fail into two fields, because they are read in two places: a failed load leaves
+ * no status to draw the server panel from, so it is shown on the page; a failed switch is shown on
+ * the panel whose button was pressed.
  */
 export const useFtpsServerStore = defineStore('ftpsServer', () => {
   const api = useFtpsServerApi()
@@ -46,10 +53,26 @@ export const useFtpsServerStore = defineStore('ftpsServer', () => {
   const acting: Ref<boolean> = ref(false)
 
   /**
-   * Backend-localized message from the most recent genuine failure, or `null`. A 403 never lands
-   * here — see this store's own note about why.
+   * Why the most recent status read failed, or `null` when it did not. A 403 never lands here — see
+   * this store's own note about why.
    */
-  const errorMessage: Ref<string | null> = ref(null)
+  const loadFailure: Ref<FtpsServerFailure | null> = ref(null)
+
+  /** Why the most recent enable or disable failed, or `null` when it did not. */
+  const actionFailure: Ref<FtpsServerFailure | null> = ref(null)
+
+  /**
+   * Classifies anything a request threw. A problem the panel answered with keeps its own sentence;
+   * everything else — a network failure, a problem with no text — is `unexpected`, never nothing.
+   * @param error Whatever the request threw.
+   * @returns The failure as the screen words it.
+   */
+  const failureOf = (error: unknown): FtpsServerFailure => {
+    if (error instanceof ApiError && error.message.trim().length > 0) {
+      return { kind: 'server', message: error.message }
+    }
+    return { kind: 'unexpected' }
+  }
 
   /**
    * Reads the daemon's state.
@@ -63,15 +86,15 @@ export const useFtpsServerStore = defineStore('ftpsServer', () => {
     try {
       status.value = await api.status()
       isDisclosed.value = true
-      errorMessage.value = null
+      loadFailure.value = null
     } catch (error) {
       if (error instanceof ApiError && error.status === FORBIDDEN) {
         status.value = null
         isDisclosed.value = false
-        errorMessage.value = null
+        loadFailure.value = null
         return
       }
-      errorMessage.value = error instanceof ApiError ? error.message : null
+      loadFailure.value = failureOf(error)
     } finally {
       loading.value = false
     }
@@ -90,10 +113,10 @@ export const useFtpsServerStore = defineStore('ftpsServer', () => {
       // healthy daemon on a host where the unit failed to start.
       status.value = await api.enable(request)
       isDisclosed.value = true
-      errorMessage.value = null
+      actionFailure.value = null
       return true
     } catch (error) {
-      errorMessage.value = error instanceof ApiError ? error.message : null
+      actionFailure.value = failureOf(error)
       return false
     } finally {
       acting.value = false
@@ -101,24 +124,25 @@ export const useFtpsServerStore = defineStore('ftpsServer', () => {
   }
 
   /**
-   * Turns the daemon off. The firewall is deliberately left alone — the server panel's own warning
-   * is what makes the leftover open ports visible.
-   * @returns True when the panel stopped the daemon.
+   * Turns the daemon off, and holds the state measured afterwards — which may still say the service
+   * is running, and the screen reports that rather than the off it asked for. The firewall is
+   * deliberately left alone; the server panel's own warning is what makes leftover open ports visible.
+   * @returns True when the panel answered the request with a status.
    */
   const disable = async (): Promise<boolean> => {
     acting.value = true
     try {
       status.value = await api.disable()
       isDisclosed.value = true
-      errorMessage.value = null
+      actionFailure.value = null
       return true
     } catch (error) {
-      errorMessage.value = error instanceof ApiError ? error.message : null
+      actionFailure.value = failureOf(error)
       return false
     } finally {
       acting.value = false
     }
   }
 
-  return { status, isDisclosed, loading, acting, errorMessage, load, enable, disable }
+  return { status, isDisclosed, loading, acting, loadFailure, actionFailure, load, enable, disable }
 })

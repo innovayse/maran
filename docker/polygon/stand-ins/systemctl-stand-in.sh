@@ -54,6 +54,15 @@
 # host's units are in after the installer has run, which a container's missing
 # init would otherwise contradict for every one of them.
 #
+# **Except the panel's own units that the installer never starts.** The
+# installer lays down `maran-ftps.service` and the `maran-php-install@` template
+# and starts neither: FTPS is off until an administrator turns it on, and a PHP
+# install unit runs only when asked. On a real host both read `inactive` and
+# `disabled` from the first boot, so here a unit with no file reads that too (see
+# is_dormant_panel_unit). Before this, the stand-in reported a never-started
+# `maran-ftps.service` as active, and the panel's FTPS card showed "Running" over
+# a daemon nobody had started and nothing was listening for (issue #215).
+#
 # Enablement is a SECOND file, `<unit>.enabled`, written by `enable`/`disable`
 # and read by `is-enabled`, defaulting the same way. It is separate because the
 # two are separate on a real host: a unit can be enabled and stopped, or running
@@ -147,6 +156,12 @@ STATE_DIRECTORY=/run/polygon-units
 # `active` is the state a real host's installed units are in, and a container's
 # missing init must not turn every one of them into a reported outage.
 DEFAULT_ACTIVE_STATE=active
+
+# What a dormant panel unit (see is_dormant_panel_unit) with no state file reads as.
+DORMANT_ACTIVE_STATE=inactive
+
+# Whether a dormant panel unit with no enablement file is enabled at boot.
+DORMANT_ENABLEMENT=disabled
 
 # systemd's exit status for `is-active` on a unit that is not active.
 INACTIVE_STATUS=3
@@ -330,11 +345,25 @@ record_state() {
     printf '%s\n' "$2" > "$(state_file "$1")"
 }
 
-# active_state_of: <unit>'s recorded ActiveState, or the default.
+# is_dormant_panel_unit: whether <unit> is one of the panel's own units that the
+# installer installs and never starts. Such a unit reads DORMANT_ACTIVE_STATE and
+# DORMANT_ENABLEMENT until a verb records otherwise — the state a real host holds
+# it in until the panel drives it. A template instance such as
+# `maran-php-install@php83-php-fpm.service` matches its `@*` pattern.
+is_dormant_panel_unit() {
+    case "$1" in
+        maran-ftps.service | maran-php-install@*.service) return 0 ;;
+    esac
+    return 1
+}
+
+# active_state_of: <unit>'s recorded ActiveState, or the default for its kind.
 active_state_of() {
     path="$(state_file "$1")"
     if [ -f "$path" ]; then
         head -1 "$path"
+    elif is_dormant_panel_unit "$1"; then
+        printf '%s' "$DORMANT_ACTIVE_STATE"
     else
         printf '%s' "$DEFAULT_ACTIVE_STATE"
     fi
@@ -356,11 +385,13 @@ record_reload() {
     printf '%s\n' reloaded > "$(state_file "$1" "$RELOADED_SUFFIX")"
 }
 
-# enablement_of: <unit>'s recorded enablement, or the default.
+# enablement_of: <unit>'s recorded enablement, or the default for its kind.
 enablement_of() {
     path="$(state_file "$1" "$ENABLED_SUFFIX")"
     if [ -f "$path" ]; then
         head -1 "$path"
+    elif is_dormant_panel_unit "$1"; then
+        printf '%s' "$DORMANT_ENABLEMENT"
     else
         printf '%s' "$DEFAULT_ENABLEMENT"
     fi
