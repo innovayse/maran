@@ -92,8 +92,7 @@ const DELIBERATELY_UNLINKED = new Map([
   ['two-factor-setup', 'the auth guard steers an obliged administrator here; the router documents that nothing links it'],
   ['not-found', 'the catch-all: a page nothing should ever link to'],
   ['not-available', 'the role and module guards redirect a customer here; a page nothing should link to'],
-  ['two-factor', 'opened by the account menu (ShellUserBlock), whose dropdown items push programmatically'],
-  ['my-account', 'opened by the account menu (ShellUserBlock), whose dropdown items push programmatically'],
+  ['profile', 'opened by the account menu (ShellUserBlock), whose dropdown items push programmatically'],
 ])
 
 /**

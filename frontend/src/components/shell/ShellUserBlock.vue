@@ -53,18 +53,6 @@ const role: ComputedRef<string | null> = computed(() => {
 })
 
 /**
- * Whether the profile entry leads to the person's own hosting account.
- *
- * Its own question, and the only role test this menu makes: does the signed-in
- * person own a hosting account at all. `/api/v1/accounts/me` 404s for anybody with
- * no account (every administrator included), so for `accountId === null` the entry
- * leads to the signed-in devices screen instead of a screen that can only answer "not found".
- */
-const hasOwnAccount: ComputedRef<boolean> = computed(() => {
-  return authStore.user !== null && authStore.user.accountId !== null
-})
-
-/**
  * Opens one of the account pages.
  * @param target The route name to navigate to.
  * @returns Resolves once the navigation has settled.
@@ -109,12 +97,9 @@ const signOut = async (): Promise<void> => {
         </span>
       </template>
 
-      <!-- Profile first (issue #210): the person's own settings, under one entry whatever the
-           role. A person who owns a hosting account lands on that account; anybody else (every
-           administrator) on the signed-in devices screen, which links on to two-step
-           verification. `/my-account` is NOT offered to them: its endpoint answers "the account
-           YOU own" and 404s for anybody without one. -->
-      <UiDropdownItem @select="go(hasOwnAccount ? 'my-account' : 'sessions')">
+      <!-- Profile first (issue #210): the signed-in person's own profile, the same entry for every
+           role. A customer's hosting account is linked from the profile page, never from here. -->
+      <UiDropdownItem @select="go('profile')">
         {{ t('app.shell.menu.profile') }}
       </UiDropdownItem>
       <UiDropdownItem @select="go('sessions')">{{ t('app.shell.menu.sessions') }}</UiDropdownItem>

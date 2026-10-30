@@ -1,0 +1,24 @@
+{
+  "app": {
+    "profile": {
+      "heading": "Профиль и безопасность",
+      "subtitle": "Под каким именем вы вошли и как защищён ваш вход.",
+      "loading": "Загружаем профиль…",
+      "identityHeading": "Профиль",
+      "usernameLabel": "Имя пользователя",
+      "emailLabel": "Эл. почта",
+      "roleLabel": "Роль",
+      "securityHeading": "Безопасность",
+      "twoFactorLabel": "Двухэтапная проверка",
+      "twoFactorOn": "Включена",
+      "twoFactorOff": "Выключена",
+      "manageTwoFactor": "Настроить двухэтапную проверку",
+      "sessionsLabel": "Устройства, где выполнен вход",
+      "sessionCount": "{count} устройство | {count} устройства | {count} устройств",
+      "manageSessions": "Управлять устройствами",
+      "hostingHeading": "Хостинг-аккаунт",
+      "hostingDescription": "Ваши сайты, тариф и лимиты находятся в хостинг-аккаунте.",
+      "openHostingAccount": "Открыть мой хостинг-аккаунт"
+    }
+  }
+}

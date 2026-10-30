@@ -1,0 +1,24 @@
+{
+  "app": {
+    "profile": {
+      "heading": "Profile and security",
+      "subtitle": "Who you are signed in as, and how your sign-in is protected.",
+      "loading": "Loading your profile…",
+      "identityHeading": "Profile",
+      "usernameLabel": "Username",
+      "emailLabel": "Email",
+      "roleLabel": "Role",
+      "securityHeading": "Security",
+      "twoFactorLabel": "Two-step verification",
+      "twoFactorOn": "On",
+      "twoFactorOff": "Off",
+      "manageTwoFactor": "Manage two-step verification",
+      "sessionsLabel": "Signed-in devices",
+      "sessionCount": "{count} device | {count} devices",
+      "manageSessions": "Manage devices",
+      "hostingHeading": "Hosting account",
+      "hostingDescription": "Your sites, plan and limits live in your hosting account.",
+      "openHostingAccount": "Open my hosting account"
+    }
+  }
+}

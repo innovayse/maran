@@ -45,6 +45,7 @@ const SHELL_ROUTE_LABEL_KEYS: Record<string, string> = {
   'smtp-settings': 'app.smtp.heading',
   'php-versions': 'php.title',
   'my-account': 'app.shell.menu.myAccount',
+  profile: 'app.profile.heading',
 }
 
 /**

@@ -1,6 +1,10 @@
 # Committed per-target test baseline. Recorded by 'maran test --accept'; commit the diff.
 # stack<TAB>target<TAB>passed<TAB>failed<TAB>ignored
 #
+# RE-MEASURED 2026-10-30 (issue #210, a profile for every signed-in person): edited by hand. Modules.Identity.Tests 301->306
+# (--no-build, 0 failed); ArchitectureTests 91 and Sdk.Tests 215 unchanged. Host.IntegrationTests ran filtered to
+# ProfileEndpointTests, EndpointAuthorizationPolicyTests and ControllerRoutesTests (21/0); its row is left to CI.
+# spa: NEW row shell/profile 3. Full suite at E2E_PORT=5199: 679 passed / 0 failed / 3 skipped.
 # RE-MEASURED 2026-10-30 (issues #201, #202, customer area): edited by hand. Backend projects measured one by one
 # (--no-build, 0 failed): Modules.Identity.Tests 282->301, Modules.Tasks.Tests 58->76, Modules.Accounts.Tests 428->434, Sdk.Tests 212->215, Modules.Sites.Tests 222->232, Host.Tests 355->391.
 # Host.IntegrationTests ran filtered to the six #201/#202 classes plus TaskStreamTests (43/0); its row is left to CI.
@@ -322,7 +326,7 @@ rust	bound_errors [tests/bound_errors.rs]	9	0	0
 rust	safe_write_bound_on_real_processes [tests/safe_write_bound_on_real_processes.rs]	6	0	0
 backend	Maran.Agent.Client.Tests.dll	371	0	0
 backend	Maran.SharedKernel.Tests.dll	230	0	0
-backend	Maran.Modules.Identity.Tests.dll	301	0	0
+backend	Maran.Modules.Identity.Tests.dll	306	0	0
 backend	Maran.Modules.Sftp.Tests.dll	84	0	0
 backend	Maran.Modules.Notifications.Tests.dll	52	0	0
 backend	Maran.Modules.Tasks.Tests.dll	76	0	0
@@ -409,6 +413,7 @@ spa	shell/module-landing-coverage.spec.ts	2	0	0
 spa	shell/navigation-order-labels.spec.ts	2	0	0
 spa	shell/not-found.spec.ts	1	0	0
 spa	shell/palette-focus.spec.ts	6	0	0
+spa	shell/profile.spec.ts	3	0	0
 spa	shell/renders-title.spec.ts	1	0	0
 spa	shell/sidebar-state.spec.ts	6	0	0
 spa	shell/sidebar-submenu.spec.ts	7	0	0
