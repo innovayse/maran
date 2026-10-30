@@ -19,6 +19,7 @@
 #   polygon_ensure_image    refuses to run against a STALE image; builds one whose tag IS the
 #                           fingerprint of its sources.
 #   polygon_build_labelled  the only build in this repository: records the fingerprint IN the image.
+#   polygon_require_current refuses an absent or stale floating image, naming the rebuild command.
 #   polygon_stamp           run time: refuses a stale image, and writes which image is being used
 #                           into the run's own log.
 #   polygon_currency_from_log scoring time: refuses to score a log whose recorded image was built
@@ -232,8 +233,7 @@ polygon_stamp() {
     echo "         unknown. An image that cannot say what it was built from cannot be shown to be" >&2
     echo "         current, and a suite passing against it would have measured an unknown tree." >&2
     echo "         Rebuild it through this harness so the fingerprint is recorded:" >&2
-    echo "           docker build --label $POLYGON_FINGERPRINT_LABEL=$expected \\" >&2
-    echo "             -f docker/polygon/images/$family/suite.Dockerfile -t $image ." >&2
+    echo "           $(polygon_build_command "$family")" >&2
     return 1
   fi
   if [ "$recorded" != "$expected" ]; then
@@ -242,10 +242,53 @@ polygon_stamp() {
     echo "         this tree hashes  : $expected" >&2
     echo "         (docker/polygon/** + installer/**; created $(docker image inspect \
       -f '{{.Created}}' "$image" 2>/dev/null))" >&2
-    echo "         Rebuild it before running anything against it." >&2
+    echo "         Rebuild it before running anything against it:" >&2
+    echo "           $(polygon_build_command "$family")" >&2
     return 1
   fi
   return 0
+}
+
+# polygon_build_command: the one command a person types to rebuild a family's floating image.
+#
+# Every refusal about a missing or stale image prints this and nothing else, so the remedy is a
+# `maran` command with the label already handled, never a raw `docker build` a reader can retype
+# without the label — which produces exactly the unlabelled image the refusal was about.
+polygon_build_command() {
+  printf 'maran polygon build %s\n' "$1"
+}
+
+# polygon_require_current: refuses an image that is absent, records no fingerprint, or records one
+# that is not this tree's. Status 0 only for an image built from exactly these sources; every
+# refusal is on stderr and ends with the rebuild command.
+#
+# This is the question `maran dev` asks before it starts anything. A stack on a stale image runs
+# the previous tree's OS layer and installer-provided stand-ins, and a behaviour that only the old
+# image has then reads as a product defect — which is how issue #238 was found. So staleness is a
+# refusal here, not a warning: a warning that lets the bring-up continue is one nobody reads.
+polygon_require_current() {
+  local root="$1" family="$2" image="$3" expected recorded
+  if ! docker image inspect -f '{{.Id}}' "$image" >/dev/null 2>&1; then
+    echo "REFUSED: the polygon image $image does not exist on this machine. Build it:" >&2
+    echo "           $(polygon_build_command "$family")" >&2
+    return 1
+  fi
+  expected="$(polygon_fingerprint "$root" "$family")"
+  recorded="$(polygon_image_fingerprint "$image")"
+  if [ -n "$recorded" ] && [ "$recorded" = "$expected" ]; then
+    return 0
+  fi
+  if [ -z "$recorded" ]; then
+    echo "REFUSED: $image records no $POLYGON_FINGERPRINT_LABEL label, so what it was built from" >&2
+    echo "         is unknown (built before the label existed, or by hand)." >&2
+  else
+    echo "REFUSED: $image was built from OTHER SOURCES than this tree describes." >&2
+    echo "         the image records : $recorded" >&2
+    echo "         this tree hashes  : $expected  (docker/polygon/** + installer/**)" >&2
+  fi
+  echo "         Rebuild it (takes minutes), then run this command again:" >&2
+  echo "           $(polygon_build_command "$family")" >&2
+  return 1
 }
 
 # polygon_currency_from_log: the SCORING-TIME half. Reads the stamp lines out of an already-executed

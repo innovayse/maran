@@ -36,6 +36,9 @@ maran check            # tells you what your machine is missing
 maran dev              # database, API and SPA together
 ```
 
+`maran dev` refuses to start on a polygon image that was not built from your tree, and prints
+the fix: `maran polygon build ubuntu24` (docker/README.md).
+
 `source scripts/dev` also creates `.env` from `.env.example` on first use. That file is
 git-ignored and is the only place local configuration lives — edit it, not the tracked
 `appsettings.*.json`.
