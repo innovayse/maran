@@ -18,53 +18,59 @@
  */
 export type CertificateSource =
   /** Ordered by this panel from an ACME certificate authority, and renewable by it. */
-  | 'acme'
+  | "acme"
   /** Supplied by the customer. Never re-ordered, never overwritten by renewal. */
-  | 'custom'
+  | "custom";
 
 /** Outward view of one installed certificate, exactly as `GET /api/v1/certificates` reports it. */
 export interface Certificate {
   /** The certificate's identity. */
-  id: string
+  id: string;
   /** The site it is installed for. */
-  siteId: string
+  siteId: string;
   /** The primary domain it was issued for. */
-  domain: string
+  domain: string;
   /** Whether the panel issued it or the customer supplied it. */
-  source: CertificateSource
+  source: CertificateSource;
   /** When the panel installed it, as an ISO-8601 string. */
-  issuedAt: string
+  issuedAt: string;
   /** When it expires, as an ISO-8601 string. Renewal runs thirty days before this. */
-  notAfter: string
+  notAfter: string;
   /** When renewal last tried, as an ISO-8601 string, or `null` if it never has. */
-  lastRenewalAttemptAt: string | null
+  lastRenewalAttemptAt: string | null;
   /**
    * Machine-stable code of the last renewal failure, or the empty string. A code and never a
    * sentence: the panel translates it, like every other error code it reports.
    */
-  lastRenewalErrorCode: string
+  lastRenewalErrorCode: string;
   /** How many renewal attempts have failed in a row. */
-  consecutiveRenewalFailures: number
+  consecutiveRenewalFailures: number;
 }
 
 /** Body of `POST /api/v1/certificates`: order a certificate for one of my sites. */
 export interface IssueCertificateRequest {
   /** The domain to issue for. It must be a site the caller owns. */
-  domain: string
+  domain: string;
 }
 
 /** Body of `POST /api/v1/certificates/custom`: install material the customer supplied. */
 export interface InstallCustomCertificateRequest {
   /** The domain to install for. It must be a site the caller owns. */
-  domain: string
+  domain: string;
   /** The PEM-encoded certificate chain. */
-  certificatePem: string
+  certificatePem: string;
   /**
    * The PEM-encoded private key. It is sent once and never read back: no panel screen displays a
    * private key, and no store holds one after the request settles.
    */
-  privateKeyPem: string
+  privateKeyPem: string;
 }
+
+/** The material an operator pastes into the upload form: the request without its domain. */
+export type CustomCertificateMaterial = Omit<InstallCustomCertificateRequest, "domain">;
+
+/** Why a certificate needs the operator's attention, most urgent first. Worked out by the SPA from `notAfter`. */
+export type CertificateAttention = "expired" | "expiring" | "renewalFailed";
 
 /**
  * Typed access to the certificate endpoints.
@@ -78,7 +84,7 @@ export interface CertificatesApi {
    * @param signal Optional abort signal to cancel the in-flight request.
    * @returns The site's certificates.
    */
-  list: (siteId: string, signal?: AbortSignal) => Promise<Certificate[]>
+  list: (siteId: string, signal?: AbortSignal) => Promise<Certificate[]>;
 
   /**
    * Issues a certificate over ACME for the site's domain.
@@ -86,7 +92,7 @@ export interface CertificatesApi {
    * @param signal Optional abort signal to cancel the in-flight request.
    * @returns The issued certificate.
    */
-  issue: (request: IssueCertificateRequest, signal?: AbortSignal) => Promise<Certificate>
+  issue: (request: IssueCertificateRequest, signal?: AbortSignal) => Promise<Certificate>;
 
   /**
    * Installs certificate material the customer supplied.
@@ -94,10 +100,7 @@ export interface CertificatesApi {
    * @param signal Optional abort signal to cancel the in-flight request.
    * @returns The installed certificate.
    */
-  installCustom: (
-    request: InstallCustomCertificateRequest,
-    signal?: AbortSignal,
-  ) => Promise<Certificate>
+  installCustom: (request: InstallCustomCertificateRequest, signal?: AbortSignal) => Promise<Certificate>;
 
   /**
    * Removes an installed certificate; the site returns to serving plain HTTP.
@@ -105,5 +108,5 @@ export interface CertificatesApi {
    * @param signal Optional abort signal to cancel the in-flight request.
    * @returns Whether the panel removed it.
    */
-  remove: (id: string, signal?: AbortSignal) => Promise<boolean>
+  remove: (id: string, signal?: AbortSignal) => Promise<boolean>;
 }
