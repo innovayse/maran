@@ -1,6 +1,10 @@
 # Committed per-target test baseline. Recorded by 'maran test --accept'; commit the diff.
 # stack<TAB>target<TAB>passed<TAB>failed<TAB>ignored
 #
+# RE-MEASURED 2026-10-30 (issue #211, an empty schedule scope is a 200, not a 404): edited by hand. Modules.Backups.Tests
+# 209->210, Sdk.Tests 215->214 (the retired BackupScheduleNotFound census row), 0 failed; ArchitectureTests 91 unchanged.
+# Host.IntegrationTests ran filtered to BackupScheduleTests, BackupDestinationTests and BackupsAuthorizationTests (34/0);
+# its row is left to CI. spa: backups/schedule.spec.ts 8->9. Full suite at E2E_PORT=5199: 681 passed / 0 failed / 3 skipped.
 # RE-MEASURED 2026-10-30 (issue #224, a schedule's switch-on is not a run): edited by hand. Modules.Backups.Tests
 # 204->209 (0 failed); ArchitectureTests 91 and Sdk.Tests 215 unchanged. Host.IntegrationTests ran filtered to
 # BackupScheduleTests, BackupDestinationTests and BackupsAuthorizationTests (34/0); its row is left to CI.
@@ -336,14 +340,14 @@ backend	Maran.Modules.Notifications.Tests.dll	52	0	0
 backend	Maran.Modules.Tasks.Tests.dll	76	0	0
 backend	Maran.Modules.Ftp.Tests.dll	133	0	0
 backend	Maran.Modules.Monitoring.Tests.dll	70	0	0
-backend	Maran.Modules.Backups.Tests.dll	209	0	0
+backend	Maran.Modules.Backups.Tests.dll	210	0	0
 backend	Maran.Modules.Licensing.Tests.dll	51	0	0
 backend	Maran.Modules.Firewall.Tests.dll	255	0	0
 backend	Maran.Modules.Cron.Tests.dll	187	0	0
 backend	Maran.Modules.Accounts.Tests.dll	434	0	0
 backend	Maran.Modules.Databases.Tests.dll	106	0	0
 backend	Maran.Modules.Ssl.Tests.dll	209	0	0
-backend	Maran.Sdk.Tests.dll	215	0	0
+backend	Maran.Sdk.Tests.dll	214	0	0
 backend	Maran.Modules.Sites.Tests.dll	232	0	0
 backend	Maran.ArchitectureTests.dll	91	0	0
 backend	Maran.Host.Tests.dll	391	0	0
@@ -371,7 +375,7 @@ spa	backups/destinations.spec.ts	9	0	0
 spa	backups/list.spec.ts	15	0	0
 spa	backups/reachability.spec.ts	1	0	0
 spa	backups/restore.spec.ts	12	0	0
-spa	backups/schedule.spec.ts	8	0	0
+spa	backups/schedule.spec.ts	9	0	0
 spa	backups/weekday-names.spec.ts	1	0	0
 spa	cron/description.spec.ts	3	0	0
 spa	cron/entries.spec.ts	7	0	0

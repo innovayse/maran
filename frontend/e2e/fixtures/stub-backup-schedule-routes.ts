@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import type { BackupSchedule } from '../../src/types/backupSchedule'
+import type { BackupSchedule, BackupScheduleScope } from '../../src/types/backupSchedule'
 
 /** The one endpoint the schedule screen reads and writes; the scope travels in query or body. */
 const SCHEDULES_PATTERN = '**/api/v1/backup-schedules*'
@@ -16,8 +16,8 @@ export interface BackupScheduleTraffic {
  * Answers `GET /api/v1/backup-schedules` from a map of scope to schedule, and `PUT` with what was
  * sent, recording both.
  *
- * A scope with no entry in the map is answered `404 BackupScheduleNotFound` — the panel's own
- * answer for a server nobody has configured, and the state the screen exists to render honestly.
+ * A scope with no entry in the map is answered `200` with `schedule: null` — the panel's own answer
+ * for a scope nobody has configured, and the state the screen exists to render honestly.
  * The recorder is the point rather than a convenience: what has to be proved about this form is
  * which SCOPE it read and exactly which members it sent, and neither is visible on the rendered
  * page.
@@ -55,25 +55,13 @@ export const stubBackupSchedules = async (
 
     reads.push(url.pathname + url.search)
     const scope = url.searchParams.get('accountId') ?? 'host'
-    const schedule = schedules[scope]
-    if (schedule === undefined) {
-      // The ordinary first state of this endpoint, not a fault: no schedule has ever been saved.
-      await route.fulfill({
-        status: 404,
-        contentType: 'application/problem+json',
-        body: JSON.stringify({
-          code: 'BackupScheduleNotFound',
-          title: 'Not found',
-          detail: 'No backup schedule has been configured.',
-        }),
-      })
-      return
-    }
-
+    // A scope with no entry is the ordinary first state of this endpoint, not a fault: no schedule
+    // has ever been saved for it, and the panel says so in a successful answer.
+    const answer: BackupScheduleScope = { schedule: schedules[scope] ?? null }
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify(schedule),
+      body: JSON.stringify(answer),
     })
   })
 

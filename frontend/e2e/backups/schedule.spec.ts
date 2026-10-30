@@ -1,4 +1,4 @@
-import { expect, test, type Locator } from '@playwright/test'
+import { expect, test, type ConsoleMessage, type Locator } from '@playwright/test'
 import { stubAccounts } from '../fixtures/stub-accounts-route'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubBackups } from '../fixtures/stub-backups-routes'
@@ -42,7 +42,7 @@ const ALICE_SCHEDULE: BackupSchedule = {
   nextRunAt: '2026-09-08T02:00:00Z',
 }
 
-// The panel invents no default schedule, so a server nobody has configured answers 404 for ever.
+// The panel invents no default schedule, so a server nobody has configured answers `schedule: null`.
 // A screen that met that and drew a filled form would be stating a cadence the server will not
 // keep tonight; one that drew an error would be calling the ordinary first state a fault.
 test('a server with no schedule is told so, and every field is left blank', async ({ page }) => {
@@ -62,6 +62,46 @@ test('a server with no schedule is told so, and every field is left blank', asyn
   await expect(page.getByLabel('Copies to keep')).toHaveValue('')
   // The cadence picker shows its placeholder, not a value nobody chose.
   await expect(page.getByText('Choose how often')).toBeVisible()
+})
+
+// Issue #211: "nothing is scheduled here" is an answer, not a failure. The screen used to read a
+// 404 for it on every load and the browser logged the failed request. Both scopes the screen offers
+// are walked — the host-wide policy and an account's override — because each is its own read.
+test('a server with no schedule loads with a clean console and no failed request, in every scope', async ({
+  page,
+}) => {
+  const consoleErrors: string[] = []
+  const failedReads: string[] = []
+  page.on('console', (message: ConsoleMessage) => {
+    if (message.type() === 'error') {
+      consoleErrors.push(message.text())
+    }
+  })
+  page.on('response', (response) => {
+    if (response.url().includes('/api/v1/backup-schedules') && response.status() >= 400) {
+      failedReads.push(`${String(response.status())} ${response.url()}`)
+    }
+  })
+
+  await stubSignedIn(page)
+  await stubHealthy(page)
+  await stubModules(page, LICENSED)
+  await stubAccounts(page, [ALICE])
+  const traffic = await stubBackupSchedules(page, {})
+
+  await page.goto('/backups/schedule')
+  await expect(page.getByText('Nothing is scheduled here', { exact: false })).toBeVisible()
+
+  await page.getByRole('combobox', { name: 'Applies to' }).click()
+  await page.getByRole('option', { name: 'alice' }).click()
+
+  // Positive control on the probes: both reads reached the stub, so the listeners had traffic to see.
+  await expect
+    .poll(traffic.reads)
+    .toEqual(['/api/v1/backup-schedules', `/api/v1/backup-schedules?accountId=${ALICE.id}`])
+  await expect(page.getByText('Nothing is scheduled here', { exact: false })).toBeVisible()
+  expect(failedReads).toEqual([])
+  expect(consoleErrors).toEqual([])
 })
 
 // A null `accountId` is the host-wide policy, not "no account chosen": it is the schedule every

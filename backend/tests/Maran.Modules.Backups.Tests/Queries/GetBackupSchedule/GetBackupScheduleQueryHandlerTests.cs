@@ -2,7 +2,6 @@ using Maran.Modules.Backups.Domain.Entities;
 using Maran.Modules.Backups.Domain.Enums;
 using Maran.Modules.Backups.Queries.GetBackupSchedule;
 using Maran.Modules.Backups.Tests.TestSupport;
-using Maran.SharedKernel.Results;
 
 namespace Maran.Modules.Backups.Tests.Queries.GetBackupSchedule;
 
@@ -29,38 +28,63 @@ public sealed class GetBackupScheduleQueryHandlerTests
         var hostWide = await handler.HandleAsync(new GetBackupScheduleQuery(null), CancellationToken.None);
         var override_ = await handler.HandleAsync(new GetBackupScheduleQuery(accountId), CancellationToken.None);
 
-        Assert.True(hostWide.IsSuccess);
-        Assert.Null(hostWide.Value.AccountId);
-        Assert.Equal(3, hostWide.Value.HourUtc);
+        Assert.NotNull(hostWide.Schedule);
+        Assert.Null(hostWide.Schedule.AccountId);
+        Assert.Equal(3, hostWide.Schedule.HourUtc);
 
-        Assert.True(override_.IsSuccess);
-        Assert.Equal(accountId, override_.Value.AccountId);
-        Assert.Equal(11, override_.Value.HourUtc);
+        Assert.NotNull(override_.Schedule);
+        Assert.Equal(accountId, override_.Schedule.AccountId);
+        Assert.Equal(11, override_.Schedule.HourUtc);
     }
 
-    /// <summary>A server with no schedule is answered not-found rather than an invented default.</summary>
+    /// <summary>A server with no schedule is answered with an empty scope rather than an invented default.</summary>
     /// <remarks>
-    /// An invented "daily at 03:00, disabled" would show an operator a schedule the server does not
-    /// hold, and the first thing they would do is trust it.
+    /// Not a failure (issue #211): "nothing is scheduled here" is the ordinary first state of a server.
+    /// And not a default: an invented "daily at 03:00, disabled" would show an operator a schedule the
+    /// server does not hold, and the first thing they would do is trust it.
     /// </remarks>
     [Fact]
-    public async Task A_server_with_no_schedule_is_answered_not_found()
+    public async Task A_server_with_no_schedule_is_answered_with_an_empty_scope()
     {
         var handler = new GetBackupScheduleQueryHandler(
             BackupsTestContext.Create(FakeCurrentUser.Admin()));
 
         var result = await handler.HandleAsync(new GetBackupScheduleQuery(null), CancellationToken.None);
 
-        Assert.False(result.IsSuccess);
-        Assert.Equal("BackupScheduleNotFound", result.Error!.Code);
-        Assert.Equal(ErrorType.NotFound, result.Error.Type);
+        Assert.Null(result.Schedule);
+    }
+
+    /// <summary>An account with no override is answered with an empty scope, not with the host policy.</summary>
+    /// <remarks>
+    /// The two scopes are different things: an account without an override is backed up by the host
+    /// policy, but the screen editing that account's override must not be handed the host policy as
+    /// though it were the override, or saving it would silently create one.
+    /// </remarks>
+    [Fact]
+    public async Task An_account_with_no_override_is_answered_with_an_empty_scope_not_the_host_policy()
+    {
+        var database = Guid.NewGuid().ToString();
+        var admin = FakeCurrentUser.Admin();
+
+        await using (var seed = BackupsTestContext.Create(admin, database))
+        {
+            seed.BackupSchedules.Add(Schedule(null, 3));
+            await seed.SaveChangesAsync();
+        }
+
+        var handler = new GetBackupScheduleQueryHandler(BackupsTestContext.Create(admin, database));
+
+        var result = await handler.HandleAsync(new GetBackupScheduleQuery(Guid.NewGuid()), CancellationToken.None);
+
+        Assert.Null(result.Schedule);
     }
 
     /// <summary>A customer cannot read another account's schedule, nor the host-wide one.</summary>
     /// <remarks>
     /// The surface is administrators-only, so this is the second line rather than the first: the
-    /// context's tenant filter answers not-found, which is what makes the module safe against a
-    /// route added later without the policy.
+    /// context's tenant filter hides the rows, so the customer is told nothing is recorded — the same
+    /// answer as for a scope that truly has none, which discloses nothing. That is what makes the
+    /// module safe against a route added later without the policy.
     /// </remarks>
     [Fact]
     public async Task A_customer_cannot_read_a_schedule_that_is_not_theirs()
@@ -81,10 +105,8 @@ public sealed class GetBackupScheduleQueryHandlerTests
         var hostWide = await handler.HandleAsync(new GetBackupScheduleQuery(null), CancellationToken.None);
         var theirs = await handler.HandleAsync(new GetBackupScheduleQuery(stranger), CancellationToken.None);
 
-        Assert.False(hostWide.IsSuccess);
-        Assert.Equal(ErrorType.NotFound, hostWide.Error!.Type);
-        Assert.False(theirs.IsSuccess);
-        Assert.Equal(ErrorType.NotFound, theirs.Error!.Type);
+        Assert.Null(hostWide.Schedule);
+        Assert.Null(theirs.Schedule);
     }
 
     /// <summary>Builds an enabled daily schedule.</summary>

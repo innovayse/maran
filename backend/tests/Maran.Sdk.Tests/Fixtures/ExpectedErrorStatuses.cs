@@ -93,7 +93,6 @@ public static class ExpectedErrorStatuses
             ["BackupScheduleDayNotAllowed"] = ErrorType.Validation,
             ["BackupScheduleDayRequired"] = ErrorType.Validation,
             ["BackupScheduleHourOutOfRange"] = ErrorType.Validation,
-            ["BackupScheduleNotFound"] = ErrorType.NotFound,
             ["BackupDestinationNotFound"] = ErrorType.NotFound,
             ["BackupDestinationNotConfigured"] = ErrorType.Failure,
             ["BackupDestinationRemoteUnsupported"] = ErrorType.Validation,

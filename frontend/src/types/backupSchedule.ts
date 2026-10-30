@@ -74,6 +74,21 @@ export interface BackupSchedule {
 }
 
 /**
+ * What `GET /api/v1/backup-schedules` answers for one scope, mirroring the backend's
+ * `BackupScheduleScopeDto`.
+ *
+ * A scope nobody has configured is an ordinary `200` with `schedule: null` — the first state of every
+ * fresh server, not a failure. The panel invents no default, so there is nothing else to show.
+ */
+export interface BackupScheduleScope {
+  /**
+   * The schedule recorded for the scope, or `null` when none has ever been saved for it. A recorded
+   * schedule that is switched off is present, with `enabled: false`.
+   */
+  schedule: BackupSchedule | null
+}
+
+/**
  * Request body for `PUT /api/v1/backup-schedules`, binding the backend's
  * `SaveBackupScheduleCommand`.
  *
@@ -120,16 +135,15 @@ export interface SaveBackupScheduleRequest {
  */
 export interface BackupSchedulesApi {
   /**
-   * Reads one schedule: the host-wide policy, or one account's override.
+   * Reads what is scheduled for one scope: the host-wide policy, or one account's override.
    *
-   * A server that has never configured the scope answers **404**, which is the ordinary first
-   * state of this endpoint and not a fault. The caller is expected to render that as "nothing is
-   * scheduled" rather than as an error.
+   * A scope that has never been configured answers `200` with `schedule: null` — the ordinary first
+   * state of this endpoint, not a fault.
    * @param accountId The account whose override to read, or `null` for the host-wide policy.
    * @param signal Optional abort signal to cancel the in-flight request.
-   * @returns The schedule as the panel holds it.
+   * @returns The scope, holding its schedule or none.
    */
-  get: (accountId: string | null, signal?: AbortSignal) => Promise<BackupSchedule>
+  get: (accountId: string | null, signal?: AbortSignal) => Promise<BackupScheduleScope>
 
   /**
    * Creates or replaces one schedule and answers with what was stored.

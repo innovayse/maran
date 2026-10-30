@@ -56,20 +56,20 @@ public sealed class BackupSchedulesController : BaseApiController
 
     /// <summary>
     /// Reads one schedule: the host-wide policy, or the override of the account named in the query
-    /// string. A server that has never been configured answers 404.
+    /// string. A scope that has never been configured answers 200 with no schedule in it, because
+    /// "nothing is scheduled here" is the ordinary first state of a server, not a failure.
     /// </summary>
     /// <param name="query">Which schedule to read; omitting the account reads the host-wide policy.</param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpGet]
-    [ProducesResponseType(typeof(BackupScheduleDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(BackupScheduleScopeDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetAsync(
         [FromQuery] GetBackupScheduleQuery query,
         CancellationToken cancellationToken)
     {
-        return ToActionResult(await _bus.InvokeAsync<Result<BackupScheduleDto>>(query, cancellationToken));
+        return Ok(await _bus.InvokeAsync<BackupScheduleScopeDto>(query, cancellationToken));
     }
 
     /// <summary>Creates or replaces one schedule and answers with what was stored.</summary>

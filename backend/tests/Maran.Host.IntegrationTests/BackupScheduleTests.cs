@@ -148,29 +148,44 @@ public sealed class BackupScheduleTests : IAsyncLifetime
         Assert.Equal(HttpStatusCode.OK, read.StatusCode);
 
         using var body = JsonDocument.Parse(await read.Content.ReadAsStringAsync());
-        Assert.Equal(3, body.RootElement.GetProperty("hourUtc").GetInt32());
-        Assert.Equal(7, body.RootElement.GetProperty("retainCount").GetInt32());
-        Assert.True(body.RootElement.GetProperty("enabled").GetBoolean());
+        var schedule = body.RootElement.GetProperty("schedule");
+        Assert.Equal(3, schedule.GetProperty("hourUtc").GetInt32());
+        Assert.Equal(7, schedule.GetProperty("retainCount").GetInt32());
+        Assert.True(schedule.GetProperty("enabled").GetBoolean());
 
         // Saving runs nothing, so no run is reported, and the next run is a 03:00 UTC (issue #224).
-        Assert.Equal(JsonValueKind.Null, body.RootElement.GetProperty("lastRunAt").ValueKind);
-        var nextRunAt = body.RootElement.GetProperty("nextRunAt").GetDateTimeOffset().ToUniversalTime();
+        Assert.Equal(JsonValueKind.Null, schedule.GetProperty("lastRunAt").ValueKind);
+        var nextRunAt = schedule.GetProperty("nextRunAt").GetDateTimeOffset().ToUniversalTime();
         Assert.Equal((3, 0, 0), (nextRunAt.Hour, nextRunAt.Minute, nextRunAt.Second));
     }
 
-    /// <summary>A server with no schedule answers 404 rather than an invented default.</summary>
+    /// <summary>A scope with no schedule answers 200 with no schedule rather than 404 or an invented default.</summary>
+    /// <remarks>
+    /// Issue #211: "nothing is scheduled here" is the ordinary first state of a server, and a 404 for
+    /// it was logged by every browser as a failed request. Both scopes the screen offers are asked —
+    /// the host-wide policy and an existing account's override — because they are two reads.
+    /// </remarks>
     [Fact]
-    public async Task A_server_with_no_schedule_answers_not_found()
+    public async Task A_scope_with_no_schedule_answers_ok_with_no_schedule()
     {
         await using var factory = CreateFactory();
         await MigrateAsync(factory);
-        await SeedAsync(factory);
+        var world = await SeedAsync(factory);
 
         using var client = await SignInAsync(factory, "admin");
 
-        var response = await client.GetAsync("/api/v1/backup-schedules");
+        foreach (var path in new[]
+        {
+            "/api/v1/backup-schedules",
+            $"/api/v1/backup-schedules?accountId={world.AccountId}",
+        })
+        {
+            var response = await client.GetAsync(path);
 
-        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+            Assert.Equal(JsonValueKind.Null, body.RootElement.GetProperty("schedule").ValueKind);
+        }
     }
 
     /// <summary>A second schedule for one account is refused by the database, not by hope.</summary>

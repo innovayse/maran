@@ -66,9 +66,6 @@
   <data name="RestoreInvalidOutcome">
     <value>Агент сервера сообщил о завершении восстановления, не указав, что было восстановлено.</value>
   </data>
-  <data name="BackupScheduleNotFound">
-    <value>На этом сервере ещё нет расписания резервного копирования.</value>
-  </data>
   <data name="BackupScheduleHourOutOfRange">
     <value>Час должен быть от 0 до 23.</value>
   </data>
