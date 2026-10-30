@@ -561,6 +561,7 @@ Runtime dependencies only; build and test tooling is not distributed.
 | `undici-types` | 8.9.0 | MIT |
 | `unplugin` | 3.3.0 | MIT |
 | `unplugin-utils` | 0.3.2 | MIT |
+| `uqr` | 0.1.3 | MIT |
 | `vite` | 8.3.0 | MIT |
 | `vue` | 3.5.43 | MIT |
 | `vue-i18n` | 11.4.12 | MIT |
