@@ -162,8 +162,16 @@ public sealed class CreateBackupCommandHandler
         // screen while the restore beside it named the account, and nothing joins a task to a backup
         // row by that string in any case — the correlation id is what lines a task up with the
         // request that started it.
+        //
+        // About the account the backup is OF; audience AccountOwner, because a backup is work done
+        // for the customer and they follow it in their own tasks feed whoever started it.
         var taskId = await _tasks.BeginAsync(
-            TaskKinds.BackupCreate, account.Username, _correlationIds.CorrelationId, cancellationToken);
+            TaskKinds.BackupCreate,
+            account.Username,
+            command.AccountId,
+            TaskAudience.AccountOwner,
+            _correlationIds.CorrelationId,
+            cancellationToken);
 
         BackupRunOutcome outcome;
         try

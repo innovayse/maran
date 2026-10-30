@@ -32,6 +32,7 @@ const SHELL_ROUTE_LABEL_KEYS: Record<string, string> = {
   'system-status': 'app.nav.systemStatus',
   upgrade: 'app.upgrade.heading',
   'not-found': 'app.notFound.heading',
+  'not-available': 'app.notAvailable.heading',
   // Every screen under /settings. They were missing once, so each fell through to its own route
   // name and the first line of the page read "Panel / audit" — a router identifier, lowercase and
   // in English, whatever language the operator chose. These are the screens reached most often

@@ -1,8 +1,9 @@
 namespace Maran.Modules.Tasks.Queries.ListTasks;
 
 /// <summary>
-/// Lists the panel's most recent background tasks. Takes no parameters on purpose: the whole
-/// surface is administrator-only in v1 and an administrator sees the whole server, so there is
-/// nothing to scope it by and nothing a caller could point it at.
+/// Lists the most recent background tasks the caller may see. Takes no parameters on purpose: the
+/// scope is the caller's own — the whole server for an administrator, their own account for a
+/// customer — and it is applied by the context's query filter, so there is nothing a caller could
+/// point it at.
 /// </summary>
 public sealed record ListTasksQuery;

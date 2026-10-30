@@ -1,6 +1,6 @@
 import { computed, type ComputedRef } from 'vue'
 import { useRouter } from 'vue-router'
-import { useAuthStore } from '../stores/auth'
+import { useCallerRole } from './useCallerRole'
 import { useModulesStore } from '../stores/modules'
 import { NO_LANDING_ROUTE, moduleLandingRoute } from '../router/moduleLandingRoute'
 import { moduleNavigationChildren } from '../router/moduleNavigationChildren'
@@ -60,7 +60,7 @@ const DESTINATION_LABEL_KEYS: Readonly<Record<string, string>> = {
  * @returns A computed list of {@link NavigationEntry} to render in order.
  */
 export const useNavigation = (): ComputedRef<NavigationEntry[]> => {
-  const authStore = useAuthStore()
+  const { isAdmin } = useCallerRole()
   const modulesStore = useModulesStore()
   const router = useRouter()
 
@@ -77,13 +77,9 @@ export const useNavigation = (): ComputedRef<NavigationEntry[]> => {
     }
 
     // Whether to offer the administrator-only entries (the audit journal, the plans screen). NOT a
-    // gate — the endpoint refuses a customer whatever the sidebar shows — so on a role it does not
-    // recognise it errs PERMISSIVE and offers the entry (rules/architecture.md: the SPA is never
-    // the boundary). Asking "not a customer" rather than "is an admin" is the whole point: a role
-    // above administrator must not silently lose the journal from a menu the backend would happily
-    // serve it. The same rule, in the same spelling, as the account menu's admin entries in
-    // ShellUserBlock.
-    const isNotCustomer = authStore.user !== null && authStore.user.role !== 'customer'
+    // gate — the endpoint refuses a customer whatever the sidebar shows — and `useCallerRole` errs
+    // permissive, so a role it does not recognise is offered the entry (rules/security.md).
+    const offersAdminEntries = isAdmin.value
 
     const moduleEntries: NavigationEntry[] = modulesStore.modules.flatMap((module) => {
       const landing = moduleLandingRoute(module.name)
@@ -107,7 +103,7 @@ export const useNavigation = (): ComputedRef<NavigationEntry[]> => {
       // upgrade page, and children leading elsewhere would be doors to a wall.
       const children: NavigationEntry[] = reachable
         ? moduleNavigationChildren(module.name).flatMap((child): NavigationEntry[] => {
-            if (!router.hasRoute(child.route) || (child.adminOnly && !isNotCustomer)) {
+            if (!router.hasRoute(child.route) || (child.adminOnly && !offersAdminEntries)) {
               return []
             }
             return [
@@ -154,7 +150,7 @@ export const useNavigation = (): ComputedRef<NavigationEntry[]> => {
 
     // The journal sits after the module entries: it is the shell's own record OF them — the place
     // an operator goes after something on the screens above did not happen as expected.
-    const auditEntry: NavigationEntry[] = isNotCustomer
+    const auditEntry: NavigationEntry[] = offersAdminEntries
       ? [
           {
             key: 'audit-journal',

@@ -185,8 +185,16 @@ public sealed class SuspendAccountCommandHandler
                 cancellationToken);
         }
 
+        // About this account, so an administrator finds it among the account's tasks; audience
+        // AdministratorOnly, because it is an administrator's action ON the account, not work done
+        // for its owner.
         var taskId = await _tasks.BeginAsync(
-            TaskKinds.AccountSuspension, account.Name, _correlationIds.CorrelationId, cancellationToken);
+            TaskKinds.AccountSuspension,
+            account.Name,
+            account.Id,
+            TaskAudience.AdministratorOnly,
+            _correlationIds.CorrelationId,
+            cancellationToken);
 
         var cascade = new AccountSuspending(account.Id, account.Name);
 

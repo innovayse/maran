@@ -30,6 +30,9 @@ public sealed class SslHandlerFixture : IDisposable
     /// <summary>The system user name that account has on the host.</summary>
     public string Username { get; } = "acct";
 
+    /// <summary>The caller every handler in this fixture runs as: a customer owning <see cref="AccountId"/>.</summary>
+    public FakeCurrentUser CurrentUser { get; }
+
     /// <summary>The site snapshots this fixture built, one per domain it was given.</summary>
     public SiteSnapshot[] Snapshots { get; }
 
@@ -87,6 +90,7 @@ public sealed class SslHandlerFixture : IDisposable
         string saveFailureSqlState = PostgresErrorCodes.UniqueViolation)
     {
         var currentUser = FakeCurrentUser.Customer(AccountId);
+        CurrentUser = currentUser;
         DbContext = SslTestContext.Create(
             currentUser,
             databaseName: null,

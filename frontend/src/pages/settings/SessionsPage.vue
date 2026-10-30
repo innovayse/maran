@@ -40,6 +40,7 @@ import UiTable from '../../components/ui/UiTable.vue'
 import UiTableCell from '../../components/ui/UiTableCell.vue'
 import UiTableHeaderCell from '../../components/ui/UiTableHeaderCell.vue'
 import UiTableRow from '../../components/ui/UiTableRow.vue'
+import { useCallerRole } from '../../composables/useCallerRole'
 import { useAuthStore } from '../../stores/auth'
 import { useLocaleStore } from '../../stores/locale'
 import { formatDate } from '../../utils/formatDate'
@@ -48,6 +49,7 @@ const { t } = useI18n()
 const router = useRouter()
 const authStore = useAuthStore()
 const localeStore = useLocaleStore()
+const { isAdmin } = useCallerRole()
 
 /** The session the user has asked to end and is being asked to confirm, or `null`. */
 const pendingRevocation: Ref<string | null> = ref(null)
@@ -152,8 +154,10 @@ onMounted(async () => {
       <template #actions>
         <!-- The panel's sign-in policy: how long a session lives, how many failures earn a ban.
              It belongs with access, which is this screen, rather than in the account menu where it
-             read as a setting about the person looking at it. A link, not a button: it navigates. -->
-        <UiButton variant="secondary" :to="{ name: 'security-policy' }">{{ t('app.sessions.securityPolicyLink') }}</UiButton>
+             read as a setting about the person looking at it. A link, not a button: it navigates.
+             Administrators only; hiding it from a customer is presentation, the endpoint refuses
+             them on its own (rules/security.md). -->
+        <UiButton v-if="isAdmin" variant="secondary" :to="{ name: 'security-policy' }">{{ t('app.sessions.securityPolicyLink') }}</UiButton>
         <UiButton
           v-if="authStore.sessions.length > 0"
           variant="destructive"

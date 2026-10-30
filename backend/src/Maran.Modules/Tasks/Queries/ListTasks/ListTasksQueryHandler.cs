@@ -1,7 +1,6 @@
 using Maran.Modules.Tasks.Common;
 using Maran.Modules.Tasks.Mappers;
 using Maran.Modules.Tasks.Persistence;
-using Maran.Modules.Tasks.Resources;
 using Maran.Modules.Tasks.Services;
 
 namespace Maran.Modules.Tasks.Queries.ListTasks;
@@ -11,19 +10,14 @@ namespace Maran.Modules.Tasks.Queries.ListTasks;
 /// </summary>
 /// <remarks>
 /// <para>
-/// <b>A customer is answered "not found", not "here is an empty list".</b> The whole surface is
-/// administrator-only (R14), so the honest answer to a customer asking for it is that it does not
-/// exist for them — the same answer they get for a single task, and the same 404-never-403 rule
-/// applied to a collection. An empty 200 would say something different and slightly worse: that
-/// there is a tasks feed here and they simply have nothing in it.
+/// <b>There is no authorisation check here.</b> The context's query filter decides which rows a
+/// caller may see: an administrator every task, a customer the tasks recorded against their own
+/// account. A customer with none is answered an empty list, which is now the honest answer — there
+/// IS a tasks feed for them, and their own operations appear in it.
 /// </para>
 /// <para>
-/// This check is NOT the module's authorisation mechanism and does not mask one. The context's own
-/// query filter is what makes a customer's read return no rows, and it holds whether or not this
-/// method remembers anything; what this adds is only the shape of the answer for a collection,
-/// which a filter cannot express because an empty result set is a perfectly ordinary listing.
-/// Remove the filter and the single reads and the stream leak; remove this and the listing answers
-/// 200 with an empty array. Each is measurable on its own.
+/// <b>The log is the one thing this handler decides.</b> Only an administrator is sent it; a
+/// customer's rows travel with an empty log (<see cref="PanelTaskMapper"/>).
 /// </para>
 /// </remarks>
 public sealed class ListTasksQueryHandler
@@ -38,7 +32,7 @@ public sealed class ListTasksQueryHandler
     /// <summary>The Tasks module's database context, and this module's read boundary.</summary>
     private readonly TasksDbContext _dbContext;
 
-    /// <summary>The authenticated principal, whose administrator status the surface requires.</summary>
+    /// <summary>The authenticated principal, whose administrator status decides whether logs are sent.</summary>
     private readonly ICurrentUser _currentUser;
 
     /// <summary>Names each task's kind as an operator reads it, in the request's culture.</summary>
@@ -61,16 +55,11 @@ public sealed class ListTasksQueryHandler
     /// <summary>Returns the most recent tasks, newest first.</summary>
     /// <param name="query">The (parameterless) list request.</param>
     /// <param name="cancellationToken">Cancels the read.</param>
-    /// <returns>The tasks, or <c>TaskNotFound</c> for a caller the surface does not exist for.</returns>
+    /// <returns>The tasks the caller may see; never a failure.</returns>
     public async Task<Result<IReadOnlyList<PanelTaskDto>>> HandleAsync(
         ListTasksQuery query,
         CancellationToken cancellationToken)
     {
-        if (!_currentUser.IsAdmin)
-        {
-            return Result<IReadOnlyList<PanelTaskDto>>.Fail(Error.Of(nameof(ErrorMessages.TaskNotFound), ErrorType.NotFound));
-        }
-
         var tasks = await _dbContext.PanelTasks
             .AsNoTracking()
             .OrderByDescending(task => task.StartedAt)
@@ -80,7 +69,7 @@ public sealed class ListTasksQueryHandler
         IReadOnlyList<PanelTaskDto> projected = tasks
             .Select(task =>
             {
-                return PanelTaskMapper.From(task, _kindNames.Of(task.Kind));
+                return PanelTaskMapper.From(task, _kindNames.Of(task.Kind), _currentUser.IsAdmin);
             })
             .ToList();
         return Result<IReadOnlyList<PanelTaskDto>>.Ok(projected);

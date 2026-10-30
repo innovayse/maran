@@ -69,6 +69,11 @@ const props = defineProps<{
   submitting: boolean
   /** What the panel has told this caller about the FTPS daemon. */
   ftpsAvailability: FtpsAvailability
+  /**
+   * The account every request is for when the caller has no choice (a customer's own), or `null`
+   * for an administrator. When set, the picker is not drawn and the account rule is skipped.
+   */
+  fixedAccountId: string | null
 }>()
 
 /** Events emitted by {@link FileTransferLoginCreateForm}. */
@@ -113,7 +118,7 @@ const protocolOptions: ComputedRef<RadioOption[]> = computed(() => {
 
 /** Validation message for the account picker, or `null`. */
 const accountError: ComputedRef<string | null> = computed(() => {
-  if (!submitted.value) {
+  if (!submitted.value || props.fixedAccountId !== null) {
     return null
   }
   return accountId.value.length === 0 ? t('ftp.form.errors.accountRequired') : null
@@ -156,7 +161,7 @@ const submit = (): void => {
     return
   }
   emit('submit', {
-    accountId: accountId.value,
+    accountId: props.fixedAccountId ?? accountId.value,
     name: name.value,
     // Narrowed here rather than typed on the ref: `UiRadioGroup`'s model is a plain string, and the
     // only two values this form ever puts in it are the two it offers.
@@ -186,6 +191,7 @@ defineExpose({ reset })
     <UiForm @submit="submit">
       <div class="grid gap-4 sm:grid-cols-2">
         <UiSelect
+          v-if="fixedAccountId === null"
           v-model="accountId"
           :label="t('ftp.form.fields.accountId')"
           :placeholder="t('ftp.form.placeholders.accountId')"

@@ -36,8 +36,10 @@ public sealed class TaskStreamServiceTests
             await seed.SaveChangesAsync();
         }
 
-        await using var context = TasksTestContext.Create(FakeCurrentUser.Admin(), database);
-        var service = new TaskStreamService(context, TasksTestContext.StreamOptions(), TasksTestContext.KindNames());
+        var watcher = FakeCurrentUser.Admin();
+        await using var context = TasksTestContext.Create(watcher, database);
+        var service = new TaskStreamService(
+            context, TasksTestContext.StreamOptions(), TasksTestContext.KindNames(), watcher);
 
         using var watching = new CancellationTokenSource(ReadTimeout);
         await using var frames = service.ReadAsync(task.Id, watching.Token).GetAsyncEnumerator(watching.Token);
@@ -83,8 +85,10 @@ public sealed class TaskStreamServiceTests
             await seed.SaveChangesAsync();
         }
 
-        await using var context = TasksTestContext.Create(FakeCurrentUser.Admin(), database);
-        var service = new TaskStreamService(context, TasksTestContext.StreamOptions(), TasksTestContext.KindNames());
+        var watcher = FakeCurrentUser.Admin();
+        await using var context = TasksTestContext.Create(watcher, database);
+        var service = new TaskStreamService(
+            context, TasksTestContext.StreamOptions(), TasksTestContext.KindNames(), watcher);
 
         using var watching = new CancellationTokenSource(ReadTimeout);
         var collected = new List<TaskFrame>();
@@ -115,8 +119,10 @@ public sealed class TaskStreamServiceTests
             await seed.SaveChangesAsync();
         }
 
-        await using var context = TasksTestContext.Create(FakeCurrentUser.Customer(), database);
-        var service = new TaskStreamService(context, TasksTestContext.StreamOptions(), TasksTestContext.KindNames());
+        var watcher = FakeCurrentUser.Customer();
+        await using var context = TasksTestContext.Create(watcher, database);
+        var service = new TaskStreamService(
+            context, TasksTestContext.StreamOptions(), TasksTestContext.KindNames(), watcher);
 
         var result = await service.ResolveAsync(task.Id, CancellationToken.None);
 
@@ -138,8 +144,10 @@ public sealed class TaskStreamServiceTests
             await seed.SaveChangesAsync();
         }
 
-        await using var context = TasksTestContext.Create(FakeCurrentUser.Admin(), database);
-        var service = new TaskStreamService(context, TasksTestContext.StreamOptions(), TasksTestContext.KindNames());
+        var watcher = FakeCurrentUser.Admin();
+        await using var context = TasksTestContext.Create(watcher, database);
+        var service = new TaskStreamService(
+            context, TasksTestContext.StreamOptions(), TasksTestContext.KindNames(), watcher);
 
         var result = await service.ResolveAsync(task.Id, CancellationToken.None);
 
@@ -151,10 +159,115 @@ public sealed class TaskStreamServiceTests
     [Fact]
     public async Task A_task_that_does_not_exist_is_answered_not_found()
     {
-        await using var context = TasksTestContext.Create(FakeCurrentUser.Admin());
-        var service = new TaskStreamService(context, TasksTestContext.StreamOptions(), TasksTestContext.KindNames());
+        var watcher = FakeCurrentUser.Admin();
+        await using var context = TasksTestContext.Create(watcher);
+        var service = new TaskStreamService(
+            context, TasksTestContext.StreamOptions(), TasksTestContext.KindNames(), watcher);
 
         var result = await service.ResolveAsync(Guid.NewGuid(), CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("TaskNotFound", result.Error!.Code);
+    }
+
+    /// <summary>Every frame a customer is sent for their own task carries an empty log.</summary>
+    /// <remarks>
+    /// The stream is a second door to the row the single read redacts, so it must redact too. Both
+    /// the first frame and the one sent after a change are checked: a reader that redacted only its
+    /// opening snapshot would leak the log on the very next report.
+    /// </remarks>
+    [Fact]
+    public async Task Every_frame_a_customer_is_sent_for_their_own_task_carries_an_empty_log()
+    {
+        var database = Guid.NewGuid().ToString();
+        var accountId = Guid.NewGuid();
+        var task = TasksTestContext.Row(accountId: accountId);
+        await using (var seed = TasksTestContext.Create(FakeCurrentUser.Admin(), database))
+        {
+            task.Report(20, "tool output");
+            seed.PanelTasks.Add(task);
+            await seed.SaveChangesAsync();
+        }
+
+        var watcher = FakeCurrentUser.Customer(accountId);
+        await using var context = TasksTestContext.Create(watcher, database);
+        var service = new TaskStreamService(
+            context, TasksTestContext.StreamOptions(), TasksTestContext.KindNames(), watcher);
+
+        Assert.True((await service.ResolveAsync(task.Id, CancellationToken.None)).IsSuccess);
+
+        await using (var progress = TasksTestContext.Create(FakeCurrentUser.Admin(), database))
+        {
+            var row = await progress.PanelTasks.SingleAsync(candidate => candidate.Id == task.Id);
+            row.Report(80, "more tool output");
+            row.Complete(TasksTestContext.Now.AddSeconds(5));
+            await progress.SaveChangesAsync();
+        }
+
+        using var watching = new CancellationTokenSource(ReadTimeout);
+        var snapshots = new List<PanelTaskDto>();
+        await foreach (var frame in service.ReadAsync(task.Id, watching.Token))
+        {
+            if (frame.Snapshot is not null)
+            {
+                snapshots.Add(frame.Snapshot);
+            }
+        }
+
+        Assert.NotEmpty(snapshots);
+        Assert.All(snapshots, snapshot =>
+        {
+            Assert.False(snapshot.LogIncluded);
+            Assert.Equal(string.Empty, snapshot.Log);
+        });
+    }
+
+    /// <summary>An administrator watching the same task is sent its log.</summary>
+    /// <remarks>The inverse control: a reader that dropped every log would pass the test above.</remarks>
+    [Fact]
+    public async Task An_administrator_watching_the_same_task_is_sent_its_log()
+    {
+        var database = Guid.NewGuid().ToString();
+        var task = TasksTestContext.Row(accountId: Guid.NewGuid());
+        await using (var seed = TasksTestContext.Create(FakeCurrentUser.Admin(), database))
+        {
+            task.Report(20, "tool output");
+            task.Complete(TasksTestContext.Now.AddSeconds(5));
+            seed.PanelTasks.Add(task);
+            await seed.SaveChangesAsync();
+        }
+
+        var watcher = FakeCurrentUser.Admin();
+        await using var context = TasksTestContext.Create(watcher, database);
+        var service = new TaskStreamService(
+            context, TasksTestContext.StreamOptions(), TasksTestContext.KindNames(), watcher);
+
+        using var watching = new CancellationTokenSource(ReadTimeout);
+        await using var frames = service.ReadAsync(task.Id, watching.Token).GetAsyncEnumerator(watching.Token);
+
+        Assert.True(await frames.MoveNextAsync());
+        Assert.True(frames.Current.Snapshot!.LogIncluded);
+        Assert.Equal("tool output", frames.Current.Snapshot.Log);
+    }
+
+    /// <summary>A customer watching another tenants task is answered not found.</summary>
+    [Fact]
+    public async Task A_customer_watching_another_tenants_task_is_answered_not_found()
+    {
+        var database = Guid.NewGuid().ToString();
+        var task = TasksTestContext.Row(accountId: Guid.NewGuid());
+        await using (var seed = TasksTestContext.Create(FakeCurrentUser.Admin(), database))
+        {
+            seed.PanelTasks.Add(task);
+            await seed.SaveChangesAsync();
+        }
+
+        var watcher = FakeCurrentUser.Customer(Guid.NewGuid());
+        await using var context = TasksTestContext.Create(watcher, database);
+        var service = new TaskStreamService(
+            context, TasksTestContext.StreamOptions(), TasksTestContext.KindNames(), watcher);
+
+        var result = await service.ResolveAsync(task.Id, CancellationToken.None);
 
         Assert.False(result.IsSuccess);
         Assert.Equal("TaskNotFound", result.Error!.Code);

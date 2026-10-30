@@ -61,7 +61,7 @@ const stubAcceptInvitation = async (page: Page, token: string): Promise<void> =>
     expect(body.token).toBe(token)
     expect(body.newPassword?.length ?? 0).toBeGreaterThan(0)
 
-    await route.fulfill({ status: 200, contentType: 'application/json', body: 'true' })
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ username: 'olive' }) })
   })
 }
 

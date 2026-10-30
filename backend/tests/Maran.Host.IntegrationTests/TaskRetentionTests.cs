@@ -3,6 +3,7 @@ using Maran.Modules.Tasks.Domain.Entities;
 using Maran.Modules.Tasks.Domain.Enums;
 using Maran.Modules.Tasks.Jobs;
 using Maran.Modules.Tasks.Persistence;
+using Maran.Sdk.Contracts;
 using Maran.SharedKernel.Interfaces;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -192,7 +193,8 @@ public sealed class TaskRetentionTests : IAsyncLifetime
     /// <returns>The row.</returns>
     private static PanelTask New(string kind, string subject, DateTimeOffset startedAt)
     {
-        return new PanelTask(Guid.NewGuid(), kind, subject, correlationId: null, startedAt);
+        return new PanelTask(
+            Guid.NewGuid(), kind, subject, accountId: null, TaskAudience.AdministratorOnly, correlationId: null, startedAt);
     }
 
     /// <summary>Writes the given rows to the module's table.</summary>

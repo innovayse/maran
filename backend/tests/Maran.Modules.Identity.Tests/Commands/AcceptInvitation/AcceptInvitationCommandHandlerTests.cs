@@ -71,6 +71,18 @@ public sealed class AcceptInvitationCommandHandlerTests : IAsyncLifetime
         Assert.True(_hasher.Verify(NewPassword, user.PasswordHash));
     }
 
+    /// <summary>A valid token answers the username of the login it activated.</summary>
+    [Fact]
+    public async Task A_valid_token_answers_the_username_of_the_login_it_activated()
+    {
+        var token = await IssueTokenAsync();
+
+        var result = await NewHandler().HandleAsync(Command(token), CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal("owner-one", result.Value!.Username);
+    }
+
     /// <summary>
     /// The same token presented twice: the second attempt is refused, and the refusal is identical
     /// to the one an unknown token gets.

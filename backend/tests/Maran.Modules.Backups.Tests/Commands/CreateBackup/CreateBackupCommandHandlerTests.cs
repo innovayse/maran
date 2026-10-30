@@ -128,6 +128,10 @@ public sealed class CreateBackupCommandHandlerTests
         Assert.Equal(World.Username, task.Subject);
         Assert.NotEqual(result.Value.Id.ToString(), task.Subject);
         Assert.Equal(World.CorrelationId, task.CorrelationId);
+
+        // About the account backed up, and readable by its owner: a backup is work done for them.
+        Assert.Equal(accountId, task.AccountId);
+        Assert.Equal(TaskAudience.AccountOwner, task.Audience);
         Assert.True(task.Completed);
         Assert.Null(task.FailureCode);
     }

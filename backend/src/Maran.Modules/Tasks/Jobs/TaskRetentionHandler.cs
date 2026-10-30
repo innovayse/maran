@@ -73,7 +73,7 @@ namespace Maran.Modules.Tasks.Jobs;
 /// <para>
 /// <b>It reads and deletes with <c>IgnoreQueryFilters</c>, and must.</b> This runs unattended, with
 /// no signed-in caller, exactly like <c>CertificateRenewalHandler.SelectDueAsync</c> — the module's
-/// query filter admits only <c>ICurrentUser.IsAdmin</c>, which nobody satisfies here. Without
+/// query filter admits an administrator or a task's own account, and nobody is either here. Without
 /// <c>IgnoreQueryFilters</c> both the read and the delete would silently match nothing, every night,
 /// forever — the exact failure mode a filtered write would produce, stated once here as the reason
 /// it is never applied to either.

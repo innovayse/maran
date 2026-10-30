@@ -42,6 +42,7 @@
       "notReported": "Not reported",
       "progressLabel": "Progress of this task",
       "noLog": "Nothing has been reported yet.",
+      "logWithheld": "The detailed log of a task is kept for the server's administrators. Its status and progress are shown above.",
       "logLabel": "Task log",
       "failureCode": "Code: {code}",
       "stoppedAt": "Stopped at {percent}%"

@@ -21,4 +21,10 @@
   <data name="HostValidationFailed">
     <value>Մուտքագրված որոշ տվյալներ վավեր չեն։</value>
   </data>
+  <data name="HostForbidden">
+    <value>Դուք այս էջի հասանելիություն չունեք։</value>
+  </data>
+  <data name="HostTwoFactorSetupRequired">
+    <value>Նախ ավարտեք երկգործոն նույնականացման կարգավորումը։</value>
+  </data>
 </root>

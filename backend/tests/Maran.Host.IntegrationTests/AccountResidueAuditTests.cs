@@ -7,7 +7,10 @@ using Maran.Modules.Identity.Persistence;
 using Maran.Modules.Sites.Domain.Entities;
 using Maran.Modules.Sites.Domain.Enums;
 using Maran.Modules.Sites.Persistence;
+using Maran.Modules.Tasks.IntegrationEvents.Handlers;
+using Maran.Modules.Tasks.Persistence;
 using Maran.Sdk.Contracts;
+using Maran.Sdk.Events;
 using Maran.Sdk.Interfaces;
 using Maran.SharedKernel.Interfaces;
 using Microsoft.AspNetCore.Hosting;
@@ -140,6 +143,51 @@ public sealed class AccountResidueAuditTests : IAsyncLifetime
 
         Assert.Contains(residue.Rows, row => { return row.StartsWith("User(", StringComparison.Ordinal); });
         Assert.Empty(residue.Unchecked);
+    }
+
+    /// <summary>
+    /// The audit names a task recorded against the account, and the Tasks module's deletion handler
+    /// releases it.
+    /// </summary>
+    /// <remarks>
+    /// A task now carries the account it was done for, which makes it a customer's row the census
+    /// must see. Both halves are asserted against the composed panel: the audit FINDS the row (so
+    /// Tasks is inside the census rather than beside it), and after the module's own
+    /// <c>AccountDeletingHandler</c> has run the same audit finds nothing — the row is released, not
+    /// left behind to refuse the deletion.
+    /// </remarks>
+    [Fact]
+    public async Task The_audit_names_a_task_recorded_against_the_account_until_the_tasks_handler_releases_it()
+    {
+        await using var factory = CreateFactory();
+        await MigrateAsync(factory);
+        var accountId = await SeedAsync(factory, includeSite: false);
+
+        using (var scope = factory.Services.CreateScope())
+        {
+            var recorder = scope.ServiceProvider.GetRequiredService<ITaskRecorder>();
+            var taskId = await recorder.BeginAsync(
+                TaskKinds.BackupCreate,
+                AccountName,
+                accountId,
+                TaskAudience.AccountOwner,
+                correlationId: null,
+                CancellationToken.None);
+            Assert.NotEqual(Guid.Empty, taskId);
+        }
+
+        var before = await AuditAsync(factory, accountId);
+        Assert.Contains("PanelTask(1)", before.Rows);
+
+        using (var scope = factory.Services.CreateScope())
+        {
+            var handler = new AccountDeletingHandler(scope.ServiceProvider.GetRequiredService<TasksDbContext>());
+            await handler.HandleAsync(new AccountDeleting(accountId, AccountName), CancellationToken.None);
+        }
+
+        var after = await AuditAsync(factory, accountId);
+        Assert.Empty(after.Rows);
+        Assert.Empty(after.Unchecked);
     }
 
     /// <summary>A module the audit could not read comes back as unchecked rather than as clean.</summary>

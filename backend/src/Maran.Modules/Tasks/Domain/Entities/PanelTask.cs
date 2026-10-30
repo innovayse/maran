@@ -1,4 +1,5 @@
 using Maran.Modules.Tasks.Domain.Enums;
+using Maran.Sdk.Contracts;
 using Maran.SharedKernel.Utilities.Text;
 
 namespace Maran.Modules.Tasks.Domain.Entities;
@@ -38,10 +39,14 @@ namespace Maran.Modules.Tasks.Domain.Entities;
 /// not finish.
 /// </para>
 /// <para>
-/// There is no <c>AccountId</c> and no tenant column, deliberately. Every kind recorded in v1 is an
-/// administrator's operation and the whole surface is admin-only (<c>TasksDbContext</c>); a
-/// customer-facing feed arrives with the modules whose operations a customer starts, and it will
-/// need a tenant column added with it rather than inherited from a guess made now.
+/// <b>Which account a task concerns and who may read it are two columns.</b>
+/// <see cref="AccountId"/> is the account the operation concerns — backed up, restored, suspended,
+/// deleted — and is <c>null</c> only for server-wide work, so an administrator can find every task
+/// about one account. <see cref="Audience"/> is who besides an administrator may read the row, stated
+/// by the recording module: a suspension concerns the customer's account and is still not theirs to
+/// read. <c>TasksDbContext</c> filters on both. An account's deletion releases its tasks
+/// (<see cref="ReleaseAccount"/>) rather than deleting them — the operator's history of what was done
+/// outlives the customer it was done for.
 /// </para>
 /// </remarks>
 public sealed class PanelTask
@@ -70,6 +75,15 @@ public sealed class PanelTask
 
     /// <summary>What the operation acts on — a domain, an account name — as an operator searches for it.</summary>
     public string Subject { get; private set; }
+
+    /// <summary>
+    /// The hosting account the operation concerns, or <c>null</c> for server-wide work and for a task
+    /// whose account has since been deleted.
+    /// </summary>
+    public Guid? AccountId { get; private set; }
+
+    /// <summary>Who besides an administrator may read the task.</summary>
+    public TaskAudience Audience { get; private set; }
 
     /// <summary>The correlation id of the request that started it, or <c>null</c> for unattended work.</summary>
     public string? CorrelationId { get; private set; }
@@ -107,13 +121,24 @@ public sealed class PanelTask
     /// <param name="id">The row's identity.</param>
     /// <param name="kind">What kind of operation this is, from <c>TaskKinds</c>.</param>
     /// <param name="subject">What the operation acts on.</param>
+    /// <param name="accountId">The account the operation concerns, or <c>null</c> for server-wide work.</param>
+    /// <param name="audience">Who besides an administrator may read the task.</param>
     /// <param name="correlationId">The correlation id of the request behind it, or <c>null</c>.</param>
     /// <param name="startedAt">The starting instant, taken from <see cref="IClock"/>.</param>
-    public PanelTask(Guid id, string kind, string subject, string? correlationId, DateTimeOffset startedAt)
+    public PanelTask(
+        Guid id,
+        string kind,
+        string subject,
+        Guid? accountId,
+        TaskAudience audience,
+        string? correlationId,
+        DateTimeOffset startedAt)
     {
         Id = id;
         Kind = kind;
         Subject = subject;
+        AccountId = accountId;
+        Audience = audience;
         CorrelationId = correlationId;
         Status = PanelTaskStatus.Running;
         Percent = 0;
@@ -194,6 +219,18 @@ public sealed class PanelTask
         ErrorCode = errorCode;
         FinishedAt = at;
         Revision += 1;
+    }
+
+    /// <summary>Detaches the task from the account it was done for, because that account is being deleted.</summary>
+    /// <remarks>
+    /// The row is kept and only its owner is forgotten: the task is the operator's history of what
+    /// the panel did, and it stays theirs. Leaving the account id behind would make it residue that
+    /// refuses the deletion, and would hand the task to whoever is later given an account under a
+    /// recycled id. <see cref="Revision"/> does not move — nothing a watcher is shown has changed.
+    /// </remarks>
+    public void ReleaseAccount()
+    {
+        AccountId = null;
     }
 
     /// <summary>Appends one line to the log, cutting and marking it once it no longer fits.</summary>

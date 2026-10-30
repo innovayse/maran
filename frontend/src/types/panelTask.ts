@@ -31,8 +31,17 @@ export interface PanelTask {
   status: PanelTaskStatus
   /** How far along, 0-100. */
   percent: number
-  /** Everything reported about it so far, capped at the source and marked where it was cut. */
+  /**
+   * Everything reported about it so far, capped at the source and marked where it was cut, when
+   * `logIncluded` is true; empty otherwise.
+   */
   log: string
+  /**
+   * Whether `log` carries the task's log. False for a customer, whose own task's log the panel
+   * withholds because it is written for the operator. Its own field so that an empty `log` means
+   * only "nothing reported yet", never also "withheld".
+   */
+  logIncluded: boolean
   /** The machine-stable code it failed with, or null. Used for behaviour, never as a text key. */
   errorCode: string | null
   /** When the operation started, as an ISO-8601 string. */
@@ -79,11 +88,9 @@ export interface PanelTaskStreamHandlers {
  */
 export interface TasksApi {
   /**
-   * Lists the panel's most recent background tasks, newest first.
-   *
-   * The surface is administrator-only and says so by answering **404, not an empty 200** — a
-   * customer is told the feed does not exist for them rather than that it exists and is empty. The
-   * store therefore treats a 404 here as "nothing to show", not as an error to shout about.
+   * Lists the most recent background tasks the caller may see, newest first: every task for an
+   * administrator, the tasks recorded for their own account for a customer (each with
+   * `logIncluded: false`). A customer with none receives an empty list.
    * @param signal Optional abort signal to cancel the in-flight request.
    * @returns The tasks, newest first.
    */

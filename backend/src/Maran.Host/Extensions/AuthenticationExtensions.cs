@@ -3,6 +3,7 @@ using Maran.Host.Authorization;
 using Maran.Modules.Identity.Options;
 using Maran.Sdk.Contracts;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.IdentityModel.JsonWebTokens;
 using Microsoft.IdentityModel.Tokens;
 
@@ -11,7 +12,7 @@ namespace Maran.Host.Extensions;
 /// <summary>Wires bearer-token authentication and the panel's authorization policies.</summary>
 public static class AuthenticationExtensions
 {
-    /// <summary>Registers the JWT bearer handler and the role policies.</summary>
+    /// <summary>Registers the JWT bearer handler, the role policies and the 403 problem-body writer.</summary>
     /// <param name="services">The application service collection.</param>
     /// <param name="configuration">Configuration the <see cref="JwtOptions"/> are read from.</param>
     /// <returns>The same collection, for chaining.</returns>
@@ -49,6 +50,10 @@ public static class AuthenticationExtensions
             });
 
         services.AddAuthorization(RolePolicies.Configure);
+
+        // A policy refusal gets a localized RFC 7807 body instead of an empty 403; every other
+        // result still goes through the framework's own handler.
+        services.AddSingleton<IAuthorizationMiddlewareResultHandler, ProblemDetailsAuthorizationResultWriter>();
 
         return services;
     }

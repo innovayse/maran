@@ -1,5 +1,6 @@
 using Maran.Modules.Tasks.Domain.Entities;
 using Maran.Modules.Tasks.Persistence.Configurations;
+using Maran.Sdk.Contracts;
 
 namespace Maran.Modules.Tasks.Persistence;
 
@@ -10,18 +11,22 @@ namespace Maran.Modules.Tasks.Persistence;
 /// </summary>
 /// <remarks>
 /// <para>
-/// The query filter below is THE authorisation mechanism of this module's reads, and it is not a
-/// tenant filter: it is an administrator filter. Every kind of task recorded in v1 is an
-/// administrator's operation — issuing a certificate, renewing one, deleting an account — so a task
-/// row names a domain or an account name that a customer has no business learning about, and a
-/// customer's read must return nothing at all rather than a filtered subset.
+/// The query filter below is THE authorisation mechanism of this module's reads. An administrator
+/// reads every task. A customer reads exactly the tasks whose audience is
+/// <see cref="TaskAudience.AccountOwner"/> AND whose account is their own — their backups, restores
+/// and certificates — and nothing else. A suspension of their own account carries their account id
+/// and is still not in their result set, because its audience is administrator-only; another
+/// tenant's task and server-wide work are not either.
 /// </para>
 /// <para>
 /// It is expressed here, in the model, rather than as a check each handler remembers, for exactly
-/// the reason a tenant filter is: a handler that forgets a <c>Where</c> clause still cannot leak,
-/// and a task belonging to the administrator's world answers 404 to a customer rather than 403 —
-/// the row genuinely is not in the result set, so nothing about it is confirmed
-/// (spec §8, rules/testing.md item 3).
+/// the reason every tenant filter is: a handler that forgets a <c>Where</c> clause still cannot leak,
+/// and another tenant's task answers 404 rather than 403 — the row genuinely is not in the result
+/// set, so nothing about it is confirmed (spec §8, rules/testing.md item 3).
+/// </para>
+/// <para>
+/// What a customer sees OF their own task is a separate decision, taken where a row becomes a wire
+/// shape: the log is operator material and is withheld (<c>PanelTaskMapper</c>).
 /// </para>
 /// <para>
 /// WRITES are deliberately not filtered, and could not be: <c>TaskRecorder</c> records an
@@ -55,15 +60,21 @@ public sealed class TasksDbContext : DbContext
         }
     }
 
-    /// <summary>Applies the schema, the entity configuration, and the administrator query filter.</summary>
+    /// <summary>Applies the schema, the entity configuration, and the tenant query filter.</summary>
     /// <param name="modelBuilder">The model builder supplied by EF Core.</param>
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.HasDefaultSchema(SchemaName);
         modelBuilder.ApplyConfiguration(new PanelTaskConfiguration());
 
-        // R14: tasks are admin-only in v1. Physically, not by a handler remembering to check.
-        modelBuilder.Entity<PanelTask>().HasQueryFilter(task => _currentUser.IsAdmin);
+        // Physically, not by a handler remembering to check. Both halves are needed: the audience
+        // says the task is the owner's to read, the account says whose. A null account id never
+        // matches, even for a principal whose token names no account.
+        modelBuilder.Entity<PanelTask>().HasQueryFilter(task =>
+            _currentUser.IsAdmin
+            || (task.Audience == TaskAudience.AccountOwner
+                && task.AccountId != null
+                && task.AccountId == _currentUser.AccountId));
 
         base.OnModelCreating(modelBuilder);
     }

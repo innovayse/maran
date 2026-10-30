@@ -57,6 +57,8 @@ public sealed class DeleteAccountTaskRecordingTests : IDisposable
         Assert.Equal(TaskKinds.AccountDeletion, task.Kind);
         Assert.Equal("acme", task.Subject);
         Assert.Equal(Correlation, task.CorrelationId);
+        Assert.Equal(account.Id, task.AccountId);
+        Assert.Equal(TaskAudience.AdministratorOnly, task.Audience);
         Assert.True(task.Completed);
         Assert.Null(task.FailureCode);
     }

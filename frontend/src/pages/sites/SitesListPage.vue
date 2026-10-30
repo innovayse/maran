@@ -43,6 +43,7 @@ import UiTableCell from '../../components/ui/UiTableCell.vue'
 import UiTableHeaderCell from '../../components/ui/UiTableHeaderCell.vue'
 import UiTableRow from '../../components/ui/UiTableRow.vue'
 import SiteStatusBadge from '../../components/sites/SiteStatusBadge.vue'
+import { useCallerRole } from '../../composables/useCallerRole'
 import { useLocaleStore } from '../../stores/locale'
 import { useSitesStore } from '../../stores/sites'
 import { formatDate } from '../../utils/formatDate'
@@ -51,6 +52,7 @@ import { takeFlashNotice } from '../../utils/flashNotice'
 const { t } = useI18n()
 const store = useSitesStore()
 const localeStore = useLocaleStore()
+const { isAdmin } = useCallerRole()
 
 /** The success toast's text, or `null` while none is showing. */
 const notice: Ref<string | null> = ref(null)
@@ -97,7 +99,9 @@ onMounted(async () => {
       :subtitle="t('sites.list.subtitle')"
     >
       <template #actions>
-        <UiButton variant="secondary" :to="{ name: 'php-versions' }">{{ t('sites.list.phpVersionsLink') }}</UiButton>
+        <!-- PHP versions are an administrator's server setting; hidden from a customer as
+             presentation only, the endpoint refuses them on its own (rules/security.md). -->
+        <UiButton v-if="isAdmin" variant="secondary" :to="{ name: 'php-versions' }">{{ t('sites.list.phpVersionsLink') }}</UiButton>
         <UiButton :to="{ name: 'sites-new' }">{{ t('sites.list.createAction') }}</UiButton>
       </template>
     </UiPageHeading>

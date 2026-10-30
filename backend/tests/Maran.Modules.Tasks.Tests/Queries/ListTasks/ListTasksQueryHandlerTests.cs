@@ -32,14 +32,43 @@ public sealed class ListTasksQueryHandlerTests
         }));
     }
 
-    /// <summary>A customer listing tasks is answered not found rather than an empty list.</summary>
+    /// <summary>A customer listing tasks gets only their own account's tasks, each with an empty log.</summary>
     /// <remarks>
-    /// The whole surface is administrator-only, so the honest answer to a customer is that it is not
-    /// there. An empty 200 would say something different and slightly worse: that there is a tasks
-    /// feed here and they simply have nothing in it.
+    /// Three rows, one per kind of owner: the customer's own, another tenant's, and one that belongs
+    /// to no account. Only the first may come back, and its log must not — the log is operator
+    /// material (rules/security.md item 8).
     /// </remarks>
     [Fact]
-    public async Task A_customer_listing_tasks_is_answered_not_found_rather_than_an_empty_list()
+    public async Task A_customer_listing_tasks_gets_only_their_own_accounts_tasks_each_with_an_empty_log()
+    {
+        var database = Guid.NewGuid().ToString();
+        var accountId = Guid.NewGuid();
+        var own = TasksTestContext.Row(subject: "own.example", accountId: accountId);
+        own.Report(50, "tool output");
+        await using (var seed = TasksTestContext.Create(FakeCurrentUser.Admin(), database))
+        {
+            seed.PanelTasks.Add(own);
+            seed.PanelTasks.Add(TasksTestContext.Row(subject: "other.example", accountId: Guid.NewGuid()));
+            seed.PanelTasks.Add(TasksTestContext.Row(subject: "server.example"));
+            await seed.SaveChangesAsync();
+        }
+
+        var customer = FakeCurrentUser.Customer(accountId);
+        await using var context = TasksTestContext.Create(customer, database);
+        var handler = new ListTasksQueryHandler(context, customer, TasksTestContext.KindNames());
+
+        var result = await handler.HandleAsync(new ListTasksQuery(), CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        var task = Assert.Single(result.Value);
+        Assert.Equal(own.Id, task.Id);
+        Assert.False(task.LogIncluded);
+        Assert.Equal(string.Empty, task.Log);
+    }
+
+    /// <summary>A customer with no tasks of their own gets an empty list rather than not found.</summary>
+    [Fact]
+    public async Task A_customer_with_no_tasks_of_their_own_gets_an_empty_list_rather_than_not_found()
     {
         var database = Guid.NewGuid().ToString();
         await using (var seed = TasksTestContext.Create(FakeCurrentUser.Admin(), database))
@@ -54,7 +83,32 @@ public sealed class ListTasksQueryHandlerTests
 
         var result = await handler.HandleAsync(new ListTasksQuery(), CancellationToken.None);
 
-        Assert.False(result.IsSuccess);
-        Assert.Equal("TaskNotFound", result.Error!.Code);
+        Assert.True(result.IsSuccess);
+        Assert.Empty(result.Value);
+    }
+
+    /// <summary>An administrator listing tasks is sent each task's log.</summary>
+    /// <remarks>The inverse control for the redaction above: a mapper that dropped every log would pass it.</remarks>
+    [Fact]
+    public async Task An_administrator_listing_tasks_is_sent_each_tasks_log()
+    {
+        var database = Guid.NewGuid().ToString();
+        var task = TasksTestContext.Row(accountId: Guid.NewGuid());
+        task.Report(50, "tool output");
+        await using (var seed = TasksTestContext.Create(FakeCurrentUser.Admin(), database))
+        {
+            seed.PanelTasks.Add(task);
+            await seed.SaveChangesAsync();
+        }
+
+        var admin = FakeCurrentUser.Admin();
+        await using var context = TasksTestContext.Create(admin, database);
+        var handler = new ListTasksQueryHandler(context, admin, TasksTestContext.KindNames());
+
+        var result = await handler.HandleAsync(new ListTasksQuery(), CancellationToken.None);
+
+        var listed = Assert.Single(result.Value);
+        Assert.True(listed.LogIncluded);
+        Assert.Equal("tool output", listed.Log);
     }
 }

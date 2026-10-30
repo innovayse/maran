@@ -54,6 +54,8 @@ public sealed class CertificateRenewalTaskRecordingTests
 
         var task = Assert.Single(fixture.Tasks.Tasks);
         Assert.Equal("soon.example.com", task.Subject);
+        Assert.Equal(fixture.AccountId, task.AccountId);
+        Assert.Equal(TaskAudience.AccountOwner, task.Audience);
         Assert.Equal("AcmeAuthorityUnreachable", task.FailureCode);
         Assert.False(task.Completed);
     }

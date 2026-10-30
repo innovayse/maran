@@ -151,8 +151,16 @@ public sealed class ReactivateAccountCommandHandler
                 cancellationToken);
         }
 
+        // About this account, so an administrator finds it among the account's tasks; audience
+        // AdministratorOnly, because it is an administrator's action ON the account, not work done
+        // for its owner.
         var taskId = await _tasks.BeginAsync(
-            TaskKinds.AccountResumption, account.Name, _correlationIds.CorrelationId, cancellationToken);
+            TaskKinds.AccountResumption,
+            account.Name,
+            account.Id,
+            TaskAudience.AdministratorOnly,
+            _correlationIds.CorrelationId,
+            cancellationToken);
 
         try
         {

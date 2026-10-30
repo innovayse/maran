@@ -31,8 +31,9 @@ namespace Maran.Modules.Tasks.Services;
 /// </para>
 /// <para>
 /// <b>It reads with <c>IgnoreQueryFilters</c>, and must.</b> The module's query filter admits
-/// administrators, and a hosted service has no signed-in caller at all — so the filtered read would
-/// find nothing, every time, and the class would appear to work while doing nothing. It is safe
+/// administrators and a task's own account, and a hosted service has no signed-in caller at all —
+/// so the filtered read would find nothing, every time, and the class would appear to work while
+/// doing nothing. It is safe
 /// because nothing read here is returned to anybody: the rows are closed in place.
 /// </para>
 /// <para>

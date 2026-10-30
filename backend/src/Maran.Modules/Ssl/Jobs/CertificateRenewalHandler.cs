@@ -207,8 +207,16 @@ public sealed class CertificateRenewalHandler
         //
         // There is no correlation id: a renewal pass has no request behind it. The task's own id is
         // what an operator correlates by, and the journal records the pass under its system actor.
+        //
+        // About the account the certificate belongs to; audience AccountOwner, because renewing the
+        // certificate of their own site is work done for the customer.
         var taskId = await _tasks.BeginAsync(
-            TaskKinds.CertificateRenewal, certificate.Domain, correlationId: null, cancellationToken);
+            TaskKinds.CertificateRenewal,
+            certificate.Domain,
+            certificate.AccountId,
+            TaskAudience.AccountOwner,
+            correlationId: null,
+            cancellationToken);
 
         try
         {

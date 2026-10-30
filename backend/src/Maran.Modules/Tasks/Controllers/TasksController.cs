@@ -15,13 +15,13 @@ namespace Maran.Modules.Tasks.Controllers;
 /// is fixed"): binds the request, dispatches through Wolverine, translates the
 /// <see cref="Result{T}"/>. No business logic, no data access.
 ///
-/// It is attributed <see cref="AuthorizationPolicies.AnyAuthenticated"/> rather than
-/// <see cref="AuthorizationPolicies.AdminOnly"/>, and that is the opposite of a widening. Every kind
-/// of task in v1 is an administrator's operation, and the policy attribute would answer a customer
-/// 403 — which tells them there is an administrator-only tasks feed here and that they were refused
-/// it. Instead the surface answers 404, the way one customer's site answers 404 to another: the
-/// module's own query filter makes the rows invisible and its handlers answer <c>TaskNotFound</c>,
-/// so nothing is confirmed (spec §8, rules/testing.md item 3).
+/// It is attributed <see cref="AuthorizationPolicies.AnyAuthenticated"/> because both roles use it.
+/// An administrator reads every task. A customer reads the tasks recorded against their own account
+/// — the backups, restores and certificates they started, or that ran for them — with the log
+/// withheld, because the log is operator material. Server-wide tasks and what an administrator does
+/// to an account carry no account and stay administrator-only. Another tenant's task answers 404
+/// rather than 403: the module's query filter makes the row invisible and its handlers answer
+/// <c>TaskNotFound</c>, so nothing is confirmed (spec §8, rules/testing.md item 3).
 /// </summary>
 [Route("api/v1/tasks")]
 [Authorize(Policy = AuthorizationPolicies.AnyAuthenticated)]
@@ -56,13 +56,12 @@ public sealed class TasksController : BaseApiController
         _streamWriter = streamWriter;
     }
 
-    /// <summary>Lists the panel's most recent background tasks, newest first.</summary>
+    /// <summary>Lists the most recent background tasks the caller may see, newest first.</summary>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
-    /// <returns>The tasks, or 404 for a caller this surface does not exist for.</returns>
+    /// <returns>The tasks the caller may see — every task for an administrator, their own for a customer.</returns>
     [HttpGet]
     [ProducesResponseType(typeof(IReadOnlyList<PanelTaskDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetAllAsync(CancellationToken cancellationToken)
     {
         var query = new ListTasksQuery();
@@ -96,7 +95,7 @@ public sealed class TasksController : BaseApiController
     /// It runs under the ordinary <c>api</c> rate-limit policy rather than a concurrency limiter of
     /// its own. That is a smaller risk than it is for a site-log tail, which pins a blocking reader
     /// in the root daemon per open stream: this one holds a database poll every half second and
-    /// nothing on the host, and the surface is administrator-only. It bounds how fast panes are
+    /// nothing on the host, and a customer can only open it on their own tasks. It bounds how fast panes are
     /// opened rather than how many are held open, which is stated here so the next person to add a
     /// stream does not read the omission as a decision that concurrency does not matter.
     /// </remarks>

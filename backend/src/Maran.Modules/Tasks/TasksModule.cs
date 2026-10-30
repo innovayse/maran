@@ -52,7 +52,7 @@ public sealed class TasksModule : IPanelModule
 
         var connectionString = configuration.GetConnectionString(ConnectionStringName) ?? string.Empty;
 
-        // Scoped by default, which is what the administrator query filter requires: the context
+        // Scoped by default, which is what the tenant query filter requires: the context
         // closes over the request's own ICurrentUser, so a singleton context would freeze one
         // caller's visibility and serve it to everybody.
         services.AddDbContext<TasksDbContext>(options =>

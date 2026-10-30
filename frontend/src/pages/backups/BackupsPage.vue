@@ -67,7 +67,8 @@ import UiTableRow from '../../components/ui/UiTableRow.vue'
 import BackupCreateForm from '../../components/backups/BackupCreateForm.vue'
 import BackupRestoreDialog from '../../components/backups/BackupRestoreDialog.vue'
 import BackupStatusBadge from '../../components/backups/BackupStatusBadge.vue'
-import { useAccountsStore } from '../../stores/accounts'
+import { useAccountChoice } from '../../composables/useAccountChoice'
+import { useCallerRole } from '../../composables/useCallerRole'
 import { useBackupsStore } from '../../stores/backups'
 import { useLocaleStore } from '../../stores/locale'
 import { formatBytes } from '../../utils/formatBytes'
@@ -76,7 +77,8 @@ import type { Backup, CreateBackupRequest } from '../../types/backup'
 
 const { t } = useI18n()
 const store = useBackupsStore()
-const accountsStore = useAccountsStore()
+const { fixedAccountId, accounts, ownerName, load: loadAccounts } = useAccountChoice()
+const { isAdmin } = useCallerRole()
 const localeStore = useLocaleStore()
 
 /** The backup whose deletion is awaiting confirmation, or the empty string when none is. */
@@ -169,7 +171,8 @@ const attentionMessage: ComputedRef<string | null> = computed(() => {
 /**
  * Names the account a backup belongs to, for a column that would otherwise print a GUID.
  *
- * The live accounts list is asked first, and the backup's own `orphanedAccountUsername` second.
+ * The live account (from the caller's list, or a customer's own) is asked first, and the backup's
+ * own `orphanedAccountUsername` second.
  * That order matters: while an account exists its current name is the truthful one, and a name
  * copied onto the row at deletion time is the only one left once it does not. The placeholder is
  * reached only by a row that is neither — which no row the panel writes should be.
@@ -177,10 +180,7 @@ const attentionMessage: ComputedRef<string | null> = computed(() => {
  * @returns The account's short name, the name preserved at deletion, or a placeholder.
  */
 const accountName = (backup: Backup): string => {
-  const owner = accountsStore.accounts.find((account) => {
-    return account.id === backup.accountId
-  })
-  return owner?.name ?? (backup.orphanedAccountUsername || t('common.emptyValue'))
+  return ownerName(backup.accountId) ?? (backup.orphanedAccountUsername || t('common.emptyValue'))
 }
 
 /**
@@ -229,7 +229,8 @@ const finished = (backup: Backup): string => {
  * @returns Resolves once both requests have settled.
  */
 const refresh = async (): Promise<void> => {
-  await Promise.all([store.load(), accountsStore.load()])
+  // A customer's own account is read instead of the administrator-only list (useAccountChoice).
+  await Promise.all([store.load(), loadAccounts()])
 }
 
 /**
@@ -253,10 +254,7 @@ const create = async (request: CreateBackupRequest): Promise<void> => {
  * @returns The account's system user name, or `null` when it is not known here.
  */
 const accountUsername = (id: string): string | null => {
-  const owner = accountsStore.accounts.find((account) => {
-    return account.id === id
-  })
-  return owner?.name ?? null
+  return ownerName(id)
 }
 
 /**
@@ -317,13 +315,12 @@ onMounted(refresh)
       :note="t('backups.list.storageNote')"
     >
       <template #actions>
-        <!-- The schedule is administrators-only and this link is not the gate: it is offered to
-             whoever is looking, and the endpoint behind the page answers 403 to anyone who may not
-             read it. A client-side check here would be a second copy of an authorization decision,
-             and the copy that cannot be trusted (rules/vue.md). Both are ghost-weight links: the
-             screen's primary action is the form below, and a pill up here would compete with it. -->
-        <UiButton variant="secondary" :to="{ name: 'backup-schedule' }">{{ t('backups.list.scheduleLink') }}</UiButton>
-        <UiButton variant="secondary" :to="{ name: 'backup-destinations' }">{{ t('backups.list.destinationsLink') }}</UiButton>
+        <!-- The schedule and the destinations are administrators-only. Hiding the links from a
+             customer is presentation, not the gate: the endpoints behind them refuse a customer on
+             their own (rules/security.md). Both are ghost-weight links: the screen's primary action
+             is the form below, and a pill up here would compete with it. -->
+        <UiButton v-if="isAdmin" variant="secondary" :to="{ name: 'backup-schedule' }">{{ t('backups.list.scheduleLink') }}</UiButton>
+        <UiButton v-if="isAdmin" variant="secondary" :to="{ name: 'backup-destinations' }">{{ t('backups.list.destinationsLink') }}</UiButton>
       </template>
     </UiPageHeading>
 
@@ -339,7 +336,8 @@ onMounted(refresh)
 
     <!-- The form draws its own panel, so it is not wrapped in a second one here. -->
     <BackupCreateForm
-      :accounts="accountsStore.accounts"
+      :accounts="accounts"
+      :fixed-account-id="fixedAccountId"
       :submitting="store.creating"
       @submit="create"
     />

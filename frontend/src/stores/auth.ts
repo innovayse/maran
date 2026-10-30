@@ -64,6 +64,12 @@ export const useAuthStore = defineStore('auth', () => {
   const sessions: Ref<Session[]> = ref([])
 
   /**
+   * The login name the last accepted invitation created, or `null`. Shown on the success screen so
+   * the person knows what to sign in with; the panel returns it only to the holder of the token.
+   */
+  const invitedUsername: Ref<string | null> = ref(null)
+
+  /**
    * The renewal currently in flight, shared by every caller.
    *
    * Without this, ten parallel calls after a page reload each rotate the refresh
@@ -428,8 +434,10 @@ export const useAuthStore = defineStore('auth', () => {
   const acceptInvitation = async (request: AcceptInvitationRequest): Promise<boolean> => {
     loading.value = true
     errorMessage.value = null
+    invitedUsername.value = null
     try {
-      await api.acceptInvitation(request)
+      const result = await api.acceptInvitation(request)
+      invitedUsername.value = result.username
       return true
     } catch (error) {
       // Same non-branching rule as resetPassword: an unknown, expired and spent token all
@@ -451,6 +459,7 @@ export const useAuthStore = defineStore('auth', () => {
     isSetupComplete,
     isRestored,
     sessions,
+    invitedUsername,
     isAuthenticated,
     renewAccessToken,
     restore,

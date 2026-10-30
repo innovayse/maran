@@ -23,10 +23,11 @@ public static class LocalizationExtensions
     {
         services.AddLocalization();
 
-        // The Host produces two failures of its own — HostUnexpectedError from ExceptionMiddleware
-        // and HostRateLimited from the rate limiter's rejection handler — which belong to no
-        // module. Their resource manager joins the same shared pool the panel-wide
-        // ResxErrorTextProvider resolves against, so both are localized exactly like a module's
+        // The Host produces failures of its own that belong to no module — HostUnexpectedError
+        // from ExceptionMiddleware, HostRateLimited from the rate limiter's rejection handler, and
+        // HostForbidden / HostTwoFactorSetupRequired from ProblemDetailsAuthorizationResultWriter.
+        // Their resource manager joins the same shared pool the panel-wide
+        // ResxErrorTextProvider resolves against, so all of them are localized exactly like a module's
         // codes rather than falling back to the raw code (rules/csharp.md "The backend owns all
         // user-facing message text").
         services.AddSingleton(

@@ -1,0 +1,10 @@
+{
+  "app": {
+    "notAvailable": {
+      "heading": "Page not available",
+      "description": "This page is not part of your account area.",
+      "hint": "Everything you can manage is listed in the sidebar. If you think you need this page, contact whoever manages your hosting.",
+      "backHome": "Back to system status"
+    }
+  }
+}

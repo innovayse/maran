@@ -49,6 +49,11 @@ const props = defineProps<{
   accounts: readonly Account[]
   /** Whether a create request is already in flight, which disables the submit control. */
   submitting: boolean
+  /**
+   * The account every request is for when the caller has no choice (a customer's own), or `null`
+   * for an administrator. When set, the picker is not drawn and the account rule is skipped.
+   */
+  fixedAccountId: string | null
 }>()
 
 /** Events emitted by {@link DatabaseCreateForm}. */
@@ -80,7 +85,7 @@ const accountOptions: ComputedRef<SelectOption[]> = computed(() => {
 
 /** Validation message for the account picker, or `null`. */
 const accountError: ComputedRef<string | null> = computed(() => {
-  if (!submitted.value) {
+  if (!submitted.value || props.fixedAccountId !== null) {
     return null
   }
   return accountId.value.length === 0 ? t('databases.form.errors.accountRequired') : null
@@ -126,7 +131,7 @@ const submit = (): void => {
   if (!isValid.value) {
     return
   }
-  emit('submit', { accountId: accountId.value, name: name.value, dbUserName: dbUserName.value })
+  emit('submit', { accountId: props.fixedAccountId ?? accountId.value, name: name.value, dbUserName: dbUserName.value })
 }
 
 /**
@@ -160,7 +165,7 @@ defineExpose({ reset })
            account picker its "name · domain" labels room: at 1024px the sidebar has already taken
            240px, and three squeezed tracks cut the picker's text. -->
       <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-        <div class="min-w-0 sm:col-span-2 xl:col-span-1">
+        <div v-if="fixedAccountId === null" class="min-w-0 sm:col-span-2 xl:col-span-1">
           <UiSelect
             v-model="accountId"
             :label="t('databases.form.fields.accountId')"

@@ -36,6 +36,20 @@ public interface ITaskRecorder
     /// Never a secret and never a customer-supplied command line: the tasks table is read by the
     /// operator and outlives the operation.
     /// </param>
+    /// <param name="accountId">
+    /// The hosting account the operation concerns — the account backed up, restored, suspended or
+    /// deleted, the owner of the certificate's site — or <c>null</c> only for server-wide work that
+    /// concerns no account (installing a PHP version). It is a fact about the task, so an
+    /// administrator can find every task about one account; it does not by itself decide who may
+    /// read the task.
+    /// </param>
+    /// <param name="audience">
+    /// Who besides an administrator may read the task. <see cref="Contracts.TaskAudience.AccountOwner"/>
+    /// for work done FOR the customer (their backups, restores, certificates);
+    /// <see cref="Contracts.TaskAudience.AdministratorOnly"/> for what an administrator does TO an
+    /// account and for server-wide work. Every caller states it, so no task becomes visible to a
+    /// customer by default.
+    /// </param>
     /// <param name="correlationId">
     /// The current request's correlation id, so a task can be lined up with the log lines and the
     /// audit entry of the request that started it, or <c>null</c> for unattended work that has no
@@ -46,7 +60,13 @@ public interface ITaskRecorder
     /// The new task's id, or <see cref="Guid.Empty"/> when the task could not be recorded. A caller
     /// passes whatever comes back to the other methods without inspecting it.
     /// </returns>
-    Task<Guid> BeginAsync(string kind, string subject, string? correlationId, CancellationToken cancellationToken);
+    Task<Guid> BeginAsync(
+        string kind,
+        string subject,
+        Guid? accountId,
+        Contracts.TaskAudience audience,
+        string? correlationId,
+        CancellationToken cancellationToken);
 
     /// <summary>Records progress against an open task.</summary>
     /// <param name="taskId">The task, as <see cref="BeginAsync"/> answered it.</param>

@@ -23,7 +23,13 @@ public sealed class TaskRecorderTests
         await using var context = TasksTestContext.Create(FakeCurrentUser.Admin(), database);
         var recorder = Recorder(context);
 
-        var id = await recorder.BeginAsync(TaskKinds.AccountDeletion, "alice", "corr-1", CancellationToken.None);
+        var id = await recorder.BeginAsync(
+            TaskKinds.AccountDeletion,
+            "alice",
+            null,
+            TaskAudience.AdministratorOnly,
+            "corr-1",
+            CancellationToken.None);
 
         var stored = await Read(database, id);
         Assert.Equal(TaskKinds.AccountDeletion, stored.Kind);
@@ -33,6 +39,34 @@ public sealed class TaskRecorderTests
         Assert.Equal(TasksTestContext.Now, stored.StartedAt);
     }
 
+    /// <summary>Beginning a task stores the account it was recorded against.</summary>
+    [Fact]
+    public async Task Beginning_a_task_stores_the_account_it_was_recorded_against()
+    {
+        var database = Guid.NewGuid().ToString();
+        var accountId = Guid.NewGuid();
+        await using var context = TasksTestContext.Create(FakeCurrentUser.Admin(), database);
+        var recorder = Recorder(context);
+
+        var owned = await recorder.BeginAsync(
+            TaskKinds.BackupCreate,
+            "acme",
+            accountId,
+            TaskAudience.AccountOwner,
+            null,
+            CancellationToken.None);
+        var serverWide = await recorder.BeginAsync(
+            TaskKinds.PhpVersionInstall,
+            "8.3",
+            null,
+            TaskAudience.AdministratorOnly,
+            null,
+            CancellationToken.None);
+
+        Assert.Equal(accountId, (await Read(database, owned)).AccountId);
+        Assert.Null((await Read(database, serverWide)).AccountId);
+    }
+
     /// <summary>Reporting progress stores the percentage and appends the line.</summary>
     [Fact]
     public async Task Reporting_progress_stores_the_percentage_and_appends_the_line()
@@ -40,7 +74,13 @@ public sealed class TaskRecorderTests
         var database = Guid.NewGuid().ToString();
         await using var context = TasksTestContext.Create(FakeCurrentUser.Admin(), database);
         var recorder = Recorder(context);
-        var id = await recorder.BeginAsync(TaskKinds.CertificateIssue, "example.com", null, CancellationToken.None);
+        var id = await recorder.BeginAsync(
+            TaskKinds.CertificateIssue,
+            "example.com",
+            null,
+            TaskAudience.AdministratorOnly,
+            null,
+            CancellationToken.None);
 
         await recorder.ReportAsync(id, 40, "ordering the certificate", CancellationToken.None);
 
@@ -56,7 +96,13 @@ public sealed class TaskRecorderTests
         var database = Guid.NewGuid().ToString();
         await using var context = TasksTestContext.Create(FakeCurrentUser.Admin(), database);
         var recorder = Recorder(context);
-        var id = await recorder.BeginAsync(TaskKinds.CertificateIssue, "example.com", null, CancellationToken.None);
+        var id = await recorder.BeginAsync(
+            TaskKinds.CertificateIssue,
+            "example.com",
+            null,
+            TaskAudience.AdministratorOnly,
+            null,
+            CancellationToken.None);
 
         await recorder.CompleteAsync(id, CancellationToken.None);
         await recorder.FailAsync(id, "SiteNotFound", CancellationToken.None);
@@ -73,7 +119,13 @@ public sealed class TaskRecorderTests
         var database = Guid.NewGuid().ToString();
         await using var context = TasksTestContext.Create(FakeCurrentUser.Admin(), database);
         var recorder = Recorder(context);
-        var id = await recorder.BeginAsync(TaskKinds.CertificateIssue, "example.com", null, CancellationToken.None);
+        var id = await recorder.BeginAsync(
+            TaskKinds.CertificateIssue,
+            "example.com",
+            null,
+            TaskAudience.AdministratorOnly,
+            null,
+            CancellationToken.None);
 
         await recorder.FailAsync(id, "AcmeAuthorityUnreachable", CancellationToken.None);
 
@@ -95,7 +147,13 @@ public sealed class TaskRecorderTests
             FakeCurrentUser.Admin(), saveFailure: new InvalidOperationException("the tasks database is gone"));
         var recorder = Recorder(context);
 
-        var id = await recorder.BeginAsync(TaskKinds.AccountDeletion, "alice", null, CancellationToken.None);
+        var id = await recorder.BeginAsync(
+            TaskKinds.AccountDeletion,
+            "alice",
+            null,
+            TaskAudience.AdministratorOnly,
+            null,
+            CancellationToken.None);
 
         // Reaching this line at all is the assertion; the id is asserted so the test also pins the
         // contract that a failed begin answers "there is no task" rather than a usable id.
@@ -119,7 +177,13 @@ public sealed class TaskRecorderTests
             saveFailure: new InvalidOperationException("the tasks database is gone"),
             savesBeforeFailure: 1);
         var recorder = Recorder(context);
-        var id = await recorder.BeginAsync(TaskKinds.AccountDeletion, "alice", null, CancellationToken.None);
+        var id = await recorder.BeginAsync(
+            TaskKinds.AccountDeletion,
+            "alice",
+            null,
+            TaskAudience.AdministratorOnly,
+            null,
+            CancellationToken.None);
         Assert.NotEqual(Guid.Empty, id);
 
         await recorder.ReportAsync(id, 50, "cascading", CancellationToken.None);
@@ -146,7 +210,13 @@ public sealed class TaskRecorderTests
         var database = Guid.NewGuid().ToString();
         await using var context = TasksTestContext.Create(FakeCurrentUser.Admin(), database);
         var recorder = Recorder(context);
-        var open = await recorder.BeginAsync(TaskKinds.AccountDeletion, "alice", null, CancellationToken.None);
+        var open = await recorder.BeginAsync(
+            TaskKinds.AccountDeletion,
+            "alice",
+            null,
+            TaskAudience.AdministratorOnly,
+            null,
+            CancellationToken.None);
 
         using var cancelled = new CancellationTokenSource();
         await cancelled.CancelAsync();
@@ -206,7 +276,13 @@ public sealed class TaskRecorderTests
         await using var context = TasksTestContext.Create(FakeCurrentUser.Customer(), database);
         var recorder = Recorder(context);
 
-        var id = await recorder.BeginAsync(TaskKinds.CertificateIssue, "example.com", null, CancellationToken.None);
+        var id = await recorder.BeginAsync(
+            TaskKinds.CertificateIssue,
+            "example.com",
+            null,
+            TaskAudience.AdministratorOnly,
+            null,
+            CancellationToken.None);
         await recorder.ReportAsync(id, 60, "installing", CancellationToken.None);
         await recorder.CompleteAsync(id, CancellationToken.None);
 

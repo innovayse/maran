@@ -1,4 +1,5 @@
 using Maran.Modules.Tasks.Domain.Entities;
+using Maran.Sdk.Contracts;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace Maran.Modules.Tasks.Persistence.Configurations;
@@ -17,6 +18,9 @@ public sealed class PanelTaskConfiguration : IEntityTypeConfiguration<PanelTask>
 
     /// <summary>Ceiling on an error code, which is a resx key in flat PascalCase.</summary>
     private const int ErrorCodeMaxLength = 128;
+
+    /// <summary>Upper bound on the stored name of a <see cref="TaskAudience"/> member.</summary>
+    private const int AudienceMaxLength = 64;
 
     /// <summary>Configures the table, keys, and column constraints for <see cref="PanelTask"/>.</summary>
     /// <param name="builder">The entity type builder supplied by EF Core.</param>
@@ -42,6 +46,15 @@ public sealed class PanelTaskConfiguration : IEntityTypeConfiguration<PanelTask>
             .IsRequired()
             .HasConversion<string>()
             .HasMaxLength(KindMaxLength);
+
+        // Stored by name like the status, and defaulted to the closed answer so every row written
+        // before the column existed stays administrator-only. That answer is also the enum's zero,
+        // so EF Core leaving an AdministratorOnly row to the column default writes the same value.
+        builder.Property(task => task.Audience)
+            .IsRequired()
+            .HasConversion<string>()
+            .HasMaxLength(AudienceMaxLength)
+            .HasDefaultValue(TaskAudience.AdministratorOnly);
 
         builder.Property(task => task.Percent)
             .IsRequired();
@@ -75,5 +88,10 @@ public sealed class PanelTaskConfiguration : IEntityTypeConfiguration<PanelTask>
         // before Complete/Fail), so an index on it also makes "skip everything still in flight"
         // free rather than a filter applied after the fact.
         builder.HasIndex(task => task.FinishedAt).HasDatabaseName("IX_PanelTasks_FinishedAt");
+
+        // The third: a customer's read is filtered on the account (TasksDbContext), and an
+        // administrator looks up every task about one account. Nullable, because server-wide work
+        // and a task whose account was deleted concern no account.
+        builder.HasIndex(task => task.AccountId).HasDatabaseName("IX_PanelTasks_AccountId");
     }
 }

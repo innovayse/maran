@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory, type Router } from 'vue-router'
 import DefaultLayout from '../layouts/DefaultLayout.vue'
 import NotFoundPage from '../pages/NotFoundPage.vue'
+import NotAvailablePage from '../pages/NotAvailablePage.vue'
 import SystemStatusPage from '../pages/SystemStatusPage.vue'
 import UpgradePage from '../pages/UpgradePage.vue'
 import AccountDetailPage from '../pages/accounts/AccountDetailPage.vue'
@@ -37,6 +38,7 @@ import PhpVersionsPage from '../pages/settings/PhpVersionsPage.vue'
 import SmtpSettingsPage from '../pages/settings/SmtpSettingsPage.vue'
 import { createAuthGuard } from './authGuard'
 import { createModuleAccessGuard } from './moduleAccessGuard'
+import { createRoleGuard } from './roleGuard'
 
 /**
  * Creates the application router. Every route nests under {@link DefaultLayout},
@@ -46,6 +48,11 @@ import { createModuleAccessGuard } from './moduleAccessGuard'
  * module-access guard can gate it. Every route also declares `meta.title`, the i18n key of its
  * screen's name, which `useDocumentTitle` turns into the browser tab's title (WCAG 2.4.2); the key
  * is the one the screen's own heading uses, so the tab and the page never name a screen two ways.
+ *
+ * A route only administrators may use carries `meta.adminOnly: true`. That flag is advice: the
+ * endpoints behind those screens refuse a customer on their own and stay the boundary. The role
+ * guard reads it so a customer who reaches such a URL sees the "not available" screen rather than
+ * administrator chrome around a refusal (issue #202).
  * @returns A fresh {@link Router} instance to install with `app.use()`.
  */
 export const createAppRouter = (): Router => {
@@ -64,8 +71,8 @@ export const createAppRouter = (): Router => {
         path: '/accounts',
         component: DefaultLayout,
         children: [
-          { path: '', name: 'accounts', component: AccountsListPage, meta: { module: 'accounts', title: 'accounts.list.heading' } },
-          { path: 'new', name: 'accounts-new', component: AccountFormPage, meta: { module: 'accounts', title: 'accounts.form.heading' } },
+          { path: '', name: 'accounts', component: AccountsListPage, meta: { module: 'accounts', title: 'accounts.list.heading', adminOnly: true } },
+          { path: 'new', name: 'accounts-new', component: AccountFormPage, meta: { module: 'accounts', title: 'accounts.form.heading', adminOnly: true } },
           // Declared after 'new' so the literal segment wins: an :id route placed first would
           // swallow /accounts/new and try to load an account called "new".
           {
@@ -73,27 +80,26 @@ export const createAppRouter = (): Router => {
             name: 'account-detail',
             component: AccountDetailPage,
             props: true,
-            meta: { module: 'accounts', title: 'accounts.detail.heading' },
+            meta: { module: 'accounts', title: 'accounts.detail.heading', adminOnly: true },
           },
         ],
       },
       {
         // Plans belong to the Accounts module — they are what an account is created against — so
-        // they carry its `meta.module` and fall behind its licence. They are administrators-only,
-        // and the endpoints are what say so: a customer who types this URL gets the panel's own
-        // refusal rendered on the page, with no second copy of the rule in a route guard.
+        // they carry its `meta.module` and fall behind its licence. They are administrators-only:
+        // the endpoints refuse a customer, and `adminOnly` sends one to the "not available" screen.
         path: '/plans',
         component: DefaultLayout,
         children: [
-          { path: '', name: 'plans', component: PlansListPage, meta: { module: 'accounts', title: 'plans.list.heading' } },
-          { path: 'new', name: 'plans-new', component: PlanFormPage, meta: { module: 'accounts', title: 'plans.form.headingNew' } },
+          { path: '', name: 'plans', component: PlansListPage, meta: { module: 'accounts', title: 'plans.list.heading', adminOnly: true } },
+          { path: 'new', name: 'plans-new', component: PlanFormPage, meta: { module: 'accounts', title: 'plans.form.headingNew', adminOnly: true } },
           // After 'new', for the reason the accounts routes give.
           {
             path: ':id',
             name: 'plans-edit',
             component: PlanFormPage,
             props: true,
-            meta: { module: 'accounts', title: 'plans.form.headingEdit' },
+            meta: { module: 'accounts', title: 'plans.form.headingEdit', adminOnly: true },
           },
         ],
       },
@@ -122,18 +128,16 @@ export const createAppRouter = (): Router => {
         component: DefaultLayout,
         children: [
           { path: '', name: 'databases', component: DatabasesPage, meta: { module: 'databases', title: 'databases.list.heading' } },
-          // Administrators only, and the endpoint is what says so: a customer who types this URL
-          // gets the panel's own refusal rendered on the page as a sentence about who may run it.
-          // No route guard duplicates that rule — a second copy of an authorization decision is a
-          // second place for it to be wrong, and the client's copy is the one that cannot be
-          // trusted. It sits under `/databases` rather than under `/settings` because its subject
-          // is this server's database grants, which is the Databases module's, and because a panel
-          // whose licence excludes that module has no grants of ours to repair.
+          // Administrators only. The endpoint is the boundary; `adminOnly` is advice that spares a
+          // customer an administrator's screen around a refusal. It sits under `/databases` rather
+          // than under `/settings` because its subject is this server's database grants, which is
+          // the Databases module's, and because a panel whose licence excludes that module has no
+          // grants of ours to repair.
           {
             path: 'grant-repair',
             name: 'database-grant-repair',
             component: DatabaseGrantRepairPage,
-            meta: { module: 'databases', title: 'databases.grantRepair.heading' },
+            meta: { module: 'databases', title: 'databases.grantRepair.heading', adminOnly: true },
           },
         ],
       },
@@ -147,23 +151,21 @@ export const createAppRouter = (): Router => {
         component: DefaultLayout,
         children: [
           { path: '', name: 'backups', component: BackupsPage, meta: { module: 'backups', title: 'backups.list.heading' } },
-          // Administrators only, and the endpoint is what says so: a customer who types this URL
-          // gets the panel's own 403 rendered on the page. No route guard duplicates that rule —
-          // a second copy of an authorization decision is a second place for it to be wrong.
+          // Administrators only. The endpoint refuses a customer; `adminOnly` sends one to the
+          // "not available" screen instead of showing the refusal inside an administrator's page.
           {
             path: 'schedule',
             name: 'backup-schedule',
             component: BackupSchedulePage,
-            meta: { module: 'backups', title: 'backups.schedule.heading' },
+            meta: { module: 'backups', title: 'backups.schedule.heading', adminOnly: true },
           },
-          // Administrators only for the same reason and by the same mechanism: the endpoint
-          // answers 403 and the page renders that sentence. The screen reads and never writes —
+          // Administrators only, by the same two layers. The screen reads and never writes —
           // the panel publishes no way to add or remove a destination that could succeed.
           {
             path: 'destinations',
             name: 'backup-destinations',
             component: BackupDestinationsPage,
-            meta: { module: 'backups', title: 'backups.destinations.heading' },
+            meta: { module: 'backups', title: 'backups.destinations.heading', adminOnly: true },
           },
         ],
       },
@@ -192,7 +194,7 @@ export const createAppRouter = (): Router => {
         path: '/firewall',
         component: DefaultLayout,
         children: [
-          { path: '', name: 'firewall', component: FirewallPage, meta: { module: 'firewall', title: 'firewall.heading' } },
+          { path: '', name: 'firewall', component: FirewallPage, meta: { module: 'firewall', title: 'firewall.heading', adminOnly: true } },
         ],
       },
       {
@@ -217,7 +219,7 @@ export const createAppRouter = (): Router => {
         path: '/monitoring',
         component: DefaultLayout,
         children: [
-          { path: '', name: 'monitoring', component: MonitoringPage, meta: { module: 'monitoring', title: 'monitoring.heading' } },
+          { path: '', name: 'monitoring', component: MonitoringPage, meta: { module: 'monitoring', title: 'monitoring.heading', adminOnly: true } },
         ],
       },
       {
@@ -265,11 +267,9 @@ export const createAppRouter = (): Router => {
         component: DefaultLayout,
         children: [
           // No `meta.module`: this is not a licensed module, it is a customer's own account —
-          // exactly like `/settings/sessions` above. No role guard here either, for the same
-          // reason as the administrator-only routes in this file: the endpoint
-          // (`GET /api/v1/accounts/me`) already answers "the account YOU own" off the caller's
-          // own token and 404s for an administrator, who owns none — a second, client-side copy
-          // of that decision would be a second place for it to be wrong.
+          // exactly like `/settings/sessions` above. Not `adminOnly`, and no customer-only flag
+          // either: the endpoint (`GET /api/v1/accounts/me`) answers "the account YOU own" off the
+          // caller's own token and 404s for an administrator, who owns none.
           { path: '', name: 'my-account', component: MyAccountPage, meta: { title: 'app.shell.menu.myAccount' } },
         ],
       },
@@ -292,31 +292,35 @@ export const createAppRouter = (): Router => {
         children: [
           { path: 'sessions', name: 'sessions', component: SessionsPage, meta: { title: 'app.sessions.heading' } },
           { path: 'two-factor', name: 'two-factor', component: TwoFactorSettingsPage, meta: { title: 'app.twoFactor.heading' } },
-          // Administrator-only screens, gated by their endpoints rather than by a
-          // route guard, for the same reason the audit journal below is: a second
-          // copy of an authorization decision is a second place for it to be wrong.
+          // Administrator-only screens: their endpoints refuse a customer, and
+          // `adminOnly` keeps a customer on the "not available" screen instead.
           // Neither carries `meta.module` — the security policy belongs to the panel
           // itself, and mail settings are what alerting AND password reset both
           // depend on, so hiding them behind a licence would disable the panel's
           // ability to send a reset link.
-          { path: 'security-policy', name: 'security-policy', component: SecurityPolicyPage, meta: { title: 'app.securityPolicy.heading' } },
-          { path: 'smtp', name: 'smtp-settings', component: SmtpSettingsPage, meta: { title: 'app.smtp.heading' } },
+          { path: 'security-policy', name: 'security-policy', component: SecurityPolicyPage, meta: { title: 'app.securityPolicy.heading', adminOnly: true } },
+          { path: 'smtp', name: 'smtp-settings', component: SmtpSettingsPage, meta: { title: 'app.smtp.heading', adminOnly: true } },
           // PHP runtimes are server-wide and installing one is administrators' work, so this sits
           // with the other administrator screens and carries no `meta.module`: a host with no PHP
           // version installed is a host where no PHP site can be created at all, which is not a
           // state a licence should be able to produce.
-          { path: 'php', name: 'php-versions', component: PhpVersionsPage, meta: { title: 'php.title' } },
-          // The journal is administrators-only, and the endpoint is what says so: a customer who
-          // types this URL gets the panel's own refusal rendered on the page. No route guard
-          // duplicates that rule here — a second copy of an authorization decision is a second
-          // place for it to be wrong, and the client's copy is the one that cannot be trusted.
-          { path: 'audit', name: 'audit', component: AuditPage, meta: { title: 'app.audit.heading' } },
+          { path: 'php', name: 'php-versions', component: PhpVersionsPage, meta: { title: 'php.title', adminOnly: true } },
+          // The journal is administrators-only: the endpoint is the boundary, `adminOnly` the advice.
+          { path: 'audit', name: 'audit', component: AuditPage, meta: { title: 'app.audit.heading', adminOnly: true } },
         ],
       },
       {
         path: '/upgrade/:module',
         component: DefaultLayout,
         children: [{ path: '', name: 'upgrade', component: UpgradePage, props: true, meta: { title: 'app.upgrade.heading' } }],
+      },
+      {
+        // Where the role guard sends a customer who reached an administrator's screen, and where
+        // the module guard sends one whose catalogue does not list the module. No `meta.module`
+        // and no `adminOnly`, so no guard can redirect away from it.
+        path: '/not-available',
+        component: DefaultLayout,
+        children: [{ path: '', name: 'not-available', component: NotAvailablePage, meta: { title: 'app.notAvailable.heading' } }],
       },
       {
         path: '/:pathMatch(.*)*',
@@ -330,6 +334,9 @@ export const createAppRouter = (): Router => {
   // visitor who has not signed in, and answering it would tell an anonymous caller
   // which products this server has.
   router.beforeEach(createAuthGuard())
+  // The role guard runs before the licence guard: a customer must never be told to buy a screen
+  // that is an administrator's, not theirs.
+  router.beforeEach(createRoleGuard())
   router.beforeEach(createModuleAccessGuard())
 
   return router

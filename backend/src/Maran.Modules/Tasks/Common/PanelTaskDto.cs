@@ -24,7 +24,15 @@ namespace Maran.Modules.Tasks.Common;
 /// <param name="CorrelationId">The correlation id of the request that started it, or <c>null</c>.</param>
 /// <param name="Status">Where it has got to.</param>
 /// <param name="Percent">How far along, 0–100.</param>
-/// <param name="Log">Everything reported about it so far, capped and marked where it was cut.</param>
+/// <param name="Log">
+/// Everything reported about it so far, capped and marked where it was cut, when
+/// <paramref name="LogIncluded"/> is <c>true</c>; empty otherwise.
+/// </param>
+/// <param name="LogIncluded">
+/// Whether <paramref name="Log"/> carries the task's log: <c>true</c> for an administrator,
+/// <c>false</c> for a customer, whose own task's log is withheld because it is operator material.
+/// Its own field so that an empty log means only "nothing reported yet" and never also "withheld".
+/// </param>
 /// <param name="ErrorCode">The machine-stable code it failed with, or <c>null</c>.</param>
 /// <param name="StartedAt">When the operation started.</param>
 /// <param name="FinishedAt">When it reached a final state, or <c>null</c> while it runs.</param>
@@ -41,6 +49,7 @@ public sealed record PanelTaskDto(
     PanelTaskStatus Status,
     int Percent,
     string Log,
+    bool LogIncluded,
     string? ErrorCode,
     DateTimeOffset StartedAt,
     DateTimeOffset? FinishedAt,

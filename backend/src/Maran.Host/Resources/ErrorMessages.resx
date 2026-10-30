@@ -21,4 +21,10 @@
   <data name="HostValidationFailed">
     <value>Some of the details you entered are not valid.</value>
   </data>
+  <data name="HostForbidden">
+    <value>You do not have access to this page.</value>
+  </data>
+  <data name="HostTwoFactorSetupRequired">
+    <value>Finish setting up two-factor authentication first.</value>
+  </data>
 </root>

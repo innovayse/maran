@@ -8,6 +8,7 @@ using Maran.Modules.Identity.Domain.Enums;
 using Maran.Modules.Identity.Persistence;
 using Maran.Modules.Tasks.Domain.Entities;
 using Maran.Modules.Tasks.Persistence;
+using Maran.Sdk.Contracts;
 using Maran.Sdk.Interfaces;
 using Maran.SharedKernel.Interfaces;
 using Microsoft.AspNetCore.Hosting;
@@ -126,6 +127,7 @@ public sealed class TaskStreamTests : IAsyncLifetime
         Assert.Equal("task", second.Name);
         Assert.Equal(55, second.Payload.GetProperty("percent").GetInt32());
         Assert.Equal(1, second.Payload.GetProperty("revision").GetInt32());
+        Assert.True(second.Payload.GetProperty("logIncluded").GetBoolean());
         Assert.Equal("halfway there", second.Payload.GetProperty("log").GetString());
 
         // Closing the task ends the stream, and it takes TWO frames to do it: completing moves the
@@ -219,7 +221,8 @@ public sealed class TaskStreamTests : IAsyncLifetime
         var dbContext = scope.ServiceProvider.GetRequiredService<TasksDbContext>();
         var clock = scope.ServiceProvider.GetRequiredService<IClock>();
 
-        var task = new PanelTask(Guid.NewGuid(), "CertificateIssue", "example.com", null, clock.UtcNow);
+        var task = new PanelTask(
+            Guid.NewGuid(), "CertificateIssue", "example.com", null, TaskAudience.AdministratorOnly, null, clock.UtcNow);
         dbContext.PanelTasks.Add(task);
         await dbContext.SaveChangesAsync();
 

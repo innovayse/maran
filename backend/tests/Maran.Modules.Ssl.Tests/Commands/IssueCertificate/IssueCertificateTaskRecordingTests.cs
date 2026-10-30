@@ -29,6 +29,8 @@ public sealed class IssueCertificateTaskRecordingTests
         Assert.Equal(TaskKinds.CertificateIssue, task.Kind);
         Assert.Equal(Domain, task.Subject);
         Assert.Equal(SslHandlerFixture.Correlation, task.CorrelationId);
+        Assert.Equal(fixture.AccountId, task.AccountId);
+        Assert.Equal(TaskAudience.AccountOwner, task.Audience);
         Assert.True(task.Completed);
         Assert.Null(task.FailureCode);
     }
@@ -111,6 +113,7 @@ public sealed class IssueCertificateTaskRecordingTests
             fixture.Journal,
             fixture.Clock,
             fixture.Tasks,
-            fixture.CorrelationIds);
+            fixture.CorrelationIds,
+            fixture.CurrentUser);
     }
 }

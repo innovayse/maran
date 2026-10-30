@@ -10,9 +10,9 @@ const LICENSED: PanelModule[] = [
   { name: 'firewall', displayName: 'Firewall', tier: 'included', isEnabled: true },
 ]
 
-// A signed-in customer, whose `accountId` is what an administrator does not have. The module
-// catalogue is anonymous and role-blind, so this person's navigation to /firewall is not stopped by
-// any guard — what stops them is the panel, on the request.
+// A signed-in customer, whose `accountId` is what an administrator does not have. The role guard
+// stops this person's navigation to /firewall (advice); the panel refusing the request is the
+// boundary.
 const CUSTOMER: AuthenticatedUser = {
   id: '00000000-0000-0000-0000-0000000000c1',
   username: 'alice',
@@ -41,43 +41,28 @@ const openAsCustomer = async (page: Page, status: number): Promise<void> => {
   await page.goto('/firewall')
 }
 
-// The status is `403` and not the `404` a tenant-scoped resource answers with, and that is the
-// module's deliberate choice: `FirewallRulesController` says so in as many words — a firewall rule
-// is a fact about the whole machine, its existence discloses nothing about any customer, and there
-// is no tenant here to hide behind. So there is nothing for the SPA to shape into a 404, and this
-// spec asserts what the module actually does.
-test('a customer reaching the firewall URL is shown the panel own refusal, verbatim', async ({
-  page,
-}) => {
+// Issue #202: `/firewall` is `adminOnly`, so the role guard sends a customer to the "not available"
+// screen before the firewall page mounts. The guard is advice, not the boundary — the panel still
+// refuses the request (403, a fact about the whole machine) — so the stubbed refusal stays in place
+// and these cases assert what a customer now sees instead of an administrator's screen around it.
+test('a customer reaching the firewall URL lands on the not-available screen', async ({ page }) => {
   await openAsCustomer(page, 403)
 
-  await expect(page.getByText(REFUSAL_DETAIL)).toBeVisible()
-})
-
-// rules/vue.md: the frontend holds no text for a server outcome, and no route guard duplicates an
-// authorization decision the server has already made. A screen that invented its own "not found"
-// for a refused request would be a second copy of that decision — and the copy that cannot be
-// trusted.
-test('the refused firewall screen invents no not-found page of its own', async ({ page }) => {
-  await openAsCustomer(page, 403)
-
-  await expect(page.getByText(REFUSAL_DETAIL)).toBeVisible()
-  // Matched as text rather than as a heading: `NotFoundPage` renders its title through
-  // `UiEmptyState`, which is a paragraph — a heading query would pass here even if the SPA had
-  // routed the customer to the 404 screen, which is the assertion failing to assert anything.
+  await expect(page).toHaveURL(/\/not-available$/)
+  await expect(page.getByRole('heading', { level: 1, name: 'Page not available' })).toBeVisible()
+  // Matched as text: `NotFoundPage` renders its title through `UiEmptyState`, a paragraph.
   await expect(page.getByText('Page not found')).toHaveCount(0)
-  await expect(page.getByText('The page you requested does not exist.')).toHaveCount(0)
-  await expect(page).toHaveURL(/\/firewall$/)
 })
 
-// The three lists are the whole screen, so a refusal has to take the controls with it: a form left
-// on screen beside the refusal invites an operator to type a rule that cannot be sent.
-test('a refused firewall screen offers no rules, no bans and no exemptions to act on', async ({
+// The three lists are the whole screen, so a customer sent away from it must be offered none of its
+// controls: no table, and none of the three forms.
+test('a customer sent away from the firewall screen is offered no rules, no bans and no exemptions', async ({
   page,
 }) => {
   await openAsCustomer(page, 403)
 
-  await expect(page.getByText(REFUSAL_DETAIL)).toBeVisible()
+  await expect(page.getByRole('heading', { level: 1, name: 'Page not available' })).toBeVisible()
+  await expect(page.getByText(REFUSAL_DETAIL)).toHaveCount(0)
   await expect(page.getByRole('table')).toHaveCount(0)
   await expect(page.getByRole('button', { name: 'Open the port' })).toHaveCount(0)
   await expect(page.getByRole('button', { name: 'Ban the address' })).toHaveCount(0)

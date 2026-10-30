@@ -1,6 +1,13 @@
 # Committed per-target test baseline. Recorded by 'maran test --accept'; commit the diff.
 # stack<TAB>target<TAB>passed<TAB>failed<TAB>ignored
 #
+# RE-MEASURED 2026-10-30 (issues #201, #202, customer area): edited by hand. Backend projects measured one by one
+# (--no-build, 0 failed): Modules.Identity.Tests 282->301, Modules.Tasks.Tests 58->76, Modules.Accounts.Tests 428->434, Sdk.Tests 212->215, Modules.Sites.Tests 222->232, Host.Tests 355->391.
+# Host.IntegrationTests ran filtered to the six #201/#202 classes plus TaskStreamTests (43/0); its row is left to CI.
+# spa: NEW rows customer/console-clean 1, customer/invitation 2, customer/navigation 3, customer/no-admin-links 4,
+# customer/own-account-create 5, customer/role-guard 18, customer/tasks 3; firewall/access 5->4 (the customer now
+# lands on the not-available screen). Full suite at E2E_PORT=5199: 674 passed / 3 failed (the old firewall/access
+# cases, since rewritten and passing) / 3 skipped; the rewritten specs re-run 88/0.
 # RE-MEASURED 2026-10-29 (issue #103, account processes ended before userdel): account_deletion_on_a_real_host
 # 5->6 ignored (new real-host test; all 6 passed on the polygon of PR #123). Unit rows left to CI.
 # RE-MEASURED 2026-10-28 (issue #90, every spawned root process bounded, rebased on dev ac9a5b5): rust 33 targets,
@@ -315,23 +322,23 @@ rust	bound_errors [tests/bound_errors.rs]	9	0	0
 rust	safe_write_bound_on_real_processes [tests/safe_write_bound_on_real_processes.rs]	6	0	0
 backend	Maran.Agent.Client.Tests.dll	371	0	0
 backend	Maran.SharedKernel.Tests.dll	230	0	0
-backend	Maran.Modules.Identity.Tests.dll	282	0	0
+backend	Maran.Modules.Identity.Tests.dll	301	0	0
 backend	Maran.Modules.Sftp.Tests.dll	84	0	0
 backend	Maran.Modules.Notifications.Tests.dll	52	0	0
-backend	Maran.Modules.Tasks.Tests.dll	58	0	0
+backend	Maran.Modules.Tasks.Tests.dll	76	0	0
 backend	Maran.Modules.Ftp.Tests.dll	133	0	0
 backend	Maran.Modules.Monitoring.Tests.dll	70	0	0
 backend	Maran.Modules.Backups.Tests.dll	204	0	0
 backend	Maran.Modules.Licensing.Tests.dll	51	0	0
 backend	Maran.Modules.Firewall.Tests.dll	255	0	0
 backend	Maran.Modules.Cron.Tests.dll	187	0	0
-backend	Maran.Modules.Accounts.Tests.dll	428	0	0
+backend	Maran.Modules.Accounts.Tests.dll	434	0	0
 backend	Maran.Modules.Databases.Tests.dll	106	0	0
 backend	Maran.Modules.Ssl.Tests.dll	209	0	0
-backend	Maran.Sdk.Tests.dll	212	0	0
-backend	Maran.Modules.Sites.Tests.dll	222	0	0
+backend	Maran.Sdk.Tests.dll	215	0	0
+backend	Maran.Modules.Sites.Tests.dll	232	0	0
 backend	Maran.ArchitectureTests.dll	91	0	0
-backend	Maran.Host.Tests.dll	355	0	0
+backend	Maran.Host.Tests.dll	391	0	0
 backend	Maran.Host.IntegrationTests.dll	415	0	0
 spa	accounts/delete.spec.ts	6	0	0
 spa	accounts/detail.spec.ts	10	0	0
@@ -374,7 +381,7 @@ spa	file-transfer/credentials.spec.ts	17	0	0
 spa	file-transfer/ftps-server.spec.ts	10	0	0
 spa	file-transfer/list.spec.ts	10	0	0
 spa	file-transfer/protocol.spec.ts	4	0	0
-spa	firewall/access.spec.ts	5	0	0
+spa	firewall/access.spec.ts	4	0	0
 spa	firewall/bans.spec.ts	6	0	0
 spa	firewall/lockout.spec.ts	6	0	0
 spa	firewall/presets.spec.ts	6	0	0
@@ -422,7 +429,7 @@ spa	ui-kit/chart.spec.ts	5	0	0
 spa	ui-kit/dropdown-landing-focus.spec.ts	5	0	0
 spa	ui-kit/focus-return.spec.ts	3	0	0
 spa	ui-kit/modal-keyboard.spec.ts	2	0	0
-spa	ui-kit/motion-and-tables.spec.ts	6	0	3
+spa	ui-kit/motion-and-tables.spec.ts	7	0	2
 spa	ui-kit/no-horizontal-scroll-admin.spec.ts	66	0	0
 spa	ui-kit/no-horizontal-scroll-other.spec.ts	54	0	0
 spa	ui-kit/select-empty.spec.ts	1	0	0
@@ -430,3 +437,10 @@ spa	ui-kit/table-narrow.spec.ts	19	0	0
 spa	ui-kit/text-zoom.spec.ts	3	0	0
 spa	ui-kit/unfilled-select-prompt.spec.ts	3	0	0
 spa	upgrade/tier-name.spec.ts	3	0	0
+spa	customer/console-clean.spec.ts	1	0	0
+spa	customer/invitation.spec.ts	2	0	0
+spa	customer/navigation.spec.ts	3	0	0
+spa	customer/no-admin-links.spec.ts	4	0	0
+spa	customer/own-account-create.spec.ts	5	0	0
+spa	customer/role-guard.spec.ts	18	0	0
+spa	customer/tasks.spec.ts	3	0	0

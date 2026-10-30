@@ -66,6 +66,10 @@ public sealed class RestoreBackupCommandHandlerTests
         var task = Assert.Single(world.Tasks.Tasks);
         Assert.False(task.Completed);
         Assert.Equal("RestorePartial", task.FailureCode);
+
+        // About the restored account, and readable by its owner: a restore is work done for them.
+        Assert.NotNull(task.AccountId);
+        Assert.Equal(TaskAudience.AccountOwner, task.Audience);
     }
 
     /// <summary>A partial restore carries the measured counts as the restore problem extension.</summary>

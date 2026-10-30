@@ -20,8 +20,9 @@ public sealed class GetTaskQueryHandlerTests
             await seed.SaveChangesAsync();
         }
 
-        await using var context = TasksTestContext.Create(FakeCurrentUser.Admin(), database);
-        var handler = new GetTaskQueryHandler(context, TasksTestContext.KindNames());
+        var admin = FakeCurrentUser.Admin();
+        await using var context = TasksTestContext.Create(admin, database);
+        var handler = new GetTaskQueryHandler(context, TasksTestContext.KindNames(), admin);
 
         var result = await handler.HandleAsync(new GetTaskQuery(task.Id), CancellationToken.None);
 
@@ -30,6 +31,7 @@ public sealed class GetTaskQueryHandlerTests
         Assert.Equal("Deleting an account", result.Value.KindDisplayName);
         Assert.Equal("alice", result.Value.Subject);
         Assert.Equal(45, result.Value.Percent);
+        Assert.True(result.Value.LogIncluded);
         Assert.Equal("cascading", result.Value.Log);
     }
 
@@ -59,8 +61,9 @@ public sealed class GetTaskQueryHandlerTests
             await seed.SaveChangesAsync();
         }
 
-        await using var context = TasksTestContext.Create(FakeCurrentUser.Admin(), database);
-        var handler = new GetTaskQueryHandler(context, TasksTestContext.KindNames());
+        var admin = FakeCurrentUser.Admin();
+        await using var context = TasksTestContext.Create(admin, database);
+        var handler = new GetTaskQueryHandler(context, TasksTestContext.KindNames(), admin);
 
         var result = await handler.HandleAsync(new GetTaskQuery(task.Id), CancellationToken.None);
 
@@ -87,8 +90,9 @@ public sealed class GetTaskQueryHandlerTests
             await seed.SaveChangesAsync();
         }
 
-        await using var context = TasksTestContext.Create(FakeCurrentUser.Admin(), database);
-        var handler = new GetTaskQueryHandler(context, TasksTestContext.KindNames());
+        var admin = FakeCurrentUser.Admin();
+        await using var context = TasksTestContext.Create(admin, database);
+        var handler = new GetTaskQueryHandler(context, TasksTestContext.KindNames(), admin);
 
         var result = await handler.HandleAsync(new GetTaskQuery(task.Id), CancellationToken.None);
 
@@ -112,8 +116,57 @@ public sealed class GetTaskQueryHandlerTests
             await seed.SaveChangesAsync();
         }
 
-        await using var context = TasksTestContext.Create(FakeCurrentUser.Customer(), database);
-        var handler = new GetTaskQueryHandler(context, TasksTestContext.KindNames());
+        var customer = FakeCurrentUser.Customer();
+        await using var context = TasksTestContext.Create(customer, database);
+        var handler = new GetTaskQueryHandler(context, TasksTestContext.KindNames(), customer);
+
+        var result = await handler.HandleAsync(new GetTaskQuery(task.Id), CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("TaskNotFound", result.Error!.Code);
+    }
+
+    /// <summary>A customer reading their own task gets it with an empty log.</summary>
+    [Fact]
+    public async Task A_customer_reading_their_own_task_gets_it_with_an_empty_log()
+    {
+        var database = Guid.NewGuid().ToString();
+        var accountId = Guid.NewGuid();
+        var task = TasksTestContext.Row(kind: "BackupCreate", subject: "acme", accountId: accountId);
+        await using (var seed = TasksTestContext.Create(FakeCurrentUser.Admin(), database))
+        {
+            task.Report(40, "tool output");
+            seed.PanelTasks.Add(task);
+            await seed.SaveChangesAsync();
+        }
+
+        var customer = FakeCurrentUser.Customer(accountId);
+        await using var context = TasksTestContext.Create(customer, database);
+        var handler = new GetTaskQueryHandler(context, TasksTestContext.KindNames(), customer);
+
+        var result = await handler.HandleAsync(new GetTaskQuery(task.Id), CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(40, result.Value.Percent);
+        Assert.False(result.Value.LogIncluded);
+        Assert.Equal(string.Empty, result.Value.Log);
+    }
+
+    /// <summary>A customer reading another tenants task is answered not found.</summary>
+    [Fact]
+    public async Task A_customer_reading_another_tenants_task_is_answered_not_found()
+    {
+        var database = Guid.NewGuid().ToString();
+        var task = TasksTestContext.Row(accountId: Guid.NewGuid());
+        await using (var seed = TasksTestContext.Create(FakeCurrentUser.Admin(), database))
+        {
+            seed.PanelTasks.Add(task);
+            await seed.SaveChangesAsync();
+        }
+
+        var customer = FakeCurrentUser.Customer(Guid.NewGuid());
+        await using var context = TasksTestContext.Create(customer, database);
+        var handler = new GetTaskQueryHandler(context, TasksTestContext.KindNames(), customer);
 
         var result = await handler.HandleAsync(new GetTaskQuery(task.Id), CancellationToken.None);
 
@@ -125,8 +178,9 @@ public sealed class GetTaskQueryHandlerTests
     [Fact]
     public async Task A_task_that_does_not_exist_is_answered_not_found()
     {
-        await using var context = TasksTestContext.Create(FakeCurrentUser.Admin());
-        var handler = new GetTaskQueryHandler(context, TasksTestContext.KindNames());
+        var admin = FakeCurrentUser.Admin();
+        await using var context = TasksTestContext.Create(admin);
+        var handler = new GetTaskQueryHandler(context, TasksTestContext.KindNames(), admin);
 
         var result = await handler.HandleAsync(new GetTaskQuery(Guid.NewGuid()), CancellationToken.None);
 

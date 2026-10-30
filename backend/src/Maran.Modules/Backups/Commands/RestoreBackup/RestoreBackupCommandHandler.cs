@@ -223,8 +223,15 @@ public sealed class RestoreBackupCommandHandler
                 command, account.Username, destination.Error!.Code, destination.Error.Type, cancellationToken);
         }
 
+        // About the account being restored; audience AccountOwner, because a restore is work done
+        // for the customer and they follow it in their own tasks feed whoever started it.
         var taskId = await _tasks.BeginAsync(
-            TaskKinds.BackupRestore, account.Username, _correlationIds.CorrelationId, cancellationToken);
+            TaskKinds.BackupRestore,
+            account.Username,
+            backup.AccountId,
+            TaskAudience.AccountOwner,
+            _correlationIds.CorrelationId,
+            cancellationToken);
 
         RestoreRunOutcome outcome;
         try
