@@ -42,6 +42,16 @@
 # Usage:
 #   maran polygon verify [--statuses FILE] LOG [LOG ...]
 #   maran polygon stamp  FAMILY [IMAGE]
+#   maran polygon build  FAMILY
+#   maran polygon selftest
+#
+#   `build` rebuilds the floating `maran-polygon-FAMILY:latest` through `polygon_build_labelled`, so
+#   the image records the fingerprint every currency check reads, streams the build, and then
+#   requires the result current. It is the command every stale-image refusal names (`maran dev`
+#   included), so no refusal ever has to print a raw `docker build` that can be retyped unlabelled.
+#
+#   `selftest` proves the `maran dev` image gate both ways against a stubbed `docker`
+#   (dev-image-selftest.sh): a stale image is refused with the rebuild command, a current one passes.
 #
 #   `stamp` is the run-time half of the image currency check, and it belongs to this command because
 #   the line it prints is what `verify` later reads. A caller emits it into the log it is about to
@@ -79,6 +89,8 @@ usage() {
   cat >&2 <<'USAGE'
 usage: maran polygon verify [--statuses FILE] LOG [LOG ...]
        maran polygon stamp  FAMILY [IMAGE]
+       maran polygon build  FAMILY
+       maran polygon selftest
 
   Scores an already-executed polygon run from its container logs, against the suites discovered in
   the tree and the counts committed in scripts/test-baseline.txt. Runs nothing itself.
@@ -89,6 +101,9 @@ usage: maran polygon verify [--statuses FILE] LOG [LOG ...]
   built from sources this tree no longer has. Emit it into the log, before the docker run:
 
       scripts/maran polygon stamp ubuntu24 >>"$LOGDIR/step-1.log"
+
+  build rebuilds maran-polygon-FAMILY:latest with its source fingerprint recorded, then proves the
+  result current. selftest proves the `maran dev` image gate refuses stale and accepts current.
 USAGE
   exit 2
 }
@@ -121,22 +136,56 @@ aggregate_status() {
   echo "$worst"
 }
 
+# polygon_family_or_refuse: a family is required and never defaulted — the fingerprint is per
+# family — and it must name a Dockerfile in this tree, or there are no sources to fingerprint.
+polygon_family_or_refuse() {
+  if [ ! -r "$root/docker/polygon/images/$1/suite.Dockerfile" ]; then
+    echo "REFUSED: '$1' is no polygon family — docker/polygon/images/$1/suite.Dockerfile" >&2
+    echo "         does not exist, so there are no sources to fingerprint." >&2
+    exit 2
+  fi
+}
+
 # The subcommand is spelled out rather than implied, so that `maran polygon` can grow a sibling
-# later without changing what an existing CI step means. There is exactly one today.
+# later without changing what an existing CI step means.
 case "${1:-}" in
   verify) shift ;;
+  build)
+    shift
+    [ $# -eq 1 ] || usage
+    build_family="$1"
+    build_image="maran-polygon-$build_family:latest"
+    polygon_family_or_refuse "$build_family"
+    polygon_require_docker || exit 2
+    # The build bakes docker/polygon/** + installer/** into the image, so a mutant a killed mutation
+    # run left in those files would be shipped in an image labelled as this tree.
+    if ! tree_lock_probe "$root" || ! tree_lock_refuse_pending "$root" readonly; then
+      echo "REFUSED: nothing was built." >&2
+      exit 2
+    fi
+    build_fingerprint="$(polygon_fingerprint "$root" "$build_family")"
+    echo "building $build_image from docker/polygon/** + installer/** (fingerprint $build_fingerprint)"
+    if ! polygon_build_labelled "$root" "$build_family" "$build_fingerprint" "$build_image" /dev/stdout; then
+      echo "FAILED: docker build did not produce $build_image (its output is above)." >&2
+      exit 1
+    fi
+    # Asked of the image just built, not assumed from the build's status: a tree edited during the
+    # build changes the fingerprint, and the image is then already stale.
+    polygon_require_current "$root" "$build_family" "$build_image" || exit 1
+    echo "$build_image — CURRENT (built from exactly these sources, $build_fingerprint)"
+    exit 0
+    ;;
+  selftest)
+    shift
+    [ $# -eq 0 ] || usage
+    exec bash "$root/scripts/lib/dev-image-selftest.sh"
+    ;;
   stamp)
     shift
-    # A family is required and never defaulted: the fingerprint is per family, and a stamp naming
-    # the wrong one would be a sentence in a log that compares cleanly against nothing.
     [ $# -ge 1 ] || usage
     stamp_family="$1"
     stamp_image="${2:-maran-polygon-$stamp_family:latest}"
-    if [ ! -r "$root/docker/polygon/images/$stamp_family/suite.Dockerfile" ]; then
-      echo "REFUSED: '$stamp_family' is no polygon family — docker/polygon/images/$stamp_family/suite.Dockerfile" >&2
-      echo "         does not exist, so there are no sources to fingerprint." >&2
-      exit 2
-    fi
+    polygon_family_or_refuse "$stamp_family"
     if ! polygon_require_docker; then
       exit 2
     fi
@@ -144,7 +193,7 @@ case "${1:-}" in
     exit 0
     ;;
   -h|--help|'') usage ;;
-  *) echo "REFUSED: '$1' is no polygon subcommand. They are 'verify' and 'stamp'." >&2; usage ;;
+  *) echo "REFUSED: '$1' is no polygon subcommand. They are 'verify', 'stamp', 'build' and 'selftest'." >&2; usage ;;
 esac
 
 statuses=""

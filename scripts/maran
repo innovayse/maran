@@ -37,7 +37,7 @@ usage: maran <command> [arguments]
   test       whole-suite verdict: per-target totals vs a committed baseline (test-verdict.sh)
   mutate     break a protection on purpose and score the named test      (mutate.sh)
   lock       the tree write-lock: selftest proves it refuses AND proceeds (tree-lock-selftest.sh)
-  polygon    verify: score an already-executed polygon run from its logs (polygon-ci.sh)
+  polygon    verify|stamp|build|selftest: score runs, rebuild an image (polygon-ci.sh)
   installer  the documented install path on a real systemd, both families (install-polygon.sh)
   migrate    module migrations: add|apply|list|check|status|guard     (migrations.sh)
   drift      is this database behind the migrations on disk; --apply fixes (schema-drift.sh)

@@ -499,15 +499,14 @@ Each row names the workflow that runs it, so this list can be checked against
   The other consumer of that floating pair is `maran dev` (`scripts/lib/dev-stages.sh`), and it
   asked only whether the image EXISTED — printing its build date and returning 0 for the very
   images `polygon_stamp` refuses as carrying no label at all. It now asks the same content question
-  through the same two functions, and answers it in three ways: CURRENT, NOT CURRENT (naming which
-  of "no label" and "other sources", with both hashes), and REFUSED for an absent image. NOT CURRENT
-  does not stop the bring-up, and that is a ruling rather than an omission: a dev stack scores
-  nothing and gates nothing, the two things that must not be stale — the agent binary and its
-  contract — are verified by sha256 against the running process in the same stage, refusing would
-  block every `maran dev` on a host whose hand-built images predate the label, and rebuilding is the
-  silent 1.9GB build into a log file that the same file already refuses as indistinguishable from a
-  hang. What it may never do is look current, so the stage's LAST line is the staleness rather than
-  the `binary ... sha256` line that covers the agent alone.
+  through the same functions (`polygon_require_current`), and REFUSES an absent, unlabelled or
+  stale image before anything is started, naming `maran polygon build ubuntu24`. It used to warn and
+  carry on, on the argument that a dev stack scores nothing; issue #238 measured that argument
+  failing — a stale image's old `systemctl` stand-in reported every unknown unit as active, and the
+  warning did not stop it being read as a product defect. It refuses rather than rebuilds because a
+  bring-up that disappears into a minutes-long build is indistinguishable from a hang.
+  `maran polygon selftest` proves the gate against a stubbed `docker`: three refusals, the inverse
+  control (a current image proceeds), and `maran dev --selfcheck` refusing with nothing started.
 - `polygon_verify_ran`'s **fifth axis** (`scripts/lib/polygon.sh`). The first four axes are all axes
   of PRESENCE — did the suite appear, did it print a result line, did the container exit, did
   anything run. All four are satisfied by a suite that ran a fraction of itself. The fifth axis is

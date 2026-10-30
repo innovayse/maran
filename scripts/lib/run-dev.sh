@@ -215,6 +215,12 @@ dev_guard_acquire_lock
 dev_guard_require_free_port "$api_port" "api"
 dev_guard_require_free_port "$spa_port" "frontend"
 
+# The polygon image is refused BEFORE anything starts: a stale one is not a stack to bring up, and a
+# refusal here leaves no database, container or process behind (dev-stages.sh says why it refuses).
+if [ "$with_agent" -eq 1 ]; then
+  dev_stage_require_polygon_image
+fi
+
 # Settled BEFORE the trap is armed, so there is no window in which a signal can reach a teardown
 # that has not yet learned whether the database was ours. `StartedAt` is recorded beside it
 # because "still running afterwards" is satisfied by a container we stopped and started again —

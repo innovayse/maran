@@ -2,20 +2,20 @@
 # A LIBRARY, not a command: `scripts/lib/run-dev.sh` sources this file.
 #
 # THE BRING-UP, one function per numbered stage, in the order a stack comes up: database, schema,
-# agent, api, frontend. Steps are numbered so a hang has a name, and each stage ends at a
+# agent, api, frontend — preceded by the polygon image check, which run-dev.sh runs before anything
+# is started. Steps are numbered so a hang has a name, and each stage ends at a
 # readiness gate (`scripts/lib/dev-readiness.sh`) rather than at the return of the command that
 # started it — a process that has been launched is not a process that is serving.
 #
 # What lives here:
 #
 #   dev_stage_compose               every compose command that concerns the agent service
-#   dev_stage_require_polygon_image refuses a missing image; says loudly when the one present was
-#                                   not built from this tree
+#   dev_stage_require_polygon_image refuses an image that is missing or not built from this tree
 #   dev_stage_build_agent           cargo, every time; cargo decides staleness
 #   dev_stage_verify_running_binary the container must serve the bytes the host just built
 #   dev_stage_database              reuse a running database, or start one this run will stop
 #   dev_stage_schema                the developer's deliberate migration step
-#   dev_stage_agent                 image, build, socket guard, container, binary identity
+#   dev_stage_agent                 build, socket guard, container, binary identity
 #   dev_stage_api                   dotnet run, then /health BY VALUE
 #   dev_stage_frontend              vite on this instance's port
 #
@@ -33,87 +33,34 @@ dev_stage_compose() {
   docker compose -f "$compose" -p "$project" --profile agent "$@"
 }
 
-# DEV_STALE_POLYGON_IMAGE: set by the stage below when the image this stack runs on was NOT built
-# from this tree. It exists so that the fact survives the one line that reported it: a warning
-# scrolled off the top of a bring-up is a warning nobody read, and the stage that ends with
-# `binary  running binary sha256 = built binary sha256` must not be allowed to read as though it
-# covered the image too.
-DEV_STALE_POLYGON_IMAGE=""
-
-# dev_stage_require_polygon_image: refuse a MISSING image with the exact remedy, and say loudly —
-# without refusing — when the image that IS here was built from other sources than this tree.
+# dev_stage_require_polygon_image: refuses to bring the stack up on a polygon image that is absent
+# or was not built from this tree, naming the one command that rebuilds it.
 #
-# WHAT CHANGED AND WHY. This used to ask only whether the image EXISTED, and print its build date:
-# "the OS layer floats by design, so the date is printed so a very old image is at least visible".
-# That was the honest answer while nothing could ask the better question. Now something can:
-# `polygon_fingerprint` hashes `docker/polygon/**` + `installer/**`, every build through
-# `polygon_build_labelled` records that hash in the image as `maran.polygon.fingerprint`, and the
-# scoring lane REFUSES a log whose image does not match. Measured here, on this host, before this
-# change: this stage printed `image  maran-polygon-ubuntu24:latest (built 2026-09-11)` and returned
-# 0 for the very image `polygon_stamp` refuses as recording no label at all. Two lanes, one image,
-# opposite answers, and the weaker question was the one the developer saw.
+# WHY IT REFUSES. It used to warn and carry on, on the argument that a dev stack scores nothing.
+# Issue #238 is the measurement against that argument: the stale image's old `systemctl` stand-in
+# read `--` as a unit name and reported every unknown unit as active, and the bring-up's warning —
+# printed, restated, scrolled away — did not stop that from being read as a product defect (#215).
+# A stack that runs the previous tree's OS layer answers questions about a tree that is not this
+# one, and a warning that lets it start is a warning nobody reads.
 #
-# WHY IT WARNS RATHER THAN REFUSES, argued rather than assumed. This is a developer's stack
-# bring-up; it scores nothing and gates nothing, and a person may knowingly want the image they
-# have — offline, mid-debug, or unwilling to spend twenty minutes right now. This file only ever
-# refuses what would make the STACK LIE: an absent image (nothing can run) and a stale agent binary
-# (the container would serve bytes nobody built), and the binary half is verified by sha256 against
-# the running process a few lines below. A drifting OS layer is documented as drifting. And refusing
-# would block every `maran dev` on this host today over a labelling migration rather than over a
-# defect, which teaches people to route around the check — the failure mode rules/testing.md warns
-# about for a gate that cries on the common correct case.
+# WHY NOT REBUILD HERE: a rebuild takes minutes, and a `maran dev` that vanishes into a silent image
+# build is indistinguishable from a hang (the same reason `dev_stage_compose` passes `--no-build`).
+# The refusal names `maran polygon build ubuntu24`, which streams its build and then proves the
+# result current.
 #
-# WHY NOT REBUILD: the comment on dev_stage_compose still holds. A first `maran dev` disappearing
-# into a silent 1.9GB build inside a log file is indistinguishable from a hang.
-#
-# WHY NOT AN OVERRIDE FLAG: a flag would be exported in everyone's shell within a week, and a
-# warning that is always printed is stronger than one that can be switched off.
-#
-# The one thing it may never do is let the image LOOK current. So there are three outcomes and each
-# says which it is; none of them is a crash.
+# The currency question itself is `polygon_require_current`: one definition of "built from this
+# tree" for this lane and the scoring lane. `polygon.sh` is a pure function library, sourced here
+# rather than at the top of this file so that the bring-up's source-time behaviour is unchanged.
+# It runs before the database is started (run-dev.sh), so a refusal leaves nothing behind.
 dev_stage_require_polygon_image() {
-  local created recorded expected image="maran-polygon-ubuntu24:latest"
-  if ! created="$(docker image inspect -f '{{.Created}}' "$image" 2>/dev/null)"; then
-    echo "REFUSED — the polygon image $image does not exist on this machine." >&2
-    echo "Build it first (docker/README.md), from the repository root:" >&2
-    echo "    docker build -f docker/polygon/images/ubuntu24/suite.Dockerfile -t maran-polygon-ubuntu24 ." >&2
-    exit 1
-  fi
-
-  # The currency mechanism is sourced, never reimplemented: one definition of "built from this
-  # tree" for the scoring lane and for this one, or the two drift apart and the second is wrong.
-  # `polygon.sh` is a pure function library — nothing in it runs at source time — and it is sourced
-  # here rather than at the top of this file so that the dev bring-up's source-time behaviour is
-  # unchanged.
+  local image="maran-polygon-ubuntu24:latest"
   # shellcheck disable=SC1091
   . "$root/scripts/lib/polygon.sh"
-  expected="$(polygon_fingerprint "$root" ubuntu24)"
-  recorded="$(polygon_image_fingerprint "$image")"
-
-  if [ -n "$recorded" ] && [ "$recorded" = "$expected" ]; then
-    echo "     image    $image — CURRENT (built from exactly these sources, $expected)"
-    return 0
+  if ! polygon_require_current "$root" ubuntu24 "$image"; then
+    echo "REFUSED — maran dev does not run on a polygon image that is not built from this tree." >&2
+    exit 1
   fi
-
-  DEV_STALE_POLYGON_IMAGE="$image"
-  echo "     image    $image — NOT CURRENT (built ${created%%T*})"
-  if [ -z "$recorded" ]; then
-    echo "              It records no $POLYGON_FINGERPRINT_LABEL label, so what it was built from"
-    echo "              is UNKNOWN. Built before this label existed, or built by hand."
-  else
-    echo "              It was built from OTHER SOURCES than this tree describes:"
-    echo "                  the image records : $recorded"
-    echo "                  this tree hashes  : $expected"
-  fi
-  echo "              This stack will run the OS and installer layer of a tree that is not this"
-  echo "              one — docker/polygon/** and installer/** have moved on. NOT REFUSED: a dev"
-  echo "              stack scores nothing, and the agent binary and its contract are verified by"
-  echo "              sha256 against the running process below. But nothing here has observed the"
-  echo "              image, so do not read a green bring-up as evidence about the installer."
-  echo "              Rebuild it when a system behaviour surprises you:"
-  echo "                  docker build --label $POLYGON_FINGERPRINT_LABEL=$expected \\"
-  echo "                    -f docker/polygon/images/ubuntu24/suite.Dockerfile -t $image ."
-  return 0
+  echo "     image    $image — CURRENT (built from exactly these sources)"
 }
 
 # dev_stage_build_agent: cargo, every time. Cargo itself is the only honest staleness oracle — it
@@ -242,7 +189,6 @@ dev_stage_agent() {
   if [ "$with_agent" -eq 1 ]; then
     stage="agent"
     echo "3/$steps  agent"
-    dev_stage_require_polygon_image
     dev_stage_build_agent
     install -d -m 0750 "$socket_dir"
     # A socket file is removed only once a connect() has been REFUSED on it — the fact, not the
@@ -259,14 +205,6 @@ dev_stage_agent() {
     # needed. It must read `srw-rw---- root <developer's group>`.
     echo "     socket   $(stat -c '%A %U:%G' "$socket_path") $socket_path"
     echo "     binary   running binary sha256 = built binary sha256"
-    # RESTATED, because the line above is the one people read. `binary ... = ...` is a real check
-    # and it covers the agent and nothing else; printed alone at the end of a stage that began with
-    # a stale image, it reads as "stage 3 is clean". So the stage's last word is the thing that is
-    # NOT verified, whenever there is one.
-    if [ -n "$DEV_STALE_POLYGON_IMAGE" ]; then
-      echo "     image    STILL NOT CURRENT — $DEV_STALE_POLYGON_IMAGE was not built from this tree"
-      echo "              (see the block above). The binary line just printed covers the agent only."
-    fi
     export Agent__SocketPath="$socket_path"
   else
     echo "3/$steps  agent — SKIPPED (--no-agent): every system operation WILL fail; /health must say \"unavailable\""

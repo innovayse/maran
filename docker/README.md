@@ -161,6 +161,19 @@ maran dev --no-agent # the old shape: no agent, /health reports it unavailable
 maran dev --stop     # leaves nothing running, agent container included
 ```
 
+`maran dev` (and `maran dev --selfcheck`) refuses to start, before anything is started, when
+`maran-polygon-ubuntu24:latest` is missing or was not built from this tree — the image records the
+fingerprint of `docker/polygon/**` + `installer/**` it was built from, and a stack on an older image
+runs the previous tree's OS layer and stand-ins. The refusal prints the one command that fixes it:
+
+```bash
+maran polygon build ubuntu24   # rebuilds the image with its fingerprint (takes minutes), then proves it current
+```
+
+It does not rebuild by itself, because a bring-up that disappears into a minutes-long image build
+looks like a hang. `--no-agent` does not use the image and is not refused. `maran polygon selftest`
+proves this gate both ways against a stubbed `docker`.
+
 ## Starting PostgreSQL alone
 
 ```bash
@@ -196,28 +209,14 @@ Build through the harness, so the image records what it was built FROM. The labe
 currency check below reads; an image built without it cannot be shown to be current and is refused
 by name rather than believed.
 
-**Ubuntu 24.04:**
-
 ```bash
-. scripts/lib/polygon.sh
-polygon_build_labelled "$PWD" ubuntu24 "$(polygon_fingerprint "$PWD" ubuntu24)" \
-  maran-polygon-ubuntu24 /dev/stdout
+maran polygon build ubuntu24
+maran polygon build alma9
 ```
 
-**AlmaLinux 9:**
-
-```bash
-. scripts/lib/polygon.sh
-polygon_build_labelled "$PWD" alma9 "$(polygon_fingerprint "$PWD" alma9)" \
-  maran-polygon-alma9 /dev/stdout
-```
-
-The equivalent by hand, if you would rather see the whole command — the label is not optional:
-
-```bash
-docker build --label "maran.polygon.fingerprint=$(polygon_fingerprint "$PWD" ubuntu24)" \
-  -f docker/polygon/images/ubuntu24/suite.Dockerfile -t maran-polygon-ubuntu24 .
-```
+Each builds `maran-polygon-<family>:latest` with `maran.polygon.fingerprint` set to the hash of
+`docker/polygon/**` + `installer/**`, streams the build, and then checks the image it produced is
+current. Every refusal about a missing or stale image names this command.
 
 ### `:latest` carries no currency guarantee — pass `--no-cache` before you score
 
