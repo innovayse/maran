@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { ref, type Ref } from 'vue'
 import { useDashboardApi } from '../composables/apis/useDashboardApi'
 import { ApiError } from '../composables/useApi'
+import type { LoadingState } from '../types/loading'
 import type { AuditEvent } from '../types/audit'
 import type { DashboardAttention, DashboardCounts, DashboardResources } from '../types/dashboard'
 import type { ServiceStatus } from '../types/monitoring'
@@ -41,11 +42,8 @@ export const useDashboardStore = defineStore('dashboard', () => {
   /** The newest audit entries as last reported. */
   const recentAudit: Ref<AuditEvent[]> = ref([])
 
-  /** True while a read is in flight. */
-  const loading: Ref<boolean> = ref(false)
-
-  /** True once the screen has been read at least once, successfully. */
-  const isLoaded: Ref<boolean> = ref(false)
+  /** Where the read of the screen stands: on its way, arrived, or refused. */
+  const loadState: Ref<LoadingState> = ref('loading')
 
   /** Backend-localized message from the most recent failed read, or `null`. */
   const errorMessage: Ref<string | null> = ref(null)
@@ -59,7 +57,7 @@ export const useDashboardStore = defineStore('dashboard', () => {
    * @returns Resolves once the request has settled, successfully or not.
    */
   const load = async (): Promise<void> => {
-    loading.value = true
+    loadState.value = 'loading'
     try {
       const answer = await api.get()
       isAdministrator.value = answer.isAdministrator
@@ -69,14 +67,13 @@ export const useDashboardStore = defineStore('dashboard', () => {
       attention.value = answer.attention
       recentAudit.value = answer.recentAudit
       errorMessage.value = null
-      isLoaded.value = true
+      loadState.value = 'loaded'
     } catch (error) {
       // A refusal arrives here exactly like a failure and is rendered the same way: as the panel's
-      // own message. `isLoaded` is deliberately NOT set — the screen has no contents to show, and
-      // claiming otherwise would draw zeros that nobody measured.
+      // own message. The state is `error`, never `loaded` — the screen has no contents to show,
+      // and claiming otherwise would draw zeros that nobody measured.
       errorMessage.value = error instanceof ApiError ? error.message : null
-    } finally {
-      loading.value = false
+      loadState.value = 'error'
     }
   }
 
@@ -87,8 +84,7 @@ export const useDashboardStore = defineStore('dashboard', () => {
     counts,
     attention,
     recentAudit,
-    loading,
-    isLoaded,
+    loadState,
     errorMessage,
     load,
   }

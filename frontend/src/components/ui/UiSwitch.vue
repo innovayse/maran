@@ -23,8 +23,14 @@
  * a white knob is invisible on the off track in the light theme, where
  * `surface-3` is near-white. The track is 36 by 20px and the whole row,
  * including the label, is the click target.
+ *
+ * LOADING. Inside a {@link UiForm} with `loading`, the label stays (it is the form's real text),
+ * the track is replaced by a {@link UiSkeleton} of its footprint, and the label does not toggle:
+ * there is no value to flip yet.
  */
 import { computed, useId, type ComputedRef } from 'vue'
+import { useFormLoading } from '../../composables/useFormLoading'
+import UiSkeleton from './UiSkeleton.vue'
 
 /** Props accepted by {@link UiSwitch}. */
 const props = withDefaults(
@@ -48,6 +54,9 @@ const emit = defineEmits<{
 /** Id of the visible label, used to name the switch button via `aria-labelledby`. */
 const labelId: string = useId()
 
+/** Whether the enclosing form is still loading, so the track is drawn as a placeholder. */
+const formLoading = useFormLoading()
+
 /** Tailwind utility classes for the track, which carries the on/off fill and outline. */
 const trackClasses: ComputedRef<string> = computed(() => {
   return props.modelValue
@@ -69,7 +78,7 @@ const knobClasses: ComputedRef<string> = computed(() => {
  * @returns Nothing; emits synchronously.
  */
 const onToggle = (): void => {
-  if (props.disabled) {
+  if (props.disabled || formLoading.value) {
     return
   }
   emit('update:modelValue', !props.modelValue)
@@ -78,7 +87,9 @@ const onToggle = (): void => {
 
 <template>
   <div class="flex min-h-choice items-center gap-2">
+    <UiSkeleton v-if="formLoading" shape="block" control="switch" />
     <button
+      v-else
       type="button"
       role="switch"
       :aria-checked="modelValue"

@@ -7,16 +7,18 @@
  *
  * The numbers are the server's, read on mount and written back whole: the endpoint
  * is a PUT because there is exactly one policy on a panel and the form carries all
- * of it. Nothing here invents a default; a panel that has not answered yet renders
- * no form rather than plausible-looking numbers.
+ * of it. Nothing here invents a default; while the panel has not answered, the form is drawn with
+ * its real labels and a placeholder in place of each control (`UiForm loading` inside a
+ * {@link UiLoadingRegion}) rather than with plausible-looking numbers.
  */
-import { computed, ref, watch, type ComputedRef, type Ref } from 'vue'
+import { ref, watch, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import UiAlert from '../../components/ui/UiAlert.vue'
 import UiButton from '../../components/ui/UiButton.vue'
 import UiCard from '../../components/ui/UiCard.vue'
 import UiForm from '../../components/ui/UiForm.vue'
 import UiInput from '../../components/ui/UiInput.vue'
+import UiLoadingRegion from '../../components/ui/UiLoadingRegion.vue'
 import UiPageHeading from '../../components/ui/UiPageHeading.vue'
 import UiSectionHeading from '../../components/ui/UiSectionHeading.vue'
 import UiSwitch from '../../components/ui/UiSwitch.vue'
@@ -37,11 +39,6 @@ const maxFailedLoginAttempts: Ref<string> = ref('')
 
 /** How long a locked account stays locked, in minutes, as typed. */
 const lockoutMinutes: Ref<string> = ref('')
-
-/** True once the panel has answered, which is when the form has something to edit. */
-const isLoaded: ComputedRef<boolean> = computed(() => {
-  return policyStore.policy !== null
-})
 
 /**
  * Copies a policy the panel reported into the form's fields.
@@ -97,7 +94,8 @@ void policyStore.load()
       :subtitle="t('app.securityPolicy.subtitle')"
     />
 
-    <UiAlert v-if="policyStore.errorMessage !== null" variant="error">
+    <!-- A refused save; a refused read is the region's own error below. -->
+    <UiAlert v-if="policyStore.loadState === 'loaded' && policyStore.errorMessage !== null" variant="error">
       {{ policyStore.errorMessage }}
     </UiAlert>
 
@@ -107,67 +105,72 @@ void policyStore.load()
 
     <!-- One form around three panels: the endpoint stores the whole policy at once, so
          there is one submit and no per-panel save that could write half of it. -->
-    <UiForm v-if="isLoaded" @submit="submit">
-      <div class="flex flex-col gap-4">
-        <UiCard>
-          <UiSectionHeading
-            class="mb-4"
-            :title="t('app.securityPolicy.passwordsTitle')"
-            :subtitle="t('app.securityPolicy.passwordsHint')"
-          />
-          <UiInput
-            v-model="minimumPasswordLength"
-            :label="t('app.securityPolicy.minimumPasswordLengthLabel')"
-            required
-          />
-        </UiCard>
-
-        <UiCard>
-          <UiSectionHeading
-            class="mb-4"
-            :title="t('app.securityPolicy.administratorsTitle')"
-            :subtitle="t('app.securityPolicy.administratorsHint')"
-          />
-          <div class="flex flex-col gap-4">
-            <UiSwitch
-              v-model="forceTwoFactorForAdmins"
-              :label="t('app.securityPolicy.forceTwoFactorLabel')"
-            />
-
-            <!-- The warning is the reason this switch is not just another field: an
-                 administrator who turns it on and then cannot complete enrolment has
-                 locked themselves out of their own panel, and the only way back is a
-                 command on the server. -->
-            <UiAlert variant="warning">{{ t('app.securityPolicy.forceTwoFactorWarning') }}</UiAlert>
-          </div>
-        </UiCard>
-
-        <UiCard>
-          <UiSectionHeading
-            class="mb-4"
-            :title="t('app.securityPolicy.lockoutTitle')"
-            :subtitle="t('app.securityPolicy.lockoutHint')"
-          />
-          <div class="grid gap-4 sm:grid-cols-2">
-            <UiInput
-              v-model="maxFailedLoginAttempts"
-              :label="t('app.securityPolicy.maxFailedLoginAttemptsLabel')"
-              required
+    <UiLoadingRegion :state="policyStore.loadState">
+      <template #error>
+        <UiAlert variant="error">{{ policyStore.errorMessage ?? t('app.status.unreachable') }}</UiAlert>
+      </template>
+      <UiForm :loading="policyStore.loadState === 'loading'" @submit="submit">
+        <div class="flex flex-col gap-4">
+          <UiCard>
+            <UiSectionHeading
+              class="mb-4"
+              :title="t('app.securityPolicy.passwordsTitle')"
+              :subtitle="t('app.securityPolicy.passwordsHint')"
             />
             <UiInput
-              v-model="lockoutMinutes"
-              :label="t('app.securityPolicy.lockoutMinutesLabel')"
+              v-model="minimumPasswordLength"
+              :label="t('app.securityPolicy.minimumPasswordLengthLabel')"
               required
             />
-          </div>
-        </UiCard>
+          </UiCard>
 
-        <div class="flex justify-end">
-          <UiButton type="submit" :disabled="policyStore.loading">
-            {{ t('app.securityPolicy.save') }}
-          </UiButton>
+          <UiCard>
+            <UiSectionHeading
+              class="mb-4"
+              :title="t('app.securityPolicy.administratorsTitle')"
+              :subtitle="t('app.securityPolicy.administratorsHint')"
+            />
+            <div class="flex flex-col gap-4">
+              <UiSwitch
+                v-model="forceTwoFactorForAdmins"
+                :label="t('app.securityPolicy.forceTwoFactorLabel')"
+              />
+
+              <!-- The warning is the reason this switch is not just another field: an
+                   administrator who turns it on and then cannot complete enrolment has
+                   locked themselves out of their own panel, and the only way back is a
+                   command on the server. -->
+              <UiAlert variant="warning">{{ t('app.securityPolicy.forceTwoFactorWarning') }}</UiAlert>
+            </div>
+          </UiCard>
+
+          <UiCard>
+            <UiSectionHeading
+              class="mb-4"
+              :title="t('app.securityPolicy.lockoutTitle')"
+              :subtitle="t('app.securityPolicy.lockoutHint')"
+            />
+            <div class="grid gap-4 sm:grid-cols-2">
+              <UiInput
+                v-model="maxFailedLoginAttempts"
+                :label="t('app.securityPolicy.maxFailedLoginAttemptsLabel')"
+                required
+              />
+              <UiInput
+                v-model="lockoutMinutes"
+                :label="t('app.securityPolicy.lockoutMinutesLabel')"
+                required
+              />
+            </div>
+          </UiCard>
+
+          <div class="flex justify-end">
+            <UiButton type="submit" :disabled="policyStore.loading">
+              {{ t('app.securityPolicy.save') }}
+            </UiButton>
+          </div>
         </div>
-      </div>
-    </UiForm>
+      </UiForm>
+    </UiLoadingRegion>
   </section>
 </template>

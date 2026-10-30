@@ -39,6 +39,11 @@
  * and "Resend invitation" as the recovery path for a login the owner never reached. All of it is
  * administrator-only on the server (`InvitationsController`); this page adds no matching role check
  * of its own (rules/architecture.md — the endpoint is the boundary).
+ *
+ * **While the account loads**, the heading and the details card are drawn already, with their real
+ * terms and a placeholder line in place of each value ({@link UiLoadingRegion},
+ * `UiDescriptionList loading`), so the account lands in the space held for it. The resources card
+ * reads its own summary and says on its own how that read stands.
  */
 import { computed, onMounted, ref, type ComputedRef, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -51,10 +56,11 @@ import UiIcon from '../../components/ui/UiIcon.vue'
 import UiDescriptionItem from '../../components/ui/UiDescriptionItem.vue'
 import UiDescriptionList from '../../components/ui/UiDescriptionList.vue'
 import UiEmptyState from '../../components/ui/UiEmptyState.vue'
+import UiLoadingRegion from '../../components/ui/UiLoadingRegion.vue'
+import UiSkeleton from '../../components/ui/UiSkeleton.vue'
 import UiConfirm from '../../components/ui/UiConfirm.vue'
 import UiPageHeading from '../../components/ui/UiPageHeading.vue'
 import UiSectionHeading from '../../components/ui/UiSectionHeading.vue'
-import UiSpinner from '../../components/ui/UiSpinner.vue'
 import UiToast from '../../components/ui/UiToast.vue'
 import AccountDeleteDialog from '../../components/accounts/AccountDeleteDialog.vue'
 import AccountInvitationCard from '../../components/accounts/AccountInvitationCard.vue'
@@ -94,6 +100,16 @@ const editingField: Ref<OpenEdit> = ref(null)
 
 /** The success toast's text, or `null` while none is showing. */
 const notice: Ref<string | null> = ref(null)
+
+/** Whether the panel answered that it has no such account for the caller. */
+const isMissing: ComputedRef<boolean> = computed(() => {
+  return accountsStore.selectedState === 'loaded' && accountsStore.selected === null
+})
+
+/** Whether the account is still on its way, so the details draw placeholders. */
+const isLoading: ComputedRef<boolean> = computed(() => {
+  return accountsStore.selectedState === 'loading'
+})
 
 /** The confirmation's title, naming the account and what would be done to it. */
 const confirmationTitle: ComputedRef<string> = computed(() => {
@@ -235,99 +251,123 @@ onMounted(async () => {
 
 <template>
   <section class="flex w-full flex-col gap-4">
-    <UiSpinner v-if="accountsStore.loading" :label="t('accounts.detail.loading')" />
+    <UiLoadingRegion :state="accountsStore.selectedState">
+      <!-- An account the panel could not read: its refusal, verbatim, or that it was unreachable. -->
+      <template #error>
+        <UiAlert variant="error">{{ accountsStore.errorMessage ?? t('app.status.unreachable') }}</UiAlert>
+      </template>
 
-    <template v-else-if="accountsStore.selected !== null">
-      <!-- The name is an identifier (a lowercase Linux user name), so the title is set in the mono
-           face rather than the display one: the delete dialog asks for it typed exactly, and the
-           mono face shows it as the exact string to type. -->
-      <UiPageHeading
-        :eyebrow="t('accounts.list.heading')"
-        :title="accountsStore.selected.name"
-        :subtitle="accountsStore.selected.primaryDomain"
-        mono
-      >
-        <template #actions>
-          <!-- A way back is navigation, so it looks like a link, not a button (#218). -->
-          <RouterLink
-            :to="{ name: 'accounts' }"
-            class="inline-flex items-center gap-1 rounded-control text-sm font-medium text-accent-text underline underline-offset-4 hover:no-underline focus-visible:shadow-focus focus-visible:outline-none"
-          >
-            <UiIcon name="chevronLeft" size="sm" />
-            {{ t('accounts.detail.backToList') }}
-          </RouterLink>
-        </template>
-      </UiPageHeading>
+      <UiEmptyState
+        v-if="isMissing"
+        :title="t('accounts.detail.notFoundTitle')"
+        :description="t('accounts.detail.notFoundDescription')"
+      />
 
-      <!-- What needs attention comes first, before the details: a refusal the panel sent, then a
-           suspended account. The reactivation control itself is in the
-           actions card and is NOT repeated here, so the page has one button with that name. -->
-      <UiAlert v-if="accountsStore.errorMessage !== null" variant="error">
-        {{ accountsStore.errorMessage }}
-      </UiAlert>
-
-      <UiAlert v-if="accountsStore.selected.status === 'suspended'" variant="warning">
-        {{ t('accounts.detail.suspendedNotice') }}
-      </UiAlert>
-
-      <div class="grid gap-4 lg:grid-cols-3">
-        <UiCard class="lg:col-span-2">
-          <UiDescriptionList>
-            <UiDescriptionItem :term="t('common.name')" mono>
-              {{ accountsStore.selected.name }}
-            </UiDescriptionItem>
-            <UiDescriptionItem :term="t('accounts.detail.primaryDomainLabel')" mono>
-              {{ accountsStore.selected.primaryDomain }}
-            </UiDescriptionItem>
-            <UiDescriptionItem :term="t('accounts.detail.statusLabel')">
-              <UiBadge :variant="accountsStore.selected.status === 'active' ? 'success' : 'warning'">
-                {{ t(`accounts.status.${accountsStore.selected.status}`) }}
-              </UiBadge>
-            </UiDescriptionItem>
-            <UiDescriptionItem :term="t('accounts.detail.planLabel')">
-              {{ accountsStore.selected.planDisplayName }}
-            </UiDescriptionItem>
-            <UiDescriptionItem :term="t('accounts.detail.ownerEmailLabel')" mono>
-              {{ accountsStore.selected.ownerEmail ?? t('accounts.detail.ownerEmailUnknown') }}
-            </UiDescriptionItem>
-            <UiDescriptionItem :term="t('accounts.detail.createdAtLabel')" mono>
-              {{ formatDate(accountsStore.selected.createdAt, localeStore.current) }}
-            </UiDescriptionItem>
-          </UiDescriptionList>
-        </UiCard>
-
-        <UiCard class="flex flex-col gap-4">
-          <UiSectionHeading :title="t('common.actions')" />
-          <div class="flex flex-wrap items-center gap-2">
-            <UiButton
-              v-if="accountsStore.selected.status === 'active'"
-              variant="secondary"
-              @click="ask('suspend')"
+      <div v-else class="flex flex-col gap-4">
+        <!-- The name is an identifier (a lowercase Linux user name), so the title is set in the mono
+             face rather than the display one: the delete dialog asks for it typed exactly, and the
+             mono face shows it as the exact string to type. -->
+        <UiPageHeading
+          :eyebrow="t('accounts.list.heading')"
+          :title="accountsStore.selected?.name ?? ''"
+          :subtitle="accountsStore.selected?.primaryDomain ?? ''"
+          :loading="isLoading"
+          mono
+        >
+          <template #actions>
+            <!-- A way back is navigation, so it looks like a link, not a button (#218). -->
+            <RouterLink
+              :to="{ name: 'accounts' }"
+              class="inline-flex items-center gap-1 rounded-control text-sm font-medium text-accent-text underline underline-offset-4 hover:no-underline focus-visible:shadow-focus focus-visible:outline-none"
             >
-              {{ t('accounts.detail.suspend') }}
-            </UiButton>
-            <UiButton v-else variant="secondary" @click="ask('reactivate')">
-              {{ t('accounts.detail.reactivate') }}
-            </UiButton>
-            <UiButton variant="secondary" @click="openEdit('plan')">
-              {{ t('accounts.edit.planAction') }}
-            </UiButton>
-            <UiButton variant="secondary" @click="openEdit('ownerEmail')">
-              {{ t('accounts.edit.ownerEmailAction') }}
-            </UiButton>
-          </div>
-          <!-- Deletion sits apart, under a rule: it is the one action that cannot be undone, and it
-               must not read as a sibling of the two above it. -->
-          <div class="border-t border-border-subtle pt-4">
-            <UiButton variant="destructive" @click="askDelete">
-              {{ t('common.delete') }}
-            </UiButton>
-          </div>
-        </UiCard>
+              <UiIcon name="chevronLeft" size="sm" />
+              {{ t('accounts.detail.backToList') }}
+            </RouterLink>
+          </template>
+        </UiPageHeading>
+
+        <!-- What needs attention comes first, before the details: a refusal the panel sent, then a
+             suspended account. The reactivation control itself is in the
+             actions card and is NOT repeated here, so the page has one button with that name. -->
+        <UiAlert v-if="!isLoading && accountsStore.errorMessage !== null" variant="error">
+          {{ accountsStore.errorMessage }}
+        </UiAlert>
+
+        <UiAlert v-if="!isLoading && accountsStore.selected?.status === 'suspended'" variant="warning">
+          {{ t('accounts.detail.suspendedNotice') }}
+        </UiAlert>
+
+        <div class="grid gap-4 lg:grid-cols-3">
+          <UiCard class="lg:col-span-2">
+            <!-- The values are read only once loaded: while loading each item draws a placeholder
+                 line in place of its slot. -->
+            <UiDescriptionList :loading="isLoading">
+              <UiDescriptionItem :term="t('common.name')" mono>
+                {{ accountsStore.selected?.name }}
+              </UiDescriptionItem>
+              <UiDescriptionItem :term="t('accounts.detail.primaryDomainLabel')" mono>
+                {{ accountsStore.selected?.primaryDomain }}
+              </UiDescriptionItem>
+              <UiDescriptionItem :term="t('accounts.detail.statusLabel')">
+                <UiBadge
+                  v-if="accountsStore.selected !== null"
+                  :variant="accountsStore.selected.status === 'active' ? 'success' : 'warning'"
+                >
+                  {{ t(`accounts.status.${accountsStore.selected.status}`) }}
+                </UiBadge>
+              </UiDescriptionItem>
+              <UiDescriptionItem :term="t('accounts.detail.planLabel')">
+                {{ accountsStore.selected?.planDisplayName }}
+              </UiDescriptionItem>
+              <UiDescriptionItem :term="t('accounts.detail.ownerEmailLabel')" mono>
+                {{ accountsStore.selected?.ownerEmail ?? t('accounts.detail.ownerEmailUnknown') }}
+              </UiDescriptionItem>
+              <UiDescriptionItem :term="t('accounts.detail.createdAtLabel')" mono>
+                {{ accountsStore.selected === null ? '' : formatDate(accountsStore.selected.createdAt, localeStore.current) }}
+              </UiDescriptionItem>
+            </UiDescriptionList>
+          </UiCard>
+
+          <UiCard class="flex flex-col gap-4">
+            <UiSectionHeading :title="t('common.actions')" />
+            <!-- Which actions apply depends on the account's status, so none is offered before it
+                 is known; a placeholder holds the row. -->
+            <UiSkeleton v-if="isLoading" shape="block" />
+            <div v-else class="flex flex-wrap items-center gap-2">
+              <UiButton
+                v-if="accountsStore.selected?.status === 'active'"
+                variant="secondary"
+                @click="ask('suspend')"
+              >
+                {{ t('accounts.detail.suspend') }}
+              </UiButton>
+              <UiButton v-else variant="secondary" @click="ask('reactivate')">
+                {{ t('accounts.detail.reactivate') }}
+              </UiButton>
+              <UiButton variant="secondary" @click="openEdit('plan')">
+                {{ t('accounts.edit.planAction') }}
+              </UiButton>
+              <UiButton variant="secondary" @click="openEdit('ownerEmail')">
+                {{ t('accounts.edit.ownerEmailAction') }}
+              </UiButton>
+            </div>
+            <!-- Deletion sits apart, under a rule: it is the one action that cannot be undone, and it
+                 must not read as a sibling of the two above it. -->
+            <div v-if="!isLoading" class="border-t border-border-subtle pt-4">
+              <UiButton variant="destructive" @click="askDelete">
+                {{ t('common.delete') }}
+              </UiButton>
+            </div>
+          </UiCard>
+        </div>
       </div>
+    </UiLoadingRegion>
 
-      <AccountResourcesCard :read="accountsStore.resourceSummary" />
+    <!-- Outside the account's region: the summary is its own read with its own loading state, and
+         a failed count shows in its card without ever blanking the account. -->
+    <AccountResourcesCard v-if="accountsStore.selectedState !== 'error' && !isMissing" :read="accountsStore.resourceSummary" />
 
+    <template v-if="accountsStore.selectedState === 'loaded' && accountsStore.selected !== null">
       <AccountInvitationCard :account-id="id" :suspended="accountsStore.selected.status === 'suspended'" />
 
       <!-- `:open` is bound to a value that really changes, and this dialog needs no `v-if`: it has
@@ -377,16 +417,6 @@ onMounted(async () => {
         @confirmed="remove"
       />
     </template>
-
-    <UiAlert v-else-if="accountsStore.errorMessage !== null" variant="error">
-      {{ accountsStore.errorMessage }}
-    </UiAlert>
-
-    <UiEmptyState
-      v-else
-      :title="t('accounts.detail.notFoundTitle')"
-      :description="t('accounts.detail.notFoundDescription')"
-    />
     <div class="pointer-events-none fixed inset-x-4 bottom-4 z-50 flex justify-end sm:left-auto">
       <UiToast v-if="notice !== null" variant="success" :close-label="t('common.close')" @dismiss="dismissNotice">
         {{ notice }}

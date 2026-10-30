@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { ref, type Ref } from 'vue'
 import { useSecurityPolicyApi } from '../composables/apis/useSecurityPolicyApi'
 import { ApiError } from '../composables/useApi'
+import type { LoadingState } from '../types/loading'
 import type { SaveSecurityPolicyRequest, SecurityPolicy } from '../types/securityPolicy'
 
 /**
@@ -10,7 +11,7 @@ import type { SaveSecurityPolicyRequest, SecurityPolicy } from '../types/securit
  * (rules/vue.md).
  *
  * There is no default policy invented here. A panel that has not answered yet holds
- * `null`, and the form renders nothing rather than plausible-looking numbers: a
+ * `null`, and the form draws placeholders rather than plausible-looking numbers: a
  * suggested minimum length on screen is indistinguishable from one somebody chose,
  * and this SPA does not invent domain data.
  */
@@ -22,6 +23,12 @@ export const useSecurityPolicyStore = defineStore('securityPolicy', () => {
 
   /** True while a read or a save is in flight. */
   const loading: Ref<boolean> = ref(false)
+
+  /**
+   * Where the read of the policy stands: on its way, arrived, or refused. A save never moves it,
+   * so a refused save leaves the form on screen with its alert above it.
+   */
+  const loadState: Ref<LoadingState> = ref('loading')
 
   /** True once the last save succeeded, so the screen can confirm it. */
   const saved: Ref<boolean> = ref(false)
@@ -45,11 +52,14 @@ export const useSecurityPolicyStore = defineStore('securityPolicy', () => {
    */
   const load = async (): Promise<void> => {
     loading.value = true
+    loadState.value = 'loading'
     errorMessage.value = null
     try {
       policy.value = await api.get()
+      loadState.value = 'loaded'
     } catch (error) {
       remember(error)
+      loadState.value = 'error'
     } finally {
       loading.value = false
     }
@@ -80,5 +90,5 @@ export const useSecurityPolicyStore = defineStore('securityPolicy', () => {
     }
   }
 
-  return { policy, loading, saved, errorMessage, load, save }
+  return { policy, loading, loadState, saved, errorMessage, load, save }
 })

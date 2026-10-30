@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { computed, ref, type ComputedRef, type Ref } from 'vue'
 import { useMonitoringApi } from '../composables/apis/useMonitoringApi'
 import { ApiError } from '../composables/useApi'
+import type { LoadingState } from '../types/loading'
 import type { AccountDiskUsage, ChartRange, MetricBucket, MetricsChart, ServiceStatus } from '../types/monitoring'
 
 /** The range the screen opens on: a day, because it is the one an operator judges "now" against. */
@@ -38,14 +39,14 @@ export const useMonitoringStore = defineStore('monitoring', () => {
   /** What each account occupies on disk, as last reported. */
   const accountDiskUsage: Ref<AccountDiskUsage[]> = ref([])
 
-  /** True while the first load of the whole screen is in flight. */
-  const loading: Ref<boolean> = ref(false)
+  /**
+   * Where the read of the whole screen stands: on its way, arrived, or refused. Only the charts and
+   * services decide it; the per-account disk read has its own message and never blanks them.
+   */
+  const loadState: Ref<LoadingState> = ref('loading')
 
   /** True while a chart re-read is in flight, which is what a range change starts. */
   const chartLoading: Ref<boolean> = ref(false)
-
-  /** True once the screen has loaded at least once, successfully. */
-  const isLoaded: Ref<boolean> = ref(false)
 
   /** Backend-localized message from the most recent failed chart or service read, or `null`. */
   const errorMessage: Ref<string | null> = ref(null)
@@ -94,8 +95,10 @@ export const useMonitoringStore = defineStore('monitoring', () => {
    * @returns Resolves once every request has settled, successfully or not.
    */
   const load = async (): Promise<void> => {
-    loading.value = true
+    loadState.value = 'loading'
     const requested = range.value
+    // Settled after the disk read below, so the screen lands once with all three sections.
+    let settled: LoadingState = 'loaded'
     try {
       const [answer, loadedServices] = await Promise.all([api.getChart(requested), api.listServices()])
       if (answer.range === range.value) {
@@ -107,6 +110,7 @@ export const useMonitoringStore = defineStore('monitoring', () => {
       // A refusal (a customer reaching an administrators-only screen) arrives here exactly like a
       // failure does, and is rendered exactly the same way: as the panel's own message.
       errorMessage.value = error instanceof ApiError ? error.message : null
+      settled = 'error'
     }
 
     // Read separately and not inside the same `Promise.all`: this is the one route on the
@@ -119,8 +123,7 @@ export const useMonitoringStore = defineStore('monitoring', () => {
       diskErrorMessage.value = error instanceof ApiError ? error.message : null
     }
 
-    isLoaded.value = true
-    loading.value = false
+    loadState.value = settled
   }
 
   /**
@@ -145,9 +148,8 @@ export const useMonitoringStore = defineStore('monitoring', () => {
     chart,
     services,
     accountDiskUsage,
-    loading,
+    loadState,
     chartLoading,
-    isLoaded,
     errorMessage,
     diskErrorMessage,
     buckets,

@@ -19,6 +19,10 @@
  *
  * Scheduled tasks are absent, and the backend's `DashboardCountsDto` carries the reason: the Cron
  * module keeps no table, so a server-wide count would be one privileged agent call per account.
+ *
+ * **While the counts are on their way** (`loading`, no `counts`), the tiles are drawn already, one
+ * per entry of {@link TILES}, with their real icons, labels and links, and the figure draws a
+ * placeholder in its own line, so the counts land without moving anything.
  */
 import { computed, type ComputedRef } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -26,37 +30,50 @@ import { RouterLink } from 'vue-router'
 import type { UiIconName } from '../ui/UiIcon.vue'
 import UiIconTile from '../ui/UiIconTile.vue'
 import UiSectionHeading from '../ui/UiSectionHeading.vue'
+import UiSkeleton from '../ui/UiSkeleton.vue'
 import type { DashboardCount, DashboardCounts } from '../../types/dashboard'
 
-/** One tile: a count, what it counts, and where the detail lives. */
-interface CountTile {
-  /** Stable key for the list, and the i18n leaf under `app.status.counts`. */
-  key: string
-  /** The count, with whether it could be taken. */
-  value: DashboardCount
+/** One tile as the grid knows it before any count: what it counts and where the detail lives. */
+interface TileSpec {
+  /** Which count the tile shows; the list's key and the i18n leaf under `app.status.counts`. */
+  key: keyof DashboardCounts
   /** The route the tile links to. */
   to: string
   /** The glyph in the tile's icon square. */
   icon: UiIconName
 }
 
-const props = defineProps<{
-  /** The counts, as the panel answered them. */
-  counts: DashboardCounts
-}>()
+/** One tile as drawn: its spec and, once the counts are in, its count. */
+interface CountTile extends TileSpec {
+  /** The count, with whether it could be taken; absent while the counts are loading. */
+  value?: DashboardCount
+}
 
-const { t } = useI18n()
+/** Props accepted by {@link DashboardCountGrid}. */
+const props = defineProps<{
+  /** The counts, as the panel answered them; absent only while `loading`. */
+  counts?: DashboardCounts
+  /** Whether the counts are still on their way; see the component note. */
+  loading?: boolean
+}>()
 
 /**
  * The tiles in the order a reader builds the server up in their head: accounts hold sites, sites
- * hold databases.
+ * hold databases. The one list of tiles, loading or loaded.
  */
+const TILES: readonly TileSpec[] = [
+  { key: 'accounts', to: '/accounts', icon: 'users' },
+  { key: 'sites', to: '/sites', icon: 'earth' },
+  { key: 'databases', to: '/databases', icon: 'database' },
+]
+
+const { t } = useI18n()
+
+/** The tiles with their counts, once the counts are in. */
 const tiles: ComputedRef<CountTile[]> = computed(() => {
-  return [
-    { key: 'accounts', value: props.counts.accounts, to: '/accounts', icon: 'users' },
-    { key: 'sites', value: props.counts.sites, to: '/sites', icon: 'earth' },
-    { key: 'databases', value: props.counts.databases, to: '/databases', icon: 'database' },
-  ]
+  return TILES.map((spec) => {
+    return { ...spec, value: props.counts?.[spec.key] }
+  })
 })
 </script>
 
@@ -77,9 +94,16 @@ const tiles: ComputedRef<CountTile[]> = computed(() => {
         class="block min-w-0 rounded-panel border border-border-subtle bg-surface-1 p-4 text-text-primary transition duration-300 last:col-span-2 hover:-translate-y-0.5 hover:border-accent/45 focus-visible:shadow-focus focus-visible:outline-none motion-reduce:transition-none motion-reduce:hover:translate-y-0 @xl:p-5 @xl:last:col-span-1"
       >
         <UiIconTile :name="tile.icon" />
-        <span class="mt-3.5 block font-display text-2xl leading-none font-black @xl:text-3xl">{{
-          tile.value.state === 'counted' ? tile.value.count : t('app.status.counts.unavailable')
-        }}</span>
+        <!-- While loading, the placeholder sits in the figure's own line, which gives it the
+             figure's height. -->
+        <span class="mt-3.5 block font-display text-2xl leading-none font-black @xl:text-3xl">
+          <span v-if="loading" class="inline-flex w-12 align-middle">
+            <UiSkeleton shape="line" size="lg" />
+          </span>
+          <template v-else-if="tile.value !== undefined">{{
+            tile.value.state === 'counted' ? tile.value.count : t('app.status.counts.unavailable')
+          }}</template>
+        </span>
         <span class="mt-2 block font-display text-xs font-extrabold text-text-secondary break-words">{{ t(`app.status.counts.${tile.key}`) }}</span>
       </RouterLink>
     </div>

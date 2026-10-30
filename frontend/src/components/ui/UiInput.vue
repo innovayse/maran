@@ -41,9 +41,15 @@
  * Error text is `text-danger`: 4.79:1 on a panel, 4.502:1 on `bg-surface-2` (at
  * the line) and 4.13:1 on `bg-surface-3` (fails) — a form must not sit on the
  * pressed surface.
+ *
+ * LOADING. Inside a {@link UiForm} with `loading`, the label stays (it is the form's real text)
+ * and the control is replaced by a {@link UiSkeleton} of its footprint, so the loaded field lands
+ * in the same space.
  */
 import { computed, useId, type ComputedRef } from 'vue'
+import { useFormLoading } from '../../composables/useFormLoading'
 import UiIcon, { type UiIconName } from './UiIcon.vue'
+import UiSkeleton from './UiSkeleton.vue'
 
 /** Props accepted by {@link UiInput}. */
 const props = withDefaults(
@@ -124,6 +130,9 @@ const emit = defineEmits<{
 const inputId: string = useId()
 const errorId: string = `${inputId}-error`
 
+/** Whether the enclosing form is still loading, so the control is drawn as a placeholder. */
+const formLoading = useFormLoading()
+
 /** Whether the field is currently in an error state. */
 const hasError: ComputedRef<boolean> = computed(() => {
   return props.error !== null && props.error !== undefined
@@ -145,14 +154,15 @@ const onInput = (event: Event): void => {
          invalid from the label down, not from the border (which is too faint to
          carry it). The message below says WHY, so colour is never the only cue. -->
     <label
-      :for="inputId"
+      :for="formLoading ? undefined : inputId"
       class="text-xs font-bold wrap-anywhere"
       :class="hasError ? 'text-danger' : 'text-text-muted'"
       >{{ label }}</label
     >
     <!-- `relative` only so a trailing control can be positioned over the field's
          right edge; with no `trailing` slot the wrapper adds nothing. -->
-    <div class="relative">
+    <UiSkeleton v-if="formLoading" shape="block" control="field" />
+    <div v-else class="relative">
       <!-- 16px below `sm`, 14px from `sm` up: a phone browser zooms the page when
            it focuses a field set in anything under 16px, and the zoom is not undone
            on blur. -->

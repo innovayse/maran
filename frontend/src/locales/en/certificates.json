@@ -1,6 +1,5 @@
 {
   "certificates": {
-    "loading": "Loading certificates…",
     "emptyTitle": "No certificate installed",
     "emptyDescription": "This site is served over plain HTTP until a certificate is installed.",
     "source": {

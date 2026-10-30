@@ -21,11 +21,15 @@
  *
  * **Machine text is mono and never uppercased.** The instant, the address, the subject and the
  * action constant are values an administrator copies into a ticket or greps a log by, so they are
- * set in the mono face (`UiTableCell mono`) and keep their own case. An identifier (the actor, the
- * subject, the action constant, the address) is one unit and never wraps (`whitespace-nowrap`): a
- * login read across six lines is a different string, and a truncated one is too, so the column
- * takes the identifier's width and the table scrolls inside its container. The localized action
- * name is prose and still wraps at word boundaries.
+ * set in the mono face (the `mono` and `date` column kinds) and keep their own case. An identifier
+ * (the actor, the subject, the address) is one unit and never wraps — every column kind but `text`
+ * keeps one line: a login read across six lines is a different string, and a truncated one is too,
+ * so the column takes the identifier's width and the table scrolls inside its container. The
+ * localized action name is prose (`text`) and still wraps at word boundaries.
+ *
+ * **Loading keeps the journal's shape.** While the entries are on the way the table shows its real
+ * header over placeholder rows drawn from its own `columns`, inside a {@link UiLoadingRegion} that
+ * announces the wait once; a failed read is the region's alert, never a skeleton.
  *
  * **The table scrolls inside its own container at 390px.** Six columns do not fit a phone; the
  * `UiTable` wrapper is the scroll container, so the content panel never scrolls sideways.
@@ -38,11 +42,9 @@ import UiCard from '../../components/ui/UiCard.vue'
 import UiEmptyState from '../../components/ui/UiEmptyState.vue'
 import UiIcon from '../../components/ui/UiIcon.vue'
 import UiPageHeading from '../../components/ui/UiPageHeading.vue'
-import UiSpinner from '../../components/ui/UiSpinner.vue'
+import UiLoadingRegion from '../../components/ui/UiLoadingRegion.vue'
 import UiTable from '../../components/ui/UiTable.vue'
-import UiTableCell from '../../components/ui/UiTableCell.vue'
-import UiTableHeaderCell from '../../components/ui/UiTableHeaderCell.vue'
-import UiTableRow from '../../components/ui/UiTableRow.vue'
+import type { UiTableColumn } from '../../types/tableColumn'
 import { useAuditStore } from '../../stores/audit'
 import { useLocaleStore } from '../../stores/locale'
 import { formatIsoTimestamp } from '../../utils/formatIsoTimestamp'
@@ -51,6 +53,18 @@ import type { AuditEvent } from '../../types/audit'
 const { t } = useI18n()
 const auditStore = useAuditStore()
 const localeStore = useLocaleStore()
+
+/** The journal's columns: its header, its cells and its loading placeholder all read this one list. */
+const columns: ComputedRef<UiTableColumn[]> = computed(() => {
+  return [
+    { key: 'when', label: t('app.audit.whenColumn'), kind: 'date' },
+    { key: 'actor', label: t('app.audit.actorColumn'), kind: 'identity' },
+    { key: 'action', label: t('app.audit.actionColumn'), kind: 'text' },
+    { key: 'subject', label: t('app.audit.subjectColumn'), kind: 'mono' },
+    { key: 'address', label: t('app.audit.addressColumn'), kind: 'mono' },
+    { key: 'outcome', label: t('app.audit.outcomeColumn'), kind: 'badge' },
+  ]
+})
 
 /** How many of the held entries record a failed action — the notice above the journal. */
 const failedCount: ComputedRef<number> = computed(() => {
@@ -85,74 +99,61 @@ onMounted(async () => {
     />
 
     <!-- What needs attention goes first: an action that was refused or failed. -->
-    <UiAlert v-if="!auditStore.loading && failedCount > 0" variant="warning">
+    <UiAlert v-if="auditStore.loadState === 'loaded' && failedCount > 0" variant="warning">
       {{ t('app.audit.failedNotice', { count: failedCount }, failedCount) }}
     </UiAlert>
 
     <UiCard>
-      <UiSpinner v-if="auditStore.loading" :label="t('app.audit.loading')" />
-
-      <UiAlert v-else-if="auditStore.errorMessage !== null" variant="error">
-        {{ auditStore.errorMessage }}
-      </UiAlert>
-
-      <UiEmptyState
-        v-else-if="auditStore.events.length === 0"
-        :title="t('app.audit.emptyTitle')"
-        :description="t('app.audit.emptyDescription')"
-      >
-        <template #icon><UiIcon name="fileText" size="lg" /></template>
-      </UiEmptyState>
-
-      <UiTable v-else :caption="t('app.audit.tableCaption')">
-        <template #head>
-          <UiTableRow>
-            <UiTableHeaderCell>{{ t('app.audit.whenColumn') }}</UiTableHeaderCell>
-            <UiTableHeaderCell>{{ t('app.audit.actorColumn') }}</UiTableHeaderCell>
-            <UiTableHeaderCell>{{ t('app.audit.actionColumn') }}</UiTableHeaderCell>
-            <UiTableHeaderCell>{{ t('app.audit.subjectColumn') }}</UiTableHeaderCell>
-            <UiTableHeaderCell>{{ t('app.audit.addressColumn') }}</UiTableHeaderCell>
-            <UiTableHeaderCell>{{ t('app.audit.outcomeColumn') }}</UiTableHeaderCell>
-          </UiTableRow>
+      <UiLoadingRegion :state="auditStore.loadState">
+        <template #error>
+          <UiAlert variant="error">{{ auditStore.errorMessage ?? t('common.list.unreachable') }}</UiAlert>
         </template>
 
-        <UiTableRow v-for="event in auditStore.events" :key="event.id">
-          <!-- The instant, not the day. `formatDate` printed only the day here, so every event
-               recorded on one day carried the identical string: two entries seconds apart were
-               indistinguishable and a day's ordering was unreadable — on the one screen in the
-               product whose whole subject is WHEN something happened. `formatIsoTimestamp` is the
-               formatter the backups tables already use for exactly this kind of value. -->
-          <UiTableCell mono tone="secondary" class="whitespace-nowrap">
-            {{ formatIsoTimestamp(event.occurredAt, localeStore.current) }}
-          </UiTableCell>
-          <UiTableCell class="font-medium whitespace-nowrap">{{ event.actorUsername }}</UiTableCell>
-          <UiTableCell class="min-w-48">
+        <UiEmptyState
+          v-if="auditStore.loadState === 'loaded' && auditStore.events.length === 0"
+          :title="t('app.audit.emptyTitle')"
+          :description="t('app.audit.emptyDescription')"
+        >
+          <template #icon><UiIcon name="fileText" size="lg" /></template>
+        </UiEmptyState>
+
+        <UiTable
+          v-else
+          :caption="t('app.audit.tableCaption')"
+          :columns="columns"
+          :rows="auditStore.events"
+          row-key="id"
+          :loading="auditStore.loadState === 'loading'"
+        >
+          <!-- The instant, not the day: two entries seconds apart must be told apart on the one
+               screen whose whole subject is WHEN something happened. -->
+          <template #cell-when="{ row }">{{ formatIsoTimestamp(row.occurredAt, localeStore.current) }}</template>
+          <template #cell-actor="{ row }">{{ row.actorUsername }}</template>
+          <template #cell-action="{ row }">
             <!-- Both halves of the action, and neither instead of the other. The name is the
-                 backend's own, already localized for the request's language (rules/vue.md: the SPA
-                 owns no text for a server outcome) — inventing a translation here would let the SPA
-                 and the journal disagree about what happened. The machine constant below it is
-                 stable across languages, so it is what an administrator greps a log by and quotes in
-                 a ticket — kept as visible, selectable text rather than hidden in a `title`. A panel
-                 older than the display name sends no name, and then the constant is the whole cell;
-                 an action this build has no entry for arrives with name equal to constant, and one
-                 line is enough. -->
-            <span v-if="actionLabel(event) !== null" class="block wrap-anywhere">{{ actionLabel(event) }}</span>
-            <span
-              class="block font-mono whitespace-nowrap"
-              :class="actionLabel(event) !== null ? 'mt-0.5 text-xs text-text-muted' : ''"
-            >
-              {{ event.action }}
-            </span>
-          </UiTableCell>
-          <UiTableCell mono class="whitespace-nowrap">{{ event.subject }}</UiTableCell>
-          <UiTableCell mono class="whitespace-nowrap">{{ event.ipAddress }}</UiTableCell>
-          <UiTableCell>
-            <UiBadge :variant="event.succeeded ? 'success' : 'danger'">
-              {{ event.succeeded ? t('app.audit.succeeded') : t('app.audit.failed') }}
+                 backend's own, already localized (rules/vue.md: the SPA owns no text for a server
+                 outcome); the machine constant below it is what an administrator greps a log by,
+                 kept as visible, selectable text. A panel older than the display name sends no
+                 name, and then the constant is the whole cell. -->
+            <div class="min-w-48">
+              <span v-if="actionLabel(row) !== null" class="block wrap-anywhere">{{ actionLabel(row) }}</span>
+              <span
+                class="block font-mono whitespace-nowrap"
+                :class="actionLabel(row) !== null ? 'mt-0.5 text-xs text-text-muted' : ''"
+              >
+                {{ row.action }}
+              </span>
+            </div>
+          </template>
+          <template #cell-subject="{ row }">{{ row.subject }}</template>
+          <template #cell-address="{ row }">{{ row.ipAddress }}</template>
+          <template #cell-outcome="{ row }">
+            <UiBadge :variant="row.succeeded ? 'success' : 'danger'">
+              {{ row.succeeded ? t('app.audit.succeeded') : t('app.audit.failed') }}
             </UiBadge>
-          </UiTableCell>
-        </UiTableRow>
-      </UiTable>
+          </template>
+        </UiTable>
+      </UiLoadingRegion>
     </UiCard>
   </section>
 </template>

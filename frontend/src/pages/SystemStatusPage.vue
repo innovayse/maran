@@ -48,30 +48,43 @@ import UiAlert from '../components/ui/UiAlert.vue'
 import UiButton from '../components/ui/UiButton.vue'
 import UiCard from '../components/ui/UiCard.vue'
 import UiIcon from '../components/ui/UiIcon.vue'
+import UiLoadingRegion from '../components/ui/UiLoadingRegion.vue'
 import UiPageHeading from '../components/ui/UiPageHeading.vue'
 import UiSectionHeading from '../components/ui/UiSectionHeading.vue'
-import UiSpinner from '../components/ui/UiSpinner.vue'
+import { useCallerRole } from '../composables/useCallerRole'
 import { useAuthStore } from '../stores/auth'
 import { useDashboardStore } from '../stores/dashboard'
 import { useModulesStore } from '../stores/modules'
 import { useSystemStore } from '../stores/system'
 import type { QuickAction } from '../types/quickAction'
+import type { LoadingState } from '../types/loading'
 
 const { t } = useI18n()
 const auth = useAuthStore()
 const system = useSystemStore()
 const dashboard = useDashboardStore()
 const modules = useModulesStore()
+const { isAdmin } = useCallerRole()
+
+/**
+ * The heading region's state. The verdict is part of the heading rather than in place of it, so a
+ * failed check does not replace the region (the title stays, the failure is an alert under it):
+ * for the region the check is either on its way or settled, and which way it settled is
+ * {@link system}'s `healthState`, read where the alert is drawn.
+ */
+const headingState: ComputedRef<LoadingState> = computed(() => {
+  return system.healthState === 'loading' ? 'loading' : 'loaded'
+})
 
 /**
  * Whether the dashboard sections should be drawn.
  *
- * Both halves are required. `isLoaded` alone would draw zeros nobody measured on the first paint,
+ * Both halves are required. A loaded read alone would draw zeros nobody measured on the first paint,
  * and `isAdministrator` alone would draw empty panels at a customer. The panel decided the second
  * one; this is the SPA agreeing with it, which is advice and not enforcement (rules/vue.md).
  */
 const showsServerDetail: ComputedRef<boolean> = computed(() => {
-  return dashboard.isLoaded && dashboard.isAdministrator
+  return dashboard.loadState === 'loaded' && dashboard.isAdministrator
 })
 
 /**
@@ -80,7 +93,17 @@ const showsServerDetail: ComputedRef<boolean> = computed(() => {
  * two is ever true and a caller is never shown both or neither once the read has settled.
  */
 const showsCustomerArea: ComputedRef<boolean> = computed(() => {
-  return dashboard.isLoaded && !dashboard.isAdministrator
+  return dashboard.loadState === 'loaded' && !dashboard.isAdministrator
+})
+
+/**
+ * Whether the figure cards are held with placeholders while the dashboard is read. Only for a
+ * caller whose session says they administer the server: the panel's own answer decides what is
+ * drawn once it is in, and a customer, who will not be shown the server, is not shown its
+ * placeholders either.
+ */
+const holdsServerDetail: ComputedRef<boolean> = computed(() => {
+  return dashboard.loadState === 'loading' && isAdmin.value
 })
 
 /** Whether the header's pill is offered: only to somebody shown the server, and only if Accounts is licensed. */
@@ -157,91 +180,95 @@ onMounted(refresh)
          sit inside a translated sentence, and on success it can only ever be the literal `ok`
          (`/health` constructs its report with it). A degraded state, if the panel ever reports one,
          needs a branch of its own with its own translated sentence, not a raw field shown to a
-         customer. -->
-    <UiPageHeading
-      :eyebrow="t('app.status.eyebrow')"
-      :title="t('app.status.heading')"
-      :subtitle="system.status !== null ? t('app.status.ok') : undefined"
-    >
-      <template v-if="offersNewAccount" #actions>
-        <UiButton to="/accounts/new" class="whitespace-nowrap">
-          <UiIcon name="plus" />
-          {{ t('app.status.actions.newAccount') }}
-        </UiButton>
-      </template>
-    </UiPageHeading>
-
-    <!-- No verdict yet, or a bad one. A good one is the heading's subtitle above and draws nothing
-         here. -->
-    <template v-if="system.status === null">
-      <!-- Backend answered with an error: its text is already localized
-           server-side, render it verbatim (rules/vue.md). A failure gets the
-           panel's error treatment here exactly as it does on every other
-           screen, rather than reading as ordinary copy. -->
-      <UiAlert v-if="system.errorMessage !== null" variant="error">{{ system.errorMessage }}</UiAlert>
-
-      <!-- The request never reached the backend: the one case with no
-           server-provided message, covered by a frontend-owned string. -->
-      <UiAlert v-else-if="system.unreachable" variant="error">{{ t('app.status.unreachable') }}</UiAlert>
-
-      <!-- Nothing has settled yet. The store keeps no loading flag, so the
-           pending state is "no verdict of any kind" — without this branch the
-           first paint of the page is a blank panel. -->
-      <UiSpinner v-else :label="t('app.status.checking')" />
-    </template>
-
-    <!-- Below the verdict, and only for a caller the panel filled the sections for. -->
-    <template v-if="showsServerDetail">
-      <!-- Each section is drawn only when the panel answered it. A missing section means the agent
-           or a module could not be read, and the panel isolates that on its own side — so the rest
-           of the screen stays up instead of going dark together. The attention notice is first:
-           the one thing that needs looking at goes above everything else. -->
-      <DashboardAttentionList v-if="dashboard.attention !== null" :attention="dashboard.attention" />
-
-      <DashboardCountGrid v-if="dashboard.counts !== null" :counts="dashboard.counts" />
-      <DashboardResourceCard v-if="dashboard.resources !== null" :resources="dashboard.resources" />
-
-      <UiCard v-if="dashboard.services.length > 0">
-        <UiSectionHeading class="mb-4" :title="t('monitoring.services.title')">
-          <template v-if="linksToMonitoring" #action>
-            <RouterLink
-              to="/monitoring"
-              class="rounded-control text-accent-text hover:underline focus-visible:shadow-focus focus-visible:outline-none motion-reduce:transition-none"
-            >{{ t('monitoring.heading') }}</RouterLink>
+         customer. While the check is on its way the subtitle holds a placeholder line. -->
+    <UiLoadingRegion :state="headingState">
+      <div class="flex flex-col gap-6">
+        <UiPageHeading
+          :eyebrow="t('app.status.eyebrow')"
+          :title="t('app.status.heading')"
+          :subtitle="system.healthState === 'error' ? undefined : t('app.status.ok')"
+          :subtitle-loading="system.healthState === 'loading'"
+        >
+          <template v-if="offersNewAccount" #actions>
+            <UiButton to="/accounts/new" class="whitespace-nowrap">
+              <UiIcon name="plus" />
+              {{ t('app.status.actions.newAccount') }}
+            </UiButton>
           </template>
-        </UiSectionHeading>
-        <ServiceStatusBadges :statuses="dashboard.services" />
-      </UiCard>
+        </UiPageHeading>
 
-      <!-- Two columns only when the CONTENT PANEL is wide enough for two readable cards (`@3xl`,
-           48rem of container width), not when the viewport is: under a large system font the
-           rem-sized sidebar takes most of a wide viewport and each "half" was left a sliver. -->
-      <div class="@container">
-        <div class="grid gap-4 @3xl:grid-cols-2">
-          <DashboardQuickActions
-            v-if="quickActions.length > 0"
-            :title="t('app.status.quickActions.title')"
-            :actions="quickActions"
-          />
+        <!-- A bad verdict: the backend's own already-localized text, verbatim (rules/vue.md), or the
+             one frontend-owned string when the request never reached it. A good one is the
+             heading's subtitle above and draws nothing here. -->
+        <UiAlert v-if="system.healthState === 'error'" variant="error">
+          {{ system.errorMessage ?? t('app.status.unreachable') }}
+        </UiAlert>
+      </div>
+    </UiLoadingRegion>
 
-          <DashboardRecentAudit :entries="dashboard.recentAudit" :class="{ '@3xl:col-span-2': quickActions.length === 0 }" />
+    <UiLoadingRegion :state="dashboard.loadState">
+      <!-- The dashboard read failed for somebody who should have seen it. Said out loud rather than
+           left as an absence: a screen that silently shows only the health sentence to an
+           administrator looks exactly like the defect this page was fixing. -->
+      <template #error>
+        <UiAlert variant="error">{{ dashboard.errorMessage ?? t('app.status.unreachable') }}</UiAlert>
+      </template>
+
+      <div class="flex flex-col gap-6">
+        <!-- While the read is in flight, the figure cards are drawn with their real labels and a
+             placeholder for every figure, so the answer lands without moving anything. -->
+        <template v-if="holdsServerDetail">
+          <DashboardCountGrid loading />
+          <DashboardResourceCard loading />
+        </template>
+
+        <!-- Below the verdict, and only for a caller the panel filled the sections for. -->
+        <template v-else-if="showsServerDetail">
+          <!-- Each section is drawn only when the panel answered it. A missing section means the agent
+               or a module could not be read, and the panel isolates that on its own side — so the rest
+               of the screen stays up instead of going dark together. The attention notice is first:
+               the one thing that needs looking at goes above everything else. -->
+          <DashboardAttentionList v-if="dashboard.attention !== null" :attention="dashboard.attention" />
+
+          <DashboardCountGrid v-if="dashboard.counts !== null" :counts="dashboard.counts" />
+          <DashboardResourceCard v-if="dashboard.resources !== null" :resources="dashboard.resources" />
+
+          <UiCard v-if="dashboard.services.length > 0">
+            <UiSectionHeading class="mb-4" :title="t('monitoring.services.title')">
+              <template v-if="linksToMonitoring" #action>
+                <RouterLink
+                  to="/monitoring"
+                  class="rounded-control text-accent-text hover:underline focus-visible:shadow-focus focus-visible:outline-none motion-reduce:transition-none"
+                >{{ t('monitoring.heading') }}</RouterLink>
+              </template>
+            </UiSectionHeading>
+            <ServiceStatusBadges :statuses="dashboard.services" />
+          </UiCard>
+
+          <!-- Two columns only when the CONTENT PANEL is wide enough for two readable cards (`@3xl`,
+               48rem of container width), not when the viewport is: under a large system font the
+               rem-sized sidebar takes most of a wide viewport and each "half" was left a sliver. -->
+          <div class="@container">
+            <div class="grid gap-4 @3xl:grid-cols-2">
+              <DashboardQuickActions
+                v-if="quickActions.length > 0"
+                :title="t('app.status.quickActions.title')"
+                :actions="quickActions"
+              />
+
+              <DashboardRecentAudit :entries="dashboard.recentAudit" :class="{ '@3xl:col-span-2': quickActions.length === 0 }" />
+            </div>
+          </div>
+        </template>
+
+        <!-- A customer is shown their own shortcuts and nothing of the server. The card is drawn only if
+             it has a row: an empty panel under a heading reads as a failed load. -->
+        <div v-else-if="showsCustomerArea && customerActions.length > 0" class="@container">
+          <div class="grid gap-4 @3xl:grid-cols-2">
+            <DashboardQuickActions :title="t('app.status.customerArea.title')" :actions="customerActions" />
+          </div>
         </div>
       </div>
-    </template>
-
-    <!-- A customer is shown their own shortcuts and nothing of the server. The card is drawn only if
-         it has a row: an empty panel under a heading reads as a failed load. -->
-    <div v-else-if="showsCustomerArea && customerActions.length > 0" class="@container">
-      <div class="grid gap-4 @3xl:grid-cols-2">
-        <DashboardQuickActions :title="t('app.status.customerArea.title')" :actions="customerActions" />
-      </div>
-    </div>
-
-    <!-- The dashboard read failed for somebody who should have seen it. Said out loud rather than
-         left as an absence: a screen that silently shows only the health sentence to an
-         administrator looks exactly like the defect this page was fixing. -->
-    <UiAlert v-else-if="dashboard.errorMessage !== null" variant="error">
-      {{ dashboard.errorMessage }}
-    </UiAlert>
+    </UiLoadingRegion>
   </section>
 </template>

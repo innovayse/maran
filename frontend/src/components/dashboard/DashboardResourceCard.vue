@@ -27,6 +27,10 @@
  * boot, not rates, and "4.2 TB received" on a landing page reads as traffic while meaning uptime.
  * A rate needs two readings and the panel does not offer one here, so this card shows nothing
  * rather than something that would be misread.
+ *
+ * **While the reading is on its way** (`loading`, no `resources`), the three tiles are drawn with
+ * their real icons and labels, and each figure, the load averages and each bar draw a placeholder
+ * in their own place, so the reading lands without moving anything.
  */
 import { computed, type ComputedRef } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -35,12 +39,15 @@ import type { UiIconName } from '../ui/UiIcon.vue'
 import UiIconTile from '../ui/UiIconTile.vue'
 import UiMeter from '../ui/UiMeter.vue'
 import UiSectionHeading from '../ui/UiSectionHeading.vue'
+import UiSkeleton from '../ui/UiSkeleton.vue'
 import { formatBytes } from '../../utils/formatBytes'
 import type { DashboardResources } from '../../types/dashboard'
 
 const props = defineProps<{
-  /** The host's live reading, as the panel answered it. */
-  resources: DashboardResources
+  /** The host's live reading, as the panel answered it; absent only while `loading`. */
+  resources?: DashboardResources
+  /** Whether the reading is still on its way; see the component note. */
+  loading?: boolean
 }>()
 
 const { t } = useI18n()
@@ -53,11 +60,17 @@ const { t } = useI18n()
  * would stop matching the tool it is being checked against.
  */
 const cpuText: ComputedRef<string> = computed(() => {
+  if (props.resources === undefined) {
+    return ''
+  }
   return `${props.resources.cpuPercent.toFixed(1)}${t('monitoring.units.percent')}`
 })
 
 /** Memory in use beside what is installed, as one sentence for assistive technology. */
 const memoryText: ComputedRef<string> = computed(() => {
+  if (props.resources === undefined) {
+    return ''
+  }
   return t('app.status.resources.ratio', {
     used: formatBytes(props.resources.memoryUsedBytes),
     total: formatBytes(props.resources.memoryTotalBytes),
@@ -66,6 +79,9 @@ const memoryText: ComputedRef<string> = computed(() => {
 
 /** Disk in use on the root filesystem beside its capacity, as one sentence for assistive technology. */
 const diskText: ComputedRef<string> = computed(() => {
+  if (props.resources === undefined) {
+    return ''
+  }
   return t('app.status.resources.ratio', {
     used: formatBytes(props.resources.diskUsedBytes),
     total: formatBytes(props.resources.diskTotalBytes),
@@ -97,12 +113,15 @@ interface Reading {
  * memory says whether it can continue, and the disk says whether it can continue tomorrow.
  */
 const readings: ComputedRef<Reading[]> = computed(() => {
+  // Before the reading arrives every tile still exists, labelled, with nothing measured: the
+  // template draws placeholders for the figures and bars while `loading`.
+  const resources = props.resources
   return [
     {
       key: 'cpu',
       icon: 'cpu',
       label: t('monitoring.charts.cpu'),
-      value: props.resources.cpuPercent,
+      value: resources?.cpuPercent ?? 0,
 
       // 100 explicitly: a percentage carries no total of its own, and passing one of the byte
       // figures here would draw a bar at a ratio that means nothing.
@@ -115,20 +134,20 @@ const readings: ComputedRef<Reading[]> = computed(() => {
       key: 'memory',
       icon: 'memoryStick',
       label: t('monitoring.charts.memory'),
-      value: props.resources.memoryUsedBytes,
-      max: props.resources.memoryTotalBytes,
-      figure: formatBytes(props.resources.memoryUsedBytes),
-      of: `/ ${formatBytes(props.resources.memoryTotalBytes)}`,
+      value: resources?.memoryUsedBytes ?? 0,
+      max: resources?.memoryTotalBytes ?? 0,
+      figure: resources === undefined ? '' : formatBytes(resources.memoryUsedBytes),
+      of: resources === undefined ? null : `/ ${formatBytes(resources.memoryTotalBytes)}`,
       text: memoryText.value,
     },
     {
       key: 'disk',
       icon: 'hardDrive',
       label: t('monitoring.charts.disk'),
-      value: props.resources.diskUsedBytes,
-      max: props.resources.diskTotalBytes,
-      figure: formatBytes(props.resources.diskUsedBytes),
-      of: `/ ${formatBytes(props.resources.diskTotalBytes)}`,
+      value: resources?.diskUsedBytes ?? 0,
+      max: resources?.diskTotalBytes ?? 0,
+      figure: resources === undefined ? '' : formatBytes(resources.diskUsedBytes),
+      of: resources === undefined ? null : `/ ${formatBytes(resources.diskTotalBytes)}`,
       text: diskText.value,
     },
   ]
@@ -141,6 +160,9 @@ const readings: ComputedRef<Reading[]> = computed(() => {
  * trend is the thing an operator glancing at a landing page actually wants.
  */
 const loadText: ComputedRef<string> = computed(() => {
+  if (props.resources === undefined) {
+    return ''
+  }
   return [
     props.resources.loadAverage1m,
     props.resources.loadAverage5m,
@@ -171,8 +193,11 @@ const loadText: ComputedRef<string> = computed(() => {
           <UiIconTile :name="reading.icon" />
 
           <div class="min-w-0 @xl:mt-3.5">
+            <!-- While loading, the placeholder's box is the figure's line height (`leading-none`:
+                 the font size, 24px, and 30px from `@xl`), so the row keeps its height. -->
             <p class="m-0 flex flex-wrap items-baseline gap-x-1.5 font-display text-2xl leading-none font-black @xl:text-3xl">
-              <span>{{ reading.figure }}</span>
+              <span v-if="loading" class="flex h-6 w-20 items-center @xl:h-7.5"><UiSkeleton shape="line" size="lg" /></span>
+              <span v-else>{{ reading.figure }}</span>
               <small v-if="reading.of !== null" class="text-sm font-extrabold whitespace-nowrap text-text-muted">{{ reading.of }}</small>
             </p>
             <!-- `text-sm` on a phone: the display face at `text-xs`, and in Armenian
@@ -186,11 +211,15 @@ const loadText: ComputedRef<string> = computed(() => {
              the trend sits beside the instant it explains. -->
         <p v-if="reading.key === 'cpu'" class="m-0 mt-2 text-xs text-text-muted">
           <span>{{ t('app.status.resources.load') }}</span>
-          <span class="ml-1.5 font-mono text-text-secondary tabular-nums">{{ loadText }}</span>
+          <span v-if="loading" class="ml-1.5 inline-flex w-24 align-middle"><UiSkeleton shape="line" size="sm" /></span>
+          <span v-else class="ml-1.5 font-mono text-text-secondary tabular-nums">{{ loadText }}</span>
         </p>
 
         <div class="mt-auto pt-3.5">
+          <!-- The placeholder is clipped to the bar's own track height. -->
+          <span v-if="loading" class="block h-1 overflow-hidden rounded-full"><UiSkeleton shape="line" size="sm" /></span>
           <UiMeter
+            v-else
             :value="reading.value"
             :max="reading.max"
             :label="reading.label"

@@ -10,22 +10,24 @@
  * in the store, because the account count the edit notice states is a live fact and a stale one
  * would tell an administrator that nobody is on a plan somebody has just been put on.
  *
- * **The form is not drawn until the plan it edits is known.** `PlanForm` takes its starting
- * values once, when it is created, so mounting it before the plan arrived would show an empty
- * form for a plan that exists and the first keystroke would overwrite nothing it should.
+ * **The form that edits is not created until the plan it edits is known.** `PlanForm` takes its
+ * starting values once, when it is created, so a form mounted before the plan arrived would show
+ * empty fields for a plan that exists. While the plan loads, a stand-in form with `loading` holds
+ * the real labels over placeholder controls (inside a {@link UiLoadingRegion}); once the plan is
+ * known, a fresh form created from it takes the stand-in's place.
  *
  * A refusal from the server — a name another plan has, a quota an account already exceeds — is
  * rendered verbatim above the form, and the form stays as the administrator left it so they can
  * correct the one figure and send it again.
  */
-import { computed, onMounted, ref, type ComputedRef, type Ref } from 'vue'
+import { computed, onMounted, type ComputedRef } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { RouterLink, useRouter } from 'vue-router'
 import UiAlert from '../../components/ui/UiAlert.vue'
 import UiEmptyState from '../../components/ui/UiEmptyState.vue'
 import UiIcon from '../../components/ui/UiIcon.vue'
+import UiLoadingRegion from '../../components/ui/UiLoadingRegion.vue'
 import UiPageHeading from '../../components/ui/UiPageHeading.vue'
-import UiSpinner from '../../components/ui/UiSpinner.vue'
 import PlanForm from '../../components/plans/PlanForm.vue'
 import { usePlansStore } from '../../stores/plans'
 import type { ManagedPlan, PlanRequest } from '../../types/plan'
@@ -40,9 +42,6 @@ const props = defineProps<{
 const { t } = useI18n()
 const router = useRouter()
 const store = usePlansStore()
-
-/** Whether the first load for an edit has settled, so "not found" is not claimed before it. */
-const settled: Ref<boolean> = ref(false)
 
 /** Whether this page edits an existing plan. */
 const isEditing: ComputedRef<boolean> = computed(() => {
@@ -68,7 +67,6 @@ const prepare = async (): Promise<void> => {
   if (isEditing.value) {
     await store.load()
   }
-  settled.value = true
 }
 
 /**
@@ -114,12 +112,14 @@ onMounted(prepare)
       {{ store.saveErrorMessage }}
     </UiAlert>
 
-    <template v-if="isEditing">
-      <UiSpinner v-if="!settled" :label="t('plans.form.loading')" />
-
+    <UiLoadingRegion v-if="isEditing" :state="store.loadState">
       <!-- A customer who opens the edit URL lands here too: the list endpoint refused them, and
            its message is shown instead of the form. -->
-      <UiAlert v-else-if="store.errorMessage !== null" variant="error">{{ store.errorMessage }}</UiAlert>
+      <template #error>
+        <UiAlert variant="error">{{ store.errorMessage ?? t('common.list.unreachable') }}</UiAlert>
+      </template>
+
+      <PlanForm v-if="store.loadState === 'loading'" :plan="null" loading :submitting="store.saving" />
 
       <UiEmptyState
         v-else-if="plan === undefined"
@@ -137,7 +137,7 @@ onMounted(prepare)
       </UiEmptyState>
 
       <PlanForm v-else :plan="plan" :submitting="store.saving" @submit="save" @cancel="cancel" />
-    </template>
+    </UiLoadingRegion>
 
     <PlanForm v-else :plan="null" :submitting="store.saving" @submit="save" @cancel="cancel" />
   </section>

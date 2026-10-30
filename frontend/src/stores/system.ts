@@ -2,19 +2,19 @@ import { defineStore } from 'pinia'
 import { ref, type Ref } from 'vue'
 import { useSystemApi } from '../composables/apis/useSystemApi'
 import { ApiError } from '../composables/useApi'
+import type { LoadingState } from '../types/loading'
 
 /**
  * Pinia setup store owning system health status. Calls {@link useSystemApi}
- * to fetch `/health` and exposes loading/error/status state to views; views
- * read this store and call `checkHealth` rather than touching the API
- * composable directly (rules/vue.md).
+ * to fetch `/health` and exposes its state to views; views read this store
+ * and call `checkHealth` rather than touching the API composable directly
+ * (rules/vue.md).
  *
  * Error text is never generated here: when the backend responds with an
  * error, its already-localized `title`/`detail` is stored verbatim in
  * `errorMessage` (rules/vue.md: "the backend owns their text"). Only when
- * the request never reaches the backend at all (`unreachable`) does the
- * view fall back to a frontend-owned string, because there is no server
- * message to show in that case.
+ * the request never reaches the backend at all is there no message, and the
+ * view falls back to the one frontend-owned "unreachable" string.
  */
 export const useSystemStore = defineStore('system', () => {
   const api = useSystemApi()
@@ -24,44 +24,36 @@ export const useSystemStore = defineStore('system', () => {
    * successful check.
    */
   const status: Ref<string | null> = ref(null)
+
   /**
    * Backend-localized error message from the most recent failed check, or
    * `null` if the last check succeeded or never reached the server.
    */
   const errorMessage: Ref<string | null> = ref(null)
-  /**
-   * Whether the most recent check failed before reaching the backend at
-   * all (e.g. network/DNS failure), so no server-provided message exists.
-   */
-  const unreachable: Ref<boolean> = ref(false)
+
+  /** Where the health check stands; every failure sets `error`, whatever its cause. */
+  const healthState: Ref<LoadingState> = ref('loading')
 
   /**
-   * Fetches `/health` and updates `status`/`errorMessage`/`unreachable`
+   * Fetches `/health` and updates `status`, `errorMessage` and `healthState`
    * from the result.
    * @returns A promise that resolves once the check has settled.
    */
   const checkHealth = async (): Promise<void> => {
+    healthState.value = 'loading'
     try {
       const health = await api.getHealth()
       status.value = health.status
       errorMessage.value = null
-      unreachable.value = false
+      healthState.value = 'loaded'
     } catch (error) {
       status.value = null
-      if (error instanceof ApiError) {
-        // The backend responded, just with an error: render its own
-        // already-localized text rather than inventing frontend copy.
-        errorMessage.value = error.message
-        unreachable.value = false
-      } else {
-        // The request never reached the backend (network/DNS failure, CORS,
-        // etc.) — there is no server message to show, so fall back to the
-        // one frontend-owned string for this case.
-        errorMessage.value = null
-        unreachable.value = true
-      }
+      // A response with an error carries the backend's own already-localized text; a request that
+      // never reached the backend (network/DNS failure, CORS) carries none.
+      errorMessage.value = error instanceof ApiError ? error.message : null
+      healthState.value = 'error'
     }
   }
 
-  return { status, errorMessage, unreachable, checkHealth }
+  return { status, errorMessage, healthState, checkHealth }
 })

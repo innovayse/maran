@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { ref, type Ref } from 'vue'
 import { useFirewallApi } from '../composables/apis/useFirewallApi'
 import { ApiError } from '../composables/useApi'
+import type { LoadingState } from '../types/loading'
 import type {
   AddWhitelistEntryRequest,
   Ban,
@@ -40,14 +41,11 @@ export const useFirewallStore = defineStore('firewall', () => {
   /** The exempt ranges as last reported by the panel, oldest first. */
   const whitelist: Ref<WhitelistEntry[]> = ref([])
 
-  /** True while the initial load of the three lists is in flight. */
-  const loading: Ref<boolean> = ref(false)
-
   /** True while any mutation is in flight, which disables every control that starts another. */
   const acting: Ref<boolean> = ref(false)
 
-  /** True once the three lists have been loaded at least once, successfully. */
-  const isLoaded: Ref<boolean> = ref(false)
+  /** Where the read of the three lists stands; every failure sets `error`, whatever its cause. */
+  const loadState: Ref<LoadingState> = ref('loading')
 
   /**
    * Backend-localized message from the most recent failed read, or `null` when the last one
@@ -72,7 +70,7 @@ export const useFirewallStore = defineStore('firewall', () => {
    * @returns Resolves once every request has settled, successfully or not.
    */
   const load = async (): Promise<void> => {
-    loading.value = true
+    loadState.value = 'loading'
     try {
       const [loadedRules, loadedBans, loadedWhitelist] = await Promise.all([
         api.listRules(),
@@ -83,13 +81,12 @@ export const useFirewallStore = defineStore('firewall', () => {
       bans.value = loadedBans
       whitelist.value = loadedWhitelist
       errorMessage.value = null
-      isLoaded.value = true
+      loadState.value = 'loaded'
     } catch (error) {
       // A refusal (a customer reaching an administrators-only screen) arrives here exactly like a
       // failure does, and is rendered exactly the same way: as the panel's own message.
       errorMessage.value = error instanceof ApiError ? error.message : null
-    } finally {
-      loading.value = false
+      loadState.value = 'error'
     }
   }
 
@@ -263,9 +260,8 @@ export const useFirewallStore = defineStore('firewall', () => {
     rules,
     bans,
     whitelist,
-    loading,
     acting,
-    isLoaded,
+    loadState,
     errorMessage,
     ruleErrorMessage,
     banErrorMessage,

@@ -3,7 +3,6 @@
     "profile": {
       "heading": "Profile and security",
       "subtitle": "Who you are signed in as, and how your sign-in is protected.",
-      "loading": "Loading your profile…",
       "identityHeading": "Profile",
       "usernameLabel": "Username",
       "emailLabel": "Email",

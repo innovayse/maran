@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { computed, ref, type ComputedRef, type Ref } from 'vue'
 import { useBackupSchedulesApi } from '../composables/apis/useBackupSchedulesApi'
 import { ApiError } from '../composables/useApi'
+import type { LoadingState } from '../types/loading'
 import type { BackupSchedule, SaveBackupScheduleRequest } from '../types/backupSchedule'
 
 /**
@@ -20,11 +21,11 @@ export const useBackupSchedulesStore = defineStore('backupSchedules', () => {
   /** The schedule the panel holds for the scope last read, or `null` when it holds none. */
   const schedule: Ref<BackupSchedule | null> = ref(null)
 
-  /** True once a read has settled for the current scope, successfully or not. */
-  const isLoaded: Ref<boolean> = ref(false)
-
-  /** True while a read is in flight. */
-  const loading: Ref<boolean> = ref(false)
+  /**
+   * Where the read for the current scope stands: on its way, arrived, or refused. A save never
+   * moves it, so a refused save leaves the form on screen with its message.
+   */
+  const loadState: Ref<LoadingState> = ref('loading')
 
   /** True while a save is in flight. */
   const saving: Ref<boolean> = ref(false)
@@ -47,7 +48,7 @@ export const useBackupSchedulesStore = defineStore('backupSchedules', () => {
 
   /**
    * Whether the scope last read or saved HAS a schedule. Derived from {@link schedule} rather than
-   * held beside it, so the two can never disagree; a screen pairs it with {@link isLoaded} to tell
+   * held beside it, so the two can never disagree; a screen pairs it with {@link loadState} to tell
    * "nothing is scheduled here" from "not read yet".
    */
   const isConfigured: ComputedRef<boolean> = computed(() => {
@@ -74,19 +75,17 @@ export const useBackupSchedulesStore = defineStore('backupSchedules', () => {
    * @returns Resolves once the request has settled, successfully or not.
    */
   const load = async (accountId: string | null): Promise<void> => {
-    loading.value = true
-    isLoaded.value = false
+    loadState.value = 'loading'
     schedule.value = null
     errorMessage.value = null
     errorCode.value = ''
     saved.value = false
     try {
       schedule.value = (await api.get(accountId)).schedule
+      loadState.value = 'loaded'
     } catch (error) {
       remember(error)
-    } finally {
-      isLoaded.value = true
-      loading.value = false
+      loadState.value = 'error'
     }
   }
 
@@ -118,8 +117,7 @@ export const useBackupSchedulesStore = defineStore('backupSchedules', () => {
   return {
     schedule,
     isConfigured,
-    isLoaded,
-    loading,
+    loadState,
     saving,
     saved,
     errorMessage,

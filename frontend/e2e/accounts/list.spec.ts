@@ -108,7 +108,7 @@ test('accounts list renders the backend RFC 7807 detail verbatim when the list r
 
   await page.goto('/accounts')
 
-  await expect(page.getByRole('status')).toHaveText(backendDetail)
+  await expect(page.getByRole('status').filter({ hasText: backendDetail })).toBeVisible()
   await expect(page.getByRole('table')).toHaveCount(0)
   await expect(page.getByText('No accounts yet')).toHaveCount(0)
 })

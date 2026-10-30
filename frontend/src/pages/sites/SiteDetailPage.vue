@@ -12,6 +12,10 @@
  * The overview lays the details in one card and, beside it (below it on a phone), the PHP rebind
  * card and the lifecycle actions. The Logs and SSL panes are separate components rendered as-is.
  *
+ * While the site loads, the heading and the details card are drawn already, with their real terms
+ * and a placeholder line in place of each value ({@link UiLoadingRegion},
+ * `UiDescriptionList loading`), so the site lands in the space held for it.
+ *
  * Renders a `<section>`, not a `<main>` — the layout owns the landmark.
  */
 import { computed, onBeforeUnmount, onMounted, ref, type ComputedRef, type Ref } from 'vue'
@@ -24,11 +28,13 @@ import UiIcon from '../../components/ui/UiIcon.vue'
 import UiDescriptionItem from '../../components/ui/UiDescriptionItem.vue'
 import UiDescriptionList from '../../components/ui/UiDescriptionList.vue'
 import UiEmptyState from '../../components/ui/UiEmptyState.vue'
+import UiLoadingRegion from '../../components/ui/UiLoadingRegion.vue'
+import type { LoadingState } from '../../types/loading'
 import UiConfirm from '../../components/ui/UiConfirm.vue'
 import UiSegmentedControl, { type SegmentOption } from '../../components/ui/UiSegmentedControl.vue'
 import UiPageHeading from '../../components/ui/UiPageHeading.vue'
 import UiSectionHeading from '../../components/ui/UiSectionHeading.vue'
-import UiSpinner from '../../components/ui/UiSpinner.vue'
+import UiSkeleton from '../../components/ui/UiSkeleton.vue'
 import PhpVersionSelect from '../../components/sites/PhpVersionSelect.vue'
 import SiteStatusBadge from '../../components/sites/SiteStatusBadge.vue'
 import SiteLogsTab from './SiteLogsTab.vue'
@@ -70,6 +76,27 @@ const chosenPhpVersion: Ref<string> = ref('')
  */
 const site: ComputedRef<SiteDetail | null> = computed(() => {
   return store.detail.state === 'found' ? store.detail.site : null
+})
+
+/** Whether the site is still on its way, so the overview draws placeholders. */
+const isLoading: ComputedRef<boolean> = computed(() => {
+  return store.detail.state === 'loading'
+})
+
+/**
+ * Where the site's read stands, for the loading region. A site the panel says does not exist and
+ * a read that failed both leave nothing to show, so both are the region's error: the empty state
+ * or the alert.
+ */
+const regionState: ComputedRef<LoadingState> = computed(() => {
+  switch (store.detail.state) {
+    case 'loading':
+      return 'loading'
+    case 'found':
+      return 'loaded'
+    default:
+      return 'error'
+  }
 })
 
 /** The three panes, in the order the design lists them. */
@@ -209,153 +236,164 @@ onBeforeUnmount(() => {
 
 <template>
   <section class="flex w-full min-w-0 flex-col gap-4">
-    <UiSpinner v-if="store.detail.state === 'loading'" :label="t('sites.detail.loading')" />
+    <UiLoadingRegion :state="regionState">
+      <!-- A 404 is the not-found state, never the alert: the panel answered, and what it said is
+           that no such site exists for the caller (issue #204). -->
+      <template #error>
+        <UiAlert v-if="store.detail.state === 'failed'" variant="error">
+          {{ store.detail.message ?? t('app.status.unreachable') }}
+        </UiAlert>
+        <UiEmptyState
+          v-else
+          :title="t('sites.detail.notFoundTitle')"
+          :description="t('sites.detail.notFoundDescription')"
+        />
+      </template>
 
-    <template v-else-if="site !== null">
-      <UiPageHeading
-        mono
-        :eyebrow="t('sites.list.heading')"
-        :title="site.domain"
-        :subtitle="t(`sites.backendType.${site.backendType}`)"
-      >
-        <template #actions>
-          <SiteStatusBadge :status="site.status" />
-          <!-- A way back is navigation, so it looks like a link, not a button (#218). -->
-          <RouterLink
-            :to="{ name: 'sites' }"
-            class="inline-flex items-center gap-1 rounded-control text-sm font-medium text-accent-text underline underline-offset-4 hover:no-underline focus-visible:shadow-focus focus-visible:outline-none"
-          >
-            <UiIcon name="chevronLeft" size="sm" />
-            {{ t('sites.detail.backToList') }}
-          </RouterLink>
-        </template>
-      </UiPageHeading>
-
-      <UiAlert v-if="store.errorMessage !== null" variant="error">
-        {{ store.errorMessage }}
-      </UiAlert>
-
-      <UiSegmentedControl
-        :model-value="tab"
-        :options="tabOptions"
-        :label="t('sites.detail.heading')"
-        @update:model-value="onTabChange"
-      />
-
-      <div v-if="tab === 'overview'" class="grid min-w-0 gap-4 lg:grid-cols-3">
-        <UiCard class="lg:col-span-2">
-          <UiDescriptionList>
-            <UiDescriptionItem :term="t('sites.detail.domainLabel')" mono>
-              {{ site.domain }}
-            </UiDescriptionItem>
-            <UiDescriptionItem :term="t('sites.detail.aliasesLabel')" mono>
-              {{
-                site.aliases.length > 0
-                  ? site.aliases.join(', ')
-                  : t('sites.detail.noAliases')
-              }}
-            </UiDescriptionItem>
-            <UiDescriptionItem :term="t('sites.detail.backendTypeLabel')">
-              {{ t(`sites.backendType.${site.backendType}`) }}
-            </UiDescriptionItem>
-            <UiDescriptionItem
-              v-if="site.phpVersion.length > 0"
-              :term="t('sites.detail.phpVersionLabel')"
-              mono
+      <div class="flex min-w-0 flex-col gap-4">
+        <UiPageHeading
+          mono
+          :eyebrow="t('sites.list.heading')"
+          :title="site?.domain ?? ''"
+          :subtitle="site === null ? '' : t(`sites.backendType.${site.backendType}`)"
+          :loading="isLoading"
+        >
+          <template #actions>
+            <SiteStatusBadge v-if="site !== null" :status="site.status" />
+            <!-- A way back is navigation, so it looks like a link, not a button (#218). -->
+            <RouterLink
+              :to="{ name: 'sites' }"
+              class="inline-flex items-center gap-1 rounded-control text-sm font-medium text-accent-text underline underline-offset-4 hover:no-underline focus-visible:shadow-focus focus-visible:outline-none"
             >
-              {{ site.phpVersion }}
-            </UiDescriptionItem>
-            <UiDescriptionItem
-              v-if="site.proxyUpstream.length > 0"
-              :term="t('sites.detail.proxyUpstreamLabel')"
-              mono
-            >
-              {{ site.proxyUpstream }}
-            </UiDescriptionItem>
-            <UiDescriptionItem :term="t('sites.detail.documentRootLabel')" mono>
-              {{ site.documentRoot }}
-            </UiDescriptionItem>
-            <UiDescriptionItem :term="t('sites.detail.statusLabel')">
-              <SiteStatusBadge :status="site.status" />
-            </UiDescriptionItem>
-            <UiDescriptionItem :term="t('sites.detail.certificateLabel')">
-              {{
-                site.hasCertificate
-                  ? t('sites.detail.certificateInstalled')
-                  : t('sites.detail.certificateMissing')
-              }}
-            </UiDescriptionItem>
-            <UiDescriptionItem :term="t('sites.detail.createdAtLabel')">
-              {{ formatDate(site.createdAt, localeStore.current) }}
-            </UiDescriptionItem>
-          </UiDescriptionList>
-        </UiCard>
+              <UiIcon name="chevronLeft" size="sm" />
+              {{ t('sites.detail.backToList') }}
+            </RouterLink>
+          </template>
+        </UiPageHeading>
 
-        <div class="flex min-w-0 flex-col gap-4">
-          <UiCard v-if="isPhpSite" class="flex flex-col gap-4">
-            <UiSectionHeading :title="t('sites.detail.phpVersionLabel')">
-              <template #action>
-                <span class="font-mono text-lg font-semibold text-text-primary tabular-nums">
-                  {{ site.phpVersion }}
-                </span>
-              </template>
-            </UiSectionHeading>
-            <PhpVersionSelect
-              v-model="chosenPhpVersion"
-              :versions="store.phpVersions"
-              :disabled="store.acting"
-            />
-            <div>
-              <UiButton :disabled="!canApplyPhpVersion || store.acting" @click="applyPhpVersion">
-                {{ store.acting ? t('sites.detail.working') : t('sites.detail.changePhpVersion') }}
+        <UiAlert v-if="!isLoading && store.errorMessage !== null" variant="error">
+          {{ store.errorMessage }}
+        </UiAlert>
+
+        <UiSegmentedControl
+          :model-value="tab"
+          :options="tabOptions"
+          :label="t('sites.detail.heading')"
+          @update:model-value="onTabChange"
+        />
+
+        <div v-if="tab === 'overview'" class="grid min-w-0 gap-4 lg:grid-cols-3">
+          <UiCard class="lg:col-span-2">
+            <!-- The values are read only once loaded: while loading each item draws a placeholder
+                 line in place of its slot. The two items only some sites have wait for the site. -->
+            <UiDescriptionList :loading="isLoading">
+              <UiDescriptionItem :term="t('sites.detail.domainLabel')" mono>
+                {{ site?.domain }}
+              </UiDescriptionItem>
+              <UiDescriptionItem :term="t('sites.detail.aliasesLabel')" mono>
+                {{
+                  site === null
+                    ? ''
+                    : site.aliases.length > 0
+                    ? site.aliases.join(', ')
+                    : t('sites.detail.noAliases')
+                }}
+              </UiDescriptionItem>
+              <UiDescriptionItem :term="t('sites.detail.backendTypeLabel')">
+                {{ site === null ? '' : t(`sites.backendType.${site.backendType}`) }}
+              </UiDescriptionItem>
+              <UiDescriptionItem
+                v-if="site !== null && site.phpVersion.length > 0"
+                :term="t('sites.detail.phpVersionLabel')"
+                mono
+              >
+                {{ site.phpVersion }}
+              </UiDescriptionItem>
+              <UiDescriptionItem
+                v-if="site !== null && site.proxyUpstream.length > 0"
+                :term="t('sites.detail.proxyUpstreamLabel')"
+                mono
+              >
+                {{ site.proxyUpstream }}
+              </UiDescriptionItem>
+              <UiDescriptionItem :term="t('sites.detail.documentRootLabel')" mono>
+                {{ site?.documentRoot }}
+              </UiDescriptionItem>
+              <UiDescriptionItem :term="t('sites.detail.statusLabel')">
+                <SiteStatusBadge v-if="site !== null" :status="site.status" />
+              </UiDescriptionItem>
+              <UiDescriptionItem :term="t('sites.detail.certificateLabel')">
+                {{
+                  site?.hasCertificate === true
+                    ? t('sites.detail.certificateInstalled')
+                    : t('sites.detail.certificateMissing')
+                }}
+              </UiDescriptionItem>
+              <UiDescriptionItem :term="t('sites.detail.createdAtLabel')">
+                {{ site === null ? '' : formatDate(site.createdAt, localeStore.current) }}
+              </UiDescriptionItem>
+            </UiDescriptionList>
+          </UiCard>
+
+          <div class="flex min-w-0 flex-col gap-4">
+            <UiCard v-if="isPhpSite" class="flex flex-col gap-4">
+              <UiSectionHeading :title="t('sites.detail.phpVersionLabel')">
+                <template #action>
+                  <span class="font-mono text-lg font-semibold text-text-primary tabular-nums">
+                    {{ site?.phpVersion }}
+                  </span>
+                </template>
+              </UiSectionHeading>
+              <PhpVersionSelect
+                v-model="chosenPhpVersion"
+                :versions="store.phpVersions"
+                :disabled="store.acting"
+              />
+              <div>
+                <UiButton :disabled="!canApplyPhpVersion || store.acting" @click="applyPhpVersion">
+                  {{ store.acting ? t('sites.detail.working') : t('sites.detail.changePhpVersion') }}
+                </UiButton>
+              </div>
+            </UiCard>
+
+            <!-- Which actions apply depends on the site's status, so none is offered before it is
+                 known; a placeholder holds the card's place. -->
+            <UiCard v-if="site === null">
+              <UiSkeleton shape="block" />
+            </UiCard>
+            <UiCard v-else class="flex flex-wrap items-center gap-2">
+              <UiButton v-if="site.status === 'disabled'" variant="secondary" @click="ask('enable')">
+                {{ t('sites.detail.enable') }}
               </UiButton>
-            </div>
-          </UiCard>
-
-          <UiCard class="flex flex-wrap items-center gap-2">
-            <UiButton v-if="site.status === 'disabled'" variant="secondary" @click="ask('enable')">
-              {{ t('sites.detail.enable') }}
-            </UiButton>
-            <UiButton v-else variant="secondary" @click="ask('disable')">
-              {{ t('sites.detail.disable') }}
-            </UiButton>
-            <UiButton variant="destructive" @click="ask('delete')">{{ t('common.delete') }}</UiButton>
-          </UiCard>
+              <UiButton v-else variant="secondary" @click="ask('disable')">
+                {{ t('sites.detail.disable') }}
+              </UiButton>
+              <UiButton variant="destructive" @click="ask('delete')">{{ t('common.delete') }}</UiButton>
+            </UiCard>
+          </div>
         </div>
+
+        <SiteLogsTab v-else-if="tab === 'logs'" :site-id="props.id" />
+
+        <SiteSslTab v-else-if="site !== null" :site-id="props.id" :domain="site.domain" />
       </div>
+    </UiLoadingRegion>
 
-      <SiteLogsTab v-else-if="tab === 'logs'" :site-id="props.id" />
-
-      <SiteSslTab v-else :site-id="props.id" :domain="site.domain" />
-
-      <!-- Outside the tab branches, and bound to a value that really changes rather than wrapped
-           in a `v-if`: a dialog created with `open` already true never runs `UiModal`s
-           open-watcher, so focus never enters it and Escape never reaches it. -->
-      <UiConfirm
-        :open="pending !== null"
-        :title="confirmationTitle"
-        :question="confirmationText"
-        :confirm-label="confirmationLabel"
-        :cancel-label="t('common.cancel')"
-        :close-label="t('common.close')"
-        :acting="store.acting"
-        :acting-label="t('sites.detail.working')"
-        :destructive="pending !== 'enable'"
-        @close="cancel"
-        @confirm="confirm"
-      />
-    </template>
-
-    <!-- A 404 is the not-found state below, never this alert: the panel answered, and what it said
-         is that no such site exists for the caller (issue #204). -->
-    <UiAlert v-else-if="store.detail.state === 'failed'" variant="error">
-      {{ store.detail.message ?? t('app.status.unreachable') }}
-    </UiAlert>
-
-    <UiEmptyState
-      v-else
-      :title="t('sites.detail.notFoundTitle')"
-      :description="t('sites.detail.notFoundDescription')"
+    <!-- Outside the tab branches, and bound to a value that really changes rather than wrapped
+         in a `v-if`: a dialog created with `open` already true never runs `UiModal`s
+         open-watcher, so focus never enters it and Escape never reaches it. -->
+    <UiConfirm
+      :open="pending !== null"
+      :title="confirmationTitle"
+      :question="confirmationText"
+      :confirm-label="confirmationLabel"
+      :cancel-label="t('common.cancel')"
+      :close-label="t('common.close')"
+      :acting="store.acting"
+      :acting-label="t('sites.detail.working')"
+      :destructive="pending !== 'enable'"
+      @close="cancel"
+      @confirm="confirm"
     />
   </section>
 </template>

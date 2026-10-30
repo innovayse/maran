@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { computed, ref, type ComputedRef, type Ref } from 'vue'
 import { useCronApi } from '../composables/apis/useCronApi'
 import { ApiError } from '../composables/useApi'
+import type { LoadingState } from '../types/loading'
 import type { CronEntry, CronEntryOutput, CronSchedule } from '../types/cronEntry'
 import type { CronEnvironmentVariable } from '../types/cronEnvironmentVariable'
 
@@ -34,9 +35,6 @@ export const useCronStore = defineStore('cron', () => {
   /** The managed environment assignments as last reported; empty before the first load. */
   const environment: Ref<CronEnvironmentVariable[]> = ref([])
 
-  /** True while the entries request is in flight. */
-  const loading: Ref<boolean> = ref(false)
-
   /** True while a create or an update is in flight. */
   const saving: Ref<boolean> = ref(false)
 
@@ -46,14 +44,23 @@ export const useCronStore = defineStore('cron', () => {
   /** True while the environment set is being written. */
   const savingEnvironment: Ref<boolean> = ref(false)
 
-  /** True once the entries of the currently selected account have loaded successfully. */
-  const isLoaded: Ref<boolean> = ref(false)
+  /**
+   * Where the read of the selected account's entries stands; every failure sets `error`, whatever
+   * its cause. It means nothing until an account is selected ({@link accountId} is empty).
+   */
+  const loadState: Ref<LoadingState> = ref('loading')
 
   /**
-   * Backend-localized message from the most recent failed read, switch or removal, or `null`.
-   * Rendered verbatim.
+   * Backend-localized message from the most recent failed read, or `null` when it succeeded or the
+   * failure carried no message (the panel was unreachable). Rendered verbatim.
    */
   const errorMessage: Ref<string | null> = ref(null)
+
+  /**
+   * Backend-localized message from the most recent failed switch or removal, or `null`. Kept apart
+   * from {@link errorMessage} so a refused switch is reported above the list rather than replacing it.
+   */
+  const actionErrorMessage: Ref<string | null> = ref(null)
 
   /**
    * Backend-localized message from the most recent failed create or update, or `null`. Kept apart
@@ -85,7 +92,7 @@ export const useCronStore = defineStore('cron', () => {
 
   /** Whether the panel answered successfully and reported no entries at all. */
   const isEmpty: ComputedRef<boolean> = computed(() => {
-    return isLoaded.value && entries.value.length === 0
+    return loadState.value === 'loaded' && entries.value.length === 0
   })
 
   /** Whether the last-run dialog is open. */
@@ -102,15 +109,14 @@ export const useCronStore = defineStore('cron', () => {
       return
     }
 
-    loading.value = true
+    loadState.value = 'loading'
     try {
       entries.value = await api.list(accountId.value)
       errorMessage.value = null
-      isLoaded.value = true
+      loadState.value = 'loaded'
     } catch (error) {
       errorMessage.value = error instanceof ApiError ? error.message : null
-    } finally {
-      loading.value = false
+      loadState.value = 'error'
     }
   }
 
@@ -143,8 +149,8 @@ export const useCronStore = defineStore('cron', () => {
     accountId.value = id
     entries.value = []
     environment.value = []
-    isLoaded.value = false
     errorMessage.value = null
+    actionErrorMessage.value = null
     environmentErrorMessage.value = null
     await Promise.all([load(), loadEnvironment()])
   }
@@ -208,11 +214,11 @@ export const useCronStore = defineStore('cron', () => {
     acting.value = true
     try {
       await api.setEnabled(entryId, { accountId: accountId.value, enabled })
-      errorMessage.value = null
+      actionErrorMessage.value = null
       await load()
       return true
     } catch (error) {
-      errorMessage.value = error instanceof ApiError ? error.message : null
+      actionErrorMessage.value = error instanceof ApiError ? error.message : null
       return false
     } finally {
       acting.value = false
@@ -228,11 +234,11 @@ export const useCronStore = defineStore('cron', () => {
     acting.value = true
     try {
       await api.remove(entryId, accountId.value)
-      errorMessage.value = null
+      actionErrorMessage.value = null
       await load()
       return true
     } catch (error) {
-      errorMessage.value = error instanceof ApiError ? error.message : null
+      actionErrorMessage.value = error instanceof ApiError ? error.message : null
       return false
     } finally {
       acting.value = false
@@ -295,12 +301,12 @@ export const useCronStore = defineStore('cron', () => {
     accountId,
     entries,
     environment,
-    loading,
     saving,
     acting,
     savingEnvironment,
-    isLoaded,
+    loadState,
     errorMessage,
+    actionErrorMessage,
     saveErrorMessage,
     environmentErrorMessage,
     outputEntryId,

@@ -4,6 +4,7 @@ import { useBackupsApi } from '../composables/apis/useBackupsApi'
 import { ApiError } from '../composables/useApi'
 import { restorePartialCounts } from '../utils/restorePartialCounts'
 import type { AccountListFilter } from '../types/accountListFilter'
+import type { LoadingState } from '../types/loading'
 import type {
   Backup,
   CreateBackupRequest,
@@ -37,9 +38,6 @@ export const useBackupsStore = defineStore('backups', () => {
   /** The backups as last reported by the panel; empty before the first successful load. */
   const backups: Ref<Backup[]> = ref([])
 
-  /** True while the list request is in flight. */
-  const loading: Ref<boolean> = ref(false)
-
   /**
    * True while a create request is in flight.
    *
@@ -52,14 +50,20 @@ export const useBackupsStore = defineStore('backups', () => {
   /** True while a deletion is in flight. */
   const acting: Ref<boolean> = ref(false)
 
-  /** True once the list has been loaded at least once, successfully. */
-  const isLoaded: Ref<boolean> = ref(false)
+  /** Where the read of the list stands; every failure sets `error`, whatever its cause. */
+  const loadState: Ref<LoadingState> = ref('loading')
 
   /**
-   * Backend-localized message from the most recent failed read or deletion, or `null` when the
-   * last one succeeded or none has been attempted. Rendered verbatim.
+   * Backend-localized message from the most recent failed read, or `null` when the last one
+   * succeeded or the failure carried no message (the panel was unreachable). Rendered verbatim.
    */
   const errorMessage: Ref<string | null> = ref(null)
+
+  /**
+   * Backend-localized message from the most recent failed deletion, or `null`. Kept apart from
+   * {@link errorMessage} so a refused deletion is reported above the list rather than replacing it.
+   */
+  const removeErrorMessage: Ref<string | null> = ref(null)
 
   /**
    * Backend-localized message from the most recent failed create attempt, or `null`. Kept apart
@@ -110,15 +114,14 @@ export const useBackupsStore = defineStore('backups', () => {
    * @returns Resolves once the request has settled, successfully or not.
    */
   const load = async (filter: AccountListFilter): Promise<void> => {
-    loading.value = true
+    loadState.value = 'loading'
     try {
       backups.value = await api.list(filter)
       errorMessage.value = null
-      isLoaded.value = true
+      loadState.value = 'loaded'
     } catch (error) {
       errorMessage.value = error instanceof ApiError ? error.message : null
-    } finally {
-      loading.value = false
+      loadState.value = 'error'
     }
   }
 
@@ -160,10 +163,10 @@ export const useBackupsStore = defineStore('backups', () => {
       backups.value = backups.value.filter((backup) => {
         return backup.id !== id
       })
-      errorMessage.value = null
+      removeErrorMessage.value = null
       return true
     } catch (error) {
-      errorMessage.value = error instanceof ApiError ? error.message : null
+      removeErrorMessage.value = error instanceof ApiError ? error.message : null
       return false
     } finally {
       acting.value = false
@@ -219,11 +222,11 @@ export const useBackupsStore = defineStore('backups', () => {
 
   return {
     backups,
-    loading,
     creating,
     acting,
-    isLoaded,
+    loadState,
     errorMessage,
+    removeErrorMessage,
     createErrorMessage,
     restoring,
     restoreOutcome,

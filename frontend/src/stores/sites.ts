@@ -3,6 +3,7 @@ import { ref, type Ref } from 'vue'
 import { useSitesApi } from '../composables/apis/useSitesApi'
 import { ApiError } from '../composables/useApi'
 import type { ListLoad, ListRequest } from '../types/list'
+import type { LoadingState } from '../types/loading'
 import type { CreateSiteRequest, Site, SiteDetailLoad, DisabledSitesCount } from '../types/site'
 import type { PhpVersion } from '../types/phpVersion'
 import type {
@@ -57,6 +58,9 @@ export const useSitesStore = defineStore('sites', () => {
 
   /** The PHP versions installed on the host, as last loaded. Never a list written into the SPA. */
   const phpVersions: Ref<PhpVersion[]> = ref([])
+
+  /** Where the read of {@link phpVersions} stands; every failure sets `error`, whatever its cause. */
+  const phpVersionsState: Ref<LoadingState> = ref('loading')
 
   /** The version an install is running for, or `null` when none is. */
   const installingPhpVersion: Ref<string | null> = ref(null)
@@ -194,11 +198,14 @@ export const useSitesStore = defineStore('sites', () => {
    * @returns Resolves once the request has settled, successfully or not.
    */
   const loadPhpVersions = async (): Promise<void> => {
+    phpVersionsState.value = 'loading'
     try {
       phpVersions.value = await api.listPhpVersions()
       errorMessage.value = null
+      phpVersionsState.value = 'loaded'
     } catch (error) {
       errorMessage.value = error instanceof ApiError ? error.message : null
+      phpVersionsState.value = 'error'
     }
   }
 
@@ -447,6 +454,7 @@ export const useSitesStore = defineStore('sites', () => {
     disabledCount,
     detail,
     phpVersions,
+    phpVersionsState,
     installingPhpVersion,
     phpInstallErrorMessage,
     creating,

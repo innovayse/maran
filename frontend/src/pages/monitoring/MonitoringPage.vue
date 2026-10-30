@@ -32,10 +32,11 @@ import { useI18n } from 'vue-i18n'
 import UiAlert from '../../components/ui/UiAlert.vue'
 import UiCard from '../../components/ui/UiCard.vue'
 import UiEmptyState from '../../components/ui/UiEmptyState.vue'
+import UiLoadingRegion from '../../components/ui/UiLoadingRegion.vue'
 import UiSegmentedControl, { type SegmentOption } from '../../components/ui/UiSegmentedControl.vue'
 import UiPageHeading from '../../components/ui/UiPageHeading.vue'
 import UiSectionHeading from '../../components/ui/UiSectionHeading.vue'
-import UiSpinner from '../../components/ui/UiSpinner.vue'
+import UiSkeleton from '../../components/ui/UiSkeleton.vue'
 import AccountDiskTable from '../../components/monitoring/AccountDiskTable.vue'
 import MonitoringCharts from '../../components/monitoring/MonitoringCharts.vue'
 import ServiceStatusBadges from '../../components/monitoring/ServiceStatusBadges.vue'
@@ -53,14 +54,19 @@ const rangeOptions: ComputedRef<SegmentOption[]> = computed(() => {
   ]
 })
 
+/** Whether the screen is still on its way, so every section draws placeholders. */
+const isLoading: ComputedRef<boolean> = computed(() => {
+  return store.loadState === 'loading'
+})
+
 /** Whether the panel answered the services read successfully and reported no watched service. */
 const hasNoServices: ComputedRef<boolean> = computed(() => {
-  return store.isLoaded && store.errorMessage === null && store.services.length === 0
+  return store.loadState === 'loaded' && store.services.length === 0
 })
 
 /** Whether the panel answered the disk read successfully and reported no account at all. */
 const hasNoAccounts: ComputedRef<boolean> = computed(() => {
-  return store.isLoaded && store.diskErrorMessage === null && store.accountDiskUsage.length === 0
+  return store.loadState === 'loaded' && store.diskErrorMessage === null && store.accountDiskUsage.length === 0
 })
 
 /**
@@ -142,35 +148,46 @@ onMounted(() => {
       </template>
     </UiPageHeading>
 
-    <UiAlert v-if="store.errorMessage !== null" variant="error">{{ store.errorMessage }}</UiAlert>
+    <!-- A refused range switch; a refused first read is the region's own error below. -->
+    <UiAlert v-if="store.loadState === 'loaded' && store.errorMessage !== null" variant="error">
+      {{ store.errorMessage }}
+    </UiAlert>
 
-    <UiSpinner v-if="store.loading" :label="t('monitoring.loading')" />
+    <UiLoadingRegion :state="store.loadState">
+      <template #error>
+        <UiAlert variant="error">{{ store.errorMessage ?? t('app.status.unreachable') }}</UiAlert>
+      </template>
 
-    <template v-else>
-      <UiAlert v-if="attentionText !== null" variant="warning">{{ attentionText }}</UiAlert>
+      <!-- While the screen is read, every card is drawn with its real heading and a placeholder
+           where its content will be, so the answer lands in the space already held. -->
+      <div class="flex flex-col gap-4">
+        <UiAlert v-if="!isLoading && attentionText !== null" variant="warning">{{ attentionText }}</UiAlert>
 
-      <UiCard>
-        <UiSectionHeading class="mb-4" :title="t('monitoring.services.title')" />
-        <UiEmptyState
-          v-if="hasNoServices"
-          :title="t('monitoring.services.emptyTitle')"
-          :description="t('monitoring.services.emptyDescription')"
-        />
-        <ServiceStatusBadges v-else :statuses="store.services" />
-      </UiCard>
+        <UiCard>
+          <UiSectionHeading class="mb-4" :title="t('monitoring.services.title')" />
+          <UiSkeleton v-if="isLoading" shape="block" />
+          <UiEmptyState
+            v-else-if="hasNoServices"
+            :title="t('monitoring.services.emptyTitle')"
+            :description="t('monitoring.services.emptyDescription')"
+          />
+          <ServiceStatusBadges v-else :statuses="store.services" />
+        </UiCard>
 
-      <MonitoringCharts :buckets="store.buckets" />
+        <MonitoringCharts :buckets="store.buckets" :loading="isLoading" />
 
-      <UiCard>
-        <UiSectionHeading class="mb-4" :title="t('monitoring.disk.title')" />
-        <UiAlert v-if="store.diskErrorMessage !== null" variant="error">{{ store.diskErrorMessage }}</UiAlert>
-        <UiEmptyState
-          v-else-if="hasNoAccounts"
-          :title="t('monitoring.disk.emptyTitle')"
-          :description="t('monitoring.disk.emptyDescription')"
-        />
-        <AccountDiskTable v-else :rows="store.accountDiskUsage" />
-      </UiCard>
-    </template>
+        <UiCard>
+          <UiSectionHeading class="mb-4" :title="t('monitoring.disk.title')" />
+          <UiSkeleton v-if="isLoading" shape="block" size="lg" />
+          <UiAlert v-else-if="store.diskErrorMessage !== null" variant="error">{{ store.diskErrorMessage }}</UiAlert>
+          <UiEmptyState
+            v-else-if="hasNoAccounts"
+            :title="t('monitoring.disk.emptyTitle')"
+            :description="t('monitoring.disk.emptyDescription')"
+          />
+          <AccountDiskTable v-else :rows="store.accountDiskUsage" />
+        </UiCard>
+      </div>
+    </UiLoadingRegion>
   </section>
 </template>

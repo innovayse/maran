@@ -3,6 +3,7 @@ import { ref, type Ref } from 'vue'
 import { useAuditApi } from '../composables/apis/useAuditApi'
 import { ApiError } from '../composables/useApi'
 import type { AuditEvent } from '../types/audit'
+import type { LoadingState } from '../types/loading'
 
 /**
  * Owns the audit journal the admin screen renders. The page reads state from here and calls
@@ -18,34 +19,30 @@ export const useAuditStore = defineStore('audit', () => {
   /** The entries as last reported by the panel; empty before the first successful load. */
   const events: Ref<AuditEvent[]> = ref([])
 
-  /** True while the request is in flight. */
-  const loading: Ref<boolean> = ref(false)
-
   /**
    * Backend-localized message from the most recent failed load, or `null` when the last load
    * succeeded or has not been attempted yet. Rendered verbatim — the SPA owns no error text.
    */
   const errorMessage: Ref<string | null> = ref(null)
 
-  /** True once the journal has been loaded at least once, successfully. */
-  const isLoaded: Ref<boolean> = ref(false)
+  /** Where the read of the journal stands; every failure sets `error`, whatever its cause. */
+  const loadState: Ref<LoadingState> = ref('loading')
 
   /**
    * Loads the journal, replacing what is held.
    * @returns Resolves once the request has settled, successfully or not.
    */
   const load = async (): Promise<void> => {
-    loading.value = true
+    loadState.value = 'loading'
     try {
       events.value = await api.list()
       errorMessage.value = null
-      isLoaded.value = true
+      loadState.value = 'loaded'
     } catch (error) {
       errorMessage.value = error instanceof ApiError ? error.message : null
-    } finally {
-      loading.value = false
+      loadState.value = 'error'
     }
   }
 
-  return { events, loading, errorMessage, isLoaded, load }
+  return { events, errorMessage, loadState, load }
 })

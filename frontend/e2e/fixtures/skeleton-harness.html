@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Skeleton harness</title>
+  </head>
+  <body>
+    <!--
+      Playwright-only mount point for the loading kit: UiLoadingRegion, UiSkeleton, UiTable's
+      `columns` schema with `loading`, UiForm's and UiDescriptionList's `loading`
+      (e2e/ui-kit/skeleton.spec.ts).
+
+      It mounts the components directly, without the router, the shell or authentication, so the
+      kit's own contract (every column kind drawn, placeholders hidden from assistive technology,
+      one polite status, no flash for a fast answer, an error that is never a skeleton) is tested
+      apart from any page. Query parameters: `locale` (en, ru, hy), `delay` (milliseconds until
+      the load settles; `never` holds it loading), `outcome` (`loaded` or `error`).
+
+      Registered as a Vite build entry (vite.config.ts) so `vite preview`, what the e2e run serves,
+      reaches it at the same path as `vite dev`.
+    -->
+    <div id="app" style="padding: 16px"></div>
+    <script type="module" src="./skeleton-harness.ts"></script>
+  </body>
+</html>

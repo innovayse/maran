@@ -23,7 +23,7 @@ import UiEmptyState from '../../components/ui/UiEmptyState.vue'
 import UiIcon from '../../components/ui/UiIcon.vue'
 import UiPageHeading from '../../components/ui/UiPageHeading.vue'
 import UiSectionHeading from '../../components/ui/UiSectionHeading.vue'
-import UiSpinner from '../../components/ui/UiSpinner.vue'
+import UiLoadingRegion from '../../components/ui/UiLoadingRegion.vue'
 import UiToast from '../../components/ui/UiToast.vue'
 import FirewallBanForm from '../../components/firewall/FirewallBanForm.vue'
 import FirewallBansTable from '../../components/firewall/FirewallBansTable.vue'
@@ -66,9 +66,14 @@ const pendingFromForm: Ref<boolean> = ref(false)
 /** The success toast's text after a rule was installed, or `null` while none is showing. */
 const notice: Ref<string | null> = ref(null)
 
+/** Whether the lists are still on their way: each table draws placeholder rows meanwhile. */
+const listsLoading: ComputedRef<boolean> = computed(() => {
+  return store.loadState === 'loading'
+})
+
 /** Whether the panel answered successfully and reported no rules at all. */
 const hasNoRules: ComputedRef<boolean> = computed(() => {
-  return store.isLoaded && store.rules.length === 0
+  return store.loadState === 'loaded' && store.rules.length === 0
 })
 
 /**
@@ -305,13 +310,11 @@ onMounted(refresh)
       :note="t('firewall.sshNote')"
     />
 
-    <UiSpinner v-if="store.loading" :label="t('firewall.loading')" />
+    <UiLoadingRegion :state="store.loadState" class="flex flex-col gap-4">
+      <template #error>
+        <UiAlert variant="error">{{ store.errorMessage ?? t('common.list.unreachable') }}</UiAlert>
+      </template>
 
-    <UiAlert v-else-if="store.errorMessage !== null" variant="error">
-      {{ store.errorMessage }}
-    </UiAlert>
-
-    <template v-else>
       <FirewallPresetButtons
         :rules="store.rules"
         :busy="store.acting"
@@ -341,7 +344,13 @@ onMounted(refresh)
           <template #icon><UiIcon name="brickWall" size="lg" /></template>
         </UiEmptyState>
 
-        <FirewallRulesTable v-else :rules="store.rules" :busy="store.acting" @remove="removeRule" />
+        <FirewallRulesTable
+          v-else
+          :rules="store.rules"
+          :busy="store.acting"
+          :loading="listsLoading"
+          @remove="removeRule"
+        />
       </UiCard>
 
       <UiCard class="flex flex-col gap-4">
@@ -357,12 +366,12 @@ onMounted(refresh)
         <FirewallBanForm ref="banForm" :submitting="store.acting" @submit="placeBan" @edit="clearBanError" />
 
         <UiEmptyState
-          v-if="store.bans.length === 0"
+          v-if="store.loadState === 'loaded' && store.bans.length === 0"
           :title="t('firewall.bans.emptyTitle')"
           :description="t('firewall.bans.emptyDescription')"
         />
 
-        <FirewallBansTable v-else :bans="store.bans" :busy="store.acting" @unban="liftBan" />
+        <FirewallBansTable v-else :bans="store.bans" :busy="store.acting" :loading="listsLoading" @unban="liftBan" />
       </UiCard>
 
       <UiCard class="flex flex-col gap-4">
@@ -388,7 +397,7 @@ onMounted(refresh)
         />
 
         <UiEmptyState
-          v-if="store.whitelist.length === 0"
+          v-if="store.loadState === 'loaded' && store.whitelist.length === 0"
           :title="t('firewall.whitelist.emptyTitle')"
           :description="t('firewall.whitelist.emptyDescription')"
         />
@@ -397,10 +406,11 @@ onMounted(refresh)
           v-else
           :entries="store.whitelist"
           :busy="store.acting"
+          :loading="listsLoading"
           @remove="removeExemption"
         />
       </UiCard>
-    </template>
+    </UiLoadingRegion>
 
     <!-- `:open` is bound to a value that really changes, and the dialog is NOT wrapped in a `v-if`:
          created with the prop already true, `UiModal`s open-watcher never runs, so focus never

@@ -34,12 +34,10 @@ import UiCard from '../../components/ui/UiCard.vue'
 import UiEmptyState from '../../components/ui/UiEmptyState.vue'
 import UiIcon from '../../components/ui/UiIcon.vue'
 import UiPageHeading from '../../components/ui/UiPageHeading.vue'
-import UiSpinner from '../../components/ui/UiSpinner.vue'
+import UiLoadingRegion from '../../components/ui/UiLoadingRegion.vue'
 import UiToast from '../../components/ui/UiToast.vue'
 import UiTable from '../../components/ui/UiTable.vue'
-import UiTableCell from '../../components/ui/UiTableCell.vue'
-import UiTableHeaderCell from '../../components/ui/UiTableHeaderCell.vue'
-import UiTableRow from '../../components/ui/UiTableRow.vue'
+import type { UiTableColumn } from '../../types/tableColumn'
 import PlanDeleteDialog from '../../components/plans/PlanDeleteDialog.vue'
 import { usePlansStore } from '../../stores/plans'
 import { formatMegabytes } from '../../utils/formatBytes'
@@ -57,7 +55,24 @@ const notice: Ref<string | null> = ref(null)
 
 /** Whether the panel answered successfully and reported no plans at all. */
 const isEmpty: ComputedRef<boolean> = computed(() => {
-  return store.isLoaded && store.plans.length === 0
+  return store.loadState === 'loaded' && store.plans.length === 0
+})
+
+
+/** The table's columns: its header, its cells and its loading placeholder all read this one list. */
+const columns: ComputedRef<UiTableColumn[]> = computed(() => {
+  return [
+    { key: 'name', label: t('common.name'), kind: 'identity' },
+    { key: 'accounts', label: t('plans.list.columns.accounts'), kind: 'number' },
+    { key: 'diskQuota', label: t('plans.list.columns.diskQuota'), kind: 'number' },
+    { key: 'sites', label: t('plans.list.columns.sites'), kind: 'number' },
+    { key: 'databases', label: t('plans.list.columns.databases'), kind: 'number' },
+    { key: 'sftpUsers', label: t('plans.list.columns.sftpUsers'), kind: 'number' },
+    { key: 'ftpUsers', label: t('plans.list.columns.ftpUsers'), kind: 'number' },
+    { key: 'cronEntries', label: t('plans.list.columns.cronEntries'), kind: 'number' },
+    { key: 'phpWorkers', label: t('plans.list.columns.phpWorkers'), kind: 'number' },
+    { key: 'actions', label: t('common.actions'), kind: 'actions' },
+  ]
 })
 
 /**
@@ -143,72 +158,58 @@ onMounted(async () => {
       {{ store.deleteErrorMessage }}
     </UiAlert>
 
-    <UiSpinner v-if="store.loading && !store.isLoaded" :label="t('plans.list.loading')" />
+    <UiLoadingRegion :state="store.loadState">
+      <template #error>
+        <UiAlert variant="error">{{ store.errorMessage ?? t('common.list.unreachable') }}</UiAlert>
+      </template>
 
-    <UiAlert v-else-if="store.errorMessage !== null" variant="error">{{ store.errorMessage }}</UiAlert>
+      <UiEmptyState v-if="isEmpty" :title="t('plans.list.emptyTitle')" :description="t('plans.list.emptyDescription')">
+        <template #icon><UiIcon name="package" size="lg" /></template>
+        <UiButton :to="{ name: 'plans-new' }">{{ t('plans.list.createAction') }}</UiButton>
+      </UiEmptyState>
 
-    <UiEmptyState
-      v-else-if="isEmpty"
-      :title="t('plans.list.emptyTitle')"
-      :description="t('plans.list.emptyDescription')"
-    >
-      <template #icon><UiIcon name="package" size="lg" /></template>
-      <UiButton :to="{ name: 'plans-new' }">{{ t('plans.list.createAction') }}</UiButton>
-    </UiEmptyState>
-
-    <UiCard v-else-if="store.plans.length > 0">
-      <UiTable :caption="t('plans.list.tableCaption')">
-        <template #head>
-          <UiTableRow>
-            <UiTableHeaderCell>{{ t('common.name') }}</UiTableHeaderCell>
-            <UiTableHeaderCell align="end">{{ t('plans.list.columns.accounts') }}</UiTableHeaderCell>
-            <UiTableHeaderCell align="end">{{ t('plans.list.columns.diskQuota') }}</UiTableHeaderCell>
-            <UiTableHeaderCell align="end">{{ t('plans.list.columns.sites') }}</UiTableHeaderCell>
-            <UiTableHeaderCell align="end">{{ t('plans.list.columns.databases') }}</UiTableHeaderCell>
-            <UiTableHeaderCell align="end">{{ t('plans.list.columns.sftpUsers') }}</UiTableHeaderCell>
-            <UiTableHeaderCell align="end">{{ t('plans.list.columns.ftpUsers') }}</UiTableHeaderCell>
-            <UiTableHeaderCell align="end">{{ t('plans.list.columns.cronEntries') }}</UiTableHeaderCell>
-            <UiTableHeaderCell align="end">{{ t('plans.list.columns.phpWorkers') }}</UiTableHeaderCell>
-            <UiTableHeaderCell align="end">{{ t('common.actions') }}</UiTableHeaderCell>
-          </UiTableRow>
-        </template>
-        <UiTableRow v-for="plan in store.plans" :key="plan.id">
-          <!-- A plan's name is whatever the operator typed: one unit, so a long one scrolls the
-               table inside its container and does not break into a column of fragments. -->
-          <UiTableCell class="font-medium whitespace-nowrap">{{ plan.displayName }}</UiTableCell>
-          <UiTableCell mono align="end" tone="secondary">{{ plan.accountCount }}</UiTableCell>
-          <UiTableCell mono align="end" class="whitespace-nowrap">{{ formatMegabytes(plan.diskQuotaMb) }}</UiTableCell>
-          <UiTableCell mono align="end">{{ plan.maxSites }}</UiTableCell>
-          <UiTableCell mono align="end">{{ plan.maxDatabases }}</UiTableCell>
-          <UiTableCell mono align="end">{{ plan.maxSftpUsers }}</UiTableCell>
-          <UiTableCell mono align="end">{{ optionalCount(plan.maxFtpUsers) }}</UiTableCell>
-          <UiTableCell mono align="end">{{ optionalCount(plan.maxCronEntries) }}</UiTableCell>
-          <UiTableCell mono align="end">{{ plan.maxPhpWorkersPerPool }}</UiTableCell>
-          <UiTableCell align="end">
+      <UiCard v-else>
+        <UiTable
+          :caption="t('plans.list.tableCaption')"
+          :columns="columns"
+          :rows="store.plans"
+          row-key="id"
+          :loading="store.loadState === 'loading'"
+        >
+          <template #cell-name="{ row }">{{ row.displayName }}</template>
+          <template #cell-accounts="{ row }">{{ row.accountCount }}</template>
+          <template #cell-diskQuota="{ row }">{{ formatMegabytes(row.diskQuotaMb) }}</template>
+          <template #cell-sites="{ row }">{{ row.maxSites }}</template>
+          <template #cell-databases="{ row }">{{ row.maxDatabases }}</template>
+          <template #cell-sftpUsers="{ row }">{{ row.maxSftpUsers }}</template>
+          <template #cell-ftpUsers="{ row }">{{ optionalCount(row.maxFtpUsers) }}</template>
+          <template #cell-cronEntries="{ row }">{{ optionalCount(row.maxCronEntries) }}</template>
+          <template #cell-phpWorkers="{ row }">{{ row.maxPhpWorkersPerPool }}</template>
+          <template #cell-actions="{ row }">
             <!-- Two icon buttons, each named for the plan it acts on: the glyph carries no text,
                  and two rows' "Edit" must not be the same accessible name. -->
             <div class="flex items-center justify-end gap-1">
               <UiButton
                 variant="ghost"
                 size="icon-sm"
-                :to="{ name: 'plans-edit', params: { id: plan.id } }"
-                :aria-label="t('plans.list.edit', { name: plan.displayName })"
+                :to="{ name: 'plans-edit', params: { id: row.id } }"
+                :aria-label="t('plans.list.edit', { name: row.displayName })"
               >
                 <UiIcon name="pencil" size="md" />
               </UiButton>
               <UiButton
                 variant="ghost"
                 size="icon-sm"
-                :aria-label="t('plans.list.delete', { name: plan.displayName })"
-                @click="ask(plan)"
+                :aria-label="t('plans.list.delete', { name: row.displayName })"
+                @click="ask(row)"
               >
                 <UiIcon name="trash" size="md" />
               </UiButton>
             </div>
-          </UiTableCell>
-        </UiTableRow>
-      </UiTable>
-    </UiCard>
+          </template>
+        </UiTable>
+      </UiCard>
+    </UiLoadingRegion>
 
     <!-- One dialog for the whole table: only one deletion can be awaiting an answer. Always mounted
          and opened by `pending` being set, so it animates and `UiModal` returns focus to the

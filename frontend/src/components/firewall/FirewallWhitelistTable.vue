@@ -23,9 +23,7 @@ import UiDropdown from '../ui/UiDropdown.vue'
 import UiDropdownItem from '../ui/UiDropdownItem.vue'
 import UiIcon from '../ui/UiIcon.vue'
 import UiTable from '../ui/UiTable.vue'
-import UiTableCell from '../ui/UiTableCell.vue'
-import UiTableHeaderCell from '../ui/UiTableHeaderCell.vue'
-import UiTableRow from '../ui/UiTableRow.vue'
+import type { UiTableColumn } from '../../types/tableColumn'
 import { useLocaleStore } from '../../stores/locale'
 import { formatIsoTimestamp } from '../../utils/formatIsoTimestamp'
 import type { WhitelistEntry } from '../../types/firewall'
@@ -36,6 +34,8 @@ const props = defineProps<{
   entries: readonly WhitelistEntry[]
   /** Whether a change is already in flight, which disables every row's menu. */
   busy: boolean
+  /** Whether the screen's lists are still loading: the real header over placeholder rows. */
+  loading: boolean
 }>()
 
 /** Events emitted by {@link FirewallWhitelistTable}. */
@@ -49,6 +49,16 @@ const localeStore = useLocaleStore()
 
 /** The row whose removal is awaiting confirmation, or the empty string when none is. */
 const pendingId: Ref<string> = ref('')
+
+/** The table's columns: its header, its cells and its loading placeholder all read this one list. */
+const columns: ComputedRef<UiTableColumn[]> = computed(() => {
+  return [
+    { key: 'cidr', label: t('firewall.whitelist.columns.cidr'), kind: 'identifier' },
+    { key: 'note', label: t('firewall.whitelist.columns.note'), kind: 'text' },
+    { key: 'createdAt', label: t('firewall.whitelist.columns.createdAt'), kind: 'date' },
+    { key: 'actions', label: t('common.actions'), kind: 'actions' },
+  ]
+})
 
 /** The exemption the confirmation is open for, or `null` when none is. */
 const pendingEntry: ComputedRef<WhitelistEntry | null> = computed(() => {
@@ -115,45 +125,37 @@ watch(
   <!-- `UiTable` scrolls inside its own container, so at 390px the table keeps its columns and the
        page never moves sideways: the machine-text columns refuse to wrap, the note is the one that
        does. -->
-  <UiTable :caption="t('firewall.whitelist.tableCaption')">
-    <template #head>
-      <UiTableRow>
-        <UiTableHeaderCell>{{ t('firewall.whitelist.columns.cidr') }}</UiTableHeaderCell>
-        <UiTableHeaderCell>{{ t('firewall.whitelist.columns.note') }}</UiTableHeaderCell>
-        <UiTableHeaderCell>{{ t('firewall.whitelist.columns.createdAt') }}</UiTableHeaderCell>
-        <UiTableHeaderCell align="end">{{ t('common.actions') }}</UiTableHeaderCell>
-      </UiTableRow>
+  <UiTable
+    :caption="t('firewall.whitelist.tableCaption')"
+    :columns="columns"
+    :rows="entries"
+    row-key="id"
+    :loading="loading"
+  >
+    <!-- A range is machine text: the mono face, as typed, never uppercased. -->
+    <template #cell-cidr="{ row }">{{ row.cidr }}</template>
+    <!-- The panel's own words, shown whole and as written: this is what tells an operator that a
+         row is the installer's seed rather than one of theirs, so it wraps instead of being cut
+         off with an ellipsis. -->
+    <template #cell-note="{ row }"><span class="block min-w-56 max-w-md wrap-anywhere">{{ row.note }}</span></template>
+    <template #cell-createdAt="{ row }">{{ formatIsoTimestamp(row.createdAt, localeStore.current) }}</template>
+    <template #cell-actions="{ row }">
+      <UiDropdown
+        :label="t('common.actions')"
+        :aria-label="t('firewall.whitelist.rowActions', { cidr: row.cidr })"
+        align="end"
+        variant="bare"
+        :chevron="false"
+        :disabled="busy"
+      >
+        <template #trigger>
+          <UiIcon name="ellipsis" size="md" />
+        </template>
+        <UiDropdownItem destructive @select="ask(row.id)">
+          {{ t('firewall.whitelist.remove') }}
+        </UiDropdownItem>
+      </UiDropdown>
     </template>
-    <UiTableRow v-for="entry in entries" :key="entry.id">
-      <!-- A range is machine text: the mono face, as typed, never uppercased. -->
-      <UiTableCell mono class="font-medium whitespace-nowrap">{{ entry.cidr }}</UiTableCell>
-      <!-- The panel's own words, shown whole and as written: this is what tells an operator that a
-           row is the installer's seed rather than one of theirs, so it wraps instead of being cut
-           off with an ellipsis. -->
-      <UiTableCell tone="secondary" class="min-w-56">
-        <span class="block max-w-md wrap-anywhere">{{ entry.note }}</span>
-      </UiTableCell>
-      <UiTableCell mono tone="muted" class="whitespace-nowrap">
-        {{ formatIsoTimestamp(entry.createdAt, localeStore.current) }}
-      </UiTableCell>
-      <UiTableCell align="end">
-        <UiDropdown
-          :label="t('common.actions')"
-          :aria-label="t('firewall.whitelist.rowActions', { cidr: entry.cidr })"
-          align="end"
-          variant="bare"
-          :chevron="false"
-          :disabled="busy"
-        >
-          <template #trigger>
-            <UiIcon name="ellipsis" size="md" />
-          </template>
-          <UiDropdownItem destructive @select="ask(entry.id)">
-            {{ t('firewall.whitelist.remove') }}
-          </UiDropdownItem>
-        </UiDropdown>
-      </UiTableCell>
-    </UiTableRow>
   </UiTable>
 
   <!-- One dialog for the whole table rather than one per row: only one removal can be awaiting an

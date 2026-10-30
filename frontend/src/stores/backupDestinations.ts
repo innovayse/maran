@@ -3,6 +3,7 @@ import { ref, type Ref } from 'vue'
 import { useBackupDestinationsApi } from '../composables/apis/useBackupDestinationsApi'
 import { ApiError } from '../composables/useApi'
 import type { BackupDestination } from '../types/backupDestination'
+import type { LoadingState } from '../types/loading'
 
 /**
  * Owns the list of places this server records backups as living. The destinations page reads state
@@ -11,7 +12,7 @@ import type { BackupDestination } from '../types/backupDestination'
  *
  * **An empty list is a success, not a failure, and the screen says which.** A panel whose startup
  * reconciliation has not run yet answers `200 []`; that is a real answer about the server and is
- * held apart from a failure in {@link isLoaded} plus an empty {@link destinations}, so the screen
+ * held apart from a failure in {@link loadState}, `loaded` with an empty {@link destinations}, so the screen
  * never renders "nothing configured" over a request that actually broke.
  *
  * **Nothing here holds a credential.** The endpoint carries none — no destination on this build has
@@ -25,11 +26,8 @@ export const useBackupDestinationsStore = defineStore('backupDestinations', () =
   /** The destinations the panel reports, in the order it returned them: the default one first. */
   const destinations: Ref<BackupDestination[]> = ref([])
 
-  /** True once a read has settled, successfully or not. */
-  const isLoaded: Ref<boolean> = ref(false)
-
-  /** True while a read is in flight. */
-  const loading: Ref<boolean> = ref(false)
+  /** Where the read stands; every failure sets `error`, whatever its cause. */
+  const loadState: Ref<LoadingState> = ref('loading')
 
   /**
    * Backend-localized message from the last failed read, or `null`.
@@ -48,24 +46,21 @@ export const useBackupDestinationsStore = defineStore('backupDestinations', () =
    * @returns Resolves once the request has settled, successfully or not.
    */
   const load = async (): Promise<void> => {
-    loading.value = true
-    isLoaded.value = false
+    loadState.value = 'loading'
     destinations.value = []
     errorMessage.value = null
     try {
       destinations.value = await api.list()
+      loadState.value = 'loaded'
     } catch (error) {
       errorMessage.value = error instanceof ApiError ? error.message : null
-    } finally {
-      isLoaded.value = true
-      loading.value = false
+      loadState.value = 'error'
     }
   }
 
   return {
     destinations,
-    isLoaded,
-    loading,
+    loadState,
     errorMessage,
     load,
   }

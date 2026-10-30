@@ -1,5 +1,9 @@
 <script setup lang="ts">
 /**
+ * `loading`: while the series is still on its way the chart draws its real label over a
+ * placeholder plot (a `block` of the panel's large step), never its empty state: "no readings yet"
+ * is an answer, and a series not yet read has given none.
+ *
  * Inline SVG line-and-area chart for a time series — the panel's monitoring
  * screens plot CPU, memory, disk and network rate buckets through this one
  * primitive. It is the kit's only hand-drawn, non-icon SVG (rules/vue.md:
@@ -125,6 +129,7 @@ import {
 } from '../../utils/chartGeometry'
 import UiEmptyState from './UiEmptyState.vue'
 import UiIcon from './UiIcon.vue'
+import UiSkeleton from './UiSkeleton.vue'
 
 /**
  * The part of the geometry module's coordinate space the SVG actually shows: the plot itself, a
@@ -180,6 +185,8 @@ const props = defineProps<{
   unit?: string
   /** Optional formatter for a raw value; falls back to a plain one-decimal rounding when omitted. */
   formatValue?: (value: number) => string
+  /** Whether the series is still on its way; see the component note. */
+  loading?: boolean
 }>()
 
 const { t, locale } = useI18n()
@@ -597,8 +604,15 @@ watch(
 
 <template>
   <div class="ui-chart">
+    <template v-if="loading">
+      <div class="mb-2">
+        <span class="font-display text-xs font-extrabold text-text-secondary wrap-anywhere">{{ label }}</span>
+      </div>
+      <UiSkeleton shape="block" size="lg" />
+    </template>
+
     <UiEmptyState
-      v-if="points.length === 0"
+      v-else-if="points.length === 0"
       :title="label"
       :description="t('app.chart.emptyDescription')"
     >

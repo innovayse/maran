@@ -19,7 +19,17 @@
  * label would otherwise be wider than a phone-width column. The value sits one step above it in
  * `text-sm`, primary colour, and wraps anywhere too, for the same reason (a domain or a path has no
  * spaces to break at).
+ *
+ * A `figure` value is a count read at a glance (a census's buckets): it is set large, in the display
+ * face, with tabular digits, so the sizes stay here rather than on a span at the call site.
+ *
+ * While the {@link UiDescriptionList} around it is `loading`, the term stays (it is the screen's
+ * real text) and the value is a {@link UiSkeleton} line in a box one value-line tall (a body line,
+ * or a figure line for a `figure`), so the loaded value lands in the same space.
  */
+import { inject, ref } from 'vue'
+import { DESCRIPTION_LIST_LOADING_KEY } from '../../utils/descriptionListLoadingKey'
+import UiSkeleton from './UiSkeleton.vue'
 
 /** What this pair holds. */
 const props = withDefaults(
@@ -32,16 +42,24 @@ const props = withDefaults(
      * lines up.
      */
     mono?: boolean
+    /** Whether the value is a figure read at a glance, set large in the display face. */
+    figure?: boolean
   }>(),
-  { mono: false },
+  { mono: false, figure: false },
 )
+
+/** Whether the enclosing list is still loading; an item outside a loading list never is. */
+const loading = inject(DESCRIPTION_LIST_LOADING_KEY, ref(false))
 
 /**
  * The typography classes for the value.
  * @returns The class string for this item's `<dd>`.
  */
 const valueClass = (): string => {
-  return props.mono ? 'font-mono tabular-nums' : ''
+  if (props.figure) {
+    return 'font-display text-3xl font-black tabular-nums'
+  }
+  return props.mono ? 'text-sm font-mono tabular-nums' : 'text-sm'
 }
 </script>
 
@@ -52,8 +70,12 @@ const valueClass = (): string => {
     >
       {{ term }}
     </dt>
-    <dd class="mt-0.5 text-sm text-text-primary wrap-anywhere" :class="valueClass()">
-      <slot />
+    <dd class="mt-0.5 text-text-primary wrap-anywhere" :class="valueClass()">
+      <!-- The line sits in a box one value line tall (`h-5`, the `text-sm` line height; `h-9`, the
+           `text-3xl` one, for a figure), so the row already has the height the value will have. -->
+      <span v-if="loading && figure" class="flex h-9 w-16 items-center"><UiSkeleton shape="line" size="lg" /></span>
+      <span v-else-if="loading" class="flex h-5 w-2/3 items-center"><UiSkeleton shape="line" /></span>
+      <slot v-else />
     </dd>
   </div>
 </template>

@@ -36,6 +36,10 @@
       "any": "Ցանկացած",
       "chip": "{filter}՝ {value}",
       "clearSearchAndFilters": "Մաքրել որոնումը և զտիչները"
+    },
+    "loading": {
+      "busy": "Բեռնվում է…",
+      "done": "Բեռնված է"
     }
   }
 }

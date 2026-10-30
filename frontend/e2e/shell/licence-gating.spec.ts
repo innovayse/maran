@@ -115,7 +115,9 @@ test('navigating from the sidebar into an enabled module reaches its page rather
   await stubAccounts(page, [])
 
   await page.goto('/')
-  await page.getByRole('link', { name: 'Accounts' }).click()
+  // The sidebar's link, by its landmark: the landing page draws an "Accounts" figure tile of its own,
+  // a link to the same place, from the first frame while the dashboard is read.
+  await page.getByRole('navigation', { name: 'Main navigation' }).getByRole('link', { name: 'Accounts' }).click()
 
   await expect(page).toHaveURL('/accounts')
   await expect(page.getByRole('heading', { level: 1, name: 'Accounts' })).toBeVisible()

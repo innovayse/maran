@@ -14,6 +14,7 @@ import type {
   Session,
   TotpEnrolment,
 } from '../types/auth'
+import type { LoadingState } from '../types/loading'
 
 /**
  * Owns who is signed in. Every screen reads state from here and calls its actions;
@@ -62,6 +63,9 @@ export const useAuthStore = defineStore('auth', () => {
 
   /** The caller's live sessions, as last loaded. */
   const sessions: Ref<Session[]> = ref([])
+
+  /** Where the read of {@link sessions} stands; every failure sets `error`, whatever its cause. */
+  const sessionsState: Ref<LoadingState> = ref('loading')
 
   /**
    * The login name the last accepted invitation created, or `null`. Shown on the success screen so
@@ -113,6 +117,7 @@ export const useAuthStore = defineStore('auth', () => {
     accessToken.value = null
     user.value = null
     sessions.value = []
+    sessionsState.value = 'loading'
     twoFactorUsername.value = null
     requiresTwoFactorSetup.value = false
     useModulesStore().clear()
@@ -307,14 +312,14 @@ export const useAuthStore = defineStore('auth', () => {
    * @returns Resolves once the request has settled.
    */
   const loadSessions = async (): Promise<void> => {
-    loading.value = true
+    sessionsState.value = 'loading'
     errorMessage.value = null
     try {
       sessions.value = await api.listSessions()
+      sessionsState.value = 'loaded'
     } catch (error) {
       remember(error)
-    } finally {
-      loading.value = false
+      sessionsState.value = 'error'
     }
   }
 
@@ -464,6 +469,7 @@ export const useAuthStore = defineStore('auth', () => {
     isSetupComplete,
     isRestored,
     sessions,
+    sessionsState,
     invitedUsername,
     isAuthenticated,
     renewAccessToken,

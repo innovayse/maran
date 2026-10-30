@@ -10,6 +10,7 @@ import type {
   MyAccount,
   Plan,
 } from '../types/account'
+import type { LoadingState } from '../types/loading'
 import type { AccountResourceSummary, AccountResourceSummaryRead } from '../types/accountResourceSummary'
 import type { ListLoad, ListRequest } from '../types/list'
 
@@ -60,8 +61,12 @@ export const useAccountsStore = defineStore('accounts', () => {
    */
   const pendingNames: Map<string, Promise<void>> = new Map()
 
-  /** True while the detail request is in flight. */
-  const loading: Ref<boolean> = ref(false)
+  /**
+   * Where the read of {@link selected} stands: on its way, arrived, or failed. An account the panel
+   * does not have for the caller (the server's 404) is `loaded` with a `null` {@link selected}: an
+   * answer, not a failure.
+   */
+  const selectedState: Ref<LoadingState> = ref('loading')
 
   /**
    * Backend-localized message from the most recent failed detail load or lifecycle call, or `null`
@@ -99,8 +104,11 @@ export const useAccountsStore = defineStore('accounts', () => {
   /** The caller's own account, its status, and its plan's limits — `null` before it is loaded. */
   const mine: Ref<MyAccount | null> = ref(null)
 
-  /** True while the "my account" request is in flight. */
-  const mineLoading: Ref<boolean> = ref(false)
+  /**
+   * Where the read of {@link mine} stands: on its way, arrived, or refused. A caller who owns no
+   * account (the server's 404) is `loaded` with a `null` {@link mine}: an answer, not a failure.
+   */
+  const mineState: Ref<LoadingState> = ref('loading')
 
   /**
    * Backend-localized message from the most recent failed "my account" load, or `null` when the
@@ -225,15 +233,16 @@ export const useAccountsStore = defineStore('accounts', () => {
    * @returns Resolves once the request has settled, successfully or not.
    */
   const loadOne = async (id: string): Promise<void> => {
-    loading.value = true
+    selectedState.value = 'loading'
     try {
       selected.value = await api.get(id)
       errorMessage.value = null
+      selectedState.value = 'loaded'
     } catch (error) {
       selected.value = null
-      errorMessage.value = error instanceof ApiError ? error.message : null
-    } finally {
-      loading.value = false
+      const missing = error instanceof ApiError && error.status === 404
+      errorMessage.value = error instanceof ApiError && !missing ? error.message : null
+      selectedState.value = missing ? 'loaded' : 'error'
     }
   }
 
@@ -333,15 +342,16 @@ export const useAccountsStore = defineStore('accounts', () => {
    * @returns Resolves once the request has settled, successfully or not.
    */
   const loadMine = async (): Promise<void> => {
-    mineLoading.value = true
+    mineState.value = 'loading'
     try {
       mine.value = await api.getMine()
       mineErrorMessage.value = null
+      mineState.value = 'loaded'
     } catch (error) {
       mine.value = null
-      mineErrorMessage.value = error instanceof ApiError && error.status !== 404 ? error.message : null
-    } finally {
-      mineLoading.value = false
+      const ownsNone = error instanceof ApiError && error.status === 404
+      mineErrorMessage.value = error instanceof ApiError && !ownsNone ? error.message : null
+      mineState.value = ownsNone ? 'loaded' : 'error'
     }
   }
 
@@ -440,7 +450,7 @@ export const useAccountsStore = defineStore('accounts', () => {
     choicePage,
     accountNames,
     plans,
-    loading,
+    selectedState,
     errorMessage,
     creating,
     createErrorMessage,
@@ -449,7 +459,7 @@ export const useAccountsStore = defineStore('accounts', () => {
     editing,
     editErrorMessage,
     mine,
-    mineLoading,
+    mineState,
     mineErrorMessage,
     list,
     searchChoices,

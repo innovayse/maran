@@ -2,7 +2,6 @@
   "myAccount": {
     "eyebrow": "Ваш хостинг-аккаунт",
     "identityHeading": "Аккаунт",
-    "loading": "Загружаем ваш аккаунт…",
     "primaryDomainLabel": "Основной домен",
     "statusLabel": "Статус",
     "planHeading": "Тариф",

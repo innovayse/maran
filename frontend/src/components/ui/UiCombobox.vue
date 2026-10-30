@@ -20,13 +20,20 @@
  *
  * THE CHOSEN NAME STAYS SHOWN: the label of an option chosen here is remembered, since the next
  * page of matches rarely holds it; a value set from outside (a URL) comes with `selectedLabel`.
+ *
+ * LOADING. Inside a {@link UiForm} with `loading`, the label stays (it is the form's real text)
+ * and the trigger is replaced by a {@link UiSkeleton} of its footprint, so the loaded field lands
+ * in the same space. That is the form's flag, read as `formLoading`; this component's own
+ * `loading` prop is a search in flight and is unrelated.
  */
 import { computed, nextTick, ref, useId, watch, type ComputedRef, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useDebouncedSearch } from '../../composables/useDebouncedSearch'
+import { useFormLoading } from '../../composables/useFormLoading'
 import { useOutsidePress } from '../../composables/useOutsidePress'
 import UiIcon from './UiIcon.vue'
 import UiOption from './UiOption.vue'
+import UiSkeleton from './UiSkeleton.vue'
 
 /** One entry offered by {@link UiCombobox}; this component's own prop shape (rules/vue.md). */
 export interface ComboboxOption {
@@ -93,6 +100,9 @@ const fieldId: string = useId()
 const labelId: string = `${fieldId}-label`
 const listboxId: string = `${fieldId}-listbox`
 const errorId: string = `${fieldId}-error`
+
+/** Whether the enclosing form is still loading, so the trigger is drawn as a placeholder. */
+const formLoading = useFormLoading()
 
 /** Whether the popup is open. */
 const isOpen: Ref<boolean> = ref(false)
@@ -309,7 +319,8 @@ useOutsidePress(rootElement, isOpen, (): void => {
       :class="hasError ? 'text-danger' : 'text-text-muted'"
       >{{ label }}</span
     >
-    <div class="relative">
+    <UiSkeleton v-if="formLoading" shape="block" control="field" />
+    <div v-else class="relative">
       <!-- The same trigger as UiSelect, so the two pickers look, size and announce alike. -->
       <button
         ref="triggerElement"
