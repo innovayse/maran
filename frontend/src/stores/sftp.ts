@@ -3,6 +3,7 @@ import { ref, type Ref } from 'vue'
 import { useSftpApi } from '../composables/apis/useSftpApi'
 import { ApiError } from '../composables/useApi'
 import type { AccountListFilter } from '../types/accountListFilter'
+import type { LoadingState } from '../types/loading'
 import type {
   CreateSftpUserRequest,
   RevealedSftpCredential,
@@ -29,23 +30,27 @@ export const useSftpStore = defineStore('sftp', () => {
   /** The logins as last reported by the panel; empty before the first successful load. */
   const sftpUsers: Ref<SftpUser[]> = ref([])
 
-  /** True while the list request is in flight. */
-  const loading: Ref<boolean> = ref(false)
-
   /** True while a create request is in flight. */
   const creating: Ref<boolean> = ref(false)
 
   /** True while a mutation (password reset, removal) is in flight. */
   const acting: Ref<boolean> = ref(false)
 
-  /** True once the list has been loaded at least once, successfully. */
-  const isLoaded: Ref<boolean> = ref(false)
+  /** Where the read of the list stands; every failure sets `error`, whatever its cause. */
+  const loadState: Ref<LoadingState> = ref('loading')
 
   /**
-   * Backend-localized message from the most recent failed read or mutation, or `null` when the
-   * last one succeeded or none has been attempted. Rendered verbatim.
+   * Backend-localized message from the most recent failed read, or `null` when it succeeded or the
+   * failure carried no message (the panel was unreachable). Rendered verbatim.
    */
   const errorMessage: Ref<string | null> = ref(null)
+
+  /**
+   * Backend-localized message from the most recent failed mutation (password reset, removal), or
+   * `null`. Kept apart from {@link errorMessage} so a refused removal is reported above the list
+   * rather than replacing it.
+   */
+  const actionErrorMessage: Ref<string | null> = ref(null)
 
   /**
    * Backend-localized message from the most recent failed create attempt, or `null`. Kept apart
@@ -68,15 +73,14 @@ export const useSftpStore = defineStore('sftp', () => {
    * @returns Resolves once the request has settled, successfully or not.
    */
   const load = async (filter: AccountListFilter): Promise<void> => {
-    loading.value = true
+    loadState.value = 'loading'
     try {
       sftpUsers.value = await api.list(filter)
       errorMessage.value = null
-      isLoaded.value = true
+      loadState.value = 'loaded'
     } catch (error) {
       errorMessage.value = error instanceof ApiError ? error.message : null
-    } finally {
-      loading.value = false
+      loadState.value = 'error'
     }
   }
 
@@ -141,10 +145,10 @@ export const useSftpStore = defineStore('sftp', () => {
       // `fullName` comes from the response, which is the host's own spelling of the login — never
       // assembled here from the account name and the suffix.
       revealedCredential.value = { fullName: reset.fullName, password: reset.password }
-      errorMessage.value = null
+      actionErrorMessage.value = null
       return true
     } catch (error) {
-      errorMessage.value = error instanceof ApiError ? error.message : null
+      actionErrorMessage.value = error instanceof ApiError ? error.message : null
       return false
     } finally {
       acting.value = false
@@ -163,10 +167,10 @@ export const useSftpStore = defineStore('sftp', () => {
       sftpUsers.value = sftpUsers.value.filter((user) => {
         return user.id !== id
       })
-      errorMessage.value = null
+      actionErrorMessage.value = null
       return true
     } catch (error) {
-      errorMessage.value = error instanceof ApiError ? error.message : null
+      actionErrorMessage.value = error instanceof ApiError ? error.message : null
       return false
     } finally {
       acting.value = false
@@ -175,11 +179,11 @@ export const useSftpStore = defineStore('sftp', () => {
 
   return {
     sftpUsers,
-    loading,
     creating,
     acting,
-    isLoaded,
+    loadState,
     errorMessage,
+    actionErrorMessage,
     createErrorMessage,
     revealedCredential,
     load,

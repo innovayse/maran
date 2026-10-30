@@ -36,6 +36,10 @@
       "any": "Any",
       "chip": "{filter}: {value}",
       "clearSearchAndFilters": "Clear search and filters"
+    },
+    "loading": {
+      "busy": "Loading…",
+      "done": "Loaded"
     }
   }
 }

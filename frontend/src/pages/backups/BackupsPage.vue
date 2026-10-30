@@ -60,11 +60,9 @@ import UiEmptyState from '../../components/ui/UiEmptyState.vue'
 import UiIcon from '../../components/ui/UiIcon.vue'
 import UiPageHeading from '../../components/ui/UiPageHeading.vue'
 import UiSectionHeading from '../../components/ui/UiSectionHeading.vue'
-import UiSpinner from '../../components/ui/UiSpinner.vue'
+import UiLoadingRegion from '../../components/ui/UiLoadingRegion.vue'
 import UiTable from '../../components/ui/UiTable.vue'
-import UiTableCell from '../../components/ui/UiTableCell.vue'
-import UiTableHeaderCell from '../../components/ui/UiTableHeaderCell.vue'
-import UiTableRow from '../../components/ui/UiTableRow.vue'
+import type { UiTableColumn } from '../../types/tableColumn'
 import BackupCreateForm from '../../components/backups/BackupCreateForm.vue'
 import BackupRestoreDialog from '../../components/backups/BackupRestoreDialog.vue'
 import BackupStatusBadge from '../../components/backups/BackupStatusBadge.vue'
@@ -96,9 +94,24 @@ const pendingId: Ref<string> = ref('')
  */
 const restoreTarget: Ref<Backup | null> = ref(null)
 
+
+/** The table's columns: its header, its cells and its loading placeholder all read this one list. */
+const columns: ComputedRef<UiTableColumn[]> = computed(() => {
+  return [
+    { key: 'account', label: t('backups.list.columns.account'), kind: 'identifier' },
+    { key: 'status', label: t('backups.list.columns.status'), kind: 'badge' },
+    { key: 'kind', label: t('backups.list.columns.kind'), kind: 'text' },
+    { key: 'size', label: t('backups.list.columns.size'), kind: 'number' },
+    { key: 'databases', label: t('backups.list.columns.databases'), kind: 'number' },
+    { key: 'startedAt', label: t('backups.list.columns.startedAt'), kind: 'date' },
+    { key: 'finishedAt', label: t('backups.list.columns.finishedAt'), kind: 'date' },
+    { key: 'actions', label: t('common.actions'), kind: 'actions' },
+  ]
+})
+
 /** Whether the panel answered successfully and reported no backups at all. */
 const isEmpty: ComputedRef<boolean> = computed(() => {
-  return store.isLoaded && store.backups.length === 0
+  return store.loadState === 'loaded' && store.backups.length === 0
 })
 
 /** The backup the confirmation is open for, or `null` when none is. */
@@ -340,12 +353,16 @@ watch(() => {return accountListFilter.value.accountId}, loadList)
 
     <!-- The one thing that needs attention goes first. Warning, not error: the failure already
          happened and can be answered by taking another copy, which is the form just below. -->
-    <UiAlert v-if="attentionMessage !== null && !store.loading" variant="warning">
+    <UiAlert v-if="attentionMessage !== null && store.loadState === 'loaded'" variant="warning">
       {{ attentionMessage }}
     </UiAlert>
 
     <UiAlert v-if="store.createErrorMessage !== null" variant="error">
       {{ store.createErrorMessage }}
+    </UiAlert>
+
+    <UiAlert v-if="store.removeErrorMessage !== null" variant="error">
+      {{ store.removeErrorMessage }}
     </UiAlert>
 
     <!-- The form draws its own panel, so it is not wrapped in a second one here. -->
@@ -367,66 +384,56 @@ watch(() => {return accountListFilter.value.accountId}, loadList)
     <UiCard>
       <UiSectionHeading class="mb-4" :title="t('backups.list.sectionHeading')" />
 
-      <UiSpinner v-if="store.loading" :label="t('backups.list.loading')" />
-
-      <UiAlert v-else-if="store.errorMessage !== null" variant="error">{{ store.errorMessage }}</UiAlert>
-
-      <UiEmptyState
-        v-else-if="isEmpty"
-        :title="t('backups.list.emptyTitle')"
-        :description="t('backups.list.emptyDescription')"
-      >
-        <template #icon><UiIcon name="archive" size="lg" /></template>
-      </UiEmptyState>
-
-      <UiTable v-else-if="store.backups.length > 0" :caption="t('backups.list.tableCaption')">
-        <template #head>
-          <UiTableRow>
-            <UiTableHeaderCell>{{ t('backups.list.columns.account') }}</UiTableHeaderCell>
-            <UiTableHeaderCell>{{ t('backups.list.columns.status') }}</UiTableHeaderCell>
-            <UiTableHeaderCell>{{ t('backups.list.columns.kind') }}</UiTableHeaderCell>
-            <UiTableHeaderCell align="end">{{ t('backups.list.columns.size') }}</UiTableHeaderCell>
-            <UiTableHeaderCell align="end">{{ t('backups.list.columns.databases') }}</UiTableHeaderCell>
-            <UiTableHeaderCell>{{ t('backups.list.columns.startedAt') }}</UiTableHeaderCell>
-            <UiTableHeaderCell>{{ t('backups.list.columns.finishedAt') }}</UiTableHeaderCell>
-            <UiTableHeaderCell align="end">{{ t('common.actions') }}</UiTableHeaderCell>
-          </UiTableRow>
+      <UiLoadingRegion :state="store.loadState">
+        <template #error>
+          <UiAlert variant="error">{{ store.errorMessage ?? t('common.list.unreachable') }}</UiAlert>
         </template>
-        <UiTableRow v-for="backup in store.backups" :key="backup.id">
+
+        <UiEmptyState
+          v-if="isEmpty"
+          :title="t('backups.list.emptyTitle')"
+          :description="t('backups.list.emptyDescription')"
+        >
+          <template #icon><UiIcon name="archive" size="lg" /></template>
+        </UiEmptyState>
+
+        <UiTable
+          v-else
+          :caption="t('backups.list.tableCaption')"
+          :columns="columns"
+          :rows="store.backups"
+          row-key="id"
+          :loading="store.loadState === 'loading'"
+        >
           <!-- The cell holds the account's name and nothing else: a spec reads it as the cell's
                whole text, and a name is what the column is for. -->
-          <UiTableCell mono class="font-semibold whitespace-nowrap">{{ accountName(backup) }}</UiTableCell>
-          <UiTableCell>
-            <BackupStatusBadge :status="backup.status" />
+          <template #cell-account="{ row }">{{ accountName(row) }}</template>
+          <template #cell-status="{ row }">
+            <BackupStatusBadge :status="row.status" />
             <!-- Both halves of the failure, and neither instead of the other. The sentence is the
                  backend's own, already localized (rules/vue.md: the SPA owns no text for a server
                  outcome), and it is what a reader reads. The code below it is machine-stable across
                  languages, so it is what an operator quotes in a support ticket and greps a log for —
                  kept as visible, selectable text rather than hidden in a `title`, which no touch
                  device shows, no keyboard reaches and nothing can copy from. A panel older than the
-                 display name sends the code alone, and then the code is the whole cell. -->
+                 display name sends the code alone, and then the code is the whole cell. The sentence
+                 wraps although the badge column does not. -->
             <span
-              v-if="failureName(backup) !== null"
-              class="mt-1.5 block max-w-64 text-sm text-text-secondary wrap-anywhere"
+              v-if="failureName(row) !== null"
+              class="mt-1.5 block max-w-64 text-sm whitespace-normal text-text-secondary wrap-anywhere"
             >
-              {{ failureName(backup) }}
+              {{ failureName(row) }}
             </span>
-            <span
-              v-if="backup.failureCode.length > 0"
-              class="mt-0.5 block font-mono text-xs whitespace-nowrap text-text-muted"
-            >
-              {{ t('backups.list.failureCode', { code: backup.failureCode }) }}
+            <span v-if="row.failureCode.length > 0" class="mt-0.5 block font-mono text-xs text-text-muted">
+              {{ t('backups.list.failureCode', { code: row.failureCode }) }}
             </span>
-          </UiTableCell>
-          <UiTableCell tone="secondary">{{ t(`backups.kind.${backup.kind}`) }}</UiTableCell>
-          <UiTableCell mono align="end" class="whitespace-nowrap">{{ size(backup) }}</UiTableCell>
-          <UiTableCell mono tone="secondary" align="end">{{ backup.databaseCount }}</UiTableCell>
-          <!-- A timestamp is context, never the thing being scanned for: the faintest text tier. -->
-          <UiTableCell mono tone="muted" class="whitespace-nowrap">
-            {{ formatIsoTimestamp(backup.startedAt, localeStore.current) }}
-          </UiTableCell>
-          <UiTableCell mono tone="muted" class="whitespace-nowrap">{{ finished(backup) }}</UiTableCell>
-          <UiTableCell align="end">
+          </template>
+          <template #cell-kind="{ row }">{{ t(`backups.kind.${row.kind}`) }}</template>
+          <template #cell-size="{ row }">{{ size(row) }}</template>
+          <template #cell-databases="{ row }">{{ row.databaseCount }}</template>
+          <template #cell-startedAt="{ row }">{{ formatIsoTimestamp(row.startedAt, localeStore.current) }}</template>
+          <template #cell-finishedAt="{ row }">{{ finished(row) }}</template>
+          <template #cell-actions="{ row }">
             <!-- One trigger instead of a button per command, and a menu even on the rows that
                  hold only Delete: a running or failed row is offered no restore, so a table that
                  dropped the menu for a single command would change the shape of its last column
@@ -436,7 +443,7 @@ watch(() => {return accountListFilter.value.accountId}, loadList)
                  "Actions" repeated down the column names nothing to a screen reader. -->
             <UiDropdown
               :label="t('common.actions')"
-              :aria-label="t('backups.list.rowActions', { account: accountName(backup) })"
+              :aria-label="t('backups.list.rowActions', { account: accountName(row) })"
               align="end"
               variant="bare"
               :chevron="false"
@@ -447,16 +454,16 @@ watch(() => {return accountListFilter.value.accountId}, loadList)
               <!-- Offered only where an artifact exists. On a failed or still-running row the panel
                    would answer `BackupNotRestorable`, and a command whose only outcome is a refusal
                    teaches an operator that the screen is unreliable. -->
-              <UiDropdownItem v-if="backup.status === 'completed'" @select="askRestore(backup)">
+              <UiDropdownItem v-if="row.status === 'completed'" @select="askRestore(row)">
                 {{ t('backups.restore.action') }}
               </UiDropdownItem>
-              <UiDropdownItem destructive @select="ask(backup.id)">
+              <UiDropdownItem destructive @select="ask(row.id)">
                 {{ t('common.delete') }}
               </UiDropdownItem>
             </UiDropdown>
-          </UiTableCell>
-        </UiTableRow>
-      </UiTable>
+          </template>
+        </UiTable>
+      </UiLoadingRegion>
     </UiCard>
 
     <!-- One dialog for the whole table rather than one per row: only one deletion can be awaiting

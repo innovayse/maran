@@ -49,7 +49,8 @@ import UiIcon from '../../components/ui/UiIcon.vue'
 import UiIconTile from '../../components/ui/UiIconTile.vue'
 import UiPageHeading from '../../components/ui/UiPageHeading.vue'
 import UiSectionHeading from '../../components/ui/UiSectionHeading.vue'
-import UiSpinner from '../../components/ui/UiSpinner.vue'
+import UiLoadingRegion from '../../components/ui/UiLoadingRegion.vue'
+import UiSkeleton from '../../components/ui/UiSkeleton.vue'
 import { useBackupDestinationKindText } from '../../composables/useBackupDestinationKindText'
 import { useBackupDestinationsStore } from '../../stores/backupDestinations'
 import { useLocaleStore } from '../../stores/locale'
@@ -76,9 +77,10 @@ const kindText = useBackupDestinationKindText()
 const store = useBackupDestinationsStore()
 const localeStore = useLocaleStore()
 
+
 /** Whether the panel answered successfully and reported no destination at all. */
 const isEmpty: ComputedRef<boolean> = computed(() => {
-  return store.isLoaded && store.errorMessage === null && store.destinations.length === 0
+  return store.loadState === 'loaded' && store.destinations.length === 0
 })
 
 /**
@@ -105,119 +107,122 @@ onMounted(() => {
       :note="t('backups.destinations.readOnlyNote')"
     />
 
-    <!-- The one thing that needs attention goes first: a refusal or a failed read. It is the
-         backend's own localized sentence, so the SPA holds no copy of it. -->
-    <UiAlert v-if="store.errorMessage !== null" variant="error" class="mb-4">
-      {{ store.errorMessage }}
-    </UiAlert>
+    <UiLoadingRegion :state="store.loadState">
+      <!-- A refusal or a failed read is the backend's own localized sentence, so the SPA holds no
+           copy of it. -->
+      <template #error>
+        <UiAlert variant="error">{{ store.errorMessage ?? t('common.list.unreachable') }}</UiAlert>
+      </template>
 
-    <UiSpinner v-if="store.loading" :label="t('backups.destinations.loading')" />
-
-    <div v-else-if="store.isLoaded" class="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:items-start">
-      <UiCard v-if="isEmpty" class="lg:col-span-2">
-        <UiEmptyState
-          :title="t('backups.destinations.emptyTitle')"
-          :description="t('backups.destinations.emptyDescription')"
-        >
-          <template #icon>
-            <UiIcon name="archive" aria-hidden="true" />
-          </template>
-        </UiEmptyState>
-      </UiCard>
-
-      <UiCard v-for="destination in store.destinations" :key="destination.id">
-        <div class="mb-4 flex items-center gap-3">
-          <UiIconTile name="hardDrive" />
-          <!-- The heading is the backend's localized name; the stored one is shown as a field
-               below whenever the two differ. They differ for exactly one row — the destination this
-               panel seeded and named itself in English — so an operator-named destination is
-               headed by the words the operator typed, never by a translation of them. -->
-          <UiSectionHeading class="min-w-0 flex-1" :title="destination.displayName" />
-          <UiBadge v-if="destination.isDefault" variant="info">
-            {{ t('backups.destinations.default') }}
-          </UiBadge>
-        </div>
-        <UiDescriptionList>
-          <UiDescriptionItem :term="t('backups.destinations.fields.kind')">
-            {{ kindText.label(destination.kind) }}
-          </UiDescriptionItem>
-          <!-- Only when the heading is not already this value. The stored name is what the row
-               holds, what `psql` prints and what a support ticket names, so it must stay reachable
-               once the heading starts showing a translation of it — and repeating it under a
-               heading that already says it would be noise on every operator-named row. -->
-          <UiDescriptionItem
-            v-if="destination.displayName !== destination.name"
-            :term="t('backups.destinations.fields.storedName')"
-            mono
+      <div class="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:items-start">
+        <!-- A destination is a card of its own, so the wait for them is one card's placeholder; the
+             two cards after it describe this build and are there from the first frame. -->
+        <UiSkeleton v-if="store.loadState === 'loading'" shape="card" />
+        <UiCard v-if="isEmpty" class="lg:col-span-2">
+          <UiEmptyState
+            :title="t('backups.destinations.emptyTitle')"
+            :description="t('backups.destinations.emptyDescription')"
           >
-            {{ destination.name }}
-          </UiDescriptionItem>
-          <!-- Shown for a local destination whether or not the path is known. The row is keyed on
-               the KIND, not on the value: "we could not ask the agent where it writes" is the fact
-               an operator most needs during the incident that stopped the agent, and a row that
-               vanished instead would read as a screen that had simply lost interest. -->
-          <UiDescriptionItem
-            v-if="destination.kind === 'local'"
-            :term="t('backups.destinations.fields.path')"
-            :mono="destination.path !== null"
-          >
-            <span v-if="destination.path !== null" class="break-all">{{ destination.path }}</span>
-            <span v-else class="text-text-secondary">{{
-              t('backups.destinations.pathUnestablished')
-            }}</span>
-          </UiDescriptionItem>
-          <UiDescriptionItem :term="t('backups.destinations.fields.recordedAt')" mono>
-            {{ recordedAt(destination.createdAt) }}
-          </UiDescriptionItem>
-        </UiDescriptionList>
-        <p v-if="destination.isDefault" class="mt-4 text-sm text-text-secondary">
-          {{ t('backups.destinations.defaultHint') }}
-        </p>
-      </UiCard>
+            <template #icon>
+              <UiIcon name="archive" aria-hidden="true" />
+            </template>
+          </UiEmptyState>
+        </UiCard>
 
-      <UiCard>
-        <UiSectionHeading
-          class="mb-4"
-          :title="t('backups.destinations.kindsHeading')"
-          :subtitle="t('backups.destinations.kindsSubtitle')"
-        />
-        <!-- Both kinds the panel knows about, and which of them this build writes to. There is no
-             control here on purpose: the endpoint that would record a destination refuses every
-             request it can be given, so a button would offer a choice that does not exist. -->
-        <div
-          v-for="entry in KINDS"
-          :key="entry.kind"
-          class="border-t border-border-subtle py-3 first:border-t-0 first:pt-0 last:pb-0"
-        >
-          <div class="flex flex-wrap items-center gap-2">
-            <span class="text-sm font-semibold text-text-primary">{{
-              kindText.label(entry.kind)
-            }}</span>
-            <UiBadge :variant="entry.admits ? 'success' : 'neutral'">
-              {{
-                entry.admits
-                  ? t('backups.destinations.available')
-                  : t('backups.destinations.unavailable')
-              }}
+        <UiCard v-for="destination in store.destinations" :key="destination.id">
+          <div class="mb-4 flex items-center gap-3">
+            <UiIconTile name="hardDrive" />
+            <!-- The heading is the backend's localized name; the stored one is shown as a field
+                 below whenever the two differ. They differ for exactly one row — the destination this
+                 panel seeded and named itself in English — so an operator-named destination is
+                 headed by the words the operator typed, never by a translation of them. -->
+            <UiSectionHeading class="min-w-0 flex-1" :title="destination.displayName" />
+            <UiBadge v-if="destination.isDefault" variant="info">
+              {{ t('backups.destinations.default') }}
             </UiBadge>
           </div>
-          <p class="mt-1 text-sm text-text-secondary">{{ kindText.description(entry.kind) }}</p>
-        </div>
-      </UiCard>
+          <UiDescriptionList>
+            <UiDescriptionItem :term="t('backups.destinations.fields.kind')">
+              {{ kindText.label(destination.kind) }}
+            </UiDescriptionItem>
+            <!-- Only when the heading is not already this value. The stored name is what the row
+                 holds, what `psql` prints and what a support ticket names, so it must stay reachable
+                 once the heading starts showing a translation of it — and repeating it under a
+                 heading that already says it would be noise on every operator-named row. -->
+            <UiDescriptionItem
+              v-if="destination.displayName !== destination.name"
+              :term="t('backups.destinations.fields.storedName')"
+              mono
+            >
+              {{ destination.name }}
+            </UiDescriptionItem>
+            <!-- Shown for a local destination whether or not the path is known. The row is keyed on
+                 the KIND, not on the value: "we could not ask the agent where it writes" is the fact
+                 an operator most needs during the incident that stopped the agent, and a row that
+                 vanished instead would read as a screen that had simply lost interest. -->
+            <UiDescriptionItem
+              v-if="destination.kind === 'local'"
+              :term="t('backups.destinations.fields.path')"
+              :mono="destination.path !== null"
+            >
+              <span v-if="destination.path !== null" class="break-all">{{ destination.path }}</span>
+              <span v-else class="text-text-secondary">{{
+                t('backups.destinations.pathUnestablished')
+              }}</span>
+            </UiDescriptionItem>
+            <UiDescriptionItem :term="t('backups.destinations.fields.recordedAt')" mono>
+              {{ recordedAt(destination.createdAt) }}
+            </UiDescriptionItem>
+          </UiDescriptionList>
+          <p v-if="destination.isDefault" class="mt-4 text-sm text-text-secondary">
+            {{ t('backups.destinations.defaultHint') }}
+          </p>
+        </UiCard>
 
-      <UiCard>
-        <UiSectionHeading class="mb-4" :title="t('backups.destinations.aboutHeading')" />
-        <!-- Each of these is something a page listing a storage location is read as promising and
-             does not. They are on the screen rather than in a doc comment because the operator
-             reading a path is the person who would otherwise believe all three. -->
-        <p class="text-sm text-text-secondary">{{ t('backups.destinations.about.notEditable') }}</p>
-        <p class="mt-2 text-sm text-text-secondary">
-          {{ t('backups.destinations.about.notEncrypted') }}
-        </p>
-        <p class="mt-2 text-sm text-text-secondary">
-          {{ t('backups.destinations.about.adminOnly') }}
-        </p>
-      </UiCard>
-    </div>
+        <UiCard>
+          <UiSectionHeading
+            class="mb-4"
+            :title="t('backups.destinations.kindsHeading')"
+            :subtitle="t('backups.destinations.kindsSubtitle')"
+          />
+          <!-- Both kinds the panel knows about, and which of them this build writes to. There is no
+               control here on purpose: the endpoint that would record a destination refuses every
+               request it can be given, so a button would offer a choice that does not exist. -->
+          <div
+            v-for="entry in KINDS"
+            :key="entry.kind"
+            class="border-t border-border-subtle py-3 first:border-t-0 first:pt-0 last:pb-0"
+          >
+            <div class="flex flex-wrap items-center gap-2">
+              <span class="text-sm font-semibold text-text-primary">{{
+                kindText.label(entry.kind)
+              }}</span>
+              <UiBadge :variant="entry.admits ? 'success' : 'neutral'">
+                {{
+                  entry.admits
+                    ? t('backups.destinations.available')
+                    : t('backups.destinations.unavailable')
+                }}
+              </UiBadge>
+            </div>
+            <p class="mt-1 text-sm text-text-secondary">{{ kindText.description(entry.kind) }}</p>
+          </div>
+        </UiCard>
+
+        <UiCard>
+          <UiSectionHeading class="mb-4" :title="t('backups.destinations.aboutHeading')" />
+          <!-- Each of these is something a page listing a storage location is read as promising and
+               does not. They are on the screen rather than in a doc comment because the operator
+               reading a path is the person who would otherwise believe all three. -->
+          <p class="text-sm text-text-secondary">{{ t('backups.destinations.about.notEditable') }}</p>
+          <p class="mt-2 text-sm text-text-secondary">
+            {{ t('backups.destinations.about.notEncrypted') }}
+          </p>
+          <p class="mt-2 text-sm text-text-secondary">
+            {{ t('backups.destinations.about.adminOnly') }}
+          </p>
+        </UiCard>
+      </div>
+    </UiLoadingRegion>
   </section>
 </template>

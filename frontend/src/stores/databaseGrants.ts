@@ -3,6 +3,7 @@ import { computed, ref, type ComputedRef, type Ref } from 'vue'
 import { useDatabaseGrantsApi } from '../composables/apis/useDatabaseGrantsApi'
 import { ApiError } from '../composables/useApi'
 import type { GrantRepairReport } from '../types/grantRepair'
+import type { LoadingState } from '../types/loading'
 
 /** The HTTP status the panel answers a caller who may not read the host's grant table. */
 const FORBIDDEN = 403
@@ -43,17 +44,27 @@ export const useDatabaseGrantsStore = defineStore('databaseGrants', () => {
    */
   const isDisclosed: Ref<boolean> = ref(false)
 
-  /** True while the report request is in flight. */
-  const loading: Ref<boolean> = ref(false)
+  /**
+   * Where the read of the census stands; every genuine failure sets `error`, whatever its cause. A
+   * 403 settles it as `loaded`: non-disclosure is an answer ({@link isDisclosed}), not a failure.
+   */
+  const loadState: Ref<LoadingState> = ref('loading')
 
   /** True while the repair request is in flight. */
   const repairing: Ref<boolean> = ref(false)
 
   /**
-   * Backend-localized message from the most recent genuine failure, or `null`. A 403 never lands
+   * Backend-localized message from the most recent genuine failure of the read, or `null` when it
+   * succeeded or the failure carried no message (the panel was unreachable). A 403 never lands
    * here — see this store's own note about why.
    */
   const errorMessage: Ref<string | null> = ref(null)
+
+  /**
+   * Backend-localized message from the most recent failed repair, or `null`. Kept apart from
+   * {@link errorMessage} so a refused repair is reported above the census it was asked from.
+   */
+  const repairErrorMessage: Ref<string | null> = ref(null)
 
   /**
    * Whether the held census is an inspection that has not been acted on yet.
@@ -74,21 +85,22 @@ export const useDatabaseGrantsStore = defineStore('databaseGrants', () => {
    * @returns Resolves once the request has settled, successfully or not.
    */
   const load = async (): Promise<void> => {
-    loading.value = true
+    loadState.value = 'loading'
     try {
       report.value = await api.report()
       isDisclosed.value = true
       errorMessage.value = null
+      loadState.value = 'loaded'
     } catch (error) {
       if (error instanceof ApiError && error.status === FORBIDDEN) {
         report.value = null
         isDisclosed.value = false
         errorMessage.value = null
+        loadState.value = 'loaded'
         return
       }
       errorMessage.value = error instanceof ApiError ? error.message : null
-    } finally {
-      loading.value = false
+      loadState.value = 'error'
     }
   }
 
@@ -114,15 +126,25 @@ export const useDatabaseGrantsStore = defineStore('databaseGrants', () => {
       // server may have refused row by row.
       report.value = await api.repair({ expectedRepairCount: held.wouldRepair.length })
       isDisclosed.value = true
-      errorMessage.value = null
+      repairErrorMessage.value = null
       return true
     } catch (error) {
-      errorMessage.value = error instanceof ApiError ? error.message : null
+      repairErrorMessage.value = error instanceof ApiError ? error.message : null
       return false
     } finally {
       repairing.value = false
     }
   }
 
-  return { report, isDisclosed, loading, repairing, errorMessage, canRepair, load, repair }
+  return {
+    report,
+    isDisclosed,
+    loadState,
+    repairing,
+    errorMessage,
+    repairErrorMessage,
+    canRepair,
+    load,
+    repair,
+  }
 })

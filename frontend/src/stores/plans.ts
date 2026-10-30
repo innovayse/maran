@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { ref, type Ref } from 'vue'
 import { usePlansApi } from '../composables/apis/usePlansApi'
 import { ApiError } from '../composables/useApi'
+import type { LoadingState } from '../types/loading'
 import type { ManagedPlan, PlanRequest } from '../types/plan'
 
 /**
@@ -24,15 +25,13 @@ export const usePlansStore = defineStore('plans', () => {
   /** The plans as last reported by the panel; empty before the first successful load. */
   const plans: Ref<ManagedPlan[]> = ref([])
 
-  /** True while the list request is in flight. */
-  const loading: Ref<boolean> = ref(false)
-
-  /** True once the list has been loaded at least once, successfully. */
-  const isLoaded: Ref<boolean> = ref(false)
+  /** Where the read of the list stands; every failure sets `error`, whatever its cause. */
+  const loadState: Ref<LoadingState> = ref('loading')
 
   /**
-   * Backend-localized message from the most recent failed list load, or `null`. For a customer who
-   * opens the screen this is the server's refusal, shown in place of the list.
+   * Backend-localized message from the most recent failed list load, or `null` when it succeeded or
+   * the failure carried no message (the panel was unreachable). For a customer who opens the screen
+   * this is the server's refusal, shown in place of the list.
    */
   const errorMessage: Ref<string | null> = ref(null)
 
@@ -59,15 +58,14 @@ export const usePlansStore = defineStore('plans', () => {
    * @returns Resolves once the request has settled, successfully or not.
    */
   const load = async (): Promise<void> => {
-    loading.value = true
+    loadState.value = 'loading'
     try {
       plans.value = await api.list()
       errorMessage.value = null
-      isLoaded.value = true
+      loadState.value = 'loaded'
     } catch (error) {
       errorMessage.value = error instanceof ApiError ? error.message : null
-    } finally {
-      loading.value = false
+      loadState.value = 'error'
     }
   }
 
@@ -163,8 +161,7 @@ export const usePlansStore = defineStore('plans', () => {
 
   return {
     plans,
-    loading,
-    isLoaded,
+    loadState,
     errorMessage,
     saving,
     saveErrorMessage,

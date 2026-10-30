@@ -28,6 +28,11 @@
  * the layout this page is nested under. The tiles wrap and never force a width
  * (`min-w-0`, `wrap-anywhere`), so nothing scrolls sideways at 390px in any of
  * the three languages.
+ *
+ * While the account loads, the heading, the identity card and the six limit tiles are drawn with
+ * their real labels and a placeholder in place of each value ({@link UiLoadingRegion},
+ * `UiDescriptionList loading`, a `kpi`-sized figure line per tile), so the account lands in the
+ * space already held. A caller who owns no account gets the empty state once the answer is in.
  */
 import { computed, onMounted, type ComputedRef } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -37,47 +42,74 @@ import UiCard from '../../components/ui/UiCard.vue'
 import UiDescriptionItem from '../../components/ui/UiDescriptionItem.vue'
 import UiDescriptionList from '../../components/ui/UiDescriptionList.vue'
 import UiEmptyState from '../../components/ui/UiEmptyState.vue'
+import UiLoadingRegion from '../../components/ui/UiLoadingRegion.vue'
 import UiPageHeading from '../../components/ui/UiPageHeading.vue'
 import UiSectionHeading from '../../components/ui/UiSectionHeading.vue'
-import UiSpinner from '../../components/ui/UiSpinner.vue'
+import UiSkeleton from '../../components/ui/UiSkeleton.vue'
 import AccountResourcesCard from '../../components/accounts/AccountResourcesCard.vue'
 import { useAccountsStore } from '../../stores/accounts'
+import type { MyAccountPlan } from '../../types/account'
 import { formatMegabytes } from '../../utils/formatBytes'
+
+/** The plan limits the page shows, by the name the locale file uses for each tile's label. */
+type LimitKey = 'diskQuota' | 'sites' | 'databases' | 'sftpUsers' | 'ftpUsers' | 'cronEntries'
 
 /** One plan limit as a tile: its label, and the figure shown under it. */
 interface LimitTile {
-  /** Stable key for the list: the locale key of the label. */
-  key: string
+  /** Stable key for the list, and the name of the label in the locale file. */
+  key: LimitKey
   /** The translated label. */
   label: string
-  /** The figure, already formatted (the disk quota carries its unit). */
+  /** The figure, already formatted (the disk quota carries its unit); empty until the plan is in. */
   value: string
+}
+
+/**
+ * How each tile's figure is read from the plan, in the order the tiles are drawn. One table, so
+ * the six tiles cannot drift apart in order or formatting.
+ */
+const LIMIT_FIGURES: Readonly<Record<LimitKey, (plan: MyAccountPlan) => string>> = {
+  diskQuota: (plan) => {
+    return formatMegabytes(plan.diskQuotaMb)
+  },
+  sites: (plan) => {
+    return String(plan.maxSites)
+  },
+  databases: (plan) => {
+    return String(plan.maxDatabases)
+  },
+  sftpUsers: (plan) => {
+    return String(plan.maxSftpUsers)
+  },
+  ftpUsers: (plan) => {
+    return String(plan.maxFtpUsers)
+  },
+  cronEntries: (plan) => {
+    return String(plan.maxCronEntries)
+  },
 }
 
 const { t } = useI18n()
 const store = useAccountsStore()
 
+/** Whether the account is still on its way, so every value draws a placeholder. */
+const isLoading: ComputedRef<boolean> = computed(() => {
+  return store.mineState === 'loading'
+})
+
 /**
- * The plan's limits as tiles, empty until the account has loaded. Built in one
- * place so the six tiles cannot drift apart in order or formatting.
+ * The plan's limits as tiles. The tiles exist while the account loads too, labelled, so the
+ * placeholders stand exactly where the figures will.
  */
 const limits: ComputedRef<LimitTile[]> = computed(() => {
   const plan = store.mine?.plan
-  if (plan === undefined) {
-    return []
-  }
-  return [
-    {
-      key: 'diskQuota',
-      label: t('myAccount.limits.diskQuota'),
-      value: formatMegabytes(plan.diskQuotaMb),
-    },
-    { key: 'sites', label: t('myAccount.limits.sites'), value: String(plan.maxSites) },
-    { key: 'databases', label: t('myAccount.limits.databases'), value: String(plan.maxDatabases) },
-    { key: 'sftpUsers', label: t('myAccount.limits.sftpUsers'), value: String(plan.maxSftpUsers) },
-    { key: 'ftpUsers', label: t('myAccount.limits.ftpUsers'), value: String(plan.maxFtpUsers) },
-    { key: 'cronEntries', label: t('myAccount.limits.cronEntries'), value: String(plan.maxCronEntries) },
-  ]
+  return (Object.keys(LIMIT_FIGURES) as LimitKey[]).map((key) => {
+    return {
+      key,
+      label: t(`myAccount.limits.${key}`),
+      value: plan === undefined ? '' : LIMIT_FIGURES[key](plan),
+    }
+  })
 })
 
 onMounted(async () => {
@@ -87,70 +119,75 @@ onMounted(async () => {
 
 <template>
   <section class="flex w-full min-w-0 flex-col gap-4">
-    <UiSpinner v-if="store.mineLoading" :label="t('myAccount.loading')" />
+    <UiLoadingRegion :state="store.mineState">
+      <template #error>
+        <UiAlert variant="error">{{ store.mineErrorMessage ?? t('app.status.unreachable') }}</UiAlert>
+      </template>
 
-    <template v-else-if="store.mine !== null">
-      <UiPageHeading
-        :eyebrow="t('myAccount.eyebrow')"
-        :title="store.mine.name"
-        mono
-        :subtitle="store.mine.primaryDomain"
+      <!-- Answered, and the caller owns no account. -->
+      <UiEmptyState
+        v-if="!isLoading && store.mine === null"
+        :title="t('myAccount.notFoundTitle')"
+        :description="t('myAccount.notFoundDescription')"
       />
 
-      <UiAlert v-if="store.mine.status === 'suspended'" variant="warning">
-        {{ t('myAccount.suspendedNotice') }}
-      </UiAlert>
-
-      <UiAlert v-if="store.mineErrorMessage !== null" variant="error">
-        {{ store.mineErrorMessage }}
-      </UiAlert>
-
-      <UiCard>
-        <UiSectionHeading class="mb-4" :title="t('myAccount.identityHeading')" />
-        <UiDescriptionList>
-          <UiDescriptionItem :term="t('common.name')">
-            {{ store.mine.name }}
-          </UiDescriptionItem>
-          <UiDescriptionItem :term="t('myAccount.primaryDomainLabel')" mono>
-            {{ store.mine.primaryDomain }}
-          </UiDescriptionItem>
-          <UiDescriptionItem :term="t('myAccount.statusLabel')">
-            <UiBadge :variant="store.mine.status === 'active' ? 'success' : 'warning'">
-              {{ t(`accounts.status.${store.mine.status}`) }}
-            </UiBadge>
-          </UiDescriptionItem>
-        </UiDescriptionList>
-      </UiCard>
-
-      <UiCard>
-        <UiSectionHeading
-          class="mb-4"
-          :title="t('myAccount.planHeading')"
-          :subtitle="store.mine.plan.displayName"
+      <div v-else class="flex flex-col gap-4">
+        <UiPageHeading
+          :eyebrow="t('myAccount.eyebrow')"
+          :title="store.mine?.name ?? ''"
+          mono
+          :subtitle="store.mine?.primaryDomain ?? ''"
+          :loading="isLoading"
         />
-        <ul class="grid grid-cols-2 gap-3 lg:grid-cols-3">
-          <li
-            v-for="limit in limits"
-            :key="limit.key"
-            class="min-w-0 rounded-control border border-border-subtle bg-surface-2 p-4"
-          >
-            <p class="font-display text-xs font-extrabold text-text-secondary wrap-anywhere">
-              {{ limit.label }}
-            </p>
-            <p class="mt-2 font-display text-2xl font-black text-text-primary tabular-nums wrap-anywhere">
-              {{ limit.value }}
-            </p>
-          </li>
-        </ul>
-      </UiCard>
 
-      <AccountResourcesCard :read="store.mineResourceSummary" />
-    </template>
+        <UiAlert v-if="!isLoading && store.mine?.status === 'suspended'" variant="warning">
+          {{ t('myAccount.suspendedNotice') }}
+        </UiAlert>
 
-    <UiAlert v-else-if="store.mineErrorMessage !== null" variant="error">
-      {{ store.mineErrorMessage }}
-    </UiAlert>
+        <UiCard>
+          <UiSectionHeading class="mb-4" :title="t('myAccount.identityHeading')" />
+          <UiDescriptionList :loading="isLoading">
+            <UiDescriptionItem :term="t('common.name')">
+              {{ store.mine?.name }}
+            </UiDescriptionItem>
+            <UiDescriptionItem :term="t('myAccount.primaryDomainLabel')" mono>
+              {{ store.mine?.primaryDomain }}
+            </UiDescriptionItem>
+            <UiDescriptionItem :term="t('myAccount.statusLabel')">
+              <UiBadge v-if="store.mine !== null" :variant="store.mine.status === 'active' ? 'success' : 'warning'">
+                {{ t(`accounts.status.${store.mine.status}`) }}
+              </UiBadge>
+            </UiDescriptionItem>
+          </UiDescriptionList>
+        </UiCard>
 
-    <UiEmptyState v-else :title="t('myAccount.notFoundTitle')" :description="t('myAccount.notFoundDescription')" />
+        <UiCard>
+          <UiSectionHeading
+            class="mb-4"
+            :title="t('myAccount.planHeading')"
+            :subtitle="store.mine?.plan.displayName ?? ''"
+          />
+          <ul class="grid grid-cols-2 gap-3 lg:grid-cols-3">
+            <li
+              v-for="limit in limits"
+              :key="limit.key"
+              class="min-w-0 rounded-control border border-border-subtle bg-surface-2 p-4"
+            >
+              <p class="font-display text-xs font-extrabold text-text-secondary wrap-anywhere">
+                {{ limit.label }}
+              </p>
+              <!-- The placeholder sits inside the figure's own line, which gives it the figure's height. -->
+              <p class="mt-2 font-display text-2xl font-black text-text-primary tabular-nums wrap-anywhere">
+                <span v-if="isLoading" class="inline-flex w-16 align-middle"><UiSkeleton shape="line" size="lg" /></span>
+                <template v-else>{{ limit.value }}</template>
+              </p>
+            </li>
+          </ul>
+        </UiCard>
+      </div>
+    </UiLoadingRegion>
+
+    <!-- Outside the account's region: the summary is its own read with its own loading state. -->
+    <AccountResourcesCard v-if="isLoading || store.mine !== null" :read="store.mineResourceSummary" />
   </section>
 </template>

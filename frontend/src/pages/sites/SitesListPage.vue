@@ -53,12 +53,10 @@ import UiPagination from '../../components/ui/UiPagination.vue'
 import UiSearchInput from '../../components/ui/UiSearchInput.vue'
 import UiCombobox from '../../components/ui/UiCombobox.vue'
 import UiSelect, { type SelectOption } from '../../components/ui/UiSelect.vue'
-import UiSpinner from '../../components/ui/UiSpinner.vue'
+import UiLoadingRegion from '../../components/ui/UiLoadingRegion.vue'
 import UiToast from '../../components/ui/UiToast.vue'
 import UiTable from '../../components/ui/UiTable.vue'
-import UiTableCell from '../../components/ui/UiTableCell.vue'
-import UiTableHeaderCell, { type ColumnSort } from '../../components/ui/UiTableHeaderCell.vue'
-import UiTableRow from '../../components/ui/UiTableRow.vue'
+import type { UiTableColumn } from '../../types/tableColumn'
 import SiteStatusBadge from '../../components/sites/SiteStatusBadge.vue'
 import { useAccountChoice, type AccountPickerState } from '../../composables/useAccountChoice'
 import { useAccountFilter } from '../../composables/useAccountFilter'
@@ -180,6 +178,22 @@ const statusOptions: ComputedRef<SelectOption[]> = computed(() => {
   ]
 })
 
+/**
+ * The table's columns: its header, its cells and its loading placeholder all read this one list.
+ * The owner column is an administrator's; a customer's sites are all their own.
+ */
+const columns: ComputedRef<UiTableColumn[]> = computed(() => {
+  const owner: UiTableColumn[] = isAdmin.value ? [{ key: 'owner', label: t('sites.list.columns.owner'), kind: 'mono' }] : []
+  return [
+    { key: 'domain', label: t('sites.list.columns.domain'), kind: 'identity', sortField: 'domain' },
+    ...owner,
+    { key: 'backendType', label: t('sites.list.columns.backendType'), kind: 'text' },
+    { key: 'phpVersion', label: t('sites.list.columns.phpVersion'), kind: 'mono' },
+    { key: 'status', label: t('sites.list.columns.status'), kind: 'badge', sortField: 'status' },
+    { key: 'createdAt', label: t('sites.list.columns.createdAt'), kind: 'date', align: 'end', sortField: 'createdAt' },
+  ]
+})
+
 /** One removable chip per applied filter. */
 const chips: ComputedRef<ActiveFilterChip[]> = computed(() => {
   const applied = table.filters.value
@@ -202,18 +216,6 @@ const chips: ComputedRef<ActiveFilterChip[]> = computed(() => {
   }
   return result
 })
-
-/**
- * The order a sortable column is in, read from the list's sort key.
- * @param field The column's sort key.
- * @returns Ascending, descending, or not sorted by this column.
- */
-const columnSort = (field: string): ColumnSort => {
-  if (table.sort.value === field) {
-    return 'ascending'
-  }
-  return table.sort.value === `-${field}` ? 'descending' : 'none'
-}
 
 /**
  * Opens the filter sheet.
@@ -283,11 +285,6 @@ watch(
       </template>
     </UiPageHeading>
 
-    <UiAlert v-if="table.state.value.status === 'refused'" variant="error">{{ table.state.value.message }}</UiAlert>
-    <UiAlert v-else-if="table.state.value.status === 'unreachable'" variant="error">
-      {{ t('common.list.unreachable') }}
-    </UiAlert>
-
     <UiAlert v-if="store.disabledCount.state === 'counted' && store.disabledCount.count > 0" variant="warning">
       {{ t('sites.list.disabledNotice', { count: store.disabledCount.count }, store.disabledCount.count) }}
     </UiAlert>
@@ -330,69 +327,65 @@ watch(
           @clear="table.clearFilters"
         />
 
-        <UiSpinner v-if="table.state.value.status === 'loading'" :label="t('sites.list.loading')" />
+        <UiLoadingRegion :state="table.loadingState.value">
+          <template #error>
+            <UiAlert v-if="table.state.value.status === 'refused'" variant="error">
+              {{ table.state.value.message }}
+            </UiAlert>
+            <UiAlert v-else variant="error">{{ t('common.list.unreachable') }}</UiAlert>
+          </template>
 
-        <UiEmptyState
-          v-else-if="answeredNothing"
-          :title="t('sites.list.noResultsTitle')"
-          :description="t('sites.list.noResultsDescription')"
-        >
-          <UiButton variant="secondary" @click="clearAll">{{ t('common.list.clearSearchAndFilters') }}</UiButton>
-        </UiEmptyState>
+          <UiEmptyState
+            v-if="answeredNothing"
+            :title="t('sites.list.noResultsTitle')"
+            :description="t('sites.list.noResultsDescription')"
+          >
+            <UiButton variant="secondary" @click="clearAll">{{ t('common.list.clearSearchAndFilters') }}</UiButton>
+          </UiEmptyState>
 
-        <div v-else-if="table.state.value.status === 'loaded'" class="flex flex-col gap-4">
-          <UiTable :caption="t('sites.list.tableCaption')">
-            <template #head>
-              <UiTableRow>
-                <UiTableHeaderCell :sort="columnSort('domain')" @sort="table.toggleSort('domain')">
-                  {{ t('sites.list.columns.domain') }}
-                </UiTableHeaderCell>
-                <UiTableHeaderCell v-if="isAdmin">{{ t('sites.list.columns.owner') }}</UiTableHeaderCell>
-                <UiTableHeaderCell>{{ t('sites.list.columns.backendType') }}</UiTableHeaderCell>
-                <UiTableHeaderCell>{{ t('sites.list.columns.phpVersion') }}</UiTableHeaderCell>
-                <UiTableHeaderCell :sort="columnSort('status')" @sort="table.toggleSort('status')">
-                  {{ t('sites.list.columns.status') }}
-                </UiTableHeaderCell>
-                <UiTableHeaderCell align="end" :sort="columnSort('createdAt')" @sort="table.toggleSort('createdAt')">
-                  {{ t('sites.list.columns.createdAt') }}
-                </UiTableHeaderCell>
-              </UiTableRow>
-            </template>
-            <UiTableRow v-for="site in store.sites" :key="site.id">
-              <!-- A domain is an identifier: one unit, so it never breaks at a hyphen; the table scrolls. -->
-              <UiTableCell class="whitespace-nowrap">
+          <div v-else class="flex flex-col gap-4">
+            <UiTable
+              :caption="t('sites.list.tableCaption')"
+              :columns="columns"
+              :rows="store.sites"
+              row-key="id"
+              :loading="table.state.value.status === 'loading'"
+              :skeleton-rows="table.pageSize.value"
+              :sort="table.sort.value"
+              @sort="table.toggleSort"
+            >
+              <template #cell-domain="{ row }">
                 <div class="flex min-w-48 items-center gap-3">
                   <UiIconTile name="earth" />
                   <!-- The way in: everything that can be done to a site lives on its detail page. -->
                   <RouterLink
-                    :to="{ name: 'site-detail', params: { id: site.id } }"
+                    :to="{ name: 'site-detail', params: { id: row.id } }"
                     class="inline-flex min-h-6 items-center rounded-control font-mono font-semibold text-accent-text hover:underline focus-visible:shadow-focus focus-visible:outline-none"
-                    >{{ site.domain }}</RouterLink
+                    >{{ row.domain }}</RouterLink
                   >
                 </div>
-              </UiTableCell>
-              <UiTableCell v-if="isAdmin" mono tone="secondary" class="whitespace-nowrap">{{ site.ownerName }}</UiTableCell>
-              <UiTableCell tone="secondary">{{ t(`sites.backendType.${site.backendType}`) }}</UiTableCell>
-              <UiTableCell mono tone="secondary">
-                {{ site.phpVersion.length > 0 ? site.phpVersion : t('common.emptyValue') }}
-              </UiTableCell>
-              <UiTableCell><SiteStatusBadge :status="site.status" /></UiTableCell>
-              <UiTableCell mono tone="muted" align="end" class="whitespace-nowrap">
-                {{ formatDate(site.createdAt, localeStore.current) }}
-              </UiTableCell>
-            </UiTableRow>
-          </UiTable>
+              </template>
+              <template #cell-owner="{ row }">{{ row.ownerName }}</template>
+              <template #cell-backendType="{ row }">{{ t(`sites.backendType.${row.backendType}`) }}</template>
+              <template #cell-phpVersion="{ row }">
+                {{ row.phpVersion.length > 0 ? row.phpVersion : t('common.emptyValue') }}
+              </template>
+              <template #cell-status="{ row }"><SiteStatusBadge :status="row.status" /></template>
+              <template #cell-createdAt="{ row }">{{ formatDate(row.createdAt, localeStore.current) }}</template>
+            </UiTable>
 
-          <UiPagination
-            :page="table.page.value"
-            :page-size="table.pageSize.value"
-            :total="table.total.value"
-            :page-sizes="table.pageSizes"
-            :labels="labels.pagination.value"
-            @update:page="table.setPage"
-            @update:page-size="table.setPageSize"
-          />
-        </div>
+            <UiPagination
+              v-if="table.state.value.status === 'loaded'"
+              :page="table.page.value"
+              :page-size="table.pageSize.value"
+              :total="table.total.value"
+              :page-sizes="table.pageSizes"
+              :labels="labels.pagination.value"
+              @update:page="table.setPage"
+              @update:page-size="table.setPageSize"
+            />
+          </div>
+        </UiLoadingRegion>
       </div>
     </UiCard>
 

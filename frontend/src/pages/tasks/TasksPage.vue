@@ -33,11 +33,9 @@ import UiIcon from '../../components/ui/UiIcon.vue'
 import UiMeter, { type UiMeterStatus } from '../../components/ui/UiMeter.vue'
 import UiPageHeading from '../../components/ui/UiPageHeading.vue'
 import UiSectionHeading from '../../components/ui/UiSectionHeading.vue'
-import UiSpinner from '../../components/ui/UiSpinner.vue'
+import UiLoadingRegion from '../../components/ui/UiLoadingRegion.vue'
 import UiTable from '../../components/ui/UiTable.vue'
-import UiTableCell from '../../components/ui/UiTableCell.vue'
-import UiTableHeaderCell from '../../components/ui/UiTableHeaderCell.vue'
-import UiTableRow from '../../components/ui/UiTableRow.vue'
+import type { UiTableColumn } from '../../types/tableColumn'
 import TaskLivePane from '../../components/tasks/TaskLivePane.vue'
 import TaskStatusBadge from '../../components/tasks/TaskStatusBadge.vue'
 import { useTaskKindLabel } from '../../composables/useTaskKindLabel'
@@ -50,6 +48,19 @@ const { t } = useI18n()
 const store = useTasksStore()
 const localeStore = useLocaleStore()
 const kindLabel = useTaskKindLabel()
+
+
+/** The table's columns: its header, its cells and its loading placeholder all read this one list. */
+const columns: ComputedRef<UiTableColumn[]> = computed(() => {
+  return [
+    { key: 'kind', label: t('tasks.columns.kind'), kind: 'identity' },
+    { key: 'subject', label: t('tasks.columns.subject'), kind: 'mono' },
+    { key: 'status', label: t('tasks.columns.status'), kind: 'badge' },
+    { key: 'percent', label: t('tasks.columns.percent'), kind: 'number' },
+    { key: 'startedAt', label: t('tasks.columns.startedAt'), kind: 'date' },
+    { key: 'actions', label: t('common.actions'), kind: 'actions' },
+  ]
+})
 
 /** The failed tasks, in the listing's order — newest first — so the first is the latest failure. */
 const failedTasks: ComputedRef<PanelTask[]> = computed(() => {
@@ -155,75 +166,70 @@ onMounted(refresh)
     <UiCard>
       <UiSectionHeading class="mb-4" :title="t('tasks.list.recentHeading')" />
 
-      <UiSpinner v-if="store.loading" :label="t('tasks.list.loading')" />
-
-      <UiAlert v-else-if="store.listErrorMessage !== null" variant="error">
-        {{ store.listErrorMessage }}
-      </UiAlert>
-
-      <UiEmptyState
-        v-else-if="store.isEmpty"
-        :title="t('tasks.list.emptyTitle')"
-        :description="t('tasks.list.emptyDescription')"
-      >
-        <template #icon><UiIcon name="listChecks" size="lg" /></template>
-      </UiEmptyState>
-
-      <UiTable v-else-if="store.tasks.length > 0" :caption="t('tasks.list.tableCaption')">
-        <template #head>
-          <UiTableRow>
-            <UiTableHeaderCell>{{ t('tasks.columns.kind') }}</UiTableHeaderCell>
-            <UiTableHeaderCell>{{ t('tasks.columns.subject') }}</UiTableHeaderCell>
-            <UiTableHeaderCell>{{ t('tasks.columns.status') }}</UiTableHeaderCell>
-            <UiTableHeaderCell align="end">{{ t('tasks.columns.percent') }}</UiTableHeaderCell>
-            <UiTableHeaderCell>{{ t('tasks.columns.startedAt') }}</UiTableHeaderCell>
-            <UiTableHeaderCell align="end">{{ t('common.actions') }}</UiTableHeaderCell>
-          </UiTableRow>
+      <UiLoadingRegion :state="store.loadState">
+        <template #error>
+          <UiAlert variant="error">{{ store.listErrorMessage ?? t('common.list.unreachable') }}</UiAlert>
         </template>
-        <UiTableRow v-for="task in store.tasks" :key="task.id">
-          <UiTableCell class="min-w-40 font-medium">{{ kindLabel(task.kind) }}</UiTableCell>
+
+        <UiEmptyState
+          v-if="store.isEmpty"
+          :title="t('tasks.list.emptyTitle')"
+          :description="t('tasks.list.emptyDescription')"
+        >
+          <template #icon><UiIcon name="listChecks" size="lg" /></template>
+        </UiEmptyState>
+
+        <UiTable
+          v-else
+          :caption="t('tasks.list.tableCaption')"
+          :columns="columns"
+          :rows="store.tasks"
+          row-key="id"
+          :loading="store.loadState === 'loading'"
+        >
+          <template #cell-kind="{ row }">{{ kindLabel(row.kind) }}</template>
           <!-- The subject is whatever the module named the task after, and it is machine text as
                often as not — a domain, a system user name, an identifier. Monospaced so a column of
-               them lines up and a zero is not an O; never uppercased. It never wraps (a hyphen or a dot is a
-               break opportunity, and `break-all` shredded it into a column of fragments): an identifier
-               read across six lines is a different string, so the table scrolls instead. -->
-          <UiTableCell mono tone="secondary" class="whitespace-nowrap">{{ task.subject }}</UiTableCell>
-          <UiTableCell><TaskStatusBadge :status="task.status" /></UiTableCell>
+               them lines up and a zero is not an O; never uppercased. It never wraps (a hyphen or a
+               dot is a break opportunity): an identifier read across six lines is a different
+               string, so the table scrolls instead. -->
+          <template #cell-subject="{ row }">{{ row.subject }}</template>
+          <template #cell-status="{ row }"><TaskStatusBadge :status="row.status" /></template>
           <!-- The wire value is an integer 0-100 clamped by the module, never absent, so the cell
                always carries a percentage and says so: a bare "100" names no unit. The bar beside
                it is decoration and carries no text, so the cell's text is the figure alone (the
                meter is told not to print its own, which would read "40%40%"). -->
-          <UiTableCell align="end" mono>
+          <template #cell-percent="{ row }">
             <div class="flex items-center justify-end gap-3">
               <!-- Decoration: the figure beside it is the text, and a row's bar must not be announced
                    as a second progressbar next to the pane's (nor share its name). The fixed width
-                   keeps the column's bars aligned whatever the figure's length. -->
-              <!-- A failed task keeps its figure but loses the bar, which would read as work still
-                   under way (#222); the empty box keeps the column aligned. -->
+                   keeps the column's bars aligned whatever the figure's length. A failed task keeps
+                   its figure but loses the bar, which would read as work still under way (#222);
+                   the empty box keeps the column aligned. -->
               <div class="w-16 shrink-0" aria-hidden="true">
                 <UiMeter
-                  v-if="task.status !== 'failed'"
+                  v-if="row.status !== 'failed'"
                   tone="progress"
-                  :status="meterStatus(task.status)"
-                  :value="task.percent"
+                  :status="meterStatus(row.status)"
+                  :value="row.percent"
                   :max="100"
                   :label="t('tasks.columns.percent')"
-                  :value-text="t('tasks.list.percentValue', { percent: task.percent })"
+                  :value-text="t('tasks.list.percentValue', { percent: row.percent })"
                   :show-value="false"
                 />
               </div>
-              <span class="min-w-10">{{ t('tasks.list.percentValue', { percent: task.percent }) }}</span>
+              <span class="min-w-10">{{ t('tasks.list.percentValue', { percent: row.percent }) }}</span>
             </div>
-          </UiTableCell>
-          <UiTableCell mono tone="secondary" class="whitespace-nowrap">{{ started(task.startedAt) }}</UiTableCell>
-          <UiTableCell align="end">
+          </template>
+          <template #cell-startedAt="{ row }">{{ started(row.startedAt) }}</template>
+          <template #cell-actions="{ row }">
             <!-- One command today and a menu anyway, so the last column has one shape in every
                  table of the panel and an operator learns the control once. The trigger's name
                  carries the row's subject, because "Actions" repeated down a column of identical
                  triggers names nothing to a screen reader. -->
             <UiDropdown
               :label="t('common.actions')"
-              :aria-label="t('tasks.list.rowActions', { subject: task.subject })"
+              :aria-label="t('tasks.list.rowActions', { subject: row.subject })"
               align="end"
               variant="bare"
               :chevron="false"
@@ -231,11 +237,11 @@ onMounted(refresh)
               <template #trigger>
                 <UiIcon name="ellipsis" size="md" />
               </template>
-              <UiDropdownItem @select="open(task.id)">{{ t('tasks.list.watch') }}</UiDropdownItem>
+              <UiDropdownItem @select="open(row.id)">{{ t('tasks.list.watch') }}</UiDropdownItem>
             </UiDropdown>
-          </UiTableCell>
-        </UiTableRow>
-      </UiTable>
+          </template>
+        </UiTable>
+      </UiLoadingRegion>
     </UiCard>
   </section>
 </template>

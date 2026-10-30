@@ -19,16 +19,14 @@
  * keeps every column readable, and the table grows past its wrapper instead.
  */
 import { computed, type ComputedRef } from 'vue'
-
-/** How the cell's content sits in its column. */
-type CellAlign = 'start' | 'end'
+import type { CellAlign } from '../../types/tableColumn'
 
 /**
  * Which text tier the cell is set in. `primary` is what a row is scanned for (a name), `secondary`
  * is supporting detail (a domain, a type), `muted` is context that is never the thing being
  * looked for (a timestamp).
  */
-type CellTone = 'primary' | 'secondary' | 'muted'
+export type CellTone = 'primary' | 'secondary' | 'muted'
 
 /** Props accepted by {@link UiTableCell}. */
 const props = withDefaults(
@@ -53,8 +51,19 @@ const props = withDefaults(
      * template the tier is decided in exactly one place.
      */
     tone?: CellTone
+    /**
+     * Keeps the content on one line (a name, an address, a date, a badge), so the column widens and
+     * the table scrolls inside its container instead of breaking a value mid-way. A prop rather than
+     * a class on the tag, for the same reason as `tone`.
+     */
+    nowrap?: boolean
+    /**
+     * Sets the content in the medium weight: what a row is scanned for (a name, an address). A prop
+     * rather than a class on the content, so the weight is decided where the tone is.
+     */
+    strong?: boolean
   }>(),
-  { align: 'start', mono: false, tone: 'primary' },
+  { align: 'start', mono: false, tone: 'primary', nowrap: false, strong: false },
 )
 
 /** The text colour class of each {@link CellTone}. */
@@ -75,7 +84,10 @@ const TONE_CLASSES: Record<CellTone, string> = {
 const cellClasses: ComputedRef<string> = computed(() => {
   const alignment = props.align === 'end' ? 'text-right' : 'text-left'
   const colour = TONE_CLASSES[props.tone]
-  return props.mono ? `${alignment} ${colour} font-mono tabular-nums` : `${alignment} ${colour}`
+  const face = props.mono ? 'font-mono tabular-nums' : ''
+  const wrapping = props.nowrap ? 'whitespace-nowrap' : ''
+  const weight = props.strong ? 'font-medium' : ''
+  return `${alignment} ${colour} ${face} ${wrapping} ${weight}`
 })
 </script>
 

@@ -28,12 +28,12 @@
  * horizontally at 390px.
  *
  * **A refusal to list is shown, and an empty list is only announced once the load has settled.**
- * The store records the server's refusal in `errorMessage`; the page now prints it first, as the
- * docs above promise, instead of leaving a customer who typed the URL with an empty table. And
+ * The store records the server's refusal in `errorMessage`; the page prints it in place of the
+ * table, instead of leaving a customer who typed the URL with an empty one. And
  * "No PHP version is installed" is a claim about the host, so it waits for the answer: drawn
  * before the request returned it would state, for a moment, a fact nobody had observed.
  */
-import { onMounted, ref, type Ref } from 'vue'
+import { computed, onMounted, ref, type ComputedRef, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import UiAlert from '../../components/ui/UiAlert.vue'
 import UiBadge from '../../components/ui/UiBadge.vue'
@@ -43,10 +43,9 @@ import UiEmptyState from '../../components/ui/UiEmptyState.vue'
 import UiInput from '../../components/ui/UiInput.vue'
 import UiPageHeading from '../../components/ui/UiPageHeading.vue'
 import UiSectionHeading from '../../components/ui/UiSectionHeading.vue'
+import UiLoadingRegion from '../../components/ui/UiLoadingRegion.vue'
 import UiTable from '../../components/ui/UiTable.vue'
-import UiTableCell from '../../components/ui/UiTableCell.vue'
-import UiTableHeaderCell from '../../components/ui/UiTableHeaderCell.vue'
-import UiTableRow from '../../components/ui/UiTableRow.vue'
+import type { UiTableColumn } from '../../types/tableColumn'
 import { useSitesStore } from '../../stores/sites'
 
 const { t } = useI18n()
@@ -55,12 +54,13 @@ const sitesStore = useSitesStore()
 /** The version typed into the install field, e.g. `8.4`. */
 const version: Ref<string> = ref('')
 
-/** Whether the first load has settled, so an empty list is a fact and not a loading frame. */
-const loaded: Ref<boolean> = ref(false)
 
-onMounted(async () => {
-  await sitesStore.loadPhpVersions()
-  loaded.value = true
+/** The table's columns: its header, its cells and its loading placeholder all read this one list. */
+const columns: ComputedRef<UiTableColumn[]> = computed(() => {
+  return [
+    { key: 'version', label: t('php.table.version'), kind: 'identifier' },
+    { key: 'default', label: t('php.table.default'), kind: 'badge' },
+  ]
 })
 
 /**
@@ -99,6 +99,10 @@ const install = async (): Promise<void> => {
     version.value = ''
   }
 }
+
+onMounted(async () => {
+  await sitesStore.loadPhpVersions()
+})
 </script>
 
 <template>
@@ -109,42 +113,39 @@ const install = async (): Promise<void> => {
       :subtitle="t('php.description')"
     />
 
-    <!-- The one thing that needs attention goes first: the server's own refusal or failure to
-         list. It is the backend's localized sentence, so the SPA holds no copy of it. -->
-    <UiAlert v-if="sitesStore.errorMessage" variant="error">
-      {{ sitesStore.errorMessage }}
-    </UiAlert>
-
     <div class="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] lg:items-start">
       <UiCard>
         <UiSectionHeading class="mb-4" :title="t('php.table.heading')" />
 
-        <UiTable v-if="sitesStore.phpVersions.length > 0" :caption="t('php.table.caption')">
-          <template #head>
-            <UiTableRow>
-              <UiTableHeaderCell>{{ t('php.table.version') }}</UiTableHeaderCell>
-              <UiTableHeaderCell>{{ t('php.table.default') }}</UiTableHeaderCell>
-            </UiTableRow>
+        <UiLoadingRegion :state="sitesStore.phpVersionsState">
+          <!-- The server's own refusal or failure to list: the backend's localized sentence, so
+               the SPA holds no copy of it. -->
+          <template #error>
+            <UiAlert variant="error">{{ sitesStore.errorMessage ?? t('common.list.unreachable') }}</UiAlert>
           </template>
-          <UiTableRow v-for="installed in sitesStore.phpVersions" :key="installed.version">
-            <UiTableCell mono>{{ installed.version }}</UiTableCell>
-            <UiTableCell>
-              <UiBadge v-if="installed.isDefault === true" variant="success">
-                {{ defaultLabel(installed.isDefault) }}
-              </UiBadge>
-              <UiBadge v-else-if="installed.isDefault === null" variant="warning">
-                {{ defaultLabel(installed.isDefault) }}
-              </UiBadge>
-              <span v-else class="text-text-secondary">{{ defaultLabel(installed.isDefault) }}</span>
-            </UiTableCell>
-          </UiTableRow>
-        </UiTable>
 
-        <UiEmptyState
-          v-else-if="loaded"
-          :title="t('php.empty.title')"
-          :description="t('php.empty.description')"
-        />
+          <UiEmptyState
+            v-if="sitesStore.phpVersionsState === 'loaded' && sitesStore.phpVersions.length === 0"
+            :title="t('php.empty.title')"
+            :description="t('php.empty.description')"
+          />
+
+          <UiTable
+            v-else
+            :caption="t('php.table.caption')"
+            :columns="columns"
+            :rows="sitesStore.phpVersions"
+            row-key="version"
+            :loading="sitesStore.phpVersionsState === 'loading'"
+          >
+            <template #cell-version="{ row }">{{ row.version }}</template>
+            <template #cell-default="{ row }">
+              <UiBadge v-if="row.isDefault === true" variant="success">{{ defaultLabel(row.isDefault) }}</UiBadge>
+              <UiBadge v-else-if="row.isDefault === null" variant="warning">{{ defaultLabel(row.isDefault) }}</UiBadge>
+              <template v-else>{{ defaultLabel(row.isDefault) }}</template>
+            </template>
+          </UiTable>
+        </UiLoadingRegion>
       </UiCard>
 
       <UiCard>

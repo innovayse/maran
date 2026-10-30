@@ -37,11 +37,9 @@ import UiEmptyState from '../../components/ui/UiEmptyState.vue'
 import UiIcon from '../../components/ui/UiIcon.vue'
 import UiPageHeading from '../../components/ui/UiPageHeading.vue'
 import UiSectionHeading from '../../components/ui/UiSectionHeading.vue'
-import UiSpinner from '../../components/ui/UiSpinner.vue'
+import UiLoadingRegion from '../../components/ui/UiLoadingRegion.vue'
 import UiTable from '../../components/ui/UiTable.vue'
-import UiTableCell from '../../components/ui/UiTableCell.vue'
-import UiTableHeaderCell from '../../components/ui/UiTableHeaderCell.vue'
-import UiTableRow from '../../components/ui/UiTableRow.vue'
+import type { UiTableColumn } from '../../types/tableColumn'
 import UiToast from '../../components/ui/UiToast.vue'
 import DatabaseCreateForm from '../../components/databases/DatabaseCreateForm.vue'
 import DatabaseCreatedDialog from '../../components/databases/DatabaseCreatedDialog.vue'
@@ -77,7 +75,19 @@ const pendingAction: Ref<PendingAction> = ref('drop')
 
 /** Whether the panel answered successfully and reported no databases at all. */
 const isEmpty: ComputedRef<boolean> = computed(() => {
-  return store.isLoaded && store.databases.length === 0
+  return store.loadState === 'loaded' && store.databases.length === 0
+})
+
+
+/** The table's columns: its header, its cells and its loading placeholder all read this one list. */
+const columns: ComputedRef<UiTableColumn[]> = computed(() => {
+  return [
+    { key: 'fullName', label: t('databases.list.columns.fullName'), kind: 'identifier' },
+    { key: 'dbUserName', label: t('databases.list.columns.dbUserName'), kind: 'mono' },
+    { key: 'account', label: t('databases.list.columns.account'), kind: 'text' },
+    { key: 'createdAt', label: t('databases.list.columns.createdAt'), kind: 'date' },
+    { key: 'actions', label: t('common.actions'), kind: 'actions' },
+  ]
 })
 
 /** The name of the row whose action is awaiting an answer, so the dialog says what it asks about. */
@@ -233,6 +243,10 @@ onBeforeUnmount(dismissCredential)
       {{ store.createErrorMessage }}
     </UiAlert>
 
+    <UiAlert v-if="store.actionErrorMessage !== null" variant="error">
+      {{ store.actionErrorMessage }}
+    </UiAlert>
+
     <DatabaseCreateForm
       ref="form"
       :account-picker="accountPicker"
@@ -252,48 +266,41 @@ onBeforeUnmount(dismissCredential)
     <UiCard>
       <UiSectionHeading class="mb-4" :title="t('databases.list.sectionTitle')" />
 
-      <UiSpinner v-if="store.loading" :label="t('databases.list.loading')" />
-
-      <UiAlert v-else-if="store.errorMessage !== null" variant="error">{{ store.errorMessage }}</UiAlert>
-
-      <UiEmptyState
-        v-else-if="isEmpty"
-        :title="t('databases.list.emptyTitle')"
-        :description="t('databases.list.emptyDescription')"
-      >
-        <template #icon><UiIcon name="database" size="lg" /></template>
-      </UiEmptyState>
-
-      <!-- No zebra stripes, the account and the dates in the secondary tones, and the one column
-           of commands right-aligned under a heading that says the same. -->
-      <UiTable v-else-if="store.databases.length > 0" :caption="t('databases.list.tableCaption')">
-        <template #head>
-          <UiTableRow>
-            <UiTableHeaderCell>{{ t('databases.list.columns.fullName') }}</UiTableHeaderCell>
-            <UiTableHeaderCell>{{ t('databases.list.columns.dbUserName') }}</UiTableHeaderCell>
-            <UiTableHeaderCell>{{ t('databases.list.columns.account') }}</UiTableHeaderCell>
-            <UiTableHeaderCell>{{ t('databases.list.columns.createdAt') }}</UiTableHeaderCell>
-            <UiTableHeaderCell align="end">{{ t('common.actions') }}</UiTableHeaderCell>
-          </UiTableRow>
+      <UiLoadingRegion :state="store.loadState">
+        <template #error>
+          <UiAlert variant="error">{{ store.errorMessage ?? t('common.list.unreachable') }}</UiAlert>
         </template>
-        <UiTableRow v-for="database in store.databases" :key="database.id">
+
+        <UiEmptyState
+          v-if="isEmpty"
+          :title="t('databases.list.emptyTitle')"
+          :description="t('databases.list.emptyDescription')"
+        >
+          <template #icon><UiIcon name="database" size="lg" /></template>
+        </UiEmptyState>
+
+        <UiTable
+          v-else
+          :caption="t('databases.list.tableCaption')"
+          :columns="columns"
+          :rows="store.databases"
+          row-key="id"
+          :loading="store.loadState === 'loading'"
+        >
           <!-- The prefixed name, because it is the one that works in a mysql client. -->
-          <UiTableCell mono class="font-medium whitespace-nowrap">{{ database.fullName }}</UiTableCell>
-          <UiTableCell mono tone="secondary" class="whitespace-nowrap">{{ database.dbUserName }}</UiTableCell>
-          <UiTableCell tone="secondary" class="whitespace-nowrap">{{ accountName(database) }}</UiTableCell>
-          <UiTableCell mono tone="muted">
-            {{ formatDate(database.createdAt, localeStore.current) }}
-          </UiTableCell>
-          <UiTableCell align="end">
-            <!-- One trigger instead of a button per command: the row's actions grow
-                 with the module, and a row that grows a button every time is a row
-                 that stops fitting on a narrow screen. `align="end"` because this is
-                 the last column — a menu aligned to the start would open off the
-                 right edge. -->
+          <template #cell-fullName="{ row }">{{ row.fullName }}</template>
+          <template #cell-dbUserName="{ row }">{{ row.dbUserName }}</template>
+          <template #cell-account="{ row }">{{ accountName(row) }}</template>
+          <template #cell-createdAt="{ row }">{{ formatDate(row.createdAt, localeStore.current) }}</template>
+          <template #cell-actions="{ row }">
+            <!-- One trigger instead of a button per command: the row's actions grow with the
+                 module, and a row that grows a button every time stops fitting on a narrow
+                 screen. `align="end"` because this is the last column — a menu aligned to the
+                 start would open off the right edge. -->
             <div class="flex items-center justify-end">
               <UiDropdown
                 :label="t('common.actions')"
-                :aria-label="t('databases.list.rowActions', { name: database.fullName })"
+                :aria-label="t('databases.list.rowActions', { name: row.fullName })"
                 align="end"
                 variant="bare"
                 :chevron="false"
@@ -301,17 +308,17 @@ onBeforeUnmount(dismissCredential)
                 <template #trigger>
                   <UiIcon name="ellipsis" size="md" />
                 </template>
-                <UiDropdownItem @select="ask(database.id, 'resetPassword')">
+                <UiDropdownItem @select="ask(row.id, 'resetPassword')">
                   {{ t('databases.list.resetPassword') }}
                 </UiDropdownItem>
-                <UiDropdownItem destructive @select="ask(database.id, 'drop')">
+                <UiDropdownItem destructive @select="ask(row.id, 'drop')">
                   {{ t('databases.list.drop') }}
                 </UiDropdownItem>
               </UiDropdown>
             </div>
-          </UiTableCell>
-        </UiTableRow>
-      </UiTable>
+          </template>
+        </UiTable>
+      </UiLoadingRegion>
     </UiCard>
 
     <!-- One dialog for the whole table rather than one per row: only one action can be awaiting

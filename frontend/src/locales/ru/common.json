@@ -36,6 +36,10 @@
       "any": "Любой",
       "chip": "{filter}: {value}",
       "clearSearchAndFilters": "Сбросить поиск и фильтры"
+    },
+    "loading": {
+      "busy": "Загрузка…",
+      "done": "Загружено"
     }
   }
 }

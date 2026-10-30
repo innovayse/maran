@@ -49,8 +49,20 @@
  * The row may wrap (`flex-wrap`) and the title keeps a minimum width, so even
  * the wide layout hands the actions the next line rather than starving the
  * title.
+ *
+ * **`loading`: the heading of a record still on its way.** A detail page's title is the record's
+ * own name, which is not known until the record arrives. With `loading` the eyebrow stays (it is
+ * the panel's own word), and the title and the subtitle each draw a placeholder line inside their
+ * own element, so each keeps the line height it will have and the loaded heading lands without a
+ * shift. The placeholders are `aria-hidden`; the {@link UiLoadingRegion} around the page says
+ * that it is loading.
+ *
+ * **`subtitleLoading`: a verdict still on its way under a fixed title.** Where the title is the
+ * panel's own word and only the subtitle comes from the server (the health verdict on the status
+ * screen), the title stays and the subtitle alone draws its placeholder line.
  */
 import { computed, useSlots, type ComputedRef } from 'vue'
+import UiSkeleton from './UiSkeleton.vue'
 
 /**
  * What the heading block shows.
@@ -81,8 +93,18 @@ const props = withDefaults(
      * page belongs to. Optional: a page that passes none draws just the title.
      */
     eyebrow?: string
+    /**
+     * Whether the record the title names is still loading: the title, and the subtitle when one
+     * is given, draw a placeholder line in place of their text.
+     */
+    loading?: boolean
+    /**
+     * Whether only the subtitle is still loading: it draws a placeholder line in place of its text
+     * while the title stays. Implied by {@link loading}.
+     */
+    subtitleLoading?: boolean
   }>(),
-  { subtitle: undefined, note: undefined, mono: false, eyebrow: undefined },
+  { subtitle: undefined, note: undefined, mono: false, eyebrow: undefined, loading: false, subtitleLoading: false },
 )
 
 /**
@@ -123,9 +145,15 @@ const titleClass: ComputedRef<string> = computed(() => {
         >
           {{ eyebrow }}
         </p>
-        <h1 :class="titleClass">{{ title }}</h1>
+        <!-- While loading, each placeholder sits inline in the element its text will fill, so the
+             element's own line box gives it the height the text will have. -->
+        <h1 :class="titleClass">
+          <span v-if="loading" class="inline-flex w-48 align-middle"><UiSkeleton shape="line" size="lg" /></span>
+          <template v-else>{{ title }}</template>
+        </h1>
         <p v-if="subtitle !== undefined" class="mt-1 text-sm text-text-secondary break-words">
-          {{ subtitle }}
+          <span v-if="loading || subtitleLoading" class="inline-flex w-40 align-middle"><UiSkeleton shape="line" /></span>
+          <template v-else>{{ subtitle }}</template>
         </p>
         <p v-if="note !== undefined" class="mt-0.5 text-sm text-text-muted break-words">
           {{ note }}

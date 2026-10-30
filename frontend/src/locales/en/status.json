@@ -3,7 +3,6 @@
     "status": {
       "heading": "System status",
       "eyebrow": "Maran · This server",
-      "checking": "Checking the panel API…",
       "ok": "All systems are operational.",
       "unreachable": "Could not reach the API",
       "resources": {

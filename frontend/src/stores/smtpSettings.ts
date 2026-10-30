@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { ref, type Ref } from 'vue'
 import { useSmtpSettingsApi } from '../composables/apis/useSmtpSettingsApi'
 import { ApiError } from '../composables/useApi'
+import type { LoadingState } from '../types/loading'
 import type { SaveSmtpSettingsRequest, SmtpSettings } from '../types/smtpSettings'
 
 /**
@@ -20,6 +21,12 @@ export const useSmtpSettingsStore = defineStore('smtpSettings', () => {
 
   /** True while a read, a save or a test send is in flight. */
   const loading: Ref<boolean> = ref(false)
+
+  /**
+   * Where the read of the settings stands: on its way, arrived, or refused. A save or a test send
+   * never moves it, so their refusals leave the form on screen with the alert above it.
+   */
+  const loadState: Ref<LoadingState> = ref('loading')
 
   /** True once the last save succeeded, so the screen can confirm it. */
   const saved: Ref<boolean> = ref(false)
@@ -53,11 +60,14 @@ export const useSmtpSettingsStore = defineStore('smtpSettings', () => {
    */
   const load = async (): Promise<void> => {
     loading.value = true
+    loadState.value = 'loading'
     errorMessage.value = null
     try {
       settings.value = await api.get()
+      loadState.value = 'loaded'
     } catch (error) {
       remember(error)
+      loadState.value = 'error'
     } finally {
       loading.value = false
     }
@@ -112,5 +122,5 @@ export const useSmtpSettingsStore = defineStore('smtpSettings', () => {
     }
   }
 
-  return { settings, loading, saved, testSent, errorMessage, load, save, sendTest }
+  return { settings, loading, loadState, saved, testSent, errorMessage, load, save, sendTest }
 })

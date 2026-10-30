@@ -1,5 +1,6 @@
 import { computed, onScopeDispose, ref, watch, type ComputedRef, type Ref } from 'vue'
 import { useRoute, useRouter, type LocationQuery, type LocationQueryRaw } from 'vue-router'
+import type { LoadingState } from '../types/loading'
 import type { ListLoad, ListRequest } from '../types/list'
 
 /** How one typed filter of a list is read from the URL. */
@@ -71,6 +72,11 @@ export interface ServerTable {
   pageCount: ComputedRef<number>
   /** Where the latest fetch stands: loading, loaded, refused with the server's message, or unreachable. */
   state: Ref<ServerTableState>
+  /**
+   * The same state as a `UiLoadingRegion` reads it: a refusal and no answer are both `error`, the
+   * kinds the page tells apart in the alert it puts in the region's `error` slot.
+   */
+  loadingState: ComputedRef<LoadingState>
   /**
    * Moves to a page.
    * @param page The 1-based page.
@@ -242,6 +248,11 @@ export const useServerTable = <T>(options: ServerTableOptions<T>): ServerTable =
 
   const pageCount: ComputedRef<number> = computed(() => {
     return Math.max(1, Math.ceil(total.value / pageSize.value))
+  })
+
+  const loadingState: ComputedRef<LoadingState> = computed(() => {
+    const status = state.value.status
+    return status === 'loading' || status === 'loaded' ? status : 'error'
   })
 
   /**
@@ -436,6 +447,7 @@ export const useServerTable = <T>(options: ServerTableOptions<T>): ServerTable =
     total,
     pageCount,
     state,
+    loadingState,
     setPage,
     setPageSize,
     toggleSort,

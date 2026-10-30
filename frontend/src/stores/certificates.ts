@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { ref, type Ref } from 'vue'
 import { useCertificatesApi } from '../composables/apis/useCertificatesApi'
 import { ApiError } from '../composables/useApi'
+import type { LoadingState } from '../types/loading'
 import type {
   Certificate,
   InstallCustomCertificateRequest,
@@ -23,8 +24,11 @@ export const useCertificatesStore = defineStore('certificates', () => {
   /** The certificates installed for the site last loaded; empty before a successful load. */
   const certificates: Ref<Certificate[]> = ref([])
 
-  /** True while the list request is in flight. */
-  const loading: Ref<boolean> = ref(false)
+  /**
+   * Where the read of the site's certificates stands: on its way, arrived, or refused. An issue,
+   * install or remove never moves it, so their refusals show above a list that is still there.
+   */
+  const listState: Ref<LoadingState> = ref('loading')
 
   /** True while an issue, install or remove request is in flight. */
   const acting: Ref<boolean> = ref(false)
@@ -66,16 +70,16 @@ export const useCertificatesStore = defineStore('certificates', () => {
    * @returns Resolves once the request has settled, successfully or not.
    */
   const load = async (siteId: string): Promise<void> => {
-    loading.value = true
+    listState.value = 'loading'
     try {
       certificates.value = await api.list(siteId)
       dismissError()
+      listState.value = 'loaded'
     } catch (error) {
-      // Not cleared to an empty list on failure: showing "no certificates" for a request that
-      // never answered would tell a customer their site is unprotected when nobody knows.
+      // An error, never an empty list: showing "no certificates" for a request that never
+      // answered would tell a customer their site is unprotected when nobody knows.
       noteFailure(error)
-    } finally {
-      loading.value = false
+      listState.value = 'error'
     }
   }
 
@@ -155,7 +159,7 @@ export const useCertificatesStore = defineStore('certificates', () => {
 
   return {
     certificates,
-    loading,
+    listState,
     acting,
     errorMessage,
     errorCode,

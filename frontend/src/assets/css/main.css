@@ -85,8 +85,15 @@ html[data-theme='dark'] {
   --pu: #8b6df0;
   --pus: rgb(139 109 240 / 0.13);
 
-  /* Loading shimmer. */
-  --sk: linear-gradient(90deg, #181b20 8%, #22262c 18%, #181b20 33%);
+  /* Loading shimmer: the primary text colour at 6 %, 13 % and 6 % over whatever surface the
+     placeholder sits on, so one definition serves both themes (the light block overrides `--t1`,
+     and this resolves against it). Painted at 200 % width and slid by `UiSkeleton`. */
+  --sk: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--t1) 6%, transparent) 25%,
+    color-mix(in srgb, var(--t1) 13%, transparent) 50%,
+    color-mix(in srgb, var(--t1) 6%, transparent) 75%
+  );
 }
 
 /*
@@ -208,7 +215,6 @@ html[data-theme='light'] {
   --rd: #c42b31;
   --pu: #6b4bd6;
   --pus: rgb(107 75 214 / 0.09);
-  --sk: linear-gradient(90deg, #eff1f4 8%, #e4e7eb 18%, #eff1f4 33%);
 }
 
 /*

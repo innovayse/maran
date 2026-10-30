@@ -5,7 +5,6 @@
       "heading": "Databases",
       "subtitle": "MySQL databases and their dedicated users.",
       "prefixNote": "Every database and user carries the owning account's name as a prefix. The names below are exactly what MySQL holds — use them as they are.",
-      "loading": "Loading databases…",
       "emptyTitle": "No databases yet",
       "emptyDescription": "Create the first database above. Its password is shown once, when it is created.",
       "tableCaption": "MySQL databases",
@@ -66,7 +65,6 @@
       "heading": "Grant repair",
       "subtitle": "What this server's database grants hold, and what a repair would narrow.",
       "adminNote": "Administrators only. The list spans every account on this server, so it names databases and users that belong to other customers.",
-      "loading": "Reading the server's grants…",
       "notDisclosedTitle": "Not shown to you",
       "notDisclosedDescription": "This page reads the grants of every account on the server at once, so only an administrator may open it. It says nothing about your own databases either way — ask your provider if you need it checked.",
       "census": {

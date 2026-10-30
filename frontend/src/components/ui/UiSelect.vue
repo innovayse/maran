@@ -38,6 +38,10 @@
  * one), a 1.98:1 step away from `--bc` in dark and 1.65:1 in light, where the muted
  * tier would move it only 1.50:1 / 1.49:1 — too small to read as a response. See
  * {@link UiInput} for the measured figures.
+ *
+ * LOADING. Inside a {@link UiForm} with `loading`, the label stays (it is the form's real text)
+ * and the trigger is replaced by a {@link UiSkeleton} of its footprint, so the loaded field lands
+ * in the same space.
  */
 import {
   computed,
@@ -50,9 +54,11 @@ import {
   type Ref,
 } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useFormLoading } from '../../composables/useFormLoading'
 import { nextEnabledIndex } from '../../utils/nextEnabledIndex'
 import UiIcon from './UiIcon.vue'
 import UiOption from './UiOption.vue'
+import UiSkeleton from './UiSkeleton.vue'
 
 /**
  * One selectable entry offered by {@link UiSelect}. Declared here, not in
@@ -138,6 +144,9 @@ const fieldId: string = useId()
 const labelId: string = `${fieldId}-label`
 const listboxId: string = `${fieldId}-listbox`
 const errorId: string = `${fieldId}-error`
+
+/** Whether the enclosing form is still loading, so the trigger is drawn as a placeholder. */
+const formLoading = useFormLoading()
 
 /** Whether the option list is currently open. */
 const isOpen: Ref<boolean> = ref(false)
@@ -392,7 +401,8 @@ watch(
       :class="[hasError ? 'text-danger' : 'text-text-muted', hideLabel ? 'sr-only' : '']"
       >{{ label }}</span
     >
-    <div class="relative">
+    <UiSkeleton v-if="formLoading" shape="block" control="field" />
+    <div v-else class="relative">
       <!-- `min-h-control` is the height an input renders at. Without it a select with
            no chosen value and no placeholder collapses to its empty line box and
            sits shorter than the inputs beside it. 16px text below `sm` (14px from

@@ -12,7 +12,6 @@
       "searchLabel": "Search accounts",
       "searchPlaceholder": "Search by name or domain…",
       "searchClear": "Clear the search",
-      "loading": "Loading accounts…",
       "emptyTitle": "No accounts yet",
       "emptyDescription": "Create the first hosting account to get started.",
       "tableCaption": "Hosting accounts",
@@ -57,7 +56,6 @@
     },
     "detail": {
       "heading": "Account",
-      "loading": "Loading the account…",
       "notFoundTitle": "Account not found",
       "notFoundDescription": "It may have been deleted since this link was made.",
       "primaryDomainLabel": "Primary domain",
@@ -117,7 +115,6 @@
     },
     "resources": {
       "heading": "Resources",
-      "loading": "Counting the account's resources…",
       "unavailable": "Unavailable",
       "unreachable": "The panel could not be reached, so the resources were not counted.",
       "usedOfLimit": "{used} of {limit}",

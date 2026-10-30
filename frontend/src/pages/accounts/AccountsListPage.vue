@@ -41,11 +41,9 @@ import UiPageHeading from '../../components/ui/UiPageHeading.vue'
 import UiPagination from '../../components/ui/UiPagination.vue'
 import UiSearchInput from '../../components/ui/UiSearchInput.vue'
 import UiSelect, { type SelectOption } from '../../components/ui/UiSelect.vue'
-import UiSpinner from '../../components/ui/UiSpinner.vue'
+import UiLoadingRegion from '../../components/ui/UiLoadingRegion.vue'
 import UiTable from '../../components/ui/UiTable.vue'
-import UiTableCell from '../../components/ui/UiTableCell.vue'
-import UiTableHeaderCell, { type ColumnSort } from '../../components/ui/UiTableHeaderCell.vue'
-import UiTableRow from '../../components/ui/UiTableRow.vue'
+import type { UiTableColumn } from '../../types/tableColumn'
 import AccountStatusBadge from '../../components/accounts/AccountStatusBadge.vue'
 import { useListLabels } from '../../composables/useListLabels'
 import { useServerTable } from '../../composables/useServerTable'
@@ -123,6 +121,16 @@ const statusOptions: ComputedRef<SelectOption[]> = computed(() => {
   ]
 })
 
+/** The table's columns: its header, its cells and its loading placeholder all read this one list. */
+const columns: ComputedRef<UiTableColumn[]> = computed(() => {
+  return [
+    { key: 'name', label: t('common.name'), kind: 'identity', sortField: 'name' },
+    { key: 'primaryDomain', label: t('accounts.list.columns.primaryDomain'), kind: 'mono' },
+    { key: 'status', label: t('accounts.list.columns.status'), kind: 'badge', sortField: 'status' },
+    { key: 'createdAt', label: t('accounts.list.columns.createdAt'), kind: 'date', align: 'end', sortField: 'createdAt' },
+  ]
+})
+
 /** One removable chip per applied filter. */
 const chips: ComputedRef<ActiveFilterChip[]> = computed(() => {
   const applied = table.filters.value
@@ -147,18 +155,6 @@ const planName = (id: string): string => {
       return plan.id === id
     })?.displayName ?? id
   )
-}
-
-/**
- * The order a sortable column is in, read from the list's sort key.
- * @param field The column's sort key.
- * @returns Ascending, descending, or not sorted by this column.
- */
-const columnSort = (field: string): ColumnSort => {
-  if (table.sort.value === field) {
-    return 'ascending'
-  }
-  return table.sort.value === `-${field}` ? 'descending' : 'none'
 }
 
 /**
@@ -204,11 +200,6 @@ onMounted(() => {
       </template>
     </UiPageHeading>
 
-    <UiAlert v-if="table.state.value.status === 'refused'" variant="error">{{ table.state.value.message }}</UiAlert>
-    <UiAlert v-else-if="table.state.value.status === 'unreachable'" variant="error">
-      {{ t('common.list.unreachable') }}
-    </UiAlert>
-
     <UiEmptyState
       v-if="answeredNothing && !isNarrowed"
       :title="t('accounts.list.emptyTitle')"
@@ -243,67 +234,61 @@ onMounted(() => {
           @clear="table.clearFilters"
         />
 
-        <UiSpinner v-if="table.state.value.status === 'loading'" :label="t('accounts.list.loading')" />
+        <UiLoadingRegion :state="table.loadingState.value">
+          <template #error>
+            <UiAlert v-if="table.state.value.status === 'refused'" variant="error">
+              {{ table.state.value.message }}
+            </UiAlert>
+            <UiAlert v-else variant="error">{{ t('common.list.unreachable') }}</UiAlert>
+          </template>
 
-        <UiEmptyState
-          v-else-if="answeredNothing"
-          :title="t('accounts.list.noResultsTitle')"
-          :description="t('accounts.list.noResultsDescription')"
-        >
-          <UiButton variant="secondary" @click="clearAll">{{ t('common.list.clearSearchAndFilters') }}</UiButton>
-        </UiEmptyState>
+          <UiEmptyState
+            v-if="answeredNothing"
+            :title="t('accounts.list.noResultsTitle')"
+            :description="t('accounts.list.noResultsDescription')"
+          >
+            <UiButton variant="secondary" @click="clearAll">{{ t('common.list.clearSearchAndFilters') }}</UiButton>
+          </UiEmptyState>
 
-        <div v-else-if="table.state.value.status === 'loaded'" class="flex flex-col gap-4">
-          <UiTable :caption="t('accounts.list.tableCaption')">
-            <template #head>
-              <UiTableRow>
-                <UiTableHeaderCell :sort="columnSort('name')" @sort="table.toggleSort('name')">
-                  {{ t('common.name') }}
-                </UiTableHeaderCell>
-                <UiTableHeaderCell>{{ t('accounts.list.columns.primaryDomain') }}</UiTableHeaderCell>
-                <UiTableHeaderCell :sort="columnSort('status')" @sort="table.toggleSort('status')">
-                  {{ t('accounts.list.columns.status') }}
-                </UiTableHeaderCell>
-                <UiTableHeaderCell align="end" :sort="columnSort('createdAt')" @sort="table.toggleSort('createdAt')">
-                  {{ t('accounts.list.columns.createdAt') }}
-                </UiTableHeaderCell>
-              </UiTableRow>
-            </template>
-            <UiTableRow v-for="account in store.accounts" :key="account.id">
-              <!-- An account name and a domain are identifiers: one unit each. `whitespace-nowrap` is what
-                   keeps `acme-industrial-holdings` from breaking at its hyphens into three lines (a hyphen
-                   is a break opportunity), so the column takes the identifier's width and the table
-                   scrolls inside its own container. -->
-              <UiTableCell class="whitespace-nowrap">
+          <div v-else class="flex flex-col gap-4">
+            <UiTable
+              :caption="t('accounts.list.tableCaption')"
+              :columns="columns"
+              :rows="store.accounts"
+              row-key="id"
+              :loading="table.state.value.status === 'loading'"
+              :skeleton-rows="table.pageSize.value"
+              :sort="table.sort.value"
+              @sort="table.toggleSort"
+            >
+              <template #cell-name="{ row }">
                 <div class="flex items-center gap-3">
-                  <UiAvatar :name="account.name" size="sm" />
+                  <UiAvatar :name="row.name" size="sm" />
                   <!-- The name is the way in to the account's detail page. -->
                   <RouterLink
-                    :to="{ name: 'account-detail', params: { id: account.id } }"
+                    :to="{ name: 'account-detail', params: { id: row.id } }"
                     class="inline-flex min-h-6 items-center rounded-control font-mono font-semibold text-accent-text hover:underline focus-visible:shadow-focus focus-visible:underline"
-                    >{{ account.name }}</RouterLink
+                    >{{ row.name }}</RouterLink
                   >
                 </div>
-              </UiTableCell>
-              <UiTableCell mono tone="secondary" class="whitespace-nowrap">{{ account.primaryDomain }}</UiTableCell>
-              <UiTableCell><AccountStatusBadge :status="account.status" /></UiTableCell>
-              <!-- A timestamp is context, never the thing being scanned for: the faintest text tier. -->
-              <UiTableCell mono align="end" tone="muted" class="whitespace-nowrap">
-                {{ formatDate(account.createdAt, localeStore.current) }}
-              </UiTableCell>
-            </UiTableRow>
-          </UiTable>
+              </template>
+              <template #cell-primaryDomain="{ row }">{{ row.primaryDomain }}</template>
+              <template #cell-status="{ row }"><AccountStatusBadge :status="row.status" /></template>
+              <template #cell-createdAt="{ row }">{{ formatDate(row.createdAt, localeStore.current) }}</template>
+            </UiTable>
 
-          <UiPagination
-            :page="table.page.value"
-            :page-size="table.pageSize.value"
-            :total="table.total.value"
-            :page-sizes="table.pageSizes"
-            :labels="labels.pagination.value"
-            @update:page="table.setPage"
-            @update:page-size="table.setPageSize"
-          />
-        </div>
+            <UiPagination
+              v-if="table.state.value.status === 'loaded'"
+              :page="table.page.value"
+              :page-size="table.pageSize.value"
+              :total="table.total.value"
+              :page-sizes="table.pageSizes"
+              :labels="labels.pagination.value"
+              @update:page="table.setPage"
+              @update:page-size="table.setPageSize"
+            />
+          </div>
+        </UiLoadingRegion>
       </div>
     </UiCard>
 

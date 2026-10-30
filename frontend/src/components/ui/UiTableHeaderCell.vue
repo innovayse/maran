@@ -31,12 +31,8 @@
  */
 import { computed, type ComputedRef } from 'vue'
 import UiIcon, { type UiIconName } from './UiIcon.vue'
+import type { CellAlign, ColumnSort } from '../../types/tableColumn'
 
-/** How the heading sits in its column. */
-type CellAlign = 'start' | 'end'
-
-/** The order a sortable column is in: by it ascending, by it descending, or not by it. */
-export type ColumnSort = 'ascending' | 'descending' | 'none'
 
 /** Props accepted by {@link UiTableHeaderCell}. */
 const props = withDefaults(

@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { computed, ref, type ComputedRef, type Ref } from 'vue'
 import { useTasksApi } from '../composables/apis/useTasksApi'
 import { ApiError } from '../composables/useApi'
+import type { LoadingState } from '../types/loading'
 import type { PanelTask } from '../types/panelTask'
 
 /**
@@ -38,11 +39,8 @@ export const useTasksStore = defineStore('tasks', () => {
   /** The tasks as last known: what the listing reported, updated in place by every stream frame. */
   const tasks: Ref<PanelTask[]> = ref([])
 
-  /** True while the listing request is in flight. */
-  const loading: Ref<boolean> = ref(false)
-
-  /** True once the listing has succeeded at least once. */
-  const isLoaded: Ref<boolean> = ref(false)
+  /** Where the read of the listing stands; every failure sets `error`, whatever its cause. */
+  const loadState: Ref<LoadingState> = ref('loading')
 
   /**
    * Backend-localized message from the most recent failed LISTING, or `null`. Rendered verbatim.
@@ -61,6 +59,13 @@ export const useTasksStore = defineStore('tasks', () => {
    * has — the frames it writes into {@link tasks}.
    */
   const watches = new Map<string, AbortController>()
+
+  /**
+   * The listing request in flight, or `null` when none is. Not reactive: nothing renders from it —
+   * the screen reads {@link loadState} — it only lets a second caller join the request already
+   * running instead of starting another.
+   */
+  let listing: Promise<void> | null = null
 
   /**
    * How many tasks are running right now, and the whole content of the header badge.
@@ -86,7 +91,7 @@ export const useTasksStore = defineStore('tasks', () => {
 
   /** Whether the panel answered successfully and reported no tasks at all. */
   const isEmpty: ComputedRef<boolean> = computed(() => {
-    return isLoaded.value && tasks.value.length === 0
+    return loadState.value === 'loaded' && tasks.value.length === 0
   })
 
   /**
@@ -220,21 +225,26 @@ export const useTasksStore = defineStore('tasks', () => {
     // A second request for the same list while one is in flight IS the same request. The shell's
     // badge and the tasks page both want the listing and both mount at once, and which of them
     // gets there first is a detail of template order nobody should have to reason about.
-    if (loading.value) {
-      return
+    if (listing !== null) {
+      return listing
     }
 
-    loading.value = true
-    try {
-      tasks.value = await api.list()
-      listErrorMessage.value = null
-      isLoaded.value = true
-    } catch (error) {
-      listErrorMessage.value = error instanceof ApiError ? error.message : null
-    } finally {
-      loading.value = false
-    }
+    loadState.value = 'loading'
+    listing = (async (): Promise<void> => {
+      try {
+        tasks.value = await api.list()
+        listErrorMessage.value = null
+        loadState.value = 'loaded'
+      } catch (error) {
+        listErrorMessage.value = error instanceof ApiError ? error.message : null
+        loadState.value = 'error'
+      } finally {
+        listing = null
+      }
+    })()
+    return listing
   }
+
 
   /**
    * Opens one task's live pane and starts watching it.
@@ -260,8 +270,7 @@ export const useTasksStore = defineStore('tasks', () => {
 
   return {
     tasks,
-    loading,
-    isLoaded,
+    loadState,
     listErrorMessage,
     openTaskId,
     runningCount,

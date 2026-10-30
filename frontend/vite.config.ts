@@ -52,6 +52,9 @@ export default defineConfig({
         // The list kit's Playwright-only mount point (e2e/fixtures/list-kit-harness.html), for the
         // same reason.
         listKitHarness: fileURLToPath(new URL('./e2e/fixtures/list-kit-harness.html', import.meta.url)),
+        // The loading kit's Playwright-only mount point (e2e/fixtures/skeleton-harness.html), for
+        // the same reason.
+        skeletonHarness: fileURLToPath(new URL('./e2e/fixtures/skeleton-harness.html', import.meta.url)),
       },
     },
   },

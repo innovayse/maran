@@ -23,13 +23,12 @@
  * (heading and cells share one alignment), and the ratio bar last with its percentage printed
  * beside it. The table scrolls inside its own container on a phone, never the page.
  */
+import { computed, type ComputedRef } from 'vue'
 import { useI18n } from 'vue-i18n'
 import UiBadge from '../ui/UiBadge.vue'
 import UiMeter from '../ui/UiMeter.vue'
 import UiTable from '../ui/UiTable.vue'
-import UiTableCell from '../ui/UiTableCell.vue'
-import UiTableHeaderCell from '../ui/UiTableHeaderCell.vue'
-import UiTableRow from '../ui/UiTableRow.vue'
+import type { UiTableColumn } from '../../types/tableColumn'
 import { formatBytes } from '../../utils/formatBytes'
 import type { AccountDiskUsage } from '../../types/monitoring'
 
@@ -40,6 +39,16 @@ defineProps<{
 }>()
 
 const { t } = useI18n()
+
+/** The table's columns: its header and its cells read this one list. */
+const columns: ComputedRef<UiTableColumn[]> = computed(() => {
+  return [
+    { key: 'account', label: t('monitoring.disk.columnAccount'), kind: 'identifier' },
+    { key: 'used', label: t('monitoring.disk.columnUsed'), kind: 'number' },
+    { key: 'quota', label: t('monitoring.disk.columnQuota'), kind: 'number' },
+    { key: 'ratio', label: t('monitoring.disk.columnRatio'), kind: 'text' },
+  ]
+})
 
 /**
  * The used figure as text, or the panel's "not measured" wording when the agent reported none.
@@ -81,54 +90,41 @@ const notEnforcedRatioText = (row: AccountDiskUsage): string => {
 </script>
 
 <template>
-  <UiTable :caption="t('monitoring.disk.caption')">
-    <template #head>
-      <UiTableRow>
-        <UiTableHeaderCell>{{ t('monitoring.disk.columnAccount') }}</UiTableHeaderCell>
-        <UiTableHeaderCell align="end">{{ t('monitoring.disk.columnUsed') }}</UiTableHeaderCell>
-        <UiTableHeaderCell align="end">{{ t('monitoring.disk.columnQuota') }}</UiTableHeaderCell>
-        <UiTableHeaderCell>{{ t('monitoring.disk.columnRatio') }}</UiTableHeaderCell>
-      </UiTableRow>
+  <UiTable :caption="t('monitoring.disk.caption')" :columns="columns" :rows="rows" row-key="accountId">
+    <template #cell-account="{ row }">{{ row.username }}</template>
+    <template #cell-used="{ row }">{{ usedText(row.usedBytes) }}</template>
+    <template #cell-quota="{ row }">
+      <!-- The badge's title comes from the backend's own note — the SPA never invents the
+           wording for why a real, paid-for allowance is not being applied right now. -->
+      <UiBadge v-if="!row.enforceable" variant="warning" class="mr-2" :title="row.note ?? undefined">
+        {{ t('monitoring.disk.notEnforcedBadge') }}
+      </UiBadge>
+      {{ quotaText(row.quotaBytes) }}
     </template>
-
-    <UiTableRow v-for="row in rows" :key="row.accountId" data-testid="account-disk-row">
-      <UiTableCell mono class="whitespace-nowrap">{{ row.username }}</UiTableCell>
-      <!-- Figures are right-aligned machine text; the "not measured" words are prose and stay in
-           the body face inside the same cell. -->
-      <UiTableCell align="end" :mono="row.usedBytes !== null">{{ usedText(row.usedBytes) }}</UiTableCell>
-      <UiTableCell align="end" :mono="row.quotaBytes !== 0">
-        <!-- The badge's title comes from the backend's own note — the SPA never invents the
-             wording for why a real, paid-for allowance is not being applied right now. -->
-        <UiBadge v-if="!row.enforceable" variant="warning" class="mr-2" :title="row.note ?? undefined">
-          {{ t('monitoring.disk.notEnforcedBadge') }}
-        </UiBadge>
-        <span>{{ quotaText(row.quotaBytes) }}</span>
-      </UiTableCell>
-      <UiTableCell>
-        <!-- No bar at all for an unmeasured account: an empty bar is a picture of "using nothing",
-             which is the precise claim a null exists to avoid making. -->
-        <span v-if="row.usedBytes === null" class="text-sm text-text-muted">{{
-          t('monitoring.disk.notMeasured')
-        }}</span>
-        <span v-else-if="row.quotaBytes === 0" class="text-sm text-text-muted">{{
-          t('monitoring.disk.noQuota')
-        }}</span>
-        <!-- Plain text, not a bar: a bar against `quotaBytes` here would draw a limit as if it
-             were in force, which is the exact defect issue #29 exists to fix. -->
-        <span v-else-if="!row.enforceable" class="text-sm text-text-muted" :title="row.note ?? undefined">{{
-          notEnforcedRatioText(row)
-        }}</span>
-        <!-- The cells beside the bar print the used and allowed figures, not the ratio, so the bar's
-             own visible percentage is kept: the bar is never an anonymous stripe. -->
-        <div v-else class="min-w-44">
-          <UiMeter
-            :value="row.usedBytes"
-            :max="row.quotaBytes"
-            :label="t('monitoring.disk.meterLabel', { username: row.username })"
-            :value-text="ratioText(row)"
-          />
-        </div>
-      </UiTableCell>
-    </UiTableRow>
+    <template #cell-ratio="{ row }">
+      <!-- No bar at all for an unmeasured account: an empty bar is a picture of "using nothing",
+           which is the precise claim a null exists to avoid making. -->
+      <span v-if="row.usedBytes === null" class="text-sm text-text-muted">{{
+        t('monitoring.disk.notMeasured')
+      }}</span>
+      <span v-else-if="row.quotaBytes === 0" class="text-sm text-text-muted">{{
+        t('monitoring.disk.noQuota')
+      }}</span>
+      <!-- Plain text, not a bar: a bar against `quotaBytes` here would draw a limit as if it
+           were in force, which is the exact defect issue #29 exists to fix. -->
+      <span v-else-if="!row.enforceable" class="text-sm text-text-muted" :title="row.note ?? undefined">{{
+        notEnforcedRatioText(row)
+      }}</span>
+      <!-- The cells beside the bar print the used and allowed figures, not the ratio, so the bar's
+           own visible percentage is kept: the bar is never an anonymous stripe. -->
+      <div v-else class="min-w-44">
+        <UiMeter
+          :value="row.usedBytes"
+          :max="row.quotaBytes"
+          :label="t('monitoring.disk.meterLabel', { username: row.username })"
+          :value-text="ratioText(row)"
+        />
+      </div>
+    </template>
   </UiTable>
 </template>

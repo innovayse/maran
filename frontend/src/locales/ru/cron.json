@@ -7,7 +7,6 @@
       "entriesHeading": "Задания",
       "accountLabel": "Аккаунт",
       "accountPlaceholder": "Выберите аккаунт",
-      "loading": "Загрузка заданий…",
       "emptyTitle": "Заданий пока нет",
       "emptyDescription": "Добавьте первое задание выше. Оно попадёт в crontab этого аккаунта, и запускать его будет сервер.",
       "tableCaption": "Запланированные задания",

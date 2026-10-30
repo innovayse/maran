@@ -1,11 +1,26 @@
-<script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref, useId, useTemplateRef, type Ref } from 'vue'
+<script setup lang="ts" generic="Row extends object">
+import { computed, onBeforeUnmount, onMounted, ref, useId, useTemplateRef, type ComputedRef, type Ref } from 'vue'
+import UiSkeleton from './UiSkeleton.vue'
+import UiTableCell, { type CellTone } from './UiTableCell.vue'
+import UiTableHeaderCell from './UiTableHeaderCell.vue'
+import UiTableRow from './UiTableRow.vue'
+import type { CellAlign, ColumnSort, UiTableColumn, UiTableColumnKind } from '../../types/tableColumn'
 
 /**
  * The panel's only table primitive. Renders a real `<table>` with a `<caption>` plus `<thead>` /
- * `<tbody>` structure; callers supply the header row through the `head` slot and the body rows
- * through the default slot, which keeps the primitive column-agnostic (rules/vue.md: UI comes from
- * `components/ui`).
+ * `<tbody>` structure (rules/vue.md: UI comes from `components/ui`).
+ *
+ * **The column schema is the one description of a table.** A caller passes `columns` (an array of
+ * {@link UiTableColumn}) and `rows`; the table draws the header row from the schema, with sorting
+ * wired through `sort` and `@sort`, and each body cell from the caller's scoped slot
+ * `#cell-<key>="{ row }"`. A column's `kind` decides its cell's face, tone, alignment and wrapping
+ * (see {@link UiTableColumnKind}), so those are not restated per page.
+ *
+ * **Loading keeps the real header.** With `loading`, the header row is the real one and the body
+ * is `skeletonRows` rows of {@link UiSkeleton} `cell`s, one per column by its `kind`. Nothing else
+ * describes the table's loading shape, so it cannot drift from the loaded table. The placeholder
+ * rows are `aria-hidden` and the table is `aria-busy`; the announcement belongs to the
+ * {@link UiLoadingRegion} around it, which also keeps the placeholders invisible for a fast answer.
  *
  * **The caption is visually hidden but never removed.** Most screens already show a heading above
  * their table, so a second visible title would only repeat it, yet the caption is what announces
@@ -55,11 +70,72 @@ import { onBeforeUnmount, onMounted, ref, useId, useTemplateRef, type Ref } from
  * scrolls away the control that acts on it.
  */
 
+/** The fields of a row whose value can key it: those holding a string or a number. */
+type RowKeyField<R> = { [K in keyof R]: R[K] extends string | number ? K : never }[keyof R]
+
 /** Props accepted by {@link UiTable}. */
-defineProps<{
-  /** Accessible name for the table, already translated by the caller. Visually hidden. */
-  caption: string
+const props = withDefaults(
+  defineProps<{
+    /** Accessible name for the table, already translated by the caller. Visually hidden. */
+    caption: string
+    /** The column schema: the header, the cells and the placeholder rows all read it. */
+    columns: readonly UiTableColumn[]
+    /** The rows to render, one per record. */
+    rows?: readonly Row[]
+    /** The field of a row that identifies it (a string or a number), used as the row's key. */
+    rowKey?: RowKeyField<Row>
+    /** Whether the rows are still loading: the real header over placeholder rows. */
+    loading?: boolean
+    /** How many placeholder rows to draw while loading; pass the page size the rows will fill. */
+    skeletonRows?: number
+    /** The list's sort key, `-` prefixed when descending, empty for the server's default order. */
+    sort?: string
+  }>(),
+  { rows: () => {return []}, rowKey: undefined, loading: false, skeletonRows: 5, sort: '' },
+)
+
+/** Events emitted by {@link UiTable}. */
+const emit = defineEmits<{
+  /** The reader asked to sort by a column, carrying that column's `sortField`. */
+  (e: 'sort', field: string): void
 }>()
+
+/** Slots of {@link UiTable}. */
+defineSlots<{
+  /** One body cell of a schema column, given the row it belongs to. */
+  [slot: `cell-${string}`]: ((scope: { row: Row }) => unknown) | undefined
+}>()
+
+/** The tone of each kind's cells. */
+const KIND_TONES: Record<UiTableColumnKind, CellTone> = {
+  identity: 'primary',
+  identifier: 'primary',
+  text: 'secondary',
+  mono: 'secondary',
+  code: 'primary',
+  badge: 'primary',
+  number: 'primary',
+  date: 'muted',
+  actions: 'primary',
+}
+
+/** The kinds set in the mono face with tabular digits. */
+const MONO_KINDS: ReadonlySet<UiTableColumnKind> = new Set<UiTableColumnKind>([
+  'identifier',
+  'mono',
+  'code',
+  'number',
+  'date',
+])
+
+/** The kinds set in the medium weight: what a row is scanned for. */
+const STRONG_KINDS: ReadonlySet<UiTableColumnKind> = new Set<UiTableColumnKind>(['identity', 'identifier'])
+
+/** The kinds whose cells wrap; every other kind keeps one line. */
+const WRAP_KINDS: ReadonlySet<UiTableColumnKind> = new Set<UiTableColumnKind>(['text', 'code'])
+
+/** The kinds that sit at the end of their column unless the column says otherwise. */
+const END_KINDS: ReadonlySet<UiTableColumnKind> = new Set<UiTableColumnKind>(['number', 'actions'])
 
 /** Unique id tying the scroll region's accessible name to the caption. */
 const captionId: string = useId()
@@ -81,6 +157,58 @@ const hiddenEnd: Ref<boolean> = ref(false)
 
 /** Observer that re-measures on any size change of the wrapper or the table. */
 let observer: ResizeObserver | null = null
+
+/** The placeholder row numbers drawn while loading. */
+const placeholderRows: ComputedRef<number[]> = computed(() => {
+  return Array.from({ length: props.skeletonRows }, (_, index) => {
+    return index
+  })
+})
+
+/**
+ * Where a column's heading and cells sit.
+ * @param column The column.
+ * @returns The column's own alignment, or its kind's.
+ */
+const alignOf = (column: UiTableColumn): CellAlign => {
+  return column.align ?? (END_KINDS.has(column.kind) ? 'end' : 'start')
+}
+
+/**
+ * The order a sortable column is in, read from the list's sort key.
+ * @param column The column.
+ * @returns Ascending, descending or none for a sortable column; `undefined` for one that is not.
+ */
+const sortOf = (column: UiTableColumn): ColumnSort | undefined => {
+  if (column.sortField === undefined) {
+    return undefined
+  }
+  if (props.sort === column.sortField) {
+    return 'ascending'
+  }
+  return props.sort === `-${column.sortField}` ? 'descending' : 'none'
+}
+
+/**
+ * Reports a press on a sortable heading.
+ * @param column The column whose heading was pressed.
+ * @returns Nothing.
+ */
+const requestSort = (column: UiTableColumn): void => {
+  if (column.sortField !== undefined) {
+    emit('sort', column.sortField)
+  }
+}
+
+/**
+ * The key of a body row, read from the field the caller named.
+ * @param row The row.
+ * @param index The row's position, the fallback when no `rowKey` is given.
+ * @returns A key unique among the rows.
+ */
+const keyOf = (row: Row, index: number): string => {
+  return props.rowKey === undefined ? String(index) : String(row[props.rowKey])
+}
 
 /**
  * Re-reads which edges hide content, so the fades follow the scroll position. Uses the absolute
@@ -140,17 +268,50 @@ onBeforeUnmount(() => {
       data-testid="table-scroller"
       @scroll.passive="onScroll"
     >
-      <table ref="table" class="w-full border-collapse text-left text-sm">
+      <table
+        ref="table"
+        class="w-full border-collapse text-left text-sm"
+        :aria-busy="loading ? 'true' : undefined"
+      >
         <caption :id="captionId" class="sr-only">
           {{
             caption
           }}
         </caption>
         <thead>
-          <slot name="head" />
+          <UiTableRow>
+            <UiTableHeaderCell
+              v-for="column in columns"
+              :key="column.key"
+              :align="alignOf(column)"
+              :sort="sortOf(column)"
+              @sort="requestSort(column)"
+            >
+              {{ column.label }}
+            </UiTableHeaderCell>
+          </UiTableRow>
         </thead>
-        <tbody>
-          <slot />
+        <tbody v-if="loading">
+          <UiTableRow v-for="placeholder in placeholderRows" :key="placeholder" aria-hidden="true">
+            <UiTableCell v-for="column in columns" :key="column.key" :align="alignOf(column)" nowrap>
+              <UiSkeleton shape="cell" :kind="column.kind" />
+            </UiTableCell>
+          </UiTableRow>
+        </tbody>
+        <tbody v-else>
+          <UiTableRow v-for="(row, index) in rows" :key="keyOf(row, index)">
+            <UiTableCell
+              v-for="column in columns"
+              :key="column.key"
+              :align="alignOf(column)"
+              :tone="KIND_TONES[column.kind]"
+              :mono="MONO_KINDS.has(column.kind)"
+              :strong="STRONG_KINDS.has(column.kind)"
+              :nowrap="!WRAP_KINDS.has(column.kind)"
+            >
+              <slot :name="`cell-${column.key}`" :row="row" />
+            </UiTableCell>
+          </UiTableRow>
         </tbody>
       </table>
     </div>

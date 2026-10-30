@@ -24,6 +24,10 @@
  * One page rather than a list plus a form page: an entry has no detail to open. What its last run
  * left behind is the only thing beyond the row, it costs a privileged read per entry, and it is
  * therefore a dialog opened on demand rather than a column nobody asked for.
+ *
+ * **Loading keeps the table's shape.** While an account's crontab is on the way the entries table
+ * shows its real header over placeholder rows drawn from its own `columns`, inside a
+ * {@link UiLoadingRegion}; a failed read is the region's alert, never a skeleton.
  */
 import { computed, onMounted, ref, useTemplateRef, type ComputedRef, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -38,11 +42,9 @@ import UiIcon from '../../components/ui/UiIcon.vue'
 import UiCombobox from '../../components/ui/UiCombobox.vue'
 import UiPageHeading from '../../components/ui/UiPageHeading.vue'
 import UiSectionHeading from '../../components/ui/UiSectionHeading.vue'
-import UiSpinner from '../../components/ui/UiSpinner.vue'
+import UiLoadingRegion from '../../components/ui/UiLoadingRegion.vue'
 import UiTable from '../../components/ui/UiTable.vue'
-import UiTableCell from '../../components/ui/UiTableCell.vue'
-import UiTableHeaderCell from '../../components/ui/UiTableHeaderCell.vue'
-import UiTableRow from '../../components/ui/UiTableRow.vue'
+import type { UiTableColumn } from '../../types/tableColumn'
 import UiToast from '../../components/ui/UiToast.vue'
 import CronEntryForm from '../../components/cron/CronEntryForm.vue'
 import CronEntryOutputDialog from '../../components/cron/CronEntryOutputDialog.vue'
@@ -85,6 +87,18 @@ const pendingEntry: ComputedRef<CronEntry | null> = computed(() => {
     }) ?? null
   )
 })
+
+/** The entries table's columns: its header, its cells and its loading placeholder all read this one list. */
+const columns: ComputedRef<UiTableColumn[]> = computed(() => {
+  return [
+    { key: 'schedule', label: t('cron.list.columns.schedule'), kind: 'mono' },
+    { key: 'runs', label: t('cron.list.columns.runs'), kind: 'text' },
+    { key: 'command', label: t('cron.list.columns.command'), kind: 'code' },
+    { key: 'state', label: t('cron.list.columns.state'), kind: 'badge' },
+    { key: 'actions', label: t('common.actions'), kind: 'actions' },
+  ]
+})
+
 
 /** The confirmation's accessible name, naming the command that would stop running. */
 const confirmationTitle: ComputedRef<string> = computed(() => {
@@ -342,6 +356,10 @@ onMounted(start)
       {{ store.saveErrorMessage }}
     </UiAlert>
 
+    <UiAlert v-if="store.actionErrorMessage !== null" variant="error">
+      {{ store.actionErrorMessage }}
+    </UiAlert>
+
     <UiCard>
       <UiSectionHeading
         class="mb-4"
@@ -359,48 +377,43 @@ onMounted(start)
     <UiCard>
       <UiSectionHeading class="mb-4" :title="t('cron.list.entriesHeading')" />
 
-      <UiSpinner v-if="store.loading" :label="t('cron.list.loading')" />
-
-      <UiAlert v-else-if="store.errorMessage !== null" variant="error">
-        {{ store.errorMessage }}
-      </UiAlert>
-
-      <UiEmptyState
-        v-else-if="store.isEmpty"
-        :title="t('cron.list.emptyTitle')"
-        :description="t('cron.list.emptyDescription')"
-      >
-        <template #icon><UiIcon name="clock" size="lg" /></template>
-      </UiEmptyState>
-
-      <UiTable v-else-if="store.entries.length > 0" :caption="t('cron.list.tableCaption')">
-        <template #head>
-          <UiTableRow>
-            <UiTableHeaderCell>{{ t('cron.list.columns.schedule') }}</UiTableHeaderCell>
-            <UiTableHeaderCell>{{ t('cron.list.columns.runs') }}</UiTableHeaderCell>
-            <UiTableHeaderCell>{{ t('cron.list.columns.command') }}</UiTableHeaderCell>
-            <UiTableHeaderCell>{{ t('cron.list.columns.state') }}</UiTableHeaderCell>
-            <UiTableHeaderCell align="end">{{ t('common.actions') }}</UiTableHeaderCell>
-          </UiTableRow>
+      <!-- Until an account is chosen there is no crontab to read, so there is nothing to wait for. -->
+      <UiLoadingRegion v-if="store.accountId !== ''" :state="store.loadState">
+        <template #error>
+          <UiAlert variant="error">{{ store.errorMessage ?? t('common.list.unreachable') }}</UiAlert>
         </template>
-        <UiTableRow v-for="entry in store.entries" :key="entry.entryId">
-          <UiTableCell mono class="whitespace-nowrap">
-            {{ scheduleText(entry) }}
-          </UiTableCell>
-          <UiTableCell tone="secondary" class="min-w-40">{{ scheduleDescription(entry) }}</UiTableCell>
+
+        <UiEmptyState
+          v-if="store.isEmpty"
+          :title="t('cron.list.emptyTitle')"
+          :description="t('cron.list.emptyDescription')"
+        >
+          <template #icon><UiIcon name="clock" size="lg" /></template>
+        </UiEmptyState>
+
+        <UiTable
+          v-else
+          :caption="t('cron.list.tableCaption')"
+          :columns="columns"
+          :rows="store.entries"
+          row-key="entryId"
+          :loading="store.loadState === 'loading'"
+        >
+          <template #cell-schedule="{ row }">{{ scheduleText(row) }}</template>
+          <template #cell-runs="{ row }"><div class="min-w-40">{{ scheduleDescription(row) }}</div></template>
           <!-- The command is shown exactly as the customer wrote it. It can carry a credential, which
                is why the panel keeps it out of its logs and its audit journal — but it is their own
                text on their own screen, and masking it would leave them unable to read their job. -->
-          <UiTableCell mono class="min-w-56">{{ entry.command }}</UiTableCell>
-          <UiTableCell>
-            <UiBadge :variant="entry.enabled ? 'success' : 'neutral'">
-              {{ entry.enabled ? t('cron.list.enabled') : t('cron.list.disabled') }}
+          <template #cell-command="{ row }"><div class="min-w-56">{{ row.command }}</div></template>
+          <template #cell-state="{ row }">
+            <UiBadge :variant="row.enabled ? 'success' : 'neutral'">
+              {{ row.enabled ? t('cron.list.enabled') : t('cron.list.disabled') }}
             </UiBadge>
-          </UiTableCell>
-          <UiTableCell align="end">
+          </template>
+          <template #cell-actions="{ row }">
             <UiDropdown
               :label="t('common.actions')"
-              :aria-label="t('cron.list.rowActions', { command: entry.command })"
+              :aria-label="t('cron.list.rowActions', { command: row.command })"
               align="end"
               variant="bare"
               :chevron="false"
@@ -408,20 +421,20 @@ onMounted(start)
               <template #trigger>
                 <UiIcon name="ellipsis" size="md" />
               </template>
-              <UiDropdownItem @select="setEnabled(entry)">
-                {{ entry.enabled ? t('cron.list.disable') : t('cron.list.enable') }}
+              <UiDropdownItem @select="setEnabled(row)">
+                {{ row.enabled ? t('cron.list.disable') : t('cron.list.enable') }}
               </UiDropdownItem>
-              <UiDropdownItem @select="edit(entry)">{{ t('cron.list.edit') }}</UiDropdownItem>
-              <UiDropdownItem @select="showOutput(entry.entryId)">
+              <UiDropdownItem @select="edit(row)">{{ t('cron.list.edit') }}</UiDropdownItem>
+              <UiDropdownItem @select="showOutput(row.entryId)">
                 {{ t('cron.list.lastOutput') }}
               </UiDropdownItem>
-              <UiDropdownItem destructive @select="askRemove(entry.entryId)">
+              <UiDropdownItem destructive @select="askRemove(row.entryId)">
                 {{ t('cron.list.remove') }}
               </UiDropdownItem>
             </UiDropdown>
-          </UiTableCell>
-        </UiTableRow>
-      </UiTable>
+          </template>
+        </UiTable>
+      </UiLoadingRegion>
     </UiCard>
 
     <UiCard>

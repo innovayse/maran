@@ -16,6 +16,10 @@
  *
  * The server lists only the kinds whose module is installed, so no row ever leads to a module this
  * server lacks. The kind's label is the SPA's own vocabulary, the same one the plan limits use.
+ *
+ * The card is its own {@link UiLoadingRegion}: while the read is in flight it keeps its heading
+ * and holds a placeholder block where the rows will be; a refused or unreachable read is the
+ * region's error, and shows the card with its alert and no placeholder.
  */
 import { computed, type ComputedRef } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -23,9 +27,11 @@ import type { RouteLocationRaw } from 'vue-router'
 import UiAlert from '../ui/UiAlert.vue'
 import UiButton from '../ui/UiButton.vue'
 import UiCard from '../ui/UiCard.vue'
+import UiLoadingRegion from '../ui/UiLoadingRegion.vue'
+import type { LoadingState } from '../../types/loading'
 import UiMeter from '../ui/UiMeter.vue'
 import UiSectionHeading from '../ui/UiSectionHeading.vue'
-import UiSpinner from '../ui/UiSpinner.vue'
+import UiSkeleton from '../ui/UiSkeleton.vue'
 import type {
   AccountResourceKind,
   AccountResourceSummaryRead,
@@ -67,6 +73,18 @@ const ROUTE_OF_KIND: Readonly<Record<AccountResourceKind, string>> = {
 
 const { t } = useI18n()
 
+/** Where the read stands, for the loading region: a refused or unreachable read is its error. */
+const regionState: ComputedRef<LoadingState> = computed(() => {
+  switch (props.read.state) {
+    case 'loading':
+      return 'loading'
+    case 'loaded':
+      return 'loaded'
+    default:
+      return 'error'
+  }
+})
+
 /** The rows to draw, in the order the server sent them; empty until the summary has loaded. */
 const rows: ComputedRef<ResourceRow[]> = computed(() => {
   if (props.read.state !== 'loaded') {
@@ -100,34 +118,45 @@ const figureOf = (usage: AccountResourceUsage): string => {
 </script>
 
 <template>
-  <UiCard data-testid="account-resources">
-    <UiSectionHeading class="mb-4" :title="t('accounts.resources.heading')" />
+  <UiLoadingRegion :state="regionState">
+    <template #error>
+      <UiCard data-testid="account-resources">
+        <UiSectionHeading class="mb-4" :title="t('accounts.resources.heading')" />
+        <UiAlert v-if="read.state === 'refused'" variant="error">{{ read.message }}</UiAlert>
+        <UiAlert v-else variant="error">{{ t('accounts.resources.unreachable') }}</UiAlert>
+      </UiCard>
+    </template>
 
-    <UiSpinner v-if="read.state === 'loading'" :label="t('accounts.resources.loading')" />
+    <UiCard data-testid="account-resources">
+      <UiSectionHeading class="mb-4" :title="t('accounts.resources.heading')" />
 
-    <UiAlert v-else-if="read.state === 'refused'" variant="error">{{ read.message }}</UiAlert>
+      <!-- How many rows the server will list is not known until it answers, so one block holds
+           the list's place rather than a guessed number of rows. -->
+      <UiSkeleton v-if="read.state === 'loading'" shape="block" size="lg" />
 
-    <UiAlert v-else-if="read.state === 'unreachable'" variant="error">
-      {{ t('accounts.resources.unreachable') }}
-    </UiAlert>
-
-    <ul v-else class="flex flex-col gap-4">
-      <li v-for="row in rows" :key="row.kind" class="flex min-w-0 flex-col gap-2" :data-testid="`resource-${row.kind}`">
-        <div class="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
-          <UiButton variant="quiet" :to="row.to">{{ row.label }}</UiButton>
-          <span class="font-mono text-sm text-text-secondary tabular-nums wrap-anywhere">{{ row.figure }}</span>
-        </div>
-        <!-- A bar only where there is an allowance to fill and a reading to fill it with; the figure
-             above already says it, so the meter does not print it twice. -->
-        <UiMeter
-          v-if="row.usage.state === 'counted' && row.usage.limitKind === 'limited'"
-          :value="row.usage.used"
-          :max="row.usage.limit"
-          :label="row.label"
-          :value-text="row.figure"
-          :show-value="false"
-        />
-      </li>
-    </ul>
-  </UiCard>
+      <ul v-else class="flex flex-col gap-4">
+        <li
+          v-for="row in rows"
+          :key="row.kind"
+          class="flex min-w-0 flex-col gap-2"
+          :data-testid="`resource-${row.kind}`"
+        >
+          <div class="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
+            <UiButton variant="quiet" :to="row.to">{{ row.label }}</UiButton>
+            <span class="font-mono text-sm text-text-secondary tabular-nums wrap-anywhere">{{ row.figure }}</span>
+          </div>
+          <!-- A bar only where there is an allowance to fill and a reading to fill it with; the figure
+               above already says it, so the meter does not print it twice. -->
+          <UiMeter
+            v-if="row.usage.state === 'counted' && row.usage.limitKind === 'limited'"
+            :value="row.usage.used"
+            :max="row.usage.limit"
+            :label="row.label"
+            :value-text="row.figure"
+            :show-value="false"
+          />
+        </li>
+      </ul>
+    </UiCard>
+  </UiLoadingRegion>
 </template>

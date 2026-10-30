@@ -16,8 +16,14 @@
  * where the muted tier would move it only 1.50:1 / 1.49:1 — too small to read as a
  * response. See {@link UiInput} for the measured figures and the error-text pairs,
  * which are identical here.
+ *
+ * LOADING. Inside a {@link UiForm} with `loading`, the label stays (it is the form's real text)
+ * and the control is replaced by a {@link UiSkeleton} of its resting four-row footprint, so the
+ * loaded field lands in the same space.
  */
 import { computed, useId, type ComputedRef } from 'vue'
+import { useFormLoading } from '../../composables/useFormLoading'
+import UiSkeleton from './UiSkeleton.vue'
 
 /** Props accepted by {@link UiTextarea}. */
 const props = withDefaults(
@@ -53,6 +59,9 @@ const emit = defineEmits<{
 const fieldId: string = useId()
 const errorId: string = `${fieldId}-error`
 
+/** Whether the enclosing form is still loading, so the control is drawn as a placeholder. */
+const formLoading = useFormLoading()
+
 /** Whether the field is currently in an error state. */
 const hasError: ComputedRef<boolean> = computed(() => {
   return props.error !== null && props.error !== undefined
@@ -71,13 +80,15 @@ const onInput = (event: Event): void => {
 <template>
   <div class="flex flex-col gap-1">
     <label
-      :for="fieldId"
+      :for="formLoading ? undefined : fieldId"
       class="text-xs font-bold wrap-anywhere"
       :class="hasError ? 'text-danger' : 'text-text-muted'"
       >{{ label }}</label
     >
     <!-- 16px below `sm` so a phone browser does not zoom the page on focus; see UiInput. -->
+    <UiSkeleton v-if="formLoading" shape="block" control="area" />
     <textarea
+      v-else
       :id="fieldId"
       :value="modelValue"
       :placeholder="placeholder"

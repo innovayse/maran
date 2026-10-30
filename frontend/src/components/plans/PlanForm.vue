@@ -79,6 +79,13 @@ const props = defineProps<{
   plan: ManagedPlan | null
   /** Whether a save request is already in flight, which disables the submit control. */
   submitting: boolean
+  /**
+   * Whether the plan being edited is still loading: the fields keep their labels and draw
+   * placeholders for their controls (`UiForm loading`). A form drawn while loading is a stand-in
+   * and is replaced by a fresh one once the plan is known, because the fields take their starting
+   * values once, on creation.
+   */
+  loading?: boolean
 }>()
 
 /** Events emitted by {@link PlanForm}. */
@@ -244,7 +251,7 @@ const cancel = (): void => {
     </UiAlert>
 
     <UiCard>
-      <UiForm @submit="submit">
+      <UiForm :loading="loading" @submit="submit">
         <UiSectionHeading class="mb-4" :title="t('plans.form.nameSection')" />
         <UiInput
           v-model="name"

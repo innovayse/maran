@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { ref, type Ref } from 'vue'
 import { useProfileApi } from '../composables/apis/useProfileApi'
 import { ApiError } from '../composables/useApi'
+import type { LoadingState } from '../types/loading'
 import type { Profile } from '../types/profile'
 
 /**
@@ -14,11 +15,11 @@ export const useProfileStore = defineStore('profile', () => {
   /** The profile as last loaded, or `null` before it has loaded or after a failure. */
   const profile: Ref<Profile | null> = ref(null)
 
-  /** True while the profile is being read. */
-  const loading: Ref<boolean> = ref(false)
-
   /** Backend-localized message from the last failed read, rendered verbatim. */
   const errorMessage: Ref<string | null> = ref(null)
+
+  /** Where the last read stands: on its way, arrived, or refused. */
+  const loadState: Ref<LoadingState> = ref('loading')
 
   /**
    * Reads the caller's profile.
@@ -30,16 +31,16 @@ export const useProfileStore = defineStore('profile', () => {
    */
   const load = async (): Promise<void> => {
     profile.value = null
-    loading.value = true
+    loadState.value = 'loading'
     errorMessage.value = null
     try {
       profile.value = await api.get()
+      loadState.value = 'loaded'
     } catch (error) {
       errorMessage.value = error instanceof ApiError ? error.message : null
-    } finally {
-      loading.value = false
+      loadState.value = 'error'
     }
   }
 
-  return { profile, loading, errorMessage, load }
+  return { profile, errorMessage, loadState, load }
 })

@@ -5,7 +5,6 @@
       "subtitle": "Copies of an account's files and the contents of its databases.",
       "eyebrow": "Protection",
       "storageNote": "Every copy is written to this server and stays on it. Restoring from one replaces the account's home directory and every database the copy holds, and nothing else.",
-      "loading": "Loading backups…",
       "emptyTitle": "No backups yet",
       "emptyDescription": "Take the first one above. It holds the account's files and a dump of each of its databases.",
       "sectionHeading": "Backup history",
@@ -99,7 +98,6 @@
       "heading": "Backup schedule",
       "subtitle": "When this server takes backups on its own, and how many copies it keeps.",
       "utcNote": "Times are in UTC, not in this server's local time zone.",
-      "loading": "Loading the schedule…",
       "saved": "The schedule was saved.",
       "unscheduled": "Nothing is scheduled here. This server takes no backup of its own accord for this scope until a schedule is saved below.",
       "scope": {
@@ -154,7 +152,6 @@
       "heading": "Backup destinations",
       "subtitle": "Where this server records that its copies live.",
       "readOnlyNote": "This screen reads. The panel publishes no way to add or remove a destination, so nothing here can be changed.",
-      "loading": "Loading destinations…",
       "emptyTitle": "Nothing recorded yet",
       "emptyDescription": "The panel writes down its default destination when it starts. A server that answers with none has not finished starting, or was started with no backup storage configured.",
       "default": "Default",

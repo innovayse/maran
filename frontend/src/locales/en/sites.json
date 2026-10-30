@@ -14,7 +14,6 @@
       "heading": "Sites",
       "subtitle": "Websites served from this server.",
       "createAction": "New site",
-      "loading": "Loading sites…",
       "emptyTitle": "No sites yet",
       "emptyDescription": "Create the first site to start serving a domain.",
       "tableCaption": "Websites",
@@ -79,7 +78,6 @@
     },
     "detail": {
       "heading": "Site",
-      "loading": "Loading the site…",
       "notFoundTitle": "Site not found",
       "notFoundDescription": "It may have been deleted since this link was made.",
       "backToList": "Back to sites",

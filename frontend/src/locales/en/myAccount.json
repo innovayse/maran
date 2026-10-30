@@ -2,7 +2,6 @@
   "myAccount": {
     "eyebrow": "Your hosting account",
     "identityHeading": "Account",
-    "loading": "Loading your account…",
     "primaryDomainLabel": "Primary domain",
     "statusLabel": "Status",
     "planHeading": "Plan",

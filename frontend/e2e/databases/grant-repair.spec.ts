@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test'
+import { expect, test, type Locator, type Page } from '@playwright/test'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import {
   stubDatabaseGrants,
@@ -10,6 +10,15 @@ import { stubModules } from '../fixtures/stub-modules-route'
 import type { GrantRepairReport } from '../../src/types/grantRepair'
 import type { PanelModule } from '../../src/types/module'
 import { stubAccounts } from '../fixtures/stub-accounts-route'
+
+/**
+ * The screen's banners: every `status` except the loading region's own announcement.
+ * @param page The Playwright page.
+ * @returns A locator over the banners.
+ */
+const alerts = (page: Page): Locator => {
+  return page.locator('[role="status"]:not([data-testid="loading-status"])')
+}
 
 const LICENSED: PanelModule[] = [
   { name: 'databases', displayName: 'Databases', tier: 'included', isEnabled: true },
@@ -59,9 +68,8 @@ test('the report shows the four buckets and says they account for every row read
   await page.goto('/databases/grant-repair')
 
   // Positive control on the probe: the census card IS rendered, so a missing figure below is a fact
-  // about the screen rather than about the locator. Asserted before the figures because the page
-  // reads "Reading the server's grants…" until the request settles, and a spec that asserted over
-  // that state would be measuring a spinner.
+  // about the screen rather than about the locator. The card stands from the first frame with
+  // placeholders for its figures, so the figure assertions below wait for the answer itself.
   await expect(page.getByRole('heading', { name: 'What the server holds' })).toBeVisible()
 
   // `exact: true` on each label, because `getByText` matches a case-insensitive SUBSTRING and the
@@ -270,8 +278,9 @@ test('a host with nothing to narrow says so instead of offering a repair', async
   // here would have been vacuous — it matches nothing on this page whether or not a banner is drawn.
   // It is discriminating rather than decorative, and that is measured: the failure case at the bottom
   // of this file asserts the same locator CONTAINS the backend's sentence, so a zero here is a fact
-  // about the screen. `UiSpinner` shares the role and has already gone by this point.
-  await expect(page.getByRole('status')).toHaveCount(0)
+  // about the screen. The loading region's own status shares the role and says "Loaded", so it is
+  // left out of the count.
+  await expect(alerts(page)).toHaveCount(0)
   await expect(page.getByRole('button', { name: 'Narrow the grants listed' })).toBeDisabled()
 })
 
@@ -290,7 +299,7 @@ test('a caller the panel refuses is told who may run this and shown no census', 
 
   await expect(page.getByText('Not shown to you')).toBeVisible()
   await expect(page.getByText('only an administrator may open it', { exact: false })).toBeVisible()
-  await expect(page.getByRole('status')).toHaveCount(0)
+  await expect(alerts(page)).toHaveCount(0)
   await expect(page.getByRole('heading', { name: 'What the server holds' })).toHaveCount(0)
   await expect(page.getByText('reporting_metrics')).toHaveCount(0)
 })
@@ -305,7 +314,7 @@ test('a failure renders the backend own message and not a census', async ({ page
 
   await page.goto('/databases/grant-repair')
 
-  await expect(page.getByRole('status')).toContainText('The server agent could not be reached.')
+  await expect(alerts(page)).toContainText('The server agent could not be reached.')
   await expect(page.getByRole('heading', { name: 'What the server holds' })).toHaveCount(0)
 })
 

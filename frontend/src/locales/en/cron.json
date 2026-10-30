@@ -7,7 +7,6 @@
       "entriesHeading": "Entries",
       "accountLabel": "Account",
       "accountPlaceholder": "Choose an account",
-      "loading": "Loading scheduled tasks…",
       "emptyTitle": "Nothing scheduled yet",
       "emptyDescription": "Add the first entry above. It goes into this account's crontab, and the server is what runs it.",
       "tableCaption": "Scheduled tasks",

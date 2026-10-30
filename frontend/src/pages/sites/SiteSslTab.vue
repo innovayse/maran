@@ -22,6 +22,10 @@
  * certificate thirty days before it ends, so an ACME certificate inside that window is NOT yet a
  * problem (renewal simply has not run) and only warns at fourteen days or after a failed renewal;
  * a customer's own certificate is never renewed by the panel, so it warns from thirty days out.
+ *
+ * While the list loads, one certificate card is drawn with its real terms and placeholder values
+ * ({@link UiLoadingRegion}, `CertificateCard loading`); a list that would not load is the region's
+ * error. The actions below the list do not wait for it.
  */
 import { differenceInMilliseconds, parseISO } from "date-fns";
 import CertificateCard from "../../components/ssl/CertificateCard.vue";
@@ -33,7 +37,7 @@ import UiButton from "../../components/ui/UiButton.vue";
 import UiCard from "../../components/ui/UiCard.vue";
 import UiConfirm from "../../components/ui/UiConfirm.vue";
 import UiEmptyState from "../../components/ui/UiEmptyState.vue";
-import UiSpinner from "../../components/ui/UiSpinner.vue";
+import UiLoadingRegion from "../../components/ui/UiLoadingRegion.vue";
 import { useCertificatesStore } from "../../stores/certificates";
 import { useLocaleStore } from "../../stores/locale";
 import type { Certificate, CertificateAttention, CustomCertificateMaterial } from "../../types/certificate";
@@ -142,7 +146,7 @@ const flagged: ComputedRef<CertificateRow[]> = computed(() => {
 
 /** Whether the panel answered and reported no certificate for this site. */
 const isEmpty: ComputedRef<boolean> = computed(() => {
-  return !store.loading && store.errorMessage === null && store.certificates.length === 0;
+  return store.listState === "loaded" && store.errorMessage === null && store.certificates.length === 0;
 });
 
 /**
@@ -279,84 +283,98 @@ onMounted(load);
 
 <template>
   <div class="flex flex-col gap-4">
-    <UiSpinner v-if="store.loading" :label="t('certificates.loading')" />
+    <UiLoadingRegion :state="store.listState">
+      <template #error>
+        <UiAlert variant="error">{{ store.errorMessage ?? t('app.status.unreachable') }}</UiAlert>
+      </template>
 
-    <template v-else>
-      <!-- What needs attention goes first. Amber for "running out", red only once it has run out.
-           These sit before the error/empty chain below, which must stay an unbroken v-if/v-else-if. -->
-      <UiAlert
-        v-for="row in flagged"
-        :key="row.certificate.id"
-        :variant="row.attention === 'expired' ? 'error' : 'warning'"
-      >
-        {{
-          t(`certificates.alerts.${row.attention}`, {
-            domain: row.certificate.domain,
-            date: formatDate(row.certificate.notAfter, localeStore.current),
-            count: row.certificate.consecutiveRenewalFailures,
-          })
-        }}
-        <template #actions>
-          <UiButton variant="secondary" :disabled="store.acting" @click="issue">
-            {{ t("certificates.renew") }}
-          </UiButton>
-        </template>
-      </UiAlert>
-
-      <UiAlert v-if="store.errorMessage !== null && !isFieldRefusal" variant="error">
-        {{ store.errorMessage }}
-      </UiAlert>
-
-      <UiEmptyState
-        v-else-if="isEmpty"
-        :title="t('certificates.emptyTitle')"
-        :description="t('certificates.emptyDescription')"
-      />
-
+      <!-- How many certificates the site has is not known until the panel answers; one card holds
+           the list's place, with the real terms of a certificate. -->
       <CertificateCard
-        v-for="row in rows"
-        :key="row.certificate.id"
-        :certificate="row.certificate"
-        :days-left="row.daysLeft"
-        :attention="row.attention"
+        v-if="store.listState === 'loading'"
+        loading
+        :days-left="null"
+        :attention="null"
         :locale="localeStore.current"
-        @remove="askRemove"
       />
 
-      <!-- One dialog for the whole list rather than one per card: only one removal can be
-           awaiting an answer, and a dialog rendered inside a `v-for` would be torn down by the
-           list refresh its own confirmation triggers. -->
-      <UiConfirm
-        :open="pendingRemovalId !== null"
-        :title="t('certificates.confirmRemoveTitle', { domain: pendingRemovalDomain })"
-        :question="t('certificates.confirmRemove')"
-        :confirm-label="t('common.confirm')"
-        :cancel-label="t('common.cancel')"
-        :close-label="t('common.close')"
-        :acting="store.acting"
-        :acting-label="t('certificates.working')"
-        @close="cancelRemove"
-        @confirm="confirmRemove"
-      />
+      <div v-else class="flex flex-col gap-4">
+        <!-- What needs attention goes first. Amber for "running out", red only once it has run out.
+             These sit before the error/empty chain below, which must stay an unbroken v-if/v-else-if. -->
+        <UiAlert
+          v-for="row in flagged"
+          :key="row.certificate.id"
+          :variant="row.attention === 'expired' ? 'error' : 'warning'"
+        >
+          {{
+            t(`certificates.alerts.${row.attention}`, {
+              domain: row.certificate.domain,
+              date: formatDate(row.certificate.notAfter, localeStore.current),
+              count: row.certificate.consecutiveRenewalFailures,
+            })
+          }}
+          <template #actions>
+            <UiButton variant="secondary" :disabled="store.acting" @click="issue">
+              {{ t("certificates.renew") }}
+            </UiButton>
+          </template>
+        </UiAlert>
 
-      <UiCard>
-        <div class="flex flex-wrap items-center gap-2">
-          <UiButton :disabled="store.acting" @click="issue">{{ t("certificates.issue") }}</UiButton>
-          <UiButton v-if="!isUploading" variant="secondary" @click="startUpload">
-            {{ t("certificates.installCustom") }}
-          </UiButton>
-        </div>
-        <p class="mt-3 text-sm text-text-muted">{{ t("certificates.issueHint") }}</p>
-      </UiCard>
+        <UiAlert v-if="store.errorMessage !== null && !isFieldRefusal" variant="error">
+          {{ store.errorMessage }}
+        </UiAlert>
 
-      <CustomCertificateForm
-        v-if="isUploading"
-        :acting="store.acting"
-        :certificate-pem-refusal="certificatePemRefusal"
-        :private-key-pem-refusal="privateKeyPemRefusal"
-        @submit="submitUpload"
-        @cancel="cancelUpload"
-      />
-    </template>
+        <UiEmptyState
+          v-else-if="isEmpty"
+          :title="t('certificates.emptyTitle')"
+          :description="t('certificates.emptyDescription')"
+        />
+
+        <CertificateCard
+          v-for="row in rows"
+          :key="row.certificate.id"
+          :certificate="row.certificate"
+          :days-left="row.daysLeft"
+          :attention="row.attention"
+          :locale="localeStore.current"
+          @remove="askRemove"
+        />
+      </div>
+    </UiLoadingRegion>
+
+    <!-- One dialog for the whole list rather than one per card: only one removal can be
+         awaiting an answer, and a dialog rendered inside a `v-for` would be torn down by the
+         list refresh its own confirmation triggers. -->
+    <UiConfirm
+      :open="pendingRemovalId !== null"
+      :title="t('certificates.confirmRemoveTitle', { domain: pendingRemovalDomain })"
+      :question="t('certificates.confirmRemove')"
+      :confirm-label="t('common.confirm')"
+      :cancel-label="t('common.cancel')"
+      :close-label="t('common.close')"
+      :acting="store.acting"
+      :acting-label="t('certificates.working')"
+      @close="cancelRemove"
+      @confirm="confirmRemove"
+    />
+
+    <UiCard>
+      <div class="flex flex-wrap items-center gap-2">
+        <UiButton :disabled="store.acting" @click="issue">{{ t("certificates.issue") }}</UiButton>
+        <UiButton v-if="!isUploading" variant="secondary" @click="startUpload">
+          {{ t("certificates.installCustom") }}
+        </UiButton>
+      </div>
+      <p class="mt-3 text-sm text-text-muted">{{ t("certificates.issueHint") }}</p>
+    </UiCard>
+
+    <CustomCertificateForm
+      v-if="isUploading"
+      :acting="store.acting"
+      :certificate-pem-refusal="certificatePemRefusal"
+      :private-key-pem-refusal="privateKeyPemRefusal"
+      @submit="submitUpload"
+      @cancel="cancelUpload"
+    />
   </div>
 </template>

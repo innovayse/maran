@@ -44,11 +44,11 @@ import UiForm from '../../components/ui/UiForm.vue'
 import type { UiIconName } from '../../components/ui/UiIcon.vue'
 import UiIconTile from '../../components/ui/UiIconTile.vue'
 import UiInput from '../../components/ui/UiInput.vue'
+import UiLoadingRegion from '../../components/ui/UiLoadingRegion.vue'
 import UiPageHeading from '../../components/ui/UiPageHeading.vue'
 import UiSectionHeading from '../../components/ui/UiSectionHeading.vue'
 import UiCombobox from '../../components/ui/UiCombobox.vue'
 import UiSelect, { type SelectOption } from '../../components/ui/UiSelect.vue'
-import UiSpinner from '../../components/ui/UiSpinner.vue'
 import UiSwitch from '../../components/ui/UiSwitch.vue'
 import { useAccountChoice, type AccountPickerState } from '../../composables/useAccountChoice'
 import { useBackupSchedulesStore } from '../../stores/backupSchedules'
@@ -160,7 +160,7 @@ const isWeekly: ComputedRef<boolean> = computed(() => {
 
 /** True when the panel answered and reported that this scope has no schedule at all. */
 const isUnscheduled: ComputedRef<boolean> = computed(() => {
-  return store.isLoaded && !store.isConfigured && store.errorMessage === null
+  return store.loadState === 'loaded' && !store.isConfigured
 })
 
 /** The four things `retainCount` alone would be read as promising and does not, in reading order. */
@@ -187,8 +187,14 @@ const nextRun: ComputedRef<string | null> = computed(() => {
   return at === null ? null : formatIsoTimestamp(at, localeStore.current)
 })
 
-/** The message for the banner: the last failure, unless a field is already showing it. */
+/**
+ * The message for the banner: the last refused save, unless a field is already showing it. A
+ * refused read is the loading region's own error, so it is not repeated here.
+ */
 const bannerError: ComputedRef<string | null> = computed(() => {
+  if (store.loadState !== 'loaded') {
+    return null
+  }
   return store.errorCode in FIELD_OF_CODE ? null : store.errorMessage
 })
 
@@ -324,7 +330,7 @@ watch(
 
     <!-- Amber, not blue: an unscheduled server takes no backup of its own accord, which is a
          condition to act on rather than a fact to note. -->
-    <UiAlert v-if="!store.loading && isUnscheduled" variant="warning">
+    <UiAlert v-if="isUnscheduled" variant="warning">
       {{ t('backups.schedule.unscheduled') }}
     </UiAlert>
 
@@ -349,119 +355,124 @@ watch(
           class="w-full min-w-0 @2xl:w-80 @2xl:shrink-0"
           :label="t('backups.schedule.scope.label')"
           :placeholder="t('backups.schedule.scope.hostWide')"
-          :disabled="store.loading || store.saving"
+          :disabled="store.loadState === 'loading' || store.saving"
           @search="searchAccounts"
         />
       </div>
     </UiCard>
 
-    <UiSpinner v-if="store.loading" :label="t('backups.schedule.loading')" />
-
     <!-- Form and side notes sit in two columns only from `@4xl` (56rem of the panel's width): the
          form's own two-up rows need ~32rem of their card, and 3/5 of anything narrower than this
          cannot give it. Below that the notes stack under the form. -->
-    <div v-else-if="store.isLoaded" class="@container">
-    <div class="grid items-start gap-4 @4xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
-      <UiCard class="@container">
-        <UiSectionHeading
-          class="mb-4"
-          :title="t('backups.schedule.form.heading')"
-          :subtitle="t('backups.schedule.form.subtitle')"
-        />
-        <UiForm @submit="submit">
-          <div class="flex flex-col gap-4">
-            <div class="grid gap-4 @lg:grid-cols-2">
-              <UiSelect
-                v-model="frequency"
-                class="min-w-0"
-                :label="t('backups.schedule.form.frequencyLabel')"
-                :placeholder="t('backups.schedule.form.frequencyPlaceholder')"
-                :options="frequencyOptions"
-                required
-              />
+    <!-- While the scope's schedule is read, the form keeps its real labels over placeholder
+         controls (`UiForm loading`), so the read schedule lands in space already held. -->
+    <UiLoadingRegion :state="store.loadState">
+      <template #error>
+        <UiAlert variant="error">{{ store.errorMessage ?? t('app.status.unreachable') }}</UiAlert>
+      </template>
+      <div class="@container">
+      <div class="grid items-start gap-4 @4xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
+        <UiCard class="@container">
+          <UiSectionHeading
+            class="mb-4"
+            :title="t('backups.schedule.form.heading')"
+            :subtitle="t('backups.schedule.form.subtitle')"
+          />
+          <UiForm :loading="store.loadState === 'loading'" @submit="submit">
+            <div class="flex flex-col gap-4">
+              <div class="grid gap-4 @lg:grid-cols-2">
+                <UiSelect
+                  v-model="frequency"
+                  class="min-w-0"
+                  :label="t('backups.schedule.form.frequencyLabel')"
+                  :placeholder="t('backups.schedule.form.frequencyPlaceholder')"
+                  :options="frequencyOptions"
+                  required
+                />
 
-              <UiSelect
-                v-if="isWeekly"
-                v-model="dayOfWeekUtc"
-                class="min-w-0"
-                :label="t('backups.schedule.form.dayLabel')"
-                :placeholder="t('backups.schedule.form.dayPlaceholder')"
-                :options="dayOptions"
-                :error="fieldError('day')"
-                required
-              />
+                <UiSelect
+                  v-if="isWeekly"
+                  v-model="dayOfWeekUtc"
+                  class="min-w-0"
+                  :label="t('backups.schedule.form.dayLabel')"
+                  :placeholder="t('backups.schedule.form.dayPlaceholder')"
+                  :options="dayOptions"
+                  :error="fieldError('day')"
+                  required
+                />
+              </div>
+
+              <div class="grid gap-4 @lg:grid-cols-2">
+                <UiInput
+                  v-model="hourUtc"
+                  class="min-w-0"
+                  :label="t('backups.schedule.form.hourLabel')"
+                  :placeholder="t('backups.schedule.form.hourPlaceholder')"
+                  :error="fieldError('hour')"
+                  required
+                />
+
+                <UiInput
+                  v-model="retainCount"
+                  class="min-w-0"
+                  :label="t('backups.schedule.form.retainLabel')"
+                  :placeholder="t('backups.schedule.form.retainPlaceholder')"
+                  :error="fieldError('retain')"
+                  required
+                />
+              </div>
+
+              <div class="flex flex-col gap-2 rounded-control border border-border-subtle bg-surface-2 p-4">
+                <UiSwitch v-model="enabled" :label="t('backups.schedule.form.enabledLabel')" />
+                <p class="text-sm text-text-muted break-words">{{ t('backups.schedule.form.enabledHint') }}</p>
+              </div>
+
+              <UiButton class="w-full @lg:w-auto @lg:self-start" type="submit" :disabled="store.saving">
+                {{ store.saving ? t('common.saving') : t('backups.schedule.form.submit') }}
+              </UiButton>
             </div>
-
-            <div class="grid gap-4 @lg:grid-cols-2">
-              <UiInput
-                v-model="hourUtc"
-                class="min-w-0"
-                :label="t('backups.schedule.form.hourLabel')"
-                :placeholder="t('backups.schedule.form.hourPlaceholder')"
-                :error="fieldError('hour')"
-                required
-              />
-
-              <UiInput
-                v-model="retainCount"
-                class="min-w-0"
-                :label="t('backups.schedule.form.retainLabel')"
-                :placeholder="t('backups.schedule.form.retainPlaceholder')"
-                :error="fieldError('retain')"
-                required
-              />
-            </div>
-
-            <div class="flex flex-col gap-2 rounded-control border border-border-subtle bg-surface-2 p-4">
-              <UiSwitch v-model="enabled" :label="t('backups.schedule.form.enabledLabel')" />
-              <p class="text-sm text-text-muted break-words">{{ t('backups.schedule.form.enabledHint') }}</p>
-            </div>
-
-            <UiButton class="w-full @lg:w-auto @lg:self-start" type="submit" :disabled="store.saving">
-              {{ store.saving ? t('common.saving') : t('backups.schedule.form.submit') }}
-            </UiButton>
-          </div>
-        </UiForm>
-      </UiCard>
-
-      <div class="flex min-w-0 flex-col gap-4">
-        <UiCard v-if="store.isConfigured">
-          <UiSectionHeading class="mb-4" :title="t('backups.schedule.summary.heading')" />
-          <UiDescriptionList>
-            <UiDescriptionItem :term="t('backups.schedule.summary.state')">
-              <UiBadge :variant="store.schedule?.enabled === true ? 'success' : 'warning'">
-                {{
-                  store.schedule?.enabled === true
-                    ? t('backups.schedule.summary.on')
-                    : t('backups.schedule.summary.off')
-                }}
-              </UiBadge>
-            </UiDescriptionItem>
-            <UiDescriptionItem v-if="nextRun !== null" :term="t('backups.schedule.summary.nextRun')" mono>
-              {{ nextRun }}
-            </UiDescriptionItem>
-            <UiDescriptionItem :term="t('backups.schedule.summary.lastRun')" mono>
-              {{ lastRun }}
-            </UiDescriptionItem>
-          </UiDescriptionList>
+          </UiForm>
         </UiCard>
 
-        <UiCard>
-          <UiSectionHeading class="mb-4" :title="t('backups.schedule.retention.heading')" />
-          <!-- Every one of these is something `retainCount` on its own would be read as promising and
-               does not. They are on the screen rather than in a doc comment because the operator who
-               types a number is the person who would otherwise believe all four. -->
-          <ul class="flex flex-col gap-4">
-            <li v-for="point in retentionPoints" :key="point.key" class="flex items-start gap-3">
-              <UiIconTile :name="point.icon" size="sm" />
-              <p class="min-w-0 pt-1 text-sm text-text-secondary break-words">
-                {{ point.text }}
-              </p>
-            </li>
-          </ul>
-        </UiCard>
+        <div class="flex min-w-0 flex-col gap-4">
+          <UiCard v-if="store.isConfigured">
+            <UiSectionHeading class="mb-4" :title="t('backups.schedule.summary.heading')" />
+            <UiDescriptionList>
+              <UiDescriptionItem :term="t('backups.schedule.summary.state')">
+                <UiBadge :variant="store.schedule?.enabled === true ? 'success' : 'warning'">
+                  {{
+                    store.schedule?.enabled === true
+                      ? t('backups.schedule.summary.on')
+                      : t('backups.schedule.summary.off')
+                  }}
+                </UiBadge>
+              </UiDescriptionItem>
+              <UiDescriptionItem v-if="nextRun !== null" :term="t('backups.schedule.summary.nextRun')" mono>
+                {{ nextRun }}
+              </UiDescriptionItem>
+              <UiDescriptionItem :term="t('backups.schedule.summary.lastRun')" mono>
+                {{ lastRun }}
+              </UiDescriptionItem>
+            </UiDescriptionList>
+          </UiCard>
+
+          <UiCard>
+            <UiSectionHeading class="mb-4" :title="t('backups.schedule.retention.heading')" />
+            <!-- Every one of these is something `retainCount` on its own would be read as promising and
+                 does not. They are on the screen rather than in a doc comment because the operator who
+                 types a number is the person who would otherwise believe all four. -->
+            <ul class="flex flex-col gap-4">
+              <li v-for="point in retentionPoints" :key="point.key" class="flex items-start gap-3">
+                <UiIconTile :name="point.icon" size="sm" />
+                <p class="min-w-0 pt-1 text-sm text-text-secondary break-words">
+                  {{ point.text }}
+                </p>
+              </li>
+            </ul>
+          </UiCard>
+        </div>
       </div>
-    </div>
-    </div>
+      </div>
+    </UiLoadingRegion>
   </section>
 </template>

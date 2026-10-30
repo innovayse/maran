@@ -23,9 +23,15 @@
  * MOTION. The check mark fades in over 200ms when the box is ticked (and out when it is
  * cleared); `motion-reduce` drops the transition. The fade is decoration only: the native
  * input's checked state is what assistive technology reads.
+ *
+ * LOADING. Inside a {@link UiForm} with `loading`, the label text stays (it is the form's real
+ * text) and the native input and its box are replaced by a {@link UiSkeleton} of the box's
+ * footprint: there is no value to tick yet.
  */
 import { computed, useId, type ComputedRef } from 'vue'
+import { useFormLoading } from '../../composables/useFormLoading'
 import UiIcon from './UiIcon.vue'
+import UiSkeleton from './UiSkeleton.vue'
 
 /** Props accepted by {@link UiCheckbox}. */
 const props = withDefaults(
@@ -58,6 +64,9 @@ const emit = defineEmits<{
 const fieldId: string = useId()
 const errorId: string = `${fieldId}-error`
 
+/** Whether the enclosing form is still loading, so the box is drawn as a placeholder. */
+const formLoading = useFormLoading()
+
 /** Whether the control is currently in an error state. */
 const hasError: ComputedRef<boolean> = computed(() => {
   return props.error !== null && props.error !== undefined
@@ -81,41 +90,44 @@ const onChange = (event: Event): void => {
          `for`/`id` pair is kept as well: an explicit association survives a later
          restructure of the wrapper. -->
     <label
-      :for="fieldId"
+      :for="formLoading ? undefined : fieldId"
       class="flex min-h-choice w-fit max-w-full items-center gap-2 text-sm text-text-primary"
       :class="disabled ? 'cursor-not-allowed opacity-65' : 'cursor-pointer'"
     >
-      <input
-        :id="fieldId"
-        type="checkbox"
-        class="peer sr-only"
-        :checked="modelValue"
-        :disabled="disabled"
-        :aria-required="required ? 'true' : undefined"
-        :aria-invalid="hasError"
-        :aria-describedby="hasError ? errorId : undefined"
-        @change="onChange"
-      />
-      <span
-        class="inline-flex size-4 shrink-0 items-center justify-center rounded-mark border text-white transition-colors"
-        :class="[
-          modelValue ? 'border-accent-fill bg-accent-fill' : 'bg-surface-2',
-          !modelValue && hasError ? 'border-danger' : '',
-          !modelValue && !hasError ? 'border-border-control' : '',
-          hasError ? 'peer-focus-visible:shadow-focus-danger' : 'peer-focus-visible:shadow-focus',
-        ]"
-        aria-hidden="true"
-      >
-        <!-- Always rendered and faded rather than mounted with `v-if`, so the check can ease in
-             over 200ms when the box is ticked. A reader who asked for less motion gets the end
-             state at once; the fill change still reports the new value. -->
-        <UiIcon
-          name="check"
-          size="sm"
-          class="transition-opacity duration-200 ease-out motion-reduce:transition-none"
-          :class="modelValue ? 'opacity-100' : 'opacity-0'"
+      <UiSkeleton v-if="formLoading" shape="block" control="checkbox" />
+      <template v-else>
+        <input
+          :id="fieldId"
+          type="checkbox"
+          class="peer sr-only"
+          :checked="modelValue"
+          :disabled="disabled"
+          :aria-required="required ? 'true' : undefined"
+          :aria-invalid="hasError"
+          :aria-describedby="hasError ? errorId : undefined"
+          @change="onChange"
         />
-      </span>
+        <span
+          class="inline-flex size-4 shrink-0 items-center justify-center rounded-mark border text-white transition-colors"
+          :class="[
+            modelValue ? 'border-accent-fill bg-accent-fill' : 'bg-surface-2',
+            !modelValue && hasError ? 'border-danger' : '',
+            !modelValue && !hasError ? 'border-border-control' : '',
+            hasError ? 'peer-focus-visible:shadow-focus-danger' : 'peer-focus-visible:shadow-focus',
+          ]"
+          aria-hidden="true"
+        >
+          <!-- Always rendered and faded rather than mounted with `v-if`, so the check can ease in
+               over 200ms when the box is ticked. A reader who asked for less motion gets the end
+               state at once; the fill change still reports the new value. -->
+          <UiIcon
+            name="check"
+            size="sm"
+            class="transition-opacity duration-200 ease-out motion-reduce:transition-none"
+            :class="modelValue ? 'opacity-100' : 'opacity-0'"
+          />
+        </span>
+      </template>
       <span class="min-w-0 wrap-anywhere">{{ label }}</span>
     </label>
     <p v-if="hasError" :id="errorId" class="text-sm text-danger wrap-anywhere">{{ error }}</p>

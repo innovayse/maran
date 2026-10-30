@@ -160,7 +160,7 @@ test('the 7 d toggle refetches the chart with the week range', async ({ page }) 
 test('the per-account disk table draws a ratio bar naming used against allowance', async ({ page }) => {
   await openMonitoring(page)
 
-  const alice = page.getByTestId('account-disk-row').filter({ hasText: 'alice' })
+  const alice = page.getByRole('row').filter({ hasText: 'alice' })
   const bar = alice.getByRole('progressbar')
   await expect(bar).toHaveAttribute('aria-valuetext', '512 MiB of 1 GiB')
   await expect(bar).toHaveAttribute('aria-valuenow', String(512 * 1024 * 1024))
@@ -175,7 +175,7 @@ test('the per-account disk table draws a ratio bar naming used against allowance
 test('an account the agent did not measure gets no bar and says so', async ({ page }) => {
   await openMonitoring(page)
 
-  const carol = page.getByTestId('account-disk-row').filter({ hasText: 'carol' })
+  const carol = page.getByRole('row').filter({ hasText: 'carol' })
   await expect(carol.getByRole('progressbar')).toHaveCount(0)
   await expect(carol.getByText('Not measured')).toHaveCount(2)
 })
@@ -188,7 +188,7 @@ test('an account the agent did not measure gets no bar and says so', async ({ pa
 test('an account whose quota cannot be enforced gets no bar and a badge instead', async ({ page }) => {
   await openMonitoring(page)
 
-  const dave = page.getByTestId('account-disk-row').filter({ hasText: 'dave' })
+  const dave = page.getByRole('row').filter({ hasText: 'dave' })
   await expect(dave.getByRole('progressbar')).toHaveCount(0)
   await expect(dave.getByText('Not enforced', { exact: true })).toBeVisible()
   await expect(dave.getByText('256 MiB, allowance not enforced')).toBeVisible()

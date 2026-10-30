@@ -21,9 +21,7 @@ import UiDropdown from '../ui/UiDropdown.vue'
 import UiDropdownItem from '../ui/UiDropdownItem.vue'
 import UiIcon from '../ui/UiIcon.vue'
 import UiTable from '../ui/UiTable.vue'
-import UiTableCell from '../ui/UiTableCell.vue'
-import UiTableHeaderCell from '../ui/UiTableHeaderCell.vue'
-import UiTableRow from '../ui/UiTableRow.vue'
+import type { UiTableColumn } from '../../types/tableColumn'
 import { useLocaleStore } from '../../stores/locale'
 import { formatCountdown } from '../../utils/formatCountdown'
 import { formatIsoTimestamp } from '../../utils/formatIsoTimestamp'
@@ -35,6 +33,8 @@ const props = defineProps<{
   bans: readonly Ban[]
   /** Whether a change is already in flight, which disables every row's menu. */
   busy: boolean
+  /** Whether the screen's lists are still loading: the real header over placeholder rows. */
+  loading: boolean
 }>()
 
 /** Events emitted by {@link FirewallBansTable}. */
@@ -60,6 +60,18 @@ const ticker: Ref<ReturnType<typeof setInterval> | null> = ref(null)
 
 /** The ban whose lift is awaiting confirmation, or the empty string when none is. */
 const pendingId: Ref<string> = ref('')
+
+/** The table's columns: its header, its cells and its loading placeholder all read this one list. */
+const columns: ComputedRef<UiTableColumn[]> = computed(() => {
+  return [
+    { key: 'address', label: t('firewall.bans.columns.address'), kind: 'identifier' },
+    { key: 'reason', label: t('firewall.bans.columns.reason'), kind: 'badge' },
+    { key: 'failures', label: t('firewall.bans.columns.failures'), kind: 'number' },
+    { key: 'bannedAt', label: t('firewall.bans.columns.bannedAt'), kind: 'date' },
+    { key: 'expiresAt', label: t('firewall.bans.columns.expiresAt'), kind: 'date' },
+    { key: 'actions', label: t('common.actions'), kind: 'actions' },
+  ]
+})
 
 /** The ban the confirmation is open for, or `null` when none is. */
 const pendingBan: ComputedRef<Ban | null> = computed(() => {
@@ -150,48 +162,40 @@ onBeforeUnmount(() => {
 
 <template>
   <!-- The page puts this table in its panel. Machine text — the address, the failure count, the
-       date — is set in the mono face by the cell itself and never uppercased; the table scrolls
+       dates — is set in the mono face by its column's kind and never uppercased; the table scrolls
        inside its own container, so a phone never scrolls the page sideways. Cells do not wrap:
        a wrapped address or date would make a row two lines tall for no gain. -->
-  <UiTable :caption="t('firewall.bans.tableCaption')">
-    <template #head>
-      <UiTableRow>
-        <UiTableHeaderCell>{{ t('firewall.bans.columns.address') }}</UiTableHeaderCell>
-        <UiTableHeaderCell>{{ t('firewall.bans.columns.reason') }}</UiTableHeaderCell>
-        <UiTableHeaderCell align="end">{{ t('firewall.bans.columns.failures') }}</UiTableHeaderCell>
-        <UiTableHeaderCell>{{ t('firewall.bans.columns.bannedAt') }}</UiTableHeaderCell>
-        <UiTableHeaderCell>{{ t('firewall.bans.columns.expiresAt') }}</UiTableHeaderCell>
-        <UiTableHeaderCell align="end">{{ t('common.actions') }}</UiTableHeaderCell>
-      </UiTableRow>
+  <UiTable
+    :caption="t('firewall.bans.tableCaption')"
+    :columns="columns"
+    :rows="bans"
+    row-key="id"
+    :loading="loading"
+  >
+    <template #cell-address="{ row }">{{ row.ipAddress }}</template>
+    <template #cell-reason="{ row }">
+      <UiBadge :variant="row.reason === 'bruteForce' ? 'danger' : 'neutral'">
+        {{ t(`firewall.bans.reasons.${row.reason}`) }}
+      </UiBadge>
     </template>
-    <UiTableRow v-for="ban in bans" :key="ban.id">
-      <UiTableCell mono class="font-medium whitespace-nowrap">{{ ban.ipAddress }}</UiTableCell>
-      <UiTableCell class="whitespace-nowrap">
-        <UiBadge :variant="ban.reason === 'bruteForce' ? 'danger' : 'neutral'">
-          {{ t(`firewall.bans.reasons.${ban.reason}`) }}
-        </UiBadge>
-      </UiTableCell>
-      <UiTableCell mono align="end" tone="secondary">{{ ban.failures }}</UiTableCell>
-      <UiTableCell mono tone="muted" class="whitespace-nowrap">
-        {{ formatIsoTimestamp(ban.bannedAt, localeStore.current) }}
-      </UiTableCell>
-      <UiTableCell tone="secondary" class="whitespace-nowrap">{{ expiry(ban) }}</UiTableCell>
-      <UiTableCell align="end">
-        <UiDropdown
-          :label="t('common.actions')"
-          :aria-label="t('firewall.bans.rowActions', { address: ban.ipAddress })"
-          align="end"
-          variant="bare"
-          :chevron="false"
-          :disabled="busy"
-        >
-          <template #trigger>
-            <UiIcon name="ellipsis" size="md" />
-          </template>
-          <UiDropdownItem @select="ask(ban.id)">{{ t('firewall.bans.unban') }}</UiDropdownItem>
-        </UiDropdown>
-      </UiTableCell>
-    </UiTableRow>
+    <template #cell-failures="{ row }">{{ row.failures }}</template>
+    <template #cell-bannedAt="{ row }">{{ formatIsoTimestamp(row.bannedAt, localeStore.current) }}</template>
+    <template #cell-expiresAt="{ row }">{{ expiry(row) }}</template>
+    <template #cell-actions="{ row }">
+      <UiDropdown
+        :label="t('common.actions')"
+        :aria-label="t('firewall.bans.rowActions', { address: row.ipAddress })"
+        align="end"
+        variant="bare"
+        :chevron="false"
+        :disabled="busy"
+      >
+        <template #trigger>
+          <UiIcon name="ellipsis" size="md" />
+        </template>
+        <UiDropdownItem @select="ask(row.id)">{{ t('firewall.bans.unban') }}</UiDropdownItem>
+      </UiDropdown>
+    </template>
   </UiTable>
 
   <!-- One dialog for the whole table rather than one per row: only one lift can be awaiting an

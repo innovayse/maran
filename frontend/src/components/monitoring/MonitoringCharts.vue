@@ -41,6 +41,8 @@ import type { MetricBucket } from '../../types/monitoring'
 const props = defineProps<{
   /** The buckets the panel answered with, oldest first. Empty draws six empty states. */
   buckets: MetricBucket[]
+  /** Whether the buckets are still on their way: each chart draws its label over a placeholder. */
+  loading?: boolean
 }>()
 
 const { t } = useI18n()
@@ -139,19 +141,20 @@ const formatFine = (value: number): string => {
 <template>
   <div class="grid grid-cols-1 gap-4 lg:grid-cols-2" data-testid="monitoring-charts">
     <UiCard>
-      <UiChart :series="cpuSeries" :label="t('monitoring.charts.cpu')" :unit="t('monitoring.units.percent')" />
+      <UiChart :loading="loading" :series="cpuSeries" :label="t('monitoring.charts.cpu')" :unit="t('monitoring.units.percent')" />
     </UiCard>
     <!-- The byte units come from `utils/formatBytes` rather than the message bundles: IEC symbols
          are locale-invariant notation, and the disk table on this same screen already reads them
          from there — one authority, or the two drift (they had: `GiB` beside `ГиБ`). -->
     <UiCard>
-      <UiChart :series="memorySeries" :label="t('monitoring.charts.memory')" :unit="GIBIBYTE_UNIT" />
+      <UiChart :loading="loading" :series="memorySeries" :label="t('monitoring.charts.memory')" :unit="GIBIBYTE_UNIT" />
     </UiCard>
     <UiCard>
-      <UiChart :series="diskSeries" :label="t('monitoring.charts.disk')" :unit="GIBIBYTE_UNIT" />
+      <UiChart :loading="loading" :series="diskSeries" :label="t('monitoring.charts.disk')" :unit="GIBIBYTE_UNIT" />
     </UiCard>
     <UiCard>
       <UiChart
+        :loading="loading"
         :series="networkReceiveSeries"
         :label="t('monitoring.charts.networkReceive')"
         :unit="networkReceiveScale.unit"
@@ -160,6 +163,7 @@ const formatFine = (value: number): string => {
     </UiCard>
     <UiCard>
       <UiChart
+        :loading="loading"
         :series="networkTransmitSeries"
         :label="t('monitoring.charts.networkTransmit')"
         :unit="networkTransmitScale.unit"
@@ -169,7 +173,7 @@ const formatFine = (value: number): string => {
     <!-- No unit: a load average is dimensionless, and a word after it would read as
          `2.10 нагрузка` — a unit invented in three languages for a number that has none. -->
     <UiCard>
-      <UiChart :series="loadSeries" :label="t('monitoring.charts.load')" :format-value="formatFine" />
+      <UiChart :loading="loading" :series="loadSeries" :label="t('monitoring.charts.load')" :format-value="formatFine" />
     </UiCard>
   </div>
 </template>

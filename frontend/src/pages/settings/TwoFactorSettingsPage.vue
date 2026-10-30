@@ -51,6 +51,8 @@ import UiForm from '../../components/ui/UiForm.vue'
 import UiIcon from '../../components/ui/UiIcon.vue'
 import UiIconTile from '../../components/ui/UiIconTile.vue'
 import UiInput from '../../components/ui/UiInput.vue'
+import UiLoadingRegion from '../../components/ui/UiLoadingRegion.vue'
+import type { LoadingState } from '../../types/loading'
 import UiPageHeading from '../../components/ui/UiPageHeading.vue'
 import UiQrCode from '../../components/ui/UiQrCode.vue'
 import UiSectionHeading from '../../components/ui/UiSectionHeading.vue'
@@ -111,9 +113,19 @@ const inAuthLayout: ComputedRef<boolean> = computed(() => {
   return route.name === 'two-factor-setup'
 })
 
-/** The message to show above the flow: a refused action first, else a profile that would not load. */
-const errorMessage: ComputedRef<string | null> = computed(() => {
-  return authStore.errorMessage ?? (state.value.kind === 'unavailable' ? profileStore.errorMessage : null)
+/**
+ * Where the page's starting state stands, for the loading region: still settling, settled into a
+ * flow, or `unavailable` (the profile would not load), which the region shows as its error.
+ */
+const regionState: ComputedRef<LoadingState> = computed(() => {
+  switch (state.value.kind) {
+    case 'loading':
+      return 'loading'
+    case 'unavailable':
+      return 'error'
+    default:
+      return 'loaded'
+  }
 })
 
 /**
@@ -243,133 +255,142 @@ onMounted(async () => {
       :subtitle="t('app.twoFactor.subtitle')"
     />
 
-    <UiAlert v-if="errorMessage !== null" variant="error">
-      {{ errorMessage }}
+    <!-- A refused action; a profile that would not load is the region's own error below. -->
+    <UiAlert v-if="authStore.errorMessage !== null" variant="error">
+      {{ authStore.errorMessage }}
     </UiAlert>
 
-    <!-- Exactly one flow per state: the page never offers Set up to someone who has the factor on,
-         nor Turn off to someone who does not. -->
-    <div v-if="state.kind === 'loading'" class="max-w-2xl">
-      <UiSkeleton shape="card" />
-    </div>
+    <UiLoadingRegion :state="regionState">
+      <template #error>
+        <UiAlert variant="error">{{ profileStore.errorMessage ?? t('app.status.unreachable') }}</UiAlert>
+      </template>
+      <div class="flex flex-col gap-4">
+        <!-- Exactly one flow per state: the page never offers Set up to someone who has the factor on,
+             nor Turn off to someone who does not. Which flow is not known until the profile answers,
+             so the wait holds a generic card. -->
+        <div v-if="state.kind === 'loading'" class="max-w-2xl">
+          <UiSkeleton shape="card" />
+        </div>
 
-    <UiCard v-else-if="state.kind === 'notEnrolled'" class="flex max-w-2xl flex-col items-start gap-4">
-      <div class="flex items-start gap-3">
-        <!-- Decorative: the section's title beside it names it. -->
-        <UiIconTile name="shieldCheck" size="sm" />
-        <UiSectionHeading
-          :title="t('app.twoFactor.manageTitle')"
-          :subtitle="t('app.twoFactor.manageDescription')"
-        />
-      </div>
-      <UiButton @click="beginEnrolment">{{ t('app.twoFactor.enable') }}</UiButton>
-    </UiCard>
-
-    <UiCard v-else-if="state.kind === 'enrolling'" class="flex max-w-2xl flex-col gap-4">
-      <UiSectionHeading
-        :title="t('app.twoFactor.enrolTitle')"
-        :subtitle="t('app.twoFactor.enrolInstructions')"
-      />
-
-      <!-- The QR code is encoded in this browser from the URI the backend returned; the URI holds
-           the secret, so it is never handed to anything that could send it elsewhere. -->
-      <UiQrCode :value="state.enrolment.provisioningUri" :label="t('app.twoFactor.qrLabel')" />
-
-      <!-- The secret is shown as text too, because the person setting this up is often at the
-           machine showing the code, where scanning their own screen is not possible.
-           Machine text: the mono face, its own case, and it breaks anywhere so a long secret
-           cannot widen the page on a phone. -->
-      <div class="flex flex-col gap-1.5">
-        <p class="text-sm text-text-muted">{{ t('app.twoFactor.secretLabel') }}</p>
-        <p
-          class="rounded-control border border-border-subtle bg-surface-2 px-3 py-2 font-mono text-sm break-all text-text-primary select-all"
-        >
-          {{ state.enrolment.secret }}
-        </p>
-      </div>
-
-      <UiForm @submit="confirmEnrolment">
-        <div class="flex flex-col gap-4">
-          <UiInput
-            v-model="enrolCode"
-            mono
-            :label="t('app.twoFactor.confirmCodeLabel')"
-            :placeholder="t('app.auth.codePlaceholder')"
-            required
-            autocomplete="one-time-code"
-            inputmode="numeric"
-          />
-          <div class="flex flex-wrap gap-2">
-            <UiButton type="submit">{{ t('app.twoFactor.confirmEnrolment') }}</UiButton>
-            <UiButton variant="secondary" @click="cancelEnrolment">
-              {{ t('common.cancel') }}
-            </UiButton>
+        <UiCard v-else-if="state.kind === 'notEnrolled'" class="flex max-w-2xl flex-col items-start gap-4">
+          <div class="flex items-start gap-3">
+            <!-- Decorative: the section's title beside it names it. -->
+            <UiIconTile name="shieldCheck" size="sm" />
+            <UiSectionHeading
+              :title="t('app.twoFactor.manageTitle')"
+              :subtitle="t('app.twoFactor.manageDescription')"
+            />
           </div>
-        </div>
-      </UiForm>
-    </UiCard>
+          <UiButton @click="beginEnrolment">{{ t('app.twoFactor.enable') }}</UiButton>
+        </UiCard>
 
-    <template v-else-if="state.kind === 'enrolled'">
-      <!-- The codes come first when they exist: they are the one thing here that cannot be fetched
-           again, so the page leads with them and with the warning that says so. -->
-      <UiCard v-if="state.recoveryCodes !== null" class="flex max-w-2xl flex-col gap-4">
-        <UiSectionHeading :title="t('app.twoFactor.recoveryTitle')" />
-        <UiAlert variant="warning">{{ t('app.twoFactor.recoveryWarning') }}</UiAlert>
-        <ul class="grid grid-cols-1 gap-2 sm:grid-cols-2">
-          <li
-            v-for="recoveryCode in state.recoveryCodes"
-            :key="recoveryCode"
-            class="rounded-control border border-border-subtle bg-surface-2 px-3 py-2 font-mono text-sm break-all text-text-primary tabular-nums"
-          >
-            {{ recoveryCode }}
-          </li>
-        </ul>
-        <div>
-          <UiButton variant="secondary" @click="copyRecoveryCodes">
-            <span class="inline-flex items-center gap-2">
-              <UiIcon name="copy" size="sm" />
-              {{ t('app.twoFactor.copyCodes') }}
-            </span>
-          </UiButton>
-        </div>
-      </UiCard>
-
-      <UiCard class="flex max-w-2xl flex-col items-start gap-4">
-        <div class="flex items-start gap-3">
-          <!-- Decorative: the section's title beside it names it. -->
-          <UiIconTile name="shieldCheck" size="sm" />
+        <UiCard v-else-if="state.kind === 'enrolling'" class="flex max-w-2xl flex-col gap-4">
           <UiSectionHeading
-            :title="t('app.twoFactor.enabledTitle')"
-            :subtitle="t('app.twoFactor.enabledDescription')"
+            :title="t('app.twoFactor.enrolTitle')"
+            :subtitle="t('app.twoFactor.enrolInstructions')"
           />
-        </div>
 
-        <!-- Not on the steered route: that token reaches enrolment and nothing else, so the disable
-             endpoint would refuse it. The shell's own copy of this page offers it. -->
-        <div v-if="!inAuthLayout" class="w-full">
-          <UiForm @submit="askToDisable">
-            <div class="flex flex-col items-start gap-4">
-              <UiSectionHeading
-                :title="t('app.twoFactor.disableTitle')"
-                :subtitle="t('app.twoFactor.disableDescription')"
+          <!-- The QR code is encoded in this browser from the URI the backend returned; the URI holds
+               the secret, so it is never handed to anything that could send it elsewhere. -->
+          <UiQrCode :value="state.enrolment.provisioningUri" :label="t('app.twoFactor.qrLabel')" />
+
+          <!-- The secret is shown as text too, because the person setting this up is often at the
+               machine showing the code, where scanning their own screen is not possible.
+               Machine text: the mono face, its own case, and it breaks anywhere so a long secret
+               cannot widen the page on a phone. -->
+          <div class="flex flex-col gap-1.5">
+            <p class="text-sm text-text-muted">{{ t('app.twoFactor.secretLabel') }}</p>
+            <p
+              class="rounded-control border border-border-subtle bg-surface-2 px-3 py-2 font-mono text-sm break-all text-text-primary select-all"
+            >
+              {{ state.enrolment.secret }}
+            </p>
+          </div>
+
+          <UiForm @submit="confirmEnrolment">
+            <div class="flex flex-col gap-4">
+              <UiInput
+                v-model="enrolCode"
+                mono
+                :label="t('app.twoFactor.confirmCodeLabel')"
+                :placeholder="t('app.auth.codePlaceholder')"
+                required
+                autocomplete="one-time-code"
+                inputmode="numeric"
               />
-              <div class="w-full">
-                <UiInput
-                  v-model="disableCode"
-                  mono
-                  :label="t('app.twoFactor.disableCodeLabel')"
-                  :placeholder="t('app.auth.codePlaceholder')"
-                  required
-                  autocomplete="one-time-code"
-                  inputmode="numeric"
-                />
+              <div class="flex flex-wrap gap-2">
+                <UiButton type="submit">{{ t('app.twoFactor.confirmEnrolment') }}</UiButton>
+                <UiButton variant="secondary" @click="cancelEnrolment">
+                  {{ t('common.cancel') }}
+                </UiButton>
               </div>
-              <UiButton type="submit" variant="destructive">{{ t('app.twoFactor.disable') }}</UiButton>
             </div>
           </UiForm>
-        </div>
-      </UiCard>
-    </template>
+        </UiCard>
+
+        <template v-else-if="state.kind === 'enrolled'">
+          <!-- The codes come first when they exist: they are the one thing here that cannot be fetched
+               again, so the page leads with them and with the warning that says so. -->
+          <UiCard v-if="state.recoveryCodes !== null" class="flex max-w-2xl flex-col gap-4">
+            <UiSectionHeading :title="t('app.twoFactor.recoveryTitle')" />
+            <UiAlert variant="warning">{{ t('app.twoFactor.recoveryWarning') }}</UiAlert>
+            <ul class="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              <li
+                v-for="recoveryCode in state.recoveryCodes"
+                :key="recoveryCode"
+                class="rounded-control border border-border-subtle bg-surface-2 px-3 py-2 font-mono text-sm break-all text-text-primary tabular-nums"
+              >
+                {{ recoveryCode }}
+              </li>
+            </ul>
+            <div>
+              <UiButton variant="secondary" @click="copyRecoveryCodes">
+                <span class="inline-flex items-center gap-2">
+                  <UiIcon name="copy" size="sm" />
+                  {{ t('app.twoFactor.copyCodes') }}
+                </span>
+              </UiButton>
+            </div>
+          </UiCard>
+
+          <UiCard class="flex max-w-2xl flex-col items-start gap-4">
+            <div class="flex items-start gap-3">
+              <!-- Decorative: the section's title beside it names it. -->
+              <UiIconTile name="shieldCheck" size="sm" />
+              <UiSectionHeading
+                :title="t('app.twoFactor.enabledTitle')"
+                :subtitle="t('app.twoFactor.enabledDescription')"
+              />
+            </div>
+
+            <!-- Not on the steered route: that token reaches enrolment and nothing else, so the disable
+                 endpoint would refuse it. The shell's own copy of this page offers it. -->
+            <div v-if="!inAuthLayout" class="w-full">
+              <UiForm @submit="askToDisable">
+                <div class="flex flex-col items-start gap-4">
+                  <UiSectionHeading
+                    :title="t('app.twoFactor.disableTitle')"
+                    :subtitle="t('app.twoFactor.disableDescription')"
+                  />
+                  <div class="w-full">
+                    <UiInput
+                      v-model="disableCode"
+                      mono
+                      :label="t('app.twoFactor.disableCodeLabel')"
+                      :placeholder="t('app.auth.codePlaceholder')"
+                      required
+                      autocomplete="one-time-code"
+                      inputmode="numeric"
+                    />
+                  </div>
+                  <UiButton type="submit" variant="destructive">{{ t('app.twoFactor.disable') }}</UiButton>
+                </div>
+              </UiForm>
+            </div>
+          </UiCard>
+        </template>
+      </div>
+    </UiLoadingRegion>
 
     <!-- Outside the branches above on purpose: the panel that opened it is unmounted the moment the
          state changes, and a dialog mounted inside would go with it mid-request. -->

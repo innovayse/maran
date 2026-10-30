@@ -12,6 +12,10 @@
  * (rules/vue.md). The role is translated here (`app.auth.role.*`), as the account menu does,
  * because the contract carries a machine role and no label beside it.
  *
+ * While the profile is on its way the cards are already drawn with their real terms and a value
+ * line in place of each value ({@link UiLoadingRegion}, `UiDescriptionList loading`), so the loaded
+ * profile lands in the space that was held for it.
+ *
  * Renders a `<section>`, not a `<main>`: the layout owns the landmark.
  */
 import { onMounted } from 'vue'
@@ -22,9 +26,9 @@ import UiButton from '../components/ui/UiButton.vue'
 import UiCard from '../components/ui/UiCard.vue'
 import UiDescriptionItem from '../components/ui/UiDescriptionItem.vue'
 import UiDescriptionList from '../components/ui/UiDescriptionList.vue'
+import UiLoadingRegion from '../components/ui/UiLoadingRegion.vue'
 import UiPageHeading from '../components/ui/UiPageHeading.vue'
 import UiSectionHeading from '../components/ui/UiSectionHeading.vue'
-import UiSpinner from '../components/ui/UiSpinner.vue'
 import { useCallerRole } from '../composables/useCallerRole'
 import { useProfileStore } from '../stores/profile'
 
@@ -41,66 +45,66 @@ onMounted(async () => {
   <section class="flex w-full min-w-0 flex-col gap-4">
     <UiPageHeading :title="t('app.profile.heading')" :subtitle="t('app.profile.subtitle')" />
 
-    <UiSpinner v-if="store.loading" :label="t('app.profile.loading')" />
+    <UiLoadingRegion :state="store.loadState">
+      <template #error>
+        <UiAlert variant="error">{{ store.errorMessage ?? t('app.status.unreachable') }}</UiAlert>
+      </template>
 
-    <UiAlert v-else-if="store.errorMessage !== null" variant="error">
-      {{ store.errorMessage }}
-    </UiAlert>
+      <div class="flex flex-col gap-4">
+        <UiCard>
+          <UiSectionHeading class="mb-4" :title="t('app.profile.identityHeading')" />
+          <UiDescriptionList :loading="store.loadState === 'loading'">
+            <UiDescriptionItem :term="t('app.profile.usernameLabel')" mono>
+              {{ store.profile?.username }}
+            </UiDescriptionItem>
+            <UiDescriptionItem :term="t('app.profile.emailLabel')" mono>
+              {{ store.profile?.email }}
+            </UiDescriptionItem>
+            <UiDescriptionItem :term="t('app.profile.roleLabel')">
+              {{ store.profile === null ? '' : t(`app.auth.role.${store.profile.role}`) }}
+            </UiDescriptionItem>
+          </UiDescriptionList>
+        </UiCard>
 
-    <template v-else-if="store.profile !== null">
-      <UiCard>
-        <UiSectionHeading class="mb-4" :title="t('app.profile.identityHeading')" />
-        <UiDescriptionList>
-          <UiDescriptionItem :term="t('app.profile.usernameLabel')" mono>
-            {{ store.profile.username }}
-          </UiDescriptionItem>
-          <UiDescriptionItem :term="t('app.profile.emailLabel')" mono>
-            {{ store.profile.email }}
-          </UiDescriptionItem>
-          <UiDescriptionItem :term="t('app.profile.roleLabel')">
-            {{ t(`app.auth.role.${store.profile.role}`) }}
-          </UiDescriptionItem>
-        </UiDescriptionList>
-      </UiCard>
+        <UiCard>
+          <UiSectionHeading class="mb-4" :title="t('app.profile.securityHeading')" />
+          <UiDescriptionList :loading="store.loadState === 'loading'">
+            <UiDescriptionItem :term="t('app.profile.twoFactorLabel')">
+              <span v-if="store.profile !== null" class="flex flex-wrap items-center gap-3">
+                <UiBadge :variant="store.profile.isTwoFactorEnabled ? 'success' : 'warning'">
+                  {{ store.profile.isTwoFactorEnabled ? t('app.profile.twoFactorOn') : t('app.profile.twoFactorOff') }}
+                </UiBadge>
+                <UiButton variant="secondary" :to="{ name: 'two-factor' }">
+                  {{ t('app.profile.manageTwoFactor') }}
+                </UiButton>
+              </span>
+            </UiDescriptionItem>
+            <UiDescriptionItem :term="t('app.profile.sessionsLabel')">
+              <span v-if="store.profile !== null" class="flex flex-wrap items-center gap-3">
+                <span class="tabular-nums">{{
+                  t('app.profile.sessionCount', { count: store.profile.activeSessionCount }, store.profile.activeSessionCount)
+                }}</span>
+                <UiButton variant="secondary" :to="{ name: 'sessions' }">
+                  {{ t('app.profile.manageSessions') }}
+                </UiButton>
+              </span>
+            </UiDescriptionItem>
+          </UiDescriptionList>
+        </UiCard>
 
-      <UiCard>
-        <UiSectionHeading class="mb-4" :title="t('app.profile.securityHeading')" />
-        <UiDescriptionList>
-          <UiDescriptionItem :term="t('app.profile.twoFactorLabel')">
-            <span class="flex flex-wrap items-center gap-3">
-              <UiBadge :variant="store.profile.isTwoFactorEnabled ? 'success' : 'warning'">
-                {{ store.profile.isTwoFactorEnabled ? t('app.profile.twoFactorOn') : t('app.profile.twoFactorOff') }}
-              </UiBadge>
-              <UiButton variant="secondary" :to="{ name: 'two-factor' }">
-                {{ t('app.profile.manageTwoFactor') }}
-              </UiButton>
-            </span>
-          </UiDescriptionItem>
-          <UiDescriptionItem :term="t('app.profile.sessionsLabel')">
-            <span class="flex flex-wrap items-center gap-3">
-              <span class="tabular-nums">{{
-                t('app.profile.sessionCount', { count: store.profile.activeSessionCount }, store.profile.activeSessionCount)
-              }}</span>
-              <UiButton variant="secondary" :to="{ name: 'sessions' }">
-                {{ t('app.profile.manageSessions') }}
-              </UiButton>
-            </span>
-          </UiDescriptionItem>
-        </UiDescriptionList>
-      </UiCard>
-
-      <!-- Only a customer owns a hosting account. An administrator is never sent to
-           `/my-account`: its endpoint answers "the account you own" and has none to give. -->
-      <UiCard v-if="isCustomer">
-        <UiSectionHeading
-          class="mb-4"
-          :title="t('app.profile.hostingHeading')"
-          :subtitle="t('app.profile.hostingDescription')"
-        />
-        <UiButton variant="secondary" :to="{ name: 'my-account' }">
-          {{ t('app.profile.openHostingAccount') }}
-        </UiButton>
-      </UiCard>
-    </template>
+        <!-- Only a customer owns a hosting account. An administrator is never sent to
+             `/my-account`: its endpoint answers "the account you own" and has none to give. -->
+        <UiCard v-if="isCustomer">
+          <UiSectionHeading
+            class="mb-4"
+            :title="t('app.profile.hostingHeading')"
+            :subtitle="t('app.profile.hostingDescription')"
+          />
+          <UiButton variant="secondary" :to="{ name: 'my-account' }">
+            {{ t('app.profile.openHostingAccount') }}
+          </UiButton>
+        </UiCard>
+      </div>
+    </UiLoadingRegion>
   </section>
 </template>
