@@ -1,5 +1,10 @@
-import type { Page } from '@playwright/test'
-import { describeTableLoading } from '../fixtures/expect-table-loading'
+import { test, type Page } from '@playwright/test'
+import {
+  expectTableFastLoad,
+  expectTableSlowFailure,
+  expectTableSlowLoad,
+  type TableLoadingScenario,
+} from '../fixtures/expect-table-loading'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubEmptyModules } from '../fixtures/stub-modules-route'
@@ -32,7 +37,8 @@ const signIn = async (page: Page): Promise<void> => {
   await stubEmptyModules(page)
 }
 
-describeTableLoading('audit journal', {
+/** How the audit journal screen is opened and answered. */
+const AUDIT_JOURNAL_SCENARIO: TableLoadingScenario = {
   stub: async (page) => {
     await signIn(page)
     await page.route(AUDIT_PATTERN, async (route) => {
@@ -54,4 +60,16 @@ describeTableLoading('audit journal', {
   table: 'Recent audit entries',
   rowText: 'LoginSucceeded',
   failureText: 'The journal could not be read.',
+}
+
+test('audit journal: a slow answer shows placeholder rows under the real header, then the rows', async ({ page }) => {
+  await expectTableSlowLoad(page, AUDIT_JOURNAL_SCENARIO)
+})
+
+test('audit journal: a fast answer shows no placeholder', async ({ page }) => {
+  await expectTableFastLoad(page, AUDIT_JOURNAL_SCENARIO)
+})
+
+test('audit journal: a slow failure is an alert, never a skeleton', async ({ page }) => {
+  await expectTableSlowFailure(page, AUDIT_JOURNAL_SCENARIO)
 })

@@ -1,5 +1,10 @@
 import { test, type Page  } from '@playwright/test'
-import { describeRegionLoading } from '../fixtures/expect-region-loading'
+import {
+  expectRegionFastLoad,
+  expectRegionSlowFailure,
+  expectRegionSlowLoad,
+  type RegionLoadingScenario,
+} from '../fixtures/expect-region-loading'
 import { stubAccounts } from '../fixtures/stub-accounts-route'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubBackupSchedules } from '../fixtures/stub-backup-schedule-routes'
@@ -43,7 +48,8 @@ const shell = async (page: Page): Promise<void> => {
   await stubAccounts(page, [])
 }
 
-describeRegionLoading('backup schedule', {
+/** How the backup schedule screen is opened and answered. */
+const BACKUP_SCHEDULE_SCENARIO: RegionLoadingScenario = {
   stub: async (page) => {
     await shell(page)
     await stubBackupSchedules(page, { host: HOST_SCHEDULE })
@@ -66,4 +72,16 @@ describeRegionLoading('backup schedule', {
   // The summary card exists only for a scope that has a schedule, so it appears only once loaded.
   contentText: 'What the server holds',
   failureText: REFUSAL,
+}
+
+test('backup schedule: a slow answer shows placeholders under the real labels, then the content', async ({ page }) => {
+  await expectRegionSlowLoad(page, BACKUP_SCHEDULE_SCENARIO)
+})
+
+test('backup schedule: a fast answer shows no placeholder', async ({ page }) => {
+  await expectRegionFastLoad(page, BACKUP_SCHEDULE_SCENARIO)
+})
+
+test('backup schedule: a slow failure is an alert, never a skeleton', async ({ page }) => {
+  await expectRegionSlowFailure(page, BACKUP_SCHEDULE_SCENARIO)
 })

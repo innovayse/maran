@@ -1,5 +1,10 @@
-import type { Page } from '@playwright/test'
-import { describeRegionLoading } from '../fixtures/expect-region-loading'
+import { test, type Page } from '@playwright/test'
+import {
+  expectRegionFastLoad,
+  expectRegionSlowFailure,
+  expectRegionSlowLoad,
+  type RegionLoadingScenario,
+} from '../fixtures/expect-region-loading'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubEmptyModules } from '../fixtures/stub-modules-route'
@@ -18,7 +23,8 @@ const shell = async (page: Page): Promise<void> => {
   await stubEmptyModules(page)
 }
 
-describeRegionLoading('mail settings', {
+/** How the mail settings screen is opened and answered. */
+const MAIL_SETTINGS_SCENARIO: RegionLoadingScenario = {
   stub: async (page) => {
     await shell(page)
     await stubSmtpSettings(page, storedSmtpSettings)
@@ -41,4 +47,16 @@ describeRegionLoading('mail settings', {
   // Whether a password is stored is part of what loads; its hint replaces a placeholder line.
   contentText: 'A password is saved. Type one here only to replace it.',
   failureText: REFUSAL,
+}
+
+test('mail settings: a slow answer shows placeholders under the real labels, then the content', async ({ page }) => {
+  await expectRegionSlowLoad(page, MAIL_SETTINGS_SCENARIO)
+})
+
+test('mail settings: a fast answer shows no placeholder', async ({ page }) => {
+  await expectRegionFastLoad(page, MAIL_SETTINGS_SCENARIO)
+})
+
+test('mail settings: a slow failure is an alert, never a skeleton', async ({ page }) => {
+  await expectRegionSlowFailure(page, MAIL_SETTINGS_SCENARIO)
 })

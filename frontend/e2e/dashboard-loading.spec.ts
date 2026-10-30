@@ -1,5 +1,10 @@
-import type { Page } from '@playwright/test'
-import { describeRegionLoading } from './fixtures/expect-region-loading'
+import { test, type Page } from '@playwright/test'
+import {
+  expectRegionFastLoad,
+  expectRegionSlowFailure,
+  expectRegionSlowLoad,
+  type RegionLoadingScenario,
+} from './fixtures/expect-region-loading'
 import { stubSignedIn } from './fixtures/stub-auth-routes'
 import { stubDashboard, stubDashboardProblem } from './fixtures/stub-dashboard-route'
 import { stubHealthy } from './fixtures/stub-health-route'
@@ -56,7 +61,8 @@ const signIn = async (page: Page): Promise<void> => {
   await stubHealthy(page)
 }
 
-describeRegionLoading('dashboard', {
+/** How the dashboard screen is opened and answered. */
+const DASHBOARD_SCENARIO: RegionLoadingScenario = {
   stub: async (page) => {
     await signIn(page)
     await stubDashboard(page, DASHBOARD)
@@ -72,4 +78,16 @@ describeRegionLoading('dashboard', {
   },
   contentText: '0.21 · 0.34 · 0.55',
   failureText: REFUSAL,
+}
+
+test('dashboard: a slow answer shows placeholders under the real labels, then the content', async ({ page }) => {
+  await expectRegionSlowLoad(page, DASHBOARD_SCENARIO)
+})
+
+test('dashboard: a fast answer shows no placeholder', async ({ page }) => {
+  await expectRegionFastLoad(page, DASHBOARD_SCENARIO)
+})
+
+test('dashboard: a slow failure is an alert, never a skeleton', async ({ page }) => {
+  await expectRegionSlowFailure(page, DASHBOARD_SCENARIO)
 })

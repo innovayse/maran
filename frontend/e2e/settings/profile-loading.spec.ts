@@ -1,5 +1,10 @@
-import type { Page } from '@playwright/test'
-import { describeRegionLoading } from '../fixtures/expect-region-loading'
+import { test, type Page } from '@playwright/test'
+import {
+  expectRegionFastLoad,
+  expectRegionSlowFailure,
+  expectRegionSlowLoad,
+  type RegionLoadingScenario,
+} from '../fixtures/expect-region-loading'
 import { stubSignedIn, stubbedAdministrator } from '../fixtures/stub-auth-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubEmptyModules } from '../fixtures/stub-modules-route'
@@ -18,7 +23,8 @@ const shell = async (page: Page): Promise<void> => {
   await stubEmptyModules(page)
 }
 
-describeRegionLoading('profile', {
+/** How the profile screen is opened and answered. */
+const PROFILE_SCENARIO: RegionLoadingScenario = {
   stub: async (page) => {
     await shell(page)
     await stubProfile(page, {
@@ -46,4 +52,16 @@ describeRegionLoading('profile', {
   },
   contentText: stubbedAdministrator.email,
   failureText: REFUSAL,
+}
+
+test('profile: a slow answer shows placeholders under the real labels, then the content', async ({ page }) => {
+  await expectRegionSlowLoad(page, PROFILE_SCENARIO)
+})
+
+test('profile: a fast answer shows no placeholder', async ({ page }) => {
+  await expectRegionFastLoad(page, PROFILE_SCENARIO)
+})
+
+test('profile: a slow failure is an alert, never a skeleton', async ({ page }) => {
+  await expectRegionSlowFailure(page, PROFILE_SCENARIO)
 })

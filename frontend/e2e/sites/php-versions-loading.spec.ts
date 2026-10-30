@@ -1,5 +1,10 @@
-import type { Page } from '@playwright/test'
-import { describeTableLoading } from '../fixtures/expect-table-loading'
+import { test, type Page } from '@playwright/test'
+import {
+  expectTableFastLoad,
+  expectTableSlowFailure,
+  expectTableSlowLoad,
+  type TableLoadingScenario,
+} from '../fixtures/expect-table-loading'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubModules } from '../fixtures/stub-modules-route'
@@ -28,7 +33,8 @@ const signIn = async (page: Page): Promise<void> => {
   await stubModules(page, LICENSED)
 }
 
-describeTableLoading('PHP versions', {
+/** How the PHP versions screen is opened and answered. */
+const PHP_VERSIONS_SCENARIO: TableLoadingScenario = {
   stub: async (page) => {
     await signIn(page)
     await stubPhpVersions(page, [{ version: '8.3', isDefault: true }])
@@ -48,4 +54,16 @@ describeTableLoading('PHP versions', {
   table: 'PHP versions installed on this server',
   rowText: '8.3',
   failureText: REFUSAL,
+}
+
+test('PHP versions: a slow answer shows placeholder rows under the real header, then the rows', async ({ page }) => {
+  await expectTableSlowLoad(page, PHP_VERSIONS_SCENARIO)
+})
+
+test('PHP versions: a fast answer shows no placeholder', async ({ page }) => {
+  await expectTableFastLoad(page, PHP_VERSIONS_SCENARIO)
+})
+
+test('PHP versions: a slow failure is an alert, never a skeleton', async ({ page }) => {
+  await expectTableSlowFailure(page, PHP_VERSIONS_SCENARIO)
 })

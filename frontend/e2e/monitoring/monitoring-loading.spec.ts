@@ -1,5 +1,10 @@
-import type { Page } from '@playwright/test'
-import { describeRegionLoading } from '../fixtures/expect-region-loading'
+import { test, type Page } from '@playwright/test'
+import {
+  expectRegionFastLoad,
+  expectRegionSlowFailure,
+  expectRegionSlowLoad,
+  type RegionLoadingScenario,
+} from '../fixtures/expect-region-loading'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubModules } from '../fixtures/stub-modules-route'
@@ -35,7 +40,8 @@ const stubScreen = async (page: Page): Promise<void> => {
   )
 }
 
-describeRegionLoading('monitoring', {
+/** How the monitoring screen is opened and answered. */
+const MONITORING_SCENARIO: RegionLoadingScenario = {
   stub: stubScreen,
   stubFailure: async (page) => {
     await stubScreen(page)
@@ -54,4 +60,16 @@ describeRegionLoading('monitoring', {
   },
   contentText: 'Web server',
   failureText: REFUSAL,
+}
+
+test('monitoring: a slow answer shows placeholders under the real labels, then the content', async ({ page }) => {
+  await expectRegionSlowLoad(page, MONITORING_SCENARIO)
+})
+
+test('monitoring: a fast answer shows no placeholder', async ({ page }) => {
+  await expectRegionFastLoad(page, MONITORING_SCENARIO)
+})
+
+test('monitoring: a slow failure is an alert, never a skeleton', async ({ page }) => {
+  await expectRegionSlowFailure(page, MONITORING_SCENARIO)
 })

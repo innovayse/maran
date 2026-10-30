@@ -1,11 +1,15 @@
 # Committed per-target test baseline. Recorded by 'maran test --accept'; commit the diff.
 # stack<TAB>target<TAB>passed<TAB>failed<TAB>ignored
 #
+# RE-MEASURED 2026-10-31 (issue #243, loading tests declared by their own spec): edited by hand. SPA-only change.
+# The 23 */*loading specs used to call describeTableLoading/describeRegionLoading, which called test() from
+# e2e/fixtures/expect-*-loading.ts, so Playwright attributed those tests to the fixture and CI named every spec
+# VANISHED. Each spec now declares its own test() calls and the fixtures export only assertion functions; every
+# scenario and assertion is kept. No row moved, no fixture-file row exists.
 # RE-MEASURED 2026-10-31 (issue #243, skeletons drawn from each screen's own schema): edited by hand. SPA-only
 # change, no backend target touched. spa: 24 NEW rows (the */loading specs, dashboard-loading 3, ui-kit/skeleton 9),
 # 90 tests in all; no existing row moved. Full `E2E_PORT=5199 npx playwright test` run: 911 passed / 0 failed /
-# 2 skipped, counted per spec file from the json reporter (tests registered by e2e/fixtures/expect-*-loading.ts
-# are counted under the spec that registers them).
+# 2 skipped, counted per spec file from the json reporter.
 # RE-MEASURED 2026-10-30 (issue #244, sentence case everywhere in the UI): edited by hand. SPA-only change, no
 # backend target touched. spa: NEW row ui-kit/sentence-case.spec.ts 36 (5 screens + the task badge, x en/ru/hy,
 # x 1440/390). Full `E2E_PORT=5199 npx playwright test` run: 821 passed / 0 failed / 2 skipped; no other row moved.

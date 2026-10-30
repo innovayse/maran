@@ -1,5 +1,10 @@
-import type { Page } from '@playwright/test'
-import { describeTableLoading } from '../fixtures/expect-table-loading'
+import { test, type Page } from '@playwright/test'
+import {
+  expectTableFastLoad,
+  expectTableSlowFailure,
+  expectTableSlowLoad,
+  type TableLoadingScenario,
+} from '../fixtures/expect-table-loading'
 import { stubAccounts } from '../fixtures/stub-accounts-route'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
@@ -44,7 +49,8 @@ const signIn = async (page: Page): Promise<void> => {
   await stubCronEnvironment(page, [])
 }
 
-describeTableLoading('cron entries', {
+/** How the cron entries screen is opened and answered. */
+const CRON_ENTRIES_SCENARIO: TableLoadingScenario = {
   stub: async (page) => {
     await signIn(page)
     await stubCronEntries(page, [NIGHTLY])
@@ -58,4 +64,16 @@ describeTableLoading('cron entries', {
   table: 'Scheduled tasks',
   rowText: NIGHTLY.command,
   failureText: 'The crontab could not be read.',
+}
+
+test('cron entries: a slow answer shows placeholder rows under the real header, then the rows', async ({ page }) => {
+  await expectTableSlowLoad(page, CRON_ENTRIES_SCENARIO)
+})
+
+test('cron entries: a fast answer shows no placeholder', async ({ page }) => {
+  await expectTableFastLoad(page, CRON_ENTRIES_SCENARIO)
+})
+
+test('cron entries: a slow failure is an alert, never a skeleton', async ({ page }) => {
+  await expectTableSlowFailure(page, CRON_ENTRIES_SCENARIO)
 })

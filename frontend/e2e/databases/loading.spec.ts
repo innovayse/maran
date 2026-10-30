@@ -1,5 +1,10 @@
-import type { Page } from '@playwright/test'
-import { describeTableLoading } from '../fixtures/expect-table-loading'
+import { test, type Page } from '@playwright/test'
+import {
+  expectTableFastLoad,
+  expectTableSlowFailure,
+  expectTableSlowLoad,
+  type TableLoadingScenario,
+} from '../fixtures/expect-table-loading'
 import { stubAccounts } from '../fixtures/stub-accounts-route'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubDatabaseGrants, stubDatabaseGrantsProblem } from '../fixtures/stub-database-grant-routes'
@@ -46,7 +51,8 @@ const signIn = async (page: Page): Promise<void> => {
   await stubAccounts(page, [ALICE])
 }
 
-describeTableLoading('databases list', {
+/** How the databases list screen is opened and answered. */
+const DATABASES_LIST_SCENARIO: TableLoadingScenario = {
   stub: async (page) => {
     await signIn(page)
     await stubDatabases(page, [SHOP])
@@ -60,9 +66,22 @@ describeTableLoading('databases list', {
   table: 'MySQL databases',
   rowText: 'alice_shopuser',
   failureText: 'The databases could not be read.',
+}
+
+test('databases list: a slow answer shows placeholder rows under the real header, then the rows', async ({ page }) => {
+  await expectTableSlowLoad(page, DATABASES_LIST_SCENARIO)
 })
 
-describeTableLoading('grant repair', {
+test('databases list: a fast answer shows no placeholder', async ({ page }) => {
+  await expectTableFastLoad(page, DATABASES_LIST_SCENARIO)
+})
+
+test('databases list: a slow failure is an alert, never a skeleton', async ({ page }) => {
+  await expectTableSlowFailure(page, DATABASES_LIST_SCENARIO)
+})
+
+/** How the grant repair screen is opened and answered. */
+const GRANT_REPAIR_SCENARIO: TableLoadingScenario = {
   stub: async (page) => {
     await signIn(page)
     await stubDatabaseGrants(page, {
@@ -83,4 +102,16 @@ describeTableLoading('grant repair', {
   table: 'What a repair would narrow',
   rowText: 'alice_shopuser',
   failureText: 'The server agent could not be reached.',
+}
+
+test('grant repair: a slow answer shows placeholder rows under the real header, then the rows', async ({ page }) => {
+  await expectTableSlowLoad(page, GRANT_REPAIR_SCENARIO)
+})
+
+test('grant repair: a fast answer shows no placeholder', async ({ page }) => {
+  await expectTableFastLoad(page, GRANT_REPAIR_SCENARIO)
+})
+
+test('grant repair: a slow failure is an alert, never a skeleton', async ({ page }) => {
+  await expectTableSlowFailure(page, GRANT_REPAIR_SCENARIO)
 })

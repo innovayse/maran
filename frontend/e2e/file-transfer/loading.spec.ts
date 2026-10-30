@@ -1,5 +1,10 @@
-import type { Page } from '@playwright/test'
-import { describeTableLoading } from '../fixtures/expect-table-loading'
+import { test, type Page } from '@playwright/test'
+import {
+  expectTableFastLoad,
+  expectTableSlowFailure,
+  expectTableSlowLoad,
+  type TableLoadingScenario,
+} from '../fixtures/expect-table-loading'
 import { stubAccounts } from '../fixtures/stub-accounts-route'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubFirewall } from '../fixtures/stub-firewall-routes'
@@ -52,7 +57,8 @@ const signIn = async (page: Page): Promise<void> => {
   await stubFtpUsers(page, [])
 }
 
-describeTableLoading('file transfer logins', {
+/** How the file transfer logins screen is opened and answered. */
+const FILE_TRANSFER_LOGINS_SCENARIO: TableLoadingScenario = {
   stub: async (page) => {
     await signIn(page)
     await stubSftpUsers(page, [WEB])
@@ -66,4 +72,16 @@ describeTableLoading('file transfer logins', {
   table: 'SFTP and FTPS logins',
   rowText: 'alice_web',
   failureText: 'The logins could not be read.',
+}
+
+test('file transfer logins: a slow answer shows placeholder rows under the real header, then the rows', async ({ page }) => {
+  await expectTableSlowLoad(page, FILE_TRANSFER_LOGINS_SCENARIO)
+})
+
+test('file transfer logins: a fast answer shows no placeholder', async ({ page }) => {
+  await expectTableFastLoad(page, FILE_TRANSFER_LOGINS_SCENARIO)
+})
+
+test('file transfer logins: a slow failure is an alert, never a skeleton', async ({ page }) => {
+  await expectTableSlowFailure(page, FILE_TRANSFER_LOGINS_SCENARIO)
 })

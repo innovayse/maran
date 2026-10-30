@@ -1,7 +1,12 @@
 import { earlySkeletons, recordSkeletonFlashes } from '../fixtures/skeleton-flash'
 import { expect, test, type Page } from '@playwright/test'
 import { delayRoute } from '../fixtures/delay-route'
-import { describeRegionLoading } from '../fixtures/expect-region-loading'
+import {
+  expectRegionFastLoad,
+  expectRegionSlowFailure,
+  expectRegionSlowLoad,
+  type RegionLoadingScenario,
+} from '../fixtures/expect-region-loading'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubAccountResources } from '../fixtures/stub-account-resources-route'
 import { stubHealthy } from '../fixtures/stub-health-route'
@@ -81,7 +86,8 @@ const stubAccount = async (page: Page): Promise<void> => {
   })
 }
 
-describeRegionLoading('account detail', {
+/** How the account detail screen is opened and answered. */
+const ACCOUNT_DETAIL_SCENARIO: RegionLoadingScenario = {
   stub: async (page) => {
     await stubShell(page)
     await stubAccount(page)
@@ -99,6 +105,18 @@ describeRegionLoading('account detail', {
   },
   contentText: 'owner@acme.example.com',
   failureText: REFUSAL,
+}
+
+test('account detail: a slow answer shows placeholders under the real labels, then the content', async ({ page }) => {
+  await expectRegionSlowLoad(page, ACCOUNT_DETAIL_SCENARIO)
+})
+
+test('account detail: a fast answer shows no placeholder', async ({ page }) => {
+  await expectRegionFastLoad(page, ACCOUNT_DETAIL_SCENARIO)
+})
+
+test('account detail: a slow failure is an alert, never a skeleton', async ({ page }) => {
+  await expectRegionSlowFailure(page, ACCOUNT_DETAIL_SCENARIO)
 })
 
 /**

@@ -1,7 +1,12 @@
 import { earlySkeletons, recordSkeletonFlashes } from '../fixtures/skeleton-flash'
 import { expect, test, type Page } from '@playwright/test'
 import { delayRoute } from '../fixtures/delay-route'
-import { describeRegionLoading } from '../fixtures/expect-region-loading'
+import {
+  expectRegionFastLoad,
+  expectRegionSlowFailure,
+  expectRegionSlowLoad,
+  type RegionLoadingScenario,
+} from '../fixtures/expect-region-loading'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import {
   CERTIFICATE_SITE_ID,
@@ -62,7 +67,8 @@ const stubShell = async (page: Page): Promise<void> => {
   await stubPhpVersions(page, [])
 }
 
-describeRegionLoading('site detail', {
+/** How the site detail screen is opened and answered. */
+const SITE_DETAIL_SCENARIO: RegionLoadingScenario = {
   stub: async (page) => {
     await stubShell(page)
     await stubSiteDetail(page, SITE)
@@ -84,6 +90,18 @@ describeRegionLoading('site detail', {
   },
   contentText: SITE.documentRoot,
   failureText: REFUSAL,
+}
+
+test('site detail: a slow answer shows placeholders under the real labels, then the content', async ({ page }) => {
+  await expectRegionSlowLoad(page, SITE_DETAIL_SCENARIO)
+})
+
+test('site detail: a fast answer shows no placeholder', async ({ page }) => {
+  await expectRegionFastLoad(page, SITE_DETAIL_SCENARIO)
+})
+
+test('site detail: a slow failure is an alert, never a skeleton', async ({ page }) => {
+  await expectRegionSlowFailure(page, SITE_DETAIL_SCENARIO)
 })
 
 /**

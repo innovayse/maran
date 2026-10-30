@@ -1,5 +1,10 @@
-import type { Page } from '@playwright/test'
-import { describeTableLoading } from '../fixtures/expect-table-loading'
+import { test, type Page } from '@playwright/test'
+import {
+  expectTableFastLoad,
+  expectTableSlowFailure,
+  expectTableSlowLoad,
+  type TableLoadingScenario,
+} from '../fixtures/expect-table-loading'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubModules } from '../fixtures/stub-modules-route'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
@@ -34,7 +39,8 @@ const signIn = async (page: Page): Promise<void> => {
   await stubPhpVersions(page, [])
 }
 
-describeTableLoading('sites list', {
+/** How the sites list screen is opened and answered. */
+const SITES_LIST_SCENARIO: TableLoadingScenario = {
   stub: async (page) => {
     await signIn(page)
     await stubSites(page, [ALPHA])
@@ -48,4 +54,16 @@ describeTableLoading('sites list', {
   table: 'Websites',
   rowText: 'alpha.example.com',
   failureText: 'The sites could not be read.',
+}
+
+test('sites list: a slow answer shows placeholder rows under the real header, then the rows', async ({ page }) => {
+  await expectTableSlowLoad(page, SITES_LIST_SCENARIO)
+})
+
+test('sites list: a fast answer shows no placeholder', async ({ page }) => {
+  await expectTableFastLoad(page, SITES_LIST_SCENARIO)
+})
+
+test('sites list: a slow failure is an alert, never a skeleton', async ({ page }) => {
+  await expectTableSlowFailure(page, SITES_LIST_SCENARIO)
 })

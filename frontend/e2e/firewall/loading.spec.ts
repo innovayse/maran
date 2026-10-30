@@ -1,5 +1,10 @@
-import type { Page } from '@playwright/test'
-import { describeTableLoading } from '../fixtures/expect-table-loading'
+import { test, type Page } from '@playwright/test'
+import {
+  expectTableFastLoad,
+  expectTableSlowFailure,
+  expectTableSlowLoad,
+  type TableLoadingScenario,
+} from '../fixtures/expect-table-loading'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubModules } from '../fixtures/stub-modules-route'
@@ -22,7 +27,8 @@ const signIn = async (page: Page): Promise<void> => {
   await stubModules(page, LICENSED)
 }
 
-describeTableLoading('firewall rules', {
+/** How the firewall rules screen is opened and answered. */
+const FIREWALL_RULES_SCENARIO: TableLoadingScenario = {
   stub: async (page) => {
     await signIn(page)
     await stubFirewall(page, {
@@ -40,4 +46,16 @@ describeTableLoading('firewall rules', {
   table: 'Firewall rules',
   rowText: '203.0.113.0/24',
   failureText: 'The firewall could not be read.',
+}
+
+test('firewall rules: a slow answer shows placeholder rows under the real header, then the rows', async ({ page }) => {
+  await expectTableSlowLoad(page, FIREWALL_RULES_SCENARIO)
+})
+
+test('firewall rules: a fast answer shows no placeholder', async ({ page }) => {
+  await expectTableFastLoad(page, FIREWALL_RULES_SCENARIO)
+})
+
+test('firewall rules: a slow failure is an alert, never a skeleton', async ({ page }) => {
+  await expectTableSlowFailure(page, FIREWALL_RULES_SCENARIO)
 })
