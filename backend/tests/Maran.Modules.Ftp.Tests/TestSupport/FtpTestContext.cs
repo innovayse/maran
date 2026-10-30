@@ -153,8 +153,8 @@ public sealed class FtpTestContext : IDisposable
             Database, Accounts, Agent, SlotGate, journal, Clock, NullLogger<CreateFtpUserCommandHandler>.Instance);
         DeleteUserHandler = new DeleteFtpUserCommandHandler(Database, Accounts, Agent, journal);
         ResetPasswordHandler = new ResetFtpUserPasswordCommandHandler(Database, Accounts, Agent, journal);
-        ListUsersHandler = new ListFtpUsersQueryHandler(Database);
-        GetUserHandler = new GetFtpUserQueryHandler(Database);
+        ListUsersHandler = new ListFtpUsersQueryHandler(Database, Accounts);
+        GetUserHandler = new GetFtpUserQueryHandler(Database, Accounts);
         AccountDeletingHandler = new AccountDeletingHandler(Database);
     }
 

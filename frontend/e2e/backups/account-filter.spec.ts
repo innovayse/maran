@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
-import { stubAccounts } from '../fixtures/stub-accounts-route'
+import { stubAccountNames, stubAccounts } from '../fixtures/stub-accounts-route'
 import { stubAccountFilteredList } from '../fixtures/stub-account-filtered-list'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
@@ -55,6 +55,7 @@ const CUSTOMER: AuthenticatedUser = {
 const ALICE_COPY: Backup = {
   id: '11111111-1111-1111-1111-111111111111',
   accountId: ALICE.id,
+  ownerName: ALICE.name,
   orphanedAccountUsername: '',
   status: 'completed',
   kind: 'manual',
@@ -67,7 +68,7 @@ const ALICE_COPY: Backup = {
   failureDisplayName: '',
 }
 
-const BOB_COPY: Backup = { ...ALICE_COPY, id: '33333333-3333-3333-3333-333333333333', accountId: BOB.id }
+const BOB_COPY: Backup = { ...ALICE_COPY, id: '33333333-3333-3333-3333-333333333333', accountId: BOB.id, ownerName: BOB.name }
 
 /**
  * Signs in, installs the screen's own stubs, then the filtered list read on top of them.
@@ -80,6 +81,7 @@ const openScreen = async (page: Page, user?: AuthenticatedUser): Promise<() => r
   await stubHealthy(page)
   await stubModules(page, LICENSED)
   await stubAccounts(page, [ALICE, BOB])
+  await stubAccountNames(page, [ALICE, BOB])
   await stubMyAccount(page, OWN_ACCOUNT)
   await stubBackups(page, [])
   return await stubAccountFilteredList(page, '/api/v1/backups', [ALICE_COPY, BOB_COPY])

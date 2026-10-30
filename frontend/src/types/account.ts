@@ -1,4 +1,5 @@
 import type { AccountResourceSummary } from './accountResourceSummary'
+import type { ListLoad, ListRequest, Paged } from './list'
 
 /**
  * Lifecycle state of a hosting account, mirroring the backend's
@@ -27,6 +28,30 @@ export interface Account {
   /** The instant the account was created, as an ISO-8601 string. */
   createdAt: string
 }
+
+/**
+ * One account as a picker or an owner name shows it, mirroring the backend's account choice row
+ * (`GET /api/v1/accounts/choices`): the identity and the short name, nothing a picker does not
+ * print.
+ */
+export interface AccountOption {
+  /** The account's identity. */
+  id: string
+  /** The account's unique, Linux-username-safe short name. */
+  name: string
+}
+
+/**
+ * Where the open account picker's read of `GET /api/v1/accounts/choices` stands: in flight, or ended
+ * the way every paged read ends ({@link ListLoad}). A union rather than a nullable page, so "still
+ * asking" can never be mistaken for "nothing matched".
+ */
+export type AccountChoicesLoad =
+  | {
+      /** The read is in flight; nothing from an earlier search is shown under the new one. */
+      kind: 'loading'
+    }
+  | ListLoad<AccountOption>
 
 /**
  * One account as its own page shows it, mirroring the backend's
@@ -160,11 +185,22 @@ export interface AccountsApi {
   getMine: (signal?: AbortSignal) => Promise<MyAccount>
 
   /**
-   * Lists every hosting account.
+   * Lists one page of hosting accounts. The request's `plan` and `status` filters are sent as the
+   * endpoint's `planId` and `status`.
+   * @param request The page, size, search, sort and filters.
    * @param signal Optional abort signal to cancel the in-flight request.
-   * @returns The accounts the panel currently has.
+   * @returns The page the panel answered.
    */
-  list: (signal?: AbortSignal) => Promise<Account[]>
+  list: (request: ListRequest, signal?: AbortSignal) => Promise<Paged<Account>>
+
+  /**
+   * Lists the accounts a picker offers: the first page of those matching the search.
+   * @param search Narrows by name; empty for the first accounts in name order.
+   * @param pageSize How many choices to ask for; one of the sizes the panel accepts (10, 25, 50, 100).
+   * @param signal Optional abort signal to cancel the in-flight request.
+   * @returns The first page of matching accounts as identity and name.
+   */
+  choices: (search: string, pageSize: number, signal?: AbortSignal) => Promise<Paged<AccountOption>>
 
   /**
    * Creates a new hosting account row.

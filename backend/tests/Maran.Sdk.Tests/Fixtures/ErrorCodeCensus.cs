@@ -18,8 +18,17 @@ namespace Maran.Sdk.Tests.Fixtures;
 /// </remarks>
 public static class ErrorCodeCensus
 {
-    /// <summary>Suffix of the embedded resource that holds one assembly's error-code table.</summary>
-    private const string ErrorMessagesResourceSuffix = ".Resources.ErrorMessages.resources";
+    /// <summary>
+    /// Suffixes of the embedded resources that hold an assembly's codes: <c>ErrorMessages</c> for a
+    /// module's domain failures, and <c>ValidationMessages</c> for the codes a validator raises —
+    /// the Sdk's list-paging bounds among them. Both reach a caller as a problem response's
+    /// <c>code</c>, so both are census material.
+    /// </summary>
+    private static readonly string[] CodeTableResourceSuffixes =
+    [
+        ".Resources.ErrorMessages.resources",
+        ".Resources.ValidationMessages.resources",
+    ];
 
     /// <summary>File-name pattern of the assemblies that may carry such a resource.</summary>
     private const string PanelAssemblyPattern = "Maran.*.dll";
@@ -78,7 +87,7 @@ public static class ErrorCodeCensus
         }
     }
 
-    /// <summary>Enumerates the keys of an assembly's embedded neutral error-message table.</summary>
+    /// <summary>Enumerates the keys of an assembly's embedded neutral code tables.</summary>
     /// <param name="assembly">The assembly to inspect.</param>
     /// <returns>The codes it declares, ordinally sorted; empty when it declares none.</returns>
     private static List<string> ReadCodes(Assembly assembly)
@@ -87,7 +96,11 @@ public static class ErrorCodeCensus
 
         foreach (var resourceName in assembly.GetManifestResourceNames())
         {
-            if (!resourceName.EndsWith(ErrorMessagesResourceSuffix, StringComparison.Ordinal))
+            var isCodeTable = CodeTableResourceSuffixes.Any(suffix =>
+            {
+                return resourceName.EndsWith(suffix, StringComparison.Ordinal);
+            });
+            if (!isCodeTable)
             {
                 continue;
             }

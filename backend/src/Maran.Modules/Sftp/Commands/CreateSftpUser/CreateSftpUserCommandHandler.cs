@@ -2,6 +2,7 @@ using Maran.Agent.Client.Interfaces;
 using Maran.Modules.Sftp.Common;
 using Maran.Modules.Sftp.Domain.Entities;
 using Maran.Modules.Sftp.Interfaces;
+using Maran.Modules.Sftp.Mappers;
 using Maran.Modules.Sftp.Persistence;
 using Maran.Modules.Sftp.Resources;
 using Maran.Modules.Sftp.Services;
@@ -261,13 +262,11 @@ public sealed class CreateSftpUserCommandHandler
         await _journal.RecordSuccessAsync(
             AuditActions.SftpUserCreated, sftpUser.Name, command.IpAddress, command.UserAgent, cancellationToken);
 
-        return Result<CreatedSftpUserDto>.Ok(new CreatedSftpUserDto(
-            sftpUser.Id,
-            sftpUser.AccountId,
-            sftpUser.Name,
-            sftpUser.FullName,
-            password,
-            sftpUser.CreatedAt));
+        // Asked of the directory exactly as the reads ask it, so the row a screen adds from this
+        // answer is labelled the same way a later read of it will be.
+        var ownerNames = await _accounts.NamesOfAsync([sftpUser.AccountId], cancellationToken);
+
+        return Result<CreatedSftpUserDto>.Ok(SftpUserMapper.Created(sftpUser, ownerNames, password));
     }
 
     /// <summary>Writes the row for a login the agent has already made, compensating if it cannot.</summary>

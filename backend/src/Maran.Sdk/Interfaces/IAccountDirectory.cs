@@ -15,9 +15,10 @@ namespace Maran.Sdk.Interfaces;
 /// that protects the owning module's own queries does not reach through this interface on its own.
 /// </para>
 /// <para>
-/// <b>The two methods differ on tenancy, and the difference is the first thing to read.</b>
-/// <see cref="FindAsync"/> MUST apply the caller's tenant scope, answering <c>null</c> for an
-/// account the current user does not own, exactly as a tenant-scoped query filter would.
+/// <b>The methods differ on tenancy, and the difference is the first thing to read.</b>
+/// <see cref="FindAsync"/>, <see cref="NamesOfAsync"/> and <see cref="FindIdsByNameAsync"/> MUST apply
+/// the caller's tenant scope, answering nothing for an account the current user does not own,
+/// exactly as a tenant-scoped query filter would.
 /// <see cref="ListAsync"/> applies NONE and hands back every account on the host, because its one
 /// use — the administrator's host-wide disk view — has no tenant to scope by. Its own remarks say
 /// so at length; nothing may call it without gating itself to administrators first.
@@ -70,4 +71,45 @@ public interface IAccountDirectory
     /// </para>
     /// </remarks>
     Task<IReadOnlyList<AccountSnapshot>> ListAsync(CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Reads the names of several accounts in one round-trip, scoped to what the current user may see.
+    /// </summary>
+    /// <param name="accountIds">The accounts whose names to read; duplicates are harmless.</param>
+    /// <param name="cancellationToken">Cancellation token for the request.</param>
+    /// <returns>
+    /// Account id to account name, for every requested account the caller may see. An id that does
+    /// not exist and an id belonging to another tenant are both simply absent, for the reason
+    /// <see cref="FindAsync"/> gives: the two must be indistinguishable.
+    /// </returns>
+    /// <remarks>
+    /// The batched form exists so that a list naming the owner of each of its rows asks once per
+    /// page, not once per row. Scoped exactly as <see cref="FindAsync"/> is.
+    /// </remarks>
+    Task<IReadOnlyDictionary<Guid, string>> NamesOfAsync(
+        IReadOnlyCollection<Guid> accountIds,
+        CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Finds every account whose name contains <paramref name="search"/>, case-insensitively and
+    /// literally, scoped to what the current user may see.
+    /// </summary>
+    /// <param name="search">
+    /// The term, matched literally: <c>%</c>, <c>_</c> and <c>\</c> carry no pattern meaning.
+    /// </param>
+    /// <param name="cancellationToken">Cancellation token for the request.</param>
+    /// <returns>
+    /// The id of EVERY matching account, in no guaranteed order. Another tenant's account never
+    /// appears, so a customer can match only their own.
+    /// </returns>
+    /// <remarks>
+    /// This is how another module searches its own rows by owner name without reading this module's
+    /// tables: it asks for the matching ids here and filters its rows by them. The answer is not
+    /// capped, because a cap would make the caller's search silently miss the rows of every account
+    /// past it. That is affordable because the answer is one column of the accounts on one server,
+    /// and the caller sends it back to PostgreSQL as a single array parameter
+    /// (<c>= ANY(@ids)</c>, which is how Npgsql translates <c>Contains</c> over a list), not as one
+    /// parameter per id.
+    /// </remarks>
+    Task<IReadOnlyList<Guid>> FindIdsByNameAsync(string search, CancellationToken cancellationToken);
 }

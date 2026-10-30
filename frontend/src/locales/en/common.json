@@ -14,6 +14,28 @@
     "accountFilter": {
       "only": "Only {account}",
       "showAll": "Show all"
+    },
+    "list": {
+      "label": "Pagination",
+      "first": "First page",
+      "previous": "Previous page",
+      "next": "Next page",
+      "last": "Last page",
+      "page": "Page {page}",
+      "position": "Page {page} of {pages}",
+      "range": "Showing {from}–{to} of {total}",
+      "pageSize": "Rows per page",
+      "search": "Search",
+      "filters": "Filters",
+      "filtersApplied": "{n} filter applied | {n} filters applied",
+      "apply": "Apply",
+      "reset": "Reset",
+      "removeFilter": "Remove filter: {filter}",
+      "clearAll": "Clear all",
+      "unreachable": "The panel could not be reached. Try again in a moment.",
+      "any": "Any",
+      "chip": "{filter}: {value}",
+      "clearSearchAndFilters": "Clear search and filters"
     }
   }
 }

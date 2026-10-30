@@ -66,4 +66,7 @@
   <data name="AccountHomeGroupRepairCountInvalid">
     <value>Число исправляемых каталогов не может быть отрицательным. Прочитайте отчёт снова и подтвердите указанное в нём число.</value>
   </data>
+  <data name="AccountStatusUnknown">
+    <value>Неизвестный статус аккаунта. Используйте active или suspended.</value>
+  </data>
 </root>

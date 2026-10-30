@@ -1,4 +1,4 @@
-import type { AccountListFilter } from './accountListFilter'
+import type { ListRequest, Paged } from './list'
 import type { PhpVersion } from './phpVersion'
 import type { SiteLogStreamHandlers, TailSiteLogOptions } from './siteLog'
 
@@ -33,6 +33,8 @@ export interface Site {
   id: string
   /** The account that owns this site. */
   accountId: string
+  /** The owning account's short name, resolved by the panel so the list never joins accounts itself. */
+  ownerName: string
   /** The primary domain served by this site. */
   domain: string
   /** Which backend serves this site's content. */
@@ -111,12 +113,15 @@ export interface ChangeSitePhpVersionRequest {
  */
 export interface SitesApi {
   /**
-   * Lists the sites the caller may see.
-   * @param filter The account the list is narrowed to; empty for every row the caller may see.
+   * Lists one page of the sites the caller may see. The request's `account`, `backend`,
+   * `phpVersion` and `status` filters are sent as the endpoint's `accountId`, `backendType`,
+   * `phpVersion` and `status`; enum values travel in the camelCase the panel answers with
+   * (`reverseProxy`, `disabled`).
+   * @param request The page, size, search, sort and filters.
    * @param signal Optional abort signal to cancel the in-flight request.
-   * @returns The sites, in the order the panel reports them.
+   * @returns The page the panel answered.
    */
-  list: (filter: AccountListFilter, signal?: AbortSignal) => Promise<Site[]>
+  list: (request: ListRequest, signal?: AbortSignal) => Promise<Paged<Site>>
 
   /**
    * Reads one site. Another customer's site answers 404, never 403.
@@ -202,3 +207,24 @@ export interface SitesApi {
     signal: AbortSignal,
   ) => Promise<void>
 }
+
+/**
+ * How many sites are disabled, as the sites list's notice reads it: still being counted, counted,
+ * or not countable because the panel did not answer. A count that could not be taken is its own
+ * state, never a zero, so the notice can say "could not be counted" instead of saying nothing.
+ */
+export type DisabledSitesCount =
+  | {
+      /** The count has not arrived yet. */
+      state: 'loading'
+    }
+  | {
+      /** The panel answered. */
+      state: 'counted'
+      /** Disabled sites across every page of the narrowed list. */
+      count: number
+    }
+  | {
+      /** The panel refused or did not answer. */
+      state: 'unavailable'
+    }

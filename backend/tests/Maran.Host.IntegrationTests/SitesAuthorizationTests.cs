@@ -215,7 +215,7 @@ public sealed class SitesAuthorizationTests : IAsyncLifetime
         var response = await client.GetAsync("/api/v1/sites");
 
         using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
-        var domains = body.RootElement.EnumerateArray().Select(site =>
+        var domains = body.RootElement.GetProperty("items").EnumerateArray().Select(site =>
         {
             return site.GetProperty("domain").GetString();
         }).ToList();
@@ -242,7 +242,8 @@ public sealed class SitesAuthorizationTests : IAsyncLifetime
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
-        Assert.Equal(0, body.RootElement.GetArrayLength());
+        Assert.Equal(0, body.RootElement.GetProperty("items").GetArrayLength());
+        Assert.Equal(0, body.RootElement.GetProperty("total").GetInt32());
     }
 
     /// <summary>An unknown site identifier answers not found rather than failing.</summary>

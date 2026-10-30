@@ -33,4 +33,50 @@ public sealed class FixedAccountDirectory : IAccountDirectory
     {
         return Task.FromResult(_snapshots);
     }
+
+    /// <inheritdoc />
+    /// <remarks>Answers for every id it knows; like the rest of this double it models no tenant scope.</remarks>
+    public Task<IReadOnlyDictionary<Guid, string>> NamesOfAsync(
+        IReadOnlyCollection<Guid> accountIds,
+        CancellationToken cancellationToken)
+    {
+        IReadOnlyDictionary<Guid, string> names = _snapshots
+            .Where(snapshot =>
+            {
+                return accountIds.Contains(snapshot.Id);
+            })
+            .ToDictionary(
+                snapshot =>
+                {
+                    return snapshot.Id;
+                },
+                snapshot =>
+                {
+                    return snapshot.Username;
+                });
+        return Task.FromResult(names);
+    }
+
+    /// <inheritdoc />
+    /// <remarks>A literal, case-insensitive containment over what it knows, as the real one answers.</remarks>
+    public Task<IReadOnlyList<Guid>> FindIdsByNameAsync(string search, CancellationToken cancellationToken)
+    {
+        IReadOnlyList<Guid> ids = _snapshots
+            .Where(snapshot =>
+            {
+                return snapshot.Username.Contains(search, StringComparison.OrdinalIgnoreCase);
+            })
+            .OrderBy(
+                snapshot =>
+                {
+                    return snapshot.Username;
+                },
+                StringComparer.Ordinal)
+            .Select(snapshot =>
+            {
+                return snapshot.Id;
+            })
+            .ToList();
+        return Task.FromResult(ids);
+    }
 }

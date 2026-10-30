@@ -26,14 +26,14 @@ import { RouterLink } from 'vue-router'
 import type { UiIconName } from '../ui/UiIcon.vue'
 import UiIconTile from '../ui/UiIconTile.vue'
 import UiSectionHeading from '../ui/UiSectionHeading.vue'
-import type { DashboardCounts } from '../../types/dashboard'
+import type { DashboardCount, DashboardCounts } from '../../types/dashboard'
 
 /** One tile: a count, what it counts, and where the detail lives. */
 interface CountTile {
   /** Stable key for the list, and the i18n leaf under `app.status.counts`. */
   key: string
-  /** The number itself. */
-  value: number
+  /** The count, with whether it could be taken. */
+  value: DashboardCount
   /** The route the tile links to. */
   to: string
   /** The glyph in the tile's icon square. */
@@ -77,7 +77,9 @@ const tiles: ComputedRef<CountTile[]> = computed(() => {
         class="block min-w-0 rounded-panel border border-border-subtle bg-surface-1 p-4 text-text-primary transition duration-300 last:col-span-2 hover:-translate-y-0.5 hover:border-accent/45 focus-visible:shadow-focus focus-visible:outline-none motion-reduce:transition-none motion-reduce:hover:translate-y-0 @xl:p-5 @xl:last:col-span-1"
       >
         <UiIconTile :name="tile.icon" />
-        <span class="mt-3.5 block font-display text-2xl leading-none font-black @xl:text-3xl">{{ tile.value }}</span>
+        <span class="mt-3.5 block font-display text-2xl leading-none font-black @xl:text-3xl">{{
+          tile.value.state === 'counted' ? tile.value.count : t('app.status.counts.unavailable')
+        }}</span>
         <span class="mt-2 block font-display text-xs font-extrabold tracking-caps text-text-secondary uppercase break-words">{{ t(`app.status.counts.${tile.key}`) }}</span>
       </RouterLink>
     </div>

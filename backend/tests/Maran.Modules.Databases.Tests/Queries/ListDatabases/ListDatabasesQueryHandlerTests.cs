@@ -1,6 +1,7 @@
 using Maran.Agent.Client.Interfaces;
 using Maran.Modules.Databases.Queries.ListDatabases;
 using Maran.Modules.Databases.Tests.TestSupport;
+using Maran.Sdk.Contracts;
 using Microsoft.EntityFrameworkCore;
 
 namespace Maran.Modules.Databases.Tests.Queries.ListDatabases;
@@ -23,7 +24,7 @@ public sealed class ListDatabasesQueryHandlerTests
         await SeedAsync(shared);
 
         using var context = DatabasesTestContext.Create(FakeCurrentUser.Customer(OwnerAccountId), shared);
-        var result = await new ListDatabasesQueryHandler(context)
+        var result = await new ListDatabasesQueryHandler(context, new StubAccountDirectory())
             .HandleAsync(new ListDatabasesQuery(), CancellationToken.None);
 
         Assert.True(result.IsSuccess);
@@ -146,7 +147,7 @@ public sealed class ListDatabasesQueryHandlerTests
         await SeedAsync(shared);
 
         using var context = DatabasesTestContext.Create(FakeCurrentUser.Customer(StrangerAccountId), shared);
-        var result = await new ListDatabasesQueryHandler(context)
+        var result = await new ListDatabasesQueryHandler(context, new StubAccountDirectory())
             .HandleAsync(new ListDatabasesQuery(), CancellationToken.None);
 
         Assert.Equal(["ledger"], result.Value.Select(row =>
@@ -165,7 +166,7 @@ public sealed class ListDatabasesQueryHandlerTests
         await SeedAsync(shared);
 
         using var context = DatabasesTestContext.Create(FakeCurrentUser.Admin(), shared);
-        var result = await new ListDatabasesQueryHandler(context)
+        var result = await new ListDatabasesQueryHandler(context, new StubAccountDirectory())
             .HandleAsync(new ListDatabasesQuery(), CancellationToken.None);
 
         Assert.Equal(2, result.Value.Count);
@@ -179,7 +180,7 @@ public sealed class ListDatabasesQueryHandlerTests
         await SeedAsync(shared);
 
         using var context = DatabasesTestContext.Create(FakeCurrentUser.Customer(OwnerAccountId), shared);
-        var result = await new ListDatabasesQueryHandler(context)
+        var result = await new ListDatabasesQueryHandler(context, new StubAccountDirectory())
             .HandleAsync(new ListDatabasesQuery(), CancellationToken.None);
 
         var row = Assert.Single(result.Value);
@@ -220,7 +221,7 @@ public sealed class ListDatabasesQueryHandlerTests
         await SeedAsync(shared);
 
         using var context = DatabasesTestContext.Create(FakeCurrentUser.Admin(), shared);
-        var result = await new ListDatabasesQueryHandler(context)
+        var result = await new ListDatabasesQueryHandler(context, new StubAccountDirectory())
             .HandleAsync(new ListDatabasesQuery(StrangerAccountId), CancellationToken.None);
 
         Assert.Equal(["ledger"], result.Value.Select(row =>
@@ -241,10 +242,45 @@ public sealed class ListDatabasesQueryHandlerTests
         await SeedAsync(shared);
 
         using var context = DatabasesTestContext.Create(FakeCurrentUser.Customer(OwnerAccountId), shared);
-        var result = await new ListDatabasesQueryHandler(context)
+        var result = await new ListDatabasesQueryHandler(context, new StubAccountDirectory())
             .HandleAsync(new ListDatabasesQuery(StrangerAccountId), CancellationToken.None);
 
         Assert.True(result.IsSuccess);
         Assert.Empty(result.Value);
+    }
+
+    /// <summary>
+    /// A listing labels each row with its owner's name from the account directory, in one batched
+    /// lookup, and leaves the name empty for an account the directory does not name.
+    /// </summary>
+    [Fact]
+    public async Task Rows_carry_the_owner_name_the_directory_answers_and_empty_for_one_it_does_not()
+    {
+        var shared = Guid.NewGuid().ToString();
+        await SeedAsync(shared);
+
+        // The directory names the owner and not the stranger — exactly how the real one answers for
+        // an account that was deleted or that the caller may not see.
+        var accounts = new StubAccountDirectory(
+            new AccountSnapshot(OwnerAccountId, "alice", 5, 5, 5, 5, 5, 1_024, AccountState.Active));
+
+        using var context = DatabasesTestContext.Create(FakeCurrentUser.Admin(), shared);
+        var result = await new ListDatabasesQueryHandler(context, accounts)
+            .HandleAsync(new ListDatabasesQuery(), CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal("alice", result.Value.Single(row =>
+        {
+            return row.AccountId == OwnerAccountId;
+        }).OwnerName);
+        Assert.Equal(string.Empty, result.Value.Single(row =>
+        {
+            return row.AccountId == StrangerAccountId;
+        }).OwnerName);
+
+        var batch = Assert.Single(accounts.NameLookups);
+        Assert.Equal(
+            new[] { OwnerAccountId, StrangerAccountId }.Order(),
+            batch.Order());
     }
 }

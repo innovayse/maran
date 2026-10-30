@@ -1,6 +1,16 @@
 # Committed per-target test baseline. Recorded by 'maran test --accept'; commit the diff.
 # stack<TAB>target<TAB>passed<TAB>failed<TAB>ignored
 #
+# RE-MEASURED 2026-10-30 (issue #196 Phase 1, the paged list contract for Accounts and Sites): edited by hand.
+# One clean whole-solution `maran test backend` run, nothing else building: 20 targets: 4666 passed /
+# 0 failed / 0 ignored, TEST VERDICT: OK. SharedKernel.Tests 230->343 (the pagers, SortMap builder,
+# SearchTerm, SortRequest), Sdk.Tests 224->246 (validator, code census), Modules.Accounts.Tests 468->498,
+# Modules.Sites.Tests 236->266 (status rank included), Databases 110->111, Sftp 88->89, Ftp 153->154,
+# Backups 214->215 (owner names), Host.IntegrationTests 415->659 (the row was stale; this run collected 659).
+# spa, measured per file with the json reporter at E2E_PORT=5199: 116 files, 775 passed / 0 failed /
+# 2 skipped. accounts/list 3->15, sites/list 5->15, dashboard +1 (unavailable count), NEW ui-kit/combobox 6,
+# ui-kit/filter-sheet 9, ui-kit/pagination 10; ui-kit/motion-and-tables 7+2 skipped -> 8+1 (the
+# filter-trigger case is no longer fixme now the accounts list renders the trigger).
 # RE-MEASURED 2026-10-30 (issue #223, account resource summary and ?account= list filters): edited by hand.
 # Modules.Accounts.Tests 454->468, Sites.Tests 232->236, Databases.Tests 106->110, Sftp.Tests 84->88,
 # Ftp.Tests 149->153, Backups.Tests 210->214, Cron.Tests 187->190, 0 failed;
@@ -360,31 +370,32 @@ rust	bound_is_mapped_in_every_status_file [tests/bound_is_mapped_in_every_status
 rust	bound_errors [tests/bound_errors.rs]	9	0	0
 rust	safe_write_bound_on_real_processes [tests/safe_write_bound_on_real_processes.rs]	6	0	0
 backend	Maran.Agent.Client.Tests.dll	375	0	0
-backend	Maran.SharedKernel.Tests.dll	230	0	0
+backend	Maran.SharedKernel.Tests.dll	343	0	0
 backend	Maran.Modules.Identity.Tests.dll	312	0	0
-backend	Maran.Modules.Sftp.Tests.dll	88	0	0
+backend	Maran.Modules.Sftp.Tests.dll	89	0	0
 backend	Maran.Modules.Notifications.Tests.dll	52	0	0
 backend	Maran.Modules.Tasks.Tests.dll	76	0	0
-backend	Maran.Modules.Ftp.Tests.dll	153	0	0
+backend	Maran.Modules.Ftp.Tests.dll	154	0	0
 backend	Maran.Modules.Monitoring.Tests.dll	70	0	0
-backend	Maran.Modules.Backups.Tests.dll	214	0	0
+backend	Maran.Modules.Backups.Tests.dll	215	0	0
 backend	Maran.Modules.Licensing.Tests.dll	51	0	0
 backend	Maran.Modules.Firewall.Tests.dll	255	0	0
 backend	Maran.Modules.Cron.Tests.dll	190	0	0
-backend	Maran.Modules.Accounts.Tests.dll	468	0	0
-backend	Maran.Modules.Databases.Tests.dll	110	0	0
+backend	Maran.Modules.Accounts.Tests.dll	498	0	0
+backend	Maran.Modules.Databases.Tests.dll	111	0	0
 backend	Maran.Modules.Ssl.Tests.dll	221	0	0
-backend	Maran.Sdk.Tests.dll	224	0	0
-backend	Maran.Modules.Sites.Tests.dll	236	0	0
+backend	Maran.Sdk.Tests.dll	246	0	0
+backend	Maran.Modules.Sites.Tests.dll	266	0	0
 backend	Maran.ArchitectureTests.dll	91	0	0
 backend	Maran.Host.Tests.dll	392	0	0
-backend	Maran.Host.IntegrationTests.dll	415	0	0
+backend	Maran.Host.IntegrationTests.dll	659	0	0
 spa	accounts/delete.spec.ts	6	0	0
 spa	accounts/detail.spec.ts	10	0	0
 spa	accounts/edit.spec.ts	9	0	0
 spa	accounts/form.spec.ts	8	0	0
 spa	accounts/invitation-link.spec.ts	8	0	0
-spa	accounts/list.spec.ts	3	0	0
+spa	accounts/list.spec.ts	15	0	0
+spa	accounts/resources.spec.ts	8	0	0
 spa	admin/audit.spec.ts	3	0	0
 spa	admin/smtp-settings.spec.ts	2	0	0
 spa	audit/action-names.spec.ts	2	0	0
@@ -399,23 +410,34 @@ spa	auth/setup.spec.ts	8	0	0
 spa	auth/theme-persists.spec.ts	3	0	0
 spa	auth/two-factor-setup.spec.ts	2	0	0
 spa	auth/two-factor.spec.ts	5	0	0
+spa	backups/account-filter.spec.ts	3	0	0
 spa	backups/destinations.spec.ts	9	0	0
 spa	backups/list.spec.ts	15	0	0
 spa	backups/reachability.spec.ts	1	0	0
 spa	backups/restore.spec.ts	12	0	0
 spa	backups/schedule.spec.ts	9	0	0
 spa	backups/weekday-names.spec.ts	1	0	0
+spa	cron/account-filter.spec.ts	3	0	0
 spa	cron/description.spec.ts	3	0	0
 spa	cron/entries.spec.ts	7	0	0
 spa	cron/environment.spec.ts	5	0	0
 spa	cron/raw-refusal.spec.ts	4	0	0
 spa	cron/schedule.spec.ts	2	0	0
 spa	customer-area.spec.ts	2	0	0
-spa	dashboard.spec.ts	6	0	0
+spa	customer/console-clean.spec.ts	1	0	0
+spa	customer/invitation.spec.ts	2	0	0
+spa	customer/navigation.spec.ts	3	0	0
+spa	customer/no-admin-links.spec.ts	4	0	0
+spa	customer/own-account-create.spec.ts	5	0	0
+spa	customer/role-guard.spec.ts	18	0	0
+spa	customer/tasks.spec.ts	3	0	0
+spa	dashboard.spec.ts	7	0	0
+spa	databases/account-filter.spec.ts	3	0	0
 spa	databases/create.spec.ts	5	0	0
 spa	databases/credentials.spec.ts	15	0	0
 spa	databases/grant-repair.spec.ts	11	0	0
 spa	databases/list.spec.ts	8	0	0
+spa	file-transfer/account-filter.spec.ts	3	0	0
 spa	file-transfer/create.spec.ts	8	0	0
 spa	file-transfer/credentials.spec.ts	17	0	0
 spa	file-transfer/ftps-server-state.spec.ts	11	0	0
@@ -455,9 +477,10 @@ spa	shell/renders-title.spec.ts	1	0	0
 spa	shell/sidebar-state.spec.ts	6	0	0
 spa	shell/sidebar-submenu.spec.ts	7	0	0
 spa	shell/theme-switch.spec.ts	2	0	0
+spa	sites/account-filter.spec.ts	3	0	0
 spa	sites/detail.spec.ts	5	0	0
 spa	sites/form.spec.ts	5	0	0
-spa	sites/list.spec.ts	5	0	0
+spa	sites/list.spec.ts	15	0	0
 spa	sites/log-stream.spec.ts	7	0	0
 spa	sites/logs-tab.spec.ts	9	0	0
 spa	sites/ssl-tab.spec.ts	11	0	0
@@ -468,27 +491,17 @@ spa	tasks/log-fidelity.spec.ts	2	0	0
 spa	tasks/progress-unit.spec.ts	1	0	0
 spa	ui-kit/badge-narrow.spec.ts	2	0	0
 spa	ui-kit/chart.spec.ts	5	0	0
+spa	ui-kit/combobox.spec.ts	6	0	0
 spa	ui-kit/dropdown-landing-focus.spec.ts	5	0	0
+spa	ui-kit/filter-sheet.spec.ts	9	0	0
 spa	ui-kit/focus-return.spec.ts	3	0	0
 spa	ui-kit/modal-keyboard.spec.ts	2	0	0
-spa	ui-kit/motion-and-tables.spec.ts	7	0	2
+spa	ui-kit/motion-and-tables.spec.ts	8	0	1
 spa	ui-kit/no-horizontal-scroll-admin.spec.ts	66	0	0
 spa	ui-kit/no-horizontal-scroll-other.spec.ts	54	0	0
+spa	ui-kit/pagination.spec.ts	10	0	0
 spa	ui-kit/select-empty.spec.ts	1	0	0
 spa	ui-kit/table-narrow.spec.ts	19	0	0
 spa	ui-kit/text-zoom.spec.ts	3	0	0
 spa	ui-kit/unfilled-select-prompt.spec.ts	3	0	0
 spa	upgrade/tier-name.spec.ts	3	0	0
-spa	customer/console-clean.spec.ts	1	0	0
-spa	customer/invitation.spec.ts	2	0	0
-spa	customer/navigation.spec.ts	3	0	0
-spa	customer/no-admin-links.spec.ts	4	0	0
-spa	customer/own-account-create.spec.ts	5	0	0
-spa	customer/role-guard.spec.ts	18	0	0
-spa	customer/tasks.spec.ts	3	0	0
-spa	accounts/resources.spec.ts	8	0	0
-spa	backups/account-filter.spec.ts	3	0	0
-spa	cron/account-filter.spec.ts	3	0	0
-spa	databases/account-filter.spec.ts	3	0	0
-spa	file-transfer/account-filter.spec.ts	3	0	0
-spa	sites/account-filter.spec.ts	3	0	0

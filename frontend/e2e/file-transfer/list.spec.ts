@@ -28,6 +28,7 @@ const ALICE: Account = {
 const WEB: SftpUser = {
   id: '11111111-1111-1111-1111-111111111111',
   accountId: ALICE.id,
+  ownerName: ALICE.name,
   name: 'web',
   fullName: 'alice_web',
   createdAt: '2026-08-01T10:00:00Z',
@@ -36,6 +37,7 @@ const WEB: SftpUser = {
 const UPLOAD: FtpUser = {
   id: '33333333-3333-3333-3333-333333333333',
   accountId: ALICE.id,
+  ownerName: ALICE.name,
   name: 'upload',
   fullName: 'alice_upload',
   protocol: 'Ftps',

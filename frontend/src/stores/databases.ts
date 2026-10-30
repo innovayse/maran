@@ -107,6 +107,9 @@ export const useDatabasesStore = defineStore('databases', () => {
         {
           id: created.id,
           accountId: created.accountId,
+          // The create answer carries no owner name, and the SPA does not join one from an account
+          // list: the row says "not named" until the next list read brings the panel's name.
+          ownerName: '',
           name: created.name,
           fullName: created.fullName,
           dbUserName: created.dbUserName,

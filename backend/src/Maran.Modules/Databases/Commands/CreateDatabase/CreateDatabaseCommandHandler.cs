@@ -2,6 +2,7 @@ using Maran.Agent.Client.Interfaces;
 using Maran.Modules.Databases.Common;
 using Maran.Modules.Databases.Domain.Entities;
 using Maran.Modules.Databases.Interfaces;
+using Maran.Modules.Databases.Mappers;
 using Maran.Modules.Databases.Persistence;
 using Maran.Modules.Databases.Resources;
 using Maran.Modules.Databases.Services;
@@ -300,14 +301,11 @@ public sealed class CreateDatabaseCommandHandler
         await _journal.RecordSuccessAsync(
             AuditActions.DatabaseCreated, database.Name, command.IpAddress, command.UserAgent, cancellationToken);
 
-        return Result<CreatedDatabaseDto>.Ok(new CreatedDatabaseDto(
-            database.Id,
-            database.AccountId,
-            database.Name,
-            database.FullName,
-            database.DbUserName,
-            password,
-            database.CreatedAt));
+        // Asked of the directory exactly as the reads ask it, so the row a screen adds from this
+        // answer is labelled the same way a later read of it will be.
+        var ownerNames = await _accounts.NamesOfAsync([database.AccountId], cancellationToken);
+
+        return Result<CreatedDatabaseDto>.Ok(DatabaseMapper.Created(database, ownerNames, password));
     }
 
     /// <summary>Whether a violated constraint means "this exact database is already recorded".</summary>

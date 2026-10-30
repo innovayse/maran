@@ -1,0 +1,9 @@
+{
+  "app": {
+    "combobox": {
+      "loading": "Loading…",
+      "noMatches": "Nothing matches.",
+      "more": "Type to narrow — {count} more"
+    }
+  }
+}

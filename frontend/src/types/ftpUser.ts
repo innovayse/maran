@@ -20,6 +20,12 @@ export interface FtpUser {
   id: string
   /** The account that owns this login. */
   accountId: string
+  /**
+   * The owning account's current short name, resolved by the panel from its account directory so
+   * the list never joins accounts itself. An empty string when the panel does not name that account
+   * for this caller.
+   */
+  ownerName: string
   /** The name the customer asked for, WITHOUT the account prefix. */
   name: string
   /**

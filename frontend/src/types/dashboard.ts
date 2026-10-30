@@ -44,11 +44,22 @@ export interface DashboardResources {
  */
 export interface DashboardCounts {
   /** Hosting accounts on this server. */
-  accounts: number
+  accounts: DashboardCount
   /** Sites across every account. */
-  sites: number
+  sites: DashboardCount
   /** Databases across every account. */
-  databases: number
+  databases: DashboardCount
+}
+
+/**
+ * One count, mirroring the backend's `DashboardCountDto`: whether the module answered, and the number
+ * when it did. A count that could not be taken is its own state, never a zero.
+ */
+export interface DashboardCount {
+  /** `counted` when the module answered; `unavailable` when it refused or failed. */
+  state: 'counted' | 'unavailable'
+  /** The number; meaningful only when {@link state} is `counted`. */
+  count: number
 }
 
 /**

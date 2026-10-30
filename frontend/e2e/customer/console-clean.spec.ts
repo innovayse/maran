@@ -3,7 +3,7 @@ import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubModules } from '../fixtures/stub-modules-route'
 import { stubDashboard, WITHHELD_DASHBOARD } from '../fixtures/stub-dashboard-route'
-import { stubSites } from '../fixtures/stub-sites-routes'
+import { stubSites, stubPhpVersions } from '../fixtures/stub-sites-routes'
 import { stubDatabases } from '../fixtures/stub-databases-routes'
 import { stubBackups } from '../fixtures/stub-backups-routes'
 import { stubCronEntries, stubCronEnvironment } from '../fixtures/stub-cron-routes'
@@ -77,6 +77,7 @@ test('a customer walks their own area with a clean console', async ({ page }) =>
   await stubModules(page, MODULES)
   await stubDashboard(page, WITHHELD_DASHBOARD)
   await stubSites(page, [])
+  await stubPhpVersions(page, [])
   await stubDatabases(page, [])
   await stubBackups(page, [])
   await stubCronEntries(page, [])

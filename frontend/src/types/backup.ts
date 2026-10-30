@@ -34,6 +34,13 @@ export interface Backup {
   /** The account this is a backup of. */
   accountId: string
   /**
+   * The owning account's CURRENT short name, resolved by the panel from its account directory. An
+   * empty string when the panel does not name that account for this caller — including once the
+   * account is deleted, which {@link orphanedAccountUsername} answers instead: this is the live
+   * account's name, that one the name it had when it was removed.
+   */
+  ownerName: string
+  /**
    * The account's username when that account no longer exists, and an empty string while it does.
    *
    * A pre-deletion backup outlives its account deliberately, so for precisely those rows the

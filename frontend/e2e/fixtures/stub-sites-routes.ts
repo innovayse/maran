@@ -1,9 +1,10 @@
 import type { Page } from '@playwright/test'
+import { pagedAnswer, type PagedRules } from './paged-answer'
 import type { PhpVersion } from '../../src/types/phpVersion'
 import type { Site, SiteDetail } from '../../src/types/site'
 
-/** The collection endpoint the sites list and the create form both talk to. */
-const SITES_PATTERN = '**/api/v1/sites'
+/** The collection endpoint the sites list and the create form both talk to, with or without a query. */
+const SITES_PATTERN = /\/api\/v1\/sites(\?.*)?$/
 
 /** The single-site endpoint, which also answers the enable, disable and delete calls. */
 const SITE_PATTERN = '**/api/v1/sites/*'
@@ -15,14 +16,63 @@ const PHP_VERSIONS_PATTERN = '**/api/v1/sites/php-versions'
 const SITE_LOGS_PATTERN = '**/api/v1/sites/*/logs*'
 
 /**
- * Fulfils `GET /api/v1/sites` with the given list and answers a `POST` by echoing the submitted
- * body back as a created site, so a spec can drive the list page's states and the form's success
- * path without a live backend.
+ * Fulfils `GET /api/v1/sites/php-versions` with the given runtimes.
  * @param page The Playwright page whose network the route is installed on.
- * @param sites The sites the stub reports for the list request.
+ * @param versions The versions the stub reports as installed.
  * @returns Resolves once the route is installed.
  */
-export const stubSites = async (page: Page, sites: Site[]): Promise<void> => {
+export const stubPhpVersions = async (page: Page, versions: PhpVersion[]): Promise<void> => {
+  await page.route(PHP_VERSIONS_PATTERN, async (route) => {
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(versions) })
+  })
+}
+
+/** How the sites endpoint searches, sorts and filters, as the panel does. */
+const SITE_RULES: PagedRules<Site> = {
+  matches: (site, term) => {
+    return site.domain.toLowerCase().includes(term) || site.ownerName.toLowerCase().includes(term)
+  },
+  sorts: {
+    domain: (site) => {
+      return site.domain
+    },
+    status: (site) => {
+      return site.status
+    },
+    createdAt: (site) => {
+      return site.createdAt
+    },
+  },
+  filters: {
+    accountId: (site, value) => {
+      return site.accountId === value
+    },
+    backendType: (site, value) => {
+      return site.backendType === value
+    },
+    phpVersion: (site, value) => {
+      return site.phpVersion === value
+    },
+    status: (site, value) => {
+      return site.status === value
+    },
+  },
+}
+
+/**
+ * Fulfils `GET /api/v1/sites` as a page honouring `page`, `pageSize`, `search`, `sort`,
+ * `accountId`, `backendType`, `phpVersion` and `status`, and answers a `POST` by echoing the submitted
+ * body back as a created site, which joins the catalogue. It does not answer the installed PHP
+ * versions: the list's filter reads them, so a spec opening the list installs
+ * {@link stubPhpVersions} itself, and no spec's versions depend on the order of two stubs.
+ * @param page The Playwright page whose network the route is installed on.
+ * @param sites The sites the stub knows, in their default order.
+ * @returns A function reporting every list request so far, oldest first, so a spec can read what
+ * the page asked the panel for.
+ */
+export const stubSites = async (page: Page, sites: Site[]): Promise<() => readonly URL[]> => {
+  const listRequests: URL[] = []
+
   await page.route(SITES_PATTERN, async (route) => {
     if (route.request().method() === 'POST') {
       const submitted = route.request().postDataJSON() as Pick<
@@ -32,6 +82,7 @@ export const stubSites = async (page: Page, sites: Site[]): Promise<void> => {
       const created: Site = {
         id: '99999999-9999-9999-9999-999999999999',
         accountId: submitted.accountId,
+        ownerName: '',
         domain: submitted.domain,
         backendType: submitted.backendType,
         phpVersion: submitted.phpVersion,
@@ -47,8 +98,17 @@ export const stubSites = async (page: Page, sites: Site[]): Promise<void> => {
       return
     }
 
-    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(sites) })
+    listRequests.push(new URL(route.request().url()))
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(pagedAnswer(sites, route.request().url(), SITE_RULES)),
+    })
   })
+
+  return () => {
+    return listRequests
+  }
 }
 
 /**
@@ -69,7 +129,7 @@ export const stubSitesProblem = async (page: Page, detail: string): Promise<void
 }
 
 /**
- * Serves an empty `GET /api/v1/sites` list but rejects `POST` with an RFC 7807 problem body, so a
+ * Serves an empty `GET /api/v1/sites` page but rejects `POST` with an RFC 7807 problem body, so a
  * spec can assert the create form surfaces the server's own message rather than invented copy.
  * @param page The Playwright page whose network the route is installed on.
  * @param detail The backend-localized message the stub reports in `detail`.
@@ -85,7 +145,11 @@ export const stubCreateSiteProblem = async (page: Page, detail: string): Promise
       })
       return
     }
-    await route.fulfill({ status: 200, contentType: 'application/json', body: '[]' })
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ items: [], total: 0, page: 1, pageSize: 25 }),
+    })
   })
 }
 
@@ -106,18 +170,6 @@ export const stubSiteDetail = async (page: Page, detail: SiteDetail): Promise<vo
       return
     }
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(detail) })
-  })
-}
-
-/**
- * Fulfils `GET /api/v1/sites/php-versions` with the given runtimes.
- * @param page The Playwright page whose network the route is installed on.
- * @param versions The versions the stub reports as installed.
- * @returns Resolves once the route is installed.
- */
-export const stubPhpVersions = async (page: Page, versions: PhpVersion[]): Promise<void> => {
-  await page.route(PHP_VERSIONS_PATTERN, async (route) => {
-    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(versions) })
   })
 }
 

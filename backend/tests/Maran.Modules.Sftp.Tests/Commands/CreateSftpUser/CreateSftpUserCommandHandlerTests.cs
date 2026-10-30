@@ -37,7 +37,10 @@ public sealed class CreateSftpUserCommandHandlerTests
         Assert.Empty(world.Agent.Creates);
     }
 
-    /// <summary>A name another tenant uses is still available because names are prefixed.</summary>
+    /// <summary>
+    /// A name another tenant uses is still available because names are prefixed, and the answer names
+    /// the owner.
+    /// </summary>
     [Fact]
     public async Task A_name_another_tenant_uses_is_still_available_because_names_are_prefixed()
     {
@@ -55,6 +58,7 @@ public sealed class CreateSftpUserCommandHandlerTests
 
         Assert.True(result.IsSuccess);
         Assert.Equal("alice_deploy", result.Value.FullName);
+        Assert.Equal("alice", result.Value.OwnerName);
 
         var rows = await admin.SftpUsers.IgnoreQueryFilters().Select(row => row.FullName).ToListAsync();
         Assert.Contains("alice_deploy", rows);

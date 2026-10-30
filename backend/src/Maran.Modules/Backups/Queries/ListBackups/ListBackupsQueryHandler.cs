@@ -1,6 +1,8 @@
 using Maran.Modules.Backups.Common;
+using Maran.Modules.Backups.Mappers;
 using Maran.Modules.Backups.Persistence;
 using Maran.Modules.Backups.Services;
+using Maran.Sdk.Interfaces;
 
 namespace Maran.Modules.Backups.Queries.ListBackups;
 
@@ -32,16 +34,24 @@ public sealed class ListBackupsQueryHandler
     /// <summary>Names a recorded failure code in the caller's language.</summary>
     private readonly BackupFailureDisplayNames _failureNames;
 
-    /// <summary>Creates the handler with the module's own database context.</summary>
+    /// <summary>The window onto the Accounts module's account names, tenant-scoped.</summary>
+    private readonly IAccountDirectory _accounts;
+
+    /// <summary>Creates the handler with the module's own database context and its collaborators.</summary>
     /// <param name="dbContext">The Backups module's database context.</param>
     /// <param name="failureNames">Names a recorded failure code in the caller's language.</param>
-    public ListBackupsQueryHandler(BackupsDbContext dbContext, BackupFailureDisplayNames failureNames)
+    /// <param name="accounts">The window onto the Accounts module's account names, tenant-scoped.</param>
+    public ListBackupsQueryHandler(
+        BackupsDbContext dbContext,
+        BackupFailureDisplayNames failureNames,
+        IAccountDirectory accounts)
     {
         _dbContext = dbContext;
         _failureNames = failureNames;
+        _accounts = accounts;
     }
 
-    /// <summary>Returns the backups the caller may see, newest first.</summary>
+    /// <summary>Returns the backups the caller may see, newest first, each with its owner's name.</summary>
     /// <param name="query">The list request; its optional account narrows the tenant scope.</param>
     /// <param name="cancellationToken">Cancels the read.</param>
     /// <returns>A successful result carrying the backups; this operation never fails.</returns>
@@ -49,47 +59,31 @@ public sealed class ListBackupsQueryHandler
         ListBackupsQuery query,
         CancellationToken cancellationToken)
     {
-        // The projection stops at the row's own columns and the failure NAME is added afterwards,
-        // in memory. It has to be: the name is resolved from this request's culture through a resx
-        // table, which no expression tree can be translated into SQL — a Select that called the
-        // resolver would either fail to translate or, worse, silently pull the whole table client
-        // side without saying so.
         var rows = await _dbContext.Backups
             .AsNoTracking()
             .Where(backup => query.AccountId == null || backup.AccountId == query.AccountId)
             .OrderByDescending(backup => backup.StartedAt)
-            .Select(backup => new
-            {
-                backup.Id,
-                backup.AccountId,
-                backup.OrphanedAccountUsername,
-                backup.Status,
-                backup.Kind,
-                backup.SizeBytes,
-                backup.Sha256,
-                backup.DatabaseCount,
-                backup.StartedAt,
-                backup.FinishedAt,
-                backup.FailureCode,
-            })
             .ToListAsync(cancellationToken);
 
-        var backups = rows
+        // One batched, tenant-scoped lookup for every owner in the answer, never one per row. A
+        // deleted account is absent from it, and its rows say whose they were through
+        // OrphanedAccountUsername instead.
+        var ownerIds = rows
             .Select(row =>
             {
-                return new BackupDto(
-                    row.Id,
-                    row.AccountId,
-                    row.OrphanedAccountUsername,
-                    row.Status,
-                    row.Kind,
-                    row.SizeBytes,
-                    row.Sha256,
-                    row.DatabaseCount,
-                    row.StartedAt,
-                    row.FinishedAt,
-                    row.FailureCode,
-                    _failureNames.Of(row.FailureCode));
+                return row.AccountId;
+            })
+            .Distinct()
+            .ToList();
+        var ownerNames = await _accounts.NamesOfAsync(ownerIds, cancellationToken);
+
+        // The failure NAME is resolved here, in memory, from this request's culture through a resx
+        // table — which is also why the rows are read whole and mapped after the query rather than
+        // projected inside it: no expression tree can translate the resolver into SQL.
+        IReadOnlyList<BackupDto> backups = rows
+            .Select(row =>
+            {
+                return BackupMapper.From(row, ownerNames, _failureNames.Of(row.FailureCode));
             })
             .ToList();
 

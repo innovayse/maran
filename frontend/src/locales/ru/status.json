@@ -15,7 +15,8 @@
         "title": "На этом сервере",
         "accounts": "Аккаунты",
         "sites": "Сайты",
-        "databases": "Базы данных"
+        "databases": "Базы данных",
+        "unavailable": "Недоступно"
       },
       "attention": {
         "title": "Требует внимания",

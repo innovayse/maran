@@ -29,6 +29,7 @@ const ALICE: Account = {
 const COMPLETED: Backup = {
   id: '11111111-1111-1111-1111-111111111111',
   accountId: ALICE.id,
+  ownerName: ALICE.name,
   orphanedAccountUsername: '',
   status: 'completed',
   kind: 'manual',
@@ -45,6 +46,7 @@ const COMPLETED: Backup = {
 const FAILED: Backup = {
   id: '33333333-3333-3333-3333-333333333333',
   accountId: ALICE.id,
+  ownerName: ALICE.name,
   orphanedAccountUsername: '',
   status: 'failed',
   kind: 'manual',
@@ -111,6 +113,7 @@ test('a row names the owning account, its status and how many databases the copy
 const ORPHANED: Backup = {
   id: '55555555-5555-5555-5555-555555555555',
   accountId: '66666666-6666-6666-6666-666666666666',
+  ownerName: '',
   orphanedAccountUsername: 'bob',
   status: 'completed',
   kind: 'preDeletion',

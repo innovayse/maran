@@ -59,6 +59,7 @@ public sealed class Program
         builder.Services.AddPanelResilience();
         builder.Services.AddPanelRateLimiting();
         builder.Services.AddPanelJsonSerialization();
+        builder.Services.AddPanelModelBinding();
         builder.Services.AddPanelModules(builder.Configuration);
         builder.Services.AddPanelBackgroundWork();
         builder.Services.AddPanelSeeding();

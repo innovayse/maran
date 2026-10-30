@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="ListPageOutOfRange">
+    <value>Էջի համարը պետք է լինի 1 կամ ավելի։</value>
+  </data>
+  <data name="ListPageSizeNotOffered">
+    <value>Էջի չափը կարող է լինել միայն 10, 25, 50 կամ 100։</value>
+  </data>
+  <data name="ListSearchTooLong">
+    <value>Որոնման տեքստը կարող է պարունակել առավելագույնը 100 նիշ։</value>
+  </data>
+  <data name="ListSearchInvalid">
+    <value>Որոնման տեքստը պարունակում է անթույլատրելի նիշեր։</value>
+  </data>
+  <data name="ListSortUnknown">
+    <value>Այս ցուցակը հնարավոր չէ դասավորել այդ կերպ։</value>
+  </data>
+</root>

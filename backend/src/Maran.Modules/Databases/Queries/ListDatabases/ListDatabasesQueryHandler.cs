@@ -1,5 +1,7 @@
 using Maran.Modules.Databases.Common;
+using Maran.Modules.Databases.Mappers;
 using Maran.Modules.Databases.Persistence;
+using Maran.Sdk.Interfaces;
 
 namespace Maran.Modules.Databases.Queries.ListDatabases;
 
@@ -30,14 +32,19 @@ public sealed class ListDatabasesQueryHandler
     /// <summary>The Databases module's database context, and this module's tenant boundary.</summary>
     private readonly DatabasesDbContext _dbContext;
 
-    /// <summary>Creates the handler with the module's own database context.</summary>
+    /// <summary>The window onto the Accounts module's account names, tenant-scoped.</summary>
+    private readonly IAccountDirectory _accounts;
+
+    /// <summary>Creates the handler with the module's own database context and the account directory.</summary>
     /// <param name="dbContext">The Databases module's database context.</param>
-    public ListDatabasesQueryHandler(DatabasesDbContext dbContext)
+    /// <param name="accounts">The window onto the Accounts module's account names, tenant-scoped.</param>
+    public ListDatabasesQueryHandler(DatabasesDbContext dbContext, IAccountDirectory accounts)
     {
         _dbContext = dbContext;
+        _accounts = accounts;
     }
 
-    /// <summary>Returns the caller's databases, ordered by creation time.</summary>
+    /// <summary>Returns the caller's databases, oldest first, each with its owner's name.</summary>
     /// <param name="query">The list request; its optional account narrows the tenant scope.</param>
     /// <param name="cancellationToken">Cancels the read.</param>
     /// <returns>A successful result carrying the databases; this operation never fails.</returns>
@@ -45,19 +52,29 @@ public sealed class ListDatabasesQueryHandler
         ListDatabasesQuery query,
         CancellationToken cancellationToken)
     {
-        var databases = await _dbContext.Databases
+        var rows = await _dbContext.Databases
             .AsNoTracking()
             .Where(database => query.AccountId == null || database.AccountId == query.AccountId)
             .OrderBy(database => database.CreatedAt)
-            .Select(database => new DatabaseDto(
-                database.Id,
-                database.AccountId,
-                database.Name,
-                database.FullName,
-                database.DbUserName,
-                database.CreatedAt))
             .ToListAsync(cancellationToken);
 
-        return Result<IReadOnlyList<DatabaseDto>>.Ok(databases);
+        // One batched, tenant-scoped lookup for every owner in the answer, never one per row.
+        var ownerIds = rows
+            .Select(row =>
+            {
+                return row.AccountId;
+            })
+            .Distinct()
+            .ToList();
+        var ownerNames = await _accounts.NamesOfAsync(ownerIds, cancellationToken);
+
+        IReadOnlyList<DatabaseDto> items = rows
+            .Select(row =>
+            {
+                return DatabaseMapper.From(row, ownerNames);
+            })
+            .ToList();
+
+        return Result<IReadOnlyList<DatabaseDto>>.Ok(items);
     }
 }

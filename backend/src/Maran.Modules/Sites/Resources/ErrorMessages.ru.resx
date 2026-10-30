@@ -66,4 +66,10 @@
   <data name="SiteAliasReserved">
     <value>Одно из дополнительных имён нельзя использовать для сайта.</value>
   </data>
+  <data name="SiteBackendTypeUnknown">
+    <value>Это не тип серверной части сайта.</value>
+  </data>
+  <data name="SiteStatusUnknown">
+    <value>Это не статус сайта.</value>
+  </data>
 </root>

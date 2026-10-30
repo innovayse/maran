@@ -66,4 +66,7 @@
   <data name="AccountHomeGroupRepairCountInvalid">
     <value>The number of homes to repair cannot be negative. Read the report again and confirm the figure it gives.</value>
   </data>
+  <data name="AccountStatusUnknown">
+    <value>This account status is not one the panel knows. Use active or suspended.</value>
+  </data>
 </root>

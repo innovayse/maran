@@ -268,7 +268,10 @@ public sealed class CreateFtpUserCommandHandlerTests
         Assert.Equal(new FtpsUserCall("acme", "files"), context.Agent.LastCreateUserRequest);
     }
 
-    /// <summary>The row records the login name the agent reported, not one the panel assembled.</summary>
+    /// <summary>
+    /// The row records the login name the agent reported, not one the panel assembled, and the answer
+    /// names the owner.
+    /// </summary>
     /// <remarks>
     /// Rebuilding the full name here would make the row's truth depend on the panel and the agent
     /// agreeing about a separator forever, and the day they disagreed the panel would show the
@@ -284,6 +287,7 @@ public sealed class CreateFtpUserCommandHandlerTests
             new CreateFtpUserCommand(AccountId, "files"), CancellationToken.None);
 
         Assert.Equal("acme_files", created.Value.FullName);
+        Assert.Equal("acme", created.Value.OwnerName);
         Assert.Equal("acme_files", (await context.Database.FtpUsers.SingleAsync(CancellationToken.None)).FullName);
     }
 

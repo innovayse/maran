@@ -71,8 +71,8 @@ public sealed class ListFtpUsersQueryHandlerTests
     /// <remarks>
     /// <para>
     /// A property held by the TYPE rather than by a runtime assertion, and stated as such: the
-    /// handler's constructor takes the database context and nothing else, so a listing that decided
-    /// to enumerate the host's users would not compile. That is a stronger arrangement than a test —
+    /// handler's constructor takes the database context and the account-name directory and no agent
+    /// client, so a listing that decided to enumerate the host's users would not compile. That is a stronger arrangement than a test —
     /// but it is invisible in a folder listing, so it is asserted here by reflection over the
     /// constructor's parameters, which is the one form in which it CAN be observed.
     /// </para>
@@ -163,5 +163,39 @@ public sealed class ListFtpUsersQueryHandlerTests
 
         Assert.True(result.IsSuccess);
         Assert.Empty(result.Value);
+    }
+
+    /// <summary>
+    /// A listing labels each row with its owner's name from the account directory, in one batched
+    /// lookup, and leaves the name empty for an account the directory does not name.
+    /// </summary>
+    [Fact]
+    public async Task Rows_carry_the_owner_name_the_directory_answers_and_empty_for_one_it_does_not()
+    {
+        using var context = new FtpTestContext(new TestCurrentUser(), Guid.NewGuid().ToString());
+        await SeedAsync(context, CustomerA, "acme", "files");
+        await SeedAsync(context, CustomerB, "beta", "secrets");
+
+        // The directory names CustomerA and not CustomerB — exactly how the real one answers for an
+        // account that was deleted or that the caller may not see.
+        context.Accounts.Add(CustomerA, "acme", maxFtpUsers: 5);
+
+        var result = await context.ListUsersHandler.HandleAsync(
+            new ListFtpUsersQuery(), CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal("acme", result.Value.Single(row =>
+        {
+            return row.AccountId == CustomerA;
+        }).OwnerName);
+        Assert.Equal(string.Empty, result.Value.Single(row =>
+        {
+            return row.AccountId == CustomerB;
+        }).OwnerName);
+
+        var batch = Assert.Single(context.Accounts.NameLookups);
+        Assert.Equal(
+            new[] { CustomerA, CustomerB }.Order(),
+            batch.Order());
     }
 }

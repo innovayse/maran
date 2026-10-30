@@ -1,6 +1,5 @@
 using Maran.Host.Authorization;
-using Maran.Modules.Accounts.Common;
-using Maran.Modules.Accounts.Queries.ListAccounts;
+using Maran.Modules.Accounts.Queries.CountAccounts;
 using Maran.Modules.Backups.Common;
 using Maran.Modules.Backups.Domain.Enums;
 using Maran.Modules.Backups.Queries.ListBackups;
@@ -13,8 +12,7 @@ using Maran.Modules.Identity.Queries.ListAuditEvents;
 using Maran.Modules.Monitoring.Common;
 using Maran.Modules.Monitoring.Queries.GetHostMetrics;
 using Maran.Modules.Monitoring.Queries.ListServiceStatuses;
-using Maran.Modules.Sites.Common;
-using Maran.Modules.Sites.Queries.ListSites;
+using Maran.Modules.Sites.Queries.CountSites;
 using Maran.Modules.Ssl.Common;
 using Maran.Modules.Ssl.Queries.ListCertificates;
 using Maran.Modules.Tasks.Common;
@@ -39,7 +37,7 @@ namespace Maran.Host.Dashboard;
 /// <para>
 /// <b>Authorization is this file's one dangerous responsibility, so it is stated rather than
 /// implied.</b> Every module's CONTROLLER carries its own policy; its query HANDLER carries none.
-/// Dispatching <see cref="ListAccountsQuery"/> from here therefore runs a query whose HTTP surface
+/// Dispatching <see cref="CountAccountsQuery"/> from here therefore runs a query whose HTTP surface
 /// is administrators-only with no policy in the way, so this endpoint supplies the decision itself:
 /// the route requires a signed-in caller, and every server-wide section is read only after
 /// <see cref="ICurrentUser.IsAdmin"/> is confirmed true. The check comes BEFORE any dispatch, not
@@ -66,6 +64,9 @@ namespace Maran.Host.Dashboard;
 /// </remarks>
 public static class DashboardEndpoint
 {
+    /// <summary>The answer for a count a module did not give.</summary>
+    private static readonly DashboardCountDto Unavailable = new(DashboardCountState.Unavailable, 0);
+
     /// <summary>
     /// How near expiry a certificate has to be to count as needing attention.
     /// </summary>
@@ -133,9 +134,9 @@ public static class DashboardEndpoint
         // failure, so WhenAll cannot throw on behalf of one of them.
         var resources = ReadAsync<HostMetricsDto>(bus, new GetHostMetricsQuery(), cancellationToken);
         var services = ReadListAsync<ServiceStatusDto>(bus, new ListServiceStatusesQuery(), cancellationToken);
-        var accounts = ReadListAsync<AccountDto>(bus, new ListAccountsQuery(), cancellationToken);
-        var sites = ReadListAsync<SiteDto>(bus, new ListSitesQuery(), cancellationToken);
-        var databases = ReadListAsync<DatabaseDto>(bus, new ListDatabasesQuery(), cancellationToken);
+        var accounts = ReadCountAsync(bus, new CountAccountsQuery(), cancellationToken);
+        var sites = ReadCountAsync(bus, new CountSitesQuery(), cancellationToken);
+        var databases = ReadAsync<IReadOnlyList<DatabaseDto>>(bus, new ListDatabasesQuery(), cancellationToken);
         var certificates = ReadListAsync<CertificateDto>(bus, new ListCertificatesQuery(), cancellationToken);
         var backups = ReadListAsync<BackupDto>(bus, new ListBackupsQuery(), cancellationToken);
         var bans = ReadListAsync<BanDto>(bus, new ListBansQuery(), cancellationToken);
@@ -161,14 +162,16 @@ public static class DashboardEndpoint
             Resources: resources.Result,
             Services: services.Result,
 
-            // Counted from the listings the modules already answer, rather than from count queries
-            // added for this screen: these are three database reads of tables measured in hundreds
-            // of rows on the largest servers this panel targets, and a second read path per module
-            // would be a second thing to keep true.
+            // A module whose list is paged answers its count through its own count query
+            // (ReadCountAsync): a paged listing holds one page, not the total. A module whose list
+            // is not paged yet is still counted from that listing. Either way a module that did not
+            // answer is Unavailable, never zero.
             Counts: new DashboardCountsDto(
-                Accounts: accounts.Result.Count,
-                Sites: sites.Result.Count,
-                Databases: databases.Result.Count),
+                Accounts: accounts.Result,
+                Sites: sites.Result,
+                Databases: databases.Result is { } databaseList
+                    ? new DashboardCountDto(DashboardCountState.Counted, databaseList.Count)
+                    : Unavailable),
 
             Attention: new DashboardAttentionDto(
                 // Already-expired certificates are included, deliberately: the horizon is an upper
@@ -249,5 +252,38 @@ public static class DashboardEndpoint
     {
         var answer = await ReadAsync<IReadOnlyList<TItem>>(bus, query, cancellationToken);
         return answer ?? [];
+    }
+
+    /// <summary>
+    /// Dispatches one counting query and answers with its count, or <see cref="Unavailable"/> when
+    /// the module refused or failed.
+    /// </summary>
+    /// <remarks>
+    /// A count is asked of the module as a count — one <c>count(*)</c> — and never read off a page of
+    /// a listing, which since lists are paged would be the size of one page and not the total.
+    /// </remarks>
+    /// <param name="bus">The bus to dispatch on.</param>
+    /// <param name="query">The query to send.</param>
+    /// <param name="cancellationToken">Cancels the dispatch.</param>
+    /// <returns>The count, or unavailable.</returns>
+    private static async Task<DashboardCountDto> ReadCountAsync(
+        IMessageBus bus,
+        object query,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var answer = await bus.InvokeAsync<Result<int>>(query, cancellationToken);
+            return answer.IsSuccess ? new DashboardCountDto(DashboardCountState.Counted, answer.Value) : Unavailable;
+        }
+        catch (OperationCanceledException)
+        {
+            // The caller gave up or the request was cancelled; not this endpoint's to report.
+            throw;
+        }
+        catch (Exception)
+        {
+            return Unavailable;
+        }
     }
 }

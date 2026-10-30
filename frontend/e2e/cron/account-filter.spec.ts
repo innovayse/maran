@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
-import { stubAccounts } from '../fixtures/stub-accounts-route'
+import { stubAccountNames, stubAccounts } from '../fixtures/stub-accounts-route'
 import { stubAccountFilteredList } from '../fixtures/stub-account-filtered-list'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubCronEntries, stubCronEnvironment } from '../fixtures/stub-cron-routes'
@@ -71,6 +71,7 @@ const openScreen = async (page: Page, user?: AuthenticatedUser): Promise<() => r
   await stubHealthy(page)
   await stubModules(page, LICENSED)
   await stubAccounts(page, [ALICE, BOB])
+  await stubAccountNames(page, [ALICE, BOB])
   await stubMyAccount(page, OWN_ACCOUNT)
   await stubCronEntries(page, [])
   await stubCronEnvironment(page, [])

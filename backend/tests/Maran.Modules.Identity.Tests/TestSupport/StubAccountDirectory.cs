@@ -55,4 +55,21 @@ public sealed class StubAccountDirectory : IAccountDirectory
     {
         return Task.FromResult<IReadOnlyList<AccountSnapshot>>(_accounts.Values.ToList());
     }
+
+    /// <inheritdoc />
+    public Task<IReadOnlyDictionary<Guid, string>> NamesOfAsync(
+        IReadOnlyCollection<Guid> accountIds,
+        CancellationToken cancellationToken)
+    {
+        // Refused rather than answered: nothing in this module labels rows with account names, and
+        // the tenant scope the real implementation applies is the part a double cannot honestly model.
+        throw new NotSupportedException("Identity reads no account names.");
+    }
+
+    /// <inheritdoc />
+    public Task<IReadOnlyList<Guid>> FindIdsByNameAsync(string search, CancellationToken cancellationToken)
+    {
+        // Refused for the same reason as NamesOfAsync: nothing in this module searches by owner.
+        throw new NotSupportedException("Identity searches no account names.");
+    }
 }

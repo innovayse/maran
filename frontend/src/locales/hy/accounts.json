@@ -9,24 +9,24 @@
       "heading": "Հաշիվներ",
       "subtitle": "Այս սերվերի հոսթինգային հաշիվները։",
       "createAction": "Նոր հաշիվ",
-      "searchLabel": "Հաշիվների զտիչ",
-      "searchPlaceholder": "Զտել ըստ անվան կամ դոմենի…",
-      "searchClear": "Մաքրել զտիչը",
-      "resultCount": "{total}-ից {shown} հաշիվ",
+      "searchLabel": "Հաշիվների որոնում",
+      "searchPlaceholder": "Որոնել ըստ անվան կամ դոմենի…",
+      "searchClear": "Մաքրել որոնումը",
       "loading": "Հաշիվների բեռնում…",
       "emptyTitle": "Հաշիվներ դեռ չկան",
       "emptyDescription": "Ստեղծեք առաջին հոսթինգային հաշիվը՝ սկսելու համար։",
-      "noMatchesTitle": "«{query}»-ին համապատասխանող հաշիվներ չկան",
-      "noMatchesDescription": "Փորձեք այլ անուն կամ դոմեն, կամ մաքրեք զտիչը՝ բոլոր հաշիվները տեսնելու համար։",
-      "clearSearch": "Մաքրել զտիչը",
       "tableCaption": "Հոսթինգային հաշիվներ",
       "columns": {
         "primaryDomain": "Հիմնական դոմեն",
         "status": "Կարգավիճակ",
         "createdAt": "Ստեղծված է"
       },
-      "planFilter": "Ցուցադրված են {plan} սակագնի հաշիվները։",
-      "clearPlanFilter": "Ցույց տալ բոլոր հաշիվները"
+      "noResultsTitle": "Համապատասխան հաշիվներ չկան",
+      "noResultsDescription": "Փոխեք որոնումը կամ զտիչները, կամ մաքրեք դրանք՝ բոլոր հաշիվները տեսնելու համար։",
+      "filters": {
+        "plan": "Սակագին",
+        "status": "Կարգավիճակ"
+      }
     },
     "form": {
       "heading": "Նոր հաշիվ",

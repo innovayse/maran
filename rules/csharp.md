@@ -208,7 +208,21 @@ backend/
 │   │   │                                 #   IEncryptionService, IErrorTextProvider
 │   │   ├── Results/                     # Error.cs, Result.cs, ResultOfT.cs, PagedResult.cs
 │   │   ├── Domain/                      # Entity, AggregateRoot, ValueObject, IDomainEvent
-│   │   ├── Pagination/ · Persistence/ · Exceptions/ · Constants/ · Enums/ · Extensions/
+│   │   ├── Pagination/                  # the list contract's values: PageDefaults (first page, allowed
+│   │   │                                 #   sizes 10/25/50/100, search length), SearchTerm (None or a
+│   │   │                                 #   trimmed valid term), SortKey (`name`/`-name`), SortRequest
+│   │   │                                 #   (Default or a SortKey), SortMap<T> (the sort whitelist,
+│   │   │                                 #   default and tie-breaker, each field typed — never boxed),
+│   │   │                                 #   built by SortMapBuilder<T> → DefaultedSortMapBuilder<T>,
+│   │   │                                 #   its typed fields SortField<T>/TypedSortField<T,TKey>
+│   │   │                                 #   (internal), PageWindow (the one offset computation).
+│   │   │                                 #   Contract IPagedQuery is in Interfaces/, PagedResult<T> in
+│   │   │                                 #   Results/, SearchTermVerdict in Enums/
+│   │   ├── Extensions/                  # every SharedKernel *Extensions type; QueryablePagingExtensions
+│   │   │                                 #   and EnumerablePagingExtensions are the ONLY two pagers — a
+│   │   │                                 #   handler never writes Skip/Take/CountAsync for a list itself
+│   │   ├── Enums/                       # kernel-wide enums (SortDirection, SearchTermVerdict)
+│   │   ├── Persistence/ · Exceptions/ · Constants/
 │   │   ├── Localization/                # resx-backed IErrorTextProvider implementations (contract in Interfaces/)
 │   │   ├── Security/                    # what holds a secret or states a policy: the encryption key
 │   │   │                                #   and its EF converter, the password-hash parameters and
@@ -219,8 +233,10 @@ backend/
 │   │   └── Utilities/<Subject>/         # pure rules and renderings over BCL primitives — no key,
 │   │       ├── Mail/                    #   no salt, no configuration — grouped by subject; never
 │   │       ├── Network/                 #   files directly under Utilities/
-│   │       └── Tokens/                  #   Mail/: EmailAddressRule, MailHeaderTextRule
-│   │                                    #   Network/: ClientAddress, HostNameRule, Ipv4MappedAddress
+│   │       ├── Text/                    #   Mail/: EmailAddressRule, MailHeaderTextRule
+│   │       └── Tokens/                  #   Network/: ClientAddress, HostNameRule, Ipv4MappedAddress
+│   │                                    #   Text/: ColumnText, LikePattern (a search term as a literal
+│   │                                    #     ILIKE pattern: \ % _ escaped)
 │   │                                    #   Tokens/: RefreshTokenHasher, PasswordResetTokenHasher
 │   ├── Maran.Sdk/                   # the module contract consumed by paid modules too
 │   │   ├── Interfaces/                  # IPanelModule.cs — the module contract — plus the
@@ -237,6 +253,20 @@ backend/
 │   │   ├── Contracts/                   # cross-module contract types (incl. published messages
 │   │   │                                #   such as SendMailRequested)
 │   │   ├── Events/                      # integration-event base types (Base/ + per area)
+│   │   ├── Validators/                  # abstract validator bases every module's validators derive
+│   │   │                                 #   from: PagedQueryValidator<TQuery,TRow> holds every list query
+│   │   │                                 #   to the paging bounds only the list knows (page, allowed size,
+│   │   │                                 #   a sort key naming a SortMap field)
+│   │   ├── ModelBinding/                # MVC model binders for the Sdk's own parameter types, and the
+│   │   │                                 #   one provider handing them out: PagingModelBinderProvider
+│   │   │                                 #   binds `search` to a SearchTerm and `sort` to a SortRequest,
+│   │   │                                 #   refusing a malformed one with the ValidationMessages code
+│   │   │                                 #   through the same 400 a validator raises. Here and not in the
+│   │   │                                 #   Host because the codes are the Sdk's; registered once by the
+│   │   │                                 #   Host (Extensions/ModelBindingExtensions.cs)
+│   │   ├── Resources/                   # the Sdk's own resx triples: ValidationMessages defines the
+│   │   │                                 #   codes Validators/ raises (ListPageOutOfRange, ListSortUnknown,
+│   │   │                                 #   ...); the Host registers its ResourceManager
 │   ├── Maran.Agent.Client/          # the ONLY project generating agent gRPC code
 │   │   ├── DependencyInjection.cs       # AddAgentClient — the project's registrations
 │   │   ├── Channels/                    # AgentChannel.cs — unix-socket channel construction
@@ -266,6 +296,8 @@ backend/
 │           │                            #   command directly")
 │           ├── Commands/<Operation>/    # <Op>Command.cs, <Op>CommandHandler.cs, <Op>CommandValidator.cs
 │           ├── Queries/<Operation>/     # <Op>Query.cs, <Op>QueryHandler.cs (+ <Op>QueryValidator.cs)
+│           │                            #   a paged list adds <Op>Sorts.cs (its SortMap) and
+│           │                            #   <Row>SortFields.cs (the sort names as constants)
 │           ├── Common/                  # *Dto.cs ONLY — the wire shapes, data with no logic.
 │           │                            #   FLAT, no subfolders, no methods, no factories.
 │           │                            #   NOT the default folder: a file lands here only after all
@@ -687,6 +719,9 @@ Maran.SharedKernel/Utilities/
 │   ├── ClientAddress.cs          # the one spelling of a caller's address
 │   ├── HostNameRule.cs           # what the panel accepts as a DNS host name
 │   └── Ipv4MappedAddress.cs      # unwrapping the mapped form a dual-stack listener reports
+├── Text/
+│   ├── ColumnText.cs             # shortening a value to what a character varying(n) column holds
+│   └── LikePattern.cs            # a search term as an ILIKE pattern that matches it literally
 └── Tokens/
     ├── PasswordResetTokenHasher.cs  # mint a reset token, and the digest stored beside it
     └── RefreshTokenHasher.cs        # mint a refresh token, and the digest stored beside a session

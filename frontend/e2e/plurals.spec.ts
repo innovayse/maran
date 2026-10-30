@@ -25,7 +25,11 @@ const dashboardWith = (count: number): Dashboard => {
     isAdministrator: true,
     resources: null,
     services: [],
-    counts: { accounts: 1, sites: 1, databases: 1 },
+    counts: {
+    accounts: { state: 'counted', count: 1 },
+    sites: { state: 'counted', count: 1 },
+    databases: { state: 'counted', count: 1 },
+  },
     attention: {
       certificatesExpiringSoon: count,
       failedBackups: count,

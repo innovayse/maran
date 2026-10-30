@@ -46,6 +46,7 @@ export const stubSftpUsers = async (page: Page, users: SftpUser[]): Promise<void
       users.push({
         id: created.id,
         accountId: created.accountId,
+        ownerName: ACCOUNT_PREFIX,
         name: created.name,
         fullName: created.fullName,
         createdAt: created.createdAt,

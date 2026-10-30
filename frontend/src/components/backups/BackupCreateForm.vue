@@ -20,14 +20,17 @@ import { useI18n } from 'vue-i18n'
 import UiButton from '../ui/UiButton.vue'
 import UiCard from '../ui/UiCard.vue'
 import UiForm from '../ui/UiForm.vue'
-import UiSelect, { type SelectOption } from '../ui/UiSelect.vue'
-import type { Account } from '../../types/account'
+import UiCombobox from '../ui/UiCombobox.vue'
+import type { AccountPickerState } from '../../composables/useAccountChoice'
 import type { CreateBackupRequest } from '../../types/backup'
 
 /** Props accepted by {@link BackupCreateForm}. */
 const props = defineProps<{
-  /** The accounts a backup may be taken of, as the panel reported them. */
-  accounts: readonly Account[]
+  /**
+   * The account picker's state — the page of accounts a backup may be taken of matching the last search — read
+   * by the page from its store; the form only renders it and asks for searches.
+   */
+  accountPicker: AccountPickerState
   /** Whether a create request is already in flight, which disables the submit control. */
   submitting: boolean
   /**
@@ -41,6 +44,8 @@ const props = defineProps<{
 const emit = defineEmits<{
   /** Fired only when an account has been chosen, carrying the request to send. */
   (e: 'submit', request: CreateBackupRequest): void
+  /** Fired when the account picker needs the accounts matching what was typed into it. */
+  (e: 'searchAccounts', term: string): void
 }>()
 
 const { t } = useI18n()
@@ -50,13 +55,6 @@ const accountId: Ref<string> = ref('')
 
 /** Whether a submit has been attempted, so nothing turns red before the operator has tried. */
 const submitted: Ref<boolean> = ref(false)
-
-/** The accounts the picker offers, as the panel reported them. */
-const accountOptions: ComputedRef<SelectOption[]> = computed(() => {
-  return props.accounts.map((account) => {
-    return { value: account.id, label: `${account.name} · ${account.primaryDomain}` }
-  })
-})
 
 /** Validation message for the account picker, or `null`. */
 const accountError: ComputedRef<string | null> = computed(() => {
@@ -85,13 +83,14 @@ const submit = (): void => {
   <UiCard>
     <UiForm class="flex flex-col gap-4" @submit="submit">
       <div v-if="fixedAccountId === null" class="max-w-md">
-        <UiSelect
+        <UiCombobox
           v-model="accountId"
+          v-bind="accountPicker"
           :label="t('backups.form.fields.accountId')"
           :placeholder="t('backups.form.placeholders.accountId')"
-          :options="accountOptions"
           :error="accountError"
           required
+          @search="emit('searchAccounts', $event)"
         />
       </div>
       <div class="flex flex-wrap items-center justify-between gap-x-6 gap-y-3">

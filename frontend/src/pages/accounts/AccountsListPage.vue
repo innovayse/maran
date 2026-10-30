@@ -1,18 +1,22 @@
 <script setup lang="ts">
 /**
- * Accounts list screen: loading, empty and error states, then one panel holding the filter and a
- * table of every hosting account the panel knows. Renders a `<section>`, not a `<main>` — the
- * single `<main>` landmark lives in the layout this page is nested under. Reads state exclusively
- * from the accounts store and triggers a load on mount; it never touches the API layer directly
- * (rules/vue.md: API composables are called from stores only).
+ * Accounts list screen: one server page of the hosting accounts at a time, searched, sorted and
+ * filtered by the panel. Renders a `<section>`, not a `<main>` — the single `<main>` landmark lives
+ * in the layout this page is nested under. Rows come from the accounts store; the page never
+ * touches the API layer (rules/vue.md: API composables are called from stores only).
  *
- * The layout is the approved dashboard's accounts table: an initials avatar beside the account's
- * name, the domain in the monospace face, a status badge and the creation date right-aligned. It
- * renders only what the backend sends — a name, a primary domain, a plan id, a status and a
- * creation instant. The mockup's plan pill, site count and disk meter are deliberately absent: the
- * list endpoint carries none of them, and the plan name would need the plans request, whose failure
- * the store reports through the same `errorMessage` this page renders in place of the table — so a
- * plans hiccup would blank a healthy list (rules/vue.md: "Data comes from the backend").
+ * **The URL is the list's state** (`useServerTable`): page, page size, search, sort and the `plan`
+ * and `status` filters all live in the query, so a list can be shared, reloaded and walked back
+ * through. `?plan=<id>` is the link the plans screen opens when a plan cannot be deleted; it is one
+ * filter of the schema like the other, shown as a removable chip.
+ *
+ * **Nothing is filtered here.** The search box, the filter sheet and the sort headers only change
+ * the URL; the panel answers with the matching page and the total across every page.
+ *
+ * **Two kinds of nothing.** The panel reporting no accounts at all is the empty state, with the way
+ * to create the first one. A search or filter matching none is the no-results state, with the way
+ * back to every account. The first claims the server is empty; the second only that the question
+ * found nothing, and confusing them would tell an operator their accounts were gone.
  *
  * Lessons kept from the earlier page:
  * - The account's name is a link to its detail page. A row that shows an account but cannot open
@@ -24,106 +28,168 @@
  */
 import { computed, onMounted, ref, type ComputedRef, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { RouterLink, useRoute, useRouter } from 'vue-router'
+import { RouterLink } from 'vue-router'
+import UiActiveFilter from '../../components/ui/UiActiveFilter.vue'
 import UiAlert from '../../components/ui/UiAlert.vue'
 import UiAvatar from '../../components/ui/UiAvatar.vue'
 import UiButton from '../../components/ui/UiButton.vue'
 import UiCard from '../../components/ui/UiCard.vue'
 import UiEmptyState from '../../components/ui/UiEmptyState.vue'
+import UiFilterSheet from '../../components/ui/UiFilterSheet.vue'
+import UiFilterTrigger from '../../components/ui/UiFilterTrigger.vue'
 import UiPageHeading from '../../components/ui/UiPageHeading.vue'
+import UiPagination from '../../components/ui/UiPagination.vue'
 import UiSearchInput from '../../components/ui/UiSearchInput.vue'
+import UiSelect, { type SelectOption } from '../../components/ui/UiSelect.vue'
 import UiSpinner from '../../components/ui/UiSpinner.vue'
 import UiTable from '../../components/ui/UiTable.vue'
 import UiTableCell from '../../components/ui/UiTableCell.vue'
-import UiTableHeaderCell from '../../components/ui/UiTableHeaderCell.vue'
+import UiTableHeaderCell, { type ColumnSort } from '../../components/ui/UiTableHeaderCell.vue'
 import UiTableRow from '../../components/ui/UiTableRow.vue'
 import AccountStatusBadge from '../../components/accounts/AccountStatusBadge.vue'
+import { useListLabels } from '../../composables/useListLabels'
+import { useServerTable } from '../../composables/useServerTable'
 import { useAccountsStore } from '../../stores/accounts'
 import { useLocaleStore } from '../../stores/locale'
 import { formatDate } from '../../utils/formatDate'
-import type { Account } from '../../types/account'
+import type { Account, AccountStatus } from '../../types/account'
+import type { ActiveFilterChip, ListLoad, ListRequest } from '../../types/list'
+
+/**
+ * The states an account can be in, mirroring the `AccountStatus` union the panel serializes. The
+ * filter offers them by the same translated names the status badge shows.
+ */
+const ACCOUNT_STATUSES: readonly AccountStatus[] = ['active', 'suspended']
 
 const { t } = useI18n()
-const route = useRoute()
-const router = useRouter()
 const store = useAccountsStore()
 const localeStore = useLocaleStore()
+const labels = useListLabels()
 
-/**
- * Free-text filter over the accounts already loaded. Purely a display
- * concern — it narrows what is on screen and never asks the backend for a
- * different set, so it adds no domain knowledge to the SPA.
- */
-const query: Ref<string> = ref('')
-
-/**
- * The plan the list is narrowed to, from `?plan=<id>`, or `null` for every plan. The plans screen
- * links here when a plan cannot be deleted, so the operator sees exactly the accounts to move.
- */
-const planFilter: ComputedRef<string | null> = computed(() => {
-  const plan = route.query.plan
-  return typeof plan === 'string' && plan.length > 0 ? plan : null
+const table = useServerTable<Account>({
+  filters: {
+    plan: {},
+    status: {
+      /**
+       * Honours only a state the panel has, so a hand-edited link never reaches the server.
+       * @param value The `?status=` value.
+       * @returns True for a known account state.
+       */
+      accepts: (value: string): boolean => {
+        return (ACCOUNT_STATUSES as readonly string[]).includes(value)
+      },
+    },
+  },
+  /**
+   * Reads one page through the store.
+   * @param request The page the URL describes.
+   * @returns How the read ended.
+   */
+  load: (request: ListRequest): Promise<ListLoad<Account>> => {
+    return store.list(request)
+  },
 })
 
-/** The filtered plan's name, as the panel reports it; empty until the plans have loaded. */
-const planFilterName: ComputedRef<string> = computed(() => {
+/** Whether the filter sheet is open. */
+const filtersOpen: Ref<boolean> = ref(false)
+
+/** Whether the list is narrowed by a search or a filter, so an empty answer means "no match". */
+const isNarrowed: ComputedRef<boolean> = computed(() => {
+  return table.request.value.search !== '' || table.activeFilterCount.value > 0
+})
+
+/** Whether the latest answer arrived and holds no rows at all. */
+const answeredNothing: ComputedRef<boolean> = computed(() => {
+  return table.state.value.status === 'loaded' && table.total.value === 0
+})
+
+/** The plans the filter offers, by the names the panel reports, after an "any plan" choice. */
+const planOptions: ComputedRef<SelectOption[]> = computed(() => {
+  return [
+    { value: '', label: t('common.list.any') },
+    ...store.plans.map((plan) => {
+      return { value: plan.id, label: plan.displayName }
+    }),
+  ]
+})
+
+/** The account states the filter offers, after an "any state" choice. */
+const statusOptions: ComputedRef<SelectOption[]> = computed(() => {
+  return [
+    { value: '', label: t('common.list.any') },
+    ...ACCOUNT_STATUSES.map((status) => {
+      return { value: status, label: t(`accounts.status.${status}`) }
+    }),
+  ]
+})
+
+/** One removable chip per applied filter. */
+const chips: ComputedRef<ActiveFilterChip[]> = computed(() => {
+  const applied = table.filters.value
+  const result: ActiveFilterChip[] = []
+  if (applied.plan !== '') {
+    result.push(labels.chip('plan', t('accounts.list.filters.plan'), planName(applied.plan)))
+  }
+  if (applied.status !== '') {
+    result.push(labels.chip('status', t('accounts.list.filters.status'), t(`accounts.status.${applied.status}`)))
+  }
+  return result
+})
+
+/**
+ * Names a plan by the name the panel reports; the id while the plans have not arrived.
+ * @param id The plan's identity.
+ * @returns The plan's display name, or the id.
+ */
+const planName = (id: string): string => {
   return (
     store.plans.find((plan) => {
-      return plan.id === planFilter.value
-    })?.displayName ?? ''
+      return plan.id === id
+    })?.displayName ?? id
   )
-})
-
-/**
- * The accounts matching the current query, matched on the two text columns the table shows, and
- * on the plan when the list is narrowed to one.
- */
-const visibleAccounts: ComputedRef<Account[]> = computed(() => {
-  const needle = query.value.trim().toLowerCase()
-  return store.accounts.filter((account) => {
-    if (planFilter.value !== null && account.planId !== planFilter.value) {
-      return false
-    }
-    return (
-      needle.length === 0 ||
-      account.name.toLowerCase().includes(needle) ||
-      account.primaryDomain.toLowerCase().includes(needle)
-    )
-  })
-})
-
-/** Whether the panel reported accounts but the current filters match none of them. */
-const hasNoMatches: ComputedRef<boolean> = computed(() => {
-  return store.accounts.length > 0 && visibleAccounts.value.length === 0
-})
-
-/**
- * Kicks off the initial account list load once the page is mounted.
- * @returns Resolves when the load has settled (successfully or not).
- */
-const refresh = async (): Promise<void> => {
-  // The plans are read only to name the plan the list is narrowed to; an unfiltered list does not
-  // need them and does not ask.
-  await Promise.all(planFilter.value === null ? [store.load()] : [store.load(), store.loadPlans()])
-}
-
-onMounted(refresh)
-
-/**
- * Empties the filter so the full list comes back.
- * @returns Nothing; the computed list re-evaluates synchronously.
- */
-const clearQuery = (): void => {
-  query.value = ''
 }
 
 /**
- * Widens the list back to every plan.
- * @returns Resolves once the route has changed.
+ * The order a sortable column is in, read from the list's sort key.
+ * @param field The column's sort key.
+ * @returns Ascending, descending, or not sorted by this column.
  */
-const clearPlanFilter = async (): Promise<void> => {
-  await router.replace({ name: 'accounts' })
+const columnSort = (field: string): ColumnSort => {
+  if (table.sort.value === field) {
+    return 'ascending'
+  }
+  return table.sort.value === `-${field}` ? 'descending' : 'none'
 }
+
+/**
+ * Opens the filter sheet.
+ * @returns Nothing.
+ */
+const openFilters = (): void => {
+  filtersOpen.value = true
+}
+
+/**
+ * Closes the filter sheet.
+ * @returns Nothing.
+ */
+const closeFilters = (): void => {
+  filtersOpen.value = false
+}
+
+/**
+ * Clears the search and every filter, the way back from a question that matched nothing.
+ * @returns Resolves once the filters left the URL; the search follows after the box's pause.
+ */
+const clearAll = async (): Promise<void> => {
+  table.search.value = ''
+  await table.clearFilters()
+}
+
+// The plans name the plan filter's chip and fill its choices; the list does not wait for them.
+onMounted(() => {
+  void store.loadPlans()
+})
 </script>
 
 <template>
@@ -138,87 +204,123 @@ const clearPlanFilter = async (): Promise<void> => {
       </template>
     </UiPageHeading>
 
-    <UiSpinner v-if="store.loading" :label="t('accounts.list.loading')" />
-
-    <UiAlert v-else-if="store.errorMessage !== null" variant="error">{{ store.errorMessage }}</UiAlert>
+    <UiAlert v-if="table.state.value.status === 'refused'" variant="error">{{ table.state.value.message }}</UiAlert>
+    <UiAlert v-else-if="table.state.value.status === 'unreachable'" variant="error">
+      {{ t('common.list.unreachable') }}
+    </UiAlert>
 
     <UiEmptyState
-      v-else-if="store.isLoaded && store.accounts.length === 0"
+      v-if="answeredNothing && !isNarrowed"
       :title="t('accounts.list.emptyTitle')"
       :description="t('accounts.list.emptyDescription')"
     >
       <UiButton :to="{ name: 'accounts-new' }">{{ t('accounts.list.createAction') }}</UiButton>
     </UiEmptyState>
 
-    <UiCard v-else-if="store.accounts.length > 0">
-      <div
-        v-if="planFilter !== null"
-        class="mb-4 flex flex-wrap items-center gap-x-4 gap-y-2"
-        data-testid="accounts-plan-filter"
-      >
-        <span class="text-sm text-text-secondary">{{ t('accounts.list.planFilter', { plan: planFilterName }) }}</span>
-        <UiButton variant="secondary" @click="clearPlanFilter">{{ t('accounts.list.clearPlanFilter') }}</UiButton>
-      </div>
-      <div class="mb-4 flex flex-wrap items-center gap-x-4 gap-y-2">
-        <UiSearchInput
-          v-model="query"
-          class="min-w-55 max-w-85 flex-1"
-          :label="t('accounts.list.searchLabel')"
-          :placeholder="t('accounts.list.searchPlaceholder')"
-          :clear-label="t('accounts.list.searchClear')"
+    <UiCard v-else>
+      <div class="flex flex-col gap-4">
+        <div class="flex flex-wrap items-end gap-3">
+          <UiSearchInput
+            v-model="table.search.value"
+            class="min-w-55 max-w-85 flex-1"
+            :label="t('accounts.list.searchLabel')"
+            :placeholder="t('accounts.list.searchPlaceholder')"
+            :clear-label="t('accounts.list.searchClear')"
+          />
+          <UiFilterTrigger
+            :label="t('common.list.filters')"
+            :active-count="table.activeFilterCount.value"
+            :active-label="t('common.list.filtersApplied', { n: table.activeFilterCount.value }, table.activeFilterCount.value)"
+            @click="openFilters"
+          />
+        </div>
+
+        <UiActiveFilter
+          v-if="chips.length > 0"
+          :chips="chips"
+          :clear-label="t('common.list.clearAll')"
+          @remove="table.clearFilter"
+          @clear="table.clearFilters"
         />
-        <span class="ml-auto font-mono text-sm text-text-muted tabular-nums">
-          {{
-            t(
-              'accounts.list.resultCount',
-              { shown: visibleAccounts.length, total: store.accounts.length },
-              store.accounts.length,
-            )
-          }}
-        </span>
+
+        <UiSpinner v-if="table.state.value.status === 'loading'" :label="t('accounts.list.loading')" />
+
+        <UiEmptyState
+          v-else-if="answeredNothing"
+          :title="t('accounts.list.noResultsTitle')"
+          :description="t('accounts.list.noResultsDescription')"
+        >
+          <UiButton variant="secondary" @click="clearAll">{{ t('common.list.clearSearchAndFilters') }}</UiButton>
+        </UiEmptyState>
+
+        <div v-else-if="table.state.value.status === 'loaded'" class="flex flex-col gap-4">
+          <UiTable :caption="t('accounts.list.tableCaption')">
+            <template #head>
+              <UiTableRow>
+                <UiTableHeaderCell :sort="columnSort('name')" @sort="table.toggleSort('name')">
+                  {{ t('common.name') }}
+                </UiTableHeaderCell>
+                <UiTableHeaderCell>{{ t('accounts.list.columns.primaryDomain') }}</UiTableHeaderCell>
+                <UiTableHeaderCell :sort="columnSort('status')" @sort="table.toggleSort('status')">
+                  {{ t('accounts.list.columns.status') }}
+                </UiTableHeaderCell>
+                <UiTableHeaderCell align="end" :sort="columnSort('createdAt')" @sort="table.toggleSort('createdAt')">
+                  {{ t('accounts.list.columns.createdAt') }}
+                </UiTableHeaderCell>
+              </UiTableRow>
+            </template>
+            <UiTableRow v-for="account in store.accounts" :key="account.id">
+              <!-- An account name and a domain are identifiers: one unit each. `whitespace-nowrap` is what
+                   keeps `acme-industrial-holdings` from breaking at its hyphens into three lines (a hyphen
+                   is a break opportunity), so the column takes the identifier's width and the table
+                   scrolls inside its own container. -->
+              <UiTableCell class="whitespace-nowrap">
+                <div class="flex items-center gap-3">
+                  <UiAvatar :name="account.name" size="sm" />
+                  <!-- The name is the way in to the account's detail page. -->
+                  <RouterLink
+                    :to="{ name: 'account-detail', params: { id: account.id } }"
+                    class="inline-flex min-h-6 items-center rounded-control font-mono font-semibold text-accent-text hover:underline focus-visible:shadow-focus focus-visible:underline"
+                    >{{ account.name }}</RouterLink
+                  >
+                </div>
+              </UiTableCell>
+              <UiTableCell mono tone="secondary" class="whitespace-nowrap">{{ account.primaryDomain }}</UiTableCell>
+              <UiTableCell><AccountStatusBadge :status="account.status" /></UiTableCell>
+              <!-- A timestamp is context, never the thing being scanned for: the faintest text tier. -->
+              <UiTableCell mono align="end" tone="muted" class="whitespace-nowrap">
+                {{ formatDate(account.createdAt, localeStore.current) }}
+              </UiTableCell>
+            </UiTableRow>
+          </UiTable>
+
+          <UiPagination
+            :page="table.page.value"
+            :page-size="table.pageSize.value"
+            :total="table.total.value"
+            :page-sizes="table.pageSizes"
+            :labels="labels.pagination.value"
+            @update:page="table.setPage"
+            @update:page-size="table.setPageSize"
+          />
+        </div>
       </div>
-
-      <UiEmptyState
-        v-if="hasNoMatches"
-        :title="t('accounts.list.noMatchesTitle', { query })"
-        :description="t('accounts.list.noMatchesDescription')"
-      >
-        <UiButton variant="secondary" @click="clearQuery">{{ t('accounts.list.clearSearch') }}</UiButton>
-      </UiEmptyState>
-
-      <UiTable v-else :caption="t('accounts.list.tableCaption')">
-        <template #head>
-          <UiTableRow>
-            <UiTableHeaderCell>{{ t('common.name') }}</UiTableHeaderCell>
-            <UiTableHeaderCell>{{ t('accounts.list.columns.primaryDomain') }}</UiTableHeaderCell>
-            <UiTableHeaderCell>{{ t('accounts.list.columns.status') }}</UiTableHeaderCell>
-            <UiTableHeaderCell align="end">{{ t('accounts.list.columns.createdAt') }}</UiTableHeaderCell>
-          </UiTableRow>
-        </template>
-        <UiTableRow v-for="account in visibleAccounts" :key="account.id">
-          <!-- An account name and a domain are identifiers: one unit each. `whitespace-nowrap` is what
-               keeps `acme-industrial-holdings` from breaking at its hyphens into three lines (a hyphen
-               is a break opportunity), so the column takes the identifier's width and the table
-               scrolls inside its own container. -->
-          <UiTableCell class="whitespace-nowrap">
-            <div class="flex items-center gap-3">
-              <UiAvatar :name="account.name" size="sm" />
-              <!-- The name is the way in to the account's detail page. -->
-              <RouterLink
-                :to="{ name: 'account-detail', params: { id: account.id } }"
-                class="inline-flex min-h-6 items-center rounded-control font-mono font-semibold text-accent-text hover:underline focus-visible:shadow-focus focus-visible:underline"
-                >{{ account.name }}</RouterLink
-              >
-            </div>
-          </UiTableCell>
-          <UiTableCell mono tone="secondary" class="whitespace-nowrap">{{ account.primaryDomain }}</UiTableCell>
-          <UiTableCell><AccountStatusBadge :status="account.status" /></UiTableCell>
-          <!-- A timestamp is context, never the thing being scanned for: the faintest text tier. -->
-          <UiTableCell mono align="end" tone="muted" class="whitespace-nowrap">
-            {{ formatDate(account.createdAt, localeStore.current) }}
-          </UiTableCell>
-        </UiTableRow>
-      </UiTable>
     </UiCard>
+
+    <UiFilterSheet
+      :open="filtersOpen"
+      :model-value="table.filters.value"
+      :title="t('common.list.filters')"
+      :close-label="t('common.close')"
+      :apply-label="t('common.list.apply')"
+      :reset-label="t('common.list.reset')"
+      @update:model-value="table.setFilters"
+      @close="closeFilters"
+    >
+      <template #default="{ draft }">
+        <UiSelect v-model="draft.plan" :label="t('accounts.list.filters.plan')" :options="planOptions" />
+        <UiSelect v-model="draft.status" :label="t('accounts.list.filters.status')" :options="statusOptions" />
+      </template>
+    </UiFilterSheet>
   </section>
 </template>

@@ -79,7 +79,7 @@ import type { Backup, CreateBackupRequest } from '../../types/backup'
 
 const { t } = useI18n()
 const store = useBackupsStore()
-const { fixedAccountId, accounts, ownerName, load: loadAccounts } = useAccountChoice()
+const { fixedAccountId, picker: accountPicker, search: searchAccounts } = useAccountChoice()
 const { filter: accountListFilter, isActive: isAccountFiltered, text: accountFilterText, clear: clearAccountFilter } = useAccountFilter()
 const { isAdmin } = useCallerRole()
 const localeStore = useLocaleStore()
@@ -174,8 +174,8 @@ const attentionMessage: ComputedRef<string | null> = computed(() => {
 /**
  * Names the account a backup belongs to, for a column that would otherwise print a GUID.
  *
- * The live account (from the caller's list, or a customer's own) is asked first, and the backup's
- * own `orphanedAccountUsername` second.
+ * The live account's name, as the panel put it on the row (`ownerName`), is asked first, and the
+ * backup's own `orphanedAccountUsername` second.
  * That order matters: while an account exists its current name is the truthful one, and a name
  * copied onto the row at deletion time is the only one left once it does not. The placeholder is
  * reached only by a row that is neither — which no row the panel writes should be.
@@ -183,7 +183,10 @@ const attentionMessage: ComputedRef<string | null> = computed(() => {
  * @returns The account's short name, the name preserved at deletion, or a placeholder.
  */
 const accountName = (backup: Backup): string => {
-  return ownerName(backup.accountId) ?? (backup.orphanedAccountUsername || t('common.emptyValue'))
+  if (backup.ownerName !== '') {
+    return backup.ownerName
+  }
+  return backup.orphanedAccountUsername === '' ? t('common.emptyValue') : backup.orphanedAccountUsername
 }
 
 /**
@@ -235,13 +238,11 @@ const loadList = async (): Promise<void> => {
 }
 
 /**
- * Loads the two lists the screen needs: the backups themselves and the accounts one can be taken
- * of. Neither is invented here.
- * @returns Resolves once both requests have settled.
+ * Loads the backup list. The create form's account picker reads its own choices when opened.
+ * @returns Resolves once the request has settled.
  */
 const refresh = async (): Promise<void> => {
-  // A customer's own account is read instead of the administrator-only list (useAccountChoice).
-  await Promise.all([loadList(), loadAccounts()])
+  await loadList()
 }
 
 /**
@@ -254,18 +255,17 @@ const create = async (request: CreateBackupRequest): Promise<void> => {
 }
 
 /**
- * Names the account a restore would replace, or `null` when the panel's account list does not name
- * it.
+ * Names the account a restore would replace, or `null` when the panel did not name it on the row.
  *
  * `null` rather than the placeholder {@link accountName} returns: the dialog compares what is typed
  * against this value, and a translated "unknown account" string would be a confirmation nobody can
  * satisfy. Not knowing the name is the case where the client must stop judging and let the server
  * answer.
- * @param id The owning account's identity, as the backup row reports it.
- * @returns The account's system user name, or `null` when it is not known here.
+ * @param backup The backup a restore is asked of.
+ * @returns The live account's system user name, or `null` when it is not known here.
  */
-const accountUsername = (id: string): string | null => {
-  return ownerName(id)
+const accountUsername = (backup: Backup): string | null => {
+  return backup.ownerName === '' ? null : backup.ownerName
 }
 
 /**
@@ -350,9 +350,10 @@ watch(() => {return accountListFilter.value.accountId}, loadList)
 
     <!-- The form draws its own panel, so it is not wrapped in a second one here. -->
     <BackupCreateForm
-      :accounts="accounts"
+      :account-picker="accountPicker"
       :fixed-account-id="fixedAccountId"
       :submitting="store.creating"
+      @search-accounts="searchAccounts"
       @submit="create"
     />
 
@@ -482,7 +483,7 @@ watch(() => {return accountListFilter.value.accountId}, loadList)
       v-if="restoreTarget !== null"
       :open="restoreTarget !== null"
       :backup="restoreTarget"
-      :account-username="accountUsername(restoreTarget.accountId)"
+      :account-username="accountUsername(restoreTarget)"
       @close="closeRestore"
     />
   </section>

@@ -35,6 +35,12 @@ export interface FileTransferLogin {
   /** The account that owns this login. */
   accountId: string
   /**
+   * The owning account's current short name, resolved by the panel from its account directory so
+   * the list never joins accounts itself. An empty string when the panel does not name that account
+   * for this caller.
+   */
+  ownerName: string
+  /**
    * The system login the host holds — `<account>_<name>`, as it appears in `/etc/passwd`.
    *
    * This is what the customer types into their client. It is the server's own spelling and is never

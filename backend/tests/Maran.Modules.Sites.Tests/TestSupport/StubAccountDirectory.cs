@@ -16,6 +16,12 @@ public sealed class StubAccountDirectory : IAccountDirectory
     /// <summary>Account ids this directory was asked about, in order.</summary>
     public List<Guid> Lookups { get; } = [];
 
+    /// <summary>Each batch of ids <see cref="NamesOfAsync"/> was asked for, in order.</summary>
+    public List<IReadOnlyCollection<Guid>> NameLookups { get; } = [];
+
+    /// <summary>Each term <see cref="FindIdsByNameAsync"/> was asked for, in order.</summary>
+    public List<string> NameSearches { get; } = [];
+
     /// <summary>Creates a directory knowing the given snapshots.</summary>
     /// <param name="snapshots">The accounts this directory can answer for.</param>
     public StubAccountDirectory(params AccountSnapshot[] snapshots)
@@ -41,5 +47,59 @@ public sealed class StubAccountDirectory : IAccountDirectory
         // make an unscoped method look scoped and hide the very exposure the interface documents.
         // Nothing in this module calls it; it is implemented because the interface declares it.
         return Task.FromResult<IReadOnlyList<AccountSnapshot>>([.. _snapshots.Values]);
+    }
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// Answers only for the snapshots it was given — an id it does not know is absent, which is how
+    /// the real directory answers for another tenant's account.
+    /// </remarks>
+    public Task<IReadOnlyDictionary<Guid, string>> NamesOfAsync(
+        IReadOnlyCollection<Guid> accountIds,
+        CancellationToken cancellationToken)
+    {
+        NameLookups.Add(accountIds);
+        IReadOnlyDictionary<Guid, string> names = accountIds
+            .Distinct()
+            .Where(id =>
+            {
+                return _snapshots.ContainsKey(id);
+            })
+            .ToDictionary(
+                id =>
+                {
+                    return id;
+                },
+                id =>
+                {
+                    return _snapshots[id].Username;
+                });
+        return Task.FromResult(names);
+    }
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// A literal, case-insensitive containment over the snapshots it was given, unbounded as the real one is.
+    /// </remarks>
+    public Task<IReadOnlyList<Guid>> FindIdsByNameAsync(string search, CancellationToken cancellationToken)
+    {
+        NameSearches.Add(search);
+        IReadOnlyList<Guid> ids = _snapshots.Values
+            .Where(snapshot =>
+            {
+                return snapshot.Username.Contains(search, StringComparison.OrdinalIgnoreCase);
+            })
+            .OrderBy(
+                snapshot =>
+                {
+                    return snapshot.Username;
+                },
+                StringComparer.Ordinal)
+            .Select(snapshot =>
+            {
+                return snapshot.Id;
+            })
+            .ToList();
+        return Task.FromResult(ids);
     }
 }

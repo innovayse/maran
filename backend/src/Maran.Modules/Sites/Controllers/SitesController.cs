@@ -61,17 +61,21 @@ public sealed class SitesController : BaseApiController
         _logStreamWriter = logStreamWriter;
     }
 
-    /// <summary>Lists the sites the caller may see.</summary>
-    /// <param name="query">The optional <c>accountId</c> filter, ANDed with the caller's tenant scope.</param>
+    /// <summary>Lists one page of the sites the caller may see.</summary>
+    /// <param name="query">
+    /// Paging, search, sort and the typed filters, from the query string; the <c>accountId</c> filter
+    /// is ANDed with the caller's tenant scope.
+    /// </param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpGet]
-    [ProducesResponseType(typeof(IReadOnlyList<SiteDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(PagedResult<SiteDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public async Task<IActionResult> GetAllAsync(
         [FromQuery] ListSitesQuery query,
         CancellationToken cancellationToken)
     {
-        var result = await _bus.InvokeAsync<Result<IReadOnlyList<SiteDto>>>(query, cancellationToken);
+        var result = await _bus.InvokeAsync<Result<PagedResult<SiteDto>>>(query, cancellationToken);
         return ToActionResult(result);
     }
 

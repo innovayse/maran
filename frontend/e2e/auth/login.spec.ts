@@ -2,6 +2,7 @@ import { expect, test } from '@playwright/test'
 import { stubLogin, stubSignedOut, stubbedRefresh, stubbedSignIn } from '../fixtures/stub-auth-routes'
 import { stubEmptyModules, stubModules } from '../fixtures/stub-modules-route'
 import { stubHealthy } from '../fixtures/stub-health-route'
+import { stubAccounts } from '../fixtures/stub-accounts-route'
 
 test('an anonymous visit to a panel page lands on the sign-in screen and remembers where it was headed', async ({
   page,
@@ -23,9 +24,7 @@ test('signing in returns the visitor to the page they originally asked for', asy
   // one, and an unlicensed route would send the visitor to the upgrade page instead —
   // correctly, but that is a different spec's subject.
   await stubModules(page, [{ name: 'accounts', displayName: 'Accounts', tier: 'included', isEnabled: true }])
-  await page.route('**/api/v1/accounts', async (route) => {
-    await route.fulfill({ status: 200, contentType: 'application/json', body: '[]' })
-  })
+  await stubAccounts(page, [])
 
   await page.goto('/accounts')
   await stubLogin(page, stubbedSignIn)

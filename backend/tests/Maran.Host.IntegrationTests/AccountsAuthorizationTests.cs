@@ -37,7 +37,7 @@ public sealed class AccountsAuthorizationTests : IAsyncLifetime
     private const string Key = "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=";
 
     /// <summary>
-    /// Every endpoint under <c>/api/v1/accounts</c> that names an account, plus the two collection
+    /// Every endpoint under <c>/api/v1/accounts</c> that names an account, plus the collection
     /// routes. <c>{id}</c> is substituted per test. Adding a route to the controller without adding
     /// it here leaves it unproven, which is what makes an omission reviewable.
     /// </summary>
@@ -46,6 +46,7 @@ public sealed class AccountsAuthorizationTests : IAsyncLifetime
         return new TheoryData<string, string>
         {
             { "GET", "/api/v1/accounts" },
+            { "GET", "/api/v1/accounts/choices" },
             { "POST", "/api/v1/accounts" },
             { "GET", "/api/v1/accounts/{id}" },
             { "POST", "/api/v1/accounts/{id}/suspend" },

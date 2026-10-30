@@ -49,6 +49,9 @@ export default defineConfig({
         // serves — can reach it at the same path the dev server already does,
         // rather than only the dev server's implicit any-.html-file serving.
         chartHarness: fileURLToPath(new URL('./e2e/fixtures/chart-harness.html', import.meta.url)),
+        // The list kit's Playwright-only mount point (e2e/fixtures/list-kit-harness.html), for the
+        // same reason.
+        listKitHarness: fileURLToPath(new URL('./e2e/fixtures/list-kit-harness.html', import.meta.url)),
       },
     },
   },

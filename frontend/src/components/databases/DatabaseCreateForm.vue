@@ -24,8 +24,8 @@ import UiCard from '../ui/UiCard.vue'
 import UiForm from '../ui/UiForm.vue'
 import UiInput from '../ui/UiInput.vue'
 import UiSectionHeading from '../ui/UiSectionHeading.vue'
-import UiSelect, { type SelectOption } from '../ui/UiSelect.vue'
-import type { Account } from '../../types/account'
+import UiCombobox from '../ui/UiCombobox.vue'
+import type { AccountPickerState } from '../../composables/useAccountChoice'
 import type { CreateDatabaseRequest } from '../../types/database'
 
 /**
@@ -45,8 +45,11 @@ const MAX_SUFFIX_LENGTH = 30
 
 /** Props accepted by {@link DatabaseCreateForm}. */
 const props = defineProps<{
-  /** The accounts a database may be created for, as the panel reported them. */
-  accounts: readonly Account[]
+  /**
+   * The account picker's state — the page of accounts a database may be created for matching the last search — read
+   * by the page from its store; the form only renders it and asks for searches.
+   */
+  accountPicker: AccountPickerState
   /** Whether a create request is already in flight, which disables the submit control. */
   submitting: boolean
   /**
@@ -60,6 +63,8 @@ const props = defineProps<{
 const emit = defineEmits<{
   /** Fired only when every client-side rule passes, carrying the request to send. */
   (e: 'submit', request: CreateDatabaseRequest): void
+  /** Fired when the account picker needs the accounts matching what was typed into it. */
+  (e: 'searchAccounts', term: string): void
 }>()
 
 const { t } = useI18n()
@@ -75,13 +80,6 @@ const dbUserName: Ref<string> = ref('')
 
 /** Whether a submit has been attempted, so nothing turns red before the operator has tried. */
 const submitted: Ref<boolean> = ref(false)
-
-/** The accounts the picker offers, as the panel reported them. */
-const accountOptions: ComputedRef<SelectOption[]> = computed(() => {
-  return props.accounts.map((account) => {
-    return { value: account.id, label: `${account.name} · ${account.primaryDomain}` }
-  })
-})
 
 /** Validation message for the account picker, or `null`. */
 const accountError: ComputedRef<string | null> = computed(() => {
@@ -166,13 +164,14 @@ defineExpose({ reset })
            240px, and three squeezed tracks cut the picker's text. -->
       <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         <div v-if="fixedAccountId === null" class="min-w-0 sm:col-span-2 xl:col-span-1">
-          <UiSelect
+          <UiCombobox
             v-model="accountId"
+            v-bind="accountPicker"
             :label="t('databases.form.fields.accountId')"
             :placeholder="t('databases.form.placeholders.accountId')"
-            :options="accountOptions"
             :error="accountError"
             required
+            @search="emit('searchAccounts', $event)"
           />
         </div>
         <div class="min-w-0">

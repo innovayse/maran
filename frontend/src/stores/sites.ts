@@ -2,8 +2,8 @@ import { defineStore } from 'pinia'
 import { ref, type Ref } from 'vue'
 import { useSitesApi } from '../composables/apis/useSitesApi'
 import { ApiError } from '../composables/useApi'
-import type { AccountListFilter } from '../types/accountListFilter'
-import type { CreateSiteRequest, Site, SiteDetail } from '../types/site'
+import type { ListLoad, ListRequest } from '../types/list'
+import type { CreateSiteRequest, Site, SiteDetail, DisabledSitesCount } from '../types/site'
 import type { PhpVersion } from '../types/phpVersion'
 import type {
   SiteLogEndReason,
@@ -27,6 +27,12 @@ const LOG_HISTORY_LINES = 200
 const MAX_LOG_LINES = 2000
 
 /**
+ * The page size of the read that only counts disabled sites. Its rows are never shown, so the
+ * smallest size the panel serves; the total is what is wanted.
+ */
+const COUNT_PAGE_SIZE = 10
+
+/**
  * Owns the sites list, one site's detail, the host's installed PHP versions, and the live tail of
  * a site's log. The site pages read state from here and call its actions — none of them touches
  * the API composable directly (rules/vue.md: "API composables are called from Pinia stores ONLY").
@@ -37,8 +43,14 @@ const MAX_LOG_LINES = 2000
 export const useSitesStore = defineStore('sites', () => {
   const api = useSitesApi()
 
-  /** The sites as last reported by the panel; empty before the first successful load. */
+  /** The rows of the list page last answered by the panel; empty before the first answer. */
   const sites: Ref<Site[]> = ref([])
+
+  /**
+   * How many sites are disabled among those the list is narrowed to by account, counted by the
+   * panel across every page, with whether the count could be taken.
+   */
+  const disabledCount: Ref<DisabledSitesCount> = ref({ state: 'loading' })
 
   /** The site the detail page is showing, or `null` before one is loaded. */
   const selected: Ref<SiteDetail | null> = ref(null)
@@ -66,9 +78,6 @@ export const useSitesStore = defineStore('sites', () => {
 
   /** True while a mutation (version change, enable, disable, delete) is in flight. */
   const acting: Ref<boolean> = ref(false)
-
-  /** True once the list has been loaded at least once, successfully. */
-  const isLoaded: Ref<boolean> = ref(false)
 
   /**
    * Backend-localized message from the most recent failed read or mutation, or `null` when the
@@ -124,20 +133,39 @@ export const useSitesStore = defineStore('sites', () => {
   const logStreamToken: Ref<number> = ref(0)
 
   /**
-   * Loads the site list, replacing what is held.
-   * @param filter The account the list is narrowed to; empty for every row the caller may see.
+   * Loads one page of the site list into {@link sites} and reports how the read ended, for the
+   * list page's `useServerTable`.
+   * @param request The page, size, search, sort and filters, as the URL describes them.
+   * @returns The page, the panel's refusal with its message, or `unreachable` when no answer arrived.
+   */
+  const list = async (request: ListRequest): Promise<ListLoad<Site>> => {
+    try {
+      const page = await api.list(request)
+      sites.value = page.items
+      return { kind: 'loaded', page }
+    } catch (error) {
+      return error instanceof ApiError ? { kind: 'refused', message: error.message } : { kind: 'unreachable' }
+    }
+  }
+
+  /**
+   * Asks the panel how many sites are disabled, narrowed to one account when one is given, into
+   * {@link disabledCount}. The count is the total of a list read filtered to disabled sites, so it
+   * covers every page, not only the one on screen. A failure is recorded as `unavailable`, never as
+   * a zero, so the notice can say the count is missing rather than imply there is nothing to count.
+   * @param accountId The account the list is narrowed to; empty for every site the caller may see.
    * @returns Resolves once the request has settled, successfully or not.
    */
-  const load = async (filter: AccountListFilter): Promise<void> => {
-    loading.value = true
+  const loadDisabledCount = async (accountId: string): Promise<void> => {
+    const filters: Record<string, string> = { status: 'disabled' }
+    if (accountId !== '') {
+      filters.account = accountId
+    }
     try {
-      sites.value = await api.list(filter)
-      errorMessage.value = null
-      isLoaded.value = true
-    } catch (error) {
-      errorMessage.value = error instanceof ApiError ? error.message : null
-    } finally {
-      loading.value = false
+      const page = await api.list({ page: 1, pageSize: COUNT_PAGE_SIZE, search: '', sort: '', filters })
+      disabledCount.value = { state: 'counted', count: page.total }
+    } catch {
+      disabledCount.value = { state: 'unavailable' }
     }
   }
 
@@ -198,8 +226,8 @@ export const useSitesStore = defineStore('sites', () => {
   }
 
   /**
-   * Creates a site and, on success, adds it to the held list so the list page reflects it
-   * without a full reload.
+   * Creates a site. The list page is not patched: where the new row falls depends on the server's
+   * sort and filters, so the list page reads its page again when it opens.
    * @param request The site's account, domain, aliases and backend.
    * @returns The created site, or `null` when the request failed — the caller reads
    * {@link createErrorMessage} for the reason.
@@ -208,7 +236,6 @@ export const useSitesStore = defineStore('sites', () => {
     creating.value = true
     try {
       const created = await api.create(request)
-      sites.value = [...sites.value, created]
       createErrorMessage.value = null
       return created
     } catch (error) {
@@ -412,6 +439,7 @@ export const useSitesStore = defineStore('sites', () => {
 
   return {
     sites,
+    disabledCount,
     selected,
     phpVersions,
     installingPhpVersion,
@@ -419,7 +447,6 @@ export const useSitesStore = defineStore('sites', () => {
     loading,
     creating,
     acting,
-    isLoaded,
     errorMessage,
     createErrorMessage,
     logLines,
@@ -427,7 +454,8 @@ export const useSitesStore = defineStore('sites', () => {
     logEndReason,
     logEndMessage,
     logScrollbackTruncated,
-    load,
+    list,
+    loadDisabledCount,
     loadOne,
     loadPhpVersions,
     installPhpVersion,

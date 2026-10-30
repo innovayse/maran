@@ -14,6 +14,10 @@ namespace Maran.Modules.Ftp.Common;
 /// </remarks>
 /// <param name="Id">The login's identity, and the only identifier a request may name.</param>
 /// <param name="AccountId">The account that owns this login.</param>
+/// <param name="OwnerName">
+/// The owning account's name, resolved by the server so a list needs no second request to label its
+/// rows. Empty when the account directory does not name the owning account for this caller.
+/// </param>
 /// <param name="Name">The name the customer asked for, without the account prefix.</param>
 /// <param name="FullName">
 /// The system login the host holds — the user name the customer actually types into their FTPS
@@ -29,6 +33,7 @@ namespace Maran.Modules.Ftp.Common;
 public sealed record FtpUserDto(
     Guid Id,
     Guid AccountId,
+    string OwnerName,
     string Name,
     string FullName,
     string Protocol,

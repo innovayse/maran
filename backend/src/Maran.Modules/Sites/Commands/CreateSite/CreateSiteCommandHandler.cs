@@ -336,7 +336,14 @@ public sealed class CreateSiteCommandHandler
             AuditActions.SiteCreated, site.Domain, command.IpAddress, command.UserAgent, cancellationToken);
 
         return Result<SiteDto>.Ok(new SiteDto(
-            site.Id, site.AccountId, site.Domain, site.BackendType, site.PhpVersion, site.Status, site.CreatedAt));
+            site.Id,
+            site.AccountId,
+            account.Username,
+            site.Domain,
+            site.BackendType,
+            site.PhpVersion,
+            site.Status,
+            site.CreatedAt));
     }
 
     /// <summary>Maps the module's backend enum onto the agent client's, for a site that has no row yet.</summary>

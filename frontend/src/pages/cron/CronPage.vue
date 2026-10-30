@@ -35,7 +35,7 @@ import UiDropdown from '../../components/ui/UiDropdown.vue'
 import UiDropdownItem from '../../components/ui/UiDropdownItem.vue'
 import UiEmptyState from '../../components/ui/UiEmptyState.vue'
 import UiIcon from '../../components/ui/UiIcon.vue'
-import UiSelect, { type SelectOption } from '../../components/ui/UiSelect.vue'
+import UiCombobox from '../../components/ui/UiCombobox.vue'
 import UiPageHeading from '../../components/ui/UiPageHeading.vue'
 import UiSectionHeading from '../../components/ui/UiSectionHeading.vue'
 import UiSpinner from '../../components/ui/UiSpinner.vue'
@@ -49,6 +49,7 @@ import CronEntryOutputDialog from '../../components/cron/CronEntryOutputDialog.v
 import CronEnvironmentEditor from '../../components/cron/CronEnvironmentEditor.vue'
 import { useAccountChoice } from '../../composables/useAccountChoice'
 import { useAccountFilter } from '../../composables/useAccountFilter'
+import { useAccountsStore } from '../../stores/accounts'
 import { useCronStore } from '../../stores/cron'
 import { useLocaleStore } from '../../stores/locale'
 import { formatCronExpression } from '../../utils/cronSchedule'
@@ -59,8 +60,9 @@ import type { CronEnvironmentVariable } from '../../types/cronEnvironmentVariabl
 
 const { t } = useI18n()
 const store = useCronStore()
-const { fixedAccountId, accounts, load: loadAccounts } = useAccountChoice()
+const { fixedAccountId, picker: accountPicker, search: searchAccounts } = useAccountChoice()
 const { filter: accountListFilter } = useAccountFilter()
+const accountsStore = useAccountsStore()
 const localeStore = useLocaleStore()
 
 /** The form, so an accepted install can empty the field it owns. */
@@ -90,23 +92,28 @@ const confirmationTitle: ComputedRef<string> = computed(() => {
   return pending === null ? '' : t('cron.list.confirmRemoveTitle', { command: pending.command })
 })
 
-/** The accounts one crontab can be read for, as the select wants them. */
-const accountOptions: ComputedRef<SelectOption[]> = computed(() => {
-  return accounts.value.map((account) => {
-    return { value: account.id, label: account.name }
-  })
+/**
+ * The label of the account the screen is pointed at, for the picker: that account is usually not
+ * on the page of matches the next search brings, and the picker must still name it.
+ */
+const selectedAccountLabel: ComputedRef<string | undefined> = computed(() => {
+  return accountsStore.accountNames[store.accountId] ?? firstAccountLabel.value
 })
 
+/** The name of the first listed account when the screen opened on it, as the choices named it. */
+const firstAccountLabel: Ref<string | undefined> = ref(undefined)
+
 /**
- * Loads the accounts and points the screen at the one the URL names (`?account=<id>`, the link the
- * account detail page draws), or at the first of them.
+ * Points the screen at the account the URL names (`?account=<id>`, the link the account detail page
+ * draws), or at the first account the panel lists.
  *
  * The first rather than none, because a screen that opens on an empty picker looks broken; there is
  * nothing invented in it — the account came from the panel, and the crontab shown is that account's.
- * A URL account the list does not hold is ignored rather than selected: the picker could not show
- * it, and the server would answer 404 for it anyway. A customer skips the list (an
- * administrator-only read) and is pointed at their own account; the parameter means nothing to them.
- * @returns Resolves once the accounts and the chosen account's crontab have settled.
+ * A URL account is selected only once the panel has named it by its own read: an id it cannot name
+ * is ignored, since the picker could not show it and the server would answer 404 for it anyway. A
+ * customer reads no choices (an administrator-only read) and is pointed at their own account; the
+ * parameter means nothing to them.
+ * @returns Resolves once the account and its crontab have settled.
  */
 const start = async (): Promise<void> => {
   const own = fixedAccountId.value
@@ -116,20 +123,27 @@ const start = async (): Promise<void> => {
     }
     return
   }
-  await loadAccounts()
-  const requested = accounts.value.find((account) => {
-    return account.id === accountListFilter.value.accountId
-  })
+  const requested = accountListFilter.value.accountId
   if (requested !== undefined) {
-    // A link to one account's crontab wins over whichever account the store last looked at.
-    if (store.accountId !== requested.id) {
-      await store.selectAccount(requested.id)
+    await accountsStore.loadAccountName(requested)
+    if (accountsStore.accountNames[requested] !== undefined) {
+      // A link to one account's crontab wins over whichever account the store last looked at.
+      if (store.accountId !== requested) {
+        await store.selectAccount(requested)
+      }
+      return
     }
+  }
+  if (store.accountId !== '') {
+    // Back on the account the store last looked at, which the picker must still name.
+    await accountsStore.loadAccountName(store.accountId)
     return
   }
-  const first = accounts.value[0]
-  if (first !== undefined && store.accountId === '') {
-    await store.selectAccount(first.id)
+  await searchAccounts('')
+  const first = accountPicker.value.options[0]
+  if (first !== undefined) {
+    firstAccountLabel.value = first.label
+    await store.selectAccount(first.value)
   }
 }
 
@@ -309,14 +323,16 @@ onMounted(start)
       :subtitle="t('cron.list.subtitle')"
     >
       <template #actions>
-        <UiSelect
+        <UiCombobox
           v-if="fixedAccountId === null"
           :model-value="store.accountId"
-          :options="accountOptions"
+          v-bind="accountPicker"
+          :selected-label="selectedAccountLabel"
           :label="t('cron.list.accountLabel')"
           :placeholder="t('cron.list.accountPlaceholder')"
           class="w-full min-w-0 lg:w-72"
           @update:model-value="changeAccount"
+          @search="searchAccounts"
         />
       </template>
     </UiPageHeading>

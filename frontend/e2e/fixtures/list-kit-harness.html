@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>List kit harness</title>
+  </head>
+  <body>
+    <!--
+      Playwright-only mount point for the server-paged list kit: UiFilterTrigger, UiFilterSheet,
+      UiActiveFilter and UiPagination (e2e/ui-kit/filter-sheet.spec.ts, pagination.spec.ts).
+
+      It mounts the components directly, without the router, the shell or authentication, so the
+      kit's own contract (sheet versus dialog by width, focus return, the pagination's controls and
+      ARIA) is tested apart from any page that uses it. Query parameters: `locale` (en, ru, hy),
+      `total` (rows across every page), `page` (the starting page).
+
+      Registered as a Vite build entry (vite.config.ts) so `vite preview`, what the e2e run serves,
+      reaches it at the same path as `vite dev`.
+    -->
+    <div id="app" style="padding: 16px"></div>
+    <script type="module" src="./list-kit-harness.ts"></script>
+  </body>
+</html>

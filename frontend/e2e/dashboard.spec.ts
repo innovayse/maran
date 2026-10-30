@@ -43,7 +43,11 @@ const FULL: Dashboard = {
     { service: 'webServer', name: 'Web server', state: 'running', detail: 'active (running)' },
     { service: 'database', name: 'Database', state: 'stopped', detail: 'inactive (dead)' },
   ],
-  counts: { accounts: 3, sites: 7, databases: 4 },
+  counts: {
+    accounts: { state: 'counted', count: 3 },
+    sites: { state: 'counted', count: 7 },
+    databases: { state: 'counted', count: 4 },
+  },
   attention: { certificatesExpiringSoon: 2, failedBackups: 5, bannedAddresses: 9, failedTasks: 6 },
   recentAudit: [
     {
@@ -72,7 +76,11 @@ const FULL: Dashboard = {
 /** A server with one account and nothing else on it — the state right after an install. */
 const FRESHLY_INSTALLED: Dashboard = {
   ...FULL,
-  counts: { accounts: 0, sites: 0, databases: 0 },
+  counts: {
+    accounts: { state: 'counted', count: 0 },
+    sites: { state: 'counted', count: 0 },
+    databases: { state: 'counted', count: 0 },
+  },
   attention: { certificatesExpiringSoon: 0, failedBackups: 0, bannedAddresses: 0, failedTasks: 0 },
   recentAudit: [],
 }
@@ -133,6 +141,22 @@ test.describe('the landing page', () => {
     // /accounts, so the number is part of what identifies this one.
     await expect(page.getByRole('link', { name: '0 Accounts' })).toBeVisible()
     await expect(page.getByRole('link', { name: '0 Sites' })).toBeVisible()
+  })
+
+  test('a count the panel could not take reads unavailable, never zero', async ({ page }) => {
+    await openLandingPage(page, {
+      ...FULL,
+      counts: {
+        accounts: { state: 'counted', count: 3 },
+        sites: { state: 'unavailable', count: 0 },
+        databases: { state: 'counted', count: 4 },
+      },
+    })
+
+    // A zero would claim the server holds no sites; the module only failed to answer.
+    await expect(page.getByRole('link', { name: 'Unavailable Sites' })).toBeVisible()
+    await expect(page.getByRole('link', { name: '0 Sites' })).toHaveCount(0)
+    await expect(page.getByRole('link', { name: '3 Accounts' })).toBeVisible()
   })
 
   test('a server with nothing wrong says so instead of listing four zeros', async ({ page }) => {
