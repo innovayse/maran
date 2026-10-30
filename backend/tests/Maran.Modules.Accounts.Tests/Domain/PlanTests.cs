@@ -1,4 +1,6 @@
 using Maran.Modules.Accounts.Domain.Entities;
+using Maran.Modules.Accounts.Domain.Enums;
+using Maran.Sdk.Contracts;
 
 namespace Maran.Modules.Accounts.Tests.Domain;
 
@@ -267,5 +269,43 @@ public sealed class PlanTests
         // The guard runs before the first assignment, so a refused edit is not half-applied.
         Assert.Equal(10_240, plan.DiskQuotaMb);
         Assert.Equal(5, plan.MaxDatabases);
+    }
+
+    /// <summary>Every counted kind is capped by the plan column that sells it.</summary>
+    [Theory]
+    [InlineData(AccountResourceKind.Sites, 10)]
+    [InlineData(AccountResourceKind.Databases, 5)]
+    [InlineData(AccountResourceKind.SftpLogins, 4)]
+    [InlineData(AccountResourceKind.FtpLogins, 2)]
+    [InlineData(AccountResourceKind.CronEntries, 3)]
+    public void Every_counted_kind_is_capped_by_the_plan_column_that_sells_it(AccountResourceKind kind, int maximum)
+    {
+        var plan = Plan.Define(Guid.NewGuid(), "Agency", 10_240, 10, 5, 4, 2, 3, 8);
+
+        var limit = plan.LimitFor(kind);
+
+        Assert.Equal(ResourceLimitKind.Limited, limit.Kind);
+        Assert.Equal(maximum, limit.Maximum);
+    }
+
+    /// <summary>Backups are not capped by any plan.</summary>
+    [Fact]
+    public void Backups_are_not_capped_by_any_plan()
+    {
+        var plan = Plan.Define(Guid.NewGuid(), "Agency", 10_240, 10, 5, 4, 2, 3, 8);
+
+        Assert.Equal(ResourceLimitKind.Unlimited, plan.LimitFor(AccountResourceKind.Backups).Kind);
+    }
+
+    /// <summary>A zero cron allowance is a cap of zero, not an absent cap.</summary>
+    [Fact]
+    public void A_zero_cron_allowance_is_a_cap_of_zero_not_an_absent_cap()
+    {
+        var plan = Plan.Define(Guid.NewGuid(), "NoCron", 10_240, 10, 5, 4, 0, 0, 8);
+
+        var limit = plan.LimitFor(AccountResourceKind.CronEntries);
+
+        Assert.Equal(ResourceLimitKind.Limited, limit.Kind);
+        Assert.Equal(0, limit.Maximum);
     }
 }

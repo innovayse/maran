@@ -182,6 +182,28 @@ public sealed class SftpAuthorizationTests : IAsyncLifetime
         Assert.Equal(["own_deploy"], names);
     }
 
+    /// <summary>A customer naming another tenant's account in the filter is listed nothing.</summary>
+    /// <remarks>
+    /// The <c>accountId</c> filter is ANDed with the tenant filter, never in place of it. The customer's
+    /// own row is listed without the filter (the test above), so an endpoint that ignored the parameter
+    /// would answer with that row here, and one that let it replace the tenant scope would answer with
+    /// the stranger's.
+    /// </remarks>
+    [Fact]
+    public async Task A_customer_naming_another_tenants_account_is_listed_no_sftp_logins()
+    {
+        await using var factory = CreateFactory();
+        await MigrateAsync(factory);
+        var world = await SeedAsync(factory);
+        using var client = await SignInAsync(factory, "customer");
+
+        var response = await client.GetAsync($"/api/v1/sftp-users?accountId={world.StrangerAccountId}");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        Assert.Equal(0, body.RootElement.GetArrayLength());
+    }
+
     /// <summary>Two tenants both hold an sftp user named deploy because the names are prefixed.</summary>
     [Fact]
     public async Task Two_tenants_both_hold_an_sftp_user_named_deploy_because_the_names_are_prefixed()
@@ -390,7 +412,7 @@ public sealed class SftpAuthorizationTests : IAsyncLifetime
         sftp.SftpUsers.AddRange(ownSftpUser, strangerSftpUser);
         await sftp.SaveChangesAsync();
 
-        return new SeededWorld(ownSftpUser.Id, strangerSftpUser.Id);
+        return new SeededWorld(ownSftpUser.Id, strangerSftpUser.Id, stranger.Id);
     }
 
     /// <summary>Builds one login row named <c>deploy</c> under <paramref name="username"/>.</summary>
@@ -452,5 +474,6 @@ public sealed class SftpAuthorizationTests : IAsyncLifetime
     /// <summary>The identifiers a seeded world hands to the tests.</summary>
     /// <param name="OwnSftpUserId">The login belonging to the signed-in customer.</param>
     /// <param name="StrangerSftpUserId">The login belonging to the other tenant.</param>
-    private sealed record SeededWorld(Guid OwnSftpUserId, Guid StrangerSftpUserId);
+    /// <param name="StrangerAccountId">The other tenant's account, which a customer may name in a filter.</param>
+    private sealed record SeededWorld(Guid OwnSftpUserId, Guid StrangerSftpUserId, Guid StrangerAccountId);
 }

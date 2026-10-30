@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { ref, type Ref } from 'vue'
 import { useDatabasesApi } from '../composables/apis/useDatabasesApi'
 import { ApiError } from '../composables/useApi'
+import type { AccountListFilter } from '../types/accountListFilter'
 import type {
   CreateDatabaseRequest,
   Database,
@@ -63,12 +64,13 @@ export const useDatabasesStore = defineStore('databases', () => {
 
   /**
    * Loads the database list, replacing what is held.
+   * @param filter The account the list is narrowed to; empty for every row the caller may see.
    * @returns Resolves once the request has settled, successfully or not.
    */
-  const load = async (): Promise<void> => {
+  const load = async (filter: AccountListFilter): Promise<void> => {
     loading.value = true
     try {
-      databases.value = await api.list()
+      databases.value = await api.list(filter)
       errorMessage.value = null
       isLoaded.value = true
     } catch (error) {

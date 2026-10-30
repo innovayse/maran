@@ -59,10 +59,12 @@ import {
   onMounted,
   ref,
   useTemplateRef,
+  watch,
   type ComputedRef,
   type Ref,
 } from 'vue'
 import { useI18n } from 'vue-i18n'
+import UiActiveFilter from '../../components/ui/UiActiveFilter.vue'
 import UiAlert from '../../components/ui/UiAlert.vue'
 import UiBadge from '../../components/ui/UiBadge.vue'
 import UiCard from '../../components/ui/UiCard.vue'
@@ -84,6 +86,7 @@ import FtpUserCreatedDialog from '../../components/ftp/FtpUserCreatedDialog.vue'
 import FtpsServerPanel from '../../components/ftp/FtpsServerPanel.vue'
 import SftpUserCreatedDialog from '../../components/sftp/SftpUserCreatedDialog.vue'
 import { useAccountChoice } from '../../composables/useAccountChoice'
+import { useAccountFilter } from '../../composables/useAccountFilter'
 import { useCallerRole } from '../../composables/useCallerRole'
 import { useFirewallStore } from '../../stores/firewall'
 import { useFtpUsersStore } from '../../stores/ftpUsers'
@@ -105,6 +108,7 @@ type PendingAction = 'resetPassword' | 'remove'
 
 const { t } = useI18n()
 const { fixedAccountId, accounts, ownerName, load: loadAccounts } = useAccountChoice()
+const { filter: accountListFilter, isActive: isAccountFiltered, text: accountFilterText, clear: clearAccountFilter } = useAccountFilter()
 /**
  * Whether this caller may see the administrator's half of the screen. Presentation only: every
  * endpoint behind it enforces its own policy (useCallerRole holds the role reasoning).
@@ -300,13 +304,22 @@ const protocolLabel = (protocol: FileTransferProtocol): string => {
 }
 
 /**
+ * Loads both login lists, narrowed to the account the URL names when it names one.
+ * @returns Resolves once both requests have settled.
+ */
+const loadList = async (): Promise<void> => {
+  const filter = accountListFilter.value
+  await Promise.all([sftpStore.load(filter), ftpUsersStore.load(filter)])
+}
+
+/**
  * Loads everything the screen is made of. The administrator's two extra reads are only attempted for
  * an administrator: both endpoints answer 403 otherwise, and asking anyway would spend two requests
  * to learn what the role already says.
  * @returns Resolves once every request has settled.
  */
 const refresh = async (): Promise<void> => {
-  const reads: Promise<void>[] = [sftpStore.load(), ftpUsersStore.load(), loadAccounts()]
+  const reads: Promise<void>[] = [loadList(), loadAccounts()]
 
   if (isAdmin.value) {
     reads.push(ftpsServerStore.load(), firewallStore.load())
@@ -480,6 +493,9 @@ const dismissNotice = (): void => {
 
 onMounted(refresh)
 
+// "Show all" and a link to another account change only the query, so the page is not remounted.
+watch(() => {return accountListFilter.value.accountId}, loadList)
+
 // Neither credential must survive a navigation. The stores outlive this page.
 onBeforeUnmount(dismissCredentials)
 </script>
@@ -522,6 +538,13 @@ onBeforeUnmount(dismissCredentials)
       :submitting="sftpStore.creating || ftpUsersStore.creating"
       :ftps-availability="ftpsAvailability"
       @submit="create"
+    />
+
+    <UiActiveFilter
+      v-if="isAccountFiltered"
+      :text="accountFilterText"
+      :clear-label="t('common.accountFilter.showAll')"
+      @clear="clearAccountFilter"
     />
 
     <UiEmptyState

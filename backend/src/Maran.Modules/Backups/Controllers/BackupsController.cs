@@ -48,13 +48,15 @@ public sealed class BackupsController : BaseApiController
     }
 
     /// <summary>Lists the backups the caller may see, newest first.</summary>
+    /// <param name="query">The optional <c>accountId</c> filter, ANDed with the caller's tenant scope.</param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpGet]
     [ProducesResponseType(typeof(IReadOnlyList<BackupDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-    public async Task<IActionResult> GetAllAsync(CancellationToken cancellationToken)
+    public async Task<IActionResult> GetAllAsync(
+        [FromQuery] ListBackupsQuery query,
+        CancellationToken cancellationToken)
     {
-        var query = new ListBackupsQuery();
         return ToActionResult(await _bus.InvokeAsync<Result<IReadOnlyList<BackupDto>>>(query, cancellationToken));
     }
 

@@ -9,8 +9,10 @@ import { stubBackups } from '../fixtures/stub-backups-routes'
 import { stubCronEntries, stubCronEnvironment } from '../fixtures/stub-cron-routes'
 import { stubTasks } from '../fixtures/stub-tasks-routes'
 import { forbidAccountsList, stubMyAccount } from '../fixtures/stub-my-account-route'
+import { stubMyAccountResources } from '../fixtures/stub-account-resources-route'
 import type { AuthenticatedUser } from '../../src/types/auth'
 import type { MyAccount } from '../../src/types/account'
+import type { AccountResourceSummary } from '../../src/types/accountResourceSummary'
 import type { PanelModule } from '../../src/types/module'
 
 // Issues #201 and #202: a customer walks every screen of their own area and the browser stays
@@ -39,6 +41,11 @@ const OWN_ACCOUNT: MyAccount = {
     maxFtpUsers: 1,
     maxCronEntries: 1,
   },
+}
+
+const OWN_RESOURCES: AccountResourceSummary = {
+  accountId: OWN_ACCOUNT.id,
+  resources: [{ kind: 'sites', state: 'counted', used: 1, limitKind: 'limited', limit: 1 }],
 }
 
 const MODULES: PanelModule[] = [
@@ -76,6 +83,7 @@ test('a customer walks their own area with a clean console', async ({ page }) =>
   await stubCronEnvironment(page, [])
   await stubTasks(page, [])
   await stubMyAccount(page, OWN_ACCOUNT)
+  await stubMyAccountResources(page, OWN_RESOURCES)
   const accountsListCalls = await forbidAccountsList(page)
 
   for (const path of CUSTOMER_PAGES) {

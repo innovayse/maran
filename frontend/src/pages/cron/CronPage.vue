@@ -48,6 +48,7 @@ import CronEntryForm from '../../components/cron/CronEntryForm.vue'
 import CronEntryOutputDialog from '../../components/cron/CronEntryOutputDialog.vue'
 import CronEnvironmentEditor from '../../components/cron/CronEnvironmentEditor.vue'
 import { useAccountChoice } from '../../composables/useAccountChoice'
+import { useAccountFilter } from '../../composables/useAccountFilter'
 import { useCronStore } from '../../stores/cron'
 import { useLocaleStore } from '../../stores/locale'
 import { formatCronExpression } from '../../utils/cronSchedule'
@@ -59,6 +60,7 @@ import type { CronEnvironmentVariable } from '../../types/cronEnvironmentVariabl
 const { t } = useI18n()
 const store = useCronStore()
 const { fixedAccountId, accounts, load: loadAccounts } = useAccountChoice()
+const { filter: accountListFilter } = useAccountFilter()
 const localeStore = useLocaleStore()
 
 /** The form, so an accepted install can empty the field it owns. */
@@ -96,12 +98,15 @@ const accountOptions: ComputedRef<SelectOption[]> = computed(() => {
 })
 
 /**
- * Loads the accounts and points the screen at the first of them.
+ * Loads the accounts and points the screen at the one the URL names (`?account=<id>`, the link the
+ * account detail page draws), or at the first of them.
  *
  * The first rather than none, because a screen that opens on an empty picker looks broken; there is
  * nothing invented in it — the account came from the panel, and the crontab shown is that account's.
- * A customer skips the list (an administrator-only read) and is pointed at their own account.
- * @returns Resolves once the accounts and the first account's crontab have settled.
+ * A URL account the list does not hold is ignored rather than selected: the picker could not show
+ * it, and the server would answer 404 for it anyway. A customer skips the list (an
+ * administrator-only read) and is pointed at their own account; the parameter means nothing to them.
+ * @returns Resolves once the accounts and the chosen account's crontab have settled.
  */
 const start = async (): Promise<void> => {
   const own = fixedAccountId.value
@@ -112,6 +117,16 @@ const start = async (): Promise<void> => {
     return
   }
   await loadAccounts()
+  const requested = accounts.value.find((account) => {
+    return account.id === accountListFilter.value.accountId
+  })
+  if (requested !== undefined) {
+    // A link to one account's crontab wins over whichever account the store last looked at.
+    if (store.accountId !== requested.id) {
+      await store.selectAccount(requested.id)
+    }
+    return
+  }
   const first = accounts.value[0]
   if (first !== undefined && store.accountId === '') {
     await store.selectAccount(first.id)

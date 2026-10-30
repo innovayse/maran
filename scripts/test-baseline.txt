@@ -1,6 +1,15 @@
 # Committed per-target test baseline. Recorded by 'maran test --accept'; commit the diff.
 # stack<TAB>target<TAB>passed<TAB>failed<TAB>ignored
 #
+# RE-MEASURED 2026-10-30 (issue #223, account resource summary and ?account= list filters): edited by hand.
+# Modules.Accounts.Tests 454->468, Sites.Tests 232->236, Databases.Tests 106->110, Sftp.Tests 84->88,
+# Ftp.Tests 149->153, Backups.Tests 210->214, Cron.Tests 187->190, 0 failed;
+# ArchitectureTests 91, Sdk.Tests 224, Host.Tests 392 unchanged. SharedKernel.Tests measured 250 against a
+# 230 row; this change touches no SharedKernel code, so that row is left for its own re-measurement.
+# Host.IntegrationTests ran filtered to AccountResourceSummaryEndpointTests and the Sites, Databases, Sftp,
+# Ftp and Backups AuthorizationTests (117/0); its row is left to CI.
+# spa: NEW rows accounts/resources 8 and five */account-filter 3 each. Full suite at E2E_PORT=5199:
+# 726 passed / 0 failed / 3 skipped.
 # RE-MEASURED 2026-10-30 (issue #216, account plan and owner email edits; AccountSnapshot gained a required State):
 # edited by hand. Modules.Accounts.Tests 434->454 and Modules.Identity.Tests 306->312 and Sdk.Tests 222->224 (two new codes), 0 failed; ArchitectureTests 91
 # unchanged. Host.IntegrationTests ran filtered to AccountEditEndpointTests, AccountsAuthorizationTests,
@@ -353,20 +362,20 @@ rust	safe_write_bound_on_real_processes [tests/safe_write_bound_on_real_processe
 backend	Maran.Agent.Client.Tests.dll	375	0	0
 backend	Maran.SharedKernel.Tests.dll	230	0	0
 backend	Maran.Modules.Identity.Tests.dll	312	0	0
-backend	Maran.Modules.Sftp.Tests.dll	84	0	0
+backend	Maran.Modules.Sftp.Tests.dll	88	0	0
 backend	Maran.Modules.Notifications.Tests.dll	52	0	0
 backend	Maran.Modules.Tasks.Tests.dll	76	0	0
-backend	Maran.Modules.Ftp.Tests.dll	149	0	0
+backend	Maran.Modules.Ftp.Tests.dll	153	0	0
 backend	Maran.Modules.Monitoring.Tests.dll	70	0	0
-backend	Maran.Modules.Backups.Tests.dll	210	0	0
+backend	Maran.Modules.Backups.Tests.dll	214	0	0
 backend	Maran.Modules.Licensing.Tests.dll	51	0	0
 backend	Maran.Modules.Firewall.Tests.dll	255	0	0
-backend	Maran.Modules.Cron.Tests.dll	187	0	0
-backend	Maran.Modules.Accounts.Tests.dll	454	0	0
-backend	Maran.Modules.Databases.Tests.dll	106	0	0
+backend	Maran.Modules.Cron.Tests.dll	190	0	0
+backend	Maran.Modules.Accounts.Tests.dll	468	0	0
+backend	Maran.Modules.Databases.Tests.dll	110	0	0
 backend	Maran.Modules.Ssl.Tests.dll	221	0	0
 backend	Maran.Sdk.Tests.dll	224	0	0
-backend	Maran.Modules.Sites.Tests.dll	232	0	0
+backend	Maran.Modules.Sites.Tests.dll	236	0	0
 backend	Maran.ArchitectureTests.dll	91	0	0
 backend	Maran.Host.Tests.dll	392	0	0
 backend	Maran.Host.IntegrationTests.dll	415	0	0
@@ -477,3 +486,9 @@ spa	customer/no-admin-links.spec.ts	4	0	0
 spa	customer/own-account-create.spec.ts	5	0	0
 spa	customer/role-guard.spec.ts	18	0	0
 spa	customer/tasks.spec.ts	3	0	0
+spa	accounts/resources.spec.ts	8	0	0
+spa	backups/account-filter.spec.ts	3	0	0
+spa	cron/account-filter.spec.ts	3	0	0
+spa	databases/account-filter.spec.ts	3	0	0
+spa	file-transfer/account-filter.spec.ts	3	0	0
+spa	sites/account-filter.spec.ts	3	0	0

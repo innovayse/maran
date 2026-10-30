@@ -60,6 +60,7 @@ import AccountDeleteDialog from '../../components/accounts/AccountDeleteDialog.v
 import AccountInvitationCard from '../../components/accounts/AccountInvitationCard.vue'
 import AccountOwnerEmailDialog from '../../components/accounts/AccountOwnerEmailDialog.vue'
 import AccountPlanDialog from '../../components/accounts/AccountPlanDialog.vue'
+import AccountResourcesCard from '../../components/accounts/AccountResourcesCard.vue'
 import { useAccountsStore } from '../../stores/accounts'
 import { useLocaleStore } from '../../stores/locale'
 import { formatDate } from '../../utils/formatDate'
@@ -227,7 +228,8 @@ const dismissNotice = (): void => {
 
 onMounted(async () => {
   notice.value = takeFlashNotice()
-  await accountsStore.loadOne(props.id)
+  // The summary is its own read: a failed count shows in its card and never blanks the account.
+  await Promise.all([accountsStore.loadOne(props.id), accountsStore.loadResourceSummary(props.id)])
 })
 </script>
 
@@ -323,6 +325,8 @@ onMounted(async () => {
           </div>
         </UiCard>
       </div>
+
+      <AccountResourcesCard :read="accountsStore.resourceSummary" />
 
       <AccountInvitationCard :account-id="id" :suspended="accountsStore.selected.status === 'suspended'" />
 

@@ -1,4 +1,6 @@
 import { ApiError, useApi } from '../useApi'
+import { accountListQuery } from '../../utils/accountListQuery'
+import type { AccountListFilter } from '../../types/accountListFilter'
 import type {
   ChangeSitePhpVersionRequest,
   CreateSiteRequest,
@@ -43,11 +45,12 @@ export const useSitesApi = (): SitesApi => {
 
   /**
    * Lists the sites the caller may see.
+   * @param filter The account the list is narrowed to; empty for every row the caller may see.
    * @param signal Optional abort signal to cancel the in-flight request.
    * @returns The sites, in the order the panel reports them.
    */
-  const list = (signal?: AbortSignal): Promise<Site[]> => {
-    return api.get<Site[]>(SITES_PATH, signal)
+  const list = (filter: AccountListFilter, signal?: AbortSignal): Promise<Site[]> => {
+    return api.get<Site[]>(`${SITES_PATH}${accountListQuery(filter)}`, signal)
   }
 
   /**

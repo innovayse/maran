@@ -10,6 +10,10 @@
     "emptyValue": "—",
     "copyPassword": "Պատճենել գաղտնաբառը",
     "copied": "Պատճենված է",
-    "done": "Պատրաստ է"
+    "done": "Պատրաստ է",
+    "accountFilter": {
+      "only": "Միայն {account}",
+      "showAll": "Ցույց տալ բոլորը"
+    }
   }
 }

@@ -72,6 +72,11 @@ public sealed class AccountsModule : IPanelModule
         // request.
         services.AddScoped<HomeGroupRepairRefusalDisplayNames>();
 
+        // Pairs every composed module's resource count with the plan's limits, for both the
+        // administrator's and the customer's summary. Scoped, because it reads the request's own
+        // tenant-scoped context and the counters, which are scoped too.
+        services.AddScoped<AccountResourceSummaryReader>();
+
         // Registers this module's resource managers into the shared pool the panel-wide
         // ResxErrorTextProvider resolves error codes and Manifest.DisplayNameKey against
         // (rules/csharp.md "The backend owns all user-facing message text") — that mechanism is

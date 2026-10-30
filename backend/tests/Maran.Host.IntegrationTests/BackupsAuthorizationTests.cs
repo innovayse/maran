@@ -209,6 +209,28 @@ public sealed class BackupsAuthorizationTests : IAsyncLifetime
         Assert.Equal([world.OwnBackupId], ids);
     }
 
+    /// <summary>A customer naming another tenant's account in the filter is listed nothing.</summary>
+    /// <remarks>
+    /// The <c>accountId</c> filter is ANDed with the tenant filter, never in place of it. The customer's
+    /// own row is listed without the filter (the test above), so an endpoint that ignored the parameter
+    /// would answer with that row here, and one that let it replace the tenant scope would answer with
+    /// the stranger's.
+    /// </remarks>
+    [Fact]
+    public async Task A_customer_naming_another_tenants_account_is_listed_no_backups()
+    {
+        await using var factory = CreateFactory();
+        await MigrateAsync(factory);
+        var world = await SeedAsync(factory);
+        using var client = await SignInAsync(factory, "customer");
+
+        var response = await client.GetAsync($"/api/v1/backups?accountId={world.StrangerAccountId}");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        Assert.Equal(0, body.RootElement.GetArrayLength());
+    }
+
     /// <summary>An administrator is listed both tenants backups.</summary>
     [Fact]
     public async Task An_administrator_is_listed_both_tenants_backups()

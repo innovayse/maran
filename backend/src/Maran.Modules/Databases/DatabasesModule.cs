@@ -66,6 +66,10 @@ public sealed class DatabasesModule : IPanelModule
         // context's own filter (rules/architecture.md "A shared facility's contract").
         services.AddScoped<IAccountDatabaseDirectory, AccountDatabaseDirectory>();
 
+        // This module's answer to how many databases an account owns, for the Accounts module's resource
+        // summary. Scoped, because it reads through the request-scoped, tenant-filtered context.
+        services.AddScoped<IAccountResourceCounter, DatabaseAccountResourceCounter>();
+
         // Scoped like the other request-culture readers: it resolves the refusal sentences an
         // administrator reads against IStringLocalizer<DisplayNames>, which is culture-sensitive per
         // request.

@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { ref, type Ref } from 'vue'
 import { useFtpUsersApi } from '../composables/apis/useFtpUsersApi'
 import { ApiError } from '../composables/useApi'
+import type { AccountListFilter } from '../types/accountListFilter'
 import type { CreateFtpUserRequest, FtpUser, RevealedFtpCredential } from '../types/ftpUser'
 
 /**
@@ -61,12 +62,13 @@ export const useFtpUsersStore = defineStore('ftpUsers', () => {
    *
    * A failure is captured rather than thrown: the merged screen must still render its SFTP half when
    * the FTPS module is unreachable, which is the whole reason the two lists are two requests.
+   * @param filter The account the list is narrowed to; empty for every row the caller may see.
    * @returns Resolves once the request has settled, successfully or not.
    */
-  const load = async (): Promise<void> => {
+  const load = async (filter: AccountListFilter): Promise<void> => {
     loading.value = true
     try {
-      ftpUsers.value = await api.list()
+      ftpUsers.value = await api.list(filter)
       errorMessage.value = null
       isLoaded.value = true
     } catch (error) {

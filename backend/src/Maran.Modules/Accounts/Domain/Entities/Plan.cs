@@ -1,3 +1,6 @@
+using Maran.Modules.Accounts.Domain.ValueObjects;
+using Maran.Sdk.Contracts;
+
 namespace Maran.Modules.Accounts.Domain.Entities;
 
 /// <summary>
@@ -321,6 +324,28 @@ public sealed class Plan
         MaxFtpUsers = maxFtpUsers;
         MaxCronEntries = maxCronEntries;
         MaxPhpWorkersPerPool = maxPhpWorkersPerPool;
+    }
+
+    /// <summary>What this plan says about one kind of resource an account owns.</summary>
+    /// <param name="kind">The kind of resource.</param>
+    /// <returns>
+    /// The plan's cap for that kind, or <see cref="ResourceLimit.Unlimited"/> for backups, which no
+    /// plan caps: the plan carries no backup allowance, and inventing one here would be a limit the
+    /// Backups module never enforces.
+    /// </returns>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown for a kind this plan has never heard of.</exception>
+    public ResourceLimit LimitFor(AccountResourceKind kind)
+    {
+        return kind switch
+        {
+            AccountResourceKind.Sites => ResourceLimit.Limited(MaxSites),
+            AccountResourceKind.Databases => ResourceLimit.Limited(MaxDatabases),
+            AccountResourceKind.SftpLogins => ResourceLimit.Limited(MaxSftpUsers),
+            AccountResourceKind.FtpLogins => ResourceLimit.Limited(MaxFtpUsers),
+            AccountResourceKind.CronEntries => ResourceLimit.Limited(MaxCronEntries),
+            AccountResourceKind.Backups => ResourceLimit.Unlimited(),
+            _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, "No plan limit is defined for this kind."),
+        };
     }
 
     /// <summary>

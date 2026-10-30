@@ -18,9 +18,10 @@ namespace Maran.Modules.Backups.Queries.ListBackups;
 /// is retention, which is exactly the caller that needs to see an artifact no row owns.
 /// </para>
 /// <para>
-/// There is no <c>Where</c> clause on the account here, and deliberately not one: the context's
-/// global query filter supplies it, so this handler could not leak another tenant's rows even if it
-/// were rewritten carelessly (spec §8).
+/// The tenant boundary is not the <c>Where</c> clause on the account here: the context's global
+/// query filter supplies it, so this handler could not leak another tenant's rows even if it were
+/// rewritten carelessly (spec §8). The clause only narrows that scope to the account the caller
+/// asked for, and is ANDed with the filter, so a customer naming another account gets nothing.
 /// </para>
 /// </remarks>
 public sealed class ListBackupsQueryHandler
@@ -41,7 +42,7 @@ public sealed class ListBackupsQueryHandler
     }
 
     /// <summary>Returns the backups the caller may see, newest first.</summary>
-    /// <param name="query">The (parameterless) list request.</param>
+    /// <param name="query">The list request; its optional account narrows the tenant scope.</param>
     /// <param name="cancellationToken">Cancels the read.</param>
     /// <returns>A successful result carrying the backups; this operation never fails.</returns>
     public async Task<Result<IReadOnlyList<BackupDto>>> HandleAsync(
@@ -55,6 +56,7 @@ public sealed class ListBackupsQueryHandler
         // side without saying so.
         var rows = await _dbContext.Backups
             .AsNoTracking()
+            .Where(backup => query.AccountId == null || backup.AccountId == query.AccountId)
             .OrderByDescending(backup => backup.StartedAt)
             .Select(backup => new
             {

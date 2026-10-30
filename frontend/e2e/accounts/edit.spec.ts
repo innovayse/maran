@@ -49,7 +49,7 @@ const openAccount = async (page: Page, account: AccountDetail, refusal?: string)
   await page.route(`**/api/v1/accounts/${account.id}`, async (route) => {
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(current) })
   })
-  await page.route(`**/api/v1/accounts/${account.id}/*`, async (route) => {
+  await page.route(`**/api/v1/accounts/${account.id}/{plan,owner-email}`, async (route) => {
     const body = route.request().postDataJSON() as { planId?: string; ownerEmail?: string }
     const field = route.request().url().endsWith('/plan') ? 'plan' : 'ownerEmail'
     requests[field].push(body)

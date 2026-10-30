@@ -183,6 +183,28 @@ public sealed class DatabasesAuthorizationTests : IAsyncLifetime
         Assert.Equal(["own_shop"], names);
     }
 
+    /// <summary>A customer naming another tenant's account in the filter is listed nothing.</summary>
+    /// <remarks>
+    /// The <c>accountId</c> filter is ANDed with the tenant filter, never in place of it. The customer's
+    /// own row is listed without the filter (the test above), so an endpoint that ignored the parameter
+    /// would answer with that row here, and one that let it replace the tenant scope would answer with
+    /// the stranger's.
+    /// </remarks>
+    [Fact]
+    public async Task A_customer_naming_another_tenants_account_is_listed_no_databases()
+    {
+        await using var factory = CreateFactory();
+        await MigrateAsync(factory);
+        var world = await SeedAsync(factory);
+        using var client = await SignInAsync(factory, "customer");
+
+        var response = await client.GetAsync($"/api/v1/databases?accountId={world.StrangerAccountId}");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        Assert.Equal(0, body.RootElement.GetArrayLength());
+    }
+
     /// <summary>Two tenants both hold a database named shop because the names are prefixed.</summary>
     [Fact]
     public async Task Two_tenants_both_hold_a_database_named_shop_because_the_names_are_prefixed()
@@ -387,7 +409,7 @@ public sealed class DatabasesAuthorizationTests : IAsyncLifetime
         databases.Databases.AddRange(ownDatabase, strangerDatabase);
         await databases.SaveChangesAsync();
 
-        return new SeededWorld(ownDatabase.Id, strangerDatabase.Id);
+        return new SeededWorld(ownDatabase.Id, strangerDatabase.Id, stranger.Id);
     }
 
     /// <summary>Builds one database row named <c>shop</c> under <paramref name="username"/>.</summary>
@@ -450,5 +472,6 @@ public sealed class DatabasesAuthorizationTests : IAsyncLifetime
     /// <summary>The identifiers a seeded world hands to the tests.</summary>
     /// <param name="OwnDatabaseId">The database belonging to the signed-in customer.</param>
     /// <param name="StrangerDatabaseId">The database belonging to the other tenant.</param>
-    private sealed record SeededWorld(Guid OwnDatabaseId, Guid StrangerDatabaseId);
+    /// <param name="StrangerAccountId">The other tenant's account, which a customer may name in a filter.</param>
+    private sealed record SeededWorld(Guid OwnDatabaseId, Guid StrangerDatabaseId, Guid StrangerAccountId);
 }

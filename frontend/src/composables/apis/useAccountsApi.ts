@@ -9,6 +9,7 @@ import type {
   MyAccount,
   Plan,
 } from '../../types/account'
+import type { AccountResourceSummary } from '../../types/accountResourceSummary'
 
 /** The endpoint hosting accounts are listed and created through. */
 const ACCOUNTS_PATH = '/api/v1/accounts'
@@ -134,5 +135,37 @@ export const useAccountsApi = (): AccountsApi => {
     return api.get<MyAccount>(MY_ACCOUNT_PATH, signal)
   }
 
-  return { list, create, listPlans, get, changePlan, changeOwnerEmail, suspend, reactivate, remove, getMine }
+  /**
+   * Reads what one account holds against its plan. Administrator-only on the server.
+   * @param id The account's identity.
+   * @param signal Optional abort signal to cancel the in-flight request.
+   * @returns One row per resource kind this server counts.
+   */
+  const getResourceSummary = (id: string, signal?: AbortSignal): Promise<AccountResourceSummary> => {
+    return api.get<AccountResourceSummary>(`${ACCOUNTS_PATH}/${id}/resource-summary`, signal)
+  }
+
+  /**
+   * Reads what the caller's own account holds against its plan.
+   * @param signal Optional abort signal to cancel the in-flight request.
+   * @returns One row per resource kind this server counts.
+   */
+  const getMyResourceSummary = (signal?: AbortSignal): Promise<AccountResourceSummary> => {
+    return api.get<AccountResourceSummary>(`${MY_ACCOUNT_PATH}/resource-summary`, signal)
+  }
+
+  return {
+    list,
+    create,
+    listPlans,
+    get,
+    changePlan,
+    changeOwnerEmail,
+    suspend,
+    reactivate,
+    remove,
+    getMine,
+    getResourceSummary,
+    getMyResourceSummary,
+  }
 }

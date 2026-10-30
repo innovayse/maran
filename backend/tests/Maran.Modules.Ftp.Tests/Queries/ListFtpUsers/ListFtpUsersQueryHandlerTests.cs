@@ -122,4 +122,46 @@ public sealed class ListFtpUsersQueryHandlerTests
             new FtpUser(Guid.NewGuid(), accountId, name, $"{username}_{name}", context.Clock.UtcNow));
         await context.Database.SaveChangesAsync(CancellationToken.None);
     }
+
+
+    /// <summary>An administrator naming one account is listed only that account's FTPS logins.</summary>
+    /// <remarks>
+    /// Run as an administrator, whom no tenant filter narrows, so the other account's row is visible
+    /// to the context and only the account filter can remove it.
+    /// </remarks>
+    [Fact]
+    public async Task An_administrator_naming_one_account_is_listed_only_that_accounts_logins()
+    {
+        using var context = new FtpTestContext(new TestCurrentUser(), Guid.NewGuid().ToString());
+        await SeedAsync(context, CustomerA, "acme", "files");
+        await SeedAsync(context, CustomerB, "beta", "secrets");
+
+        var result = await context.ListUsersHandler.HandleAsync(
+            new ListFtpUsersQuery(CustomerB), CancellationToken.None);
+
+        var login = Assert.Single(result.Value);
+        Assert.Equal("beta_secrets", login.FullName);
+    }
+
+    /// <summary>A customer naming another account is listed nothing.</summary>
+    /// <remarks>
+    /// The account filter is ANDed with the tenant filter, never in place of it: the customer's own
+    /// login exists and is not returned either, because it is not the account they named.
+    /// </remarks>
+    [Fact]
+    public async Task A_customer_naming_another_account_is_listed_nothing()
+    {
+        var databaseName = Guid.NewGuid().ToString();
+        using var owner = Context(CustomerB, databaseName);
+        await SeedAsync(owner, CustomerB, "beta", "secrets");
+
+        using var context = Context(CustomerA, databaseName);
+        await SeedAsync(context, CustomerA, "acme", "files");
+
+        var result = await context.ListUsersHandler.HandleAsync(
+            new ListFtpUsersQuery(CustomerB), CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Empty(result.Value);
+    }
 }

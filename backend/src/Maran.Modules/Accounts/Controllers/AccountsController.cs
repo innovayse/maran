@@ -6,6 +6,7 @@ using Maran.Modules.Accounts.Commands.ReactivateAccount;
 using Maran.Modules.Accounts.Commands.SuspendAccount;
 using Maran.Modules.Accounts.Common;
 using Maran.Modules.Accounts.Queries.GetAccount;
+using Maran.Modules.Accounts.Queries.GetAccountResourceSummary;
 using Maran.Modules.Accounts.Queries.ListAccounts;
 using Maran.Modules.Accounts.Queries.ListPlans;
 using Maran.Sdk.Contracts;
@@ -63,6 +64,24 @@ public sealed class AccountsController : BaseApiController
     public async Task<IActionResult> GetAsync(Guid id, CancellationToken cancellationToken)
     {
         var result = await _bus.InvokeAsync<Result<AccountDetailDto>>(new GetAccountQuery(id), cancellationToken);
+        return ToActionResult(result);
+    }
+
+    /// <summary>
+    /// Reads what one hosting account owns — sites, databases, logins, cron entries, backups — beside
+    /// its plan's limits. A kind whose module is not composed has no row.
+    /// </summary>
+    /// <param name="id">The account to summarise.</param>
+    /// <param name="cancellationToken">Cancellation token for the request.</param>
+    [HttpGet("{id:guid}/resource-summary")]
+    [ProducesResponseType(typeof(AccountResourceSummaryDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetResourceSummaryAsync(Guid id, CancellationToken cancellationToken)
+    {
+        var result = await _bus.InvokeAsync<Result<AccountResourceSummaryDto>>(
+            new GetAccountResourceSummaryQuery(id), cancellationToken);
         return ToActionResult(result);
     }
 

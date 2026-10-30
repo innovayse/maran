@@ -10,6 +10,10 @@
     "emptyValue": "—",
     "copyPassword": "Скопировать пароль",
     "copied": "Скопировано",
-    "done": "Готово"
+    "done": "Готово",
+    "accountFilter": {
+      "only": "Только {account}",
+      "showAll": "Показать все"
+    }
   }
 }

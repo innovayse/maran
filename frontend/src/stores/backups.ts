@@ -3,6 +3,7 @@ import { ref, type Ref } from 'vue'
 import { useBackupsApi } from '../composables/apis/useBackupsApi'
 import { ApiError } from '../composables/useApi'
 import { restorePartialCounts } from '../utils/restorePartialCounts'
+import type { AccountListFilter } from '../types/accountListFilter'
 import type {
   Backup,
   CreateBackupRequest,
@@ -105,12 +106,13 @@ export const useBackupsStore = defineStore('backups', () => {
 
   /**
    * Loads the backup list, replacing what is held.
+   * @param filter The account the list is narrowed to; empty for every row the caller may see.
    * @returns Resolves once the request has settled, successfully or not.
    */
-  const load = async (): Promise<void> => {
+  const load = async (filter: AccountListFilter): Promise<void> => {
     loading.value = true
     try {
-      backups.value = await api.list()
+      backups.value = await api.list(filter)
       errorMessage.value = null
       isLoaded.value = true
     } catch (error) {

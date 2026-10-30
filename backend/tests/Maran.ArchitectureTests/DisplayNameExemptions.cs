@@ -46,6 +46,27 @@ public static class DisplayNameExemptions
             + "administrator's list and detail screens already use; the bundle already words every "
             + "value to offer those two."),
         new(
+            "Maran.Modules.Accounts.Common.AccountResourceUsageDto",
+            "Kind",
+            DisplayNameExemptionKind.SpaOwnedVocabulary,
+            "accounts.resources.kinds.{member}",
+            "The resource kinds are a closed Sdk enum, one per counting module, and the summary card "
+            + "labels each row with the same words the customer's limits screen already uses."),
+        new(
+            "Maran.Modules.Accounts.Common.AccountResourceUsageDto",
+            "State",
+            DisplayNameExemptionKind.NotAnOperatorFacingName,
+            "frontend/src/types/accountResourceSummary.ts",
+            "Whether a count was taken decides how the row is drawn, a meter or the word "
+            + "'unavailable'; the state itself is never printed as a name."),
+        new(
+            "Maran.Modules.Accounts.Common.AccountResourceUsageDto",
+            "LimitKind",
+            DisplayNameExemptionKind.NotAnOperatorFacingName,
+            "frontend/src/types/accountResourceSummary.ts",
+            "Whether the plan caps the resource decides whether a meter or a bare count is drawn; "
+            + "the value itself is never printed as a name."),
+        new(
             "Maran.Modules.Backups.Common.BackupDto",
             "Status",
             DisplayNameExemptionKind.SpaOwnedVocabulary,

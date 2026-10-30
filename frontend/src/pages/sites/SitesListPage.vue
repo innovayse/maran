@@ -26,9 +26,10 @@
  * the only heading on it — a second one containing the word "sites" would make the page's name
  * ambiguous to a screen reader and to the specs that find it by role and name.
  */
-import { computed, onMounted, ref, type ComputedRef, type Ref } from 'vue'
+import { computed, onMounted, ref, watch, type ComputedRef, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { RouterLink } from 'vue-router'
+import UiActiveFilter from '../../components/ui/UiActiveFilter.vue'
 import UiAlert from '../../components/ui/UiAlert.vue'
 import UiButton from '../../components/ui/UiButton.vue'
 import UiCard from '../../components/ui/UiCard.vue'
@@ -43,6 +44,8 @@ import UiTableCell from '../../components/ui/UiTableCell.vue'
 import UiTableHeaderCell from '../../components/ui/UiTableHeaderCell.vue'
 import UiTableRow from '../../components/ui/UiTableRow.vue'
 import SiteStatusBadge from '../../components/sites/SiteStatusBadge.vue'
+import { useAccountChoice } from '../../composables/useAccountChoice'
+import { useAccountFilter } from '../../composables/useAccountFilter'
 import { useCallerRole } from '../../composables/useCallerRole'
 import { useLocaleStore } from '../../stores/locale'
 import { useSitesStore } from '../../stores/sites'
@@ -53,6 +56,8 @@ const { t } = useI18n()
 const store = useSitesStore()
 const localeStore = useLocaleStore()
 const { isAdmin } = useCallerRole()
+const { load: loadAccounts } = useAccountChoice()
+const { filter: accountListFilter, isActive: isAccountFiltered, text: accountFilterText, clear: clearAccountFilter } = useAccountFilter()
 
 /** The success toast's text, or `null` while none is showing. */
 const notice: Ref<string | null> = ref(null)
@@ -70,11 +75,14 @@ const disabledCount: ComputedRef<number> = computed(() => {
 })
 
 /**
- * Loads the site list once the page is mounted.
+ * Loads the site list, narrowed to the account the URL names when it names one.
  * @returns Resolves when the load has settled, successfully or not.
  */
 const refresh = async (): Promise<void> => {
-  await store.load()
+  // The accounts are read only to name the account the list is narrowed to; an unfiltered list
+  // does not need them and does not ask.
+  const filter = accountListFilter.value
+  await Promise.all(isAccountFiltered.value ? [store.load(filter), loadAccounts()] : [store.load(filter)])
 }
 
 /**
@@ -89,6 +97,9 @@ onMounted(async () => {
   notice.value = takeFlashNotice()
   await refresh()
 })
+
+// "Show all" and a link to another account change only the query, so the page is not remounted.
+watch(() => {return accountListFilter.value.accountId}, refresh)
 </script>
 
 <template>
@@ -105,6 +116,13 @@ onMounted(async () => {
         <UiButton :to="{ name: 'sites-new' }">{{ t('sites.list.createAction') }}</UiButton>
       </template>
     </UiPageHeading>
+
+    <UiActiveFilter
+      v-if="isAccountFiltered"
+      :text="accountFilterText"
+      :clear-label="t('common.accountFilter.showAll')"
+      @clear="clearAccountFilter"
+    />
 
     <UiSpinner v-if="store.loading" :label="t('sites.list.loading')" />
 
