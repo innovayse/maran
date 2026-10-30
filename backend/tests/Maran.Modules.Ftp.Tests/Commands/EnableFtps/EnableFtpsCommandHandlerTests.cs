@@ -1,4 +1,5 @@
 using Maran.Modules.Ftp.Commands.EnableFtps;
+using Maran.Modules.Ftp.Domain.Enums;
 using Maran.Modules.Ftp.Domain.Policies;
 using Maran.Modules.Ftp.Services;
 using Maran.Modules.Ftp.Tests.TestSupport;
@@ -221,6 +222,6 @@ public sealed class EnableFtpsCommandHandlerTests
 
         Assert.True(result.IsSuccess);
         Assert.False(result.Value.ForcedTls);
-        Assert.True(result.Value.Enabled);
+        Assert.Equal(FtpsDesiredState.On, result.Value.DesiredState);
     }
 }

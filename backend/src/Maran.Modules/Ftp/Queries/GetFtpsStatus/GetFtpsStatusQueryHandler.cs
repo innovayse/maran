@@ -1,5 +1,6 @@
 using Maran.Agent.Client.Interfaces;
 using Maran.Modules.Ftp.Common;
+using Maran.Modules.Ftp.Domain.Policies;
 using Maran.Modules.Ftp.Mappers;
 using Maran.Modules.Ftp.Persistence;
 
@@ -12,10 +13,11 @@ namespace Maran.Modules.Ftp.Queries.GetFtpsStatus;
 /// <remarks>
 /// <para>
 /// <b>Every daemon fact is measured, not remembered.</b> The settings row is read for the hostname
-/// and for the panel's intention, and for nothing else: it supplies no running flag, no port range
-/// and no TLS answer. A status assembled from it would agree with the panel by construction, and the
-/// disagreement is the whole content of the screen — a crashed unit under a row saying "enabled",
-/// and mandatory TLS switched off on a daemon that is otherwise healthy.
+/// and for the panel's intention (<see cref="FtpsDesiredStatePolicy"/>), and for nothing else: it
+/// supplies no running flag, no port range and no TLS answer. A status assembled from it would agree
+/// with the panel by construction, and the disagreement is the whole content of the screen — a
+/// crashed unit under a row saying "enabled", and mandatory TLS switched off on a daemon that is
+/// otherwise healthy.
 /// </para>
 /// <para>
 /// <b>A server with no settings row still gets an answer.</b> The hostname passed to the agent is
@@ -61,6 +63,9 @@ public sealed class GetFtpsStatusQueryHandler
             return Result<FtpsStatusDto>.Fail(observed.Error!);
         }
 
-        return Result<FtpsStatusDto>.Ok(FtpsStatusMapper.ToDto(observed.Value, settings));
+        return Result<FtpsStatusDto>.Ok(FtpsStatusMapper.ToDto(
+            observed.Value,
+            settings?.Hostname,
+            FtpsDesiredStatePolicy.Of(settings)));
     }
 }

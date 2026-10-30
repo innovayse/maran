@@ -2,10 +2,50 @@
  * The FTPS daemon's own state, as the administrator's server panel reads it, plus the request that
  * turns the daemon on.
  *
- * Every field here is something the agent MEASURED on the host, except {@link FtpsStatus.enabled},
- * which is what the panel intends. They are side by side on purpose: a screen has to be able to
- * show the two disagreeing rather than pick one and report it as the truth.
+ * Every field here is something the agent MEASURED on the host, except {@link FtpsStatus.desiredState},
+ * which is what the panel intends, and {@link FtpsStatus.agreement}, which is the backend's verdict on
+ * whether the two agree. They are side by side on purpose: a screen has to be able to show the two
+ * disagreeing rather than pick one and report it as the truth.
  */
+
+/**
+ * What the panel wants the daemon to be doing, mirroring the backend's `FtpsDesiredState`.
+ *
+ * Three values, because a server nobody has configured and a server an administrator turned off are
+ * different situations: the first has no settings row at all.
+ */
+export type FtpsDesiredState = 'neverConfigured' | 'on' | 'off'
+
+/**
+ * Whether the panel's intention and the agent's observation agree, and if not in which direction,
+ * mirroring the backend's `FtpsAgreement`. Decided on the server; the SPA explains it and never
+ * re-derives it.
+ * - `consistent` — nothing to explain;
+ * - `runningButOff` — the service runs although the panel has FTPS off (or never configured);
+ * - `onButNotRunning` — the panel wants it on and the service is not running;
+ * - `runningButNotAnswering` — the service runs but its control port gave no greeting on the host.
+ */
+export type FtpsAgreement = 'consistent' | 'runningButOff' | 'onButNotRunning' | 'runningButNotAnswering'
+
+/**
+ * Why an FTPS server request failed, as the store holds it.
+ *
+ * Two kinds, because a failure either carries the backend's own already-localized sentence or it
+ * carries none — the request never reached the panel, or the answer had no text. The second is still
+ * a failure the operator must be told about, so it is a state of its own rather than a missing
+ * message: the screen words it with its own generic sentence.
+ */
+export type FtpsServerFailure =
+  | {
+      /** The panel answered with a problem; `message` is its localized text, shown verbatim. */
+      kind: 'server'
+      /** The backend's own sentence. */
+      message: string
+    }
+  | {
+      /** The request failed without a sentence from the panel. */
+      kind: 'unexpected'
+    }
 
 /**
  * What `GET /api/v1/ftps-server` answers, mirroring the backend's `FtpsStatusDto` field-for-field.
@@ -24,9 +64,14 @@ export interface FtpsStatus {
    * gets a certificate-name mismatch they cannot tell from an attack.
    */
   hostname: string | null
-  /** Whether the panel currently wants the daemon running — the intention, not a measurement. */
-  enabled: boolean
-  /** The service manager reports the FTPS unit active. */
+  /** What the panel wants the daemon to be doing — the intention, not a measurement. */
+  desiredState: FtpsDesiredState
+  /** Whether {@link desiredState} and the observed facts agree, as the backend decided it. */
+  agreement: FtpsAgreement
+  /**
+   * The service manager reports the FTPS unit active. Not "running" on its own: the screen says
+   * running only when {@link controlPortAnswered} is true as well.
+   */
   running: boolean
   /**
    * A TCP connect to the control port, made ON THE HOST, returned a `220` greeting.

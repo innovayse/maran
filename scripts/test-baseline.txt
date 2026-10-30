@@ -1,6 +1,12 @@
 # Committed per-target test baseline. Recorded by 'maran test --accept'; commit the diff.
 # stack<TAB>target<TAB>passed<TAB>failed<TAB>ignored
 #
+# RE-MEASURED 2026-10-30 (issue #215, the FTPS card tells one story and every switch answers): edited by hand.
+# Modules.Ftp.Tests 133->149 (mapper's 12-row desired x observed table + 1, disable handler +3), 0 failed;
+# ArchitectureTests 91 and Sdk.Tests 222 unchanged. rust ftps_on_a_real_host 15->16 IGNORED (the stand-in's
+# dormant-unit default and `--` handling; polygon only, NOT executed here — the images were not rebuilt).
+# Host.IntegrationTests ran filtered to FullyQualifiedName~Ftp (59/0); its row is left to CI.
+# spa: NEW row file-transfer/ftps-server-state 11. Full suite at E2E_PORT=5199: 694 passed / 0 failed / 3 skipped.
 # RE-MEASURED 2026-10-30 (issue #214, own-certificate refusals name their field and keep the text): edited by hand.
 # Modules.Ssl.Tests 209->221, Sdk.Tests 214->222 (nine new codes, CertificateMaterialInvalid retired),
 # Agent.Client.Tests 371->375, Host.Tests 391->392 (pre-existing drift, not this change's), ArchitectureTests 91
@@ -314,7 +320,7 @@ rust	binary_paths_on_a_real_host [tests/binary_paths_on_a_real_host.rs]	0	0	5
 rust	cron_on_a_real_host [tests/cron_on_a_real_host.rs]	0	0	6
 rust	databases_on_a_real_host [tests/databases_on_a_real_host.rs]	0	0	8
 rust	firewall_on_a_real_host [tests/firewall_on_a_real_host.rs]	0	0	10
-rust	ftps_on_a_real_host [tests/ftps_on_a_real_host.rs]	0	0	15
+rust	ftps_on_a_real_host [tests/ftps_on_a_real_host.rs]	0	0	16
 rust	handshake [tests/handshake.rs]	9	0	0
 rust	monitor_on_a_real_host [tests/monitor_on_a_real_host.rs]	0	0	8
 rust	php_install_rpc [tests/php_install_rpc.rs]	7	0	0
@@ -345,7 +351,7 @@ backend	Maran.Modules.Identity.Tests.dll	306	0	0
 backend	Maran.Modules.Sftp.Tests.dll	84	0	0
 backend	Maran.Modules.Notifications.Tests.dll	52	0	0
 backend	Maran.Modules.Tasks.Tests.dll	76	0	0
-backend	Maran.Modules.Ftp.Tests.dll	133	0	0
+backend	Maran.Modules.Ftp.Tests.dll	149	0	0
 backend	Maran.Modules.Monitoring.Tests.dll	70	0	0
 backend	Maran.Modules.Backups.Tests.dll	210	0	0
 backend	Maran.Modules.Licensing.Tests.dll	51	0	0
@@ -397,6 +403,7 @@ spa	databases/grant-repair.spec.ts	11	0	0
 spa	databases/list.spec.ts	8	0	0
 spa	file-transfer/create.spec.ts	8	0	0
 spa	file-transfer/credentials.spec.ts	17	0	0
+spa	file-transfer/ftps-server-state.spec.ts	11	0	0
 spa	file-transfer/ftps-server.spec.ts	10	0	0
 spa	file-transfer/list.spec.ts	10	0	0
 spa	file-transfer/protocol.spec.ts	4	0	0

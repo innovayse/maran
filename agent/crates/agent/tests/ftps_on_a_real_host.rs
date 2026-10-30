@@ -177,6 +177,15 @@ const PAM_AUTH_ERR: i32 = 7;
 /// information at all, so no password would have worked. The broken answer.
 const PAM_AUTHINFO_UNAVAIL: i32 = 9;
 
+/// Where the polygon's `systemctl` stand-in keeps one file per unit.
+///
+/// It MUST match `STATE_DIRECTORY` in `docker/polygon/stand-ins/systemctl-stand-in.sh`.
+const UNIT_STATE_DIRECTORY: &str = "/run/polygon-units";
+
+/// A unit name the stand-in has no special case for and no test writes state
+/// for: the inverse control that its ordinary default is still `active`.
+const ORDINARY_UNIT: &str = "polygon-ordinary-control.service";
+
 /// The passive data range the suite enables with.
 const PASSIVE_MIN: u32 = 30000;
 
@@ -1723,4 +1732,106 @@ fn the_vsftpd_configuration_this_product_writes_bounds_an_idle_ftps_session_at_t
     );
 
     drop(account);
+}
+
+/// Asks the polygon's service manager one question about one unit, ending the
+/// options with `--` exactly as the agent does.
+///
+/// Returns the first line of stdout and the exit status.
+fn ask_the_service_manager(verb: &str, unit: &str) -> (String, i32) {
+    let answer = Command::new(PolygonVsftpd::distro().service_manager())
+        .args([verb, "--", unit])
+        .output()
+        .expect("the polygon image installs a service manager");
+    let first_line = String::from_utf8_lossy(&answer.stdout)
+        .lines()
+        .next()
+        .unwrap_or_default()
+        .to_owned();
+    (first_line, answer.status.code().unwrap_or(-1))
+}
+
+/// Removes every state file the stand-in may hold for `unit`, so its defaults
+/// answer.
+fn forget_unit_state(unit: &str) {
+    for suffix in ["", ".enabled"] {
+        let path = std::path::Path::new(UNIT_STATE_DIRECTORY).join(format!("{unit}{suffix}"));
+        match std::fs::remove_file(&path) {
+            Ok(()) => {}
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => panic!("could not clear {}: {error}", path.display()),
+        }
+    }
+}
+
+#[test]
+#[ignore = "asks the polygon's systemctl stand-in about the FTPS unit: polygon only"]
+fn an_ftps_unit_nobody_started_reads_inactive_and_a_disable_reaches_the_unit_after_the_separator() {
+    // ISSUE #215. The stand-in reported every unit it had no file for as
+    // `active`, the panel's own never-started `maran-ftps.service` included, so
+    // the FTPS card showed "Running" over a daemon nobody had started. And an
+    // older copy read the `--` the agent puts before the unit as the unit name,
+    // so `disable --now -- maran-ftps.service` switched off a unit called `--`.
+    PolygonVsftpd::require_polygon();
+    let unit = AgentPaths::FTPS_UNIT;
+    forget_unit_state(unit);
+    forget_unit_state("--");
+    forget_unit_state(ORDINARY_UNIT);
+
+    // A real host holds the unit inactive and disabled until the panel drives it.
+    assert_eq!(
+        ask_the_service_manager("is-active", unit),
+        ("inactive".to_owned(), 3),
+        "a panel unit the installer never starts must read inactive"
+    );
+    assert_eq!(
+        ask_the_service_manager("is-enabled", unit),
+        ("disabled".to_owned(), 1),
+        "and must not be enabled at boot"
+    );
+
+    // THE INVERSE CONTROL: the special case is narrow. Any other unit with no
+    // state still reads as the installer leaves a host's units — active.
+    assert_eq!(
+        ask_the_service_manager("is-active", ORDINARY_UNIT),
+        ("active".to_owned(), 0),
+        "a unit outside the panel's dormant ones must keep the ordinary default"
+    );
+
+    // The agent's own argv shape, through the separator, in both directions.
+    let enable = Command::new(PolygonVsftpd::distro().service_manager())
+        .args(["enable", "--now", "--", unit])
+        .status()
+        .expect("the polygon image installs a service manager");
+    assert!(
+        enable.success(),
+        "the stand-in must accept the agent's enable"
+    );
+    assert_eq!(
+        ask_the_service_manager("is-active", unit),
+        ("active".to_owned(), 0)
+    );
+
+    let disable = Command::new(PolygonVsftpd::distro().service_manager())
+        .args(["disable", "--now", "--", unit])
+        .status()
+        .expect("the polygon image installs a service manager");
+    assert!(
+        disable.success(),
+        "the stand-in must accept the agent's disable"
+    );
+    assert_eq!(
+        ask_the_service_manager("is-active", unit),
+        ("inactive".to_owned(), 3),
+        "the disable must reach the unit named AFTER the separator"
+    );
+    assert!(
+        !std::path::Path::new(UNIT_STATE_DIRECTORY)
+            .join("--")
+            .exists(),
+        "and must not record state for a unit called `--`"
+    );
+
+    forget_unit_state(unit);
+    forget_unit_state(ORDINARY_UNIT);
 }

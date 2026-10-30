@@ -34,7 +34,8 @@ export const stubbedResetFtpPassword = 'R3set-FTPS-P4ss-Once'
  */
 export const runningFtpsStatus: FtpsStatus = {
   hostname: 'panel.example.net',
-  enabled: true,
+  desiredState: 'on',
+  agreement: 'consistent',
   running: true,
   controlPortAnswered: true,
   forcedTls: true,
@@ -48,14 +49,15 @@ export const runningFtpsStatus: FtpsStatus = {
 }
 
 /**
- * A daemon that ships installed and turned off — the normal state of a fresh server, not an error.
+ * A daemon an administrator turned off, which stopped — a setting, not an error.
  *
  * It reports no live configuration, so the passive range is zero on both ends: that is what the
  * agent answers when there is no configuration to read a range out of.
  */
 export const disabledFtpsStatus: FtpsStatus = {
   hostname: null,
-  enabled: false,
+  desiredState: 'off',
+  agreement: 'consistent',
   running: false,
   controlPortAnswered: false,
   forcedTls: false,
@@ -66,6 +68,15 @@ export const disabledFtpsStatus: FtpsStatus = {
   passivePortMin: 0,
   passivePortMax: 0,
   ipv4Only: false,
+}
+
+/**
+ * A fresh server: FTPS ships installed, has never been turned on, and nothing is running. Distinct
+ * from {@link disabledFtpsStatus} — nobody chose "off" here, so the screen must not say they did.
+ */
+export const neverConfiguredFtpsStatus: FtpsStatus = {
+  ...disabledFtpsStatus,
+  desiredState: 'neverConfigured',
 }
 
 /**
@@ -225,5 +236,53 @@ export const stubFtpsServerForbidden = async (page: Page): Promise<void> => {
       contentType: 'application/problem+json',
       body: JSON.stringify({ code: 'Forbidden', title: 'Forbidden', detail: 'Administrators only.' }),
     })
+  })
+}
+
+/**
+ * Answers the enable and disable switches with the given status, leaving the status read as it was.
+ *
+ * Installed AFTER {@link stubFtpsServer}: Playwright gives priority to the most recently registered
+ * route, so this narrower answer replaces the one that echoed the loaded status.
+ * @param page The Playwright page whose network the route is installed on.
+ * @param status The state the panel measured after the switch.
+ * @returns Resolves once the route is installed.
+ */
+export const stubFtpsServerSwitch = async (page: Page, status: FtpsStatus): Promise<void> => {
+  await page.route(FTPS_SERVER_SWITCH_PATTERN, async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(status),
+    })
+  })
+}
+
+/**
+ * Refuses the enable and disable switches with an RFC 7807 problem carrying the given sentence, so a
+ * spec can assert the screen renders the backend's own already-localized text where the switch is.
+ * @param page The Playwright page whose network the route is installed on.
+ * @param detail The backend-localized message the stub reports in `detail`.
+ * @returns Resolves once the route is installed.
+ */
+export const stubFtpsServerSwitchProblem = async (page: Page, detail: string): Promise<void> => {
+  await page.route(FTPS_SERVER_SWITCH_PATTERN, async (route) => {
+    await route.fulfill({
+      status: 500,
+      contentType: 'application/problem+json',
+      body: JSON.stringify({ code: 'AgentSystemFailure', title: 'Server error', detail }),
+    })
+  })
+}
+
+/**
+ * Makes the enable and disable switches fail without any answer — a network failure — which carries
+ * no sentence from the panel at all.
+ * @param page The Playwright page whose network the route is installed on.
+ * @returns Resolves once the route is installed.
+ */
+export const stubFtpsServerSwitchUnreachable = async (page: Page): Promise<void> => {
+  await page.route(FTPS_SERVER_SWITCH_PATTERN, async (route) => {
+    await route.abort('connectionfailed')
   })
 }
