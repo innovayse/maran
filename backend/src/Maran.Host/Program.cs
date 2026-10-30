@@ -30,6 +30,16 @@ public sealed class Program
     /// <returns>The process exit status: zero for a served host, the verb's own status for a CLI run.</returns>
     public static int Main(string[] args)
     {
+        // Nothing the host starts — a timer, a pool's pruning loop, a hosted service — inherits the
+        // execution context of whoever invoked Main. A real process has nothing in it worth inheriting.
+        // A test host does: WebApplicationFactory runs Main on a thread whose context carries the
+        // listener that holds the built host, so every timer created during startup that outlived the
+        // host kept it alive — Npgsql's pool-pruning timers in a static registry, and the rate
+        // limiter's (see UsePanelRateLimiting). Measured (issue #124): the integration suite kept one
+        // whole host per finished test and was killed at a 6 GB cap five minutes in; with this line,
+        // UsePanelRateLimiting and the test fixture's reclaim it completes at a 2.7 GB peak.
+        using var detachedFromCaller = ExecutionContext.SuppressFlow();
+
         var cli = CliInvocationParser.Parse(args);
         var builder = WebApplication.CreateBuilder(args);
         var connectionString = ResolveConnectionString(builder.Configuration);
@@ -93,7 +103,7 @@ public sealed class Program
         app.UseExceptionHandling();
         app.UseCsrfHeader();
         app.UsePanelAuthentication();
-        app.UseRateLimiter();
+        app.UsePanelRateLimiting();
 
         app.MapPanelHealth();
         app.MapModuleCatalogue();

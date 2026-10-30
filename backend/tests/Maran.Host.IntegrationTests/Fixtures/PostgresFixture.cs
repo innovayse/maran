@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using Npgsql;
 using Testcontainers.PostgreSql;
 using Xunit.Abstractions;
@@ -31,6 +32,15 @@ namespace Maran.Host.IntegrationTests.Fixtures;
 /// </remarks>
 public sealed class PostgresFixture : IAsyncLifetime
 {
+    /// <summary>glibc's <c>M_MMAP_THRESHOLD</c> parameter number for <c>mallopt</c> (malloc.h).</summary>
+    private const int MallocMmapThreshold = -3;
+
+    /// <summary>
+    /// The size from which glibc serves an allocation with its own mapping: its documented default,
+    /// pinned so that it can no longer rise (see <see cref="PinNativeAllocatorThreshold"/>).
+    /// </summary>
+    private const int MmapThresholdBytes = 128 * 1024;
+
     /// <summary>
     /// The server every test in this assembly runs against.
     /// </summary>
@@ -55,13 +65,15 @@ public sealed class PostgresFixture : IAsyncLifetime
     /// <summary>The server this run was asked to measure.</summary>
     public PostgresTestTarget Target { get; }
 
-    /// <summary>The started server's version; <see langword="null"/> until <see cref="InitializeAsync"/> has run.</summary>
+    /// <summary>The started server's version; <see langword="null"/> until <see cref="InitializeAsync"/> has
+    /// run.</summary>
     public PostgresServerVersion? ServerVersion { get; private set; }
 
     /// <summary>Reads the target from the environment and builds, without starting, its container.</summary>
     /// <param name="diagnostics">The sink xUnit injects for messages that belong in the run's log.</param>
     public PostgresFixture(IMessageSink diagnostics)
     {
+        PinNativeAllocatorThreshold();
         _diagnostics = diagnostics;
         Target = PostgresTestTarget.FromEnvironment();
 
@@ -116,6 +128,8 @@ public sealed class PostgresFixture : IAsyncLifetime
         // it is returned, never under its owner.
         NpgsqlConnection.ClearAllPools();
 
+        ReclaimPreviousHosts();
+
         var name = $"maran_test_{Interlocked.Increment(ref _issued)}_{Guid.NewGuid():N}";
 
         await using (var admin = new NpgsqlConnection(_container.GetConnectionString()))
@@ -130,4 +144,60 @@ public sealed class PostgresFixture : IAsyncLifetime
 
         return new NpgsqlConnectionStringBuilder(_container.GetConnectionString()) { Database = name }.ConnectionString;
     }
+
+    /// <summary>
+    /// Runs the finalizers of what the previous tests' hosts left behind, before the next test boots
+    /// another host (issue #124).
+    /// </summary>
+    /// <remarks>
+    /// Every host compiles Wolverine's message handlers at run time with Roslyn
+    /// (<c>TypeLoadMode.Auto</c> in <c>MessagingExtensions</c>), and Roslyn reads the image of
+    /// every assembly a compilation references into NATIVE memory that is released only when the
+    /// reader is finalized. Measured in a dump of the running suite: 310 such blocks alive at 2.5
+    /// GB of resident memory, and of those sampled with <c>gcroot</c> two in three had no root at
+    /// all — garbage that the collector had no reason to look at, because native memory puts no
+    /// pressure on the managed heap and the managed heap itself stayed under 200 MB. A production
+    /// panel compiles once per boot; this assembly boots a host per test, so it pays for the
+    /// collection that the runtime would otherwise never schedule. Two passes, because the first
+    /// collection only queues the finalizers and the second reclaims what they released.
+    /// </remarks>
+    private static void ReclaimPreviousHosts()
+    {
+        GC.Collect();
+        GC.WaitForPendingFinalizers();
+        GC.Collect();
+    }
+
+    /// <summary>
+    /// Pins glibc's mmap threshold for this test process, so a large native block freed by
+    /// <see cref="ReclaimPreviousHosts"/> goes back to the operating system instead of staying in the
+    /// allocator's heaps (issue #124).
+    /// </summary>
+    /// <remarks>
+    /// glibc serves a block above the threshold with its own mapping and unmaps it on free — but the
+    /// first time such a block is freed it RAISES the threshold to that block's size, up to 32 MB, so
+    /// every later image of that size lands in a 64 MB arena heap instead, and a heap whose blocks are
+    /// freed out of order is not returned. The Roslyn images above are a few hundred KB to several MB
+    /// each, exactly that range. Measured on the same suite and build, with only this setting changed
+    /// (through the equivalent <c>MALLOC_MMAP_THRESHOLD_</c> environment variable): 4.9 GB resident
+    /// after 146 s without it, 1.5 GB with it. Setting the threshold explicitly is what switches the
+    /// dynamic adjustment off. Linux only, which is where this assembly's containers run. The return
+    /// value is ignored on purpose: a refusal changes no test's outcome, only the process's size, and
+    /// that is observed where it matters — the CI job prints it every 30 seconds.
+    /// </remarks>
+    private static void PinNativeAllocatorThreshold()
+    {
+        if (OperatingSystem.IsLinux())
+        {
+            _ = Mallopt(MallocMmapThreshold, MmapThresholdBytes);
+        }
+    }
+
+    /// <summary>glibc's <c>mallopt(3)</c>: sets one tunable of the process's native allocator.</summary>
+    /// <param name="parameter">The tunable, e.g. <see cref="MallocMmapThreshold"/>.</param>
+    /// <param name="value">Its new value.</param>
+    /// <returns>1 on success, 0 on error.</returns>
+    [DllImport("libc", EntryPoint = "mallopt")]
+    [DefaultDllImportSearchPaths(DllImportSearchPath.SafeDirectories)]
+    private static extern int Mallopt(int parameter, int value);
 }
