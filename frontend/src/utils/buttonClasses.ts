@@ -8,7 +8,7 @@ import type { ButtonSize, ButtonVariant } from '../components/ui/UiButton.vue'
  * one of the three parts and never restated by a caller with an important modifier.
  */
 const BASE_CLASSES =
-  'inline-flex items-center border text-center transition-colors focus-visible:outline-none disabled:cursor-not-allowed disabled:border-border-subtle disabled:bg-surface-2 disabled:text-text-muted disabled:shadow-none'
+  'inline-flex items-center border text-center transition-button focus-visible:outline-none disabled:cursor-not-allowed disabled:border-border-subtle disabled:bg-surface-2 disabled:text-text-muted disabled:shadow-none'
 
 /**
  * The trailing-arrow nudge: a forward arrow inside a button (`UiIcon name="arrowRight"`, which
@@ -19,6 +19,16 @@ const BASE_CLASSES =
  */
 const ARROW_NUDGE_CLASSES =
   '[&_.lucide-arrow-right]:transition-transform [&_.lucide-arrow-right]:duration-200 motion-safe:not-disabled:hover:[&_.lucide-arrow-right]:translate-x-0.5'
+
+/**
+ * The spring: under a fine pointer the button grows to 105% on hover with an elastic overshoot
+ * (`transition-button`) and dips to 95% while pressed, then springs back. Touch screens get no
+ * hover growth (`pointer-fine`), a reader who asked for reduced motion gets none of it
+ * (`motion-safe`), and a disabled button stays still. A `field` button is a form control, not an
+ * action, so it does not spring.
+ */
+const SPRING_CLASSES =
+  'motion-safe:pointer-fine:not-disabled:hover:scale-105 motion-safe:not-disabled:active:scale-95'
 
 /**
  * Shape, focus ring, fill, text colour and hover of one variant. Hover is written
@@ -104,5 +114,6 @@ const sizeClasses = (variant: ButtonVariant, size: ButtonSize): string => {
  */
 export const buttonClasses = (variant: ButtonVariant, size: ButtonSize): string => {
   const weight = size === 'tab' ? 'font-semibold' : variantWeight(variant)
-  return `${BASE_CLASSES} ${ARROW_NUDGE_CLASSES} ${variantClasses(variant)} ${sizeClasses(variant, size)} ${weight}`
+  const spring = variant === 'field' ? '' : ` ${SPRING_CLASSES}`
+  return `${BASE_CLASSES} ${ARROW_NUDGE_CLASSES}${spring} ${variantClasses(variant)} ${sizeClasses(variant, size)} ${weight}`
 }

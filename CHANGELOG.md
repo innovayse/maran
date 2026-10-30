@@ -5,7 +5,7 @@ than a strict category list: what changed and why it matters to somebody running
 
 ## Unreleased
 
-**Sign-in screens and forms look and behave better.** The signed-out screens put the form on a glass card over the panel's glow, with full-height fields and button. Field labels are small capitals across the panel, and corners are a little rounder. An empty sign-in or reset request is caught on the spot, the error clears as soon as you type, and an old invitation message no longer follows you to the sign-in page. A list with nothing to choose from now says so instead of opening empty.
+**Sign-in screens and forms look and behave better.** The signed-out screens put the form on a glass card over the panel's glow, with full-height fields and button. Field labels are small capitals across the panel, and corners are a little rounder. An empty sign-in or reset request is caught on the spot, the error clears as soon as you type, and an old invitation message no longer follows you to the sign-in page. A list with nothing to choose from now says so instead of opening empty. A focused field shows one accent edge with a soft halo, buttons spring gently under the pointer, and the credit line links to Innovayse.
 
 **Clearer feedback and wording.** Creating an account, site, plan, database, login, scheduled task or firewall rule confirms with a message. A failed background task explains itself in your language instead of showing an internal code. Sizes read as MiB, GiB and TiB. Counts use the right plural in every language. Scheduled tasks read as sentences ("Every day at 03:05"). Confirmation buttons name what they do ("Delete site"), and they never start focused, so a stray Enter cannot delete anything.
 

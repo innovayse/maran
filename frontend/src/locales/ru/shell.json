@@ -55,7 +55,7 @@
         "twoFactor": "Двухфакторная проверка",
         "profile": "Профиль и защита"
       },
-      "authCredit": "© {year} Maran · разработано Innovayse LLC",
+      "authCredit": "© {year} Maran · разработано {company}",
       "closeNavigation": "Закрыть навигацию",
       "tabBarLabel": "Разделы",
       "tabs": {
@@ -68,7 +68,9 @@
       "switchTheme": {
         "dark": "Включить тёмную",
         "light": "Включить светлую"
-      }
+      },
+      "company": "Innovayse LLC",
+      "companyUrl": "https://innovayse.com"
     },
     "locale": {
       "switcherLabel": "Язык интерфейса",
@@ -77,6 +79,9 @@
         "ru": "Русский",
         "hy": "Հայերեն"
       }
+    },
+    "link": {
+      "opensInNewTab": "откроется в новой вкладке"
     }
   }
 }

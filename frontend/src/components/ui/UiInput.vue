@@ -170,8 +170,8 @@ const onInput = (event: Event): void => {
         class="ui-input-field min-h-control w-full rounded-control border bg-surface-2 py-1.5 text-base text-text-primary transition-colors placeholder:text-text-muted focus-visible:outline-none disabled:cursor-not-allowed disabled:text-text-muted disabled:opacity-100 disabled:[-webkit-text-fill-color:var(--t3)] sm:text-sm"
         :class="[
           hasError
-            ? 'border-danger focus-visible:shadow-focus-danger'
-            : 'border-border-control enabled:hover:border-text-muted focus-visible:border-accent focus-visible:shadow-focus disabled:border-border-subtle',
+            ? 'border-danger focus-visible:shadow-field-focus-danger'
+            : 'border-border-control enabled:hover:border-text-muted focus-visible:border-accent focus-visible:shadow-field-focus disabled:border-border-subtle',
           $slots.trailing ? 'pr-[calc(var(--d-inset)*2+0.5rem)]' : 'pr-3',
           icon ? 'pl-9' : 'pl-3',
           mono ? 'font-mono' : '',

@@ -88,8 +88,8 @@ const onInput = (event: Event): void => {
       class="resize-y rounded-control border bg-surface-2 px-3 py-1.5 text-base leading-normal text-text-primary transition-colors placeholder:text-text-muted focus-visible:outline-none sm:text-sm"
       :class="
         hasError
-          ? 'border-danger focus-visible:shadow-focus-danger'
-          : 'border-border-control hover:border-text-muted focus-visible:border-accent focus-visible:shadow-focus'
+          ? 'border-danger focus-visible:shadow-field-focus-danger'
+          : 'border-border-control hover:border-text-muted focus-visible:border-accent focus-visible:shadow-field-focus'
       "
       @input="onInput"
     />

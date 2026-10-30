@@ -287,6 +287,14 @@ html[data-theme='light'] {
    */
   --shadow-focus: 0 0 0 2px var(--bg), 0 0 0 4px var(--ac);
   --shadow-focus-danger: 0 0 0 2px var(--bg), 0 0 0 4px var(--rd);
+  /*
+   * A text field's focus. The field already draws its own border, so focus turns that border
+   * into the solid accent (the 3:1 indicator: 4.81:1 dark, 3.89:1 light) and adds a soft halo
+   * outside it. The halo is decoration only; the solid border carries the contrast. This keeps
+   * a focused field to one quiet edge instead of border, gap and ring stacked together.
+   */
+  --shadow-field-focus: 0 0 0 3px color-mix(in oklab, var(--ac) 25%, transparent);
+  --shadow-field-focus-danger: 0 0 0 3px color-mix(in oklab, var(--rd) 25%, transparent);
 }
 
 /*
@@ -347,4 +355,17 @@ html[data-theme='light'] {
   ::-webkit-scrollbar-track {
     background: transparent;
   }
+}
+
+/*
+ * The button's motion: colours fade over 300ms, and the scale springs with an elastic overshoot
+ * over 700ms (the `linear()` curve below overshoots and settles like a spring, with no animation
+ * library). Only the scale uses the spring; a colour that overshot would flash.
+ */
+@utility transition-button {
+  transition-property: color, background-color, border-color, box-shadow, scale;
+  transition-duration: 300ms, 300ms, 300ms, 300ms, 700ms;
+  transition-timing-function:
+    ease-out, ease-out, ease-out, ease-out,
+    linear(0, 0.5 7%, 1.07 15%, 1.13 19%, 1.12 22%, 1.04 30%, 0.98 38%, 0.97 43%, 1 55%, 1.01 65%, 1);
 }

@@ -55,7 +55,7 @@
         "twoFactor": "Երկքայլ ստուգում",
         "profile": "Պրոֆիլ և անվտանգություն"
       },
-      "authCredit": "© {year} Maran · ստեղծել է Innovayse LLC-ն",
+      "authCredit": "© {year} Maran · ստեղծել է {company}-ն",
       "closeNavigation": "Փակել նավիգացիան",
       "tabBarLabel": "Բաժիններ",
       "tabs": {
@@ -68,7 +68,9 @@
       "switchTheme": {
         "dark": "Անցնել մուգին",
         "light": "Անցնել բացին"
-      }
+      },
+      "company": "Innovayse LLC",
+      "companyUrl": "https://innovayse.com"
     },
     "locale": {
       "switcherLabel": "Ինտերֆեյսի լեզուն",
@@ -77,6 +79,9 @@
         "ru": "Русский",
         "hy": "Հայերեն"
       }
+    },
+    "link": {
+      "opensInNewTab": "կբացվի նոր ներդիրում"
     }
   }
 }

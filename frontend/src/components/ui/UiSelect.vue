@@ -418,8 +418,8 @@ watch(
         class="flex min-h-control w-full items-center justify-between gap-2 rounded-control border bg-surface-2 px-3 py-1.5 text-left text-base text-text-primary transition-colors focus-visible:outline-none disabled:cursor-not-allowed disabled:text-text-muted disabled:opacity-65 sm:text-sm"
         :class="
           hasError
-            ? 'border-danger focus-visible:shadow-focus-danger'
-            : 'border-border-control enabled:hover:border-text-muted focus-visible:border-accent focus-visible:shadow-focus'
+            ? 'border-danger focus-visible:shadow-field-focus-danger'
+            : 'border-border-control enabled:hover:border-text-muted focus-visible:border-accent focus-visible:shadow-field-focus'
         "
         @click="onTriggerClick"
         @keydown.enter="onConfirmKey"

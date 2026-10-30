@@ -48,6 +48,7 @@
  * collapsing address bar does not leave the form under the fold. Long Armenian words wrap
  * (`wrap-anywhere`) rather than widen the page.
  */
+import UiExternalLink from '../components/ui/UiExternalLink.vue'
 import ShellLocaleSwitcher from '../components/shell/ShellLocaleSwitcher.vue'
 import { useI18n } from 'vue-i18n'
 import UiBrandMark from '../components/ui/UiBrandMark.vue'
@@ -148,9 +149,17 @@ const year: number = new Date().getFullYear()
             <RouterView />
           </div>
 
-          <p class="mt-6 text-center text-xs text-text-muted wrap-anywhere">
-            {{ t('app.shell.authCredit', { year }) }}
-          </p>
+          <i18n-t
+            keypath="app.shell.authCredit"
+            tag="p"
+            scope="global"
+            class="mt-6 text-center text-xs text-text-muted wrap-anywhere"
+          >
+            <template #year>{{ year }}</template>
+            <template #company>
+              <UiExternalLink :href="t('app.shell.companyUrl')">{{ t('app.shell.company') }}</UiExternalLink>
+            </template>
+          </i18n-t>
         </div>
       </main>
     </div>
