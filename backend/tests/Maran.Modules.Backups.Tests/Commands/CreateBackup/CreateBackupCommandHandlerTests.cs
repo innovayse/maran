@@ -394,7 +394,7 @@ public sealed class CreateBackupCommandHandlerTests
             Audit = new RecordingAuditWriter();
             Tasks = new RecordingTaskRecorder();
             Accounts = new StubAccountDirectory(
-                new AccountSnapshot(ownedAccountId, Username, 1, 1, 1, 1, 1, 1024));
+                new AccountSnapshot(ownedAccountId, Username, 1, 1, 1, 1, 1, 1024, AccountState.Active));
 
             var dbContext = BackupsTestContext.CreateSeeded(_currentUser, _database);
 

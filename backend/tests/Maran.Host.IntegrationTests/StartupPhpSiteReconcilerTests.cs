@@ -120,8 +120,8 @@ public sealed class StartupPhpSiteReconcilerTests : IAsyncLifetime
         });
         services.AddSingleton(agent);
         services.AddSingleton<IAccountDirectory>(new FixedAccountDirectory(
-            new AccountSnapshot(FirstAccount, "alpha", 5, 5, 5, 5, 3, 1024),
-            new AccountSnapshot(SecondAccount, "beta", 5, 5, 5, 5, 3, 1024)));
+            new AccountSnapshot(FirstAccount, "alpha", 5, 5, 5, 5, 3, 1024, AccountState.Active),
+            new AccountSnapshot(SecondAccount, "beta", 5, 5, 5, 5, 3, 1024, AccountState.Active)));
         return services.BuildServiceProvider();
     }
 

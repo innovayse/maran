@@ -29,6 +29,11 @@
  * which is also the only place the final backup taken before the cascade is
  * described.
  *
+ * **The plan and the owner's address are edited in place** ({@link AccountPlanDialog},
+ * {@link AccountOwnerEmailDialog}, #216). Both are refused by the panel when they cannot be applied
+ * — a plan the account's disk usage does not fit, an address another login holds — and the dialog
+ * shows that sentence; this page only says, on success, what changed.
+ *
  * **The owner's invitation lives in {@link AccountInvitationCard}**, below the details (#78): where
  * it stands, a one-time link to hand over by hand (the way in on a panel that cannot send mail),
  * and "Resend invitation" as the recovery path for a login the owner never reached. All of it is
@@ -53,6 +58,8 @@ import UiSpinner from '../../components/ui/UiSpinner.vue'
 import UiToast from '../../components/ui/UiToast.vue'
 import AccountDeleteDialog from '../../components/accounts/AccountDeleteDialog.vue'
 import AccountInvitationCard from '../../components/accounts/AccountInvitationCard.vue'
+import AccountOwnerEmailDialog from '../../components/accounts/AccountOwnerEmailDialog.vue'
+import AccountPlanDialog from '../../components/accounts/AccountPlanDialog.vue'
 import { useAccountsStore } from '../../stores/accounts'
 import { useLocaleStore } from '../../stores/locale'
 import { formatDate } from '../../utils/formatDate'
@@ -67,6 +74,9 @@ const props = defineProps<{
 /** The lifecycle action awaiting a yes/no answer, or `null` when none is. */
 type PendingAction = 'suspend' | 'reactivate' | null
 
+/** The edit dialog that is open, or `null` when none is. */
+type OpenEdit = 'plan' | 'ownerEmail' | null
+
 const { t } = useI18n()
 const router = useRouter()
 const accountsStore = useAccountsStore()
@@ -77,6 +87,9 @@ const pending: Ref<PendingAction> = ref(null)
 
 /** Whether the deletion dialog is open. */
 const deleting: Ref<boolean> = ref(false)
+
+/** Which edit dialog is open. */
+const editingField: Ref<OpenEdit> = ref(null)
 
 /** The success toast's text, or `null` while none is showing. */
 const notice: Ref<string | null> = ref(null)
@@ -178,6 +191,33 @@ const remove = async (): Promise<void> => {
 }
 
 /**
+ * Opens one of the two edit dialogs, clearing any confirmation still on screen.
+ * @param field Which edit to open.
+ * @returns Nothing.
+ */
+const openEdit = (field: Exclude<OpenEdit, null>): void => {
+  pending.value = null
+  editingField.value = field
+}
+
+/**
+ * Closes the open edit dialog without a change.
+ * @returns Nothing.
+ */
+const closeEdit = (): void => {
+  editingField.value = null
+}
+
+/**
+ * Closes the edit dialog the panel accepted, and says what changed.
+ * @returns Nothing.
+ */
+const editSaved = (): void => {
+  notice.value = editingField.value === 'plan' ? t('accounts.edit.planSaved') : t('accounts.edit.ownerEmailSaved')
+  editingField.value = null
+}
+
+/**
  * Hides the success toast.
  * @returns Nothing.
  */
@@ -242,6 +282,12 @@ onMounted(async () => {
                 {{ t(`accounts.status.${accountsStore.selected.status}`) }}
               </UiBadge>
             </UiDescriptionItem>
+            <UiDescriptionItem :term="t('accounts.detail.planLabel')">
+              {{ accountsStore.selected.planDisplayName }}
+            </UiDescriptionItem>
+            <UiDescriptionItem :term="t('accounts.detail.ownerEmailLabel')" mono>
+              {{ accountsStore.selected.ownerEmail ?? t('accounts.detail.ownerEmailUnknown') }}
+            </UiDescriptionItem>
             <UiDescriptionItem :term="t('accounts.detail.createdAtLabel')" mono>
               {{ formatDate(accountsStore.selected.createdAt, localeStore.current) }}
             </UiDescriptionItem>
@@ -261,6 +307,12 @@ onMounted(async () => {
             <UiButton v-else variant="secondary" @click="ask('reactivate')">
               {{ t('accounts.detail.reactivate') }}
             </UiButton>
+            <UiButton variant="secondary" @click="openEdit('plan')">
+              {{ t('accounts.edit.planAction') }}
+            </UiButton>
+            <UiButton variant="secondary" @click="openEdit('ownerEmail')">
+              {{ t('accounts.edit.ownerEmailAction') }}
+            </UiButton>
           </div>
           <!-- Deletion sits apart, under a rule: it is the one action that cannot be undone, and it
                must not read as a sibling of the two above it. -->
@@ -272,7 +324,7 @@ onMounted(async () => {
         </UiCard>
       </div>
 
-      <AccountInvitationCard :account-id="id" />
+      <AccountInvitationCard :account-id="id" :suspended="accountsStore.selected.status === 'suspended'" />
 
       <!-- `:open` is bound to a value that really changes, and this dialog needs no `v-if`: it has
            no props that are only valid while it is open, and `UiModal` renders nothing while
@@ -291,6 +343,23 @@ onMounted(async () => {
         :destructive="pending === 'suspend'"
         @close="cancel"
         @confirm="confirm"
+      />
+
+      <!-- Mounted only while open, for the same reason as the deletion dialog below: `account` is
+           required and `accountsStore.selected` is nullable. -->
+      <AccountPlanDialog
+        v-if="editingField === 'plan'"
+        :open="true"
+        :account="accountsStore.selected"
+        @close="closeEdit"
+        @saved="editSaved"
+      />
+      <AccountOwnerEmailDialog
+        v-if="editingField === 'ownerEmail'"
+        :open="true"
+        :account="accountsStore.selected"
+        @close="closeEdit"
+        @saved="editSaved"
       />
 
       <!-- `v-if` because `account` is required and `accountsStore.selected` is nullable; the

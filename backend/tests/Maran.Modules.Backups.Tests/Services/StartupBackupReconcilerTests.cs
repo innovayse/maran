@@ -367,7 +367,7 @@ public sealed class StartupBackupReconcilerTests
                 context,
                 Audit,
                 _currentUser,
-                new StubAccountDirectory(new AccountSnapshot(AccountId, Username, 1, 1, 1, 1, 1, 1, 1)));
+                new StubAccountDirectory(new AccountSnapshot(AccountId, Username, 1, 1, 1, 1, 1, 1, AccountState.Active, 1)));
 
             Reconciler = new StartupBackupReconciler(
                 scopes.Scopes,

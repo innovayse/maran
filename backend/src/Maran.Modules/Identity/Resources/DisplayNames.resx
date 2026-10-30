@@ -57,6 +57,12 @@
   <data name="AuditActionAccountReactivated">
     <value>Account reactivated</value>
   </data>
+  <data name="AuditActionAccountPlanChanged">
+    <value>Account plan changed</value>
+  </data>
+  <data name="AuditActionAccountOwnerEmailChanged">
+    <value>Account owner email changed</value>
+  </data>
   <data name="AuditActionAccountDeleted">
     <value>Account deleted</value>
   </data>

@@ -50,6 +50,8 @@ public sealed class AccountsAuthorizationTests : IAsyncLifetime
             { "GET", "/api/v1/accounts/{id}" },
             { "POST", "/api/v1/accounts/{id}/suspend" },
             { "POST", "/api/v1/accounts/{id}/reactivate" },
+            { "PUT", "/api/v1/accounts/{id}/plan" },
+            { "PUT", "/api/v1/accounts/{id}/owner-email" },
             { "DELETE", "/api/v1/accounts/{id}" },
         };
     }
@@ -212,11 +214,11 @@ public sealed class AccountsAuthorizationTests : IAsyncLifetime
         return client;
     }
 
-    /// <summary>Issues one request, giving the two POST routes the empty body they accept.</summary>
+    /// <summary>Issues one request, giving the POST and PUT routes an empty JSON body.</summary>
     private static async Task<HttpResponseMessage> SendAsync(HttpClient client, string method, string path)
     {
         using var request = new HttpRequestMessage(new HttpMethod(method), path);
-        if (method == "POST")
+        if (method is "POST" or "PUT")
         {
             request.Content = JsonContent.Create(new { });
         }

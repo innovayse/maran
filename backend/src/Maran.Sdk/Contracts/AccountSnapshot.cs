@@ -62,6 +62,11 @@ namespace Maran.Sdk.Contracts;
 /// chosen when the account was created — and re-expressing it in the agent's unit at the boundary
 /// would make the stored figure and the travelling figure two different numbers for one fact.
 /// </param>
+/// <param name="State">
+/// Whether the account is in service or suspended. Required, with no default: a module deciding
+/// whether to let anybody in — Identity's invitation issuer, above all — must never read "active"
+/// from a snapshot that simply did not say.
+/// </param>
 /// <param name="MaxFtpUsers">
 /// The plan's FTPS-login allowance, enforced by the Ftp module at creation time and before the agent
 /// is called (spec §8). Here for the same reason <paramref name="MaxSftpUsers"/> is, and it is a
@@ -102,5 +107,6 @@ public sealed record AccountSnapshot(
     int MaxCronEntries,
     int MaxPhpWorkersPerPool,
     int DiskQuotaMb,
+    AccountState State,
     int MaxFtpUsers = 0,
     string? OwnerEmail = null);

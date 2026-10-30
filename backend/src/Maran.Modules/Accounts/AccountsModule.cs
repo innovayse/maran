@@ -58,6 +58,10 @@ public sealed class AccountsModule : IPanelModule
         // request's culture.
         services.AddScoped<PlanNameDirectory>();
 
+        // Holds no state of its own; scoped like the handlers that take it. Shared by a plan's quota
+        // edit and an account's plan change, so both measure and refuse the same way.
+        services.AddScoped<AccountDiskQuotaEnforcer>();
+
         // The one window other modules have onto this module's data (rules/architecture.md
         // "Cross-module needs go through Wolverine messages or Sdk abstractions"). Scoped, because
         // it reads the request's own DbContext and applies the request's own tenant scope.

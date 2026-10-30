@@ -27,9 +27,38 @@ export interface Account {
 }
 
 /**
- * Request body for `POST /api/v1/accounts`, binding the backend's
- * `CreateAccountCommand` field-for-field.
+ * One account as its own page shows it, mirroring the backend's
+ * `AccountDetailDto` field-for-field: the list shape plus its plan by name and
+ * its owner's contact address.
  */
+export interface AccountDetail extends Account {
+  /** The plan's name, already in the request's language. */
+  planDisplayName: string
+  /**
+   * The account's own contact address, which its login's invitation and
+   * password resets follow. `null` only for an account older than the field.
+   */
+  ownerEmail: string | null
+}
+
+/**
+ * Request body for `PUT /api/v1/accounts/{id}/plan`, binding the backend's
+ * `ChangeAccountPlanCommand`.
+ */
+export interface ChangeAccountPlanRequest {
+  /** The plan the account is to be sold from now on. */
+  planId: string
+}
+
+/**
+ * Request body for `PUT /api/v1/accounts/{id}/owner-email`, binding the
+ * backend's `ChangeAccountOwnerEmailCommand`.
+ */
+export interface ChangeAccountOwnerEmailRequest {
+  /** The new owner address. */
+  ownerEmail: string
+}
+
 /**
  * A plan an account can be created against, as the panel reports it. The display
  * name arrives already localized: plans are server-side reference data, and the
@@ -149,7 +178,29 @@ export interface AccountsApi {
    * @param signal Optional abort signal to cancel the in-flight request.
    * @returns The account, as the panel currently has it.
    */
-  get: (id: string, signal?: AbortSignal) => Promise<Account>
+  get: (id: string, signal?: AbortSignal) => Promise<AccountDetail>
+
+  /**
+   * Moves an account to another plan.
+   * @param id The account's identity.
+   * @param request The plan to move it to.
+   * @param signal Optional abort signal to cancel the in-flight request.
+   * @returns The account as it now stands.
+   */
+  changePlan: (id: string, request: ChangeAccountPlanRequest, signal?: AbortSignal) => Promise<AccountDetail>
+
+  /**
+   * Changes an account's owner address, and with it the address its login is mailed at.
+   * @param id The account's identity.
+   * @param request The new address.
+   * @param signal Optional abort signal to cancel the in-flight request.
+   * @returns The account as it now stands.
+   */
+  changeOwnerEmail: (
+    id: string,
+    request: ChangeAccountOwnerEmailRequest,
+    signal?: AbortSignal,
+  ) => Promise<AccountDetail>
 
   /**
    * Suspends an account: the panel asks the agent to stop it, then records the new state.

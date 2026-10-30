@@ -2,6 +2,7 @@ using Maran.Modules.Accounts.Domain.Entities;
 using Maran.Modules.Accounts.Domain.Enums;
 using Maran.Modules.Accounts.Persistence;
 using Maran.Modules.Accounts.Queries.GetAccount;
+using Maran.Modules.Accounts.Tests.TestSupport;
 using Microsoft.EntityFrameworkCore;
 
 namespace Maran.Modules.Accounts.Tests.Queries.GetAccount;
@@ -29,25 +30,29 @@ public sealed class GetAccountQueryHandlerTests : IDisposable
 
     private async Task<Account> SeedAsync()
     {
-        var account = new Account(Guid.NewGuid(), "acme", "acme.example.com", Guid.NewGuid(), Now);
+        var plan = Plan.Define(Guid.NewGuid(), "Agency", 10_240, 10, 5, 4, 2, 3, 8);
+        var account = new Account(Guid.NewGuid(), "acme", "acme.example.com", plan.Id, Now, "owner@example.com");
+        _context.Plans.Add(plan);
         _context.Accounts.Add(account);
         await _context.SaveChangesAsync();
         return account;
     }
 
-    /// <summary>Reading an existing account returns its details.</summary>
+    /// <summary>Reading an existing account returns its details, its plan by name and its owner's address.</summary>
     [Fact]
     public async Task Reading_an_existing_account_returns_its_details()
     {
         var account = await SeedAsync();
 
-        var result = await new GetAccountQueryHandler(_context).HandleAsync(
+        var result = await new GetAccountQueryHandler(_context, new StubDisplayNames()).HandleAsync(
             new GetAccountQuery(account.Id), CancellationToken.None);
 
         Assert.True(result.IsSuccess);
         Assert.Equal("acme", result.Value.Name);
         Assert.Equal("acme.example.com", result.Value.PrimaryDomain);
         Assert.Equal(AccountStatus.Active, result.Value.Status);
+        Assert.Equal("Agency", result.Value.PlanDisplayName);
+        Assert.Equal("owner@example.com", result.Value.OwnerEmail);
     }
 
     /// <summary>Reading an account that does not exist answers not found.</summary>
@@ -56,7 +61,7 @@ public sealed class GetAccountQueryHandlerTests : IDisposable
     {
         await SeedAsync();
 
-        var result = await new GetAccountQueryHandler(_context).HandleAsync(
+        var result = await new GetAccountQueryHandler(_context, new StubDisplayNames()).HandleAsync(
             new GetAccountQuery(Guid.NewGuid()), CancellationToken.None);
 
         Assert.False(result.IsSuccess);

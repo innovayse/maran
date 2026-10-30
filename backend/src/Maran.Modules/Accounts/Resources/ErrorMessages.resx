@@ -39,6 +39,9 @@
   <data name="PlanQuotaBelowUsage">
     <value>The plan was not changed: an account on it already uses more disk than the new quota allows, and lowering the quota would stop that account from writing files. Raise the quota, or free space or move that account to another plan first.</value>
   </data>
+  <data name="AccountPlanQuotaBelowUsage">
+    <value>The plan was not changed: this account already uses more disk than the new plan's quota allows, and moving it would stop it from writing files. Choose a plan with a larger quota, or free space on the account first.</value>
+  </data>
   <data name="AccountCleanupFailed">
     <value>The account was not deleted: something it owns could not be removed first. Nothing has been changed; please try again.</value>
   </data>

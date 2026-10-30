@@ -151,7 +151,7 @@ public sealed class DeleteSiteCommandHandlerTests
                 MaxSftpUsers: 3,
                 MaxCronEntries: 7,
                 MaxPhpWorkersPerPool: 10,
-                DiskQuotaMb: 1_024));
+                DiskQuotaMb: 1_024, AccountState.Active));
         return new DeleteSiteCommandHandler(
             context,
             accounts,

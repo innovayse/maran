@@ -58,7 +58,7 @@ public sealed class UpdatePlanCommandHandlerTests : IDisposable
     {
         return new UpdatePlanCommandHandler(
             _dbContext,
-            _agent,
+            new AccountDiskQuotaEnforcer(_agent),
             new PlanNameDirectory(_dbContext, _displayNames),
             new AccountAuditJournal(_audit, FakeCurrentUser.Admin()),
             _displayNames);
@@ -344,7 +344,7 @@ public sealed class UpdatePlanCommandHandlerTests : IDisposable
         var unavailable = new RecordingAgentAccountsClient(Error.Of("AgentUnavailable", ErrorType.Unavailable));
         var handler = new UpdatePlanCommandHandler(
             _dbContext,
-            unavailable,
+            new AccountDiskQuotaEnforcer(unavailable),
             new PlanNameDirectory(_dbContext, _displayNames),
             new AccountAuditJournal(_audit, FakeCurrentUser.Admin()),
             _displayNames);

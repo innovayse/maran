@@ -316,7 +316,7 @@ public sealed class RetentionHandlerTests
 
             Handler = new RetentionHandler(
                 dbContext,
-                new StubAccountDirectory(new AccountSnapshot(accountId, Username, 1, 1, 1, 1, 1, 1024)),
+                new StubAccountDirectory(new AccountSnapshot(accountId, Username, 1, 1, 1, 1, 1, 1024, AccountState.Active)),
                 Agent,
                 new BackupAuditJournal(Audit, _currentUser),
                 new BackupDestinationResolver(dbContext),

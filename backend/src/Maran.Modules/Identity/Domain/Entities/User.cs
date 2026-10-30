@@ -212,6 +212,15 @@ public sealed class User
         AccountId = accountId;
     }
 
+    /// <summary>
+    /// Replaces the login's address — the one its invitation and its password resets are sent to.
+    /// </summary>
+    /// <param name="email">The new, validated address.</param>
+    public void ChangeEmail(string email)
+    {
+        Email = email;
+    }
+
     /// <summary>Replaces the stored password hash.</summary>
     /// <param name="passwordHash">The new Argon2id hash.</param>
     public void ChangePassword(string passwordHash)

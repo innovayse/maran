@@ -16,10 +16,11 @@
  * megabytes because that is the unit the server states and the form takes; converting it here would
  * show the administrator a different number from the one they type.
  *
- * **Delete asks first and the server has the last word.** The dialog names the plan and the
- * consequence. When accounts are on the plan it says the panel will refuse, but it still lets the
- * request go: the count here may be a moment old, and the refusal — the server's own sentence,
- * with the remedy in it — is what the administrator reads, rendered unchanged above the table.
+ * **Delete asks first, and a deletion the panel would refuse is not offered.** The dialog
+ * ({@link PlanDeleteDialog}) names the plan and the consequence. When accounts are on the plan its
+ * Delete button is disabled, the reason is printed, and it links to the accounts on the plan so the
+ * administrator can move them (#216). The count may be a moment old, so the server keeps the last
+ * word: a refusal it sends is rendered unchanged above the table.
  *
  * Laid out as the redesign's list screens are: the heading block with its eyebrow and the
  * primary pill, then one panel whose table scrolls inside its own container so the page never
@@ -30,7 +31,6 @@ import { useI18n } from 'vue-i18n'
 import UiAlert from '../../components/ui/UiAlert.vue'
 import UiButton from '../../components/ui/UiButton.vue'
 import UiCard from '../../components/ui/UiCard.vue'
-import UiConfirm from '../../components/ui/UiConfirm.vue'
 import UiEmptyState from '../../components/ui/UiEmptyState.vue'
 import UiIcon from '../../components/ui/UiIcon.vue'
 import UiPageHeading from '../../components/ui/UiPageHeading.vue'
@@ -40,6 +40,7 @@ import UiTable from '../../components/ui/UiTable.vue'
 import UiTableCell from '../../components/ui/UiTableCell.vue'
 import UiTableHeaderCell from '../../components/ui/UiTableHeaderCell.vue'
 import UiTableRow from '../../components/ui/UiTableRow.vue'
+import PlanDeleteDialog from '../../components/plans/PlanDeleteDialog.vue'
 import { usePlansStore } from '../../stores/plans'
 import { formatMegabytes } from '../../utils/formatBytes'
 import type { ManagedPlan } from '../../types/plan'
@@ -57,16 +58,6 @@ const notice: Ref<string | null> = ref(null)
 /** Whether the panel answered successfully and reported no plans at all. */
 const isEmpty: ComputedRef<boolean> = computed(() => {
   return store.isLoaded && store.plans.length === 0
-})
-
-/** The consequence the confirmation asks the administrator to weigh, for the plan it names. */
-const confirmationText: ComputedRef<string> = computed(() => {
-  if (pending.value === null) {
-    return ''
-  }
-  return pending.value.accountCount > 0
-    ? t('plans.list.deleteQuestionInUse', pending.value.accountCount)
-    : t('plans.list.deleteQuestionFree')
 })
 
 /**
@@ -219,19 +210,12 @@ onMounted(async () => {
       </UiTable>
     </UiCard>
 
-    <!-- One dialog for the whole table: only one deletion can be awaiting an answer. `UiModal`
-         restores focus to the control that opened it when the dialog closes. Not wrapped in a
-         `v-if`: `:open` is bound to a value that really changes, which is what lets the modal's
-         own open-watcher move focus in and trap it. -->
-    <UiConfirm
-      :open="pending !== null"
-      :title="t('plans.list.deleteTitle', { name: pending?.displayName ?? '' })"
-      :question="confirmationText"
-      :confirm-label="t('common.delete')"
-      :cancel-label="t('common.cancel')"
-      :close-label="t('common.close')"
+    <!-- One dialog for the whole table: only one deletion can be awaiting an answer. Always mounted
+         and opened by `pending` being set, so it animates and `UiModal` returns focus to the
+         control that opened it. -->
+    <PlanDeleteDialog
+      :plan="pending"
       :acting="store.deleting"
-      :acting-label="t('plans.list.working')"
       @close="cancel"
       @confirm="confirm"
     />

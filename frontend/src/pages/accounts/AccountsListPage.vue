@@ -24,7 +24,7 @@
  */
 import { computed, onMounted, ref, type ComputedRef, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { RouterLink } from 'vue-router'
+import { RouterLink, useRoute, useRouter } from 'vue-router'
 import UiAlert from '../../components/ui/UiAlert.vue'
 import UiAvatar from '../../components/ui/UiAvatar.vue'
 import UiButton from '../../components/ui/UiButton.vue'
@@ -44,6 +44,8 @@ import { formatDate } from '../../utils/formatDate'
 import type { Account } from '../../types/account'
 
 const { t } = useI18n()
+const route = useRoute()
+const router = useRouter()
 const store = useAccountsStore()
 const localeStore = useLocaleStore()
 
@@ -54,18 +56,43 @@ const localeStore = useLocaleStore()
  */
 const query: Ref<string> = ref('')
 
-/** The accounts matching the current query, matched on the two text columns the table shows. */
+/**
+ * The plan the list is narrowed to, from `?plan=<id>`, or `null` for every plan. The plans screen
+ * links here when a plan cannot be deleted, so the operator sees exactly the accounts to move.
+ */
+const planFilter: ComputedRef<string | null> = computed(() => {
+  const plan = route.query.plan
+  return typeof plan === 'string' && plan.length > 0 ? plan : null
+})
+
+/** The filtered plan's name, as the panel reports it; empty until the plans have loaded. */
+const planFilterName: ComputedRef<string> = computed(() => {
+  return (
+    store.plans.find((plan) => {
+      return plan.id === planFilter.value
+    })?.displayName ?? ''
+  )
+})
+
+/**
+ * The accounts matching the current query, matched on the two text columns the table shows, and
+ * on the plan when the list is narrowed to one.
+ */
 const visibleAccounts: ComputedRef<Account[]> = computed(() => {
   const needle = query.value.trim().toLowerCase()
-  if (needle.length === 0) {
-    return store.accounts
-  }
   return store.accounts.filter((account) => {
-    return account.name.toLowerCase().includes(needle) || account.primaryDomain.toLowerCase().includes(needle)
+    if (planFilter.value !== null && account.planId !== planFilter.value) {
+      return false
+    }
+    return (
+      needle.length === 0 ||
+      account.name.toLowerCase().includes(needle) ||
+      account.primaryDomain.toLowerCase().includes(needle)
+    )
   })
 })
 
-/** Whether the panel reported accounts but the current query matches none of them. */
+/** Whether the panel reported accounts but the current filters match none of them. */
 const hasNoMatches: ComputedRef<boolean> = computed(() => {
   return store.accounts.length > 0 && visibleAccounts.value.length === 0
 })
@@ -75,7 +102,9 @@ const hasNoMatches: ComputedRef<boolean> = computed(() => {
  * @returns Resolves when the load has settled (successfully or not).
  */
 const refresh = async (): Promise<void> => {
-  await store.load()
+  // The plans are read only to name the plan the list is narrowed to; an unfiltered list does not
+  // need them and does not ask.
+  await Promise.all(planFilter.value === null ? [store.load()] : [store.load(), store.loadPlans()])
 }
 
 onMounted(refresh)
@@ -86,6 +115,14 @@ onMounted(refresh)
  */
 const clearQuery = (): void => {
   query.value = ''
+}
+
+/**
+ * Widens the list back to every plan.
+ * @returns Resolves once the route has changed.
+ */
+const clearPlanFilter = async (): Promise<void> => {
+  await router.replace({ name: 'accounts' })
 }
 </script>
 
@@ -114,6 +151,14 @@ const clearQuery = (): void => {
     </UiEmptyState>
 
     <UiCard v-else-if="store.accounts.length > 0">
+      <div
+        v-if="planFilter !== null"
+        class="mb-4 flex flex-wrap items-center gap-x-4 gap-y-2"
+        data-testid="accounts-plan-filter"
+      >
+        <span class="text-sm text-text-secondary">{{ t('accounts.list.planFilter', { plan: planFilterName }) }}</span>
+        <UiButton variant="secondary" @click="clearPlanFilter">{{ t('accounts.list.clearPlanFilter') }}</UiButton>
+      </div>
       <div class="mb-4 flex flex-wrap items-center gap-x-4 gap-y-2">
         <UiSearchInput
           v-model="query"

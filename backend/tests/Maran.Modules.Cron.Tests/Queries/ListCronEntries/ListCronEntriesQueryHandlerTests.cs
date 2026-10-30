@@ -120,7 +120,7 @@ public sealed class ListCronEntriesQueryHandlerTests
         public World()
         {
             Handler = new ListCronEntriesQueryHandler(
-                new StubAccountDirectory(new AccountSnapshot(AccountId, "alice", 5, 5, 5, 5, 5, 1_024)),
+                new StubAccountDirectory(new AccountSnapshot(AccountId, "alice", 5, 5, 5, 5, 5, 1_024, AccountState.Active)),
                 Agent,
                 Logger);
         }

@@ -193,7 +193,7 @@ public sealed class StartupPhpSiteReconcilerTests
     /// <summary>Builds an account snapshot with a three-worker pool budget.</summary>
     private static AccountSnapshot Account(Guid id, string username)
     {
-        return new AccountSnapshot(id, username, 5, 5, 5, 5, 3, 1024);
+        return new AccountSnapshot(id, username, 5, 5, 5, 5, 3, 1024, AccountState.Active);
     }
 
     /// <summary>Builds a PHP site.</summary>

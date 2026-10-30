@@ -104,7 +104,7 @@ const requestClose = (): void => {
 
 /**
  * Dismisses on a backdrop click, unless the caller has declared the dialog
- * undismissable, and ignoring clicks that started inside the panel and bubbled out.
+ * undismissable. Clicks that land inside the panel and bubble out are ignored.
  * @param event The native mouse event on the backdrop.
  * @returns Nothing; emits synchronously.
  */
@@ -112,8 +112,11 @@ const onBackdropClick = (event: MouseEvent): void => {
   if (!props.dismissible) {
     return
   }
-  const target = event.target
-  if (target instanceof Node && panelElement.value?.contains(target) === true) {
+  // Only a click whose target IS the backdrop dismisses. Asking "is the target inside the panel"
+  // instead fails for a control that removes the clicked node before the click bubbles here — a
+  // select's option is gone once chosen, so the detached node was read as outside and the dialog
+  // closed under the operator (#216).
+  if (event.target !== event.currentTarget) {
     return
   }
   requestClose()

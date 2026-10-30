@@ -35,6 +35,7 @@ public sealed class StubAccountDirectory : IAccountDirectory
             MaxCronEntries: 1,
             MaxPhpWorkersPerPool: 1,
             DiskQuotaMb: 1024,
+            State: AccountState.Active,
             MaxFtpUsers: maxFtpUsers);
 
         _accounts[accountId] = snapshot;

@@ -355,6 +355,7 @@ public sealed class ListAccountDiskUsageQueryHandlerTests
             MaxSftpUsers: 5,
             MaxCronEntries: 5,
             MaxPhpWorkersPerPool: 5,
-            DiskQuotaMb: diskQuotaMb);
+            DiskQuotaMb: diskQuotaMb,
+            State: AccountState.Active);
     }
 }

@@ -81,6 +81,9 @@
   <data name="InvitationLoginNotPending">
     <value>Приглашать некого: у этой учётной записи уже есть пароль.</value>
   </data>
+  <data name="InvitationAccountSuspended">
+    <value>Пока аккаунт приостановлен, приглашение выдать нельзя. Сначала возобновите аккаунт.</value>
+  </data>
   <data name="AdminRecoveryUserNotFound">
     <value>Пользователь с таким адресом электронной почты или именем не найден.</value>
   </data>

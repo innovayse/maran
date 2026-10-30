@@ -49,6 +49,12 @@ public sealed class StubMessageBus : IMessageBus
     /// <summary>Everything invoked on this bus, in order.</summary>
     public List<object> Invoked { get; } = [];
 
+    /// <summary>
+    /// The answer a request invoked with a reply (<c>InvokeAsync&lt;T&gt;</c>) receives, computed from
+    /// the message; null when nothing in the test sends one.
+    /// </summary>
+    public Func<object, object>? Responder { get; init; }
+
     /// <inheritdoc />
     public string? TenantId { get; set; }
 
@@ -69,7 +75,13 @@ public sealed class StubMessageBus : IMessageBus
     /// <inheritdoc />
     public Task<T> InvokeAsync<T>(object message, CancellationToken cancellation = default, TimeSpan? timeout = null)
     {
-        throw new NotSupportedException();
+        Invoked.Add(message);
+        if (Responder is null)
+        {
+            throw new NotSupportedException();
+        }
+
+        return Task.FromResult((T)Responder(message));
     }
 
     /// <inheritdoc />
