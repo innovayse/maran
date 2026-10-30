@@ -1,6 +1,12 @@
 # Committed per-target test baseline. Recorded by 'maran test --accept'; commit the diff.
 # stack<TAB>target<TAB>passed<TAB>failed<TAB>ignored
 #
+# RE-MEASURED 2026-10-30 (issue #203, the two-factor page shows one flow per state; 409 conflicts): edited by hand.
+# One clean whole-solution `maran test backend` run: 20 targets: 4672 passed / 0 failed / 0 ignored, TEST VERDICT: OK.
+# Modules.Identity.Tests 312->318 (begin, confirm and disable handler conflict tests + inverse controls); Sdk.Tests 246
+# unchanged (two codes renamed, kind Forbidden->Conflict). Host.IntegrationTests ran filtered to CustomerSelfService,
+# Auth, TwoFactorEnrolmentSteering, Profile, Session and Setup endpoint tests (34/0); its row is left to CI.
+# spa: NEW row auth/two-factor-settings.spec.ts 5. Full suite at E2E_PORT=5199: 780 passed / 0 failed / 2 skipped.
 # RE-MEASURED 2026-10-30 (issue #196 Phase 1, the paged list contract for Accounts and Sites): edited by hand.
 # One clean whole-solution `maran test backend` run, nothing else building: 20 targets: 4666 passed /
 # 0 failed / 0 ignored, TEST VERDICT: OK. SharedKernel.Tests 230->343 (the pagers, SortMap builder,
@@ -371,7 +377,7 @@ rust	bound_errors [tests/bound_errors.rs]	9	0	0
 rust	safe_write_bound_on_real_processes [tests/safe_write_bound_on_real_processes.rs]	6	0	0
 backend	Maran.Agent.Client.Tests.dll	375	0	0
 backend	Maran.SharedKernel.Tests.dll	343	0	0
-backend	Maran.Modules.Identity.Tests.dll	312	0	0
+backend	Maran.Modules.Identity.Tests.dll	318	0	0
 backend	Maran.Modules.Sftp.Tests.dll	89	0	0
 backend	Maran.Modules.Notifications.Tests.dll	52	0	0
 backend	Maran.Modules.Tasks.Tests.dll	76	0	0
@@ -408,6 +414,7 @@ spa	auth/reset-password.spec.ts	2	0	0
 spa	auth/sessions.spec.ts	6	0	0
 spa	auth/setup.spec.ts	8	0	0
 spa	auth/theme-persists.spec.ts	3	0	0
+spa	auth/two-factor-settings.spec.ts	5	0	0
 spa	auth/two-factor-setup.spec.ts	2	0	0
 spa	auth/two-factor.spec.ts	5	0	0
 spa	backups/account-filter.spec.ts	3	0	0

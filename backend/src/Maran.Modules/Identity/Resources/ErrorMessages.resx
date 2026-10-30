@@ -48,10 +48,10 @@
   <data name="SetupTokenInvalidUnauthorized">
     <value>This setup link is not valid.</value>
   </data>
-  <data name="TwoFactorAlreadyEnabledForbidden">
+  <data name="TwoFactorAlreadyEnabled">
     <value>Two-factor authentication is already enabled.</value>
   </data>
-  <data name="TwoFactorNotEnabledForbidden">
+  <data name="TwoFactorNotEnabled">
     <value>Two-factor authentication is not enabled.</value>
   </data>
   <data name="PasswordTooWeak">

@@ -56,7 +56,7 @@ public sealed class DisableTotpCommandHandler
 
         if (!user.IsTotpEnabled || user.TotpSecret is null)
         {
-            return Result<bool>.Fail(Error.Of(nameof(ErrorMessages.TwoFactorNotEnabledForbidden), ErrorType.Forbidden));
+            return Result<bool>.Fail(Error.Of(nameof(ErrorMessages.TwoFactorNotEnabled), ErrorType.Conflict));
         }
 
         var accepted = _totpService.Verify(user.TotpSecret, command.Code, user.LastTotpWindow, out var window);

@@ -540,8 +540,9 @@ public sealed class AuditLogsController : BaseApiController
   contradicts the IDOR test every tenant entity carries (rules/security.md item 6). Tenant scoping
   produces this answer by itself — the query filter hides the row and the handler finds nothing — so
   reaching for `Forbidden` on a tenant resource means the filter was bypassed. `Forbidden` is for a
-  refusal that discloses nothing about another tenant: setup already complete, two-factor already
-  enabled.
+  refusal that discloses nothing about another tenant: setup already complete. A request that only
+  clashes with the caller's own current state — two-factor already enabled, or not enabled — is
+  `ErrorType.Conflict` (409), not `Forbidden`: nothing is withheld, the state is simply wrong for it.
 - **Resources are reached through `IStringLocalizer<T>`**, where `T` is the class named after the
   resource file. Typed access beats passing a `ResourceManager` around: the localizer resolves the
   request culture on its own and the type makes the dependency visible in a constructor signature.

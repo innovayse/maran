@@ -55,7 +55,7 @@ public sealed class ConfirmTotpEnrolmentCommandHandler
 
         if (user.IsTotpEnabled)
         {
-            return Result<RecoveryCodesDto>.Fail(Error.Of(nameof(ErrorMessages.TwoFactorAlreadyEnabledForbidden), ErrorType.Forbidden));
+            return Result<RecoveryCodesDto>.Fail(Error.Of(nameof(ErrorMessages.TwoFactorAlreadyEnabled), ErrorType.Conflict));
         }
 
         if (!_totpService.Verify(command.Secret, command.Code, user.LastTotpWindow, out var window))

@@ -7,7 +7,7 @@
       "manageDescription": "Add this panel to an authenticator app to require a code at every sign-in.",
       "enable": "Set up",
       "enrolTitle": "Finish setting up",
-      "enrolInstructions": "Add the secret below to your authenticator app, then enter the code it shows.",
+      "enrolInstructions": "Scan the QR code with your authenticator app, or add the secret below by hand, then enter the code it shows.",
       "secretLabel": "Secret",
       "confirmCodeLabel": "Code from the app",
       "confirmEnrolment": "Turn on",
@@ -22,7 +22,10 @@
       "disableConfirmTitle": "Turn off two-step verification",
       "disableConfirmQuestion": "Signing in will need only your password. Anyone who learns it can get into this panel, and your recovery codes will stop working.",
       "disableConfirm": "Yes, turn off",
-      "disabling": "Turning off…"
+      "disabling": "Turning off…",
+      "qrLabel": "QR code for your authenticator app",
+      "enabledTitle": "Two-step verification is on",
+      "enabledDescription": "Every sign-in asks for a code from your authenticator app."
     }
   }
 }

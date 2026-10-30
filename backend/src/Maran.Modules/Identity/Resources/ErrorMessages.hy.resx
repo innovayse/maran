@@ -48,10 +48,10 @@
   <data name="SetupTokenInvalidUnauthorized">
     <value>Կարգավորման հղումն անվավեր է։</value>
   </data>
-  <data name="TwoFactorAlreadyEnabledForbidden">
+  <data name="TwoFactorAlreadyEnabled">
     <value>Երկգործոն վավերացումն արդեն միացված է։</value>
   </data>
-  <data name="TwoFactorNotEnabledForbidden">
+  <data name="TwoFactorNotEnabled">
     <value>Երկգործոն վավերացումը միացված չէ։</value>
   </data>
   <data name="PasswordTooWeak">

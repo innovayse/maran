@@ -43,7 +43,7 @@ public sealed class BeginTotpEnrolmentCommandHandler
 
         if (user.IsTotpEnabled)
         {
-            return Result<TotpEnrolmentDto>.Fail(Error.Of(nameof(ErrorMessages.TwoFactorAlreadyEnabledForbidden), ErrorType.Forbidden));
+            return Result<TotpEnrolmentDto>.Fail(Error.Of(nameof(ErrorMessages.TwoFactorAlreadyEnabled), ErrorType.Conflict));
         }
 
         var secret = _totpService.GenerateSecret();
