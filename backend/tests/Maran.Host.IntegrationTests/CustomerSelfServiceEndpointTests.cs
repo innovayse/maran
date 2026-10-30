@@ -108,9 +108,9 @@ public sealed class CustomerSelfServiceEndpointTests : IAsyncLifetime
 
         var response = await client.PostAsJsonAsync("/api/v1/auth/two-factor/disable", new { Code = "000000" });
 
-        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
         using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
-        Assert.Equal("TwoFactorNotEnabledForbidden", body.RootElement.GetProperty("code").GetString());
+        Assert.Equal("TwoFactorNotEnabled", body.RootElement.GetProperty("code").GetString());
     }
 
     /// <summary>An anonymous caller is refused by every one of these endpoints.</summary>

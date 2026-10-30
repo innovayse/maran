@@ -193,6 +193,7 @@ public sealed class AuthController : BaseApiController
     [EnableRateLimiting(RateLimitPolicies.Login)]
     [ProducesResponseType(typeof(AuthenticatedSessionDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
     public async Task<IActionResult> VerifyTwoFactorAsync(
         [FromBody] VerifyTwoFactorCommand command,
         CancellationToken cancellationToken)
@@ -224,7 +225,7 @@ public sealed class AuthController : BaseApiController
     [Authorize(Policy = AuthorizationPolicies.AnyAuthenticated)]
     [AllowDuringTwoFactorEnrolment]
     [ProducesResponseType(typeof(TotpEnrolmentDto), StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
     public async Task<IActionResult> BeginTwoFactorEnrolmentAsync(CancellationToken cancellationToken)
     {
         var command = new BeginTotpEnrolmentCommand(CurrentUser.UserId);
@@ -240,7 +241,7 @@ public sealed class AuthController : BaseApiController
     [AllowDuringTwoFactorEnrolment]
     [ProducesResponseType(typeof(RecoveryCodesDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
     public async Task<IActionResult> ConfirmTwoFactorEnrolmentAsync(
         [FromBody] ConfirmTotpEnrolmentCommand command,
         CancellationToken cancellationToken)
@@ -263,6 +264,7 @@ public sealed class AuthController : BaseApiController
     [ProducesResponseType(typeof(bool), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
     public async Task<IActionResult> DisableTwoFactorAsync(
         [FromBody] DisableTotpCommand command,
         CancellationToken cancellationToken)

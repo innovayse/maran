@@ -101,7 +101,7 @@ public sealed class VerifyTwoFactorCommandHandler
 
         if (!user.IsTotpEnabled || user.TotpSecret is null)
         {
-            return Result<AuthenticatedOutcome>.Fail(Error.Of(nameof(ErrorMessages.TwoFactorNotEnabledForbidden), ErrorType.Forbidden));
+            return Result<AuthenticatedOutcome>.Fail(Error.Of(nameof(ErrorMessages.TwoFactorNotEnabled), ErrorType.Conflict));
         }
 
         var usedRecoveryCode = false;

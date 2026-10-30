@@ -4,6 +4,7 @@ import { stubLogin, stubSetupState, stubSignedIn, stubSignedOut } from '../fixtu
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubEmptyModules, stubModules } from '../fixtures/stub-modules-route'
 import { stubSteeredAdministrator } from '../fixtures/stub-password-reset-routes'
+import { stubProfile } from '../fixtures/stub-profile-route'
 import { stubSmtpSettings, storedSmtpSettings } from '../fixtures/stub-smtp-routes'
 import type { AuthenticatedUser, Session } from '../../src/types/auth'
 import type { AuditEvent } from '../../src/types/audit'
@@ -240,6 +241,23 @@ const signedInAdministrator = async (page: Page): Promise<void> => {
 }
 
 /**
+ * The administrator's stubs plus a profile with two-factor off, which is what decides the
+ * two-factor page's flow: without it the page has no state to render and offers nothing.
+ * @param page The page whose network is stubbed.
+ * @returns Resolves once the stubs are installed.
+ */
+const administratorWithoutTwoFactor = async (page: Page): Promise<void> => {
+  await signedInAdministrator(page)
+  await stubProfile(page, {
+    username: 'admin',
+    email: 'admin@example.com',
+    role: 'admin',
+    isTwoFactorEnabled: false,
+    activeSessionCount: 1,
+  })
+}
+
+/**
  * Types credentials into the sign-in form and submits it with the keyboard, so the screen moves on
  * to the second-factor step. Fields are found by role and type, never by their translated labels.
  * @param page The page, on the sign-in screen.
@@ -407,7 +425,7 @@ const SCREENS: Screen[] = [
     name: 'two-factor settings',
     path: '/settings/two-factor',
     layout: 'shell',
-    prepare: signedInAdministrator,
+    prepare: administratorWithoutTwoFactor,
     ready: headingReady(1),
   },
   {
@@ -415,7 +433,7 @@ const SCREENS: Screen[] = [
     path: '/settings/two-factor',
     layout: 'shell',
     prepare: async (page): Promise<void> => {
-      await signedInAdministrator(page)
+      await administratorWithoutTwoFactor(page)
       await page.route('**/api/v1/auth/two-factor/enrol', async (route) => {
         await route.fulfill({
           status: 200,
