@@ -66,9 +66,6 @@
   <data name="RestoreInvalidOutcome">
     <value>Սերվերի գործակալը հաղորդեց ավարտված վերականգնման մասին՝ չնշելով, թե ինչ է վերականգնվել։</value>
   </data>
-  <data name="BackupScheduleNotFound">
-    <value>Այս սերվերը դեռ չունի կրկնօրինակման ժամանակացույց։</value>
-  </data>
   <data name="BackupScheduleHourOutOfRange">
     <value>Ժամը պետք է լինի 0-ից 23-ի սահմաններում։</value>
   </data>

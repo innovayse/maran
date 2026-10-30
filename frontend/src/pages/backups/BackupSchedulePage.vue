@@ -12,11 +12,11 @@
  * unselected picker would read as "no account chosen yet" and hide the fact that a real, running
  * policy is what was loaded.
  *
- * **A 404 on the first read is the normal state and is rendered as one.** The panel invents no
- * default schedule, so a server nobody has configured answers `404 BackupScheduleNotFound` for
- * ever. The screen says nothing is scheduled and leaves every field blank; it never shows a filled
- * form for a schedule that does not exist, which would be the screen lying about what the server
- * will do tonight.
+ * **A scope with nothing recorded is the normal first state and is rendered as one.** The panel
+ * invents no default schedule, so a server nobody has configured answers `schedule: null` in an
+ * ordinary `200`. The screen says nothing is scheduled and leaves every field blank; it never shows a
+ * filled form for a schedule that does not exist, which would be the screen lying about what the
+ * server will do tonight.
  *
  * **What this screen must not imply.** Retention is a 5-minute pruning pass, not something that
  * happens when a backup is taken, and it never removes a row whose archive is still on the disk: a
@@ -329,8 +329,10 @@ void accountsStore.load()
          (a container query), not the viewport's: under a large system font the sidebar and the
          text grow, the content panel is left ~700px wide, and the viewport still says "desktop" —
          a viewport `lg:` grid then squeezed the frequency select to a third of its needed width. -->
+    <!-- The hint is centred against the labelled picker, not aligned to its bottom edge: bottom
+         alignment left the hint low in the card with the picker's label height empty above it. -->
     <UiCard class="@container">
-      <div class="flex flex-col gap-4 @2xl:flex-row @2xl:items-end @2xl:justify-between @2xl:gap-8">
+      <div class="flex flex-col gap-4 @2xl:flex-row @2xl:items-center @2xl:justify-between @2xl:gap-8">
         <p class="min-w-0 text-sm text-text-secondary break-words @2xl:max-w-xl">
           {{
             scopeAccountId === null

@@ -1,6 +1,7 @@
 import { useApi } from '../useApi'
 import type {
   BackupSchedule,
+  BackupScheduleScope,
   BackupSchedulesApi,
   SaveBackupScheduleRequest,
 } from '../../types/backupSchedule'
@@ -20,20 +21,20 @@ export const useBackupSchedulesApi = (): BackupSchedulesApi => {
   const api = useApi()
 
   /**
-   * Reads one schedule. A scope that has never been configured answers 404, which the store turns
-   * into a display state rather than an error.
+   * Reads what is scheduled for one scope. A scope that has never been configured answers with
+   * `schedule: null`, not with an error.
    * @param accountId The account whose override to read, or `null` for the host-wide policy.
    * @param signal Optional abort signal to cancel the in-flight request.
-   * @returns The schedule as the panel holds it.
+   * @returns The scope, holding its schedule or none.
    */
-  const get = (accountId: string | null, signal?: AbortSignal): Promise<BackupSchedule> => {
+  const get = (accountId: string | null, signal?: AbortSignal): Promise<BackupScheduleScope> => {
     // The host-wide policy is the request with NO `accountId` at all, not one with an empty value:
     // the query binds `Guid?`, and an empty string is a bad request rather than "no account".
     const path =
       accountId === null
         ? BACKUP_SCHEDULES_PATH
         : `${BACKUP_SCHEDULES_PATH}?accountId=${encodeURIComponent(accountId)}`
-    return api.get<BackupSchedule>(path, signal)
+    return api.get<BackupScheduleScope>(path, signal)
   }
 
   /**

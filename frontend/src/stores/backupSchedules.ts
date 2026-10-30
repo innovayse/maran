@@ -1,29 +1,18 @@
 import { defineStore } from 'pinia'
-import { ref, type Ref } from 'vue'
+import { computed, ref, type ComputedRef, type Ref } from 'vue'
 import { useBackupSchedulesApi } from '../composables/apis/useBackupSchedulesApi'
 import { ApiError } from '../composables/useApi'
 import type { BackupSchedule, SaveBackupScheduleRequest } from '../types/backupSchedule'
-
-/** The problem code the panel answers a scope it has never had a schedule for. */
-const NOT_CONFIGURED_CODE = 'BackupScheduleNotFound'
 
 /**
  * Owns the one backup schedule a screen is looking at: the host-wide policy, or one account's
  * override. The schedule page reads state from here and calls its actions — it never touches the
  * API composable directly (rules/vue.md: "API composables are called from Pinia stores ONLY").
  *
- * **A 404 is not an error here, and that is the whole reason this store has a third state.** The
- * panel invents no default schedule, so a server nobody has configured answers `404
- * BackupScheduleNotFound` for ever — the ordinary first state of the endpoint. A store that folded
- * that into {@link errorMessage} would make the screen say something is wrong, and a store that
- * folded it into "no schedule loaded yet" would let the screen show an empty form as though a
- * schedule existed. So it is held apart, in {@link isConfigured}, and the screen says which of the
- * two it is looking at.
- *
- * A 404 carrying any OTHER code — `AccountNotFound`, for an account deleted between the list being
- * read and the scope being chosen — is a genuine failure and is reported as one. The decision is
- * made on the code, never on the status alone, and never by looking the code up for text: error
- * text is the backend's and is rendered verbatim (rules/vue.md).
+ * **"Nothing is scheduled here" is an answer, not a failure.** The panel invents no default
+ * schedule, so a scope nobody has configured is read as `schedule: null` in an ordinary `200` — the
+ * first state of every fresh server. Every failed request, whatever its status, is a real failure and
+ * is reported through {@link errorMessage} in the backend's own words (rules/vue.md).
  */
 export const useBackupSchedulesStore = defineStore('backupSchedules', () => {
   const api = useBackupSchedulesApi()
@@ -31,16 +20,7 @@ export const useBackupSchedulesStore = defineStore('backupSchedules', () => {
   /** The schedule the panel holds for the scope last read, or `null` when it holds none. */
   const schedule: Ref<BackupSchedule | null> = ref(null)
 
-  /**
-   * Whether the scope last read HAS a schedule.
-   *
-   * `false` after a 404, which is a successful answer to "is anything scheduled here" and not a
-   * failure. It stays `false` until a read or a save says otherwise, so a screen never has to
-   * infer the state from `schedule === null`, which is also true before the first read.
-   */
-  const isConfigured: Ref<boolean> = ref(false)
-
-  /** True once a read has settled for the current scope, successfully or as a 404. */
+  /** True once a read has settled for the current scope, successfully or not. */
   const isLoaded: Ref<boolean> = ref(false)
 
   /** True while a read is in flight. */
@@ -53,8 +33,7 @@ export const useBackupSchedulesStore = defineStore('backupSchedules', () => {
   const saved: Ref<boolean> = ref(false)
 
   /**
-   * Backend-localized message from the last failed read or save, or `null`. Rendered verbatim; a
-   * 404 that means "nothing is scheduled here" never reaches it.
+   * Backend-localized message from the last failed read or save, or `null`. Rendered verbatim.
    */
   const errorMessage: Ref<string | null> = ref(null)
 
@@ -67,22 +46,20 @@ export const useBackupSchedulesStore = defineStore('backupSchedules', () => {
   const errorCode: Ref<string> = ref('')
 
   /**
-   * Records a failure, telling the panel's "nothing is scheduled here" apart from a real one.
+   * Whether the scope last read or saved HAS a schedule. Derived from {@link schedule} rather than
+   * held beside it, so the two can never disagree; a screen pairs it with {@link isLoaded} to tell
+   * "nothing is scheduled here" from "not read yet".
+   */
+  const isConfigured: ComputedRef<boolean> = computed(() => {
+    return schedule.value !== null
+  })
+
+  /**
+   * Records a failure in the backend's own words.
    * @param error The caught error.
    * @returns Nothing; the error state is updated.
    */
   const remember = (error: unknown): void => {
-    const isNotConfigured =
-      error instanceof ApiError && error.status === 404 && error.code === NOT_CONFIGURED_CODE
-    if (isNotConfigured) {
-      // The scope has no schedule. That is an answer, not a fault, and the screen says so.
-      schedule.value = null
-      isConfigured.value = false
-      errorMessage.value = null
-      errorCode.value = ''
-      return
-    }
-
     errorMessage.value = error instanceof ApiError ? error.message : null
     errorCode.value = error instanceof ApiError ? error.code : ''
   }
@@ -100,13 +77,11 @@ export const useBackupSchedulesStore = defineStore('backupSchedules', () => {
     loading.value = true
     isLoaded.value = false
     schedule.value = null
-    isConfigured.value = false
     errorMessage.value = null
     errorCode.value = ''
     saved.value = false
     try {
-      schedule.value = await api.get(accountId)
-      isConfigured.value = true
+      schedule.value = (await api.get(accountId)).schedule
     } catch (error) {
       remember(error)
     } finally {
@@ -130,7 +105,6 @@ export const useBackupSchedulesStore = defineStore('backupSchedules', () => {
     saved.value = false
     try {
       schedule.value = await api.save(request)
-      isConfigured.value = true
       saved.value = true
       return true
     } catch (error) {
