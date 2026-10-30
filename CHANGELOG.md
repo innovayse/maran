@@ -11,6 +11,8 @@ opens and closes. The section holding the page you are on opens by itself, even 
 which sections you keep open is remembered in your browser. The chevron says whether it is open to a
 screen reader, and the arrow keys move through the menu. With the sidebar collapsed, pointing at or
 tabbing to an icon shows its pages beside the rail, and the jump-to search finds the pages too.
+Only the page you are on is highlighted inside a submenu (the list entry no longer lights up beside
+"New account" or "New site").
 
 **The navigation is denser.** The sidebar is 216 px instead of 240, rows and icons are smaller and the
 app bar is 48 px tall, so more of a work screen fits without scrolling. On a phone the menu rows stay
