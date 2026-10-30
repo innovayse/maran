@@ -21,7 +21,7 @@
  * its pending state for the whole run, and the tasks screen carries the progress
  * the panel records against it.
  *
- * **Layout (redesign 2026-10).** An accent eyebrow over an uppercase title, then two panels: the
+ * **Layout (redesign 2026-10).** An accent eyebrow over the title, then two panels: the
  * installed versions (a table with the version in the mono face, the default marked with a badge
  * so the word is never the only carrier) and the install control beside it from 1024px, below it
  * on a narrower screen. The table scrolls inside its own container, so nothing scrolls

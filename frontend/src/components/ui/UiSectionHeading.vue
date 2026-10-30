@@ -14,8 +14,8 @@
  * inside a flex column that already spaces its children. Spacing a component
  * bakes in is spacing its call sites have to undo.
  *
- * It is small uppercase display type, so it wraps anywhere: an uppercase
- * Armenian section title is one long word and must not push the card wider
+ * It is small display type in sentence case, so it wraps anywhere: an
+ * Armenian section title can be one long word and must not push the card wider
  * than a 390px screen. The title column shrinks (`min-w-0`) and the action
  * keeps its size, so a long title wraps instead of squeezing the link.
  *
@@ -56,7 +56,7 @@ defineSlots<{
   <div class="flex items-start justify-between gap-3">
     <div class="min-w-0">
       <h2
-        class="font-display text-sm font-extrabold tracking-caps text-text-primary uppercase wrap-anywhere"
+        class="font-display text-sm font-extrabold text-text-primary wrap-anywhere"
       >
         {{ title }}
       </h2>

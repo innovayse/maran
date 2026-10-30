@@ -175,7 +175,7 @@ onBeforeUnmount(store.forget)
         </UiAlert>
 
         <div v-if="store.link !== null" class="flex flex-col gap-2" data-testid="invitation-link-block">
-          <p class="text-xs font-medium tracking-wide text-text-muted uppercase">
+          <p class="text-xs font-medium text-text-muted">
             {{ t('invitations.linkLabel') }}
           </p>
           <!-- Selectable text, not a masked field: the clipboard may be unavailable, and the only

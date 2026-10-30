@@ -7,10 +7,10 @@
  * and all three already exist and are better.
  *
  * Each tile is the redesign's figure card: an accent icon square, the number in the display face and
- * a small uppercase label. The tile is a LINK, so it is drawn here as a panel (lifting 2px and taking
+ * a small label. The tile is a LINK, so it is drawn here as a panel (lifting 2px and taking
  * an accent border on hover) rather than as a `UiCard`, which is a `div` and cannot be one. Its
  * accessible name is the number followed by the noun ("3 Accounts"), which is also what tells it
- * apart from the sidebar's own link to the same screen. The label is uppercase by CSS and wraps
+ * apart from the sidebar's own link to the same screen. The label wraps
  * anywhere, so a long Armenian noun stays inside a two-column tile at 390px.
  *
  * **A zero renders as a zero**, never as an empty state. A freshly installed server has no accounts,
@@ -80,7 +80,7 @@ const tiles: ComputedRef<CountTile[]> = computed(() => {
         <span class="mt-3.5 block font-display text-2xl leading-none font-black @xl:text-3xl">{{
           tile.value.state === 'counted' ? tile.value.count : t('app.status.counts.unavailable')
         }}</span>
-        <span class="mt-2 block font-display text-xs font-extrabold tracking-caps text-text-secondary uppercase break-words">{{ t(`app.status.counts.${tile.key}`) }}</span>
+        <span class="mt-2 block font-display text-xs font-extrabold text-text-secondary break-words">{{ t(`app.status.counts.${tile.key}`) }}</span>
       </RouterLink>
     </div>
     </div>

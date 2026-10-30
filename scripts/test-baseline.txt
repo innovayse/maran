@@ -1,6 +1,9 @@
 # Committed per-target test baseline. Recorded by 'maran test --accept'; commit the diff.
 # stack<TAB>target<TAB>passed<TAB>failed<TAB>ignored
 #
+# RE-MEASURED 2026-10-30 (issue #244, sentence case everywhere in the UI): edited by hand. SPA-only change, no
+# backend target touched. spa: NEW row ui-kit/sentence-case.spec.ts 36 (5 screens + the task badge, x en/ru/hy,
+# x 1440/390). Full `E2E_PORT=5199 npx playwright test` run: 821 passed / 0 failed / 2 skipped; no other row moved.
 # RE-MEASURED 2026-10-30 (issue #204, upstream refusals 502/409/503, quiet signed-out refresh, site not-found): edited by hand.
 # One clean whole-solution `maran test backend` run: 20 targets: 4683 passed / 0 failed / 0 ignored, TEST VERDICT: OK.
 # Host.IntegrationTests 659->662 (UpstreamRefusalStatusTests x2, the present-but-invalid refresh cookie control),
@@ -518,6 +521,7 @@ spa	ui-kit/no-horizontal-scroll-admin.spec.ts	66	0	0
 spa	ui-kit/no-horizontal-scroll-other.spec.ts	54	0	0
 spa	ui-kit/pagination.spec.ts	10	0	0
 spa	ui-kit/select-empty.spec.ts	1	0	0
+spa	ui-kit/sentence-case.spec.ts	36	0	0
 spa	ui-kit/table-narrow.spec.ts	19	0	0
 spa	ui-kit/text-zoom.spec.ts	3	0	0
 spa	ui-kit/unfilled-select-prompt.spec.ts	3	0	0

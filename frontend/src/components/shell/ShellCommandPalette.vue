@@ -248,7 +248,7 @@ watch(matches, (): void => {
           <span class="min-w-0 flex-1 truncate">{{ entryLabel(entry) }}</span>
           <span
             v-if="entry.locked"
-            class="font-display text-xs font-extrabold tracking-caps uppercase"
+            class="font-display text-xs font-extrabold"
             :class="index === activeIndex ? 'text-white' : 'text-text-muted'"
           >
             {{ t('app.nav.lockedBadge') }}

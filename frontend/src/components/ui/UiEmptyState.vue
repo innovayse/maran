@@ -16,9 +16,8 @@
  * is far under the 3:1 a boundary would need) and nothing relies on it: the
  * title and description say what is empty.
  *
- * The title is sentence case, not the uppercase of a page title: it is a
- * message ("No sites yet"), and a sentence set in capitals reads as shouting
- * and is slower to read. It still wraps anywhere, since it may be the
+ * The title is sentence case, like every text in the panel: it is a
+ * message ("No sites yet"). It still wraps anywhere, since it may be the
  * translated name of a thing in Armenian or a server-sent name.
  */
 import UiIconTile from './UiIconTile.vue'

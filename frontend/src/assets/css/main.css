@@ -259,7 +259,7 @@ html[data-theme='light'] {
   --spacing-sheet: var(--sheet-max-h);
 
   /*
-   * Families. Archivo (black, 800 to 900) for titles, figures and uppercase labels; Inter
+   * Families. Archivo (black, 800 to 900) for titles, figures and micro-labels; Inter
    * for text; JetBrains Mono for figures that must align. Maran ships en, ru and hy, and
    * no single face covers all three: Archivo has no Cyrillic, so Russian display text
    * falls through to Inter, which does; none of the three has Armenian, so that falls
@@ -280,8 +280,8 @@ html[data-theme='light'] {
    * another stock step rather than a size invented between them.
    */
 
-  /* Letter-spacing: caps need air, large text needs less. */
-  --tracking-caps: 0.06em;
+  /* Letter-spacing: large text needs less. There is no caps tracking: the panel sets no text in
+     capitals by CSS (rules/vue.md), so no label needs the extra air capitals ask for. */
   --tracking-title: -0.02em;
 
   /*

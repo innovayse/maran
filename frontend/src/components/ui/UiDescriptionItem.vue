@@ -13,9 +13,9 @@
  *
  * The type sizes live here and nowhere else, which is the point: the label was `text-sm` on two
  * screens and `text-base` on a third for the same role, and nothing on either screen showed the
- * mismatch. The label is the design's small uppercase tag (`text-xs`, display face, wide tracking,
+ * mismatch. The label is the design's small tag in sentence case (`text-xs`, display face,
  * `text-text-muted` — 5.36:1 on a panel, 5.03:1 on the raised surface, 4.62:1 on the third step in
- * dark; 5.41 / 4.91 / 4.57 in light). Uppercase labels wrap anywhere: a long Armenian or Russian
+ * dark; 5.41 / 4.91 / 4.57 in light). Labels wrap anywhere: a long Armenian or Russian
  * label would otherwise be wider than a phone-width column. The value sits one step above it in
  * `text-sm`, primary colour, and wraps anywhere too, for the same reason (a domain or a path has no
  * spaces to break at).
@@ -48,7 +48,7 @@ const valueClass = (): string => {
 <template>
   <div class="min-w-0">
     <dt
-      class="font-display text-xs font-extrabold tracking-caps text-text-muted uppercase wrap-anywhere"
+      class="font-display text-xs font-extrabold text-text-muted wrap-anywhere"
     >
       {{ term }}
     </dt>

@@ -18,7 +18,7 @@
  *
  * **The card is three figure tiles under one heading, not one panel with three stripes.** Each tile
  * is a `UiCard` (its own `p-5` padding is left alone — a second padding class on the card would lose to it) in the redesign's figure-card form: an accent icon square, the reading in the display
- * face, a small uppercase label and the bar. The tiles are NOT links: the monitoring screen belongs
+ * face, a small label and the bar. The tiles are NOT links: the monitoring screen belongs
  * to a licensed module, and a figure that led to the upgrade page would be a worse answer than one
  * that is simply a figure. The bars sit at the bottom of their tiles so the three line up whatever
  * the tiles above them hold.
@@ -175,10 +175,10 @@ const loadText: ComputedRef<string> = computed(() => {
               <span>{{ reading.figure }}</span>
               <small v-if="reading.of !== null" class="text-sm font-extrabold whitespace-nowrap text-text-muted">{{ reading.of }}</small>
             </p>
-            <!-- `text-sm` on a phone: the display face at `text-xs` in capitals, and in Armenian
+            <!-- `text-sm` on a phone: the display face at `text-xs`, and in Armenian
                  above all, reads as a smudge beside the figure. The narrow three-up tiles from
                  `sm` up keep `text-xs`, where a larger label would wrap in every language. -->
-            <p class="m-0 mt-2 font-display text-sm font-extrabold tracking-caps text-text-secondary uppercase break-words @xl:text-xs">{{ reading.label }}</p>
+            <p class="m-0 mt-2 font-display text-sm font-extrabold text-text-secondary break-words @xl:text-xs">{{ reading.label }}</p>
           </div>
         </div>
 

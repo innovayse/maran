@@ -34,7 +34,7 @@ const { t } = useI18n()
   <span class="inline-flex min-w-0 items-center gap-2.5">
     <UiBrandMark :size="30" />
     <span
-      class="font-display text-base font-black tracking-caps text-text-primary uppercase"
+      class="font-display text-base font-black text-text-primary"
       :class="collapsible === true ? '@max-xs:sr-only sm:@max-[26rem]:sr-only' : ''"
     >
       {{ t('app.title') }}

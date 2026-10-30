@@ -388,7 +388,7 @@ watch(
          a few readable characters. -->
     <span
       :id="labelId"
-      class="text-xs font-bold tracking-caps uppercase wrap-anywhere"
+      class="text-xs font-bold wrap-anywhere"
       :class="[hasError ? 'text-danger' : 'text-text-muted', hideLabel ? 'sr-only' : '']"
       >{{ label }}</span
     >

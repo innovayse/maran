@@ -239,8 +239,8 @@ onMounted(async () => {
 
     <template v-else-if="accountsStore.selected !== null">
       <!-- The name is an identifier (a lowercase Linux user name), so the title is set in the mono
-           face rather than the uppercase display one: the delete dialog asks for it typed exactly,
-           and a title shouting it in capitals would show a different string from the one to type. -->
+           face rather than the display one: the delete dialog asks for it typed exactly, and the
+           mono face shows it as the exact string to type. -->
       <UiPageHeading
         :eyebrow="t('accounts.list.heading')"
         :title="accountsStore.selected.name"

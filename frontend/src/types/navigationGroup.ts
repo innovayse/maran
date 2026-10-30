@@ -8,7 +8,7 @@ import type { NavigationEntry } from './navigation'
 export interface NavigationGroup {
   /** Stable identifier for `:key` and for the label element's id; the group's name in the map. */
   key: string
-  /** i18n key of the group's small uppercase label (`app.nav.groups.<key>`). */
+  /** i18n key of the group's small label (`app.nav.groups.<key>`). */
   labelKey: string
   /** The entries in this group, in the order the catalogue gave them. Never empty. */
   entries: NavigationEntry[]

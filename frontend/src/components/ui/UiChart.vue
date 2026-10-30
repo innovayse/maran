@@ -610,7 +610,7 @@ watch(
     <template v-else>
       <div class="mb-2 flex items-baseline justify-between gap-3">
         <span
-          class="font-display text-xs font-extrabold tracking-caps text-text-secondary uppercase wrap-anywhere"
+          class="font-display text-xs font-extrabold text-text-secondary wrap-anywhere"
           >{{ label }}</span
         >
         <span
