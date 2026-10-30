@@ -110,11 +110,16 @@ const dotClasses: ComputedRef<string | null> = computed(() => {
 
 <template>
   <span
-    class="inline-flex max-w-full shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 font-display text-xs leading-none font-extrabold tracking-caps uppercase [td_&]:whitespace-nowrap [th_&]:whitespace-nowrap"
+    class="inline-flex max-w-full shrink-0 items-center gap-1 rounded-full px-2 py-0.5 font-display text-xs leading-none font-extrabold tracking-caps uppercase [td_&]:whitespace-nowrap [th_&]:whitespace-nowrap"
     :class="pillClasses"
   >
     <!-- Decorative: the word beside it already says the state. -->
-    <span v-if="dotClasses !== null" class="size-1.5 shrink-0 rounded-full" :class="dotClasses" aria-hidden="true" />
+    <span
+      v-if="dotClasses !== null"
+      class="size-1.5 shrink-0 rounded-full"
+      :class="dotClasses"
+      aria-hidden="true"
+    />
     <slot />
   </span>
 </template>

@@ -39,6 +39,14 @@
  * English), the row wraps and the pill drops to a line of its own under the label: the row grows
  * a line, and neither the label nor the pill is cut. The label cluster's `min-w-min` is what
  * makes it count as one word wide when the row decides to wrap.
+ *
+ * **Density (issue #200).** From tablet width up a row is 32px (14px text, 18px icon, 6px block
+ * padding), a `nested` submenu row 28px and the compact rail square 36px. Below 1024px the rows sit
+ * in the drawer and keep a 44px touch height (`max-lg:py-3`).
+ *
+ * **`nested`** draws a submenu child (issue #195): no icon slot is expected, a smaller block
+ * padding, and the same active fill as a top-level row so the current page is found the same way
+ * at either level.
  */
 import { onMounted, onUpdated, ref, type Ref } from 'vue'
 import type { RouteLocationRaw } from 'vue-router'
@@ -50,12 +58,14 @@ const props = defineProps<{
   /** Marks the entry as licence-locked: still navigable (to the upgrade page), but visually and semantically flagged. */
   locked?: boolean
   /**
-   * Draws the row as a 40px icon-only square, for the collapsed rail. The caller
+   * Draws the row as a 36px icon-only square, for the collapsed rail. The caller
    * keeps the accessible name in the slot as screen-reader-only text: dropping
    * the label from the markup, not just from the screen, would leave the link
    * unnamed.
    */
   compact?: boolean
+  /** Draws the row as a child inside a sidebar submenu: shorter, text only. */
+  nested?: boolean
 }>()
 
 /** The label cluster, read for the text the link offers as its `title`. */
@@ -84,15 +94,25 @@ onUpdated(readText)
        the thing that must never be missing. -->
   <RouterLink
     :to="to"
-    class="flex items-center gap-3 rounded-control text-sm font-medium text-text-secondary transition-colors hover:bg-surface-2 hover:text-text-primary focus-visible:shadow-focus focus-visible:outline-none motion-reduce:transition-none [&.router-link-active]:bg-accent-fill [&.router-link-active]:text-white [&.router-link-active]:shadow-glow [&.router-link-active]:hover:bg-accent-hover [&.router-link-active]:hover:text-white [&.router-link-active]:focus-visible:shadow-focus"
-    :class="compact ? 'mx-auto size-10 justify-center' : 'w-full flex-wrap justify-between gap-y-1 px-3 py-2.5'"
+    class="flex items-center gap-2.5 rounded-control text-sm font-medium text-text-secondary transition-colors hover:bg-surface-2 hover:text-text-primary focus-visible:shadow-focus focus-visible:outline-none motion-reduce:transition-none [&.router-link-active]:bg-accent-fill [&.router-link-active]:text-white [&.router-link-active]:shadow-glow [&.router-link-active]:hover:bg-accent-hover [&.router-link-active]:hover:text-white [&.router-link-active]:focus-visible:shadow-focus"
+    :class="
+      compact
+        ? 'mx-auto size-9 justify-center'
+        : nested
+          ? 'w-full flex-wrap justify-between gap-y-1 px-2.5 py-1 max-lg:py-3'
+          : 'w-full flex-wrap justify-between gap-y-1 px-2.5 py-1.5 max-lg:py-3'
+    "
     :aria-disabled="locked ? 'true' : undefined"
     :title="fullText"
   >
     <span
       ref="cluster"
-      class="flex items-center gap-3"
-      :class="compact ? 'flex-none' : 'min-w-min flex-1 [&>span]:min-w-0 [&>span]:line-clamp-2 [&>span]:wrap-normal'"
+      class="flex items-center gap-2.5"
+      :class="
+        compact
+          ? 'flex-none'
+          : 'min-w-min flex-1 [&>span]:min-w-0 [&>span]:line-clamp-2 [&>span]:wrap-normal'
+      "
     >
       <slot />
     </span>

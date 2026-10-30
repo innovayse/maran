@@ -5,7 +5,7 @@
  *
  * Two presentations from one component, because the markup inside is identical:
  *
- * - **In the flow (desktop, 1024px and up):** a 240px rounded panel floating on the desktop
+ * - **In the flow (desktop, 1024px and up):** a 216px rounded panel floating on the desktop
  *   beside the content panel, an `<aside>`.
  * - **`compact` (inside the drawer):** the same content with no panel chrome of its own —
  *   the drawer is the panel, with the mark and the close button above this. A `<div>`,
@@ -41,9 +41,27 @@
  *
  * The palette trigger and the theme control are no longer here: both live in the app bar on
  * every width, so the sidebar carries navigation and identity only.
+ *
+ * **Submenus (issue #195).** An entry with `children` is a row of two controls: the link, which
+ * navigates to the module's landing page AND opens its section (it is never a dead link), and a
+ * chevron button carrying `aria-expanded` and `aria-controls` that only toggles. The section that
+ * holds the current route opens by itself on every navigation, deep links included. Which
+ * sections are open is remembered per viewer in `localStorage`; every access is wrapped, so the
+ * sidebar renders correctly when storage is blocked. The child list is rendered with `v-if`, so a
+ * closed section's links are absent rather than hidden and the drawer's focus trap never lands on
+ * an invisible link.
+ *
+ * **Keyboard.** Tab walks every visible link and toggle as usual. Inside the navigation, ArrowDown
+ * and ArrowUp move between visible links, ArrowRight opens the section of the focused parent, and
+ * ArrowLeft closes it or, from a child, moves focus back to its parent.
+ *
+ * **Density (issue #200).** 216px wide, 18px icons, tighter rows and group labels from tablet
+ * width up; in the drawer (below 1024px) rows keep a 44px touch height (`UiNavLink`).
  */
-import { computed, type ComputedRef } from 'vue'
+import { readStoredKeys } from '../../utils/readStoredKeys'
+import { computed, ref, watch, type ComputedRef, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useRoute, useRouter } from 'vue-router'
 import UiBadge from '../ui/UiBadge.vue'
 import UiButton from '../ui/UiButton.vue'
 import UiIcon from '../ui/UiIcon.vue'
@@ -80,12 +98,132 @@ const emit = defineEmits<{
   (e: 'navigate'): void
 }>()
 
+/** Storage key under which the open sections are remembered for this viewer. */
+const OPEN_SECTIONS_KEY = 'maran.nav.openSections'
+
 const { t } = useI18n()
+const route = useRoute()
+const router = useRouter()
+
+/** Keys of the sections currently open. */
+const openSections: Ref<string[]> = ref(readStoredKeys(OPEN_SECTIONS_KEY))
+
+/** The scroller holding the navigation, searched for the rows arrow keys move between. */
+const scroller: Ref<HTMLElement | null> = ref(null)
 
 /** The entries split into labelled groups; empty groups are already left out. */
 const groups: ComputedRef<NavigationGroup[]> = computed(() => {
   return groupNavigation(props.entries)
 })
+
+/**
+ * Text drawn for an entry: the shell's own entries carry an i18n key, modules a backend label.
+ * @param entry The entry to name.
+ * @returns The label to render.
+ */
+const labelOf = (entry: NavigationEntry): string => {
+  return entry.labelKey === null ? (entry.label ?? '') : t(entry.labelKey)
+}
+
+/**
+ * Answers whether the current route lies inside one of a section's pages: the page itself or
+ * anything under its path (`/accounts/42` is inside "All accounts").
+ * @param entry The section to test.
+ * @returns True when a child's path is the current path or a prefix of it.
+ */
+const holdsCurrentRoute = (entry: NavigationEntry): boolean => {
+  return entry.children.some((child): boolean => {
+    const path = router.resolve(child.target).path
+    return route.path === path || route.path.startsWith(`${path}/`)
+  })
+}
+
+/**
+ * Answers whether a section is open.
+ * @param key The section's entry key.
+ * @returns True when its children are shown.
+ */
+const isOpen = (key: string): boolean => {
+  return openSections.value.includes(key)
+}
+
+/**
+ * Opens or closes a section and remembers the choice. Storage failures are swallowed: the state
+ * still changes for this visit.
+ * @param key The section's entry key.
+ * @param open Whether it should end up open.
+ * @returns Nothing.
+ */
+const setOpen = (key: string, open: boolean): void => {
+  if (isOpen(key) === open) {
+    return
+  }
+  openSections.value = open
+    ? [...openSections.value, key]
+    : openSections.value.filter((candidate): boolean => {
+        return candidate !== key
+      })
+  try {
+    window.localStorage.setItem(OPEN_SECTIONS_KEY, JSON.stringify(openSections.value))
+  } catch {
+    // Remembering is a convenience; the section still toggles without it.
+  }
+}
+
+/**
+ * Flips a section between open and closed.
+ * @param key The section's entry key.
+ * @returns Nothing.
+ */
+const toggle = (key: string): void => {
+  setOpen(key, !isOpen(key))
+}
+
+/**
+ * Handles a click on a section's own link: it navigates (the router does that) and opens the
+ * section, then reports the choice like any other destination.
+ * @param key The section's entry key.
+ * @returns Nothing.
+ */
+const chooseSection = (key: string): void => {
+  setOpen(key, true)
+  navigate()
+}
+
+/**
+ * Arrow-key movement inside the navigation. Only links take part in Up/Down — the toggles stay on
+ * the Tab path — so the arrows walk the menu the way it reads.
+ * @param event The keydown event from inside the scroller.
+ * @returns Nothing.
+ */
+const onKeydown = (event: KeyboardEvent): void => {
+  const target = event.target
+  if (!(target instanceof HTMLElement) || scroller.value === null) {
+    return
+  }
+  const links = Array.from(scroller.value.querySelectorAll<HTMLElement>('nav a'))
+  const index = links.indexOf(target)
+  if (index === -1) {
+    return
+  }
+
+  const section = target.dataset.navSection
+  const parent = target.dataset.navParent
+  if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+    event.preventDefault()
+    const next = links[index + (event.key === 'ArrowDown' ? 1 : -1)]
+    next?.focus()
+  } else if (event.key === 'ArrowRight' && section !== undefined) {
+    event.preventDefault()
+    setOpen(section, true)
+  } else if (event.key === 'ArrowLeft' && section !== undefined) {
+    event.preventDefault()
+    setOpen(section, false)
+  } else if (event.key === 'ArrowLeft' && parent !== undefined) {
+    event.preventDefault()
+    scroller.value.querySelector<HTMLElement>(`[data-nav-section="${parent}"]`)?.focus()
+  }
+}
 
 /**
  * Asks the shell to collapse the sidebar. The collapsed/expanded state lives in the layout,
@@ -103,6 +241,22 @@ const collapse = (): void => {
 const navigate = (): void => {
   emit('navigate')
 }
+
+// The section holding the current route opens on every navigation, deep links included. It only
+// ever opens: closing the section one is standing in is the viewer's own choice to keep.
+watch(
+  (): [string, readonly NavigationEntry[]] => {
+    return [route.path, props.entries]
+  },
+  (): void => {
+    for (const entry of props.entries) {
+      if (entry.children.length > 0 && holdsCurrentRoute(entry)) {
+        setOpen(entry.key, true)
+      }
+    }
+  },
+  { immediate: true },
+)
 </script>
 
 <template>
@@ -112,21 +266,25 @@ const navigate = (): void => {
     :class="
       compact
         ? 'flex-1'
-        : 'w-60 flex-none rounded-panel border border-border-subtle bg-surface-1 p-3'
+        : 'w-54 flex-none rounded-panel border border-border-subtle bg-surface-1 p-2.5'
     "
   >
     <!-- The scroll container clips whatever leaves its padding box, and the active row's glow
          (`--glow`: 30px blur, 8px down, -8px spread) reaches about 22px out sideways and 30px
          below the row. A wrapper exactly as wide as the rows cut it into a pale rectangle, loud
-         on the light theme. So the wrapper owns the 12px the panel's own padding gives the rows
-         (`px-3` with the matching `-mx-3`, so the rows do not move) and 32px under the last row:
-         the cut then falls on the panel's inner edge, where the glow is a few percent of its
-         strength, and never inside the panel. The padding is not larger because the wrapper
-         cannot reach past the panel's border without painting the glow onto the page behind it.
-         The same box is what keeps the 4px focus ring whole: `pt-1.5` (with `-mt-1.5`, so nothing
-         moves) leaves it room above the collapse button, and the 32px under the last row leaves
-         it room below the last link. -->
-    <div class="-mx-3 -mt-1.5 flex min-h-0 flex-1 flex-col gap-1 overflow-x-hidden overflow-y-auto px-3 pt-1.5 pb-8">
+         on the light theme. So the wrapper owns the 10px the panel's own padding gives the rows
+         (`px-2.5` with the matching `-mx-2.5`, so the rows do not move) and 32px under the last
+         row: the cut then falls on the panel's inner edge, where the glow is a few percent of its
+         strength, and never inside the panel. The same box is what keeps the 4px focus ring
+         whole: `pt-1.5` (with `-mt-1.5`, so nothing moves) leaves it room above the collapse
+         button, and the 32px under the last row leaves it room below the last link. -->
+    <!-- The keydown listener only adds arrow-key movement between links that are already
+         focusable; every row stays reachable with Tab, so no role is implied. -->
+    <div
+      ref="scroller"
+      class="-mx-2.5 -mt-1.5 flex min-h-0 flex-1 flex-col gap-0.5 overflow-x-hidden overflow-y-auto px-2.5 pt-1.5 pb-8"
+      @keydown="onKeydown"
+    >
       <!-- The collapse control gets a row of its own: the group labels are a loop, and a control
            that belongs to the panel must not move into whichever group happens to be first. -->
       <div v-if="!compact" class="flex justify-end">
@@ -142,24 +300,73 @@ const navigate = (): void => {
       </div>
 
       <UiNav :label="t('app.nav.ariaLabel')">
-        <UiNavItem v-for="group in groups" :key="group.key" class="mt-2 first:mt-0">
+        <UiNavItem v-for="group in groups" :key="group.key" class="mt-1.5 first:mt-0">
           <p
             :id="`nav-group-${group.key}`"
-            class="min-w-0 px-3 pt-2 pb-1 font-display text-xs font-extrabold tracking-caps wrap-anywhere text-text-muted uppercase"
+            class="min-w-0 px-2.5 pt-1.5 pb-0.5 font-display text-xs font-extrabold tracking-caps wrap-anywhere text-text-muted uppercase"
           >
             {{ t(group.labelKey) }}
           </p>
-          <ul class="flex flex-col gap-1" :aria-labelledby="`nav-group-${group.key}`">
+          <ul class="flex flex-col gap-0.5" :aria-labelledby="`nav-group-${group.key}`">
             <UiNavItem v-for="entry in group.entries" :key="entry.key">
-              <UiNavLink :to="entry.target" :locked="entry.locked" @click="navigate">
-                <UiIcon :name="entry.icon" size="lg" />
-                <span class="min-w-0 wrap-anywhere">
-                  {{ entry.labelKey === null ? entry.label : t(entry.labelKey) }}
-                </span>
+              <UiNavLink
+                v-if="entry.children.length === 0"
+                :to="entry.target"
+                :locked="entry.locked"
+                @click="navigate"
+              >
+                <UiIcon :name="entry.icon" size="md" />
+                <span class="min-w-0 wrap-anywhere">{{ labelOf(entry) }}</span>
                 <template v-if="entry.locked" #badge>
                   <UiBadge>{{ t('app.nav.lockedBadge') }}</UiBadge>
                 </template>
               </UiNavLink>
+
+              <template v-else>
+                <div class="flex items-center gap-0.5">
+                  <UiNavLink
+                    class="min-w-0 flex-1"
+                    :to="entry.target"
+                    :data-nav-section="entry.key"
+                    @click="chooseSection(entry.key)"
+                  >
+                    <UiIcon :name="entry.icon" size="md" />
+                    <span class="min-w-0 wrap-anywhere">{{ labelOf(entry) }}</span>
+                  </UiNavLink>
+                  <UiButton
+                    variant="quiet"
+                    size="icon-sm"
+                    :aria-label="t('app.nav.expandSection', { name: labelOf(entry) })"
+                    :aria-expanded="isOpen(entry.key) ? 'true' : 'false'"
+                    :aria-controls="isOpen(entry.key) ? `nav-section-${entry.key}` : undefined"
+                    @click="toggle(entry.key)"
+                  >
+                    <UiIcon
+                      name="chevronDown"
+                      size="sm"
+                      class="transition-transform motion-reduce:transition-none"
+                      :class="isOpen(entry.key) ? 'rotate-180' : ''"
+                    />
+                  </UiButton>
+                </div>
+                <ul
+                  v-if="isOpen(entry.key)"
+                  :id="`nav-section-${entry.key}`"
+                  class="mt-0.5 ml-4.5 flex flex-col gap-0.5 border-l border-border-subtle pl-1.5"
+                  :aria-label="labelOf(entry)"
+                >
+                  <UiNavItem v-for="child in entry.children" :key="child.key">
+                    <UiNavLink
+                      :to="child.target"
+                      nested
+                      :data-nav-parent="entry.key"
+                      @click="navigate"
+                    >
+                      <span class="min-w-0 wrap-anywhere">{{ labelOf(child) }}</span>
+                    </UiNavLink>
+                  </UiNavItem>
+                </ul>
+              </template>
             </UiNavItem>
           </ul>
         </UiNavItem>
@@ -167,7 +374,10 @@ const navigate = (): void => {
     </div>
 
     <!-- The identity card: the one place the signed-in person is named. -->
-    <div data-testid="shell-identity" class="mt-3 flex-none rounded-control border border-border-subtle bg-surface-2 p-3">
+    <div
+      data-testid="shell-identity"
+      class="mt-2.5 flex-none rounded-control border border-border-subtle bg-surface-2 p-2.5"
+    >
       <ShellUserBlock />
     </div>
   </component>

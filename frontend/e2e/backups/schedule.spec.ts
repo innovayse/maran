@@ -99,10 +99,9 @@ test("choosing an account reads that account's own schedule and shows it", async
   await expect(page.getByText('Nothing is scheduled here', { exact: false })).toHaveCount(0)
   await expect(page.getByLabel('Hour of the day (UTC)')).toHaveValue('2')
   await expect(page.getByLabel('Copies to keep')).toHaveValue('4')
-  await expect.poll(traffic.reads).toEqual([
-    '/api/v1/backup-schedules',
-    `/api/v1/backup-schedules?accountId=${ALICE.id}`,
-  ])
+  await expect
+    .poll(traffic.reads)
+    .toEqual(['/api/v1/backup-schedules', `/api/v1/backup-schedules?accountId=${ALICE.id}`])
 })
 
 // `SaveBackupScheduleCommand` establishes `ipAddress` and `userAgent` itself — they are
@@ -181,16 +180,19 @@ test('the screen says what retention does not cover', async ({ page }) => {
   await expect(page.getByText('is never pruned by this number', { exact: false })).toBeVisible()
   await expect(page.getByText('not encrypted at rest', { exact: false })).toBeVisible()
   // And it advertises no choice that does not exist: the panel records one destination and the
-  // endpoint that would record another refuses every request today.
+  // endpoint that would record another refuses every request today. The page body is checked, not
+  // the sidebar, whose Backups submenu names the Destinations screen.
   for (const forbidden of ['S3', 'Bucket', 'bucket', 'Region', 'Destination', 'destination']) {
-    await expect(page.locator('body')).not.toContainText(forbidden)
+    await expect(page.locator('#main-content')).not.toContainText(forbidden)
   }
 })
 
 // A route nothing links to is a feature nobody has. This screen already existed once with no route
 // and no way in, and every spec it had passed, because a spec navigates by URL where an operator
 // navigates by clicking. So this one clicks: sidebar, then the backups screen, then the schedule.
-test('an operator reaches the schedule through the shell, without typing a URL', async ({ page }) => {
+test('an operator reaches the schedule through the shell, without typing a URL', async ({
+  page,
+}) => {
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, LICENSED)

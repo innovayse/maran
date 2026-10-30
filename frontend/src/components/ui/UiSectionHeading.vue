@@ -31,34 +31,36 @@
 withDefaults(
   defineProps<{
     /** The section's title, already translated (or a name the server sent). */
-    title: string;
+    title: string
     /**
      * The sentence under the title, explaining what the section is for. Muted
      * and sentence-case, because it is read once: a section is already
      * introduced by the page's own subtitle, and a second full-weight
      * paragraph here competes with the content it introduces.
      */
-    subtitle?: string;
+    subtitle?: string
   }>(),
   { subtitle: undefined },
-);
+)
 
 /**
  * Slots exposed by {@link UiSectionHeading}.
  * @property action Optional link or control on the right of the title, such as "View all". The caller supplies a kit link or button; it is not drawn when empty.
  */
 defineSlots<{
-  action?: () => unknown;
-}>();
+  action?: () => unknown
+}>()
 </script>
 
 <template>
   <div class="flex items-start justify-between gap-3">
     <div class="min-w-0">
-      <h2 class="font-display text-sm font-extrabold tracking-caps text-text-primary uppercase wrap-anywhere">
+      <h2
+        class="font-display text-sm font-extrabold tracking-caps text-text-primary uppercase wrap-anywhere"
+      >
         {{ title }}
       </h2>
-      <p v-if="subtitle !== undefined" class="mt-1 text-sm text-text-muted wrap-anywhere">
+      <p v-if="subtitle !== undefined" class="mt-0.5 text-sm text-text-muted wrap-anywhere">
         {{ subtitle }}
       </p>
     </div>

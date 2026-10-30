@@ -27,6 +27,8 @@
 # 2175 passed / 0 failed / 133 ignored (maran_agent 347). Backend projects measured one by one with -m:1 because the
 # whole-solution run is OOM-killed on this workstation: Agent.Client 371, Backups 198, Cron 182, Sdk 208,
 # ArchitectureTests 80, Host.Tests 281 (Sftp 80 and Sites 176 unchanged). Host.IntegrationTests not measured here; CI measures it.
+# RE-MEASURED 2026-10-30 (issues #200, #195, sidebar submenus): spa 600/0/1 locally. Edited by hand, not `--accept`:
+# NEW row shell/sidebar-submenu.spec.ts 7. NOTHING FELL; plans/plans.spec.ts stays at 15. Rust and backend unchanged.
 # RE-MEASURED 2026-10-27 (issue #83, reserved account names, rebased on dev with #84 and #93): rust 30 targets,
 # 2171 passed / 0 failed / 133 ignored. maran_agent 343, maran_agent_core 404, maran_ops 1322, handshake 7, NEW row
 # account_identity_on_a_real_host 0/0/6. Backend rows not re-measured here (the full backend run is OOM-killed on
@@ -392,6 +394,7 @@ spa	shell/mobile-drawer.spec.ts	15	0	0
 spa	shell/module-landing-coverage.spec.ts	2	0	0
 spa	shell/not-found.spec.ts	1	0	0
 spa	shell/renders-title.spec.ts	1	0	0
+spa	shell/sidebar-submenu.spec.ts	7	0	0
 spa	sites/detail.spec.ts	5	0	0
 spa	sites/form.spec.ts	5	0	0
 spa	sites/list.spec.ts	5	0	0

@@ -13,6 +13,18 @@
         "security": "Անվտանգություն",
         "system": "Համակարգ",
         "panel": "Վահանակ"
+      },
+      "expandSection": "Ցույց տալ «{name}» բաժինները",
+      "children": {
+        "accountsList": "Բոլոր հաշիվները",
+        "accountsNew": "Նոր հաշիվ",
+        "sitesList": "Բոլոր կայքերը",
+        "sitesNew": "Նոր կայք",
+        "databasesList": "Բոլոր տվյալների բազաները",
+        "databasesGrantRepair": "Իրավունքների վերականգնում",
+        "backupsList": "Բոլոր պահուստները",
+        "backupsSchedule": "Ժամանակացույց",
+        "backupsDestinations": "Պահոցներ"
       }
     },
     "shell": {

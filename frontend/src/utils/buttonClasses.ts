@@ -68,19 +68,19 @@ const variantWeight = (variant: ButtonVariant): string => {
 const sizeClasses = (variant: ButtonVariant, size: ButtonSize): string => {
   switch (size) {
     case 'bar':
-      return 'h-10 min-w-10 justify-center gap-2 px-2.5 text-sm'
+      return 'h-control min-w-control justify-center gap-1.5 px-2.5 text-sm'
     case 'icon':
-      return 'size-10 shrink-0 justify-center p-0 text-sm'
+      return 'size-control shrink-0 justify-center p-0 text-sm'
     case 'icon-sm':
-      return 'size-8 shrink-0 justify-center p-0 text-sm'
+      return 'size-inset shrink-0 justify-center p-0 text-sm'
     case 'tab':
       return 'min-w-0 flex-col justify-center gap-1 p-0 text-xs leading-tight'
     case 'md':
     default:
       if (variant === 'field') {
-        return 'min-h-10 justify-start gap-2.5 px-3.5 py-2 text-sm'
+        return 'min-h-control justify-start gap-2 px-3 py-1.5 text-sm'
       }
-      return `min-h-10 justify-center gap-2 py-2 text-sm ${variant === 'primary' ? 'px-5' : 'px-4'}`
+      return `min-h-control justify-center gap-1.5 py-1.5 text-sm ${variant === 'primary' ? 'px-4' : 'px-3'}`
   }
 }
 

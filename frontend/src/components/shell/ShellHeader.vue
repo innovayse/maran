@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /**
- * The shell's app bar: a 56px rounded panel floating on the desktop, holding the mark and
+ * The shell's app bar: a 48px rounded panel (dense step, issue #200) floating on the desktop, holding the mark and
  * wordmark, the command-palette trigger, the breadcrumb, and the right-aligned interface
  * controls (tasks badge, theme, language, the signed-in person's avatar).
  *
@@ -112,7 +112,7 @@ const searchSwap: ComputedRef<{ field: string; icon: string; group: string }> = 
 <template>
   <header class="@container flex-none rounded-panel border border-border-subtle bg-surface-1">
     <div
-      class="flex min-h-[calc(3.5rem-2px)] flex-wrap items-center gap-x-2 gap-y-1 px-2 py-1.5 @min-[38rem]:gap-x-4 @min-[38rem]:px-4"
+      class="flex min-h-[calc(3rem-2px)] flex-wrap items-center gap-x-2 gap-y-1 px-2 py-1.5 @min-[38rem]:gap-x-4 @min-[38rem]:px-4"
     >
       <UiButton
         v-if="compact"
@@ -126,14 +126,17 @@ const searchSwap: ComputedRef<{ field: string; icon: string; group: string }> = 
         <UiIcon name="menu" size="lg" />
       </UiButton>
 
-      <!-- On the desktop this cell is the sidebar column's own width (`w-60`, as in
+      <!-- On the desktop this cell is the sidebar column's own width (`w-54`, as in
            `ShellSidebar.vue`), so the search field starts at the same x as the content panel
            beside the sidebar. Compact, there is no column to line up with and the cell is as wide
-           as its content. It is also as wide as its content on a bar too narrow to spare 15rem
+           as its content. It is also as wide as its content on a bar too narrow to spare 13.5rem
            for alignment, which is what a large text size does to a wide window. On a bar under
            16rem (a phone at 150% text) it is not drawn at all: the landing screen is the first tab
            and the first entry of the drawer, and the room is worth more to the four controls. -->
-      <div class="shrink-0" :class="compact ? '@max-[16rem]:hidden' : 'w-60 @max-[62rem]:w-auto @max-[16rem]:hidden'">
+      <div
+        class="shrink-0"
+        :class="compact ? '@max-[16rem]:hidden' : 'w-54 @max-[62rem]:w-auto @max-[16rem]:hidden'"
+      >
         <RouterLink
           :to="{ name: 'system-status' }"
           class="inline-flex rounded-control focus-visible:shadow-focus focus-visible:outline-none"

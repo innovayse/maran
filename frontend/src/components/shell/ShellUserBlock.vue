@@ -84,7 +84,7 @@ const signOut = async (): Promise<void> => {
 </script>
 
 <template>
-  <div class="flex min-w-0 flex-col gap-3">
+  <div class="flex min-w-0 flex-col gap-2.5">
     <!-- Signed in: avatar, name and role are the account menu's trigger, so the card
          names the person once and the menu opens from where a user expects — the
          block showing who they are. -->
@@ -99,8 +99,15 @@ const signOut = async (): Promise<void> => {
       <template #trigger>
         <ShellAvatar />
         <span class="min-w-0 flex-1 text-left">
-          <span class="block truncate text-sm font-bold text-text-primary" data-testid="shell-identity-name" :title="name">{{ name }}</span>
-          <span class="block truncate text-xs text-text-muted" :title="role ?? undefined">{{ role }}</span>
+          <span
+            class="block truncate text-sm font-bold text-text-primary"
+            data-testid="shell-identity-name"
+            :title="name"
+            >{{ name }}</span
+          >
+          <span class="block truncate text-xs text-text-muted" :title="role ?? undefined">{{
+            role
+          }}</span>
         </span>
       </template>
 
@@ -110,7 +117,9 @@ const signOut = async (): Promise<void> => {
         {{ t('app.shell.menu.myAccount') }}
       </UiDropdownItem>
       <UiDropdownItem @select="go('sessions')">{{ t('app.shell.menu.sessions') }}</UiDropdownItem>
-      <UiDropdownItem @select="go('two-factor')">{{ t('app.shell.menu.twoFactor') }}</UiDropdownItem>
+      <UiDropdownItem @select="go('two-factor')">{{
+        t('app.shell.menu.twoFactor')
+      }}</UiDropdownItem>
       <!-- Sessions, two-factor and the audit journal are the only entries on purpose: this
            menu had grown into the place every unlinked screen was put, and none of the
            others (audit, mail, security policy, PHP runtimes) is a setting about the person
@@ -122,10 +131,17 @@ const signOut = async (): Promise<void> => {
          plain text beside a neutral mark. -->
     <div v-else class="flex min-w-0 items-center gap-3">
       <ShellAvatar />
-      <span class="min-w-0 flex-1 truncate text-sm text-text-muted">{{ t('app.shell.signedOut') }}</span>
+      <span class="min-w-0 flex-1 truncate text-sm text-text-muted">{{
+        t('app.shell.signedOut')
+      }}</span>
     </div>
 
-    <UiButton v-if="name !== null" variant="secondary" class="w-full justify-center" @click="signOut">
+    <UiButton
+      v-if="name !== null"
+      variant="secondary"
+      class="w-full justify-center"
+      @click="signOut"
+    >
       <UiIcon name="logOut" size="md" />
       {{ t('app.auth.signOut') }}
     </UiButton>

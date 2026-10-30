@@ -109,14 +109,19 @@ const submit = (): void => {
     <!-- Carries a test id because the consequence text is the whole point of this dialog: an
          end-to-end check has to be able to assert the WHOLE sentence, and a substring match on the
          dialog would also pass on copy that had quietly lost a clause. -->
-    <div v-else class="flex items-start gap-3">
+    <div v-else class="flex items-start gap-2.5">
       <!-- A destructive question carries a warning glyph so its weight does not
            rest on the red button alone: the icon is a shape, the sentence is
            text, and neither depends on telling red from grey. `text-danger` on
            the dialog's `bg-surface-1` is 4.79 / 5.62:1 (dark / light). The glyph
            is decorative (`aria-hidden` through UiIcon): the sentence beside it
            says everything it does. -->
-      <UiIcon v-if="destructive" name="triangleAlert" size="md" class="mt-0.5 text-danger" />
+      <UiIcon
+        v-if="destructive"
+        name="triangleAlert"
+        size="sm"
+        class="mt-0.5 shrink-0 text-danger"
+      />
       <p class="min-w-0" data-testid="confirm-message">{{ question }}</p>
     </div>
 

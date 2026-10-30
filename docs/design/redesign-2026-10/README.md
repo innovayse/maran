@@ -284,9 +284,18 @@ rule:
   the app bar on top, the sidebar on the left, one content panel.
 - **The content panel is the only element that scrolls.** The shell never does. This is why a long page
   never drags the app bar or the sidebar with it.
-- **App bar (56 px):** the mark and wordmark (`ShellWordmark`, shared with the drawer's head row; plain content or a link, never a heading), a search field with a `⌘K` hint, the server selector, a
+- **App bar (48 px, the dense step of issue #200):** the mark and wordmark (`ShellWordmark`, shared with the drawer's head row; plain content or a link, never a heading), a search field with a `⌘K` hint, the server selector, a
   link out, the user's avatar.
-- **Sidebar (240 px):** items in groups under small uppercase group labels, count badges on the right.
+- **Sidebar (216 px, dense since issue #200):** items in groups under small uppercase group labels, count badges on the right;
+  rows are 32 px with 18 px icons from tablet width up, and keep a 44 px touch height in the drawer.
+  **A module with several pages is a collapsible submenu (issue #195):** the parent link navigates to
+  the landing page and opens the section, a chevron button (`aria-expanded`, `aria-controls`) only
+  toggles, the section holding the current route opens itself, and the open set is remembered per
+  viewer. Arrow keys move between links (Right opens, Left closes or returns to the parent). The
+  submenus are declared in `frontend/src/router/moduleNavigationChildren.ts`; a child whose route is
+  not registered, or an administrator-only child for a customer, is not shown. In the collapsed
+  rail (56 px) hovering or focusing an icon opens a flyout with the title and the children, which
+  replaces the bare tooltip; `Escape` closes it.
   **The active item is a solid `--acf` fill with white text and `--glow` under it**; inactive items are
   `--t2` with a tinted hover. **The signed-in user's card sits at the bottom**, with the sign-out
   button.

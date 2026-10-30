@@ -31,7 +31,7 @@
  * and fail), 3.43:1 against the well, and `aria-pressed` reports it to assistive
  * technology so colour is not the only cue. Unchosen segments are
  * `text-text-secondary` (6.65:1 on the well) and rise to `text-text-primary` on
- * `bg-surface-3` under the pointer. Each segment is at least 32px tall. The
+ * `bg-surface-3` under the pointer. Each segment is `min-h-choice` tall (28px from tablet up, 44px on a phone). The
  * segment radius is the well's minus its 4px padding, so the corners stay
  * concentric.
  */
@@ -86,7 +86,7 @@ const moveFocus = (index: number, step: number): void => {
 
 <template>
   <div
-    class="flex w-fit max-w-full flex-wrap items-center gap-1 rounded-control border border-border-subtle bg-surface-2 p-1"
+    class="flex w-fit max-w-full flex-wrap items-center gap-0.5 rounded-control border border-border-subtle bg-surface-2 p-1"
     role="group"
     :aria-label="label"
   >
@@ -95,7 +95,7 @@ const moveFocus = (index: number, step: number): void => {
       :key="option.value"
       ref="optionButtons"
       type="button"
-      class="flex min-h-8 items-center gap-1.5 rounded-inset px-3 py-1 font-mono text-sm wrap-anywhere transition-colors focus-visible:shadow-focus focus-visible:outline-none"
+      class="flex min-h-choice items-center gap-1.5 rounded-inset px-2.5 py-0.5 font-mono text-sm wrap-anywhere transition-colors focus-visible:shadow-focus focus-visible:outline-none"
       :class="
         modelValue === option.value
           ? 'bg-accent-fill font-semibold text-white'

@@ -18,7 +18,7 @@
  * Checked, the box is `bg-accent-fill` carrying a
  * white check mark at 5.14:1 (`bg-accent` would give 3.89:1 and fail); the fill
  * itself is 3.65:1 against a panel. The whole row is the label, so the click
- * target is the box plus its text, at least 32px tall (WCAG 2.5.8 asks for 24).
+ * target is the box plus its text, `min-h-choice` tall: 28px from tablet up, 44px on a phone (WCAG 2.5.8 asks for 24).
  */
 import { computed, useId, type ComputedRef } from 'vue'
 import UiIcon from './UiIcon.vue'
@@ -70,7 +70,7 @@ const onChange = (event: Event): void => {
 </script>
 
 <template>
-  <div class="flex flex-col gap-1.5">
+  <div class="flex flex-col gap-1">
     <!-- The input sits INSIDE its label so the whole row is one click target, and
          is `sr-only peer` so the real control stays in the accessibility tree and
          the focus order while the sibling box carries the visual state. The
@@ -78,7 +78,7 @@ const onChange = (event: Event): void => {
          restructure of the wrapper. -->
     <label
       :for="fieldId"
-      class="flex min-h-8 w-fit max-w-full items-center gap-2.5 text-sm text-text-primary"
+      class="flex min-h-choice w-fit max-w-full items-center gap-2 text-sm text-text-primary"
       :class="disabled ? 'cursor-not-allowed opacity-65' : 'cursor-pointer'"
     >
       <input
@@ -93,7 +93,7 @@ const onChange = (event: Event): void => {
         @change="onChange"
       />
       <span
-        class="inline-flex size-5 shrink-0 items-center justify-center rounded-mark border text-white transition-colors"
+        class="inline-flex size-4 shrink-0 items-center justify-center rounded-mark border text-white transition-colors"
         :class="[
           modelValue ? 'border-accent-fill bg-accent-fill' : 'bg-surface-2',
           !modelValue && hasError ? 'border-danger' : '',

@@ -1,5 +1,5 @@
 @import './fonts.css';
-@import "tailwindcss";
+@import 'tailwindcss';
 
 /*
  * Design tokens for the redesign (#82). Names are the design's own (--s1, --b1, --t1,
@@ -101,23 +101,57 @@ html[data-theme='dark'] {
  *
  *  - --r-inset: a control inside a control's 4px padding (a segment in the segmented
  *    control, the reveal / clear button in a field, a close button in a modal or toast):
- *    --r-control (12px) - 4px.
- *  - --r-row: a row inside a menu or listbox panel's 6px padding (a dropdown item, an
- *    option): --r-control (12px) - 6px.
+ *    --r-control (10px) - 4px.
+ *  - --r-row: a row inside a menu or listbox panel's 4px padding (a dropdown item, an
+ *    option): --r-control (10px) - 4px.
  *  - --r-mark: a small glyph box that is not nested but must still read as a sibling of
  *    the controls (the checkbox): a third of --r-control, so it stays a rounded square
- *    rather than turning into a circle at 20px.
+ *    rather than turning into a circle at 16px.
  *
  * They are written as calc() on --r-control so changing the control radius moves every
  * dependent radius with it.
  */
 :root {
   --glow: 0 8px 30px -8px rgb(46 123 255 / 0.55);
-  --r-panel: 16px;
-  --r-control: 12px;
+  --r-panel: 14px;
+  --r-control: 10px;
   --r-inset: calc(var(--r-control) - 4px);
-  --r-row: calc(var(--r-control) - 6px);
+  --r-row: calc(var(--r-control) - 4px);
   --r-mark: calc(var(--r-control) / 3);
+}
+
+/*
+ * Density (#200). The panel is a work tool read for hours on a desktop monitor, so from
+ * tablet width up every control is one compact step: a field or button 34px tall, a menu
+ * row 32px, an in-field button 28px, a checkbox / radio / switch row 28px. Below 768px the
+ * same tokens resolve to 44px (40px for an in-field button, which sits inside a 44px field),
+ * because a finger needs a 44px target and a phone has no pointer precision to spend.
+ *
+ * Components never write a height: they use the utilities these feed (`min-h-control`,
+ * `min-h-row`, `size-inset`, `min-h-choice`, `p-menu`), so the next density change is
+ * this block and nothing else.
+ *
+ *  - --d-control: the height of a text field, a select, a labelled button.
+ *  - --d-inset: the square of a button inside a field (reveal, clear, generate).
+ *  - --d-row: a row in a menu or listbox.
+ *  - --d-choice: the line a checkbox, radio or switch sits on (its click target).
+ *  - --d-menu: the padding of a menu or listbox panel; --r-row is derived from it.
+ */
+:root {
+  --d-control: 2.75rem;
+  --d-inset: 2.5rem;
+  --d-row: 2.75rem;
+  --d-choice: 2.75rem;
+  --d-menu: 0.25rem;
+}
+
+@media (min-width: 768px) {
+  :root {
+    --d-control: 2.125rem;
+    --d-inset: 1.75rem;
+    --d-row: 2rem;
+    --d-choice: 1.75rem;
+  }
 }
 
 /*
@@ -147,7 +181,7 @@ html[data-theme='light'] {
   --s3: #e9ecf0;
   --b1: #e2e5ea;
   --b2: #d2d6dd;
-  --bc: #80878f;  /* 3.63 on --s1, 3.30 on --s2, 3.07 on --s3 */
+  --bc: #80878f; /* 3.63 on --s1, 3.30 on --s2, 3.07 on --s3 */
   --t1: #14171b;
   --t2: #5c646d;
   --t3: #636b73;
@@ -197,6 +231,13 @@ html[data-theme='light'] {
   --radius-row: var(--r-row);
   --radius-mark: var(--r-mark);
 
+  /* Density: `min-h-control`, `size-inset`, `min-h-row`, `min-h-choice`, `p-menu`. */
+  --spacing-control: var(--d-control);
+  --spacing-inset: var(--d-inset);
+  --spacing-row: var(--d-row);
+  --spacing-choice: var(--d-choice);
+  --spacing-menu: var(--d-menu);
+
   /*
    * Families. Archivo (black, 800 to 900) for titles, figures and uppercase labels; Inter
    * for text; JetBrains Mono for figures that must align. Maran ships en, ru and hy, and
@@ -214,10 +255,9 @@ html[data-theme='light'] {
    * for body copy, `text-2xl` for page titles — and a parallel scale would be a second
    * vocabulary that only this repository understands.
    *
-   * The panel sits one stock step above the mockup's 13px base. 13px reads correctly in
-   * a mockup at 100% on a laptop and as fine print on a desktop monitor, which is where
-   * an operator spends hours on tables of domains and log lines. So every component takes
-   * the next stock step up rather than a size invented between the stock ones.
+   * The document base is `text-sm` (14px, #200): dense enough for a work tool, one stock
+   * step above the mockup's 13px fine print. A component that needs a different size takes
+   * another stock step rather than a size invented between them.
    */
 
   /* Letter-spacing: caps need air, large text needs less. */
@@ -249,11 +289,11 @@ html[data-theme='light'] {
     background: var(--bg);
     color: var(--t1);
     font-family: var(--font-sans);
-    /* The document base, matching Tailwind's own `text-base` — the same 16px the web
-       defaults to. The mockup's 13px base reads as fine print on a desktop monitor at
-       arm's length. Text with a class of its own does not depend on this; it matters for
-       the few places that inherit. */
-    font-size: 1rem;
+    /* The document base is Tailwind's `text-sm` step (14px, #200), the body step of the
+       panel. Text with a class of its own does not depend on this; it matters for the
+       places that inherit. */
+    font-size: var(--text-sm);
+    line-height: var(--text-sm--line-height);
     letter-spacing: -0.005em;
     -webkit-font-smoothing: antialiased;
     text-wrap: pretty;

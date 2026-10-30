@@ -91,7 +91,7 @@ const onSelect = (value: string): void => {
        also overrides the legend-based name, hence the explicit `aria-labelledby`. -->
   <fieldset
     role="radiogroup"
-    class="flex min-w-0 flex-col gap-1 border-0 p-0"
+    class="flex min-w-0 flex-col gap-0.5 border-0 p-0"
     :aria-labelledby="legendId"
     :aria-required="required ? 'true' : undefined"
     :aria-invalid="hasError"
@@ -99,7 +99,7 @@ const onSelect = (value: string): void => {
   >
     <legend
       :id="legendId"
-      class="mb-1.5 text-sm font-medium wrap-anywhere"
+      class="mb-1 text-sm font-medium wrap-anywhere"
       :class="hasError ? 'text-danger' : 'text-text-secondary'"
     >
       {{ legend }}
@@ -114,6 +114,8 @@ const onSelect = (value: string): void => {
       :disabled="disabled || option.disabled === true"
       @select="onSelect"
     />
-    <p v-if="hasError" :id="errorId" class="mt-0.5 text-sm text-danger wrap-anywhere">{{ error }}</p>
+    <p v-if="hasError" :id="errorId" class="mt-0.5 text-sm text-danger wrap-anywhere">
+      {{ error }}
+    </p>
   </fieldset>
 </template>

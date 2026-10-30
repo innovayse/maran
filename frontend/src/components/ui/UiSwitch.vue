@@ -21,7 +21,7 @@
  * `bg-text-secondary` (6.11:1 against the track in dark, 5.06 in light). The knob is
  * a fixed colour pair per state because
  * a white knob is invisible on the off track in the light theme, where
- * `surface-3` is near-white. The track is 44 by 24px and the whole row,
+ * `surface-3` is near-white. The track is 36 by 20px and the whole row,
  * including the label, is the click target.
  */
 import { computed, useId, type ComputedRef } from 'vue'
@@ -50,16 +50,18 @@ const labelId: string = useId()
 
 /** Tailwind utility classes for the track, which carries the on/off fill and outline. */
 const trackClasses: ComputedRef<string> = computed(() => {
-  return props.modelValue ? 'border-accent-fill bg-accent-fill' : 'border-border-control bg-surface-3'
+  return props.modelValue
+    ? 'border-accent-fill bg-accent-fill'
+    : 'border-border-control bg-surface-3'
 })
 
 /**
  * Tailwind utility classes positioning and colouring the knob. Track inner width
- * is 44px minus the 1px border and 2px inset on each side = 38px; an 18px knob
- * leaves 20px of travel, which is `translate-x-5`.
+ * is 36px minus the 1px border and 2px inset on each side = 30px; a 14px knob
+ * leaves 16px of travel, which is `translate-x-4`.
  */
 const knobClasses: ComputedRef<string> = computed(() => {
-  return props.modelValue ? 'translate-x-5 bg-white' : 'translate-x-0 bg-text-secondary'
+  return props.modelValue ? 'translate-x-4 bg-white' : 'translate-x-0 bg-text-secondary'
 })
 
 /**
@@ -75,19 +77,19 @@ const onToggle = (): void => {
 </script>
 
 <template>
-  <div class="flex min-h-8 items-center gap-2.5">
+  <div class="flex min-h-choice items-center gap-2">
     <button
       type="button"
       role="switch"
       :aria-checked="modelValue"
       :aria-labelledby="labelId"
       :disabled="disabled"
-      class="inline-flex h-6 w-11 shrink-0 items-center rounded-full border p-0.5 transition-colors focus-visible:shadow-focus focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-65"
+      class="inline-flex h-5 w-9 shrink-0 items-center rounded-full border p-0.5 transition-colors focus-visible:shadow-focus focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-65"
       :class="trackClasses"
       @click="onToggle"
     >
       <span
-        class="ui-switch-knob size-4.5 rounded-full transition-transform duration-150 ease-out"
+        class="ui-switch-knob size-3.5 rounded-full transition-transform duration-150 ease-out"
         :class="knobClasses"
         aria-hidden="true"
       />

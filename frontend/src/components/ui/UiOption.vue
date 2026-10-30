@@ -18,8 +18,8 @@
  * is `text-accent-text` on a resting row (5.23:1 on dark `surface-3`, 5.74 on light),
  * but on the ACTIVE row it is `text-text-primary`: that row carries the accent wash,
  * and accent text over the wash on `surface-3` is the 4.40:1 pairing the redesign
- * README forbids. The tick is still a tick by its shape. A row is at least 36px
- * tall, above the 24px minimum target.
+ * README forbids. The tick is still a tick by its shape. A row is `min-h-row` tall
+ * (32px from tablet up, 44px on a phone), above the 24px minimum target.
  */
 import UiIcon from './UiIcon.vue'
 
@@ -80,7 +80,7 @@ const onPointerEnter = (): void => {
     role="option"
     :aria-selected="selected"
     :aria-disabled="disabled ? 'true' : undefined"
-    class="flex min-h-9 cursor-pointer items-center justify-between gap-2.5 rounded-row px-3 py-2 text-base text-text-primary sm:text-sm"
+    class="flex min-h-row cursor-pointer items-center justify-between gap-2 rounded-row px-2.5 py-1.5 text-base text-text-primary sm:text-sm"
     :class="[
       active ? 'bg-accent-soft' : '',
       selected ? 'font-semibold' : '',

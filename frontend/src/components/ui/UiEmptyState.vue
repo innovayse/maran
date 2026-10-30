@@ -79,19 +79,24 @@ defineSlots<{
 
 <template>
   <div
-    class="flex min-w-0 flex-col items-center gap-3 rounded-panel border border-dashed border-border-strong bg-surface-1 px-6 py-16 text-center"
+    class="flex min-w-0 flex-col items-center gap-2 rounded-panel border border-dashed border-border-strong bg-surface-1 px-4 py-10 text-center"
   >
     <!-- The tile is drawn only when a caller supplies a glyph: an empty tinted
          square would read as a missing image rather than as decoration. The
          accent text sits on the accent wash over the panel surface (--s1),
          never over --s3, where that pairing measures under 4.5:1. -->
-    <UiIconTile v-if="$slots.icon" size="lg">
+    <UiIconTile v-if="$slots.icon" size="md">
       <slot name="icon" />
     </UiIconTile>
-    <component :is="titleAs" class="font-display text-lg font-extrabold text-text-primary wrap-anywhere">{{
-      title
-    }}</component>
-    <p v-if="description" class="max-w-100 text-sm leading-normal text-text-secondary wrap-anywhere">
+    <component
+      :is="titleAs"
+      class="font-display text-base font-extrabold text-text-primary wrap-anywhere"
+      >{{ title }}</component
+    >
+    <p
+      v-if="description"
+      class="max-w-100 text-sm leading-normal text-text-secondary wrap-anywhere"
+    >
       {{ description }}
     </p>
     <div v-if="$slots.default" class="mt-1 flex flex-wrap justify-center gap-2">

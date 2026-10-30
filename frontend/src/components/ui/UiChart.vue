@@ -90,7 +90,16 @@
  * {@link computeValueRange} still holds.
  */
 import { format } from 'date-fns'
-import { computed, onBeforeUnmount, onMounted, ref, useId, watch, type ComputedRef, type Ref } from 'vue'
+import {
+  computed,
+  onBeforeUnmount,
+  onMounted,
+  ref,
+  useId,
+  watch,
+  type ComputedRef,
+  type Ref,
+} from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { AppLocale } from '../../types/app'
 import { formatChartInstant } from '../../utils/formatChartInstant'
@@ -285,11 +294,12 @@ const xTicks: ComputedRef<XTickLabel[]> = computed(() => {
   const ends = [full[0], full[full.length - 1]].map((tick, position) => {
     return { ...tick, anchor: position === 0 ? ('start' as const) : ('end' as const) }
   })
-  const sameDay = new Set(
-    ticks.map((tick) => {
-      return new Date(tick.at).toDateString()
-    }),
-  ).size === 1
+  const sameDay =
+    new Set(
+      ticks.map((tick) => {
+        return new Date(tick.at).toDateString()
+      }),
+    ).size === 1
   /**
    * Replaces each label's text with its time of day.
    * @param labels The labels to shorten.
@@ -377,7 +387,10 @@ const niceRange = (range: ChartValueRange): ChartValueRange => {
   const tidy = (value: number): number => {
     return Number(value.toPrecision(12))
   }
-  return { min: tidy(Math.floor(range.min / step) * step), max: tidy(Math.ceil(range.max / step) * step) }
+  return {
+    min: tidy(Math.floor(range.min / step) * step),
+    max: tidy(Math.ceil(range.max / step) * step),
+  }
 }
 
 /**
@@ -481,7 +494,8 @@ const labelsFit = (labels: XTickLabel[], rowWidth: number): boolean => {
   for (const tick of labels) {
     const width = measureLabel(tick.label)
     const anchorX = (parseFloat(xPercent(tick.x)) / 100) * rowWidth
-    const start = anchorX - (tick.anchor === 'start' ? 0 : tick.anchor === 'middle' ? width / 2 : width)
+    const start =
+      anchorX - (tick.anchor === 'start' ? 0 : tick.anchor === 'middle' ? width / 2 : width)
     if (start < previousEnd + TICK_GAP || start + width > rowWidth + 0.5) {
       return false
     }
@@ -583,21 +597,25 @@ watch(
 
 <template>
   <div class="ui-chart">
-    <UiEmptyState v-if="points.length === 0" :title="label" :description="t('app.chart.emptyDescription')">
+    <UiEmptyState
+      v-if="points.length === 0"
+      :title="label"
+      :description="t('app.chart.emptyDescription')"
+    >
       <template #icon>
         <UiIcon name="pulse" />
       </template>
     </UiEmptyState>
 
     <template v-else>
-      <div class="mb-3 flex items-baseline justify-between gap-3">
+      <div class="mb-2 flex items-baseline justify-between gap-3">
         <span
           class="font-display text-xs font-extrabold tracking-caps text-text-secondary uppercase wrap-anywhere"
           >{{ label }}</span
         >
         <span
           v-if="latestFormatted !== null"
-          class="font-mono text-lg font-semibold text-text-primary tabular-nums wrap-anywhere"
+          class="font-mono text-base font-semibold text-text-primary tabular-nums wrap-anywhere"
           >{{ latestFormatted }}</span
         >
       </div>
@@ -645,7 +663,12 @@ watch(
             />
           </g>
 
-          <path v-if="areaPath !== null" :d="areaPath" :fill="`url(#${gradientId})`" class="ui-chart-area" />
+          <path
+            v-if="areaPath !== null"
+            :d="areaPath"
+            :fill="`url(#${gradientId})`"
+            class="ui-chart-area"
+          />
           <path v-if="linePath !== null" :d="linePath" class="ui-chart-line" />
           <circle
             v-if="points.length === 1"
@@ -670,7 +693,12 @@ watch(
               class="ui-chart-marker ui-chart-marker--active"
             />
             <g :transform="`translate(${readoutX}, ${readoutY})`">
-              <rect :width="READOUT_WIDTH" :height="READOUT_HEIGHT" rx="6" class="ui-chart-readout-bg" />
+              <rect
+                :width="READOUT_WIDTH"
+                :height="READOUT_HEIGHT"
+                rx="6"
+                class="ui-chart-readout-bg"
+              />
               <text x="8" y="16" class="ui-chart-readout-value">
                 {{ formatValueWithUnit(hoveredPoint.value) }}
               </text>
@@ -682,7 +710,7 @@ watch(
         <!-- The time labels, one row under the plot. Each is placed at its tick's percentage and
              shifted by its anchor, so the first starts at the plot's left edge and the last ends
              at its right edge instead of hanging out of the card. -->
-        <div ref="xAxisRow" class="relative col-start-2 row-start-2 mt-1.5 h-4" aria-hidden="true">
+        <div ref="xAxisRow" class="relative col-start-2 row-start-2 mt-1 h-4" aria-hidden="true">
           <span
             v-for="tick in xTicks"
             :key="`x-${tick.x}`"

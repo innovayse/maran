@@ -153,7 +153,7 @@ const { onTab } = useFocusTrap({
          order, which is not a rule anyone can read off the page. -->
     <div
       v-if="open"
-      class="fixed inset-0 z-[60] flex items-center justify-center bg-page/70 p-4 backdrop-blur-sm sm:p-6"
+      class="fixed inset-0 z-[60] flex items-center justify-center bg-page/70 p-3 backdrop-blur-sm sm:p-5"
       @mousedown.self.prevent
       @click="onBackdropClick"
       @keydown.esc.prevent="onEscape"
@@ -167,19 +167,19 @@ const { onTab } = useFocusTrap({
         tabindex="-1"
         class="ui-modal-panel flex max-h-full w-full max-w-md flex-col overflow-hidden rounded-panel border border-border-strong bg-surface-1 shadow-2xl focus-visible:outline-none"
       >
-        <div class="flex shrink-0 items-start justify-between gap-4 px-6 pt-5 pb-3">
+        <div class="flex shrink-0 items-start justify-between gap-3 px-5 pt-4 pb-2">
           <!-- `overflow-wrap: anywhere`: a long Armenian title or an unbroken
                domain must wrap inside the sheet, never push it wider than a
                390px screen. -->
           <h2
             :id="titleId"
-            class="min-w-0 font-display text-lg font-extrabold text-text-primary wrap-anywhere"
+            class="min-w-0 font-display text-base font-extrabold text-text-primary wrap-anywhere"
           >
             {{ title }}
           </h2>
           <button
             type="button"
-            class="inline-flex size-8 shrink-0 items-center justify-center rounded-inset text-text-muted transition-colors hover:bg-surface-3 hover:text-text-primary focus-visible:shadow-focus focus-visible:outline-none"
+            class="inline-flex size-11 shrink-0 sm:size-7 items-center justify-center rounded-inset text-text-muted transition-colors hover:bg-surface-3 hover:text-text-primary focus-visible:shadow-focus focus-visible:outline-none"
             @click="requestClose"
           >
             <!-- Decorative glyph: the button's accessible name comes from the caller-translated label. -->
@@ -200,7 +200,7 @@ const { onTab } = useFocusTrap({
              moves) and 24px below, and `scroll-pb-6` makes keyboard focus scroll the ring into view
              rather than the control's bare edge. -->
         <div
-          class="min-h-0 flex-1 scroll-pb-6 overflow-y-auto px-6 pt-1 pb-6 text-sm leading-relaxed text-text-secondary wrap-anywhere"
+          class="min-h-0 flex-1 scroll-pb-5 overflow-y-auto px-5 pt-1 pb-5 text-sm leading-relaxed text-text-secondary wrap-anywhere"
         >
           <slot />
         </div>
@@ -211,7 +211,7 @@ const { onTab } = useFocusTrap({
              half again between the three languages. -->
         <div
           v-if="$slots.footer"
-          class="flex shrink-0 flex-wrap justify-end gap-3 border-t border-border-subtle px-6 py-4"
+          class="flex shrink-0 flex-wrap justify-end gap-2 border-t border-border-subtle px-5 py-3"
         >
           <slot name="footer" />
         </div>

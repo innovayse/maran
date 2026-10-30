@@ -30,7 +30,7 @@ const GROUP_ORDER: readonly string[] = ['overview', 'hosting', 'security', 'syst
  * - **overview**: what the server is doing right now and what it has been doing — system status,
  *   monitoring, the background-task feed. Things read, not configured.
  * - **hosting**: the customer-facing things the panel exists to host — accounts and the plans they
- *   are created on, sites, databases, file transfer, scheduled jobs.
+ *   are created on (now a child of accounts, issue #195), sites, databases, file transfer, scheduled jobs.
  * - **security**: what protects the host and its data — the firewall, and backups (a copy is the
  *   last defence against loss, and the approved design files it beside the firewall).
  * - **system**: the panel's own settings and records — the audit journal, the identity module's
@@ -44,7 +44,6 @@ const ENTRY_GROUPS: Readonly<Record<string, string>> = {
   monitoring: 'overview',
   tasks: 'overview',
   accounts: 'hosting',
-  plans: 'hosting',
   sites: 'hosting',
   databases: 'hosting',
   sftp: 'hosting',
@@ -79,6 +78,8 @@ export const groupNavigation = (entries: readonly NavigationEntry[]): Navigation
     const members = entries.filter((entry): boolean => {
       return groupOf(entry.key) === key
     })
-    return members.length === 0 ? [] : [{ key, labelKey: `app.nav.groups.${key}`, entries: members }]
+    return members.length === 0
+      ? []
+      : [{ key, labelKey: `app.nav.groups.${key}`, entries: members }]
   })
 }

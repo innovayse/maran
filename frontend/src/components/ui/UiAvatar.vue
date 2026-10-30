@@ -24,7 +24,7 @@ const props = withDefaults(
   defineProps<{
     /** The text the initials are derived from: a login, an account name. */
     name: string
-    /** `md` (36px) beside a name in a card, `sm` (32px) in a bar or a table row. */
+    /** `md` (32px) beside a name in a card, `sm` (28px) in a bar or a table row. */
     size?: 'sm' | 'md'
   }>(),
   { size: 'md' },
@@ -38,8 +38,8 @@ const initials: ComputedRef<string> = computed(() => {
 
 <template>
   <span
-    class="grid shrink-0 place-items-center rounded-full bg-accent-fill text-sm leading-none font-bold text-white select-none"
-    :class="size === 'sm' ? 'size-8' : 'size-9'"
+    class="grid shrink-0 place-items-center rounded-full bg-accent-fill text-xs leading-none font-bold text-white select-none"
+    :class="size === 'sm' ? 'size-7' : 'size-8'"
     aria-hidden="true"
   >
     <slot>{{ initials }}</slot>

@@ -76,7 +76,7 @@ const cellClasses: ComputedRef<string> = computed(() => {
 </script>
 
 <template>
-  <td class="min-w-20 px-3 py-3.5 align-middle" :class="cellClasses">
+  <td class="min-w-20 px-3 py-2 align-middle" :class="cellClasses">
     <slot />
   </td>
 </template>

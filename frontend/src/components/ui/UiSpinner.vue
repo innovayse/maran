@@ -22,13 +22,16 @@
 /** Props accepted by {@link UiSpinner}. */
 defineProps<{
   /** Accessible label describing what is loading (translated by the caller). */
-  label: string;
-}>();
+  label: string
+}>()
 </script>
 
 <template>
   <span role="status" class="inline-flex items-center gap-2 text-sm text-text-secondary">
-    <span class="ui-spinner-arc size-4 rounded-full border-2 border-border-strong border-t-accent" aria-hidden="true" />
+    <span
+      class="ui-spinner-arc size-3.5 rounded-full border-2 border-border-strong border-t-accent"
+      aria-hidden="true"
+    />
     <span class="sr-only">{{ label }}</span>
   </span>
 </template>

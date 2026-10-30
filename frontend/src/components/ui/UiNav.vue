@@ -21,11 +21,11 @@ defineProps<{
 
 <template>
   <!-- No width and no padding: a kit primitive that bakes in a layout forces its
-       second consumer to fight it, so the caller sizes the region. The 4px gap is
-       the redesign's: rows are 12px-radius pills, and a hairline gap would let
-       the active row's glow touch its neighbours. -->
+       second consumer to fight it, so the caller sizes the region. The 2px gap is
+       the dense step (issue #200): enough that two 12px-radius pills never touch,
+       without spending more of a short screen on air. -->
   <nav class="w-full" :aria-label="label">
-    <ul class="flex flex-col gap-1">
+    <ul class="flex flex-col gap-0.5">
       <slot />
     </ul>
   </nav>

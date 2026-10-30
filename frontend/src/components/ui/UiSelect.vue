@@ -35,7 +35,16 @@
  * tier would move it only 1.50:1 / 1.49:1 — too small to read as a response. See
  * {@link UiInput} for the measured figures.
  */
-import { computed, onBeforeUnmount, onMounted, ref, useId, watch, type ComputedRef, type Ref } from 'vue'
+import {
+  computed,
+  onBeforeUnmount,
+  onMounted,
+  ref,
+  useId,
+  watch,
+  type ComputedRef,
+  type Ref,
+} from 'vue'
 import { nextEnabledIndex } from '../../utils/nextEnabledIndex'
 import UiIcon from './UiIcon.vue'
 import UiOption from './UiOption.vue'
@@ -136,7 +145,9 @@ const triggerText: ComputedRef<string> = computed(() => {
 
 /** DOM id of the active option, published to assistive tech as `aria-activedescendant`. */
 const activeOptionId: ComputedRef<string | undefined> = computed(() => {
-  return isOpen.value && activeIndex.value >= 0 ? `${fieldId}-option-${String(activeIndex.value)}` : undefined
+  return isOpen.value && activeIndex.value >= 0
+    ? `${fieldId}-option-${String(activeIndex.value)}`
+    : undefined
 })
 
 /**
@@ -332,7 +343,7 @@ watch(
 </script>
 
 <template>
-      <div ref="rootElement" class="flex min-w-24 flex-col gap-1.5" @focusout="onFocusOut">
+  <div ref="rootElement" class="flex min-w-24 flex-col gap-1" @focusout="onFocusOut">
     <!-- `min-w-24` (6rem) is the floor under a select in a flex or grid row: the trigger text
          truncates and a flex item's automatic minimum is then zero, so at narrow widths selects
          collapsed to 16 to 33 px showing only an ellipsis. 6rem keeps the chevron, the padding and
@@ -344,7 +355,7 @@ watch(
       >{{ label }}</span
     >
     <div class="relative">
-      <!-- `min-h-10` is the height an input renders at. Without it a select with
+      <!-- `min-h-control` is the height an input renders at. Without it a select with
            no chosen value and no placeholder collapses to its empty line box and
            sits shorter than the inputs beside it. 16px text below `sm` (14px from
            `sm` up) for the same reason as UiInput: no zoom-on-focus on a phone.
@@ -366,11 +377,11 @@ watch(
         :aria-invalid="hasError"
         :aria-describedby="hasError ? errorId : undefined"
         :disabled="disabled"
-        class="flex min-h-10 w-full items-center justify-between gap-2 rounded-control border bg-surface-2 px-3 py-2 text-left text-base text-text-primary transition-colors focus-visible:outline-none disabled:cursor-not-allowed disabled:text-text-muted disabled:opacity-65 sm:text-sm"
+        class="flex min-h-control w-full items-center justify-between gap-2 rounded-control border bg-surface-2 px-3 py-1.5 text-left text-base text-text-primary transition-colors focus-visible:outline-none disabled:cursor-not-allowed disabled:text-text-muted disabled:opacity-65 sm:text-sm"
         :class="
           hasError
             ? 'border-danger focus-visible:shadow-focus-danger'
-            : 'border-border-control enabled:hover:border-text-secondary focus-visible:border-accent focus-visible:shadow-focus'
+            : 'border-border-control enabled:hover:border-text-muted focus-visible:border-accent focus-visible:shadow-focus'
         "
         @click="onTriggerClick"
         @keydown.enter="onConfirmKey"
@@ -404,7 +415,7 @@ watch(
         :id="listboxId"
         role="listbox"
         :aria-labelledby="labelId"
-        class="absolute z-10 mt-1.5 max-h-60 w-full overflow-y-auto rounded-control border border-border-strong bg-surface-3 p-1.5 shadow-lg"
+        class="absolute z-10 mt-1 max-h-60 w-full overflow-y-auto rounded-control border border-border-strong bg-surface-3 p-menu shadow-lg"
         @mousedown.prevent
       >
         <UiOption

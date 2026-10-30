@@ -162,7 +162,7 @@ onBeforeUnmount(stopTimer)
 
 <template>
   <div
-    class="pointer-events-auto flex w-full max-w-sm items-center gap-3 rounded-panel border border-border-strong bg-surface-1 p-3 text-sm text-text-primary shadow-xl"
+    class="pointer-events-auto flex w-full max-w-sm items-center gap-2.5 rounded-panel border border-border-strong bg-surface-1 p-2.5 text-sm text-text-primary shadow-xl"
     role="status"
     :aria-live="politeness"
     @mouseenter="stopTimer"
@@ -173,8 +173,8 @@ onBeforeUnmount(stopTimer)
   >
     <!-- Decorative: the status is repeated in the caller's text, and UiIcon hides
          the glyph from assistive technology. -->
-    <span class="grid size-9 shrink-0 place-items-center rounded-inset" :class="variantClasses">
-      <UiIcon :name="glyph" size="md" />
+    <span class="grid size-8 shrink-0 place-items-center rounded-inset" :class="variantClasses">
+      <UiIcon :name="glyph" size="sm" />
     </span>
     <div :id="messageId" class="min-w-0 flex-1 wrap-anywhere">
       <div class="font-medium"><slot /></div>
@@ -182,11 +182,11 @@ onBeforeUnmount(stopTimer)
            size, duration), set in mono because that is what it always is. It is
            inside the labelled region on purpose, so the announcement carries the
            detail rather than the headline alone. -->
-      <div v-if="$slots.meta" class="font-mono text-sm text-text-muted"><slot name="meta" /></div>
+      <div v-if="$slots.meta" class="font-mono text-xs text-text-muted"><slot name="meta" /></div>
     </div>
     <button
       type="button"
-      class="inline-flex size-7 shrink-0 items-center justify-center rounded-inset text-text-muted transition-colors hover:bg-surface-3 hover:text-text-primary focus-visible:shadow-focus focus-visible:outline-none"
+      class="inline-flex size-11 shrink-0 sm:size-7 items-center justify-center rounded-inset text-text-muted transition-colors hover:bg-surface-3 hover:text-text-primary focus-visible:shadow-focus focus-visible:outline-none"
       :aria-label="closeLabel"
       :aria-describedby="messageId"
       @click="dismiss"

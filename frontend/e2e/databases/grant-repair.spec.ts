@@ -132,7 +132,9 @@ test('a repaired row with nothing else matching says so without reading as an al
 // A refused row is work handed back to the operator, so it must carry the server's raw columns, the
 // backend's sentence for the verdict, and the backend's sentence for what to do. The escapes and the
 // host are asserted verbatim: this row is refused precisely because the panel did not write it.
-test('a refused row shows the raw columns, the verdict and what to do about it', async ({ page }) => {
+test('a refused row shows the raw columns, the verdict and what to do about it', async ({
+  page,
+}) => {
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, LICENSED)
@@ -275,7 +277,9 @@ test('a host with nothing to narrow says so instead of offering a repair', async
 // A customer who types the URL is refused by the endpoint, and the screen draws that as
 // non-disclosure rather than as a broken server. The second half is the security half: none of the
 // other tenants' names the refused body carried may reach the page.
-test('a caller the panel refuses is told who may run this and shown no census', async ({ page }) => {
+test('a caller the panel refuses is told who may run this and shown no census', async ({
+  page,
+}) => {
   await stubSignedIn(page)
   await stubHealthy(page)
   await stubModules(page, LICENSED)
@@ -320,7 +324,7 @@ test('the databases list links to the grant repair screen', async ({ page }) => 
 
   await page.goto('/databases')
 
-  const link = page.getByRole('link', { name: 'Grant repair' })
+  const link = page.locator('#main-content').getByRole('link', { name: 'Grant repair' })
   await expect(link).toBeVisible()
   await link.click()
 

@@ -262,8 +262,8 @@ export type UiIconSize = 'sm' | 'md' | 'lg'
  */
 const SIZES: Record<UiIconSize, { edge: number; strokeWidth: number }> = {
   sm: { edge: 14, strokeWidth: 2 },
-  md: { edge: 18, strokeWidth: 1.8 },
-  lg: { edge: 22, strokeWidth: 1.6 },
+  md: { edge: 16, strokeWidth: 1.9 },
+  lg: { edge: 18, strokeWidth: 1.75 },
 }
 
 /** Props accepted by {@link UiIcon}. */
