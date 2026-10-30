@@ -89,7 +89,14 @@ public sealed class DisableSiteCommandHandler
             AuditActions.SiteDisabled, site.Domain, command.IpAddress, command.UserAgent, cancellationToken);
 
         return Result<SiteDto>.Ok(new SiteDto(
-            site.Id, site.AccountId, site.Domain, site.BackendType, site.PhpVersion, site.Status, site.CreatedAt));
+            site.Id,
+            site.AccountId,
+            account.Username,
+            site.Domain,
+            site.BackendType,
+            site.PhpVersion,
+            site.Status,
+            site.CreatedAt));
     }
 
     /// <summary>Journals a refused operation and returns it as the typed failure.</summary>

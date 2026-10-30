@@ -5,9 +5,11 @@ using System.Text.Json;
 using Maran.Host.IntegrationTests.Fixtures;
 using Maran.Modules.Accounts.Domain.Entities;
 using Maran.Modules.Accounts.Persistence;
+using Maran.Modules.Databases.Persistence;
 using Maran.Modules.Identity.Domain.Entities;
 using Maran.Modules.Identity.Domain.Enums;
 using Maran.Modules.Identity.Persistence;
+using Maran.Modules.Sites.Persistence;
 using Maran.SharedKernel.Interfaces;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -144,13 +146,13 @@ public sealed class DashboardEndpointTests : IAsyncLifetime
 
         var counts = root.GetProperty("counts");
         Assert.Equal(JsonValueKind.Object, counts.ValueKind);
-        Assert.Equal(1, counts.GetProperty("accounts").GetInt32());
+        AssertCounted(counts.GetProperty("accounts"), 1);
 
-        // Present and zero, which is the ordinary answer on a server with one account and nothing on
-        // it — and a different answer from "withheld". A dashboard that showed an empty state here
-        // would read as a failure on a freshly installed panel.
-        Assert.Equal(0, counts.GetProperty("sites").GetInt32());
-        Assert.Equal(0, counts.GetProperty("databases").GetInt32());
+        // Counted and zero, which is the ordinary answer on a server with one account and nothing on
+        // it — and a different answer from "withheld" or "unavailable". A dashboard that showed an
+        // empty state here would read as a failure on a freshly installed panel.
+        AssertCounted(counts.GetProperty("sites"), 0);
+        AssertCounted(counts.GetProperty("databases"), 0);
 
         // The attention section is an object of zeros rather than null: nothing needs attention on
         // this host, which the panel knows, as against not being allowed to know.
@@ -186,7 +188,7 @@ public sealed class DashboardEndpointTests : IAsyncLifetime
         var root = body.RootElement;
 
         Assert.Equal(JsonValueKind.Null, root.GetProperty("resources").ValueKind);
-        Assert.Equal(1, root.GetProperty("counts").GetProperty("accounts").GetInt32());
+        AssertCounted(root.GetProperty("counts").GetProperty("accounts"), 1);
     }
 
     /// <summary>Boots the panel against this test's own database.</summary>
@@ -211,13 +213,43 @@ public sealed class DashboardEndpointTests : IAsyncLifetime
         });
     }
 
+    /// <summary>
+    /// A module that cannot answer makes its count unavailable — not zero — and leaves the others
+    /// counted. The Databases schema is not created, so that module's read fails.
+    /// </summary>
+    [Fact]
+    public async Task A_module_that_cannot_answer_reads_unavailable_not_zero()
+    {
+        await using var factory = CreateFactory();
+        await MigrateAsync(factory, withDatabases: false);
+        await SeedAsync(factory);
+        using var client = await SignInAsync(factory, "admin");
+
+        var response = await client.GetAsync("/api/v1/dashboard");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        var counts = body.RootElement.GetProperty("counts");
+        AssertCounted(counts.GetProperty("accounts"), 1);
+        Assert.Equal("unavailable", counts.GetProperty("databases").GetProperty("state").GetString());
+    }
+
     /// <summary>Applies the migrations of the contexts these tests read through.</summary>
     /// <param name="factory">The booted host.</param>
-    private static async Task MigrateAsync(WebApplicationFactory<Program> factory)
+    /// <param name="withDatabases">
+    /// Whether to create the Databases module's schema; left out, that module cannot answer, which is
+    /// how a test makes one count unavailable.
+    /// </param>
+    private static async Task MigrateAsync(WebApplicationFactory<Program> factory, bool withDatabases = true)
     {
         using var scope = factory.Services.CreateScope();
         await scope.ServiceProvider.GetRequiredService<IdentityDbContext>().Database.MigrateAsync();
         await scope.ServiceProvider.GetRequiredService<AccountsDbContext>().Database.MigrateAsync();
+        await scope.ServiceProvider.GetRequiredService<SitesDbContext>().Database.MigrateAsync();
+        if (withDatabases)
+        {
+            await scope.ServiceProvider.GetRequiredService<DatabasesDbContext>().Database.MigrateAsync();
+        }
     }
 
     /// <summary>Seeds one account with an administrator and a customer signed into it.</summary>
@@ -259,5 +291,14 @@ public sealed class DashboardEndpointTests : IAsyncLifetime
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
 
         return client;
+    }
+
+    /// <summary>Asserts a dashboard count was taken and holds <paramref name="expected"/>.</summary>
+    /// <param name="count">The count as the endpoint answered it.</param>
+    /// <param name="expected">The number expected.</param>
+    private static void AssertCounted(JsonElement count, int expected)
+    {
+        Assert.Equal("counted", count.GetProperty("state").GetString());
+        Assert.Equal(expected, count.GetProperty("count").GetInt32());
     }
 }

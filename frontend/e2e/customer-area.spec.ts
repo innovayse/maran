@@ -2,7 +2,7 @@ import { expect, test, type Page } from '@playwright/test'
 import { stubLogin, stubSignedIn, stubSignedOut, stubbedSignIn } from './fixtures/stub-auth-routes'
 import { stubModules } from './fixtures/stub-modules-route'
 import { stubHealthy } from './fixtures/stub-health-route'
-import { stubSites } from './fixtures/stub-sites-routes'
+import { stubSites, stubPhpVersions } from './fixtures/stub-sites-routes'
 import type { PanelModule } from '../src/types/module'
 import type { Site } from '../src/types/site'
 import type { AuthenticatedUser } from '../src/types/auth'
@@ -40,6 +40,7 @@ const CUSTOMER_MODULES: PanelModule[] = [
 const OWN_SITE: Site = {
   id: '22222222-2222-2222-2222-222222222222',
   accountId: CUSTOMER.accountId ?? '',
+  ownerName: 'olive',
   domain: 'olive-shop.example.com',
   backendType: 'php',
   phpVersion: '8.3',
@@ -95,6 +96,7 @@ test.describe('the customer area, end to end', () => {
     })
     await stubModules(page, CUSTOMER_MODULES)
     await stubSites(page, [OWN_SITE])
+    await stubPhpVersions(page, [])
 
     await page.getByRole('textbox', { name: 'Username' }).fill(CUSTOMER.username)
     await page.getByRole('textbox', { name: 'Password' }).fill('correct horse battery staple')

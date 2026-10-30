@@ -16,6 +16,9 @@ public static class LocalizationExtensions
     /// <summary>The embedded resource base name of the Host's <c>Resources/ErrorMessages*.resx</c>.</summary>
     private const string ErrorMessagesResourceBaseName = "Maran.Host.Resources.ErrorMessages";
 
+    /// <summary>The embedded resource base name of the Sdk's <c>Resources/ValidationMessages*.resx</c>.</summary>
+    private const string SdkValidationMessagesResourceBaseName = "Maran.Sdk.Resources.ValidationMessages";
+
     /// <summary>Adds the localization services every module's typed resource lookup depends on.</summary>
     /// <param name="services">The application service collection.</param>
     /// <returns>The same collection, for chaining.</returns>
@@ -32,6 +35,16 @@ public static class LocalizationExtensions
         // user-facing message text").
         services.AddSingleton(
             new ResourceManager(ErrorMessagesResourceBaseName, typeof(LocalizationExtensions).Assembly));
+
+        // The Sdk's PagedQueryValidator and its paging model binders refuse a malformed list
+        // request with codes of their own (ListPageOutOfRange, ListSearchTooLong, ListSortUnknown,
+        // ...). The Sdk has no registration entry point of its own, and the composition root is the
+        // one place that knows it is loaded, so its table joins the shared pool here — without it
+        // every list's 400 would render the bare code.
+        services.AddSingleton(
+            new ResourceManager(
+                SdkValidationMessagesResourceBaseName,
+                typeof(Maran.Sdk.Validators.PagedQueryValidator<,>).Assembly));
 
         return services;
     }

@@ -23,10 +23,23 @@
         "backendType": "Backend",
         "phpVersion": "PHP",
         "status": "Status",
-        "createdAt": "Created"
+        "createdAt": "Created",
+        "owner": "Owner"
       },
       "phpVersionsLink": "PHP versions",
-      "disabledNotice": "{count} site is disabled. Its visitors see a suspension page instead of the site. | {count} sites are disabled. Their visitors see a suspension page instead of the site."
+      "disabledNotice": "{count} site is disabled. Its visitors see a suspension page instead of the site. | {count} sites are disabled. Their visitors see a suspension page instead of the site.",
+      "searchLabel": "Search sites",
+      "searchPlaceholder": "Search by domain or owner…",
+      "searchClear": "Clear the search",
+      "noResultsTitle": "No sites match",
+      "noResultsDescription": "Change the search or the filters, or clear them to see every site.",
+      "filters": {
+        "account": "Account",
+        "backend": "Backend",
+        "phpVersion": "PHP version",
+        "status": "Status"
+      },
+      "disabledUnavailable": "The number of disabled sites could not be counted."
     },
     "form": {
       "heading": "New site",

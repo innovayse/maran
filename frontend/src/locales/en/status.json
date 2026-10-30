@@ -15,7 +15,8 @@
         "title": "On this server",
         "accounts": "Accounts",
         "sites": "Sites",
-        "databases": "Databases"
+        "databases": "Databases",
+        "unavailable": "Unavailable"
       },
       "attention": {
         "title": "Needs attention",

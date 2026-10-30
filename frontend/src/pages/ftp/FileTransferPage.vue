@@ -107,7 +107,7 @@ import type {
 type PendingAction = 'resetPassword' | 'remove'
 
 const { t } = useI18n()
-const { fixedAccountId, accounts, ownerName, load: loadAccounts } = useAccountChoice()
+const { fixedAccountId, picker: accountPicker, search: searchAccounts } = useAccountChoice()
 const { filter: accountListFilter, isActive: isAccountFiltered, text: accountFilterText, clear: clearAccountFilter } = useAccountFilter()
 /**
  * Whether this caller may see the administrator's half of the screen. Presentation only: every
@@ -154,6 +154,7 @@ const logins: ComputedRef<FileTransferLogin[]> = computed(() => {
       return {
         id: user.id,
         accountId: user.accountId,
+        ownerName: user.ownerName,
         fullName: user.fullName,
         protocol: fileTransferProtocolOf(user.protocol, 'sftp'),
         createdAt: user.createdAt,
@@ -163,6 +164,7 @@ const logins: ComputedRef<FileTransferLogin[]> = computed(() => {
       return {
         id: user.id,
         accountId: user.accountId,
+        ownerName: user.ownerName,
         fullName: user.fullName,
         protocol: fileTransferProtocolOf(user.protocol, 'ftps'),
         createdAt: user.createdAt,
@@ -283,12 +285,12 @@ const confirmationText: ComputedRef<string> = computed(() => {
 })
 
 /**
- * Names the account a login belongs to, for a column that would otherwise print a GUID.
- * @param id The owning account's identity, as the login row reports it.
- * @returns The account's own short name, or a placeholder when the accounts list has none.
+ * Names the account a login belongs to, as the panel named it on the row.
+ * @param login The login row.
+ * @returns The owner's short name, or the empty-value mark when the panel did not name it.
  */
-const accountName = (id: string): string => {
-  return ownerName(id) ?? t('common.emptyValue')
+const accountName = (login: FileTransferLogin): string => {
+  return login.ownerName === '' ? t('common.emptyValue') : login.ownerName
 }
 
 /**
@@ -319,7 +321,7 @@ const loadList = async (): Promise<void> => {
  * @returns Resolves once every request has settled.
  */
 const refresh = async (): Promise<void> => {
-  const reads: Promise<void>[] = [loadList(), loadAccounts()]
+  const reads: Promise<void>[] = [loadList()]
 
   if (isAdmin.value) {
     reads.push(ftpsServerStore.load(), firewallStore.load())
@@ -533,10 +535,11 @@ onBeforeUnmount(dismissCredentials)
 
     <FileTransferLoginCreateForm
       ref="form"
-      :accounts="accounts"
+      :account-picker="accountPicker"
       :fixed-account-id="fixedAccountId"
       :submitting="sftpStore.creating || ftpUsersStore.creating"
       :ftps-availability="ftpsAvailability"
+      @search-accounts="searchAccounts"
       @submit="create"
     />
 
@@ -581,7 +584,7 @@ onBeforeUnmount(dismissCredentials)
               {{ protocolLabel(login.protocol) }}
             </UiBadge>
           </UiTableCell>
-          <UiTableCell tone="secondary" class="whitespace-nowrap">{{ accountName(login.accountId) }}</UiTableCell>
+          <UiTableCell tone="secondary" class="whitespace-nowrap">{{ accountName(login) }}</UiTableCell>
           <UiTableCell mono tone="muted" class="whitespace-nowrap">
             {{ formatDate(login.createdAt, localeStore.current) }}
           </UiTableCell>

@@ -24,7 +24,7 @@ import UiButton from '../../components/ui/UiButton.vue'
 import UiCard from '../../components/ui/UiCard.vue'
 import UiForm from '../../components/ui/UiForm.vue'
 import UiInput from '../../components/ui/UiInput.vue'
-import UiSelect, { type SelectOption } from '../../components/ui/UiSelect.vue'
+import UiCombobox from '../../components/ui/UiCombobox.vue'
 import UiPageHeading from '../../components/ui/UiPageHeading.vue'
 import UiTextarea from '../../components/ui/UiTextarea.vue'
 import SiteBackendFields from '../../components/sites/SiteBackendFields.vue'
@@ -55,7 +55,7 @@ const MAX_HOST_LENGTH = 253
 const { t } = useI18n()
 const router = useRouter()
 const store = useSitesStore()
-const { fixedAccountId, accounts, load: loadAccounts } = useAccountChoice()
+const { fixedAccountId, picker: accountPicker, search: searchAccounts } = useAccountChoice()
 
 /** The account that will own the site. */
 const accountId: Ref<string> = ref('')
@@ -77,13 +77,6 @@ const proxyUpstream: Ref<string> = ref('')
 
 /** Whether a submit has been attempted, so nothing turns red before the operator has tried. */
 const submitted: Ref<boolean> = ref(false)
-
-/** The accounts the picker offers, as the panel reported them. */
-const accountOptions: ComputedRef<SelectOption[]> = computed(() => {
-  return accounts.value.map((account) => {
-    return { value: account.id, label: `${account.name} · ${account.primaryDomain}` }
-  })
-})
 
 /** The aliases as they will be sent: split on lines, trimmed, blank lines dropped. */
 const aliases: ComputedRef<string[]> = computed(() => {
@@ -169,12 +162,12 @@ const isValid: ComputedRef<boolean> = computed(() => {
 })
 
 /**
- * Loads the two sets of reference data the form selects from: the accounts that can own a site
- * and the PHP versions this host has installed. Neither is written into the SPA.
- * @returns Resolves once both requests have settled.
+ * Loads the PHP versions this host has installed, which the form selects from. The account picker
+ * reads its own choices, one search at a time, when it is opened.
+ * @returns Resolves once the request has settled.
  */
 const loadReferenceData = async (): Promise<void> => {
-  await Promise.all([loadAccounts(), store.loadPhpVersions()])
+  await store.loadPhpVersions()
 }
 
 /**
@@ -240,14 +233,15 @@ onMounted(loadReferenceData)
       <UiForm @submit="submit">
         <div class="flex flex-col gap-5">
           <div class="grid gap-4 md:grid-cols-2">
-            <UiSelect
+            <UiCombobox
               v-if="fixedAccountId === null"
               v-model="accountId"
+              v-bind="accountPicker"
               :label="t('sites.form.fields.accountId')"
               :placeholder="t('sites.form.placeholders.accountId')"
-              :options="accountOptions"
               :error="accountError"
               required
+              @search="searchAccounts"
             />
             <UiInput
               v-model="domain"

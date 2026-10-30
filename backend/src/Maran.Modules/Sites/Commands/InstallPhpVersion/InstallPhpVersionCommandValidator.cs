@@ -1,4 +1,5 @@
 using FluentValidation;
+using Maran.Modules.Sites.Domain.Policies;
 using Maran.Modules.Sites.Resources;
 
 namespace Maran.Modules.Sites.Commands.InstallPhpVersion;
@@ -14,15 +15,12 @@ namespace Maran.Modules.Sites.Commands.InstallPhpVersion;
 /// </remarks>
 public sealed class InstallPhpVersionCommandValidator : AbstractValidator<InstallPhpVersionCommand>
 {
-    /// <summary>One digit, a dot, one or two digits: the whole shape of a PHP version line.</summary>
-    private const string PhpVersionPattern = @"\A[0-9]\.[0-9]{1,2}\z";
-
     /// <summary>Creates the validator.</summary>
     public InstallPhpVersionCommandValidator()
     {
         RuleFor(command => command.Version)
             .NotEmpty()
-            .Matches(PhpVersionPattern)
+            .Matches(PhpVersionFormat.Pattern)
             .WithMessage(nameof(ErrorMessages.PhpVersionInvalidFormat));
     }
 }

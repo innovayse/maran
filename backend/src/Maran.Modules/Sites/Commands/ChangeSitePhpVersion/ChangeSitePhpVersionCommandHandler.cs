@@ -146,7 +146,14 @@ public sealed class ChangeSitePhpVersionCommandHandler
             AuditActions.SitePhpVersionChanged, site.Domain, command.IpAddress, command.UserAgent, cancellationToken);
 
         return Result<SiteDto>.Ok(new SiteDto(
-            site.Id, site.AccountId, site.Domain, site.BackendType, site.PhpVersion, site.Status, site.CreatedAt));
+            site.Id,
+            site.AccountId,
+            account.Username,
+            site.Domain,
+            site.BackendType,
+            site.PhpVersion,
+            site.Status,
+            site.CreatedAt));
     }
 
     /// <summary>Whether this site is the account's last one on the version it is leaving.</summary>

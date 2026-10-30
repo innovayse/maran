@@ -9,6 +9,9 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- EF Core InMemory: the database double QueryablePagingExtensionsTests pages through, so the
+         asynchronous count and list run through a real EF Core query provider. -->
+    <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
     <PackageReference Include="xunit" />
     <PackageReference Include="xunit.runner.visualstudio">

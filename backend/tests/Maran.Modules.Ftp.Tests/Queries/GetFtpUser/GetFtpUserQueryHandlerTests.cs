@@ -14,18 +14,20 @@ public sealed class GetFtpUserQueryHandlerTests
     /// <summary>A different account, whose logins the caller must not be able to read.</summary>
     private static readonly Guid CustomerB = new("0f5c2a13-8b46-4d7e-a1c9-25e7b4d6f083");
 
-    /// <summary>The caller's own login reads back with everything a screen shows.</summary>
+    /// <summary>The caller's own login reads back with everything a screen shows, its owner's name included.</summary>
     [Fact]
     public async Task The_callers_own_login_reads_back_with_the_facts_a_screen_shows()
     {
         using var context = Context(CustomerA, Guid.NewGuid().ToString());
         var id = await SeedAsync(context, CustomerA, "acme", "files");
+        context.Accounts.Add(CustomerA, "acme", maxFtpUsers: 5);
 
         var result = await context.GetUserHandler.HandleAsync(
             new GetFtpUserQuery(id), CancellationToken.None);
 
         Assert.True(result.IsSuccess);
         Assert.Equal(id, result.Value.Id);
+        Assert.Equal("acme", result.Value.OwnerName);
         Assert.Equal("files", result.Value.Name);
         Assert.Equal("acme_files", result.Value.FullName);
         Assert.Equal("Ftps", result.Value.Protocol);

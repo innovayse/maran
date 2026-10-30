@@ -46,10 +46,11 @@ import UiIconTile from '../../components/ui/UiIconTile.vue'
 import UiInput from '../../components/ui/UiInput.vue'
 import UiPageHeading from '../../components/ui/UiPageHeading.vue'
 import UiSectionHeading from '../../components/ui/UiSectionHeading.vue'
+import UiCombobox from '../../components/ui/UiCombobox.vue'
 import UiSelect, { type SelectOption } from '../../components/ui/UiSelect.vue'
 import UiSpinner from '../../components/ui/UiSpinner.vue'
 import UiSwitch from '../../components/ui/UiSwitch.vue'
-import { useAccountsStore } from '../../stores/accounts'
+import { useAccountChoice, type AccountPickerState } from '../../composables/useAccountChoice'
 import { useBackupSchedulesStore } from '../../stores/backupSchedules'
 import { useLocaleStore } from '../../stores/locale'
 import { formatIsoTimestamp } from '../../utils/formatIsoTimestamp'
@@ -94,7 +95,7 @@ const FIELD_OF_CODE: Readonly<Record<string, string>> = {
 
 const { t } = useI18n()
 const store = useBackupSchedulesStore()
-const accountsStore = useAccountsStore()
+const { picker: accountPicker, search: searchAccounts } = useAccountChoice()
 const localeStore = useLocaleStore()
 
 /** The scope being edited: {@link HOST_WIDE}, or an account's identity. */
@@ -123,14 +124,18 @@ const scopeAccountId: ComputedRef<string | null> = computed(() => {
   return scope.value === HOST_WIDE ? null : scope.value
 })
 
-/** The scopes on offer: the host-wide policy first, then every account it can be overridden for. */
-const scopeOptions: ComputedRef<readonly SelectOption[]> = computed(() => {
-  return [
-    { value: HOST_WIDE, label: t('backups.schedule.scope.hostWide') },
-    ...accountsStore.accounts.map((account) => {
-      return { value: account.id, label: account.name }
-    }),
-  ]
+/**
+ * The scope picker: the host-wide policy first, then the page of accounts matching its search that
+ * the policy can be overridden for. The host-wide entry is counted into the total so the "more
+ * matches" line stays right.
+ */
+const scopePicker: ComputedRef<AccountPickerState> = computed(() => {
+  const state = accountPicker.value
+  return {
+    ...state,
+    options: [{ value: HOST_WIDE, label: t('backups.schedule.scope.hostWide') }, ...state.options],
+    total: state.total + 1,
+  }
 })
 
 /** The two cadences, labelled in the interface language. */
@@ -296,8 +301,6 @@ watch(
   },
   { immediate: true },
 )
-
-void accountsStore.load()
 </script>
 
 <template>
@@ -340,12 +343,14 @@ void accountsStore.load()
               : t('backups.schedule.scope.overrideHint')
           }}
         </p>
-        <UiSelect
+        <UiCombobox
           v-model="scope"
+          v-bind="scopePicker"
           class="w-full min-w-0 @2xl:w-80 @2xl:shrink-0"
           :label="t('backups.schedule.scope.label')"
-          :options="scopeOptions"
+          :placeholder="t('backups.schedule.scope.hostWide')"
           :disabled="store.loading || store.saving"
+          @search="searchAccounts"
         />
       </div>
     </UiCard>

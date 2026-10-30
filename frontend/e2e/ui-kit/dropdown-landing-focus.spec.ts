@@ -38,6 +38,7 @@ const ALICE: Account = {
 const SHOP: Database = {
   id: '33333333-3333-3333-3333-333333333333',
   accountId: ALICE.id,
+  ownerName: ALICE.name,
   name: 'shop',
   fullName: 'alice_shop',
   dbUserName: 'alice_shopuser',

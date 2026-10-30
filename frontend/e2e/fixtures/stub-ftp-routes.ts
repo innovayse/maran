@@ -106,6 +106,7 @@ export const stubFtpUsers = async (page: Page, users: FtpUser[]): Promise<void> 
       users.push({
         id: created.id,
         accountId: created.accountId,
+        ownerName: ACCOUNT_PREFIX,
         name: created.name,
         fullName: created.fullName,
         protocol: created.protocol,

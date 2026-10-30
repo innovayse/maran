@@ -5,6 +5,7 @@ import { stubModules } from '../fixtures/stub-modules-route'
 import { stubInvitation } from '../fixtures/stub-invitation-routes'
 import type { Account } from '../../src/types/account'
 import type { PanelModule } from '../../src/types/module'
+import { stubAccounts } from '../fixtures/stub-accounts-route'
 
 /** The account under test. */
 const ACCOUNT: Account = {
@@ -54,9 +55,7 @@ const openDetail = async (page: Page, modules: PanelModule[]): Promise<string[]>
 
     await route.fallback()
   })
-  await page.route('**/api/v1/accounts', async (route) => {
-    await route.fulfill({ status: 200, contentType: 'application/json', body: '[]' })
-  })
+  await stubAccounts(page, [])
   await page.goto(`/accounts/${ACCOUNT.id}`)
   return deletes
 }

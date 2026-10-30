@@ -23,6 +23,11 @@ namespace Maran.Modules.Databases.Common;
 /// </remarks>
 /// <param name="Id">The new database's identity.</param>
 /// <param name="AccountId">The account that owns it.</param>
+/// <param name="OwnerName">
+/// The owning account's name, resolved by the server so the new row a screen adds from this answer
+/// is labelled at once. Empty when the account directory does not name the owning account for this
+/// caller.
+/// </param>
 /// <param name="Name">The name the customer asked for, without the account prefix.</param>
 /// <param name="FullName">The fully-qualified name MySQL holds — what the connection string needs.</param>
 /// <param name="DbUserName">The fully-qualified dedicated user name.</param>
@@ -35,6 +40,7 @@ namespace Maran.Modules.Databases.Common;
 public sealed record CreatedDatabaseDto(
     Guid Id,
     Guid AccountId,
+    string OwnerName,
     string Name,
     string FullName,
     string DbUserName,

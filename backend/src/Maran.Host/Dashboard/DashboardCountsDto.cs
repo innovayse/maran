@@ -20,10 +20,10 @@ namespace Maran.Host.Dashboard;
 /// server has two hundred accounts.
 /// </para>
 /// </remarks>
-/// <param name="Accounts">Hosting accounts on this server.</param>
-/// <param name="Sites">Sites across every account.</param>
-/// <param name="Databases">Databases across every account.</param>
+/// <param name="Accounts">Hosting accounts on this server, or unavailable.</param>
+/// <param name="Sites">Sites across every account, or unavailable.</param>
+/// <param name="Databases">Databases across every account, or unavailable.</param>
 public sealed record DashboardCountsDto(
-    int Accounts,
-    int Sites,
-    int Databases);
+    DashboardCountDto Accounts,
+    DashboardCountDto Sites,
+    DashboardCountDto Databases);

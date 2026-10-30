@@ -55,6 +55,7 @@ const ACCOUNT: Account = {
 const SITE: Site = {
   id: '11111111-1111-1111-1111-111111111111',
   accountId: ACCOUNT.id,
+  ownerName: ACCOUNT.name,
   domain: 'storefront.acme-industrial-holdings.example.com',
   backendType: 'php',
   phpVersion: '8.3',
@@ -65,6 +66,7 @@ const SITE: Site = {
 const BACKUP: Backup = {
   id: '77777777-7777-7777-7777-777777777771',
   accountId: ACCOUNT.id,
+  ownerName: ACCOUNT.name,
   orphanedAccountUsername: '',
   status: 'failed',
   kind: 'manual',
@@ -92,7 +94,11 @@ const DASHBOARD: Dashboard = {
     loadAverage15m: 0.55,
   },
   services: [{ service: 'webServer', name: 'Web server', state: 'running', detail: 'active (running)' }],
-  counts: { accounts: 3, sites: 7, databases: 4 },
+  counts: {
+    accounts: { state: 'counted', count: 3 },
+    sites: { state: 'counted', count: 7 },
+    databases: { state: 'counted', count: 4 },
+  },
   attention: { certificatesExpiringSoon: 2, failedBackups: 5, bannedAddresses: 9, failedTasks: 6 },
   recentAudit: [
     {

@@ -1,6 +1,7 @@
 using Maran.Modules.Ftp.Common;
-using Maran.Modules.Ftp.Domain.Policies;
+using Maran.Modules.Ftp.Mappers;
 using Maran.Modules.Ftp.Persistence;
+using Maran.Sdk.Interfaces;
 
 namespace Maran.Modules.Ftp.Queries.ListFtpUsers;
 
@@ -40,14 +41,19 @@ public sealed class ListFtpUsersQueryHandler
     /// <summary>The Ftp module's database context, and this module's tenant boundary.</summary>
     private readonly FtpDbContext _dbContext;
 
-    /// <summary>Creates the handler with the module's own database context.</summary>
+    /// <summary>The window onto the Accounts module's account names, tenant-scoped.</summary>
+    private readonly IAccountDirectory _accounts;
+
+    /// <summary>Creates the handler with the module's own database context and the account directory.</summary>
     /// <param name="dbContext">The Ftp module's database context.</param>
-    public ListFtpUsersQueryHandler(FtpDbContext dbContext)
+    /// <param name="accounts">The window onto the Accounts module's account names, tenant-scoped.</param>
+    public ListFtpUsersQueryHandler(FtpDbContext dbContext, IAccountDirectory accounts)
     {
         _dbContext = dbContext;
+        _accounts = accounts;
     }
 
-    /// <summary>Returns the caller's FTPS logins, ordered by creation time.</summary>
+    /// <summary>Returns the caller's FTPS logins, oldest first, each with its owner's name.</summary>
     /// <param name="query">The list request; its optional account narrows the tenant scope.</param>
     /// <param name="cancellationToken">Cancels the read.</param>
     /// <returns>A successful result carrying the logins; this operation never fails.</returns>
@@ -55,19 +61,29 @@ public sealed class ListFtpUsersQueryHandler
         ListFtpUsersQuery query,
         CancellationToken cancellationToken)
     {
-        var ftpUsers = await _dbContext.FtpUsers
+        var rows = await _dbContext.FtpUsers
             .AsNoTracking()
             .Where(ftpUser => query.AccountId == null || ftpUser.AccountId == query.AccountId)
             .OrderBy(ftpUser => ftpUser.CreatedAt)
-            .Select(ftpUser => new FtpUserDto(
-                ftpUser.Id,
-                ftpUser.AccountId,
-                ftpUser.Name,
-                ftpUser.FullName,
-                FtpsProtocolName.Ftps,
-                ftpUser.CreatedAt))
             .ToListAsync(cancellationToken);
 
-        return Result<IReadOnlyList<FtpUserDto>>.Ok(ftpUsers);
+        // One batched, tenant-scoped lookup for every owner in the answer, never one per row.
+        var ownerIds = rows
+            .Select(row =>
+            {
+                return row.AccountId;
+            })
+            .Distinct()
+            .ToList();
+        var ownerNames = await _accounts.NamesOfAsync(ownerIds, cancellationToken);
+
+        IReadOnlyList<FtpUserDto> items = rows
+            .Select(row =>
+            {
+                return FtpUserMapper.From(row, ownerNames);
+            })
+            .ToList();
+
+        return Result<IReadOnlyList<FtpUserDto>>.Ok(items);
     }
 }

@@ -2,8 +2,8 @@ using Maran.Agent.Client.Interfaces;
 using Maran.Agent.Client.Services.FtpsService;
 using Maran.Modules.Ftp.Common;
 using Maran.Modules.Ftp.Domain.Entities;
-using Maran.Modules.Ftp.Domain.Policies;
 using Maran.Modules.Ftp.Interfaces;
+using Maran.Modules.Ftp.Mappers;
 using Maran.Modules.Ftp.Persistence;
 using Maran.Modules.Ftp.Resources;
 using Maran.Modules.Ftp.Services;
@@ -269,14 +269,11 @@ public sealed class CreateFtpUserCommandHandler
         await _journal.RecordSuccessAsync(
             FtpAuditJournal.FtpUserCreated, ftpUser.Name, command.IpAddress, command.UserAgent, cancellationToken);
 
-        return Result<CreatedFtpUserDto>.Ok(new CreatedFtpUserDto(
-            ftpUser.Id,
-            ftpUser.AccountId,
-            ftpUser.Name,
-            ftpUser.FullName,
-            FtpsProtocolName.Ftps,
-            password,
-            ftpUser.CreatedAt));
+        // Asked of the directory exactly as the reads ask it, so the row a screen adds from this
+        // answer is labelled the same way a later read of it will be.
+        var ownerNames = await _accounts.NamesOfAsync([ftpUser.AccountId], cancellationToken);
+
+        return Result<CreatedFtpUserDto>.Ok(FtpUserMapper.Created(ftpUser, ownerNames, password));
     }
 
     /// <summary>Re-reads the agent's refusal as a sentence about the NAME where that is what it means.</summary>

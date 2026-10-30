@@ -7,6 +7,7 @@ using Maran.Modules.Accounts.Commands.SuspendAccount;
 using Maran.Modules.Accounts.Common;
 using Maran.Modules.Accounts.Queries.GetAccount;
 using Maran.Modules.Accounts.Queries.GetAccountResourceSummary;
+using Maran.Modules.Accounts.Queries.ListAccountChoices;
 using Maran.Modules.Accounts.Queries.ListAccounts;
 using Maran.Modules.Accounts.Queries.ListPlans;
 using Maran.Sdk.Contracts;
@@ -45,13 +46,32 @@ public sealed class AccountsController : BaseApiController
         _bus = bus;
     }
 
-    /// <summary>Lists every hosting account.</summary>
+    /// <summary>Lists one page of hosting accounts, searched, filtered and sorted.</summary>
+    /// <param name="query">Paging, search, sort and the plan and status filters, bound from the query string.</param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpGet]
-    [ProducesResponseType(typeof(IReadOnlyList<AccountDto>), StatusCodes.Status200OK)]
-    public async Task<IActionResult> GetAllAsync(CancellationToken cancellationToken)
+    [ProducesResponseType(typeof(PagedResult<AccountDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> GetAllAsync([FromQuery] ListAccountsQuery query, CancellationToken cancellationToken)
     {
-        var result = await _bus.InvokeAsync<Result<IReadOnlyList<AccountDto>>>(new ListAccountsQuery(), cancellationToken);
+        var result = await _bus.InvokeAsync<Result<PagedResult<AccountDto>>>(query, cancellationToken);
+        return ToActionResult(result);
+    }
+
+    /// <summary>
+    /// Lists one page of account ids and names for a picker or an owner-name lookup, so no screen
+    /// has to load the full account list to name an account.
+    /// </summary>
+    /// <param name="query">Paging, search and sort, bound from the query string.</param>
+    /// <param name="cancellationToken">Cancellation token for the request.</param>
+    [HttpGet("choices")]
+    [ProducesResponseType(typeof(PagedResult<AccountChoiceDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> GetChoicesAsync(
+        [FromQuery] ListAccountChoicesQuery query,
+        CancellationToken cancellationToken)
+    {
+        var result = await _bus.InvokeAsync<Result<PagedResult<AccountChoiceDto>>>(query, cancellationToken);
         return ToActionResult(result);
     }
 

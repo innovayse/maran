@@ -1,7 +1,8 @@
 using Maran.Modules.Ftp.Common;
-using Maran.Modules.Ftp.Domain.Policies;
+using Maran.Modules.Ftp.Mappers;
 using Maran.Modules.Ftp.Persistence;
 using Maran.Modules.Ftp.Resources;
+using Maran.Sdk.Interfaces;
 
 namespace Maran.Modules.Ftp.Queries.GetFtpUser;
 
@@ -23,14 +24,19 @@ public sealed class GetFtpUserQueryHandler
     /// <summary>The Ftp module's database context, and this module's tenant boundary.</summary>
     private readonly FtpDbContext _dbContext;
 
-    /// <summary>Creates the handler with the module's own database context.</summary>
+    /// <summary>The window onto the Accounts module's account names, tenant-scoped.</summary>
+    private readonly IAccountDirectory _accounts;
+
+    /// <summary>Creates the handler with the module's own database context and the account directory.</summary>
     /// <param name="dbContext">The Ftp module's database context.</param>
-    public GetFtpUserQueryHandler(FtpDbContext dbContext)
+    /// <param name="accounts">The window onto the Accounts module's account names, tenant-scoped.</param>
+    public GetFtpUserQueryHandler(FtpDbContext dbContext, IAccountDirectory accounts)
     {
         _dbContext = dbContext;
+        _accounts = accounts;
     }
 
-    /// <summary>Returns the login, or <c>FtpUserNotFound</c>.</summary>
+    /// <summary>Returns the login labelled with its owner's name, or <c>FtpUserNotFound</c>.</summary>
     /// <param name="query">Which login to read.</param>
     /// <param name="cancellationToken">Cancels the read.</param>
     /// <returns>The login's view, or <c>FtpUserNotFound</c>.</returns>
@@ -45,12 +51,8 @@ public sealed class GetFtpUserQueryHandler
             return Result<FtpUserDto>.Fail(Error.Of(nameof(ErrorMessages.FtpUserNotFound), ErrorType.NotFound));
         }
 
-        return Result<FtpUserDto>.Ok(new FtpUserDto(
-            ftpUser.Id,
-            ftpUser.AccountId,
-            ftpUser.Name,
-            ftpUser.FullName,
-            FtpsProtocolName.Ftps,
-            ftpUser.CreatedAt));
+        var ownerNames = await _accounts.NamesOfAsync([ftpUser.AccountId], cancellationToken);
+
+        return Result<FtpUserDto>.Ok(FtpUserMapper.From(ftpUser, ownerNames));
     }
 }

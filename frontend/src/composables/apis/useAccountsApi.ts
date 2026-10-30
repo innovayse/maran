@@ -1,7 +1,9 @@
 import { useApi } from '../useApi'
+import { listQuery } from '../../utils/listQuery'
 import type {
   Account,
   AccountDetail,
+  AccountOption,
   AccountsApi,
   ChangeAccountOwnerEmailRequest,
   ChangeAccountPlanRequest,
@@ -10,9 +12,16 @@ import type {
   Plan,
 } from '../../types/account'
 import type { AccountResourceSummary } from '../../types/accountResourceSummary'
+import type { ListRequest, Paged } from '../../types/list'
 
 /** The endpoint hosting accounts are listed and created through. */
 const ACCOUNTS_PATH = '/api/v1/accounts'
+
+/** The endpoint a picker reads account names through: identity and name only, one page at a time. */
+const ACCOUNT_CHOICES_PATH = '/api/v1/accounts/choices'
+
+/** The list endpoint's parameter for each filter the accounts list page reads from its URL. */
+const LIST_FILTER_PARAMS: Readonly<Record<string, string>> = { plan: 'planId', status: 'status' }
 
 /** The endpoint a customer's own account, plan and limits are read through. */
 const MY_ACCOUNT_PATH = '/api/v1/accounts/me'
@@ -29,12 +38,29 @@ export const useAccountsApi = (): AccountsApi => {
   const api = useApi()
 
   /**
-   * Lists every hosting account the panel knows.
+   * Lists one page of hosting accounts.
+   * @param request The page, size, search, sort and the `plan` and `status` filters.
    * @param signal Optional abort signal to cancel the in-flight request.
-   * @returns The accounts, in the order the backend reports them.
+   * @returns The page the panel answered.
    */
-  const list = (signal?: AbortSignal): Promise<Account[]> => {
-    return api.get<Account[]>(ACCOUNTS_PATH, signal)
+  const list = (request: ListRequest, signal?: AbortSignal): Promise<Paged<Account>> => {
+    return api.get<Paged<Account>>(`${ACCOUNTS_PATH}${listQuery(request, LIST_FILTER_PARAMS)}`, signal)
+  }
+
+  /**
+   * Lists the accounts a picker offers: the first page of those matching the search.
+   * @param search Narrows by name; empty for the first accounts in the panel's order.
+   * @param pageSize How many choices to ask for; one of the sizes the panel accepts.
+   * @param signal Optional abort signal to cancel the in-flight request.
+   * @returns The matching accounts as identity and name, with how many match in all.
+   */
+  const choices = (search: string, pageSize: number, signal?: AbortSignal): Promise<Paged<AccountOption>> => {
+    const params = new URLSearchParams({ pageSize: String(pageSize) })
+    // An empty search is left out: the panel refuses an empty parameter rather than reading it as none.
+    if (search !== '') {
+      params.set('search', search)
+    }
+    return api.get<Paged<AccountOption>>(`${ACCOUNT_CHOICES_PATH}?${params.toString()}`, signal)
   }
 
   /**
@@ -156,6 +182,7 @@ export const useAccountsApi = (): AccountsApi => {
 
   return {
     list,
+    choices,
     create,
     listPlans,
     get,

@@ -40,6 +40,7 @@ const ALICE: Account = {
 const SHOP: Database = {
   id: '33333333-3333-3333-3333-333333333333',
   accountId: ALICE.id,
+  ownerName: ALICE.name,
   name: 'storefront_catalogue_archive',
   fullName: 'alice_storefront_catalogue_archive',
   dbUserName: 'alice_storefront_catalogue_archive_user',
@@ -201,11 +202,11 @@ test.describe('on a phone', () => {
   })
 })
 
-// UiFilterTrigger and UiBulkBar are new kit primitives with no screen using them yet. Their cases
-// are written against the accounts list, the first screen planned to adopt both; they are `fixme`
-// until that screen renders them, and are switched on in the same change that wires them in.
+// UiFilterTrigger and UiBulkBar are written against the accounts list, the first screen to adopt
+// both. The filter trigger is wired in (#196) and its case runs; the bulk bar's stays `fixme` until
+// the list renders a selection, and is switched on in the same change that wires it in.
 test.describe('filter trigger and bulk bar', () => {
-  test.fixme('the filter trigger is named, emits a press, and announces the active count', async ({ page }) => {
+  test('the filter trigger is named, emits a press, and announces the active count', async ({ page }) => {
     await stubSignedIn(page)
     await stubHealthy(page)
     await stubModules(page, ACCOUNTS_LICENSED)

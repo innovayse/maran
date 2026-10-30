@@ -23,6 +23,11 @@ namespace Maran.Modules.Sftp.Common;
 /// </remarks>
 /// <param name="Id">The new login's identity.</param>
 /// <param name="AccountId">The account that owns it.</param>
+/// <param name="OwnerName">
+/// The owning account's name, resolved by the server so the new row a screen adds from this answer
+/// is labelled at once. Empty when the account directory does not name the owning account for this
+/// caller.
+/// </param>
 /// <param name="Name">The name the customer asked for, without the account prefix.</param>
 /// <param name="FullName">The system login the host holds — what the customer signs in with.</param>
 /// <param name="Password">
@@ -34,6 +39,7 @@ namespace Maran.Modules.Sftp.Common;
 public sealed record CreatedSftpUserDto(
     Guid Id,
     Guid AccountId,
+    string OwnerName,
     string Name,
     string FullName,
     SensitiveString Password,

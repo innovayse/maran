@@ -5,6 +5,7 @@ import { stubModules } from '../fixtures/stub-modules-route'
 import { stubInvitation } from '../fixtures/stub-invitation-routes'
 import { setPersistedLocale } from '../fixtures/set-locale'
 import type { Account } from '../../src/types/account'
+import { stubAccounts } from '../fixtures/stub-accounts-route'
 
 /** The account under test, active to begin with. */
 const ACTIVE: Account = {
@@ -214,9 +215,7 @@ test('the delete button opens the typed confirmation, not the yes/no one', async
 
 test('the list opens an account by its name', async ({ page }) => {
   await stubDetail(page, ACTIVE)
-  await page.route('**/api/v1/accounts', async (route) => {
-    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([ACTIVE]) })
-  })
+  await stubAccounts(page, [ACTIVE])
 
   await page.goto('/accounts')
   await page.getByRole('link', { name: 'acme' }).click()

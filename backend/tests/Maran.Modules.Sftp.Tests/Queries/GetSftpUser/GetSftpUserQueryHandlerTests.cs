@@ -1,5 +1,6 @@
 using Maran.Modules.Sftp.Queries.GetSftpUser;
 using Maran.Modules.Sftp.Tests.TestSupport;
+using Maran.Sdk.Contracts;
 using Microsoft.EntityFrameworkCore;
 
 namespace Maran.Modules.Sftp.Tests.Queries.GetSftpUser;
@@ -21,7 +22,7 @@ public sealed class GetSftpUserQueryHandlerTests
         var strangerId = await SeedAsync(shared);
 
         using var context = SftpTestContext.Create(FakeCurrentUser.Customer(OwnerAccountId), shared);
-        var result = await new GetSftpUserQueryHandler(context)
+        var result = await new GetSftpUserQueryHandler(context, new StubAccountDirectory())
             .HandleAsync(new GetSftpUserQuery(strangerId), CancellationToken.None);
 
         Assert.False(result.IsSuccess);
@@ -37,14 +38,14 @@ public sealed class GetSftpUserQueryHandlerTests
         await SeedAsync(shared);
 
         using var context = SftpTestContext.Create(FakeCurrentUser.Customer(OwnerAccountId), shared);
-        var result = await new GetSftpUserQueryHandler(context)
+        var result = await new GetSftpUserQueryHandler(context, new StubAccountDirectory())
             .HandleAsync(new GetSftpUserQuery(Guid.NewGuid()), CancellationToken.None);
 
         Assert.False(result.IsSuccess);
         Assert.Equal("SftpUserNotFound", result.Error!.Code);
     }
 
-    /// <summary>A customer reading their own sftp user is answered with it.</summary>
+    /// <summary>A customer reading their own sftp user is answered with it, labelled with their name.</summary>
     [Fact]
     public async Task A_customer_reading_their_own_sftp_user_is_answered_with_it()
     {
@@ -56,12 +57,16 @@ public sealed class GetSftpUserQueryHandlerTests
         using var read = SftpTestContext.Create(FakeCurrentUser.Customer(OwnerAccountId), shared);
         var own = await read.SftpUsers.SingleAsync();
 
-        var result = await new GetSftpUserQueryHandler(read)
+        var accounts = new StubAccountDirectory(
+            new AccountSnapshot(OwnerAccountId, "alice", 5, 5, 5, 5, 5, 1_024, AccountState.Active));
+
+        var result = await new GetSftpUserQueryHandler(read, accounts)
             .HandleAsync(new GetSftpUserQuery(own.Id), CancellationToken.None);
 
         Assert.True(result.IsSuccess);
         Assert.Equal("deploy", result.Value.Name);
         Assert.Equal("alice_deploy", result.Value.FullName);
+        Assert.Equal("alice", result.Value.OwnerName);
     }
 
     /// <summary>A read states the protocol it is a login for rather than leaving the screen to guess.</summary>
@@ -82,7 +87,7 @@ public sealed class GetSftpUserQueryHandlerTests
         using var read = SftpTestContext.Create(FakeCurrentUser.Customer(OwnerAccountId), shared);
         var own = await read.SftpUsers.SingleAsync();
 
-        var result = await new GetSftpUserQueryHandler(read)
+        var result = await new GetSftpUserQueryHandler(read, new StubAccountDirectory())
             .HandleAsync(new GetSftpUserQuery(own.Id), CancellationToken.None);
 
         Assert.Equal("Sftp", result.Value.Protocol);

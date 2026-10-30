@@ -9,24 +9,24 @@
       "heading": "Аккаунты",
       "subtitle": "Хостинговые аккаунты на этом сервере.",
       "createAction": "Новый аккаунт",
-      "searchLabel": "Фильтр аккаунтов",
-      "searchPlaceholder": "Фильтр по имени или домену…",
-      "searchClear": "Очистить фильтр",
-      "resultCount": "{shown} из {total} аккаунта | {shown} из {total} аккаунтов | {shown} из {total} аккаунтов",
+      "searchLabel": "Поиск аккаунтов",
+      "searchPlaceholder": "Поиск по имени или домену…",
+      "searchClear": "Очистить поиск",
       "loading": "Загрузка аккаунтов…",
       "emptyTitle": "Аккаунтов пока нет",
       "emptyDescription": "Создайте первый хостинговый аккаунт, чтобы начать работу.",
-      "noMatchesTitle": "Нет аккаунтов, соответствующих «{query}»",
-      "noMatchesDescription": "Попробуйте другое имя или домен либо очистите фильтр, чтобы увидеть все аккаунты.",
-      "clearSearch": "Очистить фильтр",
       "tableCaption": "Хостинговые аккаунты",
       "columns": {
         "primaryDomain": "Основной домен",
         "status": "Статус",
         "createdAt": "Создан"
       },
-      "planFilter": "Показаны аккаунты на тарифе {plan}.",
-      "clearPlanFilter": "Показать все аккаунты"
+      "noResultsTitle": "Подходящих аккаунтов нет",
+      "noResultsDescription": "Измените запрос или фильтры либо сбросьте их, чтобы увидеть все аккаунты.",
+      "filters": {
+        "plan": "Тариф",
+        "status": "Статус"
+      }
     },
     "form": {
       "heading": "Новый аккаунт",

@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="ListPageOutOfRange">
+    <value>Номер страницы должен быть не меньше 1.</value>
+  </data>
+  <data name="ListPageSizeNotOffered">
+    <value>Размер страницы может быть только 10, 25, 50 или 100.</value>
+  </data>
+  <data name="ListSearchTooLong">
+    <value>Текст поиска может содержать не более 100 символов.</value>
+  </data>
+  <data name="ListSearchInvalid">
+    <value>Текст поиска содержит недопустимые символы.</value>
+  </data>
+  <data name="ListSortUnknown">
+    <value>Этот список нельзя отсортировать таким образом.</value>
+  </data>
+</root>

@@ -1,5 +1,6 @@
 using Maran.Modules.Backups.Queries.GetBackup;
 using Maran.Modules.Backups.Tests.TestSupport;
+using Maran.Sdk.Contracts;
 using Maran.SharedKernel.Results;
 
 namespace Maran.Modules.Backups.Tests.Queries.GetBackup;
@@ -7,7 +8,7 @@ namespace Maran.Modules.Backups.Tests.Queries.GetBackup;
 /// <summary>Reading one backup, and what another account's identifier answers.</summary>
 public sealed class GetBackupQueryHandlerTests
 {
-    /// <summary>A customer reads their own backup.</summary>
+    /// <summary>A customer reads their own backup, labelled with their account's name.</summary>
     /// <remarks>
     /// The inverse control for the refusal below: a query filter mutated to hide every row would
     /// pass "another account's backup is not found" and fail here.
@@ -25,13 +26,17 @@ public sealed class GetBackupQueryHandlerTests
             await seeding.SaveChangesAsync();
         }
 
+        var accounts = new StubAccountDirectory(
+            new AccountSnapshot(mine, "cust01", 1, 1, 1, 1, 1, 1024, AccountState.Active));
+
         await using var context = BackupsTestContext.Create(FakeCurrentUser.Customer(mine), database);
-        var result = await new GetBackupQueryHandler(context, BackupsTestContext.FailureNames())
+        var result = await new GetBackupQueryHandler(context, BackupsTestContext.FailureNames(), accounts)
             .HandleAsync(new GetBackupQuery(row.Id), CancellationToken.None);
 
         Assert.True(result.IsSuccess);
         Assert.Equal(row.Id, result.Value.Id);
         Assert.Equal(mine, result.Value.AccountId);
+        Assert.Equal("cust01", result.Value.OwnerName);
     }
 
     /// <summary>Another accounts backup is not found rather than forbidden.</summary>
@@ -50,7 +55,8 @@ public sealed class GetBackupQueryHandlerTests
         }
 
         await using var context = BackupsTestContext.Create(FakeCurrentUser.Customer(mine), database);
-        var result = await new GetBackupQueryHandler(context, BackupsTestContext.FailureNames())
+        var result = await new GetBackupQueryHandler(
+                context, BackupsTestContext.FailureNames(), new StubAccountDirectory())
             .HandleAsync(new GetBackupQuery(theirRow.Id), CancellationToken.None);
 
         Assert.False(result.IsSuccess);
@@ -73,7 +79,8 @@ public sealed class GetBackupQueryHandlerTests
         }
 
         await using var context = BackupsTestContext.Create(FakeCurrentUser.Admin(), database);
-        var result = await new GetBackupQueryHandler(context, BackupsTestContext.FailureNames())
+        var result = await new GetBackupQueryHandler(
+                context, BackupsTestContext.FailureNames(), new StubAccountDirectory())
             .HandleAsync(new GetBackupQuery(row.Id), CancellationToken.None);
 
         Assert.True(result.IsSuccess);
@@ -84,7 +91,8 @@ public sealed class GetBackupQueryHandlerTests
     public async Task A_backup_identifier_nobody_owns_is_not_found()
     {
         await using var context = BackupsTestContext.Create(FakeCurrentUser.Admin());
-        var result = await new GetBackupQueryHandler(context, BackupsTestContext.FailureNames())
+        var result = await new GetBackupQueryHandler(
+                context, BackupsTestContext.FailureNames(), new StubAccountDirectory())
             .HandleAsync(new GetBackupQuery(Guid.NewGuid()), CancellationToken.None);
 
         Assert.False(result.IsSuccess);

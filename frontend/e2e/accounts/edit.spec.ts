@@ -184,10 +184,11 @@ test('the accounts list narrowed to a plan shows only the accounts on it, and ca
 
   await page.goto(`/accounts?plan=${CURRENT_PLAN.id}`)
 
-  await expect(page.getByTestId('accounts-plan-filter')).toContainText(CURRENT_PLAN.displayName)
+  await expect(page.getByTestId('active-filter-chips')).toContainText(`Plan: ${CURRENT_PLAN.displayName}`)
   await expect(page.getByRole('link', { name: 'onplan' })).toBeVisible()
   await expect(page.getByRole('link', { name: 'offplan' })).toHaveCount(0)
 
-  await page.getByRole('button', { name: 'Show all accounts' }).click()
+  await page.getByRole('button', { name: `Remove filter: Plan: ${CURRENT_PLAN.displayName}` }).click()
+  await expect(page).not.toHaveURL(/plan=/)
   await expect(page.getByRole('link', { name: 'offplan' })).toBeVisible()
 })

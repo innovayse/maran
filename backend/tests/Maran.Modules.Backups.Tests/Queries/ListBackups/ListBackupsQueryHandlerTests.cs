@@ -2,6 +2,7 @@ using Maran.Modules.Backups.Domain.Entities;
 using Maran.Modules.Backups.Domain.Enums;
 using Maran.Modules.Backups.Queries.ListBackups;
 using Maran.Modules.Backups.Tests.TestSupport;
+using Maran.Sdk.Contracts;
 
 namespace Maran.Modules.Backups.Tests.Queries.ListBackups;
 
@@ -29,7 +30,8 @@ public sealed class ListBackupsQueryHandlerTests
         }
 
         await using var context = BackupsTestContext.Create(FakeCurrentUser.Customer(mine), database);
-        var result = await new ListBackupsQueryHandler(context, BackupsTestContext.FailureNames())
+        var result = await new ListBackupsQueryHandler(
+                context, BackupsTestContext.FailureNames(), new StubAccountDirectory())
             .HandleAsync(new ListBackupsQuery(), CancellationToken.None);
 
         Assert.True(result.IsSuccess);
@@ -59,7 +61,8 @@ public sealed class ListBackupsQueryHandlerTests
         }
 
         await using var context = BackupsTestContext.Create(FakeCurrentUser.Admin(), database);
-        var result = await new ListBackupsQueryHandler(context, BackupsTestContext.FailureNames())
+        var result = await new ListBackupsQueryHandler(
+                context, BackupsTestContext.FailureNames(), new StubAccountDirectory())
             .HandleAsync(new ListBackupsQuery(), CancellationToken.None);
 
         Assert.Equal(3, result.Value.Count);
@@ -88,7 +91,8 @@ public sealed class ListBackupsQueryHandlerTests
         }
 
         await using var context = BackupsTestContext.Create(FakeCurrentUser.Customer(accountId), database);
-        var result = await new ListBackupsQueryHandler(context, BackupsTestContext.FailureNames())
+        var result = await new ListBackupsQueryHandler(
+                context, BackupsTestContext.FailureNames(), new StubAccountDirectory())
             .HandleAsync(new ListBackupsQuery(), CancellationToken.None);
 
         Assert.Equal([newest.Id, oldest.Id], result.Value.Select(backup =>
@@ -102,7 +106,8 @@ public sealed class ListBackupsQueryHandlerTests
     public async Task An_account_with_no_backups_is_listed_nothing()
     {
         await using var context = BackupsTestContext.Create(FakeCurrentUser.Customer(Guid.NewGuid()));
-        var result = await new ListBackupsQueryHandler(context, BackupsTestContext.FailureNames())
+        var result = await new ListBackupsQueryHandler(
+                context, BackupsTestContext.FailureNames(), new StubAccountDirectory())
             .HandleAsync(new ListBackupsQuery(), CancellationToken.None);
 
         Assert.True(result.IsSuccess);
@@ -133,7 +138,8 @@ public sealed class ListBackupsQueryHandlerTests
         }
 
         await using var context = BackupsTestContext.Create(FakeCurrentUser.Admin(), database);
-        var result = await new ListBackupsQueryHandler(context, BackupsTestContext.FailureNames())
+        var result = await new ListBackupsQueryHandler(
+                context, BackupsTestContext.FailureNames(), new StubAccountDirectory())
             .HandleAsync(new ListBackupsQuery(), CancellationToken.None);
 
         var listed = Assert.Single(result.Value);
@@ -159,7 +165,8 @@ public sealed class ListBackupsQueryHandlerTests
         }
 
         await using var context = BackupsTestContext.Create(FakeCurrentUser.Admin(), database);
-        var result = await new ListBackupsQueryHandler(context, BackupsTestContext.FailureNames())
+        var result = await new ListBackupsQueryHandler(
+                context, BackupsTestContext.FailureNames(), new StubAccountDirectory())
             .HandleAsync(new ListBackupsQuery(), CancellationToken.None);
 
         var listed = Assert.Single(result.Value);
@@ -189,7 +196,8 @@ public sealed class ListBackupsQueryHandlerTests
         }
 
         await using var context = BackupsTestContext.Create(FakeCurrentUser.Admin(), database);
-        var result = await new ListBackupsQueryHandler(context, BackupsTestContext.FailureNames())
+        var result = await new ListBackupsQueryHandler(
+                context, BackupsTestContext.FailureNames(), new StubAccountDirectory())
             .HandleAsync(new ListBackupsQuery(theirs), CancellationToken.None);
 
         Assert.Equal([theirRow.Id], result.Value.Select(backup =>
@@ -218,10 +226,61 @@ public sealed class ListBackupsQueryHandlerTests
         }
 
         await using var context = BackupsTestContext.Create(FakeCurrentUser.Customer(mine), database);
-        var result = await new ListBackupsQueryHandler(context, BackupsTestContext.FailureNames())
+        var result = await new ListBackupsQueryHandler(
+                context, BackupsTestContext.FailureNames(), new StubAccountDirectory())
             .HandleAsync(new ListBackupsQuery(theirs), CancellationToken.None);
 
         Assert.True(result.IsSuccess);
         Assert.Empty(result.Value);
+    }
+
+    /// <summary>
+    /// A listing labels each row with its owner's current name from the account directory, in one
+    /// batched lookup; a row whose account the directory does not name — here a deleted one — gets an
+    /// empty owner name and keeps saying whose it was through its orphaned username alone.
+    /// </summary>
+    [Fact]
+    public async Task Rows_carry_the_owner_name_the_directory_answers_and_empty_for_one_it_does_not()
+    {
+        var live = Guid.NewGuid();
+        var deleted = Guid.NewGuid();
+        var database = Guid.NewGuid().ToString();
+        var liveRow = BackupsTestContext.CompletedRow(live);
+        var orphanRow = BackupsTestContext.CompletedRow(deleted);
+        orphanRow.Orphan("gone01");
+
+        await using (var seeding = BackupsTestContext.Create(FakeCurrentUser.Admin(), database))
+        {
+            seeding.Backups.Add(liveRow);
+            seeding.Backups.Add(orphanRow);
+            await seeding.SaveChangesAsync();
+        }
+
+        // The directory names the live account only, which is how the real one answers once an
+        // account has been deleted.
+        var accounts = new StubAccountDirectory(
+            new AccountSnapshot(live, "cust01", 1, 1, 1, 1, 1, 1024, AccountState.Active));
+
+        await using var context = BackupsTestContext.Create(FakeCurrentUser.Admin(), database);
+        var result = await new ListBackupsQueryHandler(context, BackupsTestContext.FailureNames(), accounts)
+            .HandleAsync(new ListBackupsQuery(), CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        var liveBackup = result.Value.Single(backup =>
+        {
+            return backup.Id == liveRow.Id;
+        });
+        Assert.Equal("cust01", liveBackup.OwnerName);
+        Assert.Equal(string.Empty, liveBackup.OrphanedAccountUsername);
+
+        var orphanBackup = result.Value.Single(backup =>
+        {
+            return backup.Id == orphanRow.Id;
+        });
+        Assert.Equal(string.Empty, orphanBackup.OwnerName);
+        Assert.Equal("gone01", orphanBackup.OrphanedAccountUsername);
+
+        var batch = Assert.Single(accounts.NameLookups);
+        Assert.Equal(new[] { live, deleted }.Order(), batch.Order());
     }
 }

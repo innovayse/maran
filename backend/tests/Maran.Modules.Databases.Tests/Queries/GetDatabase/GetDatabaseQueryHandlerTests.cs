@@ -1,5 +1,6 @@
 using Maran.Modules.Databases.Queries.GetDatabase;
 using Maran.Modules.Databases.Tests.TestSupport;
+using Maran.Sdk.Contracts;
 using Microsoft.EntityFrameworkCore;
 
 namespace Maran.Modules.Databases.Tests.Queries.GetDatabase;
@@ -21,7 +22,7 @@ public sealed class GetDatabaseQueryHandlerTests
         var strangerId = await SeedAsync(shared);
 
         using var context = DatabasesTestContext.Create(FakeCurrentUser.Customer(OwnerAccountId), shared);
-        var result = await new GetDatabaseQueryHandler(context)
+        var result = await new GetDatabaseQueryHandler(context, new StubAccountDirectory())
             .HandleAsync(new GetDatabaseQuery(strangerId), CancellationToken.None);
 
         Assert.False(result.IsSuccess);
@@ -37,14 +38,14 @@ public sealed class GetDatabaseQueryHandlerTests
         await SeedAsync(shared);
 
         using var context = DatabasesTestContext.Create(FakeCurrentUser.Customer(OwnerAccountId), shared);
-        var result = await new GetDatabaseQueryHandler(context)
+        var result = await new GetDatabaseQueryHandler(context, new StubAccountDirectory())
             .HandleAsync(new GetDatabaseQuery(Guid.NewGuid()), CancellationToken.None);
 
         Assert.False(result.IsSuccess);
         Assert.Equal("DatabaseNotFound", result.Error!.Code);
     }
 
-    /// <summary>A customer reading their own database is answered with it.</summary>
+    /// <summary>A customer reading their own database is answered with it, labelled with their name.</summary>
     [Fact]
     public async Task A_customer_reading_their_own_database_is_answered_with_it()
     {
@@ -56,12 +57,16 @@ public sealed class GetDatabaseQueryHandlerTests
         using var read = DatabasesTestContext.Create(FakeCurrentUser.Customer(OwnerAccountId), shared);
         var own = await read.Databases.SingleAsync();
 
-        var result = await new GetDatabaseQueryHandler(read)
+        var accounts = new StubAccountDirectory(
+            new AccountSnapshot(OwnerAccountId, "alice", 5, 5, 5, 5, 5, 1_024, AccountState.Active));
+
+        var result = await new GetDatabaseQueryHandler(read, accounts)
             .HandleAsync(new GetDatabaseQuery(own.Id), CancellationToken.None);
 
         Assert.True(result.IsSuccess);
         Assert.Equal("shop", result.Value.Name);
         Assert.Equal("alice_shop", result.Value.FullName);
+        Assert.Equal("alice", result.Value.OwnerName);
     }
 
     /// <summary>Seeds one database for each account and returns the stranger's identifier.</summary>

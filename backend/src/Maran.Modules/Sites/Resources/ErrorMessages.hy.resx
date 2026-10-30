@@ -66,4 +66,10 @@
   <data name="SiteAliasReserved">
     <value>Լրացուցիչ անուններից մեկը հնարավոր չէ օգտագործել կայքի համար։</value>
   </data>
+  <data name="SiteBackendTypeUnknown">
+    <value>Սա կայքի backend-ի տեսակ չէ։</value>
+  </data>
+  <data name="SiteStatusUnknown">
+    <value>Սա կայքի կարգավիճակ չէ։</value>
+  </data>
 </root>

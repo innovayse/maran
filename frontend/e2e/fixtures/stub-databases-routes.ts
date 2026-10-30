@@ -51,6 +51,7 @@ export const stubDatabases = async (page: Page, databases: Database[]): Promise<
       databases.push({
         id: created.id,
         accountId: created.accountId,
+        ownerName: ACCOUNT_PREFIX,
         name: created.name,
         fullName: created.fullName,
         dbUserName: created.dbUserName,

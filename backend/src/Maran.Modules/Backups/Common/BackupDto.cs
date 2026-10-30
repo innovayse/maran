@@ -19,6 +19,13 @@ namespace Maran.Modules.Backups.Common;
 /// </remarks>
 /// <param name="Id">The backup's identity, which is also the identifier its artifact is stored under.</param>
 /// <param name="AccountId">The account this is a backup of.</param>
+/// <param name="OwnerName">
+/// The owning account's CURRENT name, resolved by the server from the account directory so a list
+/// needs no second request to label its rows. Empty whenever the directory does not name that
+/// account for this caller — including after the account was deleted, which is what
+/// <paramref name="OrphanedAccountUsername"/> answers instead. The two never describe the same thing:
+/// this one is the live account's name, that one the name the account had when it was removed.
+/// </param>
 /// <param name="OrphanedAccountUsername">
 /// The username of the account this backup belongs to WHEN that account no longer exists, and empty
 /// while it does. A pre-deletion backup outlives its account on purpose — that is the whole reason
@@ -46,6 +53,7 @@ namespace Maran.Modules.Backups.Common;
 public sealed record BackupDto(
     Guid Id,
     Guid AccountId,
+    string OwnerName,
     string OrphanedAccountUsername,
     BackupStatus Status,
     BackupKind Kind,

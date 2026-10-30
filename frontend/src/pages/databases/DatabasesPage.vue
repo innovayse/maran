@@ -51,14 +51,14 @@ import { useCallerRole } from '../../composables/useCallerRole'
 import { useDatabasesStore } from '../../stores/databases'
 import { useLocaleStore } from '../../stores/locale'
 import { formatDate } from '../../utils/formatDate'
-import type { CreateDatabaseRequest } from '../../types/database'
+import type { CreateDatabaseRequest, Database } from '../../types/database'
 
 /** Which action a row is waiting for confirmation on. */
 type PendingAction = 'resetPassword' | 'drop'
 
 const { t } = useI18n()
 const store = useDatabasesStore()
-const { fixedAccountId, accounts, ownerName, load: loadAccounts } = useAccountChoice()
+const { fixedAccountId, picker: accountPicker, search: searchAccounts } = useAccountChoice()
 const { filter: accountListFilter, isActive: isAccountFiltered, text: accountFilterText, clear: clearAccountFilter } = useAccountFilter()
 const { isAdmin } = useCallerRole()
 const localeStore = useLocaleStore()
@@ -110,12 +110,12 @@ const confirmationText: ComputedRef<string> = computed(() => {
 })
 
 /**
- * Names the account a database belongs to, for a column that would otherwise print a GUID.
- * @param id The owning account's identity, as the database row reports it.
- * @returns The account's own short name, or a placeholder when this caller's lists have none.
+ * Names the account a database belongs to, as the panel named it on the row.
+ * @param database The database row.
+ * @returns The owner's short name, or the empty-value mark when the panel did not name it.
  */
-const accountName = (id: string): string => {
-  return ownerName(id) ?? t('common.emptyValue')
+const accountName = (database: Database): string => {
+  return database.ownerName === '' ? t('common.emptyValue') : database.ownerName
 }
 
 /**
@@ -127,13 +127,11 @@ const loadList = async (): Promise<void> => {
 }
 
 /**
- * Loads the two lists the screen needs: the databases themselves and the accounts one can be
- * created for. Neither is written into the SPA.
- * @returns Resolves once both requests have settled.
+ * Loads the database list. The create form's account picker reads its own choices when opened.
+ * @returns Resolves once the request has settled.
  */
 const refresh = async (): Promise<void> => {
-  // A customer's own account is read instead of the administrator-only list (useAccountChoice).
-  await Promise.all([loadList(), loadAccounts()])
+  await loadList()
 }
 
 /**
@@ -237,9 +235,10 @@ onBeforeUnmount(dismissCredential)
 
     <DatabaseCreateForm
       ref="form"
-      :accounts="accounts"
+      :account-picker="accountPicker"
       :fixed-account-id="fixedAccountId"
       :submitting="store.creating"
+      @search-accounts="searchAccounts"
       @submit="create"
     />
 
@@ -281,7 +280,7 @@ onBeforeUnmount(dismissCredential)
           <!-- The prefixed name, because it is the one that works in a mysql client. -->
           <UiTableCell mono class="font-medium whitespace-nowrap">{{ database.fullName }}</UiTableCell>
           <UiTableCell mono tone="secondary" class="whitespace-nowrap">{{ database.dbUserName }}</UiTableCell>
-          <UiTableCell tone="secondary" class="whitespace-nowrap">{{ accountName(database.accountId) }}</UiTableCell>
+          <UiTableCell tone="secondary" class="whitespace-nowrap">{{ accountName(database) }}</UiTableCell>
           <UiTableCell mono tone="muted">
             {{ formatDate(database.createdAt, localeStore.current) }}
           </UiTableCell>

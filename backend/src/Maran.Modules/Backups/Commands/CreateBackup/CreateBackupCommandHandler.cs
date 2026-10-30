@@ -219,7 +219,11 @@ public sealed class CreateBackupCommandHandler
             await _tasks.FailAsync(taskId, outcome.FailureCode, cancellationToken);
         }
 
-        return Result<BackupDto>.Ok(BackupMapper.From(backup, _failureNames.Of(backup.FailureCode)));
+        // Asked of the directory exactly as the reads ask it, so this answer and a later read of the
+        // same row cannot label its owner differently.
+        var ownerNames = await _accounts.NamesOfAsync([backup.AccountId], cancellationToken);
+
+        return Result<BackupDto>.Ok(BackupMapper.From(backup, ownerNames, _failureNames.Of(backup.FailureCode)));
     }
 
     /// <summary>Closes out a run whose answer this request will never hear.</summary>

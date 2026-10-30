@@ -66,4 +66,7 @@
   <data name="AccountHomeGroupRepairCountInvalid">
     <value>Ուղղվող պանակների թիվը չի կարող բացասական լինել։ Նորից կարդացեք հաշվետվությունը և հաստատեք նրանում նշված թիվը։</value>
   </data>
+  <data name="AccountStatusUnknown">
+    <value>Հաշվի այս կարգավիճակը պանելին հայտնի չէ։ Օգտագործեք active կամ suspended։</value>
+  </data>
 </root>

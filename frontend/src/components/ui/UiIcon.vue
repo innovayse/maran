@@ -27,6 +27,9 @@ import {
   ChevronLeft,
   ChevronRight,
   ChevronUp,
+  ChevronsLeft,
+  ChevronsRight,
+  ChevronsUpDown,
   CircleAlert,
   CircleCheck,
   Clock,
@@ -171,6 +174,10 @@ export type UiIconName =
   | 'arrowRight'
   /** An upward chevron — a collapsed group or an ascending sort. */
   | 'chevronUp'
+  /** Two left chevrons — the first page of a list. */
+  | 'chevronsLeft'
+  /** Two right chevrons — the last page of a list. */
+  | 'chevronsRight'
   /** A processor — the CPU figure of a server. */
   | 'cpu'
   /** A memory module — the RAM figure of a server. */
@@ -187,6 +194,8 @@ export type UiIconName =
   | 'trash'
   /** A pencil — editing something. */
   | 'pencil'
+  /** Two opposed chevrons — a column that can be sorted but is not. */
+  | 'chevronsUpDown'
 
 /**
  * Every glyph the panel draws, mapped to its lucide component. The map is
@@ -241,6 +250,8 @@ const ICONS: Record<UiIconName, LucideIcon> = {
   info: Info,
   arrowRight: ArrowRight,
   chevronUp: ChevronUp,
+  chevronsLeft: ChevronsLeft,
+  chevronsRight: ChevronsRight,
   cpu: Cpu,
   memoryStick: MemoryStick,
   hardDrive: HardDrive,
@@ -248,6 +259,7 @@ const ICONS: Record<UiIconName, LucideIcon> = {
   house: House,
   trash: Trash2,
   pencil: Pencil,
+  chevronsUpDown: ChevronsUpDown,
   package: Package,
 }
 

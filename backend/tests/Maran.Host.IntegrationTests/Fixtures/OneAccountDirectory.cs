@@ -16,6 +16,12 @@ public sealed class OneAccountDirectory : IAccountDirectory
     /// <summary>The only account this directory knows.</summary>
     private readonly AccountSnapshot _snapshot;
 
+    /// <summary>The one account, as a sequence, for the lookups that answer over a set.</summary>
+    private IReadOnlyList<AccountSnapshot> Known
+    {
+        get { return [_snapshot]; }
+    }
+
     /// <summary>Creates the directory.</summary>
     /// <param name="accountId">The account's identity.</param>
     /// <param name="username">The account's Linux system user name.</param>
@@ -59,5 +65,51 @@ public sealed class OneAccountDirectory : IAccountDirectory
     public Task<IReadOnlyList<AccountSnapshot>> ListAsync(CancellationToken cancellationToken)
     {
         return Task.FromResult<IReadOnlyList<AccountSnapshot>>([_snapshot]);
+    }
+
+    /// <inheritdoc />
+    /// <remarks>Answers for every id it knows; like the rest of this double it models no tenant scope.</remarks>
+    public Task<IReadOnlyDictionary<Guid, string>> NamesOfAsync(
+        IReadOnlyCollection<Guid> accountIds,
+        CancellationToken cancellationToken)
+    {
+        IReadOnlyDictionary<Guid, string> names = Known
+            .Where(snapshot =>
+            {
+                return accountIds.Contains(snapshot.Id);
+            })
+            .ToDictionary(
+                snapshot =>
+                {
+                    return snapshot.Id;
+                },
+                snapshot =>
+                {
+                    return snapshot.Username;
+                });
+        return Task.FromResult(names);
+    }
+
+    /// <inheritdoc />
+    /// <remarks>A literal, case-insensitive containment over what it knows, as the real one answers.</remarks>
+    public Task<IReadOnlyList<Guid>> FindIdsByNameAsync(string search, CancellationToken cancellationToken)
+    {
+        IReadOnlyList<Guid> ids = Known
+            .Where(snapshot =>
+            {
+                return snapshot.Username.Contains(search, StringComparison.OrdinalIgnoreCase);
+            })
+            .OrderBy(
+                snapshot =>
+                {
+                    return snapshot.Username;
+                },
+                StringComparer.Ordinal)
+            .Select(snapshot =>
+            {
+                return snapshot.Id;
+            })
+            .ToList();
+        return Task.FromResult(ids);
     }
 }

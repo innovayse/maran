@@ -19,6 +19,9 @@ public sealed class StubAccountDirectory : IAccountDirectory
     /// <summary>The accounts this directory knows about, by id.</summary>
     private readonly Dictionary<Guid, AccountSnapshot> _accounts = [];
 
+    /// <summary>Each batch of ids <see cref="NamesOfAsync"/> was asked for, in order.</summary>
+    public List<IReadOnlyCollection<Guid>> NameLookups { get; } = [];
+
     /// <summary>Registers an account with a system user name and an FTPS-login allowance.</summary>
     /// <param name="accountId">The account's identity.</param>
     /// <param name="username">The account's Linux system user name.</param>
@@ -52,5 +55,40 @@ public sealed class StubAccountDirectory : IAccountDirectory
     public Task<IReadOnlyList<AccountSnapshot>> ListAsync(CancellationToken cancellationToken)
     {
         return Task.FromResult<IReadOnlyList<AccountSnapshot>>(_accounts.Values.ToList());
+    }
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// Answers only for the snapshots it was given — an id it does not know is absent, which is how
+    /// the real directory answers for an account that no longer exists or belongs to another tenant.
+    /// </remarks>
+    public Task<IReadOnlyDictionary<Guid, string>> NamesOfAsync(
+        IReadOnlyCollection<Guid> accountIds,
+        CancellationToken cancellationToken)
+    {
+        NameLookups.Add(accountIds);
+        IReadOnlyDictionary<Guid, string> names = accountIds
+            .Distinct()
+            .Where(id =>
+            {
+                return _accounts.ContainsKey(id);
+            })
+            .ToDictionary(
+                id =>
+                {
+                    return id;
+                },
+                id =>
+                {
+                    return _accounts[id].Username;
+                });
+        return Task.FromResult(names);
+    }
+
+    /// <inheritdoc />
+    public Task<IReadOnlyList<Guid>> FindIdsByNameAsync(string search, CancellationToken cancellationToken)
+    {
+        // Refused: nothing in this module searches its rows by owner name.
+        throw new NotSupportedException("Ftp searches no account names.");
     }
 }

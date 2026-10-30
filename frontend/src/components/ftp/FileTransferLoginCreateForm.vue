@@ -33,8 +33,8 @@ import UiForm from '../ui/UiForm.vue'
 import UiInput from '../ui/UiInput.vue'
 import UiRadioGroup, { type RadioOption } from '../ui/UiRadioGroup.vue'
 import UiSectionHeading from '../ui/UiSectionHeading.vue'
-import UiSelect, { type SelectOption } from '../ui/UiSelect.vue'
-import type { Account } from '../../types/account'
+import UiCombobox from '../ui/UiCombobox.vue'
+import type { AccountPickerState } from '../../composables/useAccountChoice'
 import type { CreateFileTransferLoginRequest } from '../../types/fileTransferLogin'
 
 /**
@@ -63,8 +63,11 @@ const MAX_SUFFIX_LENGTH = 30
 
 /** Props accepted by {@link FileTransferLoginCreateForm}. */
 const props = defineProps<{
-  /** The accounts a login may be created for, as the panel reported them. */
-  accounts: readonly Account[]
+  /**
+   * The account picker's state — the page of accounts a login may be created for matching the last search — read
+   * by the page from its store; the form only renders it and asks for searches.
+   */
+  accountPicker: AccountPickerState
   /** Whether a create request is already in flight, which disables the submit control. */
   submitting: boolean
   /** What the panel has told this caller about the FTPS daemon. */
@@ -80,6 +83,8 @@ const props = defineProps<{
 const emit = defineEmits<{
   /** Fired only when every client-side rule passes, carrying the request to send. */
   (e: 'submit', request: CreateFileTransferLoginRequest): void
+  /** Fired when the account picker needs the accounts matching what was typed into it. */
+  (e: 'searchAccounts', term: string): void
 }>()
 
 const { t } = useI18n()
@@ -95,13 +100,6 @@ const name: Ref<string> = ref('')
 
 /** Whether a submit has been attempted, so nothing turns red before the operator has tried. */
 const submitted: Ref<boolean> = ref(false)
-
-/** The accounts the picker offers, as the panel reported them. */
-const accountOptions: ComputedRef<SelectOption[]> = computed(() => {
-  return props.accounts.map((account) => {
-    return { value: account.id, label: `${account.name} · ${account.primaryDomain}` }
-  })
-})
 
 /** Whether the panel has said, in so many words, that the FTPS daemon is turned off. */
 const isFtpsOff: ComputedRef<boolean> = computed(() => {
@@ -190,14 +188,15 @@ defineExpose({ reset })
     <UiSectionHeading class="mb-4" :title="t('ftp.form.heading')" />
     <UiForm @submit="submit">
       <div class="grid gap-4 sm:grid-cols-2">
-        <UiSelect
+        <UiCombobox
           v-if="fixedAccountId === null"
           v-model="accountId"
+          v-bind="accountPicker"
           :label="t('ftp.form.fields.accountId')"
           :placeholder="t('ftp.form.placeholders.accountId')"
-          :options="accountOptions"
           :error="accountError"
           required
+          @search="emit('searchAccounts', $event)"
         />
         <UiInput
           v-model="name"

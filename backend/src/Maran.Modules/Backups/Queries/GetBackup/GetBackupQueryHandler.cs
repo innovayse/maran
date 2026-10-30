@@ -3,6 +3,7 @@ using Maran.Modules.Backups.Mappers;
 using Maran.Modules.Backups.Persistence;
 using Maran.Modules.Backups.Resources;
 using Maran.Modules.Backups.Services;
+using Maran.Sdk.Interfaces;
 
 namespace Maran.Modules.Backups.Queries.GetBackup;
 
@@ -21,16 +22,24 @@ public sealed class GetBackupQueryHandler
     /// <summary>Names a recorded failure code in the caller's language.</summary>
     private readonly BackupFailureDisplayNames _failureNames;
 
-    /// <summary>Creates the handler with the module's own database context.</summary>
+    /// <summary>The window onto the Accounts module's account names, tenant-scoped.</summary>
+    private readonly IAccountDirectory _accounts;
+
+    /// <summary>Creates the handler with the module's own database context and its collaborators.</summary>
     /// <param name="dbContext">The Backups module's database context.</param>
     /// <param name="failureNames">Names a recorded failure code in the caller's language.</param>
-    public GetBackupQueryHandler(BackupsDbContext dbContext, BackupFailureDisplayNames failureNames)
+    /// <param name="accounts">The window onto the Accounts module's account names, tenant-scoped.</param>
+    public GetBackupQueryHandler(
+        BackupsDbContext dbContext,
+        BackupFailureDisplayNames failureNames,
+        IAccountDirectory accounts)
     {
         _dbContext = dbContext;
         _failureNames = failureNames;
+        _accounts = accounts;
     }
 
-    /// <summary>Returns one backup, or a not-found failure.</summary>
+    /// <summary>Returns one backup with its owner's name, or a not-found failure.</summary>
     /// <param name="query">The backup to read.</param>
     /// <param name="cancellationToken">Cancels the read.</param>
     /// <returns>The backup, or <c>BackupNotFound</c>.</returns>
@@ -47,6 +56,8 @@ public sealed class GetBackupQueryHandler
             return Result<BackupDto>.Fail(Error.Of(nameof(ErrorMessages.BackupNotFound), ErrorType.NotFound));
         }
 
-        return Result<BackupDto>.Ok(BackupMapper.From(backup, _failureNames.Of(backup.FailureCode)));
+        var ownerNames = await _accounts.NamesOfAsync([backup.AccountId], cancellationToken);
+
+        return Result<BackupDto>.Ok(BackupMapper.From(backup, ownerNames, _failureNames.Of(backup.FailureCode)));
     }
 }

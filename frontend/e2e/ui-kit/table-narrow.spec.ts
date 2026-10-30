@@ -114,6 +114,7 @@ const BACKUPS: Backup[] = [
   {
     id: '77777777-7777-7777-7777-777777777771',
     accountId: ACCOUNTS[0]?.id ?? '',
+    ownerName: ACCOUNTS[0]?.name ?? '',
     orphanedAccountUsername: '',
     status: 'completed',
     kind: 'scheduled',
@@ -128,6 +129,7 @@ const BACKUPS: Backup[] = [
   {
     id: '77777777-7777-7777-7777-777777777772',
     accountId: ACCOUNTS[0]?.id ?? '',
+    ownerName: ACCOUNTS[0]?.name ?? '',
     orphanedAccountUsername: '',
     status: 'failed',
     kind: 'manual',
@@ -142,6 +144,7 @@ const BACKUPS: Backup[] = [
   {
     id: '77777777-7777-7777-7777-777777777773',
     accountId: '00000000-0000-0000-0000-0000000000ff',
+    ownerName: '',
     orphanedAccountUsername: 'removed-customer-account-name',
     status: 'completed',
     kind: 'preDeletion',

@@ -1,7 +1,8 @@
 using Maran.Modules.Sftp.Common;
-using Maran.Modules.Sftp.Domain.Policies;
+using Maran.Modules.Sftp.Mappers;
 using Maran.Modules.Sftp.Persistence;
 using Maran.Modules.Sftp.Resources;
+using Maran.Sdk.Interfaces;
 
 namespace Maran.Modules.Sftp.Queries.GetSftpUser;
 
@@ -23,14 +24,19 @@ public sealed class GetSftpUserQueryHandler
     /// <summary>The Sftp module's database context, and this module's tenant boundary.</summary>
     private readonly SftpDbContext _dbContext;
 
-    /// <summary>Creates the handler with the module's own database context.</summary>
+    /// <summary>The window onto the Accounts module's account names, tenant-scoped.</summary>
+    private readonly IAccountDirectory _accounts;
+
+    /// <summary>Creates the handler with the module's own database context and the account directory.</summary>
     /// <param name="dbContext">The Sftp module's database context.</param>
-    public GetSftpUserQueryHandler(SftpDbContext dbContext)
+    /// <param name="accounts">The window onto the Accounts module's account names, tenant-scoped.</param>
+    public GetSftpUserQueryHandler(SftpDbContext dbContext, IAccountDirectory accounts)
     {
         _dbContext = dbContext;
+        _accounts = accounts;
     }
 
-    /// <summary>Returns the login, or <c>SftpUserNotFound</c>.</summary>
+    /// <summary>Returns the login labelled with its owner's name, or <c>SftpUserNotFound</c>.</summary>
     /// <param name="query">Which login to read.</param>
     /// <param name="cancellationToken">Cancels the read.</param>
     /// <returns>The login's view, or <c>SftpUserNotFound</c>.</returns>
@@ -45,12 +51,8 @@ public sealed class GetSftpUserQueryHandler
             return Result<SftpUserDto>.Fail(Error.Of(nameof(ErrorMessages.SftpUserNotFound), ErrorType.NotFound));
         }
 
-        return Result<SftpUserDto>.Ok(new SftpUserDto(
-            sftpUser.Id,
-            sftpUser.AccountId,
-            sftpUser.Name,
-            sftpUser.FullName,
-            SftpProtocolName.Sftp,
-            sftpUser.CreatedAt));
+        var ownerNames = await _accounts.NamesOfAsync([sftpUser.AccountId], cancellationToken);
+
+        return Result<SftpUserDto>.Ok(SftpUserMapper.From(sftpUser, ownerNames));
     }
 }

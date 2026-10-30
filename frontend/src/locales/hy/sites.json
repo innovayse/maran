@@ -23,10 +23,23 @@
         "backendType": "Բեքենդ",
         "phpVersion": "PHP",
         "status": "Կարգավիճակ",
-        "createdAt": "Ստեղծված"
+        "createdAt": "Ստեղծված",
+        "owner": "Սեփականատեր"
       },
       "phpVersionsLink": "PHP տարբերակներ",
-      "disabledNotice": "Անջատված է {count} կայք։ Դրանց այցելուները կայքի փոխարեն տեսնում են կասեցման էջ։"
+      "disabledNotice": "Անջատված է {count} կայք։ Դրանց այցելուները կայքի փոխարեն տեսնում են կասեցման էջ։",
+      "searchLabel": "Կայքերի որոնում",
+      "searchPlaceholder": "Որոնել ըստ դոմեյնի կամ սեփականատիրոջ…",
+      "searchClear": "Մաքրել որոնումը",
+      "noResultsTitle": "Համապատասխան կայքեր չկան",
+      "noResultsDescription": "Փոխեք որոնումը կամ զտիչները, կամ մաքրեք դրանք՝ բոլոր կայքերը տեսնելու համար։",
+      "filters": {
+        "account": "Հաշիվ",
+        "backend": "Բեքենդ",
+        "phpVersion": "PHP տարբերակ",
+        "status": "Կարգավիճակ"
+      },
+      "disabledUnavailable": "Անջատված կայքերի քանակը հնարավոր չեղավ հաշվել։"
     },
     "form": {
       "heading": "Նոր կայք",

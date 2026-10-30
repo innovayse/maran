@@ -1,11 +1,44 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
+  <PropertyGroup>
+    <!-- The resx triple's neutral file is English (rules/csharp.md "The backend owns all
+         user-facing message text"); declaring it spares the runtime a probe for an "en"
+         satellite assembly that will never exist, and satisfies CA1824. -->
+    <NeutralLanguage>en</NeutralLanguage>
+  </PropertyGroup>
+
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\Maran.SharedKernel\Maran.SharedKernel.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- FluentValidation: Validators/PagedQueryValidator.cs, the base every module's list-query
+         validator derives from, so the paging bounds are enforced in one place for ours and
+         third-party modules alike. -->
+    <PackageReference Include="FluentValidation" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- ValidationMessages defines the codes Validators/ raises; the generated class makes a code
+         that is not a resx key a build error (rules/csharp.md "ErrorMessages.resx is where error
+         codes are defined"). -->
+    <EmbeddedResource Update="Resources\ValidationMessages.resx">
+      <Generator>MSBuild:Compile</Generator>
+      <StronglyTypedLanguage>CSharp</StronglyTypedLanguage>
+      <StronglyTypedNamespace>Maran.Sdk.Resources</StronglyTypedNamespace>
+      <StronglyTypedClassName>ValidationMessages</StronglyTypedClassName>
+      <StronglyTypedFileName>$(IntermediateOutputPath)ValidationMessages.Designer.cs</StronglyTypedFileName>
+    </EmbeddedResource>
+    <EmbeddedResource Update="Resources\ValidationMessages.ru.resx">
+      <Generator></Generator>
+    </EmbeddedResource>
+    <EmbeddedResource Update="Resources\ValidationMessages.hy.resx">
+      <Generator></Generator>
+    </EmbeddedResource>
   </ItemGroup>
 
 </Project>

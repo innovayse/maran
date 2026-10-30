@@ -129,6 +129,10 @@ html[data-theme='dark'] {
   --r-inset: calc(var(--r-control) - 4px);
   --r-row: calc(var(--r-control) - 4px);
   --r-mark: calc(var(--r-control) / 3);
+  /* The tallest a bottom sheet (UiFilterSheet) grows: the top 15% of the viewport stays backdrop,
+     so the reader sees the list behind it and has somewhere to tap to dismiss. `dvh`, so a phone's
+     collapsing address bar never pushes the sheet's actions off screen. */
+  --sheet-max-h: 85dvh;
 }
 
 /*
@@ -250,6 +254,9 @@ html[data-theme='light'] {
   --spacing-row: var(--d-row);
   --spacing-choice: var(--d-choice);
   --spacing-menu: var(--d-menu);
+
+  /* The bottom sheet's height cap: `max-h-sheet`. */
+  --spacing-sheet: var(--sheet-max-h);
 
   /*
    * Families. Archivo (black, 800 to 900) for titles, figures and uppercase labels; Inter

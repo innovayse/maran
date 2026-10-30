@@ -1,4 +1,5 @@
 using FluentValidation;
+using Maran.Modules.Sites.Domain.Policies;
 using Maran.Modules.Sites.Resources;
 
 namespace Maran.Modules.Sites.Commands.ChangeSitePhpVersion;
@@ -14,13 +15,6 @@ namespace Maran.Modules.Sites.Commands.ChangeSitePhpVersion;
 /// </remarks>
 public sealed class ChangeSitePhpVersionCommandValidator : AbstractValidator<ChangeSitePhpVersionCommand>
 {
-    /// <summary>Two-component PHP version as the packages name it, e.g. <c>8.3</c>.</summary>
-    /// <remarks>
-    /// Anchored with <c>\z</c>, not <c>$</c>: in .NET <c>$</c> also matches before a trailing
-    /// newline, and this value names a php-fpm pool directory in a rendered config.
-    /// </remarks>
-    private const string PhpVersionPattern = @"\A[0-9]\.[0-9]{1,2}\z";
-
     /// <summary>Configures the field rules for <see cref="ChangeSitePhpVersionCommand"/>.</summary>
     public ChangeSitePhpVersionCommandValidator()
     {
@@ -29,7 +23,7 @@ public sealed class ChangeSitePhpVersionCommandValidator : AbstractValidator<Cha
 
         RuleFor(command => command.PhpVersion)
             .NotEmpty()
-            .Matches(PhpVersionPattern)
+            .Matches(PhpVersionFormat.Pattern)
             .WithMessage(nameof(ErrorMessages.PhpVersionInvalidFormat));
     }
 }

@@ -114,6 +114,7 @@ const SITE_ID = CERTIFICATE_SITE_ID
 const SITE: Site = {
   id: SITE_ID,
   accountId: ACCOUNT.id,
+  ownerName: ACCOUNT.name,
   domain: LONG_DOMAIN,
   backendType: 'php',
   phpVersion: '8.3',
@@ -147,7 +148,11 @@ const DASHBOARD: Dashboard = {
     { service: 'webServer', name: 'Web server', state: 'running', detail: 'active (running)' },
     { service: 'database', name: 'Database', state: 'stopped', detail: 'inactive (dead)' },
   ],
-  counts: { accounts: 12, sites: 27, databases: 14 },
+  counts: {
+    accounts: { state: 'counted', count: 12 },
+    sites: { state: 'counted', count: 27 },
+    databases: { state: 'counted', count: 14 },
+  },
   attention: { certificatesExpiringSoon: 2, failedBackups: 5, bannedAddresses: 9, failedTasks: 6 },
   recentAudit: [
     {
@@ -176,6 +181,7 @@ const DASHBOARD: Dashboard = {
 const DATABASE: Database = {
   id: '33333333-3333-3333-3333-333333333333',
   accountId: ACCOUNT.id,
+  ownerName: ACCOUNT.name,
   name: 'storefront_catalogue_production',
   fullName: 'acme_industrial_storefront_catalogue_production',
   dbUserName: 'acme_industrial_storefront_catalogue_user',
@@ -210,6 +216,7 @@ const GRANT_REPORT: GrantRepairReport = {
 const SFTP_USER: SftpUser = {
   id: '44444444-4444-4444-4444-444444444444',
   accountId: ACCOUNT.id,
+  ownerName: ACCOUNT.name,
   name: 'deployment-pipeline-user',
   fullName: 'acme-industrial-holdings_deployment-pipeline-user',
   createdAt: '2026-08-03T10:00:00Z',
@@ -218,6 +225,7 @@ const SFTP_USER: SftpUser = {
 const FTP_USER: FtpUser = {
   id: '55555555-5555-5555-5555-555555555555',
   accountId: ACCOUNT.id,
+  ownerName: ACCOUNT.name,
   name: 'legacy-importer',
   fullName: 'acme-industrial-holdings_legacy-importer',
   protocol: 'ftps',
@@ -269,6 +277,7 @@ const BACKUPS: Backup[] = [
   {
     id: '77777777-7777-7777-7777-777777777771',
     accountId: ACCOUNT.id,
+    ownerName: ACCOUNT.name,
     orphanedAccountUsername: '',
     status: 'completed',
     kind: 'scheduled',
@@ -283,6 +292,7 @@ const BACKUPS: Backup[] = [
   {
     id: '77777777-7777-7777-7777-777777777772',
     accountId: ACCOUNT.id,
+    ownerName: ACCOUNT.name,
     orphanedAccountUsername: '',
     status: 'failed',
     kind: 'manual',
@@ -297,6 +307,7 @@ const BACKUPS: Backup[] = [
   {
     id: '77777777-7777-7777-7777-777777777773',
     accountId: '00000000-0000-0000-0000-0000000000ff',
+    ownerName: '',
     orphanedAccountUsername: 'removed-customer-account-name',
     status: 'completed',
     kind: 'preDeletion',

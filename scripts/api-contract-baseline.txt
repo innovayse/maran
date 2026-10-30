@@ -194,6 +194,7 @@ POST /api/v1/sites/php-versions/install  ->  InstallPhpVersionCommand
   POST /api/v1/sites/{}/enable — route-only call, no JSON body
   GET /api/v1/account-home-groups
   GET /api/v1/accounts
+  GET /api/v1/accounts/choices
   GET /api/v1/accounts/me
   GET /api/v1/accounts/me/resource-summary
   GET /api/v1/accounts/plans

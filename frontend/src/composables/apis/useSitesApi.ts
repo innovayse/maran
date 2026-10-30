@@ -1,6 +1,6 @@
 import { ApiError, useApi } from '../useApi'
-import { accountListQuery } from '../../utils/accountListQuery'
-import type { AccountListFilter } from '../../types/accountListFilter'
+import { listQuery } from '../../utils/listQuery'
+import type { ListRequest, Paged } from '../../types/list'
 import type {
   ChangeSitePhpVersionRequest,
   CreateSiteRequest,
@@ -17,6 +17,14 @@ import type {
 
 /** The endpoint sites are listed, created and read through. */
 const SITES_PATH = '/api/v1/sites'
+
+/** The list endpoint's parameter for each filter the sites list page reads from its URL. */
+const LIST_FILTER_PARAMS: Readonly<Record<string, string>> = {
+  account: 'accountId',
+  backend: 'backendType',
+  phpVersion: 'phpVersion',
+  status: 'status',
+}
 
 /**
  * The endings the panel may name on a log stream. Used to check what arrived on the wire: an
@@ -44,13 +52,14 @@ export const useSitesApi = (): SitesApi => {
   const api = useApi()
 
   /**
-   * Lists the sites the caller may see.
-   * @param filter The account the list is narrowed to; empty for every row the caller may see.
+   * Lists one page of the sites the caller may see. The server ANDs an account filter with its
+   * own tenant filter, so a customer naming another account receives an empty page.
+   * @param request The page, size, search, sort and the account, backend, PHP and status filters.
    * @param signal Optional abort signal to cancel the in-flight request.
-   * @returns The sites, in the order the panel reports them.
+   * @returns The page the panel answered.
    */
-  const list = (filter: AccountListFilter, signal?: AbortSignal): Promise<Site[]> => {
-    return api.get<Site[]>(`${SITES_PATH}${accountListQuery(filter)}`, signal)
+  const list = (request: ListRequest, signal?: AbortSignal): Promise<Paged<Site>> => {
+    return api.get<Paged<Site>>(`${SITES_PATH}${listQuery(request, LIST_FILTER_PARAMS)}`, signal)
   }
 
   /**

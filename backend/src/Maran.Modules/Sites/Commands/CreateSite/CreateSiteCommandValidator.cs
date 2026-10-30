@@ -1,5 +1,6 @@
 using FluentValidation;
 using Maran.Modules.Sites.Domain.Enums;
+using Maran.Modules.Sites.Domain.Policies;
 using Maran.Modules.Sites.Resources;
 using Maran.Sdk.Interfaces;
 using Maran.SharedKernel.Utilities.Network;
@@ -32,13 +33,6 @@ namespace Maran.Modules.Sites.Commands.CreateSite;
 /// </remarks>
 public sealed class CreateSiteCommandValidator : AbstractValidator<CreateSiteCommand>
 {
-    /// <summary>
-    /// Two-component PHP version as the packages name it, e.g. <c>8.3</c>. Anchored with <c>\z</c>
-    /// rather than <c>$</c> for the same reason <see cref="HostNameRule"/> is: in .NET <c>$</c> also
-    /// matches immediately before a trailing newline, and this value is written into a config file.
-    /// </summary>
-    private const string PhpVersionPattern = @"\A[0-9]\.[0-9]{1,2}\z";
-
     /// <summary>An upstream nginx will proxy to: host or host:port, with no scheme, path or whitespace.</summary>
     private const string ProxyUpstreamPattern = @"\A[A-Za-z0-9.-]{1,253}(:[0-9]{1,5})?\z";
 
@@ -104,7 +98,7 @@ public sealed class CreateSiteCommandValidator : AbstractValidator<CreateSiteCom
         // by the handler as PhpVersionNotInstalled rather than as a validation message.
         RuleFor(command => command.PhpVersion)
             .NotEmpty()
-            .Matches(PhpVersionPattern)
+            .Matches(PhpVersionFormat.Pattern)
             .WithMessage(nameof(ErrorMessages.PhpVersionInvalidFormat))
             .When(command =>
             {

@@ -25,6 +25,9 @@ export const stubBackups = async (page: Page, backups: Backup[]): Promise<void> 
       const created: Backup = {
         id: '99999999-9999-9999-9999-999999999999',
         accountId: submitted.accountId,
+        // This stub holds no account catalogue to name the owner from, so it answers as the panel does
+        // for an account its directory does not name.
+        ownerName: '',
         orphanedAccountUsername: '',
         status: 'completed',
         kind: 'manual',

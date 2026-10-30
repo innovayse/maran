@@ -11,6 +11,10 @@ namespace Maran.Modules.Sites.Common;
 /// </remarks>
 /// <param name="Id">The site's identity.</param>
 /// <param name="AccountId">The account that owns this site.</param>
+/// <param name="OwnerName">
+/// The owning account's name, resolved by the server so a list needs no second request to label its
+/// rows. Empty when the caller may not see the owning account.
+/// </param>
 /// <param name="Domain">The primary domain served by this site.</param>
 /// <param name="BackendType">Which backend serves this site's content.</param>
 /// <param name="PhpVersion">The bound PHP version, or the empty string when the backend is not PHP.</param>
@@ -19,6 +23,7 @@ namespace Maran.Modules.Sites.Common;
 public sealed record SiteDto(
     Guid Id,
     Guid AccountId,
+    string OwnerName,
     string Domain,
     SiteBackendType BackendType,
     string PhpVersion,

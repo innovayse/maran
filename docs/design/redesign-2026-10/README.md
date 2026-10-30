@@ -132,6 +132,7 @@ disagree. Components use the utilities; the raw variable is for the few places a
 | `--r-panel` (16 px) | `rounded-panel` |
 | `--r-control` (12 px) | `rounded-control` |
 | `--r-inset` (8 px) / `--r-row` (8 px) / `--r-mark` (4 px) | `rounded-inset` / `rounded-row` / `rounded-mark` |
+| `--sheet-max-h` (85 dvh) | `max-h-sheet` (a bottom sheet's height cap; the top 15% stays backdrop) |
 | display / body / figures | `font-display` / `font-sans` / `font-mono` |
 
 > **Keep using `text-text-muted` for secondary text. Do not migrate it.** That utility is used 86 times
@@ -421,6 +422,7 @@ instead of a class on the tag, an `!` modifier or a selector that reaches into a
 | `UiButton` | `to` renders a `RouterLink` (role `link`) in the same box; `type` and `disabled` are ignored on a link. `size`: `md`, `bar`, `icon`, `icon-sm`, `tab`, independent of `variant`. | Navigation is a link, never a button that calls `router.push`: a link keeps middle-click, "open in new tab" and the right role. |
 | `UiInput` | `mono` (machine text), `icon` (decorative leading glyph), `inputmode`, `disabled`. `UiPasswordInput` forwards `icon` and `disabled`, not `inputmode`. | An attribute on the tag lands on the wrapper `div`, not the `<input>`. A password is free text, so no `numeric` keyboard. |
 | `UiTableCell` | `tone`: `primary`, `secondary`, `muted`; `mono` for figures. | The colour comes only from `tone`, never from a `text-text-*` class (stylesheet order would decide). A cell has a minimum width, so a table scrolls inside its container instead of squashing. |
+| `UiTableHeaderCell` | `sort`: `ascending`, `descending` or `none` makes the heading a button that emits `sort`; left out, the heading is plain text. | The `th` carries `aria-sort`, so the order is announced on the heading, never only by the glyph. The caller owns the order (a server-paged list's `useServerTable`). |
 | `UiMeter` | `tone`: `capacity` (default; warns past 80 %, danger at 100 %) or `progress` (colour from `status`: `running`, `success`, `danger`); `showValue` (default on). | For a task a full bar is success, so the ratio cannot pick the colour. The figure is visible text unless the caller prints it. |
 | `UiSearchInput` | Combobox mode: `inputRole="combobox"`, `ariaControls`, `ariaExpanded`, `ariaActivedescendant`. | These must reach the `<input>`, not the wrapper. Defaults are the plain `searchbox`. |
 | `UiAvatar` | `name`, `size` (`sm` 32 px, `md` 36 px); the letters come from `utils/initialsOf`. | One initials disc for the identity card, the accounts table and the journal. White on `--acf`; decorative, the name is printed beside it. |

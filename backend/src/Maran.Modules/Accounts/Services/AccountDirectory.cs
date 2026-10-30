@@ -2,6 +2,7 @@ using Maran.Modules.Accounts.Domain.Enums;
 using Maran.Modules.Accounts.Persistence;
 using Maran.Sdk.Contracts;
 using Maran.Sdk.Interfaces;
+using Maran.SharedKernel.Utilities.Text;
 
 namespace Maran.Modules.Accounts.Services;
 
@@ -17,6 +18,10 @@ namespace Maran.Modules.Accounts.Services;
 /// caller's own <c>DbContext</c> query filter cannot reach across into this schema, so if this type
 /// answered every id it was handed, a customer could learn another tenant's system user name — the
 /// name that addresses every agent operation — simply by guessing an account id.
+/// </para>
+/// <para>
+/// <see cref="NamesOfAsync"/> and <see cref="FindIdsByNameAsync"/> apply the same scope, by the same
+/// comparison against the caller's own token: a customer's answer can only ever name their own account.
 /// </para>
 /// <para>
 /// <see cref="ListAsync"/> is the deliberate exception and the interface says so: it answers with
@@ -125,6 +130,63 @@ public sealed class AccountDirectory : IAccountDirectory
                     account.Status == AccountStatus.Suspended ? AccountState.Suspended : AccountState.Active,
                     plan.MaxFtpUsers,
                     account.OwnerEmail))
+            .ToListAsync(cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public async Task<IReadOnlyDictionary<Guid, string>> NamesOfAsync(
+        IReadOnlyCollection<Guid> accountIds,
+        CancellationToken cancellationToken)
+    {
+        // The same scope FindAsync applies, to a set instead of one id: a customer's answer can only
+        // ever hold their own account, whatever ids they managed to put in front of the caller.
+        var visible = _currentUser.IsAdmin
+            ? accountIds.Distinct().ToList()
+            : accountIds.Where(id => { return id == _currentUser.AccountId; }).Distinct().ToList();
+
+        if (visible.Count == 0)
+        {
+            return new Dictionary<Guid, string>();
+        }
+
+        // The selectors are delegates run after the read, not translated, so they are braced.
+        return await _dbContext.Accounts
+            .AsNoTracking()
+            .Where(account => visible.Contains(account.Id))
+            .ToDictionaryAsync(
+                account =>
+                {
+                    return account.Id;
+                },
+                account =>
+                {
+                    return account.Name;
+                },
+                cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<Guid>> FindIdsByNameAsync(
+        string search,
+        CancellationToken cancellationToken)
+    {
+        // A captured local, so the pattern is a SQL parameter; LikePattern makes it literal as well.
+        var pattern = LikePattern.Contains(search);
+        var accounts = _dbContext.Accounts
+            .AsNoTracking()
+            .Where(account => EF.Functions.ILike(account.Name, pattern, LikePattern.EscapeCharacter));
+
+        // Scoped as FindAsync is, and from the caller's own token, never from the request.
+        if (!_currentUser.IsAdmin)
+        {
+            var ownAccountId = _currentUser.AccountId;
+            accounts = accounts.Where(account => account.Id == ownAccountId);
+        }
+
+        // Not capped and not ordered: the caller filters its own rows by the whole set (see the
+        // interface's remarks), so every match must be in it and their order means nothing.
+        return await accounts
+            .Select(account => account.Id)
             .ToListAsync(cancellationToken);
     }
 }

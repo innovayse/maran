@@ -21,14 +21,47 @@
  *
  * `data-align` lets {@link UiTable} keep an end-aligned last heading sticky over the sticky action
  * column beneath it.
+ *
+ * **Sortable columns.** Given `sort`, the heading's text becomes a button that emits `sort`, and the
+ * `th` carries `aria-sort`, so a screen reader announces the column's order on the heading itself
+ * rather than through an icon. The glyph beside the text is decoration: up for ascending, down for
+ * descending, a pair of chevrons for a column that can be sorted but is not. The button's name is
+ * the heading's text, the same name a reader hears for the column. Without `sort` the heading is
+ * plain text, as before. The caller owns the order: the component never sorts anything itself.
  */
 import { computed, type ComputedRef } from 'vue'
+import UiIcon, { type UiIconName } from './UiIcon.vue'
 
 /** How the heading sits in its column. */
 type CellAlign = 'start' | 'end'
 
+/** The order a sortable column is in: by it ascending, by it descending, or not by it. */
+export type ColumnSort = 'ascending' | 'descending' | 'none'
+
 /** Props accepted by {@link UiTableHeaderCell}. */
-const props = withDefaults(defineProps<{ align?: CellAlign }>(), { align: 'start' })
+const props = withDefaults(
+  defineProps<{
+    /** How the heading sits in its column. */
+    align?: CellAlign
+    /** The column's current order; left out for a column that cannot be sorted. */
+    sort?: ColumnSort
+  }>(),
+  { align: 'start', sort: undefined },
+)
+
+/** Events emitted by {@link UiTableHeaderCell}. */
+const emit = defineEmits<{
+  /** The reader asked to sort by this column; only a sortable heading emits it. */
+  (e: 'sort'): void
+}>()
+
+/** The glyph beside a sortable heading's text. */
+const sortIcon: ComputedRef<UiIconName> = computed(() => {
+  if (props.sort === 'ascending') {
+    return 'chevronUp'
+  }
+  return props.sort === 'descending' ? 'chevronDown' : 'chevronsUpDown'
+})
 
 /**
  * The alignment class for this heading.
@@ -39,6 +72,14 @@ const props = withDefaults(defineProps<{ align?: CellAlign }>(), { align: 'start
 const alignment: ComputedRef<string> = computed(() => {
   return props.align === 'end' ? 'text-right' : 'text-left'
 })
+
+/**
+ * Reports a press on a sortable heading.
+ * @returns Nothing.
+ */
+const requestSort = (): void => {
+  emit('sort')
+}
 </script>
 
 <template>
@@ -46,8 +87,20 @@ const alignment: ComputedRef<string> = computed(() => {
     class="px-3 pt-0.5 pb-1.5 font-display text-xs font-extrabold tracking-caps whitespace-nowrap text-text-muted uppercase"
     :class="alignment"
     :data-align="align"
+    :aria-sort="sort"
     scope="col"
   >
-    <slot />
+    <button
+      v-if="sort !== undefined"
+      type="button"
+      class="inline-flex items-center gap-1 rounded-inset font-display text-xs font-extrabold tracking-caps uppercase hover:text-text-primary focus-visible:shadow-focus focus-visible:outline-none"
+      :class="sort === 'none' ? '' : 'text-text-primary'"
+      data-testid="sort-header"
+      @click="requestSort"
+    >
+      <slot />
+      <UiIcon :name="sortIcon" size="sm" />
+    </button>
+    <slot v-else />
   </th>
 </template>

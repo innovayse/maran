@@ -4,8 +4,11 @@ import type { MyAccount } from '../../src/types/account'
 /** The customer's own account endpoint. */
 const MY_ACCOUNT_PATTERN = /\/api\/v1\/accounts\/me(\?.*)?$/
 
-/** The administrator-only accounts list, matched exactly so `/accounts/me` is not caught by it. */
-const ACCOUNTS_LIST_PATTERN = /\/api\/v1\/accounts(\?.*)?$/
+/**
+ * The administrator-only account reads: the paged list and the picker choices, matched exactly so
+ * `/accounts/me` is not caught by it.
+ */
+const ACCOUNTS_LIST_PATTERN = /\/api\/v1\/accounts(\/choices)?(\?.*)?$/
 
 /**
  * Fulfils `GET /api/v1/accounts/me` with the given account, as the panel answers a customer.
@@ -20,8 +23,8 @@ export const stubMyAccount = async (page: Page, account: MyAccount): Promise<voi
 }
 
 /**
- * Answers any request to the administrator-only `GET /api/v1/accounts` list with 403 and counts it,
- * so a customer spec can assert the SPA never asked. Counting rather than throwing inside the
+ * Answers any request to the administrator-only `GET /api/v1/accounts` list or its choices with 403
+ * and counts it, so a customer spec can assert the SPA never asked. Counting rather than throwing inside the
  * handler: an exception in a route handler does not fail the test that installed it.
  * @param page The Playwright page whose network the route is installed on.
  * @returns A function reporting how many times the list was requested so far.

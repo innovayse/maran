@@ -5,7 +5,7 @@ import { stubDatabases } from '../fixtures/stub-databases-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubModules } from '../fixtures/stub-modules-route'
 import { forbidAccountsList, stubMyAccount } from '../fixtures/stub-my-account-route'
-import { stubSites } from '../fixtures/stub-sites-routes'
+import { stubSites, stubPhpVersions } from '../fixtures/stub-sites-routes'
 import { stubEmptyTasks } from '../fixtures/stub-tasks-routes'
 import type { MyAccount } from '../../src/types/account'
 import type { AuthenticatedUser } from '../../src/types/auth'
@@ -67,6 +67,7 @@ const signInCustomer = async (page: Page): Promise<() => number> => {
   await stubDatabases(page, [])
   await stubBackups(page, [])
   await stubSites(page, [])
+  await stubPhpVersions(page, [])
   await page.route('**/api/v1/sessions', async (route) => {
     await route.fulfill({ status: 200, contentType: 'application/json', body: '[]' })
   })

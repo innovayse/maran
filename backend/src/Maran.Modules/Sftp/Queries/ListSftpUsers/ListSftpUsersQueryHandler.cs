@@ -1,6 +1,7 @@
 using Maran.Modules.Sftp.Common;
-using Maran.Modules.Sftp.Domain.Policies;
+using Maran.Modules.Sftp.Mappers;
 using Maran.Modules.Sftp.Persistence;
+using Maran.Sdk.Interfaces;
 
 namespace Maran.Modules.Sftp.Queries.ListSftpUsers;
 
@@ -31,14 +32,19 @@ public sealed class ListSftpUsersQueryHandler
     /// <summary>The Sftp module's database context, and this module's tenant boundary.</summary>
     private readonly SftpDbContext _dbContext;
 
-    /// <summary>Creates the handler with the module's own database context.</summary>
+    /// <summary>The window onto the Accounts module's account names, tenant-scoped.</summary>
+    private readonly IAccountDirectory _accounts;
+
+    /// <summary>Creates the handler with the module's own database context and the account directory.</summary>
     /// <param name="dbContext">The Sftp module's database context.</param>
-    public ListSftpUsersQueryHandler(SftpDbContext dbContext)
+    /// <param name="accounts">The window onto the Accounts module's account names, tenant-scoped.</param>
+    public ListSftpUsersQueryHandler(SftpDbContext dbContext, IAccountDirectory accounts)
     {
         _dbContext = dbContext;
+        _accounts = accounts;
     }
 
-    /// <summary>Returns the caller's SFTP logins, ordered by creation time.</summary>
+    /// <summary>Returns the caller's SFTP logins, oldest first, each with its owner's name.</summary>
     /// <param name="query">The list request; its optional account narrows the tenant scope.</param>
     /// <param name="cancellationToken">Cancels the read.</param>
     /// <returns>A successful result carrying the logins; this operation never fails.</returns>
@@ -46,19 +52,29 @@ public sealed class ListSftpUsersQueryHandler
         ListSftpUsersQuery query,
         CancellationToken cancellationToken)
     {
-        var sftpUsers = await _dbContext.SftpUsers
+        var rows = await _dbContext.SftpUsers
             .AsNoTracking()
             .Where(sftpUser => query.AccountId == null || sftpUser.AccountId == query.AccountId)
             .OrderBy(sftpUser => sftpUser.CreatedAt)
-            .Select(sftpUser => new SftpUserDto(
-                sftpUser.Id,
-                sftpUser.AccountId,
-                sftpUser.Name,
-                sftpUser.FullName,
-                SftpProtocolName.Sftp,
-                sftpUser.CreatedAt))
             .ToListAsync(cancellationToken);
 
-        return Result<IReadOnlyList<SftpUserDto>>.Ok(sftpUsers);
+        // One batched, tenant-scoped lookup for every owner in the answer, never one per row.
+        var ownerIds = rows
+            .Select(row =>
+            {
+                return row.AccountId;
+            })
+            .Distinct()
+            .ToList();
+        var ownerNames = await _accounts.NamesOfAsync(ownerIds, cancellationToken);
+
+        IReadOnlyList<SftpUserDto> items = rows
+            .Select(row =>
+            {
+                return SftpUserMapper.From(row, ownerNames);
+            })
+            .ToList();
+
+        return Result<IReadOnlyList<SftpUserDto>>.Ok(items);
     }
 }

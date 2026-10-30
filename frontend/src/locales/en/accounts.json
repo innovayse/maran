@@ -9,24 +9,24 @@
       "heading": "Accounts",
       "subtitle": "Hosting accounts on this server.",
       "createAction": "New account",
-      "searchLabel": "Filter accounts",
-      "searchPlaceholder": "Filter by name or domain…",
-      "searchClear": "Clear the filter",
-      "resultCount": "{shown} of {total} account | {shown} of {total} accounts",
+      "searchLabel": "Search accounts",
+      "searchPlaceholder": "Search by name or domain…",
+      "searchClear": "Clear the search",
       "loading": "Loading accounts…",
       "emptyTitle": "No accounts yet",
       "emptyDescription": "Create the first hosting account to get started.",
-      "noMatchesTitle": "No accounts match “{query}”",
-      "noMatchesDescription": "Try a different name or domain, or clear the filter to see every account.",
-      "clearSearch": "Clear filter",
       "tableCaption": "Hosting accounts",
       "columns": {
         "primaryDomain": "Primary domain",
         "status": "Status",
         "createdAt": "Created"
       },
-      "planFilter": "Showing the accounts on the plan {plan}.",
-      "clearPlanFilter": "Show all accounts"
+      "noResultsTitle": "No accounts match",
+      "noResultsDescription": "Change the search or the filters, or clear them to see every account.",
+      "filters": {
+        "plan": "Plan",
+        "status": "Status"
+      }
     },
     "form": {
       "heading": "New account",

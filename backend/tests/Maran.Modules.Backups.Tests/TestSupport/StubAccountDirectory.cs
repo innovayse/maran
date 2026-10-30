@@ -16,6 +16,9 @@ public sealed class StubAccountDirectory : IAccountDirectory
     /// <summary>Account ids this directory was asked about, in order.</summary>
     public List<Guid> Lookups { get; } = [];
 
+    /// <summary>Each batch of ids <see cref="NamesOfAsync"/> was asked for, in order.</summary>
+    public List<IReadOnlyCollection<Guid>> NameLookups { get; } = [];
+
     /// <summary>Creates a directory knowing the given snapshots.</summary>
     /// <param name="snapshots">The accounts this directory can answer for.</param>
     public StubAccountDirectory(params AccountSnapshot[] snapshots)
@@ -43,5 +46,40 @@ public sealed class StubAccountDirectory : IAccountDirectory
         // both run off the panel's own timer with no principal, which is the one situation the
         // scoped FindAsync cannot serve because it would answer null for every account, for ever.
         return Task.FromResult<IReadOnlyList<AccountSnapshot>>([.. _snapshots.Values]);
+    }
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// Answers only for the snapshots it was given — an id it does not know is absent, which is how
+    /// the real directory answers for an account that no longer exists or belongs to another tenant.
+    /// </remarks>
+    public Task<IReadOnlyDictionary<Guid, string>> NamesOfAsync(
+        IReadOnlyCollection<Guid> accountIds,
+        CancellationToken cancellationToken)
+    {
+        NameLookups.Add(accountIds);
+        IReadOnlyDictionary<Guid, string> names = accountIds
+            .Distinct()
+            .Where(id =>
+            {
+                return _snapshots.ContainsKey(id);
+            })
+            .ToDictionary(
+                id =>
+                {
+                    return id;
+                },
+                id =>
+                {
+                    return _snapshots[id].Username;
+                });
+        return Task.FromResult(names);
+    }
+
+    /// <inheritdoc />
+    public Task<IReadOnlyList<Guid>> FindIdsByNameAsync(string search, CancellationToken cancellationToken)
+    {
+        // Refused: nothing in this module searches its rows by owner name.
+        throw new NotSupportedException("Backups searches no account names.");
     }
 }

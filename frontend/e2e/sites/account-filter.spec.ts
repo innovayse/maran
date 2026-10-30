@@ -1,19 +1,18 @@
 import { expect, test, type Page } from '@playwright/test'
-import { stubAccounts } from '../fixtures/stub-accounts-route'
-import { stubAccountFilteredList } from '../fixtures/stub-account-filtered-list'
+import { stubAccountNames, stubAccounts } from '../fixtures/stub-accounts-route'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubModules } from '../fixtures/stub-modules-route'
 import { stubMyAccount } from '../fixtures/stub-my-account-route'
-import { stubSites } from '../fixtures/stub-sites-routes'
+import { stubSites, stubPhpVersions } from '../fixtures/stub-sites-routes'
 import type { Account, MyAccount } from '../../src/types/account'
 import type { AuthenticatedUser } from '../../src/types/auth'
 import type { PanelModule } from '../../src/types/module'
 import type { Site } from '../../src/types/site'
 
 // Issue #223: the account page links to this list as `?account=<id>`. The list then asks the panel
-// for that account's rows only, says so, and offers the way back; a customer's list is already
-// their own, so the parameter changes nothing for them.
+// for that account's rows only, says so with a removable chip, and offers the way back; a
+// customer's list is already their own, so the parameter changes nothing for them.
 
 const LICENSED: PanelModule[] = [{ name: 'sites', displayName: 'Sites', tier: 'included', isEnabled: true }]
 
@@ -55,6 +54,7 @@ const CUSTOMER: AuthenticatedUser = {
 const ALPHA: Site = {
   id: '11111111-1111-1111-1111-111111111111',
   accountId: ALICE.id,
+  ownerName: ALICE.name,
   domain: 'alpha.example.com',
   backendType: 'php',
   phpVersion: '8.3',
@@ -62,10 +62,16 @@ const ALPHA: Site = {
   createdAt: '2026-08-01T10:00:00Z',
 }
 
-const BETA: Site = { ...ALPHA, id: '33333333-3333-3333-3333-333333333333', accountId: BOB.id, domain: 'beta.example.com' }
+const BETA: Site = {
+  ...ALPHA,
+  id: '33333333-3333-3333-3333-333333333333',
+  accountId: BOB.id,
+  ownerName: BOB.name,
+  domain: 'beta.example.com',
+}
 
 /**
- * Signs in, installs the screen's own stubs, then the filtered list read on top of them.
+ * Signs in and installs the screen's stubs.
  * @param page The Playwright page.
  * @param user The signed-in user; the administrator when omitted.
  * @returns What each list read sent as `accountId`, `''` for none.
@@ -75,9 +81,15 @@ const openScreen = async (page: Page, user?: AuthenticatedUser): Promise<() => r
   await stubHealthy(page)
   await stubModules(page, LICENSED)
   await stubAccounts(page, [ALICE, BOB])
+  await stubAccountNames(page, [ALICE, BOB])
   await stubMyAccount(page, OWN_ACCOUNT)
-  await stubSites(page, [])
-  return await stubAccountFilteredList(page, '/api/v1/sites', [ALPHA, BETA])
+  const requests = await stubSites(page, [ALPHA, BETA])
+  await stubPhpVersions(page, [])
+  return () => {
+    return requests().map((url) => {
+      return url.searchParams.get('accountId') ?? ''
+    })
+  }
 }
 
 test('a list opened for one account asks for that account and says so', async ({ page }) => {
@@ -85,17 +97,17 @@ test('a list opened for one account asks for that account and says so', async ({
 
   await page.goto(`/sites?account=${ALICE.id}`)
 
-  await expect(page.getByTestId('active-filter')).toContainText('Only alice')
+  await expect(page.getByTestId('active-filter')).toContainText('Account: alice')
   await expect(page.getByText('alpha.example.com').first()).toBeVisible()
   await expect(page.getByText('beta.example.com')).toHaveCount(0)
   expect(requested()).toContain(ALICE.id)
 })
 
-test('show all drops the account from the URL and lists every row again', async ({ page }) => {
+test('removing the account chip drops it from the URL and lists every row again', async ({ page }) => {
   const requested = await openScreen(page)
 
   await page.goto(`/sites?account=${ALICE.id}`)
-  await page.getByRole('button', { name: 'Show all' }).click()
+  await page.getByRole('button', { name: 'Remove filter: Account: alice' }).click()
 
   await expect(page).not.toHaveURL(/account=/)
   await expect(page.getByTestId('active-filter')).toHaveCount(0)

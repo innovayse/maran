@@ -202,7 +202,8 @@ public sealed class ApiResultExtensionsStatusCodeTests
     /// renamed resource, a module that stops embedding its resx, a test run from an output folder
     /// that holds no module assemblies — and every assertion above passes trivially when the census
     /// is empty. So the census is required to have found several assemblies, a three-figure number
-    /// of codes, and three specific codes planted here as the value the probe must find.
+    /// of codes, and four specific codes planted here as the value the probe must find — one of them from the
+    /// Sdk's <c>ValidationMessages</c> table, so the second resource family cannot drop out unnoticed.
     /// </remarks>
     [Fact]
     public void Census_discovers_codes_from_every_shipping_assembly()
@@ -215,6 +216,7 @@ public sealed class ApiResultExtensionsStatusCodeTests
         Assert.Contains("SiteNotFound", codes);
         Assert.Contains("InvalidCredentialsUnauthorized", codes);
         Assert.Contains("AgentFirewallPortsMisconfigured", codes);
+        Assert.Contains("ListSortUnknown", codes);
     }
 
     /// <summary>A successful result is still translated to 200, so the failure arms are not the only path exercised.</summary>

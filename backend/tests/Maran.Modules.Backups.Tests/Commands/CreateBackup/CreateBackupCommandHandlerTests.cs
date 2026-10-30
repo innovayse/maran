@@ -32,7 +32,10 @@ public sealed class CreateBackupCommandHandlerTests
     private static readonly BackupCreateEvent Dropped =
         new(BackupCreateEventKind.Dropped, 40, "archiving", 0, string.Empty, 0, null);
 
-    /// <summary>A successful run writes a completed row carrying what the agent reported.</summary>
+    /// <summary>
+    /// A successful run writes a completed row carrying what the agent reported, and answers with the
+    /// owner's name.
+    /// </summary>
     [Fact]
     public async Task A_successful_run_writes_a_completed_row()
     {
@@ -42,6 +45,7 @@ public sealed class CreateBackupCommandHandlerTests
         var result = await world.Handler.HandleAsync(Command(accountId), CancellationToken.None);
 
         Assert.True(result.IsSuccess);
+        Assert.Equal(World.Username, result.Value.OwnerName);
         Assert.Equal(BackupStatus.Completed, result.Value.Status);
         Assert.Equal(BackupKind.Manual, result.Value.Kind);
         Assert.Equal(4096, result.Value.SizeBytes);

@@ -2,11 +2,27 @@ import { defineStore } from 'pinia'
 import { ref, type Ref } from 'vue'
 import { useAccountsApi } from '../composables/apis/useAccountsApi'
 import { ApiError } from '../composables/useApi'
-import type { Account, AccountDetail, CreateAccountRequest, MyAccount, Plan } from '../types/account'
+import type {
+  Account,
+  AccountChoicesLoad,
+  AccountDetail,
+  CreateAccountRequest,
+  MyAccount,
+  Plan,
+} from '../types/account'
 import type { AccountResourceSummary, AccountResourceSummaryRead } from '../types/accountResourceSummary'
+import type { ListLoad, ListRequest } from '../types/list'
 
 /**
- * Owns the hosting accounts list and the create-account workflow. The list and form pages read
+ * How many choices one picker read asks for. A UI constant: enough to scan by eye, few enough that
+ * the picker says "type to narrow" rather than scrolling through hundreds.
+ */
+const CHOICES_PAGE_SIZE = 25
+
+/**
+ * Owns the hosting accounts list (one server page at a time), the page of account choices the open
+ * picker offers, the names read by id for text that names one account,
+ * and the create-account workflow. The list and form pages read
  * state from here and call its actions — neither touches the API composable directly
  * (rules/vue.md: "API composables are called from Pinia stores ONLY").
  *
@@ -16,20 +32,42 @@ import type { AccountResourceSummary, AccountResourceSummaryRead } from '../type
 export const useAccountsStore = defineStore('accounts', () => {
   const api = useAccountsApi()
 
-  /** The accounts as last reported by the panel; empty before the first successful load. */
+  /** The rows of the list page last answered by the panel; empty before the first answer. */
   const accounts: Ref<Account[]> = ref([])
 
-  /** True while the list request is in flight. */
+  /**
+   * The open picker's latest page of `GET /api/v1/accounts/choices` for what was typed into it, or
+   * where that read stands. Only an administrator's picker reads it; a customer picks nothing.
+   */
+  const choicePage: Ref<AccountChoicesLoad> = ref({ kind: 'loading' })
+
+  /**
+   * Account names read one at a time by id, for text that names an account the open page of
+   * choices may not hold (the "Only alpha" filter strip). An id is absent while its read is in
+   * flight or after it failed.
+   */
+  const accountNames: Ref<Readonly<Record<string, string>>> = ref({})
+
+  /**
+   * Numbers each choices read, so an answer that arrives after a newer search was sent is dropped:
+   * the latest request wins. Not reactive, because nothing renders it.
+   */
+  let choicesTicket = 0
+
+  /**
+   * The name read in flight for each id. A second caller asking for the same id awaits the same
+   * read rather than returning early, so it never decides on a name that is still on its way.
+   */
+  const pendingNames: Map<string, Promise<void>> = new Map()
+
+  /** True while the detail request is in flight. */
   const loading: Ref<boolean> = ref(false)
 
   /**
-   * Backend-localized message from the most recent failed list load, or `null` when the last
-   * load succeeded or has not been attempted yet.
+   * Backend-localized message from the most recent failed detail load or lifecycle call, or `null`
+   * when the last one succeeded or none has been attempted yet.
    */
   const errorMessage: Ref<string | null> = ref(null)
-
-  /** True once the list has been loaded at least once, successfully. */
-  const isLoaded: Ref<boolean> = ref(false)
 
   /** The plans an account can be created against, as last loaded. */
   const plans: Ref<Plan[]> = ref([])
@@ -80,20 +118,70 @@ export const useAccountsStore = defineStore('accounts', () => {
   const mineResourceSummary: Ref<AccountResourceSummaryRead> = ref({ state: 'loading' })
 
   /**
-   * Loads the account list, replacing what is held.
+   * Loads one page of the account list into {@link accounts} and reports how the read ended, for
+   * the list page's `useServerTable`.
+   * @param request The page, size, search, sort and filters, as the URL describes them.
+   * @returns The page, the panel's refusal with its message, or `unreachable` when no answer arrived.
+   */
+  const list = async (request: ListRequest): Promise<ListLoad<Account>> => {
+    try {
+      const page = await api.list(request)
+      accounts.value = page.items
+      return { kind: 'loaded', page }
+    } catch (error) {
+      return error instanceof ApiError ? { kind: 'refused', message: error.message } : { kind: 'unreachable' }
+    }
+  }
+
+  /**
+   * Reads the first page of accounts whose name matches what was typed into the open picker into
+   * {@link choicePage}. An answer to an older search arriving after a newer one was sent is dropped,
+   * so a slow request can never overwrite the list for what the field now says.
+   * @param search Narrows by name; empty for the first accounts the panel lists.
    * @returns Resolves once the request has settled, successfully or not.
    */
-  const load = async (): Promise<void> => {
-    loading.value = true
+  const searchChoices = async (search: string): Promise<void> => {
+    choicesTicket += 1
+    const ticket = choicesTicket
+    choicePage.value = { kind: 'loading' }
+    let outcome: AccountChoicesLoad
     try {
-      accounts.value = await api.list()
-      errorMessage.value = null
-      isLoaded.value = true
+      outcome = { kind: 'loaded', page: await api.choices(search, CHOICES_PAGE_SIZE) }
     } catch (error) {
-      errorMessage.value = error instanceof ApiError ? error.message : null
-    } finally {
-      loading.value = false
+      outcome = error instanceof ApiError ? { kind: 'refused', message: error.message } : { kind: 'unreachable' }
     }
+    if (ticket === choicesTicket) {
+      choicePage.value = outcome
+    }
+  }
+
+  /**
+   * Reads one account's name by id into {@link accountNames}, once: a name already held is not asked
+   * for again, and a caller asking while it is being read awaits that same read. A failure stores nothing, so the caller keeps showing the id.
+   * @param id The account to name.
+   * @returns Resolves once the read has settled, successfully or not.
+   */
+  const loadAccountName = async (id: string): Promise<void> => {
+    if (id in accountNames.value) {
+      return
+    }
+    const inFlight = pendingNames.get(id)
+    if (inFlight !== undefined) {
+      await inFlight
+      return
+    }
+    const read = (async (): Promise<void> => {
+      try {
+        const account = await api.get(id)
+        accountNames.value = { ...accountNames.value, [id]: account.name }
+      } catch {
+        // Nothing to store: an unnamed account is shown by its id, which is the truth the SPA has.
+      } finally {
+        pendingNames.delete(id)
+      }
+    })()
+    pendingNames.set(id, read)
+    await read
   }
 
   /**
@@ -109,8 +197,8 @@ export const useAccountsStore = defineStore('accounts', () => {
   }
 
   /**
-   * Creates a new hosting account and, on success, adds it to the held list so the list page
-   * reflects it without a full reload.
+   * Creates a new hosting account. The list page is not patched: where the new row falls depends
+   * on the server's sort and filters, so the list page reads its page again when it opens.
    * @param request The account's name, primary domain, and plan.
    * @returns The created account on success, or `null` when the request failed — the caller reads
    * `createErrorMessage` for the reason.
@@ -119,7 +207,6 @@ export const useAccountsStore = defineStore('accounts', () => {
     creating.value = true
     try {
       const created = await api.create(request)
-      accounts.value = [...accounts.value, created]
       createErrorMessage.value = null
       return created
     } catch (error) {
@@ -205,7 +292,7 @@ export const useAccountsStore = defineStore('accounts', () => {
   }
 
   /**
-   * Deletes the account, dropping it from the held list.
+   * Deletes the account, dropping it from the held list page and the held page of choices.
    * @param id The account to delete.
    * @returns True when the panel accepted the deletion.
    */
@@ -216,6 +303,14 @@ export const useAccountsStore = defineStore('accounts', () => {
       accounts.value = accounts.value.filter((account) => {
         return account.id !== id
       })
+      const held = choicePage.value
+      if (held.kind === 'loaded') {
+        const items = held.page.items.filter((choice) => {
+          return choice.id !== id
+        })
+        const removed = held.page.items.length - items.length
+        choicePage.value = { kind: 'loaded', page: { ...held.page, items, total: held.page.total - removed } }
+      }
       selected.value = null
       errorMessage.value = null
       return true
@@ -342,10 +437,11 @@ export const useAccountsStore = defineStore('accounts', () => {
 
   return {
     accounts,
+    choicePage,
+    accountNames,
     plans,
     loading,
     errorMessage,
-    isLoaded,
     creating,
     createErrorMessage,
     selected,
@@ -355,7 +451,9 @@ export const useAccountsStore = defineStore('accounts', () => {
     mine,
     mineLoading,
     mineErrorMessage,
-    load,
+    list,
+    searchChoices,
+    loadAccountName,
     loadPlans,
     create,
     loadOne,
