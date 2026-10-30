@@ -26,7 +26,7 @@
         "createdAt": "Ստեղծված"
       },
       "phpVersionsLink": "PHP տարբերակներ",
-      "disabledNotice": "Անջատված կայքեր՝ {count}։ Դրանց այցելուները կայքի փոխարեն տեսնում են կասեցման էջ։"
+      "disabledNotice": "Անջատված է {count} կայք։ Դրանց այցելուները կայքի փոխարեն տեսնում են կասեցման էջ։"
     },
     "form": {
       "heading": "Նոր կայք",
@@ -61,7 +61,8 @@
         "phpVersionRequired": "Ընտրեք տեղադրված PHP-ի տարբերակ։",
         "proxyUpstreamRequired": "Հակադարձ պրոքսիով կայքի համար ապսթրիմը պարտադիր է։",
         "proxyUpstreamInvalid": "Ապսթրիմը պետք է լինի հոսթ կամ հոսթ:պորտ՝ առանց սխեմայի և ուղու։"
-      }
+      },
+      "created": "{domain} կայքն ավելացվեց։"
     },
     "detail": {
       "heading": "Կայք",
@@ -119,7 +120,10 @@
       },
       "confirmEnableTitle": "Միացնել {domain} կայքը",
       "confirmDisableTitle": "Անջատել {domain} կայքը",
-      "confirmDeleteTitle": "Ջնջել {domain} կայքը"
+      "confirmDeleteTitle": "Ջնջել {domain} կայքը",
+      "confirmEnableAction": "Միացնել կայքը",
+      "confirmDisableAction": "Անջատել կայքը",
+      "confirmDeleteAction": "Ջնջել կայքը"
     }
   }
 }

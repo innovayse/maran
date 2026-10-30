@@ -44,8 +44,8 @@
  *    which the locale specs find that way; a second trigger here would make their clicks ambiguous.
  *
  * The theme switch is the one control that does not follow the bar: below `sm` of the window it
- * lives in the navigation drawer's head (`ShellDrawer`), which the menu button and the tab bar's
- * "More" both open, so it stays one tap from every screen with its accessible name unchanged. The
+ * lives, labelled, in the navigation drawer's head (`ShellDrawer`), which the menu button and the
+ * tab bar's "More" both open, so it stays one tap from every screen. The
  * drawer decides that by the window, so this bar does too; otherwise there would be a text size at
  * which neither showed it.
  *
@@ -146,38 +146,42 @@ const searchSwap: ComputedRef<{ field: string; icon: string; group: string }> = 
       </div>
 
       <!-- The search is two buttons rather than one that restyles itself: a field with the
-           placeholder and the shortcut hint on a bar wide enough for it (see `searchSwap`), and below that a bare icon
-           button, the same `aria-label` and the same event. The one that does not apply is
-           `display: none`, so the control is never in the accessibility tree twice. The field is
-           a container of its own so the hint leaves when the field is too narrow for it, rather
-           than when the window is. -->
-      <UiButton
-        variant="field"
-        class="@container max-w-md min-w-40 flex-[1000_1_0%]"
-        :class="searchSwap.field"
-        :aria-label="t('app.shell.search')"
-        aria-keyshortcuts="Control+K Meta+K"
-        @click="emit('openPalette')"
-      >
-        <UiIcon name="search" size="md" />
-        <span class="min-w-0 flex-1 truncate text-left">{{ t('app.shell.search') }}</span>
-        <kbd
-          class="shrink-0 rounded-mark border border-border-strong px-1.5 py-0.5 font-sans text-xs font-semibold whitespace-nowrap text-text-muted @max-[16rem]:hidden"
+           placeholder and the shortcut hint on a bar wide enough for it (see `searchSwap`), and
+           below that a bare icon button, the same accessible name and the same event. The one
+           that does not apply is `display: none`, so the control is never in the accessibility
+           tree twice (issue #208). The hiding class sits on a wrapper of each, never on the kit
+           button itself, so no display utility the kit button carries can ever compete with it.
+           The field
+           is a container of its own so the hint leaves when the field is too narrow for it,
+           rather than when the window is. -->
+      <div class="max-w-md min-w-40 flex-[1000_1_0%]" :class="searchSwap.field">
+        <UiButton
+          variant="field"
+          class="@container w-full"
+          :aria-label="t('app.shell.search')"
+          aria-keyshortcuts="Control+K Meta+K"
+          @click="emit('openPalette')"
         >
-          {{ t('app.shell.searchShortcut') }}
-        </kbd>
-      </UiButton>
-      <UiButton
-        variant="quiet"
-        size="icon"
-        class="ml-auto shrink-0"
-        :class="searchSwap.icon"
-        :aria-label="t('app.shell.search')"
-        aria-keyshortcuts="Control+K Meta+K"
-        @click="emit('openPalette')"
-      >
-        <UiIcon name="search" size="md" />
-      </UiButton>
+          <UiIcon name="search" size="md" />
+          <span class="min-w-0 flex-1 truncate text-left">{{ t('app.shell.search') }}</span>
+          <kbd
+            class="shrink-0 rounded-mark border border-border-strong px-1.5 py-0.5 font-sans text-xs font-semibold whitespace-nowrap text-text-muted @max-[16rem]:hidden"
+          >
+            {{ t('app.shell.searchShortcut') }}
+          </kbd>
+        </UiButton>
+      </div>
+      <div class="ml-auto shrink-0" :class="searchSwap.icon">
+        <UiButton
+          variant="quiet"
+          size="icon"
+          :aria-label="t('app.shell.search')"
+          aria-keyshortcuts="Control+K Meta+K"
+          @click="emit('openPalette')"
+        >
+          <UiIcon name="search" size="md" />
+        </UiButton>
+      </div>
 
       <!-- It takes only what the search field leaves beyond its own maximum width (the field's
            grow factor is a thousand times its own), and the trail hides itself when the whole of

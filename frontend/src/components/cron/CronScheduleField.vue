@@ -268,26 +268,14 @@ watch(
       />
     </div>
 
-    <div v-if="mode === 'builder'" class="grid gap-4 sm:grid-cols-2">
+    <!-- Frequency, then the day it needs, then the time as one row read the way a clock is: Hour
+         before Minute, side by side even on a phone, since both are two-digit fields (#222). -->
+    <div v-if="mode === 'builder'" class="flex flex-col gap-4">
       <UiSelect
         :model-value="frequency"
         :options="frequencyOptions"
         :label="t('cron.schedule.fields.frequency')"
         @update:model-value="changeFrequency"
-      />
-      <UiInput
-        v-if="usesMinute"
-        :model-value="minute"
-        :label="t('cron.schedule.fields.minute')"
-        mono
-        @update:model-value="minute = $event"
-      />
-      <UiInput
-        v-if="usesHour"
-        :model-value="hour"
-        :label="t('cron.schedule.fields.hour')"
-        mono
-        @update:model-value="hour = $event"
       />
       <UiSelect
         v-if="frequency === 'weekly'"
@@ -303,6 +291,22 @@ watch(
         mono
         @update:model-value="dayOfMonth = $event"
       />
+      <div v-if="usesHour || usesMinute" class="grid grid-cols-2 gap-4">
+        <UiInput
+          v-if="usesHour"
+          :model-value="hour"
+          :label="t('cron.schedule.fields.hour')"
+          mono
+          @update:model-value="hour = $event"
+        />
+        <UiInput
+          v-if="usesMinute"
+          :model-value="minute"
+          :label="t('cron.schedule.fields.minute')"
+          mono
+          @update:model-value="minute = $event"
+        />
+      </div>
     </div>
 
     <UiInput

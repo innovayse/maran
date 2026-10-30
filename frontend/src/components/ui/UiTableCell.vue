@@ -4,9 +4,13 @@
  * screen's rows line up without each one restating the spacing (rules/vue.md: no raw elements, no
  * ad-hoc utility classes in feature code).
  *
- * The vertical padding is generous on purpose: a row of mixed content (a name over an address, a
- * badge, a meter) needs room to sit on one baseline, and a dense row is harder to hit on a touch
- * screen. Text is `text-sm`, the panel's body step.
+ * The padding is dense (6px vertical, 12px horizontal) so a list shows more records per screen;
+ * the row's height is still set by its tallest content (a name over an address, a badge, a menu
+ * trigger), so a touch target in the row keeps its own size. Text is `text-sm`, the panel's body
+ * step.
+ *
+ * `data-align` is exposed so {@link UiTable} can keep an end-aligned LAST cell (the row's actions)
+ * sticky at the right edge without the caller passing anything else.
  *
  * **A cell has a floor width (`min-w-20`).** A table wider than its wrapper scrolls inside it
  * ({@link UiTable}); it must never squash instead. A caller that lets long text break anywhere
@@ -76,7 +80,7 @@ const cellClasses: ComputedRef<string> = computed(() => {
 </script>
 
 <template>
-  <td class="min-w-20 px-3 py-2 align-middle" :class="cellClasses">
+  <td class="min-w-20 px-3 py-1.5 align-middle" :class="cellClasses" :data-align="align">
     <slot />
   </td>
 </template>

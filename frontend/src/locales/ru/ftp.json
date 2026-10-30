@@ -23,7 +23,10 @@
       "working": "Выполняется…",
       "rowActions": "Действия для {name}",
       "confirmRemoveTitle": "Удалить логин {name}",
-      "confirmResetPasswordTitle": "Сбросить пароль для {name}"
+      "confirmResetPasswordTitle": "Сбросить пароль для {name}",
+      "created": "Логин {name} создан.",
+      "confirmRemoveAction": "Удалить логин",
+      "confirmResetPasswordAction": "Сбросить пароль"
     },
     "protocols": {
       "sftp": "SFTP",

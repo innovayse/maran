@@ -25,7 +25,9 @@
         "backupsList": "Все копии",
         "backupsSchedule": "Расписание",
         "backupsDestinations": "Хранилища"
-      }
+      },
+      "signedInDevices": "Устройства",
+      "outgoingMail": "Исходящая почта"
     },
     "shell": {
       "skipToContent": "Перейти к содержимому",
@@ -35,7 +37,6 @@
       "expandSidebar": "Развернуть боковую панель",
       "openNavigation": "Открыть навигацию",
       "navigationLabel": "Навигация",
-      "toggleTheme": "Переключить тёмную и светлую тему",
       "breadcrumbLabel": "Навигационная цепочка",
       "paletteTitle": "Перейти к",
       "paletteClose": "Закрыть окно перехода",
@@ -46,18 +47,15 @@
       "paletteNoMatches": "Ничего не найдено.",
       "paletteHintNavigate": "↑↓ — переход по списку",
       "paletteHintOpen": "↵ — открыть",
-      "themes": {
-        "dark": "Тёмная",
-        "light": "Светлая"
-      },
       "signedOut": "Никто не вошёл в систему",
       "accountMenu": "Меню аккаунта",
       "menu": {
         "myAccount": "Мой аккаунт",
         "sessions": "Сессии",
-        "twoFactor": "Двухфакторная проверка"
+        "twoFactor": "Двухфакторная проверка",
+        "profile": "Профиль и защита"
       },
-      "authCredit": "© {year} Maran · разработано Innovayse LLC",
+      "authCredit": "© {year} Maran · разработано {company}",
       "closeNavigation": "Закрыть навигацию",
       "tabBarLabel": "Разделы",
       "tabs": {
@@ -66,7 +64,13 @@
         "sites": "Сайты",
         "databases": "Базы",
         "more": "Ещё"
-      }
+      },
+      "switchTheme": {
+        "dark": "Включить тёмную",
+        "light": "Включить светлую"
+      },
+      "company": "Innovayse LLC",
+      "companyUrl": "https://innovayse.com"
     },
     "locale": {
       "switcherLabel": "Язык интерфейса",
@@ -75,6 +79,9 @@
         "ru": "Русский",
         "hy": "Հայերեն"
       }
+    },
+    "link": {
+      "opensInNewTab": "откроется в новой вкладке"
     }
   }
 }

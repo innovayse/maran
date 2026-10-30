@@ -14,8 +14,12 @@
  * The confirmation says a link has been sent *if the address belongs to an
  * account*, because that is the only true statement the panel can make without
  * telling the reader which case they are in.
+ *
+ * An empty address is caught before any request (#213) and marks the field invalid; that is
+ * advice only, and it says nothing about any account. The page opens with no inherited error
+ * from another signed-out screen (#221).
  */
-import { ref, type Ref } from 'vue'
+import { onMounted, ref, watch, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import UiAlert from '../../components/ui/UiAlert.vue'
 import UiAuthHeading from '../../components/ui/UiAuthHeading.vue'
@@ -34,6 +38,9 @@ const email: Ref<string> = ref('')
 /** True once a request has been made and the panel answered it. */
 const submitted: Ref<boolean> = ref(false)
 
+/** The address field's own message, or `null` while it is not flagged. */
+const emailError: Ref<string | null> = ref(null)
+
 /**
  * Asks for the link, then shows the one confirmation this page has.
  *
@@ -42,6 +49,13 @@ const submitted: Ref<boolean> = ref(false)
  * @returns Resolves once the request has settled.
  */
 const submit = async (): Promise<void> => {
+  // Advice only: an empty address can never be answered, so nothing is sent. Whether a
+  // non-empty one belongs to an account is never judged here.
+  emailError.value = email.value.trim() === '' ? t('app.auth.emailRequired') : null
+  if (emailError.value !== null) {
+    return
+  }
+
   await authStore.requestPasswordReset(email.value)
 
   // A panel that could not be reached is a different fact from anything about the
@@ -50,6 +64,16 @@ const submit = async (): Promise<void> => {
     submitted.value = true
   }
 }
+
+onMounted((): void => {
+  // A message another signed-out screen left in the shared store is not about this request.
+  authStore.$patch({ errorMessage: null })
+})
+
+// The flag clears as soon as the address is edited, so it never outlives its cause.
+watch(email, (): void => {
+  emailError.value = null
+})
 </script>
 
 <template>
@@ -82,6 +106,7 @@ const submit = async (): Promise<void> => {
             :label="t('app.auth.emailLabel')"
             icon="mail"
             :placeholder="t('app.auth.emailPlaceholder')"
+            :error="emailError"
             required
             autocomplete="email"
           />

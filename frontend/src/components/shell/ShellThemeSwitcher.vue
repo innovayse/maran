@@ -1,22 +1,20 @@
 <script setup lang="ts">
 /**
- * The app bar's theme control: one button that flips the theme.
+ * The theme control: one button that flips the theme, and says what clicking it will do.
  *
- * The light theme is KEPT (main.css carries measured light values), so the control
- * stays. It shows the theme that is ACTIVE — by icon, and by name from the `xl`
- * breakpoint where there is room — and flipping is what clicking it does. The
- * objection to a bare toggle ("it only says what will happen next, so the user has
- * to reason backwards") is answered by that icon rather than ignored; the
- * accessible name states the action, as it always did.
+ * The light theme is KEPT (main.css carries measured light values), so the control stays. Its
+ * name is the ACTION ("Switch to light"), not the theme in force (issue #217): a button reading
+ * "Light" in the light theme left the reader guessing whether it reported a state or offered one.
+ * The icon shows the theme it switches TO, so the glyph and the words agree.
  *
- * One control rather than two sets: the sidebar footer used to carry a second copy of
- * this same setting, in a different shape, one of them a moon that showed the moon
- * whichever theme was in force. The app bar is the only home now, on every width.
+ * **The visible text is the accessible name.** There is no separate `aria-label`: when the text is
+ * hidden for want of room it becomes screen-reader-only (`sr-only`) rather than `display: none`,
+ * so a voice-control user saying the words on screen always hits the control (WCAG 2.5.3).
  *
- * "Where there is room" is judged twice: by the window (`xl`) and by the app bar the control sits in
- * (a container query, 76rem). The second is what a large text size changes: the window is still
- * wide, the bar is not, and a name drawn anyway pushed the language picker off the canvas. Where
- * there is no container around it (the navigation drawer) the second test never applies.
+ * "Where there is room" is judged twice in the app bar: by the window (`xl`) and by the bar the
+ * control sits in (a container query, 76rem), because a large text size narrows the bar while the
+ * window stays wide. `labelled` turns both tests off and always draws the words: the navigation
+ * drawer on a phone passes it, since there the switch is otherwise an unexplained sun or moon.
  *
  * The geometry is the kit button's `bar` size: a 40px square that a visible label widens,
  * the same box the language picker next to it takes. Nothing is restated here.
@@ -27,17 +25,28 @@ import UiButton from '../ui/UiButton.vue'
 import UiIcon from '../ui/UiIcon.vue'
 import { useThemeStore } from '../../stores/theme'
 
+/** Props accepted by {@link ShellThemeSwitcher}. */
+const props = defineProps<{
+  /** Always draw the label, whatever the width (the phone drawer). */
+  labelled?: boolean
+}>()
+
 const { t } = useI18n()
 const themeStore = useThemeStore()
 
-/** The icon of the theme in force: the moon for dark, the sun for light. */
+/** The icon of the theme a click switches to: the sun from dark, the moon from light. */
 const icon: ComputedRef<'moon' | 'sun'> = computed(() => {
-  return themeStore.isDark ? 'moon' : 'sun'
+  return themeStore.isDark ? 'sun' : 'moon'
 })
 
-/** The name of the theme in force, so the button states rather than promises. */
+/** What clicking does, which is also the control's accessible name. */
 const label: ComputedRef<string> = computed(() => {
-  return t(`app.shell.themes.${themeStore.current}`)
+  return t(`app.shell.switchTheme.${themeStore.isDark ? 'light' : 'dark'}`)
+})
+
+/** Classes on the label: always drawn when `labelled`, else screen-reader-only where room is short. */
+const labelClass: ComputedRef<string> = computed(() => {
+  return props.labelled ? 'whitespace-nowrap' : 'max-xl:sr-only @max-[76rem]:sr-only'
 })
 
 /**
@@ -50,14 +59,8 @@ const flip = (): void => {
 </script>
 
 <template>
-  <UiButton
-    variant="ghost"
-    size="bar"
-    :aria-label="t('app.shell.toggleTheme')"
-    :title="t('app.shell.toggleTheme')"
-    @click="flip"
-  >
+  <UiButton variant="ghost" size="bar" :title="label" @click="flip">
     <UiIcon :name="icon" size="lg" />
-    <span class="max-xl:hidden @max-[76rem]:hidden">{{ label }}</span>
+    <span :class="labelClass">{{ label }}</span>
   </UiButton>
 </template>

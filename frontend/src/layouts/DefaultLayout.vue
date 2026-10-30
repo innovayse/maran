@@ -31,7 +31,7 @@
  * of navigating to a `#main-content` fragment: in history mode a fragment would rewrite the URL
  * and push an entry the user then has to Back out of.
  */
-import { onBeforeUnmount, onMounted, ref, useTemplateRef, type Ref } from 'vue'
+import { onBeforeUnmount, onMounted, ref, useTemplateRef, watch, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import ShellCommandPalette from '../components/shell/ShellCommandPalette.vue'
 import ShellDrawer from '../components/shell/ShellDrawer.vue'
@@ -40,6 +40,7 @@ import ShellRail from '../components/shell/ShellRail.vue'
 import ShellSidebar from '../components/shell/ShellSidebar.vue'
 import ShellTabBar from '../components/shell/ShellTabBar.vue'
 import { useNavigation } from '../composables/useNavigation'
+import { useLocaleStore } from '../stores/locale'
 import { useModulesStore } from '../stores/modules'
 
 /**
@@ -56,6 +57,7 @@ const WIDE_QUERY = '(min-width: 64rem)'
 const { t } = useI18n()
 const entries = useNavigation()
 const modulesStore = useModulesStore()
+const localeStore = useLocaleStore()
 
 /** Live match for {@link WIDE_QUERY}; kept so its listener can be removed. */
 const wideQuery: MediaQueryList = window.matchMedia(WIDE_QUERY)
@@ -188,6 +190,23 @@ onMounted((): void => {
 
 onMounted(ensureCatalogueLoaded)
 
+// The module names in the navigation and the breadcrumb are the panel's own, localized for the
+// language the catalogue was READ in (issue #221). Switching the language live re-reads it, so the
+// sidebar never keeps the previous language's names until the next sign-in. The previous catalogue
+// stays on screen until the new one arrives (the store keeps it on failure too), so the switch
+// never blanks the navigation. Wired here, in the view, because one store must not import another
+// (rules/vue.md, "State").
+watch(
+  (): string => {
+    return localeStore.current
+  },
+  async (): Promise<void> => {
+    if (modulesStore.isLoaded) {
+      await modulesStore.load()
+    }
+  },
+)
+
 onBeforeUnmount((): void => {
   window.removeEventListener('keydown', onShortcut)
   wideQuery.removeEventListener('change', applyCompact)
@@ -195,7 +214,13 @@ onBeforeUnmount((): void => {
 </script>
 
 <template>
-  <div class="h-dvh overflow-hidden bg-page text-text-primary">
+  <!-- `relative` on the frame and on `<main>` (issue #221): an absolutely positioned element with
+       no positioned ancestor (a screen-reader-only label is one) is placed against the document,
+       not clipped by `overflow: hidden`, so a long page's `sr-only` text far down the content
+       made the DOCUMENT scroll too. The Firewall page showed two scrollbars, and the page
+       scrollbar's width pushed the app bar sideways. With a positioned frame and scroller, such
+       an element stays inside the region that clips or scrolls it. -->
+  <div class="relative h-dvh overflow-hidden bg-page text-text-primary">
     <!-- First in the DOM, so first in the Tab order. `sr-only` hides it without removing it from
          the order; `focus:not-sr-only` brings it back on focus, fixed over the app bar, with the
          shell's own focus ring. It sits OUTSIDE the inert frame below on purpose: the drawer
@@ -240,7 +265,7 @@ onBeforeUnmount((): void => {
           id="main-content"
           ref="main"
           tabindex="-1"
-          class="min-w-0 flex-1 overflow-x-hidden overflow-y-auto rounded-panel border border-border-subtle bg-surface-1 p-4 scroll-py-3 focus:outline-none sm:p-6 lg:p-8"
+          class="relative min-w-0 flex-1 overflow-x-hidden overflow-y-auto rounded-panel border border-border-subtle bg-surface-1 p-4 scroll-py-3 focus:outline-none sm:p-6 lg:p-8"
         >
           <!-- RouterView, not a slot: this layout is a route component with child routes, so the
                page for the active child renders here. A <slot/> would silently render nothing. -->

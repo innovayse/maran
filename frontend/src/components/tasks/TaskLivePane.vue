@@ -19,6 +19,16 @@
  * runs the box follows the newest line — but only when the reader was already at the bottom, so a
  * person scrolled up to read an earlier line is never yanked away from it.
  *
+ * **A failed task shows no bar.** A meter stopped at 20 % beside FAILED reads as work still
+ * under way, so once the task has failed the bar is gone and the figure stays, muted, as a record of
+ * how far it got (#222).
+ *
+ * **A failure reads as a sentence, with the code as a detail.** The module reports a stable code
+ * (`AcmeAccountRejected`), not text, because the task outlives the request that would have carried
+ * the operator's language. The known codes have a sentence here; an unknown one falls back to a
+ * generic sentence, and the code is always printed beneath it, because it is what an operator quotes
+ * in a support ticket.
+ *
  * The progress figure is printed as text beside the bar: a bar alone is an unlabelled stripe. The
  * bar is the kit's meter in its `progress` tone, whose colour follows the task's status rather than
  * the capacity thresholds (amber at 80 %, red at 100 %) that would paint a finished run red. The
@@ -63,7 +73,8 @@ const emit = defineEmits<{
  */
 const FOLLOW_TOLERANCE_PX = 24
 
-const { t } = useI18n()
+const i18n = useI18n()
+const { t } = i18n
 const localeStore = useLocaleStore()
 const kindLabel = useTaskKindLabel()
 
@@ -80,6 +91,12 @@ const meterStatus: ComputedRef<UiMeterStatus> = computed(() => {
     default:
       return 'running'
   }
+})
+
+/** The failure as a sentence: the known code's own, or the generic one for a code the panel does not know. */
+const failureSentence: ComputedRef<string> = computed(() => {
+  const key = `tasks.failures.${props.task.errorCode ?? ''}`
+  return props.task.errorCode !== null && i18n.te(key) ? t(key) : t('tasks.failures.generic')
 })
 
 /** When the task started, in the operator's language — the instant, not only the day. */
@@ -143,7 +160,14 @@ watch(
       <UiButton variant="secondary" @click="close">{{ t('common.close') }}</UiButton>
     </div>
 
-    <div class="mb-4 flex items-center gap-3">
+    <p
+      v-if="task.status === 'failed'"
+      class="mb-4 font-display text-lg font-black text-text-muted tabular-nums"
+      data-testid="task-failed-progress"
+    >
+      {{ t('tasks.pane.stoppedAt', { percent: task.percent }) }}
+    </p>
+    <div v-else class="mb-4 flex items-center gap-3">
       <UiMeter
         tone="progress"
         :status="meterStatus"
@@ -173,10 +197,12 @@ watch(
       </UiDescriptionItem>
     </UiDescriptionList>
 
-    <!-- The failure code is machine-stable and is shown as such: it is what an operator quotes,
-         not a sentence to read. The panel holds no translation for it (rules/vue.md). -->
+    <!-- The sentence first, the machine-stable code beneath it as the detail an operator quotes. -->
     <UiAlert v-if="task.errorCode !== null" variant="error" class="mb-4">
-      <span class="wrap-anywhere">{{ t('tasks.pane.failedWith', { code: task.errorCode }) }}</span>
+      <span class="block wrap-anywhere">{{ failureSentence }}</span>
+      <span class="block font-mono text-sm wrap-anywhere">
+        {{ t('tasks.pane.failureCode', { code: task.errorCode }) }}
+      </span>
     </UiAlert>
 
     <p v-if="task.log.length === 0" class="text-sm text-text-secondary">

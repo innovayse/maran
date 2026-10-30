@@ -23,8 +23,14 @@
  * expired and one already spent with the same message, and nothing on this page
  * inspects it: a screen that told them apart would be the disclosure the single
  * message exists to prevent.
+ *
+ * LENGTH, AS ADVICE (#213). The server's rule is the security policy's minimum length
+ * (`AcceptInvitationCommandValidator`), 12 by default, which an operator may lower to 8 and a
+ * signed-out visitor cannot read. So a password under 12 is flagged on the first press and not
+ * sent, and a second press with the same value sends it anyway: the check never refuses what
+ * the panel might accept, and the server's refusal is still what decides.
  */
-import { computed, ref, type ComputedRef, type Ref } from 'vue'
+import { computed, onMounted, ref, type ComputedRef, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
 import UiAlert from '../../components/ui/UiAlert.vue'
@@ -35,6 +41,12 @@ import UiIcon from '../../components/ui/UiIcon.vue'
 import UiPasswordInput from '../../components/ui/UiPasswordInput.vue'
 import { useAuthStore } from '../../stores/auth'
 
+/**
+ * The policy's default minimum password length, which is what the server enforces unless an
+ * operator changed it. A UI concern here (when to warn), not the rule: the server owns that.
+ */
+const DEFAULT_MIN_PASSWORD_LENGTH = 12
+
 const { t } = useI18n()
 const route = useRoute()
 const authStore = useAuthStore()
@@ -44,6 +56,12 @@ const password: Ref<string> = ref('')
 
 /** The same password typed again, so a typo does not become the new password. */
 const confirmation: Ref<string> = ref('')
+
+/** The password field's own message when it is under the default minimum, or `null`. */
+const tooShort: Ref<string | null> = ref(null)
+
+/** The value already flagged as short once; pressing again with it sends it anyway. */
+const flaggedShort: Ref<string | null> = ref(null)
 
 /** The panel's own message when the two entries differ, or `null` while they match. */
 const mismatch: Ref<string | null> = ref(null)
@@ -65,6 +83,15 @@ const token: ComputedRef<string> = computed(() => {
  * @returns Resolves once the request has settled.
  */
 const submit = async (): Promise<void> => {
+  // Advice only, and permissive: flag a short password once, then let the same value through,
+  // since an operator may have set a lower minimum this screen cannot see.
+  if (password.value.length < DEFAULT_MIN_PASSWORD_LENGTH && flaggedShort.value !== password.value) {
+    tooShort.value = t('app.acceptInvitation.passwordTooShort', { min: DEFAULT_MIN_PASSWORD_LENGTH })
+    flaggedShort.value = password.value
+    return
+  }
+  tooShort.value = null
+
   if (password.value !== confirmation.value) {
     mismatch.value = t('app.auth.passwordsDoNotMatch')
     return
@@ -73,6 +100,11 @@ const submit = async (): Promise<void> => {
   mismatch.value = null
   done.value = await authStore.acceptInvitation({ token: token.value, newPassword: password.value })
 }
+
+onMounted((): void => {
+  // A message another signed-out screen left in the shared store is not about this invitation.
+  authStore.$patch({ errorMessage: null })
+})
 </script>
 
 <template>
@@ -119,6 +151,7 @@ const submit = async (): Promise<void> => {
           v-model="password"
           :label="t('app.auth.passwordLabel')"
           icon="lock"
+          :error="tooShort"
           required
           autocomplete="new-password"
           generate

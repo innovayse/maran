@@ -26,7 +26,7 @@
  * the only heading on it — a second one containing the word "sites" would make the page's name
  * ambiguous to a screen reader and to the specs that find it by role and name.
  */
-import { computed, onMounted, type ComputedRef } from 'vue'
+import { computed, onMounted, ref, type ComputedRef, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { RouterLink } from 'vue-router'
 import UiAlert from '../../components/ui/UiAlert.vue'
@@ -37,6 +37,7 @@ import UiIcon from '../../components/ui/UiIcon.vue'
 import UiIconTile from '../../components/ui/UiIconTile.vue'
 import UiPageHeading from '../../components/ui/UiPageHeading.vue'
 import UiSpinner from '../../components/ui/UiSpinner.vue'
+import UiToast from '../../components/ui/UiToast.vue'
 import UiTable from '../../components/ui/UiTable.vue'
 import UiTableCell from '../../components/ui/UiTableCell.vue'
 import UiTableHeaderCell from '../../components/ui/UiTableHeaderCell.vue'
@@ -45,10 +46,14 @@ import SiteStatusBadge from '../../components/sites/SiteStatusBadge.vue'
 import { useLocaleStore } from '../../stores/locale'
 import { useSitesStore } from '../../stores/sites'
 import { formatDate } from '../../utils/formatDate'
+import { takeFlashNotice } from '../../utils/flashNotice'
 
 const { t } = useI18n()
 const store = useSitesStore()
 const localeStore = useLocaleStore()
+
+/** The success toast's text, or `null` while none is showing. */
+const notice: Ref<string | null> = ref(null)
 
 /** Whether the panel answered successfully and reported no sites at all. */
 const isEmpty: ComputedRef<boolean> = computed(() => {
@@ -70,7 +75,18 @@ const refresh = async (): Promise<void> => {
   await store.load()
 }
 
-onMounted(refresh)
+/**
+ * Hides the success toast.
+ * @returns Nothing.
+ */
+const dismissNotice = (): void => {
+  notice.value = null
+}
+
+onMounted(async () => {
+  notice.value = takeFlashNotice()
+  await refresh()
+})
 </script>
 
 <template>
@@ -101,7 +117,7 @@ onMounted(refresh)
 
     <template v-else-if="store.sites.length > 0">
       <UiAlert v-if="disabledCount > 0" variant="warning">
-        {{ t('sites.list.disabledNotice', { count: disabledCount }) }}
+        {{ t('sites.list.disabledNotice', { count: disabledCount }, disabledCount) }}
       </UiAlert>
 
       <UiCard>
@@ -140,5 +156,10 @@ onMounted(refresh)
         </UiTable>
       </UiCard>
     </template>
+    <div class="pointer-events-none fixed inset-x-4 bottom-4 z-50 flex justify-end sm:left-auto">
+      <UiToast v-if="notice !== null" variant="success" :close-label="t('common.close')" @dismiss="dismissNotice">
+        {{ notice }}
+      </UiToast>
+    </div>
   </section>
 </template>

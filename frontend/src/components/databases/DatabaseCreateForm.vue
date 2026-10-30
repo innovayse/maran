@@ -130,11 +130,8 @@ const submit = (): void => {
 }
 
 /**
- * Empties the two name fields and forgets that a submit was attempted, so the next database is
- * typed into a clean form rather than into one still showing the last one's values.
- *
- * The account is deliberately kept: creating several databases for one customer is the common
- * case, and re-picking the same account every time is friction with nothing behind it.
+ * Returns every field, the account included, to its starting value and forgets that a submit was
+ * attempted: a form still showing the values it just sent invites the same submit twice (#218).
  *
  * Exposed for the page to call after the panel has accepted a create. The page cannot simply clear
  * the fields itself — they live here, and so does `submitted`, which has to be cleared with them
@@ -142,6 +139,7 @@ const submit = (): void => {
  * @returns Nothing.
  */
 const reset = (): void => {
+  accountId.value = ''
   name.value = ''
   dbUserName.value = ''
   submitted.value = false

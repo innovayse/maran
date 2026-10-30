@@ -26,7 +26,7 @@ import UiTableHeaderCell from '../ui/UiTableHeaderCell.vue'
 import UiTableRow from '../ui/UiTableRow.vue'
 import { useLocaleStore } from '../../stores/locale'
 import { formatCountdown } from '../../utils/formatCountdown'
-import { formatDate } from '../../utils/formatDate'
+import { formatIsoTimestamp } from '../../utils/formatIsoTimestamp'
 import type { Ban } from '../../types/firewall'
 
 /** Props accepted by {@link FirewallBansTable}. */
@@ -173,7 +173,7 @@ onBeforeUnmount(() => {
       </UiTableCell>
       <UiTableCell mono align="end" tone="secondary">{{ ban.failures }}</UiTableCell>
       <UiTableCell mono tone="muted" class="whitespace-nowrap">
-        {{ formatDate(ban.bannedAt, localeStore.current) }}
+        {{ formatIsoTimestamp(ban.bannedAt, localeStore.current) }}
       </UiTableCell>
       <UiTableCell tone="secondary" class="whitespace-nowrap">{{ expiry(ban) }}</UiTableCell>
       <UiTableCell align="end">

@@ -26,13 +26,6 @@ const UNITS = ['B', 'KiB', 'MiB', 'GiB', 'TiB', 'PiB'] as const
 export const GIBIBYTE_UNIT: string = UNITS[3]
 
 /**
- * The symbol for a rate {@link bytesToMebibytes} feeds — mebibytes over the SI second. Owned here
- * with the other IEC symbols for the same reason as {@link GIBIBYTE_UNIT}: locale-invariant
- * notation, written once.
- */
-export const MEBIBYTES_PER_SECOND_UNIT: string = `${UNITS[2]}/s`
-
-/**
  * Converts a byte count to a whole number of gibibytes and fractions of one.
  *
  * Used where a whole SERIES has to share one unit — a chart's y-axis cannot relabel itself per
@@ -42,15 +35,6 @@ export const MEBIBYTES_PER_SECOND_UNIT: string = `${UNITS[2]}/s`
  */
 export const bytesToGibibytes = (bytes: number): number => {
   return bytes / (STEP * STEP * STEP)
-}
-
-/**
- * Converts a byte count to mebibytes, for the same fixed-unit reason as {@link bytesToGibibytes}.
- * @param bytes The byte count to convert.
- * @returns The same quantity expressed in MiB.
- */
-export const bytesToMebibytes = (bytes: number): number => {
-  return bytes / (STEP * STEP)
 }
 
 /**
@@ -76,4 +60,18 @@ export const formatBytes = (bytes: number): string => {
   const rounded = Math.round(value * 10) / 10
   const text = Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1)
   return `${text} ${UNITS[unitIndex]}`
+}
+
+/**
+ * Formats a size a plan or an account states in megabytes — the unit the panel's quotas are
+ * written in — with the largest binary unit that leaves a number at least 1, so a quota of
+ * `1048576` reads `1 TiB` rather than a figure nobody can size at a glance.
+ *
+ * The quota's megabyte is the binary one: the agent writes it to the kernel as 1024 × 1024 bytes,
+ * which is why it can be fed straight into {@link formatBytes}.
+ * @param megabytes The quota as the panel reports it.
+ * @returns The quota with its IEC unit, e.g. `2 MiB`, `1 TiB`.
+ */
+export const formatMegabytes = (megabytes: number): string => {
+  return formatBytes(megabytes * STEP * STEP)
 }

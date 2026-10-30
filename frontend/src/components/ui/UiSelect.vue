@@ -25,6 +25,10 @@
  * value): `frontend/e2e/ui-kit/unfilled-select-prompt.spec.ts` asserts its exact
  * text, and a visually hidden extra string would fail it.
  *
+ * AN EMPTY LIST SAYS SO. Opened with no options, the popup shows one line of text instead of a
+ * blank listbox: the caller's `emptyText`, or the kit's translated default; when the caller passes
+ * `loadError` (its store's server message for a list that failed to load), that is shown instead.
+ *
  * It is found the way `UiInput` is: the trigger's edge is the control-edge token
  * `border-border-control` (`--bc`), 3.57:1 on `--s1`, 3.36 on `--s2` and 3.08 on `--s3`
  * in dark, 3.63 / 3.30 / 3.07 in light, because the decorative borders are 1.2 to
@@ -45,6 +49,7 @@ import {
   type ComputedRef,
   type Ref,
 } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { nextEnabledIndex } from '../../utils/nextEnabledIndex'
 import UiIcon from './UiIcon.vue'
 import UiOption from './UiOption.vue'
@@ -96,8 +101,28 @@ const props = withDefaults(
     required?: boolean
     /** Already-translated validation message; when set, the field renders as invalid. */
     error?: string | null
+    /**
+     * Text shown in the open popup when there are no options, already translated. Optional: left
+     * out, the kit's own translated "Nothing to choose from" is shown (issue #225), so an empty list
+     * never opens as a blank box.
+     */
+    emptyText?: string
+    /**
+     * The parent's already-localized message for a list that failed to load (the store's
+     * server-supplied text). When set and there are no options, it is shown instead of
+     * {@link emptyText}: "nothing to choose" and "the list could not be fetched" are different facts.
+     */
+    loadError?: string | null
   }>(),
-  { placeholder: undefined, hideLabel: false, disabled: false, required: false, error: null },
+  {
+    placeholder: undefined,
+    hideLabel: false,
+    disabled: false,
+    required: false,
+    error: null,
+    emptyText: undefined,
+    loadError: null,
+  },
 )
 
 /** Events emitted by {@link UiSelect}. */
@@ -105,6 +130,8 @@ const emit = defineEmits<{
   /** Fired when the selection changes, carrying the newly selected option's value. */
   (e: 'update:modelValue', value: string): void
 }>()
+
+const { t } = useI18n()
 
 /** Stable, unique ids tying the label, trigger, listbox and error message together. */
 const fieldId: string = useId()
@@ -136,6 +163,17 @@ const selectedOption: ComputedRef<SelectOption | null> = computed(() => {
       return option.value === props.modelValue
     }) ?? null
   )
+})
+
+/**
+ * The message the open popup shows when there is nothing to list: the parent's load error when it
+ * passed one, else its own empty text, else the kit's translated default.
+ */
+const emptyMessage: ComputedRef<string> = computed(() => {
+  if (props.loadError !== null && props.loadError !== undefined && props.loadError !== '') {
+    return props.loadError
+  }
+  return props.emptyText ?? t('app.select.noOptions')
 })
 
 /** Text rendered on the trigger: the selection's label, or the placeholder while nothing is selected. */
@@ -350,8 +388,8 @@ watch(
          a few readable characters. -->
     <span
       :id="labelId"
-      class="text-sm font-medium wrap-anywhere"
-      :class="[hasError ? 'text-danger' : 'text-text-secondary', hideLabel ? 'sr-only' : '']"
+      class="text-xs font-bold tracking-caps uppercase wrap-anywhere"
+      :class="[hasError ? 'text-danger' : 'text-text-muted', hideLabel ? 'sr-only' : '']"
       >{{ label }}</span
     >
     <div class="relative">
@@ -380,8 +418,8 @@ watch(
         class="flex min-h-control w-full items-center justify-between gap-2 rounded-control border bg-surface-2 px-3 py-1.5 text-left text-base text-text-primary transition-colors focus-visible:outline-none disabled:cursor-not-allowed disabled:text-text-muted disabled:opacity-65 sm:text-sm"
         :class="
           hasError
-            ? 'border-danger focus-visible:shadow-focus-danger'
-            : 'border-border-control enabled:hover:border-text-muted focus-visible:border-accent focus-visible:shadow-focus'
+            ? 'border-danger focus-visible:shadow-field-focus-danger'
+            : 'border-border-control enabled:hover:border-text-muted focus-visible:border-accent focus-visible:shadow-field-focus'
         "
         @click="onTriggerClick"
         @keydown.enter="onConfirmKey"
@@ -410,8 +448,23 @@ watch(
            dark panel the fill alone separates it by only ~1.2:1, so the shadow and
            the border carry the "this floats" cue. Nothing on it is accent text on
            a wash, which is the pair that fails over `surface-3` (4.40:1). -->
+      <!-- No options: a status message in the popup's place rather than an empty listbox, so the
+           list opens onto words and not onto a blank box (#225). It is not a listbox (a listbox
+           with no option in it is an empty widget to a screen reader); `role="status"` announces
+           the text when it appears, and `aria-controls` on the trigger still points at it.
+           Primary text on `bg-surface-3`, never `text-danger` (4.13:1 there): a load error reads
+           as an error by its wording, which comes from the server. -->
+      <div
+        v-if="isOpen && options.length === 0"
+        :id="listboxId"
+        role="status"
+        class="absolute z-10 mt-1 w-full rounded-control border border-border-strong bg-surface-3 px-3 py-2 text-sm text-text-primary shadow-lg wrap-anywhere"
+        @mousedown.prevent
+      >
+        {{ emptyMessage }}
+      </div>
       <ul
-        v-if="isOpen"
+        v-else-if="isOpen"
         :id="listboxId"
         role="listbox"
         :aria-labelledby="labelId"

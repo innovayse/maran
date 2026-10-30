@@ -11,15 +11,12 @@
  *
  * The control owns no copy: every label arrives already translated.
  *
- * WHY THE SEGMENTS ARE SET IN THE MONOSPACE FACE. What this control segments
- * is machine values — ranges (`24h`, `7d`), densities, locale codes — and a
- * monospace face is what tells the eye they are options to pick, not prose to
- * read. The panel's monospace is JetBrains Mono. The face has Latin and Cyrillic, not
- * Armenian: an Armenian label
- * falls through to Noto Sans Armenian, per the font stack in `main.css`, rather
- * than to a system face that does not match. Because labels in the three
- * languages differ a lot in length, the segments wrap onto a second row instead
- * of running off the edge of a 390px screen.
+ * ONE FACE FOR EVERY SEGMENT. Chosen and unchosen labels are set in the same
+ * body face at the same size; only the weight (semibold when chosen) and the
+ * colour change. A face change on selection made the row jump in width and
+ * read as two different controls side by side. Because labels in the three
+ * languages differ a lot in length, the segments wrap onto a second row
+ * instead of running off the edge of a 390px screen.
  *
  * KEYBOARD. Each segment is a real `<button>` and so a tab stop of its own; the
  * left and right arrows additionally move focus to the neighbour (wrapping at the
@@ -95,11 +92,11 @@ const moveFocus = (index: number, step: number): void => {
       :key="option.value"
       ref="optionButtons"
       type="button"
-      class="flex min-h-choice items-center gap-1.5 rounded-inset px-2.5 py-0.5 font-mono text-sm wrap-anywhere transition-colors focus-visible:shadow-focus focus-visible:outline-none"
+      class="flex min-h-choice items-center gap-1.5 rounded-inset px-2.5 py-0.5 font-sans text-sm wrap-anywhere transition-colors focus-visible:shadow-focus focus-visible:outline-none"
       :class="
         modelValue === option.value
           ? 'bg-accent-fill font-semibold text-white'
-          : 'text-text-secondary hover:bg-surface-3 hover:text-text-primary'
+          : 'font-medium text-text-secondary hover:bg-surface-3 hover:text-text-primary'
       "
       :aria-pressed="modelValue === option.value"
       @click="emit('update:modelValue', option.value)"

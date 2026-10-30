@@ -24,6 +24,13 @@
  * message is `text-text-primary` on the panel, 15.70 / 17.98:1, and the meta line
  * `text-text-muted`, 5.36 / 5.41:1. The close control is 28px square, over the
  * 24px minimum target.
+ *
+ * **Lifetime and motion.** A toast closes itself after 4 seconds, except a
+ * `danger` one, which stays until it is dismissed: a failure read in passing is
+ * a failure missed. It slides in from the right and slides back out (with a
+ * fade) before it reports `dismiss`, so the parent unmounts it only once it
+ * has left. Under `prefers-reduced-motion` it appears and disappears without
+ * moving.
  */
 import { onBeforeUnmount, onMounted, ref, useId, type ComputedRef, type Ref, computed } from 'vue'
 import UiIcon, { type UiIconName } from './UiIcon.vue'
@@ -38,13 +45,13 @@ const props = withDefaults(
     variant?: ToastVariant
     /**
      * Milliseconds before the toast dismisses itself; `0` keeps it until the
-     * user closes it.
+     * user closes it. Left unset: 4000, or `0` for a `danger` toast.
      */
     duration?: number
     /** Accessible label for the close button, already translated by the caller. */
     closeLabel: string
   }>(),
-  { variant: 'info', duration: 5000 },
+  { variant: 'info', duration: undefined },
 )
 
 /** Events emitted by {@link UiToast}. */
@@ -65,6 +72,12 @@ defineSlots<{
 
 /** Identifier tying the close button's accessible name to this toast's text. */
 const messageId: string = useId()
+
+/** How long a toast that is not an error stays up by default, in milliseconds. */
+const DEFAULT_DURATION = 4000
+
+/** Whether the toast is on screen; false starts the slide-out, after which `dismiss` is emitted. */
+const shown: Ref<boolean> = ref(true)
 
 /** Handle of the auto-dismiss timer, or null when the toast waits for the user. */
 const timer: Ref<ReturnType<typeof setTimeout> | null> = ref(null)
@@ -119,6 +132,11 @@ const politeness: ComputedRef<'assertive' | 'polite'> = computed(() => {
   return props.variant === 'danger' ? 'assertive' : 'polite'
 })
 
+/** The effective lifetime: the caller's, else 4s, else forever for an error. */
+const lifetime: ComputedRef<number> = computed(() => {
+  return props.duration ?? (props.variant === 'danger' ? 0 : DEFAULT_DURATION)
+})
+
 /**
  * Stops the auto-dismiss timer, if one is running.
  * @returns Nothing; the timer is cleared synchronously.
@@ -136,19 +154,27 @@ const stopTimer = (): void => {
  */
 const startTimer = (): void => {
   stopTimer()
-  if (props.duration > 0) {
+  if (shown.value && lifetime.value > 0) {
     timer.value = setTimeout((): void => {
-      emit('dismiss')
-    }, props.duration)
+      dismiss()
+    }, lifetime.value)
   }
 }
 
 /**
- * Reports that the toast should go away.
- * @returns Nothing; the parent decides whether it actually unmounts.
+ * Starts the slide-out. `dismiss` is reported once it has finished, by {@link onLeft}.
+ * @returns Nothing; the leave transition starts on the next render.
  */
 const dismiss = (): void => {
   stopTimer()
+  shown.value = false
+}
+
+/**
+ * Reports that the toast has left the screen.
+ * @returns Nothing; the parent decides whether it actually unmounts.
+ */
+const onLeft = (): void => {
   emit('dismiss')
 }
 
@@ -161,39 +187,76 @@ onBeforeUnmount(stopTimer)
 </script>
 
 <template>
-  <div
-    class="pointer-events-auto flex w-full max-w-sm items-center gap-2.5 rounded-panel border border-border-strong bg-surface-1 p-2.5 text-sm text-text-primary shadow-xl"
-    role="status"
-    :aria-live="politeness"
-    @mouseenter="stopTimer"
-    @mouseleave="startTimer"
-    @focusin="stopTimer"
-    @focusout="startTimer"
-    @keydown.esc="dismiss"
-  >
-    <!-- Decorative: the status is repeated in the caller's text, and UiIcon hides
-         the glyph from assistive technology. -->
-    <span class="grid size-8 shrink-0 place-items-center rounded-inset" :class="variantClasses">
-      <UiIcon :name="glyph" size="sm" />
-    </span>
-    <div :id="messageId" class="min-w-0 flex-1 wrap-anywhere">
-      <div class="font-medium"><slot /></div>
-      <!-- The design's second line: the machine detail behind the outcome (host,
-           size, duration), set in mono because that is what it always is. It is
-           inside the labelled region on purpose, so the announcement carries the
-           detail rather than the headline alone. -->
-      <div v-if="$slots.meta" class="font-mono text-xs text-text-muted"><slot name="meta" /></div>
-    </div>
-    <button
-      type="button"
-      class="inline-flex size-11 shrink-0 sm:size-7 items-center justify-center rounded-inset text-text-muted transition-colors hover:bg-surface-3 hover:text-text-primary focus-visible:shadow-focus focus-visible:outline-none"
-      :aria-label="closeLabel"
-      :aria-describedby="messageId"
-      @click="dismiss"
+  <Transition name="ui-toast" appear @after-leave="onLeft">
+    <div
+      v-if="shown"
+      class="pointer-events-auto flex w-full max-w-sm items-center gap-2.5 rounded-panel border border-border-strong bg-surface-1 p-2.5 text-sm text-text-primary shadow-xl"
+      role="status"
+      :aria-live="politeness"
+      @mouseenter="stopTimer"
+      @mouseleave="startTimer"
+      @focusin="stopTimer"
+      @focusout="startTimer"
+      @keydown.esc="dismiss"
     >
-      <!-- An icon, not a text glyph: a character would render differently per font and
-           counts as untranslated copy. The accessible name comes from aria-label. -->
-      <UiIcon name="x" size="sm" />
-    </button>
-  </div>
+      <!-- Decorative: the status is repeated in the caller's text, and UiIcon hides
+           the glyph from assistive technology. -->
+      <span class="grid size-8 shrink-0 place-items-center rounded-inset" :class="variantClasses">
+        <UiIcon :name="glyph" size="sm" />
+      </span>
+      <div :id="messageId" class="min-w-0 flex-1 wrap-anywhere">
+        <div class="font-medium"><slot /></div>
+        <!-- The design's second line: the machine detail behind the outcome (host,
+             size, duration), set in mono because that is what it always is. It is
+             inside the labelled region on purpose, so the announcement carries the
+             detail rather than the headline alone. -->
+        <div v-if="$slots.meta" class="font-mono text-xs text-text-muted"><slot name="meta" /></div>
+      </div>
+      <button
+        type="button"
+        class="inline-flex size-11 shrink-0 sm:size-7 items-center justify-center rounded-inset text-text-muted transition-colors hover:bg-surface-3 hover:text-text-primary focus-visible:shadow-focus focus-visible:outline-none"
+        :aria-label="closeLabel"
+        :aria-describedby="messageId"
+        @click="dismiss"
+      >
+        <!-- An icon, not a text glyph: a character would render differently per font and
+             counts as untranslated copy. The accessible name comes from aria-label. -->
+        <UiIcon name="x" size="sm" />
+      </button>
+    </div>
+  </Transition>
 </template>
+
+<style scoped>
+.ui-toast-enter-active {
+  transition:
+    opacity 200ms ease-out,
+    transform 200ms ease-out;
+}
+
+.ui-toast-leave-active {
+  transition:
+    opacity 200ms ease-in,
+    transform 200ms ease-in;
+}
+
+.ui-toast-enter-from,
+.ui-toast-leave-to {
+  opacity: 0;
+  transform: translateX(16px);
+}
+
+/* Reduced motion: no slide. The toast still leaves through the transition hooks, which Vue runs
+   at once when there is nothing to wait for, so `dismiss` is still reported. */
+@media (prefers-reduced-motion: reduce) {
+  .ui-toast-enter-active,
+  .ui-toast-leave-active {
+    transition: none;
+  }
+
+  .ui-toast-enter-from,
+  .ui-toast-leave-to {
+    transform: none;
+  }
+}
+</style>

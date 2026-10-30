@@ -31,8 +31,13 @@
  * `aria-hidden` region would not be in the outline at all. (The authenticated shell differs on
  * purpose: there the page's own title is the `h1` and its wordmark is a plain link.)
  *
- * **The backdrop belongs to the right column.** Its blooms are `--ac` graphics, never under text
- * (the text is on the card's own `--s1`, above the backdrop at `z-10`). It is clipped by its own
+ * **The form is a glass card.** A translucent `--s1` (85%) with a backdrop blur, the panel radius
+ * and the `shadow-glass` lift, on every auth page alike since they all render through this
+ * layout. The blooms show through it only as a faint tint: 85% keeps `text-text-muted` over
+ * 4.5:1 in both themes, and the controls on the card carry their own opaque fills.
+ *
+ * **The backdrop belongs to the right column.** Its blooms are `--ac` graphics, never directly
+ * under text (the text is on the card, above the backdrop at `z-10`). It is clipped by its own
  * `overflow-hidden` wrapper, not by the column, because a blurred circle larger than its box
  * otherwise creates scrollbars while the column must stay un-clipped for the language menu. The
  * credit line is plain text, never a link out: an unauthenticated screen of a control panel has no
@@ -43,6 +48,7 @@
  * collapsing address bar does not leave the form under the fold. Long Armenian words wrap
  * (`wrap-anywhere`) rather than widen the page.
  */
+import UiExternalLink from '../components/ui/UiExternalLink.vue'
 import ShellLocaleSwitcher from '../components/shell/ShellLocaleSwitcher.vue'
 import { useI18n } from 'vue-i18n'
 import UiBrandMark from '../components/ui/UiBrandMark.vue'
@@ -104,7 +110,7 @@ const year: number = new Date().getFullYear()
     <div class="relative min-w-0">
       <div class="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden="true">
         <div
-          class="absolute top-1/2 left-1/2 size-[80vmin] -translate-x-1/2 -translate-y-1/2 rounded-full bg-accent/15 blur-3xl"
+          class="absolute top-1/2 left-1/2 size-[min(80vmin,40rem)] -translate-x-1/2 -translate-y-1/2 rounded-full bg-accent/25 blur-3xl"
         ></div>
         <div class="absolute -top-32 -right-24 size-96 rounded-full bg-accent/10 blur-3xl"></div>
         <div class="absolute -bottom-24 -left-20 size-80 rounded-full bg-accent/10 blur-3xl"></div>
@@ -127,15 +133,33 @@ const year: number = new Date().getFullYear()
             </div>
           </div>
 
-          <div class="rounded-panel border border-border-subtle bg-surface-1 p-6 sm:p-8">
+          <!-- The glass card: a 5% wash of the text colour over a blurred backdrop, so the accent
+               glow behind it shows through, with the soft `shadow-glass` lift and the `--r-card`
+               radius. Every field, alert and button on it
+               draws its own opaque fill, and the card's own text is the primary and secondary
+               tiers, which keep 4.5:1 over the blurred glow in both themes.
+               A signed-out screen holds two or three fields and nothing else, so it trades the
+               panel's desktop density (#200) for the full 44px touch height on every width: the
+               density tokens are set back to their phone values for this card only. -->
+          <div
+            class="rounded-card border border-border-subtle bg-text-primary/5 p-6 shadow-glass backdrop-blur-xl [--d-choice:2.75rem] [--d-control:2.75rem] [--d-inset:2.5rem] sm:p-8"
+          >
             <!-- RouterView, not a slot: this layout is a route component with child routes, so the
                  page for the active child renders here. A <slot/> would silently render nothing. -->
             <RouterView />
           </div>
 
-          <p class="mt-6 text-center text-xs text-text-muted wrap-anywhere">
-            {{ t('app.shell.authCredit', { year }) }}
-          </p>
+          <i18n-t
+            keypath="app.shell.authCredit"
+            tag="p"
+            scope="global"
+            class="mt-6 text-center text-xs text-text-muted wrap-anywhere"
+          >
+            <template #year>{{ year }}</template>
+            <template #company>
+              <UiExternalLink :href="t('app.shell.companyUrl')">{{ t('app.shell.company') }}</UiExternalLink>
+            </template>
+          </i18n-t>
         </div>
       </main>
     </div>

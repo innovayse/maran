@@ -27,6 +27,11 @@
  * (`text-text-secondary`) 7.08 / 6.00:1, the close glyph (`text-text-muted`)
  * 5.36 / 5.41:1 and 4.62 / 4.57:1 once its `bg-surface-3` hover is under it.
  * The close control is 32px square, over the 24px minimum target.
+ *
+ * **Motion.** The backdrop fades and the sheet fades up from 95% scale: 300ms in, 200ms out, so
+ * leaving is quicker than arriving (a dismissed dialog should get out of the way). The leave runs
+ * inside a `<Transition>`, so the caller still just flips `open`. Under `prefers-reduced-motion`
+ * both directions are instant.
  */
 import { ref, useId, type Ref } from 'vue'
 import { useFocusTrap, type FocusTarget } from '../../composables/useFocusTrap'
@@ -67,8 +72,14 @@ const props = withDefaults(
      * whose opener is gone; set it only when a more specific control is the natural next stop.
      */
     returnFocusTo?: FocusTarget
+    /**
+     * The element to focus when the dialog opens, as a getter evaluated after the panel renders.
+     * Left unset, focus goes to the first focusable element (the header's close control). A
+     * confirmation passes its main action so Enter answers the question it is asking.
+     */
+    initialFocus?: () => HTMLElement | null | undefined
   }>(),
-  { dismissible: true, returnFocusTo: undefined },
+  { dismissible: true, returnFocusTo: undefined, initialFocus: undefined },
 )
 
 /** Events emitted by {@link UiModal}. */
@@ -139,109 +150,127 @@ const { onTab } = useFocusTrap({
   returnFocusTo: (): FocusTarget => {
     return props.returnFocusTo
   },
+  initialFocus: (): HTMLElement | null | undefined => {
+    return props.initialFocus?.()
+  },
 })
 </script>
 
 <template>
   <Teleport to="body">
-    <!-- `mousedown.self.prevent`: a press on the backdrop must not blur the panel.
-         Focus on <body> is outside the trap, and the Escape and Tab handlers below
-         never fire for it. Only the backdrop itself is suppressed, so presses
-         inside the panel still focus and select normally. -->
-    <!-- z-[60] is above UiDropdown's panel, which is also teleported to body and
-         sits at z-50. Two teleported siblings at the SAME z resolve by mount
-         order, which is not a rule anyone can read off the page. -->
-    <div
-      v-if="open"
-      class="fixed inset-0 z-[60] flex items-center justify-center bg-page/70 p-3 backdrop-blur-sm sm:p-5"
-      @mousedown.self.prevent
-      @click="onBackdropClick"
-      @keydown.esc.prevent="onEscape"
-      @keydown.tab="onTab"
-    >
+    <Transition name="ui-modal">
+      <!-- `mousedown.self.prevent`: a press on the backdrop must not blur the panel.
+           Focus on <body> is outside the trap, and the Escape and Tab handlers below
+           never fire for it. Only the backdrop itself is suppressed, so presses
+           inside the panel still focus and select normally. -->
+      <!-- z-[60] is above UiDropdown's panel, which is also teleported to body and
+           sits at z-50. Two teleported siblings at the SAME z resolve by mount
+           order, which is not a rule anyone can read off the page. -->
       <div
-        ref="panelElement"
-        role="dialog"
-        aria-modal="true"
-        :aria-labelledby="titleId"
-        tabindex="-1"
-        class="ui-modal-panel flex max-h-full w-full max-w-md flex-col overflow-hidden rounded-panel border border-border-strong bg-surface-1 shadow-2xl focus-visible:outline-none"
+        v-if="open"
+        class="fixed inset-0 z-[60] flex items-center justify-center bg-page/70 p-3 backdrop-blur-sm sm:p-5"
+        @mousedown.self.prevent
+        @click="onBackdropClick"
+        @keydown.esc.prevent="onEscape"
+        @keydown.tab="onTab"
       >
-        <div class="flex shrink-0 items-start justify-between gap-3 px-5 pt-4 pb-2">
-          <!-- `overflow-wrap: anywhere`: a long Armenian title or an unbroken
-               domain must wrap inside the sheet, never push it wider than a
-               390px screen. -->
-          <h2
-            :id="titleId"
-            class="min-w-0 font-display text-base font-extrabold text-text-primary wrap-anywhere"
-          >
-            {{ title }}
-          </h2>
-          <button
-            type="button"
-            class="inline-flex size-11 shrink-0 sm:size-7 items-center justify-center rounded-inset text-text-muted transition-colors hover:bg-surface-3 hover:text-text-primary focus-visible:shadow-focus focus-visible:outline-none"
-            @click="requestClose"
-          >
-            <!-- Decorative glyph: the button's accessible name comes from the caller-translated label. -->
-            <UiIcon name="x" size="sm" />
-            <span class="sr-only">{{ closeLabel }}</span>
-          </button>
-        </div>
-        <!-- The body scrolls, the header and the footer do not. A dialog taller than the
-             viewport otherwise clips its own footer: the panel is centred and hidden past its
-             edges, so the confirm button sits off-screen with nothing to scroll it into view —
-             which turns "the user must read this before acting" into "the user cannot act". Found
-             on the backup restore dialog, whose body states what a restore replaces and what it
-             does not, and is long because it has to be.
-             `overflow-y: auto` also clips on the other axis and at the padding edge, and the kit's
-             focus ring is a 4px shadow OUTSIDE the control: a last input flush against the end of
-             the scrolled content lost the bottom of its ring (backup restore's account-name field).
-             So the body keeps 4px above (`pt-1`, taken from the header's bottom padding so nothing
-             moves) and 24px below, and `scroll-pb-6` makes keyboard focus scroll the ring into view
-             rather than the control's bare edge. -->
         <div
-          class="min-h-0 flex-1 scroll-pb-5 overflow-y-auto px-5 pt-1 pb-5 text-sm leading-relaxed text-text-secondary wrap-anywhere"
+          ref="panelElement"
+          role="dialog"
+          aria-modal="true"
+          :aria-labelledby="titleId"
+          tabindex="-1"
+          class="ui-modal-panel flex max-h-full w-full max-w-md flex-col overflow-hidden rounded-panel border border-border-strong bg-surface-1 shadow-2xl focus-visible:outline-none"
         >
-          <slot />
-        </div>
-        <!-- The actions sit under a rule on the SAME surface as the body: a raised
-             footer would put a `bg-surface-2` secondary button on a `bg-surface-2`
-             strip, leaving only its hairline border to show where it is. They wrap
-             rather than overflow, because translated labels differ in length by
-             half again between the three languages. -->
-        <div
-          v-if="$slots.footer"
-          class="flex shrink-0 flex-wrap justify-end gap-2 border-t border-border-subtle px-5 py-3"
-        >
-          <slot name="footer" />
+          <div class="flex shrink-0 items-start justify-between gap-3 px-5 pt-4 pb-2">
+            <!-- `overflow-wrap: anywhere`: a long Armenian title or an unbroken
+                 domain must wrap inside the sheet, never push it wider than a
+                 390px screen. -->
+            <h2
+              :id="titleId"
+              class="min-w-0 font-display text-base font-extrabold text-text-primary wrap-anywhere"
+            >
+              {{ title }}
+            </h2>
+            <button
+              type="button"
+              class="inline-flex size-11 shrink-0 sm:size-7 items-center justify-center rounded-inset text-text-muted transition-colors hover:bg-surface-3 hover:text-text-primary focus-visible:shadow-focus focus-visible:outline-none"
+              @click="requestClose"
+            >
+              <!-- Decorative glyph: the button's accessible name comes from the caller-translated label. -->
+              <UiIcon name="x" size="sm" />
+              <span class="sr-only">{{ closeLabel }}</span>
+            </button>
+          </div>
+          <!-- The body scrolls, the header and the footer do not. A dialog taller than the
+               viewport otherwise clips its own footer: the panel is centred and hidden past its
+               edges, so the confirm button sits off-screen with nothing to scroll it into view —
+               which turns "the user must read this before acting" into "the user cannot act". Found
+               on the backup restore dialog, whose body states what a restore replaces and what it
+               does not, and is long because it has to be.
+               `overflow-y: auto` also clips on the other axis and at the padding edge, and the kit's
+               focus ring is a 4px shadow OUTSIDE the control: a last input flush against the end of
+               the scrolled content lost the bottom of its ring (backup restore's account-name field).
+               So the body keeps 4px above (`pt-1`, taken from the header's bottom padding so nothing
+               moves) and 24px below, and `scroll-pb-6` makes keyboard focus scroll the ring into view
+               rather than the control's bare edge. -->
+          <div
+            class="min-h-0 flex-1 scroll-pb-5 overflow-y-auto px-5 pt-1 pb-5 text-sm leading-relaxed text-text-secondary wrap-anywhere"
+          >
+            <slot />
+          </div>
+          <!-- The actions sit under a rule on the SAME surface as the body: a raised
+               footer would put a `bg-surface-2` secondary button on a `bg-surface-2`
+               strip, leaving only its hairline border to show where it is. They wrap
+               rather than overflow, because translated labels differ in length by
+               half again between the three languages. -->
+          <div
+            v-if="$slots.footer"
+            class="flex shrink-0 flex-wrap justify-end gap-2 border-t border-border-subtle px-5 py-3"
+          >
+            <slot name="footer" />
+          </div>
         </div>
       </div>
-    </div>
+    </Transition>
   </Teleport>
 </template>
 
 <style scoped>
-/* The design opens every overlay with the same short rise; a keyframe is the one
-   thing a utility class cannot express, so it lives here rather than in the
-   token file, which this component does not own. */
-.ui-modal-panel {
-  animation: ui-modal-rise 0.16s ease;
+/* Enter and leave are a `<Transition>` rather than a keyframe so the dialog can animate OUT
+   as well: a keyframe only runs on mount. The backdrop fades, the sheet fades and scales. */
+.ui-modal-enter-active,
+.ui-modal-enter-active .ui-modal-panel {
+  transition:
+    opacity 300ms ease-out,
+    transform 300ms ease-out;
 }
 
+.ui-modal-leave-active,
+.ui-modal-leave-active .ui-modal-panel {
+  transition:
+    opacity 200ms ease-in,
+    transform 200ms ease-in;
+}
+
+.ui-modal-enter-from,
+.ui-modal-leave-to {
+  opacity: 0;
+}
+
+.ui-modal-enter-from .ui-modal-panel,
+.ui-modal-leave-to .ui-modal-panel {
+  opacity: 0;
+  transform: scale(0.95);
+}
+
+/* For a reader who asked for less motion the dialog simply appears and disappears. */
 @media (prefers-reduced-motion: reduce) {
-  .ui-modal-panel {
-    animation: none;
-  }
-}
-
-@keyframes ui-modal-rise {
-  from {
-    opacity: 0;
-    transform: translateY(7px);
-  }
-  to {
-    opacity: 1;
-    transform: none;
+  .ui-modal-enter-active,
+  .ui-modal-enter-active .ui-modal-panel,
+  .ui-modal-leave-active,
+  .ui-modal-leave-active .ui-modal-panel {
+    transition: none;
   }
 }
 </style>

@@ -23,7 +23,10 @@
       "working": "Working…",
       "rowActions": "Actions for {name}",
       "confirmRemoveTitle": "Remove login {name}",
-      "confirmResetPasswordTitle": "Reset the password for {name}"
+      "confirmResetPasswordTitle": "Reset the password for {name}",
+      "created": "Login {name} created.",
+      "confirmRemoveAction": "Remove login",
+      "confirmResetPasswordAction": "Reset password"
     },
     "protocols": {
       "sftp": "SFTP",

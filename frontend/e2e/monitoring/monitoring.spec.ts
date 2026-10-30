@@ -267,3 +267,16 @@ for (const [name, width, css] of [
     }
   })
 }
+
+// #222: a network chart picks its unit from its own peak, so a quiet link is not an axis of `0.00`
+// ticks. The stub sends 1 MiB/s received and 512 KiB/s sent: the received chart reads in MiB/s,
+// the sent one in KiB/s with a figure that is not rounded away.
+test('each network chart is drawn in the unit its own readings need', async ({ page }) => {
+  await openMonitoring(page)
+
+  const received = page.getByTestId('monitoring-charts').locator('.ui-chart').nth(3)
+  const sent = page.getByTestId('monitoring-charts').locator('.ui-chart').nth(4)
+
+  await expect(received.locator('span.font-mono')).toHaveText('1.00 MiB/s')
+  await expect(sent.locator('span.font-mono')).toHaveText('512 KiB/s')
+})

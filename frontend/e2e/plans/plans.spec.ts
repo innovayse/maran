@@ -70,7 +70,10 @@ test('the list shows every plan with its limits as numbers, and "None" where a p
 
   const starter = page.getByRole('row', { name: /Starter/ })
   await expect(starter.getByRole('cell').nth(1)).toHaveText('3')
-  await expect(starter.getByRole('cell').nth(2)).toHaveText('5120')
+  // The quota in a human unit (#222): 5120 MB is 5 GiB, and 1048576 MB is 1 TiB.
+  await expect(starter.getByRole('cell').nth(2)).toHaveText('5 GiB')
+  await expect(page.getByRole('row', { name: /Unlimited/ }).getByRole('cell').nth(2)).toHaveText('1 TiB')
+  await expect(page.getByRole('columnheader', { name: 'Disk', exact: true })).toBeVisible()
   // Starter sells no FTPS logins and no cron entries: the word, not a bare zero.
   await expect(starter.getByRole('cell').nth(6)).toHaveText('None')
   await expect(starter.getByRole('cell').nth(7)).toHaveText('None')
@@ -170,6 +173,7 @@ test('a valid plan is posted as typed and shows up in the list', async ({ page }
     },
   ])
   await expect(page.getByRole('row', { name: /Agency/ })).toBeVisible()
+  await expect(page.getByRole('status').filter({ hasText: 'Plan Agency created.' })).toBeVisible()
 })
 
 test('a refused create renders the server sentence verbatim and keeps what was typed', async ({
@@ -216,7 +220,7 @@ test('editing a plan starts from its figures and puts the whole plan', async ({ 
       .getByRole('row', { name: /Business/ })
       .getByRole('cell')
       .nth(2),
-  ).toHaveText('51200')
+  ).toHaveText('50 GiB')
 })
 
 test('editing a plan with accounts on it says the edit reaches them, and warns when the disk is lowered', async ({
@@ -233,7 +237,7 @@ test('editing a plan with accounts on it says the edit reaches them, and warns w
 
   await page.getByLabel('Disk quota (MB)').fill('1024')
 
-  await expect(page.getByText('The disk quota goes down from 5120 MB to 1024 MB.')).toBeVisible()
+  await expect(page.getByText('The disk quota goes down from 5 GiB to 1 GiB.')).toBeVisible()
 })
 
 test('a refused quota cut renders the server sentence verbatim and changes nothing on screen', async ({

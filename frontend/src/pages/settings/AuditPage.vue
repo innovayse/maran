@@ -86,7 +86,7 @@ onMounted(async () => {
 
     <!-- What needs attention goes first: an action that was refused or failed. -->
     <UiAlert v-if="!auditStore.loading && failedCount > 0" variant="warning">
-      {{ t('app.audit.failedNotice', { count: failedCount }) }}
+      {{ t('app.audit.failedNotice', { count: failedCount }, failedCount) }}
     </UiAlert>
 
     <UiCard>

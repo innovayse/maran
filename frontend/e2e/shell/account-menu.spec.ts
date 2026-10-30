@@ -95,7 +95,7 @@ test('the account menu opens upwards when the sidebar footer leaves no room belo
   expect((box?.y ?? 0) + (box?.height ?? 0)).toBeLessThanOrEqual(height)
 
   // Visible is not the same as usable: the point a user taps must land on the item itself.
-  for (const label of ['Sessions', 'Two-step verification', 'Sign out']) {
+  for (const label of ['Profile and security', 'Sessions', 'Two-step verification']) {
     const item = page.getByRole('menuitem', { name: label })
     const reachable = await item.evaluate((element: HTMLElement): boolean => {
       const rect = element.getBoundingClientRect()

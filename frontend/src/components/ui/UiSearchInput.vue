@@ -130,7 +130,7 @@ const onClear = (): void => {
 
 <template>
   <div class="flex flex-col gap-1">
-    <label :for="fieldId" class="text-sm font-medium text-text-secondary wrap-anywhere">{{
+    <label :for="fieldId" class="text-xs font-bold tracking-caps uppercase wrap-anywhere text-text-muted">{{
       label
     }}</label>
     <div class="relative flex items-center">
@@ -152,7 +152,7 @@ const onClear = (): void => {
         :aria-autocomplete="inputRole === 'combobox' ? 'list' : undefined"
         :value="modelValue"
         :placeholder="placeholder"
-        class="min-h-control w-full rounded-control border border-border-control bg-surface-2 py-1.5 pr-[calc(var(--d-inset)+0.5rem)] pl-9 text-base text-text-primary transition-colors placeholder:text-text-muted enabled:hover:border-text-muted focus-visible:border-accent focus-visible:shadow-focus focus-visible:outline-none sm:text-sm"
+        class="min-h-control w-full rounded-control border border-border-control bg-surface-2 py-1.5 pr-[calc(var(--d-inset)+0.5rem)] pl-9 text-base text-text-primary transition-colors placeholder:text-text-muted enabled:hover:border-text-muted focus-visible:border-accent focus-visible:shadow-field-focus focus-visible:outline-none sm:text-sm"
         @input="onInput"
         @keydown.enter.prevent="onEnter"
       />

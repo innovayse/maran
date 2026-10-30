@@ -165,14 +165,14 @@ const submit = (): void => {
 }
 
 /**
- * Empties the login name and forgets that a submit was attempted, so the next login is typed into a
- * clean form rather than into one still showing the last one's value.
- *
- * The account and the protocol are deliberately kept: creating several logins of one kind for one
- * customer is the common case.
+ * Returns every field to its starting value and forgets that a submit was attempted, so the next
+ * login starts from a clean form. The account and the protocol are cleared too: a form still showing
+ * the values it just sent invites the same submit twice (#218).
  * @returns Nothing.
  */
 const reset = (): void => {
+  accountId.value = ''
+  protocol.value = 'sftp'
   name.value = ''
   submitted.value = false
 }

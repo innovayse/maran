@@ -127,10 +127,11 @@ disagree. Components use the utilities; the raw variable is for the few places a
 | `--gr` / `--am` / `--rd` | `text-success` / `text-warning` / `text-danger` |
 | `--pu` / `--pus` | `text-violet` / `bg-violet-soft` |
 | `--glow` | `shadow-glow` |
+| `--glass` | `shadow-glass` (the soft lift under the glass auth card) |
 | focus ring | `shadow-focus`, `shadow-focus-danger` |
 | `--r-panel` (16 px) | `rounded-panel` |
 | `--r-control` (12 px) | `rounded-control` |
-| `--r-inset` (8 px) / `--r-row` (6 px) / `--r-mark` (4 px) | `rounded-inset` / `rounded-row` / `rounded-mark` |
+| `--r-inset` (8 px) / `--r-row` (8 px) / `--r-mark` (4 px) | `rounded-inset` / `rounded-row` / `rounded-mark` |
 | display / body / figures | `font-display` / `font-sans` / `font-mono` |
 
 > **Keep using `text-text-muted` for secondary text. Do not migrate it.** That utility is used 86 times
@@ -158,8 +159,12 @@ The mockup uses its own working names. Where you read the mockup's CSS, translat
 | `--r-panel` | `16px`: shell panels and cards |
 | `--r-control` | `12px`: inputs, selects, ghost buttons, nav items, quick-action rows |
 | `--r-inset` | `8px` (`--r-control` - 4px): a control nested in a control's 4px padding (segmented-control segment, in-field reveal / clear button, close button); concentric with its outer shape |
-| `--r-row` | `6px` (`--r-control` - 6px): a row inside a menu or listbox panel's 6px padding (dropdown item, option) |
+| `--r-row` | `8px` (`--r-control` - 4px): a row inside a menu or listbox panel's 4px padding (`--d-menu`; dropdown item, option) |
 | `--r-mark` | `4px` (`--r-control` / 3): the checkbox box, a small glyph that must stay a rounded square |
+| `--glass` | `0 24px 60px -24px rgb(0 0 0 / .45), 0 2px 8px -2px rgb(0 0 0 / .2)`: the lift under a glass card, theme-independent |
+| Glass card | the auth form: `bg-surface-1/85`, `backdrop-blur-xl`, `shadow-glass`, `rounded-panel`, decorative `border-border-subtle`. 85 % keeps `text-text-muted` over 4.5:1 in both themes with the accent blooms behind it; fields, alerts and buttons on it carry their own opaque fills |
+| Field label | `text-xs`, bold, uppercase, `tracking-caps`, `text-text-muted` (5.36:1 on `--s1` dark, 5.41:1 light), `text-danger` on error, `wrap-anywhere`. Drawn by `UiInput` (and `UiPasswordInput` through it), `UiTextarea`, `UiSelect`, `UiSearchInput`. Choice labels beside a checkbox, radio or switch stay `text-sm`: they are phrases, not micro-labels |
+| Motion | the checkbox's check fades in over 200 ms; a trailing `arrowRight` in a `UiButton` nudges 2 px forward on hover (`buttonClasses`). Both are off under `prefers-reduced-motion` |
 | Pills | the primary action is a full pill (`999px`, as in the mockup); it is the one fully rounded control |
 | Display font | **Archivo** (800 to 900) for titles, figures and uppercase labels |
 | Body font | **Inter** |
@@ -420,6 +425,7 @@ instead of a class on the tag, an `!` modifier or a selector that reaches into a
 | `UiSearchInput` | Combobox mode: `inputRole="combobox"`, `ariaControls`, `ariaExpanded`, `ariaActivedescendant`. | These must reach the `<input>`, not the wrapper. Defaults are the plain `searchbox`. |
 | `UiAvatar` | `name`, `size` (`sm` 32 px, `md` 36 px); the letters come from `utils/initialsOf`. | One initials disc for the identity card, the accounts table and the journal. White on `--acf`; decorative, the name is printed beside it. |
 | `UiIconTile` | `name` or the default slot; `size`: `sm`, `md`, `lg`. | One accent icon square. `--act` on `--acs` passes on `--s1` and `--s2` but is 4.40:1 on `--s3`, so **a tile never sits over `--s3`**. Decorative. |
+| `UiSelect` | `emptyText` (optional; default the translated `app.select.noOptions`) and `loadError` (the parent's server message for a list that failed to load, shown instead). Issue #225. | Opened with no options the popup shows one `role="status"` line instead of a blank listbox; primary text on `--s3`, never `text-danger` there (4.13:1). |
 | `UiAuthHeading` | `title`, `subtitle`. | The title of a signed-out page, an `h2`; wraps long Armenian and Russian words (`wrap-anywhere`) instead of widening the panel. |
 | `ShellWordmark` | `collapsible`. | The mark and name in the app bar and the drawer head; no heading semantics. |
 

@@ -28,9 +28,15 @@
  * text is NOT dimmed with `opacity`: a half-transparent value is the one a person has to read
  * to learn what is locked, and `text-text-muted` on `bg-surface-2` measures 5.03:1 in dark and
  * 4.91:1 in light — over the 4.5:1 that WCAG 1.4.3 asks of text even when it is inactive. The
- * label above stays `text-text-secondary` (6.65:1), so the field is still named in full.
+ * label above stays `text-text-muted` (5.36:1 on a panel), so the field is still named in full.
  * Mobile Safari pins a disabled input's glyphs to its own grey through
  * `-webkit-text-fill-color`, which ignores `color`, so that property is set to the same token.
+ *
+ * THE LABEL is a micro-label: `text-xs`, bold, uppercase with caps tracking, in `text-text-muted`
+ * (5.36:1 on `--s1` dark, 5.41:1 light), turning `text-danger` with the field. It wraps
+ * (`wrap-anywhere`) because an uppercase Armenian label is long enough to widen a phone column.
+ * Every field primitive (`UiTextarea`, `UiSelect`, `UiSearchInput`, `UiPasswordInput` through
+ * this one) draws its label the same way.
  *
  * Error text is `text-danger`: 4.79:1 on a panel, 4.502:1 on `bg-surface-2` (at
  * the line) and 4.13:1 on `bg-surface-3` (fails) — a form must not sit on the
@@ -140,8 +146,8 @@ const onInput = (event: Event): void => {
          carry it). The message below says WHY, so colour is never the only cue. -->
     <label
       :for="inputId"
-      class="text-sm font-medium wrap-anywhere"
-      :class="hasError ? 'text-danger' : 'text-text-secondary'"
+      class="text-xs font-bold tracking-caps uppercase wrap-anywhere"
+      :class="hasError ? 'text-danger' : 'text-text-muted'"
       >{{ label }}</label
     >
     <!-- `relative` only so a trailing control can be positioned over the field's
@@ -164,8 +170,8 @@ const onInput = (event: Event): void => {
         class="ui-input-field min-h-control w-full rounded-control border bg-surface-2 py-1.5 text-base text-text-primary transition-colors placeholder:text-text-muted focus-visible:outline-none disabled:cursor-not-allowed disabled:text-text-muted disabled:opacity-100 disabled:[-webkit-text-fill-color:var(--t3)] sm:text-sm"
         :class="[
           hasError
-            ? 'border-danger focus-visible:shadow-focus-danger'
-            : 'border-border-control enabled:hover:border-text-muted focus-visible:border-accent focus-visible:shadow-focus disabled:border-border-subtle',
+            ? 'border-danger focus-visible:shadow-field-focus-danger'
+            : 'border-border-control enabled:hover:border-text-muted focus-visible:border-accent focus-visible:shadow-field-focus disabled:border-border-subtle',
           $slots.trailing ? 'pr-[calc(var(--d-inset)*2+0.5rem)]' : 'pr-3',
           icon ? 'pl-9' : 'pl-3',
           mono ? 'font-mono' : '',

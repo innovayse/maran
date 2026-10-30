@@ -42,24 +42,32 @@ import UiTable from '../../components/ui/UiTable.vue'
 import UiTableCell from '../../components/ui/UiTableCell.vue'
 import UiTableHeaderCell from '../../components/ui/UiTableHeaderCell.vue'
 import UiTableRow from '../../components/ui/UiTableRow.vue'
+import UiToast from '../../components/ui/UiToast.vue'
 import CronEntryForm from '../../components/cron/CronEntryForm.vue'
 import CronEntryOutputDialog from '../../components/cron/CronEntryOutputDialog.vue'
 import CronEnvironmentEditor from '../../components/cron/CronEnvironmentEditor.vue'
 import { useAccountsStore } from '../../stores/accounts'
 import { useCronStore } from '../../stores/cron'
+import { useLocaleStore } from '../../stores/locale'
 import { formatCronExpression } from '../../utils/cronSchedule'
+import { describeCronSchedule } from '../../utils/describeCronSchedule'
+import { weekdayName } from '../../utils/weekdayName'
 import type { CronEntry, CronSchedule } from '../../types/cronEntry'
 import type { CronEnvironmentVariable } from '../../types/cronEnvironmentVariable'
 
 const { t } = useI18n()
 const store = useCronStore()
 const accountsStore = useAccountsStore()
+const localeStore = useLocaleStore()
 
 /** The form, so an accepted install can empty the field it owns. */
 const form = useTemplateRef<{ reset: () => void }>('form')
 
 /** The entry being rewritten, or `null` while the form is installing a new one. */
 const editing: Ref<{ entryId: string; schedule: CronSchedule; command: string } | null> = ref(null)
+
+/** The success toast's text after an entry was added, or `null` while none is showing. */
+const notice: Ref<string | null> = ref(null)
 
 /** The entry awaiting a removal confirmation, or the empty string when none is. */
 const pendingRemovalId: Ref<string> = ref('')
@@ -128,6 +136,9 @@ const submit = async (value: { schedule: CronSchedule; command: string }): Promi
       : await store.update(current.entryId, value.schedule, value.command)
 
   if (written) {
+    if (current === null) {
+      notice.value = t('cron.list.created')
+    }
     editing.value = null
     form.value?.reset()
   }
@@ -223,6 +234,44 @@ const scheduleText = (entry: CronEntry): string => {
   return formatCronExpression(entry.schedule)
 }
 
+/**
+ * Says when an entry runs in words, for the shapes that have a plain sentence.
+ * @param entry The entry to describe.
+ * @returns The sentence, or the em dash when the schedule is not one a sentence can carry exactly;
+ * the expression beside it is then the whole description.
+ */
+const scheduleDescription = (entry: CronEntry): string => {
+  const description = describeCronSchedule(entry.schedule)
+  if (description === null) {
+    return t('common.emptyValue')
+  }
+  switch (description.kind) {
+    case 'everyMinute':
+      return t('cron.describe.everyMinute')
+    case 'everyNMinutes':
+      return t('cron.describe.everyNMinutes', { count: description.minutes }, description.minutes)
+    case 'hourly':
+      return t('cron.describe.hourly', { minute: description.minute })
+    case 'daily':
+      return t('cron.describe.daily', { time: description.time })
+    case 'weekly':
+      return t('cron.describe.weekly', {
+        time: description.time,
+        weekday: weekdayName(description.weekday, localeStore.current),
+      })
+    default:
+      return t('cron.describe.monthly', { time: description.time, day: description.day })
+  }
+}
+
+/**
+ * Hides the success toast.
+ * @returns Nothing.
+ */
+const dismissNotice = (): void => {
+  notice.value = null
+}
+
 onMounted(start)
 </script>
 
@@ -287,6 +336,7 @@ onMounted(start)
         <template #head>
           <UiTableRow>
             <UiTableHeaderCell>{{ t('cron.list.columns.schedule') }}</UiTableHeaderCell>
+            <UiTableHeaderCell>{{ t('cron.list.columns.runs') }}</UiTableHeaderCell>
             <UiTableHeaderCell>{{ t('cron.list.columns.command') }}</UiTableHeaderCell>
             <UiTableHeaderCell>{{ t('cron.list.columns.state') }}</UiTableHeaderCell>
             <UiTableHeaderCell align="end">{{ t('common.actions') }}</UiTableHeaderCell>
@@ -296,6 +346,7 @@ onMounted(start)
           <UiTableCell mono class="whitespace-nowrap">
             {{ scheduleText(entry) }}
           </UiTableCell>
+          <UiTableCell tone="secondary" class="min-w-40">{{ scheduleDescription(entry) }}</UiTableCell>
           <!-- The command is shown exactly as the customer wrote it. It can carry a credential, which
                is why the panel keeps it out of its logs and its audit journal — but it is their own
                text on their own screen, and masking it would leave them unable to read their job. -->
@@ -369,5 +420,11 @@ onMounted(start)
       :error-message="store.outputErrorMessage"
       @close="closeOutput"
     />
+
+    <div class="pointer-events-none fixed inset-x-4 bottom-4 z-50 flex justify-end sm:left-auto">
+      <UiToast v-if="notice !== null" variant="success" :close-label="t('common.close')" @dismiss="dismissNotice">
+        {{ notice }}
+      </UiToast>
+    </div>
   </section>
 </template>

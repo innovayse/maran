@@ -61,6 +61,9 @@
  * router navigates), so a caller that must react to the activation — closing the drawer it sits
  * in, say — does not have to fall back to a button to be told.
  *
+ * **Motion.** A trailing `arrowRight` icon nudges 2px forward on hover (see `buttonClasses`), and
+ * not when the button is disabled or the reader asked for reduced motion.
+ *
  * **Focus.** `shadow-focus` (`shadow-focus-danger` on a destructive button) on
  * `focus-visible` only, so it reaches keyboard users without outlining every
  * mouse click. It replaces the primary's glow while focused, which is the

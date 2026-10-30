@@ -14,7 +14,8 @@
       "columns": {
         "schedule": "Расписание",
         "command": "Команда",
-        "state": "Состояние"
+        "state": "Состояние",
+        "runs": "Когда"
       },
       "enabled": "Вкл",
       "disabled": "Выкл",
@@ -27,7 +28,8 @@
       "confirmRemoveTitle": "Удалить задание {command}",
       "confirm": "Да, удалить",
       "working": "Выполняется…",
-      "rowActions": "Действия для {command}"
+      "rowActions": "Действия для {command}",
+      "created": "Задача добавлена в расписание."
     },
     "schedule": {
       "legend": "Расписание",
@@ -100,6 +102,14 @@
       "notReported": "Не сообщено",
       "noOutput": "Запуск ничего не вывел.",
       "provenance": "Это собственная запись аккаунта о своих запусках, хранящаяся в его домашнем каталоге. Она информационная."
+    },
+    "describe": {
+      "everyMinute": "Каждую минуту",
+      "everyNMinutes": "Каждую {count} минуту | Каждые {count} минуты | Каждые {count} минут",
+      "hourly": "Каждый час в {minute} мин.",
+      "daily": "Каждый день в {time}",
+      "weekly": "Каждую неделю, {weekday}, в {time}",
+      "monthly": "Каждый месяц, {day}-го числа, в {time}"
     }
   }
 }

@@ -26,7 +26,7 @@
         "createdAt": "Created"
       },
       "phpVersionsLink": "PHP versions",
-      "disabledNotice": "Sites that are disabled: {count}. Their visitors see a suspension page instead of the site."
+      "disabledNotice": "{count} site is disabled. Its visitors see a suspension page instead of the site. | {count} sites are disabled. Their visitors see a suspension page instead of the site."
     },
     "form": {
       "heading": "New site",
@@ -61,7 +61,8 @@
         "phpVersionRequired": "Choose an installed PHP version.",
         "proxyUpstreamRequired": "Upstream is required for a reverse-proxied site.",
         "proxyUpstreamInvalid": "Upstream must be a host or host:port, with no scheme or path."
-      }
+      },
+      "created": "Site {domain} added."
     },
     "detail": {
       "heading": "Site",
@@ -105,7 +106,7 @@
         "waiting": "Waiting for the first line…",
         "emptyTitle": "Nothing to show yet",
         "emptyDescription": "Start tailing to read this site's log as it is written.",
-        "lineCount": "{count} lines held",
+        "lineCount": "{count} line held | {count} lines held",
         "historical": "History",
         "truncatedNotice": "The oldest lines have scrolled out of this view.",
         "endReason": {
@@ -119,7 +120,10 @@
       },
       "confirmEnableTitle": "Enable site {domain}",
       "confirmDisableTitle": "Disable site {domain}",
-      "confirmDeleteTitle": "Delete site {domain}"
+      "confirmDeleteTitle": "Delete site {domain}",
+      "confirmEnableAction": "Enable site",
+      "confirmDisableAction": "Disable site",
+      "confirmDeleteAction": "Delete site"
     }
   }
 }

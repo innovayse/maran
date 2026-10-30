@@ -45,7 +45,7 @@ const RUNNING: PanelTask = {
 
 /** The header badge, found by the accessible name it carries rather than by a class. */
 const badge = (page: Page): Locator => {
-  return page.getByRole('link', { name: /background tasks running/i })
+  return page.getByRole('link', { name: /background tasks? running/i })
 }
 
 // THE proposition. The badge lives in the shell header and the task arrives on a stream the tasks

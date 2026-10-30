@@ -123,7 +123,13 @@ const clearQuery = (): void => {
           :clear-label="t('accounts.list.searchClear')"
         />
         <span class="ml-auto font-mono text-sm text-text-muted tabular-nums">
-          {{ t('accounts.list.resultCount', { shown: visibleAccounts.length, total: store.accounts.length }) }}
+          {{
+            t(
+              'accounts.list.resultCount',
+              { shown: visibleAccounts.length, total: store.accounts.length },
+              store.accounts.length,
+            )
+          }}
         </span>
       </div>
 

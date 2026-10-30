@@ -13,7 +13,7 @@
  * or two hundred and fifty-six of them, and an exemption must not be wider than the person who
  * wrote it believes.
  */
-import { computed, ref, type ComputedRef, type Ref } from 'vue'
+import { computed, ref, watch, type ComputedRef, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import UiButton from '../ui/UiButton.vue'
 import UiForm from '../ui/UiForm.vue'
@@ -31,6 +31,11 @@ const props = defineProps<{
 const emit = defineEmits<{
   /** Fired only when every client-side rule passes, carrying the exemption to add. */
   (e: 'submit', request: AddWhitelistEntryRequest): void
+  /**
+   * The operator changed a field, so a refusal the panel gave for the previous values no longer
+   * describes what is typed and the page clears it.
+   */
+  (e: 'edit'): void
 }>()
 
 /** The longest note the panel's column holds. */
@@ -96,13 +101,20 @@ const reset = (): void => {
   submitted.value = false
 }
 
+// A refusal from the panel (a 409 for a rule that already exists) describes the values that were
+// sent; once any of them changes it is stale, so the page is told to drop it.
+watch([cidr, note], () => {
+  emit('edit')
+})
+
 defineExpose({ reset })
 </script>
 
 <template>
-  <!-- An inset well on the card that holds it, not a second card: the page's panel is the box. -->
+  <!-- The same inset well as the other two firewall forms: the page's card is the box, so the three
+       blocks on the screen share one layout (#218). -->
   <UiForm class="block rounded-control border border-border-subtle bg-surface-2" @submit="submit">
-    <div class="grid gap-4 p-4 sm:grid-cols-2">
+    <div class="grid items-start gap-4 p-4 sm:grid-cols-2">
       <UiInput
         v-model="cidr"
         :label="t('firewall.whitelist.form.fields.cidr')"
@@ -118,12 +130,10 @@ defineExpose({ reset })
       />
     </div>
     <div
-      class="flex flex-col gap-3 border-t border-border-subtle px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
+      class="flex flex-col gap-3 border-t border-border-subtle px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4"
     >
-      <p class="text-sm text-text-muted wrap-anywhere">
-        {{ t('firewall.whitelist.form.hint') }}
-      </p>
-      <UiButton type="submit" class="self-start sm:self-auto" :disabled="submitting">
+      <p class="min-w-0 text-sm text-text-muted wrap-anywhere">{{ t('firewall.whitelist.form.hint') }}</p>
+      <UiButton type="submit" class="shrink-0 self-start sm:self-auto" :disabled="submitting">
         {{ t('firewall.whitelist.form.submit') }}
       </UiButton>
     </div>

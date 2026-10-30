@@ -139,7 +139,7 @@ onMounted(refresh)
 
     <!-- What needs attention goes first: a task that failed. -->
     <UiAlert v-if="failedTasks.length > 0" variant="warning">
-      {{ t('tasks.list.failedNotice', { count: failedTasks.length }) }}
+      {{ t('tasks.list.failedNotice', { count: failedTasks.length }, failedTasks.length) }}
       <template #actions>
         <UiButton variant="secondary" @click="openLatestFailure">
           {{ t('tasks.list.openFailure') }}
@@ -197,8 +197,11 @@ onMounted(refresh)
               <!-- Decoration: the figure beside it is the text, and a row's bar must not be announced
                    as a second progressbar next to the pane's (nor share its name). The fixed width
                    keeps the column's bars aligned whatever the figure's length. -->
+              <!-- A failed task keeps its figure but loses the bar, which would read as work still
+                   under way (#222); the empty box keeps the column aligned. -->
               <div class="w-16 shrink-0" aria-hidden="true">
                 <UiMeter
+                  v-if="task.status !== 'failed'"
                   tone="progress"
                   :status="meterStatus(task.status)"
                   :value="task.percent"

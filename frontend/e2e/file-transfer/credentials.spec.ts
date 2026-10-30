@@ -371,9 +371,13 @@ test('resetting an SFTP password is offered on the list and shows a new one once
   await chooseRowAction(page, row, 'alice_web', 'Reset password')
   const confirmation = page.getByRole('dialog', { name: 'Reset the password for alice_web' })
   await expect(confirmation).toContainText('The current one stops working immediately.')
-  await confirmation.getByRole('button', { name: 'Yes, do it' }).click()
+  await confirmation.getByRole('button', { name: 'Reset password' }).click()
 
   await expect(page.getByTestId('sftp-password')).toHaveText(stubbedResetSftpPassword)
+  // The confirm leaves on UiModal's 200ms fade while the result opens, so for that moment two
+  // dialogs are in the tree. Counting dialogs (not the confirm by name: its title loses the row's
+  // name as it closes) observes the question actually leaving, and leaves one dialog to read.
+  await expect(page.getByRole('dialog')).toHaveCount(1)
   await expect(page.getByRole('dialog')).toContainText('alice_web')
 
   await page.reload()
@@ -395,7 +399,7 @@ test('an FTPS row reset asks the ftp module and shows the FTPS dialog', async ({
   const row = page.getByRole('row').filter({ hasText: 'alice_upload' })
   await chooseRowAction(page, row, 'alice_upload', 'Reset password')
   const confirmation = page.getByRole('dialog', { name: 'Reset the password for alice_upload' })
-  await confirmation.getByRole('button', { name: 'Yes, do it' }).click()
+  await confirmation.getByRole('button', { name: 'Reset password' }).click()
 
   await expect(page.getByTestId('ftp-credential-host')).toHaveText('panel.example.net')
   expect(posts).toEqual([`/api/v1/ftp-users/${UPLOAD.id}/password`])
@@ -417,7 +421,7 @@ test('removing a login asks in a dialog, and a dismissal removes nothing', async
   const confirmation = page.getByRole('dialog', { name: 'Remove login alice_web' })
   await expect(confirmation).toContainText('nobody can sign in with this name again')
   await expect(confirmation.locator(':focus')).toHaveCount(1)
-  await expect(confirmation.getByRole('button', { name: 'Yes, do it' })).not.toBeFocused()
+  await expect(confirmation.getByRole('button', { name: 'Remove login' })).not.toBeFocused()
 
   await confirmation.getByRole('button', { name: 'Cancel' }).click()
 

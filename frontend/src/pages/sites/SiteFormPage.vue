@@ -27,6 +27,7 @@ import SiteBackendFields from '../../components/sites/SiteBackendFields.vue'
 import { useAccountsStore } from '../../stores/accounts'
 import { useSitesStore } from '../../stores/sites'
 import type { SiteBackendType } from '../../types/site'
+import { flashNoticeState } from '../../utils/flashNotice'
 
 /**
  * The server's hostname rule, character for character: two or more dot-separated labels of
@@ -193,7 +194,10 @@ const submit = async (): Promise<void> => {
   })
 
   if (created !== null) {
-    await router.push({ name: 'sites' })
+    await router.push({
+      name: 'sites',
+      state: flashNoticeState(t('sites.form.created', { domain: created.domain })),
+    })
   }
 }
 

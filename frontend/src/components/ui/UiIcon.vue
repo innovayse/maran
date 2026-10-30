@@ -47,6 +47,7 @@ import {
   Info,
   KeyRound,
   LayoutGrid,
+  ListFilter,
   ListChecks,
   Lock,
   LogOut,
@@ -124,6 +125,8 @@ export type UiIconName =
   | 'check'
   /** Cross — dismissing a toast, a modal or a search term. */
   | 'x'
+  /** Funnel of narrowing rules — the trigger that opens a list's filters. */
+  | 'filter'
   /** Three rules — the header's sidebar toggle on narrow screens. */
   | 'menu'
   /** Three dots — the trigger of a row's actions menu, where a word would crowd the row. */
@@ -215,6 +218,7 @@ const ICONS: Record<UiIconName, LucideIcon> = {
   logOut: LogOut,
   check: Check,
   x: X,
+  filter: ListFilter,
   menu: Menu,
   ellipsis: Ellipsis,
   eye: Eye,

@@ -20,15 +20,16 @@
  */
 import { computed, onMounted, ref, type ComputedRef, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useRouter } from 'vue-router'
+import { RouterLink, useRouter } from 'vue-router'
 import UiAlert from '../../components/ui/UiAlert.vue'
-import UiButton from '../../components/ui/UiButton.vue'
 import UiEmptyState from '../../components/ui/UiEmptyState.vue'
+import UiIcon from '../../components/ui/UiIcon.vue'
 import UiPageHeading from '../../components/ui/UiPageHeading.vue'
 import UiSpinner from '../../components/ui/UiSpinner.vue'
 import PlanForm from '../../components/plans/PlanForm.vue'
 import { usePlansStore } from '../../stores/plans'
 import type { ManagedPlan, PlanRequest } from '../../types/plan'
+import { flashNoticeState } from '../../utils/flashNotice'
 
 /** Props the router passes (`props: true` on the edit route; absent on the create route). */
 const props = defineProps<{
@@ -76,9 +77,15 @@ const prepare = async (): Promise<void> => {
  * @returns Resolves once the attempt has settled; a refusal stays in the store for the template.
  */
 const save = async (request: PlanRequest): Promise<void> => {
+  const creating = props.id === undefined
   const saved = props.id === undefined ? await store.create(request) : await store.update(props.id, request)
   if (saved !== null) {
-    await router.push({ name: 'plans' })
+    // Only a create announces itself: an edit lands on a list showing the changed figures.
+    await router.push(
+      creating
+        ? { name: 'plans', state: flashNoticeState(t('plans.form.created', { name: saved.displayName })) }
+        : { name: 'plans' },
+    )
   }
 }
 
@@ -119,7 +126,14 @@ onMounted(prepare)
         :title="t('plans.form.notFoundTitle')"
         :description="t('plans.form.notFoundDescription')"
       >
-        <UiButton variant="secondary" :to="{ name: 'plans' }">{{ t('plans.form.backToList') }}</UiButton>
+        <!-- A way back is navigation, so it looks like a link, not a button (#218). -->
+        <RouterLink
+          :to="{ name: 'plans' }"
+          class="inline-flex items-center gap-1 rounded-control text-sm font-medium text-accent-text underline underline-offset-4 hover:no-underline focus-visible:shadow-focus focus-visible:outline-none"
+        >
+          <UiIcon name="chevronLeft" size="sm" />
+          {{ t('plans.form.backToList') }}
+        </RouterLink>
       </UiEmptyState>
 
       <PlanForm v-else :plan="plan" :submitting="store.saving" @submit="save" @cancel="cancel" />

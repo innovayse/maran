@@ -26,7 +26,7 @@
         "createdAt": "Создан"
       },
       "phpVersionsLink": "Версии PHP",
-      "disabledNotice": "Отключённых сайтов: {count}. Вместо сайта их посетители видят страницу о приостановке."
+      "disabledNotice": "{count} сайт отключён. Вместо сайта его посетители видят страницу о приостановке. | {count} сайта отключены. Вместо сайта их посетители видят страницу о приостановке. | {count} сайтов отключены. Вместо сайта их посетители видят страницу о приостановке."
     },
     "form": {
       "heading": "Новый сайт",
@@ -61,7 +61,8 @@
         "phpVersionRequired": "Выберите установленную версию PHP.",
         "proxyUpstreamRequired": "Для сайта с обратным прокси нужен апстрим.",
         "proxyUpstreamInvalid": "Апстрим должен быть хостом или хост:порт, без схемы и пути."
-      }
+      },
+      "created": "Сайт {domain} добавлен."
     },
     "detail": {
       "heading": "Сайт",
@@ -105,7 +106,7 @@
         "waiting": "Ожидание первой строки…",
         "emptyTitle": "Пока нечего показать",
         "emptyDescription": "Начните чтение, чтобы видеть лог этого сайта по мере записи.",
-        "lineCount": "Хранится строк: {count}",
+        "lineCount": "Хранится {count} строка | Хранятся {count} строки | Хранится {count} строк",
         "historical": "История",
         "truncatedNotice": "Самые старые строки вышли за пределы этого окна.",
         "endReason": {
@@ -119,7 +120,10 @@
       },
       "confirmEnableTitle": "Включить сайт {domain}",
       "confirmDisableTitle": "Отключить сайт {domain}",
-      "confirmDeleteTitle": "Удалить сайт {domain}"
+      "confirmDeleteTitle": "Удалить сайт {domain}",
+      "confirmEnableAction": "Включить сайт",
+      "confirmDisableAction": "Отключить сайт",
+      "confirmDeleteAction": "Удалить сайт"
     }
   }
 }

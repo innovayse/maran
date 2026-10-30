@@ -13,10 +13,9 @@
  * The duration IS checked, because the panel checks it: an empty field means "until somebody lifts
  * it", and a zero has to be refused before it becomes a permanent ban nobody asked for.
  */
-import { computed, ref, type ComputedRef, type Ref } from 'vue'
+import { computed, ref, watch, type ComputedRef, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import UiButton from '../ui/UiButton.vue'
-import UiCard from '../ui/UiCard.vue'
 import UiForm from '../ui/UiForm.vue'
 import UiInput from '../ui/UiInput.vue'
 import type { BanAddressRequest } from '../../types/firewall'
@@ -31,6 +30,11 @@ const props = defineProps<{
 const emit = defineEmits<{
   /** Fired only when every client-side rule passes, carrying the ban to place. */
   (e: 'submit', request: BanAddressRequest): void
+  /**
+   * The operator changed a field, so a refusal the panel gave for the previous values no longer
+   * describes what is typed and the page clears it.
+   */
+  (e: 'edit'): void
 }>()
 
 /** A decimal number with no leading zero — the only spelling of a duration accepted. */
@@ -114,39 +118,41 @@ const reset = (): void => {
   submitted.value = false
 }
 
+// A refusal from the panel (a 409 for a rule that already exists) describes the values that were
+// sent; once any of them changes it is stale, so the page is told to drop it.
+watch([address, durationMinutes], () => {
+  emit('edit')
+})
+
 defineExpose({ reset })
 </script>
 
 <template>
-  <UiCard>
-    <UiForm @submit="submit">
-      <!-- Two columns from a tablet; one on a phone. `min-w-0` so a long error message wraps
-           inside its column instead of widening the card past the viewport. -->
-      <div class="grid gap-4 sm:grid-cols-2">
-        <div class="min-w-0">
-          <UiInput
-            v-model="address"
-            :label="t('firewall.bans.form.fields.address')"
-            :placeholder="t('firewall.bans.form.placeholders.address')"
-            :error="addressError"
-            required
-          />
-        </div>
-        <div class="min-w-0">
-          <UiInput
-            v-model="durationMinutes"
-            :label="t('firewall.bans.form.fields.durationMinutes')"
-            :placeholder="t('firewall.bans.form.placeholders.durationMinutes')"
-            :error="durationError"
-          />
-        </div>
-      </div>
-      <div
-        class="mt-5 flex flex-wrap items-center justify-between gap-x-4 gap-y-3 border-t border-border-subtle pt-4"
-      >
-        <p class="min-w-0 flex-1 basis-60 text-sm text-text-muted">{{ t('firewall.bans.form.hint') }}</p>
-        <UiButton type="submit" :disabled="submitting">{{ t('firewall.bans.form.submit') }}</UiButton>
-      </div>
-    </UiForm>
-  </UiCard>
+  <!-- The same inset well as the other two firewall forms: the page's card is the box, so the three
+       blocks on the screen share one layout (#218). -->
+  <UiForm class="block rounded-control border border-border-subtle bg-surface-2" @submit="submit">
+    <div class="grid items-start gap-4 p-4 sm:grid-cols-2">
+      <UiInput
+        v-model="address"
+        :label="t('firewall.bans.form.fields.address')"
+        :placeholder="t('firewall.bans.form.placeholders.address')"
+        :error="addressError"
+        required
+      />
+      <UiInput
+        v-model="durationMinutes"
+        :label="t('firewall.bans.form.fields.durationMinutes')"
+        :placeholder="t('firewall.bans.form.placeholders.durationMinutes')"
+        :error="durationError"
+      />
+    </div>
+    <div
+      class="flex flex-col gap-3 border-t border-border-subtle px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4"
+    >
+      <p class="min-w-0 text-sm text-text-muted wrap-anywhere">{{ t('firewall.bans.form.hint') }}</p>
+      <UiButton type="submit" class="shrink-0 self-start sm:self-auto" :disabled="submitting">
+        {{ t('firewall.bans.form.submit') }}
+      </UiButton>
+    </div>
+  </UiForm>
 </template>

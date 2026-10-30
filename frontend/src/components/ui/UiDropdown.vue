@@ -49,6 +49,11 @@
  * with its trigger by itself, so a scroll that moves the trigger re-places the
  * panel against it and a scroll that carries the trigger off screen closes the
  * menu — see {@link onAnyScroll} for why closing on ANY move was not tenable.
+ *
+ * **Motion.** The panel fades in while sliding 4px into place (150ms) and fades
+ * out faster (100ms) without moving, so a closed menu never lingers over the
+ * next thing the user clicks. Under `prefers-reduced-motion` it appears and
+ * disappears at once.
  */
 import {
   computed,
@@ -737,26 +742,57 @@ onBeforeUnmount((): void => {
     <!-- Teleported so no scrolling ancestor can clip it; see this component's
          header. `fixed` because the coordinates are the viewport's. -->
     <Teleport to="body">
-      <ul
-        v-if="isOpen"
-        :id="menuId"
-        ref="menuElement"
-        role="menu"
-        :aria-labelledby="triggerId"
-        class="fixed z-50 min-w-44 rounded-control border border-border-strong bg-surface-1 p-menu shadow-xl"
-        :style="panelStyle"
-        @click="onMenuClick"
-        @click.capture="onMenuClickCapture"
-        @focusout="onFocusOut"
-        @keydown.down.prevent="moveFocus(1)"
-        @keydown.up.prevent="moveFocus(-1)"
-        @keydown.home.prevent="focusItemAt(0)"
-        @keydown.end.prevent="focusItemAt(items().length - 1)"
-        @keydown.esc.prevent="close"
-        @keydown.tab="onMenuTab"
-      >
-        <slot />
-      </ul>
+      <Transition name="ui-dropdown">
+        <ul
+          v-if="isOpen"
+          :id="menuId"
+          ref="menuElement"
+          role="menu"
+          :aria-labelledby="triggerId"
+          class="fixed z-50 min-w-44 rounded-control border border-border-strong bg-surface-1 p-menu shadow-xl"
+          :style="panelStyle"
+          @click="onMenuClick"
+          @click.capture="onMenuClickCapture"
+          @focusout="onFocusOut"
+          @keydown.down.prevent="moveFocus(1)"
+          @keydown.up.prevent="moveFocus(-1)"
+          @keydown.home.prevent="focusItemAt(0)"
+          @keydown.end.prevent="focusItemAt(items().length - 1)"
+          @keydown.esc.prevent="close"
+          @keydown.tab="onMenuTab"
+        >
+          <slot />
+        </ul>
+      </Transition>
     </Teleport>
   </div>
 </template>
+
+<style scoped>
+/* A Transition, not a keyframe, so the panel can animate out as well as in. */
+.ui-dropdown-enter-active {
+  transition:
+    opacity 150ms ease-out,
+    transform 150ms ease-out;
+}
+
+.ui-dropdown-leave-active {
+  transition: opacity 100ms ease-in;
+}
+
+.ui-dropdown-enter-from {
+  opacity: 0;
+  transform: translateY(-4px);
+}
+
+.ui-dropdown-leave-to {
+  opacity: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ui-dropdown-enter-active,
+  .ui-dropdown-leave-active {
+    transition: none;
+  }
+}
+</style>

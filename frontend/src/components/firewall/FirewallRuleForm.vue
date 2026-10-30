@@ -9,16 +9,14 @@
  * round trip it saves is a real saving rather than a message printed beside a request that went
  * anyway.
  *
- * **Layout (redesign, October 2026).** One {@link UiCard}: the four fields in a grid that is one
- * column on a phone, two on a tablet and four on a desktop, then a hairline and a footer with the
- * hint on the left and the submit pill on the right (full width on a phone). The grid aligns to the
- * top so a field's error message grows downwards instead of stretching its neighbours. The root is
- * the card itself, so a class the page passes (its bottom margin) lands on the panel.
+ * **Layout.** The inset well the ban and exemption forms use too (#218): the four fields in a grid
+ * that is one column on a phone, two on a tablet and four on a desktop, then a hairline and a
+ * footer with the hint on the left and the submit pill on the right. The grid aligns to the top so
+ * a field's error message grows downwards instead of stretching its neighbours.
  */
-import { computed, ref, type ComputedRef, type Ref } from 'vue'
+import { computed, ref, watch, type ComputedRef, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import UiButton from '../ui/UiButton.vue'
-import UiCard from '../ui/UiCard.vue'
 import UiForm from '../ui/UiForm.vue'
 import UiInput from '../ui/UiInput.vue'
 import UiSelect, { type SelectOption } from '../ui/UiSelect.vue'
@@ -36,6 +34,11 @@ const props = defineProps<{
 const emit = defineEmits<{
   /** Fired only when every client-side rule passes, carrying the rule to install. */
   (e: 'submit', rule: FirewallRule): void
+  /**
+   * The operator changed a field, so a refusal the panel gave for the previous values no longer
+   * describes what is typed and the page clears it.
+   */
+  (e: 'edit'): void
 }>()
 
 /**
@@ -191,48 +194,54 @@ const reset = (): void => {
   submitted.value = false
 }
 
+// A refusal from the panel (a 409 for a rule that already exists) describes the values that were
+// sent; once any of them changes it is stale, so the page is told to drop it.
+watch([port, portTo, protocol, sourceCidr], () => {
+  emit('edit')
+})
+
 defineExpose({ reset })
 </script>
 
 <template>
-  <UiCard>
-    <UiForm @submit="submit">
-      <div class="grid items-start gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <UiInput
-          v-model="port"
-          :label="t('firewall.rules.form.fields.port')"
-          :placeholder="t('firewall.rules.form.placeholders.port')"
-          :error="portError"
-          required
-        />
-        <UiInput
-          v-model="portTo"
-          :label="t('firewall.rules.form.fields.portTo')"
-          :placeholder="t('firewall.rules.form.placeholders.portTo')"
-          :error="portToError"
-        />
-        <UiSelect
-          :model-value="protocol"
-          :label="t('firewall.rules.form.fields.protocol')"
-          :options="protocolOptions"
-          @update:model-value="onProtocolChange"
-        />
-        <UiInput
-          v-model="sourceCidr"
-          :label="t('firewall.rules.form.fields.sourceCidr')"
-          :placeholder="t('firewall.rules.form.placeholders.sourceCidr')"
-          :error="sourceError"
-          required
-        />
-      </div>
-      <div
-        class="mt-5 flex flex-col gap-3 border-t border-border-subtle pt-4 sm:flex-row sm:items-center sm:justify-between sm:gap-4"
-      >
-        <p class="min-w-0 text-sm text-text-muted">{{ t('firewall.rules.form.hint') }}</p>
-        <UiButton type="submit" class="shrink-0" :disabled="submitting">
-          {{ t('firewall.rules.form.submit') }}
-        </UiButton>
-      </div>
-    </UiForm>
-  </UiCard>
+  <!-- The same inset well as the other two firewall forms: the page's card is the box, so the three
+       blocks on the screen share one layout (#218). -->
+  <UiForm class="block rounded-control border border-border-subtle bg-surface-2" @submit="submit">
+    <div class="grid items-start gap-4 p-4 sm:grid-cols-2 lg:grid-cols-4">
+      <UiInput
+        v-model="port"
+        :label="t('firewall.rules.form.fields.port')"
+        :placeholder="t('firewall.rules.form.placeholders.port')"
+        :error="portError"
+        required
+      />
+      <UiInput
+        v-model="portTo"
+        :label="t('firewall.rules.form.fields.portTo')"
+        :placeholder="t('firewall.rules.form.placeholders.portTo')"
+        :error="portToError"
+      />
+      <UiSelect
+        :model-value="protocol"
+        :label="t('firewall.rules.form.fields.protocol')"
+        :options="protocolOptions"
+        @update:model-value="onProtocolChange"
+      />
+      <UiInput
+        v-model="sourceCidr"
+        :label="t('firewall.rules.form.fields.sourceCidr')"
+        :placeholder="t('firewall.rules.form.placeholders.sourceCidr')"
+        :error="sourceError"
+        required
+      />
+    </div>
+    <div
+      class="flex flex-col gap-3 border-t border-border-subtle px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4"
+    >
+      <p class="min-w-0 text-sm text-text-muted wrap-anywhere">{{ t('firewall.rules.form.hint') }}</p>
+      <UiButton type="submit" class="shrink-0 self-start sm:self-auto" :disabled="submitting">
+        {{ t('firewall.rules.form.submit') }}
+      </UiButton>
+    </div>
+  </UiForm>
 </template>

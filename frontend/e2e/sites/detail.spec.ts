@@ -70,7 +70,7 @@ test('deleting a site asks in a dialog that names it and says the files are left
   // Nothing has been sent yet: the confirmation is a question, not a progress indicator.
   await expect(page).toHaveURL(new RegExp(`/sites/${SITE.id}$`))
 
-  await dialog.getByRole('button', { name: 'Yes, do it' }).click()
+  await dialog.getByRole('button', { name: 'Delete site' }).click()
 
   await expect(page).toHaveURL(/\/sites$/)
 })

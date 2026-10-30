@@ -232,3 +232,30 @@ test('every plan the panel offers can actually be clicked, not merely rendered',
 
   await expect(page.getByRole('combobox', { name: 'Plan', exact: true })).toContainText(last.displayName)
 })
+
+// #222: the picker states each plan's disk in a human unit and its sites as a plural form, never
+// `1048576 MB, 1 sites`.
+test('the plan picker shows sizes in human units and counts in plural forms', async ({ page }) => {
+  await stubSignedIn(page)
+  await stubHealthy(page)
+  await stubModules(page, LICENSED_ACCOUNTS)
+  await stubAccounts(page, [])
+  await stubPlans(page, [
+    ...THREE_PLANS,
+    {
+      id: '55555555-5555-5555-5555-555555555555',
+      displayName: 'Rev',
+      diskQuotaMb: 2,
+      maxSites: 1,
+      maxDatabases: 1,
+      maxSftpUsers: 1,
+    },
+  ])
+
+  await page.goto('/accounts/new')
+  await page.getByRole('combobox', { name: 'Plan', exact: true }).click()
+
+  await expect(page.getByRole('option', { name: 'Unlimited — 1 TiB, 500 sites' })).toBeVisible()
+  await expect(page.getByRole('option', { name: 'Starter — 5 GiB, 5 sites' })).toBeVisible()
+  await expect(page.getByRole('option', { name: 'Rev — 2 MiB, 1 site', exact: true })).toBeVisible()
+})

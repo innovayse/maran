@@ -5,6 +5,7 @@ import { useModulesStore } from '../stores/modules'
 import { NO_LANDING_ROUTE, moduleLandingRoute } from '../router/moduleLandingRoute'
 import { moduleNavigationChildren } from '../router/moduleNavigationChildren'
 import { moduleNavigationIcon } from '../utils/moduleNavigationIcon'
+import { groupNavigation } from '../utils/groupNavigation'
 import type { NavigationEntry } from '../types/navigation'
 
 /**
@@ -27,8 +28,20 @@ const AUDIT_ROUTE = 'audit'
 const UPGRADE_ROUTE = 'upgrade'
 
 /**
+ * Modules whose entry leads to a screen narrower than the module's own name promises, and the
+ * SPA's own label for that screen (issue #209). Where an entry leads is this SPA's fact
+ * (`router/moduleLandingRoute.ts`), so naming the destination is too: "Users and access" opens
+ * the signed-in devices screen and has no user management behind it, and "Notifications" opens
+ * the outgoing-mail settings. Naming the module there would promise a screen that does not exist.
+ */
+const DESTINATION_LABEL_KEYS: Readonly<Record<string, string>> = {
+  identity: 'app.nav.signedInDevices',
+  notifications: 'app.nav.outgoingMail',
+}
+
+/**
  * Builds the sidebar navigation from the module catalogue: one entry per
- * module the panel reported, in catalogue order, plus the always-present
+ * module the panel reported, ordered by the sidebar's groups, plus the always-present
  * system status entry first. A locked module's entry stays visible and
  * routes to the upgrade page instead of disappearing (rules/architecture.md:
  * "renders the module's entries as locked rather than hiding the product's
@@ -119,7 +132,13 @@ export const useNavigation = (): ComputedRef<NavigationEntry[]> => {
         target: reachable && typeof landing === 'string' ? { name: landing } : upgrade,
         // The label comes from the panel, already localized: the SPA cannot own translations for
         // modules it learns about at runtime. The machine name is the honest fallback.
-        labelKey: null,
+        // A usable entry whose destination the SPA names itself takes that key instead
+        // (DESTINATION_LABEL_KEYS); a locked one keeps the module's name, since it leads to the
+        // module's upgrade page rather than to the screen.
+        labelKey:
+          reachable && Object.hasOwn(DESTINATION_LABEL_KEYS, module.name)
+            ? (DESTINATION_LABEL_KEYS[module.name] ?? null)
+            : null,
         label: module.displayName ?? module.name,
         moduleName: module.name,
         // The catalogue reports no icon, so this SPA states which glyph each module it knows is
@@ -150,6 +169,14 @@ export const useNavigation = (): ComputedRef<NavigationEntry[]> => {
         ]
       : []
 
-    return [systemStatusEntry, ...moduleEntries, ...auditEntry]
+    // Returned in the expanded sidebar's group order, not catalogue order, so the collapsed rail,
+    // the jump-to palette and the tab bar's fill-up all walk the entries the way the sidebar draws
+    // them (issue #209): the rail used to list "Users and access" second while the sidebar drew it
+    // under System, near the end.
+    return groupNavigation([systemStatusEntry, ...moduleEntries, ...auditEntry]).flatMap(
+      (group): NavigationEntry[] => {
+        return group.entries
+      },
+    )
   })
 }

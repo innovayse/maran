@@ -162,7 +162,16 @@ watch(
     query.value = ''
     activeIndex.value = 0
     await nextTick()
-    searchField.value?.focus()
+    // `UiModal`'s focus trap moves focus to the panel's first focusable element (its Close
+    // button) on the same tick, and it runs after this watcher, so focusing here alone lost the
+    // race and typing went nowhere (issue #208). Waiting one macrotask lets the trap finish first;
+    // the field is then focused last, which is what a palette is for.
+    await new Promise<void>((resolve): void => {
+      window.setTimeout(resolve, 0)
+    })
+    if (props.open) {
+      searchField.value?.focus()
+    }
   },
 )
 

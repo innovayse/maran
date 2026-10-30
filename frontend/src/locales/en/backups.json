@@ -28,7 +28,7 @@
       "scheduleLink": "Backup schedule",
       "destinationsLink": "Backup destinations",
       "attentionOne": "The latest backup of {account}, from {startedAt}, failed. No later one has completed.",
-      "attentionMany": "Accounts whose latest backup failed: {count}. None of them has a later one that completed."
+      "attentionMany": "{count} account's latest backup failed, and it has no later one that completed. | {count} accounts' latest backups failed. None of them has a later one that completed."
     },
     "status": {
       "running": "Running",
@@ -36,7 +36,7 @@
       "failed": "Failed"
     },
     "kind": {
-      "manual": "Asked for",
+      "manual": "Manual",
       "scheduled": "Scheduled",
       "preDeletion": "Before deletion",
       "preRestore": "Before restore"
@@ -62,7 +62,7 @@
       "lostSince": "Everything written since then — files and database rows alike — is gone.",
       "replacedHeading": "What is replaced",
       "replacedHome": "The home directory is swapped for the one in the copy.",
-      "replacedDatabases": "Each of the {databases} databases in the copy is dropped, re-created and loaded again.",
+      "replacedDatabases": "The {count} database in the copy is dropped, re-created and loaded again. | Each of the {count} databases in the copy is dropped, re-created and loaded again.",
       "keptHeading": "What is not touched",
       "keptSites": "Sites, their web-server configuration and their certificates.",
       "keptOwnership": "Scheduled tasks, firewall rules, and SFTP and FTPS logins.",
@@ -92,7 +92,8 @@
       "changedDatabases": "Databases",
       "changedDatabasesValue": "{restored} of {total} replaced",
       "changedNoRetry": "Do not restore over it again. A second attempt on a half-replaced account can destroy what this one left usable. Read the task the panel recorded for this account, and the server's own log, before anything else is done to it.",
-      "changedNoList": "The panel cannot list which databases were put back and which were not: the agent reports those names only in the log it writes on the server, and nothing carries them to the browser."
+      "changedNoList": "The panel cannot list which databases were put back and which were not: the agent reports those names only in the log it writes on the server, and nothing carries them to the browser.",
+      "replacedNoDatabases": "The copy holds no database, so none is dropped or loaded."
     },
     "schedule": {
       "heading": "Backup schedule",

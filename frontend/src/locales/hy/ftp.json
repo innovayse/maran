@@ -23,7 +23,10 @@
       "working": "Կատարվում է…",
       "rowActions": "Գործողություններ {name}-ի համար",
       "confirmRemoveTitle": "Հեռացնել {name} մուտքանունը",
-      "confirmResetPasswordTitle": "Վերականգնել {name}-ի գաղտնաբառը"
+      "confirmResetPasswordTitle": "Վերականգնել {name}-ի գաղտնաբառը",
+      "created": "{name} մուտքանունը ստեղծվեց։",
+      "confirmRemoveAction": "Հեռացնել մուտքանունը",
+      "confirmResetPasswordAction": "Վերականգնել գաղտնաբառը"
     },
     "protocols": {
       "sftp": "SFTP",

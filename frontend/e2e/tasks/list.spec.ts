@@ -90,8 +90,9 @@ test('opening a task shows what its stream reports, not what the listing said', 
   await expect(page.getByText(INSTALL.correlationId ?? '')).toBeVisible()
 })
 
-// A failed task carries a machine-stable code, and the panel shows it as one: it is what an
-// operator quotes, never a sentence the frontend translated (rules/vue.md).
+// A failed task carries a machine-stable code. The pane leads with a sentence (#222) — the generic
+// one for a code this panel has no sentence for — and keeps the code beneath it, because the code is
+// what an operator quotes.
 test('a task that failed shows the code it failed with', async ({ page }) => {
   await stubSignedIn(page)
   await stubHealthy(page)
@@ -112,7 +113,8 @@ test('a task that failed shows the code it failed with', async ({ page }) => {
   await page.getByRole('button', { name: `Actions for ${INSTALL.subject}` }).click()
   await page.getByRole('menuitem', { name: 'Live view' }).click()
 
-  await expect(page.getByText('SitesPhpVersionUnavailable', { exact: false })).toBeVisible()
+  await expect(page.getByText('Code: SitesPhpVersionUnavailable', { exact: true })).toBeVisible()
+  await expect(page.getByText('The operation failed. The code below says why', { exact: false })).toBeVisible()
   // Exact, because `failed` is the status on the wire and `Failed` is the badge's translated label:
   // a loose `getByText` matches a substring case-insensitively and would read the raw constant as
   // the fix. Nothing else in this test observes the wording — the code assertion above it is about

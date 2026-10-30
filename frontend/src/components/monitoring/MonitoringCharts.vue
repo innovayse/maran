@@ -18,6 +18,9 @@
  * `@typescript-eslint/no-unsafe-return` rejects the file — a real loss of checking, not a lint
  * quirk to suppress.
  *
+ * **The two network series pick their own unit** (B/s, KiB/s, MiB/s…) from their peak, so a quiet
+ * link does not draw an axis of `0.00` ticks (#222).
+ *
  * **The two network series drop their null buckets rather than plotting zeros.** A rate is derived
  * on the server from the difference between two counter readings divided by the seconds actually
  * elapsed, so the first bucket of any chart has nothing to measure against and arrives as `null`.
@@ -30,12 +33,8 @@ import { useI18n } from 'vue-i18n'
 import UiCard from '../ui/UiCard.vue'
 import UiChart from '../ui/UiChart.vue'
 import type { ChartPoint } from '../../utils/chartGeometry'
-import {
-  bytesToGibibytes,
-  bytesToMebibytes,
-  GIBIBYTE_UNIT,
-  MEBIBYTES_PER_SECOND_UNIT,
-} from '../../utils/formatBytes'
+import { byteRateScale, formatRateReading, type ByteRateScale } from '../../utils/byteRateScale'
+import { bytesToGibibytes, GIBIBYTE_UNIT } from '../../utils/formatBytes'
 import type { MetricBucket } from '../../types/monitoring'
 
 /** Props accepted by {@link MonitoringCharts}. */
@@ -67,19 +66,37 @@ const diskSeries: ComputedRef<ChartPoint[]> = computed(() => {
   })
 })
 
-/** Bytes received per second, in MiB/s. */
+/** The unit the received-bytes chart is drawn in, chosen from its own peak. */
+const networkReceiveScale: ComputedRef<ByteRateScale> = computed(() => {
+  return byteRateScale(
+    props.buckets.map((bucket) => {
+      return bucket.networkReceivedBytesPerSecond ?? 0
+    }),
+  )
+})
+
+/** The unit the sent-bytes chart is drawn in, chosen from its own peak. */
+const networkTransmitScale: ComputedRef<ByteRateScale> = computed(() => {
+  return byteRateScale(
+    props.buckets.map((bucket) => {
+      return bucket.networkSentBytesPerSecond ?? 0
+    }),
+  )
+})
+
+/** Bytes received per second, in the unit {@link networkReceiveScale} chose. */
 const networkReceiveSeries: ComputedRef<ChartPoint[]> = computed(() => {
   return seriesOf((bucket) => {
     const rate = bucket.networkReceivedBytesPerSecond
-    return rate === null ? null : bytesToMebibytes(rate)
+    return rate === null ? null : rate / networkReceiveScale.value.divisor
   })
 })
 
-/** Bytes sent per second, in MiB/s. */
+/** Bytes sent per second, in the unit {@link networkTransmitScale} chose. */
 const networkTransmitSeries: ComputedRef<ChartPoint[]> = computed(() => {
   return seriesOf((bucket) => {
     const rate = bucket.networkSentBytesPerSecond
-    return rate === null ? null : bytesToMebibytes(rate)
+    return rate === null ? null : rate / networkTransmitScale.value.divisor
   })
 })
 
@@ -109,8 +126,8 @@ const seriesOf = (select: (bucket: MetricBucket) => number | null): ChartPoint[]
 }
 
 /**
- * Two decimals, for the series whose interesting values are small: a load average of 0.42 and a
- * network rate of 0.03 MiB/s both round to nothing at the chart's own one-decimal default.
+ * Two decimals, for the load average, whose interesting values are small: 0.42 rounds to nothing at
+ * the chart's own one-decimal default.
  * @param value The raw value to format.
  * @returns The value with two decimal places.
  */
@@ -137,16 +154,16 @@ const formatFine = (value: number): string => {
       <UiChart
         :series="networkReceiveSeries"
         :label="t('monitoring.charts.networkReceive')"
-        :unit="MEBIBYTES_PER_SECOND_UNIT"
-        :format-value="formatFine"
+        :unit="networkReceiveScale.unit"
+        :format-value="formatRateReading"
       />
     </UiCard>
     <UiCard>
       <UiChart
         :series="networkTransmitSeries"
         :label="t('monitoring.charts.networkTransmit')"
-        :unit="MEBIBYTES_PER_SECOND_UNIT"
-        :format-value="formatFine"
+        :unit="networkTransmitScale.unit"
+        :format-value="formatRateReading"
       />
     </UiCard>
     <!-- No unit: a load average is dimensionless, and a word after it would read as

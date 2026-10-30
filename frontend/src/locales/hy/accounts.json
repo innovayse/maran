@@ -50,7 +50,8 @@
         "ownerEmailRequired": "Սեփականատիրոջ էլ. փոստը պարտադիր է։",
         "ownerEmailInvalid": "Սեփականատիրոջ էլ. փոստը պետք է լինի վավեր հասցե։"
       },
-      "planOption": "{name} — {disk} ՄԲ, կայքեր՝ {sites}"
+      "planOption": "{name} — {disk}, {count} կայք",
+      "created": "{account} հաշիվը ստեղծվեց։"
     },
     "detail": {
       "heading": "Հաշիվ",
@@ -70,7 +71,9 @@
       "confirmReactivateTitle": "Վերականգնել {account} հաշիվը",
       "resendInvitation": "Կրկին ուղարկել հրավերը",
       "invitationResent": "Նոր հրավեր ուղարկվել է։ Վահանակը չի կարող հաստատել դրա հասնելը՝ փոստի հերթը կրկնակի փորձեր չի կատարում։",
-      "suspendedNotice": "Հաշիվը կասեցված է։ Նրա կայքերը չեն աշխատում, և օգտատերը չի կարող մուտք գործել։"
+      "suspendedNotice": "Հաշիվը կասեցված է։ Նրա կայքերը չեն աշխատում, և օգտատերը չի կարող մուտք գործել։",
+      "confirmSuspendAction": "Կասեցնել հաշիվը",
+      "confirmReactivateAction": "Վերականգնել հաշիվը"
     },
     "delete": {
       "title": "Ջնջել {account}",

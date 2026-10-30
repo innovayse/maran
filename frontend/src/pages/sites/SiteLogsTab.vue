@@ -157,7 +157,7 @@ onBeforeUnmount(stop)
           v-if="store.logLines.length > 0"
           class="font-mono text-xs text-text-muted tabular-nums sm:ml-auto"
         >
-          {{ t('sites.detail.logs.lineCount', { count: store.logLines.length }) }}
+          {{ t('sites.detail.logs.lineCount', { count: store.logLines.length }, store.logLines.length) }}
         </span>
       </div>
 

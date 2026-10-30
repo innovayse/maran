@@ -12,7 +12,7 @@
       "searchLabel": "Filter accounts",
       "searchPlaceholder": "Filter by name or domain…",
       "searchClear": "Clear the filter",
-      "resultCount": "{shown} of {total} accounts",
+      "resultCount": "{shown} of {total} account | {shown} of {total} accounts",
       "loading": "Loading accounts…",
       "emptyTitle": "No accounts yet",
       "emptyDescription": "Create the first hosting account to get started.",
@@ -50,7 +50,8 @@
         "ownerEmailRequired": "Owner email is required.",
         "ownerEmailInvalid": "Owner email must be a valid email address."
       },
-      "planOption": "{name} — {disk} MB, {sites} sites"
+      "planOption": "{name} — {disk}, {count} site | {name} — {disk}, {count} sites",
+      "created": "Account {account} created."
     },
     "detail": {
       "heading": "Account",
@@ -70,7 +71,9 @@
       "confirmReactivateTitle": "Reactivate account {account}",
       "resendInvitation": "Resend invitation",
       "invitationResent": "A new invitation has been sent. The panel cannot confirm it was delivered — its mail queue does not retry.",
-      "suspendedNotice": "This account is suspended. Its sites are not serving and its user cannot sign in."
+      "suspendedNotice": "This account is suspended. Its sites are not serving and its user cannot sign in.",
+      "confirmSuspendAction": "Suspend account",
+      "confirmReactivateAction": "Reactivate account"
     },
     "delete": {
       "title": "Delete {account}",

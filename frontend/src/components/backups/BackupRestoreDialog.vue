@@ -295,7 +295,13 @@ watch(
         <UiSectionHeading :title="t('backups.restore.replacedHeading')" />
         <ul class="list-disc space-y-1 pl-5 marker:text-text-muted">
           <li>{{ t('backups.restore.replacedHome') }}</li>
-          <li>{{ t('backups.restore.replacedDatabases', { databases: backup.databaseCount }) }}</li>
+          <li>
+            {{
+              backup.databaseCount === 0
+                ? t('backups.restore.replacedNoDatabases')
+                : t('backups.restore.replacedDatabases', { count: backup.databaseCount }, backup.databaseCount)
+            }}
+          </li>
         </ul>
       </div>
 

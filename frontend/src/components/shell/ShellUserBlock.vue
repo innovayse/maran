@@ -8,16 +8,16 @@
  * the identity block 26px, enough for "r…" and "Adm". Naming someone twice is the mistake;
  * shrinking the type would only hide it. So the trigger's name line is the only place the person
  * is named, and it `truncate`s so a long login shortens instead of pushing the card wider. A
- * line that is cut (the login, or a long role word in another language) carries its whole text as
- * a `title`, so what the card shortens can still be read. The
+ * login that is cut carries its whole text as a `title`. The role line WRAPS instead of being cut
+ * (issue #221): "Ադմինիստրատոր" does not fit beside the avatar, and a role read as "Ադմինիստրա…"
+ * is a role nobody can read. The
  * account-menu spec finds the card and that line by `data-testid` (`shell-identity`,
  * `shell-identity-name`) — hooks that say what they are for and survive a restyle.
  *
- * **Sign out is also a visible button, not only a menu entry.** The redesign puts
- * it on the card: ending a session is the one account action a person expects to
- * find without opening anything. The menu keeps its own "Sign out" item (a keyboard
- * user inside the menu should not have to leave it to find the button), and both
- * call the same function.
+ * **Sign out is a visible button, and only that.** Ending a session is the one account action a
+ * person expects to find without opening anything, so it is on the card. The menu used to repeat
+ * it directly above the button (issue #210); the copy is gone, so the menu is three rows and
+ * covers less of the navigation when it opens upwards.
  *
  * The person comes from the auth store, which holds what the backend reported at
  * sign-in. The role is translated here (`app.auth.role.*`) because the contract
@@ -53,12 +53,12 @@ const role: ComputedRef<string | null> = computed(() => {
 })
 
 /**
- * Whether to offer the "my account" entry.
+ * Whether the profile entry leads to the person's own hosting account.
  *
  * Its own question, and the only role test this menu makes: does the signed-in
  * person own a hosting account at all. `/api/v1/accounts/me` 404s for anybody with
- * no account (every administrator included), so hiding the link for
- * `accountId === null` avoids offering a screen that can only answer "not found".
+ * no account (every administrator included), so for `accountId === null` the entry
+ * leads to the signed-in devices screen instead of a screen that can only answer "not found".
  */
 const hasOwnAccount: ComputedRef<boolean> = computed(() => {
   return authStore.user !== null && authStore.user.accountId !== null
@@ -105,26 +105,25 @@ const signOut = async (): Promise<void> => {
             :title="name"
             >{{ name }}</span
           >
-          <span class="block truncate text-xs text-text-muted" :title="role ?? undefined">{{
-            role
-          }}</span>
+          <span class="block text-xs wrap-anywhere text-text-muted">{{ role }}</span>
         </span>
       </template>
 
-      <!-- Only offered to a person who owns an account: the endpoint behind it answers
-           "the account YOU own" and 404s for anybody without one. -->
-      <UiDropdownItem v-if="hasOwnAccount" @select="go('my-account')">
-        {{ t('app.shell.menu.myAccount') }}
+      <!-- Profile first (issue #210): the person's own settings, under one entry whatever the
+           role. A person who owns a hosting account lands on that account; anybody else (every
+           administrator) on the signed-in devices screen, which links on to two-step
+           verification. `/my-account` is NOT offered to them: its endpoint answers "the account
+           YOU own" and 404s for anybody without one. -->
+      <UiDropdownItem @select="go(hasOwnAccount ? 'my-account' : 'sessions')">
+        {{ t('app.shell.menu.profile') }}
       </UiDropdownItem>
       <UiDropdownItem @select="go('sessions')">{{ t('app.shell.menu.sessions') }}</UiDropdownItem>
       <UiDropdownItem @select="go('two-factor')">{{
         t('app.shell.menu.twoFactor')
       }}</UiDropdownItem>
-      <!-- Sessions, two-factor and the audit journal are the only entries on purpose: this
-           menu had grown into the place every unlinked screen was put, and none of the
-           others (audit, mail, security policy, PHP runtimes) is a setting about the person
-           signed in. They are reached from the navigation and from the screens that use them. -->
-      <UiDropdownItem destructive @select="signOut">{{ t('app.auth.signOut') }}</UiDropdownItem>
+      <!-- No "Sign out" item: the card's own Sign out button sits right under this menu, and a
+           second copy made the menu taller, so it opened up over the group label above it. A
+           keyboard user leaves the menu with Escape and reaches the button with the next Tab. -->
     </UiDropdown>
 
     <!-- Nobody signed in: there is no account to offer a menu for, so the card is

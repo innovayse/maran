@@ -25,7 +25,9 @@
         "backupsList": "Բոլոր պահուստները",
         "backupsSchedule": "Ժամանակացույց",
         "backupsDestinations": "Պահոցներ"
-      }
+      },
+      "signedInDevices": "Սարքեր",
+      "outgoingMail": "Ելքային փոստ"
     },
     "shell": {
       "skipToContent": "Անցնել բովանդակությանը",
@@ -35,7 +37,6 @@
       "expandSidebar": "Բացել կողային վահանակը",
       "openNavigation": "Բացել նավիգացիան",
       "navigationLabel": "Նավիգացիա",
-      "toggleTheme": "Փոխարկել մուգ և բաց թեմաների միջև",
       "breadcrumbLabel": "Նավիգացիոն շղթա",
       "paletteTitle": "Անցնել",
       "paletteClose": "Փակել անցման պատուհանը",
@@ -46,18 +47,15 @@
       "paletteNoMatches": "Ոչինչ չի գտնվել։",
       "paletteHintNavigate": "↑↓ — շարժվել ցանկով",
       "paletteHintOpen": "↵ — բացել",
-      "themes": {
-        "dark": "Մուգ",
-        "light": "Բաց"
-      },
       "signedOut": "Ոչ ոք մուտք չի գործել",
       "accountMenu": "Հաշվի ընտրացանկ",
       "menu": {
         "myAccount": "Իմ հաշիվը",
         "sessions": "Սեսիաներ",
-        "twoFactor": "Երկքայլ ստուգում"
+        "twoFactor": "Երկքայլ ստուգում",
+        "profile": "Պրոֆիլ և անվտանգություն"
       },
-      "authCredit": "© {year} Maran · ստեղծել է Innovayse LLC-ն",
+      "authCredit": "© {year} Maran · ստեղծել է {company}-ն",
       "closeNavigation": "Փակել նավիգացիան",
       "tabBarLabel": "Բաժիններ",
       "tabs": {
@@ -66,7 +64,13 @@
         "sites": "Կայքեր",
         "databases": "Բազաներ",
         "more": "Ավելին"
-      }
+      },
+      "switchTheme": {
+        "dark": "Անցնել մուգին",
+        "light": "Անցնել բացին"
+      },
+      "company": "Innovayse LLC",
+      "companyUrl": "https://innovayse.com"
     },
     "locale": {
       "switcherLabel": "Ինտերֆեյսի լեզուն",
@@ -75,6 +79,9 @@
         "ru": "Русский",
         "hy": "Հայերեն"
       }
+    },
+    "link": {
+      "opensInNewTab": "կբացվի նոր ներդիրում"
     }
   }
 }
