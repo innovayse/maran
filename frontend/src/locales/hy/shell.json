@@ -3,7 +3,7 @@
     "title": "Maran",
     "nav": {
       "ariaLabel": "Հիմնական նավիգացիա",
-      "systemStatus": "Համակարգի կարգավիճակ",
+      "systemStatus": "Կարգավիճակ",
       "auditJournal": "Աուդիտի մատյան",
       "plans": "Սակագներ",
       "lockedBadge": "Արգելափակված",
@@ -20,8 +20,8 @@
         "accountsNew": "Նոր հաշիվ",
         "sitesList": "Բոլոր կայքերը",
         "sitesNew": "Նոր կայք",
-        "databasesList": "Բոլոր տվյալների բազաները",
-        "databasesGrantRepair": "Իրավունքների վերականգնում",
+        "databasesList": "Բազաների ցանկ",
+        "databasesGrantRepair": "Իրավունքների ուղղում",
         "backupsList": "Բոլոր պահուստները",
         "backupsSchedule": "Ժամանակացույց",
         "backupsDestinations": "Պահոցներ"
