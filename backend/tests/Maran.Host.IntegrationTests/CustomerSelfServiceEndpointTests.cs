@@ -19,9 +19,9 @@ namespace Maran.Host.IntegrationTests;
 /// </para>
 /// <para>
 /// Reaching the handler is proved by the handler's own answer. An authorization refusal is a bare
-/// 401 or 403 with no body; a handler refusal is a problem document carrying a <c>code</c>. So the
-/// confirm and disable tests assert the code, and a policy that refused the customer would fail them
-/// on the empty body.
+/// 401, or a 403 carrying the generic <c>HostForbidden</c> code; a handler refusal is a problem
+/// document carrying its own <c>code</c>. So the confirm and disable tests assert the handler's code,
+/// and a policy that refused the customer would fail them on the generic one.
 /// </para>
 /// <para>
 /// UNOBSERVED HERE: the success path of confirming and disabling needs a valid one-time code, which

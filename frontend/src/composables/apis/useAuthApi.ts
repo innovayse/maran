@@ -1,6 +1,7 @@
 import { useApi } from '../useApi'
 import type {
   AcceptInvitationRequest,
+  AcceptInvitationResult,
   AuthApi,
   AuthenticatedUser,
   CompleteSetupRequest,
@@ -214,10 +215,13 @@ export const useAuthApi = (): AuthApi => {
    * renew, and a replay would only spend a refresh.
    * @param request The token from the invitation mail and the chosen password.
    * @param signal Optional abort signal to cancel the in-flight request.
-   * @returns True once the password has been set.
+   * @returns The login name the invitation created, once the password has been set.
    */
-  const acceptInvitation = (request: AcceptInvitationRequest, signal?: AbortSignal): Promise<boolean> => {
-    return api.post<boolean>(`${AUTH_PATH}/accept-invitation`, request, signal, false)
+  const acceptInvitation = (
+    request: AcceptInvitationRequest,
+    signal?: AbortSignal,
+  ): Promise<AcceptInvitationResult> => {
+    return api.post<AcceptInvitationResult>(`${AUTH_PATH}/accept-invitation`, request, signal, false)
   }
 
   return {

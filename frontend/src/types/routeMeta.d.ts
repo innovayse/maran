@@ -19,5 +19,11 @@ declare module 'vue-router' {
      * A route that omits it falls back to the product name alone.
      */
     title?: string
+    /**
+     * The screen is for administrators only. Advice, never enforcement: the endpoints behind it
+     * refuse a customer on their own. The role guard uses it to send a customer to the
+     * "not available" screen instead of showing admin chrome around a refusal (issue #202).
+     */
+    adminOnly?: boolean
   }
 }

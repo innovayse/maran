@@ -10,7 +10,8 @@
  * **The account is chosen on the screen rather than carried in the route**, because it is what
  * every one of the module's calls names: cron keeps no rows, so an entry id means nothing until it
  * is asked of one account's crontab. The list of accounts comes from the panel; nothing here is a
- * list written into the SPA.
+ * list written into the SPA. A customer owns exactly one account, so they get no picker at all: the
+ * screen is pointed at their own account from their token (useAccountChoice).
  *
  * **Layout.** The account picker sits in the page header, because it is the context of everything
  * below it; the notice for a refused write comes first; then the form, the entries and the
@@ -46,7 +47,7 @@ import UiToast from '../../components/ui/UiToast.vue'
 import CronEntryForm from '../../components/cron/CronEntryForm.vue'
 import CronEntryOutputDialog from '../../components/cron/CronEntryOutputDialog.vue'
 import CronEnvironmentEditor from '../../components/cron/CronEnvironmentEditor.vue'
-import { useAccountsStore } from '../../stores/accounts'
+import { useAccountChoice } from '../../composables/useAccountChoice'
 import { useCronStore } from '../../stores/cron'
 import { useLocaleStore } from '../../stores/locale'
 import { formatCronExpression } from '../../utils/cronSchedule'
@@ -57,7 +58,7 @@ import type { CronEnvironmentVariable } from '../../types/cronEnvironmentVariabl
 
 const { t } = useI18n()
 const store = useCronStore()
-const accountsStore = useAccountsStore()
+const { fixedAccountId, accounts, load: loadAccounts } = useAccountChoice()
 const localeStore = useLocaleStore()
 
 /** The form, so an accepted install can empty the field it owns. */
@@ -89,7 +90,7 @@ const confirmationTitle: ComputedRef<string> = computed(() => {
 
 /** The accounts one crontab can be read for, as the select wants them. */
 const accountOptions: ComputedRef<SelectOption[]> = computed(() => {
-  return accountsStore.accounts.map((account) => {
+  return accounts.value.map((account) => {
     return { value: account.id, label: account.name }
   })
 })
@@ -99,11 +100,19 @@ const accountOptions: ComputedRef<SelectOption[]> = computed(() => {
  *
  * The first rather than none, because a screen that opens on an empty picker looks broken; there is
  * nothing invented in it — the account came from the panel, and the crontab shown is that account's.
+ * A customer skips the list (an administrator-only read) and is pointed at their own account.
  * @returns Resolves once the accounts and the first account's crontab have settled.
  */
 const start = async (): Promise<void> => {
-  await accountsStore.load()
-  const first = accountsStore.accounts[0]
+  const own = fixedAccountId.value
+  if (own !== null) {
+    if (store.accountId !== own) {
+      await store.selectAccount(own)
+    }
+    return
+  }
+  await loadAccounts()
+  const first = accounts.value[0]
   if (first !== undefined && store.accountId === '') {
     await store.selectAccount(first.id)
   }
@@ -286,6 +295,7 @@ onMounted(start)
     >
       <template #actions>
         <UiSelect
+          v-if="fixedAccountId === null"
           :model-value="store.accountId"
           :options="accountOptions"
           :label="t('cron.list.accountLabel')"

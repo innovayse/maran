@@ -8,6 +8,7 @@ using Maran.Modules.Accounts.Domain.Enums;
 using Maran.Modules.Accounts.Persistence;
 using Maran.Modules.Accounts.Services;
 using Maran.Modules.Accounts.Tests.TestSupport;
+using Maran.Sdk.Contracts;
 using Maran.Sdk.Events;
 using Maran.SharedKernel.Results;
 using Microsoft.EntityFrameworkCore;
@@ -324,6 +325,11 @@ public sealed class AccountSuspensionTests : IDisposable
 
         var task = Assert.Single(_tasks.Tasks);
         Assert.True(task.Completed);
+
+        // About the suspended account, so an administrator finds it by the account; never the
+        // customer's to read, because it is done TO the account rather than for its owner.
+        Assert.Equal(account.Id, task.AccountId);
+        Assert.Equal(TaskAudience.AdministratorOnly, task.Audience);
         var attestation = Assert.Single(task.Reports, report => { return report.Line.Contains("NOT covered"); });
         Assert.Contains("databases", attestation.Line, StringComparison.Ordinal);
         Assert.Contains("web login", attestation.Line, StringComparison.Ordinal);

@@ -29,6 +29,7 @@ public sealed class TaskStreamWriterTests
         PanelTaskStatus.Running,
         40,
         "ordering",
+        true,
         null,
         new DateTimeOffset(2026, 3, 1, 12, 0, 0, TimeSpan.Zero),
         null,
@@ -44,7 +45,7 @@ public sealed class TaskStreamWriterTests
             ": open\n\nevent: task\ndata: {\"id\":\"11111111-2222-3333-4444-555555555555\","
             + "\"kind\":\"CertificateIssue\",\"kindDisplayName\":\"Issuing a certificate\","
             + "\"subject\":\"example.com\",\"status\":\"running\","
-            + "\"percent\":40,\"log\":\"ordering\","
+            + "\"percent\":40,\"log\":\"ordering\",\"logIncluded\":true,"
             + "\"startedAt\":\"2026-03-01T12:00:00+00:00\",\"revision\":1}\n\n",
             written);
     }

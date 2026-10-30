@@ -1,3 +1,4 @@
+using Maran.Modules.Identity.Common;
 using Maran.Modules.Identity.Persistence;
 using Maran.Modules.Identity.Resources;
 using Maran.Modules.Identity.Services;
@@ -71,8 +72,9 @@ public sealed class AcceptInvitationCommandHandler
     /// <summary>Spends the token and sets the login's first password.</summary>
     /// <param name="command">The token and the chosen password.</param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
-    /// <returns>Success, or the single refusal every unusable token gets.</returns>
-    public async Task<Result<bool>> HandleAsync(AcceptInvitationCommand command, CancellationToken cancellationToken)
+    /// <returns>The login's username, which the person signs in with next, or the single refusal
+    /// every unusable token gets. Only a usable token earns the username, and it is spent here.</returns>
+    public async Task<Result<AcceptInvitationResultDto>> HandleAsync(AcceptInvitationCommand command, CancellationToken cancellationToken)
     {
         var now = _clock.UtcNow;
         var tokenHash = InvitationTokenHasher.Hash(command.Token);
@@ -116,7 +118,7 @@ public sealed class AcceptInvitationCommandHandler
             succeeded: true,
             cancellationToken);
 
-        return Result<bool>.Ok(true);
+        return Result<AcceptInvitationResultDto>.Ok(new AcceptInvitationResultDto(user.Username));
     }
 
     /// <summary>Records a refused token and returns the one refusal every unusable token gets.</summary>
@@ -130,7 +132,7 @@ public sealed class AcceptInvitationCommandHandler
     /// it carries is the user, when the token named a real one, because "somebody presented a spent
     /// or expired invitation for this account" is the entry that matters.
     /// </remarks>
-    private async Task<Result<bool>> RefuseAsync(
+    private async Task<Result<AcceptInvitationResultDto>> RefuseAsync(
         Guid? userId,
         AcceptInvitationCommand command,
         CancellationToken cancellationToken)
@@ -156,6 +158,6 @@ public sealed class AcceptInvitationCommandHandler
                 cancellationToken);
         }
 
-        return Result<bool>.Fail(Error.Of(nameof(ErrorMessages.InvitationTokenInvalid), ErrorType.Validation));
+        return Result<AcceptInvitationResultDto>.Fail(Error.Of(nameof(ErrorMessages.InvitationTokenInvalid), ErrorType.Validation));
     }
 }

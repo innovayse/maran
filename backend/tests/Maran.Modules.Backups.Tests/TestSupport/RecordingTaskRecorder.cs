@@ -1,3 +1,4 @@
+using Maran.Sdk.Contracts;
 using Maran.Sdk.Interfaces;
 
 namespace Maran.Modules.Backups.Tests.TestSupport;
@@ -24,10 +25,12 @@ public sealed class RecordingTaskRecorder : ITaskRecorder
     public Task<Guid> BeginAsync(
         string kind,
         string subject,
+        Guid? accountId,
+        TaskAudience audience,
         string? correlationId,
         CancellationToken cancellationToken)
     {
-        var recorded = new RecordedTask(Guid.NewGuid(), kind, subject, correlationId);
+        var recorded = new RecordedTask(Guid.NewGuid(), kind, subject, accountId, audience, correlationId);
         Tasks.Add(recorded);
         return Task.FromResult(recorded.Id);
     }

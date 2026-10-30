@@ -44,7 +44,8 @@ import UiTableRow from '../../components/ui/UiTableRow.vue'
 import UiToast from '../../components/ui/UiToast.vue'
 import DatabaseCreateForm from '../../components/databases/DatabaseCreateForm.vue'
 import DatabaseCreatedDialog from '../../components/databases/DatabaseCreatedDialog.vue'
-import { useAccountsStore } from '../../stores/accounts'
+import { useAccountChoice } from '../../composables/useAccountChoice'
+import { useCallerRole } from '../../composables/useCallerRole'
 import { useDatabasesStore } from '../../stores/databases'
 import { useLocaleStore } from '../../stores/locale'
 import { formatDate } from '../../utils/formatDate'
@@ -55,7 +56,8 @@ type PendingAction = 'resetPassword' | 'drop'
 
 const { t } = useI18n()
 const store = useDatabasesStore()
-const accountsStore = useAccountsStore()
+const { fixedAccountId, accounts, ownerName, load: loadAccounts } = useAccountChoice()
+const { isAdmin } = useCallerRole()
 const localeStore = useLocaleStore()
 
 /** The create form, so an accepted create can empty the fields it owns. */
@@ -107,13 +109,10 @@ const confirmationText: ComputedRef<string> = computed(() => {
 /**
  * Names the account a database belongs to, for a column that would otherwise print a GUID.
  * @param id The owning account's identity, as the database row reports it.
- * @returns The account's own short name, or a placeholder when the accounts list has none.
+ * @returns The account's own short name, or a placeholder when this caller's lists have none.
  */
 const accountName = (id: string): string => {
-  const owner = accountsStore.accounts.find((account) => {
-    return account.id === id
-  })
-  return owner?.name ?? t('common.emptyValue')
+  return ownerName(id) ?? t('common.emptyValue')
 }
 
 /**
@@ -122,7 +121,8 @@ const accountName = (id: string): string => {
  * @returns Resolves once both requests have settled.
  */
 const refresh = async (): Promise<void> => {
-  await Promise.all([store.load(), accountsStore.load()])
+  // A customer's own account is read instead of the administrator-only list (useAccountChoice).
+  await Promise.all([store.load(), loadAccounts()])
 }
 
 /**
@@ -209,11 +209,9 @@ onBeforeUnmount(dismissCredential)
       :note="t('databases.list.prefixNote')"
     >
       <template #actions>
-        <!-- The grant repair is administrators-only and this link is not the gate: it is offered to
-             whoever is looking, and the page behind it renders the panel's own refusal to anyone who
-             may not read it. A client-side check here would be a second copy of an authorization
-             decision, and the copy that cannot be trusted (rules/vue.md). -->
-        <UiButton variant="secondary" :to="{ name: 'database-grant-repair' }">{{ t('databases.list.grantRepairLink') }}</UiButton>
+        <!-- The grant repair is administrators-only. Hiding the link from a customer is presentation,
+             not the gate: the endpoint behind it refuses a customer on its own (rules/security.md). -->
+        <UiButton v-if="isAdmin" variant="secondary" :to="{ name: 'database-grant-repair' }">{{ t('databases.list.grantRepairLink') }}</UiButton>
       </template>
     </UiPageHeading>
 
@@ -225,7 +223,8 @@ onBeforeUnmount(dismissCredential)
 
     <DatabaseCreateForm
       ref="form"
-      :accounts="accountsStore.accounts"
+      :accounts="accounts"
+      :fixed-account-id="fixedAccountId"
       :submitting="store.creating"
       @submit="create"
     />

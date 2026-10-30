@@ -3,6 +3,7 @@ using Maran.Modules.Tasks.Options;
 using Maran.Modules.Tasks.Persistence;
 using Maran.Modules.Tasks.Resources;
 using Maran.Modules.Tasks.Services;
+using Maran.Sdk.Contracts;
 using Maran.SharedKernel.Interfaces;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Localization;
@@ -49,13 +50,22 @@ public static class TasksTestContext
     /// <param name="kind">What kind of operation it records.</param>
     /// <param name="subject">What it acts on.</param>
     /// <param name="startedAt">When it started; the fixture's own instant when omitted.</param>
+    /// <param name="accountId">The account it concerns; none when omitted.</param>
+    /// <param name="audience">
+    /// Who besides an administrator may read it; the account's owner when an account is given, and
+    /// administrators only otherwise, unless stated.
+    /// </param>
     /// <returns>The row, at revision zero.</returns>
     public static PanelTask Row(
         string kind = "CertificateIssue",
         string subject = "example.com",
-        DateTimeOffset? startedAt = null)
+        DateTimeOffset? startedAt = null,
+        Guid? accountId = null,
+        TaskAudience? audience = null)
     {
-        return new PanelTask(Guid.NewGuid(), kind, subject, correlationId: null, startedAt ?? Now);
+        var resolved = audience ?? (accountId is null ? TaskAudience.AdministratorOnly : TaskAudience.AccountOwner);
+        return new PanelTask(
+            Guid.NewGuid(), kind, subject, accountId, resolved, correlationId: null, startedAt ?? Now);
     }
 
     /// <summary>Builds stream settings with a poll interval short enough for a test to wait on.</summary>

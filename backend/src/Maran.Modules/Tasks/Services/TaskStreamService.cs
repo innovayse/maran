@@ -45,6 +45,13 @@ namespace Maran.Modules.Tasks.Services;
 /// watching it. Either way, the alternative to having it is a reader that polls a row that will
 /// never come back for as long as the operator leaves the pane open.
 /// </para>
+/// <para>
+/// <b>Every frame is redacted the way the single read is.</b> A customer may watch their own task,
+/// and every snapshot they are sent carries an empty log — the same decision
+/// <c>GetTaskQueryHandler</c> takes, made here from the same principal, because the stream is a
+/// second door to the same row and a log withheld at one door and served at the other is not
+/// withheld.
+/// </para>
 /// </remarks>
 public sealed class TaskStreamService
 {
@@ -57,20 +64,26 @@ public sealed class TaskStreamService
     /// <summary>Names the watched task's kind as an operator reads it, in the request's culture.</summary>
     private readonly TaskKindDisplayNames _kindNames;
 
+    /// <summary>The watcher, whose administrator status decides whether frames carry the log.</summary>
+    private readonly ICurrentUser _currentUser;
+
     /// <summary>Creates the service.</summary>
     /// <param name="dbContext">The Tasks module's database context.</param>
     /// <param name="options">The stream's settings, chiefly the poll interval.</param>
     /// <param name="kindNames">Names a task's kind for the culture of the request that opened the stream.</param>
+    /// <param name="currentUser">The authenticated principal watching the stream.</param>
     public TaskStreamService(
         TasksDbContext dbContext,
         IOptions<TaskStreamOptions> options,
-        TaskKindDisplayNames kindNames)
+        TaskKindDisplayNames kindNames,
+        ICurrentUser currentUser)
     {
         ArgumentNullException.ThrowIfNull(options);
 
         _dbContext = dbContext;
         _pollInterval = TimeSpan.FromMilliseconds(options.Value.PollIntervalMilliseconds);
         _kindNames = kindNames;
+        _currentUser = currentUser;
     }
 
     /// <summary>Settles whether the caller may watch this task, while a normal response is still possible.</summary>
@@ -111,7 +124,8 @@ public sealed class TaskStreamService
             if (task.Revision != lastRevision)
             {
                 lastRevision = task.Revision;
-                yield return TaskFrame.OfTask(PanelTaskMapper.From(task, _kindNames.Of(task.Kind)));
+                var snapshot = PanelTaskMapper.From(task, _kindNames.Of(task.Kind), _currentUser.IsAdmin);
+                yield return TaskFrame.OfTask(snapshot);
             }
 
             if (task.Status != PanelTaskStatus.Running)

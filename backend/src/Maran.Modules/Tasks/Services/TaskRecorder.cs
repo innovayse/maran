@@ -1,5 +1,6 @@
 using Maran.Modules.Tasks.Domain.Entities;
 using Maran.Modules.Tasks.Persistence;
+using Maran.Sdk.Contracts;
 using Maran.Sdk.Interfaces;
 using Microsoft.Extensions.Logging;
 
@@ -80,10 +81,12 @@ public sealed class TaskRecorder : ITaskRecorder
     public async Task<Guid> BeginAsync(
         string kind,
         string subject,
+        Guid? accountId,
+        TaskAudience audience,
         string? correlationId,
         CancellationToken cancellationToken)
     {
-        var task = new PanelTask(Guid.NewGuid(), kind, subject, correlationId, _clock.UtcNow);
+        var task = new PanelTask(Guid.NewGuid(), kind, subject, accountId, audience, correlationId, _clock.UtcNow);
 
         try
         {
@@ -154,7 +157,7 @@ public sealed class TaskRecorder : ITaskRecorder
     /// anything, and it short-circuits here so that an operation whose task was never opened costs
     /// no database round trip per stage.
     ///
-    /// The read deliberately IGNORES the module's administrator query filter. This runs inside
+    /// The read deliberately IGNORES the module's tenant query filter. This runs inside
     /// somebody else's handler, whose principal may be an administrator, a customer, or — for the
     /// unattended renewal pass — nobody at all, and the row must be found in every one of those
     /// cases. It is safe because nothing read here is returned: the task is loaded by its own id,

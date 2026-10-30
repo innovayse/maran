@@ -113,7 +113,7 @@ public sealed class InvitationLinkEndpointTests : IAsyncLifetime
         Assert.True(body.RootElement.TryGetProperty("expiresAt", out _));
     }
 
-    /// <summary>The issued link lets the customer set a password and sign in, and works once.</summary>
+    /// <summary>The issued link lets the customer set a password, learn their username and sign in, and works once.</summary>
     [Fact]
     public async Task The_issued_link_lets_the_customer_set_a_password_and_sign_in_and_works_once()
     {
@@ -134,8 +134,14 @@ public sealed class InvitationLinkEndpointTests : IAsyncLifetime
             "/api/v1/auth/accept-invitation", new { Token = token, NewPassword = "another password entirely" });
 
         Assert.Equal(HttpStatusCode.OK, accepted.StatusCode);
+        using (var acceptedBody = JsonDocument.Parse(await accepted.Content.ReadAsStringAsync()))
+        {
+            Assert.Equal("owner-olive", acceptedBody.RootElement.GetProperty("username").GetString());
+        }
+
         Assert.Equal(HttpStatusCode.OK, login.StatusCode);
         Assert.Equal(HttpStatusCode.BadRequest, replay.StatusCode);
+        Assert.DoesNotContain("owner-olive", await replay.Content.ReadAsStringAsync(), StringComparison.Ordinal);
     }
 
     /// <summary>Issuing a link kills the previous one and the one that was mailed, and only the newest works.</summary>

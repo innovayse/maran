@@ -30,6 +30,11 @@ const props = defineProps<{
   accounts: readonly Account[]
   /** Whether a create request is already in flight, which disables the submit control. */
   submitting: boolean
+  /**
+   * The account every request is for when the caller has no choice (a customer's own), or `null`
+   * for an administrator. When set, the picker is not drawn and the account rule is skipped.
+   */
+  fixedAccountId: string | null
 }>()
 
 /** Events emitted by {@link BackupCreateForm}. */
@@ -55,7 +60,7 @@ const accountOptions: ComputedRef<SelectOption[]> = computed(() => {
 
 /** Validation message for the account picker, or `null`. */
 const accountError: ComputedRef<string | null> = computed(() => {
-  if (!submitted.value) {
+  if (!submitted.value || props.fixedAccountId !== null) {
     return null
   }
   return accountId.value.length === 0 ? t('backups.form.errors.accountRequired') : null
@@ -70,7 +75,7 @@ const submit = (): void => {
   if (accountError.value !== null) {
     return
   }
-  emit('submit', { accountId: accountId.value })
+  emit('submit', { accountId: props.fixedAccountId ?? accountId.value })
 }
 </script>
 
@@ -79,7 +84,7 @@ const submit = (): void => {
        The card is the form's own root, so a caller's `class` (spacing) lands on it. -->
   <UiCard>
     <UiForm class="flex flex-col gap-4" @submit="submit">
-      <div class="max-w-md">
+      <div v-if="fixedAccountId === null" class="max-w-md">
         <UiSelect
           v-model="accountId"
           :label="t('backups.form.fields.accountId')"

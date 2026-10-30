@@ -11,11 +11,12 @@
  * open, then the listing in a card. The notice names the count and nothing else: the failure code
  * belongs to the pane, where it is shown once, as the thing an operator quotes.
  *
- * **A refusal is rendered, not hidden.** The listing answers 404 to a caller the surface does not
- * exist for — the module's own choice, so a customer is not told there is an administrator-only
- * feed they were refused — and the panel's already-localized message for it is shown here verbatim
- * like any other. No route guard duplicates that rule: a second copy of an authorization decision
- * is a second place for it to be wrong, and the client's copy is the one that cannot be trusted.
+ * **Customers see their own tasks (issue #201).** The panel scopes the listing: a customer gets the
+ * tasks started for their own account, with an empty log, because the log is written for the
+ * operator and may carry tool output, and the panel marks each such task `logIncluded: false`. When
+ * a customer opens one, the pane shows its progress and, in place of the log, a short note that the
+ * detailed log stays with the server's administrators. A failed listing is rendered verbatim from
+ * the panel's own message.
  *
  * Opening a task starts its stream and leaves it running when the pane is closed, because the badge
  * is still counting. The shell releases every stream when it tears down.
@@ -156,8 +157,8 @@ onMounted(refresh)
 
       <UiSpinner v-if="store.loading" :label="t('tasks.list.loading')" />
 
-      <UiAlert v-else-if="store.errorMessage !== null" variant="error">
-        {{ store.errorMessage }}
+      <UiAlert v-else-if="store.listErrorMessage !== null" variant="error">
+        {{ store.listErrorMessage }}
       </UiAlert>
 
       <UiEmptyState

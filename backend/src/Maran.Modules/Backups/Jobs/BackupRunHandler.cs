@@ -245,9 +245,15 @@ public sealed class BackupRunHandler
         await _dbContext.SaveChangesAsync(cancellationToken);
 
         // The account, not the backup id — the same subject the manual create and every other kind
-        // of task records, and the one ITaskRecorder.BeginAsync asks for.
+        // of task records, and the one ITaskRecorder.BeginAsync asks for. Audience AccountOwner: a
+        // scheduled backup is the customer's backup, shown in their feed like a manual one.
         var taskId = await _tasks.BeginAsync(
-            TaskKinds.BackupCreate, account.Username, _correlationIds.CorrelationId, cancellationToken);
+            TaskKinds.BackupCreate,
+            account.Username,
+            account.Id,
+            TaskAudience.AccountOwner,
+            _correlationIds.CorrelationId,
+            cancellationToken);
 
         try
         {

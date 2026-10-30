@@ -10,6 +10,10 @@
  * reverse proxy). They are advice that saves a round trip; the server re-validates everything
  * and its already-localized rejection is rendered verbatim when it disagrees.
  *
+ * A customer owns exactly one account, so they get no account picker: their own account id goes on
+ * the request from their token, and the administrator-only accounts list is never read
+ * (useAccountChoice).
+ *
  * Renders a `<section>`, not a `<main>` — the layout owns the landmark.
  */
 import { computed, onMounted, ref, type ComputedRef, type Ref } from 'vue'
@@ -24,7 +28,7 @@ import UiSelect, { type SelectOption } from '../../components/ui/UiSelect.vue'
 import UiPageHeading from '../../components/ui/UiPageHeading.vue'
 import UiTextarea from '../../components/ui/UiTextarea.vue'
 import SiteBackendFields from '../../components/sites/SiteBackendFields.vue'
-import { useAccountsStore } from '../../stores/accounts'
+import { useAccountChoice } from '../../composables/useAccountChoice'
 import { useSitesStore } from '../../stores/sites'
 import type { SiteBackendType } from '../../types/site'
 import { flashNoticeState } from '../../utils/flashNotice'
@@ -51,7 +55,7 @@ const MAX_HOST_LENGTH = 253
 const { t } = useI18n()
 const router = useRouter()
 const store = useSitesStore()
-const accountsStore = useAccountsStore()
+const { fixedAccountId, accounts, load: loadAccounts } = useAccountChoice()
 
 /** The account that will own the site. */
 const accountId: Ref<string> = ref('')
@@ -76,7 +80,7 @@ const submitted: Ref<boolean> = ref(false)
 
 /** The accounts the picker offers, as the panel reported them. */
 const accountOptions: ComputedRef<SelectOption[]> = computed(() => {
-  return accountsStore.accounts.map((account) => {
+  return accounts.value.map((account) => {
     return { value: account.id, label: `${account.name} · ${account.primaryDomain}` }
   })
 })
@@ -95,7 +99,7 @@ const aliases: ComputedRef<string[]> = computed(() => {
 
 /** Validation message for the account picker, or `null`. */
 const accountError: ComputedRef<string | null> = computed(() => {
-  if (!submitted.value) {
+  if (!submitted.value || fixedAccountId.value !== null) {
     return null
   }
   return accountId.value.length === 0 ? t('sites.form.errors.accountRequired') : null
@@ -170,7 +174,7 @@ const isValid: ComputedRef<boolean> = computed(() => {
  * @returns Resolves once both requests have settled.
  */
 const loadReferenceData = async (): Promise<void> => {
-  await Promise.all([accountsStore.load(), store.loadPhpVersions()])
+  await Promise.all([loadAccounts(), store.loadPhpVersions()])
 }
 
 /**
@@ -185,7 +189,7 @@ const submit = async (): Promise<void> => {
   }
 
   const created = await store.create({
-    accountId: accountId.value,
+    accountId: fixedAccountId.value ?? accountId.value,
     domain: domain.value.trim(),
     aliases: aliases.value,
     backendType: backendType.value,
@@ -237,6 +241,7 @@ onMounted(loadReferenceData)
         <div class="flex flex-col gap-5">
           <div class="grid gap-4 md:grid-cols-2">
             <UiSelect
+              v-if="fixedAccountId === null"
               v-model="accountId"
               :label="t('sites.form.fields.accountId')"
               :placeholder="t('sites.form.placeholders.accountId')"

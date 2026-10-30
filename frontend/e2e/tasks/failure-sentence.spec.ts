@@ -22,6 +22,7 @@ const FAILED_CERTIFICATE: PanelTask = {
   status: 'failed',
   percent: 20,
   log: 'registering the account\n',
+  logIncluded: true,
   errorCode: 'AcmeAccountRejected',
   startedAt: '2026-09-03T09:00:00Z',
   finishedAt: '2026-09-03T09:01:00Z',

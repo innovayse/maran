@@ -221,8 +221,16 @@ public sealed class DeleteAccountCommandHandler
         // From here on there IS an operation to watch, and it is the longest and most destructive
         // one the panel offers. The task carries the account's NAME, which is what an operator
         // searches for and the only thing that survives the deletion.
+        // About this account, so an administrator finds it among the account's tasks; audience
+        // AdministratorOnly, because it is an administrator's action ON the account, not work done
+        // for its owner.
         var taskId = await _tasks.BeginAsync(
-            TaskKinds.AccountDeletion, account.Name, _correlationIds.CorrelationId, cancellationToken);
+            TaskKinds.AccountDeletion,
+            account.Name,
+            account.Id,
+            TaskAudience.AdministratorOnly,
+            _correlationIds.CorrelationId,
+            cancellationToken);
 
         // Step 0, and it is FIRST because a backup taken after the cascade is a backup of nothing:
         // the databases have been dropped and the home is on its way out. Refusing here costs a

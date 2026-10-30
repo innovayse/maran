@@ -17,8 +17,16 @@ public static class PanelTaskMapper
     /// <c>TaskKindDisplayNames</c>. Passed in rather than looked up here because a mapper translates
     /// and never decides (rules/csharp.md), and a resource lookup is a decision about culture.
     /// </param>
+    /// <param name="includeLog">
+    /// Whether the reader may see the task's log. Decided by the caller from who is reading — only
+    /// an administrator may (rules/security.md item 8: the log is operator-facing English that can
+    /// carry tool output, which a customer-facing answer never does). It is restated on the wire as
+    /// <see cref="PanelTaskDto.LogIncluded"/>, so a reader can tell a withheld log from a task that has
+    /// reported nothing yet; the log itself is then empty, so the wire shape does not change with the
+    /// reader.
+    /// </param>
     /// <returns>The task as a screen sees it.</returns>
-    public static PanelTaskDto From(PanelTask task, string kindDisplayName)
+    public static PanelTaskDto From(PanelTask task, string kindDisplayName, bool includeLog)
     {
         ArgumentNullException.ThrowIfNull(task);
 
@@ -30,7 +38,8 @@ public static class PanelTaskMapper
             task.CorrelationId,
             task.Status,
             task.Percent,
-            task.Log,
+            includeLog ? task.Log : string.Empty,
+            includeLog,
             task.ErrorCode,
             task.StartedAt,
             task.FinishedAt,

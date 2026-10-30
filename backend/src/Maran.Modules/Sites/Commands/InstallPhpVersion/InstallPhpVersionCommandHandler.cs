@@ -119,8 +119,15 @@ public sealed class InstallPhpVersionCommandHandler
             return Result<IReadOnlyList<PhpVersionDto>>.Ok(PhpVersionMapper.From(installed.Value));
         }
 
+        // No account and audience AdministratorOnly: a PHP version is installed for the whole
+        // server, so the task concerns no account and is no customer's to read.
         var taskId = await _tasks.BeginAsync(
-            TaskKinds.PhpVersionInstall, command.Version, _correlationIds.CorrelationId, cancellationToken);
+            TaskKinds.PhpVersionInstall,
+            command.Version,
+            accountId: null,
+            TaskAudience.AdministratorOnly,
+            _correlationIds.CorrelationId,
+            cancellationToken);
 
         var outcome = await RunAsync(command.Version, taskId, cancellationToken);
 

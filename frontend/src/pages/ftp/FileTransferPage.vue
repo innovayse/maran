@@ -77,8 +77,8 @@ import FileTransferLoginCreateForm from '../../components/ftp/FileTransferLoginC
 import FtpUserCreatedDialog from '../../components/ftp/FtpUserCreatedDialog.vue'
 import FtpsServerPanel from '../../components/ftp/FtpsServerPanel.vue'
 import SftpUserCreatedDialog from '../../components/sftp/SftpUserCreatedDialog.vue'
-import { useAccountsStore } from '../../stores/accounts'
-import { useAuthStore } from '../../stores/auth'
+import { useAccountChoice } from '../../composables/useAccountChoice'
+import { useCallerRole } from '../../composables/useCallerRole'
 import { useFirewallStore } from '../../stores/firewall'
 import { useFtpUsersStore } from '../../stores/ftpUsers'
 import { useFtpsServerStore } from '../../stores/ftpsServer'
@@ -98,8 +98,12 @@ import type {
 type PendingAction = 'resetPassword' | 'remove'
 
 const { t } = useI18n()
-const accountsStore = useAccountsStore()
-const authStore = useAuthStore()
+const { fixedAccountId, accounts, ownerName, load: loadAccounts } = useAccountChoice()
+/**
+ * Whether this caller may see the administrator's half of the screen. Presentation only: every
+ * endpoint behind it enforces its own policy (useCallerRole holds the role reasoning).
+ */
+const { isAdmin } = useCallerRole()
 const firewallStore = useFirewallStore()
 const ftpUsersStore = useFtpUsersStore()
 const ftpsServerStore = useFtpsServerStore()
@@ -120,17 +124,6 @@ const pendingProtocol: Ref<FileTransferProtocol> = ref('sftp')
 
 /** Which action that login is waiting on. */
 const pendingAction: Ref<PendingAction> = ref('remove')
-
-/**
- * Whether this caller may see the administrator's half of the screen.
- *
- * `role !== 'customer'` rather than `role === 'admin'`, matching the one other place the SPA branches
- * on the role: a role added above administrator must not silently lose the panel. It is presentation
- * only — every endpoint behind it enforces its own policy.
- */
-const isAdmin: ComputedRef<boolean> = computed(() => {
-  return authStore.user !== null && authStore.user.role !== 'customer'
-})
 
 /**
  * Every login on the host, whichever daemon holds it, newest first.
@@ -266,10 +259,7 @@ const confirmationText: ComputedRef<string> = computed(() => {
  * @returns The account's own short name, or a placeholder when the accounts list has none.
  */
 const accountName = (id: string): string => {
-  const owner = accountsStore.accounts.find((account) => {
-    return account.id === id
-  })
-  return owner?.name ?? t('common.emptyValue')
+  return ownerName(id) ?? t('common.emptyValue')
 }
 
 /**
@@ -291,7 +281,7 @@ const protocolLabel = (protocol: FileTransferProtocol): string => {
  * @returns Resolves once every request has settled.
  */
 const refresh = async (): Promise<void> => {
-  const reads: Promise<void>[] = [sftpStore.load(), ftpUsersStore.load(), accountsStore.load()]
+  const reads: Promise<void>[] = [sftpStore.load(), ftpUsersStore.load(), loadAccounts()]
 
   if (isAdmin.value) {
     reads.push(ftpsServerStore.load(), firewallStore.load())
@@ -451,7 +441,8 @@ onBeforeUnmount(dismissCredentials)
 
     <FileTransferLoginCreateForm
       ref="form"
-      :accounts="accountsStore.accounts"
+      :accounts="accounts"
+      :fixed-account-id="fixedAccountId"
       :submitting="sftpStore.creating || ftpUsersStore.creating"
       :ftps-availability="ftpsAvailability"
       @submit="create"

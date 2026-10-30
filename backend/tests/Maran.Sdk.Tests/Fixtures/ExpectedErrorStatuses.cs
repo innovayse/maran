@@ -253,14 +253,17 @@ public static class ExpectedErrorStatuses
 
     /// <summary>
     /// Codes the Host answers without going through result translation: the rate limiter's
-    /// rejection handler writes 429 itself, and the last-resort exception middleware writes 500.
+    /// rejection handler writes 429 itself, the last-resort exception middleware writes 500, and the
+    /// authorization result handler writes a policy refusal as 403.
     /// They are listed here rather than in <see cref="Kinds"/> because pinning them there would
     /// document a status the panel never sends through that path.
     /// </summary>
     public static readonly IReadOnlyDictionary<string, int> AnsweredOutsideResultTranslation =
         new Dictionary<string, int>(StringComparer.Ordinal)
         {
+            ["HostForbidden"] = StatusCodes.Status403Forbidden,
             ["HostRateLimited"] = StatusCodes.Status429TooManyRequests,
+            ["HostTwoFactorSetupRequired"] = StatusCodes.Status403Forbidden,
             ["HostUnexpectedError"] = StatusCodes.Status500InternalServerError,
         };
 }

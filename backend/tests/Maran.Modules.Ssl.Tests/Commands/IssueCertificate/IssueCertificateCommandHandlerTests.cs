@@ -31,7 +31,8 @@ public sealed class IssueCertificateCommandHandlerTests
             fixture.Journal,
             fixture.Clock,
             fixture.Tasks,
-            fixture.CorrelationIds);
+            fixture.CorrelationIds,
+            fixture.CurrentUser);
     }
 
     /// <summary>Issuing stores the certificate with the expiry the agent read off the material.</summary>

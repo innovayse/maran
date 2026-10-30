@@ -24,10 +24,13 @@ const MAXIMUM_OPEN_WATCHES = 8
  * the other. That is also what makes the badge rise without a navigation: nothing about the count
  * depends on which route is mounted.
  *
- * **A 404 from the listing is the surface's own answer, not a fault.** `ListTasksQueryHandler`
- * answers `TaskNotFound` to a customer rather than an empty 200, so that a customer is not told
- * there is an administrator-only feed they were refused. It is stored like any other backend
- * message and rendered verbatim by the page; the badge simply has nothing to count.
+ * **The listing is scoped by the panel, not by this store.** An administrator receives every task;
+ * a customer receives the tasks started for their own account, with the log left empty because it
+ * is written for the operator (issue #201). The store holds whatever arrives.
+ *
+ * **A failed listing is its own message.** It is kept in `listErrorMessage`, apart from anything
+ * about a single task, so a failure to read the list is never shown as "this task could not be
+ * found". The badge simply has nothing to count when the listing failed.
  */
 export const useTasksStore = defineStore('tasks', () => {
   const api = useTasksApi()
@@ -42,10 +45,10 @@ export const useTasksStore = defineStore('tasks', () => {
   const isLoaded: Ref<boolean> = ref(false)
 
   /**
-   * Backend-localized message from the most recent failed read, or `null`. Rendered verbatim; the
-   * administrator-only 404 arrives here like any other refusal.
+   * Backend-localized message from the most recent failed LISTING, or `null`. Rendered verbatim.
+   * Named for the listing on purpose: it says nothing about any one task.
    */
-  const errorMessage: Ref<string | null> = ref(null)
+  const listErrorMessage: Ref<string | null> = ref(null)
 
   /** The task whose live pane is open, or the empty string when none is. */
   const openTaskId: Ref<string> = ref('')
@@ -224,10 +227,10 @@ export const useTasksStore = defineStore('tasks', () => {
     loading.value = true
     try {
       tasks.value = await api.list()
-      errorMessage.value = null
+      listErrorMessage.value = null
       isLoaded.value = true
     } catch (error) {
-      errorMessage.value = error instanceof ApiError ? error.message : null
+      listErrorMessage.value = error instanceof ApiError ? error.message : null
     } finally {
       loading.value = false
     }
@@ -259,7 +262,7 @@ export const useTasksStore = defineStore('tasks', () => {
     tasks,
     loading,
     isLoaded,
-    errorMessage,
+    listErrorMessage,
     openTaskId,
     runningCount,
     openTask,

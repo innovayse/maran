@@ -9,6 +9,7 @@ using Maran.Modules.Identity.Persistence;
 using Maran.Modules.Tasks.Controllers;
 using Maran.Modules.Tasks.Domain.Entities;
 using Maran.Modules.Tasks.Persistence;
+using Maran.Sdk.Contracts;
 using Maran.SharedKernel.Interfaces;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -23,18 +24,17 @@ namespace Maran.Host.IntegrationTests;
 /// </summary>
 /// <remarks>
 /// <para>
-/// <c>TasksController</c>'s own remarks state the shape this fixture proves: every kind of task in
-/// v1 is an administrator's operation, but the controller is attributed
-/// <c>AuthorizationPolicies.AnyAuthenticated</c> rather than <c>AdminOnly</c>, so a customer never
-/// gets a 403 that would confirm an administrator-only feed exists here. Instead
-/// <c>TasksDbContext</c>'s own query filter (<c>HasQueryFilter(task =&gt; _currentUser.IsAdmin)</c>)
-/// makes every row invisible to anyone who is not an administrator, and the handlers answer
-/// <c>TaskNotFound</c> — a 404 that confirms nothing (spec §8, rules/testing.md item 3).
+/// <c>TasksController</c>'s own remarks state the shape this fixture proves: the controller is
+/// attributed <c>AuthorizationPolicies.AnyAuthenticated</c> rather than <c>AdminOnly</c>, and
+/// <c>TasksDbContext</c>'s own query filter admits an administrator to every row and a customer only
+/// to the rows recorded against their own account. A task that belongs to no account — the one
+/// seeded here — is invisible to a customer, whose list is empty and whose single read and stream
+/// answer <c>TaskNotFound</c>: a 404 that confirms nothing (spec §8, rules/testing.md item 3).
 /// </para>
 /// <para>
-/// This is the same 404-never-403 rule the tenant fixtures prove, applied along a different axis: not
-/// "customer A cannot see customer B's row" but "a customer cannot see the administrators' feed at
-/// all", including a row that genuinely exists. <c>TaskStreamTests</c> already proves the SSE route
+/// This is the same 404-never-403 rule the tenant fixtures prove, along the axis "a customer cannot
+/// see an administrator-only task", including a row that genuinely exists. The other axis, one
+/// customer against another, is <c>TasksCustomerScopeTests</c>. <c>TaskStreamTests</c> already proves the SSE route
 /// works end to end for an administrator; what is missing, and what this fixture adds, is the
 /// customer side of every route and the completeness proof that a new one cannot go untested.
 /// </para>
@@ -95,22 +95,23 @@ public sealed class TasksAuthorizationTests : IAsyncLifetime
     }
 
     /// <summary>
-    /// A signed in customer is answered not found by every tasks endpoint, including a task that
-    /// genuinely exists.
+    /// A signed in customer is answered not found for an administrator-only task on every route that
+    /// names one, and an empty list on the listing.
     /// </summary>
     [Fact]
-    public async Task A_signed_in_customer_is_answered_not_found_by_every_tasks_endpoint()
+    public async Task A_signed_in_customer_is_answered_not_found_for_an_administrator_only_task()
     {
-        // 404, never 403: the module's own query filter hides every row from a non-administrator,
-        // so the answer must be the same whether the id names a real task or one nobody ever
-        // created — a 403 here would be the leak, confirming an administrator-only feed exists.
+        // 404, never 403: the module's own query filter hides a task that belongs to no account
+        // from every customer, so the answer must be the same whether the id names a real task or
+        // one nobody ever created — a 403 here would be the leak, confirming the task exists.
         await using var factory = CreateFactory();
         await MigrateAsync(factory);
         await SeedUsersAsync(factory);
         var taskId = await SeedRunningTaskAsync(factory);
         using var client = await SignInAsync(factory, "customer");
 
-        await AssertEveryEndpointAsync(client, taskId, HttpStatusCode.NotFound);
+        await AssertEveryEndpointAsync(client, taskId, HttpStatusCode.NotFound, includeListing: false);
+        await AssertEmptyListingAsync(client);
     }
 
     /// <summary>A task identifier nobody created is answered not found rather than failing.</summary>
@@ -122,7 +123,7 @@ public sealed class TasksAuthorizationTests : IAsyncLifetime
         await SeedUsersAsync(factory);
         using var client = await SignInAsync(factory, "customer");
 
-        await AssertEveryEndpointAsync(client, Guid.NewGuid(), HttpStatusCode.NotFound);
+        await AssertEveryEndpointAsync(client, Guid.NewGuid(), HttpStatusCode.NotFound, includeListing: false);
     }
 
     /// <summary>An administrator reaches the tasks feed on every route.</summary>
@@ -180,13 +181,22 @@ public sealed class TasksAuthorizationTests : IAsyncLifetime
     /// <param name="client">The client to send with.</param>
     /// <param name="taskId">The task identifier to substitute into <c>{id}</c>.</param>
     /// <param name="expected">The status every route must answer.</param>
+    /// <param name="includeListing">
+    /// Whether the listing is among the routes tried. A listing names no task, so for a signed-in
+    /// caller its answer is a list rather than a status about one id, and is asserted separately.
+    /// </param>
     private static async Task AssertEveryEndpointAsync(
         HttpClient client,
         Guid taskId,
-        HttpStatusCode expected)
+        HttpStatusCode expected,
+        bool includeListing = true)
     {
         var wrong = new List<string>();
-        foreach (var route in Endpoints())
+        var routes = Endpoints().Where(route =>
+        {
+            return includeListing || route.Contains("{id}", StringComparison.Ordinal);
+        });
+        foreach (var route in routes)
         {
             var parts = route.Split(' ', 2);
             var path = parts[1].Replace("{id}", taskId.ToString(), StringComparison.Ordinal);
@@ -203,6 +213,18 @@ public sealed class TasksAuthorizationTests : IAsyncLifetime
         Assert.True(
             wrong.Count == 0,
             $"These routes did not answer {(int)expected}: " + string.Join("; ", wrong));
+    }
+
+    /// <summary>Asserts that the listing answers 200 with no task in it.</summary>
+    /// <param name="client">The signed-in client to send with.</param>
+    private static async Task AssertEmptyListingAsync(HttpClient client)
+    {
+        using var response = await client.GetAsync("/api/v1/tasks");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        Assert.Equal(JsonValueKind.Array, body.RootElement.ValueKind);
+        Assert.Equal(0, body.RootElement.GetArrayLength());
     }
 
     /// <summary>Boots the host against this class's PostgreSQL.</summary>
@@ -266,7 +288,8 @@ public sealed class TasksAuthorizationTests : IAsyncLifetime
         var dbContext = scope.ServiceProvider.GetRequiredService<TasksDbContext>();
         var clock = scope.ServiceProvider.GetRequiredService<IClock>();
 
-        var task = new PanelTask(Guid.NewGuid(), "CertificateIssue", "example.com", null, clock.UtcNow);
+        var task = new PanelTask(
+            Guid.NewGuid(), "CertificateIssue", "example.com", null, TaskAudience.AdministratorOnly, null, clock.UtcNow);
         dbContext.PanelTasks.Add(task);
         await dbContext.SaveChangesAsync();
 

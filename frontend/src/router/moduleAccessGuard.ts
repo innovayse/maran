@@ -1,6 +1,7 @@
 import type { NavigationGuard, RouteLocationRaw } from 'vue-router'
 import { useModulesStore } from '../stores/modules'
 import { useModuleAccess } from '../composables/useModuleAccess'
+import { useCallerRole } from '../composables/useCallerRole'
 
 /**
  * Global navigation guard enforcing licence gating cosmetically at the
@@ -28,8 +29,13 @@ import { useModuleAccess } from '../composables/useModuleAccess'
  * unreachable panel is not an un-set-up one.
  *
  * A catalogue that loaded and simply does not list the module is a different
- * question with a real answer — the panel said it has no such module — and
- * that one still lands on the upgrade page.
+ * question with a real answer — the panel said it has no such module. For an
+ * administrator that still lands on the upgrade page. For a customer it does
+ * not (issue #202): the backend filters the catalogue by role, so a module
+ * missing from a customer's catalogue is one that is not part of their area,
+ * and telling them to buy it would be wrong. They land on the "not available"
+ * screen instead. Only a module the catalogue lists as locked is an upgrade
+ * question for a customer.
  *
  * @returns A Vue Router navigation guard to register with `router.beforeEach`.
  */
@@ -57,6 +63,13 @@ export const createModuleAccessGuard = (): NavigationGuard => {
     const access = useModuleAccess()
     if (access.canUse(moduleName)) {
       return true
+    }
+
+    // A customer's catalogue leaves out what is not theirs, so "absent" means "not for you",
+    // not "not bought". Locked is the one state that is genuinely about the licence.
+    const { isCustomer } = useCallerRole()
+    if (isCustomer.value && !modulesStore.isLocked(moduleName)) {
+      return { name: 'not-available', replace: true }
     }
 
     return { name: 'upgrade', params: { module: moduleName } }

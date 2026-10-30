@@ -229,4 +229,19 @@ public sealed class PanelTaskTests
 
         return points;
     }
+
+    /// <summary>Releasing the account forgets the owner and leaves everything a watcher sees untouched.</summary>
+    [Fact]
+    public void Releasing_the_account_forgets_the_owner_and_leaves_everything_a_watcher_sees_untouched()
+    {
+        var task = TasksTestContext.Row(accountId: Guid.NewGuid());
+        task.Report(40, "copying");
+        var revision = task.Revision;
+
+        task.ReleaseAccount();
+
+        Assert.Null(task.AccountId);
+        Assert.Equal(revision, task.Revision);
+        Assert.Equal("copying", task.Log);
+    }
 }

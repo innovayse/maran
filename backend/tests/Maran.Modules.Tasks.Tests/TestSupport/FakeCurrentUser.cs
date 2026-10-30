@@ -4,7 +4,7 @@ namespace Maran.Modules.Tasks.Tests.TestSupport;
 
 /// <summary>
 /// An <see cref="ICurrentUser"/> double, so a test can BE an administrator or a customer. The
-/// administrator query filter on <c>TasksDbContext</c> closes over this, which is the whole subject
+/// tenant query filter on <c>TasksDbContext</c> closes over this, which is the whole subject
 /// of the visibility tests.
 /// </summary>
 public sealed class FakeCurrentUser : ICurrentUser
@@ -34,10 +34,19 @@ public sealed class FakeCurrentUser : ICurrentUser
         IsAdmin = isAdmin;
     }
 
-    /// <summary>Creates a customer principal, for whom this whole surface does not exist.</summary>
+    /// <summary>Creates a customer principal owning a fresh account no seeded task belongs to.</summary>
+    /// <returns>The principal.</returns>
     public static FakeCurrentUser Customer()
     {
         return new FakeCurrentUser(Guid.NewGuid(), Guid.NewGuid(), isAdmin: false);
+    }
+
+    /// <summary>Creates a customer principal owning the given account.</summary>
+    /// <param name="accountId">The account the customer owns.</param>
+    /// <returns>The principal.</returns>
+    public static FakeCurrentUser Customer(Guid accountId)
+    {
+        return new FakeCurrentUser(Guid.NewGuid(), accountId, isAdmin: false);
     }
 
     /// <summary>Creates an administrator principal, which the module's query filter admits.</summary>

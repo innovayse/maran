@@ -35,6 +35,7 @@ const RUNNING: PanelTask = {
   status: 'running',
   percent: 40,
   log: '',
+  logIncluded: true,
   errorCode: null,
   startedAt: '2026-09-03T09:00:00Z',
   finishedAt: null,

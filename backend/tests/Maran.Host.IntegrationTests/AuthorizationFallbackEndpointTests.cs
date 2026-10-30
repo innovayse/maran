@@ -1,4 +1,5 @@
 using System.Net;
+using System.Text.Json;
 using Maran.Host.IntegrationTests.Fixtures;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -15,8 +16,8 @@ namespace Maran.Host.IntegrationTests;
 /// <remarks>
 /// <para>
 /// The fallback is administrator-only. These tests show it where it matters: an anonymous caller is
-/// 401, a signed-in customer is 403 with an EMPTY body (the authorization layer refused, no handler
-/// ran), and an administrator is admitted. The administrator case is the inverse control: a fallback
+/// 401, a signed-in customer is 403 with the generic <c>HostForbidden</c> problem body (the
+/// authorization layer refused and wrote it, no handler ran), and an administrator is admitted. The administrator case is the inverse control: a fallback
 /// that refused everyone would pass the other two.
 /// </para>
 /// <para>
@@ -99,7 +100,8 @@ public sealed class AuthorizationFallbackEndpointTests : IAsyncLifetime
 
     /// <summary>A signed-in customer of an unmarked endpoint is refused by authorization itself.</summary>
     /// <remarks>
-    /// 403 with an empty body: the middleware refused, no handler produced a problem document.
+    /// 403 with the generic <c>HostForbidden</c> code: the authorization layer refused and wrote the
+    /// body, no handler ran (a handler refusal carries its own code).
     /// </remarks>
     [Fact]
     public async Task An_endpoint_with_no_authorization_metadata_refuses_a_signed_in_customer()
@@ -110,7 +112,8 @@ public sealed class AuthorizationFallbackEndpointTests : IAsyncLifetime
         var response = await client.GetAsync(ProbePath);
 
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
-        Assert.Equal(string.Empty, await response.Content.ReadAsStringAsync());
+        using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        Assert.Equal("HostForbidden", body.RootElement.GetProperty("code").GetString());
     }
 
     /// <summary>An administrator is admitted to an unmarked endpoint: the fallback is not deny-all.</summary>

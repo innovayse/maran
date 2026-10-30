@@ -6,7 +6,7 @@ namespace Maran.Modules.Tasks.Persistence;
 /// the MODEL — the shape of the tables — which it cannot do without constructing the context.
 /// </summary>
 /// <remarks>
-/// It reports an administrator because the module's administrator query filter must not narrow a
+/// It reports an administrator because the module's query filter must not narrow a
 /// generated migration: a migration describes the table, and a filtered model would still describe
 /// the same table, but making that depend on a fabricated principal is a trap for the next reader.
 /// Nothing here ever runs at runtime — the Host registers the real <c>ICurrentUser</c> through DI —

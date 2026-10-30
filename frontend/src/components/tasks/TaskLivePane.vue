@@ -19,6 +19,11 @@
  * runs the box follows the newest line — but only when the reader was already at the bottom, so a
  * person scrolled up to read an earlier line is never yanked away from it.
  *
+ * **A withheld log is said to be withheld.** The panel sends a customer their own task without its
+ * log, because the log is written for the operator, and says so in `logIncluded`. The pane then
+ * shows a short note that the log stays with the server's administrators, in place of "nothing has
+ * been reported yet" — which would read as a task that is stuck (issue #201).
+ *
  * **A failed task shows no bar.** A meter stopped at 20 % beside FAILED reads as work still
  * under way, so once the task has failed the bar is gone and the figure stays, muted, as a record of
  * how far it got (#222).
@@ -205,7 +210,10 @@ watch(
       </span>
     </UiAlert>
 
-    <p v-if="task.log.length === 0" class="text-sm text-text-secondary">
+    <p v-if="!task.logIncluded" class="text-sm text-text-secondary">
+      {{ t('tasks.pane.logWithheld') }}
+    </p>
+    <p v-else-if="task.log.length === 0" class="text-sm text-text-secondary">
       {{ t('tasks.pane.noLog') }}
     </p>
     <pre

@@ -21,4 +21,10 @@
   <data name="HostValidationFailed">
     <value>Некоторые из введённых данных некорректны.</value>
   </data>
+  <data name="HostForbidden">
+    <value>У вас нет доступа к этой странице.</value>
+  </data>
+  <data name="HostTwoFactorSetupRequired">
+    <value>Сначала завершите настройку двухфакторной аутентификации.</value>
+  </data>
 </root>

@@ -340,7 +340,8 @@ public sealed class AuthController : BaseApiController
     /// from a caller's address exhaust the one-time budget a new customer needs to accept an
     /// invitation they cannot simply ask to have resent (<c>RateLimitPolicies.Invitation</c>'s own
     /// remarks). A token that never existed, has expired, or has already been spent all get the
-    /// same refusal.
+    /// same refusal. Success answers the login's username, so the person knows what to sign in
+    /// with; only the holder of a usable token receives it, and the token is spent by this call.
     /// </remarks>
     /// <param name="command">The token from the mail and the chosen password. The caller's address
     /// and user agent are stamped here.</param>
@@ -348,13 +349,13 @@ public sealed class AuthController : BaseApiController
     [HttpPost("accept-invitation")]
     [AllowAnonymous]
     [EnableRateLimiting(RateLimitPolicies.Invitation)]
-    [ProducesResponseType(typeof(bool), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(AcceptInvitationResultDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> AcceptInvitationAsync(
         [FromBody] AcceptInvitationCommand command,
         CancellationToken cancellationToken)
     {
         command = command with { IpAddress = ClientIpAddress, UserAgent = CallerUserAgent };
-        return ToActionResult(await _bus.InvokeAsync<Result<bool>>(command, cancellationToken));
+        return ToActionResult(await _bus.InvokeAsync<Result<AcceptInvitationResultDto>>(command, cancellationToken));
     }
 }

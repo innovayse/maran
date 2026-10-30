@@ -9,7 +9,8 @@
       "missingTokenTitle": "This invitation link is incomplete",
       "missingTokenBody": "Open the link from your invitation e-mail again, or ask whoever invited you to send a new one.",
       "refusedHint": "If the link has expired or was already used, ask whoever invited you to send a new invitation.",
-      "passwordTooShort": "Use at least {min} characters. If your administrator allows shorter passwords, press the button again to send it anyway."
+      "passwordTooShort": "Use at least {min} characters. If your administrator allows shorter passwords, press the button again to send it anyway.",
+      "username": "Your username is {username}."
     }
   }
 }

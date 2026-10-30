@@ -62,6 +62,9 @@ public sealed class IssueCertificateCommandHandler
     /// <summary>The current request's correlation id, recorded on the task beside its stages.</summary>
     private readonly ICorrelationIdAccessor _correlationIds;
 
+    /// <summary>The caller, whose own account the issuance task is recorded against.</summary>
+    private readonly ICurrentUser _currentUser;
+
     /// <summary>Creates the handler.</summary>
     /// <param name="dbContext">The Ssl module's database context.</param>
     /// <param name="sites">The tenant-scoped window onto the sites this caller owns.</param>
@@ -72,6 +75,7 @@ public sealed class IssueCertificateCommandHandler
     /// <param name="clock">The injected time source used to stamp the new row.</param>
     /// <param name="tasks">The panel-wide task journal.</param>
     /// <param name="correlationIds">The current request's correlation id.</param>
+    /// <param name="currentUser">The caller, whose own account the issuance task is recorded against.</param>
     public IssueCertificateCommandHandler(
         SslDbContext dbContext,
         ISiteDirectory sites,
@@ -81,7 +85,8 @@ public sealed class IssueCertificateCommandHandler
         CertificateAuditJournal journal,
         IClock clock,
         ITaskRecorder tasks,
-        ICorrelationIdAccessor correlationIds)
+        ICorrelationIdAccessor correlationIds,
+        ICurrentUser currentUser)
     {
         _dbContext = dbContext;
         _sites = sites;
@@ -92,6 +97,7 @@ public sealed class IssueCertificateCommandHandler
         _clock = clock;
         _tasks = tasks;
         _correlationIds = correlationIds;
+        _currentUser = currentUser;
     }
 
     /// <summary>Issues and installs a certificate for one of the caller's sites.</summary>
@@ -111,8 +117,19 @@ public sealed class IssueCertificateCommandHandler
         // operation — an authority to reach, a challenge to serve, a poll to wait out — and the
         // domain the caller named is already a good enough subject to watch it by, whether or not
         // it turns out to be theirs.
+        //
+        // About the CALLER's own account — null for an administrator — and not the site's owner,
+        // because the owner is not known yet: the task is opened before the domain is checked.
+        // Attributing it to whoever owns the domain would let a customer who probes a domain that
+        // is not theirs plant a task in that tenant's feed. Audience AccountOwner: an issuance is
+        // work done for the customer.
         var taskId = await _tasks.BeginAsync(
-            TaskKinds.CertificateIssue, command.Domain, _correlationIds.CorrelationId, cancellationToken);
+            TaskKinds.CertificateIssue,
+            command.Domain,
+            _currentUser.AccountId,
+            TaskAudience.AccountOwner,
+            _correlationIds.CorrelationId,
+            cancellationToken);
 
         // Tenant-scoped: the directory answers null for a site this caller does not own, so a guessed
         // domain reads as "not found" rather than "forbidden".

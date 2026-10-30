@@ -17,6 +17,9 @@
  * A link carrying no token is a stated state of its own — a warning and the way
  * back, with no form, because that request is certain to be refused.
  *
+ * On success the screen names the login the invitation created (issue #202), which the panel
+ * returns to the token holder only, so the person knows what to type on the sign-in screen.
+ *
  * A refusal is rendered exactly as the panel sent it, beside a way back to the
  * sign-in screen and one fixed line saying what to do next (ask for a new
  * invitation). The backend answers a token that never existed, one that has
@@ -117,7 +120,14 @@ onMounted((): void => {
 
     <!-- Done: the password is set, and the only thing left to do is sign in with it. -->
     <div v-if="done" class="flex flex-col gap-5">
-      <UiAlert variant="success">{{ t('app.acceptInvitation.done') }}</UiAlert>
+      <UiAlert variant="success">
+        <p>{{ t('app.acceptInvitation.done') }}</p>
+        <!-- The login name the invitation created: the person has never signed in and may not
+             know it. Rendered as text; it is the panel's own value, never markup. -->
+        <p v-if="authStore.invitedUsername !== null" class="mt-1">
+          {{ t('app.acceptInvitation.username', { username: authStore.invitedUsername }) }}
+        </p>
+      </UiAlert>
       <UiButton class="w-full justify-center" :to="{ name: 'login' }">
         {{ t('app.acceptInvitation.backToSignIn') }}
         <UiIcon name="arrowRight" size="sm" />

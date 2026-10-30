@@ -34,7 +34,7 @@ public sealed class TaskStreamOptions
     /// deliberate trade. A push would need a process-wide registry of live subscriptions that the
     /// recorder writes into while it is inside somebody else's account deletion — shared mutable
     /// state on the path of the most destructive operation the panel has, bought for a fraction of
-    /// a second of latency on an admin-only progress bar. Polling has neither the state nor the
+    /// a second of latency on a progress bar. Polling has neither the state nor the
     /// lifetime problem, it survives a panel that one day runs as more than one process, and the
     /// row it reads is the same row the listing shows.
     ///
