@@ -156,8 +156,10 @@ to the next person who reads the class. Sizes written in scoped CSS are worse ag
 behind when the components around them move, and sit a step off with nothing to say why.
 
 **Which step:** `text-sm` is the body step — anything a person reads as a sentence, including muted
-secondary lines. `text-xs` is for uppercase micro-labels, table headers, badges and key chips, never
-for a phrase. Titles start at `text-lg` and go up.
+secondary lines. `text-xs` is for micro-labels, table headers, badges and key chips, never for a
+phrase; sentence case — no CSS uppercase, and no caps tracking. Acronyms keep the capitals they are
+written with in the locale text (TCP, SFTP, PHP). `maran structure` rejects `uppercase`,
+`tracking-caps` and `tracking-wide*` in `frontend/src`. Titles start at `text-lg` and go up.
 
 `maran structure` rejects a literal `font-size` and the `text-[…]` form.
 
@@ -366,7 +368,7 @@ error.value = t(`errors.${problem.code}`)
 - The UI kit carries accessibility, so views inherit it: `UiButton` renders a real `<button>`, `UiInput` binds a real label, `UiTable` renders a real `<table>`. Fixing a primitive fixes every screen at once.
 - **A kit component or shell component rebuilt from zero keeps its public API (props, emits, slots, exposed methods) and its ARIA roles and accessible names.** The internals and the look change; the contract does not, because every page composes these components and the Playwright suite finds controls by role and name. A spec is changed only when the behaviour it asserts is deliberately changed, never to make a rewrite pass. Details in `docs/design/redesign-2026-10/README.md`.
 - **Below 1024px the sidebar is a modal drawer.** It opens from the hamburger and from the tab bar's "More", and closes on its own button, the backdrop, a chosen destination and `Escape`. Focus moves in on open, stays inside while it is open, and returns to the opener on close; `aria-expanded` on both openers follows the state. A modal panel that does not close on `Escape` traps a keyboard user, which is why this is a rule and not a styling choice.
-- **No screen scrolls horizontally at 390px, in any of the three languages.** Armenian uppercase labels are long (`ՀԱՅՏԱՐԱՐՈՒԹՅՈՒՆՆԵՐ`) and are the usual cause; labels wrap (`overflow-wrap: anywhere`) and tab-bar labels are short enough to fit.
+- **No screen scrolls horizontally at 390px, in any of the three languages.** Armenian labels are long (`Հայտարարություններ`) and are the usual cause; labels wrap (`overflow-wrap: anywhere`) and tab-bar labels are short enough to fit.
 - **One `<h1>` per screen, and it is the page heading.** In the authenticated shell the page's own title is the `h1` (`UiPageHeading`); the app bar's wordmark (`ShellWordmark`) is plain content or a link, never a heading, so the document does not get two. The one exception is the auth layout: it renders no page title of its own above the card, so its wordmark is the screen's `h1` and every auth page opens with `UiAuthHeading`, an `h2`. Specs and the page outline are written against those levels.
 - Destructive actions get a confirmation dialog (`UiConfirm`). Keyboard path and focus order are checked in review for every new view.
 

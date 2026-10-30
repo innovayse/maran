@@ -55,7 +55,7 @@ const remove = (): void => {
       <div class="flex min-w-0 items-center gap-3">
         <UiIconTile name="shieldCheck" size="lg" />
         <div v-if="props.daysLeft !== null" class="min-w-0">
-          <p class="font-display text-xs font-extrabold tracking-caps text-text-muted uppercase wrap-anywhere">
+          <p class="font-display text-xs font-extrabold text-text-muted wrap-anywhere">
             {{ t("certificates.daysLeftLabel") }}
           </p>
           <p

@@ -17,7 +17,7 @@
  * going to fail.
  *
  * **The screen is the approved dashboard mockup** (`docs/design/redesign-2026-10/`): an accent eyebrow
- * and an uppercase title with the primary action as a pill, then the one thing that needs attention
+ * and a title with the primary action as a pill, then the one thing that needs attention
  * as a notice, then the figure cards, then the services, the quick actions and the latest activity.
  * The health verdict is the heading's sentence when it is good, and a notice of its own when it is
  * not. The mockup's accounts table is not drawn: the dashboard payload carries no account rows, and

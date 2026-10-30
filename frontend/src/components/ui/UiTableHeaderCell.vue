@@ -7,8 +7,8 @@
  * with no idea which column it came from. Callers pass already-translated text; the primitive holds
  * no copy.
  *
- * The type is the design's small uppercase label: `text-xs`, the display face at weight 800, wide
- * tracking, in the faintest TEXT tier (`text-text-muted`, 5.36:1 on a panel and 5.03:1 on the
+ * The type is the design's small label in sentence case: `text-xs`, the display face at weight 800,
+ * in the faintest TEXT tier (`text-text-muted`, 5.36:1 on a panel and 5.03:1 on the
  * raised surface in the dark theme; 5.41 / 4.91 in the light one — it passes, so it is not
  * promoted to a brighter tier). There is no header band behind it: the hairline under the header
  * row does the separating.
@@ -16,7 +16,7 @@
  * **Headings never wrap.** A two-line heading would push every row of a dense table down, and a
  * long Armenian label such as «ՀԱՅՏԱՐԱՐՈՒԹՅՈՒՆՆԵՐ» is exactly what would otherwise be squeezed into
  * one-word-per-line. The table scrolls inside its own container ({@link UiTable}), so a wide
- * heading widens the table, not the page. Free-standing uppercase labels elsewhere (cards, lists)
+ * heading widens the table, not the page. Free-standing micro-labels elsewhere (cards, lists)
  * do wrap anywhere; a table column is the exception because it has somewhere to scroll.
  *
  * `data-align` lets {@link UiTable} keep an end-aligned last heading sticky over the sticky action
@@ -84,7 +84,7 @@ const requestSort = (): void => {
 
 <template>
   <th
-    class="px-3 pt-0.5 pb-1.5 font-display text-xs font-extrabold tracking-caps whitespace-nowrap text-text-muted uppercase"
+    class="px-3 pt-0.5 pb-1.5 font-display text-xs font-extrabold whitespace-nowrap text-text-muted"
     :class="alignment"
     :data-align="align"
     :aria-sort="sort"
@@ -93,7 +93,7 @@ const requestSort = (): void => {
     <button
       v-if="sort !== undefined"
       type="button"
-      class="inline-flex items-center gap-1 rounded-inset font-display text-xs font-extrabold tracking-caps uppercase hover:text-text-primary focus-visible:shadow-focus focus-visible:outline-none"
+      class="inline-flex items-center gap-1 rounded-inset font-display text-xs font-extrabold hover:text-text-primary focus-visible:shadow-focus focus-visible:outline-none"
       :class="sort === 'none' ? '' : 'text-text-primary'"
       data-testid="sort-header"
       @click="requestSort"

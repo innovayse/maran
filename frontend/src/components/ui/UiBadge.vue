@@ -4,8 +4,8 @@
  * a locked navigation entry, a task outcome). The badge always renders its text, so colour is
  * never the only carrier of meaning — an accessibility requirement, not a style preference. It
  * owns no copy: callers pass already-translated text (frontend chrome) or backend-localized text
- * through the default slot. Uppercase is applied by CSS rather than by the caller so the underlying
- * text stays translatable and copyable in its own casing.
+ * through the default slot. The text is shown in its own casing (sentence case, acronyms as
+ * written): the panel applies no CSS case transform, so what the reader sees is what was translated.
  *
  * **Why the text is NOT in the status colour.** The obvious badge is green text on a green wash.
  * That pairing is not covered by any token, so it was measured (WCAG relative luminance, wash at
@@ -110,7 +110,8 @@ const dotClasses: ComputedRef<string | null> = computed(() => {
 
 <template>
   <span
-    class="inline-flex max-w-full shrink-0 items-center gap-1 rounded-full px-2 py-0.5 font-display text-xs leading-none font-extrabold tracking-caps uppercase [td_&]:whitespace-nowrap [th_&]:whitespace-nowrap"
+    data-ui="badge"
+    class="inline-flex max-w-full shrink-0 items-center gap-1 rounded-full px-2 py-0.5 font-display text-xs leading-none font-extrabold [td_&]:whitespace-nowrap [th_&]:whitespace-nowrap"
     :class="pillClasses"
   >
     <!-- Decorative: the word beside it already says the state. -->

@@ -32,9 +32,9 @@
  * Mobile Safari pins a disabled input's glyphs to its own grey through
  * `-webkit-text-fill-color`, which ignores `color`, so that property is set to the same token.
  *
- * THE LABEL is a micro-label: `text-xs`, bold, uppercase with caps tracking, in `text-text-muted`
+ * THE LABEL is a micro-label: `text-xs`, bold, sentence case, in `text-text-muted`
  * (5.36:1 on `--s1` dark, 5.41:1 light), turning `text-danger` with the field. It wraps
- * (`wrap-anywhere`) because an uppercase Armenian label is long enough to widen a phone column.
+ * (`wrap-anywhere`) because a long Armenian label is long enough to widen a phone column.
  * Every field primitive (`UiTextarea`, `UiSelect`, `UiSearchInput`, `UiPasswordInput` through
  * this one) draws its label the same way.
  *
@@ -146,7 +146,7 @@ const onInput = (event: Event): void => {
          carry it). The message below says WHY, so colour is never the only cue. -->
     <label
       :for="inputId"
-      class="text-xs font-bold tracking-caps uppercase wrap-anywhere"
+      class="text-xs font-bold wrap-anywhere"
       :class="hasError ? 'text-danger' : 'text-text-muted'"
       >{{ label }}</label
     >

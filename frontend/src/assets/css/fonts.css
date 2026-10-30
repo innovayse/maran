@@ -1,6 +1,6 @@
 /* Self-hosted copies of Archivo, Inter, JetBrains Mono and Noto Sans Armenian.
  *
- * Archivo sets the display type (titles, figures, uppercase labels), Inter the body text,
+ * Archivo sets the display type (titles, figures, micro-labels), Inter the body text,
  * JetBrains Mono the aligned figures, and Noto Sans Armenian is the fallback every stack ends in,
  * because Maran ships an Armenian interface and none of the other three draws those letters.
  *

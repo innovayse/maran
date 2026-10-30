@@ -157,7 +157,7 @@ watch(
 <template>
   <UiCard>
     <div class="mb-4 flex flex-wrap items-center gap-x-3 gap-y-2">
-      <h2 class="min-w-0 font-display text-lg font-extrabold tracking-caps text-text-primary wrap-anywhere uppercase">
+      <h2 class="min-w-0 font-display text-lg font-extrabold text-text-primary wrap-anywhere">
         {{ kindLabel(task.kind) }}
       </h2>
       <TaskStatusBadge :status="task.status" />

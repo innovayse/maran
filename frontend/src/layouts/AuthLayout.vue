@@ -83,7 +83,7 @@ const year: number = new Date().getFullYear()
 
       <div class="relative flex items-center gap-3">
         <UiBrandMark :size="40" />
-        <span class="font-display text-2xl font-black tracking-caps uppercase">{{ t('app.title') }}</span>
+        <span class="font-display text-2xl font-black">{{ t('app.title') }}</span>
       </div>
 
       <div class="relative">
@@ -127,7 +127,7 @@ const year: number = new Date().getFullYear()
           <div class="mb-8 lg:mb-0">
             <div class="flex items-center justify-center gap-3 lg:sr-only">
               <UiBrandMark :size="40" />
-              <h1 class="font-display text-2xl font-black tracking-caps uppercase wrap-anywhere">
+              <h1 class="font-display text-2xl font-black wrap-anywhere">
                 {{ t('app.title') }}
               </h1>
             </div>

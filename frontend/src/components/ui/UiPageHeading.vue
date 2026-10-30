@@ -18,7 +18,7 @@
  *
  * Three rules shape the details:
  *
- * - The title is UPPERCASE display type, and uppercase words must not push the
+ * - The title is display type in sentence case, and long words must not push the
  *   page sideways: a long Armenian word like «ՀԱՅՏԱՐԱՐՈՒԹՅՈՒՆՆԵՐ» is one
  *   unbreakable run, and Maran ships Armenian. So the text wraps with
  *   `break-words` (`overflow-wrap: break-word`), NOT `wrap-anywhere`. The two
@@ -27,9 +27,9 @@
  *   is squeezed collapses to one letter per line («SI / TE / S»); `break-word`
  *   leaves the minimum at the longest whole word and breaks inside a word only
  *   when that single word is wider than the box that holds it.
- * - A `mono` title is machine text — a domain, a path, an identifier — and is
- *   NOT uppercased: a path's case is meaningful, and a domain shown in capitals
- *   is no longer the string the person must type.
+ * - A `mono` title is machine text — a domain, a path, an identifier — set in
+ *   the mono face, because a path's case is meaningful and the title must be
+ *   the exact string the person types.
  * - The layout answers to the width of the CONTAINER, never the viewport. The
  *   block is a CSS container (`@container`) and the title and the actions sit
  *   side by side only when the block itself is at least `@3xl` (48rem) wide.
@@ -102,7 +102,7 @@ const slots = useSlots()
 const titleClass: ComputedRef<string> = computed(() => {
   return props.mono
     ? 'font-mono text-xl font-semibold text-text-primary break-words @3xl:text-2xl'
-    : 'font-display text-xl leading-tight font-black tracking-title text-text-primary uppercase break-words @3xl:text-2xl'
+    : 'font-display text-xl leading-tight font-black tracking-title text-text-primary break-words @3xl:text-2xl'
 })
 </script>
 
@@ -118,7 +118,8 @@ const titleClass: ComputedRef<string> = computed(() => {
       <div class="min-w-0 @3xl:min-w-64 @3xl:flex-1">
         <p
           v-if="eyebrow !== undefined"
-          class="mb-1 font-display text-xs font-extrabold tracking-caps text-accent-text uppercase break-words"
+          data-ui="eyebrow"
+          class="mb-1 font-display text-xs font-extrabold text-accent-text break-words"
         >
           {{ eyebrow }}
         </p>

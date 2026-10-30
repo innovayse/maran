@@ -305,7 +305,7 @@ useOutsidePress(rootElement, isOpen, (): void => {
   <div ref="rootElement" class="flex min-w-24 flex-col gap-1" @focusout="onFocusOut">
     <span
       :id="labelId"
-      class="text-xs font-bold tracking-caps uppercase wrap-anywhere"
+      class="text-xs font-bold wrap-anywhere"
       :class="hasError ? 'text-danger' : 'text-text-muted'"
       >{{ label }}</span
     >

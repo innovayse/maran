@@ -130,7 +130,7 @@ const onClear = (): void => {
 
 <template>
   <div class="flex flex-col gap-1">
-    <label :for="fieldId" class="text-xs font-bold tracking-caps uppercase wrap-anywhere text-text-muted">{{
+    <label :for="fieldId" class="text-xs font-bold wrap-anywhere text-text-muted">{{
       label
     }}</label>
     <div class="relative flex items-center">

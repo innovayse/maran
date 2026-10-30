@@ -164,10 +164,10 @@ The mockup uses its own working names. Where you read the mockup's CSS, translat
 | `--r-mark` | `4px` (`--r-control` / 3): the checkbox box, a small glyph that must stay a rounded square |
 | `--glass` | `0 24px 60px -24px rgb(0 0 0 / .45), 0 2px 8px -2px rgb(0 0 0 / .2)`: the lift under a glass card, theme-independent |
 | Glass card | the auth form: `bg-surface-1/85`, `backdrop-blur-xl`, `shadow-glass`, `rounded-panel`, decorative `border-border-subtle`. 85 % keeps `text-text-muted` over 4.5:1 in both themes with the accent blooms behind it; fields, alerts and buttons on it carry their own opaque fills |
-| Field label | `text-xs`, bold, uppercase, `tracking-caps`, `text-text-muted` (5.36:1 on `--s1` dark, 5.41:1 light), `text-danger` on error, `wrap-anywhere`. Drawn by `UiInput` (and `UiPasswordInput` through it), `UiTextarea`, `UiSelect`, `UiSearchInput`. Choice labels beside a checkbox, radio or switch stay `text-sm`: they are phrases, not micro-labels |
+| Field label | `text-xs`, bold, sentence case (no CSS uppercase, no caps tracking), `text-text-muted` (5.36:1 on `--s1` dark, 5.41:1 light), `text-danger` on error, `wrap-anywhere`. Drawn by `UiInput` (and `UiPasswordInput` through it), `UiTextarea`, `UiSelect`, `UiSearchInput`. Choice labels beside a checkbox, radio or switch stay `text-sm`: they are phrases, not micro-labels |
 | Motion | the checkbox's check fades in over 200 ms; a trailing `arrowRight` in a `UiButton` nudges 2 px forward on hover (`buttonClasses`). Both are off under `prefers-reduced-motion` |
 | Pills | the primary action is a full pill (`999px`, as in the mockup); it is the one fully rounded control |
-| Display font | **Archivo** (800 to 900) for titles, figures and uppercase labels |
+| Display font | **Archivo** (800 to 900) for titles, figures and micro-labels |
 | Body font | **Inter** |
 | Figures that must align | **JetBrains Mono**, with `tabular-nums` |
 | Armenian | **Noto Sans Armenian**, in every stack |
@@ -195,9 +195,18 @@ the file anywhere. **The rebuild must not introduce any request to `fonts.google
 request that cannot be answered shows up as a layout that shifts.
 
 Text sizes stay Tailwind's own steps (`rules/vue.md` "Text sizes are Tailwind's own steps"). The
-redesign changes the font and the weight, not the scale: a large uppercase display title is `text-2xl`
-or larger in the display face, an uppercase micro-label is `text-xs` in the display face with
-letter-spacing, body is `text-sm`.
+redesign changes the font and the weight, not the scale: a large display title is `text-2xl`
+or larger in the display face, a micro-label is `text-xs` in the display face, body is `text-sm`.
+
+**Sentence case everywhere (issue #244).** No text in the panel is set in capitals by CSS: field
+labels, badges, table headers, page titles, eyebrows, sidebar group labels, card and figure labels,
+description terms, the command palette and the auth headings all read in their translated casing, and
+there is no caps-tracking token. The mockup's capitals are not carried over: a status read as
+`ԱՎԱՐՏՎԱԾ` is slower to read than `Ավարտված`, and a CSS transform shows the reader a string the
+translator never wrote. Acronyms keep the capitals they are written with (TCP, SFTP, PHP). The Maran
+wordmark beside the brand mark is the translated product name and follows the same rule; the brand
+mark itself is the drawn glyph (`UiBrandMark`). `maran structure` fails on `uppercase` or a
+`tracking-wide*` / `tracking-caps` class in `frontend/src`.
 
 ## 3. Contrast: measured, not eyed
 
@@ -292,7 +301,7 @@ rule:
   never drags the app bar or the sidebar with it.
 - **App bar (48 px, the dense step of issue #200):** the mark and wordmark (`ShellWordmark`, shared with the drawer's head row; plain content or a link, never a heading), a search field with a `⌘K` hint, the server selector, a
   link out, the user's avatar.
-- **Sidebar (216 px, dense since issue #200):** items in groups under small uppercase group labels, count badges on the right;
+- **Sidebar (216 px, dense since issue #200):** items in groups under small group labels, count badges on the right;
   rows are 32 px with 18 px icons from tablet width up, and keep a 44 px touch height in the drawer.
   **A module with several pages is a collapsible submenu (issue #195):** the parent link navigates to
   the landing page and opens the section, a chevron button (`aria-expanded`, `aria-controls`) only
@@ -305,9 +314,9 @@ rule:
   **The active item is a solid `--acf` fill with white text and `--glow` under it**; inactive items are
   `--t2` with a tinted hover. **The signed-in user's card sits at the bottom**, with the sign-out
   button.
-- **Page header:** a small uppercase accent line (`--act`), a large uppercase display title, and the
+- **Page header:** a small accent line (`--act`), a large display title, and the
   primary action as a full pill in `--acf` with `--glow`.
-- **KPI cards:** an icon in a tinted rounded square, a large display figure, an uppercase label. They
+- **KPI cards:** an icon in a tinted rounded square, a large display figure, a label. They
   lift 2 px and take an accent border on hover. **Every bar carries its figure as visible text.**
 - **Quick actions** are bordered rows with an icon square and a chevron, not a bare list.
 - Figures count up from zero on arrival; skipped under `prefers-reduced-motion`, and the real value is
@@ -348,7 +357,7 @@ code. Do not repeat them.
 - **Wrapping.** The search placeholder and the `⌘K` hint wrapped onto two lines at 768 px; a notice with
   a button beside it collapsed to one word per line at 390 px. Give such rows `whitespace-nowrap` where
   they must stay one line, and a stacking breakpoint where they must not squeeze.
-- **Long Armenian uppercase labels.** The Innovayse admin itself overflows at 390 px: labels such as
+- **Long Armenian labels.** The Innovayse admin itself overflows at 390 px: labels such as
   «ՀԱՅՏԱՐԱՐՈՒԹՅՈՒՆՆԵՐ» push its content panel into a horizontal scroll, and its tab bar truncates
   («Նորությու…»). Maran ships Armenian too. Labels must wrap (`overflow-wrap: anywhere`), tab-bar labels
   must be short enough to fit, and no screen may scroll horizontally at 390 px. Check every screen at

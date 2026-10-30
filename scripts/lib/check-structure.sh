@@ -643,6 +643,17 @@ while IFS= read -r file; do
   fi
 done < <(find frontend/src \( -name '*.vue' -o -name '*.ts' \) 2>/dev/null | sort)
 
+# 15b. Sentence case everywhere (rules/vue.md "Which step", issue #244): no text in the SPA is set
+#      in capitals by CSS, and no caps tracking is kept for it. A transform shows the reader a string
+#      the translator never wrote (`ԱՎԱՐՏՎԱԾ` for `Ավարտված`). The match is the class or the CSS
+#      value, not prose: comment lines are skipped, so a doc comment may still say "uppercase".
+while IFS= read -r file; do
+  if grep -vE '^[[:space:]]*(\*|//|/\*|<!--)' "$file" \
+    | grep -qE '(^|[[:space:]"'"'"'`:])(uppercase|tracking-caps|tracking-wide[a-z]*)([[:space:]"'"'"'`;]|$)'; then
+    report "$file: text is set in capitals by CSS — sentence case, no uppercase or caps tracking (rules/vue.md)"
+  fi
+done < <(find frontend/src \( -name '*.vue' -o -name '*.ts' -o -name '*.css' \) 2>/dev/null | sort)
+
 # 16. A Rust file is named after its single public item, in snake_case
 #     (rules/rust.md "One unit per file"). The rules have promised this check since they were
 #     written; until now they only promised it, which is how `adapter_selector.rs` came to hold

@@ -72,7 +72,7 @@ const onInput = (event: Event): void => {
   <div class="flex flex-col gap-1">
     <label
       :for="fieldId"
-      class="text-xs font-bold tracking-caps uppercase wrap-anywhere"
+      class="text-xs font-bold wrap-anywhere"
       :class="hasError ? 'text-danger' : 'text-text-muted'"
       >{{ label }}</label
     >

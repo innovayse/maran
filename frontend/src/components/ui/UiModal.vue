@@ -20,9 +20,9 @@
  * **Look.** A `rounded-panel` `bg-surface-1` sheet with a shadow, over the same
  * darkened and blurred backdrop the shell's drawer uses (`bg-page` at 70% plus a
  * 4px blur), so every overlay in the panel dims the page the same way. The title
- * is set in the display face but NOT uppercased: a dialog title routinely
- * contains an identifier ("Delete site shop.example.com"), and capitals would
- * change what that identifier says. Contrast, measured (dark / light theme):
+ * is set in the display face in its own casing: a dialog title routinely
+ * contains an identifier ("Delete site shop.example.com"), and a case change
+ * would change what that identifier says. Contrast, measured (dark / light theme):
  * title (`text-text-primary`) on the sheet is 15.70 / 17.98:1, body
  * (`text-text-secondary`) 7.08 / 6.00:1, the close glyph (`text-text-muted`)
  * 5.36 / 5.41:1 and 4.62 / 4.57:1 once its `bg-surface-3` hover is under it.

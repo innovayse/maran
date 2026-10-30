@@ -252,7 +252,7 @@ watch(
 <template>
   <fieldset class="m-0 min-w-0 rounded-control border border-border-subtle bg-surface-2 p-4">
     <legend
-      class="max-w-full px-2 font-display text-xs font-extrabold uppercase tracking-caps text-accent-text wrap-anywhere"
+      class="max-w-full px-2 font-display text-xs font-extrabold text-accent-text wrap-anywhere"
     >
       {{ t('cron.schedule.legend') }}
     </legend>

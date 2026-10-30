@@ -40,7 +40,7 @@ const statusCode = '404'
       >
         {{ statusCode }}
       </p>
-      <h1 class="font-display text-2xl font-extrabold tracking-caps text-text-primary uppercase wrap-anywhere">
+      <h1 class="font-display text-2xl font-extrabold text-text-primary wrap-anywhere">
         {{ t('app.notFound.heading') }}
       </h1>
       <p class="max-w-100 text-sm leading-normal text-text-secondary wrap-anywhere">

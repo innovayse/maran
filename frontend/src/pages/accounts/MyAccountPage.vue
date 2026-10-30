@@ -134,7 +134,7 @@ onMounted(async () => {
             :key="limit.key"
             class="min-w-0 rounded-control border border-border-subtle bg-surface-2 p-4"
           >
-            <p class="font-display text-xs font-extrabold tracking-caps text-text-secondary uppercase wrap-anywhere">
+            <p class="font-display text-xs font-extrabold text-text-secondary wrap-anywhere">
               {{ limit.label }}
             </p>
             <p class="mt-2 font-display text-2xl font-black text-text-primary tabular-nums wrap-anywhere">

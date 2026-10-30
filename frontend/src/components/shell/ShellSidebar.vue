@@ -29,7 +29,7 @@
  * through `aria-labelledby`, so a screen reader hears "Hosting, list, 5 items" without the page
  * gaining a landmark per group (specs find the landmark by name and would see several).
  *
- * **Group labels wrap.** They are uppercase display text and the panel ships Armenian, whose
+ * **Group labels wrap.** They are display text and the panel ships Armenian, whose
  * long words ("ՀԱՅՏԱՐԱՐՈՒԹՅՈՒՆՆԵՐ") have no break points: left alone they push the panel into a
  * horizontal scroll at 390px. `wrap-anywhere` lets them break. The collapsed rail stays
  * ungrouped: 64px has no room for a label, and the rail draws icons only.
@@ -337,7 +337,7 @@ watch(
         <UiNavItem v-for="group in groups" :key="group.key" class="mt-1.5 first:mt-0">
           <p
             :id="`nav-group-${group.key}`"
-            class="min-w-0 px-2.5 pt-1.5 pb-0.5 font-display text-xs font-extrabold tracking-caps wrap-anywhere text-text-muted uppercase"
+            class="min-w-0 px-2.5 pt-1.5 pb-0.5 font-display text-xs font-extrabold wrap-anywhere text-text-muted"
           >
             {{ t(group.labelKey) }}
           </p>
