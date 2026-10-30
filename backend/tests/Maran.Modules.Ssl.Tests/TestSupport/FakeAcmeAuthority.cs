@@ -55,6 +55,9 @@ public sealed class FakeAcmeAuthority : HttpMessageHandler
     /// <summary>Whether the whole order should be refused with a rate-limit problem document.</summary>
     public bool RateLimited { get; set; }
 
+    /// <summary>Whether the authority judges the answered challenge invalid instead of valid.</summary>
+    public bool FailsValidation { get; set; }
+
     /// <summary>Creates the authority with a parseable leaf certificate to hand back.</summary>
     /// <param name="certificatePem">The PEM chain the download endpoint returns.</param>
     public FakeAcmeAuthority(string certificatePem)
@@ -132,7 +135,7 @@ public sealed class FakeAcmeAuthority : HttpMessageHandler
                 "/order/1"),
             BaseUrl + "/authz/1" => Json(HttpStatusCode.OK, new
             {
-                status = _challengeAccepted ? "valid" : AuthorizationStatus,
+                status = _challengeAccepted ? (FailsValidation ? "invalid" : "valid") : AuthorizationStatus,
                 challenges = new[] { new { type = "http-01", url = BaseUrl + "/chall/1", token = "tok3n" } },
             }),
             BaseUrl + "/chall/1" => AcceptChallenge(),

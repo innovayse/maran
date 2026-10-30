@@ -141,9 +141,14 @@ export const useAuthStore = defineStore('auth', () => {
     const attempt = api
       .refresh()
       .then((session) => {
-        // Refresh answers with the signed-in half directly and has no "a factor is
-        // owed" case: the cookie either still stands or the call failed. Wrapping it
-        // in a nullable envelope would re-create a state that cannot occur.
+        // `null` is the backend's answer to a browser that sent no refresh cookie:
+        // nobody is signed in here, which is a state rather than a failure, so it is
+        // cleared exactly like a refused cookie but without an error on the wire.
+        if (session === null) {
+          clear()
+          return false
+        }
+
         accept(session)
         return true
       })

@@ -138,6 +138,7 @@ public sealed class AgentBackupClientTests
 
         Assert.False(result.IsSuccess);
         Assert.Equal("AgentNotImplemented", result.Error!.Code);
+        Assert.Equal(ErrorType.Unavailable, result.Error.Type);
         Assert.Null(stub.LastListRequest);
     }
 
@@ -157,14 +158,15 @@ public sealed class AgentBackupClientTests
         Assert.Equal("alice", stub.LastListRequest!.AccountUsername);
     }
 
-    /// <summary>A not implemented refusal maps to its own code.</summary>
+    /// <summary>A not implemented refusal maps to its own code, as an unavailable kind.</summary>
     /// <remarks>
     /// The agent refuses an object-store destination at its service boundary. Before this code
     /// existed the refusal fell to the unspecified arm and told an operator that something had gone
-    /// wrong on their server, about a feature that was never built.
+    /// wrong on their server, about a feature that was never built. Its kind is Unavailable (503):
+    /// nothing broke, the operation is simply absent from this agent build.
     /// </remarks>
     [Fact]
-    public async Task A_not_implemented_refusal_maps_to_its_own_code()
+    public async Task A_not_implemented_refusal_maps_to_its_own_code_as_unavailable()
     {
         var stub = new StubBackupService
         {
@@ -178,6 +180,7 @@ public sealed class AgentBackupClientTests
 
         Assert.False(result.IsSuccess);
         Assert.Equal("AgentNotImplemented", result.Error!.Code);
+        Assert.Equal(ErrorType.Unavailable, result.Error.Type);
     }
 
     /// <summary>An error payload maps to a failed result with the agent code.</summary>
@@ -415,7 +418,7 @@ public sealed class AgentBackupClientTests
         var terminal = Assert.Single(events);
         Assert.Equal(BackupRestoreEventKind.Failed, terminal.Kind);
         Assert.Equal("AgentNotImplemented", terminal.Failure?.Code);
-        Assert.Equal(ErrorType.Failure, terminal.Failure?.Type);
+        Assert.Equal(ErrorType.Unavailable, terminal.Failure?.Type);
         Assert.Null(terminal.Outcome);
     }
 

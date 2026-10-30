@@ -30,9 +30,10 @@ public interface IMailer
     /// <param name="cancellationToken">Cancellation token for the send.</param>
     /// <returns>
     /// Success once the server has accepted the message; <c>SmtpNotConfigured</c> when the panel has
-    /// no mail settings at all, and <c>MailDeliveryFailed</c> when the server refused it or could not
-    /// be reached. The two are separate codes because they need separate audit entries and separate
-    /// answers to the operator: one is "you have not set this up", the other "your provider said no".
+    /// no mail settings at all, <c>MailDeliveryFailed</c> (502) when the server answered and refused
+    /// it, and <c>MailServerUnreachable</c> (503) when no server answered in time. They are three
+    /// codes because they need separate audit entries and separate answers to the operator: "you have
+    /// not set this up", "your provider said no", and "nothing answered, try again later".
     /// </returns>
     Task<Result<bool>> SendAsync(string recipient, string subject, string body, CancellationToken cancellationToken);
 }

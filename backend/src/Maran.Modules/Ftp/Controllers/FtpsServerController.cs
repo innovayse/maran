@@ -59,15 +59,17 @@ public sealed class FtpsServerController : BaseApiController
     /// <param name="command">The hostname, and the PASV address for a host behind NAT.</param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     /// <remarks>
-    /// A 500 here is the honest answer for a server with no certificate material for the hostname:
-    /// the request is not malformed and retyping it changes nothing, so the operator is sent to the
-    /// SSL section by the message rather than back to this form by the status.
+    /// A 409 (<c>FtpsCertificateMissing</c>) is the answer for a server with no certificate material
+    /// for the hostname: the request is not malformed and nothing on the server broke, it disagrees
+    /// with the server's current state, so the operator is sent to the SSL section by the message
+    /// rather than back to this form by the status.
     /// </remarks>
     [HttpPost("enable")]
     [ProducesResponseType(typeof(FtpsStatusDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
     [ProducesResponseType(StatusCodes.Status500InternalServerError)]
     public async Task<IActionResult> EnableAsync(
         [FromBody] EnableFtpsCommand command,

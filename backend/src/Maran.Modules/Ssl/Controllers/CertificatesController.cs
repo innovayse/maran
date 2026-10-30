@@ -67,6 +67,7 @@ public sealed class CertificatesController : BaseApiController
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
+    [ProducesResponseType(StatusCodes.Status502BadGateway)]
     public async Task<IActionResult> IssueAsync(
         [FromBody] IssueCertificateCommand command,
         CancellationToken cancellationToken)

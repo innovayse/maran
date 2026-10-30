@@ -3,7 +3,7 @@ import { ref, type Ref } from 'vue'
 import { useSitesApi } from '../composables/apis/useSitesApi'
 import { ApiError } from '../composables/useApi'
 import type { ListLoad, ListRequest } from '../types/list'
-import type { CreateSiteRequest, Site, SiteDetail, DisabledSitesCount } from '../types/site'
+import type { CreateSiteRequest, Site, SiteDetailLoad, DisabledSitesCount } from '../types/site'
 import type { PhpVersion } from '../types/phpVersion'
 import type {
   SiteLogEndReason,
@@ -52,8 +52,8 @@ export const useSitesStore = defineStore('sites', () => {
    */
   const disabledCount: Ref<DisabledSitesCount> = ref({ state: 'loading' })
 
-  /** The site the detail page is showing, or `null` before one is loaded. */
-  const selected: Ref<SiteDetail | null> = ref(null)
+  /** What the detail page last learned about the site it asked for: loading, found, not found or failed. */
+  const detail: Ref<SiteDetailLoad> = ref({ state: 'loading' })
 
   /** The PHP versions installed on the host, as last loaded. Never a list written into the SPA. */
   const phpVersions: Ref<PhpVersion[]> = ref([])
@@ -69,9 +69,6 @@ export const useSitesStore = defineStore('sites', () => {
    * shows this one next to the control that caused it.
    */
   const phpInstallErrorMessage: Ref<string | null> = ref(null)
-
-  /** True while a read request (the list, one site, or the versions) is in flight. */
-  const loading: Ref<boolean> = ref(false)
 
   /** True while a create request is in flight. */
   const creating: Ref<boolean> = ref(false)
@@ -170,20 +167,25 @@ export const useSitesStore = defineStore('sites', () => {
   }
 
   /**
-   * Loads one site into {@link selected}, replacing whatever was held.
+   * Loads one site into {@link detail}, replacing whatever was held.
+   *
+   * A 404 is an answer, not a failure: the panel says no such site exists for the caller (deleted,
+   * another account's, or never created), and the page shows its not-found state for it. Any other
+   * refusal keeps the panel's own reason, and a request that got no answer at all keeps none.
    * @param id The site to read.
    * @returns Resolves once the request has settled, successfully or not.
    */
   const loadOne = async (id: string): Promise<void> => {
-    loading.value = true
+    detail.value = { state: 'loading' }
     try {
-      selected.value = await api.get(id)
+      detail.value = { state: 'found', site: await api.get(id) }
       errorMessage.value = null
     } catch (error) {
-      selected.value = null
-      errorMessage.value = error instanceof ApiError ? error.message : null
-    } finally {
-      loading.value = false
+      if (error instanceof ApiError && error.status === 404) {
+        detail.value = { state: 'notFound' }
+      } else {
+        detail.value = { state: 'failed', message: error instanceof ApiError ? error.message : null }
+      }
     }
   }
 
@@ -249,7 +251,7 @@ export const useSitesStore = defineStore('sites', () => {
   }
 
   /**
-   * Folds a site the panel returned back into both the held list and {@link selected}, so a list
+   * Folds a site the panel returned back into both the held list and {@link detail}, so a list
    * open behind a detail page does not go stale.
    * @param changed The site in its new state.
    * @returns Nothing.
@@ -259,16 +261,19 @@ export const useSitesStore = defineStore('sites', () => {
       return site.id === changed.id ? changed : site
     })
 
-    const current = selected.value
-    if (current !== null && current.id === changed.id) {
+    const current = detail.value
+    if (current.state === 'found' && current.site.id === changed.id) {
       // The list-shaped result carries only part of the detail, so the held detail is patched
       // field by field: replacing it wholesale would drop the document root and the aliases the
       // overview is showing.
-      selected.value = {
-        ...current,
-        backendType: changed.backendType,
-        phpVersion: changed.phpVersion,
-        status: changed.status,
+      detail.value = {
+        state: 'found',
+        site: {
+          ...current.site,
+          backendType: changed.backendType,
+          phpVersion: changed.phpVersion,
+          status: changed.status,
+        },
       }
     }
   }
@@ -338,7 +343,7 @@ export const useSitesStore = defineStore('sites', () => {
       sites.value = sites.value.filter((site) => {
         return site.id !== id
       })
-      selected.value = null
+      detail.value = { state: 'notFound' }
       errorMessage.value = null
       return true
     } catch (error) {
@@ -440,11 +445,10 @@ export const useSitesStore = defineStore('sites', () => {
   return {
     sites,
     disabledCount,
-    selected,
+    detail,
     phpVersions,
     installingPhpVersion,
     phpInstallErrorMessage,
-    loading,
     creating,
     acting,
     errorMessage,

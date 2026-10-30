@@ -228,3 +228,31 @@ export type DisabledSitesCount =
       /** The panel refused or did not answer. */
       state: 'unavailable'
     }
+
+/**
+ * What the site detail page last learned about the site it was asked for. Each answer is its own
+ * state rather than a `null` site beside a message, so "the panel says there is no such site" and
+ * "the panel failed to answer" cannot be confused: the first is the not-found state, the second an
+ * error.
+ */
+export type SiteDetailLoad =
+  | {
+      /** Nothing has been asked for yet, or the question is still in flight. */
+      state: 'loading'
+    }
+  | {
+      /** The panel answered with the site. */
+      state: 'found'
+      /** The site, patched in place as mutations on it succeed. */
+      site: SiteDetail
+    }
+  | {
+      /** The panel answered 404: no site with this id exists for the caller. */
+      state: 'notFound'
+    }
+  | {
+      /** The panel refused for another reason, or did not answer. */
+      state: 'failed'
+      /** The panel's already-localized reason, or `null` when it did not answer at all. */
+      message: string | null
+    }

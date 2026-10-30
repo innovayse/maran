@@ -941,6 +941,63 @@ while IFS= read -r line; do
   [ -n "$line" ] && report "$line"
 done <<< "$locale_report"
 
+# 18b. Every task failure code has its reason in the task locales. A failed task's detail reads
+#     `tasks.failures.<code>` and falls back to "the operation failed with the code …" when the key
+#     is missing — which is how `AcmeAccountRejected` reached a customer as a raw code (issue #204).
+#     Check 18 already holds ru/ and hy/ to en/, so this asks en/ alone, in both directions:
+#       - every code the backend NAMES at a task-failure site — `FailAsync(<task>, nameof(ErrorMessages.X))`
+#         anywhere, and `.Fail(nameof(ErrorMessages.X), …)` inside the Tasks module — has a key;
+#       - every `failures.*` key but `generic` names a code some module's ErrorMessages.resx defines,
+#         so a renamed or misspelt code cannot leave a key behind that nothing will ever read.
+#     Vacuity guard, on the axis that can go blind: the scan must find the start-up reconciler's
+#     `TaskAbandonedByRestart`, a site that exists today; a pattern that stopped matching would
+#     otherwise report every code covered while looking at nothing.
+#     UNOBSERVED HERE: a code that reaches `FailAsync` through a variable (`error.Code`,
+#     `outcome.FailureCode`) — which codes those carry is decided at run time, so they are covered by
+#     the reverse direction only when somebody added the key, and by the `generic` fallback otherwise.
+task_failure_report="$(python3 - "$root" <<'PYEOF'
+import json, pathlib, re, sys
+
+root = pathlib.Path(sys.argv[1])
+locale = root / 'frontend' / 'src' / 'locales' / 'en' / 'tasks.json'
+modules = root / 'backend' / 'src' / 'Maran.Modules'
+if not locale.is_file() or not modules.is_dir():
+    print(f'{locale}: the task locale or the backend modules could not be found, so no task failure code was checked')
+    sys.exit(0)
+
+failures = json.loads(locale.read_text()).get('tasks', {}).get('failures', {})
+keys = set(failures) - {'generic'}
+
+anywhere = re.compile(r'FailAsync\(\s*\w+\s*,\s*nameof\(ErrorMessages\.(\w+)\)')
+in_tasks = re.compile(r'\.Fail\(\s*nameof\(ErrorMessages\.(\w+)\)')
+named = {}
+for path in sorted(modules.rglob('*.cs')):
+    if '/obj/' in path.as_posix() or '/bin/' in path.as_posix():
+        continue
+    text = path.read_text()
+    patterns = [anywhere, in_tasks] if path.is_relative_to(modules / 'Tasks') else [anywhere]
+    for pattern in patterns:
+        for match in pattern.finditer(text):
+            named.setdefault(match.group(1), path.relative_to(root).as_posix())
+
+if 'TaskAbandonedByRestart' not in named:
+    print('scripts/lib/check-structure.sh: check 18b did not find `TaskAbandonedByRestart` at its task-failure site -- the scan has gone blind, so nothing below is a statement about task failure codes (rules/testing.md)')
+
+for code, where in sorted(named.items()):
+    if code not in keys:
+        print(f'frontend/src/locales/en/tasks.json: no `tasks.failures.{code}` for the task failure code {where} names, so a task failing with it shows the raw code (issue #204)')
+
+defined = set()
+for resx in modules.glob('*/Resources/ErrorMessages.resx'):
+    defined |= set(re.findall(r'<data name="([^"]+)"', resx.read_text()))
+for key in sorted(keys - defined):
+    print(f'frontend/src/locales/en/tasks.json: `tasks.failures.{key}` names no code any module\'s ErrorMessages.resx defines, so nothing will ever read it')
+PYEOF
+)"
+while IFS= read -r line; do
+  [ -n "$line" ] && report "$line"
+done <<< "$task_failure_report"
+
 # 19. Every polygon suite is named in docker/README.md's run commands. The commands pass an explicit
 #    --test list rather than running everything ignored, so a suite absent from the file is a suite
 #    nobody runs — and that is not hypothetical: the file listed six of ten for the whole of plan 5,

@@ -16,7 +16,7 @@
     <value>The panel has no outgoing mail settings yet, so nothing was sent.</value>
   </data>
   <data name="MailDeliveryFailed">
-    <value>The mail server refused the message or could not be reached.</value>
+    <value>The mail server refused the message.</value>
   </data>
   <data name="SmtpHostInvalid">
     <value>The mail server's name is required and must be a single line of ordinary text.</value>
@@ -44,5 +44,8 @@
   </data>
   <data name="MailRecipientInvalid">
     <value>The recipient must be one plain e-mail address, with no display name.</value>
+  </data>
+  <data name="MailServerUnreachable">
+    <value>No mail server answered at the configured address. Check the host and port, or try again later.</value>
   </data>
 </root>

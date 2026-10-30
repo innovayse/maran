@@ -1,3 +1,4 @@
+using System.Net.Sockets;
 using MailKit.Net.Smtp;
 using MailKit.Security;
 using Maran.Modules.Notifications.Domain.Enums;
@@ -112,11 +113,45 @@ public sealed class SmtpMailer : IMailer
             // Deliberately broad, and this is the one place in the module where that is right.
             // MailKit reports a refusal, a protocol violation, an authentication failure, a DNS
             // miss, a TLS mismatch and a timeout as six unrelated exception types, and the caller's
-            // answer to every one of them is identical: journal it and give up. Catching them
-            // individually would be a list that silently stops covering the seventh.
+            // answer to every one of them is the same: journal it and give up. Catching them
+            // individually would be a list that silently stops covering the seventh, so the catch
+            // stays broad and only the KIND of the answer is decided, by ClassifyFailure.
             LogSendFailed(_logger, recipient, exception);
-            return Result<bool>.Fail(Error.Of(nameof(ErrorMessages.MailDeliveryFailed), ErrorType.Failure));
+            return Result<bool>.Fail(ClassifyFailure(exception));
         }
+    }
+
+    /// <summary>Decides whether a failed send was the mail server refusing or the mail server absent.</summary>
+    /// <param name="exception">What the mail library raised.</param>
+    /// <returns>
+    /// <c>MailServerUnreachable</c> (<see cref="ErrorType.Unavailable"/>, 503) when nothing answered —
+    /// the connection was refused, the name did not resolve, or the server fell silent past
+    /// <see cref="SendTimeout"/>; otherwise <c>MailDeliveryFailed</c>
+    /// (<see cref="ErrorType.UpstreamRefused"/>, 502) — the server answered and said no.
+    /// </returns>
+    /// <remarks>
+    /// <para>
+    /// The question is whether an SMTP conversation took place. A socket error, a timeout and a
+    /// cancellation the caller did not ask for (the library's own deadline) all mean it did not, so
+    /// "try again later" is the honest advice. Everything else — a rejected command, refused
+    /// credentials, a protocol violation, a TLS mismatch, a missing extension — is a reply from a
+    /// server that was there, and repeating the request unchanged gets the same reply.
+    /// </para>
+    /// <para>
+    /// The refusal is the default arm on purpose: the unreachable set is the short, closed one, and a
+    /// library exception type nobody listed is far more likely to be a reply than a silence.
+    /// </para>
+    /// </remarks>
+    private static Error ClassifyFailure(Exception exception)
+    {
+        var unreachable = exception is SocketException
+            or TimeoutException
+            or OperationCanceledException
+            or IOException { InnerException: SocketException };
+
+        return unreachable
+            ? Error.Of(nameof(ErrorMessages.MailServerUnreachable), ErrorType.Unavailable)
+            : Error.Of(nameof(ErrorMessages.MailDeliveryFailed), ErrorType.UpstreamRefused);
     }
 
     /// <summary>Maps the panel's stored choice onto the library's socket options.</summary>

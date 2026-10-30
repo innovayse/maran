@@ -180,13 +180,14 @@ public sealed class AdminResetPasswordCliCommand : ICliCommand
     /// <param name="type">The failure's kind.</param>
     /// <returns>
     /// <see cref="CliExitCode.Unavailable"/> for an unreachable dependency, <see cref="CliExitCode.Failure"/>
-    /// for a fault, otherwise <see cref="CliExitCode.Refused"/>.
+    /// for a fault or an outside party's refusal, otherwise <see cref="CliExitCode.Refused"/>.
     /// </returns>
     private static CliExitCode ExitCodeFor(ErrorType type)
     {
         return type switch
         {
             ErrorType.Unavailable => CliExitCode.Unavailable,
+            ErrorType.UpstreamRefused => CliExitCode.Failure,
             ErrorType.Failure => CliExitCode.Failure,
             _ => CliExitCode.Refused,
         };

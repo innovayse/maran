@@ -92,14 +92,19 @@ public sealed class AgentTransportFailureTests
         Assert.Equal(ErrorType.Unavailable, error.Type);
     }
 
-    /// <summary>An rpc the agent does not serve is answered as not implemented.</summary>
+    /// <summary>An rpc the agent does not serve is answered as not implemented, an unavailable kind.</summary>
+    /// <remarks>
+    /// Unavailable (503), not Failure (500): the operation is absent from this agent build, which is
+    /// neither the caller's mistake nor a fault on the server. The inverse control is the next test,
+    /// which keeps a real framework fault at Failure.
+    /// </remarks>
     [Fact]
-    public void An_unimplemented_rpc_answers_agent_not_implemented()
+    public void An_unimplemented_rpc_answers_agent_not_implemented_as_unavailable()
     {
         var error = AgentTransportFailure.ToError(new RpcException(new Status(StatusCode.Unimplemented, "detail")));
 
         Assert.Equal("AgentNotImplemented", error.Code);
-        Assert.Equal(ErrorType.Failure, error.Type);
+        Assert.Equal(ErrorType.Unavailable, error.Type);
     }
 
     /// <summary>A refusal by the peer guard or a framework fault is an invalid response, a failure kind.</summary>

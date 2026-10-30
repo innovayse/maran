@@ -172,8 +172,8 @@ export interface AuthApi {
   login: (request: LoginRequest, signal?: AbortSignal) => Promise<LoginResult>
   /** Completes a sign-in that stopped for a second factor. */
   verifyTwoFactor: (request: VerifyTwoFactorRequest, signal?: AbortSignal) => Promise<AuthenticatedSession>
-  /** Exchanges the refresh cookie for a new access token. */
-  refresh: (signal?: AbortSignal) => Promise<AuthenticatedSession>
+  /** Exchanges the refresh cookie for a new access token; `null` when the browser holds no cookie. */
+  refresh: (signal?: AbortSignal) => Promise<AuthenticatedSession | null>
   /** Signs out of this device. */
   logout: (signal?: AbortSignal) => Promise<boolean>
   /** Signs out of every device. */

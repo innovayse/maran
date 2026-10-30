@@ -305,7 +305,7 @@ public sealed class AgentBackupClient : IAgentBackupClient
         if (destination.Kind != AgentBackupDestinationKind.Local)
         {
             return Result<IReadOnlyList<AgentBackupSummary>>.Fail(
-                Error.Of(nameof(ErrorMessages.AgentNotImplemented), ErrorType.Failure));
+                Error.Of(nameof(ErrorMessages.AgentNotImplemented), ErrorType.Unavailable));
         }
 
         var request = new ListBackupsRequest { AccountUsername = accountUsername };

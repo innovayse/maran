@@ -107,7 +107,7 @@ internal static class AgentErrorTranslator
             ErrorCode.NotFound => ErrorType.NotFound,
             ErrorCode.ValidationFailed => ErrorType.Validation,
             ErrorCode.SystemFailure => ErrorType.Failure,
-            ErrorCode.NotImplemented => ErrorType.Failure,
+            ErrorCode.NotImplemented => ErrorType.Unavailable,
             ErrorCode.LimitReached => ErrorType.Conflict,
             _ => ErrorType.Failure,
         };
@@ -127,9 +127,11 @@ internal static class AgentErrorTranslator
     /// build cannot perform at all — today, every backup destination naming an object store — and
     /// without the arm it fell to the unspecified default, telling an operator "something went wrong
     /// on your server" about a feature that was never built. Its KIND is
-    /// <see cref="ErrorType.Failure"/> rather than <see cref="ErrorType.Validation"/>: the caller
-    /// asked for something reasonable and the server cannot do it, so blaming the request would be
-    /// both wrong and a dead end for the operator.
+    /// <see cref="ErrorType.Unavailable"/> (503) rather than <see cref="ErrorType.Validation"/> or
+    /// <see cref="ErrorType.Failure"/>: the caller asked for something reasonable, so blaming the
+    /// request would be wrong, and nothing on the server broke, so a 500 would send the operator
+    /// looking for a fault that does not exist. The operation is simply not available from this
+    /// agent build, which is what a 503 states.
     ///
     /// <see cref="ErrorCode.LimitReached"/> is the agent refusing an operation whose request stated
     /// a plan allowance the account has already reached. Its kind is

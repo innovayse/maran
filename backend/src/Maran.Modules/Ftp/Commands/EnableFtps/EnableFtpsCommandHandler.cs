@@ -29,12 +29,13 @@ namespace Maran.Modules.Ftp.Commands.EnableFtps;
 /// here means the operator is told the thing they can act on.
 /// </para>
 /// <para>
-/// <b>Why a missing certificate is <see cref="ErrorType.Failure"/> and not
-/// <see cref="ErrorType.Validation"/>.</b> Nothing the operator typed is wrong. The hostname is
-/// theirs, the panel serves a site for it, and the request would succeed unchanged the moment
-/// certificate material exists — so a 400 telling them to check their input sends them to correct
-/// something that retyping can never fix. <see cref="ErrorType.Failure"/> is documented as covering
-/// "a server whose own configuration is incomplete", which is exactly this, and the resx sentence
+/// <b>Why a missing certificate is <see cref="ErrorType.Conflict"/> and not
+/// <see cref="ErrorType.Validation"/> or <see cref="ErrorType.Failure"/>.</b> Nothing the operator
+/// typed is wrong: the hostname is theirs and the panel serves a site for it, so a 400 telling them
+/// to check their input sends them to correct something that retyping can never fix. Nor has the
+/// server broken — it is working exactly as configured, and a 500 would report a fault nobody can
+/// find. The request is well-formed and disagrees with the server's current state, which is what a
+/// 409 says: it succeeds unchanged the moment certificate material exists, and the resx sentence
 /// names the SSL section as the place the operator goes next.
 /// </para>
 /// <para>
@@ -173,7 +174,7 @@ public sealed class EnableFtpsCommandHandler
     {
         if (string.Equals(error.Code, AgentNotFoundCode, StringComparison.Ordinal))
         {
-            return Error.Of(nameof(ErrorMessages.FtpsCertificateMissing), ErrorType.Failure);
+            return Error.Of(nameof(ErrorMessages.FtpsCertificateMissing), ErrorType.Conflict);
         }
 
         return error;

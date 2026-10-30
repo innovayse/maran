@@ -107,7 +107,9 @@ public static class AgentTransportFailure
     /// <para>
     /// <see cref="StatusCode.Unimplemented"/> is the agent saying it does not serve this rpc, which is
     /// the transport-level twin of the payload's <c>ERROR_CODE_NOT_IMPLEMENTED</c>, so it takes the same
-    /// code. Every other status — the peer-credential guard's <see cref="StatusCode.PermissionDenied"/>,
+    /// code and the same kind, <see cref="ErrorType.Unavailable"/>: the operation is not available from
+    /// this agent build, which is neither the caller's mistake nor a fault. Every other status — the
+    /// peer-credential guard's <see cref="StatusCode.PermissionDenied"/>,
     /// an <see cref="StatusCode.Internal"/> from the server framework — is a server fault the caller
     /// could not have influenced, answered as <c>AgentInvalidResponse</c> with
     /// <see cref="ErrorType.Failure"/>.
@@ -126,7 +128,7 @@ public static class AgentTransportFailure
             StatusCode.Unavailable or StatusCode.DeadlineExceeded or StatusCode.Cancelled =>
                 Unavailable(),
             StatusCode.Unimplemented =>
-                Error.Of(nameof(ErrorMessages.AgentNotImplemented), ErrorType.Failure),
+                Error.Of(nameof(ErrorMessages.AgentNotImplemented), ErrorType.Unavailable),
             _ => Error.Of(nameof(ErrorMessages.AgentInvalidResponse), ErrorType.Failure),
         };
     }

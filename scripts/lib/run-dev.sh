@@ -129,8 +129,10 @@ fi
 # both can exist at once. The self-check's database lives on the SHARED postgres server rather
 # than a second container, deliberately: `maran drift` reaches the database through the
 # `maran-postgres` container by name, and a private database name on the shared server is the
-# already-supported override path (`Database__Database=x maran dev`) — the same thing both live
-# runs did by hand (`maran_liverun`, `maran_stackproof`).
+# override path `Database__Database=x maran dev` — the same thing both live runs did by hand
+# (`maran_liverun`, `maran_stackproof`). It holds in a shell that already sourced `scripts/dev`
+# because that file remembers the VALUE `.env` applied per name, so a different current value is
+# the caller's and survives the re-source here (`maran env selftest` proves it, issue #204).
 # ---------------------------------------------------------------------------------------------
 if [ "$mode" = "selfcheck" ]; then
   instance="selfcheck"
@@ -171,24 +173,11 @@ if [ "$instance" = "selfcheck" ] && [ "${MARAN_SELFCHECK_BREAK:-}" = "socket-gro
   echo "BREAK ACTIVE (socket-group): agent gid forced to 0 — the socket will be root:root and the panel MUST fail to reach it"
 fi
 
-# strip_env_applied: forget that `.env` supplied these names, because THIS RUN overrides them on
-# purpose. `scripts/dev` re-applies any name listed in MARAN_ENV_APPLIED every time it is
-# re-sourced — which `maran drift` does — so an override exported here would be silently undone in
-# the child unless the name is removed from that list first.
-strip_env_applied() {
-  local names=" ${MARAN_ENV_APPLIED:-} " name
-  for name in "$@"; do
-    names="${names// $name / }"
-  done
-  MARAN_ENV_APPLIED="${names# }"
-  MARAN_ENV_APPLIED="${MARAN_ENV_APPLIED% }"
-  export MARAN_ENV_APPLIED
-}
-
+# The self-check's private database is an override like any other: its value differs from the one
+# `.env` applied, so `scripts/dev` leaves it alone when a child — `maran drift` — sources it again.
 if [ "$instance" = "selfcheck" ]; then
   Database__Database="maran_selfcheck"
   export Database__Database
-  strip_env_applied Database__Database
 fi
 
 # --stop: both instances' containers, and an honest report of what a stop cannot reach

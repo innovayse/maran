@@ -78,9 +78,9 @@ public sealed class DropDatabaseCommandHandlerTests
         Assert.Equal([world.StrangerDatabaseId], await read.Databases.Select(row => row.Id).ToListAsync());
     }
 
-    /// <summary>A drop is journalled with the database name.</summary>
+    /// <summary>A drop is journalled with the full name the server knew the database by.</summary>
     [Fact]
-    public async Task A_drop_is_journalled_with_the_database_name()
+    public async Task A_drop_is_journalled_with_the_full_database_name()
     {
         var world = await WorldAsync();
 
@@ -88,8 +88,23 @@ public sealed class DropDatabaseCommandHandlerTests
 
         var entry = Assert.Single(world.Audit.Entries);
         Assert.Equal(AuditActions.DatabaseDropped, entry.Action);
-        Assert.Equal("shop", entry.Subject);
+        Assert.Equal("alice_shop", entry.Subject);
         Assert.True(entry.Succeeded);
+    }
+
+    /// <summary>A drop the agent refuses is journalled as a failure naming the full database name.</summary>
+    [Fact]
+    public async Task A_drop_the_agent_refuses_is_journalled_with_the_full_database_name()
+    {
+        var world = await WorldAsync();
+        world.Agent.DropResult = Result<bool>.Fail(Error.Of("AgentSystemFailure", ErrorType.Failure));
+
+        await world.DropAsync(world.OwnDatabaseId);
+
+        var entry = Assert.Single(world.Audit.Entries);
+        Assert.Equal(AuditActions.DatabaseDropped, entry.Action);
+        Assert.False(entry.Succeeded);
+        Assert.Equal("alice_shop", entry.Subject);
     }
 
     /// <summary>A refused drop is journalled as a failure naming what was probed for.</summary>

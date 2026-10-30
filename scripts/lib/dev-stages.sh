@@ -137,30 +137,26 @@ dev_stage_database() {
   # compose file is authoritative — it is what actually exists.
   #
   # A DELIBERATE OVERRIDE IS NOT DRIFT, and the two are distinguished rather than guessed at.
-  # `scripts/dev` records in MARAN_ENV_APPLIED which names it supplied from `.env`, so a value that
-  # is NOT in that list was set by the caller on purpose — `Database__Database=maran_scratch maran dev`,
+  # `scripts/dev` remembers the value it applied from `.env` for each name, so a value that differs
+  # from that record was set by the caller on purpose — `Database__Database=maran_scratch maran dev`,
   # or this script's own self-check instance — and that is a supported thing to do: the run says
   # which database it is using and carries on. A disagreement that came from the file is the
   # accident, and it refuses.
   compose_database="$(docker compose -f "$compose" config --format json 2>/dev/null \
     | grep -o '"POSTGRES_DB": *"[^"]*"' | head -1 | sed 's/.*"POSTGRES_DB": *"\([^"]*\)".*/\1/')"
   if [ -n "$compose_database" ] && [ "${Database__Database:-}" != "$compose_database" ]; then
-    case " ${MARAN_ENV_APPLIED:-} " in
-      *" Database__Database "*)
-        echo "the panel is configured for database '${Database__Database:-<unset>}' but $compose" >&2
-        echo "creates '$compose_database'. Fix Database__Database in .env (or POSTGRES_DB in" >&2
-        echo "docker/.env) — a panel that boots against a database nobody migrates is how a schema" >&2
-        echo "fifteen migrations old passed for healthy." >&2
-        exit 1
-        ;;
-      *)
-        echo "     using database '$Database__Database' (an override; $compose creates '$compose_database')"
-        # The override's database may not exist yet — creating it here is what makes a clean-slate
-        # run possible at all, and `createdb` on one that exists is a no-op rather than an error.
-        docker exec -e PGPASSWORD="${Database__Password:-maran_dev}" maran-postgres \
-          createdb -U "${Database__Username:-maran_dev}" "$Database__Database" >/dev/null 2>&1 || true
-        ;;
-    esac
+    if maran_env_from_file Database__Database; then
+      echo "the panel is configured for database '${Database__Database:-<unset>}' but $compose" >&2
+      echo "creates '$compose_database'. Fix Database__Database in .env (or POSTGRES_DB in" >&2
+      echo "docker/.env) — a panel that boots against a database nobody migrates is how a schema" >&2
+      echo "fifteen migrations old passed for healthy." >&2
+      exit 1
+    fi
+    echo "     using database '$Database__Database' (an override; $compose creates '$compose_database')"
+    # The override's database may not exist yet — creating it here is what makes a clean-slate
+    # run possible at all, and `createdb` on one that exists is a no-op rather than an error.
+    docker exec -e PGPASSWORD="${Database__Password:-maran_dev}" maran-postgres \
+      createdb -U "${Database__Username:-maran_dev}" "$Database__Database" >/dev/null 2>&1 || true
   fi
 }
 
