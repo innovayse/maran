@@ -28,8 +28,10 @@ use crate::proto::{
 /// 1 is every agent built before that policy: the constant stayed at 1
 /// through every contract change until then, so a 1 names no contract and no
 /// panel window contains it. 2 is the contract as of the change that
-/// introduced the policy (issue #88).
-const PROTO_VERSION: u32 = 2;
+/// introduced the policy (issue #88). 3 adds `InstallCertificate`'s
+/// `refused` answer naming which half of a certificate pair is wrong
+/// (issue #214).
+const PROTO_VERSION: u32 = 3;
 
 /// Answers "what agent is this, and what host is it on?".
 pub struct SystemServiceImpl {

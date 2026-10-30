@@ -91,6 +91,29 @@ export const stubCertificatesProblem = async (page: Page, detail: string): Promi
 }
 
 /**
+ * Fulfils `POST /api/v1/certificates/custom` with a 400 RFC 7807 refusal carrying `code` and
+ * `detail`, the way the panel refuses material it cannot install. Register it AFTER
+ * {@link stubCertificates}: Playwright gives priority to the most recently registered route.
+ * @param page The Playwright page whose network the route is installed on.
+ * @param code The machine-stable refusal code, which decides the field the screen shows it under.
+ * @param detail The backend-localized sentence the screen must show verbatim.
+ * @returns Resolves once the route is installed.
+ */
+export const stubCustomCertificateRefusal = async (
+  page: Page,
+  code: string,
+  detail: string,
+): Promise<void> => {
+  await page.route(CUSTOM_PATTERN, async (route) => {
+    await route.fulfill({
+      status: 400,
+      contentType: 'application/problem+json',
+      body: JSON.stringify({ status: 400, code, title: detail, detail }),
+    })
+  })
+}
+
+/**
  * The site every certificate fixture here belongs to.
  *
  * Exported so a spec's site fixture and its certificate fixture agree without either restating

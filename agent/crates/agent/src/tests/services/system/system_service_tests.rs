@@ -78,11 +78,12 @@ async fn the_handshake_reports_the_current_contract_revision() {
 
     // Revision 1 is every agent built before the revision policy existed, and
     // no panel window contains it; revision 2 is the contract as of the change
-    // that introduced the policy. The panel's `AgentProtoVersionWindow` moves
+    // that introduced the policy; revision 3 adds `InstallCertificate`'s
+    // `refused` answer (issue #214). The panel's `AgentProtoVersionWindow` moves
     // with this number (rules/proto.md "The contract revision"), so a literal
     // here is the point: changing the constant must be a deliberate edit of
     // this test too, in the same change as the window.
-    assert_eq!(info.proto_version, 2);
+    assert_eq!(info.proto_version, 3);
 }
 
 #[tokio::test]
@@ -110,7 +111,7 @@ const CONTRACT_BASELINE: &str =
 /// Every revision of the contract and the digest of the baseline that revision
 /// was recorded with, oldest first. Revision 1 names no contract and has no
 /// row. A contract change appends a row; it never edits one.
-const REVISIONS: &[(u32, u64)] = &[(2, 0xa38e_f92b_0c0b_8c2b)];
+const REVISIONS: &[(u32, u64)] = &[(2, 0xa38e_f92b_0c0b_8c2b), (3, 0xb880_37f8_ad50_ac7e)];
 
 /// FNV-1a over the bytes: a fixed, dependency-free digest. Its job is to
 /// notice that the baseline changed, not to resist anyone.

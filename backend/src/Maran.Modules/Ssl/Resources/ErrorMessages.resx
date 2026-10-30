@@ -21,8 +21,23 @@
   <data name="CertificateDomainInvalidFormat">
     <value>This is not a valid domain name.</value>
   </data>
-  <data name="CertificateMaterialInvalid">
-    <value>This certificate or key could not be read.</value>
+  <data name="CertificatePemRequired">
+    <value>Paste the certificate chain in PEM form.</value>
+  </data>
+  <data name="CertificatePemInvalid">
+    <value>The certificate chain is not valid PEM: it must contain a block that begins with -----BEGIN CERTIFICATE-----.</value>
+  </data>
+  <data name="CertificatePemTooLarge">
+    <value>The certificate chain is too large: it may be at most 65,536 characters.</value>
+  </data>
+  <data name="PrivateKeyPemRequired">
+    <value>Paste the private key in PEM form.</value>
+  </data>
+  <data name="PrivateKeyPemInvalid">
+    <value>The private key is not valid PEM: it must contain a block that begins with -----BEGIN and ends with PRIVATE KEY-----.</value>
+  </data>
+  <data name="PrivateKeyPemTooLarge">
+    <value>The private key is too large: it may be at most 65,536 characters.</value>
   </data>
   <data name="SiteNotFound">
     <value>This site could not be found.</value>

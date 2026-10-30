@@ -1,5 +1,6 @@
 //! `SslService`: certificate material on disk, and the vhost that points at it.
 
+use std::convert::Infallible;
 use std::sync::Arc;
 
 use maran_ops::ssl::{self, CertificateMaterial, SslHost};
@@ -8,12 +9,13 @@ use tonic::{Request, Response, Status};
 use crate::proto::ssl_service_server::SslService;
 use crate::proto::{
     GenerateSelfSignedOk, GenerateSelfSignedRequest, GenerateSelfSignedResponse,
-    InstallCertificateOk, InstallCertificateRequest, InstallCertificateResponse,
-    RemoveCertificateOk, RemoveCertificateRequest, RemoveCertificateResponse,
-    generate_self_signed_response, install_certificate_response, remove_certificate_response,
+    InstallCertificateRequest, InstallCertificateResponse, RemoveCertificateOk,
+    RemoveCertificateRequest, RemoveCertificateResponse, generate_self_signed_response,
+    install_certificate_response, remove_certificate_response,
 };
 use crate::services::sites::validated_existing_site::validated_existing_site;
 use crate::services::sites::validated_site::validated_site;
+use crate::services::ssl::install_outcome::install_outcome;
 use crate::services::ssl::ssl_status::to_agent_error;
 use crate::services::wire::run_blocking::run_blocking;
 
@@ -71,17 +73,28 @@ impl<H: SslHost + 'static> SslService for SslServiceImpl<H> {
                 // with the rest of the message.
                 let material =
                     CertificateMaterial::new(&request.certificate_pem, &request.private_key_pem);
-                run_blocking("certificate operation", to_agent_error, move || {
-                    ssl::install_certificate(host.as_ref(), distro, &site, &material)
-                })
+                // The operation's own error is carried out of the blocking
+                // task untouched, because `install_outcome` decides between
+                // the `refused` and `error` cases from it. The only failure
+                // `run_blocking` itself can produce is a task that did not
+                // finish, which is an `AgentError`.
+                match run_blocking(
+                    "certificate operation",
+                    |never: &Infallible| match *never {},
+                    move || {
+                        Ok(ssl::install_certificate(
+                            host.as_ref(),
+                            distro,
+                            &site,
+                            &material,
+                        ))
+                    },
+                )
                 .await
-            }
-            Err(error) => Err(error),
-        };
-
-        let result = match result {
-            Ok(expires_at_unix) => {
-                install_certificate_response::Result::Ok(InstallCertificateOk { expires_at_unix })
+                {
+                    Ok(outcome) => install_outcome(outcome),
+                    Err(error) => install_certificate_response::Result::Error(error),
+                }
             }
             Err(error) => install_certificate_response::Result::Error(error),
         };

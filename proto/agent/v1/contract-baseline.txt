@@ -1,5 +1,6 @@
 enum maran.agent.v1.ArchiveFormat
 enum maran.agent.v1.BackupDestinationKind
+enum maran.agent.v1.CertificateMaterialRefusal
 enum maran.agent.v1.DistroFamily
 enum maran.agent.v1.ErrorCode
 enum maran.agent.v1.GrantRepairRefusal
@@ -24,6 +25,10 @@ enum-value maran.agent.v1.ArchiveFormat 2 ARCHIVE_FORMAT_TAR_GZ
 enum-value maran.agent.v1.BackupDestinationKind 0 BACKUP_DESTINATION_KIND_UNSPECIFIED
 enum-value maran.agent.v1.BackupDestinationKind 1 BACKUP_DESTINATION_KIND_LOCAL
 enum-value maran.agent.v1.BackupDestinationKind 2 BACKUP_DESTINATION_KIND_S3
+enum-value maran.agent.v1.CertificateMaterialRefusal 0 CERTIFICATE_MATERIAL_REFUSAL_UNSPECIFIED
+enum-value maran.agent.v1.CertificateMaterialRefusal 1 CERTIFICATE_MATERIAL_REFUSAL_MALFORMED_CERTIFICATE
+enum-value maran.agent.v1.CertificateMaterialRefusal 2 CERTIFICATE_MATERIAL_REFUSAL_MALFORMED_PRIVATE_KEY
+enum-value maran.agent.v1.CertificateMaterialRefusal 3 CERTIFICATE_MATERIAL_REFUSAL_KEY_DOES_NOT_MATCH_CERTIFICATE
 enum-value maran.agent.v1.DistroFamily 0 DISTRO_FAMILY_UNSPECIFIED
 enum-value maran.agent.v1.DistroFamily 1 DISTRO_FAMILY_DEBIAN
 enum-value maran.agent.v1.DistroFamily 2 DISTRO_FAMILY_RHEL
@@ -423,6 +428,7 @@ field maran.agent.v1.HostMetrics 7 network_tx_bytes TYPE_UINT64 LABEL_OPTIONAL t
 field maran.agent.v1.HostMetrics 8 load_average_1m TYPE_DOUBLE LABEL_OPTIONAL type_name=- oneof=-
 field maran.agent.v1.HostMetrics 9 load_average_5m TYPE_DOUBLE LABEL_OPTIONAL type_name=- oneof=-
 field maran.agent.v1.InstallCertificateOk 1 expires_at_unix TYPE_INT64 LABEL_OPTIONAL type_name=- oneof=-
+field maran.agent.v1.InstallCertificateRefused 1 reason TYPE_ENUM LABEL_OPTIONAL type_name=.maran.agent.v1.CertificateMaterialRefusal oneof=-
 field maran.agent.v1.InstallCertificateRequest 1 account_username TYPE_STRING LABEL_OPTIONAL type_name=- oneof=-
 field maran.agent.v1.InstallCertificateRequest 2 domain TYPE_STRING LABEL_OPTIONAL type_name=- oneof=-
 field maran.agent.v1.InstallCertificateRequest 3 certificate_pem TYPE_STRING LABEL_OPTIONAL type_name=- oneof=-
@@ -430,6 +436,7 @@ field maran.agent.v1.InstallCertificateRequest 4 private_key_pem TYPE_STRING LAB
 field maran.agent.v1.InstallCertificateRequest 5 site TYPE_MESSAGE LABEL_OPTIONAL type_name=.maran.agent.v1.SiteSpec oneof=-
 field maran.agent.v1.InstallCertificateResponse 1 ok TYPE_MESSAGE LABEL_OPTIONAL type_name=.maran.agent.v1.InstallCertificateOk oneof=result
 field maran.agent.v1.InstallCertificateResponse 2 error TYPE_MESSAGE LABEL_OPTIONAL type_name=.maran.agent.v1.AgentError oneof=result
+field maran.agent.v1.InstallCertificateResponse 3 refused TYPE_MESSAGE LABEL_OPTIONAL type_name=.maran.agent.v1.InstallCertificateRefused oneof=result
 field maran.agent.v1.InstallPhpVersionOk 1 version TYPE_STRING LABEL_OPTIONAL type_name=- oneof=-
 field maran.agent.v1.InstallPhpVersionRequest 1 version TYPE_STRING LABEL_OPTIONAL type_name=- oneof=-
 field maran.agent.v1.InstallPhpVersionResponse 1 progress TYPE_MESSAGE LABEL_OPTIONAL type_name=.maran.agent.v1.Progress oneof=result
@@ -782,6 +789,7 @@ message maran.agent.v1.GetSftpJailStatusRequest
 message maran.agent.v1.GetSftpJailStatusResponse
 message maran.agent.v1.HostMetrics
 message maran.agent.v1.InstallCertificateOk
+message maran.agent.v1.InstallCertificateRefused
 message maran.agent.v1.InstallCertificateRequest
 message maran.agent.v1.InstallCertificateResponse
 message maran.agent.v1.InstallPhpVersionOk

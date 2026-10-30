@@ -88,6 +88,69 @@ public sealed class InstallCustomCertificateCommandValidatorTests
             .ShouldNotHaveValidationErrorFor(command => command.PrivateKeyPem);
     }
 
+    /// <summary>A missing certificate is reported as missing, under the certificate field, and as nothing else.</summary>
+    [Fact]
+    public void A_missing_certificate_is_reported_as_missing_and_as_nothing_else()
+    {
+        var result = _validator.TestValidate(Command(certificatePem: string.Empty));
+
+        Assert.Equal(["CertificatePemRequired"], MessagesFor(result, nameof(InstallCustomCertificateCommand.CertificatePem)));
+    }
+
+    /// <summary>A missing key is reported as missing, under the key field, and as nothing else.</summary>
+    [Fact]
+    public void A_missing_key_is_reported_as_missing_and_as_nothing_else()
+    {
+        var result = _validator.TestValidate(Command(privateKeyPem: string.Empty));
+
+        Assert.Equal(["PrivateKeyPemRequired"], MessagesFor(result, nameof(InstallCustomCertificateCommand.PrivateKeyPem)));
+    }
+
+    /// <summary>Certificate text that is present but not PEM is reported as invalid, not as missing.</summary>
+    [Fact]
+    public void Certificate_text_that_is_not_pem_is_reported_as_invalid_not_as_missing()
+    {
+        var result = _validator.TestValidate(Command(certificatePem: "just some text"));
+
+        Assert.Equal(["CertificatePemInvalid"], MessagesFor(result, nameof(InstallCustomCertificateCommand.CertificatePem)));
+    }
+
+    /// <summary>Key text that is present but not a PEM private key is reported as invalid, not as missing.</summary>
+    [Theory]
+    [InlineData("just some text")]
+    [InlineData("-----BEGIN CERTIFICATE-----\nleaf\n-----END CERTIFICATE-----")]
+    [InlineData("-----BEGIN PUBLIC KEY-----\nk\n-----END PUBLIC KEY-----")]
+    public void Key_text_that_is_not_a_pem_private_key_is_reported_as_invalid_not_as_missing(string privateKeyPem)
+    {
+        var result = _validator.TestValidate(Command(privateKeyPem: privateKeyPem));
+
+        Assert.Equal(["PrivateKeyPemInvalid"], MessagesFor(result, nameof(InstallCustomCertificateCommand.PrivateKeyPem)));
+    }
+
+    /// <summary>Material over the size limit is reported as too large, under its own field.</summary>
+    [Fact]
+    public void Material_over_the_size_limit_is_reported_as_too_large_under_its_own_field()
+    {
+        var oversized = "-----BEGIN CERTIFICATE-----\n" + new string('A', 65536);
+
+        var certificate = _validator.TestValidate(Command(certificatePem: oversized));
+        var key = _validator.TestValidate(Command(privateKeyPem: oversized.Replace("CERTIFICATE", "PRIVATE KEY", StringComparison.Ordinal)));
+
+        Assert.Equal(["CertificatePemTooLarge"], MessagesFor(certificate, nameof(InstallCustomCertificateCommand.CertificatePem)));
+        Assert.Equal(["PrivateKeyPemTooLarge"], MessagesFor(key, nameof(InstallCustomCertificateCommand.PrivateKeyPem)));
+    }
+
+    /// <summary>An encrypted key, and a key file that opens with an EC PARAMETERS block, both count as PEM keys.</summary>
+    [Theory]
+    [InlineData("-----BEGIN ENCRYPTED PRIVATE KEY-----\nk\n-----END ENCRYPTED PRIVATE KEY-----")]
+    [InlineData("-----BEGIN EC PARAMETERS-----\np\n-----END EC PARAMETERS-----\n-----BEGIN EC PRIVATE KEY-----\nk\n-----END EC PRIVATE KEY-----")]
+    public void An_encrypted_key_or_one_after_ec_parameters_counts_as_a_pem_key(string privateKeyPem)
+    {
+        // Whether openssl can then READ it is the agent's verdict, answered with its own code.
+        _validator.TestValidate(Command(privateKeyPem: privateKeyPem))
+            .ShouldNotHaveValidationErrorFor(command => command.PrivateKeyPem);
+    }
+
     /// <summary>A domain in the static reserved set is rejected with the reserved key.</summary>
     [Theory]
     [InlineData("203.0.113.7")]
@@ -161,5 +224,23 @@ public sealed class InstallCustomCertificateCommandValidatorTests
             return failure.ErrorMessage;
         }).ToList();
         Assert.Equal(["CertificateDomainInvalidFormat"], messages);
+    }
+
+    /// <summary>The codes one field was refused with, in the order the validator raised them.</summary>
+    /// <param name="result">The validation outcome.</param>
+    /// <param name="property">The command member to read the failures of.</param>
+    /// <returns>Every error message raised for that member.</returns>
+    private static List<string> MessagesFor(TestValidationResult<InstallCustomCertificateCommand> result, string property)
+    {
+        return result.Errors
+            .Where(failure =>
+            {
+                return failure.PropertyName == property;
+            })
+            .Select(failure =>
+            {
+                return failure.ErrorMessage;
+            })
+            .ToList();
     }
 }

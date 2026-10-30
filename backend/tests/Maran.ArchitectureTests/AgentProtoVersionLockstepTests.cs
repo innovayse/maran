@@ -33,12 +33,12 @@ public sealed class AgentProtoVersionLockstepTests
     private const string AgentConstantFile = "agent/crates/agent/src/services/system/system_service.rs";
 
     /// <summary>The window's newest end, pinned here; raised in the same change as the agent's constant.</summary>
-    private const uint PinnedMaximum = 2;
+    private const uint PinnedMaximum = 3;
 
     /// <summary>
     /// The window's oldest end, pinned here; moves with <see cref="PinnedMaximum"/> unless the change says why not.
     /// </summary>
-    private const uint PinnedMinimum = 2;
+    private const uint PinnedMinimum = 3;
 
     /// <summary>The agent's declaration: <c>const PROTO_VERSION: u32 = N;</c> at the start of a line.</summary>
     private static readonly Regex ConstantDeclaration =

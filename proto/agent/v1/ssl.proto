@@ -66,8 +66,36 @@ message InstallCertificateRequest {
 message InstallCertificateResponse {
   oneof result {
     InstallCertificateOk ok = 1;
+    // Every failure that is not a verdict on the material itself: no such
+    // site, a refused vhost, a fault of this machine.
     AgentError error = 2;
+    // Added 2026-10-30. The material the caller sent was read and refused,
+    // and nothing was written. Its own case rather than an AgentError with
+    // ERROR_CODE_INVALID_INPUT, because the caller has to say WHICH half is
+    // wrong, and the three answers below are three different things to fix.
+    InstallCertificateRefused refused = 3;
   }
+}
+
+// Added 2026-10-30. Why the supplied material was refused before anything
+// was written.
+message InstallCertificateRefused {
+  // Which half of the pair is wrong, or that the two do not belong together.
+  CertificateMaterialRefusal reason = 1;
+}
+
+// Added 2026-10-30. What was wrong with certificate material a caller sent.
+enum CertificateMaterialRefusal {
+  // No reason given. Never sent by this agent; present because proto3
+  // requires a zero value, and a caller seeing it is reading a message from
+  // something else.
+  CERTIFICATE_MATERIAL_REFUSAL_UNSPECIFIED = 0;
+  // openssl could not read certificate_pem as an X.509 certificate.
+  CERTIFICATE_MATERIAL_REFUSAL_MALFORMED_CERTIFICATE = 1;
+  // openssl could not read private_key_pem as a private key.
+  CERTIFICATE_MATERIAL_REFUSAL_MALFORMED_PRIVATE_KEY = 2;
+  // Both halves are readable, and the key is not the certificate's key.
+  CERTIFICATE_MATERIAL_REFUSAL_KEY_DOES_NOT_MATCH_CERTIFICATE = 3;
 }
 
 message InstallCertificateOk {

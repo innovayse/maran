@@ -21,8 +21,23 @@
   <data name="CertificateDomainInvalidFormat">
     <value>Это некорректное доменное имя.</value>
   </data>
-  <data name="CertificateMaterialInvalid">
-    <value>Не удалось прочитать сертификат или ключ.</value>
+  <data name="CertificatePemRequired">
+    <value>Вставьте цепочку сертификатов в формате PEM.</value>
+  </data>
+  <data name="CertificatePemInvalid">
+    <value>Цепочка сертификатов не является корректным PEM: она должна содержать блок, начинающийся с -----BEGIN CERTIFICATE-----.</value>
+  </data>
+  <data name="CertificatePemTooLarge">
+    <value>Цепочка сертификатов слишком велика: допускается не более 65 536 символов.</value>
+  </data>
+  <data name="PrivateKeyPemRequired">
+    <value>Вставьте закрытый ключ в формате PEM.</value>
+  </data>
+  <data name="PrivateKeyPemInvalid">
+    <value>Закрытый ключ не является корректным PEM: он должен содержать блок, начинающийся с -----BEGIN и заканчивающийся на PRIVATE KEY-----.</value>
+  </data>
+  <data name="PrivateKeyPemTooLarge">
+    <value>Закрытый ключ слишком велик: допускается не более 65 536 символов.</value>
   </data>
   <data name="SiteNotFound">
     <value>Сайт не найден.</value>
