@@ -3,7 +3,7 @@ import { setPersistedLocale } from '../fixtures/set-locale'
 import { stubAccountResources } from '../fixtures/stub-account-resources-route'
 import { stubAccounts } from '../fixtures/stub-accounts-route'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
-import { stubDashboard } from '../fixtures/stub-dashboard-route'
+import { loaded, stubDashboard } from '../fixtures/stub-dashboard-route'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubInvitation } from '../fixtures/stub-invitation-routes'
 import { stubModules } from '../fixtures/stub-modules-route'
@@ -79,7 +79,7 @@ const TASK: PanelTask = {
 
 const DASHBOARD: Dashboard = {
   isAdministrator: true,
-  resources: {
+  resources: loaded({
     cpuPercent: 12,
     memoryUsedBytes: 1024 * 1024 * 1024,
     memoryTotalBytes: 4 * 1024 * 1024 * 1024,
@@ -90,15 +90,15 @@ const DASHBOARD: Dashboard = {
     loadAverage1m: 0.1,
     loadAverage5m: 0.2,
     loadAverage15m: 0.3,
-  },
-  services: [{ service: 'webServer', name: 'Web server', state: 'running', detail: 'active (running)' }],
+  }),
+  services: loaded([{ service: 'webServer', name: 'Web server', state: 'running', detail: 'active (running)' }]),
   counts: {
-    accounts: { state: 'counted', count: 1 },
-    sites: { state: 'counted', count: 2 },
-    databases: { state: 'counted', count: 3 },
+    accounts: loaded(1),
+    sites: loaded(2),
+    databases: loaded(3),
   },
-  attention: { certificatesExpiringSoon: 0, failedBackups: 0, bannedAddresses: 0, failedTasks: 0 },
-  recentAudit: [],
+  attention: { certificatesExpiringSoon: loaded(0), failedBackups: loaded(0), bannedAddresses: loaded(0), failedTasks: loaded(0) },
+  recentAudit: loaded([]),
 }
 
 /** One screen under test. */

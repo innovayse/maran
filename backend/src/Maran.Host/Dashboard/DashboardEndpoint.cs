@@ -41,16 +41,18 @@ namespace Maran.Host.Dashboard;
 /// here later inherits that rule or it does not go in.
 /// </para>
 /// <para>
-/// A non-administrator receives the shape with every administrator-only section empty. That is not
+/// A non-administrator receives the shape with every administrator-only section null. That is not
 /// an oversight: a customer's own landing screen is the client zone, which is issue #49's subject,
 /// and a second one invented here is a thing that issue would then have to undo.
 /// </para>
 /// <para>
-/// <b>One failing section empties itself and nothing else.</b> The resources and services come from
-/// the agent and the rest from the database, so an unreachable agent must not blank the counts — a
-/// screen that goes dark all at once tells an operator less than one that says which half is
-/// missing. This is the same split, and for the same reason, that the monitoring store makes
-/// between its charts and its per-account disk read.
+/// <b>One failing section marks itself unavailable and nothing else.</b> The resources and services
+/// come from the agent and the rest from the database, so an unreachable agent must not blank the
+/// counts — a screen that goes dark all at once tells an operator less than one that says which half
+/// is missing. A section that could not be read is <see cref="DashboardSection.Unavailable{T}"/>,
+/// never an empty list, a zero or a null: those are real answers, and an attention figure read off a
+/// failed listing as zero is how the screen once said "nothing needs attention" about a source it
+/// never checked (issue #248).
 /// </para>
 /// <para>
 /// UNOBSERVED HERE: this endpoint reports what the modules answer. It does not verify the host
@@ -60,8 +62,12 @@ namespace Maran.Host.Dashboard;
 /// </remarks>
 public static class DashboardEndpoint
 {
-    /// <summary>The answer for a count a module did not give.</summary>
-    private static readonly DashboardCountDto Unavailable = new(DashboardCountState.Unavailable, 0);
+    /// <summary>Pre-compiled log delegate for a section whose query threw rather than refused.</summary>
+    private static readonly Action<ILogger, string, Exception?> LogUnreadableSection =
+        LoggerMessage.Define<string>(
+            LogLevel.Warning,
+            new EventId(1, nameof(DashboardEndpoint)),
+            "Dashboard section {Query} could not be read");
 
     /// <summary>
     /// How near expiry a certificate has to be to count as needing attention.
@@ -90,8 +96,16 @@ public static class DashboardEndpoint
     {
         endpoints.MapGet(
             "/api/v1/dashboard",
-            async (IMessageBus bus, ICurrentUser currentUser, IClock clock, CancellationToken cancellationToken) =>
-                Results.Ok(await DescribeAsync(bus, currentUser, clock, cancellationToken)))
+            async (
+                IMessageBus bus,
+                ICurrentUser currentUser,
+                IClock clock,
+                ILoggerFactory loggers,
+                CancellationToken cancellationToken) =>
+            {
+                var logger = loggers.CreateLogger(typeof(DashboardEndpoint));
+                return Results.Ok(await DescribeAsync(bus, logger, currentUser, clock, cancellationToken));
+            })
             // Authenticated, never anonymous: /api/v1/modules may be read by anybody because it
             // describes what this build composed, while this route describes what the server holds.
             // Any signed-in caller, customer included — the payload is shaped by who is asking — so
@@ -102,12 +116,14 @@ public static class DashboardEndpoint
 
     /// <summary>Assembles the caller's view of the server.</summary>
     /// <param name="bus">The bus every module query is dispatched through.</param>
+    /// <param name="logger">Where a section that threw is recorded.</param>
     /// <param name="currentUser">The caller, whose administrator state decides what is read at all.</param>
     /// <param name="clock">The panel's clock, which the certificate horizon is measured from.</param>
     /// <param name="cancellationToken">Cancels every dispatch.</param>
     /// <returns>The payload for this caller.</returns>
     private static async Task<DashboardDto> DescribeAsync(
         IMessageBus bus,
+        ILogger logger,
         ICurrentUser currentUser,
         IClock clock,
         CancellationToken cancellationToken)
@@ -119,26 +135,32 @@ public static class DashboardEndpoint
             return new DashboardDto(
                 IsAdministrator: false,
                 Resources: null,
-                Services: [],
+                Services: null,
                 Counts: null,
                 Attention: null,
-                RecentAudit: []);
+                RecentAudit: null);
         }
 
         // Together rather than one after another: they are one screen, and nine sequential
         // round-trips would make the first paint the sum of them. Each task already carries its own
-        // failure, so WhenAll cannot throw on behalf of one of them.
-        var resources = ReadAsync<HostMetricsDto>(bus, new GetHostMetricsQuery(), cancellationToken);
-        var services = ReadListAsync<ServiceStatusDto>(bus, new ListServiceStatusesQuery(), cancellationToken);
-        var accounts = ReadCountAsync(bus, new CountAccountsQuery(), cancellationToken);
-        var sites = ReadCountAsync(bus, new CountSitesQuery(), cancellationToken);
-        var databases = ReadCountAsync(bus, new CountDatabasesQuery(), cancellationToken);
-        var certificates = ReadCountAsync(
-            bus, new CountExpiringCertificatesQuery(clock.UtcNow.Add(CertificateExpiryHorizon)), cancellationToken);
-        var failedBackups = ReadCountAsync(bus, new CountFailedBackupsQuery(), cancellationToken);
-        var bans = ReadListAsync<BanDto>(bus, new ListBansQuery(), cancellationToken);
-        var tasks = ReadListAsync<PanelTaskDto>(bus, new ListTasksQuery(), cancellationToken);
-        var audit = ReadListAsync<AuditEventDto>(bus, new ListAuditEventsQuery(RecentAuditEntries), cancellationToken);
+        // failure, so WhenAll cannot throw on behalf of one of them, and every await below it reads a
+        // task that has already finished.
+        var resources = ReadAsync<HostMetricsDto>(bus, logger, new GetHostMetricsQuery(), cancellationToken);
+        var services = ReadAsync<IReadOnlyList<ServiceStatusDto>>(
+            bus, logger, new ListServiceStatusesQuery(), cancellationToken);
+        var accounts = ReadAsync<int>(bus, logger, new CountAccountsQuery(), cancellationToken);
+        var sites = ReadAsync<int>(bus, logger, new CountSitesQuery(), cancellationToken);
+        var databases = ReadAsync<int>(bus, logger, new CountDatabasesQuery(), cancellationToken);
+        var certificates = ReadAsync<int>(
+            bus,
+            logger,
+            new CountExpiringCertificatesQuery(clock.UtcNow.Add(CertificateExpiryHorizon)),
+            cancellationToken);
+        var failedBackups = ReadAsync<int>(bus, logger, new CountFailedBackupsQuery(), cancellationToken);
+        var bans = ReadAsync<IReadOnlyList<BanDto>>(bus, logger, new ListBansQuery(), cancellationToken);
+        var tasks = ReadAsync<IReadOnlyList<PanelTaskDto>>(bus, logger, new ListTasksQuery(), cancellationToken);
+        var audit = ReadAsync<IReadOnlyList<AuditEventDto>>(
+            bus, logger, new ListAuditEventsQuery(RecentAuditEntries), cancellationToken);
 
         await Task.WhenAll(
             resources,
@@ -154,139 +176,89 @@ public static class DashboardEndpoint
 
         return new DashboardDto(
             IsAdministrator: true,
-            Resources: resources.Result,
-            Services: services.Result,
+            Resources: await resources,
+            Services: await services,
 
-            // Each count comes from the module's own count query (ReadCountAsync), never from its
-            // list: a paged listing holds one page, not the total. A module that did not answer is
-            // Unavailable, never zero.
+            // Each count comes from the module's own count query, never from its list: a paged
+            // listing holds one page, not the total. A module that did not answer is Unavailable,
+            // never zero.
             Counts: new DashboardCountsDto(
-                Accounts: accounts.Result,
-                Sites: sites.Result,
-                Databases: databases.Result),
+                Accounts: await accounts,
+                Sites: await sites,
+                Databases: await databases),
 
             Attention: new DashboardAttentionDto(
                 // Already-expired certificates are included, deliberately: the horizon is an upper
                 // bound on "soon", and a certificate that lapsed yesterday has not stopped needing
                 // attention by becoming late.
-                CertificatesExpiringSoon: AttentionCount(certificates.Result),
-                FailedBackups: AttentionCount(failedBackups.Result),
-                BannedAddresses: bans.Result.Count,
-                FailedTasks: tasks.Result.Count(task =>
+                CertificatesExpiringSoon: await certificates,
+                FailedBackups: await failedBackups,
+
+                // Counted off their listings through Map, so a listing that could not be read stays
+                // unavailable here instead of counting as zero things to attend to.
+                BannedAddresses: (await bans).Map(list =>
                 {
-                    return task.Status == PanelTaskStatus.Failed;
+                    return list.Count;
+                }),
+                FailedTasks: (await tasks).Map(list =>
+                {
+                    return list.Count(task =>
+                    {
+                        return task.Status == PanelTaskStatus.Failed;
+                    });
                 })),
 
-            RecentAudit: audit.Result);
+            RecentAudit: await audit);
     }
 
     /// <summary>
-    /// Reads a module's count as an attention figure, where a module that did not answer is nothing
-    /// to attend to.
+    /// Dispatches one query and answers with its value as a loaded section, or with an unavailable
+    /// one when the module refused or failed.
     /// </summary>
     /// <remarks>
-    /// The attention band carries plain numbers, so an unavailable count has no state of its own
-    /// there; it reads as zero — the same answer the band gave when it counted an empty listing —
-    /// and the count's own <see cref="DashboardCountDto.Count"/> is never read while it is
-    /// meaningless.
-    /// </remarks>
-    /// <param name="count">The module's count, possibly unavailable.</param>
-    /// <returns>The number counted, or zero when the module did not answer.</returns>
-    private static int AttentionCount(DashboardCountDto count)
-    {
-        return count.State == DashboardCountState.Counted ? count.Count : 0;
-    }
-
-    /// <summary>
-    /// Dispatches one query and answers with its value, or with <c>null</c> when it refused or failed.
-    /// </summary>
-    /// <remarks>
-    /// The refusal is swallowed ON PURPOSE and only here: a section that cannot be read renders as
-    /// absent, which is what the payload's nullability is for, and one module's bad day must not
-    /// take the whole landing page down. The caller is an administrator by this point, so a refusal
-    /// is a genuine failure rather than a permission boundary — and the module that refused has
-    /// already logged why, in its own words, which is where that belongs.
+    /// <para>
+    /// The failure is not swallowed: it becomes the section's state, which the screen draws as "could
+    /// not be read" — the one honest thing it can say about it — and one module's bad day does not take
+    /// the whole landing page down. The caller is an administrator by this point, so a refusal is a
+    /// genuine failure rather than a permission boundary, and the module that refused has already
+    /// logged why, in its own words, which is where that belongs. A query that threw instead is logged
+    /// here, since nothing else would.
+    /// </para>
+    /// <para>
+    /// A count is asked of the module as a count — one <c>count(*)</c> — and never read off a page of
+    /// a listing, which since lists are paged would be the size of one page and not the total.
+    /// </para>
     /// </remarks>
     /// <typeparam name="TResult">What the query answers with.</typeparam>
     /// <param name="bus">The bus to dispatch on.</param>
+    /// <param name="logger">Where a query that threw is recorded.</param>
     /// <param name="query">The query to send.</param>
     /// <param name="cancellationToken">Cancels the dispatch.</param>
-    /// <returns>The value, or <c>null</c>.</returns>
-    private static async Task<TResult?> ReadAsync<TResult>(
+    /// <returns>The section, loaded or unavailable.</returns>
+    private static async Task<DashboardSection<TResult>> ReadAsync<TResult>(
         IMessageBus bus,
+        ILogger logger,
         object query,
         CancellationToken cancellationToken)
-        where TResult : class
     {
         try
         {
             var answer = await bus.InvokeAsync<Result<TResult>>(query, cancellationToken);
-            return answer.IsSuccess ? answer.Value : null;
+            return answer.IsSuccess
+                ? DashboardSection.Loaded<TResult>(answer.Value)
+                : DashboardSection.Unavailable<TResult>();
         }
         catch (OperationCanceledException)
         {
             // The caller gave up or the request was cancelled; not this endpoint's to report.
             throw;
         }
-        catch (Exception)
+        catch (Exception exception)
         {
-            return null;
-        }
-    }
-
-    /// <summary>
-    /// Dispatches one listing query and answers with its items, or with an empty list.
-    /// </summary>
-    /// <remarks>
-    /// Separate from <see cref="ReadAsync{TResult}"/> so that a list section is never null:
-    /// the page draws "none" and "could not be read" the same way for a list, and a nullable list
-    /// would give every caller a third state to handle for no gain. The sections where the
-    /// difference is real are the ones carrying numbers, and those are nullable.
-    /// </remarks>
-    /// <typeparam name="TItem">The item type the listing answers with.</typeparam>
-    /// <param name="bus">The bus to dispatch on.</param>
-    /// <param name="query">The query to send.</param>
-    /// <param name="cancellationToken">Cancels the dispatch.</param>
-    /// <returns>The items, or an empty list.</returns>
-    private static async Task<IReadOnlyList<TItem>> ReadListAsync<TItem>(
-        IMessageBus bus,
-        object query,
-        CancellationToken cancellationToken)
-    {
-        var answer = await ReadAsync<IReadOnlyList<TItem>>(bus, query, cancellationToken);
-        return answer ?? [];
-    }
-
-    /// <summary>
-    /// Dispatches one counting query and answers with its count, or <see cref="Unavailable"/> when
-    /// the module refused or failed.
-    /// </summary>
-    /// <remarks>
-    /// A count is asked of the module as a count — one <c>count(*)</c> — and never read off a page of
-    /// a listing, which since lists are paged would be the size of one page and not the total.
-    /// </remarks>
-    /// <param name="bus">The bus to dispatch on.</param>
-    /// <param name="query">The query to send.</param>
-    /// <param name="cancellationToken">Cancels the dispatch.</param>
-    /// <returns>The count, or unavailable.</returns>
-    private static async Task<DashboardCountDto> ReadCountAsync(
-        IMessageBus bus,
-        object query,
-        CancellationToken cancellationToken)
-    {
-        try
-        {
-            var answer = await bus.InvokeAsync<Result<int>>(query, cancellationToken);
-            return answer.IsSuccess ? new DashboardCountDto(DashboardCountState.Counted, answer.Value) : Unavailable;
-        }
-        catch (OperationCanceledException)
-        {
-            // The caller gave up or the request was cancelled; not this endpoint's to report.
-            throw;
-        }
-        catch (Exception)
-        {
-            return Unavailable;
+            // Recorded here, because a query that THREW logged nothing of its own; the screen is told
+            // through the section's state (see the remarks).
+            LogUnreadableSection(logger, query.GetType().Name, exception);
+            return DashboardSection.Unavailable<TResult>();
         }
     }
 }

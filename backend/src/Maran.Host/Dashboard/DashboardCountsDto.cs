@@ -24,6 +24,6 @@ namespace Maran.Host.Dashboard;
 /// <param name="Sites">Sites across every account, or unavailable.</param>
 /// <param name="Databases">Databases across every account, or unavailable.</param>
 public sealed record DashboardCountsDto(
-    DashboardCountDto Accounts,
-    DashboardCountDto Sites,
-    DashboardCountDto Databases);
+    DashboardSection<int> Accounts,
+    DashboardSection<int> Sites,
+    DashboardSection<int> Databases);

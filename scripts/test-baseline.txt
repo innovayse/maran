@@ -1,6 +1,11 @@
 # Committed per-target test baseline. Recorded by 'maran test --accept'; commit the diff.
 # stack<TAB>target<TAB>passed<TAB>failed<TAB>ignored
 #
+# RE-MEASURED 2026-10-31 (issue #248, every dashboard section is loaded or unavailable): edited by hand.
+# Host.Tests 392->406 (DashboardSectionTests 6, DashboardSectionJsonConverterTests 8), Host.IntegrationTests
+# 730->731 (an attention source that cannot answer is unavailable and not an all-clear). spa: dashboard.spec 7->10
+# (an unread attention source is named; beside real counts; an unread journal). ArchitectureTests 91 unchanged (the
+# DashboardCountDto display-name exemption is gone with the type; the law walks the list in one test).
 # RE-MEASURED 2026-10-31 (issue #196 phase 2, databases/backups/plans/certificates/file-transfer lists paged on the
 # server, merged with dev's #243 loading-spec fix below): edited by hand. Full `maran test backend`: 20 targets: 4852
 # passed / 0 failed / 0 ignored, Host.IntegrationTests included. Host.IntegrationTests 662->730, Modules.Accounts.Tests
@@ -424,8 +429,8 @@ backend	Maran.Modules.Ssl.Tests.dll	235	0	0
 backend	Maran.Sdk.Tests.dll	254	0	0
 backend	Maran.Modules.Sites.Tests.dll	266	0	0
 backend	Maran.ArchitectureTests.dll	91	0	0
-backend	Maran.Host.Tests.dll	392	0	0
-backend	Maran.Host.IntegrationTests.dll	730	0	0
+backend	Maran.Host.Tests.dll	406	0	0
+backend	Maran.Host.IntegrationTests.dll	731	0	0
 spa	accounts/delete.spec.ts	6	0	0
 spa	accounts/detail-loading.spec.ts	6	0	0
 spa	accounts/detail.spec.ts	10	0	0
@@ -479,7 +484,7 @@ spa	customer/own-account-create.spec.ts	5	0	0
 spa	customer/role-guard.spec.ts	18	0	0
 spa	customer/tasks.spec.ts	3	0	0
 spa	dashboard-loading.spec.ts	3	0	0
-spa	dashboard.spec.ts	7	0	0
+spa	dashboard.spec.ts	10	0	0
 spa	databases/account-filter.spec.ts	3	0	0
 spa	databases/create.spec.ts	5	0	0
 spa	databases/credentials.spec.ts	15	0	0
