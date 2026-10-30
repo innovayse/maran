@@ -8,7 +8,7 @@ import type {
   AccountDetail,
   CreateAccountRequest,
   MyAccount,
-  Plan,
+  PlanChoicesLoad,
 } from '../types/account'
 import type { LoadingState } from '../types/loading'
 import type { AccountResourceSummary, AccountResourceSummaryRead } from '../types/accountResourceSummary'
@@ -55,6 +55,9 @@ export const useAccountsStore = defineStore('accounts', () => {
    */
   let choicesTicket = 0
 
+  /** Numbers each plan-choices read, so only the latest search's answer is kept. Not reactive. */
+  let planChoicesTicket = 0
+
   /**
    * The name read in flight for each id. A second caller asking for the same id awaits the same
    * read rather than returning early, so it never decides on a name that is still on its way.
@@ -74,8 +77,17 @@ export const useAccountsStore = defineStore('accounts', () => {
    */
   const errorMessage: Ref<string | null> = ref(null)
 
-  /** The plans an account can be created against, as last loaded. */
-  const plans: Ref<Plan[]> = ref([])
+  /**
+   * The open plan picker's latest page of `GET /api/v1/plans/choices` for what was typed into it,
+   * or where that read stands.
+   */
+  const planChoicePage: Ref<PlanChoicesLoad> = ref({ kind: 'loading' })
+
+  /**
+   * Plan names read one at a time by id, for text that names a plan the open page of choices may
+   * not hold (the list's plan-filter chip). An id is absent while its read is in flight or after it failed.
+   */
+  const planNames: Ref<Readonly<Record<string, string>>> = ref({})
 
   /** True while a create request is in flight. */
   const creating: Ref<boolean> = ref(false)
@@ -193,14 +205,42 @@ export const useAccountsStore = defineStore('accounts', () => {
   }
 
   /**
-   * Loads the plans the create form offers.
-   * @returns Resolves once the request has settled.
+   * Reads the first page of plans whose name matches what was typed into the open plan picker into
+   * {@link planChoicePage}. An answer to an older search arriving after a newer one was sent is
+   * dropped, so a slow request can never overwrite the list for what the field now says.
+   * @param search Narrows by name; empty for the first plans, alphabetical.
+   * @returns Resolves once the request has settled, successfully or not.
    */
-  const loadPlans = async (): Promise<void> => {
+  const searchPlanChoices = async (search: string): Promise<void> => {
+    planChoicesTicket += 1
+    const ticket = planChoicesTicket
+    planChoicePage.value = { kind: 'loading' }
+    let outcome: PlanChoicesLoad
     try {
-      plans.value = await api.listPlans()
+      outcome = { kind: 'loaded', page: await api.planChoices(search, CHOICES_PAGE_SIZE) }
     } catch (error) {
-      errorMessage.value = error instanceof ApiError ? error.message : null
+      outcome = error instanceof ApiError ? { kind: 'refused', message: error.message } : { kind: 'unreachable' }
+    }
+    if (ticket === planChoicesTicket) {
+      planChoicePage.value = outcome
+    }
+  }
+
+  /**
+   * Reads one plan's name by id into {@link planNames}, unless it is already held. A failure stores
+   * nothing, so the caller keeps showing the id.
+   * @param id The plan to name.
+   * @returns Resolves once the read has settled, successfully or not.
+   */
+  const loadPlanName = async (id: string): Promise<void> => {
+    if (id in planNames.value) {
+      return
+    }
+    try {
+      const plan = await api.getPlan(id)
+      planNames.value = { ...planNames.value, [id]: plan.displayName }
+    } catch {
+      // Nothing to store: an unnamed plan is shown by its id, which is the truth the SPA has.
     }
   }
 
@@ -449,7 +489,8 @@ export const useAccountsStore = defineStore('accounts', () => {
     accounts,
     choicePage,
     accountNames,
-    plans,
+    planChoicePage,
+    planNames,
     selectedState,
     errorMessage,
     creating,
@@ -464,7 +505,8 @@ export const useAccountsStore = defineStore('accounts', () => {
     list,
     searchChoices,
     loadAccountName,
-    loadPlans,
+    searchPlanChoices,
+    loadPlanName,
     create,
     loadOne,
     changePlan,

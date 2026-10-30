@@ -150,7 +150,7 @@ public sealed class BackupDestinationTests : IAsyncLifetime
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
         using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
-        var only = Assert.Single(body.RootElement.EnumerateArray().ToList());
+        var only = Assert.Single(body.RootElement.GetProperty("items").EnumerateArray().ToList());
         Assert.True(only.GetProperty("isDefault").GetBoolean());
         // camelCase, which is what the panel's JSON options do to every enum member on this wire.
         Assert.Equal("local", only.GetProperty("kind").GetString());
@@ -179,7 +179,7 @@ public sealed class BackupDestinationTests : IAsyncLifetime
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
-        var listed = Assert.Single(body.RootElement.EnumerateArray().ToList());
+        var listed = Assert.Single(body.RootElement.GetProperty("items").EnumerateArray().ToList());
         Assert.Equal(JsonValueKind.Null, listed.GetProperty("path").ValueKind);
     }
 

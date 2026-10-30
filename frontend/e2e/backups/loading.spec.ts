@@ -1,6 +1,4 @@
-import { earlySkeletons, recordSkeletonFlashes } from '../fixtures/skeleton-flash'
-import { expect, test, type Page } from '@playwright/test'
-import { delayRoute } from '../fixtures/delay-route'
+import { test, type Page } from '@playwright/test'
 import {
   expectTableFastLoad,
   expectTableSlowFailure,
@@ -70,7 +68,7 @@ const BACKUPS_LIST_SCENARIO: TableLoadingScenario = {
     await signIn(page)
     await stubBackupsProblem(page, 'The backups could not be read.')
   },
-  pattern: '**/api/v1/backups',
+  pattern: /\/api\/v1\/backups(\?.*)?$/,
   path: '/backups',
   table: "Backups taken of this panel's accounts",
   rowText: 'alice',
@@ -89,43 +87,31 @@ test('backups list: a slow failure is an alert, never a skeleton', async ({ page
   await expectTableSlowFailure(page, BACKUPS_LIST_SCENARIO)
 })
 
-// The destinations are cards rather than a table, so the wait for them is one card's placeholder
-// beside the two cards that describe this build.
-test('destinations: a slow answer shows a card placeholder, then the destination', async ({ page }) => {
-  await signIn(page)
-  await stubBackupDestinations(page, [LOCAL])
-  await delayRoute(page, '**/api/v1/backup-destinations', 600)
-  await page.goto('/backups/destinations')
+/** How the backup destinations screen is opened and answered. */
+const DESTINATIONS_LIST_SCENARIO: TableLoadingScenario = {
+  stub: async (page) => {
+    await signIn(page)
+    await stubBackupDestinations(page, [LOCAL])
+  },
+  stubFailure: async (page) => {
+    await signIn(page)
+    await stubBackupDestinationsRefusal(page, 403, 'Forbidden', 'This screen is for administrators.')
+  },
+  pattern: /\/api\/v1\/backup-destinations(\?.*)?$/,
+  path: '/backups/destinations',
+  table: 'Places this server records its backups as living',
+  rowText: '/var/backups/maran',
+  failureText: 'This screen is for administrators.',
+}
 
-  await expect(page.locator('[data-skeleton="card"]')).toBeVisible()
-  await expect(page.getByTestId('loading-status')).toHaveText('Loading…')
-
-  await expect(page.getByRole('heading', { name: 'This server' })).toBeVisible()
-  await expect(page.getByTestId('loading-status')).toHaveText('Loaded')
-  await expect(page.locator('[data-skeleton]')).toHaveCount(0)
+test('destinations list: a slow answer shows placeholder rows under the real header, then the rows', async ({ page }) => {
+  await expectTableSlowLoad(page, DESTINATIONS_LIST_SCENARIO)
 })
 
-test('destinations: a fast answer shows no placeholder', async ({ page }) => {
-  await signIn(page)
-  await stubBackupDestinations(page, [LOCAL])
-  await delayRoute(page, '**/api/v1/backup-destinations', 50)
-  await recordSkeletonFlashes(page)
-  await page.goto('/backups/destinations')
-
-  // Every frame from the first, for longer than the answer and the 150 ms delay together: no
-  // placeholder may be seen in the first 150 ms of its wait, although they are mounted to hold
-  // the space (see `recordSkeletonFlashes` for why the wait, not the stub, is the clock).
-  await page.waitForTimeout(400)
-  expect(await earlySkeletons(page)).toEqual([])
-  await expect(page.getByRole('heading', { name: 'This server' })).toBeVisible()
+test('destinations list: a fast answer shows no placeholder', async ({ page }) => {
+  await expectTableFastLoad(page, DESTINATIONS_LIST_SCENARIO)
 })
 
-test('destinations: a slow refusal is an alert, never a skeleton', async ({ page }) => {
-  await signIn(page)
-  await stubBackupDestinationsRefusal(page, 403, 'Forbidden', 'This screen is for administrators.')
-  await delayRoute(page, '**/api/v1/backup-destinations', 600)
-  await page.goto('/backups/destinations')
-
-  await expect(page.getByText('This screen is for administrators.')).toBeVisible()
-  await expect(page.locator('[data-skeleton]')).toHaveCount(0)
+test('destinations list: a slow failure is an alert, never a skeleton', async ({ page }) => {
+  await expectTableSlowFailure(page, DESTINATIONS_LIST_SCENARIO)
 })

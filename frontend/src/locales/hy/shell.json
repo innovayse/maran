@@ -20,6 +20,8 @@
         "accountsNew": "Նոր հաշիվ",
         "sitesList": "Բոլոր կայքերը",
         "sitesNew": "Նոր կայք",
+        "sftpLogins": "SFTP մուտքանուններ",
+        "ftpsLogins": "FTPS մուտքանուններ",
         "databasesList": "Բազաների ցանկ",
         "databasesGrantRepair": "Իրավունքների ուղղում",
         "backupsList": "Բոլոր պահուստները",

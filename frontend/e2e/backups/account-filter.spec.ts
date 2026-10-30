@@ -1,6 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
 import { stubAccountNames, stubAccounts } from '../fixtures/stub-accounts-route'
-import { stubAccountFilteredList } from '../fixtures/stub-account-filtered-list'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubModules } from '../fixtures/stub-modules-route'
@@ -12,7 +11,7 @@ import type { PanelModule } from '../../src/types/module'
 import type { Backup } from '../../src/types/backup'
 
 // Issue #223: the account page links to this list as `?account=<id>`. The list then asks the panel
-// for that account's rows only, says so, and offers the way back; a customer's list is already
+// for that account's rows only, says so as a chip, and offers the way back; a customer's list is already
 // their own, so the parameter changes nothing for them.
 
 const LICENSED: PanelModule[] = [{ name: 'backups', displayName: 'Backups', tier: 'included', isEnabled: true }]
@@ -71,7 +70,7 @@ const ALICE_COPY: Backup = {
 const BOB_COPY: Backup = { ...ALICE_COPY, id: '33333333-3333-3333-3333-333333333333', accountId: BOB.id, ownerName: BOB.name }
 
 /**
- * Signs in, installs the screen's own stubs, then the filtered list read on top of them.
+ * Signs in and installs the screen's stubs, the paged backups list among them.
  * @param page The Playwright page.
  * @param user The signed-in user; the administrator when omitted.
  * @returns What each list read sent as `accountId`, `''` for none.
@@ -83,8 +82,12 @@ const openScreen = async (page: Page, user?: AuthenticatedUser): Promise<() => r
   await stubAccounts(page, [ALICE, BOB])
   await stubAccountNames(page, [ALICE, BOB])
   await stubMyAccount(page, OWN_ACCOUNT)
-  await stubBackups(page, [])
-  return await stubAccountFilteredList(page, '/api/v1/backups', [ALICE_COPY, BOB_COPY])
+  const requests = await stubBackups(page, [ALICE_COPY, BOB_COPY])
+  return () => {
+    return requests().map((url) => {
+      return url.searchParams.get('accountId') ?? ''
+    })
+  }
 }
 
 test('a list opened for one account asks for that account and says so', async ({ page }) => {
@@ -92,17 +95,17 @@ test('a list opened for one account asks for that account and says so', async ({
 
   await page.goto(`/backups?account=${ALICE.id}`)
 
-  await expect(page.getByTestId('active-filter')).toContainText('Only alice')
+  await expect(page.getByTestId('active-filter')).toContainText('Account: alice')
   await expect(page.getByRole('cell', { name: 'alice', exact: true }).first()).toBeVisible()
   await expect(page.getByRole('cell', { name: 'bob', exact: true })).toHaveCount(0)
   expect(requested()).toContain(ALICE.id)
 })
 
-test('show all drops the account from the URL and lists every row again', async ({ page }) => {
+test('removing the account chip drops it from the URL and lists every row again', async ({ page }) => {
   const requested = await openScreen(page)
 
   await page.goto(`/backups?account=${ALICE.id}`)
-  await page.getByRole('button', { name: 'Show all' }).click()
+  await page.getByRole('button', { name: 'Remove filter: Account: alice' }).click()
 
   await expect(page).not.toHaveURL(/account=/)
   await expect(page.getByTestId('active-filter')).toHaveCount(0)

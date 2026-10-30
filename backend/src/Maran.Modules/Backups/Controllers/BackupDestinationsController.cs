@@ -55,16 +55,20 @@ public sealed class BackupDestinationsController : BaseApiController
         _bus = bus;
     }
 
-    /// <summary>Lists every place this server records backups as living.</summary>
+    /// <summary>Reads one page of the places this server records backups as living.</summary>
+    /// <param name="query">Paging, a search on the name, a sort, and the optional kind filter.</param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpGet]
-    [ProducesResponseType(typeof(IReadOnlyList<BackupDestinationDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(PagedResult<BackupDestinationDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
-    public async Task<IActionResult> GetAllAsync(CancellationToken cancellationToken)
+    public async Task<IActionResult> GetAllAsync(
+        [FromQuery] ListBackupDestinationsQuery query,
+        CancellationToken cancellationToken)
     {
-        return Ok(await _bus.InvokeAsync<IReadOnlyList<BackupDestinationDto>>(
-            new ListBackupDestinationsQuery(), cancellationToken));
+        return ToActionResult(
+            await _bus.InvokeAsync<Result<PagedResult<BackupDestinationDto>>>(query, cancellationToken));
     }
 
     /// <summary>Records a new destination, or answers with the reason this build cannot hold one.</summary>

@@ -8,6 +8,11 @@
       "emptyTitle": "Тарифов пока нет",
       "emptyDescription": "Аккаунты создаются на тарифе, поэтому сначала задайте первый тариф.",
       "tableCaption": "Тарифы и их лимиты",
+      "searchLabel": "Поиск тарифов",
+      "searchPlaceholder": "Поиск по названию…",
+      "searchClear": "Очистить поиск",
+      "noResultsTitle": "Подходящих тарифов нет",
+      "noResultsDescription": "Измените запрос или сбросьте его, чтобы увидеть все тарифы.",
       "none": "Нет",
       "columns": {
         "accounts": "Аккаунты",

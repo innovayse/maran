@@ -1,8 +1,33 @@
 import type { Page } from '@playwright/test'
 import type { Certificate } from '../../src/types/certificate'
+import { pagedAnswer, type PagedRules } from './paged-answer'
 
-/** The collection endpoint the SSL tab lists, issues and installs through. */
-const CERTIFICATES_PATTERN = '**/api/v1/certificates'
+/**
+ * The collection endpoint the SSL tab lists, issues and installs through, with or without the list's
+ * query string (`?siteId=…&pageSize=100`). Exported so a spec delaying or failing the read matches
+ * exactly the request the tab sends.
+ */
+export const CERTIFICATES_PATTERN = /\/api\/v1\/certificates(\?.*)?$/
+
+/** How the stub answers the list's search, sort and filters, as the panel's paging contract does. */
+const CERTIFICATE_RULES: PagedRules<Certificate> = {
+  matches: (certificate: Certificate, term: string): boolean => {
+    return certificate.domain.toLowerCase().includes(term)
+  },
+  sorts: {
+    notAfter: (certificate: Certificate): string => {
+      return certificate.notAfter
+    },
+    domain: (certificate: Certificate): string => {
+      return certificate.domain
+    },
+  },
+  filters: {
+    siteId: (certificate: Certificate, value: string): boolean => {
+      return certificate.siteId === value
+    },
+  },
+}
 
 /** The custom-install endpoint. */
 const CUSTOM_PATTERN = '**/api/v1/certificates/custom'
@@ -11,7 +36,8 @@ const CUSTOM_PATTERN = '**/api/v1/certificates/custom'
 const CERTIFICATE_PATTERN = '**/api/v1/certificates/*'
 
 /**
- * Fulfils the certificate endpoints against an in-memory list: `GET` lists it, `POST` and
+ * Fulfils the certificate endpoints against an in-memory list: `GET` answers a page of it the way
+ * the panel's paging contract does (the `siteId` filter included), `POST` and
  * `POST /custom` add to it and echo what they added, and `DELETE` removes by id.
  *
  * The list is the stub's own state and is mutated by the calls, so a spec can drive the tab
@@ -39,7 +65,7 @@ export const stubCertificates = async (page: Page, installed: Certificate[]): Pr
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify(installed),
+      body: JSON.stringify(pagedAnswer(installed, route.request().url(), CERTIFICATE_RULES)),
     })
   })
 

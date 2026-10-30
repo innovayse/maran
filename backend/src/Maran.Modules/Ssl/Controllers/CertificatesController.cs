@@ -46,16 +46,20 @@ public sealed class CertificatesController : BaseApiController
         _bus = bus;
     }
 
-    /// <summary>Lists the certificates the caller may see, soonest expiry first.</summary>
+    /// <summary>
+    /// Lists one page of the certificates the caller may see, searched by domain, narrowed to a site,
+    /// a status or the ones about to expire, and sorted (soonest expiry first by default).
+    /// </summary>
+    /// <param name="query">Paging, search, sort and the site, status and expiring filters, bound from the query string.</param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpGet]
-    [ProducesResponseType(typeof(IReadOnlyList<CertificateDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(PagedResult<CertificateDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-    public async Task<IActionResult> GetAllAsync(CancellationToken cancellationToken)
+    public async Task<IActionResult> GetAllAsync([FromQuery] ListCertificatesQuery query, CancellationToken cancellationToken)
     {
-        var query = new ListCertificatesQuery();
         return ToActionResult(
-            await _bus.InvokeAsync<Result<IReadOnlyList<CertificateDto>>>(query, cancellationToken));
+            await _bus.InvokeAsync<Result<PagedResult<CertificateDto>>>(query, cancellationToken));
     }
 
     /// <summary>Orders a certificate for one of the caller's sites and installs it.</summary>

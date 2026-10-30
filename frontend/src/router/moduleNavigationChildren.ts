@@ -41,6 +41,23 @@ const CHILDREN: Readonly<Record<string, readonly NavigationChildSpec[]>> = {
       adminOnly: false,
     },
   ],
+  // The FTPS page is offered under the SFTP module's entry: the two protocols are one subject to the
+  // reader ("File transfer"), and two modules on the server. Neither is administrators-only — a
+  // customer manages their own logins of both kinds.
+  sftp: [
+    {
+      key: 'file-transfer-sftp',
+      route: 'file-transfer-sftp',
+      labelKey: 'app.nav.children.sftpLogins',
+      adminOnly: false,
+    },
+    {
+      key: 'file-transfer-ftps',
+      route: 'file-transfer-ftps',
+      labelKey: 'app.nav.children.ftpsLogins',
+      adminOnly: false,
+    },
+  ],
   databases: [
     {
       key: 'databases-list',

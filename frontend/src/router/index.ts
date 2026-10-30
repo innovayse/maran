@@ -19,7 +19,8 @@ import DatabaseGrantRepairPage from '../pages/databases/DatabaseGrantRepairPage.
 import BackupDestinationsPage from '../pages/backups/BackupDestinationsPage.vue'
 import BackupSchedulePage from '../pages/backups/BackupSchedulePage.vue'
 import BackupsPage from '../pages/backups/BackupsPage.vue'
-import FileTransferPage from '../pages/ftp/FileTransferPage.vue'
+import FtpUsersListPage from '../pages/ftp/FtpUsersListPage.vue'
+import SftpUsersListPage from '../pages/sftp/SftpUsersListPage.vue'
 import FirewallPage from '../pages/firewall/FirewallPage.vue'
 import CronPage from '../pages/cron/CronPage.vue'
 import TasksPage from '../pages/tasks/TasksPage.vue'
@@ -178,22 +179,25 @@ export const createAppRouter = (): Router => {
         ],
       },
       {
-        // One route, for the same reason as `/databases`: a login has no detail to open — the row
-        // IS the login. It is guarded by the `sftp` module rather than by `ftp` on purpose: SFTP is
-        // the half that is always there, and gating the merged screen on the FTPS module would take
-        // the SFTP logins away from a panel whose licence does not include FTPS.
+        // Two pages, one per module, and no `:id` child: a login has no detail to open — the row IS
+        // the login. Each page is guarded by its own module, so a panel whose licence lacks FTPS
+        // keeps its SFTP logins. The bare `/file-transfer` is where the single merged screen used
+        // to live: every link the panel has rendered points there, so it forwards to the SFTP page,
+        // the half every panel has, rather than turning into a 404.
         path: '/file-transfer',
         component: DefaultLayout,
         children: [
-          { path: '', name: 'file-transfer', component: FileTransferPage, meta: { module: 'sftp', title: 'ftp.list.heading' } },
+          // The router carries the query across a redirect, so `?account=` links keep their filter.
+          { path: '', redirect: { name: 'file-transfer-sftp' } },
+          { path: 'sftp', name: 'file-transfer-sftp', component: SftpUsersListPage, meta: { module: 'sftp', title: 'sftp.list.heading' } },
+          { path: 'ftps', name: 'file-transfer-ftps', component: FtpUsersListPage, meta: { module: 'ftp', title: 'ftp.list.heading' } },
         ],
       },
       {
-        // The screen this replaced. A customer's bookmark and every link the panel has ever
-        // rendered point here, so the path stays and forwards rather than turning into a 404 on the
-        // day the merged screen shipped.
+        // The screen before the merged one. A customer's bookmark still points here, so the path
+        // stays and forwards rather than turning into a 404.
         path: '/sftp-users',
-        redirect: { name: 'file-transfer' },
+        redirect: { name: 'file-transfer-sftp' },
       },
       {
         // One route, for the same reason as `/databases`: nothing on this screen has a detail to

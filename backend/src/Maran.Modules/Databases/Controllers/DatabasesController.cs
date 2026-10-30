@@ -42,17 +42,24 @@ public sealed class DatabasesController : BaseApiController
         _bus = bus;
     }
 
-    /// <summary>Lists the databases the caller may see.</summary>
-    /// <param name="query">The optional <c>accountId</c> filter, ANDed with the caller's tenant scope.</param>
+    /// <summary>
+    /// Lists one page of the databases the caller may see. A bound outside the paging contract — page
+    /// 0, a size the screens do not offer, a sort the list does not expose — answers 400 with its code.
+    /// </summary>
+    /// <param name="query">
+    /// The page, size, search, sort and the optional <c>accountId</c> filter, ANDed with the caller's
+    /// tenant scope.
+    /// </param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpGet]
-    [ProducesResponseType(typeof(IReadOnlyList<DatabaseDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(PagedResult<DatabaseDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public async Task<IActionResult> GetAllAsync(
         [FromQuery] ListDatabasesQuery query,
         CancellationToken cancellationToken)
     {
-        return ToActionResult(await _bus.InvokeAsync<Result<IReadOnlyList<DatabaseDto>>>(query, cancellationToken));
+        return ToActionResult(await _bus.InvokeAsync<Result<PagedResult<DatabaseDto>>>(query, cancellationToken));
     }
 
     /// <summary>Reads one database. Another customer's database answers 404, not 403.</summary>

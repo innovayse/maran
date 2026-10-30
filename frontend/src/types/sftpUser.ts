@@ -1,4 +1,4 @@
-import type { AccountListFilter } from './accountListFilter'
+import type { ListRequest, Paged } from './list'
 /**
  * Outward view of one customer SFTP login, mirroring the backend's `SftpUserDto` field-for-field.
  *
@@ -27,16 +27,10 @@ export interface SftpUser {
    */
   fullName: string
   /**
-   * Which daemon accepts this login, as the panel spells it, or absent on a panel that predates the
-   * field.
-   *
-   * Optional because it IS optional today: `SftpUserDto` on the server carries no protocol member
-   * yet. Absence has exactly one correct reading and it is not a guess — this endpoint has only ever
-   * returned SFTP logins — so the merged screen resolves it through
-   * `utils/fileTransferProtocolOf.ts` with `sftp` as the by-construction answer, and refuses a token
-   * it does not recognise instead of falling back to that answer.
+   * Which daemon accepts this login, as the panel spells it (`Sftp`). Mirrored for completeness; the
+   * SFTP logins page lists this module's logins only, so it has no column to render it in.
    */
-  protocol?: string
+  protocol: string
   /** The instant the login was created, as an ISO-8601 string. */
   createdAt: string
 }
@@ -113,12 +107,12 @@ export interface RevealedSftpCredential {
  */
 export interface SftpApi {
   /**
-   * Lists the SFTP logins the caller may see.
-   * @param filter The account the list is narrowed to; empty for every row the caller may see.
+   * Lists one page of the SFTP logins the caller may see.
+   * @param request The page, size, search, sort and the account filter.
    * @param signal Optional abort signal to cancel the in-flight request.
-   * @returns The logins, in the order the panel reports them.
+   * @returns The page the panel answered, with the total across every page.
    */
-  list: (filter: AccountListFilter, signal?: AbortSignal) => Promise<SftpUser[]>
+  list: (request: ListRequest, signal?: AbortSignal) => Promise<Paged<SftpUser>>
 
   /**
    * Creates an SFTP login.
@@ -144,3 +138,6 @@ export interface SftpApi {
    */
   remove: (id: string, signal?: AbortSignal) => Promise<boolean>
 }
+
+/** An action the panel offers on an SFTP login's row, confirmed by the operator before it is sent. */
+export type SftpUserAction = 'resetPassword' | 'remove'

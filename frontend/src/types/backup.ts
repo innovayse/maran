@@ -1,4 +1,5 @@
 import type { AccountListFilter } from './accountListFilter'
+import type { ListRequest, Paged } from './list'
 /**
  * How far one backup got, and therefore whether its artifact may be relied on. Mirrors the
  * backend's `BackupStatus`, which crosses the wire as a camelCase NAME rather than a number — the
@@ -8,6 +9,9 @@ import type { AccountListFilter } from './accountListFilter'
  * an archive nothing may be restored from, so anything short of a complete artifact is `failed`.
  */
 export type BackupStatus = 'running' | 'completed' | 'failed'
+
+/** Every {@link BackupStatus}, in the order a filter offers them. */
+export const BACKUP_STATUSES: readonly BackupStatus[] = ['running', 'completed', 'failed']
 
 /**
  * Why a backup was taken, mirroring the backend's `BackupKind` and likewise a camelCase name on
@@ -19,6 +23,9 @@ export type BackupStatus = 'running' | 'completed' | 'failed'
  * one of the others and rendered nothing would be worse than one that names it.
  */
 export type BackupKind = 'manual' | 'scheduled' | 'preDeletion' | 'preRestore'
+
+/** Every {@link BackupKind}, in the order a filter offers them. */
+export const BACKUP_KINDS: readonly BackupKind[] = ['manual', 'scheduled', 'preDeletion', 'preRestore']
 
 /**
  * Outward view of one backup, mirroring the backend's `BackupDto` field for field.
@@ -167,6 +174,39 @@ export interface RestorePartial {
 }
 
 /**
+ * The history's one attention item, mirroring the panel's `BackupAttentionDto`: how many accounts
+ * have no good copy from their latest finished attempt, and the newest such failure. Asked of the
+ * server because the history is paged and a page cannot answer a question about every row.
+ */
+export interface BackupAttention {
+  /** Accounts whose most recent finished backup failed; a failure a later success superseded is not counted. */
+  unrecoveredAccounts: number
+  /** The newest of those failures, or `null` exactly when there are none. */
+  newest: Backup | null
+}
+
+/**
+ * Where the attention question stands on the backups page: not answered yet, answered, or not
+ * answerable (refused or unreachable). A union rather than a nullable answer, so "nothing needs
+ * attention" and "the panel could not say" are never the same value.
+ */
+export type BackupAttentionLoad =
+  | {
+      /** The answer has not arrived yet. */
+      state: 'loading'
+    }
+  | {
+      /** The panel answered. */
+      state: 'answered'
+      /** What it answered. */
+      attention: BackupAttention
+    }
+  | {
+      /** The panel refused or did not answer. */
+      state: 'unavailable'
+    }
+
+/**
  * Typed access to the backups endpoints.
  *
  * Five calls, matching the five routes `BackupsController` publishes. `restore` is one of them,
@@ -176,12 +216,20 @@ export interface RestorePartial {
  */
 export interface BackupsApi {
   /**
-   * Lists the backups the caller may see, newest first.
-   * @param filter The account the list is narrowed to; empty for every row the caller may see.
+   * Reads one page of the backups the caller may see, newest first unless a sort is named.
+   * @param request The page, size, search, sort and the account, status, kind, from and to filters.
    * @param signal Optional abort signal to cancel the in-flight request.
-   * @returns The backups, in the order the panel reports them.
+   * @returns The page the panel answered.
    */
-  list: (filter: AccountListFilter, signal?: AbortSignal) => Promise<Backup[]>
+  list: (request: ListRequest, signal?: AbortSignal) => Promise<Paged<Backup>>
+
+  /**
+   * Asks how many accounts' latest finished backup failed, and which failure is the newest.
+   * @param filter The account the question is narrowed to; empty for every account the caller may see.
+   * @param signal Optional abort signal to cancel the in-flight request.
+   * @returns The panel's answer.
+   */
+  attention: (filter: AccountListFilter, signal?: AbortSignal) => Promise<BackupAttention>
 
   /**
    * Reads one backup. Another customer's backup answers 404, never 403.

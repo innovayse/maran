@@ -7,8 +7,8 @@ namespace Maran.Modules.Ftp.Domain.Policies;
 /// <remarks>
 /// <para>
 /// It exists because the label is a fact the BACKEND owns (rules/architecture.md "The backend owns
-/// the data, the SPA renders it"). The SPA merges this module's logins with the Sftp module's onto
-/// one "File transfer" screen, and a row on that screen must say which daemon it belongs to — a
+/// the data, the SPA renders it"). The SPA shows this module's logins on a page of their own, beside
+/// the Sftp module's on another, and a credential must say which daemon it belongs to — a
 /// customer pointed at the wrong client by a guessed label is the failure this closes. The SPA does
 /// not derive it from which endpoint it called, so the value has to be on the wire.
 /// </para>

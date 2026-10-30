@@ -23,8 +23,6 @@ const STARTER: Plan = {
   displayName: 'Starter',
   diskQuotaMb: 1024,
   maxSites: 5,
-  maxDatabases: 5,
-  maxSftpUsers: 5,
 }
 
 const BUSINESS: Plan = { ...STARTER, id: '44444444-4444-4444-4444-444444444444', displayName: 'Business' }

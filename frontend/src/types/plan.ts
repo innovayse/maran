@@ -1,11 +1,13 @@
+import type { ListRequest, Paged } from './list'
+
 /**
  * A plan as the administrator's plans screen sees it, mirroring the backend's `PlanDto`
  * field-for-field. The name arrives already resolved for the request's language: a plan the panel
  * shipped is translated, one an operator made is shown as they typed it, and the SPA does not
  * tell the two apart (rules/vue.md: "Data comes from the backend").
  *
- * A wider shape than `Plan` in `account.ts`, which is what the account form's plan picker needs
- * and nothing more. Both are read from endpoints that answer with this same record.
+ * A wider shape than `Plan` in `account.ts`, which is what a plan picker needs and nothing more,
+ * read from the picker's own capped endpoint.
  */
 export interface ManagedPlan {
   /** The plan's identity. */
@@ -69,11 +71,20 @@ export interface PlanRequest {
  */
 export interface PlansApi {
   /**
-   * Lists every plan with its limits and how many accounts are on it.
+   * Lists one page of plans with their limits and how many accounts are on each.
+   * @param request The page, size, search (the name) and sort (`name`, `diskQuota`, `accounts`).
    * @param signal Optional abort signal to cancel the in-flight request.
-   * @returns The plans, in the order the panel reports them.
+   * @returns The page, in the order the panel sorted it, with the total across every page.
    */
-  list: (signal?: AbortSignal) => Promise<ManagedPlan[]>
+  list: (request: ListRequest, signal?: AbortSignal) => Promise<Paged<ManagedPlan>>
+
+  /**
+   * Reads one plan with its limits and account count.
+   * @param id The plan's identity.
+   * @param signal Optional abort signal to cancel the in-flight request.
+   * @returns The plan; a missing one is refused by the panel with its own message.
+   */
+  get: (id: string, signal?: AbortSignal) => Promise<ManagedPlan>
 
   /**
    * Defines a new plan.

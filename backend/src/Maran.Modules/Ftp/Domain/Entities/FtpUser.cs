@@ -37,8 +37,8 @@ namespace Maran.Modules.Ftp.Domain.Entities;
 /// <b>There is no protocol column either, and its absence is the opposite of the DTO's presence.</b>
 /// Every row in this table is an FTPS login by construction — the module owns one daemon — so a
 /// column could hold only one value. <c>FtpUserDto</c> nevertheless carries the label, because the
-/// SPA merges this module's logins with the Sftp module's on one screen and must render a fact the
-/// backend produced rather than one derived from which URL it happened to call.
+/// SPA renders a fact the backend produced rather than one derived from which URL it happened to
+/// call.
 /// </para>
 /// <para>
 /// Nothing here has a public setter and there is no method that changes any of it, because nothing

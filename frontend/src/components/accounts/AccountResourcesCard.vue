@@ -59,14 +59,14 @@ const props = defineProps<{
 }>()
 
 /**
- * The list page each kind links to. SFTP and FTPS logins share one screen, so both lead there.
+ * The list page each kind links to; SFTP and FTPS logins each have their own.
  * Route names are the SPA's own navigation, not domain data.
  */
 const ROUTE_OF_KIND: Readonly<Record<AccountResourceKind, string>> = {
   sites: 'sites',
   databases: 'databases',
-  sftpLogins: 'file-transfer',
-  ftpLogins: 'file-transfer',
+  sftpLogins: 'file-transfer-sftp',
+  ftpLogins: 'file-transfer-ftps',
   cronEntries: 'cron',
   backups: 'backups',
 }

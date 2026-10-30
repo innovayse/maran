@@ -15,7 +15,7 @@ const FORBIDDEN = 403
  * path on the host, which is operator-facing text a customer must never be shown. The refusal lands
  * in {@link isDisclosed} as `false`, and the screens read that as "this panel will not tell me",
  * which is a different sentence from "FTPS is off" and from "the server is broken". Folding it into
- * {@link loadFailure} would put a red alert on every customer's file transfer screen for a request
+ * {@link loadFailure} would put a red alert on every customer's FTPS logins page for a request
  * the panel was right to refuse.
  *
  * **Every other failure is kept, and kept as a failure.** A real failure's already-localized

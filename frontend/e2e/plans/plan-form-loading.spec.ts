@@ -20,7 +20,7 @@ const LICENSED: PanelModule[] = [{ name: 'accounts', displayName: 'Accounts', ti
 const STARTER = MANAGED_PLANS[0]
 
 /** The server's refusal the failure case answers with. */
-const REFUSAL = 'The plans could not be read.'
+const REFUSAL = 'The plan could not be read.'
 
 const shell = async (page: Page): Promise<void> => {
   await stubSignedIn(page)
@@ -36,7 +36,7 @@ const PLAN_EDIT_FORM_SCENARIO: RegionLoadingScenario = {
   },
   stubFailure: async (page) => {
     await shell(page)
-    await page.route('**/api/v1/plans', async (route) => {
+    await page.route(`**/api/v1/plans/${STARTER.id}`, async (route) => {
       await route.fulfill({
         status: 500,
         contentType: 'application/problem+json',
@@ -44,7 +44,8 @@ const PLAN_EDIT_FORM_SCENARIO: RegionLoadingScenario = {
       })
     })
   },
-  pattern: '**/api/v1/plans',
+  // The edit form reads its one plan, never the list.
+  pattern: `**/api/v1/plans/${STARTER.id}`,
   path: `/plans/${STARTER.id}`,
   // The edit notice lands above the fields once the plan is known, so the anchor is the heading
   // above it: the one element both states draw in the same place.

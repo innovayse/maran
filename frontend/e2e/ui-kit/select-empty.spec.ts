@@ -5,7 +5,9 @@ import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubModules } from '../fixtures/stub-modules-route'
 import { stubPlans } from '../fixtures/stub-plans-route'
 
-// Issue #225: a select opened with no options says so in words instead of opening a blank box.
+// Issue #225: a chooser opened with no options says so in words instead of opening a blank box. The plan
+// chooser became a server-searched combobox in #196, so the line it shows is the combobox's own: with no
+// plan at all, the empty search matches nothing.
 
 test('the plan chooser opened with no plans shows the empty message', async ({ page }) => {
   await stubSignedIn(page)
@@ -21,11 +23,11 @@ test('the plan chooser opened with no plans shows the empty message', async ({ p
   await chooser.click()
 
   await expect(chooser).toHaveAttribute('aria-expanded', 'true')
-  await expect(page.getByRole('status').filter({ hasText: 'Nothing to choose from yet.' })).toBeVisible()
+  await expect(page.getByRole('status').filter({ hasText: 'Nothing matches.' })).toBeVisible()
   await expect(page.getByRole('option')).toHaveCount(0)
 
   // Escape still closes the popup and keeps focus on the trigger.
   await page.keyboard.press('Escape')
-  await expect(page.getByText('Nothing to choose from yet.')).toHaveCount(0)
+  await expect(page.getByText('Nothing matches.')).toHaveCount(0)
   await expect(chooser).toBeFocused()
 })

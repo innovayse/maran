@@ -20,6 +20,8 @@
         "accountsNew": "New account",
         "sitesList": "Site list",
         "sitesNew": "New site",
+        "sftpLogins": "SFTP logins",
+        "ftpsLogins": "FTPS logins",
         "databasesList": "Database list",
         "databasesGrantRepair": "Grant repair",
         "backupsList": "Backup list",

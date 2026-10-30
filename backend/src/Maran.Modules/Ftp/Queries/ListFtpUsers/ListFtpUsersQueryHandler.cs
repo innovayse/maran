@@ -1,13 +1,16 @@
 using Maran.Modules.Ftp.Common;
+using Maran.Modules.Ftp.Domain.Entities;
 using Maran.Modules.Ftp.Mappers;
 using Maran.Modules.Ftp.Persistence;
 using Maran.Sdk.Interfaces;
+using Maran.SharedKernel.Extensions;
+using Maran.SharedKernel.Utilities.Text;
 
 namespace Maran.Modules.Ftp.Queries.ListFtpUsers;
 
 /// <summary>
-/// Handles <see cref="ListFtpUsersQuery"/> by reading <c>ftp.FtpUsers</c> within the caller's tenant
-/// scope.
+/// Handles <see cref="ListFtpUsersQuery"/> by reading one page of <c>ftp.FtpUsers</c> within the
+/// caller's tenant scope.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -33,7 +36,9 @@ namespace Maran.Modules.Ftp.Queries.ListFtpUsers;
 /// The tenant boundary is not the <c>Where</c> clause on the account here: the context's global
 /// query filter supplies it, so this handler could not leak another tenant's rows even if it were
 /// rewritten carelessly (spec §8). The clause only narrows that scope to the account the caller
-/// asked for, and is ANDed with the filter, so a customer naming another account gets nothing.
+/// asked for, and is ANDed with the filter, so a customer naming another account gets nothing. The
+/// filter applies before the count as well as before the page, so a customer's total never counts
+/// another tenant's rows either.
 /// </para>
 /// </remarks>
 public sealed class ListFtpUsersQueryHandler
@@ -53,22 +58,38 @@ public sealed class ListFtpUsersQueryHandler
         _accounts = accounts;
     }
 
-    /// <summary>Returns the caller's FTPS logins, oldest first, each with its owner's name.</summary>
-    /// <param name="query">The list request; its optional account narrows the tenant scope.</param>
-    /// <param name="cancellationToken">Cancels the read.</param>
-    /// <returns>A successful result carrying the logins; this operation never fails.</returns>
-    public async Task<Result<IReadOnlyList<FtpUserDto>>> HandleAsync(
+    /// <summary>
+    /// Narrows to the account, searches the login the host holds, and answers the requested page with
+    /// the total that matched and each row's owner name.
+    /// </summary>
+    /// <param name="query">The validated list request.</param>
+    /// <param name="cancellationToken">Cancels the reads.</param>
+    /// <returns>A successful result carrying the page; this operation never fails.</returns>
+    public async Task<Result<PagedResult<FtpUserDto>>> HandleAsync(
         ListFtpUsersQuery query,
         CancellationToken cancellationToken)
     {
-        var rows = await _dbContext.FtpUsers
-            .AsNoTracking()
-            .Where(ftpUser => query.AccountId == null || ftpUser.AccountId == query.AccountId)
-            .OrderBy(ftpUser => ftpUser.CreatedAt)
-            .ToListAsync(cancellationToken);
+        IQueryable<FtpUser> ftpUsers = _dbContext.FtpUsers.AsNoTracking();
 
-        // One batched, tenant-scoped lookup for every owner in the answer, never one per row.
-        var ownerIds = rows
+        if (query.AccountId is { } accountId)
+        {
+            ftpUsers = ftpUsers.Where(ftpUser => ftpUser.AccountId == accountId);
+        }
+
+        if (!query.Search.IsNone)
+        {
+            // A captured local, so EF Core sends it as a parameter; LikePattern escapes the wildcards
+            // so the term matches literally. The full name holds both the account prefix and the
+            // customer's own name, so one column answers a search for either.
+            var pattern = LikePattern.Contains(query.Search.Value);
+            ftpUsers = ftpUsers.Where(ftpUser =>
+                EF.Functions.ILike(ftpUser.FullName, pattern, LikePattern.EscapeCharacter));
+        }
+
+        var page = await ftpUsers.ToPagedAsync(query, ListFtpUsersSorts.Map, cancellationToken);
+
+        // One batched, tenant-scoped lookup for every owner on the page, never one per row.
+        var ownerIds = page.Items
             .Select(row =>
             {
                 return row.AccountId;
@@ -77,13 +98,9 @@ public sealed class ListFtpUsersQueryHandler
             .ToList();
         var ownerNames = await _accounts.NamesOfAsync(ownerIds, cancellationToken);
 
-        IReadOnlyList<FtpUserDto> items = rows
-            .Select(row =>
-            {
-                return FtpUserMapper.From(row, ownerNames);
-            })
-            .ToList();
-
-        return Result<IReadOnlyList<FtpUserDto>>.Ok(items);
+        return Result<PagedResult<FtpUserDto>>.Ok(page.Map(row =>
+        {
+            return FtpUserMapper.From(row, ownerNames);
+        }));
     }
 }

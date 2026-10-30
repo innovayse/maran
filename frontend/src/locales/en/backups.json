@@ -27,7 +27,20 @@
       "scheduleLink": "Backup schedule",
       "destinationsLink": "Backup destinations",
       "attentionOne": "The latest backup of {account}, from {startedAt}, failed. No later one has completed.",
-      "attentionMany": "{count} account's latest backup failed, and it has no later one that completed. | {count} accounts' latest backups failed. None of them has a later one that completed."
+      "attentionMany": "{count} account's latest backup failed, and it has no later one that completed. | {count} accounts' latest backups failed. None of them has a later one that completed.",
+      "searchLabel": "Search backups",
+      "searchPlaceholder": "Search by account…",
+      "searchClear": "Clear the search",
+      "noResultsTitle": "No backups match",
+      "noResultsDescription": "Change the search or the filters, or clear them to see every backup.",
+      "attentionUnavailable": "Whether a recent backup failed could not be checked.",
+      "filters": {
+        "account": "Account",
+        "status": "Status",
+        "kind": "Reason",
+        "from": "Started from",
+        "to": "Started until"
+      }
     },
     "status": {
       "running": "Running",
@@ -157,9 +170,6 @@
       "default": "Default",
       "defaultHint": "Every backup that names no destination is written here, including every copy taken so far.",
       "fields": {
-        "kind": "Kind of storage",
-        "path": "Directory on this server",
-        "recordedAt": "Recorded",
         "storedName": "Stored name"
       },
       "pathUnestablished": "Not established — the agent could not be asked where it writes. This is not a sign the backups moved.",
@@ -182,6 +192,22 @@
         "notEditable": "The agent decides the directory and refuses to be told another. The panel asks it and shows the answer; it keeps no copy.",
         "notEncrypted": "The copies are not encrypted where they rest. Anyone who can read that directory can read them.",
         "adminOnly": "Only an administrator can read this screen. Anyone else is refused by the panel, in their own language."
+      },
+      "sectionHeading": "Recorded destinations",
+      "tableCaption": "Places this server records its backups as living",
+      "searchLabel": "Search destinations",
+      "searchPlaceholder": "Search by name…",
+      "searchClear": "Clear the search",
+      "noResultsTitle": "No destinations match",
+      "noResultsDescription": "Change the search or the filter, or clear them to see every destination.",
+      "columns": {
+        "name": "Name",
+        "kind": "Kind of storage",
+        "path": "Directory on this server",
+        "recordedAt": "Recorded"
+      },
+      "filters": {
+        "kind": "Kind of storage"
       }
     }
   }

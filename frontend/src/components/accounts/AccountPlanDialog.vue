@@ -8,19 +8,21 @@
  * guess of its own about usage it cannot see. What it does check is the one thing it can know:
  * that a plan was chosen and that it is not the plan the account is already on.
  *
- * The plans are the panel's own list (`GET /api/v1/accounts/plans`), loaded when the dialog opens,
- * so a plan defined a moment ago is offered and nothing is typed by hand (rules/vue.md).
+ * The plans are searched on the panel's picker choices (`GET /api/v1/plans/choices`), one page per
+ * search and read fresh each time the picker opens, so every plan is reachable however many the
+ * panel sells, a plan defined a moment ago is offered, and nothing is typed by hand (rules/vue.md).
+ * The current plan is named from the account itself until another is chosen.
  */
 import { computed, ref, watch, type ComputedRef, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import UiAlert from '../ui/UiAlert.vue'
 import UiButton from '../ui/UiButton.vue'
+import UiCombobox from '../ui/UiCombobox.vue'
 import UiForm from '../ui/UiForm.vue'
 import UiModal from '../ui/UiModal.vue'
-import UiSelect, { type SelectOption } from '../ui/UiSelect.vue'
 import UiSpinner from '../ui/UiSpinner.vue'
+import { usePlanChoice } from '../../composables/usePlanChoice'
 import { useAccountsStore } from '../../stores/accounts'
-import { formatMegabytes } from '../../utils/formatBytes'
 import type { AccountDetail } from '../../types/account'
 
 /** Props accepted by {@link AccountPlanDialog}. */
@@ -47,26 +49,13 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 const store = useAccountsStore()
+const { picker: planPicker, search: searchPlans } = usePlanChoice()
 
 /** The plan chosen in the select; set to the account's current plan each time the dialog opens. */
 const planId: Ref<string> = ref('')
 
 /** Whether the operator has tried to save, after which field errors are shown. */
 const submitted: Ref<boolean> = ref(false)
-
-/** The plans offered, each with its disk quota so the operator sees what the move changes. */
-const planOptions: ComputedRef<SelectOption[]> = computed(() => {
-  return store.plans.map((plan) => {
-    return {
-      value: plan.id,
-      label: t(
-        'accounts.form.planOption',
-        { name: plan.displayName, disk: formatMegabytes(plan.diskQuotaMb), count: plan.maxSites },
-        plan.maxSites,
-      ),
-    }
-  })
-})
 
 /** Why the choice cannot be saved, or `null` when it can. */
 const planError: ComputedRef<string | null> = computed(() => {
@@ -103,20 +92,19 @@ const submit = async (): Promise<void> => {
   }
 }
 
-// Every opening starts from the account's current plan and a clean slate, and fetches the list
-// fresh so a plan defined since the page loaded is offered.
+// Every opening starts from the account's current plan and a clean slate; the picker reads its
+// choices itself when opened.
 watch(
   (): boolean => {
     return props.open
   },
-  async (open: boolean): Promise<void> => {
+  (open: boolean): void => {
     if (!open) {
       return
     }
     planId.value = props.account.planId
     submitted.value = false
     store.clearEditError()
-    await store.loadPlans()
   },
   { immediate: true },
 )
@@ -137,13 +125,15 @@ watch(
           {{ store.editErrorMessage }}
         </UiAlert>
         <p class="text-sm text-text-muted">{{ t('accounts.edit.planHint') }}</p>
-        <UiSelect
+        <UiCombobox
           v-model="planId"
+          v-bind="planPicker"
           :label="t('accounts.form.fields.plan')"
-          :options="planOptions"
+          :selected-label="account.planDisplayName"
           :error="planError"
           required
           :placeholder="t('accounts.form.placeholders.plan')"
+          @search="searchPlans"
         />
       </div>
     </UiForm>

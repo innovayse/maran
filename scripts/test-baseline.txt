@@ -1,6 +1,16 @@
 # Committed per-target test baseline. Recorded by 'maran test --accept'; commit the diff.
 # stack<TAB>target<TAB>passed<TAB>failed<TAB>ignored
 #
+# RE-MEASURED 2026-10-31 (issue #196 phase 2, databases/backups/plans/certificates/file-transfer lists paged on the
+# server, merged with dev's #243 loading-spec fix below): edited by hand. Full `maran test backend`: 20 targets: 4852
+# passed / 0 failed / 0 ignored, Host.IntegrationTests included. Host.IntegrationTests 662->730, Modules.Accounts.Tests
+# 498->514, Modules.Ssl.Tests 224->235, Modules.Databases.Tests 112->129, Modules.Ftp.Tests 154->169,
+# Modules.Sftp.Tests 89->104, Modules.Backups.Tests 215->237, Sdk.Tests 249->254; ArchitectureTests 91 unchanged.
+# spa: file-transfer/create, list and protocol removed with the merged page; NEW rows file-transfer/{sftp,ftps}-{list,
+# create}, navigation, own-module, plans/list. The table loading specs follow their screens: backups/loading 3->6
+# (destinations is now a paged table), file-transfer/loading 3->6 (one SFTP and one FTPS page), databases/loading 6,
+# accounts/detail-loading 6, sites/detail-loading 6. Every */loading row is keyed by its own spec file; no fixture-file
+# row exists (dev's #243 fix, below). Counts per spec file from `npx playwright test --list --reporter=json`.
 # RE-MEASURED 2026-10-31 (issue #243, loading tests declared by their own spec): edited by hand. SPA-only change.
 # The 23 */*loading specs used to call describeTableLoading/describeRegionLoading, which called test() from
 # e2e/fixtures/expect-*-loading.ts, so Playwright attributed those tests to the fixture and CI named every spec
@@ -399,33 +409,33 @@ rust	safe_write_bound_on_real_processes [tests/safe_write_bound_on_real_processe
 backend	Maran.Agent.Client.Tests.dll	375	0	0
 backend	Maran.SharedKernel.Tests.dll	343	0	0
 backend	Maran.Modules.Identity.Tests.dll	318	0	0
-backend	Maran.Modules.Sftp.Tests.dll	89	0	0
+backend	Maran.Modules.Sftp.Tests.dll	104	0	0
 backend	Maran.Modules.Notifications.Tests.dll	53	0	0
 backend	Maran.Modules.Tasks.Tests.dll	76	0	0
-backend	Maran.Modules.Ftp.Tests.dll	154	0	0
+backend	Maran.Modules.Ftp.Tests.dll	169	0	0
 backend	Maran.Modules.Monitoring.Tests.dll	70	0	0
-backend	Maran.Modules.Backups.Tests.dll	215	0	0
+backend	Maran.Modules.Backups.Tests.dll	237	0	0
 backend	Maran.Modules.Licensing.Tests.dll	51	0	0
 backend	Maran.Modules.Firewall.Tests.dll	255	0	0
 backend	Maran.Modules.Cron.Tests.dll	190	0	0
-backend	Maran.Modules.Accounts.Tests.dll	498	0	0
-backend	Maran.Modules.Databases.Tests.dll	112	0	0
-backend	Maran.Modules.Ssl.Tests.dll	224	0	0
-backend	Maran.Sdk.Tests.dll	249	0	0
+backend	Maran.Modules.Accounts.Tests.dll	514	0	0
+backend	Maran.Modules.Databases.Tests.dll	129	0	0
+backend	Maran.Modules.Ssl.Tests.dll	235	0	0
+backend	Maran.Sdk.Tests.dll	254	0	0
 backend	Maran.Modules.Sites.Tests.dll	266	0	0
 backend	Maran.ArchitectureTests.dll	91	0	0
 backend	Maran.Host.Tests.dll	392	0	0
-backend	Maran.Host.IntegrationTests.dll	662	0	0
+backend	Maran.Host.IntegrationTests.dll	730	0	0
 spa	accounts/delete.spec.ts	6	0	0
 spa	accounts/detail-loading.spec.ts	6	0	0
 spa	accounts/detail.spec.ts	10	0	0
 spa	accounts/edit.spec.ts	9	0	0
-spa	accounts/form.spec.ts	8	0	0
+spa	accounts/form.spec.ts	9	0	0
 spa	accounts/invitation-link.spec.ts	8	0	0
 spa	accounts/list.spec.ts	15	0	0
 spa	accounts/loading.spec.ts	3	0	0
 spa	accounts/my-account-loading.spec.ts	3	0	0
-spa	accounts/resources.spec.ts	8	0	0
+spa	accounts/resources.spec.ts	9	0	0
 spa	admin/audit.spec.ts	3	0	0
 spa	admin/smtp-settings.spec.ts	2	0	0
 spa	audit/action-names.spec.ts	2	0	0
@@ -445,8 +455,8 @@ spa	auth/two-factor-settings.spec.ts	5	0	0
 spa	auth/two-factor-setup.spec.ts	2	0	0
 spa	auth/two-factor.spec.ts	5	0	0
 spa	backups/account-filter.spec.ts	3	0	0
-spa	backups/destinations.spec.ts	9	0	0
-spa	backups/list.spec.ts	15	0	0
+spa	backups/destinations.spec.ts	11	0	0
+spa	backups/list.spec.ts	22	0	0
 spa	backups/loading.spec.ts	6	0	0
 spa	backups/reachability.spec.ts	1	0	0
 spa	backups/restore.spec.ts	12	0	0
@@ -474,16 +484,19 @@ spa	databases/account-filter.spec.ts	3	0	0
 spa	databases/create.spec.ts	5	0	0
 spa	databases/credentials.spec.ts	15	0	0
 spa	databases/grant-repair.spec.ts	11	0	0
-spa	databases/list.spec.ts	8	0	0
+spa	databases/list.spec.ts	15	0	0
 spa	databases/loading.spec.ts	6	0	0
-spa	file-transfer/account-filter.spec.ts	3	0	0
-spa	file-transfer/create.spec.ts	8	0	0
-spa	file-transfer/credentials.spec.ts	17	0	0
+spa	file-transfer/account-filter.spec.ts	8	0	0
+spa	file-transfer/credentials.spec.ts	18	0	0
+spa	file-transfer/ftps-create.spec.ts	7	0	0
+spa	file-transfer/ftps-list.spec.ts	9	0	0
 spa	file-transfer/ftps-server-state.spec.ts	11	0	0
-spa	file-transfer/ftps-server.spec.ts	10	0	0
-spa	file-transfer/list.spec.ts	10	0	0
-spa	file-transfer/loading.spec.ts	3	0	0
-spa	file-transfer/protocol.spec.ts	4	0	0
+spa	file-transfer/ftps-server.spec.ts	12	0	0
+spa	file-transfer/loading.spec.ts	6	0	0
+spa	file-transfer/navigation.spec.ts	8	0	0
+spa	file-transfer/own-module.spec.ts	2	0	0
+spa	file-transfer/sftp-create.spec.ts	4	0	0
+spa	file-transfer/sftp-list.spec.ts	9	0	0
 spa	firewall/access.spec.ts	4	0	0
 spa	firewall/bans.spec.ts	6	0	0
 spa	firewall/loading.spec.ts	3	0	0
@@ -494,6 +507,7 @@ spa	firewall/whitelist.spec.ts	7	0	0
 spa	golden-path/account-to-ssl.spec.ts	0	0	1
 spa	monitoring/monitoring-loading.spec.ts	3	0	0
 spa	monitoring/monitoring.spec.ts	11	0	0
+spa	plans/list.spec.ts	6	0	0
 spa	plans/loading.spec.ts	3	0	0
 spa	plans/plan-form-loading.spec.ts	3	0	0
 spa	plans/plans.spec.ts	15	0	0
@@ -549,7 +563,7 @@ spa	ui-kit/filter-sheet.spec.ts	9	0	0
 spa	ui-kit/focus-return.spec.ts	3	0	0
 spa	ui-kit/modal-keyboard.spec.ts	2	0	0
 spa	ui-kit/motion-and-tables.spec.ts	8	0	1
-spa	ui-kit/no-horizontal-scroll-admin.spec.ts	66	0	0
+spa	ui-kit/no-horizontal-scroll-admin.spec.ts	69	0	0
 spa	ui-kit/no-horizontal-scroll-other.spec.ts	54	0	0
 spa	ui-kit/pagination.spec.ts	10	0	0
 spa	ui-kit/select-empty.spec.ts	1	0	0

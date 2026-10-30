@@ -42,17 +42,21 @@ public sealed class SftpUsersController : BaseApiController
         _bus = bus;
     }
 
-    /// <summary>Lists the SFTP logins the caller may see.</summary>
-    /// <param name="query">The optional <c>accountId</c> filter, ANDed with the caller's tenant scope.</param>
+    /// <summary>Lists one page of the SFTP logins the caller may see.</summary>
+    /// <param name="query">
+    /// Paging, search and sort, and the <c>accountId</c> filter, from the query string; the filter is
+    /// ANDed with the caller's tenant scope.
+    /// </param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpGet]
-    [ProducesResponseType(typeof(IReadOnlyList<SftpUserDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(PagedResult<SftpUserDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public async Task<IActionResult> GetAllAsync(
         [FromQuery] ListSftpUsersQuery query,
         CancellationToken cancellationToken)
     {
-        return ToActionResult(await _bus.InvokeAsync<Result<IReadOnlyList<SftpUserDto>>>(query, cancellationToken));
+        return ToActionResult(await _bus.InvokeAsync<Result<PagedResult<SftpUserDto>>>(query, cancellationToken));
     }
 
     /// <summary>Reads one SFTP login. Another customer's login answers 404, not 403.</summary>

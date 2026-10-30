@@ -1,13 +1,15 @@
 using Maran.Agent.Client.Interfaces;
 using Maran.Modules.Backups.Common;
+using Maran.Modules.Backups.Domain.Entities;
 using Maran.Modules.Backups.Domain.Enums;
 using Maran.Modules.Backups.Mappers;
 using Maran.Modules.Backups.Persistence;
 using Maran.Modules.Backups.Services;
+using Maran.SharedKernel.Extensions;
 
 namespace Maran.Modules.Backups.Queries.ListBackupDestinations;
 
-/// <summary>Reads the recorded backup destinations, default first, and establishes the local path.</summary>
+/// <summary>Reads one page of the recorded backup destinations, and establishes the local path.</summary>
 /// <remarks>
 /// <para>
 /// Unfiltered by tenant on purpose, and safe to be: a destination carries no account id and names no
@@ -32,6 +34,22 @@ namespace Maran.Modules.Backups.Queries.ListBackupDestinations;
 /// </remarks>
 public sealed class ListBackupDestinationsQueryHandler
 {
+    /// <summary>
+    /// What a search reads: the name the screen shows, and the name the row stores — they differ only
+    /// for the seeded destination, and either is what a person may type.
+    /// </summary>
+    private static readonly IReadOnlyList<Func<BackupDestinationDto, string>> SearchFields =
+    [
+        destination =>
+        {
+            return destination.DisplayName;
+        },
+        destination =>
+        {
+            return destination.Name;
+        },
+    ];
+
     /// <summary>The Backups module's database context.</summary>
     private readonly BackupsDbContext _dbContext;
 
@@ -55,18 +73,30 @@ public sealed class ListBackupDestinationsQueryHandler
         _destinationNames = destinationNames;
     }
 
-    /// <summary>Reads every destination.</summary>
-    /// <param name="query">The request; it carries no parameters.</param>
+    /// <summary>
+    /// Narrows the destinations to the requested kind, puts each in its wire shape, then searches,
+    /// orders and pages them in memory.
+    /// </summary>
+    /// <param name="query">The validated list request.</param>
     /// <param name="cancellationToken">Cancels the read.</param>
-    /// <returns>The destinations, the default one first and the rest by name.</returns>
-    public async Task<IReadOnlyList<BackupDestinationDto>> HandleAsync(
+    /// <returns>A successful result carrying the page; this operation never fails.</returns>
+    /// <remarks>
+    /// Paged after mapping rather than in SQL because the name a person searches and sorts by is the
+    /// display name, which for the seeded destination exists only in the caller's language and not
+    /// in any column. The table holds one row on this build, so reading it whole costs nothing.
+    /// </remarks>
+    public async Task<Result<PagedResult<BackupDestinationDto>>> HandleAsync(
         ListBackupDestinationsQuery query,
         CancellationToken cancellationToken)
     {
-        var destinations = await _dbContext.BackupDestinations
-            .OrderByDescending(destination => destination.IsDefault)
-            .ThenBy(destination => destination.Name)
-            .ToListAsync(cancellationToken);
+        IQueryable<BackupDestination> source = _dbContext.BackupDestinations.AsNoTracking();
+
+        if (query.Kind is { } kind)
+        {
+            source = source.Where(destination => destination.Kind == kind);
+        }
+
+        var destinations = await source.ToListAsync(cancellationToken);
 
         var hasLocal = destinations.Exists(destination =>
         {
@@ -75,7 +105,7 @@ public sealed class ListBackupDestinationsQueryHandler
 
         var agentBackupRoot = hasLocal ? await EstablishLocalRootAsync(cancellationToken) : null;
 
-        return destinations
+        var rows = destinations
             .Select(destination =>
             {
                 return BackupDestinationViewMapper.From(
@@ -84,6 +114,9 @@ public sealed class ListBackupDestinationsQueryHandler
                     _destinationNames.Of(destination.Id, destination.Name));
             })
             .ToList();
+
+        return Result<PagedResult<BackupDestinationDto>>.Ok(
+            rows.ToPaged(query, ListBackupDestinationsSorts.Map, SearchFields));
     }
 
     /// <summary>Asks the agent which directory it writes backups into.</summary>

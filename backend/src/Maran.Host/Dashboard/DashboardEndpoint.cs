@@ -1,10 +1,7 @@
 using Maran.Host.Authorization;
 using Maran.Modules.Accounts.Queries.CountAccounts;
-using Maran.Modules.Backups.Common;
-using Maran.Modules.Backups.Domain.Enums;
-using Maran.Modules.Backups.Queries.ListBackups;
-using Maran.Modules.Databases.Common;
-using Maran.Modules.Databases.Queries.ListDatabases;
+using Maran.Modules.Backups.Queries.CountFailedBackups;
+using Maran.Modules.Databases.Queries.CountDatabases;
 using Maran.Modules.Firewall.Common;
 using Maran.Modules.Firewall.Queries.ListBans;
 using Maran.Modules.Identity.Common;
@@ -13,8 +10,7 @@ using Maran.Modules.Monitoring.Common;
 using Maran.Modules.Monitoring.Queries.GetHostMetrics;
 using Maran.Modules.Monitoring.Queries.ListServiceStatuses;
 using Maran.Modules.Sites.Queries.CountSites;
-using Maran.Modules.Ssl.Common;
-using Maran.Modules.Ssl.Queries.ListCertificates;
+using Maran.Modules.Ssl.Queries.CountExpiringCertificates;
 using Maran.Modules.Tasks.Common;
 using Maran.Modules.Tasks.Domain.Enums;
 using Maran.Modules.Tasks.Queries.ListTasks;
@@ -136,9 +132,10 @@ public static class DashboardEndpoint
         var services = ReadListAsync<ServiceStatusDto>(bus, new ListServiceStatusesQuery(), cancellationToken);
         var accounts = ReadCountAsync(bus, new CountAccountsQuery(), cancellationToken);
         var sites = ReadCountAsync(bus, new CountSitesQuery(), cancellationToken);
-        var databases = ReadAsync<IReadOnlyList<DatabaseDto>>(bus, new ListDatabasesQuery(), cancellationToken);
-        var certificates = ReadListAsync<CertificateDto>(bus, new ListCertificatesQuery(), cancellationToken);
-        var backups = ReadListAsync<BackupDto>(bus, new ListBackupsQuery(), cancellationToken);
+        var databases = ReadCountAsync(bus, new CountDatabasesQuery(), cancellationToken);
+        var certificates = ReadCountAsync(
+            bus, new CountExpiringCertificatesQuery(clock.UtcNow.Add(CertificateExpiryHorizon)), cancellationToken);
+        var failedBackups = ReadCountAsync(bus, new CountFailedBackupsQuery(), cancellationToken);
         var bans = ReadListAsync<BanDto>(bus, new ListBansQuery(), cancellationToken);
         var tasks = ReadListAsync<PanelTaskDto>(bus, new ListTasksQuery(), cancellationToken);
         var audit = ReadListAsync<AuditEventDto>(bus, new ListAuditEventsQuery(RecentAuditEntries), cancellationToken);
@@ -150,41 +147,30 @@ public static class DashboardEndpoint
             sites,
             databases,
             certificates,
-            backups,
+            failedBackups,
             bans,
             tasks,
             audit);
-
-        var expiringBefore = clock.UtcNow.Add(CertificateExpiryHorizon);
 
         return new DashboardDto(
             IsAdministrator: true,
             Resources: resources.Result,
             Services: services.Result,
 
-            // A module whose list is paged answers its count through its own count query
-            // (ReadCountAsync): a paged listing holds one page, not the total. A module whose list
-            // is not paged yet is still counted from that listing. Either way a module that did not
-            // answer is Unavailable, never zero.
+            // Each count comes from the module's own count query (ReadCountAsync), never from its
+            // list: a paged listing holds one page, not the total. A module that did not answer is
+            // Unavailable, never zero.
             Counts: new DashboardCountsDto(
                 Accounts: accounts.Result,
                 Sites: sites.Result,
-                Databases: databases.Result is { } databaseList
-                    ? new DashboardCountDto(DashboardCountState.Counted, databaseList.Count)
-                    : Unavailable),
+                Databases: databases.Result),
 
             Attention: new DashboardAttentionDto(
                 // Already-expired certificates are included, deliberately: the horizon is an upper
                 // bound on "soon", and a certificate that lapsed yesterday has not stopped needing
                 // attention by becoming late.
-                CertificatesExpiringSoon: certificates.Result.Count(certificate =>
-                {
-                    return certificate.NotAfter <= expiringBefore;
-                }),
-                FailedBackups: backups.Result.Count(backup =>
-                {
-                    return backup.Status == BackupStatus.Failed;
-                }),
+                CertificatesExpiringSoon: AttentionCount(certificates.Result),
+                FailedBackups: AttentionCount(failedBackups.Result),
                 BannedAddresses: bans.Result.Count,
                 FailedTasks: tasks.Result.Count(task =>
                 {
@@ -192,6 +178,23 @@ public static class DashboardEndpoint
                 })),
 
             RecentAudit: audit.Result);
+    }
+
+    /// <summary>
+    /// Reads a module's count as an attention figure, where a module that did not answer is nothing
+    /// to attend to.
+    /// </summary>
+    /// <remarks>
+    /// The attention band carries plain numbers, so an unavailable count has no state of its own
+    /// there; it reads as zero — the same answer the band gave when it counted an empty listing —
+    /// and the count's own <see cref="DashboardCountDto.Count"/> is never read while it is
+    /// meaningless.
+    /// </remarks>
+    /// <param name="count">The module's count, possibly unavailable.</param>
+    /// <returns>The number counted, or zero when the module did not answer.</returns>
+    private static int AttentionCount(DashboardCountDto count)
+    {
+        return count.State == DashboardCountState.Counted ? count.Count : 0;
     }
 
     /// <summary>

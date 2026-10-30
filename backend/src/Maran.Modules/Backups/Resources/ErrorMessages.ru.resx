@@ -111,4 +111,16 @@
   <data name="BackupArtifactUnvouched">
     <value>Панель перестала следить за этой резервной копией до того, как сервер сообщил результат. Копия ЕСТЬ на сервере, но панель не записала её контрольную сумму, поэтому не может её проверить и не предлагает для восстановления. Копия помечена как неудачная и не удалена — обратитесь в поддержку, чтобы освободить место, или создайте новую резервную копию.</value>
   </data>
+  <data name="BackupStatusUnknown">
+    <value>Это не статус резервной копии.</value>
+  </data>
+  <data name="BackupKindUnknown">
+    <value>Это не тип резервной копии.</value>
+  </data>
+  <data name="BackupDestinationKindUnknown">
+    <value>Это не тип места хранения резервных копий.</value>
+  </data>
+  <data name="BackupDateRangeInverted">
+    <value>Начало периода не может быть позже его конца.</value>
+  </data>
 </root>

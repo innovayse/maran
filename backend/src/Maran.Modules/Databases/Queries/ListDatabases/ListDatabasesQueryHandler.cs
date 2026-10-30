@@ -1,13 +1,16 @@
 using Maran.Modules.Databases.Common;
+using Maran.Modules.Databases.Domain.Entities;
 using Maran.Modules.Databases.Mappers;
 using Maran.Modules.Databases.Persistence;
 using Maran.Sdk.Interfaces;
+using Maran.SharedKernel.Extensions;
+using Maran.SharedKernel.Utilities.Text;
 
 namespace Maran.Modules.Databases.Queries.ListDatabases;
 
 /// <summary>
-/// Handles <see cref="ListDatabasesQuery"/> by reading <c>databases.Databases</c> within the
-/// caller's tenant scope.
+/// Handles <see cref="ListDatabasesQuery"/> by reading one page of <c>databases.Databases</c> within
+/// the caller's tenant scope.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -22,9 +25,15 @@ namespace Maran.Modules.Databases.Queries.ListDatabases;
 /// </para>
 /// <para>
 /// The tenant boundary is not the <c>Where</c> clause on the account here: the context's global
-/// query filter supplies it, so this handler could not leak another tenant's rows even if it were
-/// rewritten carelessly (spec §8). The clause only narrows that scope to the account the caller
-/// asked for, and is ANDed with the filter, so a customer naming another account gets nothing.
+/// query filter supplies it, before the count as well as before the page, so this handler could not
+/// leak another tenant's rows — or count them — even if it were rewritten carelessly (spec §8). The
+/// clause only narrows that scope to the account the caller asked for, and is ANDed with the filter,
+/// so a customer naming another account gets an empty page with a total of zero.
+/// </para>
+/// <para>
+/// The search runs over <see cref="Database.FullName"/> only. The full name already
+/// carries the owner's prefix, so a term naming the account finds its databases without this module
+/// reading the Accounts module's names.
 /// </para>
 /// </remarks>
 public sealed class ListDatabasesQueryHandler
@@ -44,37 +53,48 @@ public sealed class ListDatabasesQueryHandler
         _accounts = accounts;
     }
 
-    /// <summary>Returns the caller's databases, oldest first, each with its owner's name.</summary>
-    /// <param name="query">The list request; its optional account narrows the tenant scope.</param>
-    /// <param name="cancellationToken">Cancels the read.</param>
-    /// <returns>A successful result carrying the databases; this operation never fails.</returns>
-    public async Task<Result<IReadOnlyList<DatabaseDto>>> HandleAsync(
+    /// <summary>
+    /// Narrows to the requested account, searches the full name, and answers the requested page with
+    /// the total that matched and each row's owner name.
+    /// </summary>
+    /// <param name="query">The validated list request.</param>
+    /// <param name="cancellationToken">Cancels the reads.</param>
+    /// <returns>A successful result carrying the page; this operation never fails.</returns>
+    public async Task<Result<PagedResult<DatabaseDto>>> HandleAsync(
         ListDatabasesQuery query,
         CancellationToken cancellationToken)
     {
-        var rows = await _dbContext.Databases
-            .AsNoTracking()
-            .Where(database => query.AccountId == null || database.AccountId == query.AccountId)
-            .OrderBy(database => database.CreatedAt)
-            .ToListAsync(cancellationToken);
+        IQueryable<Database> databases = _dbContext.Databases.AsNoTracking();
 
-        // One batched, tenant-scoped lookup for every owner in the answer, never one per row.
-        var ownerIds = rows
-            .Select(row =>
+        if (query.AccountId is { } accountId)
+        {
+            databases = databases.Where(database => database.AccountId == accountId);
+        }
+
+        if (!query.Search.IsNone)
+        {
+            // A captured local, so EF Core sends it as a parameter; LikePattern escapes the
+            // wildcards so the term matches literally.
+            var pattern = LikePattern.Contains(query.Search.Value);
+            databases = databases.Where(database =>
+                EF.Functions.ILike(database.FullName, pattern, LikePattern.EscapeCharacter));
+        }
+
+        var page = await databases.ToPagedAsync(query, ListDatabasesSorts.Map, cancellationToken);
+
+        // One batched, tenant-scoped lookup for every owner on the page, never one per row.
+        var ownerIds = page.Items
+            .Select(database =>
             {
-                return row.AccountId;
+                return database.AccountId;
             })
             .Distinct()
             .ToList();
         var ownerNames = await _accounts.NamesOfAsync(ownerIds, cancellationToken);
 
-        IReadOnlyList<DatabaseDto> items = rows
-            .Select(row =>
-            {
-                return DatabaseMapper.From(row, ownerNames);
-            })
-            .ToList();
-
-        return Result<IReadOnlyList<DatabaseDto>>.Ok(items);
+        return Result<PagedResult<DatabaseDto>>.Ok(page.Map(database =>
+        {
+            return DatabaseMapper.From(database, ownerNames);
+        }));
     }
 }

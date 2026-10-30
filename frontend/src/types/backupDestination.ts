@@ -1,3 +1,5 @@
+import type { ListRequest, Paged } from './list'
+
 /**
  * Which kind of storage a destination names, mirroring the backend's `BackupDestinationKind`.
  *
@@ -77,12 +79,13 @@ export interface BackupDestination {
  */
 export interface BackupDestinationsApi {
   /**
-   * Reads every destination this server records, the default one first.
+   * Reads one page of the destinations this server records.
    *
    * Administrators only: a signed-in customer is answered **403**, never 404, because a destination
    * carries no account and there is no tenant fact a 404 could conceal.
+   * @param request The page, size, search on the name, sort and the kind filter.
    * @param signal Optional abort signal to cancel the in-flight request.
-   * @returns The destinations as the panel holds them.
+   * @returns The page the panel answered.
    */
-  list: (signal?: AbortSignal) => Promise<BackupDestination[]>
+  list: (request: ListRequest, signal?: AbortSignal) => Promise<Paged<BackupDestination>>
 }

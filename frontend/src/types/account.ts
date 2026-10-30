@@ -87,9 +87,11 @@ export interface ChangeAccountOwnerEmailRequest {
 }
 
 /**
- * A plan an account can be created against, as the panel reports it. The display
- * name arrives already localized: plans are server-side reference data, and the
- * SPA never translates or invents them (rules/vue.md).
+ * A plan an account can be created against, as the plan picker reads it
+ * (`GET /api/v1/plans/choices`, the backend's `PlanChoiceDto`): the identity to send back, the
+ * name, and the two limits the picker prints beside it. The display name arrives already
+ * localized: plans are server-side reference data, and the SPA never translates or invents them
+ * (rules/vue.md).
  */
 export interface Plan {
   /** The plan's identity, submitted with a new account. */
@@ -100,11 +102,18 @@ export interface Plan {
   diskQuotaMb: number
   /** How many sites the plan allows. */
   maxSites: number
-  /** How many databases the plan allows. */
-  maxDatabases: number
-  /** How many SFTP logins the plan allows. */
-  maxSftpUsers: number
 }
+
+/**
+ * Where the open plan picker's read of `GET /api/v1/plans/choices` stands: in flight, or ended the
+ * way every paged read ends ({@link ListLoad}), so "still asking" is never "nothing matched".
+ */
+export type PlanChoicesLoad =
+  | {
+      /** The read is in flight; nothing from an earlier search is shown under the new one. */
+      kind: 'loading'
+    }
+  | ListLoad<Plan>
 
 /**
  * Request body for `POST /api/v1/accounts`, binding the backend's
@@ -173,8 +182,22 @@ export interface MyAccount {
  * Called from Pinia stores only — never from a component (rules/vue.md).
  */
 export interface AccountsApi {
-  /** Lists the plans an account can be created against. */
-  listPlans: (signal?: AbortSignal) => Promise<Plan[]>
+  /**
+   * Lists the plans a picker offers: the first page, alphabetical, of those matching the search.
+   * @param search Narrows by name; empty for the first plans in alphabetical order.
+   * @param pageSize How many choices to ask for; one of the sizes the panel accepts (10, 25, 50, 100).
+   * @param signal Optional abort signal to cancel the in-flight request.
+   * @returns The matching plans, with how many match in all.
+   */
+  planChoices: (search: string, pageSize: number, signal?: AbortSignal) => Promise<Paged<Plan>>
+
+  /**
+   * Reads one plan, for text that names a plan the open page of choices may not hold.
+   * @param id The plan's identity.
+   * @param signal Optional abort signal to cancel the in-flight request.
+   * @returns The plan; its wider fields beyond {@link Plan} are ignored.
+   */
+  getPlan: (id: string, signal?: AbortSignal) => Promise<Plan>
 
   /**
    * Reads the account the caller owns: its identity, status, and its plan's

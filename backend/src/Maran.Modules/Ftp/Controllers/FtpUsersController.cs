@@ -44,17 +44,21 @@ public sealed class FtpUsersController : BaseApiController
         _bus = bus;
     }
 
-    /// <summary>Lists the FTPS logins the caller may see.</summary>
-    /// <param name="query">The optional <c>accountId</c> filter, ANDed with the caller's tenant scope.</param>
+    /// <summary>Lists one page of the FTPS logins the caller may see.</summary>
+    /// <param name="query">
+    /// Paging, search and sort, and the <c>accountId</c> filter, from the query string; the filter is
+    /// ANDed with the caller's tenant scope.
+    /// </param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpGet]
-    [ProducesResponseType(typeof(IReadOnlyList<FtpUserDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(PagedResult<FtpUserDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public async Task<IActionResult> GetAllAsync(
         [FromQuery] ListFtpUsersQuery query,
         CancellationToken cancellationToken)
     {
-        return ToActionResult(await _bus.InvokeAsync<Result<IReadOnlyList<FtpUserDto>>>(query, cancellationToken));
+        return ToActionResult(await _bus.InvokeAsync<Result<PagedResult<FtpUserDto>>>(query, cancellationToken));
     }
 
     /// <summary>Reads one FTPS login. Another customer's login answers 404, not 403.</summary>

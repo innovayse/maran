@@ -4,9 +4,10 @@ import { useBackupsApi } from '../composables/apis/useBackupsApi'
 import { ApiError } from '../composables/useApi'
 import { restorePartialCounts } from '../utils/restorePartialCounts'
 import type { AccountListFilter } from '../types/accountListFilter'
-import type { LoadingState } from '../types/loading'
+import type { ListLoad, ListRequest } from '../types/list'
 import type {
   Backup,
+  BackupAttentionLoad,
   CreateBackupRequest,
   RestoreBackupRequest,
   RestoreOutcome,
@@ -14,7 +15,7 @@ import type {
 } from '../types/backup'
 
 /**
- * Owns the backups list, the take-a-backup-now workflow, and the deletion of one. The backups page
+ * Owns the backups list, its attention notice, the take-a-backup-now workflow, and the deletion of one. The backups page
  * reads state from here and calls its actions — it never touches the API composable directly
  * (rules/vue.md: "API composables are called from Pinia stores ONLY").
  *
@@ -35,8 +36,11 @@ import type {
 export const useBackupsStore = defineStore('backups', () => {
   const api = useBackupsApi()
 
-  /** The backups as last reported by the panel; empty before the first successful load. */
+  /** The rows of the list page last answered by the panel; empty before the first answer. */
   const backups: Ref<Backup[]> = ref([])
+
+  /** Whether any account's latest finished backup failed, as the panel last answered. */
+  const attention: Ref<BackupAttentionLoad> = ref({ state: 'loading' })
 
   /**
    * True while a create request is in flight.
@@ -50,24 +54,15 @@ export const useBackupsStore = defineStore('backups', () => {
   /** True while a deletion is in flight. */
   const acting: Ref<boolean> = ref(false)
 
-  /** Where the read of the list stands; every failure sets `error`, whatever its cause. */
-  const loadState: Ref<LoadingState> = ref('loading')
-
-  /**
-   * Backend-localized message from the most recent failed read, or `null` when the last one
-   * succeeded or the failure carried no message (the panel was unreachable). Rendered verbatim.
-   */
-  const errorMessage: Ref<string | null> = ref(null)
-
   /**
    * Backend-localized message from the most recent failed deletion, or `null`. Kept apart from
-   * {@link errorMessage} so a refused deletion is reported above the list rather than replacing it.
+   * the list's own refusal so a refused deletion is reported above the list rather than replacing it.
    */
   const removeErrorMessage: Ref<string | null> = ref(null)
 
   /**
    * Backend-localized message from the most recent failed create attempt, or `null`. Kept apart
-   * from {@link errorMessage} so a rejected create does not blank the list's own error.
+   * from the list's own refusal so a rejected create does not blank the list's own error.
    */
   const createErrorMessage: Ref<string | null> = ref(null)
 
@@ -109,28 +104,43 @@ export const useBackupsStore = defineStore('backups', () => {
   const restorePartial: Ref<RestorePartial | null> = ref(null)
 
   /**
-   * Loads the backup list, replacing what is held.
-   * @param filter The account the list is narrowed to; empty for every row the caller may see.
-   * @returns Resolves once the request has settled, successfully or not.
+   * Loads one page of the backup history into {@link backups} and reports how the read ended, for
+   * the backups page's `useServerTable`.
+   * @param request The page, size, search, sort and filters, as the URL describes them.
+   * @returns The page, the panel's refusal with its message, or `unreachable` when no answer arrived.
    */
-  const load = async (filter: AccountListFilter): Promise<void> => {
-    loadState.value = 'loading'
+  const list = async (request: ListRequest): Promise<ListLoad<Backup>> => {
     try {
-      backups.value = await api.list(filter)
-      errorMessage.value = null
-      loadState.value = 'loaded'
+      const page = await api.list(request)
+      backups.value = page.items
+      return { kind: 'loaded', page }
     } catch (error) {
-      errorMessage.value = error instanceof ApiError ? error.message : null
-      loadState.value = 'error'
+      return error instanceof ApiError ? { kind: 'refused', message: error.message } : { kind: 'unreachable' }
     }
   }
 
   /**
-   * Takes a backup of an account and puts the finished record at the head of the held list.
+   * Asks the panel whether any account's latest finished backup failed, into {@link attention}. A
+   * failure is recorded as `unavailable`, never as "nothing to attend to".
+   * @param filter The account the history is narrowed to; empty for every account the caller may see.
+   * @returns Resolves once the request has settled, successfully or not.
+   */
+  const loadAttention = async (filter: AccountListFilter): Promise<void> => {
+    attention.value = { state: 'loading' }
+    try {
+      attention.value = { state: 'answered', attention: await api.attention(filter) }
+    } catch {
+      attention.value = { state: 'unavailable' }
+    }
+  }
+
+  /**
+   * Takes a backup of an account. The list page is not patched: where the new row falls depends on
+   * the server's sort and filters, so the page reads its page again once this settles.
    *
    * A run that ends in `failed` is a SUCCESSFUL request — the panel answered 201 with a record
-   * whose status says what happened — so it is prepended like any other and no error is raised
-   * here. The row's own status badge and failure code are what report it.
+   * whose status says what happened — so no error is raised here. The row's own status badge and
+   * failure code are what report it.
    * @param request The account to back up.
    * @returns True when the panel answered with a record — the caller reads
    * {@link createErrorMessage} for the reason when it did not.
@@ -138,9 +148,7 @@ export const useBackupsStore = defineStore('backups', () => {
   const create = async (request: CreateBackupRequest): Promise<boolean> => {
     creating.value = true
     try {
-      const created = await api.create(request)
-      // Prepended rather than appended: the list is newest-first, as the panel sends it.
-      backups.value = [created, ...backups.value]
+      await api.create(request)
       createErrorMessage.value = null
       return true
     } catch (error) {
@@ -152,7 +160,8 @@ export const useBackupsStore = defineStore('backups', () => {
   }
 
   /**
-   * Deletes a backup, removing it from the held list. The archive goes with it.
+   * Deletes a backup. The archive goes with it. The list page reads its page again afterwards, so
+   * the total and the page boundaries stay the server's.
    * @param id The backup to delete.
    * @returns True when the panel deleted it.
    */
@@ -160,9 +169,6 @@ export const useBackupsStore = defineStore('backups', () => {
     acting.value = true
     try {
       await api.remove(id)
-      backups.value = backups.value.filter((backup) => {
-        return backup.id !== id
-      })
       removeErrorMessage.value = null
       return true
     } catch (error) {
@@ -222,10 +228,9 @@ export const useBackupsStore = defineStore('backups', () => {
 
   return {
     backups,
+    attention,
     creating,
     acting,
-    loadState,
-    errorMessage,
     removeErrorMessage,
     createErrorMessage,
     restoring,
@@ -233,7 +238,8 @@ export const useBackupsStore = defineStore('backups', () => {
     restoreErrorMessage,
     restoreErrorCode,
     restorePartial,
-    load,
+    list,
+    loadAttention,
     create,
     remove,
     clearRestore,

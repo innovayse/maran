@@ -19,6 +19,9 @@ public sealed class StubAccountDirectory : IAccountDirectory
     /// <summary>Each batch of ids <see cref="NamesOfAsync"/> was asked for, in order.</summary>
     public List<IReadOnlyCollection<Guid>> NameLookups { get; } = [];
 
+    /// <summary>Each term <see cref="FindIdsByNameAsync"/> was asked for, in order.</summary>
+    public List<string> NameSearches { get; } = [];
+
     /// <summary>Creates a directory knowing the given snapshots.</summary>
     /// <param name="snapshots">The accounts this directory can answer for.</param>
     public StubAccountDirectory(params AccountSnapshot[] snapshots)
@@ -79,7 +82,17 @@ public sealed class StubAccountDirectory : IAccountDirectory
     /// <inheritdoc />
     public Task<IReadOnlyList<Guid>> FindIdsByNameAsync(string search, CancellationToken cancellationToken)
     {
-        // Refused: nothing in this module searches its rows by owner name.
-        throw new NotSupportedException("Backups searches no account names.");
+        NameSearches.Add(search);
+        IReadOnlyList<Guid> ids = _snapshots.Values
+            .Where(snapshot =>
+            {
+                return snapshot.Username.Contains(search, StringComparison.OrdinalIgnoreCase);
+            })
+            .Select(snapshot =>
+            {
+                return snapshot.Id;
+            })
+            .ToList();
+        return Task.FromResult(ids);
     }
 }

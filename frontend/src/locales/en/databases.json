@@ -26,7 +26,15 @@
       "sectionTitle": "All databases",
       "created": "Database created.",
       "confirmDropAction": "Drop database",
-      "confirmResetPasswordAction": "Reset password"
+      "confirmResetPasswordAction": "Reset password",
+      "searchLabel": "Search databases",
+      "searchPlaceholder": "Search by database name…",
+      "searchClear": "Clear the search",
+      "noResultsTitle": "No databases match",
+      "noResultsDescription": "Change the search or the filter, or clear them to see every database.",
+      "filters": {
+        "account": "Account"
+      }
     },
     "form": {
       "heading": "New database",

@@ -79,6 +79,7 @@ public sealed class BackupsAuthorizationTests : IAsyncLifetime
         {
             { "GET", "/api/v1/backups" },
             { "POST", "/api/v1/backups" },
+            { "GET", "/api/v1/backups/attention" },
             { "GET", "/api/v1/backups/{id}" },
             { "DELETE", "/api/v1/backups/{id}" },
             { "POST", "/api/v1/backups/{id}/restore" },
@@ -201,7 +202,7 @@ public sealed class BackupsAuthorizationTests : IAsyncLifetime
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
-        var ids = body.RootElement.EnumerateArray().Select(row =>
+        var ids = body.RootElement.GetProperty("items").EnumerateArray().Select(row =>
         {
             return row.GetProperty("id").GetGuid();
         }).ToList();
@@ -228,7 +229,8 @@ public sealed class BackupsAuthorizationTests : IAsyncLifetime
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
-        Assert.Equal(0, body.RootElement.GetArrayLength());
+        Assert.Equal(0, body.RootElement.GetProperty("items").GetArrayLength());
+        Assert.Equal(0, body.RootElement.GetProperty("total").GetInt32());
     }
 
     /// <summary>An administrator is listed both tenants backups.</summary>
@@ -246,7 +248,8 @@ public sealed class BackupsAuthorizationTests : IAsyncLifetime
         var response = await client.GetAsync("/api/v1/backups");
 
         using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
-        Assert.Equal(2, body.RootElement.GetArrayLength());
+        Assert.Equal(2, body.RootElement.GetProperty("items").GetArrayLength());
+        Assert.Equal(2, body.RootElement.GetProperty("total").GetInt32());
     }
 
     /// <summary>Creating a backup for another tenants account is answered not found.</summary>

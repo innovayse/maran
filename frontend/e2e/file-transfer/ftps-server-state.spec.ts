@@ -14,7 +14,6 @@ import {
 } from '../fixtures/stub-ftp-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubModules } from '../fixtures/stub-modules-route'
-import { stubSftpUsers } from '../fixtures/stub-sftp-routes'
 import type { Account } from '../../src/types/account'
 import type { FtpsStatus } from '../../src/types/ftpsStatus'
 import type { PanelModule } from '../../src/types/module'
@@ -70,7 +69,7 @@ const SERVER_PANEL = (page: Page): Locator => {
 }
 
 /**
- * Opens the merged screen for an administrator with a given daemon state and no firewall rules.
+ * Opens the FTPS page for an administrator with a given daemon state and no firewall rules.
  * @param page The Playwright page under test.
  * @param status The FTPS daemon state the panel reports.
  * @returns Resolves once the screen has been opened.
@@ -82,9 +81,8 @@ const openScreen = async (page: Page, status: FtpsStatus): Promise<void> => {
   await stubAccounts(page, [ALICE])
   await stubFirewall(page, { rules: [], bans: [], whitelist: [] })
   await stubFtpsServer(page, status)
-  await stubSftpUsers(page, [])
   await stubFtpUsers(page, [])
-  await page.goto('/file-transfer')
+  await page.goto('/file-transfer/ftps')
   await expect(SERVER_PANEL(page)).toBeVisible()
 }
 

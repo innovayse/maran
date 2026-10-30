@@ -5,6 +5,7 @@ import {
   stubDatabaseGrantsForbidden,
   stubDatabaseGrantsProblem,
 } from '../fixtures/stub-database-grant-routes'
+import { stubDatabases } from '../fixtures/stub-databases-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubModules } from '../fixtures/stub-modules-route'
 import type { GrantRepairReport } from '../../src/types/grantRepair'
@@ -325,9 +326,7 @@ test('the databases list links to the grant repair screen', async ({ page }) => 
   await stubHealthy(page)
   await stubModules(page, LICENSED)
   await stubDatabaseGrants(page, REPORT)
-  await page.route('**/api/v1/databases', async (route) => {
-    await route.fulfill({ status: 200, contentType: 'application/json', body: '[]' })
-  })
+  await stubDatabases(page, [])
   await stubAccounts(page, [])
 
   await page.goto('/databases')

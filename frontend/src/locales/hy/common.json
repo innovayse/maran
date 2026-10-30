@@ -12,8 +12,7 @@
     "copied": "Պատճենված է",
     "done": "Պատրաստ է",
     "accountFilter": {
-      "only": "Միայն {account}",
-      "showAll": "Ցույց տալ բոլորը"
+      "only": "Միայն {account}"
     },
     "list": {
       "label": "Էջավորում",

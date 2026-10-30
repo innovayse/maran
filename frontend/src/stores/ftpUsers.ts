@@ -2,14 +2,13 @@ import { defineStore } from 'pinia'
 import { ref, type Ref } from 'vue'
 import { useFtpUsersApi } from '../composables/apis/useFtpUsersApi'
 import { ApiError } from '../composables/useApi'
-import type { AccountListFilter } from '../types/accountListFilter'
-import type { LoadingState } from '../types/loading'
+import type { ListLoad, ListRequest } from '../types/list'
 import type { CreateFtpUserRequest, FtpUser, RevealedFtpCredential } from '../types/ftpUser'
 
 /**
- * Owns the customer FTPS logins list, the create workflow, and the one-time credential a create or a
- * password reset produces. The File transfer page reads state from here and calls its actions — it
- * never touches the API composable directly (rules/vue.md).
+ * Owns one page of the customer FTPS logins, the create workflow, and the one-time credential a
+ * create or a password reset produces. The FTPS logins page reads state from here and calls its
+ * actions — it never touches the API composable directly (rules/vue.md).
  *
  * Error text is never generated here: when the backend rejects a request, its already-localized
  * `title`/`detail` is stored verbatim (rules/vue.md: "the backend owns their text"). That includes
@@ -23,7 +22,7 @@ import type { CreateFtpUserRequest, FtpUser, RevealedFtpCredential } from '../ty
 export const useFtpUsersStore = defineStore('ftpUsers', () => {
   const api = useFtpUsersApi()
 
-  /** The FTPS logins as last reported by the panel; empty before the first successful load. */
+  /** The rows of the list page last answered by the panel; empty before the first answer. */
   const ftpUsers: Ref<FtpUser[]> = ref([])
 
   /** True while a create request is in flight. */
@@ -32,25 +31,15 @@ export const useFtpUsersStore = defineStore('ftpUsers', () => {
   /** True while a mutation (password reset, removal) is in flight. */
   const acting: Ref<boolean> = ref(false)
 
-  /** Where the read of the list stands; every failure sets `error`, whatever its cause. */
-  const loadState: Ref<LoadingState> = ref('loading')
-
-  /**
-   * Backend-localized message from the most recent failed read, or `null` when it succeeded or the
-   * failure carried no message (the panel was unreachable). Rendered verbatim.
-   */
-  const errorMessage: Ref<string | null> = ref(null)
-
   /**
    * Backend-localized message from the most recent failed mutation (password reset, removal), or
-   * `null`. Kept apart from {@link errorMessage} so a refused removal is reported above the list
-   * rather than replacing it.
+   * `null`. Reported above the list rather than in place of it.
    */
   const actionErrorMessage: Ref<string | null> = ref(null)
 
   /**
    * Backend-localized message from the most recent failed create attempt, or `null`. Kept apart from
-   * {@link errorMessage} so a rejected form does not blank the list's own error.
+   * the list's own state so a rejected form does not blank the list.
    */
   const createErrorMessage: Ref<string | null> = ref(null)
 
@@ -63,22 +52,18 @@ export const useFtpUsersStore = defineStore('ftpUsers', () => {
   const revealedCredential: Ref<RevealedFtpCredential | null> = ref(null)
 
   /**
-   * Loads the FTPS login list, replacing what is held.
-   *
-   * A failure is captured rather than thrown: the merged screen must still render its SFTP half when
-   * the FTPS module is unreachable, which is the whole reason the two lists are two requests.
-   * @param filter The account the list is narrowed to; empty for every row the caller may see.
-   * @returns Resolves once the request has settled, successfully or not.
+   * Loads one page of the FTPS login list into {@link ftpUsers} and reports how the read ended, for
+   * the list page's `useServerTable`.
+   * @param request The page, size, search, sort and account filter, as the URL describes them.
+   * @returns The page, the panel's refusal with its message, or `unreachable` when no answer arrived.
    */
-  const load = async (filter: AccountListFilter): Promise<void> => {
-    loadState.value = 'loading'
+  const list = async (request: ListRequest): Promise<ListLoad<FtpUser>> => {
     try {
-      ftpUsers.value = await api.list(filter)
-      errorMessage.value = null
-      loadState.value = 'loaded'
+      const page = await api.list(request)
+      ftpUsers.value = page.items
+      return { kind: 'loaded', page }
     } catch (error) {
-      errorMessage.value = error instanceof ApiError ? error.message : null
-      loadState.value = 'error'
+      return error instanceof ApiError ? { kind: 'refused', message: error.message } : { kind: 'unreachable' }
     }
   }
 
@@ -91,7 +76,9 @@ export const useFtpUsersStore = defineStore('ftpUsers', () => {
   }
 
   /**
-   * Creates an FTPS login and holds the password it answered with for exactly one showing.
+   * Creates an FTPS login and holds the password it answered with for exactly one showing. The held
+   * page is not patched: where the new row falls depends on the server's sort and search, so the
+   * list page reads its page again.
    * @param request The owning account and the name the customer chose.
    * @returns True when the panel created the login — the caller reads {@link createErrorMessage}
    * for the reason when it did not.
@@ -100,23 +87,8 @@ export const useFtpUsersStore = defineStore('ftpUsers', () => {
     creating.value = true
     try {
       const created = await api.create(request)
-      // The list row is built from the create response rather than re-fetched, and the password is
-      // deliberately not among the fields copied: a value in `ftpUsers` could be rendered beside a
-      // row long after the operator dismissed the dialog.
-      ftpUsers.value = [
-        ...ftpUsers.value,
-        {
-          id: created.id,
-          accountId: created.accountId,
-          // The create answer carries no owner name, and the SPA does not join one from an account
-          // list: the row says "not named" until the next list read brings the panel's name.
-          ownerName: '',
-          name: created.name,
-          fullName: created.fullName,
-          protocol: created.protocol,
-          createdAt: created.createdAt,
-        },
-      ]
+      // Only the login and its password are kept, and only here: the password must never reach
+      // `ftpUsers`, where a later render could show it beside a row.
       revealedCredential.value = { fullName: created.fullName, password: created.password }
       createErrorMessage.value = null
       return true
@@ -150,7 +122,8 @@ export const useFtpUsersStore = defineStore('ftpUsers', () => {
   }
 
   /**
-   * Removes a login, dropping it from the held list. The account's files stay on disk.
+   * Removes a login, dropping it from the held page; the list page then reads the page again so it
+   * refills from the next one. The account's files stay on disk.
    * @param id The login to remove.
    * @returns True when the panel removed it.
    */
@@ -175,12 +148,10 @@ export const useFtpUsersStore = defineStore('ftpUsers', () => {
     ftpUsers,
     creating,
     acting,
-    loadState,
-    errorMessage,
     actionErrorMessage,
     createErrorMessage,
     revealedCredential,
-    load,
+    list,
     create,
     resetPassword,
     remove,

@@ -12,13 +12,15 @@ import {
 } from '../fixtures/stub-ftp-routes'
 import { stubHealthy } from '../fixtures/stub-health-route'
 import { stubModules } from '../fixtures/stub-modules-route'
+import { stubMyAccount } from '../fixtures/stub-my-account-route'
 import {
   stubSftpUserActions,
   stubSftpUsers,
   stubbedCreatedSftpPassword,
   stubbedResetSftpPassword,
 } from '../fixtures/stub-sftp-routes'
-import type { Account } from '../../src/types/account'
+import type { Account, MyAccount } from '../../src/types/account'
+import type { AuthenticatedUser } from '../../src/types/auth'
 import type { FtpUser } from '../../src/types/ftpUser'
 import type { FtpsStatus } from '../../src/types/ftpsStatus'
 import type { PanelModule } from '../../src/types/module'
@@ -38,12 +40,43 @@ const ALICE: Account = {
   createdAt: '2026-08-01T10:00:00Z',
 }
 
+const OWN_ACCOUNT: MyAccount = {
+  id: '66666666-6666-6666-6666-666666666666',
+  name: 'olive',
+  primaryDomain: 'olive.example.com',
+  status: 'active',
+  plan: {
+    displayName: 'Starter',
+    diskQuotaMb: 1024,
+    maxSites: 5,
+    maxDatabases: 5,
+    maxSftpUsers: 5,
+    maxFtpUsers: 5,
+    maxCronEntries: 5,
+  },
+}
+
+const CUSTOMER: AuthenticatedUser = {
+  id: '00000000-0000-0000-0000-000000000099',
+  username: 'olive',
+  email: 'olive@example.com',
+  role: 'customer',
+  accountId: OWN_ACCOUNT.id,
+}
+
+/** The SFTP logins page. */
+const SFTP_PAGE = '/file-transfer/sftp'
+
+/** The FTPS logins page. */
+const FTPS_PAGE = '/file-transfer/ftps'
+
 const WEB: SftpUser = {
   id: '11111111-1111-1111-1111-111111111111',
   accountId: ALICE.id,
   ownerName: ALICE.name,
   name: 'web',
   fullName: 'alice_web',
+  protocol: 'Sftp',
   createdAt: '2026-08-01T10:00:00Z',
 }
 
@@ -58,18 +91,18 @@ const UPLOAD: FtpUser = {
 }
 
 /**
- * Puts the screen in front of an operator, with whatever logins the case needs already created.
+ * Puts a page in front of an administrator, with whatever logins the case needs already created.
  * @param page The Playwright page under test.
  * @param sftpUsers The SFTP logins the panel reports.
  * @param ftpUsers The FTPS logins the panel reports.
  * @param startAt The path to open.
- * @returns Resolves once the screen has been opened.
+ * @returns Resolves once the page has been opened.
  */
 const openScreen = async (
   page: Page,
   sftpUsers: SftpUser[],
   ftpUsers: FtpUser[] = [],
-  startAt = '/file-transfer',
+  startAt = SFTP_PAGE,
 ): Promise<void> => {
   await stubSignedIn(page)
   await stubHealthy(page)
@@ -85,23 +118,20 @@ const openScreen = async (
 }
 
 /**
- * Fills the create form and submits it, which is the path that mints a password.
+ * Fills the open page's create form and submits it, which is the path that mints a password.
  * @param page The Playwright page under test.
- * @param protocol The protocol label to choose.
+ * @param protocol Which page's form it is, `SFTP` or `FTPS`, as its submit button names it.
  * @param name The login suffix to type.
+ * @param pickAccount Whether the form offers an account picker; a customer's form has none.
  * @returns Resolves once the create has been submitted.
  */
-const createLogin = async (page: Page, protocol: string, name: string): Promise<void> => {
-  await page.getByRole('combobox', { name: 'Account' }).click()
-  await page.getByRole('option', { name: /alice/ }).click()
-  // The radio input itself is `sr-only`, so a direct click lands on a 1px element the document
-  // intercepts. Clicking the visible LABEL is what a person does, and it exercises the `for`/`id`
-  // binding the kit's accessibility rules require. The state is then asserted, because a click that
-  // silently missed would otherwise leave the default protocol selected and the spec still green.
-  await page.getByRole('radiogroup').getByText(protocol, { exact: true }).click()
-  await expect(page.getByRole('radio', { name: protocol, exact: true })).toBeChecked()
+const createLogin = async (page: Page, protocol: 'SFTP' | 'FTPS', name: string, pickAccount = true): Promise<void> => {
+  if (pickAccount) {
+    await page.getByRole('combobox', { name: 'Account' }).click()
+    await page.getByRole('option', { name: /alice/ }).click()
+  }
   await page.getByRole('textbox', { name: 'Login name' }).fill(name)
-  await page.getByRole('button', { name: 'Create login' }).click()
+  await page.getByRole('button', { name: `Create ${protocol} login` }).click()
 }
 
 /**
@@ -142,6 +172,7 @@ test('the generated SFTP password is shown once and is gone after a reload', asy
 test('the generated password is gone after navigating away and back', async ({ page }) => {
   await openScreen(page, [], [], '/')
   await page.getByRole('navigation').getByRole('link', { name: 'File transfer', exact: true }).click()
+  await expect(page).toHaveURL(/\/file-transfer\/sftp$/)
   await createLogin(page, 'SFTP', 'web')
 
   await expect(page.getByTestId('sftp-password')).toBeVisible()
@@ -149,7 +180,7 @@ test('the generated password is gone after navigating away and back', async ({ p
   await page.goBack()
   await page.goForward()
 
-  await expect(page.getByRole('heading', { level: 1, name: 'File transfer' })).toBeVisible()
+  await expect(page.getByRole('heading', { level: 1, name: 'SFTP logins' })).toBeVisible()
   await expect(page.getByTestId('sftp-password')).toHaveCount(0)
   await expect(page.getByText(stubbedCreatedSftpPassword)).toHaveCount(0)
 })
@@ -178,7 +209,7 @@ test('the dialog shows the prefixed login, not the bare name that was typed', as
 test('the FTPS credential dialog names the panel host and never the customer domain', async ({
   page,
 }) => {
-  await openScreen(page, [])
+  await openScreen(page, [], [], FTPS_PAGE)
   await createLogin(page, 'FTPS', 'upload')
 
   const dialog = page.getByRole('dialog')
@@ -204,7 +235,7 @@ test('the placeholder-certificate warning appears only when the status says the 
   await stubFtpsServer(page, runningFtpsStatus)
   await stubSftpUsers(page, [])
   await stubFtpUsers(page, [])
-  await page.goto('/file-transfer')
+  await page.goto(FTPS_PAGE)
   await createLogin(page, 'FTPS', 'upload')
 
   await expect(page.getByRole('dialog')).not.toContainText(PLACEHOLDER_SENTENCE)
@@ -218,7 +249,7 @@ test('the placeholder-certificate warning appears only when the status says the 
   await stubFtpsServer(page, SELF_SIGNED)
   await stubSftpUsers(page, [])
   await stubFtpUsers(page, [])
-  await page.goto('/file-transfer')
+  await page.goto(FTPS_PAGE)
   await createLogin(page, 'FTPS', 'upload')
 
   await expect(page.getByRole('dialog')).toContainText(PLACEHOLDER_SENTENCE)
@@ -227,20 +258,18 @@ test('the placeholder-certificate warning appears only when the status says the 
 // A customer cannot read the FTPS status: it carries a host path and is administrator-only. The
 // dialog must say that rather than composing a host name of its own — `window.location.host` is the
 // tempting wrong answer, and it is the one that produces a certificate mismatch.
-test('a caller who may not read the status is told to ask, not given a guessed host', async ({
+test('a customer who may not read the status is told to ask, not given a guessed host', async ({
   page,
 }) => {
-  await stubSignedIn(page)
+  await stubSignedIn(page, CUSTOMER)
   await stubHealthy(page)
   await stubModules(page, LICENSED)
-  await stubAccounts(page, [ALICE])
-  await stubFirewall(page, { rules: [], bans: [], whitelist: [] })
+  await stubMyAccount(page, OWN_ACCOUNT)
   await stubFtpsServerForbidden(page)
-  await stubSftpUsers(page, [])
   await stubFtpUsers(page, [])
-  await page.goto('/file-transfer')
+  await page.goto(FTPS_PAGE)
 
-  await createLogin(page, 'FTPS', 'upload')
+  await createLogin(page, 'FTPS', 'upload', false)
 
   const dialog = page.getByRole('dialog')
   await expect(page.getByTestId('ftp-credential-host')).toHaveText('—')
@@ -362,8 +391,7 @@ test('closing the dialog ends the only showing the password gets', async ({ page
   await expect(page.getByText(stubbedCreatedSftpPassword)).toHaveCount(0)
 })
 
-// Reset is the only recovery there is, so it has to be on the screen, it has to work, and on a
-// merged table it has to ask the module that owns the row.
+// Reset is the only recovery there is, so it has to be on the screen, and it has to work.
 test('resetting an SFTP password is offered on the list and shows a new one once', async ({
   page,
 }) => {
@@ -386,10 +414,10 @@ test('resetting an SFTP password is offered on the list and shows a new one once
   await expect(page.getByText(stubbedResetSftpPassword)).toHaveCount(0)
 })
 
-// The routing half of the merged table: an FTPS row's action must reach the FTPS module. A page
-// that sent every row to the SFTP module would answer with the wrong login's password.
+// An FTPS row's action must reach the FTPS module. A page that sent it to the SFTP module would
+// answer with the wrong login's password.
 test('an FTPS row reset asks the ftp module and shows the FTPS dialog', async ({ page }) => {
-  await openScreen(page, [WEB], [UPLOAD])
+  await openScreen(page, [WEB], [UPLOAD], FTPS_PAGE)
 
   const posts: string[] = []
   page.on('request', (request) => {
@@ -431,4 +459,33 @@ test('removing a login asks in a dialog, and a dismissal removes nothing', async
   expect(destructiveRequests).toBe(0)
   await expect(page.getByRole('row').filter({ hasText: 'alice_web' })).toBeVisible()
   await expect(row.getByRole('button', { name: 'Actions for alice_web' })).toBeFocused()
+})
+
+// The page re-reads its page after a removal rather than dropping the row it held, so the rows on
+// screen are always the panel's answer and the page refills from the next one.
+test('a confirmed removal asks the sftp module and reads the page again', async ({ page }) => {
+  await openScreen(page, [WEB])
+  const deletes: string[] = []
+  const reads: string[] = []
+  page.on('request', (request) => {
+    const path = new URL(request.url()).pathname
+    if (request.method() === 'DELETE') {
+      deletes.push(path)
+    }
+    if (request.method() === 'GET' && path === '/api/v1/sftp-users') {
+      reads.push(request.url())
+    }
+  })
+
+  const row = page.getByRole('row').filter({ hasText: 'alice_web' })
+  await chooseRowAction(page, row, 'alice_web', 'Remove')
+  await page.getByRole('dialog', { name: 'Remove login alice_web' }).getByRole('button', { name: 'Remove login' }).click()
+
+  await expect(page.getByRole('dialog')).toHaveCount(0)
+  expect(deletes).toEqual([`/api/v1/sftp-users/${WEB.id}`])
+  await expect
+    .poll(() => {
+      return reads.length
+    })
+    .toBeGreaterThan(0)
 })

@@ -1,13 +1,16 @@
 using Maran.Modules.Sftp.Common;
+using Maran.Modules.Sftp.Domain.Entities;
 using Maran.Modules.Sftp.Mappers;
 using Maran.Modules.Sftp.Persistence;
 using Maran.Sdk.Interfaces;
+using Maran.SharedKernel.Extensions;
+using Maran.SharedKernel.Utilities.Text;
 
 namespace Maran.Modules.Sftp.Queries.ListSftpUsers;
 
 /// <summary>
-/// Handles <see cref="ListSftpUsersQuery"/> by reading <c>sftp.SftpUsers</c> within the caller's
-/// tenant scope.
+/// Handles <see cref="ListSftpUsersQuery"/> by reading one page of <c>sftp.SftpUsers</c> within the
+/// caller's tenant scope.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -24,7 +27,9 @@ namespace Maran.Modules.Sftp.Queries.ListSftpUsers;
 /// The tenant boundary is not the <c>Where</c> clause on the account here: the context's global
 /// query filter supplies it, so this handler could not leak another tenant's rows even if it were
 /// rewritten carelessly (spec §8). The clause only narrows that scope to the account the caller
-/// asked for, and is ANDed with the filter, so a customer naming another account gets nothing.
+/// asked for, and is ANDed with the filter, so a customer naming another account gets nothing. The
+/// filter applies before the count as well as before the page, so a customer's total never counts
+/// another tenant's rows either.
 /// </para>
 /// </remarks>
 public sealed class ListSftpUsersQueryHandler
@@ -44,22 +49,38 @@ public sealed class ListSftpUsersQueryHandler
         _accounts = accounts;
     }
 
-    /// <summary>Returns the caller's SFTP logins, oldest first, each with its owner's name.</summary>
-    /// <param name="query">The list request; its optional account narrows the tenant scope.</param>
-    /// <param name="cancellationToken">Cancels the read.</param>
-    /// <returns>A successful result carrying the logins; this operation never fails.</returns>
-    public async Task<Result<IReadOnlyList<SftpUserDto>>> HandleAsync(
+    /// <summary>
+    /// Narrows to the account, searches the login the host holds, and answers the requested page with
+    /// the total that matched and each row's owner name.
+    /// </summary>
+    /// <param name="query">The validated list request.</param>
+    /// <param name="cancellationToken">Cancels the reads.</param>
+    /// <returns>A successful result carrying the page; this operation never fails.</returns>
+    public async Task<Result<PagedResult<SftpUserDto>>> HandleAsync(
         ListSftpUsersQuery query,
         CancellationToken cancellationToken)
     {
-        var rows = await _dbContext.SftpUsers
-            .AsNoTracking()
-            .Where(sftpUser => query.AccountId == null || sftpUser.AccountId == query.AccountId)
-            .OrderBy(sftpUser => sftpUser.CreatedAt)
-            .ToListAsync(cancellationToken);
+        IQueryable<SftpUser> sftpUsers = _dbContext.SftpUsers.AsNoTracking();
 
-        // One batched, tenant-scoped lookup for every owner in the answer, never one per row.
-        var ownerIds = rows
+        if (query.AccountId is { } accountId)
+        {
+            sftpUsers = sftpUsers.Where(sftpUser => sftpUser.AccountId == accountId);
+        }
+
+        if (!query.Search.IsNone)
+        {
+            // A captured local, so EF Core sends it as a parameter; LikePattern escapes the wildcards
+            // so the term matches literally. The full name holds both the account prefix and the
+            // customer's own name, so one column answers a search for either.
+            var pattern = LikePattern.Contains(query.Search.Value);
+            sftpUsers = sftpUsers.Where(sftpUser =>
+                EF.Functions.ILike(sftpUser.FullName, pattern, LikePattern.EscapeCharacter));
+        }
+
+        var page = await sftpUsers.ToPagedAsync(query, ListSftpUsersSorts.Map, cancellationToken);
+
+        // One batched, tenant-scoped lookup for every owner on the page, never one per row.
+        var ownerIds = page.Items
             .Select(row =>
             {
                 return row.AccountId;
@@ -68,13 +89,9 @@ public sealed class ListSftpUsersQueryHandler
             .ToList();
         var ownerNames = await _accounts.NamesOfAsync(ownerIds, cancellationToken);
 
-        IReadOnlyList<SftpUserDto> items = rows
-            .Select(row =>
-            {
-                return SftpUserMapper.From(row, ownerNames);
-            })
-            .ToList();
-
-        return Result<IReadOnlyList<SftpUserDto>>.Ok(items);
+        return Result<PagedResult<SftpUserDto>>.Ok(page.Map(row =>
+        {
+            return SftpUserMapper.From(row, ownerNames);
+        }));
     }
 }

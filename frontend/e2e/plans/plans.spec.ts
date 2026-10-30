@@ -5,6 +5,7 @@ import { stubModules } from '../fixtures/stub-modules-route'
 import { setPersistedLocale } from '../fixtures/set-locale'
 import {
   MANAGED_PLANS,
+  PLANS_PATTERN,
   stubManagedPlans,
   type PlanRefusals,
   type PlanRequests,
@@ -313,7 +314,7 @@ test('a customer who opens the screen reads the server refusal in place of the l
   await stubHealthy(page)
   await stubModules(page, LICENSED_ACCOUNTS)
   const refusal = 'You do not have permission to manage plans.'
-  await page.route('**/api/v1/plans', async (route) => {
+  await page.route(PLANS_PATTERN, async (route) => {
     await route.fulfill({
       status: 403,
       contentType: 'application/problem+json',

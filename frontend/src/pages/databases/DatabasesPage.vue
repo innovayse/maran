@@ -16,50 +16,67 @@
  * line under the heading says whose prefix it is. The prefixed value is the server's — this page
  * never assembles one from an account name and a suffix.
  *
- * Laid out as the redesign's screens are: the heading block with its eyebrow, then panels sixteen
- * pixels apart — the rejection notice first when there is one, the create card, and the list card
- * whose table scrolls inside its own container so the page never moves sideways on a phone.
+ * **The list is one server page at a time** (`useServerTable`): page, page size, search, sort and the
+ * `account` filter all live in the URL. `?account=<id>` is the link the account page opens; it is
+ * read through `useAccountFilter().spec`, so a customer's list ignores it exactly as every other
+ * account-filtered page does, and the filter is not offered to them: their list is already their
+ * own. Nothing is filtered here — the panel searches the full name, sorts and counts.
+ *
+ * **Two kinds of nothing.** No databases at all is the empty state. A search or filter matching
+ * none is the no-results state, with the way back to every database.
  *
  * **The password leaves with the page.** `dismissCredential` runs on unmount as well as on the
  * dialog's close, so a navigation ends the one showing; nothing is written to storage, so a reload
  * ends it too.
  */
-import { computed, onBeforeUnmount, onMounted, ref, useTemplateRef, watch, type ComputedRef, type Ref } from 'vue'
+import { computed, onBeforeUnmount, ref, useTemplateRef, type ComputedRef, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import UiActiveFilter from '../../components/ui/UiActiveFilter.vue'
 import UiAlert from '../../components/ui/UiAlert.vue'
 import UiButton from '../../components/ui/UiButton.vue'
 import UiCard from '../../components/ui/UiCard.vue'
-import UiConfirm from '../../components/ui/UiConfirm.vue'
-import UiDropdown from '../../components/ui/UiDropdown.vue'
-import UiDropdownItem from '../../components/ui/UiDropdownItem.vue'
+import UiCombobox from '../../components/ui/UiCombobox.vue'
 import UiEmptyState from '../../components/ui/UiEmptyState.vue'
+import UiFilterSheet from '../../components/ui/UiFilterSheet.vue'
+import UiFilterTrigger from '../../components/ui/UiFilterTrigger.vue'
 import UiIcon from '../../components/ui/UiIcon.vue'
 import UiPageHeading from '../../components/ui/UiPageHeading.vue'
+import UiPagination from '../../components/ui/UiPagination.vue'
+import UiSearchInput from '../../components/ui/UiSearchInput.vue'
 import UiSectionHeading from '../../components/ui/UiSectionHeading.vue'
 import UiLoadingRegion from '../../components/ui/UiLoadingRegion.vue'
-import UiTable from '../../components/ui/UiTable.vue'
-import type { UiTableColumn } from '../../types/tableColumn'
 import UiToast from '../../components/ui/UiToast.vue'
 import DatabaseCreateForm from '../../components/databases/DatabaseCreateForm.vue'
 import DatabaseCreatedDialog from '../../components/databases/DatabaseCreatedDialog.vue'
-import { useAccountChoice } from '../../composables/useAccountChoice'
+import DatabaseActionConfirm from '../../components/databases/DatabaseActionConfirm.vue'
+import DatabasesTable from '../../components/databases/DatabasesTable.vue'
+import { useAccountChoice, type AccountPickerState } from '../../composables/useAccountChoice'
 import { useAccountFilter } from '../../composables/useAccountFilter'
 import { useCallerRole } from '../../composables/useCallerRole'
+import { useListLabels } from '../../composables/useListLabels'
+import { useServerTable } from '../../composables/useServerTable'
 import { useDatabasesStore } from '../../stores/databases'
-import { useLocaleStore } from '../../stores/locale'
-import { formatDate } from '../../utils/formatDate'
-import type { CreateDatabaseRequest, Database } from '../../types/database'
-
-/** Which action a row is waiting for confirmation on. */
-type PendingAction = 'resetPassword' | 'drop'
+import type { CreateDatabaseRequest, Database, DatabaseAction } from '../../types/database'
+import type { ActiveFilterChip, ListLoad, ListRequest } from '../../types/list'
 
 const { t } = useI18n()
 const store = useDatabasesStore()
 const { fixedAccountId, picker: accountPicker, search: searchAccounts } = useAccountChoice()
-const { filter: accountListFilter, isActive: isAccountFiltered, text: accountFilterText, clear: clearAccountFilter } = useAccountFilter()
-const { isAdmin } = useCallerRole()
-const localeStore = useLocaleStore()
+const { spec: accountSpec, name: accountFilterName } = useAccountFilter()
+const { isAdmin, isCustomer } = useCallerRole()
+const labels = useListLabels()
+
+const table = useServerTable<Database>({
+  filters: { account: accountSpec },
+  /**
+   * Reads one page through the store.
+   * @param request The page the URL describes.
+   * @returns How the read ended.
+   */
+  load: (request: ListRequest): Promise<ListLoad<Database>> => {
+    return store.list(request)
+  },
+})
 
 /** The create form, so an accepted create can empty the fields it owns. */
 const form = useTemplateRef<{ reset: () => void }>('form')
@@ -67,87 +84,75 @@ const form = useTemplateRef<{ reset: () => void }>('form')
 /** The success toast's text after a create, or `null` while none is showing. */
 const notice: Ref<string | null> = ref(null)
 
-/** The database whose action is awaiting confirmation, or the empty string when none is. */
-const pendingId: Ref<string> = ref('')
+/** The database whose action is awaiting confirmation, or `null` when none is. */
+const pending: Ref<Database | null> = ref(null)
 
 /** Which action that database is waiting on. */
-const pendingAction: Ref<PendingAction> = ref('drop')
+const pendingAction: Ref<DatabaseAction> = ref('drop')
 
-/** Whether the panel answered successfully and reported no databases at all. */
-const isEmpty: ComputedRef<boolean> = computed(() => {
-  return store.loadState === 'loaded' && store.databases.length === 0
+/** Whether the filter sheet is open. */
+const filtersOpen: Ref<boolean> = ref(false)
+
+/** Whether the list is narrowed by a search or a filter, so an empty answer means "no match". */
+const isNarrowed: ComputedRef<boolean> = computed(() => {
+  return table.request.value.search !== '' || table.activeFilterCount.value > 0
 })
 
-
-/** The table's columns: its header, its cells and its loading placeholder all read this one list. */
-const columns: ComputedRef<UiTableColumn[]> = computed(() => {
-  return [
-    { key: 'fullName', label: t('databases.list.columns.fullName'), kind: 'identifier' },
-    { key: 'dbUserName', label: t('databases.list.columns.dbUserName'), kind: 'mono' },
-    { key: 'account', label: t('databases.list.columns.account'), kind: 'text' },
-    { key: 'createdAt', label: t('databases.list.columns.createdAt'), kind: 'date' },
-    { key: 'actions', label: t('common.actions'), kind: 'actions' },
-  ]
-})
-
-/** The name of the row whose action is awaiting an answer, so the dialog says what it asks about. */
-const pendingName: ComputedRef<string> = computed(() => {
-  const pending = store.databases.find((item) => {
-    return item.id === pendingId.value
-  })
-  return pending?.fullName ?? ''
-})
-
-/** The confirmation's title, naming the row and what would be done to it. */
-const confirmationTitle: ComputedRef<string> = computed(() => {
-  return pendingAction.value === 'drop'
-    ? t('databases.list.confirmDropTitle', { name: pendingName.value })
-    : t('databases.list.confirmResetPasswordTitle', { name: pendingName.value })
-})
-
-/** The confirm button's label, naming the action rather than a bare "Confirm" (#218). */
-const confirmationLabel: ComputedRef<string> = computed(() => {
-  return pendingAction.value === 'drop'
-    ? t('databases.list.confirmDropAction')
-    : t('databases.list.confirmResetPasswordAction')
-})
-
-/** The consequence the confirmation asks the operator to weigh. */
-const confirmationText: ComputedRef<string> = computed(() => {
-  return pendingAction.value === 'drop'
-    ? t('databases.list.confirmDrop')
-    : t('databases.list.confirmResetPassword')
+/** Whether the latest answer arrived and holds no rows at all. */
+const answeredNothing: ComputedRef<boolean> = computed(() => {
+  return table.state.value.status === 'loaded' && table.total.value === 0
 })
 
 /**
- * Names the account a database belongs to, as the panel named it on the row.
- * @param database The database row.
- * @returns The owner's short name, or the empty-value mark when the panel did not name it.
+ * The account filter's picker: the page of accounts matching its search, after an "any account"
+ * choice, which is counted into the total so the "more matches" line stays right. Administrators only.
  */
-const accountName = (database: Database): string => {
-  return database.ownerName === '' ? t('common.emptyValue') : database.ownerName
+const accountFilterPicker: ComputedRef<AccountPickerState> = computed(() => {
+  const state = accountPicker.value
+  return {
+    ...state,
+    options: [{ value: '', label: t('common.list.any') }, ...state.options],
+    total: state.total + 1,
+  }
+})
+
+/** One removable chip per applied filter. */
+const chips: ComputedRef<ActiveFilterChip[]> = computed(() => {
+  return table.filters.value.account !== ''
+    ? [labels.chip('account', t('databases.list.filters.account'), accountFilterName.value)]
+    : []
+})
+
+/**
+ * Opens the filter sheet.
+ * @returns Nothing.
+ */
+const openFilters = (): void => {
+  filtersOpen.value = true
 }
 
 /**
- * Loads the database list, narrowed to the account the URL names when it names one.
- * @returns Resolves once the request has settled.
+ * Closes the filter sheet.
+ * @returns Nothing.
  */
-const loadList = async (): Promise<void> => {
-  await store.load(accountListFilter.value)
+const closeFilters = (): void => {
+  filtersOpen.value = false
 }
 
 /**
- * Loads the database list. The create form's account picker reads its own choices when opened.
- * @returns Resolves once the request has settled.
+ * Clears the search and every filter, the way back from a question that matched nothing.
+ * @returns Resolves once the filters left the URL; the search follows after the box's pause.
  */
-const refresh = async (): Promise<void> => {
-  await loadList()
+const clearAll = async (): Promise<void> => {
+  table.search.value = ''
+  await table.clearFilters()
 }
 
 /**
- * Sends a request the form has already validated. On success the store opens the credential dialog
- * and the form is emptied; on failure the store holds the server's own message and the template
- * renders it verbatim.
+ * Sends a request the form has already validated. On success the store opens the credential dialog,
+ * the form is emptied and the list page is read again, since where the new row falls is the
+ * server's to say; on failure the store holds the server's own message and the template renders it
+ * verbatim.
  * @param request The account and the two names the form collected.
  * @returns Resolves once the attempt has settled.
  */
@@ -155,17 +160,18 @@ const create = async (request: CreateDatabaseRequest): Promise<void> => {
   if (await store.create(request)) {
     notice.value = t('databases.list.created')
     form.value?.reset()
+    await table.reload()
   }
 }
 
 /**
  * Starts an action on one row, which then waits for confirmation.
- * @param id The database the operator acted on.
+ * @param database The database the operator acted on.
  * @param action Which action they started.
  * @returns Nothing.
  */
-const ask = (id: string, action: PendingAction): void => {
-  pendingId.value = id
+const ask = (database: Database, action: DatabaseAction): void => {
+  pending.value = database
   pendingAction.value = action
 }
 
@@ -174,7 +180,7 @@ const ask = (id: string, action: PendingAction): void => {
  * @returns Nothing.
  */
 const cancel = (): void => {
-  pendingId.value = ''
+  pending.value = null
 }
 
 /**
@@ -182,18 +188,25 @@ const cancel = (): void => {
  * @returns Resolves once the request has settled.
  */
 const confirm = async (): Promise<void> => {
-  const id = pendingId.value
+  if (pending.value === null) {
+    return
+  }
+  const id = pending.value.id
   const action = pendingAction.value
 
-  if (action === 'drop') {
-    await store.remove(id)
-  } else {
+  const dropped = action === 'drop' ? await store.remove(id) : false
+  if (action === 'resetPassword') {
     await store.resetPassword(id)
   }
 
   // Closed after the request settles rather than before it is sent: the dialog holds the
   // spinner that tells the operator the panel is working.
-  pendingId.value = ''
+  pending.value = null
+
+  // A drop changes the total and pulls rows up from the next page, so the page is read again.
+  if (dropped) {
+    await table.reload()
+  }
 }
 
 /**
@@ -211,11 +224,6 @@ const dismissCredential = (): void => {
 const dismissNotice = (): void => {
   notice.value = null
 }
-
-onMounted(refresh)
-
-// "Show all" and a link to another account change only the query, so the page is not remounted.
-watch(() => {return accountListFilter.value.accountId}, loadList)
 
 // The credential must not survive a navigation. The store outlives this page, so leaving the
 // screen without this would leave the password in memory for the next visit to render.
@@ -256,85 +264,113 @@ onBeforeUnmount(dismissCredential)
       @submit="create"
     />
 
-    <UiActiveFilter
-      v-if="isAccountFiltered"
-      :text="accountFilterText"
-      :clear-label="t('common.accountFilter.showAll')"
-      @clear="clearAccountFilter"
-    />
-
     <UiCard>
       <UiSectionHeading class="mb-4" :title="t('databases.list.sectionTitle')" />
 
-      <UiLoadingRegion :state="store.loadState">
-        <template #error>
-          <UiAlert variant="error">{{ store.errorMessage ?? t('common.list.unreachable') }}</UiAlert>
-        </template>
+      <div class="flex flex-col gap-4">
+        <!-- No search and no filter has anything to narrow before the first database exists. -->
+        <div v-if="!answeredNothing || isNarrowed" class="flex flex-wrap items-end gap-3">
+          <UiSearchInput
+            v-model="table.search.value"
+            class="min-w-55 max-w-85 flex-1"
+            :label="t('databases.list.searchLabel')"
+            :placeholder="t('databases.list.searchPlaceholder')"
+            :clear-label="t('databases.list.searchClear')"
+          />
+          <!-- The account is the list's one filter, and a customer's list is already their own
+               account's: there is nothing to narrow to, so the trigger is not offered. -->
+          <UiFilterTrigger
+            v-if="!isCustomer"
+            :label="t('common.list.filters')"
+            :active-count="table.activeFilterCount.value"
+            :active-label="t('common.list.filtersApplied', { n: table.activeFilterCount.value }, table.activeFilterCount.value)"
+            @click="openFilters"
+          />
+        </div>
 
-        <UiEmptyState
-          v-if="isEmpty"
-          :title="t('databases.list.emptyTitle')"
-          :description="t('databases.list.emptyDescription')"
-        >
-          <template #icon><UiIcon name="database" size="lg" /></template>
-        </UiEmptyState>
+        <UiActiveFilter
+          v-if="chips.length > 0"
+          :chips="chips"
+          :clear-label="t('common.list.clearAll')"
+          @remove="table.clearFilter"
+          @clear="table.clearFilters"
+        />
 
-        <UiTable
-          v-else
-          :caption="t('databases.list.tableCaption')"
-          :columns="columns"
-          :rows="store.databases"
-          row-key="id"
-          :loading="store.loadState === 'loading'"
-        >
-          <!-- The prefixed name, because it is the one that works in a mysql client. -->
-          <template #cell-fullName="{ row }">{{ row.fullName }}</template>
-          <template #cell-dbUserName="{ row }">{{ row.dbUserName }}</template>
-          <template #cell-account="{ row }">{{ accountName(row) }}</template>
-          <template #cell-createdAt="{ row }">{{ formatDate(row.createdAt, localeStore.current) }}</template>
-          <template #cell-actions="{ row }">
-            <!-- One trigger instead of a button per command: the row's actions grow with the
-                 module, and a row that grows a button every time stops fitting on a narrow
-                 screen. `align="end"` because this is the last column — a menu aligned to the
-                 start would open off the right edge. -->
-            <div class="flex items-center justify-end">
-              <UiDropdown
-                :label="t('common.actions')"
-                :aria-label="t('databases.list.rowActions', { name: row.fullName })"
-                align="end"
-                variant="bare"
-                :chevron="false"
-              >
-                <template #trigger>
-                  <UiIcon name="ellipsis" size="md" />
-                </template>
-                <UiDropdownItem @select="ask(row.id, 'resetPassword')">
-                  {{ t('databases.list.resetPassword') }}
-                </UiDropdownItem>
-                <UiDropdownItem destructive @select="ask(row.id, 'drop')">
-                  {{ t('databases.list.drop') }}
-                </UiDropdownItem>
-              </UiDropdown>
-            </div>
+        <UiLoadingRegion :state="table.loadingState.value">
+          <template #error>
+            <UiAlert v-if="table.state.value.status === 'refused'" variant="error">
+              {{ table.state.value.message }}
+            </UiAlert>
+            <UiAlert v-else variant="error">{{ t('common.list.unreachable') }}</UiAlert>
           </template>
-        </UiTable>
-      </UiLoadingRegion>
+
+          <UiEmptyState
+            v-if="answeredNothing && !isNarrowed"
+            :title="t('databases.list.emptyTitle')"
+            :description="t('databases.list.emptyDescription')"
+          >
+            <template #icon><UiIcon name="database" size="lg" /></template>
+          </UiEmptyState>
+
+          <UiEmptyState
+            v-else-if="answeredNothing"
+            :title="t('databases.list.noResultsTitle')"
+            :description="t('databases.list.noResultsDescription')"
+          >
+            <UiButton variant="secondary" @click="clearAll">{{ t('common.list.clearSearchAndFilters') }}</UiButton>
+          </UiEmptyState>
+
+          <div v-else class="flex flex-col gap-4">
+            <DatabasesTable
+              :rows="store.databases"
+              :loading="table.state.value.status === 'loading'"
+              :skeleton-rows="table.pageSize.value"
+              :sort="table.sort.value"
+              @sort="table.toggleSort"
+              @act="ask"
+            />
+
+            <UiPagination
+              v-if="table.state.value.status === 'loaded'"
+              :page="table.page.value"
+              :page-size="table.pageSize.value"
+              :total="table.total.value"
+              :page-sizes="table.pageSizes"
+              :labels="labels.pagination.value"
+              @update:page="table.setPage"
+              @update:page-size="table.setPageSize"
+            />
+          </div>
+        </UiLoadingRegion>
+      </div>
     </UiCard>
 
-    <!-- One dialog for the whole table rather than one per row: only one action can be awaiting
-         an answer, and the menu that opened it is already gone by the time it appears. `UiModal`
-         restores focus to the row's menu trigger when the dialog closes, so the keyboard user
-         lands back on the control they used. -->
-    <UiConfirm
-      :open="pendingId.length > 0"
-      :title="confirmationTitle"
-      :question="confirmationText"
-      :confirm-label="confirmationLabel"
-      :cancel-label="t('common.cancel')"
+    <UiFilterSheet
+      :open="filtersOpen"
+      :model-value="table.filters.value"
+      :title="t('common.list.filters')"
       :close-label="t('common.close')"
+      :apply-label="t('common.list.apply')"
+      :reset-label="t('common.list.reset')"
+      @update:model-value="table.setFilters"
+      @close="closeFilters"
+    >
+      <template #default="{ draft }">
+        <UiCombobox
+          v-model="draft.account"
+          v-bind="accountFilterPicker"
+          :label="t('databases.list.filters.account')"
+          :placeholder="t('common.list.any')"
+          :selected-label="accountFilterName"
+          @search="searchAccounts"
+        />
+      </template>
+    </UiFilterSheet>
+
+    <DatabaseActionConfirm
+      :database="pending"
+      :action="pendingAction"
       :acting="store.acting"
-      :acting-label="t('databases.list.working')"
-      :destructive="pendingAction === 'drop'"
       @close="cancel"
       @confirm="confirm"
     />

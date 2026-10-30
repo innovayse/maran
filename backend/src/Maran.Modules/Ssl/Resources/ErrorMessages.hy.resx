@@ -75,4 +75,7 @@
   <data name="CertificateDomainReserved">
     <value>Այս անվան համար վկայական հնարավոր չէ թողարկել կամ տեղադրել։</value>
   </data>
+  <data name="CertificateStatusUnknown">
+    <value>Սա վկայականի կարգավիճակ չէ։</value>
+  </data>
 </root>

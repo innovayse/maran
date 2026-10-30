@@ -2,11 +2,13 @@ import { defineStore } from 'pinia'
 import { ref, type Ref } from 'vue'
 import { usePlansApi } from '../composables/apis/usePlansApi'
 import { ApiError } from '../composables/useApi'
+import type { ListLoad, ListRequest } from '../types/list'
 import type { LoadingState } from '../types/loading'
 import type { ManagedPlan, PlanRequest } from '../types/plan'
 
 /**
- * Owns the plans an administrator manages: the list, the create and edit workflow, and the delete.
+ * Owns the plans an administrator manages: one server page of the list at a time, the one plan the
+ * edit screen opened, the create and edit workflow, and the delete.
  * The plans screens read state from here and call its actions — neither touches the API composable
  * directly (rules/vue.md: "API composables are called from Pinia stores ONLY").
  *
@@ -22,16 +24,21 @@ import type { ManagedPlan, PlanRequest } from '../types/plan'
 export const usePlansStore = defineStore('plans', () => {
   const api = usePlansApi()
 
-  /** The plans as last reported by the panel; empty before the first successful load. */
+  /** The rows of the list page last answered by the panel; empty before the first answer. */
   const plans: Ref<ManagedPlan[]> = ref([])
 
-  /** Where the read of the list stands; every failure sets `error`, whatever its cause. */
+  /**
+   * The plan the edit screen opened, as last read; `null` before it arrived, after the read failed,
+   * and when the panel has no plan with that id.
+   */
+  const selected: Ref<ManagedPlan | null> = ref(null)
+
+  /** Where the read of {@link selected} stands; every failure sets `errorMessage`, whatever its cause. */
   const loadState: Ref<LoadingState> = ref('loading')
 
   /**
-   * Backend-localized message from the most recent failed list load, or `null` when it succeeded or
-   * the failure carried no message (the panel was unreachable). For a customer who opens the screen
-   * this is the server's refusal, shown in place of the list.
+   * Backend-localized message from the most recent failed read of one plan, or `null` when it
+   * succeeded, found no such plan, or the failure carried no message (the panel was unreachable).
    */
   const errorMessage: Ref<string | null> = ref(null)
 
@@ -54,30 +61,46 @@ export const usePlansStore = defineStore('plans', () => {
   const deleteErrorMessage: Ref<string | null> = ref(null)
 
   /**
-   * Loads the plan list, replacing what is held.
-   * @returns Resolves once the request has settled, successfully or not.
+   * Loads one page of the plan list into {@link plans} and reports how the read ended, for the list
+   * page's `useServerTable`.
+   * @param request The page, size, search and sort, as the URL describes them.
+   * @returns The page, the panel's refusal with its message, or `unreachable` when no answer arrived.
    */
-  const load = async (): Promise<void> => {
-    loadState.value = 'loading'
+  const list = async (request: ListRequest): Promise<ListLoad<ManagedPlan>> => {
     try {
-      plans.value = await api.list()
-      errorMessage.value = null
-      loadState.value = 'loaded'
+      const page = await api.list(request)
+      plans.value = page.items
+      return { kind: 'loaded', page }
     } catch (error) {
-      errorMessage.value = error instanceof ApiError ? error.message : null
-      loadState.value = 'error'
+      return error instanceof ApiError ? { kind: 'refused', message: error.message } : { kind: 'unreachable' }
     }
   }
 
   /**
-   * Finds a held plan by identity.
+   * Reads one plan into {@link selected}, fresh every time: the account count the edit notice states
+   * is a live fact, and a stale one would tell an administrator nobody is on a plan somebody has
+   * just been put on.
    * @param id The plan's identity.
-   * @returns The plan, or `undefined` when the list holds none with that id (not loaded yet, or deleted).
+   * @returns Resolves once the request has settled, successfully or not.
    */
-  const find = (id: string): ManagedPlan | undefined => {
-    return plans.value.find((plan) => {
-      return plan.id === id
-    })
+  const loadOne = async (id: string): Promise<void> => {
+    loadState.value = 'loading'
+    selected.value = null
+    try {
+      selected.value = await api.get(id)
+      errorMessage.value = null
+      loadState.value = 'loaded'
+    } catch (error) {
+      // No such plan (deleted since the link was followed, or a mistyped id) is an answer, not a
+      // failure: the read settled, and the screen says the plan was not found with a way back.
+      if (error instanceof ApiError && error.status === 404) {
+        errorMessage.value = null
+        loadState.value = 'loaded'
+        return
+      }
+      errorMessage.value = error instanceof ApiError ? error.message : null
+      loadState.value = 'error'
+    }
   }
 
   /**
@@ -91,7 +114,8 @@ export const usePlansStore = defineStore('plans', () => {
   }
 
   /**
-   * Defines a plan and adds it to the held list.
+   * Defines a plan. The list page is not patched: where the new row falls depends on the server's
+   * sort and search, so the list page reads its page again when it opens.
    * @param request The plan's name and limits.
    * @returns The created plan, or `null` when the panel refused — the reason is in
    * {@link saveErrorMessage}.
@@ -100,7 +124,6 @@ export const usePlansStore = defineStore('plans', () => {
     saving.value = true
     try {
       const created = await api.create(request)
-      plans.value = [...plans.value, created]
       saveErrorMessage.value = null
       return created
     } catch (error) {
@@ -112,7 +135,8 @@ export const usePlansStore = defineStore('plans', () => {
   }
 
   /**
-   * Replaces a plan's name and limits and swaps the held row for the server's answer.
+   * Replaces a plan's name and limits and swaps the held row and the opened plan for the server's
+   * answer.
    * @param id The plan to edit.
    * @param request The plan's new name and limits.
    * @returns The plan as it now stands, or `null` when the panel refused (a quota an account
@@ -126,6 +150,9 @@ export const usePlansStore = defineStore('plans', () => {
       plans.value = plans.value.map((plan) => {
         return plan.id === id ? updated : plan
       })
+      if (selected.value?.id === id) {
+        selected.value = updated
+      }
       saveErrorMessage.value = null
       return updated
     } catch (error) {
@@ -137,7 +164,8 @@ export const usePlansStore = defineStore('plans', () => {
   }
 
   /**
-   * Deletes a plan and removes it from the held list.
+   * Deletes a plan and removes it from the held page. The list page then reads its page again, so
+   * the total and the next plan moving up from the following page are the server's.
    * @param id The plan to delete.
    * @returns True when the panel deleted it; false when it refused (accounts are still on it) —
    * the reason is in {@link deleteErrorMessage} and the row stays.
@@ -161,14 +189,15 @@ export const usePlansStore = defineStore('plans', () => {
 
   return {
     plans,
+    selected,
     loadState,
     errorMessage,
     saving,
     saveErrorMessage,
     deleting,
     deleteErrorMessage,
-    load,
-    find,
+    list,
+    loadOne,
     clearErrors,
     create,
     update,

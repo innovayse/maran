@@ -9,7 +9,6 @@ using Maran.Modules.Accounts.Queries.GetAccount;
 using Maran.Modules.Accounts.Queries.GetAccountResourceSummary;
 using Maran.Modules.Accounts.Queries.ListAccountChoices;
 using Maran.Modules.Accounts.Queries.ListAccounts;
-using Maran.Modules.Accounts.Queries.ListPlans;
 using Maran.Sdk.Contracts;
 using Maran.Sdk.Controllers;
 using Microsoft.AspNetCore.Authorization;
@@ -229,22 +228,6 @@ public sealed class AccountsController : BaseApiController
     {
         var command = new DeleteAccountCommand(id, ClientIpAddress, CallerUserAgent, skipFinalBackup);
         var result = await _bus.InvokeAsync<Result<ulong>>(command, cancellationToken);
-        return ToActionResult(result);
-    }
-
-    /// <summary>
-    /// Lists every plan an account can be created against — the reference data the account-creation
-    /// form needs, so the caller never has to know or type a plan id (rules/architecture.md "The
-    /// backend owns the data, the SPA renders it"). Making, changing and retiring plans is
-    /// <see cref="PlansController"/>'s; this read stays here because the account-creation form is its
-    /// caller and already reaches for everything it needs under <c>/api/v1/accounts</c>.
-    /// </summary>
-    /// <param name="cancellationToken">Cancellation token for the request.</param>
-    [HttpGet("plans")]
-    [ProducesResponseType(typeof(IReadOnlyList<PlanDto>), StatusCodes.Status200OK)]
-    public async Task<IActionResult> GetPlansAsync(CancellationToken cancellationToken)
-    {
-        var result = await _bus.InvokeAsync<Result<IReadOnlyList<PlanDto>>>(new ListPlansQuery(), cancellationToken);
         return ToActionResult(result);
     }
 }

@@ -15,19 +15,19 @@
  * (see the template comment): an option that exists in the DOM but cannot be
  * hit is a plan an operator cannot choose.
  */
-import { computed, onMounted, ref, type ComputedRef, type Ref } from 'vue'
+import { computed, ref, type ComputedRef, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import UiAlert from '../../components/ui/UiAlert.vue'
 import UiButton from '../../components/ui/UiButton.vue'
+import UiCombobox from '../../components/ui/UiCombobox.vue'
 import UiCard from '../../components/ui/UiCard.vue'
 import UiForm from '../../components/ui/UiForm.vue'
 import UiInput from '../../components/ui/UiInput.vue'
 import UiPageHeading from '../../components/ui/UiPageHeading.vue'
-import UiSelect, { type SelectOption } from '../../components/ui/UiSelect.vue'
+import { usePlanChoice } from '../../composables/usePlanChoice'
 import { useAccountsStore } from '../../stores/accounts'
 import { flashNoticeState } from '../../utils/flashNotice'
-import { formatMegabytes } from '../../utils/formatBytes'
 
 /**
  * Matches the server's `Name` rule exactly: lowercase, starts with a letter,
@@ -57,6 +57,7 @@ const MAX_OWNER_EMAIL_LENGTH = 256
 const { t } = useI18n()
 const router = useRouter()
 const store = useAccountsStore()
+const { picker: planPicker, search: searchPlans } = usePlanChoice()
 
 /** Current value of the name field. */
 const name: Ref<string> = ref('')
@@ -107,26 +108,6 @@ const planIdError: ComputedRef<string | null> = computed(() => {
   return planId.value.length === 0 ? t('accounts.form.errors.planRequired') : null
 })
 
-/**
- * The plans offered by the picker. Labels come from the backend already localized —
- * plans are server-side reference data, and a limit shown beside the name is what
- * makes the choice meaningful rather than a list of words.
- */
-const planOptions: ComputedRef<SelectOption[]> = computed(() => {
-  return store.plans.map((plan) => {
-    return {
-      value: plan.id,
-      // The quota in a human unit and the site count as a plural form: `1048576 MB, 1 sites`
-      // was the raw figures (#222).
-      label: t(
-        'accounts.form.planOption',
-        { name: plan.displayName, disk: formatMegabytes(plan.diskQuotaMb), count: plan.maxSites },
-        plan.maxSites,
-      ),
-    }
-  })
-})
-
 /** Client-side validation message for the owner email field, mirroring the server's rule. */
 const ownerEmailError: ComputedRef<string | null> = computed(() => {
   if (!submitted.value) {
@@ -150,14 +131,6 @@ const isValid: ComputedRef<boolean> = computed(() => {
     ownerEmailError.value === null
   )
 })
-
-/**
- * Loads the plans the picker offers, once, when the form opens.
- * @returns Resolves once the request has settled.
- */
-const loadPlans = async (): Promise<void> => {
-  await store.loadPlans()
-}
 
 /**
  * Validates the form and, when valid, submits it to the store. On success it opens the new
@@ -194,7 +167,6 @@ const submit = async (): Promise<void> => {
 const cancel = async (): Promise<void> => {
   await router.push({ name: 'accounts' })
 }
-onMounted(loadPlans)
 </script>
 
 <template>
@@ -234,13 +206,16 @@ onMounted(loadPlans)
             required
             :placeholder="t('accounts.form.placeholders.primaryDomain')"
           />
-          <UiSelect
+          <!-- Searched on the server one page at a time, so every plan is reachable however many
+               the panel sells; the picker reads its first page when it is opened. -->
+          <UiCombobox
             v-model="planId"
+            v-bind="planPicker"
             :label="t('accounts.form.fields.plan')"
-            :options="planOptions"
             :error="planIdError"
             required
             :placeholder="t('accounts.form.placeholders.plan')"
+            @search="searchPlans"
           />
           <UiInput
             v-model="ownerEmail"

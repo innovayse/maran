@@ -8,6 +8,11 @@
       "emptyTitle": "No plans yet",
       "emptyDescription": "Accounts are created on a plan, so define the first one before creating an account.",
       "tableCaption": "Plans and their limits",
+      "searchLabel": "Search plans",
+      "searchPlaceholder": "Search by name…",
+      "searchClear": "Clear the search",
+      "noResultsTitle": "No plans match",
+      "noResultsDescription": "Change the search, or clear it to see every plan.",
       "none": "None",
       "columns": {
         "accounts": "Accounts",

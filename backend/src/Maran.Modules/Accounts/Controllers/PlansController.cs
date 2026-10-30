@@ -2,6 +2,8 @@ using Maran.Modules.Accounts.Commands.CreatePlan;
 using Maran.Modules.Accounts.Commands.DeletePlan;
 using Maran.Modules.Accounts.Commands.UpdatePlan;
 using Maran.Modules.Accounts.Common;
+using Maran.Modules.Accounts.Queries.GetPlan;
+using Maran.Modules.Accounts.Queries.ListPlanChoices;
 using Maran.Modules.Accounts.Queries.ListPlans;
 using Maran.Sdk.Contracts;
 using Maran.Sdk.Controllers;
@@ -20,9 +22,9 @@ namespace Maran.Modules.Accounts.Controllers;
 /// it when that changes, is the server owner's decision (spec §8); a customer sees only their own
 /// plan's limits, through <c>GET /api/v1/accounts/me</c>.
 ///
-/// Separate from <see cref="AccountsController"/> now that a plan has a lifecycle of its own. That
-/// controller keeps <c>GET /api/v1/accounts/plans</c>, which the account-creation form reads to offer
-/// a choice; this one is where a plan is made, changed and retired.
+/// Separate from <see cref="AccountsController"/> now that a plan has a lifecycle of its own: this is
+/// where a plan is listed, made, changed and retired, and where a picker reads its choices
+/// (<c>GET /api/v1/plans/choices</c>).
 /// </summary>
 [Route("api/v1/plans")]
 [Authorize(Policy = AuthorizationPolicies.AdminOnly)]
@@ -43,13 +45,48 @@ public sealed class PlansController : BaseApiController
         _bus = bus;
     }
 
-    /// <summary>Lists every plan, each with its limits and how many accounts are on it.</summary>
+    /// <summary>
+    /// Lists one page of plans, each with its limits and how many accounts are on it, searched by name
+    /// and sorted.
+    /// </summary>
+    /// <param name="query">Paging, search and sort, bound from the query string.</param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpGet]
-    [ProducesResponseType(typeof(IReadOnlyList<PlanDto>), StatusCodes.Status200OK)]
-    public async Task<IActionResult> GetAllAsync(CancellationToken cancellationToken)
+    [ProducesResponseType(typeof(PagedResult<PlanDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> GetAllAsync([FromQuery] ListPlansQuery query, CancellationToken cancellationToken)
     {
-        var result = await _bus.InvokeAsync<Result<IReadOnlyList<PlanDto>>>(new ListPlansQuery(), cancellationToken);
+        var result = await _bus.InvokeAsync<Result<PagedResult<PlanDto>>>(query, cancellationToken);
+        return ToActionResult(result);
+    }
+
+    /// <summary>
+    /// Lists one page of plan names for a picker — the account form and the move-to-plan dialog — so
+    /// the caller never has to know or type a plan id (rules/architecture.md "The backend owns the
+    /// data, the SPA renders it"), and no picker loads the plan list with its headcounts.
+    /// </summary>
+    /// <param name="query">Paging, search and sort, bound from the query string.</param>
+    /// <param name="cancellationToken">Cancellation token for the request.</param>
+    [HttpGet("choices")]
+    [ProducesResponseType(typeof(PagedResult<PlanChoiceDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> GetChoicesAsync(
+        [FromQuery] ListPlanChoicesQuery query,
+        CancellationToken cancellationToken)
+    {
+        var result = await _bus.InvokeAsync<Result<PagedResult<PlanChoiceDto>>>(query, cancellationToken);
+        return ToActionResult(result);
+    }
+
+    /// <summary>Reads one plan, with its limits and how many accounts are on it.</summary>
+    /// <param name="id">The plan to read.</param>
+    /// <param name="cancellationToken">Cancellation token for the request.</param>
+    [HttpGet("{id:guid}")]
+    [ProducesResponseType(typeof(PlanDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetAsync(Guid id, CancellationToken cancellationToken)
+    {
+        var result = await _bus.InvokeAsync<Result<PlanDto>>(new GetPlanQuery(id), cancellationToken);
         return ToActionResult(result);
     }
 

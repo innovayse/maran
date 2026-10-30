@@ -26,6 +26,7 @@ import {
 import { stubTasks, stubTaskStream, taskEndFrame, taskFrame } from '../fixtures/stub-tasks-routes'
 import type { Account } from '../../src/types/account'
 import type { Backup } from '../../src/types/backup'
+import type { BackupDestination } from '../../src/types/backupDestination'
 import type { BackupSchedule } from '../../src/types/backupSchedule'
 import type { CronEntry } from '../../src/types/cronEntry'
 import type { Dashboard } from '../../src/types/dashboard'
@@ -219,6 +220,7 @@ const SFTP_USER: SftpUser = {
   ownerName: ACCOUNT.name,
   name: 'deployment-pipeline-user',
   fullName: 'acme-industrial-holdings_deployment-pipeline-user',
+  protocol: 'Sftp',
   createdAt: '2026-08-03T10:00:00Z',
 }
 
@@ -334,7 +336,7 @@ const BACKUP_SCHEDULE: BackupSchedule = {
   nextRunAt: '2026-09-02T02:00:00Z',
 }
 
-const DESTINATIONS = [
+const DESTINATIONS: BackupDestination[] = [
   {
     id: '88888888-8888-8888-8888-888888888881',
     name: 'This server',
@@ -511,7 +513,8 @@ const SCREENS: Screen[] = [
     path: '/databases/grant-repair',
     marker: 'reporting_metrics_warehouse_nightly',
   },
-  { name: 'file transfer', path: '/file-transfer', marker: SFTP_USER.fullName },
+  { name: 'sftp logins', path: '/file-transfer/sftp', marker: SFTP_USER.fullName },
+  { name: 'ftps logins', path: '/file-transfer/ftps', marker: FTP_USER.fullName },
   { name: 'cron', path: '/cron', marker: '/home/acme-industrial-holdings/public_html' },
   { name: 'firewall', path: '/firewall', marker: '198.51.100.0/24' },
   { name: 'backups list', path: '/backups', marker: 'removed-customer-account-name' },

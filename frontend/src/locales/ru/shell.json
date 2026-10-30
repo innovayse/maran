@@ -20,6 +20,8 @@
         "accountsNew": "Новый аккаунт",
         "sitesList": "Все сайты",
         "sitesNew": "Новый сайт",
+        "sftpLogins": "Логины SFTP",
+        "ftpsLogins": "Логины FTPS",
         "databasesList": "Все базы данных",
         "databasesGrantRepair": "Восстановление прав",
         "backupsList": "Все копии",
