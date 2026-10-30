@@ -63,6 +63,14 @@ export interface BackupSchedule {
    * nothing at all about whether it works.
    */
   lastRunAt: string | null
+  /**
+   * When the schedule will next run, as an ISO-8601 string, or `null` while it is switched off.
+   *
+   * Computed by the server from the same rule its sweep decides by, so the screen never works it out
+   * from the hour itself. It can lie in the past when the panel was down across the hour; that run
+   * is taken at the next tick.
+   */
+  nextRunAt: string | null
 }
 
 /**

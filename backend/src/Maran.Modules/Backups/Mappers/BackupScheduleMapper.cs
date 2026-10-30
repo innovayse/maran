@@ -5,11 +5,11 @@ namespace Maran.Modules.Backups.Mappers;
 
 /// <summary>Restates a <see cref="BackupSchedule"/> as the wire shape a settings screen reads.</summary>
 /// <remarks>
-/// A mapper translates; it never decides (rules/csharp.md). Every field is copied across unchanged —
-/// in particular this does NOT compute whether the schedule is due, which is
-/// <see cref="BackupSchedule.IsDue"/>'s answer and belongs to the entity. A due-ness recomputed here
-/// would be a second statement of the rule that the nightly pass does not read, so the two could
-/// disagree and only the screen would show it.
+/// A mapper translates; it never decides (rules/csharp.md). Every field is copied across unchanged,
+/// and the next run is <see cref="BackupSchedule.NextRunAt"/>'s answer, asked of the entity rather
+/// than computed here. A next run recomputed here would be a second statement of the rule that the
+/// sweep's <see cref="BackupSchedule.IsDue"/> does not read, so the two could disagree and only the
+/// screen would show it.
 /// </remarks>
 public static class BackupScheduleMapper
 {
@@ -29,6 +29,7 @@ public static class BackupScheduleMapper
             schedule.DayOfWeekUtc,
             schedule.RetainCount,
             schedule.Enabled,
-            schedule.LastRunAt);
+            schedule.LastRunAt,
+            schedule.NextRunAt());
     }
 }

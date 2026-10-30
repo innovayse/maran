@@ -117,6 +117,7 @@
         "state": "Schedule",
         "on": "Running",
         "off": "Saved, but switched off",
+        "nextRun": "Next run",
         "lastRun": "Last run started",
         "neverRan": "Never run"
       },

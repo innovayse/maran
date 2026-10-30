@@ -23,7 +23,10 @@ public sealed class BackupRunHandlerTests
     /// <summary>The instant the schedule was switched on: a Thursday at 04:00 UTC.</summary>
     private static readonly DateTimeOffset EnabledAt = new(2026, 1, 1, 4, 0, 0, TimeSpan.Zero);
 
-    /// <summary>The following day, just past the schedule's 03:00 hour.</summary>
+    /// <summary>The schedule's first named hour after it was switched on: the next day at 03:00.</summary>
+    private static readonly DateTimeOffset NamedHour = new(2026, 1, 2, 3, 0, 0, TimeSpan.Zero);
+
+    /// <summary>The following day, past the schedule's 03:00 hour.</summary>
     private static readonly DateTimeOffset FirstTick = EnabledAt.AddDays(1).AddMinutes(1);
 
     /// <summary>A terminal event describing a finished archive.</summary>
@@ -75,6 +78,49 @@ public sealed class BackupRunHandlerTests
 
         Assert.Single(world.Agent.Creates);
         Assert.Single(await world.Read().Backups.IgnoreQueryFilters().ToListAsync());
+    }
+
+    /// <summary>A tick just after the schedule was switched on starts nothing and records no run.</summary>
+    /// <remarks>
+    /// Issue #224. The schedule names 03:00 and was switched on at 04:00, so 03:00 today has passed
+    /// but was never owed: the first run is tomorrow's. A rule measuring from "never ran" would take
+    /// a backup here, five minutes after the save.
+    /// </remarks>
+    [Fact]
+    public async Task A_tick_just_after_the_save_starts_nothing()
+    {
+        var accountId = Guid.NewGuid();
+        var world = await World.WithScheduleAsync(accountId, null, EnabledAt.AddMinutes(5), [Created]);
+
+        var started = await world.Handler.HandleAsync(new BackupRunRequested(), CancellationToken.None);
+
+        Assert.Equal(0, started);
+        Assert.Empty(world.Agent.Creates);
+        Assert.Null(world.Read().BackupSchedules.IgnoreQueryFilters().Single().LastRunAt);
+    }
+
+    /// <summary>Ticks from the save through the named hour start exactly one run, at that hour.</summary>
+    /// <remarks>
+    /// The whole first day as the five-minute scheduler sees it: ticks before 03:00 find nothing
+    /// owed, the first tick past it starts one backup and stamps the run, and the tick after that
+    /// finds it already taken.
+    /// </remarks>
+    [Fact]
+    public async Task Ticks_from_the_save_through_the_named_hour_start_exactly_one_run()
+    {
+        var accountId = Guid.NewGuid();
+        var world = await World.WithScheduleAsync(accountId, null, EnabledAt.AddMinutes(5), [Created]);
+
+        var beforeTheHour = await world.Handler.HandleAsync(new BackupRunRequested(), CancellationToken.None);
+        var lastTickBeforeTheHour = await world.At(NamedHour.AddMinutes(-5))
+            .HandleAsync(new BackupRunRequested(), CancellationToken.None);
+        var atTheHour = await world.At(NamedHour).HandleAsync(new BackupRunRequested(), CancellationToken.None);
+        var afterTheHour = await world.At(NamedHour.AddMinutes(5))
+            .HandleAsync(new BackupRunRequested(), CancellationToken.None);
+
+        Assert.Equal([0, 0, 1, 0], [beforeTheHour, lastTickBeforeTheHour, atTheHour, afterTheHour]);
+        Assert.Single(world.Agent.Creates);
+        Assert.Equal(NamedHour, world.Read().BackupSchedules.IgnoreQueryFilters().Single().LastRunAt);
     }
 
     /// <summary>The run stamp is written before the agent is asked for anything.</summary>

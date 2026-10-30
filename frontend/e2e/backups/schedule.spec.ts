@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test'
+import { expect, test, type Locator } from '@playwright/test'
 import { stubAccounts } from '../fixtures/stub-accounts-route'
 import { stubSignedIn } from '../fixtures/stub-auth-routes'
 import { stubBackups } from '../fixtures/stub-backups-routes'
@@ -11,6 +11,9 @@ import { stubModules } from '../fixtures/stub-modules-route'
 import type { Account } from '../../src/types/account'
 import type { BackupSchedule } from '../../src/types/backupSchedule'
 import type { PanelModule } from '../../src/types/module'
+
+// The summary card prints instants; in UTC they read the same on every machine running the suite.
+test.use({ timezoneId: 'UTC' })
 
 const LICENSED: PanelModule[] = [
   { name: 'backups', displayName: 'Backups', tier: 'included', isEnabled: true },
@@ -36,6 +39,7 @@ const ALICE_SCHEDULE: BackupSchedule = {
   retainCount: 4,
   enabled: true,
   lastRunAt: '2026-09-01T02:00:00Z',
+  nextRunAt: '2026-09-08T02:00:00Z',
 }
 
 // The panel invents no default schedule, so a server nobody has configured answers 404 for ever.
@@ -212,4 +216,53 @@ test('an operator reaches the schedule through the shell, without typing a URL',
   await expect(
     page.getByRole('heading', { level: 1, name: 'Backup schedule', exact: true }),
   ).toBeVisible()
+})
+
+/** A host-wide schedule just switched on: it has a next run and has never run. */
+const JUST_ENABLED: BackupSchedule = {
+  id: '66666666-6666-6666-6666-666666666666',
+  accountId: null,
+  destinationId: null,
+  frequency: 'daily',
+  hourUtc: 2,
+  dayOfWeekUtc: null,
+  retainCount: 7,
+  enabled: true,
+  lastRunAt: null,
+  nextRunAt: '2026-10-31T02:00:00Z',
+}
+
+// Issue #224: switching a schedule on runs nothing, and the card used to print the save as "Last
+// run started". The card now names the next run the server computed and says the schedule has
+// never run. The switched-off case is the inverse control: no next run is shown for a schedule
+// that will not act.
+test('the summary card shows the next run and that a just-enabled schedule has never run', async ({
+  page,
+}) => {
+  await stubSignedIn(page)
+  await stubHealthy(page)
+  await stubModules(page, LICENSED)
+  await stubAccounts(page, [ALICE])
+  await stubBackupSchedules(page, {
+    host: JUST_ENABLED,
+    [ALICE.id]: { ...ALICE_SCHEDULE, enabled: false, lastRunAt: null, nextRunAt: null },
+  })
+
+  await page.goto('/backups/schedule')
+
+  const summary = page.locator('dl')
+  const valueOf = (term: string): Locator => {
+    return summary.locator('div').filter({ has: page.getByText(term, { exact: true }) }).locator('dd')
+  }
+
+  await expect(page.getByRole('heading', { name: 'What the server holds' })).toBeVisible()
+  await expect(valueOf('Next run')).toHaveText('31 Oct 2026 02:00')
+  await expect(valueOf('Last run started')).toHaveText('Never run')
+
+  await page.getByRole('combobox', { name: 'Applies to' }).click()
+  await page.getByRole('option', { name: 'alice' }).click()
+
+  await expect(page.getByText('Saved, but switched off')).toBeVisible()
+  await expect(valueOf('Last run started')).toHaveText('Never run')
+  await expect(summary.getByText('Next run', { exact: true })).toHaveCount(0)
 })

@@ -151,6 +151,11 @@ public sealed class BackupScheduleTests : IAsyncLifetime
         Assert.Equal(3, body.RootElement.GetProperty("hourUtc").GetInt32());
         Assert.Equal(7, body.RootElement.GetProperty("retainCount").GetInt32());
         Assert.True(body.RootElement.GetProperty("enabled").GetBoolean());
+
+        // Saving runs nothing, so no run is reported, and the next run is a 03:00 UTC (issue #224).
+        Assert.Equal(JsonValueKind.Null, body.RootElement.GetProperty("lastRunAt").ValueKind);
+        var nextRunAt = body.RootElement.GetProperty("nextRunAt").GetDateTimeOffset().ToUniversalTime();
+        Assert.Equal((3, 0, 0), (nextRunAt.Hour, nextRunAt.Minute, nextRunAt.Second));
     }
 
     /// <summary>A server with no schedule answers 404 rather than an invented default.</summary>

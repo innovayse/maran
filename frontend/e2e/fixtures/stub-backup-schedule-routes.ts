@@ -38,10 +38,17 @@ export const stubBackupSchedules = async (
     if (route.request().method() === 'PUT') {
       writes.push(route.request().postDataJSON())
       const sent = route.request().postDataJSON() as BackupSchedule
+      // Saving runs nothing, so no run is reported. The stub does not restate the server's
+      // next-run rule, so it reports none: a spec about the next run stubs the read instead.
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
-        body: JSON.stringify({ ...sent, id: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', lastRunAt: null }),
+        body: JSON.stringify({
+          ...sent,
+          id: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+          lastRunAt: null,
+          nextRunAt: null,
+        }),
       })
       return
     }

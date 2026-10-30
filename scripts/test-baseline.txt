@@ -1,6 +1,10 @@
 # Committed per-target test baseline. Recorded by 'maran test --accept'; commit the diff.
 # stack<TAB>target<TAB>passed<TAB>failed<TAB>ignored
 #
+# RE-MEASURED 2026-10-30 (issue #224, a schedule's switch-on is not a run): edited by hand. Modules.Backups.Tests
+# 204->209 (0 failed); ArchitectureTests 91 and Sdk.Tests 215 unchanged. Host.IntegrationTests ran filtered to
+# BackupScheduleTests, BackupDestinationTests and BackupsAuthorizationTests (34/0); its row is left to CI.
+# spa: backups/schedule.spec.ts 7->8. Full suite at E2E_PORT=5199: 680 passed / 0 failed / 3 skipped.
 # RE-MEASURED 2026-10-30 (issue #210, a profile for every signed-in person): edited by hand. Modules.Identity.Tests 301->306
 # (--no-build, 0 failed); ArchitectureTests 91 and Sdk.Tests 215 unchanged. Host.IntegrationTests ran filtered to
 # ProfileEndpointTests, EndpointAuthorizationPolicyTests and ControllerRoutesTests (21/0); its row is left to CI.
@@ -332,7 +336,7 @@ backend	Maran.Modules.Notifications.Tests.dll	52	0	0
 backend	Maran.Modules.Tasks.Tests.dll	76	0	0
 backend	Maran.Modules.Ftp.Tests.dll	133	0	0
 backend	Maran.Modules.Monitoring.Tests.dll	70	0	0
-backend	Maran.Modules.Backups.Tests.dll	204	0	0
+backend	Maran.Modules.Backups.Tests.dll	209	0	0
 backend	Maran.Modules.Licensing.Tests.dll	51	0	0
 backend	Maran.Modules.Firewall.Tests.dll	255	0	0
 backend	Maran.Modules.Cron.Tests.dll	187	0	0
@@ -367,7 +371,7 @@ spa	backups/destinations.spec.ts	9	0	0
 spa	backups/list.spec.ts	15	0	0
 spa	backups/reachability.spec.ts	1	0	0
 spa	backups/restore.spec.ts	12	0	0
-spa	backups/schedule.spec.ts	7	0	0
+spa	backups/schedule.spec.ts	8	0	0
 spa	backups/weekday-names.spec.ts	1	0	0
 spa	cron/description.spec.ts	3	0	0
 spa	cron/entries.spec.ts	7	0	0

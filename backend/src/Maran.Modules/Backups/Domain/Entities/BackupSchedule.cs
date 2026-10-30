@@ -100,15 +100,26 @@ public sealed class BackupSchedule
     public bool Enabled { get; private set; }
 
     /// <summary>
-    /// The instant from which the next run is measured: the start of the most recent run, or the
-    /// instant the schedule was last switched on, or <c>null</c> for a schedule that has never been
-    /// enabled.
+    /// The instant the schedule was last switched on, or <c>null</c> while it is switched off.
     /// </summary>
     /// <remarks>
-    /// It is written BEFORE a run rather than after it. A panel that dies halfway through a backup
-    /// would otherwise find the schedule still due at the next five-minute tick and start a second
-    /// run on top of the first — and "the first one is still going" is exactly the state in which
-    /// starting another is worst.
+    /// It exists so that switching a schedule on can be remembered without pretending a backup ran.
+    /// The first run is measured from it: an operator enabling a 03:00 daily schedule at two in the
+    /// afternoon gets the next 03:00, not a backup within five minutes because 03:00 today is already
+    /// in the past. Switching the schedule off clears it, so a value here always means "enabled since".
+    /// </remarks>
+    public DateTimeOffset? EnabledAt { get; private set; }
+
+    /// <summary>
+    /// The instant the most recent run was started, or <c>null</c> if this schedule has never started
+    /// one.
+    /// </summary>
+    /// <remarks>
+    /// Only <see cref="MarkRunStarted"/> writes it, so a value here is always a real run. It is written
+    /// BEFORE a run rather than after it: a panel that dies halfway through a backup would otherwise
+    /// find the schedule still due at the next five-minute tick and start a second run on top of the
+    /// first — and "the first one is still going" is exactly the state in which starting another is
+    /// worst.
     /// </remarks>
     public DateTimeOffset? LastRunAt { get; private set; }
 
@@ -123,7 +134,7 @@ public sealed class BackupSchedule
     /// <remarks>
     /// Creation cannot enable a schedule. Switching one on is a separate act with a consequence — the
     /// server starts writing archives — and <see cref="Reconfigure"/> is where that act is recorded,
-    /// including the stamp that stops the first run happening the moment the form is saved.
+    /// as <see cref="EnabledAt"/>, which stops the first run happening the moment the form is saved.
     /// </remarks>
     public BackupSchedule(
         Guid id,
@@ -142,6 +153,7 @@ public sealed class BackupSchedule
         DayOfWeekUtc = dayOfWeekUtc;
         RetainCount = retainCount;
         Enabled = false;
+        EnabledAt = null;
         LastRunAt = null;
     }
 
@@ -162,18 +174,17 @@ public sealed class BackupSchedule
     /// <para>
     /// CRUD-shaped rather than a transition, because this is one form being saved and the domain has
     /// no opinion about which fields moved (rules/csharp.md "Domain models are rich"). The one
-    /// opinion it does have is the stamp below.
+    /// opinion it does have is when the schedule was switched on, below.
     /// </para>
     /// <para>
-    /// <b>Switching a schedule ON stamps <see cref="LastRunAt"/> with the moment it was switched
-    /// on.</b> Without that, an operator enabling a 03:00 daily schedule at two in the afternoon
-    /// would get a backup within five minutes — because 03:00 today is in the past and the schedule
-    /// has never run — which is the surprise the off-by-default rule exists to avoid, arriving one
-    /// click later. With it, the first run is the next 03:00, which is what the form said.
+    /// <b>Switching a schedule ON records <see cref="EnabledAt"/>; switching it OFF clears it.</b>
+    /// The next run is measured from the later of that instant and the last run, so a schedule
+    /// switched on after its hour has passed waits for the next occurrence, which is what the form
+    /// said. <see cref="LastRunAt"/> is not touched: no backup has run because a form was saved.
     /// </para>
     /// <para>
-    /// Re-saving an already-enabled schedule does NOT re-stamp: that would let a form saved once a
-    /// day postpone the backup for ever, and the postponement would be invisible.
+    /// Re-saving an already-enabled schedule does NOT move <see cref="EnabledAt"/>: that would let a
+    /// form saved once a day postpone the backup for ever, and the postponement would be invisible.
     /// </para>
     /// </remarks>
     public void Reconfigure(
@@ -196,7 +207,12 @@ public sealed class BackupSchedule
 
         if (switchedOn)
         {
-            LastRunAt = at;
+            EnabledAt = at;
+        }
+
+        if (!enabled)
+        {
+            EnabledAt = null;
         }
     }
 
@@ -215,38 +231,75 @@ public sealed class BackupSchedule
 
     /// <summary>Whether a run should be started for this schedule now.</summary>
     /// <param name="now">The current instant, taken from <c>IClock</c>.</param>
-    /// <returns><c>true</c> when the most recent occurrence has passed and has not been run.</returns>
+    /// <returns><c>true</c> when the next run has arrived; never for a disabled schedule.</returns>
     /// <remarks>
     /// <para>
-    /// <b>The rule is "the most recent occurrence at or before now has not been run yet", not "the
-    /// hour matches".</b> An hour match would fire on every five-minute tick within the hour — twelve
-    /// backups a night — unless something else remembered, and the something else is
-    /// <see cref="LastRunAt"/> either way. Comparing against the occurrence instead makes the
-    /// remembering the whole rule: a tick at 03:05 and a tick at 03:10 compute the same 03:00, and
-    /// only the first of them finds it unrun.
+    /// <b>The rule is "the most recent occurrence at or before now is later than the anchor", not
+    /// "the hour matches".</b> An hour match would fire on every five-minute tick within the hour —
+    /// twelve backups a night — unless something else remembered, and the something else is the run
+    /// stamp either way. Comparing occurrences makes the remembering the whole rule: a tick at 03:05
+    /// and a tick at 03:10 compute the same 03:00, and only the first of them finds it unrun.
     /// </para>
     /// <para>
-    /// It also means a panel that was switched off across 03:00 takes the backup at the next tick
-    /// after it comes back, rather than skipping the night — which is the behaviour an operator
-    /// expects of a nightly backup and NOT the behaviour of a system that only asks "is it 03:00
-    /// now".
+    /// It is stated through <see cref="NextRunAt"/> — the next occurrence after the anchor has
+    /// arrived — so the screen's "next run" and this sweep's decision are one computation, not two
+    /// that could disagree. A panel that was switched off across 03:00 therefore takes the backup at
+    /// the next tick after it comes back, rather than skipping the night.
     /// </para>
     /// </remarks>
     public bool IsDue(DateTimeOffset now)
     {
-        if (!Enabled)
+        var next = NextRunAt();
+
+        return next is not null && next.Value <= now;
+    }
+
+    /// <summary>When this schedule will next run, or <c>null</c> while it is switched off.</summary>
+    /// <returns>The first occurrence strictly after the anchor, or <c>null</c> for a disabled schedule.</returns>
+    /// <remarks>
+    /// <para>
+    /// <b>The anchor is the later of <see cref="LastRunAt"/> and <see cref="EnabledAt"/>.</b> The last
+    /// run alone would make a schedule switched off and on again due at once, because its run was
+    /// before the switch and the hour has passed since; the switch-on alone would forget the run.
+    /// The later of the two is the instant from which nothing has yet been owed.
+    /// </para>
+    /// <para>
+    /// The answer can lie in the past: a panel that was down across the hour still owes that run,
+    /// and <see cref="IsDue"/> takes it at the next tick.
+    /// </para>
+    /// </remarks>
+    public DateTimeOffset? NextRunAt()
+    {
+        if (!Enabled || EnabledAt is null)
         {
-            return false;
+            return null;
         }
 
-        var occurrence = MostRecentOccurrence(now);
+        var anchor = LastRunAt is not null && LastRunAt.Value > EnabledAt.Value
+            ? LastRunAt.Value
+            : EnabledAt.Value;
 
-        return LastRunAt is null || LastRunAt < occurrence;
+        return MostRecentOccurrence(anchor).Add(Period());
+    }
+    /// <summary>The time between two occurrences of this schedule.</summary>
+    /// <returns>A week for a weekly schedule with a weekday; a day otherwise.</returns>
+    /// <remarks>
+    /// The same reading <see cref="MostRecentOccurrence"/> makes: a weekly schedule with no weekday
+    /// is treated as daily, so the two can never disagree about which occurrence follows which.
+    /// </remarks>
+    private TimeSpan Period()
+    {
+        if (Frequency == BackupFrequency.Daily || DayOfWeekUtc is null)
+        {
+            return TimeSpan.FromDays(1);
+        }
+
+        return TimeSpan.FromDays(7);
     }
 
     /// <summary>The latest instant this schedule was supposed to run, at or before <paramref name="now"/>.</summary>
-    /// <param name="now">The current instant.</param>
-    /// <returns>The occurrence, always in the past or exactly now.</returns>
+    /// <param name="now">The instant to measure back from.</param>
+    /// <returns>The occurrence, always before or exactly at <paramref name="now"/>.</returns>
     /// <remarks>
     /// <para>
     /// Total by construction rather than by a fallback: for a daily schedule the answer is today's

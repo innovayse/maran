@@ -33,6 +33,7 @@ const WEEKLY: BackupSchedule = {
   retainCount: 4,
   enabled: true,
   lastRunAt: '2026-09-01T02:00:00Z',
+  nextRunAt: '2026-09-08T02:00:00Z',
 }
 
 /**

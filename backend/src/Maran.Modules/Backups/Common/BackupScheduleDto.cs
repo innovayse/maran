@@ -7,7 +7,8 @@ namespace Maran.Modules.Backups.Common;
 /// It carries <see cref="LastRunAt"/> because a schedule's most useful fact is whether it has
 /// actually run — a screen showing only "enabled, daily at 03:00" tells an operator what was
 /// configured and nothing about whether it works, which is the whole question a backup schedule
-/// raises. It carries the destination as an identifier and not a path: the screen resolves it
+/// raises. It carries <see cref="NextRunAt"/> beside it so the screen can say when the schedule will
+/// act, as the entity computes it, rather than leaving the reader to work it out from the hour. It carries the destination as an identifier and not a path: the screen resolves it
 /// against the destinations list, and a path repeated here would be a second statement of where the
 /// server keeps archives.
 /// </remarks>
@@ -20,6 +21,10 @@ namespace Maran.Modules.Backups.Common;
 /// <param name="RetainCount">How many successful backups are kept before the oldest are pruned.</param>
 /// <param name="Enabled">Whether the schedule actually runs.</param>
 /// <param name="LastRunAt">When a run was last started, or <c>null</c> if it never has been.</param>
+/// <param name="NextRunAt">
+/// When the schedule will next run, or <c>null</c> while it is switched off. It may lie in the past
+/// when the panel was down across the hour; that run is taken at the next tick.
+/// </param>
 public sealed record BackupScheduleDto(
     Guid Id,
     Guid? AccountId,
@@ -29,4 +34,5 @@ public sealed record BackupScheduleDto(
     DayOfWeek? DayOfWeekUtc,
     int RetainCount,
     bool Enabled,
-    DateTimeOffset? LastRunAt);
+    DateTimeOffset? LastRunAt,
+    DateTimeOffset? NextRunAt);

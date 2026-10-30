@@ -55,6 +55,9 @@ public sealed class BackupScheduleConfiguration : IEntityTypeConfiguration<Backu
         builder.Property(schedule => schedule.Enabled)
             .IsRequired();
 
+        // Two columns, two facts: when the schedule was switched on, and when a run last started.
+        builder.Property(schedule => schedule.EnabledAt);
+
         builder.Property(schedule => schedule.LastRunAt);
 
         // At most one schedule per account: two would take two backups a night and neither of them
