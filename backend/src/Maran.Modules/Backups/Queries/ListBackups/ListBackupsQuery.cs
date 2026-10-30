@@ -1,13 +1,16 @@
 namespace Maran.Modules.Backups.Queries.ListBackups;
 
 /// <summary>
-/// Lists the backups the caller may see: their own account's, or every account's for an
-/// administrator.
+/// Lists the backups the caller may see, optionally narrowed to one account.
 /// </summary>
 /// <remarks>
-/// Parameterless on purpose. There is no account parameter because there is nothing for one to do:
-/// the context's global query filter already scopes the read to the caller's tenant, so a customer
-/// supplying an account id could only ever ask for rows they were going to be shown anyway — or for
-/// rows they were not, which is the question this type declines to make askable.
+/// The tenant scope never comes from this query: the context's global query filter scopes the read to
+/// the caller's own account (rules/security.md item 6). <paramref name="AccountId"/> only narrows that
+/// scope further, and the two are combined with AND — a customer naming another account's id gets an
+/// empty list, never that account's rows.
 /// </remarks>
-public sealed record ListBackupsQuery();
+/// <param name="AccountId">
+/// The account whose backups to list, or <c>null</c> for every account the caller may see. Bound from the
+/// <c>accountId</c> query-string parameter.
+/// </param>
+public sealed record ListBackupsQuery(Guid? AccountId = null);

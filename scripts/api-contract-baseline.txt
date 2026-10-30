@@ -195,8 +195,10 @@ POST /api/v1/sites/php-versions/install  ->  InstallPhpVersionCommand
   GET /api/v1/account-home-groups
   GET /api/v1/accounts
   GET /api/v1/accounts/me
+  GET /api/v1/accounts/me/resource-summary
   GET /api/v1/accounts/plans
   GET /api/v1/accounts/{}
+  GET /api/v1/accounts/{}/resource-summary
   GET /api/v1/audit
   GET /api/v1/backup-destinations
   GET /api/v1/backup-schedules

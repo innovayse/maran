@@ -62,6 +62,10 @@ public sealed class SftpModule : IPanelModule
         // advisory lock it holds is scoped to that transaction and must be released by its commit.
         services.AddScoped<ISftpUserSlotGate, SftpUserSlotGate>();
 
+        // This module's answer to how many SFTP logins an account owns, for the Accounts module's resource
+        // summary. Scoped, because it reads through the request-scoped, tenant-filtered context.
+        services.AddScoped<IAccountResourceCounter, SftpAccountResourceCounter>();
+
         // The shared resource pool the panel-wide ResxErrorTextProvider resolves error codes and
         // Manifest.DisplayNameKey against. Module-internal lookups inject IStringLocalizer<T>
         // directly instead.

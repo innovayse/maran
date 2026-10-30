@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { ref, type Ref } from 'vue'
 import { useSitesApi } from '../composables/apis/useSitesApi'
 import { ApiError } from '../composables/useApi'
+import type { AccountListFilter } from '../types/accountListFilter'
 import type { CreateSiteRequest, Site, SiteDetail } from '../types/site'
 import type { PhpVersion } from '../types/phpVersion'
 import type {
@@ -124,12 +125,13 @@ export const useSitesStore = defineStore('sites', () => {
 
   /**
    * Loads the site list, replacing what is held.
+   * @param filter The account the list is narrowed to; empty for every row the caller may see.
    * @returns Resolves once the request has settled, successfully or not.
    */
-  const load = async (): Promise<void> => {
+  const load = async (filter: AccountListFilter): Promise<void> => {
     loading.value = true
     try {
-      sites.value = await api.list()
+      sites.value = await api.list(filter)
       errorMessage.value = null
       isLoaded.value = true
     } catch (error) {

@@ -1,3 +1,4 @@
+import type { AccountListFilter } from './accountListFilter'
 /**
  * Outward view of one customer SFTP login, mirroring the backend's `SftpUserDto` field-for-field.
  *
@@ -107,10 +108,11 @@ export interface RevealedSftpCredential {
 export interface SftpApi {
   /**
    * Lists the SFTP logins the caller may see.
+   * @param filter The account the list is narrowed to; empty for every row the caller may see.
    * @param signal Optional abort signal to cancel the in-flight request.
    * @returns The logins, in the order the panel reports them.
    */
-  list: (signal?: AbortSignal) => Promise<SftpUser[]>
+  list: (filter: AccountListFilter, signal?: AbortSignal) => Promise<SftpUser[]>
 
   /**
    * Creates an SFTP login.

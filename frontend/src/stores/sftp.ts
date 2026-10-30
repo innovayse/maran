@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { ref, type Ref } from 'vue'
 import { useSftpApi } from '../composables/apis/useSftpApi'
 import { ApiError } from '../composables/useApi'
+import type { AccountListFilter } from '../types/accountListFilter'
 import type {
   CreateSftpUserRequest,
   RevealedSftpCredential,
@@ -63,12 +64,13 @@ export const useSftpStore = defineStore('sftp', () => {
 
   /**
    * Loads the login list, replacing what is held.
+   * @param filter The account the list is narrowed to; empty for every row the caller may see.
    * @returns Resolves once the request has settled, successfully or not.
    */
-  const load = async (): Promise<void> => {
+  const load = async (filter: AccountListFilter): Promise<void> => {
     loading.value = true
     try {
-      sftpUsers.value = await api.list()
+      sftpUsers.value = await api.list(filter)
       errorMessage.value = null
       isLoaded.value = true
     } catch (error) {

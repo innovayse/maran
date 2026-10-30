@@ -20,9 +20,10 @@ namespace Maran.Modules.Sftp.Queries.ListSftpUsers;
 /// untouched — indeed that it CANNOT reach the agent, because no handler here may be handed one.
 /// </para>
 /// <para>
-/// There is no <c>Where</c> clause on the account here, and deliberately not one: the context's
-/// global query filter supplies it, so this handler could not leak another tenant's rows even if it
-/// were rewritten carelessly (spec §8).
+/// The tenant boundary is not the <c>Where</c> clause on the account here: the context's global
+/// query filter supplies it, so this handler could not leak another tenant's rows even if it were
+/// rewritten carelessly (spec §8). The clause only narrows that scope to the account the caller
+/// asked for, and is ANDed with the filter, so a customer naming another account gets nothing.
 /// </para>
 /// </remarks>
 public sealed class ListSftpUsersQueryHandler
@@ -38,7 +39,7 @@ public sealed class ListSftpUsersQueryHandler
     }
 
     /// <summary>Returns the caller's SFTP logins, ordered by creation time.</summary>
-    /// <param name="query">The (parameterless) list request.</param>
+    /// <param name="query">The list request; its optional account narrows the tenant scope.</param>
     /// <param name="cancellationToken">Cancels the read.</param>
     /// <returns>A successful result carrying the logins; this operation never fails.</returns>
     public async Task<Result<IReadOnlyList<SftpUserDto>>> HandleAsync(
@@ -47,6 +48,7 @@ public sealed class ListSftpUsersQueryHandler
     {
         var sftpUsers = await _dbContext.SftpUsers
             .AsNoTracking()
+            .Where(sftpUser => query.AccountId == null || sftpUser.AccountId == query.AccountId)
             .OrderBy(sftpUser => sftpUser.CreatedAt)
             .Select(sftpUser => new SftpUserDto(
                 sftpUser.Id,

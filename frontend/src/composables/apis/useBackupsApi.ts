@@ -1,4 +1,6 @@
 import { useApi } from '../useApi'
+import { accountListQuery } from '../../utils/accountListQuery'
+import type { AccountListFilter } from '../../types/accountListFilter'
 import type {
   Backup,
   BackupsApi,
@@ -25,11 +27,12 @@ export const useBackupsApi = (): BackupsApi => {
   /**
    * Lists the backups the caller may see. Another customer's rows are not in the answer at all —
    * the server scopes the query, so there is nothing here to filter.
+   * @param filter The account the list is narrowed to; empty for every row the caller may see.
    * @param signal Optional abort signal to cancel the in-flight request.
    * @returns The backups, in the order the panel reports them.
    */
-  const list = (signal?: AbortSignal): Promise<Backup[]> => {
-    return api.get<Backup[]>(BACKUPS_PATH, signal)
+  const list = (filter: AccountListFilter, signal?: AbortSignal): Promise<Backup[]> => {
+    return api.get<Backup[]>(`${BACKUPS_PATH}${accountListQuery(filter)}`, signal)
   }
 
   /**

@@ -223,6 +223,28 @@ public sealed class SitesAuthorizationTests : IAsyncLifetime
         Assert.Equal(["own.example.com"], domains);
     }
 
+    /// <summary>A customer naming another tenant's account in the filter is listed nothing.</summary>
+    /// <remarks>
+    /// The <c>accountId</c> filter is ANDed with the tenant filter, never in place of it. The customer's
+    /// own row is listed without the filter (the test above), so an endpoint that ignored the parameter
+    /// would answer with that row here, and one that let it replace the tenant scope would answer with
+    /// the stranger's.
+    /// </remarks>
+    [Fact]
+    public async Task A_customer_naming_another_tenants_account_is_listed_no_sites()
+    {
+        await using var factory = CreateFactory();
+        await MigrateAsync(factory);
+        var world = await SeedAsync(factory);
+        using var client = await SignInAsync(factory, "customer");
+
+        var response = await client.GetAsync($"/api/v1/sites?accountId={world.StrangerAccountId}");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        Assert.Equal(0, body.RootElement.GetArrayLength());
+    }
+
     /// <summary>An unknown site identifier answers not found rather than failing.</summary>
     [Theory]
     [MemberData(nameof(SiteScopedEndpoints))]
@@ -378,7 +400,7 @@ public sealed class SitesAuthorizationTests : IAsyncLifetime
         sites.Sites.AddRange(ownSite, strangerSite);
         await sites.SaveChangesAsync();
 
-        return new SeededWorld(ownSite.Id, strangerSite.Id);
+        return new SeededWorld(ownSite.Id, strangerSite.Id, stranger.Id);
     }
 
     /// <summary>Builds one PHP-backed site row.</summary>
@@ -462,5 +484,6 @@ public sealed class SitesAuthorizationTests : IAsyncLifetime
     /// <summary>The identifiers a seeded world hands to the tests.</summary>
     /// <param name="OwnSiteId">The site belonging to the signed-in customer.</param>
     /// <param name="StrangerSiteId">The site belonging to the other tenant.</param>
-    private sealed record SeededWorld(Guid OwnSiteId, Guid StrangerSiteId);
+    /// <param name="StrangerAccountId">The other tenant's account, which a customer may name in a filter.</param>
+    private sealed record SeededWorld(Guid OwnSiteId, Guid StrangerSiteId, Guid StrangerAccountId);
 }

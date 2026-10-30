@@ -114,6 +114,22 @@
       "saving": "Saving…",
       "planSaved": "The plan was changed.",
       "ownerEmailSaved": "The owner email was changed."
+    },
+    "resources": {
+      "heading": "Resources",
+      "loading": "Counting the account's resources…",
+      "unavailable": "Unavailable",
+      "unreachable": "The panel could not be reached, so the resources were not counted.",
+      "usedOfLimit": "{used} of {limit}",
+      "usedNoLimit": "{used} · no limit",
+      "kinds": {
+        "sites": "Sites",
+        "databases": "Databases",
+        "sftpLogins": "SFTP logins",
+        "ftpLogins": "FTPS logins",
+        "cronEntries": "Cron entries",
+        "backups": "Backups"
+      }
     }
   }
 }

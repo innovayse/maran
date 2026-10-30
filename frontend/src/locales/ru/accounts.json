@@ -114,6 +114,22 @@
       "saving": "Сохранение…",
       "planSaved": "Тариф изменён.",
       "ownerEmailSaved": "Email владельца изменён."
+    },
+    "resources": {
+      "heading": "Ресурсы",
+      "loading": "Подсчёт ресурсов аккаунта…",
+      "unavailable": "Недоступно",
+      "unreachable": "Не удалось связаться с панелью, поэтому ресурсы не подсчитаны.",
+      "usedOfLimit": "{used} из {limit}",
+      "usedNoLimit": "{used} · без ограничения",
+      "kinds": {
+        "sites": "Сайты",
+        "databases": "Базы данных",
+        "sftpLogins": "SFTP-логины",
+        "ftpLogins": "FTPS-логины",
+        "cronEntries": "Задания cron",
+        "backups": "Резервные копии"
+      }
     }
   }
 }

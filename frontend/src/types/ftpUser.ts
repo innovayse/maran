@@ -1,3 +1,4 @@
+import type { AccountListFilter } from './accountListFilter'
 /**
  * The customer FTPS login domain: the row, the request that creates one, and the two responses that
  * carry a password exactly once.
@@ -97,10 +98,11 @@ export interface FtpUserPassword {
 export interface FtpUsersApi {
   /**
    * Lists the FTPS logins the caller may see.
+   * @param filter The account the list is narrowed to; empty for every row the caller may see.
    * @param signal Optional abort signal to cancel the in-flight request.
    * @returns The logins, in the order the panel reports them.
    */
-  list: (signal?: AbortSignal) => Promise<FtpUser[]>
+  list: (filter: AccountListFilter, signal?: AbortSignal) => Promise<FtpUser[]>
 
   /**
    * Creates an FTPS login.

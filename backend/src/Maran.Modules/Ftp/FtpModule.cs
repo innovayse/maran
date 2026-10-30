@@ -62,6 +62,10 @@ public sealed class FtpModule : IPanelModule
         // advisory lock it holds is scoped to that transaction and must be released by its commit.
         services.AddScoped<IFtpUserSlotGate, FtpUserSlotGate>();
 
+        // This module's answer to how many FTPS logins an account owns, for the Accounts module's resource
+        // summary. Scoped, because it reads through the request-scoped, tenant-filtered context.
+        services.AddScoped<IAccountResourceCounter, FtpAccountResourceCounter>();
+
         // Scoped for the journal it holds. Its work is unattended — it runs for a certificate the
         // Ssl module installed, not for a caller — which is exactly why it exists as one service
         // rather than as logic inside whatever happens to notice.

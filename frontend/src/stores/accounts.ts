@@ -3,6 +3,7 @@ import { ref, type Ref } from 'vue'
 import { useAccountsApi } from '../composables/apis/useAccountsApi'
 import { ApiError } from '../composables/useApi'
 import type { Account, AccountDetail, CreateAccountRequest, MyAccount, Plan } from '../types/account'
+import type { AccountResourceSummary, AccountResourceSummaryRead } from '../types/accountResourceSummary'
 
 /**
  * Owns the hosting accounts list and the create-account workflow. The list and form pages read
@@ -68,6 +69,15 @@ export const useAccountsStore = defineStore('accounts', () => {
    * last load succeeded or has not been attempted yet.
    */
   const mineErrorMessage: Ref<string | null> = ref(null)
+
+  /**
+   * Where the read of the detail page's account summary stands. Kept apart from {@link selected} so
+   * a failed count never blanks the account itself.
+   */
+  const resourceSummary: Ref<AccountResourceSummaryRead> = ref({ state: 'loading' })
+
+  /** Where the read of the caller's own account summary stands. */
+  const mineResourceSummary: Ref<AccountResourceSummaryRead> = ref({ state: 'loading' })
 
   /**
    * Loads the account list, replacing what is held.
@@ -241,6 +251,44 @@ export const useAccountsStore = defineStore('accounts', () => {
   }
 
   /**
+   * Reads one summary and states how the read ended, never throwing.
+   * @param read The request to make.
+   * @returns The outcome: the summary, the server's refusal, or an unreachable API.
+   */
+  const readSummary = async (read: () => Promise<AccountResourceSummary>): Promise<AccountResourceSummaryRead> => {
+    try {
+      return { state: 'loaded', summary: await read() }
+    } catch (error) {
+      return error instanceof ApiError ? { state: 'refused', message: error.message } : { state: 'unreachable' }
+    }
+  }
+
+  /**
+   * Reads what one account holds against its plan into {@link resourceSummary}. The previous
+   * account's summary is dropped first, so the card never shows one account's counts under
+   * another's name while the request is in flight.
+   * @param id The account to read.
+   * @returns Resolves once the request has settled, successfully or not.
+   */
+  const loadResourceSummary = async (id: string): Promise<void> => {
+    resourceSummary.value = { state: 'loading' }
+    resourceSummary.value = await readSummary(() => {
+      return api.getResourceSummary(id)
+    })
+  }
+
+  /**
+   * Reads what the caller's own account holds against its plan into {@link mineResourceSummary}.
+   * @returns Resolves once the request has settled, successfully or not.
+   */
+  const loadMineResourceSummary = async (): Promise<void> => {
+    mineResourceSummary.value = { state: 'loading' }
+    mineResourceSummary.value = await readSummary(() => {
+      return api.getMyResourceSummary()
+    })
+  }
+
+  /**
    * Runs one lifecycle call and folds the account it returns back into both the held list and
    * {@link selected}, so a list opened behind a detail page does not go stale.
    * @param call The lifecycle call to make.
@@ -318,5 +366,9 @@ export const useAccountsStore = defineStore('accounts', () => {
     reactivate,
     remove,
     loadMine,
+    resourceSummary,
+    mineResourceSummary,
+    loadResourceSummary,
+    loadMineResourceSummary,
   }
 })

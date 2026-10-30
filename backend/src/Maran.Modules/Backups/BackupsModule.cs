@@ -80,6 +80,10 @@ public sealed class BackupsModule : IPanelModule
         // that contract or not at all — and "not at all" is a state it is built to observe.
         services.AddScoped<IAccountBackupService, AccountBackupService>();
 
+        // This module's answer to how many backups an account owns, for the Accounts module's resource
+        // summary. Scoped, because it reads through the request-scoped, tenant-filtered context.
+        services.AddScoped<IAccountResourceCounter, BackupAccountResourceCounter>();
+
         // Scoped, because both write through the request-scoped context — resolved once per
         // Wolverine message, the same way the Tasks module resolves its own retention handler. The
         // Host schedules BackupRunRequested every five minutes; these are what run when it and the

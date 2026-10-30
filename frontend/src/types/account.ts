@@ -1,3 +1,5 @@
+import type { AccountResourceSummary } from './accountResourceSummary'
+
 /**
  * Lifecycle state of a hosting account, mirroring the backend's
  * `Maran.Modules.Accounts.Domain.AccountStatus` enum. The API serializes
@@ -225,4 +227,19 @@ export interface AccountsApi {
    * @returns The number of bytes the deletion reclaimed, as the agent reported it.
    */
   remove: (id: string, signal?: AbortSignal) => Promise<number>
+
+  /**
+   * Reads what one account holds against its plan.
+   * @param id The account's identity.
+   * @param signal Optional abort signal to cancel the in-flight request.
+   * @returns One row per resource kind this server counts.
+   */
+  getResourceSummary: (id: string, signal?: AbortSignal) => Promise<AccountResourceSummary>
+
+  /**
+   * Reads what the caller's own account holds against its plan.
+   * @param signal Optional abort signal to cancel the in-flight request.
+   * @returns One row per resource kind this server counts.
+   */
+  getMyResourceSummary: (signal?: AbortSignal) => Promise<AccountResourceSummary>
 }

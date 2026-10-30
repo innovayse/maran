@@ -1,3 +1,4 @@
+import type { AccountListFilter } from './accountListFilter'
 /**
  * Outward view of one customer MySQL database, mirroring the backend's `DatabaseDto`
  * field-for-field.
@@ -108,10 +109,11 @@ export interface RevealedDatabaseCredential {
 export interface DatabasesApi {
   /**
    * Lists the databases the caller may see.
+   * @param filter The account the list is narrowed to; empty for every row the caller may see.
    * @param signal Optional abort signal to cancel the in-flight request.
    * @returns The databases, in the order the panel reports them.
    */
-  list: (signal?: AbortSignal) => Promise<Database[]>
+  list: (filter: AccountListFilter, signal?: AbortSignal) => Promise<Database[]>
 
   /**
    * Creates a database and its dedicated user.

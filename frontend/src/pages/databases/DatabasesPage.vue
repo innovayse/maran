@@ -24,8 +24,9 @@
  * dialog's close, so a navigation ends the one showing; nothing is written to storage, so a reload
  * ends it too.
  */
-import { computed, onBeforeUnmount, onMounted, ref, useTemplateRef, type ComputedRef, type Ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, useTemplateRef, watch, type ComputedRef, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
+import UiActiveFilter from '../../components/ui/UiActiveFilter.vue'
 import UiAlert from '../../components/ui/UiAlert.vue'
 import UiButton from '../../components/ui/UiButton.vue'
 import UiCard from '../../components/ui/UiCard.vue'
@@ -45,6 +46,7 @@ import UiToast from '../../components/ui/UiToast.vue'
 import DatabaseCreateForm from '../../components/databases/DatabaseCreateForm.vue'
 import DatabaseCreatedDialog from '../../components/databases/DatabaseCreatedDialog.vue'
 import { useAccountChoice } from '../../composables/useAccountChoice'
+import { useAccountFilter } from '../../composables/useAccountFilter'
 import { useCallerRole } from '../../composables/useCallerRole'
 import { useDatabasesStore } from '../../stores/databases'
 import { useLocaleStore } from '../../stores/locale'
@@ -57,6 +59,7 @@ type PendingAction = 'resetPassword' | 'drop'
 const { t } = useI18n()
 const store = useDatabasesStore()
 const { fixedAccountId, accounts, ownerName, load: loadAccounts } = useAccountChoice()
+const { filter: accountListFilter, isActive: isAccountFiltered, text: accountFilterText, clear: clearAccountFilter } = useAccountFilter()
 const { isAdmin } = useCallerRole()
 const localeStore = useLocaleStore()
 
@@ -116,13 +119,21 @@ const accountName = (id: string): string => {
 }
 
 /**
+ * Loads the database list, narrowed to the account the URL names when it names one.
+ * @returns Resolves once the request has settled.
+ */
+const loadList = async (): Promise<void> => {
+  await store.load(accountListFilter.value)
+}
+
+/**
  * Loads the two lists the screen needs: the databases themselves and the accounts one can be
  * created for. Neither is written into the SPA.
  * @returns Resolves once both requests have settled.
  */
 const refresh = async (): Promise<void> => {
   // A customer's own account is read instead of the administrator-only list (useAccountChoice).
-  await Promise.all([store.load(), loadAccounts()])
+  await Promise.all([loadList(), loadAccounts()])
 }
 
 /**
@@ -195,6 +206,9 @@ const dismissNotice = (): void => {
 
 onMounted(refresh)
 
+// "Show all" and a link to another account change only the query, so the page is not remounted.
+watch(() => {return accountListFilter.value.accountId}, loadList)
+
 // The credential must not survive a navigation. The store outlives this page, so leaving the
 // screen without this would leave the password in memory for the next visit to render.
 onBeforeUnmount(dismissCredential)
@@ -227,6 +241,13 @@ onBeforeUnmount(dismissCredential)
       :fixed-account-id="fixedAccountId"
       :submitting="store.creating"
       @submit="create"
+    />
+
+    <UiActiveFilter
+      v-if="isAccountFiltered"
+      :text="accountFilterText"
+      :clear-label="t('common.accountFilter.showAll')"
+      @clear="clearAccountFilter"
     />
 
     <UiCard>

@@ -45,13 +45,15 @@ public sealed class FtpUsersController : BaseApiController
     }
 
     /// <summary>Lists the FTPS logins the caller may see.</summary>
+    /// <param name="query">The optional <c>accountId</c> filter, ANDed with the caller's tenant scope.</param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpGet]
     [ProducesResponseType(typeof(IReadOnlyList<FtpUserDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-    public async Task<IActionResult> GetAllAsync(CancellationToken cancellationToken)
+    public async Task<IActionResult> GetAllAsync(
+        [FromQuery] ListFtpUsersQuery query,
+        CancellationToken cancellationToken)
     {
-        var query = new ListFtpUsersQuery();
         return ToActionResult(await _bus.InvokeAsync<Result<IReadOnlyList<FtpUserDto>>>(query, cancellationToken));
     }
 

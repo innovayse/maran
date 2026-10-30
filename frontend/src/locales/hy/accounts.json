@@ -114,6 +114,22 @@
       "saving": "Պահպանում…",
       "planSaved": "Սակագինը փոխվեց։",
       "ownerEmailSaved": "Սեփականատիրոջ էլ. հասցեն փոխվեց։"
+    },
+    "resources": {
+      "heading": "Ռեսուրսներ",
+      "loading": "Հաշվի ռեսուրսները հաշվարկվում են…",
+      "unavailable": "Անհասանելի է",
+      "unreachable": "Չհաջողվեց կապվել վահանակի հետ, ուստի ռեսուրսները չհաշվվեցին։",
+      "usedOfLimit": "{used}՝ {limit}-ից",
+      "usedNoLimit": "{used} · առանց սահմանափակման",
+      "kinds": {
+        "sites": "Կայքեր",
+        "databases": "Տվյալների բազաներ",
+        "sftpLogins": "SFTP մուտքեր",
+        "ftpLogins": "FTPS մուտքեր",
+        "cronEntries": "Cron առաջադրանքներ",
+        "backups": "Պահուստային պատճեններ"
+      }
     }
   }
 }

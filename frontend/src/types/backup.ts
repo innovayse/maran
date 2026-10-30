@@ -1,3 +1,4 @@
+import type { AccountListFilter } from './accountListFilter'
 /**
  * How far one backup got, and therefore whether its artifact may be relied on. Mirrors the
  * backend's `BackupStatus`, which crosses the wire as a camelCase NAME rather than a number — the
@@ -169,10 +170,11 @@ export interface RestorePartial {
 export interface BackupsApi {
   /**
    * Lists the backups the caller may see, newest first.
+   * @param filter The account the list is narrowed to; empty for every row the caller may see.
    * @param signal Optional abort signal to cancel the in-flight request.
    * @returns The backups, in the order the panel reports them.
    */
-  list: (signal?: AbortSignal) => Promise<Backup[]>
+  list: (filter: AccountListFilter, signal?: AbortSignal) => Promise<Backup[]>
 
   /**
    * Reads one backup. Another customer's backup answers 404, never 403.

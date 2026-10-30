@@ -43,13 +43,15 @@ public sealed class SftpUsersController : BaseApiController
     }
 
     /// <summary>Lists the SFTP logins the caller may see.</summary>
+    /// <param name="query">The optional <c>accountId</c> filter, ANDed with the caller's tenant scope.</param>
     /// <param name="cancellationToken">Cancellation token for the request.</param>
     [HttpGet]
     [ProducesResponseType(typeof(IReadOnlyList<SftpUserDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-    public async Task<IActionResult> GetAllAsync(CancellationToken cancellationToken)
+    public async Task<IActionResult> GetAllAsync(
+        [FromQuery] ListSftpUsersQuery query,
+        CancellationToken cancellationToken)
     {
-        var query = new ListSftpUsersQuery();
         return ToActionResult(await _bus.InvokeAsync<Result<IReadOnlyList<SftpUserDto>>>(query, cancellationToken));
     }
 

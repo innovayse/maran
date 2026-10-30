@@ -166,4 +166,62 @@ public sealed class ListBackupsQueryHandlerTests
         Assert.Equal(string.Empty, listed.FailureCode);
         Assert.Equal(string.Empty, listed.FailureDisplayName);
     }
+
+
+    /// <summary>An administrator naming one account is listed only that account's backups.</summary>
+    /// <remarks>
+    /// Run as an administrator, whom no tenant filter narrows, so the other account's row is visible
+    /// to the context and only the account filter can remove it.
+    /// </remarks>
+    [Fact]
+    public async Task An_administrator_naming_one_account_is_listed_only_that_accounts_backups()
+    {
+        var mine = Guid.NewGuid();
+        var theirs = Guid.NewGuid();
+        var database = Guid.NewGuid().ToString();
+        var theirRow = BackupsTestContext.CompletedRow(theirs);
+
+        await using (var seeding = BackupsTestContext.Create(FakeCurrentUser.Admin(), database))
+        {
+            seeding.Backups.Add(BackupsTestContext.CompletedRow(mine));
+            seeding.Backups.Add(theirRow);
+            await seeding.SaveChangesAsync();
+        }
+
+        await using var context = BackupsTestContext.Create(FakeCurrentUser.Admin(), database);
+        var result = await new ListBackupsQueryHandler(context, BackupsTestContext.FailureNames())
+            .HandleAsync(new ListBackupsQuery(theirs), CancellationToken.None);
+
+        Assert.Equal([theirRow.Id], result.Value.Select(backup =>
+        {
+            return backup.Id;
+        }));
+    }
+
+    /// <summary>A customer naming another account is listed nothing.</summary>
+    /// <remarks>
+    /// The account filter is ANDed with the tenant filter, never in place of it: the customer's own
+    /// backup exists and is not returned either, because it is not the account they named.
+    /// </remarks>
+    [Fact]
+    public async Task A_customer_naming_another_account_is_listed_nothing()
+    {
+        var mine = Guid.NewGuid();
+        var theirs = Guid.NewGuid();
+        var database = Guid.NewGuid().ToString();
+
+        await using (var seeding = BackupsTestContext.Create(FakeCurrentUser.Admin(), database))
+        {
+            seeding.Backups.Add(BackupsTestContext.CompletedRow(mine));
+            seeding.Backups.Add(BackupsTestContext.CompletedRow(theirs));
+            await seeding.SaveChangesAsync();
+        }
+
+        await using var context = BackupsTestContext.Create(FakeCurrentUser.Customer(mine), database);
+        var result = await new ListBackupsQueryHandler(context, BackupsTestContext.FailureNames())
+            .HandleAsync(new ListBackupsQuery(theirs), CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Empty(result.Value);
+    }
 }

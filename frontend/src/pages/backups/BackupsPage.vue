@@ -47,8 +47,9 @@
  * (the specs find that container as `table.parentElement`); the card has `min-w-0` for the same
  * reason, so a wide table can never size the content panel.
  */
-import { computed, onMounted, ref, type ComputedRef, type Ref } from 'vue'
+import { computed, onMounted, ref, watch, type ComputedRef, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
+import UiActiveFilter from '../../components/ui/UiActiveFilter.vue'
 import UiAlert from '../../components/ui/UiAlert.vue'
 import UiButton from '../../components/ui/UiButton.vue'
 import UiCard from '../../components/ui/UiCard.vue'
@@ -68,6 +69,7 @@ import BackupCreateForm from '../../components/backups/BackupCreateForm.vue'
 import BackupRestoreDialog from '../../components/backups/BackupRestoreDialog.vue'
 import BackupStatusBadge from '../../components/backups/BackupStatusBadge.vue'
 import { useAccountChoice } from '../../composables/useAccountChoice'
+import { useAccountFilter } from '../../composables/useAccountFilter'
 import { useCallerRole } from '../../composables/useCallerRole'
 import { useBackupsStore } from '../../stores/backups'
 import { useLocaleStore } from '../../stores/locale'
@@ -78,6 +80,7 @@ import type { Backup, CreateBackupRequest } from '../../types/backup'
 const { t } = useI18n()
 const store = useBackupsStore()
 const { fixedAccountId, accounts, ownerName, load: loadAccounts } = useAccountChoice()
+const { filter: accountListFilter, isActive: isAccountFiltered, text: accountFilterText, clear: clearAccountFilter } = useAccountFilter()
 const { isAdmin } = useCallerRole()
 const localeStore = useLocaleStore()
 
@@ -224,13 +227,21 @@ const finished = (backup: Backup): string => {
 }
 
 /**
+ * Loads the backup list, narrowed to the account the URL names when it names one.
+ * @returns Resolves once the request has settled.
+ */
+const loadList = async (): Promise<void> => {
+  await store.load(accountListFilter.value)
+}
+
+/**
  * Loads the two lists the screen needs: the backups themselves and the accounts one can be taken
  * of. Neither is invented here.
  * @returns Resolves once both requests have settled.
  */
 const refresh = async (): Promise<void> => {
   // A customer's own account is read instead of the administrator-only list (useAccountChoice).
-  await Promise.all([store.load(), loadAccounts()])
+  await Promise.all([loadList(), loadAccounts()])
 }
 
 /**
@@ -304,6 +315,9 @@ const confirm = async (): Promise<void> => {
 }
 
 onMounted(refresh)
+
+// "Show all" and a link to another account change only the query, so the page is not remounted.
+watch(() => {return accountListFilter.value.accountId}, loadList)
 </script>
 
 <template>
@@ -340,6 +354,13 @@ onMounted(refresh)
       :fixed-account-id="fixedAccountId"
       :submitting="store.creating"
       @submit="create"
+    />
+
+    <UiActiveFilter
+      v-if="isAccountFiltered"
+      :text="accountFilterText"
+      :clear-label="t('common.accountFilter.showAll')"
+      @clear="clearAccountFilter"
     />
 
     <UiCard>

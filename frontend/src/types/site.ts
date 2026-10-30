@@ -1,3 +1,4 @@
+import type { AccountListFilter } from './accountListFilter'
 import type { PhpVersion } from './phpVersion'
 import type { SiteLogStreamHandlers, TailSiteLogOptions } from './siteLog'
 
@@ -111,10 +112,11 @@ export interface ChangeSitePhpVersionRequest {
 export interface SitesApi {
   /**
    * Lists the sites the caller may see.
+   * @param filter The account the list is narrowed to; empty for every row the caller may see.
    * @param signal Optional abort signal to cancel the in-flight request.
    * @returns The sites, in the order the panel reports them.
    */
-  list: (signal?: AbortSignal) => Promise<Site[]>
+  list: (filter: AccountListFilter, signal?: AbortSignal) => Promise<Site[]>
 
   /**
    * Reads one site. Another customer's site answers 404, never 403.

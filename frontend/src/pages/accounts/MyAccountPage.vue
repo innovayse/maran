@@ -17,8 +17,9 @@
  * The plan's display name arrives already localized from the backend and is
  * rendered as-is (rules/vue.md "Data comes from the backend"); the limit
  * figures are plain numbers the panel's own chrome labels. The limits are the
- * plan's CAPS, not usage — the endpoint carries no usage, so no meter is drawn
- * here: a bar with an invented fill would be a lie.
+ * plan's CAPS; what the account uses against them is a separate read,
+ * `GET /api/v1/accounts/me/resource-summary`, drawn by `AccountResourcesCard`
+ * below them, so a failed count never blanks the plan.
  *
  * A suspended account is the one thing that needs a customer's attention, so
  * it opens the page as a warning notice (amber, not blue), above the cards.
@@ -39,6 +40,7 @@ import UiEmptyState from '../../components/ui/UiEmptyState.vue'
 import UiPageHeading from '../../components/ui/UiPageHeading.vue'
 import UiSectionHeading from '../../components/ui/UiSectionHeading.vue'
 import UiSpinner from '../../components/ui/UiSpinner.vue'
+import AccountResourcesCard from '../../components/accounts/AccountResourcesCard.vue'
 import { useAccountsStore } from '../../stores/accounts'
 import { formatMegabytes } from '../../utils/formatBytes'
 
@@ -79,7 +81,7 @@ const limits: ComputedRef<LimitTile[]> = computed(() => {
 })
 
 onMounted(async () => {
-  await store.loadMine()
+  await Promise.all([store.loadMine(), store.loadMineResourceSummary()])
 })
 </script>
 
@@ -141,6 +143,8 @@ onMounted(async () => {
           </li>
         </ul>
       </UiCard>
+
+      <AccountResourcesCard :read="store.mineResourceSummary" />
     </template>
 
     <UiAlert v-else-if="store.mineErrorMessage !== null" variant="error">

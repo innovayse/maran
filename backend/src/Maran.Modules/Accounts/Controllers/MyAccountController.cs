@@ -1,5 +1,6 @@
 using Maran.Modules.Accounts.Common;
 using Maran.Modules.Accounts.Queries.GetMyAccount;
+using Maran.Modules.Accounts.Queries.GetMyAccountResourceSummary;
 using Maran.Sdk.Contracts;
 using Maran.Sdk.Controllers;
 using Microsoft.AspNetCore.Authorization;
@@ -53,6 +54,22 @@ public sealed class MyAccountController : BaseApiController
     public async Task<IActionResult> GetAsync(CancellationToken cancellationToken)
     {
         var result = await _bus.InvokeAsync<Result<MyAccountDto>>(new GetMyAccountQuery(), cancellationToken);
+        return ToActionResult(result);
+    }
+
+    /// <summary>
+    /// Reads what the caller's own account owns beside its plan's limits. The account comes from the
+    /// caller's token, never from the request; an administrator, who owns none, gets 404.
+    /// </summary>
+    /// <param name="cancellationToken">Cancellation token for the request.</param>
+    [HttpGet("resource-summary")]
+    [ProducesResponseType(typeof(AccountResourceSummaryDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetResourceSummaryAsync(CancellationToken cancellationToken)
+    {
+        var result = await _bus.InvokeAsync<Result<AccountResourceSummaryDto>>(
+            new GetMyAccountResourceSummaryQuery(), cancellationToken);
         return ToActionResult(result);
     }
 }

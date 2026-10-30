@@ -12,8 +12,8 @@ public sealed class ListSitesQueryHandlerTests
     [Fact]
     public async Task Listing_sites_returns_only_the_callers_own()
     {
-        // The handler writes no Where clause at all — the context's tenant filter is what scopes
-        // this, which is the point of putting it there rather than in every read (spec §8).
+        // No account is named, so the handler's own account clause does nothing — the context's
+        // tenant filter is what scopes this, which is the point of putting it there (spec §8).
         var mine = Guid.NewGuid();
         var theirs = Guid.NewGuid();
         var database = Guid.NewGuid().ToString();
@@ -99,5 +99,48 @@ public sealed class ListSitesQueryHandlerTests
         seed.Sites.Add(SitesTestContext.PhpSite(mine, "mine.example.com"));
         seed.Sites.Add(SitesTestContext.PhpSite(theirs, "theirs.example.com"));
         await seed.SaveChangesAsync();
+    }
+
+
+    /// <summary>An administrator naming one account is listed only that account's sites.</summary>
+    /// <remarks>
+    /// Seeded with two accounts and run as an administrator, whom no tenant filter narrows, so the
+    /// other account's row is visible to the context and only the account filter can remove it.
+    /// </remarks>
+    [Fact]
+    public async Task An_administrator_naming_one_account_is_listed_only_that_accounts_sites()
+    {
+        var mine = Guid.NewGuid();
+        var theirs = Guid.NewGuid();
+        var database = Guid.NewGuid().ToString();
+        await SeedAsync(database, mine, theirs);
+        await using var context = SitesTestContext.Create(FakeCurrentUser.Admin(), database);
+
+        var result = await new ListSitesQueryHandler(context)
+            .HandleAsync(new ListSitesQuery(theirs), CancellationToken.None);
+
+        var site = Assert.Single(result.Value);
+        Assert.Equal("theirs.example.com", site.Domain);
+    }
+
+    /// <summary>A customer naming another account is listed nothing.</summary>
+    /// <remarks>
+    /// The account filter is ANDed with the tenant filter, never in place of it: the customer's own
+    /// row exists and is not returned either, because it is not the account they named.
+    /// </remarks>
+    [Fact]
+    public async Task A_customer_naming_another_account_is_listed_nothing()
+    {
+        var mine = Guid.NewGuid();
+        var theirs = Guid.NewGuid();
+        var database = Guid.NewGuid().ToString();
+        await SeedAsync(database, mine, theirs);
+        await using var context = SitesTestContext.Create(FakeCurrentUser.Customer(mine), database);
+
+        var result = await new ListSitesQueryHandler(context)
+            .HandleAsync(new ListSitesQuery(theirs), CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Empty(result.Value);
     }
 }

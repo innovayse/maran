@@ -19,9 +19,10 @@ namespace Maran.Modules.Databases.Queries.ListDatabases;
 /// untouched.
 /// </para>
 /// <para>
-/// There is no <c>Where</c> clause on the account here, and deliberately not one: the context's
-/// global query filter supplies it, so this handler could not leak another tenant's rows even if it
-/// were rewritten carelessly (spec §8).
+/// The tenant boundary is not the <c>Where</c> clause on the account here: the context's global
+/// query filter supplies it, so this handler could not leak another tenant's rows even if it were
+/// rewritten carelessly (spec §8). The clause only narrows that scope to the account the caller
+/// asked for, and is ANDed with the filter, so a customer naming another account gets nothing.
 /// </para>
 /// </remarks>
 public sealed class ListDatabasesQueryHandler
@@ -37,7 +38,7 @@ public sealed class ListDatabasesQueryHandler
     }
 
     /// <summary>Returns the caller's databases, ordered by creation time.</summary>
-    /// <param name="query">The (parameterless) list request.</param>
+    /// <param name="query">The list request; its optional account narrows the tenant scope.</param>
     /// <param name="cancellationToken">Cancels the read.</param>
     /// <returns>A successful result carrying the databases; this operation never fails.</returns>
     public async Task<Result<IReadOnlyList<DatabaseDto>>> HandleAsync(
@@ -46,6 +47,7 @@ public sealed class ListDatabasesQueryHandler
     {
         var databases = await _dbContext.Databases
             .AsNoTracking()
+            .Where(database => query.AccountId == null || database.AccountId == query.AccountId)
             .OrderBy(database => database.CreatedAt)
             .Select(database => new DatabaseDto(
                 database.Id,

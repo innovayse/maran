@@ -80,6 +80,10 @@ public sealed class SitesModule : IPanelModule
         // request-scoped, tenant-filtered context.
         services.AddScoped<ISiteDirectory, SiteDirectory>();
 
+        // This module's answer to how many sites an account owns, for the Accounts module's resource
+        // summary. Scoped, because it reads through the request-scoped, tenant-filtered context.
+        services.AddScoped<IAccountResourceCounter, SiteAccountResourceCounter>();
+
         // Scoped, because it reads through the request-scoped, tenant-filtered context and journals
         // as the request's own caller. Resolved by SitesController, which is itself scoped.
         services.AddScoped<SiteLogTailService>();
