@@ -389,6 +389,16 @@ Each row names the workflow that runs it, so this list can be checked against
   makes the fixture fail when the server it got is another major. Both score against the one
   baseline row per test dll, the whole suite and not a subset (`--filter` is refused), and the 13
   leg keeps its own artifact (`backend-test-verdict-pg13`).
+  Both verdict steps print a `[memory …]` line into the job log every 30 seconds while the suite
+  runs — used, available, swap, and the three largest `dotnet` processes — and the highest sample
+  when it ends. That line is in the step's own output on purpose: a runner that runs out of memory is
+  shut down mid-step ("The runner has received a shutdown signal", exit 143), the steps after it never
+  run, and a sampler that only a later step prints says nothing about the death it was there to
+  explain (issue #124). The death itself was the integration assembly keeping every host it had
+  disposed — through a never-disposed rate-limiter timer and through startup timers that captured the
+  test harness's execution context — plus the native memory of each host's Roslyn compilation, which
+  only a finalizer releases; the fixes and their measurements are in `Program.Main`,
+  `RateLimitingExtensions.UsePanelRateLimiting` and the integration `PostgresFixture`.
 - Rust: fmt --check, clippy -D warnings, tests, doc build clean (`agent.yml`).
   **Not** cargo-deny or cargo-audit: this row claimed both for months and no workflow has
   ever invoked either — measured against every step of every file in `.github/workflows/`.

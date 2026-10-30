@@ -5,6 +5,13 @@ than a strict category list: what changed and why it matters to somebody running
 
 ## Unreleased
 
+**The backend CI lane no longer dies of memory exhaustion.** The integration tests boot one panel per
+test, and none of them was ever released: the framework's rate limiter keeps a timer alive after its
+host stops, and timers started while a test panel booted held on to the panel through the test
+harness's context. The test process grew past 6 GB and took the runner down mid-run, reported only as
+a shutdown signal. A stopped panel now releases everything it held, and the CI log prints the
+machine's memory every 30 seconds so a future failure of this kind shows its numbers.
+
 **The break-glass `maran` commands work on a real install.** `maran admin-reset-password` exited
 with a usage error on every call, because the command refused the `--` its own wrapper passes before
 the identifier. `maran collect-diagnostics` refused every bundle, because it took the panel address
