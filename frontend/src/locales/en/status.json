@@ -20,10 +20,10 @@
       "attention": {
         "title": "Needs attention",
         "allClear": "Nothing needs attention.",
-        "certificates": "certificates expiring soon",
-        "backups": "backups failed",
-        "tasks": "tasks failed",
-        "bans": "addresses banned"
+        "certificates": "certificate expiring soon | certificates expiring soon",
+        "backups": "backup failed | backups failed",
+        "tasks": "task failed | tasks failed",
+        "bans": "address banned | addresses banned"
       },
       "audit": {
         "title": "Latest activity",

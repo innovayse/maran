@@ -24,7 +24,10 @@
       "confirmDropTitle": "Ջնջել {name} բազան",
       "confirmResetPasswordTitle": "Վերականգնել {name}-ի գաղտնաբառը",
       "grantRepairLink": "Իրավունքների ուղղում",
-      "sectionTitle": "Բոլոր բազաները"
+      "sectionTitle": "Բոլոր բազաները",
+      "created": "Տվյալների բազան ստեղծվեց։",
+      "confirmDropAction": "Ջնջել բազան",
+      "confirmResetPasswordAction": "Վերականգնել գաղտնաբառը"
     },
     "form": {
       "heading": "Նոր տվյալների բազա",

@@ -40,6 +40,7 @@ import UiPageHeading from '../../components/ui/UiPageHeading.vue'
 import UiSectionHeading from '../../components/ui/UiSectionHeading.vue'
 import UiSpinner from '../../components/ui/UiSpinner.vue'
 import { useAccountsStore } from '../../stores/accounts'
+import { formatMegabytes } from '../../utils/formatBytes'
 
 /** One plan limit as a tile: its label, and the figure shown under it. */
 interface LimitTile {
@@ -67,7 +68,7 @@ const limits: ComputedRef<LimitTile[]> = computed(() => {
     {
       key: 'diskQuota',
       label: t('myAccount.limits.diskQuota'),
-      value: t('myAccount.limits.diskQuotaValue', { disk: plan.diskQuotaMb }),
+      value: formatMegabytes(plan.diskQuotaMb),
     },
     { key: 'sites', label: t('myAccount.limits.sites'), value: String(plan.maxSites) },
     { key: 'databases', label: t('myAccount.limits.databases'), value: String(plan.maxDatabases) },

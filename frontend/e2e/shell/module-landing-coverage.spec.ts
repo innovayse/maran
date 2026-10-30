@@ -126,7 +126,9 @@ test('the notifications module reaches the outgoing-mail screen from the sidebar
   ])
 
   await page.goto('/')
-  await page.getByRole('link', { name: 'Уведомления' }).click()
+  // The entry is named for its destination (issue #209), so it reads «Исходящая почта» rather
+  // than the module's own «Уведомления».
+  await page.getByRole('navigation').getByRole('link', { name: 'Исходящая почта' }).click()
 
   // The destination, not the fact that a navigation happened: an href that merely is not
   // `/upgrade/...` could still name a route nothing serves.

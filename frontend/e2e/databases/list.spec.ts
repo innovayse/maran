@@ -179,7 +179,7 @@ test('the databases and sftp entries draw their own glyph rather than the neutra
     .locator('svg')
     .innerHTML()
   const neutralGlyph = await navigation
-    .getByRole('link', { name: 'Notifications' })
+    .getByRole('link', { name: 'Outgoing mail' })
     .locator('svg')
     .innerHTML()
 

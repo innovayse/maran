@@ -321,7 +321,7 @@ test('the backups entry draws its own glyph rather than the neutral one', async 
   const navigation = page.getByRole('navigation')
   const backupsGlyph = await navigation.getByRole('link', { name: 'Backups' }).locator('svg').innerHTML()
   const neutralGlyph = await navigation
-    .getByRole('link', { name: 'Notifications' })
+    .getByRole('link', { name: 'Outgoing mail' })
     .locator('svg')
     .innerHTML()
 

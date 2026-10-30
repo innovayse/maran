@@ -12,7 +12,7 @@
       "rowActions": "Actions for {subject}",
       "percentValue": "{percent}%",
       "recentHeading": "Recent operations",
-      "failedNotice": "Failed tasks: {count}. Open the latest one to see why.",
+      "failedNotice": "{count} task failed. Open the latest one to see why. | {count} tasks failed. Open the latest one to see why.",
       "openFailure": "Open the latest failure"
     },
     "columns": {
@@ -41,12 +41,41 @@
       "correlationId": "Correlation id",
       "notReported": "Not reported",
       "progressLabel": "Progress of this task",
-      "failedWith": "The operation failed with the code {code}.",
       "noLog": "Nothing has been reported yet.",
-      "logLabel": "Task log"
+      "logLabel": "Task log",
+      "failureCode": "Code: {code}",
+      "stoppedAt": "Stopped at {percent}%"
     },
     "badge": {
-      "label": "{count} background tasks running"
+      "label": "{count} background task running | {count} background tasks running"
+    },
+    "failures": {
+      "generic": "The operation failed. The code below says why; quote it when you ask for help.",
+      "AcmeAuthorityUnreachable": "The certificate authority could not be reached. Please try again later.",
+      "AcmeAccountRejected": "The certificate authority refused this server's registration.",
+      "AcmeOrderRejected": "The certificate authority refused the order for this domain.",
+      "AcmeChallengeUnavailable": "The certificate authority offered no challenge this server can answer.",
+      "AcmeChallengeWriteFailed": "The verification file could not be placed in this site's document root.",
+      "AcmeValidationFailed": "The certificate authority could not verify this domain. Check that it points to this server.",
+      "AcmeValidationTimedOut": "The certificate authority did not finish verifying this domain in time.",
+      "AcmeCertificateUnreadable": "The certificate the authority issued could not be read.",
+      "AcmeChallengeTokenInvalid": "The certificate authority sent a verification token this server will not accept.",
+      "CertificateDomainReserved": "A certificate cannot be issued or installed for this name.",
+      "BackupStreamDropped": "The connection to the server agent was lost while the backup was being made.",
+      "BackupStreamIdle": "The server agent stopped reporting progress while the backup was being made.",
+      "BackupTruncated": "The server agent stopped without saying how the backup ended.",
+      "BackupCancelled": "The backup was cancelled before it finished.",
+      "RestorePartial": "The restore did not replace everything it set out to; the account is only partly restored.",
+      "RestoreStreamDropped": "The connection to the server agent was lost while the account was being restored.",
+      "RestoreStreamIdle": "The server agent stopped reporting progress while the account was being restored.",
+      "RestoreTruncated": "The server agent stopped without saying what the restore had done.",
+      "RestoreCancelled": "The restore was cancelled before it finished.",
+      "FinalBackupFailed": "The account was not deleted: its final backup could not be made.",
+      "AccountCleanupFailed": "The account was not deleted: something it owns could not be removed first. Nothing has been changed; please try again.",
+      "AccountSuspensionFailed": "The account was not suspended: something it runs could not be stopped first. Nothing has been changed; please try again.",
+      "AccountSuspensionNotObserved": "The account was not suspended: the server could not be observed to have stopped it. Nothing has been changed; please try again.",
+      "AccountResumptionFailed": "The account was not reactivated: something it runs could not be started again. Nothing has been changed; please try again.",
+      "AccountResumptionNotObserved": "The account was not reactivated: the server could not be observed to have started it again. Nothing has been changed; please try again."
     }
   }
 }

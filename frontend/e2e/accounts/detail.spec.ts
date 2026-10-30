@@ -126,7 +126,7 @@ test('the confirmation does not open with the confirming button focused', async 
 
   const dialog = page.getByRole('dialog')
   await expect(dialog).toBeVisible()
-  await expect(dialog.getByRole('button', { name: 'Yes, do it' })).not.toBeFocused()
+  await expect(dialog.getByRole('button', { name: 'Suspend account' })).not.toBeFocused()
   // Focus is inside the dialog all the same — a trap around nothing is not a trap.
   await expect(dialog.locator(':focus')).toHaveCount(1)
 })
@@ -166,7 +166,7 @@ test('a confirmed suspension shows the new state without a reload', async ({ pag
 
   await page.goto(`/accounts/${ACTIVE.id}`)
   await page.getByRole('button', { name: 'Suspend' }).click()
-  await page.getByRole('dialog').getByRole('button', { name: 'Yes, do it' }).click()
+  await page.getByRole('dialog').getByRole('button', { name: 'Suspend account' }).click()
 
   await expect(page.getByRole('dialog')).toHaveCount(0)
   // Exact for the same reason as the sibling above: `suspended` is what the panel sends and
@@ -188,11 +188,12 @@ test('a refused action shows the panel message verbatim and changes nothing', as
   })
 
   await page.goto(`/accounts/${ACTIVE.id}`)
-  await page.getByRole('button', { name: 'Suspend' }).click()
-  await page.getByRole('dialog').getByRole('button', { name: 'Yes, do it' }).click()
+  await page.getByRole('button', { name: 'Suspend', exact: true }).click()
+  await page.getByRole('dialog').getByRole('button', { name: 'Suspend account' }).click()
 
   await expect(page.getByText('The agent is unavailable.')).toBeVisible()
-  await expect(page.getByRole('button', { name: 'Suspend' })).toBeVisible()
+  // Exact: the confirm's own button is "Suspend account", and this asserts the PAGE's trigger.
+  await expect(page.getByRole('button', { name: 'Suspend', exact: true })).toBeVisible()
 })
 
 // Deleting is confirmed by TYPING the account's name — e2e/accounts/delete.spec.ts proves that

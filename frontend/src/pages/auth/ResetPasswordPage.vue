@@ -19,8 +19,12 @@
  * "The link no longer works" is still a STATED state, not a generic failure: the
  * refusal sits in its own alert with the way forward beside it — ask for a new
  * link — and the way back. The alert never says which kind of dead link it was.
+ *
+ * A link with no token at all is stated at once (#213): an "invalid link" warning, the way to
+ * ask for a new one and the way back, with no form, because that request is certain to be
+ * refused. It is advice only; a token that is present is still judged by the server alone.
  */
-import { computed, ref, type ComputedRef, type Ref } from 'vue'
+import { computed, onMounted, ref, type ComputedRef, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
 import UiAlert from '../../components/ui/UiAlert.vue'
@@ -69,6 +73,11 @@ const submit = async (): Promise<void> => {
   mismatch.value = null
   done.value = await authStore.resetPassword({ token: token.value, newPassword: password.value })
 }
+
+onMounted((): void => {
+  // A message another signed-out screen left in the shared store is not about this link (#221).
+  authStore.$patch({ errorMessage: null })
+})
 </script>
 
 <template>
@@ -84,6 +93,21 @@ const submit = async (): Promise<void> => {
       <UiButton class="w-full justify-center" :to="{ name: 'login' }">
         {{ t('app.passwordReset.backToSignIn') }}
         <UiIcon name="arrowRight" size="sm" />
+      </UiButton>
+    </div>
+
+    <!-- No token in the link: the request could only be refused, so the state is stated instead
+         of a form that is certain to fail. -->
+    <div v-else-if="token === ''" class="flex flex-col gap-5">
+      <UiAlert variant="warning">
+        <p class="font-semibold">{{ t('app.passwordReset.missingTokenTitle') }}</p>
+        <p class="mt-1">{{ t('app.passwordReset.missingTokenBody') }}</p>
+      </UiAlert>
+      <UiButton variant="secondary" class="w-full justify-center" :to="{ name: 'forgot-password' }">
+        {{ t('app.passwordReset.requestNewLink') }}
+      </UiButton>
+      <UiButton variant="ghost" class="justify-center" :to="{ name: 'login' }">
+        {{ t('app.passwordReset.backToSignIn') }}
       </UiButton>
     </div>
 

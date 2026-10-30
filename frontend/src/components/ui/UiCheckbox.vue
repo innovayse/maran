@@ -19,6 +19,10 @@
  * white check mark at 5.14:1 (`bg-accent` would give 3.89:1 and fail); the fill
  * itself is 3.65:1 against a panel. The whole row is the label, so the click
  * target is the box plus its text, `min-h-choice` tall: 28px from tablet up, 44px on a phone (WCAG 2.5.8 asks for 24).
+ *
+ * MOTION. The check mark fades in over 200ms when the box is ticked (and out when it is
+ * cleared); `motion-reduce` drops the transition. The fade is decoration only: the native
+ * input's checked state is what assistive technology reads.
  */
 import { computed, useId, type ComputedRef } from 'vue'
 import UiIcon from './UiIcon.vue'
@@ -102,7 +106,15 @@ const onChange = (event: Event): void => {
         ]"
         aria-hidden="true"
       >
-        <UiIcon v-if="modelValue" name="check" size="sm" />
+        <!-- Always rendered and faded rather than mounted with `v-if`, so the check can ease in
+             over 200ms when the box is ticked. A reader who asked for less motion gets the end
+             state at once; the fill change still reports the new value. -->
+        <UiIcon
+          name="check"
+          size="sm"
+          class="transition-opacity duration-200 ease-out motion-reduce:transition-none"
+          :class="modelValue ? 'opacity-100' : 'opacity-0'"
+        />
       </span>
       <span class="min-w-0 wrap-anywhere">{{ label }}</span>
     </label>

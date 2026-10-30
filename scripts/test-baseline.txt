@@ -27,6 +27,10 @@
 # 2175 passed / 0 failed / 133 ignored (maran_agent 347). Backend projects measured one by one with -m:1 because the
 # whole-solution run is OOM-killed on this workstation: Agent.Client 371, Backups 198, Cron 182, Sdk 208,
 # ArchitectureTests 80, Host.Tests 281 (Sftp 80 and Sites 176 unchanged). Host.IntegrationTests not measured here; CI measures it.
+# RE-MEASURED 2026-10-30 (UI pass: #208 #209 #210 #212 #213 #217 #218 #221 #222 #225): spa 641/0/3 locally. Edited by hand:
+# ten NEW rows (auth/client-checks, cron/description, plurals, shell/navigation-order-labels, shell/palette-focus,
+# shell/sidebar-state, shell/theme-switch, tasks/failure-sentence, ui-kit/motion-and-tables 6/0/3 fixme, ui-kit/select-empty);
+# accounts/form 7->8, monitoring/monitoring 10->11. NOTHING FELL.
 # RE-MEASURED 2026-10-30 (issues #200, #195, sidebar submenus): spa 600/0/1 locally. Edited by hand, not `--accept`:
 # NEW row shell/sidebar-submenu.spec.ts 7. NOTHING FELL; plans/plans.spec.ts stays at 15. Rust and backend unchanged.
 # RE-MEASURED 2026-10-27 (issue #83, reserved account names, rebased on dev with #84 and #93): rust 30 targets,
@@ -331,7 +335,7 @@ backend	Maran.Host.Tests.dll	355	0	0
 backend	Maran.Host.IntegrationTests.dll	415	0	0
 spa	accounts/delete.spec.ts	6	0	0
 spa	accounts/detail.spec.ts	10	0	0
-spa	accounts/form.spec.ts	7	0	0
+spa	accounts/form.spec.ts	8	0	0
 spa	accounts/invitation-link.spec.ts	8	0	0
 spa	accounts/list.spec.ts	3	0	0
 spa	admin/audit.spec.ts	3	0	0
@@ -339,6 +343,7 @@ spa	admin/smtp-settings.spec.ts	2	0	0
 spa	audit/action-names.spec.ts	2	0	0
 spa	audit/occurred-at-time.spec.ts	1	0	0
 spa	audit/sidebar-link.spec.ts	2	0	0
+spa	auth/client-checks.spec.ts	6	0	0
 spa	auth/forgot-password.spec.ts	3	0	0
 spa	auth/login.spec.ts	7	0	0
 spa	auth/reset-password.spec.ts	2	0	0
@@ -353,6 +358,7 @@ spa	backups/reachability.spec.ts	1	0	0
 spa	backups/restore.spec.ts	12	0	0
 spa	backups/schedule.spec.ts	7	0	0
 spa	backups/weekday-names.spec.ts	1	0	0
+spa	cron/description.spec.ts	3	0	0
 spa	cron/entries.spec.ts	7	0	0
 spa	cron/environment.spec.ts	5	0	0
 spa	cron/raw-refusal.spec.ts	4	0	0
@@ -375,8 +381,9 @@ spa	firewall/presets.spec.ts	6	0	0
 spa	firewall/ranges.spec.ts	5	0	0
 spa	firewall/whitelist.spec.ts	7	0	0
 spa	golden-path/account-to-ssl.spec.ts	0	0	1
-spa	monitoring/monitoring.spec.ts	10	0	0
+spa	monitoring/monitoring.spec.ts	11	0	0
 spa	plans/plans.spec.ts	15	0	0
+spa	plurals.spec.ts	3	0	0
 spa	shell/account-menu.spec.ts	4	0	0
 spa	shell/app-bar-fits.spec.ts	16	0	0
 spa	shell/command-palette-a11y.spec.ts	3	0	0
@@ -392,9 +399,13 @@ spa	shell/locale-switch.spec.ts	5	0	0
 spa	shell/locale.spec.ts	4	0	0
 spa	shell/mobile-drawer.spec.ts	15	0	0
 spa	shell/module-landing-coverage.spec.ts	2	0	0
+spa	shell/navigation-order-labels.spec.ts	2	0	0
 spa	shell/not-found.spec.ts	1	0	0
+spa	shell/palette-focus.spec.ts	6	0	0
 spa	shell/renders-title.spec.ts	1	0	0
+spa	shell/sidebar-state.spec.ts	6	0	0
 spa	shell/sidebar-submenu.spec.ts	7	0	0
+spa	shell/theme-switch.spec.ts	2	0	0
 spa	sites/detail.spec.ts	5	0	0
 spa	sites/form.spec.ts	5	0	0
 spa	sites/list.spec.ts	5	0	0
@@ -402,6 +413,7 @@ spa	sites/log-stream.spec.ts	7	0	0
 spa	sites/logs-tab.spec.ts	9	0	0
 spa	sites/ssl-tab.spec.ts	9	0	0
 spa	tasks/badge.spec.ts	3	0	0
+spa	tasks/failure-sentence.spec.ts	3	0	0
 spa	tasks/list.spec.ts	7	0	0
 spa	tasks/log-fidelity.spec.ts	2	0	0
 spa	tasks/progress-unit.spec.ts	1	0	0
@@ -410,8 +422,10 @@ spa	ui-kit/chart.spec.ts	5	0	0
 spa	ui-kit/dropdown-landing-focus.spec.ts	5	0	0
 spa	ui-kit/focus-return.spec.ts	3	0	0
 spa	ui-kit/modal-keyboard.spec.ts	2	0	0
+spa	ui-kit/motion-and-tables.spec.ts	6	0	3
 spa	ui-kit/no-horizontal-scroll-admin.spec.ts	66	0	0
 spa	ui-kit/no-horizontal-scroll-other.spec.ts	54	0	0
+spa	ui-kit/select-empty.spec.ts	1	0	0
 spa	ui-kit/table-narrow.spec.ts	19	0	0
 spa	ui-kit/text-zoom.spec.ts	3	0	0
 spa	ui-kit/unfilled-select-prompt.spec.ts	3	0	0

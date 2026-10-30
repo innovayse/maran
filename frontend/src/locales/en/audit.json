@@ -16,7 +16,7 @@
       "succeeded": "Succeeded",
       "failed": "Failed",
       "eyebrow": "Security",
-      "failedNotice": "Failed entries in this journal: {count}."
+      "failedNotice": "{count} entry in this journal failed. | {count} entries in this journal failed."
     }
   }
 }

@@ -12,7 +12,7 @@
       "none": "None",
       "columns": {
         "accounts": "Accounts",
-        "diskQuota": "Disk (MB)",
+        "diskQuota": "Disk",
         "sites": "Sites",
         "databases": "Databases",
         "sftpUsers": "SFTP logins",
@@ -69,7 +69,8 @@
         "counts": "A lowered number of sites, databases, logins or cron entries removes nothing: an account above it keeps what it has and cannot add more.",
         "none": "No account is on this plan yet, so this edit changes nothing for anyone."
       },
-      "diskLowered": "The disk quota goes down from {from} MB to {to} MB. If any account on this plan already uses more than {to} MB, the server refuses the edit and nothing is changed."
+      "diskLowered": "The disk quota goes down from {from} to {to}. If any account on this plan already uses more than {to}, the server refuses the edit and nothing is changed.",
+      "created": "Plan {name} created."
     }
   }
 }

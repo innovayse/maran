@@ -8,18 +8,19 @@
  * Renders a `<section>`, not a `<main>` — the single `<main>` landmark
  * belongs to the layout this page is nested under.
  *
- * Drawn calmly, as two cards under the page header: what is missing (the module
+ * Drawn calmly, as one card under the page header: what is missing (the module
  * sentence and, when the backend named one, the tier) and how to get it (a plain
  * sentence and the way back). Nothing here is a warning or a sales banner — nothing
  * is broken, the licence simply does not cover this module — so the lock tile is
- * the accent wash, never amber or red. The second card says only what is true of
+ * the accent wash, never amber or red. The "how to get it" part says only what is true of
  * every panel: the licence is held by whoever administers the server. It names no
  * price, no address and no tier of its own; the tier words come from the backend.
  */
 import { computed, type ComputedRef } from 'vue'
 import { useI18n } from 'vue-i18n'
-import UiButton from '../components/ui/UiButton.vue'
+import { RouterLink } from 'vue-router'
 import UiCard from '../components/ui/UiCard.vue'
+import UiIcon from '../components/ui/UiIcon.vue'
 import UiIconTile from '../components/ui/UiIconTile.vue'
 import UiPageHeading from '../components/ui/UiPageHeading.vue'
 import UiSectionHeading from '../components/ui/UiSectionHeading.vue'
@@ -48,13 +49,16 @@ const catalogueEntry: ComputedRef<PanelModule | undefined> = computed(() => {
 })
 
 /**
- * The module as an operator reads it: the backend-localized `displayName` when the catalogue
- * carries one, and the machine name only when it does not (an unknown module, or a panel older
- * than the field). The SPA never translates it — a module is a server-side concept and a
- * marketplace module is unknown when this bundle is built (rules/vue.md).
+ * The sentence naming what is locked. A module the catalogue knows is named by its display name,
+ * already localized by the panel; one it does not know (a deep link to a module this build does not
+ * ship, `/upgrade/mail`) gets a sentence without a name, because its machine id is not a name a
+ * person should read (#218).
  */
-const moduleName: ComputedRef<string> = computed(() => {
-  return catalogueEntry.value?.displayName ?? props.module
+const moduleSentence: ComputedRef<string> = computed(() => {
+  const displayName = catalogueEntry.value?.displayName
+  return displayName === undefined
+    ? t('app.upgrade.moduleUnnamed')
+    : t('app.upgrade.module', { module: displayName })
 })
 
 /**
@@ -81,26 +85,33 @@ const tierSentence: ComputedRef<string | undefined> = computed(() => {
       :subtitle="t('app.upgrade.subtitle')"
     />
 
-    <div class="grid gap-4 lg:grid-cols-3">
-      <UiCard class="lg:col-span-2">
-        <div class="flex items-start gap-4">
-          <UiIconTile name="lock" size="lg" />
-          <div class="min-w-0">
-            <p class="font-display text-lg font-bold tracking-tight text-text-primary wrap-anywhere">
-              {{ t('app.upgrade.module', { module: moduleName }) }}
-            </p>
-            <p v-if="tierSentence !== undefined" class="mt-2 text-base text-text-secondary wrap-anywhere">
-              {{ tierSentence }}
-            </p>
-          </div>
+    <!-- One card: what is locked, then how to get it. Two cards side by side left the first one a
+         single line in a mostly empty box. -->
+    <UiCard>
+      <div class="flex items-start gap-4">
+        <UiIconTile name="lock" size="lg" />
+        <div class="min-w-0">
+          <p class="font-display text-lg font-bold tracking-tight text-text-primary wrap-anywhere">
+            {{ moduleSentence }}
+          </p>
+          <p v-if="tierSentence !== undefined" class="mt-2 text-sm text-text-secondary wrap-anywhere">
+            {{ tierSentence }}
+          </p>
         </div>
-      </UiCard>
+      </div>
 
-      <UiCard>
+      <div class="mt-5 border-t border-border-subtle pt-4">
         <UiSectionHeading class="mb-3" :title="t('app.upgrade.how.heading')" />
-        <p class="mb-4 text-sm text-text-secondary">{{ t('app.upgrade.how.body') }}</p>
-        <UiButton variant="secondary" :to="{ name: 'system-status' }">{{ t('app.upgrade.backHome') }}</UiButton>
-      </UiCard>
-    </div>
+        <p class="mb-4 max-w-prose text-sm text-text-secondary">{{ t('app.upgrade.how.body') }}</p>
+        <!-- A way back is navigation, so it looks like a link, not a button (#218). -->
+        <RouterLink
+          :to="{ name: 'system-status' }"
+          class="inline-flex items-center gap-1 rounded-control text-sm font-medium text-accent-text underline underline-offset-4 hover:no-underline focus-visible:shadow-focus focus-visible:outline-none"
+        >
+          <UiIcon name="chevronLeft" size="sm" />
+          {{ t('app.upgrade.backHome') }}
+        </RouterLink>
+      </div>
+    </UiCard>
   </section>
 </template>

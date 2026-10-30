@@ -21,7 +21,8 @@
  * first focusable element in the panel, which is the header's close control —
  * so a reflexive Enter on a dialog that appeared unexpectedly DISMISSES it. A
  * confirmation whose default answer is "yes" is weaker than the inline sentence
- * it replaced, not stronger.
+ * it replaced, not stronger. The button still names the action ("Delete site")
+ * through `confirmLabel`.
  *
  * **The wait is shown here, not on the page behind.** While `acting` is true the
  * dialog stays open over a spinner naming the operation, its buttons are gone,
@@ -35,6 +36,7 @@
  * `primary` pill when the action removes nothing). The one thing added here is
  * the warning glyph beside a destructive question.
  */
+import { useI18n } from 'vue-i18n'
 import UiButton from './UiButton.vue'
 import UiIcon from './UiIcon.vue'
 import UiModal from './UiModal.vue'
@@ -49,8 +51,12 @@ const props = withDefaults(
     title: string
     /** The consequence the operator is being asked to weigh, already translated. */
     question: string
-    /** Label of the button that performs the action, already translated. */
-    confirmLabel: string
+    /**
+     * Label of the button that performs the action, already translated. Name the action itself
+     * ("Delete site"), so the button says what it does. Left unset it falls back to the generic
+     * `common.confirm` answer, translated here, for callers written before the prop was optional.
+     */
+    confirmLabel?: string
     /** Label of the button that abandons it, already translated. */
     cancelLabel: string
     /** Accessible name for the header's close control, already translated. */
@@ -62,7 +68,7 @@ const props = withDefaults(
     /** Whether the action removes or interrupts something, which is how its button is weighted. */
     destructive?: boolean
   }>(),
-  { acting: false, destructive: true },
+  { acting: false, destructive: true, confirmLabel: undefined },
 )
 
 /** Events emitted by {@link UiConfirm}. */
@@ -72,6 +78,8 @@ const emit = defineEmits<{
   /** Fired when the operator confirms. The CALLER performs the action and owns `acting`. */
   (e: 'confirm'): void
 }>()
+
+const { t } = useI18n()
 
 /**
  * Declines the question, unless the answer is already with the server.
@@ -130,8 +138,11 @@ const submit = (): void => {
            the hand and the Tab key reach last. -->
       <template v-if="!acting">
         <UiButton variant="secondary" @click="close">{{ cancelLabel }}</UiButton>
-        <UiButton :variant="destructive ? 'destructive' : 'primary'" @click="submit">
-          {{ confirmLabel }}
+        <UiButton
+          :variant="destructive ? 'destructive' : 'primary'"
+          @click="submit"
+        >
+          {{ confirmLabel ?? t('common.confirm') }}
         </UiButton>
       </template>
     </template>

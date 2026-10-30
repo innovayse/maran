@@ -24,6 +24,7 @@ import UiIcon from '../../components/ui/UiIcon.vue'
 import UiPageHeading from '../../components/ui/UiPageHeading.vue'
 import UiSectionHeading from '../../components/ui/UiSectionHeading.vue'
 import UiSpinner from '../../components/ui/UiSpinner.vue'
+import UiToast from '../../components/ui/UiToast.vue'
 import FirewallBanForm from '../../components/firewall/FirewallBanForm.vue'
 import FirewallBansTable from '../../components/firewall/FirewallBansTable.vue'
 import FirewallLockoutDialog from '../../components/firewall/FirewallLockoutDialog.vue'
@@ -61,6 +62,9 @@ const pendingIntent: Ref<FirewallRuleChange> = ref('allow')
 
 /** Whether the pending change came from the raw form, whose fields are emptied once it lands. */
 const pendingFromForm: Ref<boolean> = ref(false)
+
+/** The success toast's text after a rule was installed, or `null` while none is showing. */
+const notice: Ref<string | null> = ref(null)
 
 /** Whether the panel answered successfully and reported no rules at all. */
 const hasNoRules: ComputedRef<boolean> = computed(() => {
@@ -112,7 +116,11 @@ const refresh = async (): Promise<void> => {
  * @returns Resolves once the change has settled.
  */
 const allow = async (rules: readonly FirewallRule[], fromForm: boolean): Promise<void> => {
-  if ((await store.allowPorts(rules)) && fromForm) {
+  if (!(await store.allowPorts(rules))) {
+    return
+  }
+  notice.value = t('firewall.rules.created', rules.length)
+  if (fromForm) {
     ruleForm.value?.reset()
   }
 }
@@ -253,6 +261,38 @@ const removeExemption = async (id: string): Promise<void> => {
   await store.removeWhitelistEntry(id)
 }
 
+/**
+ * Drops the rule form's last refusal: it described the values that were sent, not the ones typed now.
+ * @returns Nothing.
+ */
+const clearRuleError = (): void => {
+  store.ruleErrorMessage = null
+}
+
+/**
+ * Drops the ban form's last refusal once its fields change.
+ * @returns Nothing.
+ */
+const clearBanError = (): void => {
+  store.banErrorMessage = null
+}
+
+/**
+ * Drops the exemption form's last refusal once its fields change.
+ * @returns Nothing.
+ */
+const clearWhitelistError = (): void => {
+  store.whitelistErrorMessage = null
+}
+
+/**
+ * Hides the success toast.
+ * @returns Nothing.
+ */
+const dismissNotice = (): void => {
+  notice.value = null
+}
+
 onMounted(refresh)
 </script>
 
@@ -280,13 +320,18 @@ onMounted(refresh)
       />
 
       <UiCard class="flex flex-col gap-4">
-        <UiSectionHeading :title="t('firewall.rules.heading')" />
+        <UiSectionHeading :title="t('firewall.rules.heading')" :subtitle="t('firewall.rules.subtitle')" />
 
         <UiAlert v-if="store.ruleErrorMessage !== null" variant="error">
           {{ store.ruleErrorMessage }}
         </UiAlert>
 
-        <FirewallRuleForm ref="ruleForm" :submitting="store.acting" @submit="submitRule" />
+        <FirewallRuleForm
+          ref="ruleForm"
+          :submitting="store.acting"
+          @submit="submitRule"
+          @edit="clearRuleError"
+        />
 
         <UiEmptyState
           v-if="hasNoRules"
@@ -309,7 +354,7 @@ onMounted(refresh)
           {{ store.banErrorMessage }}
         </UiAlert>
 
-        <FirewallBanForm ref="banForm" :submitting="store.acting" @submit="placeBan" />
+        <FirewallBanForm ref="banForm" :submitting="store.acting" @submit="placeBan" @edit="clearBanError" />
 
         <UiEmptyState
           v-if="store.bans.length === 0"
@@ -339,6 +384,7 @@ onMounted(refresh)
           ref="whitelistForm"
           :submitting="store.acting"
           @submit="addExemption"
+          @edit="clearWhitelistError"
         />
 
         <UiEmptyState
@@ -368,5 +414,11 @@ onMounted(refresh)
       @confirm="confirmPending"
       @close="cancelPending"
     />
+
+    <div class="pointer-events-none fixed inset-x-4 bottom-4 z-50 flex justify-end sm:left-auto">
+      <UiToast v-if="notice !== null" variant="success" :close-label="t('common.close')" @dismiss="dismissNotice">
+        {{ notice }}
+      </UiToast>
+    </div>
   </section>
 </template>

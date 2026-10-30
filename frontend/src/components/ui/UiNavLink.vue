@@ -48,27 +48,42 @@
  * padding, and the same active fill as a top-level row so the current page is found the same way
  * at either level. A child is lit only on its exact page: siblings share a path prefix
  * (`/accounts` and `/accounts/new`), so the router's prefix match would light two children at once
- * (issue #209). The section's own row still carries the prefix match.
+ * (issue #209). The section's own row still carries the prefix match, or `active` (below).
+ *
+ * **The focus ring is keyboard-only.** It is `focus-visible`, never `focus`, so a mouse click
+ * leaves no ring behind (issue #221).
  */
 import { onMounted, onUpdated, ref, type Ref } from 'vue'
 import type { RouteLocationRaw } from 'vue-router'
 
 /** Props accepted by {@link UiNavLink}. */
-const props = defineProps<{
-  /** Destination, passed straight to `RouterLink`'s `to`. */
-  to: RouteLocationRaw
-  /** Marks the entry as licence-locked: still navigable (to the upgrade page), but visually and semantically flagged. */
-  locked?: boolean
-  /**
-   * Draws the row as a 36px icon-only square, for the collapsed rail. The caller
-   * keeps the accessible name in the slot as screen-reader-only text: dropping
-   * the label from the markup, not just from the screen, would leave the link
-   * unnamed.
-   */
-  compact?: boolean
-  /** Draws the row as a child inside a sidebar submenu: shorter, text only. */
-  nested?: boolean
-}>()
+const props = withDefaults(
+  defineProps<{
+    /** Destination, passed straight to `RouterLink`'s `to`. */
+    to: RouteLocationRaw
+    /** Marks the entry as licence-locked: still navigable (to the upgrade page), but visually and semantically flagged. */
+    locked?: boolean
+    /**
+     * Draws the row as a 36px icon-only square, for the collapsed rail. The caller
+     * keeps the accessible name in the slot as screen-reader-only text: dropping
+     * the label from the markup, not just from the screen, would leave the link
+     * unnamed.
+     */
+    compact?: boolean
+    /** Draws the row as a child inside a sidebar submenu: shorter, text only. */
+    nested?: boolean
+    /**
+     * Lights the row whatever the router's own match says. A section row passes it when the current
+     * page is any of its children's (issue #221): the router's match follows route nesting, and Plans
+     * is a child of Accounts in the menu but not under `/accounts` in the router, so "Accounts" went
+     * dark on the Plans page. Left unset, the router's prefix match decides, as before.
+     */
+    active?: boolean
+  }>(),
+  // `active` defaults to `undefined` on purpose: an absent boolean prop is otherwise cast to
+  // `false`, and "not given" (let the router decide) must stay distinct from "given, not lit".
+  { locked: false, compact: false, nested: false, active: undefined },
+)
 
 /** The label cluster, read for the text the link offers as its `title`. */
 const cluster: Ref<HTMLElement | null> = ref(null)
@@ -96,16 +111,17 @@ onUpdated(readText)
        the thing that must never be missing. -->
   <RouterLink
     :to="to"
-    :active-class="nested ? 'nav-ancestor' : undefined"
-    :exact-active-class="nested ? 'router-link-active' : undefined"
+    :active-class="nested || active !== undefined ? 'nav-ancestor' : undefined"
+    :exact-active-class="nested ? 'router-link-active' : active !== undefined ? 'nav-exact' : undefined"
     class="flex items-center gap-2.5 rounded-control text-sm font-medium text-text-secondary transition-colors hover:bg-surface-2 hover:text-text-primary focus-visible:shadow-focus focus-visible:outline-none motion-reduce:transition-none [&.router-link-active]:bg-accent-fill [&.router-link-active]:text-white [&.router-link-active]:shadow-glow [&.router-link-active]:hover:bg-accent-hover [&.router-link-active]:hover:text-white [&.router-link-active]:focus-visible:shadow-focus"
-    :class="
+    :class="[
       compact
         ? 'mx-auto size-9 justify-center'
         : nested
           ? 'w-full flex-wrap justify-between gap-y-1 px-2.5 py-1 max-lg:py-3'
-          : 'w-full flex-wrap justify-between gap-y-1 px-2.5 py-1.5 max-lg:py-3'
-    "
+          : 'w-full flex-wrap justify-between gap-y-1 px-2.5 py-1.5 max-lg:py-3',
+      { 'router-link-active': active === true },
+    ]"
     :aria-disabled="locked ? 'true' : undefined"
     :title="fullText"
   >

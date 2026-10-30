@@ -36,8 +36,8 @@
           "sourceCidr": "Source range"
         },
         "placeholders": {
-          "port": "8080",
-          "portTo": "30099",
+          "port": "e.g. 8080",
+          "portTo": "e.g. 30099",
           "sourceCidr": "0.0.0.0/0"
         },
         "errors": {
@@ -49,7 +49,9 @@
         },
         "hint": "0.0.0.0/0 admits every source. Leave the second port empty to open one port. A narrower range is confirmed before it is installed.",
         "submit": "Open the port"
-      }
+      },
+      "created": "Rule installed. | {count} rules installed.",
+      "subtitle": "The ports this host lets through, and from where."
     },
     "lockout": {
       "allowTitle": "Install this rule?",
@@ -91,8 +93,8 @@
           "durationMinutes": "Minutes"
         },
         "placeholders": {
-          "address": "203.0.113.7",
-          "durationMinutes": "60"
+          "address": "e.g. 203.0.113.7",
+          "durationMinutes": "e.g. 60"
         },
         "errors": {
           "addressRequired": "Enter the address to ban.",
@@ -126,8 +128,8 @@
           "note": "Note"
         },
         "placeholders": {
-          "cidr": "203.0.113.0/24",
-          "note": "The office"
+          "cidr": "e.g. 203.0.113.0/24",
+          "note": "e.g. The office"
         },
         "errors": {
           "cidrRequired": "Enter the range to exempt.",

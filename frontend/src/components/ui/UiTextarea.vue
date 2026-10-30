@@ -72,8 +72,8 @@ const onInput = (event: Event): void => {
   <div class="flex flex-col gap-1">
     <label
       :for="fieldId"
-      class="text-sm font-medium wrap-anywhere"
-      :class="hasError ? 'text-danger' : 'text-text-secondary'"
+      class="text-xs font-bold tracking-caps uppercase wrap-anywhere"
+      :class="hasError ? 'text-danger' : 'text-text-muted'"
       >{{ label }}</label
     >
     <!-- 16px below `sm` so a phone browser does not zoom the page on focus; see UiInput. -->

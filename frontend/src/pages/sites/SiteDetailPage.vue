@@ -16,10 +16,11 @@
  */
 import { computed, onBeforeUnmount, onMounted, ref, type ComputedRef, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useRouter } from 'vue-router'
+import { useRouter, RouterLink } from 'vue-router'
 import UiAlert from '../../components/ui/UiAlert.vue'
 import UiButton from '../../components/ui/UiButton.vue'
 import UiCard from '../../components/ui/UiCard.vue'
+import UiIcon from '../../components/ui/UiIcon.vue'
 import UiDescriptionItem from '../../components/ui/UiDescriptionItem.vue'
 import UiDescriptionList from '../../components/ui/UiDescriptionList.vue'
 import UiEmptyState from '../../components/ui/UiEmptyState.vue'
@@ -81,6 +82,18 @@ const confirmationTitle: ComputedRef<string> = computed(() => {
       return t('sites.detail.confirmDisableTitle', { domain })
     default:
       return t('sites.detail.confirmDeleteTitle', { domain })
+  }
+})
+
+/** The confirm button's label, naming the action rather than a bare "Confirm" (#218). */
+const confirmationLabel: ComputedRef<string> = computed(() => {
+  switch (pending.value) {
+    case 'enable':
+      return t('sites.detail.confirmEnableAction')
+    case 'disable':
+      return t('sites.detail.confirmDisableAction')
+    default:
+      return t('sites.detail.confirmDeleteAction')
   }
 })
 
@@ -200,9 +213,14 @@ onBeforeUnmount(() => {
       >
         <template #actions>
           <SiteStatusBadge :status="store.selected.status" />
-          <UiButton variant="ghost" :to="{ name: 'sites' }">
+          <!-- A way back is navigation, so it looks like a link, not a button (#218). -->
+          <RouterLink
+            :to="{ name: 'sites' }"
+            class="inline-flex items-center gap-1 rounded-control text-sm font-medium text-accent-text underline underline-offset-4 hover:no-underline focus-visible:shadow-focus focus-visible:outline-none"
+          >
+            <UiIcon name="chevronLeft" size="sm" />
             {{ t('sites.detail.backToList') }}
-          </UiButton>
+          </RouterLink>
         </template>
       </UiPageHeading>
 
@@ -310,7 +328,7 @@ onBeforeUnmount(() => {
         :open="pending !== null"
         :title="confirmationTitle"
         :question="confirmationText"
-        :confirm-label="t('common.confirm')"
+        :confirm-label="confirmationLabel"
         :cancel-label="t('common.cancel')"
         :close-label="t('common.close')"
         :acting="store.acting"

@@ -47,7 +47,9 @@ test('visiting the upgrade page for a locked module names the module and its lic
   await page.goto('/upgrade/backups')
 
   await expect(page.getByRole('heading', { level: 1, name: 'Upgrade required' })).toBeVisible()
-  await expect(page.getByText('The "backups" module is not included in your current licence.')).toBeVisible()
+  // A catalogue entry without `displayName` must not put the machine id on the screen (#218).
+  await expect(page.getByText('This module is not included in your current licence.')).toBeVisible()
+  await expect(page.locator('body')).not.toContainText('"backups"')
   // `exact: true`, and the reason is the whole of what this line asserts. `getByText` matches a
   // SUBSTRING, CASE-INSENSITIVELY, unless told otherwise — so the defect this line exists to catch,
   // the wire constant `business` reaching the screen where `tierDisplayName` belongs, rendered
@@ -133,7 +135,9 @@ test('a licensed module whose screen exists is not sent to the upgrade wall', as
 
   await page.goto('/')
 
-  const identity = page.getByRole('link', { name: 'Users and access' })
+  // Named for where it leads, not for the module (issue #209): the identity module's screen is
+  // the signed-in devices list, and "Users and access" promised user management it does not have.
+  const identity = page.getByRole('link', { name: 'Signed-in devices' })
   await expect(identity).toBeVisible()
   await expect(identity).not.toHaveAttribute('href', /\/upgrade\//)
   await expect(identity).not.toHaveAttribute('aria-disabled', 'true')

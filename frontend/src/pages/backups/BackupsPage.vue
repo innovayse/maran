@@ -163,7 +163,7 @@ const attentionMessage: ComputedRef<string | null> = computed(() => {
       startedAt: formatIsoTimestamp(first.startedAt, localeStore.current),
     })
   }
-  return t('backups.list.attentionMany', { count: failures.length })
+  return t('backups.list.attentionMany', { count: failures.length }, failures.length)
 })
 
 /**

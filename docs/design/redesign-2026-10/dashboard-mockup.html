@@ -11,7 +11,7 @@
 /* ===========================================================================
    Maran, in the Innovayse admin's structure, in Maran's own colours.
 
-   The STRUCTURE is the ASPU admin's (aspu.innovayse.com/admin, read at 1440,
+   The STRUCTURE follows a reference admin layout (read at 1440,
    768 and 390): a flat dark desktop with rounded panels 12px apart, a solid
    accent active item with its glow, Archivo black figures and titles, Inter
    for text, a bottom tab bar below 1024px.
@@ -167,7 +167,7 @@ h1 { font-family: var(--font-display); font-weight: 900; font-size: 30px; line-h
       display: grid; place-items: center; }
 .kpi .v { margin-top: 14px; font-family: var(--font-display); font-weight: 900; font-size: 30px; line-height: 1; }
 .kpi .v small { font-size: 15px; font-weight: 800; color: var(--p50); margin-left: 4px; white-space: nowrap; }
-/* Labels are uppercase as the house sets them, but they WRAP: the ASPU admin's long Armenian labels
+/* Labels are uppercase as the house sets them, but they WRAP: a reference admin's long Armenian labels
    overflowed a two-column card at 390px and pushed the panel into a horizontal scroll. */
 .kpi .l { margin-top: 8px; font-family: var(--font-display); font-size: 11.5px; font-weight: 800;
           letter-spacing: .12em; text-transform: uppercase; color: var(--p50);
@@ -238,9 +238,9 @@ tbody tr:hover { background: var(--p04); }
 .fail { color: #F2C46D; }
 
 /* ---- mobile menu: the sidebar itself, slid in as a floating drawer -------
-   As the ASPU admin does it: the same navigation, in a rounded panel that comes in from the left
+   As the reference layout does it: the same navigation, in a rounded panel that comes in from the left
    with 12px of desktop around it, over a darkened and blurred page. Opened by the hamburger and by
-   the tab bar's "More"; closed by its own button, by the backdrop, and by Escape — which the ASPU
+   the tab bar's "More"; closed by its own button, by the backdrop, and by Escape — which the reference
    admin does not do, and a modal panel must. */
 .drawer-head { display: none; }
 .backdrop { display: none; }
@@ -555,7 +555,7 @@ tbody tr:hover { background: var(--p04); }
 
   openers.forEach((b) => b.addEventListener('click', () => open(b)));
   document.querySelectorAll('[data-close-menu]').forEach((el) => el.addEventListener('click', close));
-  // Escape closes it — the ASPU admin's drawer ignores Escape, and a modal panel must not.
+  // Escape closes it — the reference drawer ignores Escape, and a modal panel must not.
   document.addEventListener('keydown', (event) => { if (event.key === 'Escape') close(); });
   // Choosing a destination closes it, so the page the user asked for is what they see.
   nav.querySelectorAll('a.nav').forEach((a) => a.addEventListener('click', close));
@@ -571,7 +571,7 @@ tbody tr:hover { background: var(--p04); }
   matchMedia('(min-width: 1024px)').addEventListener('change', (q) => { if (q.matches) { body.classList.remove('menu-open'); setExpanded(false); } });
 })();
 
-/* The house count-up (the ASPU admin animates data-count with GSAP). Reduced motion skips it;
+/* The house count-up (a reference admin animates data-count with GSAP). Reduced motion skips it;
    the real value is already in the markup, so nothing depends on this running. */
 (() => {
   if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;

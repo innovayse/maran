@@ -25,7 +25,9 @@
         "backupsList": "Backup list",
         "backupsSchedule": "Schedule",
         "backupsDestinations": "Destinations"
-      }
+      },
+      "signedInDevices": "Signed-in devices",
+      "outgoingMail": "Outgoing mail"
     },
     "shell": {
       "skipToContent": "Skip to content",
@@ -35,7 +37,6 @@
       "expandSidebar": "Expand the sidebar",
       "openNavigation": "Open the navigation",
       "navigationLabel": "Navigation",
-      "toggleTheme": "Switch between the dark and light theme",
       "breadcrumbLabel": "Breadcrumb",
       "paletteTitle": "Jump to",
       "paletteClose": "Close the jump-to palette",
@@ -46,16 +47,13 @@
       "paletteNoMatches": "Nothing matches that.",
       "paletteHintNavigate": "↑↓ to move",
       "paletteHintOpen": "↵ to open",
-      "themes": {
-        "dark": "Dark",
-        "light": "Light"
-      },
       "signedOut": "Nobody is signed in",
       "accountMenu": "Account menu",
       "menu": {
         "myAccount": "My account",
         "sessions": "Sessions",
-        "twoFactor": "Two-step verification"
+        "twoFactor": "Two-step verification",
+        "profile": "Profile and security"
       },
       "authCredit": "© {year} Maran · made by Innovayse LLC",
       "closeNavigation": "Close the navigation",
@@ -66,6 +64,10 @@
         "sites": "Sites",
         "databases": "Databases",
         "more": "More"
+      },
+      "switchTheme": {
+        "dark": "Switch to dark",
+        "light": "Switch to light"
       }
     },
     "locale": {

@@ -244,9 +244,13 @@ test('resetting the password is offered on the list and shows a new one once', a
   // The question is asked in a modal now, and its accessible name says which row it is about.
   const confirmation = page.getByRole('dialog', { name: 'Reset the password for alice_shop' })
   await expect(confirmation).toContainText('The current one stops working immediately.')
-  await confirmation.getByRole('button', { name: 'Yes, do it' }).click()
+  await confirmation.getByRole('button', { name: 'Reset password' }).click()
 
   await expect(page.getByTestId('database-password')).toHaveText(stubbedResetPassword)
+  // The confirm leaves on UiModal's 200ms fade while the result opens, so for that moment two
+  // dialogs are in the tree. Counting dialogs (not the confirm by name: its title loses the row's
+  // name as it closes) observes the question actually leaving, and leaves one dialog to read.
+  await expect(page.getByRole('dialog')).toHaveCount(1)
   await expect(page.getByRole('dialog')).toContainText('alice_shopuser')
 
   await page.reload()
@@ -271,7 +275,7 @@ test('dropping a database asks in a dialog, and a dismissal drops nothing', asyn
   // Focus moved out of the menu that opened it and into the dialog, rather than being lost
   // between the two when the menu closed.
   await expect(confirmation.locator(':focus')).toHaveCount(1)
-  await expect(confirmation.getByRole('button', { name: 'Yes, do it' })).not.toBeFocused()
+  await expect(confirmation.getByRole('button', { name: 'Drop database' })).not.toBeFocused()
 
   await confirmation.getByRole('button', { name: 'Cancel' }).click()
 

@@ -14,7 +14,8 @@
       "columns": {
         "schedule": "Schedule",
         "command": "Command",
-        "state": "State"
+        "state": "State",
+        "runs": "Runs"
       },
       "enabled": "On",
       "disabled": "Off",
@@ -27,7 +28,8 @@
       "confirmRemoveTitle": "Remove the scheduled task {command}",
       "confirm": "Yes, remove it",
       "working": "Working…",
-      "rowActions": "Actions for {command}"
+      "rowActions": "Actions for {command}",
+      "created": "Scheduled task added."
     },
     "schedule": {
       "legend": "Schedule",
@@ -100,6 +102,14 @@
       "notReported": "Not reported",
       "noOutput": "The run printed nothing.",
       "provenance": "This is the account's own record of its runs, kept under its home directory. It is informational."
+    },
+    "describe": {
+      "everyMinute": "Every minute",
+      "everyNMinutes": "Every minute | Every {count} minutes",
+      "hourly": "Every hour at minute {minute}",
+      "daily": "Every day at {time}",
+      "weekly": "Every {weekday} at {time}",
+      "monthly": "On day {day} of every month at {time}"
     }
   }
 }

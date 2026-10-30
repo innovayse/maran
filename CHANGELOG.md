@@ -5,6 +5,12 @@ than a strict category list: what changed and why it matters to somebody running
 
 ## Unreleased
 
+**Sign-in screens and forms look and behave better.** The signed-out screens put the form on a glass card over the panel's glow, with full-height fields and button. Field labels are small capitals across the panel, and corners are a little rounder. An empty sign-in or reset request is caught on the spot, the error clears as soon as you type, and an old invitation message no longer follows you to the sign-in page. A list with nothing to choose from now says so instead of opening empty.
+
+**Clearer feedback and wording.** Creating an account, site, plan, database, login, scheduled task or firewall rule confirms with a message. A failed background task explains itself in your language instead of showing an internal code. Sizes read as MiB, GiB and TiB. Counts use the right plural in every language. Scheduled tasks read as sentences ("Every day at 03:05"). Confirmation buttons name what they do ("Delete site"), and they never start focused, so a stray Enter cannot delete anything.
+
+**The shell.** The jump-to search opens ready to type. The collapsed rail and search list modules in the sidebar's order. Menu names say where they lead. Switching the language renames the modules immediately. The current page is scrolled into view. The theme switch is on phones too and says what it will do. On phones, tables show that they scroll and keep their row actions in reach. Dialogs, menus and messages move gently, and not at all when you ask for reduced motion.
+
 **The sidebar has submenus.** A module with more than one page (Accounts with its list, the new-account
 form and Plans; Sites; Databases; Backups with its schedule and destinations) is now a section that
 opens and closes. The section holding the page you are on opens by itself, even from a bookmark;

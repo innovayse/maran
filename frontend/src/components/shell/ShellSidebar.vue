@@ -55,11 +55,15 @@
  * and ArrowUp move between visible links, ArrowRight opens the section of the focused parent, and
  * ArrowLeft closes it or, from a child, moves focus back to its parent.
  *
+ * **Current page.** A section's row is lit on every one of its children's pages, Plans under
+ * Accounts included (`UiNavLink`'s `active`), and the current row is scrolled into view on every
+ * navigation (issue #221).
+ *
  * **Density (issue #200).** 216px wide, 18px icons, tighter rows and group labels from tablet
  * width up; in the drawer (below 1024px) rows keep a 44px touch height (`UiNavLink`).
  */
 import { readStoredKeys } from '../../utils/readStoredKeys'
-import { computed, ref, watch, type ComputedRef, type Ref } from 'vue'
+import { computed, nextTick, ref, watch, type ComputedRef, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import UiBadge from '../ui/UiBadge.vue'
@@ -257,6 +261,36 @@ watch(
   },
   { immediate: true },
 )
+
+// The current row is scrolled into view on every navigation (issue #221): on a short window the
+// lit child of a lower section ("Backup list") sat hidden under the identity card. The wait for
+// the next tick lets a section that just opened render its children first. The list moves only as
+// far as needed, and not at all when the row is already visible.
+watch(
+  (): string => {
+    return route.fullPath
+  },
+  async (): Promise<void> => {
+    await nextTick()
+    const box = scroller.value
+    const current =
+      box?.querySelector<HTMLElement>('nav a[aria-current="page"]') ??
+      box?.querySelector<HTMLElement>('nav a.router-link-active')
+    if (box === null || box === undefined || current === null || current === undefined) {
+      return
+    }
+    // The scroller is moved by hand rather than with `scrollIntoView`, which also scrolls every
+    // scrollable ancestor, the shell's `overflow: hidden` frame included, and shifted the app bar.
+    const row = current.getBoundingClientRect()
+    const view = box.getBoundingClientRect()
+    if (row.top < view.top) {
+      box.scrollTop -= view.top - row.top
+    } else if (row.bottom > view.bottom) {
+      box.scrollTop += row.bottom - view.bottom
+    }
+  },
+  { immediate: true, flush: 'post' },
+)
 </script>
 
 <template>
@@ -327,6 +361,7 @@ watch(
                   <UiNavLink
                     class="min-w-0 flex-1"
                     :to="entry.target"
+                    :active="holdsCurrentRoute(entry)"
                     :data-nav-section="entry.key"
                     @click="chooseSection(entry.key)"
                   >

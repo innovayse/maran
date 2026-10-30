@@ -26,6 +26,8 @@ import UiInput from '../../components/ui/UiInput.vue'
 import UiPageHeading from '../../components/ui/UiPageHeading.vue'
 import UiSelect, { type SelectOption } from '../../components/ui/UiSelect.vue'
 import { useAccountsStore } from '../../stores/accounts'
+import { flashNoticeState } from '../../utils/flashNotice'
+import { formatMegabytes } from '../../utils/formatBytes'
 
 /**
  * Matches the server's `Name` rule exactly: lowercase, starts with a letter,
@@ -114,11 +116,13 @@ const planOptions: ComputedRef<SelectOption[]> = computed(() => {
   return store.plans.map((plan) => {
     return {
       value: plan.id,
-      label: t('accounts.form.planOption', {
-        name: plan.displayName,
-        disk: plan.diskQuotaMb,
-        sites: plan.maxSites,
-      }),
+      // The quota in a human unit and the site count as a plural form: `1048576 MB, 1 sites`
+      // was the raw figures (#222).
+      label: t(
+        'accounts.form.planOption',
+        { name: plan.displayName, disk: formatMegabytes(plan.diskQuotaMb), count: plan.maxSites },
+        plan.maxSites,
+      ),
     }
   })
 })
@@ -175,7 +179,11 @@ const submit = async (): Promise<void> => {
     ownerEmail: ownerEmail.value,
   })
   if (created !== null) {
-    await router.push({ name: 'account-detail', params: { id: created.id } })
+    await router.push({
+      name: 'account-detail',
+      params: { id: created.id },
+      state: flashNoticeState(t('accounts.form.created', { account: created.name })),
+    })
   }
 }
 

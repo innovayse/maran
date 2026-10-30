@@ -35,18 +35,24 @@ import UiEmptyState from '../../components/ui/UiEmptyState.vue'
 import UiIcon from '../../components/ui/UiIcon.vue'
 import UiPageHeading from '../../components/ui/UiPageHeading.vue'
 import UiSpinner from '../../components/ui/UiSpinner.vue'
+import UiToast from '../../components/ui/UiToast.vue'
 import UiTable from '../../components/ui/UiTable.vue'
 import UiTableCell from '../../components/ui/UiTableCell.vue'
 import UiTableHeaderCell from '../../components/ui/UiTableHeaderCell.vue'
 import UiTableRow from '../../components/ui/UiTableRow.vue'
 import { usePlansStore } from '../../stores/plans'
+import { formatMegabytes } from '../../utils/formatBytes'
 import type { ManagedPlan } from '../../types/plan'
+import { takeFlashNotice } from '../../utils/flashNotice'
 
 const { t } = useI18n()
 const store = usePlansStore()
 
 /** The plan whose deletion awaits confirmation, or `null` when none does. */
 const pending: Ref<ManagedPlan | null> = ref(null)
+
+/** The success toast's text, or `null` while none is showing. */
+const notice: Ref<string | null> = ref(null)
 
 /** Whether the panel answered successfully and reported no plans at all. */
 const isEmpty: ComputedRef<boolean> = computed(() => {
@@ -114,7 +120,18 @@ const confirm = async (): Promise<void> => {
   pending.value = null
 }
 
-onMounted(refresh)
+/**
+ * Hides the success toast.
+ * @returns Nothing.
+ */
+const dismissNotice = (): void => {
+  notice.value = null
+}
+
+onMounted(async () => {
+  notice.value = takeFlashNotice()
+  await refresh()
+})
 </script>
 
 <template>
@@ -169,7 +186,7 @@ onMounted(refresh)
                table inside its container and does not break into a column of fragments. -->
           <UiTableCell class="font-medium whitespace-nowrap">{{ plan.displayName }}</UiTableCell>
           <UiTableCell mono align="end" tone="secondary">{{ plan.accountCount }}</UiTableCell>
-          <UiTableCell mono align="end" class="whitespace-nowrap">{{ plan.diskQuotaMb }}</UiTableCell>
+          <UiTableCell mono align="end" class="whitespace-nowrap">{{ formatMegabytes(plan.diskQuotaMb) }}</UiTableCell>
           <UiTableCell mono align="end">{{ plan.maxSites }}</UiTableCell>
           <UiTableCell mono align="end">{{ plan.maxDatabases }}</UiTableCell>
           <UiTableCell mono align="end">{{ plan.maxSftpUsers }}</UiTableCell>
@@ -218,5 +235,10 @@ onMounted(refresh)
       @close="cancel"
       @confirm="confirm"
     />
+    <div class="pointer-events-none fixed inset-x-4 bottom-4 z-50 flex justify-end sm:left-auto">
+      <UiToast v-if="notice !== null" variant="success" :close-label="t('common.close')" @dismiss="dismissNotice">
+        {{ notice }}
+      </UiToast>
+    </div>
   </section>
 </template>

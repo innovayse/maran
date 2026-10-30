@@ -157,8 +157,10 @@ onBeforeUnmount((): void => {
         <div class="mb-2.5 flex h-11 flex-none items-center justify-between gap-2 pr-1 pl-2">
           <ShellWordmark />
           <div class="flex shrink-0 items-center gap-1">
+            <!-- Labelled here (issue #217): on a phone this is the only theme switch, and a bare
+                 sun or moon beside the close button says nothing about what it does. -->
             <div class="sm:hidden">
-              <ShellThemeSwitcher />
+              <ShellThemeSwitcher labelled />
             </div>
             <UiButton
               variant="ghost"

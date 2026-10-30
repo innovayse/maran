@@ -71,7 +71,7 @@ const rows: ComputedRef<AttentionRow[]> = computed(() => {
           class="inline-flex items-center gap-2 rounded-control text-text-secondary transition-colors hover:text-text-primary focus-visible:shadow-focus focus-visible:outline-none motion-reduce:transition-none"
         >
           <span class="font-mono font-semibold text-text-primary tabular-nums">{{ row.value }}</span>
-          <span>{{ t(`app.status.attention.${row.key}`) }}</span>
+          <span>{{ t(`app.status.attention.${row.key}`, row.value) }}</span>
           <UiIcon name="arrowRight" size="sm" />
         </RouterLink>
       </li>

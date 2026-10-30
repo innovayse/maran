@@ -41,6 +41,18 @@ import { onBeforeUnmount, onMounted, ref, useId, useTemplateRef, type Ref } from
  * design's `shadow-focus` (docs/design/redesign-2026-10/README.md: never rebuild it by hand) with
  * the outline removed; a shadow is drawn outside the wrapper's own box, which that box's `overflow`
  * does not clip, and the main region's padding leaves room for it.
+ *
+ * **An overflowing table says so, and says which way.** On a phone a cut-off column looks like the
+ * end of the table. While content is hidden past an edge, that edge carries a 12px fade into the
+ * table's surface, and the fades follow the scroll position: the left one appears once the user has
+ * scrolled, the right one goes once they reach the end. They are decoration
+ * (`pointer-events: none`, no ARIA): the region role above is what tells assistive technology.
+ *
+ * **The row action column stays on screen.** A last column aligned to the end (a row's actions
+ * menu, by this kit's convention: {@link UiTableCell} `align="end"`) is `position: sticky` at the
+ * right edge, painted with the surface colour so rows slide under it, and it carries a left shadow
+ * while there is more table to its left hidden beneath it. Scrolling to read a long row never
+ * scrolls away the control that acts on it.
  */
 
 /** Props accepted by {@link UiTable}. */
@@ -61,8 +73,31 @@ const tableElement = useTemplateRef<HTMLElement>('table')
 /** Whether the content is wider than the wrapper right now. */
 const overflows: Ref<boolean> = ref(false)
 
+/** Whether content is hidden past the left edge (the user has scrolled). */
+const hiddenStart: Ref<boolean> = ref(false)
+
+/** Whether content is hidden past the right edge (more to scroll to). */
+const hiddenEnd: Ref<boolean> = ref(false)
+
 /** Observer that re-measures on any size change of the wrapper or the table. */
 let observer: ResizeObserver | null = null
+
+/**
+ * Re-reads which edges hide content, so the fades follow the scroll position. Uses the absolute
+ * offset so a right-to-left layout, where `scrollLeft` runs negative, reads the same.
+ * @returns Nothing; updates `hiddenStart` and `hiddenEnd`.
+ */
+const onScroll = (): void => {
+  const element = scroller.value
+  if (element === null || !overflows.value) {
+    hiddenStart.value = false
+    hiddenEnd.value = false
+    return
+  }
+  const offset = Math.abs(element.scrollLeft)
+  hiddenStart.value = offset > 1
+  hiddenEnd.value = offset + element.clientWidth < element.scrollWidth - 1
+}
 
 /**
  * Re-measures the wrapper. A one-pixel tolerance keeps sub-pixel rounding from turning a table
@@ -72,6 +107,7 @@ let observer: ResizeObserver | null = null
 const measure = (): void => {
   const element = scroller.value
   overflows.value = element !== null && element.scrollWidth > element.clientWidth + 1
+  onScroll()
 }
 
 onMounted(() => {
@@ -92,25 +128,70 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div
-    ref="scroller"
-    class="w-full max-w-full overflow-x-auto focus-visible:shadow-focus focus-visible:outline-none"
-    :role="overflows ? 'region' : undefined"
-    :aria-labelledby="overflows ? captionId : undefined"
-    :tabindex="overflows ? 0 : undefined"
-  >
-    <table ref="table" class="w-full border-collapse text-left text-sm">
-      <caption :id="captionId" class="sr-only">
-        {{
-          caption
-        }}
-      </caption>
-      <thead>
-        <slot name="head" />
-      </thead>
-      <tbody>
-        <slot />
-      </tbody>
-    </table>
+  <!-- The outer box only positions the edge fades; the scroller stays the table's direct parent. -->
+  <div class="relative w-full max-w-full">
+    <div
+      ref="scroller"
+      class="ui-table-scroller w-full max-w-full overflow-x-auto focus-visible:shadow-focus focus-visible:outline-none"
+      :role="overflows ? 'region' : undefined"
+      :aria-labelledby="overflows ? captionId : undefined"
+      :tabindex="overflows ? 0 : undefined"
+      :data-hidden-end="hiddenEnd ? 'true' : undefined"
+      data-testid="table-scroller"
+      @scroll.passive="onScroll"
+    >
+      <table ref="table" class="w-full border-collapse text-left text-sm">
+        <caption :id="captionId" class="sr-only">
+          {{
+            caption
+          }}
+        </caption>
+        <thead>
+          <slot name="head" />
+        </thead>
+        <tbody>
+          <slot />
+        </tbody>
+      </table>
+    </div>
+    <span
+      v-if="hiddenStart"
+      class="pointer-events-none absolute inset-y-0 left-0 w-3 bg-linear-to-r from-surface-1 to-transparent"
+      data-testid="table-fade-start"
+      aria-hidden="true"
+    />
+    <span
+      v-if="hiddenEnd"
+      class="pointer-events-none absolute inset-y-0 right-0 w-3 bg-linear-to-l from-surface-1 to-transparent"
+      data-testid="table-fade-end"
+      aria-hidden="true"
+    />
   </div>
 </template>
+
+<style scoped>
+/* The row action column: the last cell of every row when it is end-aligned. Sticky at the right
+   edge, painted with the table's surface so the rows scrolling beneath do not show through. */
+.ui-table-scroller :deep(tr > [data-align='end']:last-child) {
+  position: sticky;
+  right: 0;
+  z-index: 1;
+  background-color: var(--s1);
+}
+
+.ui-table-scroller :deep(tbody tr:hover > [data-align='end']:last-child) {
+  background-color: var(--s2);
+}
+
+/* While columns are hidden beneath it, the sticky column casts a short shadow to its left so it
+   reads as lying ON the table rather than being its last column. */
+.ui-table-scroller[data-hidden-end='true'] :deep(tr > [data-align='end']:last-child)::before {
+  content: '';
+  position: absolute;
+  inset-block: 0;
+  left: -0.75rem;
+  width: 0.75rem;
+  pointer-events: none;
+  background: linear-gradient(to left, color-mix(in srgb, var(--bg) 45%, transparent), transparent);
+}
+</style>

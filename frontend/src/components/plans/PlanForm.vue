@@ -36,6 +36,7 @@ import UiCard from '../ui/UiCard.vue'
 import UiForm from '../ui/UiForm.vue'
 import UiInput from '../ui/UiInput.vue'
 import UiSectionHeading from '../ui/UiSectionHeading.vue'
+import { formatMegabytes } from '../../utils/formatBytes'
 import type { ManagedPlan, PlanRequest } from '../../types/plan'
 
 /** The limits a plan states, by the name the request and the locale file both use. */
@@ -277,7 +278,12 @@ const cancel = (): void => {
         <!-- Under the figure it concerns, not at the top of the page: the sentence is about the
              number the administrator has just changed. -->
         <UiAlert v-if="diskIsLowered && plan !== null" class="mt-4" variant="warning">
-          {{ t('plans.form.diskLowered', { from: plan.diskQuotaMb, to: typedDiskQuota }) }}
+          {{
+            t('plans.form.diskLowered', {
+              from: formatMegabytes(plan.diskQuotaMb),
+              to: formatMegabytes(typedDiskQuota ?? 0),
+            })
+          }}
         </UiAlert>
 
         <div class="mt-5 flex flex-wrap justify-end gap-2 border-t border-border-subtle pt-4">

@@ -27,7 +27,7 @@ import UiTableCell from '../ui/UiTableCell.vue'
 import UiTableHeaderCell from '../ui/UiTableHeaderCell.vue'
 import UiTableRow from '../ui/UiTableRow.vue'
 import { useLocaleStore } from '../../stores/locale'
-import { formatDate } from '../../utils/formatDate'
+import { formatIsoTimestamp } from '../../utils/formatIsoTimestamp'
 import type { WhitelistEntry } from '../../types/firewall'
 
 /** Props accepted by {@link FirewallWhitelistTable}. */
@@ -134,7 +134,7 @@ watch(
         <span class="block max-w-md wrap-anywhere">{{ entry.note }}</span>
       </UiTableCell>
       <UiTableCell mono tone="muted" class="whitespace-nowrap">
-        {{ formatDate(entry.createdAt, localeStore.current) }}
+        {{ formatIsoTimestamp(entry.createdAt, localeStore.current) }}
       </UiTableCell>
       <UiTableCell align="end">
         <UiDropdown

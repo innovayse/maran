@@ -37,11 +37,12 @@
  */
 import { computed, onMounted, ref, type ComputedRef, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useRouter } from 'vue-router'
+import { useRouter, RouterLink } from 'vue-router'
 import UiAlert from '../../components/ui/UiAlert.vue'
 import UiBadge from '../../components/ui/UiBadge.vue'
 import UiButton from '../../components/ui/UiButton.vue'
 import UiCard from '../../components/ui/UiCard.vue'
+import UiIcon from '../../components/ui/UiIcon.vue'
 import UiDescriptionItem from '../../components/ui/UiDescriptionItem.vue'
 import UiDescriptionList from '../../components/ui/UiDescriptionList.vue'
 import UiEmptyState from '../../components/ui/UiEmptyState.vue'
@@ -49,11 +50,13 @@ import UiConfirm from '../../components/ui/UiConfirm.vue'
 import UiPageHeading from '../../components/ui/UiPageHeading.vue'
 import UiSectionHeading from '../../components/ui/UiSectionHeading.vue'
 import UiSpinner from '../../components/ui/UiSpinner.vue'
+import UiToast from '../../components/ui/UiToast.vue'
 import AccountDeleteDialog from '../../components/accounts/AccountDeleteDialog.vue'
 import AccountInvitationCard from '../../components/accounts/AccountInvitationCard.vue'
 import { useAccountsStore } from '../../stores/accounts'
 import { useLocaleStore } from '../../stores/locale'
 import { formatDate } from '../../utils/formatDate'
+import { takeFlashNotice } from '../../utils/flashNotice'
 
 /** Props accepted by this page, bound from the route. */
 const props = defineProps<{
@@ -75,12 +78,22 @@ const pending: Ref<PendingAction> = ref(null)
 /** Whether the deletion dialog is open. */
 const deleting: Ref<boolean> = ref(false)
 
+/** The success toast's text, or `null` while none is showing. */
+const notice: Ref<string | null> = ref(null)
+
 /** The confirmation's title, naming the account and what would be done to it. */
 const confirmationTitle: ComputedRef<string> = computed(() => {
   const account = accountsStore.selected?.name ?? ''
   return pending.value === 'suspend'
     ? t('accounts.detail.confirmSuspendTitle', { account })
     : t('accounts.detail.confirmReactivateTitle', { account })
+})
+
+/** The confirm button's label, naming the action rather than a bare "Confirm" (#218). */
+const confirmationLabel: ComputedRef<string> = computed(() => {
+  return pending.value === 'suspend'
+    ? t('accounts.detail.confirmSuspendAction')
+    : t('accounts.detail.confirmReactivateAction')
 })
 
 /** The consequence the confirmation asks the operator to weigh. */
@@ -164,7 +177,16 @@ const remove = async (): Promise<void> => {
   await router.push({ name: 'accounts' })
 }
 
+/**
+ * Hides the success toast.
+ * @returns Nothing.
+ */
+const dismissNotice = (): void => {
+  notice.value = null
+}
+
 onMounted(async () => {
+  notice.value = takeFlashNotice()
   await accountsStore.loadOne(props.id)
 })
 </script>
@@ -184,9 +206,14 @@ onMounted(async () => {
         mono
       >
         <template #actions>
-          <UiButton variant="ghost" :to="{ name: 'accounts' }">
+          <!-- A way back is navigation, so it looks like a link, not a button (#218). -->
+          <RouterLink
+            :to="{ name: 'accounts' }"
+            class="inline-flex items-center gap-1 rounded-control text-sm font-medium text-accent-text underline underline-offset-4 hover:no-underline focus-visible:shadow-focus focus-visible:outline-none"
+          >
+            <UiIcon name="chevronLeft" size="sm" />
             {{ t('accounts.detail.backToList') }}
-          </UiButton>
+          </RouterLink>
         </template>
       </UiPageHeading>
 
@@ -256,7 +283,7 @@ onMounted(async () => {
         :open="pending !== null"
         :title="confirmationTitle"
         :question="confirmationText"
-        :confirm-label="t('common.confirm')"
+        :confirm-label="confirmationLabel"
         :cancel-label="t('common.cancel')"
         :close-label="t('common.close')"
         :acting="accountsStore.acting"
@@ -287,5 +314,10 @@ onMounted(async () => {
       :title="t('accounts.detail.notFoundTitle')"
       :description="t('accounts.detail.notFoundDescription')"
     />
+    <div class="pointer-events-none fixed inset-x-4 bottom-4 z-50 flex justify-end sm:left-auto">
+      <UiToast v-if="notice !== null" variant="success" :close-label="t('common.close')" @dismiss="dismissNotice">
+        {{ notice }}
+      </UiToast>
+    </div>
   </section>
 </template>

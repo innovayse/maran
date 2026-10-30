@@ -12,7 +12,7 @@
       "searchLabel": "Фильтр аккаунтов",
       "searchPlaceholder": "Фильтр по имени или домену…",
       "searchClear": "Очистить фильтр",
-      "resultCount": "{shown} из {total} аккаунтов",
+      "resultCount": "{shown} из {total} аккаунта | {shown} из {total} аккаунтов | {shown} из {total} аккаунтов",
       "loading": "Загрузка аккаунтов…",
       "emptyTitle": "Аккаунтов пока нет",
       "emptyDescription": "Создайте первый хостинговый аккаунт, чтобы начать работу.",
@@ -50,7 +50,8 @@
         "ownerEmailRequired": "Email владельца обязателен.",
         "ownerEmailInvalid": "Email владельца должен быть корректным адресом электронной почты."
       },
-      "planOption": "{name} — {disk} МБ, сайтов: {sites}"
+      "planOption": "{name} — {disk}, {count} сайт | {name} — {disk}, {count} сайта | {name} — {disk}, {count} сайтов",
+      "created": "Аккаунт {account} создан."
     },
     "detail": {
       "heading": "Аккаунт",
@@ -70,7 +71,9 @@
       "confirmReactivateTitle": "Возобновить аккаунт {account}",
       "resendInvitation": "Отправить приглашение повторно",
       "invitationResent": "Новое приглашение отправлено. Панель не может подтвердить его доставку — очередь почты не повторяет отправку.",
-      "suspendedNotice": "Аккаунт приостановлен. Его сайты не отвечают, а пользователь не может войти."
+      "suspendedNotice": "Аккаунт приостановлен. Его сайты не отвечают, а пользователь не может войти.",
+      "confirmSuspendAction": "Приостановить аккаунт",
+      "confirmReactivateAction": "Возобновить аккаунт"
     },
     "delete": {
       "title": "Удаление {account}",

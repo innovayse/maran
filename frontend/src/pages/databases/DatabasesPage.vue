@@ -41,6 +41,7 @@ import UiTable from '../../components/ui/UiTable.vue'
 import UiTableCell from '../../components/ui/UiTableCell.vue'
 import UiTableHeaderCell from '../../components/ui/UiTableHeaderCell.vue'
 import UiTableRow from '../../components/ui/UiTableRow.vue'
+import UiToast from '../../components/ui/UiToast.vue'
 import DatabaseCreateForm from '../../components/databases/DatabaseCreateForm.vue'
 import DatabaseCreatedDialog from '../../components/databases/DatabaseCreatedDialog.vue'
 import { useAccountsStore } from '../../stores/accounts'
@@ -59,6 +60,9 @@ const localeStore = useLocaleStore()
 
 /** The create form, so an accepted create can empty the fields it owns. */
 const form = useTemplateRef<{ reset: () => void }>('form')
+
+/** The success toast's text after a create, or `null` while none is showing. */
+const notice: Ref<string | null> = ref(null)
 
 /** The database whose action is awaiting confirmation, or the empty string when none is. */
 const pendingId: Ref<string> = ref('')
@@ -84,6 +88,13 @@ const confirmationTitle: ComputedRef<string> = computed(() => {
   return pendingAction.value === 'drop'
     ? t('databases.list.confirmDropTitle', { name: pendingName.value })
     : t('databases.list.confirmResetPasswordTitle', { name: pendingName.value })
+})
+
+/** The confirm button's label, naming the action rather than a bare "Confirm" (#218). */
+const confirmationLabel: ComputedRef<string> = computed(() => {
+  return pendingAction.value === 'drop'
+    ? t('databases.list.confirmDropAction')
+    : t('databases.list.confirmResetPasswordAction')
 })
 
 /** The consequence the confirmation asks the operator to weigh. */
@@ -123,6 +134,7 @@ const refresh = async (): Promise<void> => {
  */
 const create = async (request: CreateDatabaseRequest): Promise<void> => {
   if (await store.create(request)) {
+    notice.value = t('databases.list.created')
     form.value?.reset()
   }
 }
@@ -171,6 +183,14 @@ const confirm = async (): Promise<void> => {
  */
 const dismissCredential = (): void => {
   store.dismissCredential()
+}
+
+/**
+ * Hides the success toast.
+ * @returns Nothing.
+ */
+const dismissNotice = (): void => {
+  notice.value = null
 }
 
 onMounted(refresh)
@@ -283,7 +303,7 @@ onBeforeUnmount(dismissCredential)
       :open="pendingId.length > 0"
       :title="confirmationTitle"
       :question="confirmationText"
-      :confirm-label="t('common.confirm')"
+      :confirm-label="confirmationLabel"
       :cancel-label="t('common.cancel')"
       :close-label="t('common.close')"
       :acting="store.acting"
@@ -306,5 +326,10 @@ onBeforeUnmount(dismissCredential)
       :password="store.revealedCredential?.password ?? ''"
       @close="dismissCredential"
     />
+    <div class="pointer-events-none fixed inset-x-4 bottom-4 z-50 flex justify-end sm:left-auto">
+      <UiToast v-if="notice !== null" variant="success" :close-label="t('common.close')" @dismiss="dismissNotice">
+        {{ notice }}
+      </UiToast>
+    </div>
   </section>
 </template>

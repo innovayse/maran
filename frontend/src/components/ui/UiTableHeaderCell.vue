@@ -18,6 +18,9 @@
  * one-word-per-line. The table scrolls inside its own container ({@link UiTable}), so a wide
  * heading widens the table, not the page. Free-standing uppercase labels elsewhere (cards, lists)
  * do wrap anywhere; a table column is the exception because it has somewhere to scroll.
+ *
+ * `data-align` lets {@link UiTable} keep an end-aligned last heading sticky over the sticky action
+ * column beneath it.
  */
 import { computed, type ComputedRef } from 'vue'
 
@@ -40,8 +43,9 @@ const alignment: ComputedRef<string> = computed(() => {
 
 <template>
   <th
-    class="px-3 pt-0.5 pb-2 font-display text-xs font-extrabold tracking-caps whitespace-nowrap text-text-muted uppercase"
+    class="px-3 pt-0.5 pb-1.5 font-display text-xs font-extrabold tracking-caps whitespace-nowrap text-text-muted uppercase"
     :class="alignment"
+    :data-align="align"
     scope="col"
   >
     <slot />
